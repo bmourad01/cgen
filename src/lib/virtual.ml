@@ -502,6 +502,7 @@ module Insn = struct
 
   let insn i = i.insn
   let label i = i.label
+  let is_label i l = Label.(i.label = l)
 
   let lhs_of_phi i = Phi.lhs i.insn
   let lhs_of_data i = Data.lhs i.insn
@@ -573,21 +574,20 @@ module Blk = struct
     b with ctrl = f b.ctrl;
   }
 
+  let index_of xs l =
+    Array.findi xs ~f:(fun _ x -> Insn.is_label x l) |> Option.map ~f:fst
+
   let prepend ?(before = None) xs x = match before with
     | None -> Array.push_front xs x
-    | Some l ->
-      Array.findi xs ~f:(fun _ x ->
-          Label.(l = Insn.label x)) |>
-      Option.value_map ~default:xs ~f:(fun (i, _) ->
-          Array.insert xs x i)
+    | Some l -> index_of xs l |> function
+      | Some i -> Array.insert xs x i
+      | None -> xs
 
   let append ?(after = None) xs x = match after with
     | None -> Array.push_back xs x
-    | Some l ->
-      Array.findi xs ~f:(fun _ x ->
-          Label.(l = Insn.label x)) |>
-      Option.value_map ~default:xs ~f:(fun (i, _) ->
-          Array.insert xs x (i + 1))
+    | Some l -> index_of xs l |> function
+      | Some i -> Array.insert xs x (i + 1)
+      | None -> xs
 
   let insert_phi b p = {
     b with phi = Array.push_front b.phi p;
