@@ -29,6 +29,9 @@ module Array = struct
         if i < last
         then Format.fprintf ppf "%a@;" ppx x
         else Format.fprintf ppf "%a" ppx x)
+
+  let concat_map xs ~f =
+    Array.fold_right xs ~init:[] ~f:(fun x acc -> f x @ acc) |> Array.of_list
 end
 
 module Insn = struct
@@ -558,15 +561,13 @@ module Blk = struct
     b with data = Array.map b.data ~f;
   }
 
-  let concat_map_phi b ~f =
-    let f = Fn.compose Array.of_list f in {
-      b with phi = Array.concat_map b.phi ~f;
-    }
+  let concat_map_phi b ~f = {
+    b with phi = Array.concat_map b.phi ~f;
+  }
 
-  let concat_map_data b ~f =
-    let f = Fn.compose Array.of_list f in {
-      b with data = Array.concat_map b.data ~f;
-    }
+  let concat_map_data b ~f = {
+    b with data = Array.concat_map b.data ~f;
+  }
 
   let map_ctrl b ~f = {
     b with ctrl = f b.ctrl;
