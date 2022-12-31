@@ -22,6 +22,9 @@ module Insn : sig
     | `var of Var.t
   ]
 
+  (** [var_of_arg a] returns [Some x] if [a] is a variable [x]. *)
+  val var_of_arg : arg -> Var.t option
+
   (** Pretty-prints an argument to an instruction. *)
   val pp_arg : Format.formatter -> arg -> unit
 
@@ -59,19 +62,26 @@ module Insn : sig
     (** Creates a phi instruction. *)
     val create :
       ?ins:(Label.t * arg) list ->
-      dst:Var.t ->
+      lhs:Var.t ->
       typ:[Type.basic | Type.special] ->
       unit ->
       t
 
     (** The destination variable of the instruction. *)
-    val dst : t -> Var.t
+    val lhs : t -> Var.t
 
     (** The type of the variable. *)
     val typ : t -> [Type.basic | Type.special]
 
     (** The incoming edges of the instruction. *)
     val ins : t -> (Label.t * arg) seq
+
+    (** [has_lhs p x] [true] if the instruction [p] defines the
+        variable [x]. *)
+    val has_lhs : t -> Var.t -> bool
+
+    (** Returns the set of free variables in the instruction. *)
+    val free_vars : t -> Var.Set.t
 
     (** Pretty-prints a phi instruction. *)
     val pp : Format.formatter -> t -> unit
@@ -91,6 +101,9 @@ module Insn : sig
       | `urem of Type.basic * arg * arg
     ]
 
+    (** Returns the set of free variables in the arithmetic operation. *)
+    val free_vars_of_arith : arith -> Var.Set.t
+
     (** Pretty-prints an arithmetic operation. *)
     val pp_arith : Format.formatter -> arith -> unit
 
@@ -104,6 +117,9 @@ module Insn : sig
       | `xor  of Type.imm * arg * arg
     ]
 
+    (** Returns the set of free variables in the bitwise operation. *)
+    val free_vars_of_bits : bits -> Var.Set.t
+
     (** Pretty-prints a bitwise operation. *)
     val pp_bits : Format.formatter -> bits -> unit
 
@@ -113,6 +129,9 @@ module Insn : sig
       | `load  of Type.basic * Var.t * arg
       | `store of Type.basic * Var.t * arg * arg
     ]
+
+    (** Returns the set of free variables in the memory operation. *)
+    val free_vars_of_mem : mem -> Var.Set.t
 
     (** Pretty-prints a memory operation. *)
     val pp_mem : Format.formatter -> mem -> unit
@@ -130,9 +149,11 @@ module Insn : sig
       | `sgt of Type.basic * arg * arg
       | `sle of Type.basic * arg * arg
       | `slt of Type.basic * arg * arg
-      | `sne of Type.basic * arg * arg
       | `uo  of Type.basic * arg * arg
     ]
+
+    (** Returns the set of free variables in the comparison operation. *)
+    val free_vars_of_cmp : cmp -> Var.Set.t
 
     (** Pretty-prints a comparison operation. *)
     val pp_cmp : Format.formatter -> cmp -> unit
@@ -150,6 +171,9 @@ module Insn : sig
       | `zext   of Type.imm * arg
     ]
 
+    (** Returns the set of free variables in the cast operation. *)
+    val free_vars_of_cast : cast -> Var.Set.t
+
     (** Pretty-prints a cast operation. *)
     val pp_cast : Format.formatter -> cast -> unit 
 
@@ -158,6 +182,9 @@ module Insn : sig
       | `copy of Type.basic * arg
       | `select of Type.basic * Var.t * arg * arg
     ]
+
+    (** Returns the set of free variables in the copy operation. *)
+    val free_vars_of_copy : copy -> Var.Set.t
 
     (** Pretty-prints a copy operation. *)
     val pp_copy : Format.formatter -> copy -> unit
@@ -172,6 +199,9 @@ module Insn : sig
       | copy
     ]
 
+    (** Returns the set of free variables in the operation. *)
+    val free_vars_of_op : op -> Var.Set.t
+
     (** Pretty-prints an operation. *)
     val pp_op : Format.formatter -> op -> unit
 
@@ -185,6 +215,9 @@ module Insn : sig
       | `callv of global * arg list
     ]
 
+    (** Returns the set of free variables in the void call. *)
+    val free_vars_of_void_call : void_call -> Var.Set.t
+
     (** A call that assigns a result, hence the [a] prefix in the
         constructor names.
 
@@ -196,11 +229,17 @@ module Insn : sig
       | `acallv of Var.t * Type.basic * global * arg list
     ]
 
+    (** Returns the set of free variables in the assign call. *)
+    val free_vars_of_assign_call : assign_call -> Var.Set.t
+
     (** A call instruction. *)
     type call = [
       | void_call
       | assign_call
     ]
+
+    (** Returns the set of free variables in the call. *)
+    val free_vars_of_call : call -> Var.Set.t
 
     (** Returns [true] if the call is variadic. *)
     val is_variadic : call -> bool
@@ -213,6 +252,16 @@ module Insn : sig
       | call
       | `op of Var.t * op
     ]
+
+    (** Returns the assigned variable of the operation, if it exists. *)
+    val lhs : t -> Var.t option
+
+    (** [has_lhs d x] returns [true] if the instruction [d] assigns the
+        variable [x]. *)
+    val has_lhs : t -> Var.t -> bool
+
+    (** Returns the set of free variables in the data instruction. *)
+    val free_vars : t -> Var.Set.t
 
     (** Pretty-prints a data instruction. *)
     val pp : Format.formatter -> t -> unit
@@ -242,6 +291,9 @@ module Insn : sig
       | `switch of Type.imm * Var.t * Label.t * (Bitvec.t * Label.t) list
     ]
 
+    (** Returns the set of free variables in the control-flow instruction. *)
+    val free_vars : t -> Var.Set.t
+
     (** Pretty-prints a control-flow instruction. *)
     val pp : Format.formatter -> t -> unit
   end
@@ -268,6 +320,21 @@ module Insn : sig
   (** Returns the label of the instruction. *)
   val label : 'a t -> Label.t
 
+  (** Returns the assigned variable of the phi instruction. *)
+  val lhs_of_phi : phi -> Var.t
+
+  (** Returns the assigned variable of the data instruction, if it exists. *)
+  val lhs_of_data : data -> Var.t option
+
+  (** Returns the set of free variables in the phi instruction. *)
+  val free_vars_of_phi : phi -> Var.Set.t
+
+  (** Returns the set of free variables in the data instruction. *)
+  val free_vars_of_data : data -> Var.Set.t
+
+  (** Returns the set of free variables in the control-flow instruction. *)
+  val free_vars_of_ctrl : ctrl -> Var.Set.t
+
   (** Pretty-prints a phi instruction. *)
   val pp_phi : Format.formatter -> phi -> unit
 
@@ -277,13 +344,13 @@ module Insn : sig
   (** Pretty-prints a control instruction. *)
   val pp_ctrl : Format.formatter -> ctrl -> unit
 
-  (** Equivalent to [Phi.pp]. *)
+  (** Pretty-prints a phi instruction with human-readable labels. *)
   val pp_phi_hum : Format.formatter -> phi -> unit
 
   (** Equivalent to [Data.pp]. *)
   val pp_data_hum : Format.formatter -> data -> unit
 
-  (** Equivalent to [Ctrl.pp]. *)
+  (** Pretty-prints a control instruction with human-readable labels. *)
   val pp_ctrl_hum : Format.formatter -> ctrl -> unit
 end
 
@@ -309,17 +376,33 @@ module Blk : sig
   (** Returns the sequence of data instructions. *)
   val data : t -> Insn.data seq
 
-  (** [nth_data b n] returns the [n]th data instruction in block [b].
-      Will raise if [n] is an invalid index. *)
-  val nth_data : t -> int -> Insn.data
-
   (** Returns the control-flow instruction (also called the terminator)
       of the block. *)
   val ctrl : t -> Insn.ctrl
 
+  (** Returns the set of free variables in the block. *)
+  val free_vars : t -> Var.Set.t
+
+  (** [uses_var b x] returns [true] if the variable [x] appears in the
+      free variables of [b]. *)
+  val uses_var : t -> Var.t -> bool
+
+  (** [defines_var b x] returns [true] if the variable [x] is defined
+      in the block [b]. *)
+  val defines_var : t -> Var.t -> bool
+
+  (** [map_phi b ~f] returns [b] with each phi instruction applied
+      to [f]. *)
+  val map_phi : t -> f:(Insn.phi -> Insn.phi) -> t
+
   (** [map_data b ~f] returns [b] with each data instruction applied
       to [f]. *)
   val map_data : t -> f:(Insn.data -> Insn.data) -> t
+
+  (** [concat_map_phi b ~f] is similar to [map_phi], but [f] instead
+      returns a list of phi instructions, thus it could either add or
+      remove phi instructions from [b]. *)
+  val concat_map_phi : t -> f:(Insn.phi -> Insn.phi list) -> t
 
   (** [concat_map_data b ~f] is similar to [map_data], but [f] instead
       returns a list of data instructions, thus it could either add or
@@ -391,25 +474,3 @@ module Fn : sig
 end
 
 type fn = Fn.t
-
-(* (\** A global data object. *\) *)
-(* module Data : sig *)
-(*   type t *)
-
-(*   (\** Creates a data object. *)
-
-(*       Raises [Invalid_argument] if [vals] is empty. *)
-(*   *\) *)
-(*   val create : name:string -> vals:const list -> t *)
-
-(*   (\** Returns the name of the data object. *\) *)
-(*   val name : t -> string *)
-
-(*   (\** Returns the elements of the data object. *\) *)
-(*   val vals : t -> const seq *)
-(* end *)
-
-(* type data = Data.t *)
-
-(* (\** A program (or more accurately, a compilation unit). *\) *)
-(* type t *)

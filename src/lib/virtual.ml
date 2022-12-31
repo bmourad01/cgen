@@ -43,6 +43,10 @@ module Insn = struct
     | `var of Var.t
   ]
 
+  let var_of_arg = function
+    | `var v -> Some v
+    | _ -> None
+
   let pp_arg ppf : arg -> unit = function
     | `var v -> Format.fprintf ppf "%a" Var.pp v
     | `sym s -> Format.fprintf ppf "@@%s" s
@@ -85,20 +89,27 @@ module Insn = struct
 
   module Phi = struct
     type t = {
-      dst : Var.t;
+      lhs : Var.t;
       typ : [Type.basic | Type.special];
       ins : arg Label.Map.t;
     }
 
-    let create ?(ins = []) ~dst ~typ () = {
-      dst;
+    let create ?(ins = []) ~lhs ~typ () = {
+      lhs;
       typ;
       ins = Label.Map.of_alist_exn ins;
     }
 
-    let dst p = p.dst
+    let lhs p = p.lhs
     let typ p = p.typ
     let ins p = Map.to_sequence p.ins
+    let has_lhs p v = Var.(p.lhs = v)
+
+    let free_vars p =
+      Map.to_sequence p.ins |>
+      Seq.map ~f:snd |>
+      Seq.filter_map ~f:var_of_arg |>
+      Var.Set.of_sequence
 
     let rec pp_ins ppl ppf = function
       | (l, x) :: (_ :: _ as rest) ->
@@ -110,7 +121,7 @@ module Insn = struct
     let pp_self ppl ppf p =
       let ins = Map.to_alist p.ins in
       Format.fprintf ppf "%a = phi.%a [@[<v 0>%a@]]"
-        Var.pp p.dst Type.pp (p.typ :> Type.t) (pp_ins ppl) ins
+        Var.pp p.lhs Type.pp (p.typ :> Type.t) (pp_ins ppl) ins
 
     let pp = pp_self Label.pp
     let pp_hum = pp_self Label.pp_hum
@@ -127,6 +138,18 @@ module Insn = struct
       | `udiv of Type.basic * arg * arg
       | `urem of Type.basic * arg * arg
     ]
+
+    let free_vars_of_arith : arith -> Var.Set.t = function
+      | `add  (_, l, r)
+      | `div  (_, l, r)
+      | `mul  (_, l, r)
+      | `rem  (_, l, r)
+      | `sub  (_, l, r)
+      | `udiv (_, l, r)
+      | `urem (_, l, r) ->
+        List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
+      | `neg  (_, a) ->
+        var_of_arg a |> Option.to_list |> Var.Set.of_list
 
     let pp_arith ppf : arith -> unit = function
       | `add (t, x, y) ->
@@ -155,6 +178,15 @@ module Insn = struct
       | `xor  of Type.imm * arg * arg
     ]
 
+    let free_vars_of_bits : bits -> Var.Set.t = function
+      | `and_ (_, l, r)
+      | `or_  (_, l, r)
+      | `sar  (_, l, r)
+      | `shl  (_, l, r)
+      | `shr  (_, l, r)
+      | `xor  (_, l, r) ->
+        List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
+
     let pp_bits ppf : bits -> unit = function
       | `and_ (t, x, y) ->
         Format.fprintf ppf "and.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
@@ -174,6 +206,13 @@ module Insn = struct
       | `load  of Type.basic * Var.t * arg
       | `store of Type.basic * Var.t * arg * arg
     ]
+
+    let free_vars_of_mem : mem -> Var.Set.t = function
+      | `load  (_, x, a) ->
+        var_of_arg a |> Option.to_list |> List.cons x |> Var.Set.of_list
+      | `store (_, x, a, v) ->
+        List.filter_map [a; v] ~f:var_of_arg |> List.cons x |> Var.Set.of_list
+      | `alloc _ -> Var.Set.empty
 
     let pp_mem ppf : mem -> unit = function
       | `alloc n ->
@@ -196,9 +235,23 @@ module Insn = struct
       | `sgt of Type.basic * arg * arg
       | `sle of Type.basic * arg * arg
       | `slt of Type.basic * arg * arg
-      | `sne of Type.basic * arg * arg
       | `uo  of Type.basic * arg * arg
     ]
+
+    let free_vars_of_cmp : cmp -> Var.Set.t = function
+      | `eq  (_, l, r)
+      | `ge  (_, l, r)
+      | `gt  (_, l, r)
+      | `le  (_, l, r)
+      | `lt  (_, l, r)
+      | `ne  (_, l, r)
+      | `o   (_, l, r)
+      | `sge (_, l, r)
+      | `sgt (_, l, r)
+      | `sle (_, l, r)
+      | `slt (_, l, r)
+      | `uo  (_, l, r) ->
+        List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
 
     let pp_cmp ppf : cmp -> unit = function
       | `eq (t, x, y) ->
@@ -223,8 +276,6 @@ module Insn = struct
         Format.fprintf ppf "sle.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
       | `slt (t, x, y) ->
         Format.fprintf ppf "slt.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `sne (t, x, y) ->
-        Format.fprintf ppf "sne.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
       | `uo (t, x, y) ->
         Format.fprintf ppf "uo.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
 
@@ -239,6 +290,18 @@ module Insn = struct
       | `uitof  of Type.imm * Type.fp * arg
       | `zext   of Type.imm * arg
     ]
+
+    let free_vars_of_cast : cast -> Var.Set.t = function
+      | `bits   (_, a)
+      | `ftosi  (_, _, a)
+      | `ftoui  (_, _, a)
+      | `ftrunc (_, a)
+      | `itrunc (_, a)
+      | `sext   (_, a)
+      | `sitof  (_, _, a)
+      | `uitof  (_, _, a)
+      | `zext   (_, a) ->
+        var_of_arg a |> Option.to_list |> Var.Set.of_list
 
     let pp_cast ppf : cast -> unit = function
       | `bits (t, x) ->
@@ -261,9 +324,15 @@ module Insn = struct
         Format.fprintf ppf "zext.%a %a" Type.pp_imm t pp_arg x
 
     type copy = [
-      | `copy of Type.basic * arg
+      | `copy   of Type.basic * arg
       | `select of Type.basic * Var.t * arg * arg
     ]
+
+    let free_vars_of_copy : copy -> Var.Set.t = function
+      | `copy (_, a) ->
+        var_of_arg a |> Option.to_list |> Var.Set.of_list
+      | `select (_, x, t, f) ->
+        List.filter_map [t; f] ~f:var_of_arg |> List.cons x |> Var.Set.of_list
 
     let pp_copy ppf : copy -> unit = function
       | `copy (t, x) ->
@@ -281,6 +350,14 @@ module Insn = struct
       | copy
     ]
 
+    let free_vars_of_op : op -> Var.Set.t = function
+      | #arith as a -> free_vars_of_arith a
+      | #bits  as b -> free_vars_of_bits b
+      | #mem   as m -> free_vars_of_mem m
+      | #cmp   as c -> free_vars_of_cmp c
+      | #cast  as c -> free_vars_of_cast c
+      | #copy  as c -> free_vars_of_copy c
+
     let pp_op ppf : op -> unit = function
       | #arith as a -> Format.fprintf ppf "%a" pp_arith a
       | #bits  as b -> Format.fprintf ppf "%a" pp_bits b
@@ -294,15 +371,29 @@ module Insn = struct
       | `callv of global * arg list
     ]
 
+    let free_vars_of_void_call : void_call -> Var.Set.t = function
+      | `call  (_, args)
+      | `callv (_, args) ->
+        List.filter_map args ~f:var_of_arg |> Var.Set.of_list
+
     type assign_call = [
       | `acall  of Var.t * Type.basic * global * arg list
       | `acallv of Var.t * Type.basic * global * arg list
     ]
 
+    let free_vars_of_assign_call : assign_call -> Var.Set.t = function
+      | `acall  (x, _, _, args)
+      | `acallv (x, _, _, args) ->
+        List.filter_map args ~f:var_of_arg |> List.cons x |> Var.Set.of_list
+
     type call = [
       | void_call
       | assign_call
     ]
+
+    let free_vars_of_call : call -> Var.Set.t = function
+      | #void_call   as v -> free_vars_of_void_call v
+      | #assign_call as a -> free_vars_of_assign_call a
 
     let is_variadic : call -> bool = function
       | `acallv _ | `callv _ -> true
@@ -334,6 +425,21 @@ module Insn = struct
       | `op of Var.t * op
     ]
 
+    let lhs d = match d with
+      | `op     (x, _)
+      | `acall  (x, _, _, _)
+      | `acallv (x, _, _, _) -> Some x
+      | `call   _
+      | `callv  _ -> None
+
+    let has_lhs d v = match lhs d with
+      | Some x -> Var.(x = v)
+      | None -> false
+
+    let free_vars : t -> Var.Set.t = function
+      | #call as c -> free_vars_of_call c
+      | `op (_, o) -> free_vars_of_op o
+
     let pp ppf = function
       | #call as c -> pp_call ppf c
       | `op (l, r) -> Format.fprintf ppf "%a = %a" Var.pp l pp_op r
@@ -346,6 +452,13 @@ module Insn = struct
       | `ret    of arg option
       | `switch of Type.imm * Var.t * Label.t * (Bitvec.t * Label.t) list
     ]
+
+    let free_vars : t -> Var.Set.t = function
+      | `jmp _ -> Var.Set.empty
+      | `jnz (x, _, _) -> Var.Set.singleton x
+      | `ret None -> Var.Set.empty
+      | `ret (Some a) -> var_of_arg a |> Option.to_list |> Var.Set.of_list
+      | `switch (_, x, _, _) -> Var.Set.singleton x
 
     let rec pp_switch_table ppl ppf = function
       | (v, l) :: (_ :: _ as rest) ->
@@ -387,6 +500,13 @@ module Insn = struct
   let insn i = i.insn
   let label i = i.label
 
+  let lhs_of_phi i = Phi.lhs i.insn
+  let lhs_of_data i = Data.lhs i.insn
+
+  let free_vars_of_phi i = Phi.free_vars i.insn
+  let free_vars_of_data i = Data.free_vars i.insn
+  let free_vars_of_ctrl i = Ctrl.free_vars i.insn
+
   let pp ppi ppf i = Format.fprintf ppf "%a: %a" Label.pp i.label ppi i.insn
 
   let pp_phi = pp Phi.pp
@@ -416,21 +536,49 @@ module Blk = struct
   let label b = b.label
   let phi b = Array.to_sequence b.phi
   let data b = Array.to_sequence b.data
-  let nth_data b n = b.data.(n)
   let ctrl b = b.ctrl
+
+  let free_vars b =
+    let (++) = Set.union and (--) = Set.diff in
+    let init = Var.Set.(empty, empty) in
+    let vars, kill = Array.fold b.data ~init ~f:(fun (vars, kill) d ->
+        let kill' = match Insn.lhs_of_data d with
+          | Some x -> Set.add kill x
+          | None -> kill in
+        Insn.free_vars_of_data d -- kill ++ vars, kill') in
+    Insn.free_vars_of_ctrl b.ctrl -- kill ++ vars
+
+  let uses_var b x = Set.mem (free_vars b) x
+
+  let map_phi b ~f = {
+    b with phi = Array.map b.phi ~f;
+  }
 
   let map_data b ~f = {
     b with data = Array.map b.data ~f;
   }
 
+  let concat_map_phi b ~f =
+    let f = Fn.compose Array.of_list f in {
+      b with phi = Array.concat_map b.phi ~f;
+    }
+
   let concat_map_data b ~f =
     let f = Fn.compose Array.of_list f in {
-      b with data = Array.concat_map b.data ~f
+      b with data = Array.concat_map b.data ~f;
     }
 
   let map_ctrl b ~f = {
     b with ctrl = f b.ctrl;
   }
+
+  let has_lhs_phi b x =
+    Array.exists b.phi ~f:(fun {insn; _} -> Insn.Phi.has_lhs insn x)
+
+  let has_lhs_data b x =
+    Array.exists b.data ~f:(fun {insn; _} -> Insn.Data.has_lhs insn x)
+
+  let defines_var b x = has_lhs_phi b x || has_lhs_data b x
 
   let pp ppf b = match b.phi, b.data with
     | [||], [||] ->
