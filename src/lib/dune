@@ -1,0 +1,17 @@
+(library
+ (name cgen)
+ (public_name cgen)
+ (flags -w -32)
+ (preprocess (pps ppx_bin_prot
+                  ppx_compare
+                  ppx_hash
+                  ppx_sexp_conv))
+ (libraries
+   bitvec
+   core
+   core_kernel.pairing_heap
+   decimal
+   graphlib
+   monads
+   regular)
+ (ocamlopt_flags -O3))

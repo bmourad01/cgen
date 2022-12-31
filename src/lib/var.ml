@@ -1,0 +1,56 @@
+open Core
+open Regular.Std
+
+type id = int [@@deriving bin_io, compare, equal, hash, sexp]
+
+type ident =
+  | Temp of id
+  | Name of string
+[@@deriving bin_io, compare, equal, hash, sexp]
+
+module T = struct
+  type t = {
+    ident : ident;
+    index : int;
+  } [@@deriving bin_io, compare, equal, hash, sexp]
+end
+
+include T
+
+let is_temp x = match x.ident with
+  | Temp _ -> true
+  | Name _ -> false
+
+let is_named x = match x.ident with
+  | Temp _ -> false
+  | Name _ -> true
+
+let name x = match x.ident with
+  | Temp _ -> None
+  | Name n -> Some n
+
+let index x = x.index
+let with_index x index = {x with index}
+let base x = with_index x 0
+
+let same x y = match x.ident, y.ident with
+  | Temp ix, Temp iy -> ix = iy
+  | Name nx, Name ny -> String.(nx = ny)
+  | _ -> false
+
+let create ?(index = 0) name = {ident = Name name; index}
+let temp ?(index = 0) id = {ident = Temp id; index}
+
+let pp ppf x = match x.ident with
+  | Temp id when x.index = 0 -> Format.fprintf ppf "#%d" id
+  | Temp id -> Format.fprintf ppf "#%d.%u" id x.index
+  | Name n when x.index = 0 -> Format.fprintf ppf "%s" n
+  | Name n -> Format.fprintf ppf "%s.%u" n x.index
+
+include Regular.Make(struct
+    include T
+    let pp = pp
+    let version = "0.1"
+    let hash = hash
+    let module_name = Some "Cgen.Var"
+  end)

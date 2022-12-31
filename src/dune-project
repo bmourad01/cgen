@@ -1,0 +1,23 @@
+(lang dune 3.6)
+(name cgen)
+(version 0.1)
+
+(generate_opam_files true)
+
+(source (github bmourad01/cgen))
+(license "LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception")
+(authors "Benjamin Mourad")
+(maintainers "Benjamin_Mourad@student.uml.edu")
+
+(package
+  (name cgen)
+  (synopsis "A compiler backend")
+  (description "A library and suite of tools for generating native code")
+  (depends
+    bitvec
+    (core (>= v0.15))
+    decimal
+    dune
+    graphlib
+    monads
+    regular))

@@ -1,0 +1,6 @@
+(executable
+ (name cgen_main)
+ (public_name cgen)
+ (package cgen)
+ (libraries cgen)
+ (ocamlopt_flags -O3))
