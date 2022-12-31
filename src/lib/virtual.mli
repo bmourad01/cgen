@@ -412,6 +412,33 @@ module Blk : sig
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
   val map_ctrl : t -> f:(Insn.ctrl -> Insn.ctrl) -> t
 
+  (** Inserts a phi instruction into the block. *)
+  val insert_phi : t -> Insn.phi -> t
+
+  (** [prepend_data b d ?before] prepends the data instruction [d] to
+      the block [b].
+
+      If [before] is [None], then [d] is inserted at the beginning of
+      the data instructions.
+
+      If [before] is [Some l], then [d] will appear directly before the
+      data instruction at label [l]. If [l] doesn't exist, then [d] is
+      not inserted.
+  *)
+  val prepend_data : ?before:Label.t option -> t -> Insn.data -> t
+
+  (** [append_data b d ?after] appends the data instruction [d] to
+      the block [b].
+
+      If [after] is [None], then [d] is inserted at the end of the
+      data instructions.
+
+      If [after] is [Some l], then [d] will appear directly after the
+      data instruction at label [l]. If [l] doesn't exist, then [d] is
+      not inserted.
+  *)
+  val append_data : ?after:Label.t option -> t -> Insn.data -> t
+
   (** Pretty prints a basic block. *)
   val pp : Format.formatter -> t -> unit
 

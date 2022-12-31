@@ -573,6 +573,34 @@ module Blk = struct
     b with ctrl = f b.ctrl;
   }
 
+  let prepend ?(before = None) xs x = match before with
+    | None -> Array.push_front xs x
+    | Some l ->
+      Array.findi xs ~f:(fun _ x ->
+          Label.(l = Insn.label x)) |>
+      Option.value_map ~default:xs ~f:(fun (i, _) ->
+          Array.insert xs x i)
+
+  let append ?(after = None) xs x = match after with
+    | None -> Array.push_back xs x
+    | Some l ->
+      Array.findi xs ~f:(fun _ x ->
+          Label.(l = Insn.label x)) |>
+      Option.value_map ~default:xs ~f:(fun (i, _) ->
+          Array.insert xs x (i + 1))
+
+  let insert_phi b p = {
+    b with phi = Array.push_front b.phi p;
+  }
+
+  let prepend_data ?(before = None) b d = {
+    b with data = prepend b.data d ~before;
+  }
+
+  let append_data ?(after = None) b d = {
+    b with data = append b.data d ~after;
+  }
+
   let has_lhs_phi b x =
     Array.exists b.phi ~f:(fun {insn; _} -> Insn.Phi.has_lhs insn x)
 
