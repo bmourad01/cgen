@@ -601,11 +601,9 @@ module Blk = struct
     b with data = append b.data d ~after;
   }
 
-  let has_lhs_phi b x =
-    Array.exists b.phi ~f:(fun {insn; _} -> Insn.Phi.has_lhs insn x)
-
-  let has_lhs_data b x =
-    Array.exists b.data ~f:(fun {insn; _} -> Insn.Data.has_lhs insn x)
+  let has_lhs xs x f = Array.exists xs ~f:(Fn.compose (Fn.flip f x) Insn.insn)
+  let has_lhs_phi b x = has_lhs b.phi x Insn.Phi.has_lhs
+  let has_lhs_data b x = has_lhs b.data x Insn.Data.has_lhs
 
   let defines_var b x = has_lhs_phi b x || has_lhs_data b x
 
