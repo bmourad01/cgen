@@ -727,15 +727,13 @@ module Fn = struct
 
   let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp t Var.pp v
 
-  let pp_args ppf args =
+  let pp_args ppf fn =
     let sep ppf = Format.fprintf ppf ", " in
-    Format.fprintf ppf "%a" (Array.pp pp_arg sep) args
-
-  let pp_args ppf fn = match fn.variadic, fn.args with  
-    | false, [||] -> ()
-    | false, args -> Format.fprintf ppf "%a" pp_args args
-    | true, [||] -> Format.fprintf ppf "..."
-    | true, args -> Format.fprintf ppf "%a, ..." pp_args args
+    Format.fprintf ppf "%a" (Array.pp pp_arg sep) fn.args;
+    match fn.args, fn.variadic with
+    | _, false -> ()
+    | [||], true -> Format.fprintf ppf "..."
+    | _, true -> Format.fprintf ppf ", ..."
 
   let pp ppf fn =
     let sep ppf = Format.fprintf ppf "@;" in
