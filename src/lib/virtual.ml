@@ -115,11 +115,15 @@ module Insn = struct
       ins : arg Label.Map.t;
     }
 
-    let create ?(ins = []) ~lhs ~typ () = try {
+    let create_exn ?(ins = []) ~lhs ~typ () = try {
       lhs;
       typ;
       ins = Label.Map.of_alist_exn ins;
     } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
+
+    let create ?(ins = []) ~lhs ~typ () =
+      try Ok (create_exn () ~lhs ~typ ~ins) with
+      | Invalid_argument msg -> Error (Error.of_string msg)
 
     let lhs p = p.lhs
     let typ p = p.typ
@@ -466,8 +470,11 @@ module Insn = struct
     module Table = struct
       type t = Label.t Map.M(Bitvec).t
 
-      let create l = try Map.of_alist_exn (module Bitvec) l with
+      let create_exn l = try Map.of_alist_exn (module Bitvec) l with
         | exn -> invalid_argf "%s" (Exn.to_string exn) ()
+
+      let create l = try Ok (create_exn l) with
+        | Invalid_argument msg -> Error (Error.of_string msg)
 
       let enum t = Map.to_sequence t
       let find t v = Map.find t v
@@ -695,7 +702,7 @@ module Fn = struct
     linkage  : Linkage.t;
   }
 
-  let create
+  let create_exn
       ?(return = None)
       ?(variadic = false)
       ?(linkage = Linkage.default_export)
@@ -714,6 +721,17 @@ module Fn = struct
         linkage;
       }
 
+  let create
+      ?(return = None)
+      ?(variadic = false)
+      ?(linkage = Linkage.default_export)
+      ~name
+      ~blks
+      ~args
+      () =
+    try Ok (create_exn () ~name ~blks ~args ~return ~variadic ~linkage) with
+    | Invalid_argument msg -> Error (Error.of_string msg)
+
   let name fn = fn.name
   let blks fn = Array.to_sequence fn.blks
   let entry fn = fn.entry
@@ -730,10 +748,13 @@ module Fn = struct
     fn with blks = Array.push_back fn.blks b;
   }
 
-  let remove_blk fn l =
+  let remove_blk_exn fn l =
     if Label.(l = fn.entry)
     then invalid_argf "Cannot remove entry block of function %s" fn.name ()
     else {fn with blks = Array.remove_if fn.blks ~f:(Fn.flip Blk.is_label l)}
+
+  let remove_blk fn l = try Ok (remove_blk_exn fn l) with
+    | Invalid_argument msg -> Error (Error.of_string msg)
 
   let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
 

@@ -5,6 +5,7 @@
     perform transformations that are not target-specific.
 *)
 
+open Core
 open Regular.Std
 
 (** An instruction. *)
@@ -63,12 +64,20 @@ module Insn : sig
 
         @raise Invalid_argument if [ins] has duplicate keys.
     *)
-    val create :
+    val create_exn :
       ?ins:(Label.t * arg) list ->
       lhs:Var.t ->
       typ:[Type.basic | Type.special] ->
       unit ->
       t
+
+    (** Same as [create_exn], but returns an error upon failure. *)
+    val create :
+      ?ins:(Label.t * arg) list ->
+      lhs:Var.t ->
+      typ:[Type.basic | Type.special] ->
+      unit ->
+      t Or_error.t
 
     (** The destination variable of the instruction. *)
     val lhs : t -> Var.t
@@ -280,7 +289,10 @@ module Insn : sig
 
           @raise Invalid_argument if the list has duplicate keys.
       *)
-      val create : (Bitvec.t * Label.t) list -> t
+      val create_exn : (Bitvec.t * Label.t) list -> t
+
+      (** Same as [create_exn], but returns an error upon failure. *)
+      val create : (Bitvec.t * Label.t) list -> t Or_error.t
 
       (** Returns the elements of the table. *)
       val enum : t -> (Bitvec.t * Label.t) seq
@@ -488,7 +500,7 @@ module Fn : sig
 
       @raise Invalid_argument if [blks] is empty.
   *)
-  val create :
+  val create_exn :
     ?return:Type.arg option ->
     ?variadic:bool ->
     ?linkage:Linkage.t ->
@@ -497,6 +509,17 @@ module Fn : sig
     args:(Var.t * Type.arg) list ->
     unit ->
     t
+
+  (** Same as [create_exn], but returns an error upon failure. *)
+  val create :
+    ?return:Type.arg option ->
+    ?variadic:bool ->
+    ?linkage:Linkage.t ->
+    name:string ->
+    blks:blk list ->
+    args:(Var.t * Type.arg) list ->
+    unit ->
+    t Or_error.t
 
   (** Returns the name of the function. *)
   val name : t -> string
@@ -525,11 +548,15 @@ module Fn : sig
   (** Appends a block to the end of the function. *)
   val insert_blk : t -> blk -> t
 
-  (** [remove_blk fn l] removes the block with label [l] from function [f].
+  (** [remove_blk_exn fn l] removes the block with label [l] from function
+      [f].
 
       @raise Invalid_argument if [l] is the label of the entry block.
   *)
-  val remove_blk : t -> Label.t -> t
+  val remove_blk_exn : t -> Label.t -> t
+
+  (** Same as [remove_blk_exn], but returns an error upon failure. *)
+  val remove_blk : t -> Label.t -> t Or_error.t
 
   (** Pretty-prints a function. *)
   val pp : Format.formatter -> t -> unit
