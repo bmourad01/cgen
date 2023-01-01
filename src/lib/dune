@@ -16,4 +16,7 @@
    graphlib
    monads
    regular)
+ (foreign_stubs
+  (language c)
+  (names float_stubs))
  (ocamlopt_flags -O3))

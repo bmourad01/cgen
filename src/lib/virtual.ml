@@ -70,9 +70,7 @@ type const = [
 
 let pp_const ppf : const -> unit = function
   | `int n -> Format.fprintf ppf "%a" Bitvec.pp n
-  | `float f ->
-    Format.fprintf ppf "%a" Float.pp @@
-    Float.round_significant f ~significant_digits:7
+  | `float f -> Format.fprintf ppf "%s" @@ Utils.Float32.to_string f
   | `double d -> Format.fprintf ppf "%a" Float.pp d
   | `sym (s, 0) -> Format.fprintf ppf "@@%s" s
   | `sym (s, n) when n > 0 -> Format.fprintf ppf "@@%s+0x%x" s n
