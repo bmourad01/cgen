@@ -646,6 +646,10 @@ module Blk = struct
     b with data = append b.data d ~after;
   }
 
+  let remove xs l = Array.remove_if xs ~f:(Fn.flip Insn.has_label l)
+  let remove_phi b l = {b with phi = remove b.phi l}
+  let remove_data b l = {b with data = remove b.data l}
+
   let has_lhs xs x f = Array.exists xs ~f:(Fn.compose (Fn.flip f x) Insn.insn)
   let has_lhs_phi b x = has_lhs b.phi x Insn.Phi.has_lhs
   let has_lhs_data b x = has_lhs b.data x Insn.Data.has_lhs
@@ -767,6 +771,7 @@ module Fn = struct
   let return fn = fn.return
   let variadic fn = fn.variadic
   let linkage fn = fn.linkage
+  let has_name fn name = String.(name = fn.name)
 
   let map_blks fn ~f = {
     fn with blks = Array.map fn.blks ~f;
@@ -810,6 +815,9 @@ module Fn = struct
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
     Format.fprintf ppf "@@%s(%a) {@;@[%a@]@;}"
       fn.name pp_args fn (Array.pp Blk.pp_hum sep) fn.blks
+
+  (* XXX: name conflict *)
+  include Fn
 end
 
 type fn = Fn.t
@@ -845,6 +853,7 @@ module Data = struct
   let name d = d.name
   let elts d = Array.to_sequence d.elts
   let linkage d = d.linkage
+  let has_name d name = String.(name = d.name)
 
   let prepend_elt d e = {
     d with elts = Array.push_front d.elts e;
@@ -895,6 +904,19 @@ let insert_data u d = {
 
 let insert_fn u fn = {
   u with funs = Array.push_back u.funs fn;
+}
+
+let remove_type u name = {
+  u with typs = Array.remove_if u.typs ~f:(function
+    | `compound (n, _, _) -> String.(n = name))
+}
+
+let remove_data u name = {
+  u with data = Array.remove_if u.data ~f:(Fn.flip Data.has_name name);
+}
+
+let remove_fn u name = {
+  u with funs = Array.remove_if u.funs ~f:(Fn.flip Fn.has_name name);
 }
 
 let map_typs u ~f = {

@@ -709,6 +709,9 @@ module Fn : sig
   (** Returns the linkage of the function. *)
   val linkage : t -> Linkage.t
 
+  (** Returns [true] if the function has the associated name. *)
+  val has_name : t -> string -> bool
+
   (** [map_blks fn ~f] returns [fn] with each basic block applied to [f]. *)
   val map_blks : t -> f:(blk -> blk) -> t
 
@@ -800,6 +803,9 @@ module Data : sig
   (** Returns the linkage of the struct. *)
   val linkage : t -> Linkage.t
 
+  (** Returns [true] if the struct has the associated name. *)
+  val has_name : t -> string -> bool
+
   (** Prepends an element to the beginning of the structure. *)
   val prepend_elt : t -> elt -> t
 
@@ -847,3 +853,21 @@ val insert_data : t -> data -> t
 
 (** Appends a function to the unit. *)
 val insert_fn : t -> fn -> t
+
+(** Removes the type associated with the name. *)
+val remove_type : t -> string -> t
+
+(** Removes the struct associated with the name. *)
+val remove_data : t -> string -> t
+
+(** Removes the function associated with the name. *)
+val remove_fn : t -> string -> t
+
+(** Returns the unit with each type transformed by [f]. *)
+val map_typs : t -> f:(Type.compound -> Type.compound) -> t
+
+(** Returns the unit with each struct transformed by [f]. *)
+val map_data : t -> f:(data -> data) -> t
+
+(** Returns the unit with each function transformed by [f]. *)
+val map_funs : t -> f:(fn -> fn) -> t
