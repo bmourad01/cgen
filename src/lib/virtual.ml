@@ -655,7 +655,6 @@ module Blk = struct
   let has_ctrl b l = Insn.is_label b.ctrl l
 
   let find xs l = Array.find xs ~f:(Fn.flip Insn.is_label l)
-  let findi xs l = Array.findi xs ~f:(fun _ i -> Insn.is_label i l)
   let find_phi b = find b.phi
   let find_data b = find b.data
   let find_ctrl b l = Option.some_if (Insn.is_label b.ctrl l) b.ctrl
