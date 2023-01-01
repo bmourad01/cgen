@@ -11,7 +11,9 @@ open Regular.Std
 (** A constant value.
 
     [`int n] is a constant integer value.
+
     [`float f] is a constant floating-point value.
+
     [`sym s] is a reference to a global symbol.
 *)
 type const = [
@@ -40,7 +42,9 @@ module Insn : sig
   (** Inter-function destination.
 
       [`addr a] is a static absolute addrsss.
+
       [`sym s] is a global symbol.
+
       [`var v] is a dynamic absolute address.
 
   *)
@@ -120,13 +124,20 @@ module Insn : sig
   module Data : sig
     (** Arithmetic operations.
 
-        [`add  (t, l, r)]: addition.
-        [`div  (t, l, r)]: division.
-        [`mul  (t, l, r)]: multiplication.
-        [`neg  (t, a)]:    negation.
-        [`rem  (t, l, r)]: remainder.
-        [`sub  (t, l, r)]: subtraction.
+        [`add (t, l, r)]: addition.
+
+        [`div (t, l, r)]: division.
+
+        [`mul (t, l, r)]: multiplication.
+
+        [`neg (t, a)]: negation.
+
+        [`rem (t, l, r)]: remainder.
+
+        [`sub (t, l, r)]: subtraction.
+
         [`udiv (t, l, r)]: unsigned division (immediate only).
+
         [`urem (t, l, r)]: unsigned remainder (immediate only).
     *)
     type arith = [
@@ -149,11 +160,16 @@ module Insn : sig
     (** Bitwise operations.
 
         [`and_ (t, l, r)]: bitwise intersection (AND).
-        [`or_  (t, l, r)]: bitwise union (OR).
-        [`sar  (t, l, r)]: arithmetic shift right.
-        [`shl  (t, l, r)]: logical shift left.
-        [`shr  (t, l, r)]: logical shift right.
-        [`xor  (t, l, r)]: bitwise difference (exclusive-OR).
+
+        [`or_ (t, l, r)]: bitwise union (OR).
+
+        [`sar (t, l, r)]: arithmetic shift right.
+
+        [`shl (t, l, r)]: logical shift left.
+
+        [`shr (t, l, r)]: logical shift right.
+
+        [`xor (t, l, r)]: bitwise difference (exclusive-OR).
     *)
     type bits = [
       | `and_ of Type.imm * arg * arg
@@ -194,18 +210,29 @@ module Insn : sig
 
     (** Comparison operations.
 
-        [`eq  (t, l, r)]: equal.
-        [`ge  (t, l, r)]: greater or equal.
-        [`gt  (t, l, r)]: greater than.
-        [`le  (t, l, r)]: less or equal.
-        [`lt  (t, l, r)]: less than.
-        [`ne  (t, l, r)]: not equal.
-        [`o   (t, l, r)]: signed overflow (immediate only).
+        [`eq (t, l, r)]: equal.
+
+        [`ge (t, l, r)]: greater or equal.
+
+        [`gt (t, l, r)]: greater than.
+
+        [`le (t, l, r)]: less or equal.
+
+        [`lt (t, l, r)]: less than.
+
+        [`ne (t, l, r)]: not equal.
+
+        [`o (t, l, r)]: signed overflow (immediate only).
+
         [`sge (t, l, r)]: signed greater or equal (immediate only).
+
         [`sgt (t, l, r)]: signed greater than (immediate only).
+
         [`sle (t, l, r)]: signed less or equal (immediate only).
+
         [`slt (t, l, r)]: signed less than (immediate only).
-        [`uo  (t, l, r)]: unsigned overflow (immediate only).
+
+        [`uo (t, l, r)]: unsigned overflow (immediate only).
     *)
     type cmp = [
       | `eq  of Type.basic * arg * arg
@@ -309,6 +336,7 @@ module Insn : sig
     (** A call that does not assign a result.
 
         [`call (f, args)]: call to [f] with arguments [args].
+
         [`callv (f, args)]: variadic call to [f] with arguments [args].
     *)
     type void_call = [
