@@ -277,7 +277,7 @@ module Insn : sig
 
     (** Creates a switch table from an association list.Afl_instrument
 
-        @raise [Invalid_argument] if the list has duplicate keys.
+        @raise Invalid_argument if the list has duplicate keys.
     *)
     val table : (Bitvec.t * Label.t) list -> table
 
