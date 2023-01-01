@@ -403,6 +403,9 @@ module Blk : sig
       of the block. *)
   val ctrl : t -> Insn.ctrl
 
+  (** [is_label b l] returns [true] if block [b] has label [l]. *)
+  val is_label : t -> Label.t -> bool
+
   (** Returns the set of free variables in the block. *)
   val free_vars : t -> Var.Set.t
 
@@ -518,6 +521,15 @@ module Fn : sig
 
   (** [map_blks fn ~f] returns [fn] with each basic block applied to [f]. *)
   val map_blks : t -> f:(blk -> blk) -> t
+
+  (** Appends a block to the end of the function. *)
+  val insert_blk : t -> blk -> t
+
+  (** [remove_blk fn l] removes the block with label [l] from function [f].
+
+      @raise Invalid_argument if [l] is the label of the entry block.
+  *)
+  val remove_blk : t -> Label.t -> t
 
   (** Pretty-prints a function. *)
   val pp : Format.formatter -> t -> unit

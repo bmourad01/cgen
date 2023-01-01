@@ -567,6 +567,7 @@ module Blk = struct
   let phi b = Array.to_sequence b.phi
   let data b = Array.to_sequence b.data
   let ctrl b = b.ctrl
+  let is_label b l = Label.(b.label = l)
 
   let free_vars b =
     let (++) = Set.union and (--) = Set.diff in
@@ -724,6 +725,15 @@ module Fn = struct
   let map_blks fn ~f = {
     fn with blks = Array.map fn.blks ~f;
   }
+
+  let insert_blk fn b = {
+    fn with blks = Array.push_back fn.blks b;
+  }
+
+  let remove_blk fn l =
+    if Label.(l = fn.entry)
+    then invalid_argf "Cannot remove entry block of function %s" fn.name ()
+    else {fn with blks = Array.remove_if fn.blks ~f:(Fn.flip Blk.is_label l)}
 
   let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
 
