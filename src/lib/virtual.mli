@@ -487,7 +487,12 @@ module Blk : sig
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
   val map_ctrl : t -> f:(Insn.ctrl -> Insn.ctrl) -> t
 
-  (** Inserts a phi instruction into the block. *)
+  (** Inserts a phi instruction into the block.
+
+      Note that the ordering of phi instructions does not matter, and thus
+      all phi instructions assigning a given variable are expected to be
+      unique.
+  *)
   val insert_phi : t -> Insn.phi -> t
 
   (** [prepend_data b d ?before] prepends the data instruction [d] to
