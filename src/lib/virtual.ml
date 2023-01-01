@@ -122,8 +122,7 @@ module Insn = struct
     } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
 
     let create ?(ins = []) ~lhs ~typ () =
-      try Ok (create_exn () ~lhs ~typ ~ins) with
-      | Invalid_argument msg -> Error (Error.of_string msg)
+      Or_error.try_with @@ create_exn ~lhs ~typ ~ins
 
     let lhs p = p.lhs
     let typ p = p.typ
@@ -473,9 +472,7 @@ module Insn = struct
       let create_exn l = try Map.of_alist_exn (module Bitvec) l with
         | exn -> invalid_argf "%s" (Exn.to_string exn) ()
 
-      let create l = try Ok (create_exn l) with
-        | Invalid_argument msg -> Error (Error.of_string msg)
-
+      let create l = Or_error.try_with @@ fun () -> create_exn l
       let enum t = Map.to_sequence t
       let find t v = Map.find t v
 
@@ -729,8 +726,8 @@ module Fn = struct
       ~blks
       ~args
       () =
-    try Ok (create_exn () ~name ~blks ~args ~return ~variadic ~linkage) with
-    | Invalid_argument msg -> Error (Error.of_string msg)
+    Or_error.try_with @@
+    create_exn ~name ~blks ~args ~return ~variadic ~linkage
 
   let name fn = fn.name
   let blks fn = Array.to_sequence fn.blks
@@ -753,8 +750,7 @@ module Fn = struct
     then invalid_argf "Cannot remove entry block of function %s" fn.name ()
     else {fn with blks = Array.remove_if fn.blks ~f:(Fn.flip Blk.is_label l)}
 
-  let remove_blk fn l = try Ok (remove_blk_exn fn l) with
-    | Invalid_argument msg -> Error (Error.of_string msg)
+  let remove_blk fn l = Or_error.try_with @@ fun () -> remove_blk_exn fn l
 
   let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
 
