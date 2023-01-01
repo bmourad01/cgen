@@ -483,12 +483,12 @@ module Fn : sig
       @raise Invalid_argument if [blks] is empty.
   *)
   val create :
-    ?return:Type.t option ->
+    ?return:Type.arg option ->
     ?variadic:bool ->
     ?linkage:Linkage.t ->
     name:string ->
     blks:blk list ->
-    args:(Var.t * Type.t) list ->
+    args:(Var.t * Type.arg) list ->
     unit ->
     t
 
@@ -502,10 +502,10 @@ module Fn : sig
   val entry : t -> Label.t
 
   (** Returns the arguments of the function, along with their types. *)
-  val args : t -> (Var.t * Type.t) seq
+  val args : t -> (Var.t * Type.arg) seq
 
   (** Returns the return type of the function, if it exists. *)
-  val return : t -> Type.t option
+  val return : t -> Type.arg option
 
   (** Returns [true] if the function is variadic. *)
   val variadic : t -> bool

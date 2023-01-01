@@ -90,6 +90,19 @@ type special = [
 (** Pretty-prints a special type. *)
 val pp_special : Format.formatter -> special -> unit
 
+(** A type that is allowed to be used as a function argument.
+
+    Note that return types also fall into this category.
+*)
+type arg = [
+  | basic
+  | compound
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+(** Pretty prints an argument type in the syntax that is allowed
+    for function arguments. *)
+val pp_arg : Format.formatter -> arg -> unit
+
 (** A type. *)
 type t = [
   | basic

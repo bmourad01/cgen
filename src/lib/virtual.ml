@@ -688,8 +688,8 @@ module Fn = struct
     name     : string;
     blks     : blk array;
     entry    : Label.t;
-    args     : (Var.t * Type.t) array;
-    return   : Type.t option;
+    args     : (Var.t * Type.arg) array;
+    return   : Type.arg option;
     variadic : bool;
     linkage  : Linkage.t;
   }
@@ -725,7 +725,7 @@ module Fn = struct
     fn with blks = Array.map fn.blks ~f;
   }
 
-  let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp t Var.pp v
+  let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
 
   let pp_args ppf fn =
     let sep ppf = Format.fprintf ppf ", " in
@@ -738,14 +738,14 @@ module Fn = struct
   let pp ppf fn =
     let sep ppf = Format.fprintf ppf "@;" in
     Format.fprintf ppf "%a@;function " Linkage.pp fn.linkage;
-    Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp);
+    Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
     Format.fprintf ppf "@@%s(%a):@;@[<v 0>%a@]"
       fn.name pp_args fn (Array.pp Blk.pp sep) fn.blks
 
   let pp_hum ppf fn =
     let sep ppf = Format.fprintf ppf "@;" in
     Format.fprintf ppf "%a@;function " Linkage.pp fn.linkage;
-    Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp);
+    Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
     Format.fprintf ppf "@@%s(%a) {@;@[%a@]@;}"
       fn.name pp_args fn (Array.pp Blk.pp_hum sep) fn.blks
 end

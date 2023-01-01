@@ -71,6 +71,9 @@ let pp_compound ppf : compound -> unit = function
     end;
     Format.fprintf ppf "{%a}" pp_fields fields
 
+let pp_compound_arg ppf : compound -> unit = function
+  | `compound (name, _, _) -> Format.fprintf ppf ":%s" name
+
 type special = [
   | `mem 
   | `flag
@@ -79,6 +82,15 @@ type special = [
 let pp_special ppf : special -> unit = function
   | `mem -> Format.fprintf ppf "m"
   | `flag -> Format.fprintf ppf "f"
+
+type arg = [
+  | basic
+  | compound
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+let pp_arg ppf : arg -> unit = function
+  | #basic as b -> Format.fprintf ppf "%a" pp_basic b
+  | #compound as c -> Format.fprintf ppf "%a" pp_compound_arg c
 
 module T = struct
   type t = [
@@ -90,7 +102,7 @@ end
 
 include T
 
-let rec pp ppf : t -> unit = function
+let pp ppf : t -> unit = function
   | #basic as b -> Format.fprintf ppf "%a" pp_basic b
   | #compound as c -> Format.fprintf ppf "%a" pp_compound c
   | #special as s -> Format.fprintf ppf "%a" pp_special s
