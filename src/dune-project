@@ -19,7 +19,6 @@
     bitvec-order
     bitvec-sexp
     (core (>= v0.15))
-    decimal
     dune
     graphlib
     monads

@@ -13,7 +13,6 @@
    bitvec-sexp
    core
    core_kernel.pairing_heap
-   decimal
    graphlib
    monads
    regular)

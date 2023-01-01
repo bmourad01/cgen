@@ -70,8 +70,11 @@ type compound = [
   | `compound of string * int option * field list
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** Pretty-prints a compound type. *)
+(** Pretty-prints a compound type (without the name). *)
 val pp_compound : Format.formatter -> compound -> unit
+
+(** Pretty-prints a compound type as a declaration. *)
+val pp_compound_decl : Format.formatter -> compound -> unit
 
 (** Special types that are not meant to be user-defined.
 

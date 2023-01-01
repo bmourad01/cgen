@@ -12,16 +12,19 @@ open Regular.Std
 
     [`int n] is a constant integer value.
 
-    [`float f] is a constant floating-point value.
+    [`float f] is a single-precision floating-point value.
+
+    [`double d] is a double-precision floating-point value.
 
     [`sym (s, n)] is a reference to a global symbol [s], with a
     constant offset [n].
 *)
 type const = [
-  | `int   of Bitvec.t
-  | `float of Decimal.t
-  | `sym   of string * int
-]
+  | `int    of Bitvec.t
+  | `float  of float
+  | `double of float
+  | `sym    of string * int
+] [@@deriving bin_io, compare, equal, sexp]
 
 (** Pretty-prints a constant value. *)
 val pp_const : Format.formatter -> const -> unit
@@ -32,7 +35,7 @@ module Insn : sig
   type arg = [
     | const
     | `var of Var.t
-  ]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   (** [var_of_arg a] returns [Some x] if [a] is a variable [x]. *)
   val var_of_arg : arg -> Var.t option
@@ -52,7 +55,7 @@ module Insn : sig
     | `addr of Bitvec.t
     | `sym  of string
     | `var  of Var.t
-  ]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints the global destination. *)
   val pp_global : Format.formatter -> global -> unit
@@ -63,7 +66,7 @@ module Insn : sig
   *)
   type local = [
     | `label of Label.t
-  ]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints the local destination. *)
   val pp_local : Format.formatter -> local -> unit
@@ -72,14 +75,14 @@ module Insn : sig
   type dst = [
     | global
     | local
-  ]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints a control-flow destination. *)
   val pp_dst : Format.formatter -> dst -> unit
 
   (** A phi instruction. *)
   module Phi : sig
-    type t
+    type t [@@deriving bin_io, compare, equal, sexp]
 
     (** Creates a phi instruction.
 
@@ -149,7 +152,7 @@ module Insn : sig
       | `sub  of Type.basic * arg * arg
       | `udiv of Type.imm   * arg * arg
       | `urem of Type.imm   * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the arithmetic operation. *)
     val free_vars_of_arith : arith -> Var.Set.t
@@ -178,7 +181,7 @@ module Insn : sig
       | `shl  of Type.imm * arg * arg
       | `shr  of Type.imm * arg * arg
       | `xor  of Type.imm * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the bitwise operation. *)
     val free_vars_of_bits : bits -> Var.Set.t
@@ -200,7 +203,7 @@ module Insn : sig
       | `alloc of int
       | `load  of Type.basic * Var.t * arg
       | `store of Type.basic * Var.t * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the memory operation. *)
     val free_vars_of_mem : mem -> Var.Set.t
@@ -247,7 +250,7 @@ module Insn : sig
       | `sle of Type.imm   * arg * arg
       | `slt of Type.imm   * arg * arg
       | `uo  of Type.imm   * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the comparison operation. *)
     val free_vars_of_cmp : cmp -> Var.Set.t
@@ -289,7 +292,7 @@ module Insn : sig
       | `sitof  of Type.imm * Type.fp * arg
       | `uitof  of Type.imm * Type.fp * arg
       | `zext   of Type.imm * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the cast operation. *)
     val free_vars_of_cast : cast -> Var.Set.t
@@ -309,7 +312,7 @@ module Insn : sig
     type copy = [
       | `copy of Type.basic * arg
       | `select of Type.basic * Var.t * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the copy operation. *)
     val free_vars_of_copy : copy -> Var.Set.t
@@ -325,7 +328,7 @@ module Insn : sig
       | cmp
       | cast
       | copy
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the operation. *)
     val free_vars_of_op : op -> Var.Set.t
@@ -342,7 +345,7 @@ module Insn : sig
     type void_call = [
       | `call  of global * arg list
       | `callv of global * arg list
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the void call. *)
     val free_vars_of_void_call : void_call -> Var.Set.t
@@ -358,7 +361,7 @@ module Insn : sig
     type assign_call = [
       | `acall  of Var.t * Type.basic * global * arg list
       | `acallv of Var.t * Type.basic * global * arg list
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the assign call. *)
     val free_vars_of_assign_call : assign_call -> Var.Set.t
@@ -367,7 +370,7 @@ module Insn : sig
     type call = [
       | void_call
       | assign_call
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the call. *)
     val free_vars_of_call : call -> Var.Set.t
@@ -385,7 +388,7 @@ module Insn : sig
     type t = [
       | call
       | `op of Var.t * op
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the assigned variable of the operation, if it exists. *)
     val lhs : t -> Var.t option
@@ -405,7 +408,7 @@ module Insn : sig
   module Ctrl : sig
     (** A switch table. *)
     module Table : sig
-      type t
+      type t [@@deriving bin_io, compare, equal, sexp]
 
       (** Creates a switch table from an association list.Afl_instrument
 
@@ -424,7 +427,7 @@ module Insn : sig
       val find : t -> Bitvec.t -> Label.t option
     end
 
-    type table = Table.t
+    type table = Table.t [@@deriving bin_io, compare, equal, sexp]
 
     (** A control-flow instruction.
 
@@ -446,7 +449,7 @@ module Insn : sig
       | `jnz    of Var.t * dst * dst
       | `ret    of arg option
       | `switch of Type.imm * Var.t * Label.t * table
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the control-flow instruction. *)
     val free_vars : t -> Var.Set.t
@@ -456,11 +459,11 @@ module Insn : sig
   end
 
   (** An instruction with a label. *)
-  type 'a t
+  type 'a t [@@deriving bin_io, compare, equal, sexp]
 
-  type phi = Phi.t t
-  type data = Data.t t
-  type ctrl = Ctrl.t t
+  type phi = Phi.t t [@@deriving bin_io, compare, equal, sexp]
+  type data = Data.t t [@@deriving bin_io, compare, equal, sexp]
+  type ctrl = Ctrl.t t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a labeled phi instruction. *)
   val phi : Phi.t -> label:Label.t -> phi
@@ -479,6 +482,9 @@ module Insn : sig
 
   (** Returns [true] if the instruction has the given label. *)
   val has_label : 'a t -> Label.t -> bool
+
+  (** Returns the hash of the instruction label. *)
+  val hash : 'a t -> int
 
   (** Returns the assigned variable of the phi instruction. *)
   val lhs_of_phi : phi -> Var.t
@@ -516,7 +522,7 @@ end
 
 (** A basic block. *)
 module Blk : sig
-  type t
+  type t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a basic block. *)
   val create :
@@ -542,6 +548,9 @@ module Blk : sig
 
   (** [has_label b l] returns [true] if block [b] has label [l]. *)
   val has_label : t -> Label.t -> bool
+
+  (** Returns the hash of the block label. *)
+  val hash : t -> int
 
   (** Returns the set of free variables in the block. *)
   val free_vars : t -> Var.Set.t
@@ -650,13 +659,15 @@ module Blk : sig
   (** Pretty prints a basic block, where instructions are indented and
       unlabeled. *)
   val pp_hum : Format.formatter -> t -> unit
+
+  include Regular.S with type t := t
 end
 
-type blk = Blk.t
+type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A function. *)
 module Fn : sig
-  type t
+  type t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a function.
 
@@ -712,6 +723,9 @@ module Fn : sig
   (** Returns [true] if the function has the associated name. *)
   val has_name : t -> string -> bool
 
+  (** Returns the hash of the function name. *)
+  val hash : t -> int
+
   (** [map_blks fn ~f] returns [fn] with each basic block applied to [f]. *)
   val map_blks : t -> f:(blk -> blk) -> t
 
@@ -746,9 +760,11 @@ module Fn : sig
 
   (** Pretty-prints a function where only blocks are labeled. *)
   val pp_hum : Format.formatter -> t -> unit
+
+  include Regular.S with type t := t
 end
 
-type fn = Fn.t
+type fn = Fn.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A struct of data. *)
 module Data : sig
@@ -766,12 +782,12 @@ module Data : sig
     | `basic  of Type.basic * const list
     | `string of string
     | `zero   of int
-  ]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints an element of the struct. *)
   val pp_elt : Format.formatter -> elt -> unit
 
-  type t
+  type t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a struct.
 
@@ -806,6 +822,9 @@ module Data : sig
   (** Returns [true] if the struct has the associated name. *)
   val has_name : t -> string -> bool
 
+  (** Returns the hash of the struct name. *)
+  val hash : t -> int
+
   (** Prepends an element to the beginning of the structure. *)
   val prepend_elt : t -> elt -> t
 
@@ -817,12 +836,14 @@ module Data : sig
 
   (** Pretty-prints a struct. *)
   val pp : Format.formatter -> t -> unit
+
+  include Regular.S with type t := t
 end
 
-type data = Data.t
+type data = Data.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A translation unit. *)
-type t
+type t [@@deriving bin_io, compare, equal, sexp]
 
 (** Creates a translation unit. *)
 val create :
@@ -844,6 +865,12 @@ val data : t -> data seq
 
 (** Functions defined in the unit. *)
 val funs : t -> fn seq
+
+(** Returns [true] if the unit has the associated name. *)
+val has_name : t -> string -> bool
+
+(** Returns the hash of the unit's name. *)
+val hash : t -> int
 
 (** Appends a type to the unit. *)
 val insert_type : t -> Type.compound -> t
@@ -871,3 +898,5 @@ val map_data : t -> f:(data -> data) -> t
 
 (** Returns the unit with each function transformed by [f]. *)
 val map_funs : t -> f:(fn -> fn) -> t
+
+include Regular.S with type t := t

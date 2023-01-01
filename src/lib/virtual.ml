@@ -62,14 +62,18 @@ module Array = struct
 end
 
 type const = [
-  | `int   of Bitvec.t
-  | `float of Decimal.t
-  | `sym   of string * int
-]
+  | `int    of Bitvec.t
+  | `float  of float
+  | `double of float
+  | `sym    of string * int
+] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_const ppf : const -> unit = function
   | `int n -> Format.fprintf ppf "%a" Bitvec.pp n
-  | `float f -> Format.fprintf ppf "%a" Decimal.pp f
+  | `float f ->
+    Format.fprintf ppf "%a" Float.pp @@
+    Float.round_significant f ~significant_digits:7
+  | `double d -> Format.fprintf ppf "%a" Float.pp d
   | `sym (s, 0) -> Format.fprintf ppf "@@%s" s
   | `sym (s, n) when n > 0 -> Format.fprintf ppf "@@%s+0x%x" s n
   | `sym (s, n) -> Format.fprintf ppf "@@%s-0x%x" s (lnot n + 1)
@@ -78,7 +82,7 @@ module Insn = struct
   type arg = [
     | const
     | `var of Var.t
-  ]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   let var_of_arg = function
     | `var v -> Some v
@@ -92,7 +96,7 @@ module Insn = struct
     | `addr of Bitvec.t
     | `sym  of string
     | `var  of Var.t
-  ]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   let pp_global ppf : global -> unit = function
     | `addr a -> Format.fprintf ppf "#%a" Bitvec.pp a
@@ -101,7 +105,7 @@ module Insn = struct
 
   type local = [
     | `label of Label.t
-  ]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   let pp_local ppf : local -> unit = function
     | `label l -> Format.fprintf ppf "%a" Label.pp l
@@ -112,7 +116,7 @@ module Insn = struct
   type dst = [
     | global
     | local
-  ]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   let pp_dst ppf : dst -> unit = function
     | #global as g -> Format.fprintf ppf "%a" pp_global g
@@ -127,7 +131,7 @@ module Insn = struct
       lhs : Var.t;
       typ : [Type.basic | Type.special];
       ins : arg Label.Map.t;
-    }
+    } [@@deriving bin_io, compare, equal, sexp]
 
     let create_exn ?(ins = []) ~lhs ~typ () = try {
       lhs;
@@ -171,7 +175,7 @@ module Insn = struct
       | `sub  of Type.basic * arg * arg
       | `udiv of Type.imm   * arg * arg
       | `urem of Type.imm   * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_arith : arith -> Var.Set.t = function
       | `add  (_, l, r)
@@ -210,7 +214,7 @@ module Insn = struct
       | `shl  of Type.imm * arg * arg
       | `shr  of Type.imm * arg * arg
       | `xor  of Type.imm * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_bits : bits -> Var.Set.t = function
       | `and_ (_, l, r)
@@ -239,7 +243,7 @@ module Insn = struct
       | `alloc of int
       | `load  of Type.basic * Var.t * arg
       | `store of Type.basic * Var.t * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_mem : mem -> Var.Set.t = function
       | `load  (_, x, a) ->
@@ -270,7 +274,7 @@ module Insn = struct
       | `sle of Type.imm   * arg * arg
       | `slt of Type.imm   * arg * arg
       | `uo  of Type.imm   * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_cmp : cmp -> Var.Set.t = function
       | `eq  (_, l, r)
@@ -323,7 +327,7 @@ module Insn = struct
       | `sitof  of Type.imm * Type.fp * arg
       | `uitof  of Type.imm * Type.fp * arg
       | `zext   of Type.imm * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_cast : cast -> Var.Set.t = function
       | `bits   (_, a)
@@ -360,7 +364,7 @@ module Insn = struct
     type copy = [
       | `copy   of Type.basic * arg
       | `select of Type.basic * Var.t * arg * arg
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_copy : copy -> Var.Set.t = function
       | `copy (_, a) ->
@@ -382,7 +386,7 @@ module Insn = struct
       | cmp
       | cast
       | copy
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_op : op -> Var.Set.t = function
       | #arith as a -> free_vars_of_arith a
@@ -403,7 +407,7 @@ module Insn = struct
     type void_call = [
       | `call  of global * arg list
       | `callv of global * arg list
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_void_call : void_call -> Var.Set.t = function
       | `call  (_, args)
@@ -413,7 +417,7 @@ module Insn = struct
     type assign_call = [
       | `acall  of Var.t * Type.basic * global * arg list
       | `acallv of Var.t * Type.basic * global * arg list
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_assign_call : assign_call -> Var.Set.t = function
       | `acall  (x, _, _, args)
@@ -423,7 +427,7 @@ module Insn = struct
     type call = [
       | void_call
       | assign_call
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_call : call -> Var.Set.t = function
       | #void_call   as v -> free_vars_of_void_call v
@@ -457,7 +461,7 @@ module Insn = struct
     type t = [
       | call
       | `op of Var.t * op
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let lhs d = match d with
       | `op     (x, _)
@@ -481,7 +485,7 @@ module Insn = struct
 
   module Ctrl = struct
     module Table = struct
-      type t = Label.t Map.M(Bitvec).t
+      type t = Label.t Map.M(Bitvec).t [@@deriving bin_io, compare, equal, sexp]
 
       let create_exn l = try Map.of_alist_exn (module Bitvec) l with
         | exn -> invalid_argf "%s" (Exn.to_string exn) ()
@@ -498,14 +502,14 @@ module Insn = struct
         Format.fprintf ppf "%a" (List.pp (pp_elt ppl) sep) (Map.to_alist t)
     end
 
-    type table = Table.t
+    type table = Table.t [@@deriving bin_io, compare, equal, sexp]
 
     type t = [
       | `jmp    of dst
       | `jnz    of Var.t * dst * dst
       | `ret    of arg option
       | `switch of Type.imm * Var.t * Label.t * table
-    ]
+    ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars : t -> Var.Set.t = function
       | `jmp _ -> Var.Set.empty
@@ -534,11 +538,11 @@ module Insn = struct
   type 'a t = {
     insn  : 'a;
     label : Label.t;
-  }
+  } [@@deriving bin_io, compare, equal, sexp]
 
-  type phi = Phi.t t
-  type data = Data.t t
-  type ctrl = Ctrl.t t
+  type phi = Phi.t t [@@deriving bin_io, compare, equal, sexp]
+  type data = Data.t t [@@deriving bin_io, compare, equal, sexp]
+  type ctrl = Ctrl.t t [@@deriving bin_io, compare, equal, sexp]
 
   let phi insn ~label : phi = {insn; label}
   let data insn ~label : data = {insn; label}
@@ -547,6 +551,7 @@ module Insn = struct
   let insn i = i.insn
   let label i = i.label
   let has_label i l = Label.(i.label = l)
+  let hash i = Label.hash i.label
 
   let lhs_of_phi i = Phi.lhs i.insn
   let lhs_of_data i = Data.lhs i.insn
@@ -567,12 +572,16 @@ module Insn = struct
 end
 
 module Blk = struct
-  type t = {
-    label : Label.t;
-    phi   : Insn.phi array;
-    data  : Insn.data array;
-    ctrl  : Insn.ctrl;
-  }
+  module T = struct
+    type t = {
+      label : Label.t;
+      phi   : Insn.phi array;
+      data  : Insn.data array;
+      ctrl  : Insn.ctrl;
+    } [@@deriving bin_io, compare, equal, sexp]
+  end
+
+  include T
 
   let create ?(phi = []) ?(data = []) ~label ~ctrl () = {
     label;
@@ -586,6 +595,7 @@ module Blk = struct
   let data b = Array.to_sequence b.data
   let ctrl b = b.ctrl
   let has_label b l = Label.(b.label = l)
+  let hash b = Label.hash b.label
 
   let free_vars b =
     let (++) = Set.union and (--) = Set.diff in
@@ -719,20 +729,31 @@ module Blk = struct
         (Array.pp Insn.pp_data_hum sep) b.data
         Insn.pp_ctrl_hum b.ctrl
 
+  include Regular.Make(struct
+      include T
+      let module_name = Some "Virtual.Blk"
+      let version = "0.1"
+      let pp = pp
+      let hash = hash
+    end)
 end
 
-type blk = Blk.t
+type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
 module Fn = struct
-  type t = {
-    name     : string;
-    blks     : blk array;
-    entry    : Label.t;
-    args     : (Var.t * Type.arg) array;
-    return   : Type.arg option;
-    variadic : bool;
-    linkage  : Linkage.t;
-  }
+  module T = struct
+    type t = {
+      name     : string;
+      blks     : blk array;
+      entry    : Label.t;
+      args     : (Var.t * Type.arg) array;
+      return   : Type.arg option;
+      variadic : bool;
+      linkage  : Linkage.t;
+    } [@@deriving bin_io, compare, equal, sexp]
+  end
+
+  include T
 
   let create_exn
       ?(return = None)
@@ -772,6 +793,7 @@ module Fn = struct
   let variadic fn = fn.variadic
   let linkage fn = fn.linkage
   let has_name fn name = String.(name = fn.name)
+  let hash fn = String.hash fn.name
 
   let map_blks fn ~f = {
     fn with blks = Array.map fn.blks ~f;
@@ -818,16 +840,24 @@ module Fn = struct
 
   (* XXX: name conflict *)
   include Fn
+
+  include Regular.Make(struct
+      include T
+      let module_name = Some "Virtual.Fn"
+      let version = "0.1"
+      let pp = pp
+      let hash = hash
+    end)
 end
 
-type fn = Fn.t
+type fn = Fn.t [@@deriving bin_io, compare, equal, sexp]
 
 module Data = struct
   type elt = [
     | `basic  of Type.basic * const list
     | `string of string
     | `zero   of int
-  ]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   let pp_elt ppf : elt -> unit = function
     | `basic (t, cs) ->
@@ -836,11 +866,15 @@ module Data = struct
     | `string s -> Format.fprintf ppf "%a \"%s\"" Type.pp_basic `i8 s
     | `zero n -> Format.fprintf ppf "z %d" n
 
-  type t = {
-    name    : string;
-    elts    : elt array;
-    linkage : Linkage.t;
-  }
+  module T = struct
+    type t = {
+      name    : string;
+      elts    : elt array;
+      linkage : Linkage.t;
+    } [@@deriving bin_io, compare, equal, sexp]
+  end
+
+  include T
 
   let create_exn ?(linkage = Linkage.default_export) ~name ~elts () =
     match Array.of_list elts with
@@ -854,6 +888,7 @@ module Data = struct
   let elts d = Array.to_sequence d.elts
   let linkage d = d.linkage
   let has_name d name = String.(name = d.name)
+  let hash d = String.hash d.name
 
   let prepend_elt d e = {
     d with elts = Array.push_front d.elts e;
@@ -871,16 +906,28 @@ module Data = struct
     let sep ppf = Format.fprintf ppf ",@;" in
     Format.fprintf ppf "%a@;data @@%s = {@;@[<v 2>%a@]@;}"
       Linkage.pp d.linkage d.name (Array.pp pp_elt sep) d.elts;
+
+  include Regular.Make(struct
+      include T
+      let module_name = Some "Virtual.Data"
+      let version = "0.1"
+      let pp = pp
+      let hash = hash
+    end)
 end
 
-type data = Data.t
+type data = Data.t [@@deriving bin_io, compare, equal, sexp]
 
-type t = {
-  name : string;
-  typs : Type.compound array;
-  data : data array;
-  funs : fn array;
-}
+module T = struct
+  type t = {
+    name : string;
+    typs : Type.compound array;
+    data : data array;
+    funs : fn array;
+  } [@@deriving bin_io, compare, equal, sexp]
+end
+
+include T
 
 let create ?(typs = []) ?(data = []) ?(funs = []) ~name () = {
   name;
@@ -893,6 +940,8 @@ let name u = u.name
 let typs u = Array.to_sequence u.typs
 let data u = Array.to_sequence u.data
 let funs u = Array.to_sequence u.funs
+let has_name u name = String.(name = u.name)
+let hash u = String.hash u.name
 
 let insert_type u t = {
   u with typs = Array.push_back u.typs t;
@@ -930,3 +979,18 @@ let map_data u ~f = {
 let map_funs u ~f = {
   u with funs = Array.map u.funs ~f;
 }
+
+let pp ppf u =
+  let sep ppf = Format.fprintf ppf "@;@;" in
+  Format.fprintf ppf "%a@;%a@;%a"
+    (Array.pp Type.pp_compound_decl sep) u.typs
+    (Array.pp Data.pp sep) u.data
+    (Array.pp Fn.pp sep) u.funs
+
+include Regular.Make(struct
+    include T
+    let module_name = Some "Virtual"
+    let version = "0.1"
+    let pp = pp
+    let hash = hash
+  end)
