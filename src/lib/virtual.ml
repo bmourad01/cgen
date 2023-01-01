@@ -884,3 +884,27 @@ let name u = u.name
 let typs u = Array.to_sequence u.typs
 let data u = Array.to_sequence u.data
 let funs u = Array.to_sequence u.funs
+
+let insert_type u t = {
+  u with typs = Array.push_back u.typs t;
+}
+
+let insert_data u d = {
+  u with data = Array.push_back u.data d;
+}
+
+let insert_fn u fn = {
+  u with funs = Array.push_back u.funs fn;
+}
+
+let map_typs u ~f = {
+  u with typs = Array.map u.typs ~f;
+}
+
+let map_data u ~f = {
+  u with data = Array.map u.data ~f;
+}
+
+let map_funs u ~f = {
+  u with funs = Array.map u.funs ~f;
+}

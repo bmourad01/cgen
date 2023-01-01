@@ -47,7 +47,6 @@ module Insn : sig
       [`sym s] is a global symbol.
 
       [`var v] is a dynamic absolute address.
-
   *)
   type global = [
     | `addr of Bitvec.t
@@ -839,3 +838,12 @@ val data : t -> data seq
 
 (** Functions defined in the unit. *)
 val funs : t -> fn seq
+
+(** Appends a type to the unit. *)
+val insert_type : t -> Type.compound -> t
+
+(** Appends a struct to the unit. *)
+val insert_data : t -> data -> t
+
+(** Appends a function to the unit. *)
+val insert_fn : t -> fn -> t
