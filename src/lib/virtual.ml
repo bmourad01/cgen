@@ -167,8 +167,8 @@ module Insn = struct
       | `neg  of Type.basic * arg
       | `rem  of Type.basic * arg * arg
       | `sub  of Type.basic * arg * arg
-      | `udiv of Type.basic * arg * arg
-      | `urem of Type.basic * arg * arg
+      | `udiv of Type.imm   * arg * arg
+      | `urem of Type.imm   * arg * arg
     ]
 
     let free_vars_of_arith : arith -> Var.Set.t = function
@@ -197,9 +197,9 @@ module Insn = struct
       | `sub (t, x, y) ->
         Format.fprintf ppf "sub.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
       | `udiv (t, x, y) ->
-        Format.fprintf ppf "urem.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
+        Format.fprintf ppf "urem.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
       | `urem (t, x, y) ->
-        Format.fprintf ppf "udiv.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
+        Format.fprintf ppf "udiv.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
 
     type bits = [
       | `and_ of Type.imm * arg * arg
@@ -262,12 +262,12 @@ module Insn = struct
       | `le  of Type.basic * arg * arg
       | `lt  of Type.basic * arg * arg
       | `ne  of Type.basic * arg * arg
-      | `o   of Type.basic * arg * arg
-      | `sge of Type.basic * arg * arg
-      | `sgt of Type.basic * arg * arg
-      | `sle of Type.basic * arg * arg
-      | `slt of Type.basic * arg * arg
-      | `uo  of Type.basic * arg * arg
+      | `o   of Type.imm   * arg * arg
+      | `sge of Type.imm   * arg * arg
+      | `sgt of Type.imm   * arg * arg
+      | `sle of Type.imm   * arg * arg
+      | `slt of Type.imm   * arg * arg
+      | `uo  of Type.imm   * arg * arg
     ]
 
     let free_vars_of_cmp : cmp -> Var.Set.t = function
@@ -299,17 +299,17 @@ module Insn = struct
       | `ne (t, x, y) ->
         Format.fprintf ppf "ne.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
       | `o (t, x, y) ->
-        Format.fprintf ppf "o.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
+        Format.fprintf ppf "o.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
       | `sge (t, x, y) ->
-        Format.fprintf ppf "sge.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
+        Format.fprintf ppf "sge.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
       | `sgt (t, x, y) ->
-        Format.fprintf ppf "sgt.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
+        Format.fprintf ppf "sgt.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
       | `sle (t, x, y) ->
-        Format.fprintf ppf "sle.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
+        Format.fprintf ppf "sle.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
       | `slt (t, x, y) ->
-        Format.fprintf ppf "slt.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
+        Format.fprintf ppf "slt.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
       | `uo (t, x, y) ->
-        Format.fprintf ppf "uo.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
+        Format.fprintf ppf "uo.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
 
     type cast = [
       | `bits   of Type.basic * arg

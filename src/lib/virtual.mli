@@ -8,7 +8,12 @@
 open Core
 open Regular.Std
 
-(** A constant value. *)
+(** A constant value.
+
+    [`int n] is a constant integer value.
+    [`float f] is a constant floating-point value.
+    [`sym s] is a reference to a global symbol.
+*)
 type const = [
   | `int   of Bitvec.t
   | `float of Decimal.t
@@ -32,7 +37,13 @@ module Insn : sig
   (** Pretty-prints an argument to an instruction. *)
   val pp_arg : Format.formatter -> arg -> unit
 
-  (** Inter-function destination. *)
+  (** Inter-function destination.
+
+      [`addr a] is a static absolute addrsss.
+      [`sym s] is a global symbol.
+      [`var v] is a dynamic absolute address.
+
+  *)
   type global = [
     | `addr of Bitvec.t
     | `sym  of string
@@ -42,7 +53,10 @@ module Insn : sig
   (** Pretty-prints the global destination. *)
   val pp_global : Format.formatter -> global -> unit
 
-  (** Intra-function destination. *)
+  (** Intra-function destination.
+
+      [`label l] is the label of a block in the current function.
+  *)
   type local = [
     | `label of Label.t
   ]
@@ -104,7 +118,17 @@ module Insn : sig
 
   (** Data-flow-effectful instructions. *)
   module Data : sig
-    (** Arithmetic operations. *)
+    (** Arithmetic operations.
+
+        [`add  (t, l, r)]: addition.
+        [`div  (t, l, r)]: division.
+        [`mul  (t, l, r)]: multiplication.
+        [`neg  (t, a)]:    negation.
+        [`rem  (t, l, r)]: remainder.
+        [`sub  (t, l, r)]: subtraction.
+        [`udiv (t, l, r)]: unsigned division (immediate only).
+        [`urem (t, l, r)]: unsigned remainder (immediate only).
+    *)
     type arith = [
       | `add  of Type.basic * arg * arg
       | `div  of Type.basic * arg * arg
@@ -112,8 +136,8 @@ module Insn : sig
       | `neg  of Type.basic * arg
       | `rem  of Type.basic * arg * arg
       | `sub  of Type.basic * arg * arg
-      | `udiv of Type.basic * arg * arg
-      | `urem of Type.basic * arg * arg
+      | `udiv of Type.imm   * arg * arg
+      | `urem of Type.imm   * arg * arg
     ]
 
     (** Returns the set of free variables in the arithmetic operation. *)
@@ -122,7 +146,15 @@ module Insn : sig
     (** Pretty-prints an arithmetic operation. *)
     val pp_arith : Format.formatter -> arith -> unit
 
-    (** Bitwise operations. *)
+    (** Bitwise operations.
+
+        [`and_ (t, l, r)]: bitwise intersection (AND).
+        [`or_  (t, l, r)]: bitwise union (OR).
+        [`sar  (t, l, r)]: arithmetic shift right.
+        [`shl  (t, l, r)]: logical shift left.
+        [`shr  (t, l, r)]: logical shift right.
+        [`xor  (t, l, r)]: bitwise difference (exclusive-OR).
+    *)
     type bits = [
       | `and_ of Type.imm * arg * arg
       | `or_  of Type.imm * arg * arg
@@ -138,7 +170,16 @@ module Insn : sig
     (** Pretty-prints a bitwise operation. *)
     val pp_bits : Format.formatter -> bits -> unit
 
-    (** Memory operations. *)
+    (** Memory operations.
+
+        [`alloc n]: allocate [n] bytes and return a pointer.
+
+        [`load (t, m, a)]: load a value of type [t] from memory
+        [m] at address [a].
+
+        [`store(t, m, a, v)]: store a value [v] of type [t] to
+        memory [m] at address [a].
+    *)
     type mem = [
       | `alloc of int
       | `load  of Type.basic * Var.t * arg
@@ -151,7 +192,21 @@ module Insn : sig
     (** Pretty-prints a memory operation. *)
     val pp_mem : Format.formatter -> mem -> unit
 
-    (** Comparison operations. *)
+    (** Comparison operations.
+
+        [`eq  (t, l, r)]: equal.
+        [`ge  (t, l, r)]: greater or equal.
+        [`gt  (t, l, r)]: greater than.
+        [`le  (t, l, r)]: less or equal.
+        [`lt  (t, l, r)]: less than.
+        [`ne  (t, l, r)]: not equal.
+        [`o   (t, l, r)]: signed overflow (immediate only).
+        [`sge (t, l, r)]: signed greater or equal (immediate only).
+        [`sgt (t, l, r)]: signed greater than (immediate only).
+        [`sle (t, l, r)]: signed less or equal (immediate only).
+        [`slt (t, l, r)]: signed less than (immediate only).
+        [`uo  (t, l, r)]: unsigned overflow (immediate only).
+    *)
     type cmp = [
       | `eq  of Type.basic * arg * arg
       | `ge  of Type.basic * arg * arg
@@ -159,12 +214,12 @@ module Insn : sig
       | `le  of Type.basic * arg * arg
       | `lt  of Type.basic * arg * arg
       | `ne  of Type.basic * arg * arg
-      | `o   of Type.basic * arg * arg
-      | `sge of Type.basic * arg * arg
-      | `sgt of Type.basic * arg * arg
-      | `sle of Type.basic * arg * arg
-      | `slt of Type.basic * arg * arg
-      | `uo  of Type.basic * arg * arg
+      | `o   of Type.imm   * arg * arg
+      | `sge of Type.imm   * arg * arg
+      | `sgt of Type.imm   * arg * arg
+      | `sle of Type.imm   * arg * arg
+      | `slt of Type.imm   * arg * arg
+      | `uo  of Type.imm   * arg * arg
     ]
 
     (** Returns the set of free variables in the comparison operation. *)
@@ -173,7 +228,30 @@ module Insn : sig
     (** Pretty-prints a comparison operation. *)
     val pp_cmp : Format.formatter -> cmp -> unit
 
-    (** Cast operations. *)
+    (** Cast operations.
+
+        [`bits (t, a)]: reinterpret the bits of [a] to type [t].
+
+        [`ftosi (t, i, f)]: cast a float [f] of type [t] to a signed
+        integer of type [i].
+
+        [`ftoui (t, i, f)]: cast a float [f] of type [t] to an unsigned
+        integer of type [i].
+
+        [`ftrunc (t, f)]: truncate a float [f] to a float of type [t].
+
+        [`itrunc (t, i)]: truncate an integer [i] to an integer of type [t].
+
+        [`sext (t, i)]: sign-extend an integer [i] to an integer of type [t].
+
+        [`sitof (t, f, i)]: cast a signed integer [i] of type [t] to a float
+        of type [f].
+
+        [`uitof (t, f, i)]: cast an unsigned integer [i] of type [t] to a
+        float of type [f].
+
+        [`zext (t, i)]: sign-extend an integer [i] to an integer of type [t].
+    *)
     type cast = [
       | `bits   of Type.basic * arg
       | `ftosi  of Type.fp * Type.imm * arg
@@ -192,7 +270,15 @@ module Insn : sig
     (** Pretty-prints a cast operation. *)
     val pp_cast : Format.formatter -> cast -> unit 
 
-    (** Copy operations. *)
+    (** Copy operations.
+
+        [`copy (t, a)]: move [a] to a destination of type [t]. If [a] is
+        a global symbol or a compound type, then it is interpreted as a
+        pointer.
+
+        [`select (t, c, l, r)]: if [c] is true, then select [l], otherwise
+        select [r]. Both [l] and [r] are expected to have type [t].
+    *)
     type copy = [
       | `copy of Type.basic * arg
       | `select of Type.basic * Var.t * arg * arg
@@ -222,8 +308,8 @@ module Insn : sig
 
     (** A call that does not assign a result.
 
-        The [`callv] constructor is used to indicate a variadic
-        call, hence the [v] suffix.
+        [`call (f, args)]: call to [f] with arguments [args].
+        [`callv (f, args)]: variadic call to [f] with arguments [args].
     *)
     type void_call = [
       | `call  of global * arg list
@@ -233,11 +319,13 @@ module Insn : sig
     (** Returns the set of free variables in the void call. *)
     val free_vars_of_void_call : void_call -> Var.Set.t
 
-    (** A call that assigns a result, hence the [a] prefix in the
-        constructor names.
+    (** A call that assigns a result.
 
-        The [`acallv] constructor is used to indicate a variadic
-        call, hence the [v] suffix.
+        [`acall (x, t, f, args)]: call to [f] with arguments [args], returning
+        a value of type [t] and assigning it to variable [x].
+
+        [`acallv (x, t, f, args)]: variadic call to [f] with arguments [args],
+        returning a value of type [t] and assigning it to variable [x].
     *)
     type assign_call = [
       | `acall  of Var.t * Type.basic * global * arg list
@@ -262,7 +350,10 @@ module Insn : sig
     (** Pretty-prints a call instruction. *)
     val pp_call : Format.formatter -> call -> unit
 
-    (** A data instruction is either a call or a simple op. *)
+    (** A data instruction is either a call or a simple op.
+
+        [`op (x, o)]: perform operation [o] and assign it to variable [x].
+    *)
     type t = [
       | call
       | `op of Var.t * op
@@ -630,7 +721,16 @@ type fn = Fn.t
 
 (** A struct of data. *)
 module Data : sig
-  (** An element of the struct. *)
+  (** An element of the struct.
+
+      [`basic (t, c)] is an instance of a basic constant [c] of type [t].
+
+      [`string s] is an instance of a string [s], represented as an array
+      of bytes.
+
+      [`zero n] is a zero-initialized array of [n] bytes. Note that [n <= 0]
+      is illegal.
+  *)
   type elt = [
     | `basic  of Type.basic * const
     | `string of string
