@@ -24,11 +24,8 @@ end
 module Array = struct
   include Array
 
-  let insert xs x i =
-    init (length xs + i) ~f:(fun j ->
-        if j < i then xs.(j)
-        else if j = i then x
-        else xs.(j - 1))
+  let insert xs x i = length xs |> succ |> init ~f:(fun j ->
+      if j < i then xs.(j) else if j = i then x else xs.(j - 1))
 
   let push_back xs x = insert xs x @@ length xs
   let push_front xs x = insert xs x 0
@@ -46,7 +43,7 @@ module Array = struct
         if i < last then sep ppf)
 
   let concat_map xs ~f =
-    fold_right xs ~init:[] ~f:(fun x acc -> f x @ acc) |> Array.of_list
+    of_list @@ fold_right xs ~init:[] ~f:(fun x acc -> f x @ acc)
 
   let findi_label xs f l = findi xs ~f:(fun _ x -> Label.equal l @@ f x)
 
@@ -56,7 +53,7 @@ module Array = struct
   let next xs f l =
     let open Monad.Option.Syntax in
     findi_label xs f l >>= lift fst >>= lift succ >>= fun j ->
-    if j >= Array.length xs then None else Some xs.(j)
+    if j >= length xs then None else Some xs.(j)
 
   let prev xs f l =
     let open Monad.Option.Syntax in
