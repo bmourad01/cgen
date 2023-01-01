@@ -8,6 +8,18 @@ module Bitvec = struct
   include Bitvec_sexp
 end
 
+module List = struct
+  include List
+
+  let rec pp ppx sep ppf = function
+    | x :: (_ :: _ as rest) ->
+      Format.fprintf ppf "%a" ppx x;
+      sep ppf;
+      Format.fprintf ppf "%a" (pp ppx sep) rest
+    | [x] -> Format.fprintf ppf "%a" ppx x
+    | [] -> ()
+end
+
 module Array = struct
   include Array
 
@@ -30,12 +42,11 @@ module Array = struct
     then Array.map xs ~f:(fun x -> if f x then y else x)
     else xs
 
-  let pp ppx ppf xs =
+  let pp ppx sep ppf xs =
     let last = Array.length xs - 1 in
     Array.iteri xs ~f:(fun i x ->
-        if i < last
-        then Format.fprintf ppf "%a@;" ppx x
-        else Format.fprintf ppf "%a" ppx x)
+        Format.fprintf ppf "%a" ppx x;
+        if i < last then sep ppf)
 
   let concat_map xs ~f =
     Array.fold_right xs ~init:[] ~f:(fun x acc -> f x @ acc) |> Array.of_list
@@ -121,17 +132,13 @@ module Insn = struct
       Seq.filter_map ~f:var_of_arg |>
       Var.Set.of_sequence
 
-    let rec pp_ins ppl ppf = function
-      | (l, x) :: (_ :: _ as rest) ->
-        Format.fprintf ppf "%a -> %a,@;%a"
-          ppl l pp_arg x (pp_ins ppl) rest
-      | [l, x] -> Format.fprintf ppf "%a -> %a" ppl l pp_arg x
-      | [] -> ()
+    let pp_in ppl ppf (l, x) = Format.fprintf ppf "%a -> %a" ppl l pp_arg x
 
     let pp_self ppl ppf p =
-      let ins = Map.to_alist p.ins in
+      let sep ppf = Format.fprintf ppf ",@;" in
       Format.fprintf ppf "%a = phi.%a [@[<v 0>%a@]]"
-        Var.pp p.lhs Type.pp (p.typ :> Type.t) (pp_ins ppl) ins
+        Var.pp p.lhs Type.pp (p.typ :> Type.t)
+        (List.pp (pp_in ppl) sep) (Map.to_alist p.ins)
 
     let pp = pp_self Label.pp
     let pp_hum = pp_self Label.pp_hum
@@ -409,13 +416,13 @@ module Insn = struct
       | `acallv _ | `callv _ -> true
       | `acall _  | `call _  -> false
 
-    let rec pp_call_args variadic ppf = function
-      | x :: (_ :: _ as rest) ->
-        Format.fprintf ppf "%a, %a" pp_arg x (pp_call_args variadic) rest
-      | [x] when not variadic -> Format.fprintf ppf "%a" pp_arg x
-      | [x] -> Format.fprintf ppf "%a, ..." pp_arg x
-      | [] when not variadic -> ()
-      | [] -> Format.fprintf ppf "..."
+    let pp_call_args variadic ppf args =
+      let sep ppf = Format.fprintf ppf ", " in
+      Format.fprintf ppf "%a" (List.pp pp_arg sep) args;
+      match args, variadic with
+      | _, false -> ()
+      | [], true -> Format.fprintf ppf "..."
+      | _, true  -> Format.fprintf ppf ", ..."
 
     let pp_call_res ppf = function
       | None -> Format.fprintf ppf "call "
@@ -464,6 +471,13 @@ module Insn = struct
 
       let enum t = Map.to_sequence t
       let find t v = Map.find t v
+
+      let pp_elt ppl ppf (v, l) =
+        Format.fprintf ppf "%a -> %a" Bitvec.pp v ppl l
+
+      let pp ppl ppf t =
+        let sep ppf = Format.fprintf ppf ",@;" in
+        Format.fprintf ppf "%a" (List.pp (pp_elt ppl) sep) (Map.to_alist t)
     end
 
     type table = Table.t
@@ -482,13 +496,6 @@ module Insn = struct
       | `ret (Some a) -> var_of_arg a |> Option.to_list |> Var.Set.of_list
       | `switch (_, x, _, _) -> Var.Set.singleton x
 
-    let rec pp_switch_table ppl ppf = function
-      | (v, l) :: (_ :: _ as rest) ->
-        Format.fprintf ppf "%a -> %a,@;%a"
-          Bitvec.pp v ppl l (pp_switch_table ppl) rest
-      | [v, l] -> Format.fprintf ppf "%a -> %a" Bitvec.pp v ppl l
-      | [] -> ()
-
     let pp_self ppd ppl ppf : t -> unit = function
       | `jmp d ->
         Format.fprintf ppf "jmp %a" ppd d
@@ -500,8 +507,7 @@ module Insn = struct
         Format.fprintf ppf "ret"
       | `switch (t, x, ld, tbl) ->
         Format.fprintf ppf "switch.%a %a, %a [@[<v 0>%a@]]"
-          Type.pp_imm t Var.pp x Label.pp ld
-          (pp_switch_table ppl) (Map.to_alist tbl)
+          Type.pp_imm t Var.pp x Label.pp ld (Table.pp ppl) tbl
 
     let pp = pp_self pp_dst Label.pp
     let pp_hum = pp_self pp_dst_hum Label.pp_hum
@@ -627,46 +633,50 @@ module Blk = struct
 
   let defines_var b x = has_lhs_phi b x || has_lhs_data b x
 
-  let pp ppf b = match b.phi, b.data with
+  let pp ppf b =
+    let sep ppf = Format.fprintf ppf "@;" in
+    match b.phi, b.data with
     | [||], [||] ->
       Format.fprintf ppf "%a:@;%a"
         Label.pp b.label Insn.pp_ctrl b.ctrl
     | _, [||] ->
       Format.fprintf ppf "%a:@;%a@;%a"
         Label.pp b.label
-        (Array.pp Insn.pp_phi) b.phi
+        (Array.pp Insn.pp_phi sep) b.phi
         Insn.pp_ctrl b.ctrl
     | [||], _ ->
       Format.fprintf ppf "%a:@;%a@;%a"
         Label.pp b.label
-        (Array.pp Insn.pp_data) b.data
+        (Array.pp Insn.pp_data sep) b.data
         Insn.pp_ctrl b.ctrl
     | _ ->
       Format.fprintf ppf "%a:@;%a@;%a@;%a"
         Label.pp b.label
-        (Array.pp Insn.pp_phi) b.phi
-        (Array.pp Insn.pp_data) b.data
+        (Array.pp Insn.pp_phi sep) b.phi
+        (Array.pp Insn.pp_data sep) b.data
         Insn.pp_ctrl b.ctrl
 
-  let pp_hum ppf b = match b.phi, b.data with
+  let pp_hum ppf b =
+    let sep ppf = Format.fprintf ppf "@;" in
+    match b.phi, b.data with
     | [||], [||] ->
       Format.fprintf ppf "%a:@[<v 1>@;%a@]"
         Label.pp_hum b.label Insn.pp_ctrl_hum b.ctrl
     | _, [||] ->
       Format.fprintf ppf "%a:@[<v 1>@;%a@;%a@]"
         Label.pp_hum b.label
-        (Array.pp Insn.pp_phi_hum) b.phi
+        (Array.pp Insn.pp_phi_hum sep) b.phi
         Insn.pp_ctrl_hum b.ctrl
     | [||], _ ->
       Format.fprintf ppf "%a:@[<v 1>@;%a@;%a@]"
         Label.pp_hum b.label
-        (Array.pp Insn.pp_data_hum) b.data
+        (Array.pp Insn.pp_data_hum sep) b.data
         Insn.pp_ctrl_hum b.ctrl
     | _ ->
       Format.fprintf ppf "%a:@[<v 1>@;%a@;%a@;%a@]"
         Label.pp_hum b.label
-        (Array.pp Insn.pp_phi_hum) b.phi
-        (Array.pp Insn.pp_data_hum) b.data
+        (Array.pp Insn.pp_phi_hum sep) b.phi
+        (Array.pp Insn.pp_data_hum sep) b.data
         Insn.pp_ctrl_hum b.ctrl
 
 end
@@ -715,30 +725,31 @@ module Fn = struct
     fn with blks = Array.map fn.blks ~f;
   }
 
-  let rec pp_args_aux ppf = function
-    | (v, t) :: (_ :: _ as rest) ->
-      Format.fprintf ppf "%a %a, %a" Type.pp t Var.pp v pp_args_aux rest
-    | [v, t] -> Format.fprintf ppf "%a %a" Type.pp t Var.pp v
-    | [] -> ()
+  let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp t Var.pp v
+
+  let pp_args ppf args =
+    let sep ppf = Format.fprintf ppf ", " in
+    Format.fprintf ppf "%a" (Array.pp pp_arg sep) args
 
   let pp_args ppf fn = match fn.variadic, fn.args with  
     | false, [||] -> ()
-    | false, args -> pp_args_aux ppf @@ Array.to_list args
+    | false, args -> Format.fprintf ppf "%a" pp_args args
     | true, [||] -> Format.fprintf ppf "..."
-    | true, args ->
-      Format.fprintf ppf "%a, ..." pp_args_aux @@ Array.to_list args
+    | true, args -> Format.fprintf ppf "%a, ..." pp_args args
 
   let pp ppf fn =
+    let sep ppf = Format.fprintf ppf "@;" in
     Format.fprintf ppf "%a@;function " Linkage.pp fn.linkage;
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp);
     Format.fprintf ppf "@@%s(%a):@;@[<v 0>%a@]"
-      fn.name pp_args fn (Array.pp Blk.pp) fn.blks
+      fn.name pp_args fn (Array.pp Blk.pp sep) fn.blks
 
   let pp_hum ppf fn =
+    let sep ppf = Format.fprintf ppf "@;" in
     Format.fprintf ppf "%a@;function " Linkage.pp fn.linkage;
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp);
     Format.fprintf ppf "@@%s(%a) {@;@[%a@]@;}"
-      fn.name pp_args fn (Array.pp Blk.pp_hum) fn.blks
+      fn.name pp_args fn (Array.pp Blk.pp_hum sep) fn.blks
 end
 
 type fn = Fn.t
