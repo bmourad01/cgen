@@ -766,6 +766,9 @@ module Data : sig
     | `zero   of int
   ]
 
+  (** Pretty-prints an element of the struct. *)
+  val pp_elt : Format.formatter -> elt -> unit
+
   type t
 
   (** Creates a struct.
