@@ -8,15 +8,18 @@
 open Core
 open Regular.Std
 
+(** A constant value. *)
+type const = [
+  | `int   of Bitvec.t
+  | `float of Decimal.t
+  | `sym   of string
+]
+
+(** Pretty-prints a constant value. *)
+val pp_const : Format.formatter -> const -> unit
+
 (** An instruction. *)
 module Insn : sig
-  (** A constant value. *)
-  type const = [
-    | `int   of Bitvec.t
-    | `float of Decimal.t
-    | `sym   of string
-  ]
-
   (** An argument to an instruction. *)
   type arg = [
     | const
@@ -624,3 +627,50 @@ module Fn : sig
 end
 
 type fn = Fn.t
+
+(** A struct of data. *)
+module Data : sig
+  (** An element of the struct. *)
+  type elt = [
+    | `basic  of Type.basic * const
+    | `string of string
+    | `zero   of int
+  ]
+
+  type t
+
+  (** Creates a struct.
+
+      By default, [linkage] is [Linkage.default_export].
+
+      @raise Invalid_argument if [elts] is empty.
+  *)
+  val create_exn :
+    ?linkage:Linkage.t ->
+    name:string ->
+    elts:elt list ->
+    unit ->
+    t
+
+  (** Same as [create_exn], but returns an error upon failure. *)
+  val create :
+    ?linkage:Linkage.t ->
+    name:string ->
+    elts:elt list ->
+    unit ->
+    t Or_error.t
+
+  (** Returns the name associated with the struct. *)
+  val name : t -> string
+
+  (** Returns the elements of the struct. *)
+  val elts : t -> elt seq
+
+  (** Returns the linkage of the struct. *)
+  val linkage : t -> Linkage.t
+
+  (** Pretty-prints a struct. *)
+  val pp : Format.formatter -> t -> unit
+end
+
+type data = Data.t

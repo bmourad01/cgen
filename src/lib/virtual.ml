@@ -61,13 +61,18 @@ module Array = struct
     if j < 0 then None else Some xs.(j)
 end
 
-module Insn = struct
-  type const = [
-    | `int   of Bitvec.t
-    | `float of Decimal.t
-    | `sym   of string
-  ]
+type const = [
+  | `int   of Bitvec.t
+  | `float of Decimal.t
+  | `sym   of string
+]
 
+let pp_const ppf : const -> unit = function
+  | `int   n -> Format.fprintf ppf "%a" Bitvec.pp n
+  | `float f -> Format.fprintf ppf "%a" Decimal.pp f
+  | `sym   s -> Format.fprintf ppf "@@%s" s
+
+module Insn = struct
   type arg = [
     | const
     | `var of Var.t
@@ -78,10 +83,8 @@ module Insn = struct
     | _ -> None
 
   let pp_arg ppf : arg -> unit = function
+    | #const as c -> Format.fprintf ppf "%a" pp_const c
     | `var v -> Format.fprintf ppf "%a" Var.pp v
-    | `sym s -> Format.fprintf ppf "@@%s" s
-    | `int i -> Format.fprintf ppf "%a" Bitvec.pp i
-    | `float f -> Format.fprintf ppf "%a" Decimal.pp f
 
   type global = [
     | `addr of Bitvec.t
@@ -808,3 +811,42 @@ module Fn = struct
 end
 
 type fn = Fn.t
+
+module Data = struct
+  type elt = [
+    | `basic  of Type.basic * const
+    | `string of string
+    | `zero   of int
+  ]
+
+  let pp_elt ppf : elt -> unit = function
+    | `basic (t, c) -> Format.fprintf ppf "%a %a" Type.pp_basic t pp_const c
+    | `string s -> Format.fprintf ppf "%a \"%s\"" Type.pp_basic `i8 s
+    | `zero n -> Format.fprintf ppf "z %d" n
+
+  type t = {
+    name    : string;
+    elts    : elt array;
+    linkage : Linkage.t;
+  }
+
+  let create_exn ?(linkage = Linkage.default_export) ~name ~elts () =
+    match Array.of_list elts with
+    | [||] -> invalid_argf "Cannot create empty data %s" name ()
+    | elts -> {name; elts; linkage}
+
+  let create ?(linkage = Linkage.default_export) ~name ~elts () =
+    Or_error.try_with @@ create_exn ~name ~elts ~linkage
+
+  let name d = d.name
+  let elts d = Array.to_sequence d.elts
+  let linkage d = d.linkage
+
+  let pp ppf d =
+    let sep ppf = Format.fprintf ppf ",@;" in
+    Format.fprintf ppf "%a@;data %a = {@;@[<v 2>%a@]@;}"
+      Linkage.pp d.linkage pp_const (`sym d.name)
+      (Array.pp pp_elt sep) d.elts;
+end
+
+type data = Data.t

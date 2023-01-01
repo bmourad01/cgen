@@ -1,6 +1,18 @@
 open Core
 open Regular.Std
 
+module List = struct
+  include List
+
+  let rec pp ppx sep ppf = function
+    | x :: (_ :: _ as rest) ->
+      Format.fprintf ppf "%a" ppx x;
+      sep ppf;
+      Format.fprintf ppf "%a" (pp ppx sep) rest
+    | [x] -> Format.fprintf ppf "%a" ppx x
+    | [] -> ()
+end
+
 type imm_base = [
   | `i32
   | `i64
@@ -17,7 +29,7 @@ type imm = [
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_imm ppf : imm -> unit = function
-  | `i8 -> Format.fprintf ppf "b"
+  | `i8  -> Format.fprintf ppf "b"
   | `i16 -> Format.fprintf ppf "h"
   | #imm_base as i -> pp_imm_base ppf i
 
@@ -37,39 +49,28 @@ type basic = [
 
 let pp_basic ppf : basic -> unit = function
   | #imm as i -> Format.fprintf ppf "%a" pp_imm i
-  | #fp as f -> Format.fprintf ppf "%a" pp_fp f
-
-type alignment = [
-  | `default
-  | `align of int
-] [@@deriving bin_io, compare, equal, hash, sexp]
+  | #fp  as f -> Format.fprintf ppf "%a" pp_fp f
 
 type field = [
-  | basic
+  | `elt  of basic * int
   | `name of string
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_field ppf : field -> unit = function
-  | #basic as b -> Format.fprintf ppf "%a" pp_basic b
-  | `name s -> Format.fprintf ppf ":%s" s
+  | `elt (t, 1) -> Format.fprintf ppf "%a" pp_basic t
+  | `elt (t, n) -> Format.fprintf ppf "%a %d" pp_basic t n
+  | `name s     -> Format.fprintf ppf ":%s" s
 
 type compound = [
-  | `compound of string * alignment * field list
+  | `compound of string * int option * field list
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_compound ppf : compound -> unit = function
   | `compound (name, align, fields) ->
-    let rec pp_fields ppf = function
-      | f :: (_ :: _ as rest) ->
-        Format.fprintf ppf "%a, %a" pp_field f pp_fields rest
-      | [f] -> Format.fprintf ppf "%a" pp_field f
-      | [] -> () in
+    let sep ppf = Format.fprintf ppf ",@;" in
     Format.fprintf ppf "struct :%s " name;
-    begin match align with
-      | `default -> ()
-      | `align n -> Format.fprintf ppf "align %d " n
-    end;
-    Format.fprintf ppf "{%a}" pp_fields fields
+    Option.iter align ~f:(Format.fprintf ppf "align %d ");
+    Format.fprintf ppf "{@;@[<v 2>%a@]@;}" (List.pp pp_field sep) fields
 
 let pp_compound_arg ppf : compound -> unit = function
   | `compound (name, _, _) -> Format.fprintf ppf ":%s" name
@@ -80,7 +81,7 @@ type special = [
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_special ppf : special -> unit = function
-  | `mem -> Format.fprintf ppf "m"
+  | `mem  -> Format.fprintf ppf "m"
   | `flag -> Format.fprintf ppf "f"
 
 type arg = [
@@ -89,7 +90,7 @@ type arg = [
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_arg ppf : arg -> unit = function
-  | #basic as b -> Format.fprintf ppf "%a" pp_basic b
+  | #basic    as b -> Format.fprintf ppf "%a" pp_basic b
   | #compound as c -> Format.fprintf ppf "%a" pp_compound_arg c
 
 module T = struct
@@ -103,9 +104,9 @@ end
 include T
 
 let pp ppf : t -> unit = function
-  | #basic as b -> Format.fprintf ppf "%a" pp_basic b
+  | #basic    as b -> Format.fprintf ppf "%a" pp_basic b
   | #compound as c -> Format.fprintf ppf "%a" pp_compound c
-  | #special as s -> Format.fprintf ppf "%a" pp_special s
+  | #special  as s -> Format.fprintf ppf "%a" pp_special s
 
 include Regular.Make(struct
     include T

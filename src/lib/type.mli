@@ -41,34 +41,33 @@ type basic = [
 (** Pretty-prints a basic type. *)
 val pp_basic : Format.formatter -> basic -> unit
 
-(** An alignment for a compound type.
+(** A field of a compound type, which is either a basic type,
+    or the [`name n] of another compound type, whose name is
+    [n].
 
-    [`default] indicates that the fields of the compound type
-    are aligned by the size of their largest member.
-
-    [`align n] indicates that the fields are aligned by [n]
-    bytes. Note than [n <= 0] is illegal.
+    A basic type [`elt (t, n)`] can specify how many instances
+    [n] of the element occur in the field (akin to an inlined
+    array of these elements). Note that [n <= 0] is illegal.
 *)
-type alignment = [
-  | `default
-  | `align of int
-] [@@deriving bin_io, compare, equal, hash, sexp]
-
-(** A field of a compound type, which is either a [basic]
-    type, or the [`name n] of another compound type, whose
-    name is [n]. *)
 type field = [
-  | basic
+  | `elt  of basic * int
   | `name of string
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty-prints a field. *)
 val pp_field : Format.formatter -> field -> unit
 
-(** A compound data type, consisting of a name, a specified
-    alignment, and a list of fields. *)
+(** A compound data type, consisting of a name, an optional
+    alignment (in bytes), and a list of fields.
+
+    An alignment [Some n] will indicate that the fields of the
+    type are aligned by [n] bytes. Note that [n <= 0] is illegal.
+
+    If no alignment is specified, then the fields of the type
+    are aligned by the size of their largest member.
+*)
 type compound = [
-  | `compound of string * alignment * field list
+  | `compound of string * int option * field list
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty-prints a compound type. *)
