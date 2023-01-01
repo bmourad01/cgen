@@ -498,7 +498,7 @@ module Fn : sig
   (** Returns the basic blocks of the function. *)
   val blks : t -> blk seq
 
-  (** Returns the label of the entry point. *)
+  (** Returns the label of the entry block. *)
   val entry : t -> Label.t
 
   (** Returns the arguments of the function, along with their types. *)
