@@ -61,6 +61,20 @@ module M = Monad.Make(struct
 
 include M
 
+let lift_err : 'a Or_error.t -> 'a t = function
+  | Error err -> fail err
+  | Ok x -> !!x
+
+module Syntax = struct
+  include M.Syntax
+  include M.Let
+
+  let (>>?) x f = x >>= lift_err >>= f
+  let (let*?) x f = x >>? f
+  let (>>^?) x f = lift_err x >>= f
+  let (let^?) x f = x >>^? f
+end
+
 let get () = {
   run = fun ~reject:_ ~accept s -> accept s s
 } [@@inline]
@@ -76,6 +90,10 @@ let gets f = {
 let update f = {
   run = fun ~reject:_ ~accept s -> accept () (f s)
 } [@@inline]
+
+let lift_err : 'a Or_error.t -> 'a t = function
+  | Error err -> fail err
+  | Ok x -> !!x
 
 let target = gets @@ fun s -> s.target
 

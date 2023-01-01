@@ -28,6 +28,13 @@ val map : 'a t -> f:('a -> 'b) -> 'b t
 (** Terminates the computation with an error. *)
 val fail : Error.t -> 'a t
 
+(** Lifts an [Or_error] computation into the context.
+
+    If it is [Ok x], then [x] is returned, otherwise the computation fails
+    with the error.
+*)
+val lift_err : 'a Or_error.t -> 'a t
+
 (** Returns the target machine. *)
 val target : Target.t t
 
@@ -88,6 +95,23 @@ val run : 'a t -> state -> ('a * state) Or_error.t
     discarded when [x] terminates. *)
 val eval : 'a t -> state -> 'a Or_error.t
 
-module Syntax : Monad.Syntax.S with type 'a t := 'a t
+module Syntax : sig
+  include Monad.Syntax.S with type 'a t := 'a t
+  include Monad.Syntax.Let.S with type 'a t := 'a t
+
+  (** Attempts to unwrap an [Or_error] computation into the context, and
+      fails if it is an error. *)
+  val (>>?) : 'a Or_error.t t -> ('a -> 'b t) -> 'b t
+
+  (** Same as the [(>>?)] infix notation. *)
+  val (let*?) : 'a Or_error.t t -> ('a -> 'b t) -> 'b t
+
+  (** Same as [(>>?)], but for [Or_error] values that are not wrapped in
+      the context. *)
+  val (>>^?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
+
+  (** Same as the [(>>^?)] infix notation. *)
+  val (let^?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
+end
 
 include Monad.S with type 'a t := 'a t and module Syntax := Syntax
