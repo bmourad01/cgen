@@ -355,6 +355,9 @@ module Insn : sig
   (** Returns the label of the instruction. *)
   val label : 'a t -> Label.t
 
+  (** Returns [true] if the instruction has the given label. *)
+  val has_label : 'a t -> Label.t -> bool
+
   (** Returns the assigned variable of the phi instruction. *)
   val lhs_of_phi : phi -> Var.t
 
@@ -415,8 +418,8 @@ module Blk : sig
       of the block. *)
   val ctrl : t -> Insn.ctrl
 
-  (** [is_label b l] returns [true] if block [b] has label [l]. *)
-  val is_label : t -> Label.t -> bool
+  (** [has_label b l] returns [true] if block [b] has label [l]. *)
+  val has_label : t -> Label.t -> bool
 
   (** Returns the set of free variables in the block. *)
   val free_vars : t -> Var.Set.t

@@ -544,7 +544,7 @@ module Insn = struct
 
   let insn i = i.insn
   let label i = i.label
-  let is_label i l = Label.(i.label = l)
+  let has_label i l = Label.(i.label = l)
 
   let lhs_of_phi i = Phi.lhs i.insn
   let lhs_of_data i = Data.lhs i.insn
@@ -583,7 +583,7 @@ module Blk = struct
   let phi b = Array.to_sequence b.phi
   let data b = Array.to_sequence b.data
   let ctrl b = b.ctrl
-  let is_label b l = Label.(b.label = l)
+  let has_label b l = Label.(b.label = l)
 
   let free_vars b =
     let (++) = Set.union and (--) = Set.diff in
@@ -618,7 +618,7 @@ module Blk = struct
   }
 
   let index_of xs l =
-    Array.findi xs ~f:(fun _ x -> Insn.is_label x l) |> Option.map ~f:fst
+    Array.findi xs ~f:(fun _ x -> Insn.has_label x l) |> Option.map ~f:fst
 
   let prepend ?(before = None) xs x = match before with
     | None -> Array.push_front xs x
@@ -649,15 +649,15 @@ module Blk = struct
   let has_lhs_data b x = has_lhs b.data x Insn.Data.has_lhs
   let defines_var b x = has_lhs_phi b x || has_lhs_data b x
 
-  let has xs l = Array.exists xs ~f:(Fn.flip Insn.is_label l)
+  let has xs l = Array.exists xs ~f:(Fn.flip Insn.has_label l)
   let has_phi b = has b.phi
   let has_data b = has b.data
-  let has_ctrl b l = Insn.is_label b.ctrl l
+  let has_ctrl b l = Insn.has_label b.ctrl l
 
-  let find xs l = Array.find xs ~f:(Fn.flip Insn.is_label l)
+  let find xs l = Array.find xs ~f:(Fn.flip Insn.has_label l)
   let find_phi b = find b.phi
   let find_data b = find b.data
-  let find_ctrl b l = Option.some_if (Insn.is_label b.ctrl l) b.ctrl
+  let find_ctrl b l = Option.some_if (Insn.has_label b.ctrl l) b.ctrl
 
   let next xs l = Array.next xs Insn.label l
   let next_phi b = next b.phi
@@ -777,11 +777,11 @@ module Fn = struct
   let remove_blk_exn fn l =
     if Label.(l = fn.entry)
     then invalid_argf "Cannot remove entry block of function %s" fn.name ()
-    else {fn with blks = Array.remove_if fn.blks ~f:(Fn.flip Blk.is_label l)}
+    else {fn with blks = Array.remove_if fn.blks ~f:(Fn.flip Blk.has_label l)}
 
   let remove_blk fn l = Or_error.try_with @@ fun () -> remove_blk_exn fn l
-  let has_blk fn l = Array.exists fn.blks ~f:(Fn.flip Blk.is_label l)
-  let find_blk fn l = Array.find fn.blks ~f:(Fn.flip Blk.is_label l)
+  let has_blk fn l = Array.exists fn.blks ~f:(Fn.flip Blk.has_label l)
+  let find_blk fn l = Array.find fn.blks ~f:(Fn.flip Blk.has_label l)
   let next_blk fn l = Array.next fn.blks Blk.label l
   let prev_blk fn l = Array.prev fn.blks Blk.label l
 
