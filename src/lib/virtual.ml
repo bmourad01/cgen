@@ -814,13 +814,15 @@ type fn = Fn.t
 
 module Data = struct
   type elt = [
-    | `basic  of Type.basic * const
+    | `basic  of Type.basic * const list
     | `string of string
     | `zero   of int
   ]
 
   let pp_elt ppf : elt -> unit = function
-    | `basic (t, c) -> Format.fprintf ppf "%a %a" Type.pp_basic t pp_const c
+    | `basic (t, cs) ->
+      let sep ppf = Format.fprintf ppf " " in
+      Format.fprintf ppf "%a %a" Type.pp_basic t (List.pp pp_const sep) cs
     | `string s -> Format.fprintf ppf "%a \"%s\"" Type.pp_basic `i8 s
     | `zero n -> Format.fprintf ppf "z %d" n
 
