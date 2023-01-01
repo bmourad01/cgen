@@ -8,6 +8,9 @@
                   ppx_sexp_conv))
  (libraries
    bitvec
+   bitvec-binprot
+   bitvec-order
+   bitvec-sexp
    core
    core_kernel.pairing_heap
    decimal

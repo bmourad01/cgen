@@ -15,6 +15,9 @@
   (description "A library and suite of tools for generating native code")
   (depends
     bitvec
+    bitvec-binprot
+    bitvec-order
+    bitvec-sexp
     (core (>= v0.15))
     decimal
     dune

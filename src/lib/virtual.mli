@@ -59,7 +59,10 @@ module Insn : sig
   module Phi : sig
     type t
 
-    (** Creates a phi instruction. *)
+    (** Creates a phi instruction.
+
+        @raise Invalid_argument if [ins] has duplicate keys.
+    *)
     val create :
       ?ins:(Label.t * arg) list ->
       lhs:Var.t ->
@@ -269,6 +272,15 @@ module Insn : sig
 
   (** Control-flow-effectful instructions. *)
   module Ctrl : sig
+    (** A switch table. *)
+    type table
+
+    (** Creates a switch table from an association list.Afl_instrument
+
+        @raise [Invalid_argument] the list has duplicate keys.
+    *)
+    val table : (Bitvec.t * Label.t) list -> table
+
     (** A control-flow instruction.
 
         [`jmp dst] is an unconditional jump to the destination [dst].
@@ -288,7 +300,7 @@ module Insn : sig
       | `jmp    of dst
       | `jnz    of Var.t * dst * dst
       | `ret    of arg option
-      | `switch of Type.imm * Var.t * Label.t * (Bitvec.t * Label.t) list
+      | `switch of Type.imm * Var.t * Label.t * table
     ]
 
     (** Returns the set of free variables in the control-flow instruction. *)
@@ -457,7 +469,7 @@ module Fn : sig
 
       By default, [linkage] is [Linkage.default_export].
 
-      Raises [Invalid_argument] if [blks] is empty.
+      @raise Invalid_argument if [blks] is empty.
   *)
   val create :
     ?return:Type.t option ->

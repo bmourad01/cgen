@@ -1,6 +1,13 @@
 open Core
 open Regular.Std
 
+module Bitvec = struct
+  include Bitvec
+  include Bitvec_binprot
+  include Bitvec_order
+  include Bitvec_sexp
+end
+
 module Array = struct
   include Array
 
@@ -97,11 +104,11 @@ module Insn = struct
       ins : arg Label.Map.t;
     }
 
-    let create ?(ins = []) ~lhs ~typ () = {
+    let create ?(ins = []) ~lhs ~typ () = try {
       lhs;
       typ;
       ins = Label.Map.of_alist_exn ins;
-    }
+    } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
 
     let lhs p = p.lhs
     let typ p = p.typ
@@ -449,11 +456,16 @@ module Insn = struct
   end
 
   module Ctrl = struct
+    type table = Label.t Map.M(Bitvec).t
+
+    let table l = try Map.of_alist_exn (module Bitvec) l with
+      | exn -> invalid_argf "%s" (Exn.to_string exn) ()
+
     type t = [
       | `jmp    of dst
       | `jnz    of Var.t * dst * dst
       | `ret    of arg option
-      | `switch of Type.imm * Var.t * Label.t * (Bitvec.t * Label.t) list
+      | `switch of Type.imm * Var.t * Label.t * table
     ]
 
     let free_vars : t -> Var.Set.t = function
@@ -481,7 +493,8 @@ module Insn = struct
         Format.fprintf ppf "ret"
       | `switch (t, x, ld, tbl) ->
         Format.fprintf ppf "switch.%a %a, %a [@[<v 0>%a@]]"
-          Type.pp_imm t Var.pp x Label.pp ld (pp_switch_table ppl) tbl
+          Type.pp_imm t Var.pp x Label.pp ld
+          (pp_switch_table ppl) (Map.to_alist tbl)
 
     let pp = pp_self pp_dst Label.pp
     let pp_hum = pp_self pp_dst_hum Label.pp_hum

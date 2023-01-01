@@ -10,6 +10,9 @@ homepage: "https://github.com/bmourad01/cgen"
 bug-reports: "https://github.com/bmourad01/cgen/issues"
 depends: [
   "bitvec"
+  "bitvec-binprot"
+  "bitvec-order"
+  "bitvec-sexp"
   "core" {>= "v0.15"}
   "decimal"
   "dune" {>= "3.6"}
