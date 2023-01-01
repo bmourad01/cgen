@@ -1,7 +1,7 @@
 (library
  (name cgen)
  (public_name cgen)
- (flags -w -32)
+ (flags -w -32-58)
  (preprocess (pps ppx_bin_prot
                   ppx_compare
                   ppx_hash

@@ -3,4 +3,5 @@
  (public_name cgen)
  (package cgen)
  (libraries cgen)
+ (flags -w -58)
  (ocamlopt_flags -O3))
