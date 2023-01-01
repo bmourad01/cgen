@@ -429,6 +429,43 @@ module Blk : sig
       in the block [b]. *)
   val defines_var : t -> Var.t -> bool
 
+  (** Returns [true] if the block has a phi instruction associated with
+      the label. *)
+  val has_phi : t -> Label.t -> bool
+
+  (** Returns [true] if the block has a data instruction associated with
+      the label. *)
+  val has_data : t -> Label.t -> bool
+
+  (** Returns [true] if the block has a control-flow instruction associated
+      with the label. *)
+  val has_ctrl : t -> Label.t -> bool
+
+  (** Finds the phi instruction with the associated label. *)
+  val find_phi : t -> Label.t -> Insn.phi option
+
+  (** Finds the data instruction with the associated label. *)
+  val find_data : t -> Label.t -> Insn.data option
+
+  (** Finds the control-flow instruction with the associated label. *)
+  val find_ctrl : t -> Label.t -> Insn.ctrl option
+
+  (** Returns the next phi instruction (after the given label) if it
+      exists. *)
+  val next_phi : t -> Label.t -> Insn.phi option
+
+  (** Returns the next data instruction (after the given label) if it
+      exists. *)
+  val next_data : t -> Label.t -> Insn.data option
+
+  (** Returns the previous phi instruction (before the given label) if it
+      exists. *)
+  val prev_phi : t -> Label.t -> Insn.phi option
+
+  (** Returns the previous data instruction (before the given label) if it
+      exists. *)
+  val prev_data : t -> Label.t -> Insn.data option
+
   (** [map_phi b ~f] returns [b] with each phi instruction applied
       to [f]. *)
   val map_phi : t -> f:(Insn.phi -> Insn.phi) -> t
@@ -557,6 +594,19 @@ module Fn : sig
 
   (** Same as [remove_blk_exn], but returns an error upon failure. *)
   val remove_blk : t -> Label.t -> t Or_error.t
+
+  (** Returns [true] if the function has a block associated with the given
+      label. *)
+  val has_blk : t -> Label.t -> bool
+
+  (** Finds the block with the associated label, if it exists. *)
+  val find_blk : t -> Label.t -> blk option
+
+  (** Returns the next block (after the given label) if it exists. *)
+  val next_blk : t -> Label.t -> blk option
+
+  (** Returns the previous block (before the given label) if it exists. *)
+  val prev_blk : t -> Label.t -> blk option
 
   (** Pretty-prints a function. *)
   val pp : Format.formatter -> t -> unit

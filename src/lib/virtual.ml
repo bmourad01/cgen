@@ -1,4 +1,5 @@
 open Core
+open Monads.Std
 open Regular.Std
 
 module Bitvec = struct
@@ -33,23 +34,34 @@ module Array = struct
   let push_front xs x = insert xs x 0
 
   let remove_if xs ~f =
-    if Array.exists xs ~f
-    then Array.filter xs ~f:(Fn.non f)
-    else xs
+    if exists xs ~f then filter xs ~f:(Fn.non f) else xs
 
   let update_if xs y ~f =
-    if Array.exists xs ~f
-    then Array.map xs ~f:(fun x -> if f x then y else x)
-    else xs
+    if exists xs ~f then map xs ~f:(fun x -> if f x then y else x) else xs
 
   let pp ppx sep ppf xs =
-    let last = Array.length xs - 1 in
-    Array.iteri xs ~f:(fun i x ->
+    let last = length xs - 1 in
+    iteri xs ~f:(fun i x ->
         Format.fprintf ppf "%a" ppx x;
         if i < last then sep ppf)
 
   let concat_map xs ~f =
-    Array.fold_right xs ~init:[] ~f:(fun x acc -> f x @ acc) |> Array.of_list
+    fold_right xs ~init:[] ~f:(fun x acc -> f x @ acc) |> Array.of_list
+
+  let findi_label xs f l = findi xs ~f:(fun _ x -> Label.equal l @@ f x)
+
+  let lift : type a b. (a -> b) -> (a -> b option) = fun f ->
+    Fn.compose Option.return f
+
+  let next xs f l =
+    let open Monad.Option.Syntax in
+    findi_label xs f l >>= lift fst >>= lift succ >>= fun j ->
+    if j >= Array.length xs then None else Some xs.(j)
+
+  let prev xs f l =
+    let open Monad.Option.Syntax in
+    findi_label xs f l >>= lift fst >>= lift pred >>= fun j ->
+    if j < 0 then None else Some xs.(j)
 end
 
 module Insn = struct
@@ -635,8 +647,26 @@ module Blk = struct
   let has_lhs xs x f = Array.exists xs ~f:(Fn.compose (Fn.flip f x) Insn.insn)
   let has_lhs_phi b x = has_lhs b.phi x Insn.Phi.has_lhs
   let has_lhs_data b x = has_lhs b.data x Insn.Data.has_lhs
-
   let defines_var b x = has_lhs_phi b x || has_lhs_data b x
+
+  let has xs l = Array.exists xs ~f:(Fn.flip Insn.is_label l)
+  let has_phi b = has b.phi
+  let has_data b = has b.data
+  let has_ctrl b l = Insn.is_label b.ctrl l
+
+  let find xs l = Array.find xs ~f:(Fn.flip Insn.is_label l)
+  let findi xs l = Array.findi xs ~f:(fun _ i -> Insn.is_label i l)
+  let find_phi b = find b.phi
+  let find_data b = find b.data
+  let find_ctrl b l = Option.some_if (Insn.is_label b.ctrl l) b.ctrl
+
+  let next xs l = Array.next xs Insn.label l
+  let next_phi b = next b.phi
+  let next_data b = next b.data
+
+  let prev xs l = Array.prev xs Insn.label l
+  let prev_phi b = next b.phi
+  let prev_data b = next b.data
 
   let pp ppf b =
     let sep ppf = Format.fprintf ppf "@;" in
@@ -751,6 +781,10 @@ module Fn = struct
     else {fn with blks = Array.remove_if fn.blks ~f:(Fn.flip Blk.is_label l)}
 
   let remove_blk fn l = Or_error.try_with @@ fun () -> remove_blk_exn fn l
+  let has_blk fn l = Array.exists fn.blks ~f:(Fn.flip Blk.is_label l)
+  let find_blk fn l = Array.find fn.blks ~f:(Fn.flip Blk.is_label l)
+  let next_blk fn l = Array.next fn.blks Blk.label l
+  let prev_blk fn l = Array.prev fn.blks Blk.label l
 
   let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
 
