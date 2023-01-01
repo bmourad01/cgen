@@ -846,6 +846,18 @@ module Data = struct
   let elts d = Array.to_sequence d.elts
   let linkage d = d.linkage
 
+  let prepend_elt d e = {
+    d with elts = Array.push_front d.elts e;
+  }
+
+  let append_elt d e = {
+    d with elts = Array.push_back d.elts e;
+  }
+
+  let map_elts d ~f = {
+    d with elts = Array.map d.elts ~f;
+  }
+
   let pp ppf d =
     let sep ppf = Format.fprintf ppf ",@;" in
     Format.fprintf ppf "%a@;data @@%s = {@;@[<v 2>%a@]@;}"
@@ -853,3 +865,22 @@ module Data = struct
 end
 
 type data = Data.t
+
+type t = {
+  name : string;
+  typs : Type.compound array;
+  data : data array;
+  funs : fn array;
+}
+
+let create ?(typs = []) ?(data = []) ?(funs = []) ~name () = {
+  name;
+  typs = Array.of_list typs;
+  data = Array.of_list data;
+  funs = Array.of_list funs;
+}
+
+let name u = u.name
+let typs u = Array.to_sequence u.typs
+let data u = Array.to_sequence u.data
+let funs u = Array.to_sequence u.funs

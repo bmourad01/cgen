@@ -801,8 +801,41 @@ module Data : sig
   (** Returns the linkage of the struct. *)
   val linkage : t -> Linkage.t
 
+  (** Prepends an element to the beginning of the structure. *)
+  val prepend_elt : t -> elt -> t
+
+  (** Appends an element to the end of the structure. *)
+  val append_elt : t -> elt -> t
+
+  (** Returns the structure with each element transformed by [f] *)
+  val map_elts : t -> f:(elt -> elt) -> t
+
   (** Pretty-prints a struct. *)
   val pp : Format.formatter -> t -> unit
 end
 
 type data = Data.t
+
+(** A translation unit. *)
+type t
+
+(** Creates a translation unit. *)
+val create :
+  ?typs:Type.compound list ->
+  ?data:data list ->
+  ?funs:fn list ->
+  name:string ->
+  unit ->
+  t
+
+(** The name of the translation unit. *)
+val name : t -> string
+
+(** Declared (compound) types that are visible in the unit. *)
+val typs : t -> Type.compound seq
+
+(** Structs defined in the unit. *)
+val data : t -> data seq
+
+(** Functions defined in the unit. *)
+val funs : t -> fn seq
