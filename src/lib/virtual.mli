@@ -14,12 +14,13 @@ open Regular.Std
 
     [`float f] is a constant floating-point value.
 
-    [`sym s] is a reference to a global symbol.
+    [`sym (s, n)] is a reference to a global symbol [s], with a
+    constant offset [n].
 *)
 type const = [
   | `int   of Bitvec.t
   | `float of Decimal.t
-  | `sym   of string
+  | `sym   of string * int
 ]
 
 (** Pretty-prints a constant value. *)
@@ -751,7 +752,7 @@ type fn = Fn.t
 module Data : sig
   (** An element of the struct.
 
-      [`basic (t, c)] is an instance of a basic constant [c] of type [t].
+      [`basic (t, cs)] is a list of constants [cs] of type [t].
 
       [`string s] is an instance of a string [s], represented as an array
       of bytes.
@@ -760,7 +761,7 @@ module Data : sig
       is illegal.
   *)
   type elt = [
-    | `basic  of Type.basic * const
+    | `basic  of Type.basic * const list
     | `string of string
     | `zero   of int
   ]

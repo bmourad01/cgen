@@ -64,13 +64,15 @@ end
 type const = [
   | `int   of Bitvec.t
   | `float of Decimal.t
-  | `sym   of string
+  | `sym   of string * int
 ]
 
 let pp_const ppf : const -> unit = function
-  | `int   n -> Format.fprintf ppf "%a" Bitvec.pp n
+  | `int n -> Format.fprintf ppf "%a" Bitvec.pp n
   | `float f -> Format.fprintf ppf "%a" Decimal.pp f
-  | `sym   s -> Format.fprintf ppf "@@%s" s
+  | `sym (s, 0) -> Format.fprintf ppf "@@%s" s
+  | `sym (s, n) when n > 0 -> Format.fprintf ppf "@@%s+0x%x" s n
+  | `sym (s, n) -> Format.fprintf ppf "@@%s-0x%x" s (lnot n + 1)
 
 module Insn = struct
   type arg = [
@@ -846,9 +848,8 @@ module Data = struct
 
   let pp ppf d =
     let sep ppf = Format.fprintf ppf ",@;" in
-    Format.fprintf ppf "%a@;data %a = {@;@[<v 2>%a@]@;}"
-      Linkage.pp d.linkage pp_const (`sym d.name)
-      (Array.pp pp_elt sep) d.elts;
+    Format.fprintf ppf "%a@;data @@%s = {@;@[<v 2>%a@]@;}"
+      Linkage.pp d.linkage d.name (Array.pp pp_elt sep) d.elts;
 end
 
 type data = Data.t
