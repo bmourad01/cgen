@@ -273,13 +273,24 @@ module Insn : sig
   (** Control-flow-effectful instructions. *)
   module Ctrl : sig
     (** A switch table. *)
-    type table
+    module Table : sig
+      type t
 
-    (** Creates a switch table from an association list.Afl_instrument
+      (** Creates a switch table from an association list.Afl_instrument
 
-        @raise Invalid_argument if the list has duplicate keys.
-    *)
-    val table : (Bitvec.t * Label.t) list -> table
+          @raise Invalid_argument if the list has duplicate keys.
+      *)
+      val create : (Bitvec.t * Label.t) list -> t
+
+      (** Returns the elements of the table. *)
+      val enum : t -> (Bitvec.t * Label.t) seq
+
+      (** [find t v] searches the table [t] for the label associated
+          with the constant [v]. *)
+      val find : t -> Bitvec.t -> Label.t option
+    end
+
+    type table = Table.t
 
     (** A control-flow instruction.
 

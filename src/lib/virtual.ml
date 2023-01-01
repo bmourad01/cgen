@@ -456,10 +456,17 @@ module Insn = struct
   end
 
   module Ctrl = struct
-    type table = Label.t Map.M(Bitvec).t
+    module Table = struct
+      type t = Label.t Map.M(Bitvec).t
 
-    let table l = try Map.of_alist_exn (module Bitvec) l with
-      | exn -> invalid_argf "%s" (Exn.to_string exn) ()
+      let create l = try Map.of_alist_exn (module Bitvec) l with
+        | exn -> invalid_argf "%s" (Exn.to_string exn) ()
+
+      let enum t = Map.to_sequence t
+      let find t v = Map.find t v
+    end
+
+    type table = Table.t
 
     type t = [
       | `jmp    of dst
