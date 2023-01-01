@@ -480,6 +480,9 @@ module Fn : sig
 
       By default, [linkage] is [Linkage.default_export].
 
+      It is assumed that [blks] is ordered such that the entry block is
+      the first element.
+
       @raise Invalid_argument if [blks] is empty.
   *)
   val create :
