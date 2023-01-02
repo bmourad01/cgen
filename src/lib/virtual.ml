@@ -824,9 +824,14 @@ module Fn = struct
     Array.fold fn.blks ~init:Label.Map.empty ~f:(fun m b ->
         Map.set m ~key:(Blk.label b) ~data:b)
 
-  let map_blks fn ~f = {
-    fn with blks = Array.map fn.blks ~f;
-  }
+  let map_blks fn ~f =
+    let entry = ref fn.entry in
+    let is_entry b = Label.(Blk.label b = fn.entry) in
+    let blks = Array.map fn.blks ~f:(fun b ->
+        let b' = f b in
+        if is_entry b then entry := Blk.label b';
+        b') in
+    {fn with blks; entry = !entry}
 
   let insert_blk fn b = {
     fn with blks = Array.push_back fn.blks b;

@@ -776,7 +776,11 @@ module Fn : sig
   (** Returns a mapping from block labels to blocks. *)
   val map_of_blks : t -> blk Label.Map.t
 
-  (** [map_blks fn ~f] returns [fn] with each basic block applied to [f]. *)
+  (** [map_blks fn ~f] returns [fn] with each basic block applied to [f].
+
+      Note that [f] is allowed to change the label of the entry block.
+      This change is reflected in the updated function.
+  *)
   val map_blks : t -> f:(blk -> blk) -> t
 
   (** Appends a block to the end of the function. *)
