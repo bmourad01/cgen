@@ -139,6 +139,8 @@ module Insn = struct
     let typ p = p.typ
     let ins p = Map.to_sequence p.ins
     let has_lhs p v = Var.(p.lhs = v)
+    let with_lhs p lhs = {p with lhs}
+    let update p l a = {p with ins = Map.set p.ins ~key:l ~data:a}
 
     let free_vars p =
       let f = Fn.compose var_of_arg snd in
@@ -544,6 +546,10 @@ module Insn = struct
   let lhs_of_phi i = Phi.lhs i.insn
   let lhs_of_data i = Data.lhs i.insn
 
+  let map_phi (i : phi) ~f = {i with insn = f i.insn}
+  let map_data (i : data) ~f = {i with insn = f i.insn}
+  let map_ctrl (i : ctrl) ~f = {i with insn = f i.insn}
+
   let free_vars_of_phi i = Phi.free_vars i.insn
   let free_vars_of_data i = Data.free_vars i.insn
   let free_vars_of_ctrl i = Ctrl.free_vars i.insn
@@ -926,6 +932,8 @@ module Cfg = struct
   include G
 end
 
+type cfg = Cfg.t
+
 module Live = struct
   type tran = {
     defs : Var.Set.t;
@@ -1090,79 +1098,83 @@ end
 
 type data = Data.t [@@deriving bin_io, compare, equal, sexp]
 
-module T = struct
-  type t = {
-    name : string;
-    typs : Type.compound array;
-    data : data array;
-    funs : fn array;
-  } [@@deriving bin_io, compare, equal, sexp]
+module Module = struct
+  module T = struct
+    type t = {
+      name : string;
+      typs : Type.compound array;
+      data : data array;
+      funs : fn array;
+    } [@@deriving bin_io, compare, equal, sexp]
+  end
+
+  include T
+
+  let create ?(typs = []) ?(data = []) ?(funs = []) ~name () = {
+    name;
+    typs = Array.of_list typs;
+    data = Array.of_list data;
+    funs = Array.of_list funs;
+  }
+
+  let name u = u.name
+  let typs ?(rev = false) u = Array.enum u.typs ~rev
+  let data ?(rev = false) u = Array.enum u.data ~rev
+  let funs ?(rev = false) u = Array.enum u.funs ~rev
+  let has_name u name = String.(name = u.name)
+  let hash u = String.hash u.name
+
+  let insert_type u t = {
+    u with typs = Array.push_back u.typs t;
+  }
+
+  let insert_data u d = {
+    u with data = Array.push_back u.data d;
+  }
+
+  let insert_fn u fn = {
+    u with funs = Array.push_back u.funs fn;
+  }
+
+  let remove_type u name = {
+    u with typs = Array.remove_if u.typs ~f:(function
+      | `compound (n, _, _) -> String.(n = name))
+  }
+
+  let remove_data u name = {
+    u with data = Array.remove_if u.data ~f:(Fn.flip Data.has_name name);
+  }
+
+  let remove_fn u name = {
+    u with funs = Array.remove_if u.funs ~f:(Fn.flip Fn.has_name name);
+  }
+
+  let map_typs u ~f = {
+    u with typs = Array.map u.typs ~f;
+  }
+
+  let map_data u ~f = {
+    u with data = Array.map u.data ~f;
+  }
+
+  let map_funs u ~f = {
+    u with funs = Array.map u.funs ~f;
+  }
+
+  let pp ppf u =
+    let sep ppf = Format.fprintf ppf "@;@;" in
+    Format.fprintf ppf "%a@;%a@;%a"
+      (Array.pp Type.pp_compound_decl sep) u.typs
+      (Array.pp Data.pp sep) u.data
+      (Array.pp Fn.pp sep) u.funs
+
+  include Regular.Make(struct
+      include T
+      let module_name = Some "Virtual"
+      let version = "0.1"
+      let pp = pp
+      let hash = hash
+    end)
 end
 
-include T
-
-let create ?(typs = []) ?(data = []) ?(funs = []) ~name () = {
-  name;
-  typs = Array.of_list typs;
-  data = Array.of_list data;
-  funs = Array.of_list funs;
-}
-
-let name u = u.name
-let typs ?(rev = false) u = Array.enum u.typs ~rev
-let data ?(rev = false) u = Array.enum u.data ~rev
-let funs ?(rev = false) u = Array.enum u.funs ~rev
-let has_name u name = String.(name = u.name)
-let hash u = String.hash u.name
-
-let insert_type u t = {
-  u with typs = Array.push_back u.typs t;
-}
-
-let insert_data u d = {
-  u with data = Array.push_back u.data d;
-}
-
-let insert_fn u fn = {
-  u with funs = Array.push_back u.funs fn;
-}
-
-let remove_type u name = {
-  u with typs = Array.remove_if u.typs ~f:(function
-    | `compound (n, _, _) -> String.(n = name))
-}
-
-let remove_data u name = {
-  u with data = Array.remove_if u.data ~f:(Fn.flip Data.has_name name);
-}
-
-let remove_fn u name = {
-  u with funs = Array.remove_if u.funs ~f:(Fn.flip Fn.has_name name);
-}
-
-let map_typs u ~f = {
-  u with typs = Array.map u.typs ~f;
-}
-
-let map_data u ~f = {
-  u with data = Array.map u.data ~f;
-}
-
-let map_funs u ~f = {
-  u with funs = Array.map u.funs ~f;
-}
-
-let pp ppf u =
-  let sep ppf = Format.fprintf ppf "@;@;" in
-  Format.fprintf ppf "%a@;%a@;%a"
-    (Array.pp Type.pp_compound_decl sep) u.typs
-    (Array.pp Data.pp sep) u.data
-    (Array.pp Fn.pp sep) u.funs
-
-include Regular.Make(struct
-    include T
-    let module_name = Some "Virtual"
-    let version = "0.1"
-    let pp = pp
-    let hash = hash
-  end)
+type module_ = Module.t

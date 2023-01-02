@@ -117,6 +117,13 @@ module Insn : sig
         variable [x]. *)
     val has_lhs : t -> Var.t -> bool
 
+    (** Changes the destination variable. *)
+    val with_lhs : t -> Var.t -> t
+
+    (** [update p l a] updates the incoming edge [l] of [p] with the
+        argument [a]. *)
+    val update : t -> Label.t -> arg -> t
+
     (** Returns the set of free variables in the instruction. *)
     val free_vars : t -> Var.Set.t
 
@@ -493,6 +500,15 @@ module Insn : sig
   (** Returns the assigned variable of the data instruction, if it exists. *)
   val lhs_of_data : data -> Var.t option
 
+  (** Transforms the phi instruction with [f]. *)
+  val map_phi : phi -> f:(Phi.t -> Phi.t) -> phi
+
+  (** Transforms the data instruction with [f]. *)
+  val map_data : data -> f:(Data.t -> Data.t) -> data
+
+  (** Transforms the control-flow instruction with [f]. *)
+  val map_ctrl : ctrl -> f:(Ctrl.t -> Ctrl.t) -> ctrl
+
   (** Returns the set of free variables in the phi instruction. *)
   val free_vars_of_phi : phi -> Var.Set.t
 
@@ -807,6 +823,8 @@ module Cfg : sig
   val create : fn -> t
 end
 
+type cfg = Cfg.t
+
 (** Helpers for computing liveness of a function. *)
 module Live : sig
   type t
@@ -926,60 +944,64 @@ end
 type data = Data.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A translation unit. *)
-type t [@@deriving bin_io, compare, equal, sexp]
+module Module : sig
+  type t [@@deriving bin_io, compare, equal, sexp]
 
-(** Creates a translation unit. *)
-val create :
-  ?typs:Type.compound list ->
-  ?data:data list ->
-  ?funs:fn list ->
-  name:string ->
-  unit ->
-  t
+  (** Creates a translation unit. *)
+  val create :
+    ?typs:Type.compound list ->
+    ?data:data list ->
+    ?funs:fn list ->
+    name:string ->
+    unit ->
+    t
 
-(** The name of the translation unit. *)
-val name : t -> string
+  (** The name of the translation unit. *)
+  val name : t -> string
 
-(** Declared (compound) types that are visible in the unit. *)
-val typs : ?rev:bool -> t -> Type.compound seq
+  (** Declared (compound) types that are visible in the unit. *)
+  val typs : ?rev:bool -> t -> Type.compound seq
 
-(** Structs defined in the unit. *)
-val data : ?rev:bool -> t -> data seq
+  (** Structs defined in the unit. *)
+  val data : ?rev:bool -> t -> data seq
 
-(** Functions defined in the unit. *)
-val funs : ?rev:bool -> t -> fn seq
+  (** Functions defined in the unit. *)
+  val funs : ?rev:bool -> t -> fn seq
 
-(** Returns [true] if the unit has the associated name. *)
-val has_name : t -> string -> bool
+  (** Returns [true] if the unit has the associated name. *)
+  val has_name : t -> string -> bool
 
-(** Returns the hash of the unit's name. *)
-val hash : t -> int
+  (** Returns the hash of the unit's name. *)
+  val hash : t -> int
 
-(** Appends a type to the unit. *)
-val insert_type : t -> Type.compound -> t
+  (** Appends a type to the unit. *)
+  val insert_type : t -> Type.compound -> t
 
-(** Appends a struct to the unit. *)
-val insert_data : t -> data -> t
+  (** Appends a struct to the unit. *)
+  val insert_data : t -> data -> t
 
-(** Appends a function to the unit. *)
-val insert_fn : t -> fn -> t
+  (** Appends a function to the unit. *)
+  val insert_fn : t -> fn -> t
 
-(** Removes the type associated with the name. *)
-val remove_type : t -> string -> t
+  (** Removes the type associated with the name. *)
+  val remove_type : t -> string -> t
 
-(** Removes the struct associated with the name. *)
-val remove_data : t -> string -> t
+  (** Removes the struct associated with the name. *)
+  val remove_data : t -> string -> t
 
-(** Removes the function associated with the name. *)
-val remove_fn : t -> string -> t
+  (** Removes the function associated with the name. *)
+  val remove_fn : t -> string -> t
 
-(** Returns the unit with each type transformed by [f]. *)
-val map_typs : t -> f:(Type.compound -> Type.compound) -> t
+  (** Returns the unit with each type transformed by [f]. *)
+  val map_typs : t -> f:(Type.compound -> Type.compound) -> t
 
-(** Returns the unit with each struct transformed by [f]. *)
-val map_data : t -> f:(data -> data) -> t
+  (** Returns the unit with each struct transformed by [f]. *)
+  val map_data : t -> f:(data -> data) -> t
 
-(** Returns the unit with each function transformed by [f]. *)
-val map_funs : t -> f:(fn -> fn) -> t
+  (** Returns the unit with each function transformed by [f]. *)
+  val map_funs : t -> f:(fn -> fn) -> t
 
-include Regular.S with type t := t
+  include Regular.S with type t := t
+end
+
+type module_ = Module.t
