@@ -35,9 +35,6 @@ module Array = struct
         Format.fprintf ppf "%a" ppx x;
         if i < last then sep ppf)
 
-  let concat_map xs ~f =
-    of_list @@ fold_right xs ~init:[] ~f:(fun x acc -> f x @ acc)
-
   let findi_label xs f l = findi xs ~f:(fun _ x -> Label.equal l @@ f x)
 
   let next xs f l =
@@ -648,14 +645,6 @@ module Blk = struct
 
   let map_data' b ~f = {
     b with data = Array.map b.data ~f:(Insn.map_data ~f);
-  }
-
-  let concat_map_phi b ~f = {
-    b with phi = Array.concat_map b.phi ~f;
-  }
-
-  let concat_map_data b ~f = {
-    b with data = Array.concat_map b.data ~f;
   }
 
   let map_ctrl b ~f = {

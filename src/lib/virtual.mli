@@ -664,16 +664,6 @@ module Blk : sig
   (** Same as [map_data], but only maps the underlying instruction *)
   val map_data' : t -> f:(Insn.Data.t -> Insn.Data.t) -> t
 
-  (** [concat_map_phi b ~f] is similar to [map_phi], but [f] instead
-      returns a list of phi instructions, thus it could either add or
-      remove phi instructions from [b]. *)
-  val concat_map_phi : t -> f:(Insn.phi -> Insn.phi list) -> t
-
-  (** [concat_map_data b ~f] is similar to [map_data], but [f] instead
-      returns a list of data instructions, thus it could either add or
-      remove data instructions from [b]. *)
-  val concat_map_data : t -> f:(Insn.data -> Insn.data list) -> t
-
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
   val map_ctrl : t -> f:(Insn.ctrl -> Insn.ctrl) -> t
 
