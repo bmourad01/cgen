@@ -21,7 +21,7 @@ open Regular.Std
 *)
 type const = [
   | `int    of Bitvec.t
-  | `float  of float
+  | `float  of Float32.t
   | `double of float
   | `sym    of string * int
 ] [@@deriving bin_io, compare, equal, sexp]

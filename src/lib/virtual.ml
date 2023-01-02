@@ -63,14 +63,14 @@ end
 
 type const = [
   | `int    of Bitvec.t
-  | `float  of float
+  | `float  of Float32.t
   | `double of float
   | `sym    of string * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_const ppf : const -> unit = function
   | `int n -> Format.fprintf ppf "%a" Bitvec.pp n
-  | `float f -> Format.fprintf ppf "%s" @@ Utils.Float32.to_string f
+  | `float f -> Format.fprintf ppf "%s" @@ Float32.to_string f
   | `double d -> Format.fprintf ppf "%a" Float.pp d
   | `sym (s, 0) -> Format.fprintf ppf "@@%s" s
   | `sym (s, n) when n > 0 -> Format.fprintf ppf "@@%s+0x%x" s n

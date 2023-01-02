@@ -18,5 +18,5 @@
    regular)
  (foreign_stubs
   (language c)
-  (names float_stubs))
+  (names float32_stubs))
  (ocamlopt_flags -O3))
