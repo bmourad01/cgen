@@ -638,8 +638,16 @@ module Blk = struct
     b with phi = Array.map b.phi ~f;
   }
 
+  let map_phi' b ~f = {
+    b with phi = Array.map b.phi ~f:(Insn.map_phi ~f);
+  }
+
   let map_data b ~f = {
     b with data = Array.map b.data ~f;
+  }
+
+  let map_data' b ~f = {
+    b with data = Array.map b.data ~f:(Insn.map_data ~f);
   }
 
   let concat_map_phi b ~f = {
@@ -652,6 +660,10 @@ module Blk = struct
 
   let map_ctrl b ~f = {
     b with ctrl = f b.ctrl;
+  }
+
+  let map_ctrl' b ~f = {
+    b with ctrl = Insn.map_ctrl b.ctrl ~f;
   }
 
   let index_of xs l =

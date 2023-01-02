@@ -654,9 +654,15 @@ module Blk : sig
       to [f]. *)
   val map_phi : t -> f:(Insn.phi -> Insn.phi) -> t
 
+  (** Same as [map_phi], but only maps the underlying instruction *)
+  val map_phi' : t -> f:(Insn.Phi.t -> Insn.Phi.t) -> t
+
   (** [map_data b ~f] returns [b] with each data instruction applied
       to [f]. *)
   val map_data : t -> f:(Insn.data -> Insn.data) -> t
+
+  (** Same as [map_data], but only maps the underlying instruction *)
+  val map_data' : t -> f:(Insn.Data.t -> Insn.Data.t) -> t
 
   (** [concat_map_phi b ~f] is similar to [map_phi], but [f] instead
       returns a list of phi instructions, thus it could either add or
@@ -670,6 +676,9 @@ module Blk : sig
 
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
   val map_ctrl : t -> f:(Insn.ctrl -> Insn.ctrl) -> t
+
+  (** Same as [map_ctrl], but only maps the underlying instruction *)
+  val map_ctrl' : t -> f:(Insn.Ctrl.t -> Insn.Ctrl.t) -> t
 
   (** Inserts a phi instruction into the block.
 

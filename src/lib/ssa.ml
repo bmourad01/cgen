@@ -40,8 +40,8 @@ let new_name vars nums x =
   Hashtbl.add_multi vars ~key:x ~data:y;
   y
 
-let rename_phi vars nums b = Blk.map_phi b ~f:(Insn.map_phi ~f:(fun p ->
-    Insn.Phi.with_lhs p @@ new_name vars nums @@ Insn.Phi.lhs p))
+let rename_phi vars nums b = Blk.map_phi' b ~f:(fun p ->
+    Insn.Phi.with_lhs p @@ new_name vars nums @@ Insn.Phi.lhs p)
 
 let map_var vars x = match Hashtbl.find vars x with
   | None | Some [] -> x
@@ -105,33 +105,33 @@ let map_dst vars : Insn.dst -> Insn.dst = function
 let rename_data vars nums b =
   let glo = map_global vars in
   let margs = List.map ~f:(map_arg vars) in
-  Blk.map_data b ~f:(Insn.map_data ~f:(function
+  Blk.map_data' b ~f:(function
       | `acall (x, t, f, args) ->
         `acall (new_name vars nums x, t, glo f, margs args)
       | `acallv (x, t, f, args) ->
         `acallv (new_name vars nums x, t, glo f, margs args)
       | `call (f, args) -> `call (glo f, margs args)
       | `callv (f, args) -> `callv (glo f, margs args)
-      | `op (x, o) -> `op (new_name vars nums x, map_op vars o)))
+      | `op (x, o) -> `op (new_name vars nums x, map_op vars o))
 
 let rename_ctrl vars b =
   let var = map_var vars in
   let dst = map_dst vars in
   let arg = map_arg vars in
-  Blk.map_ctrl b ~f:(Insn.map_ctrl ~f:(function
+  Blk.map_ctrl' b ~f:(function
       | `jmp d -> `jmp (dst d)
       | `jnz (c, t, f) -> `jnz (var c, dst t, dst f)
       | `ret None as r -> r
       | `ret (Some a) -> `ret (Some (arg a))
-      | `switch (t, i, d, tbl) -> `switch (t, var i, d, tbl)))
+      | `switch (t, i, d, tbl) -> `switch (t, var i, d, tbl))
 
 let update_phi vars l b =
   let var = map_var vars in
-  Blk.map_phi b ~f:(Insn.map_phi ~f:(fun p ->
-      Insn.Phi.ins p |> Seq.fold ~init:p ~f:(fun p (l', a) -> match a with
-          | `var x when Label.(l' = l) ->
+  Blk.map_phi' b ~f:(fun p ->
+      Insn.Phi.ins p |> Seq.fold ~init:p ~f:(fun p -> function
+          | l', `var x when Label.(l' = l) ->
             Insn.Phi.update p l @@ `var (var x)
-          | _ -> p)))
+          | _ -> p))
 
 let update_blk fn b =
   let l = Blk.label b in
