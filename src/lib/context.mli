@@ -101,17 +101,10 @@ module Syntax : sig
 
   (** Attempts to unwrap an [Or_error] computation into the context, and
       fails if it is an error. *)
-  val (>>?) : 'a Or_error.t t -> ('a -> 'b t) -> 'b t
+  val (>>?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
 
   (** Same as the [(>>?)] infix notation. *)
-  val (let*?) : 'a Or_error.t t -> ('a -> 'b t) -> 'b t
-
-  (** Same as [(>>?)], but for [Or_error] values that are not wrapped in
-      the context. *)
-  val (>>^?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
-
-  (** Same as the [(>>^?)] infix notation. *)
-  val (let^?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
+  val (let*?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
 end
 
 include Monad.S with type 'a t := 'a t and module Syntax := Syntax

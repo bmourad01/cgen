@@ -69,10 +69,8 @@ module Syntax = struct
   include M.Syntax
   include M.Let
 
-  let (>>?) x f = x >>= lift_err >>= f
+  let (>>?) x f = lift_err x >>= f
   let (let*?) x f = x >>? f
-  let (>>^?) x f = lift_err x >>= f
-  let (let^?) x f = x >>^? f
 end
 
 let get () = {

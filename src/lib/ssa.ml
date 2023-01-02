@@ -180,7 +180,7 @@ let insert_phi_node ins b lhs typ =
     let ins =
       Seq.map ins ~f:(fun b -> Blk.label b, `var lhs) |>
       Seq.to_list_rev in
-    Insn.Phi.create ~lhs ~ins ~typ () >>^?
+    Insn.Phi.create ~lhs ~ins ~typ () >>?
     Context.Virtual.phi >>|
     Blk.insert_phi b
   else !!b
