@@ -956,11 +956,11 @@ end
 
 type data = Data.t [@@deriving bin_io, compare, equal, sexp]
 
-(** A translation unit. *)
+(** A module is a single translation unit. *)
 module Module : sig
   type t [@@deriving bin_io, compare, equal, sexp]
 
-  (** Creates a translation unit. *)
+  (** Creates a module. *)
   val create :
     ?typs:Type.compound list ->
     ?data:data list ->
@@ -969,31 +969,31 @@ module Module : sig
     unit ->
     t
 
-  (** The name of the translation unit. *)
+  (** The name of the module. *)
   val name : t -> string
 
-  (** Declared (compound) types that are visible in the unit. *)
+  (** Declared (compound) types that are visible in the module. *)
   val typs : ?rev:bool -> t -> Type.compound seq
 
-  (** Structs defined in the unit. *)
+  (** Structs defined in the module. *)
   val data : ?rev:bool -> t -> data seq
 
-  (** Functions defined in the unit. *)
+  (** Functions defined in the module. *)
   val funs : ?rev:bool -> t -> fn seq
 
-  (** Returns [true] if the unit has the associated name. *)
+  (** Returns [true] if the module has the associated name. *)
   val has_name : t -> string -> bool
 
-  (** Returns the hash of the unit's name. *)
+  (** Returns the hash of the module's name. *)
   val hash : t -> int
 
-  (** Appends a type to the unit. *)
+  (** Appends a type to the module. *)
   val insert_type : t -> Type.compound -> t
 
-  (** Appends a struct to the unit. *)
+  (** Appends a struct to the module. *)
   val insert_data : t -> data -> t
 
-  (** Appends a function to the unit. *)
+  (** Appends a function to the module. *)
   val insert_fn : t -> fn -> t
 
   (** Removes the type associated with the name. *)
@@ -1005,13 +1005,13 @@ module Module : sig
   (** Removes the function associated with the name. *)
   val remove_fn : t -> string -> t
 
-  (** Returns the unit with each type transformed by [f]. *)
+  (** Returns the module with each type transformed by [f]. *)
   val map_typs : t -> f:(Type.compound -> Type.compound) -> t
 
-  (** Returns the unit with each struct transformed by [f]. *)
+  (** Returns the module with each struct transformed by [f]. *)
   val map_data : t -> f:(data -> data) -> t
 
-  (** Returns the unit with each function transformed by [f]. *)
+  (** Returns the module with each function transformed by [f]. *)
   val map_funs : t -> f:(fn -> fn) -> t
 
   include Regular.S with type t := t

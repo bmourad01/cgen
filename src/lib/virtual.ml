@@ -1134,60 +1134,60 @@ module Module = struct
     funs = Array.of_list funs;
   }
 
-  let name u = u.name
-  let typs ?(rev = false) u = Array.enum u.typs ~rev
-  let data ?(rev = false) u = Array.enum u.data ~rev
-  let funs ?(rev = false) u = Array.enum u.funs ~rev
-  let has_name u name = String.(name = u.name)
-  let hash u = String.hash u.name
+  let name m = m.name
+  let typs ?(rev = false) m = Array.enum m.typs ~rev
+  let data ?(rev = false) m = Array.enum m.data ~rev
+  let funs ?(rev = false) m = Array.enum m.funs ~rev
+  let has_name m name = String.(name = m.name)
+  let hash m = String.hash m.name
 
-  let insert_type u t = {
-    u with typs = Array.push_back u.typs t;
+  let insert_type m t = {
+    m with typs = Array.push_back m.typs t;
   }
 
-  let insert_data u d = {
-    u with data = Array.push_back u.data d;
+  let insert_data m d = {
+    m with data = Array.push_back m.data d;
   }
 
-  let insert_fn u fn = {
-    u with funs = Array.push_back u.funs fn;
+  let insert_fn m fn = {
+    m with funs = Array.push_back m.funs fn;
   }
 
-  let remove_type u name = {
-    u with typs = Array.remove_if u.typs ~f:(function
+  let remove_type m name = {
+    m with typs = Array.remove_if m.typs ~f:(function
       | `compound (n, _, _) -> String.(n = name))
   }
 
-  let remove_data u name = {
-    u with data = Array.remove_if u.data ~f:(Fn.flip Data.has_name name);
+  let remove_data m name = {
+    m with data = Array.remove_if m.data ~f:(Fn.flip Data.has_name name);
   }
 
-  let remove_fn u name = {
-    u with funs = Array.remove_if u.funs ~f:(Fn.flip Fn.has_name name);
+  let remove_fn m name = {
+    m with funs = Array.remove_if m.funs ~f:(Fn.flip Fn.has_name name);
   }
 
-  let map_typs u ~f = {
-    u with typs = Array.map u.typs ~f;
+  let map_typs m ~f = {
+    m with typs = Array.map m.typs ~f;
   }
 
-  let map_data u ~f = {
-    u with data = Array.map u.data ~f;
+  let map_data m ~f = {
+    m with data = Array.map m.data ~f;
   }
 
-  let map_funs u ~f = {
-    u with funs = Array.map u.funs ~f;
+  let map_funs m ~f = {
+    m with funs = Array.map m.funs ~f;
   }
 
-  let pp ppf u =
+  let pp ppf m =
     let sep ppf = Format.fprintf ppf "@;@;" in
     Format.fprintf ppf "%a@;%a@;%a"
-      (Array.pp Type.pp_compound_decl sep) u.typs
-      (Array.pp Data.pp sep) u.data
-      (Array.pp Fn.pp sep) u.funs
+      (Array.pp Type.pp_compound_decl sep) m.typs
+      (Array.pp Data.pp sep) m.data
+      (Array.pp Fn.pp sep) m.funs
 
   include Regular.Make(struct
       include T
-      let module_name = Some "Virtual"
+      let module_name = Some "Virtual.Module"
       let version = "0.1"
       let pp = pp
       let hash = hash
