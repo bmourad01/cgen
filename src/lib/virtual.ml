@@ -56,6 +56,11 @@ module Array = struct
     let open Monad.Option.Syntax in
     findi_label xs f l >>= fun (i, _) ->
     if i = 0 then None else Some xs.(i - 1)
+
+  let enum ?(rev = false) xs =
+    let n = length xs in
+    if not rev then Seq.init n ~f:(unsafe_get xs)
+    else Seq.init n ~f:(fun i -> unsafe_get xs (n - i - 1))
 end
 
 type const = [
@@ -143,10 +148,8 @@ module Insn = struct
     let has_lhs p v = Var.(p.lhs = v)
 
     let free_vars p =
-      Map.to_sequence p.ins |>
-      Seq.map ~f:snd |>
-      Seq.filter_map ~f:var_of_arg |>
-      Var.Set.of_sequence
+      let f = Fn.compose var_of_arg snd in
+      ins p |> Seq.filter_map ~f |> Var.Set.of_sequence
 
     let pp_in ppl ppf (l, x) = Format.fprintf ppf "%a -> %a" ppl l pp_arg x
 
@@ -586,8 +589,8 @@ module Blk = struct
   }
 
   let label b = b.label
-  let phi b = Array.to_sequence b.phi
-  let data b = Array.to_sequence b.data
+  let phi ?(rev = false) b = Array.enum b.phi ~rev
+  let data ?(rev = false) b = Array.enum b.data ~rev
   let ctrl b = b.ctrl
   let has_label b l = Label.(b.label = l)
   let hash b = Label.hash b.label
@@ -781,9 +784,9 @@ module Fn = struct
     create_exn ~name ~blks ~args ~return ~variadic ~linkage
 
   let name fn = fn.name
-  let blks fn = Array.to_sequence fn.blks
+  let blks ?(rev = false) fn = Array.enum fn.blks ~rev
   let entry fn = fn.entry
-  let args fn = Array.to_sequence fn.args
+  let args ?(rev = false) fn = Array.enum fn.args ~rev
   let return fn = fn.return
   let variadic fn = fn.variadic
   let linkage fn = fn.linkage
@@ -880,7 +883,7 @@ module Data = struct
     Or_error.try_with @@ create_exn ~name ~elts ~linkage
 
   let name d = d.name
-  let elts d = Array.to_sequence d.elts
+  let elts ?(rev = false) d = Array.enum d.elts ~rev
   let linkage d = d.linkage
   let has_name d name = String.(name = d.name)
   let hash d = String.hash d.name
@@ -932,9 +935,9 @@ let create ?(typs = []) ?(data = []) ?(funs = []) ~name () = {
 }
 
 let name u = u.name
-let typs u = Array.to_sequence u.typs
-let data u = Array.to_sequence u.data
-let funs u = Array.to_sequence u.funs
+let typs ?(rev = false) u = Array.enum u.typs ~rev
+let data ?(rev = false) u = Array.enum u.data ~rev
+let funs ?(rev = false) u = Array.enum u.funs ~rev
 let has_name u name = String.(name = u.name)
 let hash u = String.hash u.name
 

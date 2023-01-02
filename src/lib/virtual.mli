@@ -537,10 +537,10 @@ module Blk : sig
   val label : t -> Label.t
 
   (** Returns the phi functions of the basic block. *)
-  val phi : t -> Insn.phi seq
+  val phi : ?rev:bool -> t -> Insn.phi seq
 
   (** Returns the sequence of data instructions. *)
-  val data : t -> Insn.data seq
+  val data : ?rev:bool -> t -> Insn.data seq
 
   (** Returns the control-flow instruction (also called the terminator)
       of the block. *)
@@ -703,13 +703,13 @@ module Fn : sig
   val name : t -> string
 
   (** Returns the basic blocks of the function. *)
-  val blks : t -> blk seq
+  val blks : ?rev:bool -> t -> blk seq
 
   (** Returns the label of the entry block. *)
   val entry : t -> Label.t
 
   (** Returns the arguments of the function, along with their types. *)
-  val args : t -> (Var.t * Type.arg) seq
+  val args : ?rev:bool -> t -> (Var.t * Type.arg) seq
 
   (** Returns the return type of the function, if it exists. *)
   val return : t -> Type.arg option
@@ -814,7 +814,7 @@ module Data : sig
   val name : t -> string
 
   (** Returns the elements of the struct. *)
-  val elts : t -> elt seq
+  val elts : ?rev:bool -> t -> elt seq
 
   (** Returns the linkage of the struct. *)
   val linkage : t -> Linkage.t
@@ -858,13 +858,13 @@ val create :
 val name : t -> string
 
 (** Declared (compound) types that are visible in the unit. *)
-val typs : t -> Type.compound seq
+val typs : ?rev:bool -> t -> Type.compound seq
 
 (** Structs defined in the unit. *)
-val data : t -> data seq
+val data : ?rev:bool -> t -> data seq
 
 (** Functions defined in the unit. *)
-val funs : t -> fn seq
+val funs : ?rev:bool -> t -> fn seq
 
 (** Returns [true] if the unit has the associated name. *)
 val has_name : t -> string -> bool
