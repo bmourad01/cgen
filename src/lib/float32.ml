@@ -44,7 +44,8 @@ external of_uint32 : int32 -> t     = "cgen_float32_of_uint32"
 external of_uint64 : int64 -> t     = "cgen_float32_of_uint64"
 
 external to_string : t -> string = "cgen_string_of_float32"
-external of_string : string -> t = "cgen_float32_of_string"
+
+let of_string s = of_float @@ Float.of_string s
 
 external equal : t -> t -> bool = "cgen_float32_equal"
 

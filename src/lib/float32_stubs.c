@@ -216,14 +216,6 @@ CAMLprim value cgen_string_of_float32(value x) {
   return caml_copy_string(buf);
 }
 
-value cgen_float32_of_string(value s) {
-  CAMLparam1(s);
-  CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
-  Float_val(f) = atof(String_val(s));
-  CAMLreturn(f);
-}
-
 CAMLprim value cgen_float32_equal(value x, value y) {
   return Val_bool(Float_val(x) == Float_val(y));
 }
