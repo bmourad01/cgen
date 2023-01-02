@@ -25,10 +25,13 @@ static struct custom_operations cgen_float32_custom_ops = {
 #endif
 };
 
+#define Alloc_float \
+  caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1)
+
 value cgen_float32_of_float(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = (float)Double_val(x);
   CAMLreturn(f);
 }
@@ -56,7 +59,7 @@ CAMLprim value cgen_float32_is_nan(value x) {
 value cgen_float32_add(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = Float_val(x) + Float_val(y);
   CAMLreturn(f);
 }
@@ -64,7 +67,7 @@ value cgen_float32_add(value x, value y) {
 value cgen_float32_div(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = Float_val(x) / Float_val(y);
   CAMLreturn(f);
 }
@@ -72,7 +75,7 @@ value cgen_float32_div(value x, value y) {
 value cgen_float32_mul(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = Float_val(x) * Float_val(y);
   CAMLreturn(f);
 }
@@ -80,7 +83,7 @@ value cgen_float32_mul(value x, value y) {
 value cgen_float32_neg(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = -Float_val(x);
   CAMLreturn(f);
 }
@@ -88,7 +91,7 @@ value cgen_float32_neg(value x) {
 value cgen_float32_rem(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = fmodf(Float_val(x), Float_val(y));
   CAMLreturn(f);
 }
@@ -96,7 +99,7 @@ value cgen_float32_rem(value x, value y) {
 value cgen_float32_sub(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = Float_val(x) - Float_val(y);
   CAMLreturn(f);
 }
@@ -142,7 +145,7 @@ CAMLprim value cgen_uint64_of_float32(value x) {
 value cgen_float32_of_int8(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = (float)((int8_t)Int_val(x));
   CAMLreturn(f);
 }
@@ -150,7 +153,7 @@ value cgen_float32_of_int8(value x) {
 value cgen_float32_of_int16(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = (float)((int16_t)Int_val(x));
   CAMLreturn(f);
 }
@@ -158,7 +161,7 @@ value cgen_float32_of_int16(value x) {
 value cgen_float32_of_int32(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = (float)((int32_t)Int32_val(x));
   CAMLreturn(f);
 }
@@ -166,7 +169,7 @@ value cgen_float32_of_int32(value x) {
 value cgen_float32_of_int64(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = (float)((int64_t)Int64_val(x));
   CAMLreturn(f);
 }
@@ -174,7 +177,7 @@ value cgen_float32_of_int64(value x) {
 value cgen_float32_of_uint8(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = (float)((uint8_t)Int_val(x));
   CAMLreturn(f);
 }
@@ -182,7 +185,7 @@ value cgen_float32_of_uint8(value x) {
 value cgen_float32_of_uint16(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = (float)((uint16_t)Int_val(x));
   CAMLreturn(f);
 }
@@ -190,7 +193,7 @@ value cgen_float32_of_uint16(value x) {
 value cgen_float32_of_uint32(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = (float)((uint32_t)Int32_val(x));
   CAMLreturn(f);
 }
@@ -198,15 +201,14 @@ value cgen_float32_of_uint32(value x) {
 value cgen_float32_of_uint64(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
+  f = Alloc_float;
   Float_val(f) = (float)((uint64_t)Int64_val(x));
   CAMLreturn(f);
 }
 
 CAMLprim value cgen_string_of_float32(value x) {
   char buf[MAX_FLOAT_DIGITS] = {0};
-  float f = Float_val(x);
-  snprintf(buf, sizeof(buf), "%f", f);
+  snprintf(buf, sizeof(buf), "%g", Float_val(x));
   return caml_copy_string(buf);
 }
 
