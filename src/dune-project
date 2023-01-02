@@ -19,6 +19,7 @@
     bitvec-order
     bitvec-sexp
     (core (>= v0.15))
+    (core_kernel (>= v0.15))
     dune
     graphlib
     monads
