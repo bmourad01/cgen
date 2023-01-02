@@ -10,17 +10,9 @@ module Bitvec = struct
   include Bitvec_sexp
 end
 
-module List = struct
-  include List
-
-  let rec pp ppx sep ppf = function
-    | x :: (_ :: _ as rest) ->
-      Format.fprintf ppf "%a" ppx x;
-      sep ppf;
-      Format.fprintf ppf "%a" (pp ppx sep) rest
-    | [x] -> Format.fprintf ppf "%a" ppx x
-    | [] -> ()
-end
+let var_set_of_option = function
+  | Some x -> Var.Set.singleton x
+  | None -> Var.Set.empty
 
 module Array = struct
   include Array
@@ -155,10 +147,10 @@ module Insn = struct
     let pp_in ppl ppf (l, x) = Format.fprintf ppf "%a -> %a" ppl l pp_arg x
 
     let pp_self ppl ppf p =
-      let sep ppf = Format.fprintf ppf ",@;" in
+      let pp_sep ppf () = Format.fprintf ppf ",@;" in
       Format.fprintf ppf "%a = phi.%a [@[<v 0>%a@]]"
         Var.pp p.lhs Type.pp (p.typ :> Type.t)
-        (List.pp (pp_in ppl) sep) (Map.to_alist p.ins)
+        (Format.pp_print_list ~pp_sep (pp_in ppl)) (Map.to_alist p.ins)
 
     let pp = pp_self Label.pp
     let pp_hum = pp_self Label.pp_hum
@@ -185,8 +177,7 @@ module Insn = struct
       | `udiv (_, l, r)
       | `urem (_, l, r) ->
         List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
-      | `neg  (_, a) ->
-        var_of_arg a |> Option.to_list |> Var.Set.of_list
+      | `neg  (_, a) -> var_set_of_option @@ var_of_arg a
 
     let pp_arith ppf : arith -> unit = function
       | `add (t, x, y) ->
@@ -337,8 +328,7 @@ module Insn = struct
       | `sext   (_, a)
       | `sitof  (_, _, a)
       | `uitof  (_, _, a)
-      | `zext   (_, a) ->
-        var_of_arg a |> Option.to_list |> Var.Set.of_list
+      | `zext   (_, a) -> var_set_of_option @@ var_of_arg a
 
     let pp_cast ppf : cast -> unit = function
       | `bits (t, x) ->
@@ -366,8 +356,7 @@ module Insn = struct
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_copy : copy -> Var.Set.t = function
-      | `copy (_, a) ->
-        var_of_arg a |> Option.to_list |> Var.Set.of_list
+      | `copy (_, a) -> var_set_of_option @@ var_of_arg a
       | `select (_, x, t, f) ->
         List.filter_map [t; f] ~f:var_of_arg |> List.cons x |> Var.Set.of_list
 
@@ -437,8 +426,8 @@ module Insn = struct
       | `acall _  | `call _  -> false
 
     let pp_call_args variadic ppf args =
-      let sep ppf = Format.fprintf ppf ", " in
-      Format.fprintf ppf "%a" (List.pp pp_arg sep) args;
+      let pp_sep ppf () = Format.fprintf ppf ", " in
+      Format.pp_print_list ~pp_sep pp_arg ppf args;
       match args, variadic with
       | _, false -> ()
       | [], true -> Format.fprintf ppf "..."
@@ -497,8 +486,8 @@ module Insn = struct
         Format.fprintf ppf "%a -> %a" Bitvec.pp v ppl l
 
       let pp ppl ppf t =
-        let sep ppf = Format.fprintf ppf ",@;" in
-        Format.fprintf ppf "%a" (List.pp (pp_elt ppl) sep) (Map.to_alist t)
+        let pp_sep ppf () = Format.fprintf ppf ",@;" in
+        Format.pp_print_list ~pp_sep (pp_elt ppl) ppf (Map.to_alist t)
     end
 
     type table = Table.t [@@deriving bin_io, compare, equal, sexp]
@@ -514,7 +503,7 @@ module Insn = struct
       | `jmp _ -> Var.Set.empty
       | `jnz (x, _, _) -> Var.Set.singleton x
       | `ret None -> Var.Set.empty
-      | `ret (Some a) -> var_of_arg a |> Option.to_list |> Var.Set.of_list
+      | `ret (Some a) -> var_set_of_option @@ var_of_arg a
       | `switch (_, x, _, _) -> Var.Set.singleton x
 
     let pp_self ppd ppl ppf : t -> unit = function
@@ -937,6 +926,102 @@ module Cfg = struct
   include G
 end
 
+module Live = struct
+  type tran = {
+    defs : Var.Set.t;
+    uses : Var.Set.t;
+  }
+
+  let empty_tran = {
+    defs = Var.Set.empty;
+    uses = Var.Set.empty;
+  }
+
+  type t = {
+    blks : tran Label.Map.t;
+    outs : (Label.t, Var.Set.t) Solution.t;
+  }
+
+  let pp_vars ppf vars =
+    Format.pp_print_list
+      ~pp_sep:Format.pp_print_space
+      Var.pp ppf (Set.to_list vars)
+
+  let pp_transfer ppf {uses; defs} =
+    Format.fprintf ppf "(%a) / (%a)" pp_vars uses pp_vars defs
+
+  let blk_defs b =
+    Blk.data b |> Seq.map ~f:Insn.insn |>
+    Seq.fold ~init:Var.Set.empty ~f:(fun defs d ->
+        Insn.Data.lhs d |> Option.value_map ~default:defs ~f:(Set.add defs))
+
+  let update l trans ~f = Map.update trans l ~f:(function
+      | None -> f empty_tran
+      | Some had -> f had)
+
+  let (++) = Set.union and (--) = Set.diff
+
+  let block_transitions fn =
+    Fn.blks fn |> Seq.fold ~init:Label.Map.empty ~f:(fun fs b ->
+        Map.add_exn fs ~key:(Blk.label b) ~data:{
+          defs = blk_defs b;
+          uses = Blk.free_vars b;
+        }) |> fun init ->
+    Fn.blks fn |> Seq.fold ~init ~f:(fun init b ->
+        Blk.phi b |> Seq.map ~f:Insn.insn |>
+        Seq.fold ~init ~f:(fun fs p ->
+            let lhs = Insn.Phi.lhs p in
+            Insn.Phi.ins p |> Seq.fold ~init ~f:(fun fs (l, a) ->
+                let vars = var_set_of_option @@ Insn.var_of_arg a in
+                update l fs ~f:(fun {defs; uses} -> {
+                      defs = Set.add defs lhs;
+                      uses = uses ++ (vars -- defs);
+                    }))))
+
+  let lookup blks n = Map.find blks n |> Option.value ~default:empty_tran
+  let apply {defs; uses} vars = vars -- defs ++ uses
+
+  let transfer blks n vars =
+    if Label.is_pseudo n then vars else apply (lookup blks n) vars
+
+  let compute ?keep:(init = Var.Set.empty) fn =
+    let g = Cfg.create fn in
+    let init =
+      Solution.create
+        (Label.Map.singleton Label.pseudoexit Var.Set.empty)
+        Var.Set.empty in
+    let blks = block_transitions fn in {
+      blks;
+      outs = Graphlib.fixpoint (module Cfg) g ~init
+          ~rev:true ~start:Label.pseudoexit
+          ~merge:Set.union ~equal:Var.Set.equal
+          ~f:(transfer blks);
+    }
+
+  let outs t l = Solution.get t.outs l
+  let ins  t l = transfer t.blks l @@ outs t l
+  let defs t l = (lookup t.blks l).defs
+  let uses t l = (lookup t.blks l).uses
+
+  let fold t ~init ~f =
+    Map.fold t.blks ~init ~f:(fun ~key:l ~data:trans init ->
+        f init l @@ apply trans @@ outs t l)
+
+  let blks t x = fold t ~init:Label.Set.empty ~f:(fun blks l ins ->
+      if Set.mem ins x then Set.add blks l else blks)
+
+  let solution t = t.outs
+
+  let pp ppf t =
+    Format.pp_open_vbox ppf 0;
+    fold t ~init:() ~f:(fun () l vars ->
+        Format.fprintf ppf "@[<h>%a: @[<hov 2>(%a)@]@]@;"
+          Label.pp l pp_vars vars);
+    Format.pp_close_box ppf ()
+end
+
+type live = Live.t
+
 module Data = struct
   type elt = [
     | `basic  of Type.basic * const list
@@ -946,8 +1031,10 @@ module Data = struct
 
   let pp_elt ppf : elt -> unit = function
     | `basic (t, cs) ->
-      let sep ppf = Format.fprintf ppf " " in
-      Format.fprintf ppf "%a %a" Type.pp_basic t (List.pp pp_const sep) cs
+      let pp_sep ppf () = Format.fprintf ppf " " in
+      Format.fprintf ppf "%a %a"
+        Type.pp_basic t
+        (Format.pp_print_list ~pp_sep pp_const) cs
     | `string s -> Format.fprintf ppf "%a \"%s\"" Type.pp_basic `i8 s
     | `zero n -> Format.fprintf ppf "z %d" n
 

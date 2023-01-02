@@ -1,18 +1,6 @@
 open Core
 open Regular.Std
 
-module List = struct
-  include List
-
-  let rec pp ppx sep ppf = function
-    | x :: (_ :: _ as rest) ->
-      Format.fprintf ppf "%a" ppx x;
-      sep ppf;
-      Format.fprintf ppf "%a" (pp ppx sep) rest
-    | [x] -> Format.fprintf ppf "%a" ppx x
-    | [] -> ()
-end
-
 type imm_base = [
   | `i32
   | `i64
@@ -67,16 +55,18 @@ type compound = [
 
 let pp_compound ppf : compound -> unit = function
   | `compound (_, align, fields) ->
-    let sep ppf = Format.fprintf ppf ",@;" in
+    let pp_sep ppf () = Format.fprintf ppf ",@;" in
     Option.iter align ~f:(Format.fprintf ppf "align %d ");
-    Format.fprintf ppf "{@;@[<v 2>%a@]@;}" (List.pp pp_field sep) fields
+    Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
+      (Format.pp_print_list ~pp_sep pp_field) fields
 
 let pp_compound_decl ppf : compound -> unit = function
   | `compound (name, align, fields) ->
-    let sep ppf = Format.fprintf ppf ",@;" in
+    let pp_sep ppf () = Format.fprintf ppf ",@;" in
     Format.fprintf ppf "type :%s = " name;
     Option.iter align ~f:(Format.fprintf ppf "align %d ");
-    Format.fprintf ppf "{@;@[<v 2>%a@]@;}" (List.pp pp_field sep) fields
+    Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
+      (Format.pp_print_list ~pp_sep pp_field) fields
 
 let pp_compound_arg ppf : compound -> unit = function
   | `compound (name, _, _) -> Format.fprintf ppf ":%s" name

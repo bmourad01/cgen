@@ -807,6 +807,51 @@ module Cfg : sig
   val create : fn -> t
 end
 
+(** Helpers for computing liveness of a function. *)
+module Live : sig
+  type t
+
+  (** [compute fn ~keep] solves the data flow equations for liveness in
+      the function [fn].
+
+      [keep] is a set of variables that are initially live on the exit
+      nodes of the function.
+  *)
+  val compute : ?keep:Var.Set.t -> fn -> t
+
+  (** The set of live-in variables at the block assicated with the label. *)
+  val ins : t -> Label.t -> Var.Set.t
+
+  (** The set of live-out variables at the block assicated with the label. *)
+  val outs : t -> Label.t -> Var.Set.t
+
+  (** The set of blocks where the variable is live-in. *)
+  val blks : t -> Var.t -> Label.Set.t
+
+  (** The set of variables that were defined in the block associated with
+      the label. *)
+  val defs : t -> Label.t -> Var.Set.t
+
+  (** The set of variables that were used in the block associated with the
+      label. *)
+  val uses : t -> Label.t -> Var.Set.t
+
+  (** Folds over the live-ins of each block.
+
+      Applies [f] to the live-in set of each block in the function.
+  *)
+  val fold : t -> init:'a -> f:('a -> Label.t -> Var.Set.t -> 'a) -> 'a
+
+  (** Returns the solution of the data-flow equations, which is a mapping
+      from block labels to their live-out sets. *)
+  val solution : t -> (Label.t, Var.Set.t) Solution.t
+
+  (** Pretty-prints the live-in sets for each block. *)
+  val pp : Format.formatter -> t -> unit
+end
+
+type live = Live.t
+
 (** A struct of data. *)
 module Data : sig
   (** An element of the struct.
