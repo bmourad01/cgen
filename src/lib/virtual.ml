@@ -47,18 +47,15 @@ module Array = struct
 
   let findi_label xs f l = findi xs ~f:(fun _ x -> Label.equal l @@ f x)
 
-  let lift : type a b. (a -> b) -> (a -> b option) = fun f ->
-    Fn.compose Option.return f
-
   let next xs f l =
     let open Monad.Option.Syntax in
-    findi_label xs f l >>= lift fst >>= lift succ >>= fun j ->
-    if j >= length xs then None else Some xs.(j)
+    findi_label xs f l >>= fun (i, _) ->
+    if i = length xs - 1 then None else Some xs.(i + 1)
 
   let prev xs f l =
     let open Monad.Option.Syntax in
-    findi_label xs f l >>= lift fst >>= lift pred >>= fun j ->
-    if j < 0 then None else Some xs.(j)
+    findi_label xs f l >>= fun (i, _) ->
+    if i = 0 then None else Some xs.(i - 1)
 end
 
 type const = [
