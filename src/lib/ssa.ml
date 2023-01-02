@@ -5,14 +5,6 @@ open Regular.Std
 
 open Context.Syntax
 
-type state = {
-  fn       : fn;
-  cfg      : cfg;
-  dom      : Label.t tree;
-  frontier : Label.t frontier;
-  vars     : Var.Set.t;
-}
-
 let iterated_frontier f blks =
   let df = Set.fold ~init:Label.Set.empty ~f:(fun init b ->
       Frontier.enum f b |> Seq.fold ~init ~f:Set.add) in
@@ -166,18 +158,13 @@ let pop_defs vars b =
   pop_data b pop
 
 let rec rename_block vars nums cfg dom fn' l =
-  let fn = match find_blk fn' l with
-    | None -> fn'
-    | Some b ->
-      b |>
-      rename_phi vars nums |>
+  let fn = find_blk fn' l |> Option.value_map ~default:fn' ~f:(fun b ->
+      rename_phi vars nums b |>
       rename_data vars nums |>
       rename_ctrl vars |>
-      update_blk fn' in
-  let fn =
-    succs cfg fn l |>
-    Seq.fold ~init:fn ~f:(fun fn b ->
-        update_phi vars l b |> update_blk fn) in
+      update_blk fn') in
+  let fn = succs cfg fn l |> Seq.fold ~init:fn ~f:(fun fn b ->
+      update_blk fn @@ update_phi vars l b) in
   let fn =
     Cfg.nodes cfg |>
     Seq.filter ~f:(Tree.is_child_of ~parent:l dom) |>
@@ -198,31 +185,29 @@ let insert_phi_node ins b lhs typ =
     Blk.insert_phi b
   else !!b
 
-let insert_phi_nodes t =
-  Set.to_sequence t.vars |> Context.Seq.fold ~init:t.fn ~f:(fun fn x ->
+let insert_phi_nodes vars fn frontier cfg =
+  Set.to_sequence vars |> Context.Seq.fold ~init:fn ~f:(fun fn x ->
       let bs = blocks_that_define_var x fn in
-      iterated_frontier t.frontier (Label.pseudoentry :: bs) |>
+      iterated_frontier frontier (Label.pseudoentry :: bs) |>
       Set.to_sequence |> Context.Seq.fold ~init:fn ~f:(fun fn l ->
           match find_blk fn l with
           | None -> !!fn
           | Some b ->
             let ins =
-              Cfg.Node.preds l t.cfg |>
+              Cfg.Node.preds l cfg |>
               Seq.filter_map ~f:(find_blk fn) in
             (* XXX: FIXME *)
             insert_phi_node ins b x `i64 >>| update_blk fn))
 
-let rename t =
+let rename cfg dom fn =
   let vars = Var.Table.create () in
   let nums = Var.Table.create () in
-  rename_block vars nums t.cfg t.dom t.fn Label.pseudoentry
+  rename_block vars nums cfg dom fn Label.pseudoentry
 
 let run fn = try
     let cfg = Cfg.create fn in
     let vars = collect_vars fn in
     let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
     let frontier = Graphlib.dom_frontier (module Cfg) cfg dom in
-    let t = {fn; cfg; dom; frontier; vars} in
-    let+ fn = insert_phi_nodes t in
-    rename {t with fn}
+    insert_phi_nodes vars fn frontier cfg >>| rename cfg dom
   with Failure msg -> Context.fail @@ Error.of_string msg
