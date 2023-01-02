@@ -24,6 +24,9 @@ val pseudoentry : t
     dominator tree of a graph .*)
 val pseudoexit : t
 
+(** Returns [true] if the label is [pseudoentry] or [pseudoexit]. *)
+val is_pseudo : t -> bool
+
 (** Pretty-prints the label in a more human-readable way. *)
 val pp_hum : Format.formatter -> t -> unit
 

@@ -9,6 +9,7 @@ include T
 
 let pseudoentry = 0
 let pseudoexit = 1
+let is_pseudo l = l = pseudoentry || l = pseudoexit
 
 let pp ppf l = Format.fprintf ppf "%%%08x" l
 let pp_hum ppf l = Format.fprintf ppf ".L%x" l
