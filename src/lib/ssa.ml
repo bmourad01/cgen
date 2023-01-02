@@ -14,12 +14,12 @@ let iterated_frontier f blks =
     if Set.equal idf idf' then idf' else fixpoint idf' in
   fixpoint Label.Set.empty
 
+exception Missing_blk of string * Label.t
+
 let find_blk fn l = match Fn.find_blk fn l with
   | Some _ as b -> b
   | None when Label.is_pseudo l -> None
-  | None ->
-    failwithf "Internal error. Broken invariant in function %s: \
-               Block %a is missing" (Fn.name fn) Label.pps l ()
+  | None -> raise @@ Missing_blk (Fn.name fn, l)
 
 let succs cfg fn l = Cfg.Node.succs l cfg |> Seq.filter_map ~f:(find_blk fn)
 
@@ -210,4 +210,7 @@ let run fn = try
     let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
     let frontier = Graphlib.dom_frontier (module Cfg) cfg dom in
     insert_phi_nodes vars fn frontier cfg >>| rename cfg dom
-  with Failure msg -> Context.fail @@ Error.of_string msg
+  with Missing_blk (fn, l) ->
+    Context.fail @@ Error.createf
+      "SSA: missing block %a in function %s"
+      Label.pps l fn
