@@ -56,54 +56,48 @@ CAMLprim value cgen_float32_is_nan(value x) {
 value cgen_float32_add(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  float z = Float_val(x) + Float_val(y);
   f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
-  Float_val(f) = z;
+  Float_val(f) = Float_val(x) + Float_val(y);
   CAMLreturn(f);
 }
 
 value cgen_float32_div(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  float z = Float_val(x) / Float_val(y);
   f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
-  Float_val(f) = z;
+  Float_val(f) = Float_val(x) / Float_val(y);
   CAMLreturn(f);
 }
 
 value cgen_float32_mul(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  float z = Float_val(x) * Float_val(y);
   f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
-  Float_val(f) = z;
+  Float_val(f) = Float_val(x) * Float_val(y);
   CAMLreturn(f);
 }
 
 value cgen_float32_neg(value x) {
   CAMLparam1(x);
   CAMLlocal1(f);
-  float y = -Float_val(x);
   f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
-  Float_val(f) = y;
+  Float_val(f) = -Float_val(x);
   CAMLreturn(f);
 }
 
 value cgen_float32_rem(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  float z = fmodf(Float_val(x), Float_val(y));
   f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
-  Float_val(f) = z;
+  Float_val(f) = fmodf(Float_val(x), Float_val(y));
   CAMLreturn(f);
 }
 
 value cgen_float32_sub(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);
-  float z = Float_val(x) - Float_val(y);
   f = caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1);
-  Float_val(f) = z;
+  Float_val(f) = Float_val(x) - Float_val(y);
   CAMLreturn(f);
 }
 
