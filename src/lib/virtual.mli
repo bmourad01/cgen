@@ -6,6 +6,7 @@
 *)
 
 open Core
+open Graphlib.Std
 open Regular.Std
 
 (** A constant value.
@@ -520,6 +521,33 @@ module Insn : sig
   val pp_ctrl_hum : Format.formatter -> ctrl -> unit
 end
 
+(** A control-flow edge. *)
+module Edge : sig
+  (** The kinds of edges that may occur:
+
+      [`always]: unconditional jump.
+
+      [`true_ x]: taken if [x] is non-zero.
+
+      [`false_ x]: taken if [x] is zero.
+
+      [`switch_ (x, v)]: taken if [x = v].
+
+      [`default x]: taken if [x] doesn't match any entry in the switch table.
+  *)
+  type t = [
+    | `always
+    | `true_ of Var.t
+    | `false_ of Var.t
+    | `switch of Var.t * Bitvec.t
+    | `default of Var.t
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  include Regular.S with type t := t
+end
+
+type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
+
 (** A basic block. *)
 module Blk : sig
   type t [@@deriving bin_io, compare, equal, sexp]
@@ -552,11 +580,17 @@ module Blk : sig
   (** Returns the hash of the block label. *)
   val hash : t -> int
 
-  (** Returns the set of free variables in the block. *)
+  (** Returns the set of free variables in the block.
+
+      Note: this calculation does not traverse phi instructions.
+  *)
   val free_vars : t -> Var.Set.t
 
   (** [uses_var b x] returns [true] if the variable [x] appears in the
-      free variables of [b]. *)
+      free variables of [b].
+
+      Equivalent to [Set.mem (free_vars b) x].
+  *)
   val uses_var : t -> Var.t -> bool
 
   (** [defines_var b x] returns [true] if the variable [x] is defined
@@ -653,9 +687,6 @@ module Blk : sig
   *)
   val append_data : ?after:Label.t option -> t -> Insn.data -> t
 
-  (** Pretty prints a basic block. *)
-  val pp : Format.formatter -> t -> unit
-
   (** Pretty prints a basic block, where instructions are indented and
       unlabeled. *)
   val pp_hum : Format.formatter -> t -> unit
@@ -726,6 +757,9 @@ module Fn : sig
   (** Returns the hash of the function name. *)
   val hash : t -> int
 
+  (** Returns a mapping from block labels to blocks. *)
+  val map_of_blks : t -> blk Label.Map.t
+
   (** [map_blks fn ~f] returns [fn] with each basic block applied to [f]. *)
   val map_blks : t -> f:(blk -> blk) -> t
 
@@ -755,9 +789,6 @@ module Fn : sig
   (** Returns the previous block (before the given label) if it exists. *)
   val prev_blk : t -> Label.t -> blk option
 
-  (** Pretty-prints a function. *)
-  val pp : Format.formatter -> t -> unit
-
   (** Pretty-prints a function where only blocks are labeled. *)
   val pp_hum : Format.formatter -> t -> unit
 
@@ -765,6 +796,16 @@ module Fn : sig
 end
 
 type fn = Fn.t [@@deriving bin_io, compare, equal, sexp]
+
+(** The control-flow graph of the function. *)
+module Cfg : sig
+  include Graph with type node = Label.t
+                 and type Node.label = Label.t
+                 and type Edge.label = edge
+
+  (** Creates the control-flow graph. *)
+  val create : fn -> t
+end
 
 (** A struct of data. *)
 module Data : sig
@@ -833,9 +874,6 @@ module Data : sig
 
   (** Returns the structure with each element transformed by [f] *)
   val map_elts : t -> f:(elt -> elt) -> t
-
-  (** Pretty-prints a struct. *)
-  val pp : Format.formatter -> t -> unit
 
   include Regular.S with type t := t
 end

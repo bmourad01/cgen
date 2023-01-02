@@ -1,4 +1,5 @@
 open Core
+open Graphlib.Std
 open Monads.Std
 open Regular.Std
 
@@ -569,6 +570,37 @@ module Insn = struct
   let pp_ctrl_hum ppf p = Format.fprintf ppf "%a" Ctrl.pp_hum p.insn
 end
 
+module Edge = struct
+  module T = struct
+    type t = [
+      | `always
+      | `true_ of Var.t
+      | `false_ of Var.t
+      | `switch of Var.t * Bitvec.t
+      | `default of Var.t
+    ] [@@deriving bin_io, compare, equal, sexp]
+  end
+
+  include T
+
+  let pp ppf : t -> unit = function
+    | `always -> Format.fprintf ppf "always"
+    | `true_ x -> Format.fprintf ppf "%a" Var.pp x
+    | `false_ x -> Format.fprintf ppf "~%a" Var.pp x
+    | `switch (x, v) -> Format.fprintf ppf "%a = %a" Var.pp x Bitvec.pp v
+    | `default x -> Format.fprintf ppf "default(%a)" Var.pp x
+
+  include Regular.Make(struct
+      include T
+      let module_name = Some "Virtual.Edge"
+      let version = "0.1"
+      let pp = pp
+      let hash e = String.hash @@ Format.asprintf "%a" pp e
+    end)
+end
+
+type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
+
 module Blk = struct
   module T = struct
     type t = {
@@ -793,6 +825,10 @@ module Fn = struct
   let has_name fn name = String.(name = fn.name)
   let hash fn = String.hash fn.name
 
+  let map_of_blks fn =
+    Array.fold fn.blks ~init:Label.Map.empty ~f:(fun m b ->
+        Map.set m ~key:(Blk.label b) ~data:b)
+
   let map_blks fn ~f = {
     fn with blks = Array.map fn.blks ~f;
   }
@@ -849,6 +885,57 @@ module Fn = struct
 end
 
 type fn = Fn.t [@@deriving bin_io, compare, equal, sexp]
+
+module Cfg = struct
+  module G = Graphlib.Make(Label)(Edge)
+
+  let connect_with_entry n =
+    let e = Label.pseudoentry in
+    if Label.(n = e) then Fn.id
+    else G.Edge.(insert (create e n `always))
+
+  let connect_with_exit n =
+    let e = Label.pseudoexit in
+    if Label.(n = e) then Fn.id
+    else G.Edge.(insert (create n e `always))
+
+  let if_unreachable ~from connect g n =
+    if G.Node.degree ~dir:from n g = 0 then connect n else Fn.id
+
+  let accum g b : Insn.Ctrl.t -> G.t = function
+    | `jmp (`label l) -> G.Edge.(insert (create b l `always) g)
+    | `jmp _ -> g
+    | `jnz (x, `label t, `label f) ->
+      let et = G.Edge.create b t @@ `true_ x in
+      let ef = G.Edge.create b f @@ `false_ x in
+      G.Edge.(insert ef (insert et g))
+    | `jnz (x, `label l, _) -> G.Edge.(insert (create b l @@ `true_ x) g)
+    | `jnz (x, _, `label l) -> G.Edge.(insert (create b l @@ `false_ x) g)
+    | `jnz _ -> g
+    | `ret _ -> g
+    | `switch (_, x, d, t) ->
+      let init = G.Edge.(insert (create b d @@ `default x) g) in
+      Map.fold t ~init ~f:(fun ~key:v ~data:l g ->
+          G.Edge.(insert (create b l @@ `switch (x, v)) g))
+
+  let connect_unreachable g n =
+    if_unreachable ~from:`Out connect_with_exit  g n @@
+    if_unreachable ~from:`In  connect_with_entry g n @@
+    g
+
+  let create (fn : fn) =
+    Array.fold fn.blks ~init:G.empty ~f:(fun g b ->
+        accum (G.Node.insert b.label g) b.label b.ctrl.insn) |> fun g ->
+    G.nodes g |> Seq.fold ~init:g ~f:connect_unreachable |> fun g ->
+    Graphlib.depth_first_search (module G) g
+      ~init:g ~start:Label.pseudoentry
+      ~start_tree:connect_with_entry |> fun g ->
+    Graphlib.depth_first_search (module G) g
+      ~rev:true ~init:g ~start:Label.pseudoexit
+      ~start_tree:connect_with_exit
+
+  include G
+end
 
 module Data = struct
   type elt = [
