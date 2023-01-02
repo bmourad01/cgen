@@ -1,3 +1,5 @@
+(** A program variable. *)
+
 open Regular.Std
 
 (** An identifier for temporary variables. This is for internal

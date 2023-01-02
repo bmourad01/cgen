@@ -1,3 +1,5 @@
+(** Support for C-style linkage of symbols. *)
+
 open Regular.Std
 
 (** Linkage metadata. *)

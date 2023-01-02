@@ -1,3 +1,10 @@
+(** The type system used by the virtual instruction set.
+
+    It is designed for easy interop with the C ABI, and
+    of course deriving and enforcing semantic properties
+    of programs.
+*)
+
 open Regular.Std
 
 (** The base immediate types, which includes words [`i32]
