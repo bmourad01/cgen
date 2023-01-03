@@ -632,27 +632,17 @@ module Blk = struct
   let uses_var b x = Set.mem (free_vars b) x
 
   let map_phi b ~f = {
-    b with phi = Array.map b.phi ~f;
-  }
-
-  let map_phi' b ~f = {
-    b with phi = Array.map b.phi ~f:(Insn.map_phi ~f);
+    b with phi = Array.map b.phi ~f:(fun i ->
+      Insn.map_phi i ~f:(f i.label));
   }
 
   let map_data b ~f = {
-    b with data = Array.map b.data ~f;
-  }
-
-  let map_data' b ~f = {
-    b with data = Array.map b.data ~f:(Insn.map_data ~f);
+    b with data = Array.map b.data ~f:(fun i ->
+      Insn.map_data i ~f:(f i.label));
   }
 
   let map_ctrl b ~f = {
-    b with ctrl = f b.ctrl;
-  }
-
-  let map_ctrl' b ~f = {
-    b with ctrl = Insn.map_ctrl b.ctrl ~f;
+    b with ctrl = Insn.map_ctrl b.ctrl ~f:(f b.ctrl.label);
   }
 
   let index_of xs l =
@@ -671,7 +661,7 @@ module Blk = struct
       | None -> xs
 
   let insert_phi b p = {
-    b with phi = Array.push_front b.phi p;
+    b with phi = Array.push_back b.phi p;
   }
 
   let prepend_data ?(before = None) b d = {

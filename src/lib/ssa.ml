@@ -40,7 +40,7 @@ let new_name vars nums x =
   Hashtbl.add_multi vars ~key:x ~data:y;
   y
 
-let rename_phi vars nums b = Blk.map_phi' b ~f:(fun p ->
+let rename_phi vars nums b = Blk.map_phi b ~f:(fun _ p ->
     Insn.Phi.with_lhs p @@ new_name vars nums @@ Insn.Phi.lhs p)
 
 let map_var vars x = match Hashtbl.find vars x with
@@ -105,7 +105,7 @@ let map_dst vars : Insn.dst -> Insn.dst = function
 let rename_data vars nums b =
   let glo = map_global vars in
   let margs = List.map ~f:(map_arg vars) in
-  Blk.map_data' b ~f:(function
+  Blk.map_data b ~f:(fun _ -> function
       | `acall (x, t, f, args) ->
         `acall (new_name vars nums x, t, glo f, margs args)
       | `acallv (x, t, f, args) ->
@@ -118,7 +118,7 @@ let rename_ctrl vars b =
   let var = map_var vars in
   let dst = map_dst vars in
   let arg = map_arg vars in
-  Blk.map_ctrl' b ~f:(function
+  Blk.map_ctrl b ~f:(fun _ -> function
       | `jmp d -> `jmp (dst d)
       | `jnz (c, t, f) -> `jnz (var c, dst t, dst f)
       | `ret None as r -> r
@@ -127,7 +127,7 @@ let rename_ctrl vars b =
 
 let update_phi vars l b =
   let var = map_var vars in
-  Blk.map_phi' b ~f:(fun p ->
+  Blk.map_phi b ~f:(fun _ p ->
       Insn.Phi.ins p |> Seq.fold ~init:p ~f:(fun p -> function
           | l', `var x when Label.(l' = l) ->
             Insn.Phi.update p l @@ `var (var x)

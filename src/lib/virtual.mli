@@ -652,23 +652,14 @@ module Blk : sig
 
   (** [map_phi b ~f] returns [b] with each phi instruction applied
       to [f]. *)
-  val map_phi : t -> f:(Insn.phi -> Insn.phi) -> t
-
-  (** Same as [map_phi], but only maps the underlying instruction *)
-  val map_phi' : t -> f:(Insn.Phi.t -> Insn.Phi.t) -> t
+  val map_phi : t -> f:(Label.t -> Insn.Phi.t -> Insn.Phi.t) -> t
 
   (** [map_data b ~f] returns [b] with each data instruction applied
       to [f]. *)
-  val map_data : t -> f:(Insn.data -> Insn.data) -> t
-
-  (** Same as [map_data], but only maps the underlying instruction *)
-  val map_data' : t -> f:(Insn.Data.t -> Insn.Data.t) -> t
+  val map_data : t -> f:(Label.t -> Insn.Data.t -> Insn.Data.t) -> t
 
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
-  val map_ctrl : t -> f:(Insn.ctrl -> Insn.ctrl) -> t
-
-  (** Same as [map_ctrl], but only maps the underlying instruction *)
-  val map_ctrl' : t -> f:(Insn.Ctrl.t -> Insn.Ctrl.t) -> t
+  val map_ctrl : t -> f:(Label.t -> Insn.Ctrl.t -> Insn.Ctrl.t) -> t
 
   (** Inserts a phi instruction into the block.
 
