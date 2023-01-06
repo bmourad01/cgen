@@ -105,7 +105,7 @@ end
 type label = Label.t
 
 module Label = struct
-  let init = Int63.(succ (Obj.magic Label.pseudoexit : Int63.t))
+  let init = Int63.(succ (Obj.magic Label.pseudoexit : t))
 
   let fresh =
     let* s = get () in
