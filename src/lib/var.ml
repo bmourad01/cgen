@@ -1,7 +1,7 @@
 open Core
 open Regular.Std
 
-type id = int [@@deriving bin_io, compare, equal, hash, sexp]
+type id = Int63.t [@@deriving bin_io, compare, equal, hash, sexp]
 
 type ident =
   | Temp of id
@@ -36,7 +36,7 @@ let with_index x index = {x with index}
 let base x = with_index x 0
 
 let same x y = match x.ident, y.ident with
-  | Temp ix, Temp iy -> ix = iy
+  | Temp ix, Temp iy -> Int63.(ix = iy)
   | Name nx, Name ny -> String.(nx = ny)
   | _ -> false
 
@@ -44,8 +44,8 @@ let create ?(index = 0) name typ = {ident = Name name; index; typ}
 let temp ?(index = 0) id typ = {ident = Temp id; index; typ}
 
 let pp ppf x = match x.ident with
-  | Temp id when x.index = 0 -> Format.fprintf ppf "#%d" id
-  | Temp id -> Format.fprintf ppf "#%d.%u" id x.index
+  | Temp id when x.index = 0 -> Format.fprintf ppf "#%a" Int63.pp id
+  | Temp id -> Format.fprintf ppf "#%a.%u" Int63.pp id x.index
   | Name n when x.index = 0 -> Format.fprintf ppf "%s" n
   | Name n -> Format.fprintf ppf "%s.%u" n x.index
 

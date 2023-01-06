@@ -4,8 +4,8 @@ open Regular.Std
 
 type state = {
   target    : Target.t;
-  nextvar   : int;
-  nextlabel : int;
+  nextvar   : Int63.t;
+  nextlabel : Int63.t;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 module State = struct
@@ -98,19 +98,19 @@ module Var = struct
   let fresh typ =
     let* s = get () in
     let id = s.nextvar in
-    let+ () = put {s with nextvar = id + 1} in
+    let+ () = put {s with nextvar = Int63.succ id} in
     Var.temp (Obj.magic id : Var.id) typ
 end
 
 type label = Label.t
 
 module Label = struct
-  let init = (Obj.magic Label.pseudoexit : int) + 1
+  let init = Int63.(succ (Obj.magic Label.pseudoexit : Int63.t))
 
   let fresh =
     let* s = get () in
     let l = s.nextlabel in
-    let+ () = put {s with nextlabel = l + 1} in
+    let+ () = put {s with nextlabel = Int63.succ l} in
     (Obj.magic l : Label.t)
 end
 
@@ -143,7 +143,7 @@ end
 
 let init target = {
   target;
-  nextvar = 0;
+  nextvar = Int63.zero;
   nextlabel = Label.init;
 }
 
