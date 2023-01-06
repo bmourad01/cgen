@@ -133,69 +133,82 @@ module Insn : sig
 
   (** Data-flow-effectful instructions. *)
   module Data : sig
-    (** Arithmetic operations.
+    (** Arithmetic binary operations.
 
-        [`add (t, l, r)]: addition.
+        [`add t]: addition.
 
-        [`div (t, l, r)]: division.
+        [`div t]: division.
 
-        [`mul (t, l, r)]: multiplication.
+        [`mul t]: multiplication.
 
-        [`neg (t, a)]: negation.
+        [`rem t]: remainder.
 
-        [`rem (t, l, r)]: remainder.
+        [`sub t]: subtraction.
 
-        [`sub (t, l, r)]: subtraction.
+        [`udiv t]: unsigned division (immediate only).
 
-        [`udiv (t, l, r)]: unsigned division (immediate only).
-
-        [`urem (t, l, r)]: unsigned remainder (immediate only).
+        [`urem t]: unsigned remainder (immediate only).
     *)
-    type arith = [
-      | `add  of Type.basic * arg * arg
-      | `div  of Type.basic * arg * arg
-      | `mul  of Type.basic * arg * arg
-      | `neg  of Type.basic * arg
-      | `rem  of Type.basic * arg * arg
-      | `sub  of Type.basic * arg * arg
-      | `udiv of Type.imm   * arg * arg
-      | `urem of Type.imm   * arg * arg
+    type arith_binop = [
+      | `add  of Type.basic
+      | `div  of Type.basic
+      | `mul  of Type.basic
+      | `rem  of Type.basic
+      | `sub  of Type.basic
+      | `udiv of Type.imm
+      | `urem of Type.imm
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Returns the set of free variables in the arithmetic operation. *)
-    val free_vars_of_arith : arith -> Var.Set.t
+    (** Pretty-prints the arithmetic binary operator. *)
+    val pp_arith_binop : Format.formatter -> arith_binop -> unit
 
-    (** Pretty-prints an arithmetic operation. *)
-    val pp_arith : Format.formatter -> arith -> unit
+    (** Arithmetic unary operations.
 
-    (** Bitwise operations.
-
-        [`and_ (t, l, r)]: bitwise intersection (AND).
-
-        [`or_ (t, l, r)]: bitwise union (OR).
-
-        [`sar (t, l, r)]: arithmetic shift right.
-
-        [`shl (t, l, r)]: logical shift left.
-
-        [`shr (t, l, r)]: logical shift right.
-
-        [`xor (t, l, r)]: bitwise difference (exclusive-OR).
+        [`neg t]: negation.
     *)
-    type bits = [
-      | `and_ of Type.imm * arg * arg
-      | `or_  of Type.imm * arg * arg
-      | `sar  of Type.imm * arg * arg
-      | `shl  of Type.imm * arg * arg
-      | `shr  of Type.imm * arg * arg
-      | `xor  of Type.imm * arg * arg
+    type arith_unop = [
+      | `neg of Type.basic
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Returns the set of free variables in the bitwise operation. *)
-    val free_vars_of_bits : bits -> Var.Set.t
+    (** Pretty-prints the arithmetic unary operator. *)
+    val pp_arith_unop : Format.formatter -> arith_unop -> unit
 
-    (** Pretty-prints a bitwise operation. *)
-    val pp_bits : Format.formatter -> bits -> unit
+    (** Bitwise binary operations.
+
+        [`and_ t]: bitwise intersection (AND).
+
+        [`or_ t]: bitwise union (OR).
+
+        [`sar t]: arithmetic shift right.
+
+        [`shl t]: logical shift left.
+
+        [`shr t]: logical shift right.
+
+        [`xor t]: bitwise difference (exclusive-OR).
+    *)
+    type bitwise_binop = [
+      | `and_ of Type.imm
+      | `or_  of Type.imm
+      | `sar  of Type.imm
+      | `shl  of Type.imm
+      | `shr  of Type.imm
+      | `xor  of Type.imm
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** Pretty-prints the bitwise binary operator. *)
+    val pp_bitwise_binop : Format.formatter -> bitwise_binop -> unit
+
+    (** Bitwise unary operations.
+
+        [`not_ t]: bitwise complement (NOT).
+    *)
+    type bitwise_unop = [
+      | `not_ of Type.imm
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** Pretty-prints the bitwise unary operator. *)
+    val pp_bitwise_unop : Format.formatter -> bitwise_unop -> unit
 
     (** Memory operations.
 
@@ -221,121 +234,137 @@ module Insn : sig
 
     (** Comparison operations.
 
-        [`eq (t, l, r)]: equal.
+        [`eq t l, r)]: equal.
 
-        [`ge (t, l, r)]: greater or equal.
+        [`ge t]: greater or equal.
 
-        [`gt (t, l, r)]: greater than.
+        [`gt t]: greater than.
 
-        [`le (t, l, r)]: less or equal.
+        [`le t]: less or equal.
 
-        [`lt (t, l, r)]: less than.
+        [`lt t]: less than.
 
-        [`ne (t, l, r)]: not equal.
+        [`ne t]: not equal.
 
-        [`o (t, l, r)]: signed overflow (immediate only).
+        [`o t]: signed overflow (immediate only).
 
-        [`sge (t, l, r)]: signed greater or equal (immediate only).
+        [`sge t]: signed greater or equal (immediate only).
 
-        [`sgt (t, l, r)]: signed greater than (immediate only).
+        [`sgt t]: signed greater than (immediate only).
 
-        [`sle (t, l, r)]: signed less or equal (immediate only).
+        [`sle t]: signed less or equal (immediate only).
 
-        [`slt (t, l, r)]: signed less than (immediate only).
+        [`slt t]: signed less than (immediate only).
 
-        [`uo (t, l, r)]: unsigned overflow (immediate only).
+        [`uo t]: unsigned overflow (immediate only).
     *)
     type cmp = [
-      | `eq  of Type.basic * arg * arg
-      | `ge  of Type.basic * arg * arg
-      | `gt  of Type.basic * arg * arg
-      | `le  of Type.basic * arg * arg
-      | `lt  of Type.basic * arg * arg
-      | `ne  of Type.basic * arg * arg
-      | `o   of Type.imm   * arg * arg
-      | `sge of Type.imm   * arg * arg
-      | `sgt of Type.imm   * arg * arg
-      | `sle of Type.imm   * arg * arg
-      | `slt of Type.imm   * arg * arg
-      | `uo  of Type.imm   * arg * arg
+      | `eq  of Type.basic
+      | `ge  of Type.basic
+      | `gt  of Type.basic
+      | `le  of Type.basic
+      | `lt  of Type.basic
+      | `ne  of Type.basic
+      | `o   of Type.imm
+      | `sge of Type.imm
+      | `sgt of Type.imm
+      | `sle of Type.imm
+      | `slt of Type.imm
+      | `uo  of Type.imm
     ] [@@deriving bin_io, compare, equal, sexp]
-
-    (** Returns the set of free variables in the comparison operation. *)
-    val free_vars_of_cmp : cmp -> Var.Set.t
 
     (** Pretty-prints a comparison operation. *)
     val pp_cmp : Format.formatter -> cmp -> unit
 
     (** Cast operations.
 
-        [`bits (t, a)]: reinterpret the bits of [a] to type [t].
+        [`bits t]: reinterpret the underlying bits to type [t].
 
-        [`ftosi (t, i, f)]: cast a float [f] of type [t] to a signed
+        [`ftosi (t, i)]: cast a float of type [t] to a signed
         integer of type [i].
 
-        [`ftoui (t, i, f)]: cast a float [f] of type [t] to an unsigned
+        [`ftoui (t, i)]: cast a float of type [t] to an unsigned
         integer of type [i].
 
-        [`ftrunc (t, f)]: truncate a float [f] to a float of type [t].
+        [`ftrunc t]: truncate a float to a float of type [t].
 
-        [`itrunc (t, i)]: truncate an integer [i] to an integer of type [t].
+        [`itrunc t]: truncate an integer to an integer of type [t].
 
-        [`sext (t, i)]: sign-extend an integer [i] to an integer of type [t].
+        [`sext t]: sign-extend an integer to an integer of type [t].
 
-        [`sitof (t, f, i)]: cast a signed integer [i] of type [t] to a float
+        [`sitof (t, f)]: cast a signed integer of type [t] to a float
         of type [f].
 
-        [`uitof (t, f, i)]: cast an unsigned integer [i] of type [t] to a
+        [`uitof (t, f)]: cast an unsigned integer of type [t] to a
         float of type [f].
 
-        [`zext (t, i)]: sign-extend an integer [i] to an integer of type [t].
+        [`zext t]: sign-extend an integer to an integer of type [t].
     *)
     type cast = [
-      | `bits   of Type.basic * arg
-      | `ftosi  of Type.fp * Type.imm * arg
-      | `ftoui  of Type.fp * Type.imm * arg
-      | `ftrunc of Type.fp * arg
-      | `itrunc of Type.imm * arg
-      | `sext   of Type.imm * arg
-      | `sitof  of Type.imm * Type.fp * arg
-      | `uitof  of Type.imm * Type.fp * arg
-      | `zext   of Type.imm * arg
+      | `bits   of Type.basic
+      | `ftosi  of Type.fp * Type.imm
+      | `ftoui  of Type.fp * Type.imm
+      | `ftrunc of Type.fp
+      | `itrunc of Type.imm
+      | `sext   of Type.imm
+      | `sitof  of Type.imm * Type.fp
+      | `uitof  of Type.imm * Type.fp
+      | `zext   of Type.imm
     ] [@@deriving bin_io, compare, equal, sexp]
-
-    (** Returns the set of free variables in the cast operation. *)
-    val free_vars_of_cast : cast -> Var.Set.t
 
     (** Pretty-prints a cast operation. *)
     val pp_cast : Format.formatter -> cast -> unit 
 
     (** Copy operations.
 
-        [`copy (t, a)]: move [a] to a destination of type [t]. If [a] is
-        a global symbol or a compound type, then it is interpreted as a
-        pointer.
-
-        [`select (t, c, l, r)]: if [c] is true, then select [l], otherwise
-        select [r]. Both [l] and [r] are expected to have type [t].
+        [`copy t]: move to a destination of type [t]. Arguments of compound
+        type are interpreted as a pointer.
     *)
     type copy = [
-      | `copy of Type.basic * arg
-      | `select of Type.basic * Var.t * arg * arg
+      | `copy of Type.basic
     ] [@@deriving bin_io, compare, equal, sexp]
-
-    (** Returns the set of free variables in the copy operation. *)
-    val free_vars_of_copy : copy -> Var.Set.t
 
     (** Pretty-prints a copy operation. *)
     val pp_copy : Format.formatter -> copy -> unit
 
-    (** All simple operations. *)
-    type op = [
-      | arith
-      | bits
-      | mem
+    (** All binary operations. *)
+    type binop = [
+      | arith_binop
+      | bitwise_binop
       | cmp
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** Pretty-prints the binary operator. *)
+    val pp_binop : Format.formatter -> binop -> unit
+
+    (** All unary operations. *)
+    type unop = [
+      | arith_unop
+      | bitwise_unop
       | cast
       | copy
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** Pretty-prints the unary operator. *)
+    val pp_unop : Format.formatter -> unop -> unit
+
+    (** All operations.
+
+        [`binop (x, b, l, r)]: compute [b(l, r)] and store the result in [x].
+
+        [`unop (x, u, a)]: compute [u(a)] and store the result in [x].
+
+        [`mem (x, m)]: compute [m] and store the result in [x].
+
+        [`select (x, t, c, l, r)]: evaluate [c]; if non-zero then select [l]
+        and assign to [x], otherwise select [r]. Both [l] and [r] must have
+        type [t].
+    *)
+    type op = [
+      | `binop  of Var.t * binop * arg * arg
+      | `unop   of Var.t * unop  * arg
+      | `mem    of Var.t * mem
+      | `select of Var.t * Type.basic * Var.t * arg * arg
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the operation. *)
@@ -389,13 +418,10 @@ module Insn : sig
     (** Pretty-prints a call instruction. *)
     val pp_call : Format.formatter -> call -> unit
 
-    (** A data instruction is either a call or a simple op.
-
-        [`op (x, o)]: perform operation [o] and assign it to variable [x].
-    *)
+    (** A data instruction is either a call or a simple op. *)
     type t = [
       | call
-      | `op of Var.t * op
+      | op
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the assigned variable of the operation, if it exists. *)

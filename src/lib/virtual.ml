@@ -156,77 +156,55 @@ module Insn = struct
   end
 
   module Data = struct
-    type arith = [
-      | `add  of Type.basic * arg * arg
-      | `div  of Type.basic * arg * arg
-      | `mul  of Type.basic * arg * arg
-      | `neg  of Type.basic * arg
-      | `rem  of Type.basic * arg * arg
-      | `sub  of Type.basic * arg * arg
-      | `udiv of Type.imm   * arg * arg
-      | `urem of Type.imm   * arg * arg
+    type arith_binop = [
+      | `add  of Type.basic
+      | `div  of Type.basic
+      | `mul  of Type.basic
+      | `rem  of Type.basic
+      | `sub  of Type.basic
+      | `udiv of Type.imm
+      | `urem of Type.imm
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    let free_vars_of_arith : arith -> Var.Set.t = function
-      | `add  (_, l, r)
-      | `div  (_, l, r)
-      | `mul  (_, l, r)
-      | `rem  (_, l, r)
-      | `sub  (_, l, r)
-      | `udiv (_, l, r)
-      | `urem (_, l, r) ->
-        List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
-      | `neg  (_, a) -> var_set_of_option @@ var_of_arg a
+    let pp_arith_binop ppf : arith_binop -> unit = function
+      | `add  t -> Format.fprintf ppf "add.%a"  Type.pp_basic t
+      | `div  t -> Format.fprintf ppf "div.%a"  Type.pp_basic t
+      | `mul  t -> Format.fprintf ppf "mul.%a"  Type.pp_basic t
+      | `rem  t -> Format.fprintf ppf "rem.%a"  Type.pp_basic t
+      | `sub  t -> Format.fprintf ppf "sub.%a"  Type.pp_basic t
+      | `udiv t -> Format.fprintf ppf "udiv.%a" Type.pp_imm t
+      | `urem t -> Format.fprintf ppf "urem.%a" Type.pp_imm t
 
-    let pp_arith ppf : arith -> unit = function
-      | `add (t, x, y) ->
-        Format.fprintf ppf "add.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `div (t, x, y) ->
-        Format.fprintf ppf "div.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `mul (t, x, y) ->
-        Format.fprintf ppf "mul.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `neg (t, x) ->
-        Format.fprintf ppf "neg.%a %a" Type.pp_basic t pp_arg x
-      | `rem (t, x, y) ->
-        Format.fprintf ppf "rem.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `sub (t, x, y) ->
-        Format.fprintf ppf "sub.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `udiv (t, x, y) ->
-        Format.fprintf ppf "urem.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `urem (t, x, y) ->
-        Format.fprintf ppf "udiv.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-
-    type bits = [
-      | `and_ of Type.imm * arg * arg
-      | `or_  of Type.imm * arg * arg
-      | `sar  of Type.imm * arg * arg
-      | `shl  of Type.imm * arg * arg
-      | `shr  of Type.imm * arg * arg
-      | `xor  of Type.imm * arg * arg
+    type arith_unop = [
+      | `neg of Type.basic
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    let free_vars_of_bits : bits -> Var.Set.t = function
-      | `and_ (_, l, r)
-      | `or_  (_, l, r)
-      | `sar  (_, l, r)
-      | `shl  (_, l, r)
-      | `shr  (_, l, r)
-      | `xor  (_, l, r) ->
-        List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
+    let pp_arith_unop ppf : arith_unop -> unit = function
+      | `neg t -> Format.fprintf ppf "neg.%a" Type.pp_basic t
 
-    let pp_bits ppf : bits -> unit = function
-      | `and_ (t, x, y) ->
-        Format.fprintf ppf "and.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `or_ (t, x, y) ->
-        Format.fprintf ppf "or.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `sar (t, x, y) ->
-        Format.fprintf ppf "sar.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `shl (t, x, y) ->
-        Format.fprintf ppf "shl.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `shr (t, x, y) ->
-        Format.fprintf ppf "shr.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `xor (t, x, y) ->
-        Format.fprintf ppf "xor.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
+    type bitwise_binop = [
+      | `and_ of Type.imm
+      | `or_  of Type.imm
+      | `sar  of Type.imm
+      | `shl  of Type.imm
+      | `shr  of Type.imm
+      | `xor  of Type.imm
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    let pp_bitwise_binop ppf : bitwise_binop -> unit = function
+      | `and_ t -> Format.fprintf ppf "and.%a" Type.pp_imm t
+      | `or_  t -> Format.fprintf ppf "or.%a"  Type.pp_imm t
+      | `sar  t -> Format.fprintf ppf "sar.%a" Type.pp_imm t
+      | `shl  t -> Format.fprintf ppf "shl.%a" Type.pp_imm t
+      | `shr  t -> Format.fprintf ppf "shr.%a" Type.pp_imm t
+      | `xor  t -> Format.fprintf ppf "xor.%a" Type.pp_imm t
+
+    type bitwise_unop = [
+      | `not_ of Type.imm
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    let pp_bitwise_unop ppf : bitwise_unop -> unit = function
+      | `not_ t -> Format.fprintf ppf "not.%a" Type.pp_imm t
 
     type mem = [
       | `alloc of int
@@ -251,145 +229,122 @@ module Insn = struct
           Type.pp_basic t Var.pp m pp_arg p pp_arg x
 
     type cmp = [
-      | `eq  of Type.basic * arg * arg
-      | `ge  of Type.basic * arg * arg
-      | `gt  of Type.basic * arg * arg
-      | `le  of Type.basic * arg * arg
-      | `lt  of Type.basic * arg * arg
-      | `ne  of Type.basic * arg * arg
-      | `o   of Type.imm   * arg * arg
-      | `sge of Type.imm   * arg * arg
-      | `sgt of Type.imm   * arg * arg
-      | `sle of Type.imm   * arg * arg
-      | `slt of Type.imm   * arg * arg
-      | `uo  of Type.imm   * arg * arg
+      | `eq  of Type.basic
+      | `ge  of Type.basic
+      | `gt  of Type.basic
+      | `le  of Type.basic
+      | `lt  of Type.basic
+      | `ne  of Type.basic
+      | `o   of Type.imm
+      | `sge of Type.imm
+      | `sgt of Type.imm
+      | `sle of Type.imm
+      | `slt of Type.imm
+      | `uo  of Type.imm
     ] [@@deriving bin_io, compare, equal, sexp]
-
-    let free_vars_of_cmp : cmp -> Var.Set.t = function
-      | `eq  (_, l, r)
-      | `ge  (_, l, r)
-      | `gt  (_, l, r)
-      | `le  (_, l, r)
-      | `lt  (_, l, r)
-      | `ne  (_, l, r)
-      | `o   (_, l, r)
-      | `sge (_, l, r)
-      | `sgt (_, l, r)
-      | `sle (_, l, r)
-      | `slt (_, l, r)
-      | `uo  (_, l, r) ->
-        List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
 
     let pp_cmp ppf : cmp -> unit = function
-      | `eq (t, x, y) ->
-        Format.fprintf ppf "eq.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `ge (t, x, y) ->
-        Format.fprintf ppf "ge.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `gt (t, x, y) ->
-        Format.fprintf ppf "gt.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `le (t, x, y) ->
-        Format.fprintf ppf "le.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `lt (t, x, y) ->
-        Format.fprintf ppf "lt.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `ne (t, x, y) ->
-        Format.fprintf ppf "ne.%a %a, %a" Type.pp_basic t pp_arg x pp_arg y
-      | `o (t, x, y) ->
-        Format.fprintf ppf "o.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `sge (t, x, y) ->
-        Format.fprintf ppf "sge.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `sgt (t, x, y) ->
-        Format.fprintf ppf "sgt.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `sle (t, x, y) ->
-        Format.fprintf ppf "sle.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `slt (t, x, y) ->
-        Format.fprintf ppf "slt.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
-      | `uo (t, x, y) ->
-        Format.fprintf ppf "uo.%a %a, %a" Type.pp_imm t pp_arg x pp_arg y
+      | `eq  t -> Format.fprintf ppf "eq.%a"  Type.pp_basic t
+      | `ge  t -> Format.fprintf ppf "ge.%a"  Type.pp_basic t
+      | `gt  t -> Format.fprintf ppf "gt.%a"  Type.pp_basic t
+      | `le  t -> Format.fprintf ppf "le.%a"  Type.pp_basic t
+      | `lt  t -> Format.fprintf ppf "lt.%a"  Type.pp_basic t
+      | `ne  t -> Format.fprintf ppf "ne.%a"  Type.pp_basic t
+      | `o   t -> Format.fprintf ppf "o.%a"   Type.pp_imm   t
+      | `sge t -> Format.fprintf ppf "sge.%a" Type.pp_imm   t
+      | `sgt t -> Format.fprintf ppf "sgt.%a" Type.pp_imm   t
+      | `sle t -> Format.fprintf ppf "sle.%a" Type.pp_imm   t
+      | `slt t -> Format.fprintf ppf "slt.%a" Type.pp_imm   t
+      | `uo  t -> Format.fprintf ppf "uo.%a"  Type.pp_imm   t
 
     type cast = [
-      | `bits   of Type.basic * arg
-      | `ftosi  of Type.fp * Type.imm * arg
-      | `ftoui  of Type.fp * Type.imm * arg
-      | `ftrunc of Type.fp * arg
-      | `itrunc of Type.imm * arg
-      | `sext   of Type.imm * arg
-      | `sitof  of Type.imm * Type.fp * arg
-      | `uitof  of Type.imm * Type.fp * arg
-      | `zext   of Type.imm * arg
+      | `bits   of Type.basic
+      | `ftosi  of Type.fp * Type.imm
+      | `ftoui  of Type.fp * Type.imm
+      | `ftrunc of Type.fp
+      | `itrunc of Type.imm
+      | `sext   of Type.imm
+      | `sitof  of Type.imm * Type.fp
+      | `uitof  of Type.imm * Type.fp
+      | `zext   of Type.imm
     ] [@@deriving bin_io, compare, equal, sexp]
-
-    let free_vars_of_cast : cast -> Var.Set.t = function
-      | `bits   (_, a)
-      | `ftosi  (_, _, a)
-      | `ftoui  (_, _, a)
-      | `ftrunc (_, a)
-      | `itrunc (_, a)
-      | `sext   (_, a)
-      | `sitof  (_, _, a)
-      | `uitof  (_, _, a)
-      | `zext   (_, a) -> var_set_of_option @@ var_of_arg a
 
     let pp_cast ppf : cast -> unit = function
-      | `bits (t, x) ->
-        Format.fprintf ppf "cast.%a %a" Type.pp_basic t pp_arg x
-      | `ftosi (tf, ti, x) ->
-        Format.fprintf ppf "ftosi.%a.%a %a" Type.pp_fp tf Type.pp_imm ti pp_arg x
-      | `ftoui (tf, ti, x) ->
-        Format.fprintf ppf "ftoui.%a.%a %a" Type.pp_fp tf Type.pp_imm ti pp_arg x
-      | `ftrunc (t, x) ->
-        Format.fprintf ppf "ftrunc.%a %a" Type.pp_fp t pp_arg x
-      | `itrunc (t, x) ->
-        Format.fprintf ppf "itrunc.%a %a" Type.pp_imm t pp_arg x
-      | `sext (t, x) ->
-        Format.fprintf ppf "sext.%a %a" Type.pp_imm t pp_arg x
-      | `sitof (ti, tf, x) ->
-        Format.fprintf ppf "sitof.%a.%a %a" Type.pp_imm ti Type.pp_fp tf pp_arg x
-      | `uitof (ti, tf, x) ->
-        Format.fprintf ppf "uitof.%a.%a %a" Type.pp_imm ti Type.pp_fp tf pp_arg x
-      | `zext (t, x) ->
-        Format.fprintf ppf "zext.%a %a" Type.pp_imm t pp_arg x
+      | `bits t ->
+        Format.fprintf ppf "cast.%a" Type.pp_basic t
+      | `ftosi (tf, ti) ->
+        Format.fprintf ppf "ftosi.%a.%a" Type.pp_fp tf Type.pp_imm ti
+      | `ftoui (tf, ti) ->
+        Format.fprintf ppf "ftoui.%a.%a" Type.pp_fp tf Type.pp_imm ti
+      | `ftrunc t ->
+        Format.fprintf ppf "ftrunc.%a" Type.pp_fp t
+      | `itrunc t ->
+        Format.fprintf ppf "itrunc.%a" Type.pp_imm t
+      | `sext t ->
+        Format.fprintf ppf "sext.%a" Type.pp_imm t
+      | `sitof (ti, tf) ->
+        Format.fprintf ppf "sitof.%a.%a" Type.pp_imm ti Type.pp_fp tf
+      | `uitof (ti, tf) ->
+        Format.fprintf ppf "uitof.%a.%a" Type.pp_imm ti Type.pp_fp tf
+      | `zext t ->
+        Format.fprintf ppf "zext.%a" Type.pp_imm t
 
     type copy = [
-      | `copy   of Type.basic * arg
-      | `select of Type.basic * Var.t * arg * arg
+      | `copy of Type.basic
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    let free_vars_of_copy : copy -> Var.Set.t = function
-      | `copy (_, a) -> var_set_of_option @@ var_of_arg a
-      | `select (_, x, t, f) ->
-        List.filter_map [t; f] ~f:var_of_arg |> List.cons x |> Var.Set.of_list
-
     let pp_copy ppf : copy -> unit = function
-      | `copy (t, x) ->
-        Format.fprintf ppf "copy.%a %a" Type.pp_basic t pp_arg x
-      | `select (t, c, x, y) ->
-        Format.fprintf ppf "select.%a %a, %a, %a"
-          Type.pp_basic t Var.pp c pp_arg x pp_arg y
+      | `copy t -> Format.fprintf ppf "copy.%a" Type.pp_basic t
 
-    type op = [
-      | arith
-      | bits
-      | mem
+    type binop = [
+      | arith_binop
+      | bitwise_binop
       | cmp
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    let pp_binop ppf : binop -> unit = function
+      | #arith_binop as a -> Format.fprintf ppf "%a" pp_arith_binop a
+      | #bitwise_binop as b -> Format.fprintf ppf "%a" pp_bitwise_binop b
+      | #cmp as c -> Format.fprintf ppf "%a" pp_cmp c
+
+    type unop = [
+      | arith_unop
+      | bitwise_unop
       | cast
       | copy
     ] [@@deriving bin_io, compare, equal, sexp]
 
+    let pp_unop ppf : unop -> unit = function
+      | #arith_unop as a -> Format.fprintf ppf "%a" pp_arith_unop a
+      | #bitwise_unop as b -> Format.fprintf ppf "%a" pp_bitwise_unop b
+      | #cast as c -> Format.fprintf ppf "%a" pp_cast c
+      | #copy as c -> Format.fprintf ppf "%a" pp_copy c
+
+    type op = [
+      | `binop  of Var.t * binop * arg * arg
+      | `unop   of Var.t * unop  * arg
+      | `mem    of Var.t * mem
+      | `select of Var.t * Type.basic * Var.t * arg * arg
+    ] [@@deriving bin_io, compare, equal, sexp]
+
     let free_vars_of_op : op -> Var.Set.t = function
-      | #arith as a -> free_vars_of_arith a
-      | #bits  as b -> free_vars_of_bits b
-      | #mem   as m -> free_vars_of_mem m
-      | #cmp   as c -> free_vars_of_cmp c
-      | #cast  as c -> free_vars_of_cast c
-      | #copy  as c -> free_vars_of_copy c
+      | `binop (_, _, l, r) ->
+        List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
+      | `unop (_, _, a) -> var_set_of_option @@ var_of_arg a
+      | `mem (_, m) -> free_vars_of_mem m
+      | `select (_, _, x, t, f) ->
+        List.filter_map [t; f] ~f:var_of_arg |> List.cons x |> Var.Set.of_list
 
     let pp_op ppf : op -> unit = function
-      | #arith as a -> Format.fprintf ppf "%a" pp_arith a
-      | #bits  as b -> Format.fprintf ppf "%a" pp_bits b
-      | #mem   as m -> Format.fprintf ppf "%a" pp_mem m
-      | #cmp   as c -> Format.fprintf ppf "%a" pp_cmp c
-      | #cast  as c -> Format.fprintf ppf "%a" pp_cast c
-      | #copy  as c -> Format.fprintf ppf "%a" pp_copy c
+      | `binop (x, b, l, r) ->
+        Format.fprintf ppf "%a = %a %a, %a"  Var.pp x pp_binop b pp_arg l pp_arg r
+      | `unop (x, u, a) ->
+        Format.fprintf ppf "%a = %a %a" Var.pp x pp_unop u pp_arg a
+      | `mem (x, m) ->
+        Format.fprintf ppf "%a = %a" Var.pp x pp_mem m
+      | `select (x, t, c, l, r) ->
+        Format.fprintf ppf "%a = select.%a %a, %a, %a"
+          Var.pp x Type.pp_basic t Var.pp c pp_arg l pp_arg r
 
     type void_call = [
       | `call  of global * arg list
@@ -447,11 +402,14 @@ module Insn = struct
 
     type t = [
       | call
-      | `op of Var.t * op
+      | op
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    let lhs d = match d with
-      | `op     (x, _)
+    let lhs : t -> Var.t option = function
+      | `binop  (x, _, _, _)
+      | `unop   (x, _, _)
+      | `mem    (x, _)
+      | `select (x, _, _, _, _)
       | `acall  (x, _, _, _)
       | `acallv (x, _, _, _) -> Some x
       | `call   _
@@ -463,11 +421,11 @@ module Insn = struct
 
     let free_vars : t -> Var.Set.t = function
       | #call as c -> free_vars_of_call c
-      | `op (_, o) -> free_vars_of_op o
+      | #op   as o -> free_vars_of_op o
 
-    let pp ppf = function
+    let pp ppf : t -> unit = function
       | #call as c -> pp_call ppf c
-      | `op (l, r) -> Format.fprintf ppf "%a = %a" Var.pp l pp_op r
+      | #op   as o -> pp_op   ppf o
   end
 
   module Ctrl = struct

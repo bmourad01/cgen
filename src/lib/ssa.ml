@@ -51,48 +51,24 @@ let map_arg vars : Insn.arg -> Insn.arg = function
   | `var x -> `var (map_var vars x)
   | a -> a
 
-let map_op vars (op : Insn.Data.op) =
-  let arg = map_arg vars and var = map_var vars in match op with
-  | `add (t, l, r) -> `add (t, arg l, arg r)
-  | `div (t, l, r) -> `div (t, arg l, arg r)
-  | `mul (t, l, r) -> `mul (t, arg l, arg r)
-  | `neg (t, a) -> `neg (t, arg a)
-  | `rem (t, l, r) -> `rem (t, arg l, arg r)
-  | `sub (t, l, r) -> `sub (t, arg l, arg r)
-  | `udiv (t, l, r) -> `udiv (t, arg l, arg r)
-  | `urem (t, l, r) -> `urem (t, arg l, arg r)
-  | `and_ (t, l, r) -> `and_ (t, arg l, arg r)
-  | `or_ (t, l, r) -> `or_ (t, arg l, arg r)
-  | `sar (t, l, r) -> `sar (t, arg l, arg r)
-  | `shl (t, l, r) -> `shl (t, arg l, arg r)
-  | `shr (t, l, r) -> `shr (t, arg l, arg r)
-  | `xor (t, l, r) -> `xor (t, arg l, arg r)
-  | `alloc _ -> op
+let map_mem vars (m : Insn.Data.mem) =
+  let arg = map_arg vars in
+  let var = map_var vars in
+  match m with
+  | `alloc _ -> m
   | `load (t, m, a) -> `load (t, var m, arg a)
   | `store (t, m, a, v) -> `store (t, var m, arg a, arg v)
-  | `eq (t, l, r) -> `eq (t, arg l, arg r)
-  | `ge (t, l, r) -> `ge (t, arg l, arg r)
-  | `gt (t, l, r) -> `gt (t, arg l, arg r)
-  | `le (t, l, r) -> `le (t, arg l, arg r)
-  | `lt (t, l, r) -> `lt (t, arg l, arg r)
-  | `ne (t, l, r) -> `ne (t, arg l, arg r)
-  | `o (t, l, r) -> `o (t, arg l, arg r)
-  | `sge (t, l, r) -> `sge (t, arg l, arg r)
-  | `sgt (t, l, r) -> `sgt (t, arg l, arg r)
-  | `sle (t, l, r) -> `sle (t, arg l, arg r)
-  | `slt (t, l, r) -> `slt (t, arg l, arg r)
-  | `uo (t, l, r) -> `uo (t, arg l, arg r)
-  | `bits (t, a) -> `bits (t, arg a)
-  | `ftosi (t, i, f) -> `ftosi (t, i, arg f)
-  | `ftoui (t, i, f) -> `ftoui (t, i, arg f)
-  | `ftrunc (t, f) -> `ftrunc (t, arg f)
-  | `itrunc (t, i) -> `itrunc (t, arg i)
-  | `sext (t, i) -> `sext (t, arg i)
-  | `sitof (t, f, i) -> `sitof (t, f, arg i)
-  | `uitof (t, f, i) -> `uitof (t, f, arg i)
-  | `zext (t, i) -> `zext (t, arg i)
-  | `copy (t, a) -> `copy (t, arg a)
-  | `select (t, c, l, r) -> `select (t, var c, arg l, arg r)
+
+let map_op vars nums (o : Insn.Data.op) =
+  let arg = map_arg vars in
+  let var = map_var vars in
+  let mem = map_mem vars in
+  let rename = new_name vars nums in
+  match o with
+  | `binop (x, b, l, r) -> `binop (rename x, b, arg l, arg r)
+  | `unop (x, u, a) -> `unop (rename x, u, arg a)
+  | `mem (x, m) -> `mem (rename x, mem m)
+  | `select (x, t, c, l, r) -> `select (rename x, t, var c, arg l, arg r)
 
 let map_global vars : Insn.global -> Insn.global = function
   | `var x -> `var (map_var vars x)
@@ -105,14 +81,13 @@ let map_dst vars : Insn.dst -> Insn.dst = function
 let rename_data vars nums b =
   let glo = map_global vars in
   let margs = List.map ~f:(map_arg vars) in
+  let rename = new_name vars nums in
   Blk.map_data b ~f:(fun _ -> function
-      | `acall (x, t, f, args) ->
-        `acall (new_name vars nums x, t, glo f, margs args)
-      | `acallv (x, t, f, args) ->
-        `acallv (new_name vars nums x, t, glo f, margs args)
+      | `acall (x, t, f, args) -> `acall (rename x, t, glo f, margs args)
+      | `acallv (x, t, f, args) -> `acallv (rename x, t, glo f, margs args)
       | `call (f, args) -> `call (glo f, margs args)
       | `callv (f, args) -> `callv (glo f, margs args)
-      | `op (x, o) -> `op (new_name vars nums x, map_op vars o))
+      | #Insn.Data.op as o -> map_op vars nums o)
 
 let rename_ctrl vars b =
   let var = map_var vars in
@@ -158,11 +133,13 @@ let pop_defs vars b =
   pop_data b pop
 
 let rec rename_block vars nums cfg dom fn' l =
-  let fn = find_blk fn' l |> Option.value_map ~default:fn' ~f:(fun b ->
+  let fn = match find_blk fn' l with
+    | None -> fn'
+    | Some b ->
       rename_phi vars nums b |>
       rename_data vars nums |>
       rename_ctrl vars |>
-      update_blk fn') in
+      update_blk fn' in
   let fn = succs cfg fn l |> Seq.fold ~init:fn ~f:(fun fn b ->
       update_blk fn @@ update_phi vars l b) in
   let fn =

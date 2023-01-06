@@ -24,11 +24,8 @@ module State = struct
     end)
 end
 
-type 'r reject = Error.t -> 'r
-type ('a, 'r) accept = 'a -> state -> 'r
-
 type 'a t = {
-  run : 'r. reject:'r reject -> accept:('a, 'r) accept -> state -> 'r;
+  run : 'r. reject:(Error.t -> 'r) -> accept:('a -> state -> 'r) -> state -> 'r;
 }
 
 let fail err = {
