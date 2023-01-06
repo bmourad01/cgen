@@ -49,6 +49,8 @@ let pp ppf x = match x.ident with
   | Name n when x.index = 0 -> Format.fprintf ppf "%s" n
   | Name n -> Format.fprintf ppf "%s.%u" n x.index
 
+let mem = create "mem" `mem
+
 include Regular.Make(struct
     include T
     let pp = pp

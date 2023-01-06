@@ -49,4 +49,20 @@ val create : ?index:int -> string -> Type.t -> t
 *)
 val temp : ?index:int -> id -> Type.t -> t
 
+(** The default variable representing the memory of a program.
+
+    Formally, the memory is an array of bitvectors with [2^(n-1)] elements,
+    where [n] is the width of a data address on the target machine.
+
+    Furthermore, each element of the array is a bitvector of [m] bits, thus
+    the memory type can be thought of as [Array(BitVec n, BitVec m)].
+
+    We simplify this by making the memory type implicit in the presence of
+    a known target machine.
+
+    It is recommended that users create memory operations using this
+    variable.
+*)
+val mem : t
+
 include Regular.S with type t := t
