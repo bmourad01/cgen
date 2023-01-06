@@ -193,7 +193,7 @@ module Insn = struct
 
     let pp_bitwise_binop ppf : bitwise_binop -> unit = function
       | `and_ t -> Format.fprintf ppf "and.%a" Type.pp_imm t
-      | `or_  t -> Format.fprintf ppf "or.%a"  Type.pp_imm t
+      | `or_  t -> Format.fprintf ppf  "or.%a" Type.pp_imm t
       | `sar  t -> Format.fprintf ppf "sar.%a" Type.pp_imm t
       | `shl  t -> Format.fprintf ppf "shl.%a" Type.pp_imm t
       | `shr  t -> Format.fprintf ppf "shr.%a" Type.pp_imm t

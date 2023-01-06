@@ -23,6 +23,9 @@ val name : t -> string option
     SSA form. *)
 val index : t -> int
 
+(** Returns the type of the variable. *)
+val typ : t -> Type.t
+
 (** Returns the variable with a given index. *)
 val with_index : t -> int -> t
 
@@ -37,13 +40,13 @@ val same : t -> t -> bool
 
 (** [create name ?index] creates a named variable, with an optional
     [index] (by default, it is [0]). *)
-val create : ?index:int -> string -> t
+val create : ?index:int -> string -> Type.t -> t
 
 (** Creates a temporary variable.
 
     This is not meant to be called by a user, and is for internal use
     only. For generating fresh temporaries, use [Context.Var.fresh].
 *)
-val temp : ?index:int -> id -> t
+val temp : ?index:int -> id -> Type.t -> t
 
 include Regular.S with type t := t
