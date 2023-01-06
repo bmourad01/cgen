@@ -825,6 +825,9 @@ module Fn : sig
   (** Returns the previous block (before the given label) if it exists. *)
   val prev_blk : t -> Label.t -> blk option
 
+  (** [update_blk fn b] returns [fn] with block [b] updated, if it exists. *)
+  val update_blk : t -> blk -> t
+
   (** Pretty-prints a function where only blocks are labeled. *)
   val pp_hum : Format.formatter -> t -> unit
 

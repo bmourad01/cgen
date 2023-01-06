@@ -108,11 +108,6 @@ let update_phi vars l b =
             Insn.Phi.update p l @@ `var (var x)
           | _ -> p))
 
-let update_blk fn b =
-  let l = Blk.label b in
-  Fn.map_blks fn ~f:(fun b' ->
-      if Label.equal l @@ Blk.label b' then b else b')
-
 let pop_phi b pop =
   Blk.phi b |>
   Seq.map ~f:Insn.insn |>
@@ -139,9 +134,9 @@ let rec rename_block vars nums cfg dom fn' l =
       rename_phi vars nums b |>
       rename_data vars nums |>
       rename_ctrl vars |>
-      update_blk fn' in
+      Fn.update_blk fn' in
   let fn = succs cfg fn l |> Seq.fold ~init:fn ~f:(fun fn b ->
-      update_blk fn @@ update_phi vars l b) in
+      Fn.update_blk fn @@ update_phi vars l b) in
   let fn =
     Cfg.nodes cfg |>
     Seq.filter ~f:(Tree.is_child_of ~parent:l dom) |>
@@ -174,7 +169,7 @@ let insert_phi_nodes vars fn frontier cfg =
               Cfg.Node.preds l cfg |>
               Seq.filter_map ~f:(find_blk fn) in
             (* XXX: FIXME *)
-            insert_phi_node ins b x `i64 >>| update_blk fn))
+            insert_phi_node ins b x `i64 >>| Fn.update_blk fn))
 
 let rename cfg dom fn =
   let vars = Var.Table.create () in

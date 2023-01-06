@@ -797,6 +797,11 @@ module Fn = struct
   let next_blk fn l = Array.next fn.blks Blk.label l
   let prev_blk fn l = Array.prev fn.blks Blk.label l
 
+  let update_blk fn b =
+    let l = Blk.label b in {
+      fn with blks = Array.update_if fn.blks b ~f:(Fn.flip Blk.has_label l);
+    }
+
   let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
 
   let pp_args ppf fn =
