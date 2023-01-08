@@ -68,9 +68,6 @@ let pp_compound_decl ppf : compound -> unit = function
     Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
       (Format.pp_print_list ~pp_sep pp_field) fields
 
-let pp_compound_arg ppf : compound -> unit = function
-  | `compound (name, _, _) -> Format.fprintf ppf ":%s" name
-
 type special = [
   | `mem 
   | `flag
@@ -82,12 +79,12 @@ let pp_special ppf : special -> unit = function
 
 type arg = [
   | basic
-  | compound
+  | `name of string
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_arg ppf : arg -> unit = function
-  | #basic    as b -> Format.fprintf ppf "%a" pp_basic b
-  | #compound as c -> Format.fprintf ppf "%a" pp_compound_arg c
+  | #basic as b -> Format.fprintf ppf "%a" pp_basic b
+  | `name s -> Format.fprintf ppf ":%s" s
 
 module T = struct
   type t = [

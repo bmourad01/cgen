@@ -217,7 +217,7 @@ module Insn : sig
         [`load (t, m, a)]: load a value of type [t] from memory
         [m] at address [a].
 
-        [`store(t, m, a, v)]: store a value [v] of type [t] to
+        [`store (t, m, a, v)]: store a value [v] of type [t] to
         memory [m] at address [a].
     *)
     type mem = [
@@ -373,40 +373,19 @@ module Insn : sig
     (** Pretty-prints an operation. *)
     val pp_op : Format.formatter -> op -> unit
 
-    (** A call that does not assign a result.
+    (** A call instruction.
 
-        [`call (f, args)]: call to [f] with arguments [args].
+        [`acall (x, t, f, args, vargs)]: call to [f] with arguments [args],
+        returning a value of type [t] and assigning it to variable [x]. If
+        [vargs] is non-empty, then the function call is variadic, and these
+        arguments are to be passed in that fashion.
 
-        [`callv (f, args)]: variadic call to [f] with arguments [args].
+        [`call (f, args, vars)]: same as [`acall], but does not explicitly
+        assign a result.
     *)
-    type void_call = [
-      | `call  of global * arg list
-      | `callv of global * arg list
-    ] [@@deriving bin_io, compare, equal, sexp]
-
-    (** Returns the set of free variables in the void call. *)
-    val free_vars_of_void_call : void_call -> Var.Set.t
-
-    (** A call that assigns a result.
-
-        [`acall (x, t, f, args)]: call to [f] with arguments [args], returning
-        a value of type [t] and assigning it to variable [x].
-
-        [`acallv (x, t, f, args)]: variadic call to [f] with arguments [args],
-        returning a value of type [t] and assigning it to variable [x].
-    *)
-    type assign_call = [
-      | `acall  of Var.t * Type.basic * global * arg list
-      | `acallv of Var.t * Type.basic * global * arg list
-    ] [@@deriving bin_io, compare, equal, sexp]
-
-    (** Returns the set of free variables in the assign call. *)
-    val free_vars_of_assign_call : assign_call -> Var.Set.t
-
-    (** A call instruction. *)
     type call = [
-      | void_call
-      | assign_call
+      | `acall of Var.t * Type.basic * global * arg list * arg list
+      | `call  of global * arg list * arg list
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the call. *)

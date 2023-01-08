@@ -62,7 +62,7 @@ type const = [
 
 let pp_const ppf : const -> unit = function
   | `int n -> Format.fprintf ppf "%a" Bitvec.pp n
-  | `float f -> Format.fprintf ppf "%s" @@ Float32.to_string f
+  | `float f -> Format.fprintf ppf "%sf" @@ Float32.to_string f
   | `double d -> Format.fprintf ppf "%a" Float.pp d
   | `sym (s, 0) -> Format.fprintf ppf "@@%s" s
   | `sym (s, n) when n > 0 -> Format.fprintf ppf "@@%s+0x%x" s n
@@ -88,8 +88,12 @@ module Insn = struct
     | `var  of Var.t
   ] [@@deriving bin_io, compare, equal, sexp]
 
+  let var_of_global : global -> Var.t option = function
+    | `var x -> Some x
+    | `addr _ | `sym _ -> None
+
   let pp_global ppf : global -> unit = function
-    | `addr a -> Format.fprintf ppf "#%a" Bitvec.pp a
+    | `addr a -> Format.fprintf ppf "%a" Bitvec.pp a
     | `sym s -> Format.fprintf ppf "@%s" s
     | `var v -> Format.fprintf ppf "%a" Var.pp v
 
@@ -107,6 +111,10 @@ module Insn = struct
     | global
     | local
   ] [@@deriving bin_io, compare, equal, sexp]
+
+  let var_of_dst : dst -> Var.t option = function
+    | #global as g -> var_of_global g
+    | #local -> None
 
   let pp_dst ppf : dst -> unit = function
     | #global as g -> Format.fprintf ppf "%a" pp_global g
@@ -222,11 +230,11 @@ module Insn = struct
     let pp_mem ppf : mem -> unit = function
       | `alloc n ->
         Format.fprintf ppf "alloc %d" n
-      | `load (t, m, p) ->
-        Format.fprintf ppf "ld.%a %a[%a]" Type.pp_basic t Var.pp m pp_arg p
-      | `store (t, m, p, x) ->
+      | `load (t, m, a) ->
+        Format.fprintf ppf "ld.%a %a[%a]" Type.pp_basic t Var.pp m pp_arg a
+      | `store (t, m, a, x) ->
         Format.fprintf ppf "st.%a %a[%a], %a"
-          Type.pp_basic t Var.pp m pp_arg p pp_arg x
+          Type.pp_basic t Var.pp m pp_arg a pp_arg x
 
     type cmp = [
       | `eq  of Type.basic
@@ -271,7 +279,7 @@ module Insn = struct
 
     let pp_cast ppf : cast -> unit = function
       | `bits t ->
-        Format.fprintf ppf "cast.%a" Type.pp_basic t
+        Format.fprintf ppf "bits.%a" Type.pp_basic t
       | `ftosi (tf, ti) ->
         Format.fprintf ppf "ftosi.%a.%a" Type.pp_fp tf Type.pp_imm ti
       | `ftoui (tf, ti) ->
@@ -346,46 +354,32 @@ module Insn = struct
         Format.fprintf ppf "%a = select.%a %a, %a, %a"
           Var.pp x Type.pp_basic t Var.pp c pp_arg l pp_arg r
 
-    type void_call = [
-      | `call  of global * arg list
-      | `callv of global * arg list
-    ] [@@deriving bin_io, compare, equal, sexp]
-
-    let free_vars_of_void_call : void_call -> Var.Set.t = function
-      | `call  (_, args)
-      | `callv (_, args) ->
-        List.filter_map args ~f:var_of_arg |> Var.Set.of_list
-
-    type assign_call = [
-      | `acall  of Var.t * Type.basic * global * arg list
-      | `acallv of Var.t * Type.basic * global * arg list
-    ] [@@deriving bin_io, compare, equal, sexp]
-
-    let free_vars_of_assign_call : assign_call -> Var.Set.t = function
-      | `acall  (x, _, _, args)
-      | `acallv (x, _, _, args) ->
-        List.filter_map args ~f:var_of_arg |> List.cons x |> Var.Set.of_list
-
     type call = [
-      | void_call
-      | assign_call
+      | `acall of Var.t * Type.basic * global * arg list * arg list
+      | `call  of global * arg list * arg list
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_call : call -> Var.Set.t = function
-      | #void_call   as v -> free_vars_of_void_call v
-      | #assign_call as a -> free_vars_of_assign_call a
+      | `acall (_, _, f, args, vargs)
+      | `call (f, args, vargs) ->
+        let f = var_of_global f |> Option.to_list |> Var.Set.of_list in
+        let args = List.filter_map args ~f:var_of_arg |> Var.Set.of_list in
+        let vargs = List.filter_map vargs ~f:var_of_arg |> Var.Set.of_list in
+        Var.Set.union_list [f; args; vargs]
 
     let is_variadic : call -> bool = function
-      | `acallv _ | `callv _ -> true
-      | `acall _  | `call _  -> false
+      | `acall (_, _, _, _, []) | `call (_, _, []) -> false
+      | `acall _  | `call _  -> true
 
-    let pp_call_args variadic ppf args =
+    let pp_call_args ppf args =
       let pp_sep ppf () = Format.fprintf ppf ", " in
-      Format.pp_print_list ~pp_sep pp_arg ppf args;
-      match args, variadic with
-      | _, false -> ()
-      | [], true -> Format.fprintf ppf "..."
-      | _, true  -> Format.fprintf ppf ", ..."
+      Format.pp_print_list ~pp_sep pp_arg ppf args
+
+    let pp_call_vargs args ppf = function
+      | [] -> ()
+      | vargs ->
+        if not (List.is_empty args) then Format.fprintf ppf ", ";
+        Format.fprintf ppf "..., %a" pp_call_args vargs
 
     let pp_call_res ppf = function
       | None -> Format.fprintf ppf "call "
@@ -393,12 +387,14 @@ module Insn = struct
         Format.fprintf ppf "%a = call.%a " Var.pp x Type.pp_basic t
 
     let pp_call ppf c =
-      let res, dst, args, pp_args = match c with
-        | `acall (v, t, d, a) -> Some (v, t), d, a, pp_call_args false
-        | `acallv (v, t, d, a) -> Some (v, t), d, a, pp_call_args true
-        | `call (d, a) -> None, d, a, pp_call_args false
-        | `callv (d, a) -> None, d, a, pp_call_args true in
-      Format.fprintf ppf "%a%a(%a)" pp_call_res res pp_global dst pp_args args
+      let res, dst, args, vargs = match c with
+        | `acall (v, t, d, a, va) -> Some (v, t), d, a, va
+        | `call (d, a, va) -> None, d, a, va in
+      Format.fprintf ppf "%a%a(%a%a)"
+        pp_call_res res
+        pp_global dst
+        pp_call_args args
+        (pp_call_vargs args) vargs
 
     type t = [
       | call
@@ -410,10 +406,8 @@ module Insn = struct
       | `unop   (x, _, _)
       | `mem    (x, _)
       | `select (x, _, _, _, _)
-      | `acall  (x, _, _, _)
-      | `acallv (x, _, _, _) -> Some x
-      | `call   _
-      | `callv  _ -> None
+      | `acall  (x, _, _, _, _) -> Some x
+      | `call   _ -> None
 
     let has_lhs d v = match lhs d with
       | Some x -> Var.(x = v)
@@ -1122,7 +1116,7 @@ module Module = struct
 
   let pp ppf m =
     let sep ppf = Format.fprintf ppf "@;@;" in
-    Format.fprintf ppf "%a@;%a@;%a"
+    Format.fprintf ppf "module %s@;%a@;%a@;%a" m.name
       (Array.pp Type.pp_compound_decl sep) m.typs
       (Array.pp Data.pp sep) m.data
       (Array.pp Fn.pp sep) m.funs

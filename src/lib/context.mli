@@ -42,7 +42,7 @@ type var = Var.t
 
 module Var : sig
   (** Generates a fresh temporary variable. *)
-  val fresh : Type.t -> var t
+  val fresh : var t
 end
 
 type label = Label.t

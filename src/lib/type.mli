@@ -105,7 +105,7 @@ val pp_special : Format.formatter -> special -> unit
 *)
 type arg = [
   | basic
-  | compound
+  | `name of string
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty prints an argument type in the syntax that is allowed

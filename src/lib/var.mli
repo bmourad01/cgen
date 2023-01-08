@@ -23,9 +23,6 @@ val name : t -> string option
     SSA form. *)
 val index : t -> int
 
-(** Returns the type of the variable. *)
-val typ : t -> Type.t
-
 (** Returns the variable with a given index. *)
 val with_index : t -> int -> t
 
@@ -40,29 +37,13 @@ val same : t -> t -> bool
 
 (** [create name ?index] creates a named variable, with an optional
     [index] (by default, it is [0]). *)
-val create : ?index:int -> string -> Type.t -> t
+val create : ?index:int -> string -> t
 
 (** Creates a temporary variable.
 
     This is not meant to be called by a user, and is for internal use
     only. For generating fresh temporaries, use [Context.Var.fresh].
 *)
-val temp : ?index:int -> id -> Type.t -> t
-
-(** The default variable representing the memory of a program.
-
-    Formally, the memory is an array of bitvectors with [2^(n-1)] elements,
-    where [n] is the width of a data address on the target machine.
-
-    Furthermore, each element of the array is a bitvector of [m] bits, thus
-    the memory type can be thought of as [Array(BitVec n, BitVec m)].
-
-    We simplify this by making the memory type implicit in the presence of
-    a known target machine.
-
-    It is recommended that users create memory operations using this
-    variable.
-*)
-val mem : t
+val temp : ?index:int -> id -> t
 
 include Regular.S with type t := t

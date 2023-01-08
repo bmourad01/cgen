@@ -12,7 +12,6 @@ module T = struct
   type t = {
     ident : ident;
     index : int;
-    typ   : Type.t;
   } [@@deriving bin_io, compare, equal, hash, sexp]
 end
 
@@ -31,7 +30,6 @@ let name x = match x.ident with
   | Name n -> Some n
 
 let index x = x.index
-let typ x = x.typ
 let with_index x index = {x with index}
 let base x = with_index x 0
 
@@ -40,16 +38,14 @@ let same x y = match x.ident, y.ident with
   | Name nx, Name ny -> String.(nx = ny)
   | _ -> false
 
-let create ?(index = 0) name typ = {ident = Name name; index; typ}
-let temp ?(index = 0) id typ = {ident = Temp id; index; typ}
+let create ?(index = 0) name = {ident = Name name; index}
+let temp ?(index = 0) id = {ident = Temp id; index}
 
 let pp ppf x = match x.ident with
   | Temp id when x.index = 0 -> Format.fprintf ppf "#%a" Int63.pp id
   | Temp id -> Format.fprintf ppf "#%a.%u" Int63.pp id x.index
   | Name n when x.index = 0 -> Format.fprintf ppf "%s" n
   | Name n -> Format.fprintf ppf "%s.%u" n x.index
-
-let mem = create "mem" `mem
 
 include Regular.Make(struct
     include T

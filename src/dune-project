@@ -1,6 +1,7 @@
 (lang dune 3.6)
 (name cgen)
 (version 0.1)
+(using menhir 2.1)
 
 (generate_opam_files true)
 
@@ -22,5 +23,6 @@
     (core_kernel (>= v0.15))
     dune
     graphlib
+    menhir
     monads
     regular))

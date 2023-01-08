@@ -1,3 +1,9 @@
+(ocamllex lexer)
+
+(menhir
+ (modules parser)
+ (flags --explain))
+
 (library
  (name cgen)
  (public_name cgen)

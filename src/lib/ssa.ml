@@ -83,10 +83,10 @@ let rename_data vars nums b =
   let margs = List.map ~f:(map_arg vars) in
   let rename = new_name vars nums in
   Blk.map_data b ~f:(fun _ -> function
-      | `acall (x, t, f, args) -> `acall (rename x, t, glo f, margs args)
-      | `acallv (x, t, f, args) -> `acallv (rename x, t, glo f, margs args)
-      | `call (f, args) -> `call (glo f, margs args)
-      | `callv (f, args) -> `callv (glo f, margs args)
+      | `acall (x, t, f, args, vargs) ->
+        `acall (rename x, t, glo f, margs args, margs vargs)
+      | `call (f, args, vargs) ->
+        `call (glo f, margs args, margs vargs)
       | #Insn.Data.op as o -> map_op vars nums o)
 
 let rename_ctrl vars b =

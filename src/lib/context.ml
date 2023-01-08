@@ -95,11 +95,11 @@ let target = gets @@ fun s -> s.target
 type var = Var.t
 
 module Var = struct
-  let fresh typ =
+  let fresh =
     let* s = get () in
     let id = s.nextvar in
     let+ () = put {s with nextvar = Int63.succ id} in
-    Var.temp (Obj.magic id : Var.id) typ
+    Var.temp (Obj.magic id : Var.id)
 end
 
 type label = Label.t

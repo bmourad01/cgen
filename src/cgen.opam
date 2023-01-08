@@ -17,6 +17,7 @@ depends: [
   "core_kernel" {>= "v0.15"}
   "dune" {>= "3.6"}
   "graphlib"
+  "menhir"
   "monads"
   "regular"
   "odoc" {with-doc}
