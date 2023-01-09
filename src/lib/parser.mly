@@ -8,6 +8,12 @@
     ]
 
     module Env = struct
+      (* Since we allow a nicer surface syntax over the internal
+         representation of the IR, we need to do some bookkeeping.
+
+         This mostly applies when using human-readable names in
+         place of uniquely identified data.
+       *)
       type t = {
         labels : Label.t Core.String.Map.t;
       }
@@ -22,6 +28,8 @@
     open M.Syntax
     open M.Let
 
+    (* Each time parse a new function, reset the context, since
+       labels do not have scope outside of a function body. *)
     let reset = M.put {labels = Core.String.Map.empty}
     
     let label_of_name name =
@@ -162,16 +170,14 @@ module_:
   | MODULE name = IDENT elts = list(module_elt) EOF
     {
       let x =
-        let* funs, typs, data = M.List.fold elts ~init:([], [], [])
-             ~f:(fun (funs, typs, data) x ->
-                reset >>= fun () -> x >>| function
-                | `fn f -> f :: funs, typs, data
-                | `typ t -> funs, t :: typs, data
-                | `data d -> funs, typs, d :: data) in
-        let funs = List.rev funs
-        and typs = List.rev typs
-        and data = List.rev data in
-        !!(Virtual.Module.create ~funs ~typs ~data ~name ()) in
+        let+ funs, typs, data =
+          let init = [], [], [] in
+          M.List.fold_right elts ~init ~f:(fun x (funs, typs, data) ->
+              reset >>= fun () -> x >>| function
+              | `fn f -> f :: funs, typs, data
+              | `typ t -> funs, t :: typs, data
+              | `data d -> funs, typs, d :: data) in
+        Virtual.Module.create ~funs ~typs ~data ~name () in
       M.run x Env.empty |> Context.map ~f:fst
     }
 
@@ -285,9 +291,9 @@ insn_data:
     { `call (f, fst args, snd args) }
 
 call_args:
-  | args = separated_nonempty_list(COMMA, insn_arg) COMMA ELIPSIS COMMA vargs = separated_list(COMMA, insn_arg)
+  | args = separated_nonempty_list(COMMA, insn_arg) COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, insn_arg)
     { args, vargs }
-  | ELIPSIS COMMA vargs = separated_list(COMMA, insn_arg)
+  | ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, insn_arg)
     { [], vargs }
   | args = separated_list(COMMA, insn_arg)
     { args, [] }

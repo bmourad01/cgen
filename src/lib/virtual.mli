@@ -58,6 +58,9 @@ module Insn : sig
     | `var  of Var.t
   ] [@@deriving bin_io, compare, equal, sexp]
 
+  (** [var_of_global g] returns [Some x] if [g] is a variable [x]. *)
+  val var_of_global : global -> Var.t option
+
   (** Pretty-prints the global destination. *)
   val pp_global : Format.formatter -> global -> unit
 
@@ -77,6 +80,9 @@ module Insn : sig
     | global
     | local
   ] [@@deriving bin_io, compare, equal, sexp]
+
+  (** [var_of_dst d] returns [Some x] if [d] is a variable [x]. *)
+  val var_of_dst : dst -> Var.t option
 
   (** Pretty-prints a control-flow destination. *)
   val pp_dst : Format.formatter -> dst -> unit
