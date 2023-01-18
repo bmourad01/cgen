@@ -66,48 +66,17 @@
 %token ELIPSIS
 %token I32 I64 I8 I16 F32 F64 Z
 %token <[Type.basic | Type.special]> PHI
-%token <Type.basic> ADD
-%token <Type.basic> DIV
-%token <Type.basic> MUL
-%token <Type.basic> REM
-%token <Type.basic> SUB
-%token <Type.imm> UDIV
-%token <Type.imm> UREM
-%token <Type.basic> NEG
-%token <Type.imm> AND
-%token <Type.imm> OR
-%token <Type.imm> SAR
-%token <Type.imm> SHL
-%token <Type.imm> SHR
-%token <Type.imm> XOR
-%token <Type.imm> NOT
+%token <Type.basic> ADD DIV MUL REM SUB NEG
+%token <Type.imm> UDIV UREM AND OR SAR SHL SHR XOR NOT
 %token ALLOC
-%token <Type.basic> LOAD
-%token <Type.basic> STORE
-%token <Type.basic> EQ
-%token <Type.basic> GE
-%token <Type.basic> GT
-%token <Type.basic> LE
-%token <Type.basic> LT
-%token <Type.basic> NE
-%token <Type.imm> O
-%token <Type.imm> SGE
-%token <Type.imm> SGT
-%token <Type.imm> SLE
-%token <Type.imm> SLT
-%token <Type.imm> UO
+%token <Type.basic> LOAD STORE EQ GE GT LE LT NE
+%token <Type.imm> O SGE SGT SLE SLT UO
 %token <Type.basic> BITS
-%token <Type.fp * Type.imm> FTOSI
-%token <Type.fp * Type.imm> FTOUI
+%token <Type.fp * Type.imm> FTOSI FTOUI
 %token <Type.fp> FTRUNC
-%token <Type.imm> ITRUNC
-%token <Type.imm> SEXT
-%token <Type.imm * Type.fp> SITOF
-%token <Type.imm * Type.fp> UITOF
-%token <Type.imm> ZEXT
-%token <Type.basic> COPY
-%token <Type.basic> SELECT
-%token <Type.basic> ACALL
+%token <Type.imm> ITRUNC SEXT ZEXT
+%token <Type.imm * Type.fp> SITOF UITOF
+%token <Type.basic> COPY SELECT ACALL
 %token CALL
 %token JMP
 %token JNZ
