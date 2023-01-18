@@ -253,8 +253,9 @@ section:
 blk:
   | l = LABEL COLON phi = list(insn_phi) data = list(insn_data) ctrl = insn_ctrl
     {
+      let* l = label_of_name l in
       let* phi = unwrap_list phi and* ctrl = ctrl in
-      M.lift @@ Context.Virtual.blk' () ~phi ~data ~ctrl
+      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~phi ~data ~ctrl
     }
 
 insn_ctrl:
