@@ -854,7 +854,7 @@ module Cfg = struct
     | `jmp (`label l) -> G.Edge.(insert (create b l `always) g)
     | `jmp _ -> g
     | `jnz (x, `label t, `label f) ->
-      let et = G.Edge.create b t @@ `true_ x in
+      let et = G.Edge.create b t @@  `true_ x in
       let ef = G.Edge.create b f @@ `false_ x in
       G.Edge.(insert ef (insert et g))
     | `jnz (x, `label l, _) -> G.Edge.(insert (create b l @@  `true_ x) g)
