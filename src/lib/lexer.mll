@@ -86,12 +86,12 @@ rule token = parse
   | '=' { EQUALS }
   | "->" { ARROW }
   | "..." { ELIPSIS }
-  | 'w' { I32 }
-  | 'l' { I64 }
-  | 'b' { I8 }
-  | 'h' { I16 }
-  | 's' { F32 }
-  | 'd' { F64 }
+  | 'w' { W }
+  | 'l' { L }
+  | 'b' { B }
+  | 'h' { H }
+  | 's' { S }
+  | 'd' { D }
   | 'z' { Z }
   | "phi" '.' (typ as t) { PHI (typ_of_char t) }
   | "add" '.' (basic as t) { ADD (basic_of_char t) }

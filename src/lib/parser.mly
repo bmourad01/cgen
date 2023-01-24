@@ -7,6 +7,11 @@
       | `data of Virtual.data
     ]
 
+    type call_arg = [
+      | `arg of Virtual.Insn.arg
+      | `varg of Virtual.Insn.arg
+    ]
+
     module Env = struct
       (* Since we allow a nicer surface syntax over the internal
          representation of the IR, we need to do some bookkeeping.
@@ -43,6 +48,10 @@
          l
 
     let unwrap_list = M.List.map ~f:(fun x -> x >>| Core.Fn.id)
+
+    let pp_pos ppf pos =
+      let open Lexing in
+      Format.fprintf ppf "%d:%d" pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
  %}
 
 %token EOF
@@ -64,7 +73,7 @@
 %token EQUALS
 %token ARROW
 %token ELIPSIS
-%token I32 I64 I8 I16 F32 F64 Z
+%token W L B H S D Z
 %token <[Type.basic | Type.special]> PHI
 %token <Type.basic> ADD DIV MUL REM SUB NEG
 %token <Type.imm> UDIV UREM AND OR SAR SHL SHR XOR NOT
@@ -112,8 +121,9 @@
 %type <Virtual.blk m> blk
 %type <Virtual.Insn.Ctrl.t m> insn_ctrl
 %type <(Bitvec.t * Label.t) m> insn_ctrl_table_entry
+%type <Virtual.Insn.Phi.t m> insn_phi
 %type <Virtual.Insn.Data.t> insn_data
-%type <Virtual.Insn.arg list * Virtual.Insn.arg list> call_args
+%type <call_arg list> call_args
 %type <Virtual.Insn.Data.binop> insn_data_binop
 %type <Virtual.Insn.Data.unop> insn_data_unop
 %type <Virtual.Insn.Data.arith_binop> insn_data_arith_binop
@@ -124,7 +134,6 @@
 %type <Virtual.Insn.Data.cast> insn_data_cast
 %type <Virtual.Insn.Data.copy> insn_data_copy
 %type <Virtual.Insn.Data.mem> insn_data_mem
-%type <Virtual.Insn.Phi.t m> insn_phi
 %type <(Label.t * Virtual.Insn.arg) m> insn_phi_in
 %type <Virtual.Insn.dst m> insn_dst
 %type <Virtual.Insn.local m> insn_local
@@ -132,13 +141,14 @@
 %type <Virtual.Insn.arg> insn_arg
 %type <Virtual.const> const
 %type <Var.t> var
+%type <string> ident
 
 %%
 
 module_:
-  | MODULE name = IDENT elts = list(module_elt) EOF
+  | MODULE name = ident elts = list(module_elt) EOF
     {
-      let x =
+      M.run begin
         let+ funs, typs, data =
           let init = [], [], [] in
           M.List.fold_right elts ~init ~f:(fun x (funs, typs, data) ->
@@ -146,8 +156,8 @@ module_:
               | `fn f -> f :: funs, typs, data
               | `typ t -> funs, t :: typs, data
               | `data d -> funs, typs, d :: data) in
-        Virtual.Module.create ~funs ~typs ~data ~name () in
-      M.run x Env.empty |> Context.map ~f:fst
+        Virtual.Module.create ~funs ~typs ~data ~name ()
+      end Env.empty |> Context.map ~f:fst
     }
 
 module_elt:
@@ -166,7 +176,7 @@ data:
 
 data_elt:
   | b = type_basic cs = list(const) { `basic (b, cs) }
-  | I8 s = STRING { `string s }
+  | B s = STRING { `string s }
   | Z n = INT { `zero (Bitvec.to_int n) }
 
 typ:
@@ -202,12 +212,12 @@ fn_args:
     { (x, t) :: fst rest, snd rest }
 
 type_basic:
-  | I32 { `i32 }
-  | I64 { `i64 }
-  | I8 { `i8 }
-  | I16 { `i16 }
-  | F32 { `f32 }
-  | F64 { `f64 }
+  | W { `i32 }
+  | L { `i64 }
+  | B { `i8 }
+  | H { `i16 }
+  | S { `f32 }
+  | D { `f64 }
 
 type_arg:
   | b = type_basic { (b :> Type.arg) }
@@ -220,10 +230,9 @@ section:
   | SECTION s = STRING { s }
 
 blk:
-  | l = LABEL COLON phi = list(insn_phi) data = list(insn_data) ctrl = insn_ctrl
+  | ln = LABEL COLON phi = list(insn_phi) data = list(insn_data) ctrl = insn_ctrl
     {
-      let* l = label_of_name l in
-      let* phi = unwrap_list phi and* ctrl = ctrl in
+      let* l = label_of_name ln and* phi = unwrap_list phi and* ctrl = ctrl in
       M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~phi ~data ~ctrl
     }
 
@@ -234,10 +243,9 @@ insn_ctrl:
     { t >>= fun t -> f >>| fun f -> `jnz (c, t, f) }
   | RET a = option(insn_arg)
     { !!(`ret a) }
-  | t = SWITCH i = var def = LABEL tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry)
+  | t = SWITCH i = var COMMA def = LABEL tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry)
     {
-      let* l = label_of_name def in
-      let* tbl = unwrap_list tbl in
+      let* l = label_of_name def and* tbl = unwrap_list tbl in
       match Virtual.Insn.Ctrl.Table.create tbl with
       | Error err -> M.lift @@ Context.fail err
       | Ok tbl -> !!(`switch (t, i, l, tbl))
@@ -245,6 +253,15 @@ insn_ctrl:
 
 insn_ctrl_table_entry:
   | i = INT ARROW l = LABEL { label_of_name l >>| fun l -> i, l }
+
+insn_phi:
+  | typ = PHI lhs = var LSQUARE ins = separated_nonempty_list(COMMA, insn_phi_in) RSQUARE
+    {
+      let* ins = unwrap_list ins in
+      match Virtual.Insn.Phi.create () ~lhs ~typ ~ins with
+      | Error err -> M.lift @@ Context.fail err
+      | Ok phi -> !!phi
+    }
 
 insn_data:
   | x = var EQUALS b = insn_data_binop l = insn_arg COMMA r = insn_arg
@@ -256,17 +273,25 @@ insn_data:
   | x = var t = SELECT c = var COMMA l = insn_arg COMMA r = insn_arg
     { `select (x, t, c, l, r) }
   | x = var t = ACALL f = insn_global LPAREN args = call_args RPAREN
-    { `acall (x, t, f, fst args, snd args) }
+    {
+      let args, vargs = Core.List.partition_map args ~f:(function
+        | `arg a -> First a | `varg a -> Second a) in
+      `acall (x, t, f, args, vargs)
+    }
   | CALL f = insn_global LPAREN args = call_args RPAREN
-    { `call (f, fst args, snd args) }
+    {
+      let args, vargs = Core.List.partition_map args ~f:(function
+        | `arg a -> First a | `varg a -> Second a) in
+      `call (f, args, vargs)
+    }
 
 call_args:
-  | args = separated_nonempty_list(COMMA, insn_arg) COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, insn_arg)
-    { args, vargs }
+  | a = insn_arg
+    { [`arg a] }
+  | a = insn_arg COMMA rest = call_args
+    { `arg a :: rest }
   | ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, insn_arg)
-    { [], vargs }
-  | args = separated_list(COMMA, insn_arg)
-    { args, [] }
+    { Core.List.map vargs ~f:(fun a -> `varg a)  }
 
 insn_data_binop:
   | a = insn_data_arith_binop { (a :> Virtual.Insn.Data.binop) }
@@ -338,15 +363,6 @@ insn_data_mem:
   | t = STORE m = var LSQUARE a = insn_arg RSQUARE COMMA x = insn_arg
     { `store (t, m, a, x) }
 
-insn_phi:
-  | lhs = var EQUALS typ = PHI LSQUARE ins = separated_nonempty_list(COMMA, insn_phi_in) RSQUARE
-    {
-      let* ins = unwrap_list ins in
-      match Virtual.Insn.Phi.create () ~lhs ~typ ~ins with
-      | Error err -> M.lift @@ Context.fail err
-      | Ok phi -> !!phi
-    }
-
 insn_phi_in:
   | l = LABEL ARROW a = insn_arg { label_of_name l >>| fun l -> l, a }
 
@@ -376,4 +392,14 @@ const:
 
 var:
   | x = VAR { Var.(with_index (create (fst x)) (snd x)) }
-  | x = IDENT { Var.create x }
+  | x = ident { Var.create x }
+
+ident:
+  | x = IDENT { x }
+  | W { "w" }
+  | L { "l" }
+  | B { "b" }
+  | H { "h" }
+  | S { "s" }
+  | D { "d" }
+  | Z { "z" }

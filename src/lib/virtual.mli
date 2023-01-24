@@ -1009,6 +1009,10 @@ module Module : sig
   (** Returns the module with each function transformed by [f]. *)
   val map_funs : t -> f:(fn -> fn) -> t
 
+  (** Same as [pp], but uses the human-friendly syntax for printing
+      functions (see [Fn.pp_hum]). *)
+  val pp_hum : Format.formatter -> t -> unit
+
   include Regular.S with type t := t
 end
 

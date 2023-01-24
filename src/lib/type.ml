@@ -65,7 +65,7 @@ let pp_compound_decl ppf : compound -> unit = function
     let pp_sep ppf () = Format.fprintf ppf ",@;" in
     Format.fprintf ppf "type :%s = " name;
     Option.iter align ~f:(Format.fprintf ppf "align %d ");
-    Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
+    Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
       (Format.pp_print_list ~pp_sep pp_field) fields
 
 type special = [

@@ -155,8 +155,8 @@ module Insn = struct
 
     let pp_self ppl ppf p =
       let pp_sep ppf () = Format.fprintf ppf ",@;" in
-      Format.fprintf ppf "%a = phi.%a [@[<v 0>%a@]]"
-        Var.pp p.lhs Type.pp (p.typ :> Type.t)
+      Format.fprintf ppf "phi.%a %a [@[<v 0>%a@]]"
+        Type.pp (p.typ :> Type.t) Var.pp p.lhs
         (Format.pp_print_list ~pp_sep (pp_in ppl)) (Map.to_alist p.ins)
 
     let pp = pp_self Label.pp
@@ -1037,8 +1037,11 @@ module Data = struct
 
   let pp ppf d =
     let sep ppf = Format.fprintf ppf ",@;" in
-    Format.fprintf ppf "%a@;data @@%s = {@;@[<v 2>%a@]@;}"
-      Linkage.pp d.linkage d.name (Array.pp pp_elt sep) d.elts;
+    if Linkage.export d.linkage
+    || Linkage.section d.linkage |> Option.is_some then
+      Format.fprintf ppf "%a@;" Linkage.pp d.linkage;
+    Format.fprintf ppf "data @@%s = {@;@[<v 2>  %a@]@;}"
+      d.name (Array.pp pp_elt sep) d.elts
 
   include Regular.Make(struct
       include T
@@ -1114,12 +1117,52 @@ module Module = struct
     m with funs = Array.map m.funs ~f;
   }
 
-  let pp ppf m =
+  let pp_base pp_fn ppf m =
     let sep ppf = Format.fprintf ppf "@;@;" in
-    Format.fprintf ppf "module %s@;%a@;%a@;%a" m.name
-      (Array.pp Type.pp_compound_decl sep) m.typs
-      (Array.pp Data.pp sep) m.data
-      (Array.pp Fn.pp sep) m.funs
+    match m.typs, m.data, m.funs with
+    | [||], [||], [||] ->
+      Format.fprintf ppf "@[<v 0>module %s@]" m.name
+    | [||], [||], funs ->
+      Format.fprintf ppf "@[<v 0>module %s@;@;\
+                          @[<v 0>%a@]@]" m.name
+        (Array.pp pp_fn sep) funs
+    | [||], data, [||] ->
+      Format.fprintf ppf "@[<v 0>module %s@;@;\
+                          @[<v 0>%a@]@]" m.name
+        (Array.pp Data.pp sep) data
+    | typs, [||], [||] ->
+      Format.fprintf ppf "@[<v 0>module %s@;@;\
+                          @[<v 0>%a@]@]" m.name
+        (Array.pp Type.pp_compound_decl sep) typs
+    | [||], data, funs ->
+      Format.fprintf ppf "@[<v 0>module %s@;@;\
+                          @[<v 0>%a@]@;@;\
+                          @[<v 0>%a@]@]" m.name
+        (Array.pp Data.pp sep) data
+        (Array.pp pp_fn sep) funs
+    | typs, [||], funs ->
+      Format.fprintf ppf "@[<v 0>module %s@;@;\
+                          @[<v 0>%a@]@;@;\
+                          @[<v 0>%a@]@]" m.name
+        (Array.pp Type.pp_compound_decl sep) typs
+        (Array.pp pp_fn sep) funs
+    | typs, data, [||] ->
+      Format.fprintf ppf "@[<v 0>module %s@;@;\
+                          @[<v 0>%a@]@;@;\
+                          @[<v 0>%a@]@]" m.name
+        (Array.pp Type.pp_compound_decl sep) typs
+        (Array.pp Data.pp sep) data
+    | typs, data, funs ->
+      Format.fprintf ppf "@[<v 0>module %s@;@;\
+                          @[<v 0>%a@]@;@;\
+                          @[<v 0>%a@]@;@;\
+                          @[<v 0>%a@]@]" m.name
+        (Array.pp Type.pp_compound_decl sep) typs
+        (Array.pp Data.pp sep) data
+        (Array.pp pp_fn sep) funs
+
+  let pp = pp_base Fn.pp
+  let pp_hum = pp_base Fn.pp_hum
 
   include Regular.Make(struct
       include T
