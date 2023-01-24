@@ -386,8 +386,10 @@ module Insn : sig
         [vargs] is non-empty, then the function call is variadic, and these
         arguments are to be passed in that fashion.
 
-        [`call (f, args, vars)]: same as [`acall], but does not explicitly
+        [`call (f, args, vargs)]: same as [`acall], but does not explicitly
         assign a result.
+
+        Note that variadic calls require at least one non-variadic argument.
     *)
     type call = [
       | `acall of Var.t * Type.basic * global * arg list * arg list

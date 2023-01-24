@@ -286,12 +286,16 @@ insn_data:
     }
 
 call_args:
-  | a = insn_arg
-    { [`arg a] }
+  | a = option(insn_arg)
+    {
+      match a with
+      | None -> []
+      | Some a -> [`arg a]
+    }
   | a = insn_arg COMMA rest = call_args
     { `arg a :: rest }
-  | ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, insn_arg)
-    { Core.List.map vargs ~f:(fun a -> `varg a)  }
+  | a = insn_arg COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, insn_arg)
+    { `arg a :: Core.List.map vargs ~f:(fun a -> `varg a)  }
 
 insn_data_binop:
   | a = insn_data_arith_binop { (a :> Virtual.Insn.Data.binop) }
