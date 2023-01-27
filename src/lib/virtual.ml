@@ -808,14 +808,20 @@ module Fn = struct
 
   let pp ppf fn =
     let sep ppf = Format.fprintf ppf "@;" in
-    Format.fprintf ppf "%a@;function " Linkage.pp fn.linkage;
+    if Linkage.export fn.linkage
+    || Linkage.section fn.linkage |> Option.is_some then
+      Format.fprintf ppf "%a " Linkage.pp fn.linkage;
+    Format.fprintf ppf "function ";
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
     Format.fprintf ppf "@@%s(%a):@;@[<v 0>%a@]"
       fn.name pp_args fn (Array.pp Blk.pp sep) fn.blks
 
   let pp_hum ppf fn =
     let sep ppf = Format.fprintf ppf "@;" in
-    Format.fprintf ppf "%a@;function " Linkage.pp fn.linkage;
+    if Linkage.export fn.linkage
+    || Linkage.section fn.linkage |> Option.is_some then
+      Format.fprintf ppf "%a " Linkage.pp fn.linkage;
+    Format.fprintf ppf "function ";
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
     Format.fprintf ppf "@@%s(%a) {@;@[%a@]@;}"
       fn.name pp_args fn (Array.pp Blk.pp_hum sep) fn.blks
@@ -1039,7 +1045,7 @@ module Data = struct
     let sep ppf = Format.fprintf ppf ",@;" in
     if Linkage.export d.linkage
     || Linkage.section d.linkage |> Option.is_some then
-      Format.fprintf ppf "%a@;" Linkage.pp d.linkage;
+      Format.fprintf ppf "%a " Linkage.pp d.linkage;
     Format.fprintf ppf "data @@%s = {@;@[<v 2>  %a@]@;}"
       d.name (Array.pp pp_elt sep) d.elts
 
