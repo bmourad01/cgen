@@ -195,10 +195,12 @@ typ_field:
   | n = TYPENAME { `name n }
 
 fn:
-  | l = option(linkage) FUNCTION return = option(type_arg) name = SYM LPAREN args = fn_args RPAREN LBRACE blks = nonempty_list(blk) RBRACE
+  | l = option(linkage) FUNCTION return = option(type_arg) name = SYM LPAREN args = option(fn_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
     {
       let* blks = unwrap_list blks in 
-      let args, variadic = args in
+      let args, variadic = match args with
+        | None -> [], false
+        | Some a -> a in
       let linkage = Core.Option.value l ~default:Linkage.default_static in
       match Virtual.Fn.create () ~name ~blks ~args ~return ~variadic ~linkage with
       | Error err -> M.lift @@ Context.fail err
