@@ -169,10 +169,10 @@ module_elt:
   | d = data { d >>| fun d -> `data d }
 
 data:
-  | l = option(linkage) DATA name = SYM EQUALS LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
+  | l = option(linkage) DATA name = SYM EQUALS align = option(align) LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
     {
       let linkage = Core.Option.value l ~default:Linkage.default_static in
-      match Virtual.Data.create () ~name ~elts ~linkage with
+      match Virtual.Data.create () ~name ~elts ~linkage ~align with
       | Error err -> M.lift @@ Context.fail err
       | Ok d -> !!d
     }

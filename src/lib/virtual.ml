@@ -1028,12 +1028,18 @@ module Data = struct
       name    : string;
       elts    : elt array;
       linkage : Linkage.t;
+      align   : int option;
     } [@@deriving bin_io, compare, equal, sexp]
   end
 
   include T
 
-  let create_exn ?(linkage = Linkage.default_export) ~name ~elts () =
+  let create_exn
+      ?(align = None)
+      ?(linkage = Linkage.default_export)
+      ~name
+      ~elts
+      () =
     match Array.of_list elts with
     | [||] -> invalid_argf "Cannot create empty data %s" name ()
     | elts ->
@@ -1042,14 +1048,24 @@ module Data = struct
               "In data @%s: `basic field of type %a is uninitialized"
               name Type.pp_basic t
           | _ -> ());
-      {name; elts; linkage}
+      Option.iter align ~f:(function
+          | n when n < 1 ->
+            invalid_argf "In data @%s: invalid alignment %d" name n ()
+          | _ -> ());
+      {name; elts; linkage; align}
 
-  let create ?(linkage = Linkage.default_export) ~name ~elts () =
-    Or_error.try_with @@ create_exn ~name ~elts ~linkage
+  let create
+      ?(align = None)
+      ?(linkage = Linkage.default_export)
+      ~name
+      ~elts
+      () =
+    Or_error.try_with @@ create_exn ~name ~elts ~linkage ~align
 
   let name d = d.name
   let elts ?(rev = false) d = Array.enum d.elts ~rev
   let linkage d = d.linkage
+  let align d = d.align
   let has_name d name = String.(name = d.name)
   let hash d = String.hash d.name
 
@@ -1070,8 +1086,10 @@ module Data = struct
     if Linkage.export d.linkage
     || Linkage.section d.linkage |> Option.is_some then
       Format.fprintf ppf "%a " Linkage.pp d.linkage;
-    Format.fprintf ppf "data @@%s = {@;@[<v 2>  %a@]@;}"
-      d.name (Array.pp pp_elt sep) d.elts
+    Format.fprintf ppf "data @@%s = " d.name;
+    Option.iter d.align ~f:(Format.fprintf ppf "align %d ");
+    Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
+      (Array.pp pp_elt sep) d.elts
 
   include Regular.Make(struct
       include T

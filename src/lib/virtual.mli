@@ -929,10 +929,15 @@ module Data : sig
 
       By default, [linkage] is [Linkage.default_export].
 
+      By default, [align] is [None], and so the data will be aligned by the
+      size of its largest element.
+
       @raise Invalid_argument if [elts] is empty, or if [elts] contains an
-      element of the form [`basic (_, [])].
+        element of the form [`basic (_, [])], or if align is [Some n] where
+        [n < 1].
   *)
   val create_exn :
+    ?align:int option ->
     ?linkage:Linkage.t ->
     name:string ->
     elts:elt list ->
@@ -941,6 +946,7 @@ module Data : sig
 
   (** Same as [create_exn], but returns an error upon failure. *)
   val create :
+    ?align:int option ->
     ?linkage:Linkage.t ->
     name:string ->
     elts:elt list ->
@@ -955,6 +961,9 @@ module Data : sig
 
   (** Returns the linkage of the struct. *)
   val linkage : t -> Linkage.t
+
+  (** Returns the desired alignment, if any. *)
+  val align : t -> int option
 
   (** Returns [true] if the struct has the associated name. *)
   val has_name : t -> string -> bool
