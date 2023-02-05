@@ -692,20 +692,20 @@ module Blk = struct
     let sep ppf = Format.fprintf ppf "@;" in
     match b.phi, b.data with
     | [||], [||] ->
-      Format.fprintf ppf "%a:@[<v 1>@;%a@]"
+      Format.fprintf ppf "%a:@;  %a"
         Label.pp_hum b.label Insn.pp_ctrl_hum b.ctrl
     | _, [||] ->
-      Format.fprintf ppf "%a:@[<v 1>@;%a@;%a@]"
+      Format.fprintf ppf "%a:@;@[<v 2>  %a@;%a@]"
         Label.pp_hum b.label
         (Array.pp Insn.pp_phi_hum sep) b.phi
         Insn.pp_ctrl_hum b.ctrl
     | [||], _ ->
-      Format.fprintf ppf "%a:@[<v 1>@;%a@;%a@]"
+      Format.fprintf ppf "%a:@;@[<v 2>  %a@;%a@]"
         Label.pp_hum b.label
         (Array.pp Insn.pp_data_hum sep) b.data
         Insn.pp_ctrl_hum b.ctrl
     | _ ->
-      Format.fprintf ppf "%a:@[<v 1>@;%a@;%a@;%a@]"
+      Format.fprintf ppf "%a:@;@[<v 2>  %a@;%a@;%a@]"
         Label.pp_hum b.label
         (Array.pp Insn.pp_phi_hum sep) b.phi
         (Array.pp Insn.pp_data_hum sep) b.data
@@ -837,7 +837,7 @@ module Fn = struct
       Format.fprintf ppf "%a " Linkage.pp fn.linkage;
     Format.fprintf ppf "function ";
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
-    Format.fprintf ppf "@@%s(%a) {@;@[%a@]@;}"
+    Format.fprintf ppf "@@%s(%a) {@;@[<v 0>%a@]@;}"
       fn.name pp_args fn (Array.pp Blk.pp_hum sep) fn.blks
 
   (* XXX: name conflict *)
