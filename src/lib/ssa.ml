@@ -79,6 +79,7 @@ let map_dst vars : Insn.dst -> Insn.dst = function
   | d -> d
 
 let rename_data vars nums b =
+  let var = map_var vars in
   let glo = map_global vars in
   let margs = List.map ~f:(map_arg vars) in
   let rename = new_name vars nums in
@@ -87,6 +88,7 @@ let rename_data vars nums b =
         `acall (rename x, t, glo f, margs args, margs vargs)
       | `call (f, args, vargs) ->
         `call (glo f, margs args, margs vargs)
+      | `vastart x -> `vastart (var x)
       | #Insn.Data.op as o -> map_op vars nums o)
 
 let rename_ctrl vars b =

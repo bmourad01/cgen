@@ -396,30 +396,44 @@ module Insn = struct
         pp_call_args args
         (pp_call_vargs args) vargs
 
+    type variadic = [
+      | `vastart of Var.t
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    let free_vars_of_variadic : variadic -> Var.Set.t = function
+      | `vastart x -> Var.Set.singleton x
+
+    let pp_variadic ppf : variadic -> unit = function
+      | `vastart x -> Format.fprintf ppf "vastart %a" Var.pp x
+
     type t = [
       | call
       | op
+      | variadic
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let lhs : t -> Var.t option = function
-      | `binop  (x, _, _, _)
-      | `unop   (x, _, _)
-      | `mem    (x, _)
-      | `select (x, _, _, _, _)
-      | `acall  (x, _, _, _, _) -> Some x
-      | `call   _ -> None
+      | `binop   (x, _, _, _)
+      | `unop    (x, _, _)
+      | `mem     (x, _)
+      | `select  (x, _, _, _, _)
+      | `acall   (x, _, _, _, _) -> Some x
+      | `call    _ -> None
+      | `vastart _ -> None
 
     let has_lhs d v = match lhs d with
       | Some x -> Var.(x = v)
       | None -> false
 
     let free_vars : t -> Var.Set.t = function
-      | #call as c -> free_vars_of_call c
-      | #op   as o -> free_vars_of_op o
+      | #call as c     -> free_vars_of_call c
+      | #op   as o     -> free_vars_of_op o
+      | #variadic as v -> free_vars_of_variadic v
 
     let pp ppf : t -> unit = function
-      | #call as c -> pp_call ppf c
-      | #op   as o -> pp_op   ppf o
+      | #call     as c -> pp_call     ppf c
+      | #op       as o -> pp_op       ppf o
+      | #variadic as v -> pp_variadic ppf v
   end
 
   module Ctrl = struct

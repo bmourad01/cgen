@@ -88,6 +88,7 @@
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SELECT ACALL
 %token CALL
+%token VASTART
 %token JMP
 %token JNZ
 %token RET
@@ -287,6 +288,8 @@ insn_data:
         | `arg a -> First a | `varg a -> Second a) in
       `call (f, args, vargs)
     }
+  | VASTART x = var
+    { `vastart x }
 
 call_args:
   | a = option(insn_arg)

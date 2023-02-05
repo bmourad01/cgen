@@ -145,6 +145,7 @@ rule token = parse
   | "select" '.' (basic as t) { SELECT (basic_of_char t) }
   | "call" '.' (basic as t) { ACALL (basic_of_char t) }
   | "call" { CALL }
+  | "vastart" { VASTART }
   | "jmp" { JMP }
   | "jnz" { JNZ }
   | "ret" { RET }

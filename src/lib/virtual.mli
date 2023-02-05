@@ -405,10 +405,27 @@ module Insn : sig
     (** Pretty-prints a call instruction. *)
     val pp_call : Format.formatter -> call -> unit
 
+    (** A variadic argument instruction.
+
+        [`vastart x] initializes [x] with a pointer to the start of the
+        variadic argument list for the current function.
+    *)
+    type variadic = [
+      | `vastart of Var.t
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** Returns the set of free variables in the variadic argument
+        instruction. *)
+    val free_vars_of_variadic : variadic -> Var.Set.t
+
+    (** Pretty-prints a variadic argument instruction. *)
+    val pp_variadic : Format.formatter -> variadic -> unit
+
     (** A data instruction is either a call or a simple op. *)
     type t = [
       | call
       | op
+      | variadic
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the assigned variable of the operation, if it exists. *)
