@@ -1035,8 +1035,8 @@ module Data = struct
     | elts ->
       Array.iter elts ~f:(function
           | `basic (t, []) -> invalid_arg @@ Format.asprintf
-              "`basic field of type %a is uninitialized"
-              Type.pp_basic t
+              "In data @%s: `basic field of type %a is uninitialized"
+              name Type.pp_basic t
           | _ -> ());
       {name; elts; linkage}
 
