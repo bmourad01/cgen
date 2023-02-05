@@ -96,6 +96,7 @@ let rename_ctrl vars b =
   let dst = map_dst vars in
   let arg = map_arg vars in
   Blk.map_ctrl b ~f:(fun _ -> function
+      | `hlt as h -> h
       | `jmp d -> `jmp (dst d)
       | `jnz (c, t, f) -> `jnz (var c, dst t, dst f)
       | `ret None as r -> r

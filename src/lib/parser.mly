@@ -89,6 +89,7 @@
 %token <Type.basic> COPY SELECT ACALL
 %token CALL
 %token VASTART
+%token HLT
 %token JMP
 %token JNZ
 %token RET
@@ -241,6 +242,7 @@ blk:
     }
 
 insn_ctrl:
+  | HLT { !!`hlt }
   | JMP d = insn_dst
     { d >>| fun d -> `jmp d }
   | JNZ c = var COMMA t = insn_dst COMMA f = insn_dst

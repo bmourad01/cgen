@@ -469,6 +469,9 @@ module Insn : sig
 
     (** A control-flow instruction.
 
+        [`hlt] terminates execution of the program. This is typically used
+        to mark certain program locations as unreachable.
+
         [`jmp dst] is an unconditional jump to the destination [dst].
 
         [`jnz (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
@@ -483,6 +486,7 @@ module Insn : sig
         then the destination of the jump is [default].
     *)
     type t = [
+      | `hlt
       | `jmp    of dst
       | `jnz    of Var.t * dst * dst
       | `ret    of arg option

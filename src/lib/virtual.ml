@@ -458,6 +458,7 @@ module Insn = struct
     type table = Table.t [@@deriving bin_io, compare, equal, sexp]
 
     type t = [
+      | `hlt
       | `jmp    of dst
       | `jnz    of Var.t * dst * dst
       | `ret    of arg option
@@ -465,6 +466,7 @@ module Insn = struct
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars : t -> Var.Set.t = function
+      | `hlt -> Var.Set.empty
       | `jmp _ -> Var.Set.empty
       | `jnz (x, _, _) -> Var.Set.singleton x
       | `ret None -> Var.Set.empty
@@ -472,6 +474,7 @@ module Insn = struct
       | `switch (_, x, _, _) -> Var.Set.singleton x
 
     let pp_self ppd ppl ppf : t -> unit = function
+      | `hlt -> Format.fprintf ppf "hlt"
       | `jmp d ->
         Format.fprintf ppf "jmp %a" ppd d
       | `jnz (c, t, f) ->
@@ -871,6 +874,7 @@ module Cfg = struct
     if G.Node.degree ~dir:from n g = 0 then connect n else Fn.id
 
   let accum g b : Insn.Ctrl.t -> G.t = function
+    | `hlt -> g
     | `jmp (`label l) -> G.Edge.(insert (create b l `always) g)
     | `jmp _ -> g
     | `jnz (x, `label t, `label f) ->
