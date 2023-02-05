@@ -901,7 +901,8 @@ type live = Live.t
 module Data : sig
   (** An element of the struct.
 
-      [`basic (t, cs)] is a list of constants [cs] of type [t].
+      [`basic (t, cs)] is a list of constants [cs] of type [t]. Note that it
+      is illegal for [cs] to be empty. That is, all data must be initialized.
 
       [`string s] is an instance of a string [s], represented as an array
       of bytes.
@@ -924,7 +925,8 @@ module Data : sig
 
       By default, [linkage] is [Linkage.default_export].
 
-      @raise Invalid_argument if [elts] is empty.
+      @raise Invalid_argument if [elts] is empty, or if [elts] contains an
+      element of the form [`basic (_, [])].
   *)
   val create_exn :
     ?linkage:Linkage.t ->

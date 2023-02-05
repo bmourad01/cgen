@@ -1032,7 +1032,13 @@ module Data = struct
   let create_exn ?(linkage = Linkage.default_export) ~name ~elts () =
     match Array.of_list elts with
     | [||] -> invalid_argf "Cannot create empty data %s" name ()
-    | elts -> {name; elts; linkage}
+    | elts ->
+      Array.iter elts ~f:(function
+          | `basic (t, []) -> invalid_arg @@ Format.asprintf
+              "`basic field of type %a is uninitialized"
+              Type.pp_basic t
+          | _ -> ());
+      {name; elts; linkage}
 
   let create ?(linkage = Linkage.default_export) ~name ~elts () =
     Or_error.try_with @@ create_exn ~name ~elts ~linkage

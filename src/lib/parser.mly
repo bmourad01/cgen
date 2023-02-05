@@ -177,7 +177,7 @@ data:
     }
 
 data_elt:
-  | b = type_basic cs = list(const) { `basic (b, cs) }
+  | b = type_basic cs = nonempty_list(const) { `basic (b, cs) }
   | B s = STRING { `string s }
   | Z n = INT { `zero (Bitvec.to_int n) }
 
