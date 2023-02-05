@@ -13,7 +13,7 @@ include T
 let pp ppf l =
   Option.iter l.section ~f:(Format.fprintf ppf "section \"%s\"");
   if l.export then begin
-    if Option.is_some l.section then Format.fprintf ppf "@;";
+    if Option.is_some l.section then Format.fprintf ppf " ";
     Format.fprintf ppf "export"
   end
 
