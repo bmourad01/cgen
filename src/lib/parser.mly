@@ -230,6 +230,7 @@ type_arg:
 
 linkage:
   | section = option(section) EXPORT { Linkage.create () ~section ~export:true }
+  | s = section { Linkage.create () ~section:(Some s) ~export:false }
 
 section:
   | SECTION s = STRING { s }
