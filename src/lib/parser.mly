@@ -79,7 +79,8 @@
 %token <Type.imm> UDIV UREM AND OR SAR SHL SHR XOR NOT
 %token ALLOC
 %token <Type.basic> LOAD STORE EQ GE GT LE LT NE
-%token <Type.imm> O SGE SGT SLE SLT UO
+%token <Type.imm> SGE SGT SLE SLT
+%token <Type.fp> O UO
 %token <Type.basic> BITS
 %token <Type.fp * Type.imm> FTOSI FTOUI
 %token <Type.fp> FTRUNC

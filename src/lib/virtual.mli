@@ -252,7 +252,7 @@ module Insn : sig
 
         [`ne t]: not equal.
 
-        [`o t]: signed overflow (immediate only).
+        [`o t]: ordered (floating point only).
 
         [`sge t]: signed greater or equal (immediate only).
 
@@ -262,7 +262,7 @@ module Insn : sig
 
         [`slt t]: signed less than (immediate only).
 
-        [`uo t]: unsigned overflow (immediate only).
+        [`uo t]: unordered (floating point only).
     *)
     type cmp = [
       | `eq  of Type.basic
@@ -271,12 +271,12 @@ module Insn : sig
       | `le  of Type.basic
       | `lt  of Type.basic
       | `ne  of Type.basic
-      | `o   of Type.imm
+      | `o   of Type.fp
       | `sge of Type.imm
       | `sgt of Type.imm
       | `sle of Type.imm
       | `slt of Type.imm
-      | `uo  of Type.imm
+      | `uo  of Type.fp
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Pretty-prints a comparison operation. *)

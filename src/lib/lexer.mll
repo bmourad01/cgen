@@ -118,12 +118,12 @@ rule token = parse
   | "le" '.' (basic as t) { LE (basic_of_char t) }
   | "lt" '.' (basic as t) { LT (basic_of_char t) }
   | "ne" '.' (basic as t) { NE (basic_of_char t) }
-  | "o" '.' (imm as t) { O (imm_of_char t) }
+  | "o" '.' (fp as t) { O (fp_of_char t) }
   | "sge" '.' (imm as t) { SGE (imm_of_char t) }
   | "sgt" '.' (imm as t) { SGT (imm_of_char t) }
   | "sle" '.' (imm as t) { SLE (imm_of_char t) }
   | "slt" '.' (imm as t) { SLT (imm_of_char t) }
-  | "uo" '.' (imm as t) { UO (imm_of_char t) }
+  | "uo" '.' (fp as t) { UO (fp_of_char t) }
   | "bits" '.' (basic as t) { BITS (basic_of_char t) }
   | "ftosi" '.' (fp as t) '.' (imm as i) {
     FTOSI (fp_of_char t, imm_of_char i)

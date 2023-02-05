@@ -243,12 +243,12 @@ module Insn = struct
       | `le  of Type.basic
       | `lt  of Type.basic
       | `ne  of Type.basic
-      | `o   of Type.imm
+      | `o   of Type.fp
       | `sge of Type.imm
       | `sgt of Type.imm
       | `sle of Type.imm
       | `slt of Type.imm
-      | `uo  of Type.imm
+      | `uo  of Type.fp
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let pp_cmp ppf : cmp -> unit = function
@@ -258,12 +258,12 @@ module Insn = struct
       | `le  t -> Format.fprintf ppf "le.%a"  Type.pp_basic t
       | `lt  t -> Format.fprintf ppf "lt.%a"  Type.pp_basic t
       | `ne  t -> Format.fprintf ppf "ne.%a"  Type.pp_basic t
-      | `o   t -> Format.fprintf ppf "o.%a"   Type.pp_imm   t
+      | `o   t -> Format.fprintf ppf "o.%a"   Type.pp_fp    t
       | `sge t -> Format.fprintf ppf "sge.%a" Type.pp_imm   t
       | `sgt t -> Format.fprintf ppf "sgt.%a" Type.pp_imm   t
       | `sle t -> Format.fprintf ppf "sle.%a" Type.pp_imm   t
       | `slt t -> Format.fprintf ppf "slt.%a" Type.pp_imm   t
-      | `uo  t -> Format.fprintf ppf "uo.%a"  Type.pp_imm   t
+      | `uo  t -> Format.fprintf ppf "uo.%a"  Type.pp_fp    t
 
     type cast = [
       | `bits   of Type.basic
