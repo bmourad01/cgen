@@ -734,6 +734,7 @@ module Func = struct
       args     : (Var.t * Type.arg) array;
       return   : Type.arg option;
       variadic : bool;
+      noreturn : bool;
       linkage  : Linkage.t;
     } [@@deriving bin_io, compare, equal, sexp]
   end
@@ -743,6 +744,7 @@ module Func = struct
   let create_exn
       ?(return = None)
       ?(variadic = false)
+      ?(noreturn = false)
       ?(linkage = Linkage.default_export)
       ~name
       ~blks
@@ -756,19 +758,21 @@ module Func = struct
         args = Array.of_list args;
         return;
         variadic;
+        noreturn;
         linkage;
       }
 
   let create
       ?(return = None)
       ?(variadic = false)
+      ?(noreturn = false)
       ?(linkage = Linkage.default_export)
       ~name
       ~blks
       ~args
       () =
     Or_error.try_with @@
-    create_exn ~name ~blks ~args ~return ~variadic ~linkage
+    create_exn ~name ~blks ~args ~return ~variadic ~noreturn ~linkage
 
   let name fn = fn.name
   let blks ?(rev = false) fn = Array.enum fn.blks ~rev
@@ -776,6 +780,7 @@ module Func = struct
   let args ?(rev = false) fn = Array.enum fn.args ~rev
   let return fn = fn.return
   let variadic fn = fn.variadic
+  let noreturn fn = fn.noreturn
   let linkage fn = fn.linkage
   let has_name fn name = String.(name = fn.name)
   let hash fn = String.hash fn.name
@@ -828,6 +833,7 @@ module Func = struct
     if Linkage.export fn.linkage
     || Linkage.section fn.linkage |> Option.is_some then
       Format.fprintf ppf "%a " Linkage.pp fn.linkage;
+    if fn.noreturn then Format.fprintf ppf "noreturn ";
     Format.fprintf ppf "function ";
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
     Format.fprintf ppf "@@%s(%a):@;@[<v 0>%a@]"
@@ -838,6 +844,7 @@ module Func = struct
     if Linkage.export fn.linkage
     || Linkage.section fn.linkage |> Option.is_some then
       Format.fprintf ppf "%a " Linkage.pp fn.linkage;
+    if fn.noreturn then Format.fprintf ppf "noreturn ";
     Format.fprintf ppf "function ";
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
     Format.fprintf ppf "@@%s(%a) {@;@[<v 0>%a@]@;}"

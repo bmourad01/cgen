@@ -156,6 +156,7 @@ rule token = parse
   | "data" { DATA }
   | "export" { EXPORT }
   | "section" { SECTION }
+  | "noreturn" { NORETURN }
   | '"' {
     Buffer.clear string_buff;
     string lexbuf;

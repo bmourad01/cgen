@@ -752,6 +752,7 @@ module Func : sig
   val create_exn :
     ?return:Type.arg option ->
     ?variadic:bool ->
+    ?noreturn:bool ->
     ?linkage:Linkage.t ->
     name:string ->
     blks:blk list ->
@@ -763,6 +764,7 @@ module Func : sig
   val create :
     ?return:Type.arg option ->
     ?variadic:bool ->
+    ?noreturn:bool ->
     ?linkage:Linkage.t ->
     name:string ->
     blks:blk list ->
@@ -787,6 +789,9 @@ module Func : sig
 
   (** Returns [true] if the function is variadic. *)
   val variadic : t -> bool
+
+  (** Returns [true] if the function does not return. *)
+  val noreturn : t -> bool
 
   (** Returns the linkage of the function. *)
   val linkage : t -> Linkage.t

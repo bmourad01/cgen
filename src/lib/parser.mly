@@ -52,6 +52,16 @@
     let pp_pos ppf pos =
       let open Lexing in
       Format.fprintf ppf "%d:%d" pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
+
+    let make_fn blks args l name return noreturn =
+      let* blks = unwrap_list blks in
+      let args, variadic = match args with
+        | None -> [], false
+        | Some a -> a in
+      let linkage = Core.Option.value l ~default:Linkage.default_static in
+      match Virtual.Func.create () ~name ~blks ~args ~return ~noreturn ~variadic ~linkage with
+      | Error err -> M.lift @@ Context.fail err
+      | Ok fn -> !!fn
  %}
 
 %token EOF
@@ -99,6 +109,7 @@
 %token DATA
 %token EXPORT
 %token SECTION
+%token NORETURN
 %token <string> STRING
 %token <Bitvec.t> INT
 %token <float> DOUBLE
@@ -199,16 +210,9 @@ typ_field:
 
 func:
   | l = option(linkage) FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
-    {
-      let* blks = unwrap_list blks in 
-      let args, variadic = match args with
-        | None -> [], false
-        | Some a -> a in
-      let linkage = Core.Option.value l ~default:Linkage.default_static in
-      match Virtual.Func.create () ~name ~blks ~args ~return ~variadic ~linkage with
-      | Error err -> M.lift @@ Context.fail err
-      | Ok fn -> !!fn
-    }
+    { make_fn blks args l name return false }
+  | l = option(linkage) NORETURN FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
+    { make_fn blks args l name return true }
 
 func_args:
   | ELIPSIS { [], true }
