@@ -725,7 +725,7 @@ end
 
 type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
-module Fn = struct
+module Func = struct
   module T = struct
     type t = {
       name     : string;
@@ -843,9 +843,6 @@ module Fn = struct
     Format.fprintf ppf "@@%s(%a) {@;@[<v 0>%a@]@;}"
       fn.name pp_args fn (Array.pp Blk.pp_hum sep) fn.blks
 
-  (* XXX: name conflict *)
-  include Fn
-
   include Regular.Make(struct
       include T
       let module_name = Some "Virtual.Fn"
@@ -855,7 +852,7 @@ module Fn = struct
     end)
 end
 
-type fn = Fn.t [@@deriving bin_io, compare, equal, sexp]
+type func = Func.t [@@deriving bin_io, compare, equal, sexp]
 
 module Cfg = struct
   module G = Graphlib.Make(Label)(Edge)
@@ -895,7 +892,7 @@ module Cfg = struct
     if_unreachable ~from:`In  connect_with_entry g n @@
     g
 
-  let create (fn : fn) =
+  let create (fn : func) =
     Array.fold fn.blks ~init:G.empty ~f:(fun g b ->
         accum (G.Node.insert b.label g) b.label b.ctrl.insn) |> fun g ->
     G.nodes g |> Seq.fold ~init:g ~f:connect_unreachable |> fun g ->
@@ -947,12 +944,12 @@ module Live = struct
   let (++) = Set.union and (--) = Set.diff
 
   let block_transitions fn =
-    Fn.blks fn |> Seq.fold ~init:Label.Map.empty ~f:(fun fs b ->
+    Func.blks fn |> Seq.fold ~init:Label.Map.empty ~f:(fun fs b ->
         Map.add_exn fs ~key:(Blk.label b) ~data:{
           defs = blk_defs b;
           uses = Blk.free_vars b;
         }) |> fun init ->
-    Fn.blks fn |> Seq.fold ~init ~f:(fun init b ->
+    Func.blks fn |> Seq.fold ~init ~f:(fun init b ->
         Blk.phi b |> Seq.map ~f:Insn.insn |>
         Seq.fold ~init ~f:(fun fs p ->
             let lhs = Insn.Phi.lhs p in
@@ -1108,7 +1105,7 @@ module Module = struct
       name : string;
       typs : Type.compound array;
       data : data array;
-      funs : fn array;
+      funs : func array;
     } [@@deriving bin_io, compare, equal, sexp]
   end
 
@@ -1150,7 +1147,7 @@ module Module = struct
   }
 
   let remove_fn m name = {
-    m with funs = Array.remove_if m.funs ~f:(Fn.flip Fn.has_name name);
+    m with funs = Array.remove_if m.funs ~f:(Fn.flip Func.has_name name);
   }
 
   let map_typs m ~f = {
@@ -1209,8 +1206,8 @@ module Module = struct
         (Array.pp Data.pp sep) data
         (Array.pp pp_fn sep) funs
 
-  let pp = pp_base Fn.pp
-  let pp_hum = pp_base Fn.pp_hum
+  let pp = pp_base Func.pp
+  let pp_hum = pp_base Func.pp_hum
 
   include Regular.Make(struct
       include T

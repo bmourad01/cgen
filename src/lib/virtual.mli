@@ -737,7 +737,7 @@ end
 type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A function. *)
-module Fn : sig
+module Func : sig
   type t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a function.
@@ -842,7 +842,7 @@ module Fn : sig
   include Regular.S with type t := t
 end
 
-type fn = Fn.t [@@deriving bin_io, compare, equal, sexp]
+type func = Func.t [@@deriving bin_io, compare, equal, sexp]
 
 (** The control-flow graph of the function. *)
 module Cfg : sig
@@ -851,7 +851,7 @@ module Cfg : sig
                  and type Edge.label = edge
 
   (** Creates the control-flow graph. *)
-  val create : fn -> t
+  val create : func -> t
 end
 
 type cfg = Cfg.t
@@ -866,7 +866,7 @@ module Live : sig
       [keep] is a set of variables that are initially live on the exit
       nodes of the function.
   *)
-  val compute : ?keep:Var.Set.t -> fn -> t
+  val compute : ?keep:Var.Set.t -> func -> t
 
   (** The set of live-in variables at the block assicated with the label. *)
   val ins : t -> Label.t -> Var.Set.t
@@ -993,7 +993,7 @@ module Module : sig
   val create :
     ?typs:Type.compound list ->
     ?data:data list ->
-    ?funs:fn list ->
+    ?funs:func list ->
     name:string ->
     unit ->
     t
@@ -1008,7 +1008,7 @@ module Module : sig
   val data : ?rev:bool -> t -> data seq
 
   (** Functions defined in the module. *)
-  val funs : ?rev:bool -> t -> fn seq
+  val funs : ?rev:bool -> t -> func seq
 
   (** Returns [true] if the module has the associated name. *)
   val has_name : t -> string -> bool
@@ -1023,7 +1023,7 @@ module Module : sig
   val insert_data : t -> data -> t
 
   (** Appends a function to the module. *)
-  val insert_fn : t -> fn -> t
+  val insert_fn : t -> func -> t
 
   (** Removes the type associated with the name. *)
   val remove_type : t -> string -> t
@@ -1041,7 +1041,7 @@ module Module : sig
   val map_data : t -> f:(data -> data) -> t
 
   (** Returns the module with each function transformed by [f]. *)
-  val map_funs : t -> f:(fn -> fn) -> t
+  val map_funs : t -> f:(func -> func) -> t
 
   (** Same as [pp], but uses the human-friendly syntax for printing
       functions (see [Fn.pp_hum]). *)

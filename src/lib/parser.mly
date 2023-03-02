@@ -2,7 +2,7 @@
     open Monads.Std
 
     type elt = [
-      | `fn of Virtual.fn
+      | `func of Virtual.func
       | `typ of Type.compound
       | `data of Virtual.data
     ]
@@ -115,8 +115,8 @@
 %type <Type.compound> typ
 %type <int> align
 %type <Type.field> typ_field
-%type <Virtual.fn m> fn
-%type <(Var.t * Type.arg) list * bool> fn_args
+%type <Virtual.func m> func
+%type <(Var.t * Type.arg) list * bool> func_args
 %type <Type.basic> type_basic
 %type <Type.arg> type_arg
 %type <Linkage.t> linkage
@@ -156,7 +156,7 @@ module_:
           let init = [], [], [] in
           M.List.fold_right elts ~init ~f:(fun x (funs, typs, data) ->
               reset >>= fun () -> x >>| function
-              | `fn f -> f :: funs, typs, data
+              | `func f -> f :: funs, typs, data
               | `typ t -> funs, t :: typs, data
               | `data d -> funs, typs, d :: data) in
         Virtual.Module.create ~funs ~typs ~data ~name ()
@@ -164,7 +164,7 @@ module_:
     }
 
 module_elt:
-  | f = fn { f >>| fun f -> `fn f }
+  | f = func { f >>| fun f -> `func f }
   | t = typ { !!(`typ t) }
   | d = data { d >>| fun d -> `data d }
 
@@ -197,23 +197,23 @@ typ_field:
     }
   | n = TYPENAME { `name n }
 
-fn:
-  | l = option(linkage) FUNCTION return = option(type_arg) name = SYM LPAREN args = option(fn_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
+func:
+  | l = option(linkage) FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
     {
       let* blks = unwrap_list blks in 
       let args, variadic = match args with
         | None -> [], false
         | Some a -> a in
       let linkage = Core.Option.value l ~default:Linkage.default_static in
-      match Virtual.Fn.create () ~name ~blks ~args ~return ~variadic ~linkage with
+      match Virtual.Func.create () ~name ~blks ~args ~return ~variadic ~linkage with
       | Error err -> M.lift @@ Context.fail err
       | Ok fn -> !!fn
     }
 
-fn_args:
+func_args:
   | ELIPSIS { [], true }
   | t = type_arg x = var { [x, t], false }
-  | t = type_arg x = var COMMA rest = fn_args
+  | t = type_arg x = var COMMA rest = func_args
     { (x, t) :: fst rest, snd rest }
 
 type_basic:

@@ -16,19 +16,19 @@ let iterated_frontier f blks =
 
 exception Missing_blk of string * Label.t
 
-let find_blk fn l = match Fn.find_blk fn l with
+let find_blk fn l = match Func.find_blk fn l with
   | Some _ as b -> b
   | None when Label.is_pseudo l -> None
-  | None -> raise @@ Missing_blk (Fn.name fn, l)
+  | None -> raise @@ Missing_blk (Func.name fn, l)
 
 let succs cfg fn l = Cfg.Node.succs l cfg |> Seq.filter_map ~f:(find_blk fn)
 
 let collect_vars fn =
-  Fn.blks fn |> Seq.map ~f:Blk.free_vars |>
+  Func.blks fn |> Seq.map ~f:Blk.free_vars |>
   Seq.fold ~init:Var.Set.empty ~f:Set.union
 
 let blocks_that_define_var x fn =
-  Fn.blks fn |> Seq.filter ~f:(fun b -> Blk.defines_var b x) |>
+  Func.blks fn |> Seq.filter ~f:(fun b -> Blk.defines_var b x) |>
   Seq.map ~f:Blk.label |> Seq.to_list_rev
 
 let new_name vars nums x =
@@ -137,9 +137,9 @@ let rec rename_block vars nums cfg dom fn' l =
       rename_phi vars nums b |>
       rename_data vars nums |>
       rename_ctrl vars |>
-      Fn.update_blk fn' in
+      Func.update_blk fn' in
   let fn = succs cfg fn l |> Seq.fold ~init:fn ~f:(fun fn b ->
-      Fn.update_blk fn @@ update_phi vars l b) in
+      Func.update_blk fn @@ update_phi vars l b) in
   let fn =
     Cfg.nodes cfg |>
     Seq.filter ~f:(Tree.is_child_of ~parent:l dom) |>
@@ -172,7 +172,7 @@ let insert_phi_nodes vars fn frontier cfg =
               Cfg.Node.preds l cfg |>
               Seq.filter_map ~f:(find_blk fn) in
             (* XXX: FIXME *)
-            insert_phi_node ins b x `i64 >>| Fn.update_blk fn))
+            insert_phi_node ins b x `i64 >>| Func.update_blk fn))
 
 let rename cfg dom fn =
   let vars = Var.Table.create () in
