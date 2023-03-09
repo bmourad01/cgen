@@ -693,6 +693,13 @@ module Blk : sig
       exists. *)
   val typeof_arg : t -> Var.t -> arg_typ option
 
+  (** [has_lhs b x] returns [true] if a data instruction in [b] defines
+      [x]. *)
+  val has_lhs : t -> Var.t -> bool
+
+  (** Same as [has_lhs], but also includes arguments to the block. *)
+  val defines_var : t -> Var.t -> bool
+
   (** Pretty prints a basic block, where instructions are indented and
       unlabeled. *)
   val pp_hum : Format.formatter -> t -> unit

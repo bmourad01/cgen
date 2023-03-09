@@ -633,9 +633,10 @@ module Blk = struct
   let has_arg b x = Map.mem b.args x
   let typeof_arg b x = Map.find b.args x
 
-  let has_lhs xs x f = Array.exists xs ~f:(Fn.compose (Fn.flip f x) Insn.insn)
-  let has_lhs_data b x = has_lhs b.data x Insn.Data.has_lhs
-  let defines_var b x = has_arg b x || has_lhs_data b x
+  let has_lhs b x = Array.exists b.data ~f:(fun i ->
+      Insn.Data.has_lhs (Insn.insn i) x)
+
+  let defines_var b x = has_arg b x || has_lhs b x
 
   let has xs l = Array.exists xs ~f:(Fn.flip Insn.has_label l)
   let has_data b = has b.data
