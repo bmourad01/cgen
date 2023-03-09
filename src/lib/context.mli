@@ -53,9 +53,6 @@ module Label : sig
 end
 
 module Virtual : sig
-  (** [phi p] returns a phi instruction [p] with a fresh label. *)
-  val phi : Virtual.Insn.Phi.t -> Virtual.Insn.phi t
-
   (** [data d] returns a data instruction [d] with a fresh label. *)
   val data : Virtual.Insn.Data.t -> Virtual.Insn.data t
 
@@ -66,7 +63,7 @@ module Virtual : sig
       [phi], [data], and [ctrl], while generating a fresh label for the
       block. *)
   val blk :
-    ?phi:Virtual.Insn.phi list ->
+    ?args:(var * Virtual.Blk.arg_typ) list ->
     ?data:Virtual.Insn.data list ->
     ctrl:Virtual.Insn.ctrl ->
     unit ->
@@ -76,7 +73,7 @@ module Virtual : sig
       Allows a pre-existing label for the block. *)
   val blk' :
     ?label:label option ->
-    ?phi:Virtual.Insn.Phi.t list ->
+    ?args:(var * Virtual.Blk.arg_typ) list ->
     ?data:Virtual.Insn.Data.t list ->
     ctrl:Virtual.Insn.Ctrl.t ->
     unit ->

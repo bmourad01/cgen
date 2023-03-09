@@ -94,18 +94,20 @@ module Insn = struct
 
   let pp_global ppf : global -> unit = function
     | `addr a -> Format.fprintf ppf "%a" Bitvec.pp a
-    | `sym s -> Format.fprintf ppf "@%s" s
-    | `var v -> Format.fprintf ppf "%a" Var.pp v
+    | `sym s  -> Format.fprintf ppf "@%s" s
+    | `var v  -> Format.fprintf ppf "%a" Var.pp v
 
   type local = [
-    | `label of Label.t
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
+    | `label of Label.t * arg option
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   let pp_local ppf : local -> unit = function
-    | `label l -> Format.fprintf ppf "%a" Label.pp l
+    | `label (l, None) -> Format.fprintf ppf "%a" Label.pp l
+    | `label (l, Some a) -> Format.fprintf ppf "%a(%a)" Label.pp l pp_arg a
 
   let pp_local_hum ppf : local -> unit = function
-    | `label l -> Format.fprintf ppf "%a" Label.pp_hum l
+    | `label (l, None) -> Format.fprintf ppf "%a" Label.pp_hum l
+    | `label (l, Some a) -> Format.fprintf ppf "%a(%a)" Label.pp_hum l pp_arg a
 
   type dst = [
     | global
@@ -118,50 +120,11 @@ module Insn = struct
 
   let pp_dst ppf : dst -> unit = function
     | #global as g -> Format.fprintf ppf "%a" pp_global g
-    | #local as l -> Format.fprintf ppf "%a" pp_local l
+    | #local  as l -> Format.fprintf ppf "%a" pp_local l
 
   let pp_dst_hum ppf : dst -> unit = function
     | #global as g -> Format.fprintf ppf "%a" pp_global g
-    | #local as l -> Format.fprintf ppf "%a" pp_local_hum l
-
-  module Phi = struct
-    type t = {
-      lhs : Var.t;
-      typ : [Type.basic | Type.special];
-      ins : arg Label.Map.t;
-    } [@@deriving bin_io, compare, equal, sexp]
-
-    let create_exn ?(ins = []) ~lhs ~typ () = try {
-      lhs;
-      typ;
-      ins = Label.Map.of_alist_exn ins;
-    } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
-
-    let create ?(ins = []) ~lhs ~typ () =
-      Or_error.try_with @@ create_exn ~lhs ~typ ~ins
-
-    let lhs p = p.lhs
-    let typ p = p.typ
-    let ins p = Map.to_sequence p.ins
-    let has_lhs p v = Var.(p.lhs = v)
-    let with_lhs p lhs = {p with lhs}
-    let update p l a = {p with ins = Map.set p.ins ~key:l ~data:a}
-
-    let free_vars p =
-      let f = Fn.compose var_of_arg snd in
-      ins p |> Seq.filter_map ~f |> Var.Set.of_sequence
-
-    let pp_in ppl ppf (l, x) = Format.fprintf ppf "%a -> %a" ppl l pp_arg x
-
-    let pp_self ppl ppf p =
-      let pp_sep ppf () = Format.fprintf ppf ",@;" in
-      Format.fprintf ppf "phi.%a %a [@[<v 0>%a@]]"
-        Type.pp (p.typ :> Type.t) Var.pp p.lhs
-        (Format.pp_print_list ~pp_sep (pp_in ppl)) (Map.to_alist p.ins)
-
-    let pp = pp_self Label.pp
-    let pp_hum = pp_self Label.pp_hum
-  end
+    | #local  as l -> Format.fprintf ppf "%a" pp_local_hum l
 
   module Data = struct
     type arith_binop = [
@@ -438,7 +401,7 @@ module Insn = struct
 
   module Ctrl = struct
     module Table = struct
-      type t = Label.t Map.M(Bitvec).t [@@deriving bin_io, compare, equal, sexp]
+      type t = local Map.M(Bitvec).t [@@deriving bin_io, compare, equal, sexp]
 
       let create_exn l = try Map.of_alist_exn (module Bitvec) l with
         | exn -> invalid_argf "%s" (Exn.to_string exn) ()
@@ -446,6 +409,14 @@ module Insn = struct
       let create l = Or_error.try_with @@ fun () -> create_exn l
       let enum t = Map.to_sequence t
       let find t v = Map.find t v
+
+      let map_exn t ~f = try
+          Map.to_sequence t |>
+          Seq.map ~f:(fun (v, l) -> f v l) |>
+          Map.of_sequence_exn (module Bitvec)
+        with exn -> invalid_argf "%s" (Exn.to_string exn) ()
+
+      let map t ~f = Or_error.try_with @@ fun () -> map_exn t ~f
 
       let pp_elt ppl ppf (v, l) =
         Format.fprintf ppf "%a -> %a" Bitvec.pp v ppl l
@@ -462,7 +433,7 @@ module Insn = struct
       | `jmp    of dst
       | `jnz    of Var.t * dst * dst
       | `ret    of arg option
-      | `switch of Type.imm * Var.t * Label.t * table
+      | `switch of Type.imm * Var.t * local * table
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars : t -> Var.Set.t = function
@@ -485,10 +456,10 @@ module Insn = struct
         Format.fprintf ppf "ret"
       | `switch (t, x, ld, tbl) ->
         Format.fprintf ppf "switch.%a %a, %a [@[<v 0>%a@]]"
-          Type.pp_imm t Var.pp x Label.pp ld (Table.pp ppl) tbl
+          Type.pp_imm t Var.pp x ppl ld (Table.pp ppl) tbl
 
-    let pp = pp_self pp_dst Label.pp
-    let pp_hum = pp_self pp_dst_hum Label.pp_hum
+    let pp = pp_self pp_dst pp_local
+    let pp_hum = pp_self pp_dst_hum pp_local_hum
   end
 
   type 'a t = {
@@ -496,11 +467,9 @@ module Insn = struct
     label : Label.t;
   } [@@deriving bin_io, compare, equal, sexp]
 
-  type phi = Phi.t t [@@deriving bin_io, compare, equal, sexp]
   type data = Data.t t [@@deriving bin_io, compare, equal, sexp]
   type ctrl = Ctrl.t t [@@deriving bin_io, compare, equal, sexp]
 
-  let phi insn ~label : phi = {insn; label}
   let data insn ~label : data = {insn; label}
   let ctrl insn ~label : ctrl = {insn; label}
 
@@ -509,24 +478,19 @@ module Insn = struct
   let has_label i l = Label.(i.label = l)
   let hash i = Label.hash i.label
 
-  let lhs_of_phi i = Phi.lhs i.insn
   let lhs_of_data i = Data.lhs i.insn
 
-  let map_phi (i : phi) ~f = {i with insn = f i.insn}
   let map_data (i : data) ~f = {i with insn = f i.insn}
   let map_ctrl (i : ctrl) ~f = {i with insn = f i.insn}
 
-  let free_vars_of_phi i = Phi.free_vars i.insn
   let free_vars_of_data i = Data.free_vars i.insn
   let free_vars_of_ctrl i = Ctrl.free_vars i.insn
 
   let pp ppi ppf i = Format.fprintf ppf "%a: %a" Label.pp i.label ppi i.insn
 
-  let pp_phi = pp Phi.pp
   let pp_data = pp Data.pp
   let pp_ctrl = pp Ctrl.pp
 
-  let pp_phi_hum ppf p = Format.fprintf ppf "%a" Phi.pp_hum p.insn
   let pp_data_hum ppf p = Format.fprintf ppf "%a" Data.pp p.insn
   let pp_ctrl_hum ppf p = Format.fprintf ppf "%a" Ctrl.pp_hum p.insn
 end
@@ -563,10 +527,18 @@ end
 type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
 
 module Blk = struct
+  type arg_typ = [
+    | Type.basic
+    | Type.special
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  let pp_arg_typ ppf t =
+    Format.fprintf ppf "%a" Type.pp (t :> Type.t)
+
   module T = struct
     type t = {
       label : Label.t;
-      phi   : Insn.phi array;
+      args  : arg_typ Var.Map.t;
       data  : Insn.data array;
       ctrl  : Insn.ctrl;
     } [@@deriving bin_io, compare, equal, sexp]
@@ -574,15 +546,22 @@ module Blk = struct
 
   include T
 
-  let create ?(phi = []) ?(data = []) ~label ~ctrl () = {
+  let create_exn ?(args = []) ?(data = []) ~label ~ctrl () = try {
     label;
-    phi = Array.of_list phi;
+    args = Var.Map.of_alist_exn args;
     data = Array.of_list data;
     ctrl
-  }
+  } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
+
+  let create ?(args = []) ?(data = []) ~label ~ctrl () =
+    Or_error.try_with @@ create_exn ~args ~data ~label ~ctrl
 
   let label b = b.label
-  let phi ?(rev = false) b = Array.enum b.phi ~rev
+
+  let args ?(rev = false) b =
+    let order = if rev then `Increasing_key else `Decreasing_key in
+    Map.to_sequence b.args ~order
+
   let data ?(rev = false) b = Array.enum b.data ~rev
   let ctrl b = b.ctrl
   let has_label b l = Label.(b.label = l)
@@ -600,10 +579,15 @@ module Blk = struct
 
   let uses_var b x = Set.mem (free_vars b) x
 
-  let map_phi b ~f = {
-    b with phi = Array.map b.phi ~f:(fun i ->
-      Insn.map_phi i ~f:(f i.label));
-  }
+  let map_args_exn b ~f = try
+      Map.to_sequence b.args |>
+      Seq.map ~f:(fun (x, t) -> f x t) |>
+      Var.Map.of_sequence_exn |> fun args ->
+      {b with args}
+    with exn -> invalid_argf "%s" (Exn.to_string exn) ()
+
+  let map_args b ~f =
+    Or_error.try_with @@ fun () -> map_args_exn b ~f
 
   let map_data b ~f = {
     b with data = Array.map b.data ~f:(fun i ->
@@ -629,8 +613,8 @@ module Blk = struct
       | Some i -> Array.insert xs x (i + 1)
       | None -> xs
 
-  let insert_phi b p = {
-    b with phi = Array.push_back b.phi p;
+  let add_arg b x t = {
+    b with args = Map.set b.args ~key:x ~data:t;
   }
 
   let prepend_data ?(before = None) b d = {
@@ -642,75 +626,69 @@ module Blk = struct
   }
 
   let remove xs l = Array.remove_if xs ~f:(Fn.flip Insn.has_label l)
-  let remove_phi b l = {b with phi = remove b.phi l}
+
+  let remove_arg b x = {b with args = Map.remove b.args x}
   let remove_data b l = {b with data = remove b.data l}
 
+  let has_arg b x = Map.mem b.args x
+  let typeof_arg b x = Map.find b.args x
+
   let has_lhs xs x f = Array.exists xs ~f:(Fn.compose (Fn.flip f x) Insn.insn)
-  let has_lhs_phi b x = has_lhs b.phi x Insn.Phi.has_lhs
   let has_lhs_data b x = has_lhs b.data x Insn.Data.has_lhs
-  let defines_var b x = has_lhs_phi b x || has_lhs_data b x
+  let defines_var b x = has_arg b x || has_lhs_data b x
 
   let has xs l = Array.exists xs ~f:(Fn.flip Insn.has_label l)
-  let has_phi b = has b.phi
   let has_data b = has b.data
   let has_ctrl b l = Insn.has_label b.ctrl l
 
   let find xs l = Array.find xs ~f:(Fn.flip Insn.has_label l)
-  let find_phi b = find b.phi
   let find_data b = find b.data
   let find_ctrl b l = Option.some_if (Insn.has_label b.ctrl l) b.ctrl
 
   let next xs l = Array.next xs Insn.label l
-  let next_phi b = next b.phi
   let next_data b = next b.data
 
   let prev xs l = Array.prev xs Insn.label l
-  let prev_phi b = next b.phi
   let prev_data b = next b.data
+
+  let pp_arg ppf (x, t) =
+    Format.fprintf ppf "%a %a" pp_arg_typ t Var.pp x
+
+  let pp_args ppf args =
+    let pp_sep ppf () = Format.fprintf ppf ", " in
+    Format.pp_print_list ~pp_sep pp_arg ppf @@ Map.to_alist args
+
+  let pp_args ppf args =
+    if not @@ Map.is_empty args then
+      Format.fprintf ppf "(%a)" pp_args args
 
   let pp ppf b =
     let sep ppf = Format.fprintf ppf "@;" in
-    match b.phi, b.data with
-    | [||], [||] ->
-      Format.fprintf ppf "%a:@;%a"
-        Label.pp b.label Insn.pp_ctrl b.ctrl
-    | _, [||] ->
-      Format.fprintf ppf "%a:@;%a@;%a"
+    match b.data with
+    | [||] ->
+      Format.fprintf ppf "%a%a:@;%a"
         Label.pp b.label
-        (Array.pp Insn.pp_phi sep) b.phi
-        Insn.pp_ctrl b.ctrl
-    | [||], _ ->
-      Format.fprintf ppf "%a:@;%a@;%a"
-        Label.pp b.label
-        (Array.pp Insn.pp_data sep) b.data
+        pp_args b.args
         Insn.pp_ctrl b.ctrl
     | _ ->
-      Format.fprintf ppf "%a:@;%a@;%a@;%a"
+      Format.fprintf ppf "%a%a:@;%a@;%a"
         Label.pp b.label
-        (Array.pp Insn.pp_phi sep) b.phi
+        pp_args b.args
         (Array.pp Insn.pp_data sep) b.data
         Insn.pp_ctrl b.ctrl
 
   let pp_hum ppf b =
     let sep ppf = Format.fprintf ppf "@;" in
-    match b.phi, b.data with
-    | [||], [||] ->
-      Format.fprintf ppf "%a:@;  %a"
-        Label.pp_hum b.label Insn.pp_ctrl_hum b.ctrl
-    | _, [||] ->
-      Format.fprintf ppf "%a:@;@[<v 2>  %a@;%a@]"
+    match b.data with
+    | [||] ->
+      Format.fprintf ppf "%a%a:@;  %a"
         Label.pp_hum b.label
-        (Array.pp Insn.pp_phi_hum sep) b.phi
-        Insn.pp_ctrl_hum b.ctrl
-    | [||], _ ->
-      Format.fprintf ppf "%a:@;@[<v 2>  %a@;%a@]"
-        Label.pp_hum b.label
-        (Array.pp Insn.pp_data_hum sep) b.data
+        pp_args b.args
         Insn.pp_ctrl_hum b.ctrl
     | _ ->
-      Format.fprintf ppf "%a:@;@[<v 2>  %a@;%a@;%a@]"
+      Format.fprintf ppf "%a%a:@;@[<v 2>  %a@;%a@]"
         Label.pp_hum b.label
-        (Array.pp Insn.pp_phi_hum sep) b.phi
+        pp_args b.args
         (Array.pp Insn.pp_data_hum sep) b.data
         Insn.pp_ctrl_hum b.ctrl
 
@@ -879,19 +857,19 @@ module Cfg = struct
 
   let accum g b : Insn.Ctrl.t -> G.t = function
     | `hlt -> g
-    | `jmp (`label l) -> G.Edge.(insert (create b l `always) g)
+    | `jmp (`label (l, _)) -> G.Edge.(insert (create b l `always) g)
     | `jmp _ -> g
-    | `jnz (x, `label t, `label f) ->
+    | `jnz (x, `label (t, _), `label (f, _)) ->
       let et = G.Edge.create b t @@  `true_ x in
       let ef = G.Edge.create b f @@ `false_ x in
       G.Edge.(insert ef (insert et g))
-    | `jnz (x, `label l, _) -> G.Edge.(insert (create b l @@  `true_ x) g)
-    | `jnz (x, _, `label l) -> G.Edge.(insert (create b l @@ `false_ x) g)
+    | `jnz (x, `label (l, _), _) -> G.Edge.(insert (create b l @@  `true_ x) g)
+    | `jnz (x, _, `label (l, _)) -> G.Edge.(insert (create b l @@ `false_ x) g)
     | `jnz _ -> g
     | `ret _ -> g
-    | `switch (_, x, d, t) ->
+    | `switch (_, x, `label (d, _), t) ->
       let init = G.Edge.(insert (create b d @@ `default x) g) in
-      Map.fold t ~init ~f:(fun ~key:v ~data:l g ->
+      Map.fold t ~init ~f:(fun ~key:v ~data:(`label (l, _)) g ->
           G.Edge.(insert (create b l @@ `switch (x, v)) g))
 
   let connect_unreachable g n =
@@ -942,7 +920,11 @@ module Live = struct
   let blk_defs b =
     Blk.data b |> Seq.map ~f:Insn.insn |>
     Seq.fold ~init:Var.Set.empty ~f:(fun defs d ->
-        Insn.Data.lhs d |> Option.value_map ~default:defs ~f:(Set.add defs))
+        match Insn.Data.lhs d with
+        | Some x -> Set.add defs x
+        | None -> defs) |> fun init ->
+    Blk.args b |> Seq.fold ~init ~f:(fun defs (x, _) ->
+        Set.add defs x)
 
   let update l trans ~f = Map.update trans l ~f:(function
       | None -> f empty_tran
@@ -955,17 +937,7 @@ module Live = struct
         Map.add_exn fs ~key:(Blk.label b) ~data:{
           defs = blk_defs b;
           uses = Blk.free_vars b;
-        }) |> fun init ->
-    Func.blks fn |> Seq.fold ~init ~f:(fun init b ->
-        Blk.phi b |> Seq.map ~f:Insn.insn |>
-        Seq.fold ~init ~f:(fun fs p ->
-            let lhs = Insn.Phi.lhs p in
-            Insn.Phi.ins p |> Seq.fold ~init ~f:(fun fs (l, a) ->
-                let vars = var_set_of_option @@ Insn.var_of_arg a in
-                update l fs ~f:(fun {defs; uses} -> {
-                      defs = Set.add defs lhs;
-                      uses = uses ++ (vars -- defs);
-                    }))))
+        })
 
   let lookup blks n = Map.find blks n |> Option.value ~default:empty_tran
   let apply {defs; uses} vars = vars -- defs ++ uses

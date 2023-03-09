@@ -40,8 +40,8 @@ let new_name vars nums x =
   Hashtbl.add_multi vars ~key:x ~data:y;
   y
 
-let rename_phi vars nums b = Blk.map_phi b ~f:(fun _ p ->
-    Insn.Phi.with_lhs p @@ new_name vars nums @@ Insn.Phi.lhs p)
+let rename_args vars nums b =
+  Blk.map_args_exn b ~f:(fun x t -> new_name vars nums x, t)
 
 let map_var vars x = match Hashtbl.find vars x with
   | None | Some [] -> x
@@ -74,9 +74,13 @@ let map_global vars : Insn.global -> Insn.global = function
   | `var x -> `var (map_var vars x)
   | g -> g
 
+let map_local vars : Insn.local -> Insn.local = function
+  | `label (l, Some a) -> `label (l, Some (map_arg vars a))
+  | `label (_, None) as l -> l
+
 let map_dst vars : Insn.dst -> Insn.dst = function
   | #Insn.global as g -> (map_global vars g :> Insn.dst)
-  | d -> d
+  | #Insn.local  as l -> (map_local  vars l :> Insn.dst)
 
 let rename_data vars nums b =
   let var = map_var vars in
@@ -103,19 +107,8 @@ let rename_ctrl vars b =
       | `ret (Some a) -> `ret (Some (arg a))
       | `switch (t, i, d, tbl) -> `switch (t, var i, d, tbl))
 
-let update_phi vars l b =
-  let var = map_var vars in
-  Blk.map_phi b ~f:(fun _ p ->
-      Insn.Phi.ins p |> Seq.fold ~init:p ~f:(fun p -> function
-          | l', `var x when Label.(l' = l) ->
-            Insn.Phi.update p l @@ `var (var x)
-          | _ -> p))
-
-let pop_phi b pop =
-  Blk.phi b |>
-  Seq.map ~f:Insn.insn |>
-  Seq.map ~f:Insn.Phi.lhs |>
-  Seq.iter ~f:pop
+let pop_args b pop =
+  Blk.args b |> Seq.map ~f:fst |> Seq.iter ~f:pop
 
 let pop_data b pop =
   Blk.data b |>
@@ -127,19 +120,17 @@ let pop_defs vars b =
   let pop x = Var.base x |> Hashtbl.change vars ~f:(function
       | Some (_ :: xs) -> Some xs
       | xs -> xs) in
-  pop_phi b pop;
+  pop_args b pop;
   pop_data b pop
 
 let rec rename_block vars nums cfg dom fn' l =
   let fn = match find_blk fn' l with
     | None -> fn'
     | Some b ->
-      rename_phi vars nums b |>
+      rename_args vars nums b |>
       rename_data vars nums |>
       rename_ctrl vars |>
       Func.update_blk fn' in
-  let fn = succs cfg fn l |> Seq.fold ~init:fn ~f:(fun fn b ->
-      Func.update_blk fn @@ update_phi vars l b) in
   let fn =
     Cfg.nodes cfg |>
     Seq.filter ~f:(Tree.is_child_of ~parent:l dom) |>
@@ -147,32 +138,50 @@ let rec rename_block vars nums cfg dom fn' l =
   Option.iter (find_blk fn' l) ~f:(pop_defs vars);
   fn
 
-let has_phi_for_var b x =
-  Blk.phi b |> Seq.exists ~f:(fun p -> Var.(x = Insn.lhs_of_phi p))
+let has_arg_for_var b x =
+  Blk.args b |> Seq.map ~f:fst |> Seq.exists ~f:(Var.equal x)
 
-let insert_phi_node ins b lhs typ =
-  if not @@ has_phi_for_var b lhs then
-    let ins =
-      Seq.map ins ~f:(fun b -> Blk.label b, `var lhs) |>
-      Seq.to_list_rev in
-    Insn.Phi.create ~lhs ~ins ~typ () >>?
-    Context.Virtual.phi >>|
-    Blk.insert_phi b
-  else !!b
+let argify_local s x : Insn.local -> Insn.local = function
+  | `label (l, None) when Label.(s = l) -> `label (l, Some (`var x))
+  | l -> l
 
-let insert_phi_nodes vars fn frontier cfg =
-  Set.to_sequence vars |> Context.Seq.fold ~init:fn ~f:(fun fn x ->
-      let bs = blocks_that_define_var x fn in
-      iterated_frontier frontier (Label.pseudoentry :: bs) |>
-      Set.to_sequence |> Context.Seq.fold ~init:fn ~f:(fun fn l ->
-          match find_blk fn l with
-          | None -> !!fn
-          | Some b ->
-            let ins =
-              Cfg.Node.preds l cfg |>
-              Seq.filter_map ~f:(find_blk fn) in
-            (* XXX: FIXME *)
-            insert_phi_node ins b x `i64 >>| Func.update_blk fn))
+let argify_dst s x : Insn.dst -> Insn.dst = function
+  | #Insn.local as l -> (argify_local s x l :> Insn.dst)
+  | d -> d
+
+let argify_ctrl s x b =
+  let loc = argify_local s x in
+  let dst = argify_dst s x in
+  Blk.map_ctrl b ~f:(fun _ -> function
+      | `hlt as h -> h
+      | `jmp d -> `jmp (dst d)
+      | `jnz (c, t, f) -> `jnz (c, dst t, dst f)
+      | `ret _ as r -> r
+      | `switch (t, i, d, tbl) ->
+        let tbl = Insn.Ctrl.Table.map_exn tbl ~f:(fun v l -> v, loc l) in
+        `switch (t, i, loc d, tbl))
+
+let insert_args vars fn frontier cfg =
+  let fn, ins =
+    Set.to_sequence vars |>
+    Seq.fold ~init:(fn, Label.Map.empty) ~f:(fun (fn, ins) x ->
+        let bs = blocks_that_define_var x fn in
+        iterated_frontier frontier (Label.pseudoentry :: bs) |>
+        Set.to_sequence |> Seq.fold ~init:(fn, ins) ~f:(fun (fn, ins) l ->
+            match find_blk fn l with
+            | None -> fn, ins
+            | Some b ->
+              let ins =
+                Cfg.Node.preds l cfg |>
+                Seq.filter_map ~f:(find_blk fn) |>
+                Seq.fold ~init:ins ~f:(fun ins b ->
+                    Map.set ins ~key:(Blk.label b) ~data:(l, x)) in
+              (* XXX: FIXME *)
+              Blk.add_arg b x `i64 |> Func.update_blk fn, ins)) in
+  Map.fold ins ~init:fn ~f:(fun ~key:l ~data:(s, x) fn ->
+      match find_blk fn l with
+      | Some b -> Func.update_blk fn @@ argify_ctrl s x b
+      | None -> fn)
 
 let rename cfg dom fn =
   let vars = Var.Table.create () in
@@ -184,8 +193,8 @@ let run fn = try
     let vars = collect_vars fn in
     let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
     let frontier = Graphlib.dom_frontier (module Cfg) cfg dom in
-    insert_phi_nodes vars fn frontier cfg >>| rename cfg dom
+    Ok (insert_args vars fn frontier cfg |> rename cfg dom)
   with Missing_blk (fn, l) ->
-    Context.fail @@ Error.createf
+    Or_error.errorf
       "SSA: missing block %a in function %s"
       Label.pps l fn

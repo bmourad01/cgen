@@ -83,8 +83,7 @@
 %token EQUALS
 %token ARROW
 %token ELIPSIS
-%token W L B H S D Z
-%token <[Type.basic | Type.special]> PHI
+%token W L B H S D Z M F
 %token <Type.basic> ADD DIV MUL REM SUB NEG
 %token <Type.imm> UDIV UREM AND OR SAR SHL SHR XOR NOT
 %token ALLOC
@@ -129,13 +128,15 @@
 %type <Virtual.func m> func
 %type <(Var.t * Type.arg) list * bool> func_args
 %type <Type.basic> type_basic
+%type <Type.special> type_special
 %type <Type.arg> type_arg
+%type <Virtual.Blk.arg_typ> type_blk_arg
 %type <Linkage.t> linkage
 %type <string> section
 %type <Virtual.blk m> blk
+%type <Var.t * Virtual.Blk.arg_typ> blk_arg
 %type <Virtual.Insn.Ctrl.t m> insn_ctrl
-%type <(Bitvec.t * Label.t) m> insn_ctrl_table_entry
-%type <Virtual.Insn.Phi.t m> insn_phi
+%type <(Bitvec.t * Virtual.Insn.local) m> insn_ctrl_table_entry
 %type <Virtual.Insn.Data.t> insn_data
 %type <call_arg list> call_args
 %type <Virtual.Insn.Data.binop> insn_data_binop
@@ -148,7 +149,6 @@
 %type <Virtual.Insn.Data.cast> insn_data_cast
 %type <Virtual.Insn.Data.copy> insn_data_copy
 %type <Virtual.Insn.Data.mem> insn_data_mem
-%type <(Label.t * Virtual.Insn.arg) m> insn_phi_in
 %type <Virtual.Insn.dst m> insn_dst
 %type <Virtual.Insn.local m> insn_local
 %type <Virtual.Insn.global> insn_global
@@ -228,9 +228,17 @@ type_basic:
   | S { `f32 }
   | D { `f64 }
 
+type_special:
+  | M { `mem }
+  | F { `flag }
+
 type_arg:
   | b = type_basic { (b :> Type.arg) }
   | n = TYPENAME { `name n }
+
+type_blk_arg:
+  | b = type_basic { (b :> Virtual.Blk.arg_typ) }
+  | s = type_special { (s :> Virtual.Blk.arg_typ) }
 
 linkage:
   | section = option(section) EXPORT { Linkage.create () ~section ~export:true }
@@ -240,11 +248,19 @@ section:
   | SECTION s = STRING { s }
 
 blk:
-  | ln = LABEL COLON phi = list(insn_phi) data = list(insn_data) ctrl = insn_ctrl
+  | ln = LABEL COLON data = list(insn_data) ctrl = insn_ctrl
     {
-      let* l = label_of_name ln and* phi = unwrap_list phi and* ctrl = ctrl in
-      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~phi ~data ~ctrl
+      let* l = label_of_name ln and* ctrl = ctrl in
+      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~data ~ctrl
     }
+  | ln = LABEL LPAREN args = separated_nonempty_list(COMMA, blk_arg) RPAREN COLON data = list(insn_data) ctrl = insn_ctrl
+    {
+      let* l = label_of_name ln and* ctrl = ctrl in
+      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~args ~data ~ctrl
+    }
+
+blk_arg:
+  | t = type_blk_arg v = var { v, t }
 
 insn_ctrl:
   | HLT { !!`hlt }
@@ -254,25 +270,16 @@ insn_ctrl:
     { t >>= fun t -> f >>| fun f -> `jnz (c, t, f) }
   | RET a = option(insn_arg)
     { !!(`ret a) }
-  | t = SWITCH i = var COMMA def = LABEL tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry)
+  | t = SWITCH i = var COMMA def = insn_local tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry)
     {
-      let* l = label_of_name def and* tbl = unwrap_list tbl in
+      let* d = def and* tbl = unwrap_list tbl in
       match Virtual.Insn.Ctrl.Table.create tbl with
       | Error err -> M.lift @@ Context.fail err
-      | Ok tbl -> !!(`switch (t, i, l, tbl))
+      | Ok tbl -> !!(`switch (t, i, d, tbl))
     }
 
 insn_ctrl_table_entry:
-  | i = INT ARROW l = LABEL { label_of_name l >>| fun l -> i, l }
-
-insn_phi:
-  | typ = PHI lhs = var LSQUARE ins = separated_nonempty_list(COMMA, insn_phi_in) RSQUARE
-    {
-      let* ins = unwrap_list ins in
-      match Virtual.Insn.Phi.create () ~lhs ~typ ~ins with
-      | Error err -> M.lift @@ Context.fail err
-      | Ok phi -> !!phi
-    }
+  | i = INT ARROW l = insn_local { l >>| fun l -> i, l }
 
 insn_data:
   | x = var EQUALS b = insn_data_binop l = insn_arg COMMA r = insn_arg
@@ -380,15 +387,14 @@ insn_data_mem:
   | t = STORE m = var LSQUARE a = insn_arg RSQUARE COMMA x = insn_arg
     { `store (t, m, a, x) }
 
-insn_phi_in:
-  | l = LABEL ARROW a = insn_arg { label_of_name l >>| fun l -> l, a }
-
 insn_dst:
   | g = insn_global { !!(g :> Virtual.Insn.dst) }
   | l = insn_local { l >>| fun l -> (l :> Virtual.Insn.dst) }
 
 insn_local:
-  | l = LABEL { label_of_name l >>| fun l -> `label l }
+  | l = LABEL { label_of_name l >>| fun l -> `label (l, None) }
+  | l = LABEL LPAREN a = insn_arg RPAREN
+    { label_of_name l >>| fun l -> `label (l, Some a) }
 
 insn_global:
   | i = INT { `addr i }
@@ -420,3 +426,5 @@ ident:
   | S { "s" }
   | D { "d" }
   | Z { "z" }
+  | M { "m" }
+  | F { "f" }

@@ -115,10 +115,6 @@ module Label = struct
 end
 
 module Virtual = struct
-  let phi p =
-    let+ label = Label.fresh in
-    Virtual.Insn.phi p ~label
-
   let data d =
     let+ label = Label.fresh in
     Virtual.Insn.data d ~label
@@ -127,18 +123,17 @@ module Virtual = struct
     let+ label = Label.fresh in
     Virtual.Insn.ctrl c ~label
 
-  let blk ?(phi = []) ?(data = []) ~ctrl () =
-    let+ label = Label.fresh in
-    Virtual.Blk.create ~phi ~data ~ctrl ~label ()
+  let blk ?(args = []) ?(data = []) ~ctrl () =
+    let* label = Label.fresh in
+    lift_err @@ Virtual.Blk.create ~args ~data ~ctrl ~label ()
 
-  let blk' ?(label = None) ?phi:(p = []) ?data:(d = []) ~ctrl:c () =
-    let* phi = List.map p ~f:phi in
+  let blk' ?(label = None) ?(args = []) ?data:(d = []) ~ctrl:c () =
     let* data = List.map d ~f:data in
     let* ctrl = ctrl c in
-    let+ label = match label with
+    let* label = match label with
       | None -> Label.fresh
       | Some l -> !!l in
-    Virtual.Blk.create ~phi ~data ~ctrl ~label ()
+    lift_err @@ Virtual.Blk.create ~args ~data ~ctrl ~label ()
 end
 
 let init target = {

@@ -66,10 +66,11 @@ module Insn : sig
 
   (** Intra-function destination.
 
-      [`label l] is the label of a block in the current function.
+      [`label (l, a)] is the label [l] of a block in the current function,
+      with an optional argument [a].
   *)
   type local = [
-    | `label of Label.t
+    | `label of Label.t * arg option
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints the local destination. *)
@@ -86,56 +87,6 @@ module Insn : sig
 
   (** Pretty-prints a control-flow destination. *)
   val pp_dst : Format.formatter -> dst -> unit
-
-  (** A phi instruction. *)
-  module Phi : sig
-    type t [@@deriving bin_io, compare, equal, sexp]
-
-    (** Creates a phi instruction.
-
-        @raise Invalid_argument if [ins] has duplicate keys.
-    *)
-    val create_exn :
-      ?ins:(Label.t * arg) list ->
-      lhs:Var.t ->
-      typ:[Type.basic | Type.special] ->
-      unit ->
-      t
-
-    (** Same as [create_exn], but returns an error upon failure. *)
-    val create :
-      ?ins:(Label.t * arg) list ->
-      lhs:Var.t ->
-      typ:[Type.basic | Type.special] ->
-      unit ->
-      t Or_error.t
-
-    (** The destination variable of the instruction. *)
-    val lhs : t -> Var.t
-
-    (** The type of the variable. *)
-    val typ : t -> [Type.basic | Type.special]
-
-    (** The incoming edges of the instruction. *)
-    val ins : t -> (Label.t * arg) seq
-
-    (** [has_lhs p x] [true] if the instruction [p] defines the
-        variable [x]. *)
-    val has_lhs : t -> Var.t -> bool
-
-    (** Changes the destination variable. *)
-    val with_lhs : t -> Var.t -> t
-
-    (** [update p l a] updates the incoming edge [l] of [p] with the
-        argument [a]. *)
-    val update : t -> Label.t -> arg -> t
-
-    (** Returns the set of free variables in the instruction. *)
-    val free_vars : t -> Var.Set.t
-
-    (** Pretty-prints a phi instruction. *)
-    val pp : Format.formatter -> t -> unit
-  end
 
   (** Data-flow-effectful instructions. *)
   module Data : sig
@@ -452,17 +403,27 @@ module Insn : sig
 
           @raise Invalid_argument if the list has duplicate keys.
       *)
-      val create_exn : (Bitvec.t * Label.t) list -> t
+      val create_exn : (Bitvec.t * local) list -> t
 
       (** Same as [create_exn], but returns an error upon failure. *)
-      val create : (Bitvec.t * Label.t) list -> t Or_error.t
+      val create : (Bitvec.t * local) list -> t Or_error.t
 
       (** Returns the elements of the table. *)
-      val enum : t -> (Bitvec.t * Label.t) seq
+      val enum : t -> (Bitvec.t * local) seq
 
       (** [find t v] searches the table [t] for the label associated
           with the constant [v]. *)
-      val find : t -> Bitvec.t -> Label.t option
+      val find : t -> Bitvec.t -> local option
+
+      (** [map_exn t ~f] applies [f] to each element of [t].
+
+          @raise Invalid_argument if [f] produces a duplicate key.
+      *)
+      val map_exn : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t
+
+      (** Same as [map_exn], but returns [Error _] if [f] produces a
+          duplicate key. *)
+      val map : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t Or_error.t
     end
 
     type table = Table.t [@@deriving bin_io, compare, equal, sexp]
@@ -490,7 +451,7 @@ module Insn : sig
       | `jmp    of dst
       | `jnz    of Var.t * dst * dst
       | `ret    of arg option
-      | `switch of Type.imm * Var.t * Label.t * table
+      | `switch of Type.imm * Var.t * local * table
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the control-flow instruction. *)
@@ -503,12 +464,8 @@ module Insn : sig
   (** An instruction with a label. *)
   type 'a t [@@deriving bin_io, compare, equal, sexp]
 
-  type phi = Phi.t t [@@deriving bin_io, compare, equal, sexp]
   type data = Data.t t [@@deriving bin_io, compare, equal, sexp]
   type ctrl = Ctrl.t t [@@deriving bin_io, compare, equal, sexp]
-
-  (** Creates a labeled phi instruction. *)
-  val phi : Phi.t -> label:Label.t -> phi
 
   (** Creates a labeled data instruction. *)
   val data : Data.t -> label:Label.t -> data
@@ -528,14 +485,8 @@ module Insn : sig
   (** Returns the hash of the instruction label. *)
   val hash : 'a t -> int
 
-  (** Returns the assigned variable of the phi instruction. *)
-  val lhs_of_phi : phi -> Var.t
-
   (** Returns the assigned variable of the data instruction, if it exists. *)
   val lhs_of_data : data -> Var.t option
-
-  (** Transforms the phi instruction with [f]. *)
-  val map_phi : phi -> f:(Phi.t -> Phi.t) -> phi
 
   (** Transforms the data instruction with [f]. *)
   val map_data : data -> f:(Data.t -> Data.t) -> data
@@ -543,26 +494,17 @@ module Insn : sig
   (** Transforms the control-flow instruction with [f]. *)
   val map_ctrl : ctrl -> f:(Ctrl.t -> Ctrl.t) -> ctrl
 
-  (** Returns the set of free variables in the phi instruction. *)
-  val free_vars_of_phi : phi -> Var.Set.t
-
   (** Returns the set of free variables in the data instruction. *)
   val free_vars_of_data : data -> Var.Set.t
 
   (** Returns the set of free variables in the control-flow instruction. *)
   val free_vars_of_ctrl : ctrl -> Var.Set.t
 
-  (** Pretty-prints a phi instruction. *)
-  val pp_phi : Format.formatter -> phi -> unit
-
   (** Pretty-prints a data instruction. *)
   val pp_data : Format.formatter -> data -> unit
 
   (** Pretty-prints a control instruction. *)
   val pp_ctrl : Format.formatter -> ctrl -> unit
-
-  (** Pretty-prints a phi instruction with human-readable labels. *)
-  val pp_phi_hum : Format.formatter -> phi -> unit
 
   (** Equivalent to [Data.pp]. *)
   val pp_data_hum : Format.formatter -> data -> unit
@@ -600,22 +542,43 @@ type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A basic block. *)
 module Blk : sig
+  (** The type of an argument to a block. *)
+  type arg_typ = [
+    | Type.basic
+    | Type.special
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  (** Pretty-prints the type of an argument. *)
+  val pp_arg_typ : Format.formatter -> arg_typ -> unit
+
   type t [@@deriving bin_io, compare, equal, sexp]
 
-  (** Creates a basic block. *)
-  val create :
-    ?phi:Insn.phi list ->
+  (** Creates a basic block.
+
+      @raise Invalid_argument if [args] has duplicates.
+  *)
+  val create_exn :
+    ?args:(Var.t * arg_typ) list ->
     ?data:Insn.data list ->
     label:Label.t ->
     ctrl:Insn.ctrl ->
     unit ->
     t
 
+  (** Same as [create_exn], but returns [Error _] if [args] has duplicates. *)
+  val create :
+    ?args:(Var.t * arg_typ) list ->
+    ?data:Insn.data list ->
+    label:Label.t ->
+    ctrl:Insn.ctrl ->
+    unit ->
+    t Or_error.t
+
   (** Returns the label of the basic block. *)
   val label : t -> Label.t
 
-  (** Returns the phi functions of the basic block. *)
-  val phi : ?rev:bool -> t -> Insn.phi seq
+  (** Returns the arguments of the basic block. *)
+  val args : ?rev:bool -> t -> (Var.t * arg_typ) seq
 
   (** Returns the sequence of data instructions. *)
   val data : ?rev:bool -> t -> Insn.data seq
@@ -647,10 +610,6 @@ module Blk : sig
       in the block [b]. *)
   val defines_var : t -> Var.t -> bool
 
-  (** Returns [true] if the block has a phi instruction associated with
-      the label. *)
-  val has_phi : t -> Label.t -> bool
-
   (** Returns [true] if the block has a data instruction associated with
       the label. *)
   val has_data : t -> Label.t -> bool
@@ -659,34 +618,29 @@ module Blk : sig
       with the label. *)
   val has_ctrl : t -> Label.t -> bool
 
-  (** Finds the phi instruction with the associated label. *)
-  val find_phi : t -> Label.t -> Insn.phi option
-
   (** Finds the data instruction with the associated label. *)
   val find_data : t -> Label.t -> Insn.data option
 
   (** Finds the control-flow instruction with the associated label. *)
   val find_ctrl : t -> Label.t -> Insn.ctrl option
 
-  (** Returns the next phi instruction (after the given label) if it
-      exists. *)
-  val next_phi : t -> Label.t -> Insn.phi option
-
   (** Returns the next data instruction (after the given label) if it
       exists. *)
   val next_data : t -> Label.t -> Insn.data option
-
-  (** Returns the previous phi instruction (before the given label) if it
-      exists. *)
-  val prev_phi : t -> Label.t -> Insn.phi option
 
   (** Returns the previous data instruction (before the given label) if it
       exists. *)
   val prev_data : t -> Label.t -> Insn.data option
 
-  (** [map_phi b ~f] returns [b] with each phi instruction applied
-      to [f]. *)
-  val map_phi : t -> f:(Label.t -> Insn.Phi.t -> Insn.Phi.t) -> t
+  (** [map_args_exn b ~f] returns [b] with each arg updated by [f].
+
+      @raise Invalid_argument if [f] produces a duplicate arg.
+  *)
+  val map_args_exn : t -> f:(Var.t -> arg_typ -> Var.t * arg_typ) -> t
+
+  (** Same as [map_args_exn], but returns [Error _] if a duplicate arg
+      is produced by [f]. *)
+  val map_args : t -> f:(Var.t -> arg_typ -> Var.t * arg_typ) -> t Or_error.t
 
   (** [map_data b ~f] returns [b] with each data instruction applied
       to [f]. *)
@@ -695,13 +649,10 @@ module Blk : sig
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
   val map_ctrl : t -> f:(Label.t -> Insn.Ctrl.t -> Insn.Ctrl.t) -> t
 
-  (** Inserts a phi instruction into the block.
-
-      Note that the ordering of phi instructions does not matter, and thus
-      all phi instructions assigning a given variable are expected to be
-      unique.
-  *)
-  val insert_phi : t -> Insn.phi -> t
+  (** [add_arg b x t] adds an argument [x] of type [t] to the basic block [b].
+      Note that if [x] already exists, then its type will be overwritten with
+      [t]. *)
+  val add_arg : t -> Var.t -> arg_typ -> t
 
   (** [prepend_data b d ?before] prepends the data instruction [d] to
       the block [b].
@@ -726,6 +677,21 @@ module Blk : sig
       not inserted.
   *)
   val append_data : ?after:Label.t option -> t -> Insn.data -> t
+
+  (** [remove_arg b x] removes an argument [x] from the block [b],
+      if it exists. *)
+  val remove_arg : t -> Var.t -> t
+
+  (** [remove_data b l] removes a data instruction with label [l] from
+      the block [b], if it exists. *)
+  val remove_data : t -> Label.t -> t
+
+  (** [has_arg b x] returns true if [b] has an argument [x]. *)
+  val has_arg : t -> Var.t -> bool
+
+  (** [typeof_arg b x] returns the type of argument [x] to [b], if it
+      exists. *)
+  val typeof_arg : t -> Var.t -> arg_typ option
 
   (** Pretty prints a basic block, where instructions are indented and
       unlabeled. *)

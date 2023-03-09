@@ -35,18 +35,6 @@
     | ('w' | 'l' | 'b' | 'h') as c -> (imm_of_char c :> Type.basic)
     | ('s' | 'd') as c -> (fp_of_char c :> Type.basic)
     | _ -> raise Error
- 
-  let special_of_char : char -> Type.special = function
-    | 'm' -> `mem
-    | 'f' -> `flag
-    | _ -> raise Error
-   
-  let typ_of_char : char -> [Type.basic | Type.special] = function
-    | ('w' | 'l' | 'b' | 'h' | 's' | 'd') as c -> 
-      (basic_of_char c :> [Type.basic | Type.special])
-    | ('m' | 'f') as c ->
-      (special_of_char c :> [Type.basic | Type.special])
-    | _ -> raise Error
 }
 
 let space = [' ' '\t' '\n' '\r']
@@ -93,7 +81,8 @@ rule token = parse
   | 's' { S }
   | 'd' { D }
   | 'z' { Z }
-  | "phi" '.' (typ as t) { PHI (typ_of_char t) }
+  | 'm' { M }
+  | 'f' { F }
   | "add" '.' (basic as t) { ADD (basic_of_char t) }
   | "div" '.' (basic as t) { DIV (basic_of_char t) }
   | "mul" '.' (basic as t) { MUL (basic_of_char t) }
