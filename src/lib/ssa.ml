@@ -41,7 +41,7 @@ let new_name vars nums x =
   y
 
 let rename_args vars nums b =
-  Blk.map_args_exn b ~f:(fun x t -> new_name vars nums x, t)
+  Blk.map_args b ~f:(fun x t -> new_name vars nums x, t)
 
 let map_var vars x = match Hashtbl.find vars x with
   | None | Some [] -> x
@@ -75,8 +75,7 @@ let map_global vars : Insn.global -> Insn.global = function
   | g -> g
 
 let map_local vars : Insn.local -> Insn.local = function
-  | `label (l, Some a) -> `label (l, Some (map_arg vars a))
-  | `label (_, None) as l -> l
+  | `label (l, args) -> `label (l, List.map args ~f:(map_arg vars))
 
 let map_dst vars : Insn.dst -> Insn.dst = function
   | #Insn.global as g -> (map_global vars g :> Insn.dst)
@@ -141,17 +140,19 @@ let rec rename_block vars nums cfg dom fn' l =
 let has_arg_for_var b x =
   Blk.args b |> Seq.map ~f:fst |> Seq.exists ~f:(Var.equal x)
 
-let argify_local s x : Insn.local -> Insn.local = function
-  | `label (l, None) when Label.(s = l) -> `label (l, Some (`var x))
+let argify_local s xs : Insn.local -> Insn.local = function
+  | `label (l, args) when Label.(s = l) ->
+    let xs = List.map xs ~f:(fun x -> `var x) in
+    `label (l, xs @ args)
   | l -> l
 
 let argify_dst s x : Insn.dst -> Insn.dst = function
   | #Insn.local as l -> (argify_local s x l :> Insn.dst)
   | d -> d
 
-let argify_ctrl s x b =
-  let loc = argify_local s x in
-  let dst = argify_dst s x in
+let argify_ctrl s xs b =
+  let loc = argify_local s xs in
+  let dst = argify_dst s xs in
   Blk.map_ctrl b ~f:(fun _ -> function
       | `hlt as h -> h
       | `jmp d -> `jmp (dst d)
@@ -175,12 +176,14 @@ let insert_args vars fn frontier cfg =
                 Cfg.Node.preds l cfg |>
                 Seq.filter_map ~f:(find_blk fn) |>
                 Seq.fold ~init:ins ~f:(fun ins b ->
-                    Map.set ins ~key:(Blk.label b) ~data:(l, x)) in
+                    Blk.label b |> Map.update ins ~f:(function
+                        | Some (_, xs) -> l, x :: xs
+                        | None -> l, [x])) in
               (* XXX: FIXME *)
-              Blk.add_arg b x `i64 |> Func.update_blk fn, ins)) in
-  Map.fold ins ~init:fn ~f:(fun ~key:l ~data:(s, x) fn ->
+              Blk.prepend_arg b (x, `i64) |> Func.update_blk fn, ins)) in
+  Map.fold ins ~init:fn ~f:(fun ~key:l ~data:(s, xs) fn ->
       match find_blk fn l with
-      | Some b -> Func.update_blk fn @@ argify_ctrl s x b
+      | Some b -> Func.update_blk fn @@ argify_ctrl s xs b
       | None -> fn)
 
 let rename cfg dom fn =

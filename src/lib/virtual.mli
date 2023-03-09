@@ -70,7 +70,7 @@ module Insn : sig
       with an optional argument [a].
   *)
   type local = [
-    | `label of Label.t * arg option
+    | `label of Label.t * arg list
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints the local destination. *)
@@ -547,26 +547,14 @@ module Blk : sig
 
   type t [@@deriving bin_io, compare, equal, sexp]
 
-  (** Creates a basic block.
-
-      @raise Invalid_argument if [args] has duplicates.
-  *)
-  val create_exn :
-    ?args:(Var.t * arg_typ) list ->
-    ?data:Insn.data list ->
-    label:Label.t ->
-    ctrl:Insn.ctrl ->
-    unit ->
-    t
-
-  (** Same as [create_exn], but returns [Error _] if [args] has duplicates. *)
+  (** Creates a basic block. *)
   val create :
     ?args:(Var.t * arg_typ) list ->
     ?data:Insn.data list ->
     label:Label.t ->
     ctrl:Insn.ctrl ->
     unit ->
-    t Or_error.t
+    t
 
   (** Returns the label of the basic block. *)
   val label : t -> Label.t
@@ -626,15 +614,8 @@ module Blk : sig
       exists. *)
   val prev_data : t -> Label.t -> Insn.data option
 
-  (** [map_args_exn b ~f] returns [b] with each arg updated by [f].
-
-      @raise Invalid_argument if [f] produces a duplicate arg.
-  *)
-  val map_args_exn : t -> f:(Var.t -> arg_typ -> Var.t * arg_typ) -> t
-
-  (** Same as [map_args_exn], but returns [Error _] if a duplicate arg
-      is produced by [f]. *)
-  val map_args : t -> f:(Var.t -> arg_typ -> Var.t * arg_typ) -> t Or_error.t
+  (** Applies [f] to each argument of the block. *)
+  val map_args : t -> f:(Var.t -> arg_typ -> Var.t * arg_typ) -> t
 
   (** [map_data b ~f] returns [b] with each data instruction applied
       to [f]. *)
@@ -643,10 +624,25 @@ module Blk : sig
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
   val map_ctrl : t -> f:(Label.t -> Insn.Ctrl.t -> Insn.Ctrl.t) -> t
 
-  (** [add_arg b x t] adds an argument [x] of type [t] to the basic block [b].
-      Note that if [x] already exists, then its type will be overwritten with
-      [t]. *)
-  val add_arg : t -> Var.t -> arg_typ -> t
+  (** [prepend_arg b a ?before] prepends the argument [a] to the block
+
+      If [before] is [None], then [a] is inserted at the beginning of
+      the argument list.
+
+      If [before] is [Some x], then [a] will appear directly before the
+      argument [x]. If [x] doesn't exist, then [a] is not inserted.
+  *)
+  val prepend_arg : ?before:Var.t option -> t -> (Var.t * arg_typ) -> t
+
+  (** [append_arg b a ?after] appends the argument [a] to the block [b].
+
+      If [after] is [None], then [a] is inserted at the end of the
+      argument list.
+
+      If [after] is [Some x], then [a] will appear directly after the
+      argument [x]. If [x] doesn't exist, then [a] is not inserted.
+  *)
+  val append_arg : ?after:Var.t option -> t -> (Var.t * arg_typ) -> t
 
   (** [prepend_data b d ?before] prepends the data instruction [d] to
       the block [b].

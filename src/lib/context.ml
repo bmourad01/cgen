@@ -124,16 +124,16 @@ module Virtual = struct
     Virtual.Insn.ctrl c ~label
 
   let blk ?(args = []) ?(data = []) ~ctrl () =
-    let* label = Label.fresh in
-    lift_err @@ Virtual.Blk.create ~args ~data ~ctrl ~label ()
+    let+ label = Label.fresh in
+    Virtual.Blk.create ~args ~data ~ctrl ~label ()
 
   let blk' ?(label = None) ?(args = []) ?data:(d = []) ~ctrl:c () =
     let* data = List.map d ~f:data in
     let* ctrl = ctrl c in
-    let* label = match label with
+    let+ label = match label with
       | None -> Label.fresh
       | Some l -> !!l in
-    lift_err @@ Virtual.Blk.create ~args ~data ~ctrl ~label ()
+    Virtual.Blk.create ~args ~data ~ctrl ~label ()
 end
 
 let init target = {

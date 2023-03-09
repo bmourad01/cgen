@@ -391,9 +391,9 @@ insn_dst:
   | l = insn_local { l >>| fun l -> (l :> Virtual.Insn.dst) }
 
 insn_local:
-  | l = LABEL { label_of_name l >>| fun l -> `label (l, None) }
-  | l = LABEL LPAREN a = insn_arg RPAREN
-    { label_of_name l >>| fun l -> `label (l, Some a) }
+  | l = LABEL { label_of_name l >>| fun l -> `label (l, []) }
+  | l = LABEL LPAREN args = separated_nonempty_list(COMMA, insn_arg) RPAREN
+    { label_of_name l >>| fun l -> `label (l, args) }
 
 insn_global:
   | i = INT { `addr i }

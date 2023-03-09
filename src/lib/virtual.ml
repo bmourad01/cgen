@@ -98,12 +98,15 @@ module Insn = struct
     | `var v  -> Format.fprintf ppf "%a" Var.pp v
 
   type local = [
-    | `label of Label.t * arg option
+    | `label of Label.t * arg list
   ] [@@deriving bin_io, compare, equal, sexp]
 
   let pp_local ppf : local -> unit = function
-    | `label (l, None) -> Format.fprintf ppf "%a" Label.pp l
-    | `label (l, Some a) -> Format.fprintf ppf "%a(%a)" Label.pp l pp_arg a
+    | `label (l, []) -> Format.fprintf ppf "%a" Label.pp l
+    | `label (l, args) ->
+      let pp_sep ppf () = Format.fprintf ppf ", " in
+      Format.fprintf ppf "%a(%a)"
+        Label.pp l (Format.pp_print_list ~pp_sep pp_arg) args
 
   type dst = [
     | global
@@ -524,7 +527,7 @@ module Blk = struct
   module T = struct
     type t = {
       label : Label.t;
-      args  : arg_typ Var.Map.t;
+      args  : (Var.t * arg_typ) array;
       data  : Insn.data array;
       ctrl  : Insn.ctrl;
     } [@@deriving bin_io, compare, equal, sexp]
@@ -532,22 +535,15 @@ module Blk = struct
 
   include T
 
-  let create_exn ?(args = []) ?(data = []) ~label ~ctrl () = try {
+  let create ?(args = []) ?(data = []) ~label ~ctrl () = try {
     label;
-    args = Var.Map.of_alist_exn args;
+    args = Array.of_list args;
     data = Array.of_list data;
     ctrl
   } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
 
-  let create ?(args = []) ?(data = []) ~label ~ctrl () =
-    Or_error.try_with @@ create_exn ~args ~data ~label ~ctrl
-
   let label b = b.label
-
-  let args ?(rev = false) b =
-    let order = if rev then `Increasing_key else `Decreasing_key in
-    Map.to_sequence b.args ~order
-
+  let args ?(rev = false) b = Array.enum b.args ~rev
   let data ?(rev = false) b = Array.enum b.data ~rev
   let ctrl b = b.ctrl
   let has_label b l = Label.(b.label = l)
@@ -565,15 +561,9 @@ module Blk = struct
 
   let uses_var b x = Set.mem (free_vars b) x
 
-  let map_args_exn b ~f = try
-      Map.to_sequence b.args |>
-      Seq.map ~f:(fun (x, t) -> f x t) |>
-      Var.Map.of_sequence_exn |> fun args ->
-      {b with args}
-    with exn -> invalid_argf "%s" (Exn.to_string exn) ()
-
-  let map_args b ~f =
-    Or_error.try_with @@ fun () -> map_args_exn b ~f
+  let map_args b ~f = {
+    b with args = Array.map b.args ~f:(fun (x, t) -> f x t);
+  }
 
   let map_data b ~f = {
     b with data = Array.map b.data ~f:(fun i ->
@@ -584,40 +574,48 @@ module Blk = struct
     b with ctrl = Insn.map_ctrl b.ctrl ~f:(f b.ctrl.label);
   }
 
-  let index_of xs l =
-    Array.findi xs ~f:(fun _ x -> Insn.has_label x l) |> Option.map ~f:fst
+  let index_of xs f i =
+    Array.findi xs ~f:(fun _ x -> f x i) |> Option.map ~f:fst
 
-  let prepend ?(before = None) xs x = match before with
+  let prepend ?(before = None) xs x f = match before with
     | None -> Array.push_front xs x
-    | Some l -> index_of xs l |> function
+    | Some i -> index_of xs f i |> function
       | Some i -> Array.insert xs x i
       | None -> xs
 
-  let append ?(after = None) xs x = match after with
+  let append ?(after = None) xs x f = match after with
     | None -> Array.push_back xs x
-    | Some l -> index_of xs l |> function
+    | Some i -> index_of xs f i |> function
       | Some i -> Array.insert xs x (i + 1)
       | None -> xs
 
-  let add_arg b x t = {
-    b with args = Map.set b.args ~key:x ~data:t;
+  let is_arg (x, _) y = Var.(x = y)
+
+  let prepend_arg ?(before = None) b a = {
+    b with args = prepend b.args a is_arg ~before;
+  }
+
+  let append_arg ?(after = None) b a = {
+    b with args = append b.args a is_arg ~after;
   }
 
   let prepend_data ?(before = None) b d = {
-    b with data = prepend b.data d ~before;
+    b with data = prepend b.data d Insn.has_label ~before;
   }
 
   let append_data ?(after = None) b d = {
-    b with data = append b.data d ~after;
+    b with data = append b.data d Insn.has_label ~after;
   }
 
-  let remove xs l = Array.remove_if xs ~f:(Fn.flip Insn.has_label l)
+  let remove xs i f = Array.remove_if xs ~f:(Fn.flip f i)
+  let remove_arg b x = {b with args = remove b.args x is_arg}
+  let remove_data b l = {b with data = remove b.data l Insn.has_label}
 
-  let remove_arg b x = {b with args = Map.remove b.args x}
-  let remove_data b l = {b with data = remove b.data l}
+  let has_arg b x = Array.exists b.args ~f:(Fn.flip is_arg x)
 
-  let has_arg b x = Map.mem b.args x
-  let typeof_arg b x = Map.find b.args x
+  let typeof_arg b x =
+    Array.find b.args ~f:(Fn.flip is_arg x) |>
+    Option.map ~f:snd
 
   let has_lhs b x = Array.exists b.data ~f:(fun i ->
       Insn.Data.has_lhs (Insn.insn i) x)
@@ -642,12 +640,10 @@ module Blk = struct
     Format.fprintf ppf "%a %a" pp_arg_typ t Var.pp x
 
   let pp_args ppf args =
-    let pp_sep ppf () = Format.fprintf ppf ", " in
-    Format.pp_print_list ~pp_sep pp_arg ppf @@ Map.to_alist args
-
-  let pp_args ppf args =
-    if not @@ Map.is_empty args then
-      Format.fprintf ppf "(%a)" pp_args args
+    let sep ppf = Format.fprintf ppf ", " in
+    if not @@ Array.is_empty args then
+      Format.fprintf ppf "(%a)"
+        (Array.pp pp_arg sep) args
 
   let pp ppf b =
     let sep ppf = Format.fprintf ppf "@;" in
