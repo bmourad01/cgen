@@ -105,10 +105,6 @@ module Insn = struct
     | `label (l, None) -> Format.fprintf ppf "%a" Label.pp l
     | `label (l, Some a) -> Format.fprintf ppf "%a(%a)" Label.pp l pp_arg a
 
-  let pp_local_hum ppf : local -> unit = function
-    | `label (l, None) -> Format.fprintf ppf "%a" Label.pp_hum l
-    | `label (l, Some a) -> Format.fprintf ppf "%a(%a)" Label.pp_hum l pp_arg a
-
   type dst = [
     | global
     | local
@@ -121,10 +117,6 @@ module Insn = struct
   let pp_dst ppf : dst -> unit = function
     | #global as g -> Format.fprintf ppf "%a" pp_global g
     | #local  as l -> Format.fprintf ppf "%a" pp_local l
-
-  let pp_dst_hum ppf : dst -> unit = function
-    | #global as g -> Format.fprintf ppf "%a" pp_global g
-    | #local  as l -> Format.fprintf ppf "%a" pp_local_hum l
 
   module Data = struct
     type arith_binop = [
@@ -421,9 +413,9 @@ module Insn = struct
       let pp_elt ppl ppf (v, l) =
         Format.fprintf ppf "%a -> %a" Bitvec.pp v ppl l
 
-      let pp ppl ppf t =
+      let pp ppf t =
         let pp_sep ppf () = Format.fprintf ppf ",@;" in
-        Format.pp_print_list ~pp_sep (pp_elt ppl) ppf (Map.to_alist t)
+        Format.pp_print_list ~pp_sep (pp_elt pp_local) ppf (Map.to_alist t)
     end
 
     type table = Table.t [@@deriving bin_io, compare, equal, sexp]
@@ -444,22 +436,19 @@ module Insn = struct
       | `ret (Some a) -> var_set_of_option @@ var_of_arg a
       | `switch (_, x, _, _) -> Var.Set.singleton x
 
-    let pp_self ppd ppl ppf : t -> unit = function
+    let pp ppf : t -> unit = function
       | `hlt -> Format.fprintf ppf "hlt"
       | `jmp d ->
-        Format.fprintf ppf "jmp %a" ppd d
+        Format.fprintf ppf "jmp %a" pp_dst d
       | `jnz (c, t, f) ->
-        Format.fprintf ppf "jnz %a, %a, %a" Var.pp c ppd t ppd f
+        Format.fprintf ppf "jnz %a, %a, %a" Var.pp c pp_dst t pp_dst f
       | `ret (Some x) ->
         Format.fprintf ppf "ret %a" pp_arg x
       | `ret None ->
         Format.fprintf ppf "ret"
       | `switch (t, x, ld, tbl) ->
         Format.fprintf ppf "switch.%a %a, %a [@[<v 0>%a@]]"
-          Type.pp_imm t Var.pp x ppl ld (Table.pp ppl) tbl
-
-    let pp = pp_self pp_dst pp_local
-    let pp_hum = pp_self pp_dst_hum pp_local_hum
+          Type.pp_imm t Var.pp x pp_local ld Table.pp tbl
   end
 
   type 'a t = {
@@ -488,11 +477,8 @@ module Insn = struct
 
   let pp ppi ppf i = Format.fprintf ppf "%a: %a" Label.pp i.label ppi i.insn
 
-  let pp_data = pp Data.pp
-  let pp_ctrl = pp Ctrl.pp
-
-  let pp_data_hum ppf p = Format.fprintf ppf "%a" Data.pp p.insn
-  let pp_ctrl_hum ppf p = Format.fprintf ppf "%a" Ctrl.pp_hum p.insn
+  let pp_data ppf p = Format.fprintf ppf "%a" Data.pp p.insn
+  let pp_ctrl ppf p = Format.fprintf ppf "%a" Ctrl.pp p.insn
 end
 
 module Edge = struct
@@ -667,31 +653,16 @@ module Blk = struct
     let sep ppf = Format.fprintf ppf "@;" in
     match b.data with
     | [||] ->
-      Format.fprintf ppf "%a%a:@;%a"
+      Format.fprintf ppf "%a%a:@;  %a"
         Label.pp b.label
         pp_args b.args
         Insn.pp_ctrl b.ctrl
     | _ ->
-      Format.fprintf ppf "%a%a:@;%a@;%a"
+      Format.fprintf ppf "%a%a:@;@[<v 2>  %a@;%a@]"
         Label.pp b.label
         pp_args b.args
         (Array.pp Insn.pp_data sep) b.data
         Insn.pp_ctrl b.ctrl
-
-  let pp_hum ppf b =
-    let sep ppf = Format.fprintf ppf "@;" in
-    match b.data with
-    | [||] ->
-      Format.fprintf ppf "%a%a:@;  %a"
-        Label.pp_hum b.label
-        pp_args b.args
-        Insn.pp_ctrl_hum b.ctrl
-    | _ ->
-      Format.fprintf ppf "%a%a:@;@[<v 2>  %a@;%a@]"
-        Label.pp_hum b.label
-        pp_args b.args
-        (Array.pp Insn.pp_data_hum sep) b.data
-        Insn.pp_ctrl_hum b.ctrl
 
   include Regular.Make(struct
       include T
@@ -815,19 +786,8 @@ module Func = struct
     if fn.noreturn then Format.fprintf ppf "noreturn ";
     Format.fprintf ppf "function ";
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
-    Format.fprintf ppf "@@%s(%a):@;@[<v 0>%a@]"
-      fn.name pp_args fn (Array.pp Blk.pp sep) fn.blks
-
-  let pp_hum ppf fn =
-    let sep ppf = Format.fprintf ppf "@;" in
-    if Linkage.export fn.linkage
-    || Linkage.section fn.linkage |> Option.is_some then
-      Format.fprintf ppf "%a " Linkage.pp fn.linkage;
-    if fn.noreturn then Format.fprintf ppf "noreturn ";
-    Format.fprintf ppf "function ";
-    Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
     Format.fprintf ppf "@@%s(%a) {@;@[<v 0>%a@]@;}"
-      fn.name pp_args fn (Array.pp Blk.pp_hum sep) fn.blks
+      fn.name pp_args fn (Array.pp Blk.pp sep) fn.blks
 
   include Regular.Make(struct
       include T
@@ -1142,7 +1102,7 @@ module Module = struct
     m with funs = Array.map m.funs ~f;
   }
 
-  let pp_base pp_fn ppf m =
+  let pp ppf m =
     let sep ppf = Format.fprintf ppf "@;@;" in
     match m.typs, m.data, m.funs with
     | [||], [||], [||] ->
@@ -1150,7 +1110,7 @@ module Module = struct
     | [||], [||], funs ->
       Format.fprintf ppf "@[<v 0>module %s@;@;\
                           @[<v 0>%a@]@]" m.name
-        (Array.pp pp_fn sep) funs
+        (Array.pp Func.pp sep) funs
     | [||], data, [||] ->
       Format.fprintf ppf "@[<v 0>module %s@;@;\
                           @[<v 0>%a@]@]" m.name
@@ -1164,13 +1124,13 @@ module Module = struct
                           @[<v 0>%a@]@;@;\
                           @[<v 0>%a@]@]" m.name
         (Array.pp Data.pp sep) data
-        (Array.pp pp_fn sep) funs
+        (Array.pp Func.pp sep) funs
     | typs, [||], funs ->
       Format.fprintf ppf "@[<v 0>module %s@;@;\
                           @[<v 0>%a@]@;@;\
                           @[<v 0>%a@]@]" m.name
         (Array.pp Type.pp_compound_decl sep) typs
-        (Array.pp pp_fn sep) funs
+        (Array.pp Func.pp sep) funs
     | typs, data, [||] ->
       Format.fprintf ppf "@[<v 0>module %s@;@;\
                           @[<v 0>%a@]@;@;\
@@ -1184,10 +1144,7 @@ module Module = struct
                           @[<v 0>%a@]@]" m.name
         (Array.pp Type.pp_compound_decl sep) typs
         (Array.pp Data.pp sep) data
-        (Array.pp pp_fn sep) funs
-
-  let pp = pp_base Func.pp
-  let pp_hum = pp_base Func.pp_hum
+        (Array.pp Func.pp sep) funs
 
   include Regular.Make(struct
       include T

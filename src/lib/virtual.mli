@@ -505,12 +505,6 @@ module Insn : sig
 
   (** Pretty-prints a control instruction. *)
   val pp_ctrl : Format.formatter -> ctrl -> unit
-
-  (** Equivalent to [Data.pp]. *)
-  val pp_data_hum : Format.formatter -> data -> unit
-
-  (** Pretty-prints a control instruction with human-readable labels. *)
-  val pp_ctrl_hum : Format.formatter -> ctrl -> unit
 end
 
 (** A control-flow edge. *)
@@ -700,10 +694,6 @@ module Blk : sig
   (** Same as [has_lhs], but also includes arguments to the block. *)
   val defines_var : t -> Var.t -> bool
 
-  (** Pretty prints a basic block, where instructions are indented and
-      unlabeled. *)
-  val pp_hum : Format.formatter -> t -> unit
-
   include Regular.S with type t := t
 end
 
@@ -813,9 +803,6 @@ module Func : sig
 
   (** [update_blk fn b] returns [fn] with block [b] updated, if it exists. *)
   val update_blk : t -> blk -> t
-
-  (** Pretty-prints a function where only blocks are labeled. *)
-  val pp_hum : Format.formatter -> t -> unit
 
   include Regular.S with type t := t
 end
@@ -1020,10 +1007,6 @@ module Module : sig
 
   (** Returns the module with each function transformed by [f]. *)
   val map_funs : t -> f:(func -> func) -> t
-
-  (** Same as [pp], but uses the human-friendly syntax for printing
-      functions (see [Fn.pp_hum]). *)
-  val pp_hum : Format.formatter -> t -> unit
 
   include Regular.S with type t := t
 end
