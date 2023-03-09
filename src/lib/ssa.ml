@@ -140,19 +140,20 @@ let rec rename_block vars nums cfg dom fn' l =
 let has_arg_for_var b x =
   Blk.args b |> Seq.map ~f:fst |> Seq.exists ~f:(Var.equal x)
 
-let argify_local s xs : Insn.local -> Insn.local = function
-  | `label (l, args) when Label.(s = l) ->
-    let xs = List.map xs ~f:(fun x -> `var x) in
-    `label (l, xs @ args)
-  | l -> l
+let args_of_vars = List.map ~f:(fun x -> `var x)
 
-let argify_dst s x : Insn.dst -> Insn.dst = function
-  | #Insn.local as l -> (argify_local s x l :> Insn.dst)
+let argify_local xs : Insn.local -> Insn.local = function
+  | `label (l, args) as loc -> match Map.find xs l with
+    | Some xs -> `label (l, args_of_vars xs @ args)
+    | None -> loc
+
+let argify_dst xs : Insn.dst -> Insn.dst = function
+  | #Insn.local as l -> (argify_local xs l :> Insn.dst)
   | d -> d
 
-let argify_ctrl s xs b =
-  let loc = argify_local s xs in
-  let dst = argify_dst s xs in
+let argify_ctrl xs b =
+  let loc = argify_local xs in
+  let dst = argify_dst xs in
   Blk.map_ctrl b ~f:(fun _ -> function
       | `hlt as h -> h
       | `jmp d -> `jmp (dst d)
@@ -163,27 +164,26 @@ let argify_ctrl s xs b =
         `switch (t, i, loc d, tbl))
 
 let insert_args vars fn frontier cfg =
-  let fn, ins =
-    Set.to_sequence vars |>
-    Seq.fold ~init:(fn, Label.Map.empty) ~f:(fun (fn, ins) x ->
-        let bs = blocks_that_define_var x fn in
-        iterated_frontier frontier (Label.pseudoentry :: bs) |>
-        Set.to_sequence |> Seq.fold ~init:(fn, ins) ~f:(fun (fn, ins) l ->
-            match find_blk fn l with
-            | None -> fn, ins
-            | Some b ->
-              let ins =
-                Cfg.Node.preds l cfg |>
-                Seq.filter_map ~f:(find_blk fn) |>
-                Seq.fold ~init:ins ~f:(fun ins b ->
-                    Blk.label b |> Map.update ins ~f:(function
-                        | Some (_, xs) -> l, x :: xs
-                        | None -> l, [x])) in
-              (* XXX: FIXME *)
-              Blk.prepend_arg b (x, `i64) |> Func.update_blk fn, ins)) in
-  Map.fold ins ~init:fn ~f:(fun ~key:l ~data:(s, xs) fn ->
-      match find_blk fn l with
-      | Some b -> Func.update_blk fn @@ argify_ctrl s xs b
+  (* Insert arguments to basic blocks. *)
+  let fn, ins = Set.fold vars ~init:(fn, Label.Map.empty) ~f:(fun (fn, ins) x ->
+      let bs = blocks_that_define_var x fn in
+      iterated_frontier frontier (Label.pseudoentry :: bs) |>
+      Set.to_sequence |> Seq.fold ~init:(fn, ins) ~f:(fun (fn, ins) l ->
+          match find_blk fn l with
+          | None -> fn, ins
+          | Some b ->
+            let ins =
+              Cfg.Node.preds l cfg |>
+              Seq.filter_map ~f:(find_blk fn) |>
+              Seq.fold ~init:ins ~f:(fun ins b ->
+                  Blk.label b |> Map.update ins ~f:(function
+                      | None -> Label.Map.singleton l [x]
+                      | Some m -> Map.add_multi m ~key:l ~data:x)) in
+            (* XXX: FIXME *)
+            Blk.prepend_arg b (x, `i64) |> Func.update_blk fn, ins)) in
+  (* Insert arguments to control instructions. *)
+  Map.fold ins ~init:fn ~f:(fun ~key ~data fn -> match find_blk fn key with
+      | Some b -> Func.update_blk fn @@ argify_ctrl data b
       | None -> fn)
 
 let rename cfg dom fn =
