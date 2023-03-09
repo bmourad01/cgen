@@ -27,8 +27,6 @@ let with_file name ~f = try In_channel.with_file name ~f with
   | Sys_error msg -> Context.fail @@ Error.createf "%s" msg
 
 module Virtual = struct
-  type t = Virtual.module_
-
   let from_string s =
     let lexbuf = Lexing.from_string s in
     try_parse lexbuf ~f:(fun () ->
