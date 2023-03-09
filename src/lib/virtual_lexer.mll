@@ -1,6 +1,6 @@
 {
   open Lexing
-  open Parser
+  open Virtual_parser
 
   let string_buff = Buffer.create 256
 
