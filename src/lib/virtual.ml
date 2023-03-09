@@ -879,9 +879,7 @@ module Live = struct
     Seq.fold ~init:Var.Set.empty ~f:(fun defs d ->
         match Insn.Data.lhs d with
         | Some x -> Set.add defs x
-        | None -> defs) |> fun init ->
-    Blk.args b |> Seq.fold ~init ~f:(fun defs (x, _) ->
-        Set.add defs x)
+        | None -> defs)
 
   let update l trans ~f = Map.update trans l ~f:(function
       | None -> f empty_tran
@@ -889,12 +887,45 @@ module Live = struct
 
   let (++) = Set.union and (--) = Set.diff
 
-  let block_transitions fn =
+  let find_blk fn l = Func.blks fn |> Seq.find ~f:(Fn.flip Blk.has_label l)
+
+  let local_uses : Insn.local -> Var.Set.t = function
+    | `label (l, args) ->
+      List.filter_map args ~f:(function
+          | `var v -> Some v | _ -> None) |>
+      Var.Set.of_list
+
+  let dst_uses : Insn.dst -> Var.Set.t = function
+    | #Insn.local as l -> local_uses l
+    | _ -> Var.Set.empty
+
+  let ctrl_uses b = match Insn.insn @@ Blk.ctrl b with
+    | `hlt | `ret _ -> Var.Set.empty
+    | `jmp d -> dst_uses d
+    | `jnz (_, t, f) -> dst_uses t ++ dst_uses f
+    | `switch (_, _, d, tbl) ->
+      let init = local_uses d in
+      Insn.Ctrl.Table.enum tbl |> Seq.map ~f:snd |>
+      Seq.fold ~init ~f:(fun uses e -> uses ++ local_uses e)
+
+  let block_transitions g fn =
     Func.blks fn |> Seq.fold ~init:Label.Map.empty ~f:(fun fs b ->
         Map.add_exn fs ~key:(Blk.label b) ~data:{
           defs = blk_defs b;
           uses = Blk.free_vars b;
-        })
+        }) |> fun init ->
+    Func.blks fn |> Seq.fold ~init ~f:(fun init b ->
+        let args =
+          Blk.args b |> Seq.map ~f:fst |>
+          Seq.fold ~init:Var.Set.empty ~f:Set.add in
+        Cfg.Node.preds (Blk.label b) g |>
+        Seq.fold ~init ~f:(fun fs p ->
+            match find_blk fn p with
+            | None -> fs
+            | Some pb -> update p fs ~f:(fun {defs; uses} -> {
+                  defs = Set.union defs args;
+                  uses = uses ++ (ctrl_uses pb -- defs);
+                })))
 
   let lookup blks n = Map.find blks n |> Option.value ~default:empty_tran
   let apply {defs; uses} vars = vars -- defs ++ uses
@@ -908,7 +939,7 @@ module Live = struct
       Solution.create
         (Label.Map.singleton Label.pseudoexit Var.Set.empty)
         Var.Set.empty in
-    let blks = block_transitions fn in {
+    let blks = block_transitions g fn in {
       blks;
       outs = Graphlib.fixpoint (module Cfg) g ~init
           ~rev:true ~start:Label.pseudoexit
