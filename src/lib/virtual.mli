@@ -66,8 +66,8 @@ module Insn : sig
 
   (** Intra-function destination.
 
-      [`label (l, a)] is the label [l] of a block in the current function,
-      with an optional argument [a].
+      [`label (l, args)] is the label [l] of a block in the current
+      function, with a list of arguments [args].
   *)
   type local = [
     | `label of Label.t * arg list
