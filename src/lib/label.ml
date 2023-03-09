@@ -7,11 +7,11 @@ end
 
 include T
 
-let pseudoentry = Int63.of_int 0
-let pseudoexit = Int63.of_int 1
+let pseudoentry = Int63.(zero - of_int 2)
+let pseudoexit = Int63.succ pseudoentry
 let is_pseudo l = Int63.(l = pseudoentry || l = pseudoexit)
 
-let pp ppf l = Format.fprintf ppf ".L%Lx" @@ Int63.to_int64 l
+let pp ppf l = Format.fprintf ppf "@%Ld" @@ Int63.to_int64 l
 
 include Regular.Make(struct
     include T

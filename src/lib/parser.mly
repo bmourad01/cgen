@@ -103,7 +103,7 @@
 %token JNZ
 %token RET
 %token <Type.imm> SWITCH
-%token MODULE
+%token <string> MODULE
 %token FUNCTION
 %token DATA
 %token EXPORT
@@ -155,12 +155,11 @@
 %type <Virtual.Insn.arg> insn_arg
 %type <Virtual.const> const
 %type <Var.t> var
-%type <string> ident
 
 %%
 
 module_:
-  | MODULE name = ident elts = list(module_elt) EOF
+  | name = MODULE elts = list(module_elt) EOF
     {
       M.run begin
         let+ funs, typs, data =
@@ -415,16 +414,4 @@ const:
 
 var:
   | x = VAR { Var.(with_index (create (fst x)) (snd x)) }
-  | x = ident { Var.create x }
-
-ident:
-  | x = IDENT { x }
-  | W { "w" }
-  | L { "l" }
-  | B { "b" }
-  | H { "h" }
-  | S { "s" }
-  | D { "d" }
-  | Z { "z" }
-  | M { "m" }
-  | F { "f" }
+  | x = IDENT { Var.create x }

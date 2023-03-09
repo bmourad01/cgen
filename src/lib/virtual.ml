@@ -64,9 +64,9 @@ let pp_const ppf : const -> unit = function
   | `int n -> Format.fprintf ppf "%a" Bitvec.pp n
   | `float f -> Format.fprintf ppf "%sf" @@ Float32.to_string f
   | `double d -> Format.fprintf ppf "%a" Float.pp d
-  | `sym (s, 0) -> Format.fprintf ppf "@@%s" s
-  | `sym (s, n) when n > 0 -> Format.fprintf ppf "@@%s+0x%x" s n
-  | `sym (s, n) -> Format.fprintf ppf "@@%s-0x%x" s (lnot n + 1)
+  | `sym (s, 0) -> Format.fprintf ppf "$%s" s
+  | `sym (s, n) when n > 0 -> Format.fprintf ppf "$%s+0x%x" s n
+  | `sym (s, n) -> Format.fprintf ppf "$%s-0x%x" s (lnot n + 1)
 
 module Insn = struct
   type arg = [
@@ -94,7 +94,7 @@ module Insn = struct
 
   let pp_global ppf : global -> unit = function
     | `addr a -> Format.fprintf ppf "%a" Bitvec.pp a
-    | `sym s  -> Format.fprintf ppf "@%s" s
+    | `sym s  -> Format.fprintf ppf "$%s" s
     | `var v  -> Format.fprintf ppf "%a" Var.pp v
 
   type local = [
@@ -754,7 +754,7 @@ module Func = struct
 
   let remove_blk_exn fn l =
     if Label.(l = fn.entry)
-    then invalid_argf "Cannot remove entry block of function %s" fn.name ()
+    then invalid_argf "Cannot remove entry block of function $%s" fn.name ()
     else {fn with blks = Array.remove_if fn.blks ~f:(Fn.flip Blk.has_label l)}
 
   let remove_blk fn l = Or_error.try_with @@ fun () -> remove_blk_exn fn l
@@ -786,7 +786,7 @@ module Func = struct
     if fn.noreturn then Format.fprintf ppf "noreturn ";
     Format.fprintf ppf "function ";
     Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
-    Format.fprintf ppf "@@%s(%a) {@;@[<v 0>%a@]@;}"
+    Format.fprintf ppf "$%s(%a) {@;@[<v 0>%a@]@;}"
       fn.name pp_args fn (Array.pp Blk.pp sep) fn.blks
 
   include Regular.Make(struct
@@ -982,12 +982,12 @@ module Data = struct
     | elts ->
       Array.iter elts ~f:(function
           | `basic (t, []) -> invalid_arg @@ Format.asprintf
-              "In data @%s: `basic field of type %a is uninitialized"
+              "In data $%s: `basic field of type %a is uninitialized"
               name Type.pp_basic t
           | _ -> ());
       Option.iter align ~f:(function
           | n when n < 1 ->
-            invalid_argf "In data @%s: invalid alignment %d" name n ()
+            invalid_argf "In data $%s: invalid alignment %d" name n ()
           | _ -> ());
       {name; elts; linkage; align}
 
@@ -1023,7 +1023,7 @@ module Data = struct
     if Linkage.export d.linkage
     || Linkage.section d.linkage |> Option.is_some then
       Format.fprintf ppf "%a " Linkage.pp d.linkage;
-    Format.fprintf ppf "data @@%s = " d.name;
+    Format.fprintf ppf "data $%s = " d.name;
     Option.iter d.align ~f:(Format.fprintf ppf "align %d ");
     Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
       (Array.pp pp_elt sep) d.elts

@@ -60,8 +60,11 @@ rule token = parse
   | '-' { MINUS }
   | ':' (ident as id) { TYPENAME id }
   | ':' { COLON }
-  | '@' (ident as id) { SYM id }
-  | '.' (ident as id) { LABEL id }
+  | '$' (ident as id) { SYM id }
+  | '@' (ident as id) { LABEL id }
+  | '%' (ident as id) '.' (integer as i) { VAR (id, int_of_string i) }
+  | '%' (ident as id) { IDENT id }
+  | "module" space+ (ident as id) { MODULE id }
   | "align" { ALIGN }
   | "type" { TYPE }
   | '{' { LBRACE }
@@ -140,7 +143,6 @@ rule token = parse
   | "jnz" { JNZ }
   | "ret" { RET }
   | "switch" '.' (imm as t) { SWITCH (imm_of_char t) }
-  | "module" { MODULE }
   | "function" { FUNCTION }
   | "data" { DATA }
   | "export" { EXPORT }
@@ -157,8 +159,6 @@ rule token = parse
   | hinteger as h { INT (Bitvec.of_string h) }
   | double as d { DOUBLE (Float.of_string d) }
   | single as s { SINGLE (Float32.of_string s) }
-  | (ident as id) '.' (integer as i) { VAR (id, int_of_string i) }
-  | ident as id { IDENT id }
   | _ { raise Error }
 
 and string = parse
