@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # a regex for files to indent
-files_to_indent='.*\.\(ml\|mli\|mll\|mly\)$'
+files_to_indent='.*\.\(ml\|mli\)$'
 
 VERSION=$(ocp-indent --version)
 
