@@ -17,5 +17,5 @@ include Regular.Make(struct
     include T
     let pp = pp
     let version = "0.1"
-    let module_name = Some "Cabs.Label"
+    let module_name = Some "Cgen.Label"
   end)
