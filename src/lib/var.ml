@@ -39,7 +39,7 @@ let same x y = match x.ident, y.ident with
   | _ -> false
 
 let valid_first_char = function
-  | '0'..'9' | '%' | '@' | '$' | '.' -> false
+  | '0'..'9' | '%' | '@' | '$' -> false
   | _ -> true
 
 let mangle = function
@@ -51,8 +51,8 @@ let create ?(index = 0) name = {ident = Name (mangle name); index}
 let temp ?(index = 0) id = {ident = Temp id; index}
 
 let pp ppf x = match x.ident with
-  | Temp id when x.index = 0 -> Format.fprintf ppf "%%.%a" Int63.pp id
-  | Temp id -> Format.fprintf ppf "%%.%a.%u" Int63.pp id x.index
+  | Temp id when x.index = 0 -> Format.fprintf ppf "%%%a" Int63.pp id
+  | Temp id -> Format.fprintf ppf "%%%a.%u" Int63.pp id x.index
   | Name n when x.index = 0 -> Format.fprintf ppf "%%%s" n
   | Name n -> Format.fprintf ppf "%%%s.%u" n x.index
 
