@@ -408,17 +408,29 @@ module Insn = struct
 
   module Ctrl = struct
     module Table = struct
-      type t = (Bitvec.t * local) list
-      [@@deriving bin_io, compare, equal, sexp]
+      type t = local Map.M(Bitvec).t [@@deriving bin_io, compare, equal, sexp]
 
-      let find t v = List.Assoc.find t v ~equal:Bitvec.equal
+      let create_exn l = try Map.of_alist_exn (module Bitvec) l with
+        | exn -> invalid_argf "%s" (Exn.to_string exn) ()
+
+      let create l = Or_error.try_with @@ fun () -> create_exn l
+      let enum t = Map.to_sequence t
+      let find t v = Map.find t v
+
+      let map_exn t ~f = try
+          Map.to_sequence t |>
+          Seq.map ~f:(fun (v, l) -> f v l) |>
+          Map.of_sequence_exn (module Bitvec)
+        with exn -> invalid_argf "%s" (Exn.to_string exn) ()
+
+      let map t ~f = Or_error.try_with @@ fun () -> map_exn t ~f
 
       let pp_elt ppl ppf (v, l) =
         Format.fprintf ppf "%a -> %a" Bitvec.pp v ppl l
 
       let pp ppf t =
         let pp_sep ppf () = Format.fprintf ppf ",@;" in
-        Format.pp_print_list ~pp_sep (pp_elt pp_local) ppf t
+        Format.pp_print_list ~pp_sep (pp_elt pp_local) ppf (Map.to_alist t)
     end
 
     type table = Table.t [@@deriving bin_io, compare, equal, sexp]
@@ -801,7 +813,7 @@ module Cfg = struct
     | `ret _ -> g
     | `switch (_, x, `label (d, _), t) ->
       let init = G.Edge.(insert (create b d @@ `default x) g) in
-      List.fold t ~init ~f:(fun g (v, `label (l, _)) ->
+      Map.fold t ~init ~f:(fun ~key:v ~data:(`label (l, _)) g ->
           G.Edge.(insert (create b l @@ `switch (x, v)) g))
 
   let connect_unreachable g n =
@@ -876,8 +888,9 @@ module Live = struct
     | `jmp d -> dst_uses d
     | `jnz (_, t, f) -> dst_uses t ++ dst_uses f
     | `switch (_, _, d, tbl) ->
-      List.fold tbl ~init:(local_uses d)
-        ~f:(fun uses (_, e) -> uses ++ local_uses e)
+      let init = local_uses d in
+      Insn.Ctrl.Table.enum tbl |> Seq.map ~f:snd |>
+      Seq.fold ~init ~f:(fun uses e -> uses ++ local_uses e)
 
   let block_transitions g fn =
     Func.blks fn |> Seq.fold ~init:Label.Map.empty ~f:(fun fs b ->
