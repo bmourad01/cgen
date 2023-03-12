@@ -167,7 +167,7 @@ module_:
           M.List.fold_right elts ~init ~f:(fun x (funs, typs, data) ->
               reset >>= fun () -> x >>| function
               | `func f -> f :: funs, typs, data
-              | `typ t -> funs, t :: typs, data
+              | `typ  t -> funs, t :: typs, data
               | `data d -> funs, typs, d :: data) in
         Virtual.Module.create ~funs ~typs ~data ~name ()
       end Env.empty |> Context.map ~f:fst
