@@ -305,7 +305,7 @@ module Insn : sig
     (** Pretty-prints the unary operator. *)
     val pp_unop : Format.formatter -> unop -> unit
 
-    (** All operations.
+    (** All basic instructions.
 
         [`binop (x, b, l, r)]: compute [b(l, r)] and store the result in [x].
 
@@ -317,18 +317,18 @@ module Insn : sig
         and assign to [x], otherwise select [r]. Both [l] and [r] must have
         type [t].
     *)
-    type op = [
+    type basic = [
       | `binop  of Var.t * binop * arg * arg
       | `unop   of Var.t * unop  * arg
       | `mem    of Var.t * mem
       | `select of Var.t * Type.basic * Var.t * arg * arg
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Returns the set of free variables in the operation. *)
-    val free_vars_of_op : op -> Var.Set.t
+    (** Returns the set of free variables in the basic instruction. *)
+    val free_vars_of_basic : basic -> Var.Set.t
 
-    (** Pretty-prints an operation. *)
-    val pp_op : Format.formatter -> op -> unit
+    (** Pretty-prints a basic instruction. *)
+    val pp_basic : Format.formatter -> basic -> unit
 
     (** A call instruction.
 
@@ -372,24 +372,42 @@ module Insn : sig
     (** Pretty-prints a variadic argument instruction. *)
     val pp_variadic : Format.formatter -> variadic -> unit
 
-    (** A data instruction is either a call or a simple op. *)
-    type t = [
+    (** A data operation. *)
+    type op = [
+      | basic
       | call
-      | op
       | variadic
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the assigned variable of the operation, if it exists. *)
-    val lhs : t -> Var.t option
+    val lhs : op -> Var.t option
 
     (** [has_lhs d x] returns [true] if the instruction [d] assigns the
         variable [x]. *)
-    val has_lhs : t -> Var.t -> bool
+    val has_lhs : op -> Var.t -> bool
 
     (** Returns the set of free variables in the data instruction. *)
-    val free_vars : t -> Var.Set.t
+    val free_vars : op -> Var.Set.t
 
-    (** Pretty-prints a data instruction. *)
+    (** Pretty-prints a data operation. *)
+    val pp_op : Format.formatter -> op -> unit
+
+    (** A labeled data operation. *)
+    type t [@@deriving bin_io, compare, equal, sexp]
+
+    (** The label of the instruction. *)
+    val label : t -> Label.t
+
+    (** The operation itself. *)
+    val op : t -> op
+
+    (** Returns [true] if the instruction has a given label. *)
+    val has_label : t -> Label.t -> bool
+
+    (** Transforms the underlying operation. *)
+    val map : t -> f:(op -> op) -> t
+
+    (** Same as [pp_op]. *)
     val pp : Format.formatter -> t -> unit
   end
 
@@ -461,38 +479,14 @@ module Insn : sig
     val pp : Format.formatter -> t -> unit
   end
 
-  (** An instruction with a label. *)
-  type 'a t [@@deriving bin_io, compare, equal, sexp]
-
-  type data = Data.t t [@@deriving bin_io, compare, equal, sexp]
-  type ctrl = Ctrl.t t [@@deriving bin_io, compare, equal, sexp]
+  type data = Data.t [@@deriving bin_io, compare, equal, sexp]
+  type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a labeled data instruction. *)
-  val data : Data.t -> label:Label.t -> data
-
-  (** Creates a labeled control instruction. *)
-  val ctrl : Ctrl.t -> label:Label.t -> ctrl
-
-  (** Returns the underlying data of the instruction. *)
-  val insn : 'a t -> 'a
-
-  (** Returns the label of the instruction. *)
-  val label : 'a t -> Label.t
-
-  (** Returns [true] if the instruction has the given label. *)
-  val has_label : 'a t -> Label.t -> bool
-
-  (** Returns the hash of the instruction label. *)
-  val hash : 'a t -> int
+  val data : Data.op -> label:Label.t -> data
 
   (** Returns the assigned variable of the data instruction, if it exists. *)
   val lhs_of_data : data -> Var.t option
-
-  (** Transforms the data instruction with [f]. *)
-  val map_data : data -> f:(Data.t -> Data.t) -> data
-
-  (** Transforms the control-flow instruction with [f]. *)
-  val map_ctrl : ctrl -> f:(Ctrl.t -> Ctrl.t) -> ctrl
 
   (** Returns the set of free variables in the data instruction. *)
   val free_vars_of_data : data -> Var.Set.t
@@ -596,15 +590,8 @@ module Blk : sig
       the label. *)
   val has_data : t -> Label.t -> bool
 
-  (** Returns [true] if the block has a control-flow instruction associated
-      with the label. *)
-  val has_ctrl : t -> Label.t -> bool
-
   (** Finds the data instruction with the associated label. *)
   val find_data : t -> Label.t -> Insn.data option
-
-  (** Finds the control-flow instruction with the associated label. *)
-  val find_ctrl : t -> Label.t -> Insn.ctrl option
 
   (** Returns the next data instruction (after the given label) if it
       exists. *)
@@ -619,10 +606,10 @@ module Blk : sig
 
   (** [map_data b ~f] returns [b] with each data instruction applied
       to [f]. *)
-  val map_data : t -> f:(Label.t -> Insn.Data.t -> Insn.Data.t) -> t
+  val map_data : t -> f:(Label.t -> Insn.Data.op -> Insn.Data.op) -> t
 
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
-  val map_ctrl : t -> f:(Label.t -> Insn.Ctrl.t -> Insn.Ctrl.t) -> t
+  val map_ctrl : t -> f:(Insn.ctrl -> Insn.ctrl) -> t
 
   (** [prepend_arg b a ?before] prepends the argument [a] to the block
 

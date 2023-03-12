@@ -137,7 +137,7 @@
 %type <Var.t * Virtual.Blk.arg_typ> blk_arg
 %type <Virtual.Insn.Ctrl.t m> insn_ctrl
 %type <(Bitvec.t * Virtual.Insn.local) m> insn_ctrl_table_entry
-%type <Virtual.Insn.Data.t> insn_data
+%type <Virtual.Insn.Data.op> insn_data
 %type <call_arg list> call_args
 %type <Virtual.Insn.Data.binop> insn_data_binop
 %type <Virtual.Insn.Data.unop> insn_data_unop

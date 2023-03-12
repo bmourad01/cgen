@@ -13,12 +13,13 @@ module State = struct
     type t = state [@@deriving bin_io, compare, equal, hash, sexp]
   end
 
-  include T  
+  include T
+
+  let pp ppf s = Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_state s
 
   include Regular.Make(struct
       include T
-
-      let pp ppf s = Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_state s
+      let pp = pp
       let version = "0.1"
       let module_name = Some "Cgen.Context.State"
     end)
@@ -115,21 +116,18 @@ module Label = struct
 end
 
 module Virtual = struct
-  let data d =
-    let+ label = Label.fresh in
-    Virtual.Insn.data d ~label
-
-  let ctrl c =
-    let+ label = Label.fresh in
-    Virtual.Insn.ctrl c ~label
+  module Insn = struct
+    let data d =
+      let+ label = Label.fresh in
+      Virtual.Insn.data d ~label
+  end
 
   let blk ?(args = []) ?(data = []) ~ctrl () =
     let+ label = Label.fresh in
     Virtual.Blk.create ~args ~data ~ctrl ~label ()
 
-  let blk' ?(label = None) ?(args = []) ?data:(d = []) ~ctrl:c () =
-    let* data = List.map d ~f:data in
-    let* ctrl = ctrl c in
+  let blk' ?(label = None) ?(args = []) ?data:(d = []) ~ctrl () =
+    let* data = List.map d ~f:Insn.data in
     let+ label = match label with
       | None -> Label.fresh
       | Some l -> !!l in

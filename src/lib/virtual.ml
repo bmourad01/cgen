@@ -286,14 +286,14 @@ module Insn = struct
       | #cast as c -> Format.fprintf ppf "%a" pp_cast c
       | #copy as c -> Format.fprintf ppf "%a" pp_copy c
 
-    type op = [
+    type basic = [
       | `binop  of Var.t * binop * arg * arg
       | `unop   of Var.t * unop  * arg
       | `mem    of Var.t * mem
       | `select of Var.t * Type.basic * Var.t * arg * arg
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    let free_vars_of_op : op -> Var.Set.t = function
+    let free_vars_of_basic : basic -> Var.Set.t = function
       | `binop (_, _, l, r) ->
         List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
       | `unop (_, _, a) -> var_set_of_option @@ var_of_arg a
@@ -301,7 +301,7 @@ module Insn = struct
       | `select (_, _, x, t, f) ->
         List.filter_map [t; f] ~f:var_of_arg |> List.cons x |> Var.Set.of_list
 
-    let pp_op ppf : op -> unit = function
+    let pp_basic ppf : basic -> unit = function
       | `binop (x, b, l, r) ->
         Format.fprintf ppf "%a = %a %a, %a"  Var.pp x pp_binop b pp_arg l pp_arg r
       | `unop (x, u, a) ->
@@ -364,13 +364,13 @@ module Insn = struct
     let pp_variadic ppf : variadic -> unit = function
       | `vastart x -> Format.fprintf ppf "vastart %a" Var.pp x
 
-    type t = [
+    type op = [
+      | basic
       | call
-      | op
       | variadic
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    let lhs : t -> Var.t option = function
+    let lhs : op -> Var.t option = function
       | `binop   (x, _, _, _)
       | `unop    (x, _, _)
       | `mem     (x, _)
@@ -383,15 +383,27 @@ module Insn = struct
       | Some x -> Var.(x = v)
       | None -> false
 
-    let free_vars : t -> Var.Set.t = function
-      | #call as c     -> free_vars_of_call c
-      | #op   as o     -> free_vars_of_op o
+    let free_vars : op -> Var.Set.t = function
+      | #basic    as b -> free_vars_of_basic b
+      | #call     as c -> free_vars_of_call c
       | #variadic as v -> free_vars_of_variadic v
 
-    let pp ppf : t -> unit = function
+    let pp_op ppf : op -> unit = function
+      | #basic    as b -> pp_basic    ppf b
       | #call     as c -> pp_call     ppf c
-      | #op       as o -> pp_op       ppf o
       | #variadic as v -> pp_variadic ppf v
+
+    type t = {
+      label : Label.t;
+      op    : op;
+    } [@@deriving bin_io, compare, equal, sexp]
+
+    let label d = d.label
+    let op d = d.op
+    let has_label d l = Label.(d.label = l)
+    let map d ~f = {d with op = f d.op}
+
+    let pp ppf d = Format.fprintf ppf "%a" pp_op d.op
   end
 
   module Ctrl = struct
@@ -454,34 +466,18 @@ module Insn = struct
           Type.pp_imm t Var.pp x pp_local ld Table.pp tbl
   end
 
-  type 'a t = {
-    insn  : 'a;
-    label : Label.t;
-  } [@@deriving bin_io, compare, equal, sexp]
+  type data = Data.t [@@deriving bin_io, compare, equal, sexp]
+  type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
-  type data = Data.t t [@@deriving bin_io, compare, equal, sexp]
-  type ctrl = Ctrl.t t [@@deriving bin_io, compare, equal, sexp]
+  let data op ~label : data = {label; op}
 
-  let data insn ~label : data = {insn; label}
-  let ctrl insn ~label : ctrl = {insn; label}
+  let lhs_of_data d = Data.lhs d.Data.op
 
-  let insn i = i.insn
-  let label i = i.label
-  let has_label i l = Label.(i.label = l)
-  let hash i = Label.hash i.label
+  let free_vars_of_data d = Data.free_vars d.Data.op
+  let free_vars_of_ctrl c = Ctrl.free_vars c
 
-  let lhs_of_data i = Data.lhs i.insn
-
-  let map_data (i : data) ~f = {i with insn = f i.insn}
-  let map_ctrl (i : ctrl) ~f = {i with insn = f i.insn}
-
-  let free_vars_of_data i = Data.free_vars i.insn
-  let free_vars_of_ctrl i = Ctrl.free_vars i.insn
-
-  let pp ppi ppf i = Format.fprintf ppf "%a: %a" Label.pp i.label ppi i.insn
-
-  let pp_data ppf p = Format.fprintf ppf "%a" Data.pp p.insn
-  let pp_ctrl ppf p = Format.fprintf ppf "%a" Ctrl.pp p.insn
+  let pp_data ppf d = Format.fprintf ppf "%a" Data.pp d
+  let pp_ctrl ppf c = Format.fprintf ppf "%a" Ctrl.pp c
 end
 
 module Edge = struct
@@ -506,7 +502,7 @@ module Edge = struct
 
   include Regular.Make(struct
       include T
-      let module_name = Some "Virtual.Edge"
+      let module_name = Some "Cgen.Virtual.Edge"
       let version = "0.1"
       let pp = pp
       let hash e = String.hash @@ Format.asprintf "%a" pp e
@@ -566,12 +562,12 @@ module Blk = struct
   }
 
   let map_data b ~f = {
-    b with data = Array.map b.data ~f:(fun i ->
-      Insn.map_data i ~f:(f i.label));
+    b with data = Array.map b.data ~f:(fun d ->
+      Insn.Data.map d ~f:(f d.label));
   }
 
   let map_ctrl b ~f = {
-    b with ctrl = Insn.map_ctrl b.ctrl ~f:(f b.ctrl.label);
+    b with ctrl = f b.ctrl;
   }
 
   let index_of xs f i =
@@ -600,16 +596,16 @@ module Blk = struct
   }
 
   let prepend_data ?(before = None) b d = {
-    b with data = prepend b.data d Insn.has_label ~before;
+    b with data = prepend b.data d Insn.Data.has_label ~before;
   }
 
   let append_data ?(after = None) b d = {
-    b with data = append b.data d Insn.has_label ~after;
+    b with data = append b.data d Insn.Data.has_label ~after;
   }
 
   let remove xs i f = Array.remove_if xs ~f:(Fn.flip f i)
   let remove_arg b x = {b with args = remove b.args x is_arg}
-  let remove_data b l = {b with data = remove b.data l Insn.has_label}
+  let remove_data b l = {b with data = remove b.data l Insn.Data.has_label}
 
   let has_arg b x = Array.exists b.args ~f:(Fn.flip is_arg x)
 
@@ -618,23 +614,14 @@ module Blk = struct
     Option.map ~f:snd
 
   let has_lhs b x = Array.exists b.data ~f:(fun i ->
-      Insn.Data.has_lhs (Insn.insn i) x)
+      Insn.Data.(has_lhs @@ op i) x)
 
   let defines_var b x = has_arg b x || has_lhs b x
 
-  let has xs l = Array.exists xs ~f:(Fn.flip Insn.has_label l)
-  let has_data b = has b.data
-  let has_ctrl b l = Insn.has_label b.ctrl l
-
-  let find xs l = Array.find xs ~f:(Fn.flip Insn.has_label l)
-  let find_data b = find b.data
-  let find_ctrl b l = Option.some_if (Insn.has_label b.ctrl l) b.ctrl
-
-  let next xs l = Array.next xs Insn.label l
-  let next_data b = next b.data
-
-  let prev xs l = Array.prev xs Insn.label l
-  let prev_data b = next b.data
+  let has_data b l = Array.exists b.data ~f:(Fn.flip Insn.Data.has_label l)
+  let find_data b l = Array.find b.data ~f:(Fn.flip Insn.Data.has_label l)
+  let next_data b l = Array.next b.data Insn.Data.label l
+  let prev_data b l = Array.prev b.data Insn.Data.label l
 
   let pp_arg ppf (x, t) =
     Format.fprintf ppf "%a %a" pp_arg_typ t Var.pp x
@@ -662,7 +649,7 @@ module Blk = struct
 
   include Regular.Make(struct
       include T
-      let module_name = Some "Virtual.Blk"
+      let module_name = Some "Cgen.Virtual.Blk"
       let version = "0.1"
       let pp = pp
       let hash = hash
@@ -787,7 +774,7 @@ module Func = struct
 
   include Regular.Make(struct
       include T
-      let module_name = Some "Virtual.Fn"
+      let module_name = Some "Cgen.Virtual.Fn"
       let version = "0.1"
       let pp = pp
       let hash = hash
@@ -836,7 +823,7 @@ module Cfg = struct
 
   let create (fn : func) =
     Array.fold fn.blks ~init:G.empty ~f:(fun g b ->
-        accum (G.Node.insert b.label g) b.label b.ctrl.insn) |> fun g ->
+        accum (G.Node.insert b.label g) b.label b.ctrl) |> fun g ->
     G.nodes g |> Seq.fold ~init:g ~f:connect_unreachable |> fun g ->
     Graphlib.depth_first_search (module G) g
       ~init:g ~start:Label.pseudoentry
@@ -875,11 +862,8 @@ module Live = struct
     Format.fprintf ppf "(%a) / (%a)" pp_vars uses pp_vars defs
 
   let blk_defs b =
-    Blk.data b |> Seq.map ~f:Insn.insn |>
-    Seq.fold ~init:Var.Set.empty ~f:(fun defs d ->
-        match Insn.Data.lhs d with
-        | Some x -> Set.add defs x
-        | None -> defs)
+    Blk.data b |> Seq.filter_map ~f:Insn.lhs_of_data |>
+    Seq.fold ~init:Var.Set.empty ~f:Set.add
 
   let update l trans ~f = Map.update trans l ~f:(function
       | None -> f empty_tran
@@ -899,7 +883,7 @@ module Live = struct
     | #Insn.local as l -> local_uses l
     | _ -> Var.Set.empty
 
-  let ctrl_uses b = match Insn.insn @@ Blk.ctrl b with
+  let ctrl_uses b = match Blk.ctrl b with
     | `hlt | `ret _ -> Var.Set.empty
     | `jmp d -> dst_uses d
     | `jnz (_, t, f) -> dst_uses t ++ dst_uses f
@@ -1057,7 +1041,7 @@ module Data = struct
 
   include Regular.Make(struct
       include T
-      let module_name = Some "Virtual.Data"
+      let module_name = Some "Cgen.Virtual.Data"
       let version = "0.1"
       let pp = pp
       let hash = hash
@@ -1175,7 +1159,7 @@ module Module = struct
 
   include Regular.Make(struct
       include T
-      let module_name = Some "Virtual.Module"
+      let module_name = Some "Cgen.Virtual.Module"
       let version = "0.1"
       let pp = pp
       let hash = hash

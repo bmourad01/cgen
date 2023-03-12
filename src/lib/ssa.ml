@@ -59,12 +59,12 @@ let map_mem vars (m : Insn.Data.mem) =
   | `load (t, m, a) -> `load (t, var m, arg a)
   | `store (t, m, a, v) -> `store (t, var m, arg a, arg v)
 
-let map_op vars nums (o : Insn.Data.op) =
+let map_basic vars nums (b : Insn.Data.basic) =
   let arg = map_arg vars in
   let var = map_var vars in
   let mem = map_mem vars in
   let rename = new_name vars nums in
-  match o with
+  match b with
   | `binop (x, b, l, r) -> `binop (rename x, b, arg l, arg r)
   | `unop (x, u, a) -> `unop (rename x, u, arg a)
   | `mem (x, m) -> `mem (rename x, mem m)
@@ -92,13 +92,13 @@ let rename_data vars nums b =
       | `call (f, args, vargs) ->
         `call (glo f, margs args, margs vargs)
       | `vastart x -> `vastart (var x)
-      | #Insn.Data.op as o -> map_op vars nums o)
+      | #Insn.Data.basic as o -> map_basic vars nums o)
 
 let rename_ctrl vars b =
   let var = map_var vars in
   let dst = map_dst vars in
   let arg = map_arg vars in
-  Blk.map_ctrl b ~f:(fun _ -> function
+  Blk.map_ctrl b ~f:(function
       | `hlt as h -> h
       | `jmp d -> `jmp (dst d)
       | `jnz (c, t, f) -> `jnz (var c, dst t, dst f)
@@ -110,10 +110,7 @@ let pop_args b pop =
   Blk.args b |> Seq.map ~f:fst |> Seq.iter ~f:pop
 
 let pop_data b pop =
-  Blk.data b |>
-  Seq.map ~f:Insn.insn |>
-  Seq.filter_map ~f:Insn.Data.lhs |>
-  Seq.iter ~f:pop
+  Blk.data b |> Seq.filter_map ~f:Insn.lhs_of_data |> Seq.iter ~f:pop
 
 let pop_defs vars b =
   let pop x = Var.base x |> Hashtbl.change vars ~f:(function
@@ -154,7 +151,7 @@ let argify_dst xs : Insn.dst -> Insn.dst = function
 let argify_ctrl xs b =
   let loc = argify_local xs in
   let dst = argify_dst xs in
-  Blk.map_ctrl b ~f:(fun _ -> function
+  Blk.map_ctrl b ~f:(function
       | `hlt as h -> h
       | `jmp d -> `jmp (dst d)
       | `jnz (c, t, f) -> `jnz (c, dst t, dst f)
