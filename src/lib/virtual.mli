@@ -415,33 +415,12 @@ module Insn : sig
   module Ctrl : sig
     (** A switch table. *)
     module Table : sig
-      type t [@@deriving bin_io, compare, equal, sexp]
-
-      (** Creates a switch table from an association list.Afl_instrument
-
-          @raise Invalid_argument if the list has duplicate keys.
-      *)
-      val create_exn : (Bitvec.t * local) list -> t
-
-      (** Same as [create_exn], but returns an error upon failure. *)
-      val create : (Bitvec.t * local) list -> t Or_error.t
-
-      (** Returns the elements of the table. *)
-      val enum : t -> (Bitvec.t * local) seq
+      type t = (Bitvec.t * local) list
+      [@@deriving bin_io, compare, equal, sexp]
 
       (** [find t v] searches the table [t] for the label associated
           with the constant [v]. *)
       val find : t -> Bitvec.t -> local option
-
-      (** [map_exn t ~f] applies [f] to each element of [t].
-
-          @raise Invalid_argument if [f] produces a duplicate key.
-      *)
-      val map_exn : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t
-
-      (** Same as [map_exn], but returns [Error _] if [f] produces a
-          duplicate key. *)
-      val map : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t Or_error.t
     end
 
     type table = Table.t [@@deriving bin_io, compare, equal, sexp]

@@ -271,10 +271,8 @@ insn_ctrl:
     { !!(`ret a) }
   | t = SWITCH i = var COMMA def = insn_local tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry)
     {
-      let* d = def and* tbl = unwrap_list tbl in
-      match Virtual.Insn.Ctrl.Table.create tbl with
-      | Error err -> M.lift @@ Context.fail err
-      | Ok tbl -> !!(`switch (t, i, d, tbl))
+      let+ d = def and+ tbl = unwrap_list tbl in
+      `switch (t, i, d, tbl)
     }
 
 insn_ctrl_table_entry:

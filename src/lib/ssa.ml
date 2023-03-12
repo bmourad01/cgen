@@ -157,7 +157,7 @@ let argify_ctrl xs b =
       | `jnz (c, t, f) -> `jnz (c, dst t, dst f)
       | `ret _ as r -> r
       | `switch (t, i, d, tbl) ->
-        let tbl = Insn.Ctrl.Table.map_exn tbl ~f:(fun v l -> v, loc l) in
+        let tbl = List.map tbl ~f:(fun (v, l) -> v, loc l) in
         `switch (t, i, loc d, tbl))
 
 let insert_args vars fn frontier cfg =
