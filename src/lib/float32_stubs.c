@@ -36,23 +36,23 @@ value cgen_float32_of_float(value x) {
   CAMLreturn(f);
 }
 
-CAMLprim value cgen_float_of_float32(value x) {
+value cgen_float_of_float32(value x) {
   return caml_copy_double(Float_val(x));
 }
 
-CAMLprim value cgen_float32_is_zero(value x) {
+value cgen_float32_is_zero(value x) {
   return Val_bool(Float_val(x) == 0.0f);
 }
 
-CAMLprim value cgen_float32_is_inf(value x) {
+value cgen_float32_is_inf(value x) {
   return Val_bool(isinf(Float_val(x)));
 }
 
-CAMLprim value cgen_float32_is_negative(value x) {
+value cgen_float32_is_negative(value x) {
   return Val_bool(signbit(Float_val(x)));
 }
 
-CAMLprim value cgen_float32_is_nan(value x) {
+value cgen_float32_is_nan(value x) {
   return Val_bool(isnan(Float_val(x)));
 }
 
@@ -110,35 +110,35 @@ value cgen_bits_of_float32(value x) {
   return caml_copy_int32(i);
 }
 
-CAMLprim value cgen_int8_of_float32(value x) {
+value cgen_int8_of_float32(value x) {
   return Val_int((int8_t)Float_val(x));
 }
 
-CAMLprim value cgen_int16_of_float32(value x) {
+value cgen_int16_of_float32(value x) {
   return Val_int((int16_t)Float_val(x));
 }
 
-CAMLprim value cgen_int32_of_float32(value x) {
+value cgen_int32_of_float32(value x) {
   return caml_copy_int32((int32_t)Float_val(x));
 }
 
-CAMLprim value cgen_int64_of_float32(value x) {
+value cgen_int64_of_float32(value x) {
   return caml_copy_int64((int8_t)Float_val(x));
 }
 
-CAMLprim value cgen_uint8_of_float32(value x) {
+value cgen_uint8_of_float32(value x) {
   return Val_int((uint8_t)Float_val(x));
 }
 
-CAMLprim value cgen_uint16_of_float32(value x) {
+value cgen_uint16_of_float32(value x) {
   return Val_int((uint16_t)Float_val(x));
 }
 
-CAMLprim value cgen_uint32_of_float32(value x) {
+value cgen_uint32_of_float32(value x) {
   return caml_copy_int32((uint32_t)Float_val(x));
 }
 
-CAMLprim value cgen_uint64_of_float32(value x) {
+value cgen_uint64_of_float32(value x) {
   return caml_copy_int64((uint8_t)Float_val(x));
 }
 
@@ -206,28 +206,31 @@ value cgen_float32_of_uint64(value x) {
   CAMLreturn(f);
 }
 
-CAMLprim value cgen_string_of_float32(value x) {
+value cgen_string_of_float32(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(s);
   char buf[MAX_FLOAT_DIGITS] = {0};
   snprintf(buf, sizeof(buf), "%g", Float_val(x));
-  return caml_copy_string(buf);
+  s = caml_copy_string(buf);
+  CAMLreturn(s);
 }
 
-CAMLprim value cgen_float32_equal(value x, value y) {
+value cgen_float32_equal(value x, value y) {
   return Val_bool(Float_val(x) == Float_val(y));
 }
 
-CAMLprim value cgen_float32_ge(value x, value y) {
+value cgen_float32_ge(value x, value y) {
   return Val_bool(Float_val(x) >= Float_val(y));
 }
 
-CAMLprim value cgen_float32_gt(value x, value y) {
+value cgen_float32_gt(value x, value y) {
   return Val_bool(Float_val(x) > Float_val(y));
 }
 
-CAMLprim value cgen_float32_le(value x, value y) {
+value cgen_float32_le(value x, value y) {
   return Val_bool(Float_val(x) <= Float_val(y));
 }
 
-CAMLprim value cgen_float32_lt(value x, value y) {
+value cgen_float32_lt(value x, value y) {
   return Val_bool(Float_val(x) < Float_val(y));
 }
