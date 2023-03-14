@@ -921,7 +921,7 @@ module Live = struct
     let g = Cfg.create fn in
     let init =
       Solution.create
-        (Label.Map.singleton Label.pseudoexit Var.Set.empty)
+        (Label.Map.singleton Label.pseudoexit init)
         Var.Set.empty in
     let blks = block_transitions g fn in {
       blks;
