@@ -44,6 +44,8 @@ let ident = (alpha | '_') (alpha | '_' | digit)*
 let integer = digit+
 let ninteger = '-' integer
 let hinteger = "0x" ['0'-'9' 'a'-'f' 'A'-'F']+
+let ointeger = "0o" ['0'-'7']+
+let binteger = "0b" ['0'-'1']+
 let double = digit+ '.' digit+
 let single = double 'f'
 let backslash_escapes = ['\\' '\'' '"' 'n' 't' 'b' 'r' ' ']
@@ -161,6 +163,8 @@ rule token = parse
   | integer as i { INT (Bitvec.of_string i) }
   | ninteger as n { INT (Bitvec.of_string n) }
   | hinteger as h { INT (Bitvec.of_string h) }
+  | ointeger as o { INT (Bitvec.of_string o) }
+  | binteger as b { INT (Bitvec.of_string b) }
   | double as d { DOUBLE (Float.of_string d) }
   | single as s { SINGLE (Float32.of_string s) }
   | _ { raise Error }
