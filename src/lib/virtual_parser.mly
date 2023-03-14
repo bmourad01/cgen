@@ -115,6 +115,8 @@
 %token <Float32.t> SINGLE
 %token <string * int> VAR
 %token <string> IDENT
+%token <int> TEMP
+%token <int * int> TEMPI
 
 %start module_
 
@@ -415,3 +417,13 @@ const:
 var:
   | x = VAR { Var.(with_index (create (fst x)) (snd x)) }
   | x = IDENT { Var.create x }
+  | x = TEMP
+    {
+      let id : Var.id = Obj.magic @@ Core.Int63.of_int x in
+      Var.temp id
+    }
+  | x = TEMPI
+    {
+      let id : Var.id = Obj.magic @@ Core.Int63.of_int @@ fst x in
+      Var.temp id ~index:(snd x)
+    }
