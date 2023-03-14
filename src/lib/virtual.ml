@@ -917,11 +917,11 @@ module Live = struct
   let transfer blks n vars =
     if Label.is_pseudo n then vars else apply (lookup blks n) vars
 
-  let compute ?keep:(init = Var.Set.empty) fn =
+  let compute ?(keep = Var.Set.empty) fn =
     let g = Cfg.create fn in
     let init =
       Solution.create
-        (Label.Map.singleton Label.pseudoexit init)
+        (Label.Map.singleton Label.pseudoexit keep)
         Var.Set.empty in
     let blks = block_transitions g fn in {
       blks;
