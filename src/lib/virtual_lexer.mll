@@ -64,6 +64,7 @@ rule token = parse
   | ':' { COLON }
   | '$' (ident as id) { SYM id }
   | '@' (ident as id) { LABEL id }
+  | '@' (integer as id) { LABEL id }
   | '%' (ident as id) '.' (integer as i) { VAR (id, int_of_string i) }
   | '%' (ident as id) { IDENT id }
   | '%' (integer as id) { TEMP (int_of_string id) }
