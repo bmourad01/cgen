@@ -919,6 +919,9 @@ module Data : sig
   (** Returns the hash of the struct name. *)
   val hash : t -> int
 
+  (** Returns the corresponding compound type of the struct. *)
+  val typeof : t -> Type.compound
+
   (** Prepends an element to the beginning of the structure. *)
   val prepend_elt : t -> elt -> t
 

@@ -1017,6 +1017,17 @@ module Data = struct
   let has_name d name = String.(name = d.name)
   let hash d = String.hash d.name
 
+  let typeof d =
+    let name = Format.sprintf "%s_t" d.name in
+    let fields =
+      Array.fold_right d.elts ~init:[] ~f:(fun elt fields ->
+          let t = match elt with
+            | `basic (t, cs) -> `elt (t, List.length cs)
+            | `string s -> `elt (`i8, String.length s)
+            | `zero n -> `elt (`i8, n) in
+          t :: fields) in
+    `compound (name, d.align, fields)
+
   let prepend_elt d e = {
     d with elts = Array.push_front d.elts e;
   }
