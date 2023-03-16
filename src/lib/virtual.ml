@@ -665,7 +665,7 @@ module Func = struct
       blks     : blk array;
       entry    : Label.t;
       args     : (Var.t * Type.arg) array;
-      return   : Type.arg option;
+      return   : Type.basic option;
       variadic : bool;
       noreturn : bool;
       linkage  : Linkage.t;
@@ -778,7 +778,7 @@ module Func = struct
       Format.fprintf ppf "%a " Linkage.pp fn.linkage;
     if fn.noreturn then Format.fprintf ppf "noreturn ";
     Format.fprintf ppf "function ";
-    Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_arg);
+    Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_basic);
     Format.fprintf ppf "$%s(%a) {@;@[<v 0>%a@]@;}"
       fn.name pp_args fn (Array.pp Blk.pp sep) fn.blks
 

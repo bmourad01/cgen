@@ -210,9 +210,9 @@ typ_field:
   | n = TYPENAME { `name n }
 
 func:
-  | l = option(linkage) FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
+  | l = option(linkage) FUNCTION return = option(type_basic) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
     { make_fn blks args l name return false }
-  | l = option(linkage) NORETURN FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
+  | l = option(linkage) NORETURN FUNCTION return = option(type_basic) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
     { make_fn blks args l name return true }
 
 func_args:

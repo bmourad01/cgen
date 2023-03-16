@@ -696,7 +696,7 @@ module Func : sig
       @raise Invalid_argument if [blks] is empty.
   *)
   val create_exn :
-    ?return:Type.arg option ->
+    ?return:Type.basic option ->
     ?variadic:bool ->
     ?noreturn:bool ->
     ?linkage:Linkage.t ->
@@ -708,7 +708,7 @@ module Func : sig
 
   (** Same as [create_exn], but returns an error upon failure. *)
   val create :
-    ?return:Type.arg option ->
+    ?return:Type.basic option ->
     ?variadic:bool ->
     ?noreturn:bool ->
     ?linkage:Linkage.t ->
@@ -731,7 +731,7 @@ module Func : sig
   val args : ?rev:bool -> t -> (Var.t * Type.arg) seq
 
   (** Returns the return type of the function, if it exists. *)
-  val return : t -> Type.arg option
+  val return : t -> Type.basic option
 
   (** Returns [true] if the function is variadic. *)
   val variadic : t -> bool
