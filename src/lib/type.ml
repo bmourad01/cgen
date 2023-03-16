@@ -94,7 +94,7 @@ let pp_proto ppf : proto -> unit = function
   | `proto (ret, args) ->
     let pp_sep ppf () = Format.fprintf ppf ", " in
     let pp_args = Format.pp_print_list ~pp_sep pp_arg in
-    Option.iter ret ~f:(Format.fprintf ppf "%a" pp_arg);
+    Option.iter ret ~f:(Format.fprintf ppf "%a " pp_arg);
     Format.fprintf ppf "(%a)" pp_args args
 
 module T = struct
