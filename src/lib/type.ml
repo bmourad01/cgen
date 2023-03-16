@@ -6,6 +6,10 @@ type imm_base = [
   | `i64
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+let sizeof_imm_base : imm_base -> int = function
+  | `i32 -> 32
+  | `i64 -> 64
+
 let pp_imm_base ppf : imm_base -> unit = function
   | `i32 -> Format.fprintf ppf "w"
   | `i64 -> Format.fprintf ppf "l"
@@ -15,6 +19,11 @@ type imm = [
   | `i16
   | imm_base
 ] [@@deriving bin_io, compare, equal, hash, sexp]
+
+let sizeof_imm : imm -> int = function
+  | `i8 -> 8
+  | `i16 -> 16
+  | #imm_base as b -> sizeof_imm_base b
 
 let pp_imm ppf : imm -> unit = function
   | `i8  -> Format.fprintf ppf "b"
@@ -26,6 +35,10 @@ type fp = [
   | `f64
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+let sizeof_fp : fp -> int = function
+  | `f32 -> 32
+  | `f64 -> 32
+
 let pp_fp ppf : fp -> unit = function
   | `f32 -> Format.fprintf ppf "s"
   | `f64 -> Format.fprintf ppf "d"
@@ -34,6 +47,10 @@ type basic = [
   | imm
   | fp
 ] [@@deriving bin_io, compare, equal, hash, sexp]
+
+let sizeof_basic : basic -> int = function
+  | #imm as i -> sizeof_imm i
+  | #fp  as f -> sizeof_fp  f
 
 let pp_basic ppf : basic -> unit = function
   | #imm as i -> Format.fprintf ppf "%a" pp_imm i

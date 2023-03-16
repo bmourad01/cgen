@@ -14,6 +14,9 @@ type imm_base = [
   | `i64
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+(** Size of [imm_base] in bits. *)
+val sizeof_imm_base : imm_base -> int
+
 (** Pretty-prints a base immediate type. *)
 val pp_imm_base : Format.formatter -> imm_base -> unit
 
@@ -25,6 +28,9 @@ type imm = [
   | imm_base
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+(** Size of [imm] in bits. *)
+val sizeof_imm : imm -> int
+
 (** Pretty-prints an immediate type. *)
 val pp_imm : Format.formatter -> imm -> unit
 
@@ -35,6 +41,9 @@ type fp = [
   | `f64
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+(** Size of [fp] in bits. *)
+val sizeof_fp : fp -> int
+
 (** Pretty-prints a floating point type. *)
 val pp_fp : Format.formatter -> fp -> unit
 
@@ -44,6 +53,9 @@ type basic = [
   | imm
   | fp
 ] [@@deriving bin_io, compare, equal, hash, sexp]
+
+(** Size of [basic] in bits. *)
+val sizeof_basic : basic -> int
 
 (** Pretty-prints a basic type. *)
 val pp_basic : Format.formatter -> basic -> unit
