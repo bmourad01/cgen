@@ -21,9 +21,13 @@
        *)
       type t = {
         labels : Label.t Core.String.Map.t;
+        temps : Var.t Core.String.Map.t;
       }
 
-      let empty = {labels = Core.String.Map.empty}
+      let empty = {
+        labels = Core.String.Map.empty;
+        temps = Core.String.Map.empty;
+      }
     end
 
     module M = Monad.State.Make(Env)(Context)
@@ -35,7 +39,7 @@
 
     (* Each time parse a new function, reset the context, since
        labels do not have scope outside of a function body. *)
-    let reset = M.put {labels = Core.String.Map.empty}
+    let reset = M.put Env.empty
     
     let label_of_name name =
       let* env = M.get () in
@@ -44,8 +48,21 @@
       | None ->
          let* l = M.lift @@ Context.Label.fresh in
          let labels = Core.Map.set env.labels ~key:name ~data:l in
-         let+ () = M.put {labels} in
+         let+ () = M.put {env with labels} in
          l
+
+    let temp_of_name ?index name =
+      let* env = M.get () in
+      let+ v = match Core.Map.find env.temps name with
+        | Some v -> !!v
+        | None ->
+          let* v = M.lift @@ Context.Var.fresh in
+          let temps = Core.Map.set env.temps ~key:name ~data:v in
+          let+ () = M.put {env with temps} in
+          v in
+      match index with
+      | Some i -> Var.with_index v i
+      | None -> v
 
     let unwrap_list = M.List.map ~f:(fun x -> x >>| Core.Fn.id)
 
@@ -55,8 +72,8 @@
 
     let make_fn blks args l name return noreturn =
       let* blks = unwrap_list blks in
-      let args, variadic = match args with
-        | None -> [], false
+      let* args, variadic = match args with
+        | None -> !!([], false)
         | Some a -> a in
       let linkage = Core.Option.value l ~default:Linkage.default_static in
       match Virtual.Func.create () ~name ~blks ~args ~return ~noreturn ~variadic ~linkage with
@@ -115,8 +132,8 @@
 %token <Float32.t> SINGLE
 %token <string * int> VAR
 %token <string> IDENT
-%token <int> TEMP
-%token <int * int> TEMPI
+%token <string> TEMP
+%token <string * int> TEMPI
 
 %start module_
 
@@ -128,7 +145,7 @@
 %type <int> align
 %type <Type.field> typ_field
 %type <Virtual.func m> func
-%type <(Var.t * Type.arg) list * bool> func_args
+%type <((Var.t * Type.arg) list * bool) m> func_args
 %type <Type.basic> type_basic
 %type <Type.special> type_special
 %type <Type.arg> type_arg
@@ -136,11 +153,11 @@
 %type <Linkage.t> linkage
 %type <string> section
 %type <Virtual.blk m> blk
-%type <Var.t * Virtual.Blk.arg_typ> blk_arg
+%type <(Var.t * Virtual.Blk.arg_typ) m> blk_arg
 %type <Virtual.Insn.Ctrl.t m> insn_ctrl
 %type <(Bitvec.t * Virtual.Insn.local) m> insn_ctrl_table_entry
-%type <Virtual.Insn.Data.op> insn_data
-%type <call_arg list> call_args
+%type <Virtual.Insn.Data.op m> insn_data
+%type <call_arg list m> call_args
 %type <Virtual.Insn.Data.binop> insn_data_binop
 %type <Virtual.Insn.Data.unop> insn_data_unop
 %type <Virtual.Insn.Data.arith_binop> insn_data_arith_binop
@@ -150,13 +167,13 @@
 %type <Virtual.Insn.Data.bitwise_unop> insn_data_bitwise_unop
 %type <Virtual.Insn.Data.cast> insn_data_cast
 %type <Virtual.Insn.Data.copy> insn_data_copy
-%type <Virtual.Insn.Data.mem> insn_data_mem
+%type <Virtual.Insn.Data.mem m> insn_data_mem
 %type <Virtual.Insn.dst m> insn_dst
 %type <Virtual.Insn.local m> insn_local
-%type <Virtual.Insn.global> insn_global
-%type <Virtual.Insn.arg> insn_arg
+%type <Virtual.Insn.global m> insn_global
+%type <Virtual.Insn.arg m> insn_arg
 %type <Virtual.const> const
-%type <Var.t> var
+%type <Var.t m> var
 
 %%
 
@@ -216,10 +233,14 @@ func:
     { make_fn blks args l name return true }
 
 func_args:
-  | ELIPSIS { [], true }
-  | t = type_arg x = var { [x, t], false }
+  | ELIPSIS { !!([], true) }
+  | t = type_arg x = var { x >>| fun x -> [x, t], false }
   | t = type_arg x = var COMMA rest = func_args
-    { (x, t) :: fst rest, snd rest }
+    {
+      rest >>= fun rest ->
+      x >>| fun x ->
+      (x, t) :: fst rest, snd rest
+    }
 
 type_basic:
   | W { `i32 }
@@ -251,29 +272,43 @@ section:
 blk:
   | ln = LABEL COLON data = list(insn_data) ctrl = insn_ctrl
     {
-      let* l = label_of_name ln and* ctrl = ctrl in
+      let* l = label_of_name ln
+      and* data = unwrap_list data
+      and* ctrl = ctrl in
       M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~data ~ctrl
     }
   | ln = LABEL LPAREN args = separated_nonempty_list(COMMA, blk_arg) RPAREN COLON data = list(insn_data) ctrl = insn_ctrl
     {
-      let* l = label_of_name ln and* ctrl = ctrl in
+      let* l = label_of_name ln
+      and* args = unwrap_list args
+      and* data = unwrap_list data
+      and* ctrl = ctrl in
       M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~args ~data ~ctrl
     }
 
 blk_arg:
-  | t = type_blk_arg v = var { v, t }
+  | t = type_blk_arg v = var { v >>| fun v -> v, t }
 
 insn_ctrl:
   | HLT { !!`hlt }
   | JMP d = insn_dst
     { d >>| fun d -> `jmp d }
   | JNZ c = var COMMA t = insn_dst COMMA f = insn_dst
-    { t >>= fun t -> f >>| fun f -> `jnz (c, t, f) }
+    {
+      c >>= fun c ->
+      t >>= fun t ->
+      f >>| fun f ->
+      `jnz (c, t, f)
+    }
   | RET a = option(insn_arg)
-    { !!(`ret a) }
+    {
+      match a with
+      | None -> !!(`ret None)
+      | Some a -> a >>| fun a -> `ret (Some a)
+    }
   | t = SWITCH i = var COMMA def = insn_local tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry)
     {
-      let* d = def and* tbl = unwrap_list tbl in
+      let* i = i and* d = def and* tbl = unwrap_list tbl in
       match Virtual.Insn.Ctrl.Table.create tbl with
       | Error err -> M.lift @@ Context.fail err
       | Ok tbl -> !!(`switch (t, i, d, tbl))
@@ -284,39 +319,71 @@ insn_ctrl_table_entry:
 
 insn_data:
   | x = var EQUALS b = insn_data_binop l = insn_arg COMMA r = insn_arg
-    { `binop (x, b, l, r) }
+    {
+      x >>= fun x ->
+      l >>= fun l ->
+      r >>| fun r ->
+      `binop (x, b, l, r)
+    }
   | x = var EQUALS u = insn_data_unop a = insn_arg
-    { `unop (x, u, a) }
+    {
+      x >>= fun x ->
+      a >>| fun a ->
+      `unop (x, u, a)
+    }
   | x = var EQUALS m = insn_data_mem
-    { `mem (x, m) }
+    {
+      x >>= fun x ->
+      m >>| fun m ->
+      `mem (x, m)
+    }
   | x = var t = SELECT c = var COMMA l = insn_arg COMMA r = insn_arg
-    { `select (x, t, c, l, r) }
+    {
+      x >>= fun x ->
+      c >>= fun c ->
+      l >>= fun l ->
+      r >>| fun r ->
+      `select (x, t, c, l, r)
+    }
   | x = var t = ACALL f = insn_global LPAREN args = call_args RPAREN
     {
+      x >>= fun x ->
+      f >>= fun f ->
+      args >>| fun args ->
       let args, vargs = Core.List.partition_map args ~f:(function
         | `arg a -> First a | `varg a -> Second a) in
       `acall (x, t, f, args, vargs)
     }
   | CALL f = insn_global LPAREN args = call_args RPAREN
     {
+      f >>= fun f ->
+      args >>| fun args ->
       let args, vargs = Core.List.partition_map args ~f:(function
         | `arg a -> First a | `varg a -> Second a) in
       `call (f, args, vargs)
     }
   | VASTART x = var
-    { `vastart x }
+    { x >>| fun x -> `vastart x }
 
 call_args:
   | a = option(insn_arg)
     {
       match a with
-      | None -> []
-      | Some a -> [`arg a]
+      | None -> !![]
+      | Some a -> a >>| fun a -> [`arg a]
     }
   | a = insn_arg COMMA rest = call_args
-    { `arg a :: rest }
+    {
+      a >>= fun a ->
+      rest >>| fun rest ->
+      `arg a :: rest
+    }
   | a = insn_arg COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, insn_arg)
-    { `arg a :: Core.List.map vargs ~f:(fun a -> `varg a)  }
+    {
+      a >>= fun a ->
+      unwrap_list vargs >>| fun vargs ->
+      `arg a :: Core.List.map vargs ~f:(fun a -> `varg a)
+    }
 
 insn_data_binop:
   | a = insn_data_arith_binop { (a :> Virtual.Insn.Data.binop) }
@@ -382,29 +449,41 @@ insn_data_copy:
 
 insn_data_mem:
   | ALLOC i = INT
-    { `alloc (Bitvec.to_int i) }
+    { !!(`alloc (Bitvec.to_int i)) }
   | t = LOAD m = var LSQUARE a = insn_arg RSQUARE
-    { `load (t, m, a) }
+    {
+      m >>= fun m ->
+      a >>| fun a ->
+      `load (t, m, a)
+    }
   | t = STORE m = var LSQUARE a = insn_arg RSQUARE COMMA x = insn_arg
-    { `store (t, m, a, x) }
+    {
+      m >>= fun m ->
+      a >>= fun a ->
+      x >>| fun x ->
+      `store (t, m, a, x)
+    }
 
 insn_dst:
-  | g = insn_global { !!(g :> Virtual.Insn.dst) }
+  | g = insn_global { g >>| fun g -> (g :> Virtual.Insn.dst) }
   | l = insn_local { l >>| fun l -> (l :> Virtual.Insn.dst) }
 
 insn_local:
   | l = LABEL { label_of_name l >>| fun l -> `label (l, []) }
   | l = LABEL LPAREN args = separated_nonempty_list(COMMA, insn_arg) RPAREN
-    { label_of_name l >>| fun l -> `label (l, args) }
+    {
+      unwrap_list args >>= fun args ->
+      label_of_name l >>| fun l -> `label (l, args)
+    }
 
 insn_global:
-  | i = INT { `addr i }
-  | s = SYM { `sym s }
-  | x = var { `var x }
+  | i = INT { !!(`addr i) }
+  | s = SYM { !!(`sym s) }
+  | x = var { x >>| fun x -> `var x }
 
 insn_arg:
-  | c = const { (c :> Virtual.Insn.arg) }
-  | x = var { `var x }
+  | c = const { !!(c :> Virtual.Insn.arg) }
+  | x = var { x >>| fun x -> `var x }
 
 const:
   | i = INT { `int i }
@@ -415,15 +494,7 @@ const:
   | s = SYM MINUS i = INT { `sym (s, -(Bitvec.to_int i)) }
 
 var:
-  | x = VAR { Var.(with_index (create (fst x)) (snd x)) }
-  | x = IDENT { Var.create x }
-  | x = TEMP
-    {
-      let id : Var.id = Obj.magic @@ Core.Int63.of_int x in
-      Var.temp id
-    }
-  | x = TEMPI
-    {
-      let id : Var.id = Obj.magic @@ Core.Int63.of_int @@ fst x in
-      Var.temp id ~index:(snd x)
-    }
+  | x = VAR { !!Var.(with_index (create (fst x)) (snd x)) }
+  | x = IDENT { !!(Var.create x) }
+  | x = TEMP { temp_of_name x }
+  | x = TEMPI { temp_of_name (fst x) ~index:(snd x) }
