@@ -4,15 +4,16 @@ open Regular.Std
 module T = struct
   type t = {
     name : string;
-    bits : int;
+    word : Type.imm_base;
   } [@@deriving bin_io, compare, equal, hash, sexp]
 end
 
 include T
 
-let create ~name ~bits () = {name; bits}
+let create ~name ~word () = {name; word}
 let name t = t.name
-let bits t = t.bits
+let word t = t.word
+let bits t = Type.sizeof_imm_base t.word
 
 include Regular.Make(struct
     include T
