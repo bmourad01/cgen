@@ -718,9 +718,19 @@ module Func = struct
   let has_name fn name = String.(name = fn.name)
   let hash fn = String.hash fn.name
 
+  let typeof fn =
+    let args = Array.enum fn.args |> Seq.map ~f:snd |> Seq.to_list in
+    `proto (fn.return, args)
+
   let map_of_blks fn =
     Array.fold fn.blks ~init:Label.Map.empty ~f:(fun m b ->
-        Map.set m ~key:(Blk.label b) ~data:b)
+        let key = Blk.label b in
+        match Map.add m ~key ~data:b with
+        | `Ok m -> m
+        | `Duplicate ->
+          invalid_argf
+            "Duplicate block of label %a in function %s"
+            Label.pps key fn.name ())
 
   let map_blks fn ~f =
     let entry = ref fn.entry in

@@ -748,7 +748,13 @@ module Func : sig
   (** Returns the hash of the function name. *)
   val hash : t -> int
 
-  (** Returns a mapping from block labels to blocks. *)
+  (** Returns the function prototype. *)
+  val typeof : t -> Type.proto
+
+  (** Returns a mapping from block labels to blocks.
+
+      @raise Invalid_argument if there are duplicate labels
+  *)
   val map_of_blks : t -> blk Label.Map.t
 
   (** [map_blks fn ~f] returns [fn] with each basic block applied to [f].

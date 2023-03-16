@@ -112,6 +112,14 @@ type arg = [
     for function arguments. *)
 val pp_arg : Format.formatter -> arg -> unit
 
+(** A function prototype. *)
+type proto = [
+  | `proto of arg option * arg list
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+(** Pretty prints a function prototype. *)
+val pp_proto : Format.formatter -> proto -> unit
+
 (** A type. *)
 type t = [
   | basic
