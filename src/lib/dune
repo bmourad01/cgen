@@ -23,6 +23,7 @@
    monads
    regular)
  (private_modules
+   sm
    virtual_lexer
    virtual_parser)
  (foreign_stubs

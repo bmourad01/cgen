@@ -25,71 +25,15 @@ module State = struct
     end)
 end
 
-type 'a t = {
-  run : 'r. reject:(Error.t -> 'r) -> accept:('a -> state -> 'r) -> state -> 'r;
-}
-
-let fail err = {
-  run = fun ~reject ~accept:_ _ ->
-    Error.to_string_hum err |>
-    Error.createf "Context error: %s" |>
-    reject
-}
-
-module M = Monad.Make(struct
-    type nonrec 'a t = 'a t
-
-    let return x = {
-      run = fun ~reject:_ ~accept s -> accept x s
-    } [@@inline]
-
-    let bind x f = {
-      run = fun ~reject ~accept s ->
-        x.run s ~reject ~accept:(fun x s ->
-            (f x).run ~reject ~accept s)
-    } [@@inline]
-
-    let map x ~f = {
-      run = fun ~reject ~accept s ->
-        x.run s ~reject ~accept:(fun x s -> accept (f x) s)
-    } [@@inline]
-
-    let map = `Custom map
+module M = Sm.Make(struct
+    type nonrec state = state
+    let fail msg = Error.createf "Context error: %s" msg
   end)
 
 include M
+include M.Syntax
 
-let lift_err : 'a Or_error.t -> 'a t = function
-  | Error err -> fail err
-  | Ok x -> !!x
-
-module Syntax = struct
-  include M.Syntax
-  include M.Let
-
-  let (>>?) x f = lift_err x >>= f
-  let (let*?) x f = x >>? f
-end
-
-let get () = {
-  run = fun ~reject:_ ~accept s -> accept s s
-} [@@inline]
-
-let put s = {
-  run = fun ~reject:_ ~accept _ -> accept () s
-} [@@inline]
-
-let gets f = {
-  run = fun ~reject:_ ~accept s -> accept (f s) s
-} [@@inline]
-
-let update f = {
-  run = fun ~reject:_ ~accept s -> accept () (f s)
-} [@@inline]
-
-let lift_err : 'a Or_error.t -> 'a t = function
-  | Error err -> fail err
-  | Ok x -> !!x
+type 'a t = 'a m
 
 let target = gets @@ fun s -> s.target
 
