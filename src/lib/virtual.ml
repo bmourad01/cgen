@@ -720,7 +720,7 @@ module Func = struct
 
   let typeof fn =
     let args = Array.enum fn.args |> Seq.map ~f:snd |> Seq.to_list in
-    `proto (fn.return, args)
+    `proto (fn.return, args, fn.variadic)
 
   let map_of_blks fn =
     Array.fold fn.blks ~init:Label.Map.empty ~f:(fun m b ->

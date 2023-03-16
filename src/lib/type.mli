@@ -126,7 +126,7 @@ val pp_arg : Format.formatter -> arg -> unit
 
 (** A function prototype. *)
 type proto = [
-  | `proto of basic option * arg list
+  | `proto of basic option * arg list * bool
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty prints a function prototype. *)
