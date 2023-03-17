@@ -1,7 +1,7 @@
 open Core
-open Virtual
 open Graphlib.Std
 open Regular.Std
+open Virtual
 
 open Context.Syntax
 
@@ -163,7 +163,9 @@ let argify_ctrl xs b =
         let tbl = Insn.Ctrl.Table.map_exn tbl ~f:(fun v l -> v, loc l) in
         `sw (t, i, loc d, tbl))
 
-let insert_args vars fn frontier cfg =
+exception Type_error of Error.t
+
+let insert_args env vars fn frontier cfg =
   (* Insert arguments to basic blocks. *)
   let fn, ins = Set.fold vars ~init:(fn, Label.Map.empty) ~f:(fun (fn, ins) x ->
       let bs = blocks_that_define_var x fn in
@@ -179,8 +181,17 @@ let insert_args vars fn frontier cfg =
                   Blk.label b |> Map.update ins ~f:(function
                       | None -> Label.Map.singleton l [x]
                       | Some m -> Map.add_multi m ~key:l ~data:x)) in
-            (* XXX: FIXME *)
-            Blk.prepend_arg b (x, `i64) |> Func.update_blk fn, ins)) in
+            let a = match Typecheck.Env.typeof_var fn x env with
+              | Error err -> raise @@ Type_error err
+              | Ok `compound (name, _, _) ->
+                let err = Error.createf
+                    "Cannot have block argument for variable %a \
+                     of type :%s in function %s" Var.pps x
+                    name @@ Func.name fn in
+                raise @@ Type_error err
+              | Ok ((#Type.basic | #Type.special) as t) ->
+                x, (t :> Blk.arg_typ) in
+            Blk.prepend_arg b a |> Func.update_blk fn, ins)) in
   (* Insert arguments to control instructions. *)
   Map.fold ins ~init:fn ~f:(fun ~key ~data fn -> match find_blk fn key with
       | Some b -> Func.update_blk fn @@ argify_ctrl data b
@@ -191,12 +202,12 @@ let rename cfg dom fn =
   let nums = Var.Table.create () in
   rename_block vars nums cfg dom fn Label.pseudoentry
 
-let run fn = try
+let run env fn = try
     let cfg = Cfg.create fn in
     let vars = collect_vars fn in
     let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
     let frontier = Graphlib.dom_frontier (module Cfg) cfg dom in
-    Ok (insert_args vars fn frontier cfg |> rename cfg dom)
+    Ok (insert_args env vars fn frontier cfg |> rename cfg dom)
   with Missing_blk (fn, l) ->
     Or_error.errorf
       "SSA: missing block %a in function %s"
