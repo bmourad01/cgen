@@ -202,9 +202,11 @@ let op_bitwise_binop fn blk l tl al tr ar (o : Insn.Data.bitwise_binop) =
   let t = match o with
     | `and_ t
     | `or_ t
-    | `sar t
-    | `shl t
-    | `shr t
+    | `asr_ t
+    | `lsl_ t
+    | `lsr_ t
+    | `rol t
+    | `ror t
     | `xor t -> t in
   let* () = unify_arg fn blk l tl al t in
   let+ () = unify_arg fn blk l tr ar t in

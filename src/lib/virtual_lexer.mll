@@ -101,9 +101,11 @@ rule token = parse
   | "neg" '.' (basic as t) { NEG (basic_of_char t) }
   | "and" '.' (imm as t) { AND (imm_of_char t) }
   | "or" '.' (imm as t) { OR (imm_of_char t) }
-  | "sar" '.' (imm as t) { SAR (imm_of_char t) }
-  | "shl" '.' (imm as t) { SHL (imm_of_char t) }
-  | "shr" '.' (imm as t) { SHR (imm_of_char t) }
+  | "asr" '.' (imm as t) { ASR (imm_of_char t) }
+  | "lsl" '.' (imm as t) { LSL (imm_of_char t) }
+  | "lsr" '.' (imm as t) { LSR (imm_of_char t) }
+  | "rol" '.' (imm as t) { ROL (imm_of_char t) }
+  | "ror" '.' (imm as t) { ROR (imm_of_char t) }
   | "xor" '.' (imm as t) { XOR (imm_of_char t) }
   | "not" '.' (imm as t) { NOT (imm_of_char t) }
   | "alloc" { ALLOC }

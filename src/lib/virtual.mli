@@ -136,20 +136,26 @@ module Insn : sig
 
         [`or_ t]: bitwise union (OR).
 
-        [`sar t]: arithmetic shift right.
+        [`asr_ t]: arithmetic shift right.
 
-        [`shl t]: logical shift left.
+        [`lsl_ t]: logical shift left.
 
-        [`shr t]: logical shift right.
+        [`lsr_ t]: logical shift right.
+
+        [`rol t]: rotate left.
+
+        [`ror t]: rotate right.
 
         [`xor t]: bitwise difference (exclusive-OR).
     *)
     type bitwise_binop = [
       | `and_ of Type.imm
       | `or_  of Type.imm
-      | `sar  of Type.imm
-      | `shl  of Type.imm
-      | `shr  of Type.imm
+      | `asr_ of Type.imm
+      | `lsl_ of Type.imm
+      | `lsr_ of Type.imm
+      | `rol  of Type.imm
+      | `ror  of Type.imm
       | `xor  of Type.imm
     ] [@@deriving bin_io, compare, equal, sexp]
 

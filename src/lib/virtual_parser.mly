@@ -102,7 +102,7 @@
 %token ELIPSIS
 %token W L B H S D Z M F
 %token <Type.basic> ADD DIV MUL REM SUB NEG
-%token <Type.imm> UDIV UREM AND OR SAR SHL SHR XOR NOT
+%token <Type.imm> UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token ALLOC
 %token <Type.basic> LOAD STORE EQ GE GT LE LT NE
 %token <Type.imm> SGE SGT SLE SLT
@@ -408,9 +408,11 @@ insn_data_arith_binop:
 insn_data_bitwise_binop:
   | t = AND { `and_ t }
   | t = OR { `or_ t }
-  | t = SAR { `sar t }
-  | t = SHL { `shl t }
-  | t = SHR { `shr t }
+  | t = ASR { `asr_ t }
+  | t = LSL { `lsl_ t }
+  | t = LSR { `lsr_ t }
+  | t = ROL { `rol t }
+  | t = ROR { `ror t }
   | t = XOR { `xor t }
 
 insn_data_cmp:

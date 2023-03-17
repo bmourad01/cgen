@@ -151,18 +151,22 @@ module Insn = struct
     type bitwise_binop = [
       | `and_ of Type.imm
       | `or_  of Type.imm
-      | `sar  of Type.imm
-      | `shl  of Type.imm
-      | `shr  of Type.imm
+      | `asr_ of Type.imm
+      | `lsl_ of Type.imm
+      | `lsr_ of Type.imm
+      | `rol  of Type.imm
+      | `ror  of Type.imm
       | `xor  of Type.imm
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let pp_bitwise_binop ppf : bitwise_binop -> unit = function
       | `and_ t -> Format.fprintf ppf "and.%a" Type.pp_imm t
       | `or_  t -> Format.fprintf ppf  "or.%a" Type.pp_imm t
-      | `sar  t -> Format.fprintf ppf "sar.%a" Type.pp_imm t
-      | `shl  t -> Format.fprintf ppf "shl.%a" Type.pp_imm t
-      | `shr  t -> Format.fprintf ppf "shr.%a" Type.pp_imm t
+      | `asr_ t -> Format.fprintf ppf "asr.%a" Type.pp_imm t
+      | `lsl_ t -> Format.fprintf ppf "lsl.%a" Type.pp_imm t
+      | `lsr_ t -> Format.fprintf ppf "lsr.%a" Type.pp_imm t
+      | `rol  t -> Format.fprintf ppf "rol.%a" Type.pp_imm t
+      | `ror  t -> Format.fprintf ppf "ror.%a" Type.pp_imm t
       | `xor  t -> Format.fprintf ppf "xor.%a" Type.pp_imm t
 
     type bitwise_unop = [
