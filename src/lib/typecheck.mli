@@ -1,3 +1,6 @@
+(** Checks a module for well-formedness and builds a typing
+    environment. *)
+
 open Core
 open Virtual
 
