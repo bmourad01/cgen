@@ -651,6 +651,8 @@ let blk_ctrl blks fn blk = match Blk.ctrl blk with
   | `ret (Some r) -> ctrl_ret_some blks fn blk r
   | `sw (t, v, d, tbl) -> ctrl_sw blks fn blk t v d tbl
 
+let not_pseudo = Fn.non Label.is_pseudo
+
 let rec check_blk doms rpo blks data fn l =
   let*? blk = match Map.find blks l with
     | Some blk -> Ok blk
@@ -661,11 +663,16 @@ let rec check_blk doms rpo blks data fn l =
   let* () = blk_args fn blk in
   let* () = blk_data data fn blk in
   let* () = blk_ctrl blks fn blk in
-  let rpn = Map.find_exn rpo in
-  Tree.children doms l |>
-  Seq.filter ~f:(Fn.non Label.is_pseudo) |> Seq.to_list |>
+  let rpn = Hashtbl.find_exn rpo in
+  Tree.children doms l |> Seq.filter ~f:not_pseudo |> Seq.to_list |>
   List.sort ~compare:(fun a b -> compare (rpn a) (rpn b)) |>
   M.List.iter ~f:(check_blk doms rpo blks data fn)
+
+let make_rpo cfg start =
+  let rpo = Label.Table.create () in
+  Graphlib.reverse_postorder_traverse (module Cfg) cfg ~start |>
+  Seq.iteri ~f:(fun i l -> Hashtbl.set rpo ~key:l ~data:i);
+  rpo
 
 let check_fn fn =
   let data = Label.Hash_set.create () in
@@ -678,11 +685,7 @@ let check_fn fn =
   let doms = Graphlib.dominators (module Cfg) cfg start in
   (* However, it requires us to visit children of each node in
      the tree according to the reverse postorder traversal. *)
-  let rpo =
-    Graphlib.reverse_postorder_traverse (module Cfg) cfg ~start |>
-    Seq.foldi ~init:Label.Map.empty ~f:(fun i acc l ->
-        Map.set acc ~key:l ~data:i) in
-  check_blk doms rpo blks data fn @@ Func.entry fn
+  check_blk doms (make_rpo cfg start) blks data fn @@ Func.entry fn
 
 let check m =
   let* () = add_datas m in
