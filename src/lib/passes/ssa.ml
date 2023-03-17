@@ -208,7 +208,11 @@ let run env fn = try
     let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
     let frontier = Graphlib.dom_frontier (module Cfg) cfg dom in
     Ok (insert_args env vars fn frontier cfg |> rename cfg dom)
-  with Missing_blk (fn, l) ->
+  with
+  | Missing_blk (fn, l) ->
     Or_error.errorf
       "SSA: missing block %a in function %s"
       Label.pps l fn
+  | Type_error err ->
+    Or_error.errorf "SSA: type error: %s" @@
+    Error.to_string_hum err
