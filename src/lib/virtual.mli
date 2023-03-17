@@ -313,21 +313,21 @@ module Insn : sig
 
     (** All basic instructions.
 
-        [`binop (x, b, l, r)]: compute [b(l, r)] and store the result in [x].
+        [`bop (x, b, l, r)]: compute [b(l, r)] and store the result in [x].
 
-        [`unop (x, u, a)]: compute [u(a)] and store the result in [x].
+        [`uop (x, u, a)]: compute [u(a)] and store the result in [x].
 
         [`mem (x, m)]: compute [m] and store the result in [x].
 
-        [`select (x, t, c, l, r)]: evaluate [c]; if non-zero then select [l]
+        [`sel (x, t, c, l, r)]: evaluate [c]; if non-zero then select [l]
         and assign to [x], otherwise select [r]. Both [l] and [r] must have
         type [t].
     *)
     type basic = [
-      | `binop  of Var.t * binop * arg * arg
-      | `unop   of Var.t * unop  * arg
-      | `mem    of Var.t * mem
-      | `select of Var.t * Type.basic * Var.t * arg * arg
+      | `bop of Var.t * binop * arg * arg
+      | `uop of Var.t * unop  * arg
+      | `mem of Var.t * mem
+      | `sel of Var.t * Type.basic * Var.t * arg * arg
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the basic instruction. *)
@@ -338,19 +338,15 @@ module Insn : sig
 
     (** A call instruction.
 
-        [`acall (x, t, f, args, vargs)]: call to [f] with arguments [args],
-        returning a value of type [t] and assigning it to variable [x]. If
-        [vargs] is non-empty, then the function call is variadic, and these
-        arguments are to be passed in that fashion.
-
-        [`call (f, args, vargs)]: same as [`acall], but does not explicitly
-        assign a result.
+        [`call (a, f, args, vargs)]: call to [f] with arguments [args] and
+        [vargs], where [vargs] is the list of variadic arguments. If [a]
+        is [Some (x, t)], then the function returns a value of type [t],
+        which is assigned to variable [x].
 
         Note that variadic calls require at least one non-variadic argument.
     *)
     type call = [
-      | `acall of Var.t * Type.basic * global * arg list * arg list
-      | `call  of global * arg list * arg list
+      | `call of (Var.t * Type.basic) option * global * arg list * arg list
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the call. *)

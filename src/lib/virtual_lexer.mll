@@ -141,7 +141,7 @@ rule token = parse
   }
   | "zext" '.' (imm as t) { ZEXT (imm_of_char t) }
   | "copy" '.' (basic as t) { COPY (basic_of_char t) }
-  | "select" '.' (basic as t) { SELECT (basic_of_char t) }
+  | "sel" '.' (basic as t) { SEL (basic_of_char t) }
   | "call" '.' (basic as t) { ACALL (basic_of_char t) }
   | "call" { CALL }
   | "vastart" { VASTART }

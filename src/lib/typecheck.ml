@@ -366,10 +366,10 @@ let op_select fn blk l env v t c al ar =
   M.lift_err @@ Env.add_var fn v (t :> Type.t) env
 
 let op_basic fn blk l env : Insn.Data.basic -> env t = function
-  | `binop (v, b, al, ar) -> op_binop fn blk l env v b al ar
-  | `unop (v, u, a) -> op_unop fn blk l env v u a
+  | `bop (v, b, al, ar) -> op_binop fn blk l env v b al ar
+  | `uop (v, u, a) -> op_unop fn blk l env v u a
   | `mem (v, m) -> op_mem fn blk l env v m
-  | `select (v, t, c, al, ar) -> op_select fn blk l env v t c al ar
+  | `sel (v, t, c, al, ar) -> op_select fn blk l env v t c al ar
 
 let unify_fail_void_call fn blk l t s =
   let t = Format.asprintf "%a" Type.pp_arg t in
@@ -484,12 +484,12 @@ let check_call fn blk l env t args vargs : Insn.global -> unit t = function
     | None -> !!() (* No guarantees for an external function. *)
 
 let op_call fn blk l env : Insn.Data.call -> env t = function
-  | `acall (v, t, g, args, vargs) ->
+  | `call (Some(v, t), g, args, vargs) ->
     let* () =
       let t = Some (t :> Type.arg) in
       check_call fn blk l env t args vargs g in
     M.lift_err @@ Env.add_var fn v (t :> Type.t) env
-  | `call (g, args, vargs) ->
+  | `call (None, g, args, vargs) ->
     let+ () = check_call fn blk l env None args vargs g in
     env
 

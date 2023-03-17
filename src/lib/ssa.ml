@@ -65,10 +65,10 @@ let map_basic vars nums (b : Insn.Data.basic) =
   let mem = map_mem vars in
   let rename = new_name vars nums in
   match b with
-  | `binop (x, b, l, r) -> `binop (rename x, b, arg l, arg r)
-  | `unop (x, u, a) -> `unop (rename x, u, arg a)
+  | `bop (x, b, l, r) -> `bop (rename x, b, arg l, arg r)
+  | `uop (x, u, a) -> `uop (rename x, u, arg a)
   | `mem (x, m) -> `mem (rename x, mem m)
-  | `select (x, t, c, l, r) -> `select (rename x, t, var c, arg l, arg r)
+  | `sel (x, t, c, l, r) -> `sel (rename x, t, var c, arg l, arg r)
 
 let map_global vars : Insn.global -> Insn.global = function
   | `var x -> `var (map_var vars x)
@@ -87,10 +87,10 @@ let rename_data vars nums b =
   let margs = List.map ~f:(map_arg vars) in
   let rename = new_name vars nums in
   Blk.map_data b ~f:(fun _ -> function
-      | `acall (x, t, f, args, vargs) ->
-        `acall (rename x, t, glo f, margs args, margs vargs)
-      | `call (f, args, vargs) ->
-        `call (glo f, margs args, margs vargs)
+      | `call (Some(x, t), f, args, vargs) ->
+        `call (Some(rename x, t), glo f, margs args, margs vargs)
+      | `call (None, f, args, vargs) ->
+        `call (None, glo f, margs args, margs vargs)
       | `vastart x -> `vastart (var x)
       | #Insn.Data.basic as o -> map_basic vars nums o)
 

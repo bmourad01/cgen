@@ -291,47 +291,44 @@ module Insn = struct
       | #copy as c -> Format.fprintf ppf "%a" pp_copy c
 
     type basic = [
-      | `binop  of Var.t * binop * arg * arg
-      | `unop   of Var.t * unop  * arg
-      | `mem    of Var.t * mem
-      | `select of Var.t * Type.basic * Var.t * arg * arg
+      | `bop of Var.t * binop * arg * arg
+      | `uop of Var.t * unop  * arg
+      | `mem of Var.t * mem
+      | `sel of Var.t * Type.basic * Var.t * arg * arg
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_basic : basic -> Var.Set.t = function
-      | `binop (_, _, l, r) ->
+      | `bop (_, _, l, r) ->
         List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
-      | `unop (_, _, a) -> var_set_of_option @@ var_of_arg a
+      | `uop (_, _, a) -> var_set_of_option @@ var_of_arg a
       | `mem (_, m) -> free_vars_of_mem m
-      | `select (_, _, x, t, f) ->
+      | `sel (_, _, x, t, f) ->
         List.filter_map [t; f] ~f:var_of_arg |> List.cons x |> Var.Set.of_list
 
     let pp_basic ppf : basic -> unit = function
-      | `binop (x, b, l, r) ->
+      | `bop (x, b, l, r) ->
         Format.fprintf ppf "%a = %a %a, %a"  Var.pp x pp_binop b pp_arg l pp_arg r
-      | `unop (x, u, a) ->
+      | `uop (x, u, a) ->
         Format.fprintf ppf "%a = %a %a" Var.pp x pp_unop u pp_arg a
       | `mem (x, m) ->
         Format.fprintf ppf "%a = %a" Var.pp x pp_mem m
-      | `select (x, t, c, l, r) ->
-        Format.fprintf ppf "%a = select.%a %a, %a, %a"
+      | `sel (x, t, c, l, r) ->
+        Format.fprintf ppf "%a = sel.%a %a, %a, %a"
           Var.pp x Type.pp_basic t Var.pp c pp_arg l pp_arg r
 
     type call = [
-      | `acall of Var.t * Type.basic * global * arg list * arg list
-      | `call  of global * arg list * arg list
+      | `call of (Var.t * Type.basic) option * global * arg list * arg list
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars_of_call : call -> Var.Set.t = function
-      | `acall (_, _, f, args, vargs)
-      | `call (f, args, vargs) ->
+      | `call (_, f, args, vargs) ->
         let f = var_of_global f |> Option.to_list |> Var.Set.of_list in
         let args = List.filter_map args ~f:var_of_arg |> Var.Set.of_list in
         let vargs = List.filter_map vargs ~f:var_of_arg |> Var.Set.of_list in
         Var.Set.union_list [f; args; vargs]
 
     let is_variadic : call -> bool = function
-      | `acall (_, _, _, _, []) | `call (_, _, []) -> false
-      | `acall _  | `call _  -> true
+      | `call (_, _, _, vargs) -> not @@ List.is_empty vargs
 
     let pp_call_args ppf args =
       let pp_sep ppf () = Format.fprintf ppf ", " in
@@ -350,8 +347,8 @@ module Insn = struct
 
     let pp_call ppf c =
       let res, dst, args, vargs = match c with
-        | `acall (v, t, d, a, va) -> Some (v, t), d, a, va
-        | `call (d, a, va) -> None, d, a, va in
+        | `call (Some (v, t), d, a, va) -> Some (v, t), d, a, va
+        | `call (None, d, a, va) -> None, d, a, va in
       Format.fprintf ppf "%a%a(%a%a)"
         pp_call_res res
         pp_global dst
@@ -375,11 +372,11 @@ module Insn = struct
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let lhs : op -> Var.t option = function
-      | `binop   (x, _, _, _)
-      | `unop    (x, _, _)
+      | `bop     (x, _, _, _)
+      | `uop     (x, _, _)
       | `mem     (x, _)
-      | `select  (x, _, _, _, _)
-      | `acall   (x, _, _, _, _) -> Some x
+      | `sel     (x, _, _, _, _)
+      | `call    (Some (x, _), _, _, _) -> Some x
       | `call    _ -> None
       | `vastart _ -> None
 

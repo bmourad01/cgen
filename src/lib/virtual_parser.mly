@@ -112,7 +112,7 @@
 %token <Type.fp> FTRUNC
 %token <Type.imm> ITRUNC SEXT ZEXT
 %token <Type.imm * Type.fp> SITOF UITOF
-%token <Type.basic> COPY SELECT ACALL
+%token <Type.basic> COPY SEL ACALL
 %token CALL
 %token VASTART
 %token HLT
@@ -323,13 +323,13 @@ insn_data:
       x >>= fun x ->
       l >>= fun l ->
       r >>| fun r ->
-      `binop (x, b, l, r)
+      `bop (x, b, l, r)
     }
   | x = var EQUALS u = insn_data_unop a = insn_arg
     {
       x >>= fun x ->
       a >>| fun a ->
-      `unop (x, u, a)
+      `uop (x, u, a)
     }
   | x = var EQUALS m = insn_data_mem
     {
@@ -337,13 +337,13 @@ insn_data:
       m >>| fun m ->
       `mem (x, m)
     }
-  | x = var t = SELECT c = var COMMA l = insn_arg COMMA r = insn_arg
+  | x = var t = SEL c = var COMMA l = insn_arg COMMA r = insn_arg
     {
       x >>= fun x ->
       c >>= fun c ->
       l >>= fun l ->
       r >>| fun r ->
-      `select (x, t, c, l, r)
+      `sel (x, t, c, l, r)
     }
   | x = var t = ACALL f = insn_global LPAREN args = call_args RPAREN
     {
@@ -352,7 +352,7 @@ insn_data:
       args >>| fun args ->
       let args, vargs = Core.List.partition_map args ~f:(function
         | `arg a -> First a | `varg a -> Second a) in
-      `acall (x, t, f, args, vargs)
+      `call (Some(x, t), f, args, vargs)
     }
   | CALL f = insn_global LPAREN args = call_args RPAREN
     {
@@ -360,7 +360,7 @@ insn_data:
       args >>| fun args ->
       let args, vargs = Core.List.partition_map args ~f:(function
         | `arg a -> First a | `varg a -> Second a) in
-      `call (f, args, vargs)
+      `call (None, f, args, vargs)
     }
   | VASTART x = var
     { x >>| fun x -> `vastart x }
