@@ -1,3 +1,5 @@
+(include_subdirs qualified)
+
 (ocamllex virtual_lexer)
 
 (menhir
