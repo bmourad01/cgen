@@ -22,18 +22,12 @@ depends: [
   "regular"
   "odoc" {with-doc}
 ]
+dev-repo: "git+https://github.com/bmourad01/cgen.git"
 build: [
-  ["dune" "subst"] {dev}
   [
-    "dune"
+    "make"
     "build"
-    "-p"
-    name
-    "-j"
-    jobs
-    "@install"
-    "@runtest" {with-test}
-    "@doc" {with-doc}
+    "doc" {with-doc}
+    "install"
   ]
 ]
-dev-repo: "git+https://github.com/bmourad01/cgen.git"

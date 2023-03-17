@@ -1,0 +1,8 @@
+build: [
+  [
+    "make"
+    "build"
+    "doc" {with-doc}
+    "install"
+  ]
+]
