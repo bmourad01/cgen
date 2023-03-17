@@ -661,12 +661,10 @@ let rec check_blk doms rpo blks data fn l =
   let* () = blk_args fn blk in
   let* () = blk_data data fn blk in
   let* () = blk_ctrl blks fn blk in
+  let rpn = Map.find_exn rpo in
   Tree.children doms l |>
-  Seq.filter ~f:(Fn.non Label.is_pseudo) |>
-  Seq.to_list |> List.sort ~compare:(fun a b ->
-      let i = Map.find_exn rpo a in
-      let j = Map.find_exn rpo b in
-      compare i j) |>
+  Seq.filter ~f:(Fn.non Label.is_pseudo) |> Seq.to_list |>
+  List.sort ~compare:(fun a b -> compare (rpn a) (rpn b)) |>
   M.List.iter ~f:(check_blk doms rpo blks data fn)
 
 let check_fn fn =
@@ -674,12 +672,16 @@ let check_fn fn =
   let*? blks = try Ok (Func.map_of_blks fn) with
     | Invalid_argument msg -> Or_error.error_string msg in
   let cfg = Cfg.create fn in
+  let start = Label.pseudoentry in
+  (* We will traverse the blocks according to the dominator tree
+     so that we get the right ordering for definitions. *)
+  let doms = Graphlib.dominators (module Cfg) cfg start in
+  (* However, it requires us to visit children of each node in
+     the tree according to the reverse postorder traversal. *)
   let rpo =
-    Graphlib.reverse_postorder_traverse (module Cfg) cfg
-      ~start:Label.pseudoentry |>
+    Graphlib.reverse_postorder_traverse (module Cfg) cfg ~start |>
     Seq.foldi ~init:Label.Map.empty ~f:(fun i acc l ->
         Map.set acc ~key:l ~data:i) in
-  let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   check_blk doms rpo blks data fn @@ Func.entry fn
 
 let check m =
