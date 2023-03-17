@@ -184,7 +184,7 @@ let blk_arg env fn x = match Typecheck.Env.typeof_var fn x env with
   | Ok ((#Type.basic | #Type.special) as t) ->
     x, (t :> Blk.arg_typ)
 
-let update_args env fn cfg l x ins = match find_blk fn l with
+let update_blk_args env fn cfg l x ins = match find_blk fn l with
   | None -> fn, ins
   | Some b ->
     let ins = update_ins fn cfg l x ins in
@@ -197,7 +197,7 @@ let insert_blk_args env vars fn frontier cfg =
       let bs = blocks_that_define_var x fn in
       iterated_frontier frontier (Label.pseudoentry :: bs) |>
       Set.to_sequence |> Seq.fold ~init ~f:(fun (fn, ins) l ->
-          update_args env fn cfg l x ins))
+          update_blk_args env fn cfg l x ins))
 
 let insert_ctrl_args fn ins =
   Map.fold ins ~init:fn ~f:(fun ~key ~data fn -> match find_blk fn key with
