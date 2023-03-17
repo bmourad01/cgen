@@ -602,43 +602,48 @@ let unify_fail_ret fn blk t1 t2 =
      ret in block %a of function %s" ts Label.pps
     (Blk.label blk) (Func.name fn)
 
+let ctrl_jnz blks fn blk c t f =
+  let* env = M.get () in
+  let* tc = M.lift_err @@ Env.typeof_var fn c env in
+  let* () = match tc with
+    | `flag -> !!()
+    | _ -> unify_flag_fail_ctrl fn blk tc c in
+  let* () = check_dst blks fn blk t in
+  check_dst blks fn blk f
+
+let ctrl_ret_none blks fn blk = match Func.return fn with
+  | Some t -> unify_fail_void_ret fn blk t
+  | None -> !!()
+
+let ctrl_ret_some blks fn blk r =
+  let* env = M.get () in
+  let* tr = typeof_arg fn env r in
+  match tr, Func.return fn with
+  | t, None -> unify_fail_void_ret fn blk t
+  | `imm, Some #Type.imm -> !!()
+  | `imm, Some t -> unify_fail_imm_ret fn blk t
+  | #Type.t as r, Some t ->
+    let t' = (t :> Type.t) in
+    if Type.(r = t') then !!()
+    else unify_fail_ret fn blk r t'
+
+let ctrl_switch blks fn blk t v d tbl =
+  let t = (t :> Type.t) in
+  let* env = M.get () in
+  let* tv = M.lift_err @@ Env.typeof_var fn v env in
+  if Type.(t = tv) then
+    let* () = check_dst blks fn blk (d :> Insn.dst) in
+    Insn.Ctrl.Table.enum tbl |> M.Seq.iter ~f:(fun (_, l) ->
+        check_dst blks fn blk (l :> Insn.dst))
+  else M.lift_err @@ unify_fail t tv v fn
+
 let blk_ctrl blks fn blk = match Blk.ctrl blk with
   | `hlt -> !!()
   | `jmp d -> check_dst blks fn blk d
-  | `jnz (c, t, f) ->
-    let* env = M.get () in
-    let* tc = M.lift_err @@ Env.typeof_var fn c env in
-    let* () = match tc with
-      | `flag -> !!()
-      | _ -> unify_flag_fail_ctrl fn blk tc c in
-    let* () = check_dst blks fn blk t in
-    check_dst blks fn blk f
-  | `ret None ->
-    begin match Func.return fn with
-      | None -> !!()
-      | Some t -> unify_fail_void_ret fn blk t
-    end
-  | `ret (Some r) ->
-    let* env = M.get () in
-    let* tr = typeof_arg fn env r in
-    begin match tr, Func.return fn with
-      | t, None -> unify_fail_void_ret fn blk t
-      | `imm, Some #Type.imm -> !!()
-      | `imm, Some t -> unify_fail_imm_ret fn blk t
-      | #Type.t as r, Some t ->
-        let t' = (t :> Type.t) in
-        if Type.(r = t') then !!()
-        else unify_fail_ret fn blk r t'
-    end
-  | `switch (t, v, d, tbl) ->
-    let t = (t :> Type.t) in
-    let* env = M.get () in
-    let* tv = M.lift_err @@ Env.typeof_var fn v env in
-    if Type.(t = tv) then
-      let* () = check_dst blks fn blk (d :> Insn.dst) in
-      Insn.Ctrl.Table.enum tbl |> M.Seq.iter ~f:(fun (_, l) ->
-          check_dst blks fn blk (l :> Insn.dst))
-    else M.lift_err @@ unify_fail t tv v fn
+  | `jnz (c, t, f) -> ctrl_jnz blks fn blk c t f
+  | `ret None -> ctrl_ret_none blks fn blk
+  | `ret (Some r) -> ctrl_ret_some blks fn blk r
+  | `switch (t, v, d, tbl) -> ctrl_switch blks fn blk t v d tbl
 
 let rec check_blk doms blks data fn l =
   let*? blk = match Map.find blks l with
