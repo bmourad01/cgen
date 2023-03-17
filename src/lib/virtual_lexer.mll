@@ -147,9 +147,9 @@ rule token = parse
   | "vastart" { VASTART }
   | "hlt" { HLT }
   | "jmp" { JMP }
-  | "jnz" { JNZ }
+  | "br" { BR }
   | "ret" { RET }
-  | "switch" '.' (imm as t) { SWITCH (imm_of_char t) }
+  | "sw" '.' (imm as t) { SW (imm_of_char t) }
   | "function" { FUNCTION }
   | "data" { DATA }
   | "export" { EXPORT }

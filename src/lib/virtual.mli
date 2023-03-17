@@ -459,23 +459,23 @@ module Insn : sig
 
         [`jmp dst] is an unconditional jump to the destination [dst].
 
-        [`jnz (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
+        [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
         is non-zero. Otherwise, the destination is [no].
 
         [`ret x] returns from a function. If the function returns a value,
         then [x] holds the value (and must not be [None]).
 
-        [`switch (typ, index, default, table)] implements a jump table.
+        [`sw (typ, index, default, table)] implements a jump table.
         For a variable [index] of type [typ], it will find the associated
         label of [index] in [table] and jump to it, if it exists. If not,
         then the destination of the jump is [default].
     *)
     type t = [
       | `hlt
-      | `jmp    of dst
-      | `jnz    of Var.t * dst * dst
-      | `ret    of arg option
-      | `switch of Type.imm * Var.t * local * table
+      | `jmp of dst
+      | `br  of Var.t * dst * dst
+      | `ret of arg option
+      | `sw  of Type.imm * Var.t * local * table
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the control-flow instruction. *)

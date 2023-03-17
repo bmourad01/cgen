@@ -441,32 +441,32 @@ module Insn = struct
 
     type t = [
       | `hlt
-      | `jmp    of dst
-      | `jnz    of Var.t * dst * dst
-      | `ret    of arg option
-      | `switch of Type.imm * Var.t * local * table
+      | `jmp of dst
+      | `br  of Var.t * dst * dst
+      | `ret of arg option
+      | `sw  of Type.imm * Var.t * local * table
     ] [@@deriving bin_io, compare, equal, sexp]
 
     let free_vars : t -> Var.Set.t = function
       | `hlt -> Var.Set.empty
       | `jmp _ -> Var.Set.empty
-      | `jnz (x, _, _) -> Var.Set.singleton x
+      | `br (x, _, _) -> Var.Set.singleton x
       | `ret None -> Var.Set.empty
       | `ret (Some a) -> var_set_of_option @@ var_of_arg a
-      | `switch (_, x, _, _) -> Var.Set.singleton x
+      | `sw (_, x, _, _) -> Var.Set.singleton x
 
     let pp ppf : t -> unit = function
       | `hlt -> Format.fprintf ppf "hlt"
       | `jmp d ->
         Format.fprintf ppf "jmp %a" pp_dst d
-      | `jnz (c, t, f) ->
-        Format.fprintf ppf "jnz %a, %a, %a" Var.pp c pp_dst t pp_dst f
+      | `br (c, t, f) ->
+        Format.fprintf ppf "br %a, %a, %a" Var.pp c pp_dst t pp_dst f
       | `ret (Some x) ->
         Format.fprintf ppf "ret %a" pp_arg x
       | `ret None ->
         Format.fprintf ppf "ret"
-      | `switch (t, x, ld, tbl) ->
-        Format.fprintf ppf "switch.%a %a, %a [@[<v 0>%a@]]"
+      | `sw (t, x, ld, tbl) ->
+        Format.fprintf ppf "sw.%a %a, %a [@[<v 0>%a@]]"
           Type.pp_imm t Var.pp x pp_local ld Table.pp tbl
   end
 
@@ -817,15 +817,15 @@ module Cfg = struct
     | `hlt -> g
     | `jmp (`label (l, _)) -> G.Edge.(insert (create b l `always) g)
     | `jmp _ -> g
-    | `jnz (x, `label (t, _), `label (f, _)) ->
+    | `br (x, `label (t, _), `label (f, _)) ->
       let et = G.Edge.create b t @@  `true_ x in
       let ef = G.Edge.create b f @@ `false_ x in
       G.Edge.(insert ef (insert et g))
-    | `jnz (x, `label (l, _), _) -> G.Edge.(insert (create b l @@  `true_ x) g)
-    | `jnz (x, _, `label (l, _)) -> G.Edge.(insert (create b l @@ `false_ x) g)
-    | `jnz _ -> g
+    | `br (x, `label (l, _), _) -> G.Edge.(insert (create b l @@  `true_ x) g)
+    | `br (x, _, `label (l, _)) -> G.Edge.(insert (create b l @@ `false_ x) g)
+    | `br _ -> g
     | `ret _ -> g
-    | `switch (_, x, `label (d, _), t) ->
+    | `sw (_, x, `label (d, _), t) ->
       let init = G.Edge.(insert (create b d @@ `default x) g) in
       Map.fold t ~init ~f:(fun ~key:v ~data:(`label (l, _)) g ->
           G.Edge.(insert (create b l @@ `switch (x, v)) g))
@@ -900,8 +900,8 @@ module Live = struct
   let ctrl_uses b = match Blk.ctrl b with
     | `hlt | `ret _ -> Var.Set.empty
     | `jmp d -> dst_uses d
-    | `jnz (_, t, f) -> dst_uses t ++ dst_uses f
-    | `switch (_, _, d, tbl) ->
+    | `br (_, t, f) -> dst_uses t ++ dst_uses f
+    | `sw (_, _, d, tbl) ->
       let init = local_uses d in
       Insn.Ctrl.Table.enum tbl |> Seq.map ~f:snd |>
       Seq.fold ~init ~f:(fun uses e -> uses ++ local_uses e)

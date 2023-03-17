@@ -117,9 +117,9 @@
 %token VASTART
 %token HLT
 %token JMP
-%token JNZ
+%token BR
 %token RET
-%token <Type.imm> SWITCH
+%token <Type.imm> SW
 %token <string> MODULE
 %token FUNCTION
 %token DATA
@@ -293,12 +293,12 @@ insn_ctrl:
   | HLT { !!`hlt }
   | JMP d = insn_dst
     { d >>| fun d -> `jmp d }
-  | JNZ c = var COMMA t = insn_dst COMMA f = insn_dst
+  | BR c = var COMMA t = insn_dst COMMA f = insn_dst
     {
       c >>= fun c ->
       t >>= fun t ->
       f >>| fun f ->
-      `jnz (c, t, f)
+      `br (c, t, f)
     }
   | RET a = option(insn_arg)
     {
@@ -306,12 +306,12 @@ insn_ctrl:
       | None -> !!(`ret None)
       | Some a -> a >>| fun a -> `ret (Some a)
     }
-  | t = SWITCH i = var COMMA def = insn_local tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry)
+  | t = SW i = var COMMA def = insn_local LSQUARE tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry) RSQUARE
     {
       let* i = i and* d = def and* tbl = unwrap_list tbl in
       match Virtual.Insn.Ctrl.Table.create tbl with
       | Error err -> M.lift @@ Context.fail err
-      | Ok tbl -> !!(`switch (t, i, d, tbl))
+      | Ok tbl -> !!(`sw (t, i, d, tbl))
     }
 
 insn_ctrl_table_entry:

@@ -608,7 +608,7 @@ let unify_fail_ret fn blk t1 t2 =
      ret in block %a of function %s" ts Label.pps
     (Blk.label blk) (Func.name fn)
 
-let ctrl_jnz blks fn blk c t f =
+let ctrl_br blks fn blk c t f =
   let* env = M.get () in
   let*? tc = Env.typeof_var fn c env in
   let* () = match tc with
@@ -633,7 +633,7 @@ let ctrl_ret_some blks fn blk r =
     if Type.(r = t') then !!()
     else unify_fail_ret fn blk r t'
 
-let ctrl_switch blks fn blk t v d tbl =
+let ctrl_sw blks fn blk t v d tbl =
   let t = (t :> Type.t) in
   let* env = M.get () in
   let*? tv = Env.typeof_var fn v env in
@@ -646,10 +646,10 @@ let ctrl_switch blks fn blk t v d tbl =
 let blk_ctrl blks fn blk = match Blk.ctrl blk with
   | `hlt -> !!()
   | `jmp d -> check_dst blks fn blk d
-  | `jnz (c, t, f) -> ctrl_jnz blks fn blk c t f
+  | `br (c, t, f) -> ctrl_br blks fn blk c t f
   | `ret None -> ctrl_ret_none blks fn blk
   | `ret (Some r) -> ctrl_ret_some blks fn blk r
-  | `switch (t, v, d, tbl) -> ctrl_switch blks fn blk t v d tbl
+  | `sw (t, v, d, tbl) -> ctrl_sw blks fn blk t v d tbl
 
 let rec check_blk doms rpo blks data fn l =
   let*? blk = match Map.find blks l with

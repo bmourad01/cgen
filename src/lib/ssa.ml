@@ -97,14 +97,17 @@ let rename_data vars nums b =
 let rename_ctrl vars b =
   let var = map_var vars in
   let dst = map_dst vars in
+  let loc = map_local vars in
   let arg = map_arg vars in
   Blk.map_ctrl b ~f:(function
       | `hlt as h -> h
       | `jmp d -> `jmp (dst d)
-      | `jnz (c, t, f) -> `jnz (var c, dst t, dst f)
+      | `br (c, t, f) -> `br (var c, dst t, dst f)
       | `ret None as r -> r
       | `ret (Some a) -> `ret (Some (arg a))
-      | `switch (t, i, d, tbl) -> `switch (t, var i, d, tbl))
+      | `sw (t, i, d, tbl) ->
+        let tbl = Insn.Ctrl.Table.map_exn tbl ~f:(fun v l -> v, loc l) in
+        `sw (t, var i, loc d, tbl))
 
 let pop_args b pop =
   Blk.args b |> Seq.map ~f:fst |> Seq.iter ~f:pop
@@ -154,11 +157,11 @@ let argify_ctrl xs b =
   Blk.map_ctrl b ~f:(function
       | `hlt as h -> h
       | `jmp d -> `jmp (dst d)
-      | `jnz (c, t, f) -> `jnz (c, dst t, dst f)
+      | `br (c, t, f) -> `br (c, dst t, dst f)
       | `ret _ as r -> r
-      | `switch (t, i, d, tbl) ->
+      | `sw (t, i, d, tbl) ->
         let tbl = Insn.Ctrl.Table.map_exn tbl ~f:(fun v l -> v, loc l) in
-        `switch (t, i, loc d, tbl))
+        `sw (t, i, loc d, tbl))
 
 let insert_args vars fn frontier cfg =
   (* Insert arguments to basic blocks. *)
