@@ -165,37 +165,48 @@ let argify_ctrl xs b =
 
 exception Type_error of Error.t
 
-let insert_args env vars fn frontier cfg =
-  (* Insert arguments to basic blocks. *)
-  let fn, ins = Set.fold vars ~init:(fn, Label.Map.empty) ~f:(fun (fn, ins) x ->
+let update_ins fn cfg l x init =
+  Cfg.Node.preds l cfg |>
+  Seq.filter_map ~f:(find_blk fn) |>
+  Seq.fold ~init ~f:(fun ins b ->
+      Blk.label b |> Map.update ins ~f:(function
+          | None -> Label.Map.singleton l [x]
+          | Some m -> Map.add_multi m ~key:l ~data:x))
+
+let blk_arg env fn x = match Typecheck.Env.typeof_var fn x env with
+  | Error err -> raise @@ Type_error err
+  | Ok `compound (name, _, _) ->
+    let err = Error.createf
+        "Cannot have block argument for variable %a \
+         of type :%s in function %s" Var.pps x
+        name @@ Func.name fn in
+    raise @@ Type_error err
+  | Ok ((#Type.basic | #Type.special) as t) ->
+    x, (t :> Blk.arg_typ)
+
+let update_args env fn cfg l x ins = match find_blk fn l with
+  | None -> fn, ins
+  | Some b ->
+    let ins = update_ins fn cfg l x ins in
+    let b = Blk.prepend_arg b @@ blk_arg env fn x in
+    Func.update_blk fn b, ins
+
+let insert_blk_args env vars fn frontier cfg =
+  let init = fn, Label.Map.empty in
+  Set.fold vars ~init ~f:(fun ((fn, ins) as init) x ->
       let bs = blocks_that_define_var x fn in
       iterated_frontier frontier (Label.pseudoentry :: bs) |>
-      Set.to_sequence |> Seq.fold ~init:(fn, ins) ~f:(fun (fn, ins) l ->
-          match find_blk fn l with
-          | None -> fn, ins
-          | Some b ->
-            let ins =
-              Cfg.Node.preds l cfg |>
-              Seq.filter_map ~f:(find_blk fn) |>
-              Seq.fold ~init:ins ~f:(fun ins b ->
-                  Blk.label b |> Map.update ins ~f:(function
-                      | None -> Label.Map.singleton l [x]
-                      | Some m -> Map.add_multi m ~key:l ~data:x)) in
-            let a = match Typecheck.Env.typeof_var fn x env with
-              | Error err -> raise @@ Type_error err
-              | Ok `compound (name, _, _) ->
-                let err = Error.createf
-                    "Cannot have block argument for variable %a \
-                     of type :%s in function %s" Var.pps x
-                    name @@ Func.name fn in
-                raise @@ Type_error err
-              | Ok ((#Type.basic | #Type.special) as t) ->
-                x, (t :> Blk.arg_typ) in
-            Blk.prepend_arg b a |> Func.update_blk fn, ins)) in
-  (* Insert arguments to control instructions. *)
+      Set.to_sequence |> Seq.fold ~init ~f:(fun (fn, ins) l ->
+          update_args env fn cfg l x ins))
+
+let insert_ctrl_args fn ins =
   Map.fold ins ~init:fn ~f:(fun ~key ~data fn -> match find_blk fn key with
       | Some b -> Func.update_blk fn @@ argify_ctrl data b
       | None -> fn)
+
+let insert_args env vars fn frontier cfg =
+  let fn, ins = insert_blk_args env vars fn frontier cfg in
+  insert_ctrl_args fn ins
 
 let rename cfg dom fn =
   let vars = Var.Table.create () in
