@@ -649,7 +649,7 @@ let blk_ctrl blks fn blk = match Blk.ctrl blk with
   | `ret (Some r) -> ctrl_ret_some blks fn blk r
   | `switch (t, v, d, tbl) -> ctrl_switch blks fn blk t v d tbl
 
-let rec check_blk doms blks data fn l =
+let rec check_blk doms rpo blks data fn l =
   let*? blk = match Map.find blks l with
     | Some blk -> Ok blk
     | None ->
@@ -661,15 +661,24 @@ let rec check_blk doms blks data fn l =
   let* () = blk_ctrl blks fn blk in
   Tree.children doms l |>
   Seq.filter ~f:(Fn.non Label.is_pseudo) |>
-  M.Seq.iter ~f:(check_blk doms blks data fn)
+  Seq.to_list |> List.sort ~compare:(fun a b ->
+      let i = Map.find_exn rpo a in
+      let j = Map.find_exn rpo b in
+      compare i j) |>
+  M.List.iter ~f:(check_blk doms rpo blks data fn)
 
 let check_fn fn =
   let data = Label.Hash_set.create () in
   let*? blks = try Ok (Func.map_of_blks fn) with
     | Invalid_argument msg -> Or_error.error_string msg in
   let cfg = Cfg.create fn in
+  let rpo =
+    Graphlib.reverse_postorder_traverse (module Cfg) cfg
+      ~start:Label.pseudoentry |>
+    Seq.foldi ~init:Label.Map.empty ~f:(fun i acc l ->
+        Map.set acc ~key:l ~data:i) in
   let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
-  check_blk doms blks data fn @@ Func.entry fn
+  check_blk doms rpo blks data fn @@ Func.entry fn
 
 let check m =
   let* () = add_datas m in
