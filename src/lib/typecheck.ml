@@ -330,38 +330,42 @@ let op_unop fn blk l env v u a =
       op_copy fn blk l ta a o in
   M.lift_err @@ Env.add_var fn v (t :> Type.t) env
 
+let op_mem_load fn blk l env word t m a =
+  let*? tm = Env.typeof_var fn m env in
+  let* () = match tm with
+    | `mem -> !!()
+    | _ -> unify_mem_fail fn blk l tm m in
+  let* ta = typeof_arg fn env a in
+  let+ () = unify_arg fn blk l ta a (word :> Type.t) in
+  (t :> Type.t)
+
+let op_mem_store fn blk l env word t m a v =
+  let*? tm = Env.typeof_var fn m env in
+  let* () = match tm with
+    | `mem -> !!()
+    | _ -> unify_mem_fail fn blk l tm m in
+  let* ta = typeof_arg fn env a in
+  let* tv = typeof_arg fn env v in
+  let* () = unify_arg fn blk l ta a (word :> Type.t) in
+  let+ () = unify_arg fn blk l ta a (t :> Type.t) in
+  `mem
+
 let op_mem fn blk l env v m =
   let* word = M.gets @@ Fn.compose Target.word Env.target in
   let* t = match m with
     | `alloc _ -> !!(word :> Type.t)
-    | `load (t, m, a) ->
-      let*? tm = Env.typeof_var fn m env in
-      let* () = match tm with
-        | `mem -> !!()
-        | _ -> unify_mem_fail fn blk l tm m in
-      let* ta = typeof_arg fn env a in
-      let+ () = unify_arg fn blk l ta a (word :> Type.t) in
-      (t :> Type.t)
-    | `store (t, m, a, v) ->
-      let*? tm = Env.typeof_var fn m env in
-      let* () = match tm with
-        | `mem -> !!()
-        | _ -> unify_mem_fail fn blk l tm m in
-      let* ta = typeof_arg fn env a in
-      let* () = unify_arg fn blk l ta a (word :> Type.t) in
-      let* tv = typeof_arg fn env v in
-      let+ () = unify_arg fn blk l ta a (t :> Type.t) in
-      `mem in
+    | `load (t, m, a) -> op_mem_load fn blk l env word t m a
+    | `store (t, m, a, v) -> op_mem_store fn blk l env word t m a v in
   M.lift_err @@ Env.add_var fn v t env
 
-let op_select fn blk l env v t c al ar =
+let op_sel fn blk l env v t c al ar =
   let*? tc = Env.typeof_var fn c env in
   let* () = match tc with
     | `flag -> !!()
     | _ -> unify_flag_fail fn blk l tc c in
   let* tl = typeof_arg fn env al in
-  let* () = unify_arg fn blk l tl al (t :> Type.t) in
   let* tr = typeof_arg fn env ar in
+  let* () = unify_arg fn blk l tl al (t :> Type.t) in
   let* () = unify_arg fn blk l tr ar (t :> Type.t) in
   M.lift_err @@ Env.add_var fn v (t :> Type.t) env
 
@@ -369,7 +373,7 @@ let op_basic fn blk l env : Insn.Data.basic -> env t = function
   | `bop (v, b, al, ar) -> op_binop fn blk l env v b al ar
   | `uop (v, u, a) -> op_unop fn blk l env v u a
   | `mem (v, m) -> op_mem fn blk l env v m
-  | `sel (v, t, c, al, ar) -> op_select fn blk l env v t c al ar
+  | `sel (v, t, c, al, ar) -> op_sel fn blk l env v t c al ar
 
 let unify_fail_void_call fn blk l t s =
   let t = Format.asprintf "%a" Type.pp_arg t in
@@ -432,48 +436,49 @@ let check_call_var fn blk l env t args vargs v =
     else expect_ptr_size_base_var fn blk l v t word "call"
   | _ -> expect_ptr_size_var fn blk l v t "call"
 
+let check_call_sym_ret fn blk l t ret s = match t, ret with
+  | None, Some t -> unify_fail_void_call fn blk l (t :> Type.arg) s
+  | Some t, None -> unify_fail_void_call fn blk l t s
+  | Some t1, Some t2 when Type.equal_arg t1 (t2 :> Type.arg) -> !!()
+  | Some t1, Some t2 -> unify_fail_call_ret fn blk l t1 (t2 :> Type.arg) s
+  | None, None -> !!()
+
+let check_call_sym_variadic fn blk l s vargs variadic =
+  if variadic || List.is_empty vargs then !!()
+  else non_variadic_call fn blk l s
+
+let check_call_sym_args fn blk l env t s = M.List.iter ~f:(fun (a, t) ->
+    let* at = typeof_arg fn env a in
+    let* word = M.gets @@ Fn.compose Target.word Env.target in
+    match at, t with
+    | `imm, #Type.imm ->
+      (* Immediate of unknown size is allowed to unify with
+         another immeidate. *)
+      !!()
+    | `imm, _ ->
+      (* But it cannot unify with any other type. *)
+      bad_imm_call fn blk l s t
+    | #Type.imm_base as b, `name _ ->
+      (* If the argument has a named type (i.e. a compound)
+         then it is expected to be passed as a pointer. *)
+      let bt = (b :> Type.t) in
+      if Type.equal_imm_base b word then !!()
+      else expect_ptr_size_base_arg fn blk l a bt word "call"
+    | #Type.t as at, `name n ->
+      (* Fail otherwise. *)
+      name_arg_expected_imm fn blk l s at a n
+    | (#Type.t as at), (#Type.basic as t) ->
+      (* Normal unification. *)
+      let t = (t :> Type.t) in
+      if Type.(at = t) then !!()
+      else unify_fail_call_arg fn blk l s t a at)
+
 let check_call_sym fn blk l env t args vargs s ret targs variadic =
-  (* Check return type. *)
-  let* () = match t, ret with
-    | None, None -> !!()
-    | None, Some t -> unify_fail_void_call fn blk l (t :> Type.arg) s
-    | Some t, None -> unify_fail_void_call fn blk l t s
-    | Some t1, Some t2 when Type.equal_arg t1 (t2 :> Type.arg) -> !!()
-    | Some t1, Some t2 ->
-      unify_fail_call_ret fn blk l t1 (t2 :> Type.arg) s in
-  (* Check if use of variadic args is OK. *)
-  let* () =
-    if variadic || List.is_empty vargs then !!()
-    else non_variadic_call fn blk l s in
-  (* Check arity. *)
+  let* () = check_call_sym_ret fn blk l t ret s in
+  let* () = check_call_sym_variadic fn blk l s vargs variadic in
   match List.zip args targs with
   | Unequal_lengths -> unequal_lengths_call fn blk l s args targs
-  | Ok z -> M.List.iter z ~f:(fun (a, t) ->
-      (* Check each arg individually. *)
-      let* at = typeof_arg fn env a in
-      let* word = M.gets @@ Fn.compose Target.word Env.target in
-      match at, t with
-      | `imm, #Type.imm ->
-        (* Immediate of unknown size is allowed to unify with
-           another immeidate. *)
-        !!()
-      | `imm, _ ->
-        (* But it cannot unify with any other type. *)
-        bad_imm_call fn blk l s t
-      | #Type.imm_base as b, `name _ ->
-        (* If the argument has a named type (i.e. a compound)
-           then it is expected to be passed as a pointer. *)
-        let bt = (b :> Type.t) in
-        if Type.equal_imm_base b word then !!()
-        else expect_ptr_size_base_arg fn blk l a bt word "call"
-      | #Type.t as at, `name n ->
-        (* Fail otherwise. *)
-        name_arg_expected_imm fn blk l s at a n
-      | (#Type.t as at), (#Type.basic as t) ->
-        (* Normal unification. *)
-        let t = (t :> Type.t) in
-        if Type.(at = t) then !!()
-        else unify_fail_call_arg fn blk l s t a at)
+  | Ok z -> check_call_sym_args fn blk l env t s z
 
 let check_call fn blk l env t args vargs : Insn.global -> unit t = function
   | `addr _ -> !!() (* No guarantees for call to raw address. *)
