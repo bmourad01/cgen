@@ -352,7 +352,7 @@ insn_data:
       args >>| fun args ->
       let args, vargs = Core.List.partition_map args ~f:(function
         | `arg a -> First a | `varg a -> Second a) in
-      `call (Some(x, t), f, args, vargs)
+      `call (Some (x, t), f, args, vargs)
     }
   | CALL f = insn_global LPAREN args = call_args RPAREN
     {

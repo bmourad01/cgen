@@ -484,7 +484,7 @@ let check_call fn blk l env t args vargs : Insn.global -> unit t = function
     | None -> !!() (* No guarantees for an external function. *)
 
 let op_call fn blk l env : Insn.Data.call -> env t = function
-  | `call (Some(v, t), g, args, vargs) ->
+  | `call (Some (v, t), g, args, vargs) ->
     let* () =
       let t = Some (t :> Type.arg) in
       check_call fn blk l env t args vargs g in

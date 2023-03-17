@@ -87,8 +87,8 @@ let rename_data vars nums b =
   let margs = List.map ~f:(map_arg vars) in
   let rename = new_name vars nums in
   Blk.map_data b ~f:(fun _ -> function
-      | `call (Some(x, t), f, args, vargs) ->
-        `call (Some(rename x, t), glo f, margs args, margs vargs)
+      | `call (Some (x, t), f, args, vargs) ->
+        `call (Some (rename x, t), glo f, margs args, margs vargs)
       | `call (None, f, args, vargs) ->
         `call (None, glo f, margs args, margs vargs)
       | `vastart x -> `vastart (var x)
