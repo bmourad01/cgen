@@ -333,7 +333,7 @@ let op_mem fn blk l env v m =
   let* t = match m with
     | `alloc _ -> !!(word :> Type.t)
     | `load (t, m, a) ->
-      let* tm = M.lift_err @@ Env.typeof_var fn m env in
+      let*? tm = Env.typeof_var fn m env in
       let* () = match tm with
         | `mem -> !!()
         | _ -> unify_mem_fail fn blk l tm m in
@@ -341,7 +341,7 @@ let op_mem fn blk l env v m =
       let+ () = unify_arg fn blk l ta a (word :> Type.t) in
       (t :> Type.t)
     | `store (t, m, a, v) ->
-      let* tm = M.lift_err @@ Env.typeof_var fn m env in
+      let*? tm = Env.typeof_var fn m env in
       let* () = match tm with
         | `mem -> !!()
         | _ -> unify_mem_fail fn blk l tm m in
@@ -353,7 +353,7 @@ let op_mem fn blk l env v m =
   M.lift_err @@ Env.add_var fn v t env
 
 let op_select fn blk l env v t c al ar =
-  let* tc = M.lift_err @@ Env.typeof_var fn c env in
+  let*? tc = Env.typeof_var fn c env in
   let* () = match tc with
     | `flag -> !!()
     | _ -> unify_flag_fail fn blk l tc c in
@@ -552,7 +552,7 @@ let unify_arg_ctrl fn blk l ta a t = match ta, t with
 let check_var_dst blks fn blk v =
   let* env = M.get () in
   let word = Target.word @@ Env.target env in
-  let* t = M.lift_err @@ Env.typeof_var fn v env in
+  let*? t = Env.typeof_var fn v env in
   if Type.(t = (word :> Type.t)) then !!()
   else M.lift_err @@ unify_fail t (word :> Type.t) v fn
 
@@ -608,7 +608,7 @@ let unify_fail_ret fn blk t1 t2 =
 
 let ctrl_jnz blks fn blk c t f =
   let* env = M.get () in
-  let* tc = M.lift_err @@ Env.typeof_var fn c env in
+  let*? tc = Env.typeof_var fn c env in
   let* () = match tc with
     | `flag -> !!()
     | _ -> unify_flag_fail_ctrl fn blk tc c in
@@ -634,7 +634,7 @@ let ctrl_ret_some blks fn blk r =
 let ctrl_switch blks fn blk t v d tbl =
   let t = (t :> Type.t) in
   let* env = M.get () in
-  let* tv = M.lift_err @@ Env.typeof_var fn v env in
+  let*? tv = Env.typeof_var fn v env in
   if Type.(t = tv) then
     let* () = check_dst blks fn blk (d :> Insn.dst) in
     Insn.Ctrl.Table.enum tbl |> M.Seq.iter ~f:(fun (_, l) ->
