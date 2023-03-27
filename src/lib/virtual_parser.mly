@@ -210,6 +210,9 @@ data_elt:
   | b = type_basic cs = nonempty_list(const) { `basic (b, cs) }
   | B s = STRING { `string s }
   | Z n = INT { `zero (Bitvec.to_int n) }
+  | s = SYM { `sym (s, 0) }
+  | s = SYM PLUS i = INT { `sym (s, Bitvec.to_int i) }
+  | s = SYM MINUS i = INT { `sym (s, -(Bitvec.to_int i)) }
 
 typ:
   | TYPE name = TYPENAME EQUALS align = option(align) LBRACE fields = separated_nonempty_list(COMMA, typ_field) RBRACE

@@ -869,11 +869,15 @@ module Data : sig
 
       [`zero n] is a zero-initialized array of [n] bytes. Note that [n <= 0]
       is illegal.
+
+      [`sym (s, off)] is a pointer to a symbol [s] with offset [off]. It is
+      implicitly the size returned by [Target.word].
   *)
   type elt = [
     | `basic  of Type.basic * const list
     | `string of string
     | `zero   of int
+    | `sym    of string * int
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints an element of the struct. *)
@@ -928,7 +932,7 @@ module Data : sig
   val hash : t -> int
 
   (** Returns the corresponding compound type of the struct. *)
-  val typeof : t -> Type.compound
+  val typeof : t -> Target.t -> Type.compound
 
   (** Prepends an element to the beginning of the structure. *)
   val prepend_elt : t -> elt -> t

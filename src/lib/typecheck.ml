@@ -29,7 +29,7 @@ module Env = struct
 
   let add_data d env =
     let name = Data.name d in
-    match Map.add env.denv ~key:name ~data:(Data.typeof d) with
+    match Map.add env.denv ~key:name ~data:(Data.typeof d env.target) with
     | `Ok denv -> Ok {env with denv}
     | `Duplicate -> Or_error.errorf "Redefinition of data %s" name
 

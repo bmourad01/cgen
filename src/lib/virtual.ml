@@ -971,6 +971,7 @@ module Data = struct
     | `basic  of Type.basic * const list
     | `string of string
     | `zero   of int
+    | `sym    of string * int
   ] [@@deriving bin_io, compare, equal, sexp]
 
   let pp_elt ppf : elt -> unit = function
@@ -981,6 +982,9 @@ module Data = struct
         (Format.pp_print_list ~pp_sep pp_const) cs
     | `string s -> Format.fprintf ppf "%a \"%s\"" Type.pp_basic `i8 s
     | `zero n -> Format.fprintf ppf "z %d" n
+    | `sym (s, 0) -> Format.fprintf ppf "$%s" s
+    | `sym (s, n) when n > 0 -> Format.fprintf ppf "$%s+0x%x" s n
+    | `sym (s, n) -> Format.fprintf ppf "$%s-0x%x" s (lnot n + 1)
 
   module T = struct
     type t = {
@@ -1028,15 +1032,16 @@ module Data = struct
   let has_name d name = String.(name = d.name)
   let hash d = String.hash d.name
 
-  let typeof d =
+  let typeof d target =
+    let word = (Target.word target :> Type.basic) in
     let name = Format.sprintf "%s_t" d.name in
-    let fields =
-      Array.fold_right d.elts ~init:[] ~f:(fun elt fields ->
-          let t = match elt with
-            | `basic (t, cs) -> `elt (t, List.length cs)
-            | `string s -> `elt (`i8, String.length s)
-            | `zero n -> `elt (`i8, n) in
-          t :: fields) in
+    let fields = Array.fold_right d.elts ~init:[] ~f:(fun elt fields ->
+        let t = match elt with
+          | `basic (t, cs) -> `elt (t, List.length cs)
+          | `string s -> `elt (`i8, String.length s)
+          | `zero n -> `elt (`i8, n)
+          | `sym _ -> `elt (word, 1) in
+        t :: fields) in
     `compound (name, d.align, fields)
 
   let prepend_elt d e = {
