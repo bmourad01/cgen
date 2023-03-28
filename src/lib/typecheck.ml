@@ -274,8 +274,26 @@ let unify_flag_fail fn blk l t v =
      in block %a in function %s, got %a" Var.pps v Label.pps l
     Label.pps (Blk.label blk) (Func.name fn) Type.pps t
 
+let unify_fext_fail fn blk l t a =
+  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let t = match t with
+    | `imm -> "immediate"
+    | #Type.t as t -> Format.asprintf "%a" Type.pp t in
+  M.fail @@ Error.createf
+    "Invalid floating point type %s for arg %s in instruction %a \
+     in block %a in function %s" t a Label.pps l Label.pps
+    (Blk.label blk) (Func.name fn)
+
 let op_cast fn blk l ta a : Insn.Data.cast -> Type.basic t = function
   | `bits t -> !!t
+  | `fext t ->
+    let+ () = match t, ta with
+      | `f64, `f64
+      | `f64, `f32
+      | `f32, `f32 -> !!()
+      | _, #Type.fp -> unify_fext_fail fn blk l ta a
+      | _ -> unify_fp_fail fn blk l ta a in
+    (t :> Type.basic)
   | `ftosi (tf, ti)
   | `ftoui (tf, ti) ->
     let+ () = unify_arg fn blk l ta a (tf :> Type.t) in

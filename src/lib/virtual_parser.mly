@@ -109,7 +109,7 @@
 %token <Type.fp> O UO
 %token <Type.basic> BITS
 %token <Type.fp * Type.imm> FTOSI FTOUI
-%token <Type.fp> FTRUNC
+%token <Type.fp> FEXT FTRUNC
 %token <Type.imm> ITRUNC SEXT ZEXT
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL ACALL
@@ -440,6 +440,7 @@ insn_data_bitwise_unop:
 
 insn_data_cast:
   | t = BITS { `bits t }
+  | t = FEXT { `fext t }
   | t = FTOSI { `ftosi (fst t, snd t) }
   | t = FTOUI { `ftoui (fst t, snd t) }
   | t = FTRUNC { `ftrunc t }

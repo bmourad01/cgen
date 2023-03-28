@@ -243,6 +243,9 @@ module Insn : sig
 
         [`bits t]: reinterpret the underlying bits to type [t].
 
+        [`fext t]: extends a floating point value to a higher
+        precision.
+        
         [`ftosi (t, i)]: cast a float of type [t] to a signed
         integer of type [i].
 
@@ -265,6 +268,7 @@ module Insn : sig
     *)
     type cast = [
       | `bits   of Type.basic
+      | `fext   of Type.fp
       | `ftosi  of Type.fp * Type.imm
       | `ftoui  of Type.fp * Type.imm
       | `ftrunc of Type.fp

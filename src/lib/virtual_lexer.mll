@@ -56,6 +56,7 @@ let special = ['m' 'f']
 let typ = (basic | special)
 
 rule token = parse
+  | ';' { line_comment lexbuf; token lexbuf }
   | '\n' { newline lexbuf; token lexbuf }
   | space { token lexbuf }
   | '+' { PLUS }
@@ -124,6 +125,7 @@ rule token = parse
   | "slt" '.' (imm as t) { SLT (imm_of_char t) }
   | "uo" '.' (fp as t) { UO (fp_of_char t) }
   | "bits" '.' (basic as t) { BITS (basic_of_char t) }
+  | "fext" '.' (fp as t) { FEXT (fp_of_char t) }
   | "ftosi" '.' (fp as t) '.' (imm as i) {
     FTOSI (fp_of_char t, imm_of_char i)
   }
@@ -180,3 +182,7 @@ and string = parse
     Buffer.add_char string_buff c;
     string lexbuf
   }
+
+and line_comment = parse
+  | '\n' { () }
+  | _ { line_comment lexbuf }
