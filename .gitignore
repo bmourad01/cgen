@@ -1,3 +1,4 @@
 _build/
 compile_flags.txt
 .dumbjump
+.dir-locals.el
