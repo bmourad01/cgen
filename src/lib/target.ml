@@ -25,6 +25,7 @@ module Reg = struct
   let cls r = r.cls
   let is_cls r c = equal_cls r.cls c
 
+  let r1   = create ~width:1
   let r8   = create ~width:8
   let r16  = create ~width:16
   let r32  = create ~width:32

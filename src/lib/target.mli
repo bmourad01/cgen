@@ -49,6 +49,9 @@ module Reg : sig
   (** [is_cls r cls] returns [true] if [r] has belongs to [cls]. *)
   val is_cls : t -> cls -> bool
 
+  (** Helper for 1-bit registers. *)
+  val r1 : name:string -> cls:cls -> t
+
   (** Helper for 8-bit registers. *)
   val r8 : name:string -> cls:cls -> t
 

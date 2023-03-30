@@ -14,10 +14,10 @@ module Test_target = struct
 
   let sp = Target.Reg.r64 ~name:"sp" ~cls:`sp
 
-  let cf = Target.Reg.create ~name:"cf" ~width:1 ~cls:`flag
-  let sf = Target.Reg.create ~name:"sf" ~width:1 ~cls:`flag
-  let zf = Target.Reg.create ~name:"zf" ~width:1 ~cls:`flag
-  let vf = Target.Reg.create ~name:"vf" ~width:1 ~cls:`flag
+  let cf = Target.Reg.r1 ~name:"cf" ~cls:`flag
+  let sf = Target.Reg.r1 ~name:"sf" ~cls:`flag
+  let zf = Target.Reg.r1 ~name:"zf" ~cls:`flag
+  let vf = Target.Reg.r1 ~name:"vf" ~cls:`flag
 
   let t = Target.create ()
       ~name:"test"
