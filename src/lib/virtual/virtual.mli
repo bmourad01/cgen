@@ -86,7 +86,7 @@ val var_of_dst : dst -> Var.t option
 (** Pretty-prints a control-flow destination. *)
 val pp_dst : Format.formatter -> dst -> unit
 
-(** An data-flow-effectful instruction. *)
+(** Data-flow-effectful instruction. *)
 module Insn : sig
   (** Arithmetic binary operations.
 
