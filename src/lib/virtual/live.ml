@@ -38,14 +38,14 @@ let (++) = Set.union and (--) = Set.diff
 
 let find_blk fn l = Func.blks fn |> Seq.find ~f:(Fn.flip Blk.has_label l)
 
-let local_uses : Insn.local -> Var.Set.t = function
+let local_uses : local -> Var.Set.t = function
   | `label (l, args) ->
     List.filter_map args ~f:(function
         | `var v -> Some v | _ -> None) |>
     Var.Set.of_list
 
-let dst_uses : Insn.dst -> Var.Set.t = function
-  | #Insn.local as l -> local_uses l
+let dst_uses : dst -> Var.Set.t = function
+  | #local as l -> local_uses l
   | _ -> Var.Set.empty
 
 let ctrl_uses b = match Blk.ctrl b with

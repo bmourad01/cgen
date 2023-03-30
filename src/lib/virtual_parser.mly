@@ -3,13 +3,13 @@
 
     type elt = [
       | `func of Virtual.func
-      | `typ of Type.compound
+      | `typ  of Type.compound
       | `data of Virtual.data
     ]
 
     type call_arg = [
-      | `arg of Virtual.Insn.arg
-      | `varg of Virtual.Insn.arg
+      | `arg  of Virtual.operand
+      | `varg of Virtual.operand
     ]
 
     module Env = struct
@@ -155,7 +155,7 @@
 %type <Virtual.blk m> blk
 %type <(Var.t * Virtual.Blk.arg_typ) m> blk_arg
 %type <Virtual.Insn.Ctrl.t m> insn_ctrl
-%type <(Bitvec.t * Virtual.Insn.local) m> insn_ctrl_table_entry
+%type <(Bitvec.t * Virtual.local) m> insn_ctrl_table_entry
 %type <Virtual.Insn.Data.op m> insn_data
 %type <call_arg list m> call_args
 %type <Virtual.Insn.Data.binop> insn_data_binop
@@ -168,10 +168,10 @@
 %type <Virtual.Insn.Data.cast> insn_data_cast
 %type <Virtual.Insn.Data.copy> insn_data_copy
 %type <Virtual.Insn.Data.mem m> insn_data_mem
-%type <Virtual.Insn.dst m> insn_dst
-%type <Virtual.Insn.local m> insn_local
-%type <Virtual.Insn.global m> insn_global
-%type <Virtual.Insn.arg m> insn_arg
+%type <Virtual.dst m> insn_dst
+%type <Virtual.local m> local
+%type <Virtual.global m> global
+%type <Virtual.operand m> operand
 %type <Virtual.const> const
 %type <Var.t m> var
 
@@ -303,13 +303,13 @@ insn_ctrl:
       f >>| fun f ->
       `br (c, t, f)
     }
-  | RET a = option(insn_arg)
+  | RET a = option(operand)
     {
       match a with
       | None -> !!(`ret None)
       | Some a -> a >>| fun a -> `ret (Some a)
     }
-  | t = SW i = var COMMA def = insn_local LSQUARE tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry) RSQUARE
+  | t = SW i = var COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry) RSQUARE
     {
       let* i = i and* d = def and* tbl = unwrap_list tbl in
       match Virtual.Insn.Ctrl.Table.create tbl with
@@ -318,17 +318,17 @@ insn_ctrl:
     }
 
 insn_ctrl_table_entry:
-  | i = INT ARROW l = insn_local { l >>| fun l -> i, l }
+  | i = INT ARROW l = local { l >>| fun l -> i, l }
 
 insn_data:
-  | x = var EQUALS b = insn_data_binop l = insn_arg COMMA r = insn_arg
+  | x = var EQUALS b = insn_data_binop l = operand COMMA r = operand
     {
       x >>= fun x ->
       l >>= fun l ->
       r >>| fun r ->
       `bop (x, b, l, r)
     }
-  | x = var EQUALS u = insn_data_unop a = insn_arg
+  | x = var EQUALS u = insn_data_unop a = operand
     {
       x >>= fun x ->
       a >>| fun a ->
@@ -340,7 +340,7 @@ insn_data:
       m >>| fun m ->
       `mem (x, m)
     }
-  | x = var t = SEL c = var COMMA l = insn_arg COMMA r = insn_arg
+  | x = var t = SEL c = var COMMA l = operand COMMA r = operand
     {
       x >>= fun x ->
       c >>= fun c ->
@@ -348,7 +348,7 @@ insn_data:
       r >>| fun r ->
       `sel (x, t, c, l, r)
     }
-  | x = var t = ACALL f = insn_global LPAREN args = call_args RPAREN
+  | x = var t = ACALL f = global LPAREN args = call_args RPAREN
     {
       x >>= fun x ->
       f >>= fun f ->
@@ -357,7 +357,7 @@ insn_data:
         | `arg a -> First a | `varg a -> Second a) in
       `call (Some (x, t), f, args, vargs)
     }
-  | CALL f = insn_global LPAREN args = call_args RPAREN
+  | CALL f = global LPAREN args = call_args RPAREN
     {
       f >>= fun f ->
       args >>| fun args ->
@@ -369,19 +369,19 @@ insn_data:
     { x >>| fun x -> `vastart x }
 
 call_args:
-  | a = option(insn_arg)
+  | a = option(operand)
     {
       match a with
       | None -> !![]
       | Some a -> a >>| fun a -> [`arg a]
     }
-  | a = insn_arg COMMA rest = call_args
+  | a = operand COMMA rest = call_args
     {
       a >>= fun a ->
       rest >>| fun rest ->
       `arg a :: rest
     }
-  | a = insn_arg COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, insn_arg)
+  | a = operand COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, operand)
     {
       a >>= fun a ->
       unwrap_list vargs >>| fun vargs ->
@@ -456,13 +456,13 @@ insn_data_copy:
 insn_data_mem:
   | ALLOC i = INT
     { !!(`alloc (Bitvec.to_int i)) }
-  | t = LOAD m = var LSQUARE a = insn_arg RSQUARE
+  | t = LOAD m = var LSQUARE a = operand RSQUARE
     {
       m >>= fun m ->
       a >>| fun a ->
       `load (t, m, a)
     }
-  | t = STORE m = var LSQUARE a = insn_arg RSQUARE COMMA x = insn_arg
+  | t = STORE m = var LSQUARE a = operand RSQUARE COMMA x = operand
     {
       m >>= fun m ->
       a >>= fun a ->
@@ -471,24 +471,24 @@ insn_data_mem:
     }
 
 insn_dst:
-  | g = insn_global { g >>| fun g -> (g :> Virtual.Insn.dst) }
-  | l = insn_local { l >>| fun l -> (l :> Virtual.Insn.dst) }
+  | g = global { g >>| fun g -> (g :> Virtual.dst) }
+  | l = local { l >>| fun l -> (l :> Virtual.dst) }
 
-insn_local:
+local:
   | l = LABEL { label_of_name l >>| fun l -> `label (l, []) }
-  | l = LABEL LPAREN args = separated_nonempty_list(COMMA, insn_arg) RPAREN
+  | l = LABEL LPAREN args = separated_nonempty_list(COMMA, operand) RPAREN
     {
       unwrap_list args >>= fun args ->
       label_of_name l >>| fun l -> `label (l, args)
     }
 
-insn_global:
+global:
   | i = INT { !!(`addr i) }
   | s = SYM { !!(`sym s) }
   | x = var { x >>| fun x -> `var x }
 
-insn_arg:
-  | c = const { !!(c :> Virtual.Insn.arg) }
+operand:
+  | c = const { !!(c :> Virtual.operand) }
   | x = var { x >>| fun x -> `var x }
 
 const:

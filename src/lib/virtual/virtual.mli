@@ -30,64 +30,64 @@ type const = [
 (** Pretty-prints a constant value. *)
 val pp_const : Format.formatter -> const -> unit
 
+(** An operand to an instruction. *)
+type operand = [
+  | const
+  | `var of Var.t
+] [@@deriving bin_io, compare, equal, sexp]
+
+(** [var_of_operand a] returns [Some x] if [a] is a variable [x]. *)
+val var_of_operand : operand -> Var.t option
+
+(** Pretty-prints an argument to an instruction. *)
+val pp_operand : Format.formatter -> operand -> unit
+
+(** Inter-function destination.
+
+    [`addr a] is a static absolute addrsss.
+
+    [`sym s] is a global symbol.
+
+    [`var v] is a dynamic absolute address.
+*)
+type global = [
+  | `addr of Bitvec.t
+  | `sym  of string
+  | `var  of Var.t
+] [@@deriving bin_io, compare, equal, sexp]
+
+(** [var_of_global g] returns [Some x] if [g] is a variable [x]. *)
+val var_of_global : global -> Var.t option
+
+(** Pretty-prints the global destination. *)
+val pp_global : Format.formatter -> global -> unit
+
+(** Intra-function destination.
+
+    [`label (l, args)] is the label [l] of a block in the current
+    function, with a list of operands [args].
+*)
+type local = [
+  | `label of Label.t * operand list
+] [@@deriving bin_io, compare, equal, sexp]
+
+(** Pretty-prints the local destination. *)
+val pp_local : Format.formatter -> local -> unit
+
+(** The destination for a control flow transfer. *)
+type dst = [
+  | global
+  | local
+] [@@deriving bin_io, compare, equal, sexp]
+
+(** [var_of_dst d] returns [Some x] if [d] is a variable [x]. *)
+val var_of_dst : dst -> Var.t option
+
+(** Pretty-prints a control-flow destination. *)
+val pp_dst : Format.formatter -> dst -> unit
+
 (** An instruction. *)
 module Insn : sig
-  (** An argument to an instruction. *)
-  type arg = [
-    | const
-    | `var of Var.t
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** [var_of_arg a] returns [Some x] if [a] is a variable [x]. *)
-  val var_of_arg : arg -> Var.t option
-
-  (** Pretty-prints an argument to an instruction. *)
-  val pp_arg : Format.formatter -> arg -> unit
-
-  (** Inter-function destination.
-
-      [`addr a] is a static absolute addrsss.
-
-      [`sym s] is a global symbol.
-
-      [`var v] is a dynamic absolute address.
-  *)
-  type global = [
-    | `addr of Bitvec.t
-    | `sym  of string
-    | `var  of Var.t
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** [var_of_global g] returns [Some x] if [g] is a variable [x]. *)
-  val var_of_global : global -> Var.t option
-
-  (** Pretty-prints the global destination. *)
-  val pp_global : Format.formatter -> global -> unit
-
-  (** Intra-function destination.
-
-      [`label (l, args)] is the label [l] of a block in the current
-      function, with a list of arguments [args].
-  *)
-  type local = [
-    | `label of Label.t * arg list
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Pretty-prints the local destination. *)
-  val pp_local : Format.formatter -> local -> unit
-
-  (** The destination for a control flow instruction. *)
-  type dst = [
-    | global
-    | local
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** [var_of_dst d] returns [Some x] if [d] is a variable [x]. *)
-  val var_of_dst : dst -> Var.t option
-
-  (** Pretty-prints a control-flow destination. *)
-  val pp_dst : Format.formatter -> dst -> unit
-
   (** Data-flow-effectful instructions. *)
   module Data : sig
     (** Arithmetic binary operations.
@@ -185,8 +185,8 @@ module Insn : sig
     *)
     type mem = [
       | `alloc of int
-      | `load  of Type.basic * Var.t * arg
-      | `store of Type.basic * Var.t * arg * arg
+      | `load  of Type.basic * Var.t * operand
+      | `store of Type.basic * Var.t * operand * operand
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the memory operation. *)
@@ -245,7 +245,7 @@ module Insn : sig
 
         [`fext t]: extends a floating point value to a higher
         precision.
-        
+
         [`ftosi (t, i)]: cast a float of type [t] to a signed
         integer of type [i].
 
@@ -328,10 +328,10 @@ module Insn : sig
         type [t].
     *)
     type basic = [
-      | `bop of Var.t * binop * arg * arg
-      | `uop of Var.t * unop  * arg
+      | `bop of Var.t * binop * operand * operand
+      | `uop of Var.t * unop  * operand
       | `mem of Var.t * mem
-      | `sel of Var.t * Type.basic * Var.t * arg * arg
+      | `sel of Var.t * Type.basic * Var.t * operand * operand
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the basic instruction. *)
@@ -350,7 +350,7 @@ module Insn : sig
         Note that variadic calls require at least one non-variadic argument.
     *)
     type call = [
-      | `call of (Var.t * Type.basic) option * global * arg list * arg list
+      | `call of (Var.t * Type.basic) option * global * operand list * operand list
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the call. *)
@@ -474,7 +474,7 @@ module Insn : sig
       | `hlt
       | `jmp of dst
       | `br  of Var.t * dst * dst
-      | `ret of arg option
+      | `ret of operand option
       | `sw  of Type.imm * Var.t * local * table
     ] [@@deriving bin_io, compare, equal, sexp]
 

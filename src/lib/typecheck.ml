@@ -106,7 +106,7 @@ let typeof_const : const -> typ t = function
     let+ t = M.gets Env.target in
     (Target.word t :> typ)
 
-let typeof_arg fn env : Insn.arg -> typ t = function
+let typeof_arg fn env : operand -> typ t = function
   | #const as c -> typeof_const c
   | `var v ->
     let*? t = Env.typeof_var fn v env in
@@ -146,7 +146,7 @@ let expect_ptr_size_var fn blk l v t msg =
     (Func.name fn) Type.pps t 
 
 let expect_ptr_size_base_arg fn blk l a t word msg =
-  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let a = Format.asprintf "%a" pp_operand a in
   let word = Format.asprintf "%a" Type.pp_imm_base word in
   M.fail @@ Error.createf
     "Expected imm_base of size %s for arg %s in %s %a \
@@ -155,7 +155,7 @@ let expect_ptr_size_base_arg fn blk l a t word msg =
     (Func.name fn) Type.pps t
 
 let expect_ptr_size_arg fn blk l a t msg =
-  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Expected imm_base type for arg %s in %s %a in \
      block %a in function %s, got %a"
@@ -163,7 +163,7 @@ let expect_ptr_size_arg fn blk l a t msg =
     (Func.name fn) Type.pps t 
 
 let unify_fail_arg fn blk l t a t' =
-  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let a = Format.asprintf "%a" pp_operand a in
   let t' = match t' with
     | `imm -> "immediate"
     | #Type.t as t -> Format.asprintf "%a" Type.pp t in
@@ -243,7 +243,7 @@ let op_bitwise_unop fn blk l ta a (o : Insn.Data.bitwise_unop) =
   (t :> Type.basic)
 
 let unify_fp_fail fn blk l t a =
-  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let a = Format.asprintf "%a" pp_operand a in
   let t = match t with
     | `imm -> "immediate"
     | #Type.t as t -> Format.asprintf "%a" Type.pp t in
@@ -253,7 +253,7 @@ let unify_fp_fail fn blk l t a =
     (Blk.label blk) (Func.name fn) t
 
 let unify_imm_fail fn blk l t a =
-  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let a = Format.asprintf "%a" pp_operand a in
   let t = match t with
     | `imm -> "immediate"
     | #Type.t as t -> Format.asprintf "%a" Type.pp t in
@@ -275,7 +275,7 @@ let unify_flag_fail fn blk l t v =
     Label.pps (Blk.label blk) (Func.name fn) Type.pps t
 
 let unify_fext_fail fn blk l t a =
-  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let a = Format.asprintf "%a" pp_operand a in
   let t = match t with
     | `imm -> "immediate"
     | #Type.t as t -> Format.asprintf "%a" Type.pp t in
@@ -429,14 +429,14 @@ let bad_imm_call fn blk l s t =
     (Blk.label blk) (Func.name fn) t
 
 let unify_fail_call_arg fn blk l s t a t' =
-  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Call at %a to function %s in block %a of function %s: \
      expected %a for arg %s, got %a" Label.pps l s Label.pps
     (Blk.label blk) (Func.name fn) Type.pps t a Type.pps t'
 
 let name_arg_expected_imm fn blk l s t a n =
-  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Call at %a to function %s in block %a of function %s: \
      expected pointer-sized immediate for :%s arg %s, got %a"
@@ -498,7 +498,7 @@ let check_call_sym fn blk l env t args vargs s ret targs variadic =
   | Unequal_lengths -> unequal_lengths_call fn blk l s args targs
   | Ok z -> check_call_sym_args fn blk l env t s z
 
-let check_call fn blk l env t args vargs : Insn.global -> unit t = function
+let check_call fn blk l env t args vargs : global -> unit t = function
   | `addr _ -> !!() (* No guarantees for call to raw address. *)
   | `var v -> check_call_var fn blk l env t args vargs v
   | `sym s -> match Env.typeof_fn s env with
@@ -556,7 +556,7 @@ let unequal_lengths_ctrl fn blk l args targs =
     (List.length args)
 
 let unify_fail_arg_ctrl fn blk l t a t' =
-  let a = Format.asprintf "%a" Insn.pp_arg a in
+  let a = Format.asprintf "%a" pp_operand a in
   let t' = match t' with
     | `imm -> "immediate"
     | #Type.t as t -> Format.asprintf "%a" Type.pp t in
@@ -597,7 +597,7 @@ let check_label_dst blks fn blk l args =
       let* ta = typeof_arg fn env a in
       unify_arg_ctrl fn blk l ta a (t :> Type.t))
 
-let check_dst blks fn blk : Insn.dst -> unit t = function
+let check_dst blks fn blk : dst -> unit t = function
   | `addr _ | `sym _ -> !!()
   | `var v -> check_var_dst blks fn blk v
   | `label (l, args) -> check_label_dst blks fn blk l args
@@ -661,9 +661,9 @@ let ctrl_sw blks fn blk t v d tbl =
   let* env = M.get () in
   let*? tv = Env.typeof_var fn v env in
   if Type.(t = tv) then
-    let* () = check_dst blks fn blk (d :> Insn.dst) in
+    let* () = check_dst blks fn blk (d :> dst) in
     Insn.Ctrl.Table.enum tbl |> M.Seq.iter ~f:(fun (_, l) ->
-        check_dst blks fn blk (l :> Insn.dst))
+        check_dst blks fn blk (l :> dst))
   else M.lift_err @@ unify_fail t tv v fn
 
 let blk_ctrl blks fn blk = match Blk.ctrl blk with

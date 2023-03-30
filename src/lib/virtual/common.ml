@@ -66,3 +66,55 @@ let pp_const ppf : const -> unit = function
   | `sym (s, 0) -> Format.fprintf ppf "$%s" s
   | `sym (s, n) when n > 0 -> Format.fprintf ppf "$%s+0x%x" s n
   | `sym (s, n) -> Format.fprintf ppf "$%s-0x%x" s (lnot n + 1)
+
+type operand = [
+  | const
+  | `var of Var.t
+] [@@deriving bin_io, compare, equal, sexp]
+
+let var_of_operand = function
+  | `var v -> Some v
+  | _ -> None
+
+let pp_operand ppf : operand -> unit = function
+  | #const as c -> Format.fprintf ppf "%a" pp_const c
+  | `var v -> Format.fprintf ppf "%a" Var.pp v
+
+type global = [
+  | `addr of Bitvec.t
+  | `sym  of string
+  | `var  of Var.t
+] [@@deriving bin_io, compare, equal, sexp]
+
+let var_of_global : global -> Var.t option = function
+  | `var x -> Some x
+  | `addr _ | `sym _ -> None
+
+let pp_global ppf : global -> unit = function
+  | `addr a -> Format.fprintf ppf "%a" Bitvec.pp a
+  | `sym s  -> Format.fprintf ppf "$%s" s
+  | `var v  -> Format.fprintf ppf "%a" Var.pp v
+
+type local = [
+  | `label of Label.t * operand list
+] [@@deriving bin_io, compare, equal, sexp]
+
+let pp_local ppf : local -> unit = function
+  | `label (l, []) -> Format.fprintf ppf "%a" Label.pp l
+  | `label (l, args) ->
+    let pp_sep ppf () = Format.fprintf ppf ", " in
+    Format.fprintf ppf "%a(%a)"
+      Label.pp l (Format.pp_print_list ~pp_sep pp_operand) args
+
+type dst = [
+  | global
+  | local
+] [@@deriving bin_io, compare, equal, sexp]
+
+let var_of_dst : dst -> Var.t option = function
+  | #global as g -> var_of_global g
+  | #local -> None
+
+let pp_dst ppf : dst -> unit = function
+  | #global as g -> Format.fprintf ppf "%a" pp_global g
+  | #local  as l -> Format.fprintf ppf "%a" pp_local l

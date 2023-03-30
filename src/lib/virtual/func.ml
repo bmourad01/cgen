@@ -132,4 +132,3 @@ include Regular.Make(struct
     let pp = pp
     let hash = hash
   end)
-

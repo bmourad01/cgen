@@ -2,58 +2,6 @@ open Core
 open Regular.Std
 open Common
 
-type arg = [
-  | const
-  | `var of Var.t
-] [@@deriving bin_io, compare, equal, sexp]
-
-let var_of_arg = function
-  | `var v -> Some v
-  | _ -> None
-
-let pp_arg ppf : arg -> unit = function
-  | #const as c -> Format.fprintf ppf "%a" pp_const c
-  | `var v -> Format.fprintf ppf "%a" Var.pp v
-
-type global = [
-  | `addr of Bitvec.t
-  | `sym  of string
-  | `var  of Var.t
-] [@@deriving bin_io, compare, equal, sexp]
-
-let var_of_global : global -> Var.t option = function
-  | `var x -> Some x
-  | `addr _ | `sym _ -> None
-
-let pp_global ppf : global -> unit = function
-  | `addr a -> Format.fprintf ppf "%a" Bitvec.pp a
-  | `sym s  -> Format.fprintf ppf "$%s" s
-  | `var v  -> Format.fprintf ppf "%a" Var.pp v
-
-type local = [
-  | `label of Label.t * arg list
-] [@@deriving bin_io, compare, equal, sexp]
-
-let pp_local ppf : local -> unit = function
-  | `label (l, []) -> Format.fprintf ppf "%a" Label.pp l
-  | `label (l, args) ->
-    let pp_sep ppf () = Format.fprintf ppf ", " in
-    Format.fprintf ppf "%a(%a)"
-      Label.pp l (Format.pp_print_list ~pp_sep pp_arg) args
-
-type dst = [
-  | global
-  | local
-] [@@deriving bin_io, compare, equal, sexp]
-
-let var_of_dst : dst -> Var.t option = function
-  | #global as g -> var_of_global g
-  | #local -> None
-
-let pp_dst ppf : dst -> unit = function
-  | #global as g -> Format.fprintf ppf "%a" pp_global g
-  | #local  as l -> Format.fprintf ppf "%a" pp_local l
-
 module Data = struct
   type arith_binop = [
     | `add  of Type.basic
@@ -111,25 +59,25 @@ module Data = struct
 
   type mem = [
     | `alloc of int
-    | `load  of Type.basic * Var.t * arg
-    | `store of Type.basic * Var.t * arg * arg
+    | `load  of Type.basic * Var.t * operand
+    | `store of Type.basic * Var.t * operand * operand
   ] [@@deriving bin_io, compare, equal, sexp]
 
   let free_vars_of_mem : mem -> Var.Set.t = function
     | `load  (_, x, a) ->
-      var_of_arg a |> Option.to_list |> List.cons x |> Var.Set.of_list
+      var_of_operand a |> Option.to_list |> List.cons x |> Var.Set.of_list
     | `store (_, x, a, v) ->
-      List.filter_map [a; v] ~f:var_of_arg |> List.cons x |> Var.Set.of_list
+      List.filter_map [a; v] ~f:var_of_operand |> List.cons x |> Var.Set.of_list
     | `alloc _ -> Var.Set.empty
 
   let pp_mem ppf : mem -> unit = function
     | `alloc n ->
       Format.fprintf ppf "alloc %d" n
     | `load (t, m, a) ->
-      Format.fprintf ppf "ld.%a %a[%a]" Type.pp_basic t Var.pp m pp_arg a
+      Format.fprintf ppf "ld.%a %a[%a]" Type.pp_basic t Var.pp m pp_operand a
     | `store (t, m, a, x) ->
       Format.fprintf ppf "st.%a %a[%a], %a"
-        Type.pp_basic t Var.pp m pp_arg a pp_arg x
+        Type.pp_basic t Var.pp m pp_operand a pp_operand x
 
   type cmp = [
     | `eq  of Type.basic
@@ -227,40 +175,40 @@ module Data = struct
     | #copy as c -> Format.fprintf ppf "%a" pp_copy c
 
   type basic = [
-    | `bop of Var.t * binop * arg * arg
-    | `uop of Var.t * unop  * arg
+    | `bop of Var.t * binop * operand * operand
+    | `uop of Var.t * unop  * operand
     | `mem of Var.t * mem
-    | `sel of Var.t * Type.basic * Var.t * arg * arg
+    | `sel of Var.t * Type.basic * Var.t * operand * operand
   ] [@@deriving bin_io, compare, equal, sexp]
 
   let free_vars_of_basic : basic -> Var.Set.t = function
     | `bop (_, _, l, r) ->
-      List.filter_map [l; r] ~f:var_of_arg |> Var.Set.of_list
-    | `uop (_, _, a) -> var_set_of_option @@ var_of_arg a
+      List.filter_map [l; r] ~f:var_of_operand |> Var.Set.of_list
+    | `uop (_, _, a) -> var_set_of_option @@ var_of_operand a
     | `mem (_, m) -> free_vars_of_mem m
     | `sel (_, _, x, t, f) ->
-      List.filter_map [t; f] ~f:var_of_arg |> List.cons x |> Var.Set.of_list
+      List.filter_map [t; f] ~f:var_of_operand |> List.cons x |> Var.Set.of_list
 
   let pp_basic ppf : basic -> unit = function
     | `bop (x, b, l, r) ->
-      Format.fprintf ppf "%a = %a %a, %a"  Var.pp x pp_binop b pp_arg l pp_arg r
+      Format.fprintf ppf "%a = %a %a, %a"  Var.pp x pp_binop b pp_operand l pp_operand r
     | `uop (x, u, a) ->
-      Format.fprintf ppf "%a = %a %a" Var.pp x pp_unop u pp_arg a
+      Format.fprintf ppf "%a = %a %a" Var.pp x pp_unop u pp_operand a
     | `mem (x, m) ->
       Format.fprintf ppf "%a = %a" Var.pp x pp_mem m
     | `sel (x, t, c, l, r) ->
       Format.fprintf ppf "%a = sel.%a %a, %a, %a"
-        Var.pp x Type.pp_basic t Var.pp c pp_arg l pp_arg r
+        Var.pp x Type.pp_basic t Var.pp c pp_operand l pp_operand r
 
   type call = [
-    | `call of (Var.t * Type.basic) option * global * arg list * arg list
+    | `call of (Var.t * Type.basic) option * global * operand list * operand list
   ] [@@deriving bin_io, compare, equal, sexp]
 
   let free_vars_of_call : call -> Var.Set.t = function
     | `call (_, f, args, vargs) ->
       let f = var_of_global f |> Option.to_list |> Var.Set.of_list in
-      let args = List.filter_map args ~f:var_of_arg |> Var.Set.of_list in
-      let vargs = List.filter_map vargs ~f:var_of_arg |> Var.Set.of_list in
+      let args = List.filter_map args ~f:var_of_operand |> Var.Set.of_list in
+      let vargs = List.filter_map vargs ~f:var_of_operand |> Var.Set.of_list in
       Var.Set.union_list [f; args; vargs]
 
   let is_variadic : call -> bool = function
@@ -268,7 +216,7 @@ module Data = struct
 
   let pp_call_args ppf args =
     let pp_sep ppf () = Format.fprintf ppf ", " in
-    Format.pp_print_list ~pp_sep pp_arg ppf args
+    Format.pp_print_list ~pp_sep pp_operand ppf args
 
   let pp_call_vargs args ppf = function
     | [] -> ()
@@ -377,7 +325,7 @@ module Ctrl = struct
     | `hlt
     | `jmp of dst
     | `br  of Var.t * dst * dst
-    | `ret of arg option
+    | `ret of operand option
     | `sw  of Type.imm * Var.t * local * table
   ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -386,7 +334,7 @@ module Ctrl = struct
     | `jmp _ -> Var.Set.empty
     | `br (x, _, _) -> Var.Set.singleton x
     | `ret None -> Var.Set.empty
-    | `ret (Some a) -> var_set_of_option @@ var_of_arg a
+    | `ret (Some a) -> var_set_of_option @@ var_of_operand a
     | `sw (_, x, _, _) -> Var.Set.singleton x
 
   let pp ppf : t -> unit = function
@@ -396,7 +344,7 @@ module Ctrl = struct
     | `br (c, t, f) ->
       Format.fprintf ppf "br %a, %a, %a" Var.pp c pp_dst t pp_dst f
     | `ret (Some x) ->
-      Format.fprintf ppf "ret %a" pp_arg x
+      Format.fprintf ppf "ret %a" pp_operand x
     | `ret None ->
       Format.fprintf ppf "ret"
     | `sw (t, x, ld, tbl) ->

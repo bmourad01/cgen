@@ -47,7 +47,7 @@ let map_var vars x = match Hashtbl.find vars x with
   | None | Some [] -> x
   | Some (y :: _) -> y
 
-let map_arg vars : Insn.arg -> Insn.arg = function
+let map_arg vars : operand -> operand = function
   | `var x -> `var (map_var vars x)
   | a -> a
 
@@ -70,16 +70,16 @@ let map_basic vars nums (b : Insn.Data.basic) =
   | `mem (x, m) -> `mem (rename x, mem m)
   | `sel (x, t, c, l, r) -> `sel (rename x, t, var c, arg l, arg r)
 
-let map_global vars : Insn.global -> Insn.global = function
+let map_global vars : global -> global = function
   | `var x -> `var (map_var vars x)
   | g -> g
 
-let map_local vars : Insn.local -> Insn.local = function
+let map_local vars : local -> local = function
   | `label (l, args) -> `label (l, List.map args ~f:(map_arg vars))
 
-let map_dst vars : Insn.dst -> Insn.dst = function
-  | #Insn.global as g -> (map_global vars g :> Insn.dst)
-  | #Insn.local  as l -> (map_local  vars l :> Insn.dst)
+let map_dst vars : dst -> dst = function
+  | #global as g -> (map_global vars g :> dst)
+  | #local  as l -> (map_local  vars l :> dst)
 
 let rename_data vars nums b =
   let var = map_var vars in
@@ -142,13 +142,13 @@ let has_arg_for_var b x =
 
 let args_of_vars = List.map ~f:(fun x -> `var x)
 
-let argify_local xs : Insn.local -> Insn.local = function
+let argify_local xs : local -> local = function
   | `label (l, args) as loc -> match Map.find xs l with
     | Some xs -> `label (l, args_of_vars xs @ args)
     | None -> loc
 
-let argify_dst xs : Insn.dst -> Insn.dst = function
-  | #Insn.local as l -> (argify_local xs l :> Insn.dst)
+let argify_dst xs : dst -> dst = function
+  | #local as l -> (argify_local xs l :> dst)
   | d -> d
 
 let argify_ctrl xs b =
