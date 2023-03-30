@@ -81,7 +81,7 @@ let map_dst vars : dst -> dst = function
   | #global as g -> (map_global vars g :> dst)
   | #local  as l -> (map_local  vars l :> dst)
 
-let rename_data vars nums b =
+let rename_insns vars nums b =
   let var = map_var vars in
   let glo = map_global vars in
   let margs = List.map ~f:(map_arg vars) in
@@ -112,7 +112,7 @@ let rename_ctrl vars b =
 let pop_args b pop =
   Blk.args b |> Seq.map ~f:fst |> Seq.iter ~f:pop
 
-let pop_data b pop =
+let pop_insns b pop =
   Blk.insns b |> Seq.filter_map ~f:Insn.lhs |> Seq.iter ~f:pop
 
 let pop_defs vars b =
@@ -120,14 +120,14 @@ let pop_defs vars b =
       | Some (_ :: xs) -> Some xs
       | xs -> xs) in
   pop_args b pop;
-  pop_data b pop
+  pop_insns b pop
 
 let rec rename_block vars nums cfg dom fn' l =
   let fn = match find_blk fn' l with
     | None -> fn'
     | Some b ->
       rename_args vars nums b |>
-      rename_data vars nums |>
+      rename_insns vars nums |>
       rename_ctrl vars |>
       Func.update_blk fn' in
   let fn =
