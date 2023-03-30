@@ -368,10 +368,17 @@ let op_mem_store fn blk l env word t m a v =
   let+ () = unify_arg fn blk l ta a (t :> Type.t) in
   `mem
 
+let invalid_alloc fn blk l n =
+  M.fail @@ Error.createf
+    "In alloc instruction %a of block %a in function %s: \
+     invalid size %d, must be greater than zero" Label.pps l
+    Label.pps (Blk.label blk) (Func.name fn) n
+
 let op_mem fn blk l env v m =
   let* word = M.gets @@ Fn.compose Target.word Env.target in
   let* t = match m with
-    | `alloc _ -> !!(word :> Type.t)
+    | `alloc n when n <= 0 -> invalid_alloc fn blk l n
+    | `alloc n -> !!(word :> Type.t)
     | `load (t, m, a) -> op_mem_load fn blk l env word t m a
     | `store (t, m, a, v) -> op_mem_store fn blk l env word t m a v in
   M.lift_err @@ Env.add_var fn v t env
@@ -398,8 +405,7 @@ let unify_fail_void_call fn blk l t s =
   M.fail @@ Error.createf
     "Failed to unify return types %s and <void> for \
      call at %a to function %s in block %a of function %s"
-    t Label.pps l s
-    Label.pps (Blk.label blk) (Func.name fn)
+    t Label.pps l s Label.pps (Blk.label blk) (Func.name fn)
 
 let unify_fail_call_ret fn blk l t1 t2 s =
   let ts = Format.asprintf "%a and %a" Type.pp_arg t1 Type.pp_arg t2 in
