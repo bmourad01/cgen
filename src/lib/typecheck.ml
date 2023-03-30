@@ -185,7 +185,7 @@ type binop_typ = [
   | `flag
 ]
 
-let op_arith_binop fn blk l tl al tr ar (o : Insn.Data.arith_binop) =
+let op_arith_binop fn blk l tl al tr ar (o : Insn.arith_binop) =
   let t = match o with
     | `add t
     | `div t
@@ -198,7 +198,7 @@ let op_arith_binop fn blk l tl al tr ar (o : Insn.Data.arith_binop) =
   let+ () = unify_arg fn blk l tr ar t in
   (t :> binop_typ)
 
-let op_bitwise_binop fn blk l tl al tr ar (o : Insn.Data.bitwise_binop) =
+let op_bitwise_binop fn blk l tl al tr ar (o : Insn.bitwise_binop) =
   let t = match o with
     | `and_ t
     | `or_ t
@@ -212,7 +212,7 @@ let op_bitwise_binop fn blk l tl al tr ar (o : Insn.Data.bitwise_binop) =
   let+ () = unify_arg fn blk l tr ar t in
   (t :> binop_typ)
 
-let op_cmp fn blk l tl al tr ar (o : Insn.Data.cmp) =
+let op_cmp fn blk l tl al tr ar (o : Insn.cmp) =
   let t = match o with
     | `eq t
     | `ge t
@@ -230,13 +230,13 @@ let op_cmp fn blk l tl al tr ar (o : Insn.Data.cmp) =
   let+ () = unify_arg fn blk l tr ar t in
   `flag
 
-let op_arith_unop fn blk l ta a (o : Insn.Data.arith_unop) =
+let op_arith_unop fn blk l ta a (o : Insn.arith_unop) =
   let t = match o with
     | `neg t -> t in
   let+ () = unify_arg fn blk l ta a t in
   t
 
-let op_bitwise_unop fn blk l ta a (o : Insn.Data.bitwise_unop) =
+let op_bitwise_unop fn blk l ta a (o : Insn.bitwise_unop) =
   let t = match o with
     | `not_ t -> t in
   let+ () = unify_arg fn blk l ta a t in
@@ -284,7 +284,7 @@ let unify_fext_fail fn blk l t a =
      in block %a in function %s" t a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn)
 
-let op_cast fn blk l ta a : Insn.Data.cast -> Type.basic t = function
+let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
   | `bits t -> !!t
   | `fext t ->
     let+ () = match t, ta with
@@ -313,7 +313,7 @@ let op_cast fn blk l ta a : Insn.Data.cast -> Type.basic t = function
     let+ () = unify_arg fn blk l ta a (ti :> Type.t) in
     (tf :> Type.basic)
 
-let op_copy fn blk l ta a : Insn.Data.copy -> Type.basic t = function
+let op_copy fn blk l ta a : Insn.copy -> Type.basic t = function
   | `copy t -> match ta, t with
     | `imm, #Type.imm -> !!t
     | `imm, _ -> unify_fail_arg fn blk l (t :> Type.t) a ta
@@ -327,24 +327,24 @@ let op_binop fn blk l env v b al ar =
   let* tl = typeof_arg fn env al in
   let* tr = typeof_arg fn env ar in
   let* t = match b with
-    | #Insn.Data.arith_binop as o ->
+    | #Insn.arith_binop as o ->
       op_arith_binop fn blk l tl al tr ar o
-    | #Insn.Data.bitwise_binop as o ->
+    | #Insn.bitwise_binop as o ->
       op_bitwise_binop fn blk l tl al tr ar o
-    | #Insn.Data.cmp as o ->
+    | #Insn.cmp as o ->
       op_cmp fn blk l tl al tr ar o in
   M.lift_err @@ Env.add_var fn v (t :> Type.t) env
 
 let op_unop fn blk l env v u a =
   let* ta = typeof_arg fn env a in
   let* t = match u with
-    | #Insn.Data.arith_unop as o ->
+    | #Insn.arith_unop as o ->
       op_arith_unop fn blk l ta a o
-    | #Insn.Data.bitwise_unop as o ->
+    | #Insn.bitwise_unop as o ->
       op_bitwise_unop fn blk l ta a o
-    | #Insn.Data.cast as o ->
+    | #Insn.cast as o ->
       op_cast fn blk l ta a o
-    | #Insn.Data.copy as o ->
+    | #Insn.copy as o ->
       op_copy fn blk l ta a o in
   M.lift_err @@ Env.add_var fn v (t :> Type.t) env
 
@@ -387,7 +387,7 @@ let op_sel fn blk l env v t c al ar =
   let* () = unify_arg fn blk l tr ar (t :> Type.t) in
   M.lift_err @@ Env.add_var fn v (t :> Type.t) env
 
-let op_basic fn blk l env : Insn.Data.basic -> env t = function
+let op_basic fn blk l env : Insn.basic -> env t = function
   | `bop (v, b, al, ar) -> op_binop fn blk l env v b al ar
   | `uop (v, u, a) -> op_unop fn blk l env v u a
   | `mem (v, m) -> op_mem fn blk l env v m
@@ -506,7 +506,7 @@ let check_call fn blk l env t args vargs : global -> unit t = function
       check_call_sym fn blk l env t args vargs s ret targs variadic
     | None -> !!() (* No guarantees for an external function. *)
 
-let op_call fn blk l env : Insn.Data.call -> env t = function
+let op_call fn blk l env : Insn.call -> env t = function
   | `call (Some (v, t), g, args, vargs) ->
     let* () =
       let t = Some (t :> Type.arg) in
@@ -516,7 +516,7 @@ let op_call fn blk l env : Insn.Data.call -> env t = function
     let+ () = check_call fn blk l env None args vargs g in
     env
 
-let op_variadic fn blk l env : Insn.Data.variadic -> env t = function 
+let op_variadic fn blk l env : Insn.variadic -> env t = function
   | `vastart v ->
     let*? t = Env.typeof_var fn v env in
     match t with
@@ -527,16 +527,16 @@ let op_variadic fn blk l env : Insn.Data.variadic -> env t = function
       else expect_ptr_size_base_var fn blk l v t word "variadic instruction"
     | _ -> expect_ptr_size_var fn blk l v t "variadic instruction"
 
-let op fn blk l env : Insn.Data.op -> env t = function
-  | #Insn.Data.basic    as b -> op_basic    fn blk l env b
-  | #Insn.Data.call     as c -> op_call     fn blk l env c
-  | #Insn.Data.variadic as v -> op_variadic fn blk l env v
+let op fn blk l env : Insn.op -> env t = function
+  | #Insn.basic    as b -> op_basic    fn blk l env b
+  | #Insn.call     as c -> op_call     fn blk l env c
+  | #Insn.variadic as v -> op_variadic fn blk l env v
 
-let blk_data data fn blk =
+let blk_insns data fn blk =
   let* init = M.get () in
-  let* env = Blk.data blk |> M.Seq.fold ~init ~f:(fun env d ->
-      let l = Insn.Data.label d in
-      let o = Insn.Data.op d in
+  let* env = Blk.insns blk |> M.Seq.fold ~init ~f:(fun env d ->
+      let l = Insn.label d in
+      let o = Insn.op d in
       let*? () = match Hash_set.strict_add data l with
         | Ok _ as ok -> ok
         | Error _ ->
@@ -662,7 +662,7 @@ let ctrl_sw blks fn blk t v d tbl =
   let*? tv = Env.typeof_var fn v env in
   if Type.(t = tv) then
     let* () = check_dst blks fn blk (d :> dst) in
-    Insn.Ctrl.Table.enum tbl |> M.Seq.iter ~f:(fun (_, l) ->
+    Ctrl.Table.enum tbl |> M.Seq.iter ~f:(fun (_, l) ->
         check_dst blks fn blk (l :> dst))
   else M.lift_err @@ unify_fail t tv v fn
 
@@ -684,7 +684,7 @@ let rec check_blk doms rpo blks data fn l =
         "Invariant broken: block %a is missing"
         Label.pps l in
   let* () = blk_args fn blk in
-  let* () = blk_data data fn blk in
+  let* () = blk_insns data fn blk in
   let* () = blk_ctrl blks fn blk in
   let rpn = Hashtbl.find_exn rpo in
   Tree.children doms l |> Seq.filter ~f:not_pseudo |> Seq.to_list |>

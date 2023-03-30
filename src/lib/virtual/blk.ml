@@ -14,23 +14,23 @@ module T = struct
   type t = {
     label : Label.t;
     args  : (Var.t * arg_typ) array;
-    data  : Insn.data array;
-    ctrl  : Insn.ctrl;
+    insns : Insn.t array;
+    ctrl  : Ctrl.t;
   } [@@deriving bin_io, compare, equal, sexp]
 end
 
 include T
 
-let create ?(args = []) ?(data = []) ~label ~ctrl () = try {
+let create ?(args = []) ?(insns = []) ~label ~ctrl () = try {
   label;
   args = Array.of_list args;
-  data = Array.of_list data;
+  insns = Array.of_list insns;
   ctrl;
 } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
 
 let label b = b.label
 let args ?(rev = false) b = Array.enum b.args ~rev
-let data ?(rev = false) b = Array.enum b.data ~rev
+let insns ?(rev = false) b = Array.enum b.insns ~rev
 let ctrl b = b.ctrl
 let has_label b l = Label.(b.label = l)
 let hash b = Label.hash b.label
@@ -38,12 +38,12 @@ let hash b = Label.hash b.label
 let free_vars b =
   let (++) = Set.union and (--) = Set.diff in
   let init = Var.Set.(empty, empty) in
-  let vars, kill = Array.fold b.data ~init ~f:(fun (vars, kill) d ->
-      let kill' = match Insn.lhs_of_data d with
+  let vars, kill = Array.fold b.insns ~init ~f:(fun (vars, kill) d ->
+      let kill' = match Insn.lhs d with
         | Some x -> Set.add kill x
         | None -> kill in
-      Insn.free_vars_of_data d -- kill ++ vars, kill') in
-  Insn.free_vars_of_ctrl b.ctrl -- kill ++ vars
+      Insn.free_vars d -- kill ++ vars, kill') in
+  Ctrl.free_vars b.ctrl -- kill ++ vars
 
 let uses_var b x = Set.mem (free_vars b) x
 
@@ -51,9 +51,9 @@ let map_args b ~f = {
   b with args = Array.map b.args ~f:(fun (x, t) -> f x t);
 }
 
-let map_data b ~f = {
-  b with data = Array.map b.data ~f:(fun d ->
-    Insn.Data.map d ~f:(f d.label));
+let map_insns b ~f = {
+  b with insns = Array.map b.insns ~f:(fun d ->
+    Insn.map d ~f:(f d.label));
 }
 
 let map_ctrl b ~f = {
@@ -85,17 +85,17 @@ let append_arg ?(after = None) b a = {
   b with args = append b.args a is_arg ~after;
 }
 
-let prepend_data ?(before = None) b d = {
-  b with data = prepend b.data d Insn.Data.has_label ~before;
+let prepend_insn ?(before = None) b d = {
+  b with insns = prepend b.insns d Insn.has_label ~before;
 }
 
-let append_data ?(after = None) b d = {
-  b with data = append b.data d Insn.Data.has_label ~after;
+let append_insn ?(after = None) b d = {
+  b with insns = append b.insns d Insn.has_label ~after;
 }
 
 let remove xs i f = Array.remove_if xs ~f:(Fn.flip f i)
 let remove_arg b x = {b with args = remove b.args x is_arg}
-let remove_data b l = {b with data = remove b.data l Insn.Data.has_label}
+let remove_insn b l = {b with insns = remove b.insns l Insn.has_label}
 
 let has_arg b x = Array.exists b.args ~f:(Fn.flip is_arg x)
 
@@ -103,15 +103,13 @@ let typeof_arg b x =
   Array.find b.args ~f:(Fn.flip is_arg x) |>
   Option.map ~f:snd
 
-let has_lhs b x = Array.exists b.data ~f:(fun i ->
-    Insn.Data.(has_lhs @@ op i) x)
-
+let has_lhs b x = Array.exists b.insns ~f:(fun i -> Insn.(has_lhs i) x)
 let defines_var b x = has_arg b x || has_lhs b x
 
-let has_data b l = Array.exists b.data ~f:(Fn.flip Insn.Data.has_label l)
-let find_data b l = Array.find b.data ~f:(Fn.flip Insn.Data.has_label l)
-let next_data b l = Array.next b.data Insn.Data.label l
-let prev_data b l = Array.prev b.data Insn.Data.label l
+let has_insn b l = Array.exists b.insns ~f:(Fn.flip Insn.has_label l)
+let find_insn b l = Array.find b.insns ~f:(Fn.flip Insn.has_label l)
+let next_insn b l = Array.next b.insns Insn.label l
+let prev_insn b l = Array.prev b.insns Insn.label l
 
 let pp_arg ppf (x, t) =
   Format.fprintf ppf "%a %a" pp_arg_typ t Var.pp x
@@ -124,18 +122,18 @@ let pp_args ppf args =
 
 let pp ppf b =
   let sep ppf = Format.fprintf ppf "@;" in
-  match b.data with
+  match b.insns with
   | [||] ->
     Format.fprintf ppf "%a%a:@;  %a"
       Label.pp b.label
       pp_args b.args
-      Insn.pp_ctrl b.ctrl
-  | _ ->
+      Ctrl.pp b.ctrl
+  | insns ->
     Format.fprintf ppf "%a%a:@;@[<v 2>  %a@;%a@]"
       Label.pp b.label
       pp_args b.args
-      (Array.pp Insn.pp_data sep) b.data
-      Insn.pp_ctrl b.ctrl
+      (Array.pp Insn.pp sep)insns
+      Ctrl.pp b.ctrl
 
 include Regular.Make(struct
     include T

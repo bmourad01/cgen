@@ -17,7 +17,7 @@ let connect_with_exit n =
 let if_unreachable ~from connect g n =
   if G.Node.degree ~dir:from n g = 0 then connect n else Fn.id
 
-let accum g b : Insn.Ctrl.t -> G.t = function
+let accum g b : Ctrl.t -> G.t = function
   | `hlt -> g
   | `jmp (`label (l, _)) -> G.Edge.(insert (create b l `always) g)
   | `jmp _ -> g

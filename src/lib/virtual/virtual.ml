@@ -7,6 +7,8 @@ open Regular.Std
 
 include Common
 
+type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
+type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
 type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 type func = Func.t [@@deriving bin_io, compare, equal, sexp]
@@ -16,6 +18,7 @@ type data = Data_.t [@@deriving bin_io, compare, equal, sexp]
 type module_ = Module.t
 
 module Insn = Insn
+module Ctrl = Ctrl
 module Edge = Edge
 module Blk = Blk
 module Func = Func

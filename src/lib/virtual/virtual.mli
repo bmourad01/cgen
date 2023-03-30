@@ -86,426 +86,418 @@ val var_of_dst : dst -> Var.t option
 (** Pretty-prints a control-flow destination. *)
 val pp_dst : Format.formatter -> dst -> unit
 
-(** An instruction. *)
+(** An data-flow-effectful instruction. *)
 module Insn : sig
-  (** Data-flow-effectful instructions. *)
-  module Data : sig
-    (** Arithmetic binary operations.
+  (** Arithmetic binary operations.
 
-        [`add t]: addition.
+      [`add t]: addition.
 
-        [`div t]: division.
+      [`div t]: division.
 
-        [`mul t]: multiplication.
+      [`mul t]: multiplication.
 
-        [`rem t]: remainder.
+      [`rem t]: remainder.
 
-        [`sub t]: subtraction.
+      [`sub t]: subtraction.
 
-        [`udiv t]: unsigned division (immediate only).
+      [`udiv t]: unsigned division (immediate only).
 
-        [`urem t]: unsigned remainder (immediate only).
-    *)
-    type arith_binop = [
-      | `add  of Type.basic
-      | `div  of Type.basic
-      | `mul  of Type.basic
-      | `rem  of Type.basic
-      | `sub  of Type.basic
-      | `udiv of Type.imm
-      | `urem of Type.imm
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`urem t]: unsigned remainder (immediate only).
+  *)
+  type arith_binop = [
+    | `add  of Type.basic
+    | `div  of Type.basic
+    | `mul  of Type.basic
+    | `rem  of Type.basic
+    | `sub  of Type.basic
+    | `udiv of Type.imm
+    | `urem of Type.imm
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Pretty-prints the arithmetic binary operator. *)
-    val pp_arith_binop : Format.formatter -> arith_binop -> unit
+  (** Pretty-prints the arithmetic binary operator. *)
+  val pp_arith_binop : Format.formatter -> arith_binop -> unit
 
-    (** Arithmetic unary operations.
+  (** Arithmetic unary operations.
 
-        [`neg t]: negation.
-    *)
-    type arith_unop = [
-      | `neg of Type.basic
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`neg t]: negation.
+  *)
+  type arith_unop = [
+    | `neg of Type.basic
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Pretty-prints the arithmetic unary operator. *)
-    val pp_arith_unop : Format.formatter -> arith_unop -> unit
+  (** Pretty-prints the arithmetic unary operator. *)
+  val pp_arith_unop : Format.formatter -> arith_unop -> unit
 
-    (** Bitwise binary operations.
+  (** Bitwise binary operations.
 
-        [`and_ t]: bitwise intersection (AND).
+      [`and_ t]: bitwise intersection (AND).
 
-        [`or_ t]: bitwise union (OR).
+      [`or_ t]: bitwise union (OR).
 
-        [`asr_ t]: arithmetic shift right.
+      [`asr_ t]: arithmetic shift right.
 
-        [`lsl_ t]: logical shift left.
+      [`lsl_ t]: logical shift left.
 
-        [`lsr_ t]: logical shift right.
+      [`lsr_ t]: logical shift right.
 
-        [`rol t]: rotate left.
+      [`rol t]: rotate left.
 
-        [`ror t]: rotate right.
+      [`ror t]: rotate right.
 
-        [`xor t]: bitwise difference (exclusive-OR).
-    *)
-    type bitwise_binop = [
-      | `and_ of Type.imm
-      | `or_  of Type.imm
-      | `asr_ of Type.imm
-      | `lsl_ of Type.imm
-      | `lsr_ of Type.imm
-      | `rol  of Type.imm
-      | `ror  of Type.imm
-      | `xor  of Type.imm
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`xor t]: bitwise difference (exclusive-OR).
+  *)
+  type bitwise_binop = [
+    | `and_ of Type.imm
+    | `or_  of Type.imm
+    | `asr_ of Type.imm
+    | `lsl_ of Type.imm
+    | `lsr_ of Type.imm
+    | `rol  of Type.imm
+    | `ror  of Type.imm
+    | `xor  of Type.imm
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Pretty-prints the bitwise binary operator. *)
-    val pp_bitwise_binop : Format.formatter -> bitwise_binop -> unit
+  (** Pretty-prints the bitwise binary operator. *)
+  val pp_bitwise_binop : Format.formatter -> bitwise_binop -> unit
 
-    (** Bitwise unary operations.
+  (** Bitwise unary operations.
 
-        [`not_ t]: bitwise complement (NOT).
-    *)
-    type bitwise_unop = [
-      | `not_ of Type.imm
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`not_ t]: bitwise complement (NOT).
+  *)
+  type bitwise_unop = [
+    | `not_ of Type.imm
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Pretty-prints the bitwise unary operator. *)
-    val pp_bitwise_unop : Format.formatter -> bitwise_unop -> unit
+  (** Pretty-prints the bitwise unary operator. *)
+  val pp_bitwise_unop : Format.formatter -> bitwise_unop -> unit
 
-    (** Memory operations.
+  (** Memory operations.
 
-        [`alloc n]: allocate [n] bytes and return a pointer.
+      [`alloc n]: allocate [n] bytes and return a pointer.
 
-        [`load (t, m, a)]: load a value of type [t] from memory
-        [m] at address [a].
+      [`load (t, m, a)]: load a value of type [t] from memory
+      [m] at address [a].
 
-        [`store (t, m, a, v)]: store a value [v] of type [t] to
-        memory [m] at address [a].
-    *)
-    type mem = [
-      | `alloc of int
-      | `load  of Type.basic * Var.t * operand
-      | `store of Type.basic * Var.t * operand * operand
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`store (t, m, a, v)]: store a value [v] of type [t] to
+      memory [m] at address [a].
+  *)
+  type mem = [
+    | `alloc of int
+    | `load  of Type.basic * Var.t * operand
+    | `store of Type.basic * Var.t * operand * operand
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Returns the set of free variables in the memory operation. *)
-    val free_vars_of_mem : mem -> Var.Set.t
+  (** Returns the set of free variables in the memory operation. *)
+  val free_vars_of_mem : mem -> Var.Set.t
 
-    (** Pretty-prints a memory operation. *)
-    val pp_mem : Format.formatter -> mem -> unit
+  (** Pretty-prints a memory operation. *)
+  val pp_mem : Format.formatter -> mem -> unit
 
-    (** Comparison operations.
+  (** Comparison operations.
 
-        [`eq t l, r)]: equal.
+      [`eq t l, r)]: equal.
 
-        [`ge t]: greater or equal.
+      [`ge t]: greater or equal.
 
-        [`gt t]: greater than.
+      [`gt t]: greater than.
 
-        [`le t]: less or equal.
+      [`le t]: less or equal.
 
-        [`lt t]: less than.
+      [`lt t]: less than.
 
-        [`ne t]: not equal.
+      [`ne t]: not equal.
 
-        [`o t]: ordered (floating point only).
+      [`o t]: ordered (floating point only).
 
-        [`sge t]: signed greater or equal (immediate only).
+      [`sge t]: signed greater or equal (immediate only).
 
-        [`sgt t]: signed greater than (immediate only).
+      [`sgt t]: signed greater than (immediate only).
 
-        [`sle t]: signed less or equal (immediate only).
+      [`sle t]: signed less or equal (immediate only).
 
-        [`slt t]: signed less than (immediate only).
+      [`slt t]: signed less than (immediate only).
 
-        [`uo t]: unordered (floating point only).
-    *)
-    type cmp = [
-      | `eq  of Type.basic
-      | `ge  of Type.basic
-      | `gt  of Type.basic
-      | `le  of Type.basic
-      | `lt  of Type.basic
-      | `ne  of Type.basic
-      | `o   of Type.fp
-      | `sge of Type.imm
-      | `sgt of Type.imm
-      | `sle of Type.imm
-      | `slt of Type.imm
-      | `uo  of Type.fp
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`uo t]: unordered (floating point only).
+  *)
+  type cmp = [
+    | `eq  of Type.basic
+    | `ge  of Type.basic
+    | `gt  of Type.basic
+    | `le  of Type.basic
+    | `lt  of Type.basic
+    | `ne  of Type.basic
+    | `o   of Type.fp
+    | `sge of Type.imm
+    | `sgt of Type.imm
+    | `sle of Type.imm
+    | `slt of Type.imm
+    | `uo  of Type.fp
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Pretty-prints a comparison operation. *)
-    val pp_cmp : Format.formatter -> cmp -> unit
+  (** Pretty-prints a comparison operation. *)
+  val pp_cmp : Format.formatter -> cmp -> unit
 
-    (** Cast operations.
+  (** Cast operations.
 
-        [`bits t]: reinterpret the underlying bits to type [t].
+      [`bits t]: reinterpret the underlying bits to type [t].
 
-        [`fext t]: extends a floating point value to a higher
-        precision.
+      [`fext t]: extends a floating point value to a higher
+      precision.
 
-        [`ftosi (t, i)]: cast a float of type [t] to a signed
-        integer of type [i].
+      [`ftosi (t, i)]: cast a float of type [t] to a signed
+      integer of type [i].
 
-        [`ftoui (t, i)]: cast a float of type [t] to an unsigned
-        integer of type [i].
+      [`ftoui (t, i)]: cast a float of type [t] to an unsigned
+      integer of type [i].
 
-        [`ftrunc t]: truncate a float to a float of type [t].
+      [`ftrunc t]: truncate a float to a float of type [t].
 
-        [`itrunc t]: truncate an integer to an integer of type [t].
+      [`itrunc t]: truncate an integer to an integer of type [t].
 
-        [`sext t]: sign-extend an integer to an integer of type [t].
+      [`sext t]: sign-extend an integer to an integer of type [t].
 
-        [`sitof (t, f)]: cast a signed integer of type [t] to a float
-        of type [f].
+      [`sitof (t, f)]: cast a signed integer of type [t] to a float
+      of type [f].
 
-        [`uitof (t, f)]: cast an unsigned integer of type [t] to a
-        float of type [f].
+      [`uitof (t, f)]: cast an unsigned integer of type [t] to a
+      float of type [f].
 
-        [`zext t]: sign-extend an integer to an integer of type [t].
-    *)
-    type cast = [
-      | `bits   of Type.basic
-      | `fext   of Type.fp
-      | `ftosi  of Type.fp * Type.imm
-      | `ftoui  of Type.fp * Type.imm
-      | `ftrunc of Type.fp
-      | `itrunc of Type.imm
-      | `sext   of Type.imm
-      | `sitof  of Type.imm * Type.fp
-      | `uitof  of Type.imm * Type.fp
-      | `zext   of Type.imm
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`zext t]: sign-extend an integer to an integer of type [t].
+  *)
+  type cast = [
+    | `bits   of Type.basic
+    | `fext   of Type.fp
+    | `ftosi  of Type.fp * Type.imm
+    | `ftoui  of Type.fp * Type.imm
+    | `ftrunc of Type.fp
+    | `itrunc of Type.imm
+    | `sext   of Type.imm
+    | `sitof  of Type.imm * Type.fp
+    | `uitof  of Type.imm * Type.fp
+    | `zext   of Type.imm
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Pretty-prints a cast operation. *)
-    val pp_cast : Format.formatter -> cast -> unit 
+  (** Pretty-prints a cast operation. *)
+  val pp_cast : Format.formatter -> cast -> unit 
 
-    (** Copy operations.
+  (** Copy operations.
 
-        [`copy t]: move to a destination of type [t]. Arguments of compound
-        type are interpreted as a pointer.
-    *)
-    type copy = [
-      | `copy of Type.basic
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`copy t]: move to a destination of type [t]. Arguments of compound
+      type are interpreted as a pointer.
+  *)
+  type copy = [
+    | `copy of Type.basic
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Pretty-prints a copy operation. *)
-    val pp_copy : Format.formatter -> copy -> unit
+  (** Pretty-prints a copy operation. *)
+  val pp_copy : Format.formatter -> copy -> unit
 
-    (** All binary operations. *)
-    type binop = [
-      | arith_binop
-      | bitwise_binop
-      | cmp
-    ] [@@deriving bin_io, compare, equal, sexp]
+  (** All binary operations. *)
+  type binop = [
+    | arith_binop
+    | bitwise_binop
+    | cmp
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Pretty-prints the binary operator. *)
-    val pp_binop : Format.formatter -> binop -> unit
+  (** Pretty-prints the binary operator. *)
+  val pp_binop : Format.formatter -> binop -> unit
 
-    (** All unary operations. *)
-    type unop = [
-      | arith_unop
-      | bitwise_unop
-      | cast
-      | copy
-    ] [@@deriving bin_io, compare, equal, sexp]
+  (** All unary operations. *)
+  type unop = [
+    | arith_unop
+    | bitwise_unop
+    | cast
+    | copy
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Pretty-prints the unary operator. *)
-    val pp_unop : Format.formatter -> unop -> unit
+  (** Pretty-prints the unary operator. *)
+  val pp_unop : Format.formatter -> unop -> unit
 
-    (** All basic instructions.
+  (** All basic instructions.
 
-        [`bop (x, b, l, r)]: compute [b(l, r)] and store the result in [x].
+      [`bop (x, b, l, r)]: compute [b(l, r)] and store the result in [x].
 
-        [`uop (x, u, a)]: compute [u(a)] and store the result in [x].
+      [`uop (x, u, a)]: compute [u(a)] and store the result in [x].
 
-        [`mem (x, m)]: compute [m] and store the result in [x].
+      [`mem (x, m)]: compute [m] and store the result in [x].
 
-        [`sel (x, t, c, l, r)]: evaluate [c]; if non-zero then select [l]
-        and assign to [x], otherwise select [r]. Both [l] and [r] must have
-        type [t].
-    *)
-    type basic = [
-      | `bop of Var.t * binop * operand * operand
-      | `uop of Var.t * unop  * operand
-      | `mem of Var.t * mem
-      | `sel of Var.t * Type.basic * Var.t * operand * operand
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`sel (x, t, c, l, r)]: evaluate [c]; if non-zero then select [l]
+      and assign to [x], otherwise select [r]. Both [l] and [r] must have
+      type [t].
+  *)
+  type basic = [
+    | `bop of Var.t * binop * operand * operand
+    | `uop of Var.t * unop  * operand
+    | `mem of Var.t * mem
+    | `sel of Var.t * Type.basic * Var.t * operand * operand
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Returns the set of free variables in the basic instruction. *)
-    val free_vars_of_basic : basic -> Var.Set.t
+  (** Returns the set of free variables in the basic instruction. *)
+  val free_vars_of_basic : basic -> Var.Set.t
 
-    (** Pretty-prints a basic instruction. *)
-    val pp_basic : Format.formatter -> basic -> unit
+  (** Pretty-prints a basic instruction. *)
+  val pp_basic : Format.formatter -> basic -> unit
 
-    (** A call instruction.
+  (** A call instruction.
 
-        [`call (a, f, args, vargs)]: call to [f] with arguments [args] and
-        [vargs], where [vargs] is the list of variadic arguments. If [a]
-        is [Some (x, t)], then the function returns a value of type [t],
-        which is assigned to variable [x].
+      [`call (a, f, args, vargs)]: call to [f] with arguments [args] and
+      [vargs], where [vargs] is the list of variadic arguments. If [a]
+      is [Some (x, t)], then the function returns a value of type [t],
+      which is assigned to variable [x].
 
-        Note that variadic calls require at least one non-variadic argument.
-    *)
-    type call = [
-      | `call of (Var.t * Type.basic) option * global * operand list * operand list
-    ] [@@deriving bin_io, compare, equal, sexp]
+      Note that variadic calls require at least one non-variadic argument.
+  *)
+  type call = [
+    | `call of (Var.t * Type.basic) option * global * operand list * operand list
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Returns the set of free variables in the call. *)
-    val free_vars_of_call : call -> Var.Set.t
+  (** Returns the set of free variables in the call. *)
+  val free_vars_of_call : call -> Var.Set.t
 
-    (** Returns [true] if the call is variadic. *)
-    val is_variadic : call -> bool
+  (** Returns [true] if the call is variadic. *)
+  val is_variadic : call -> bool
 
-    (** Pretty-prints a call instruction. *)
-    val pp_call : Format.formatter -> call -> unit
+  (** Pretty-prints a call instruction. *)
+  val pp_call : Format.formatter -> call -> unit
 
-    (** A variadic argument instruction.
+  (** A variadic argument instruction.
 
-        [`vastart x] initializes [x] with a pointer to the start of the
-        variadic argument list for the current function.
-    *)
-    type variadic = [
-      | `vastart of Var.t
-    ] [@@deriving bin_io, compare, equal, sexp]
+      [`vastart x] initializes [x] with a pointer to the start of the
+      variadic argument list for the current function.
+  *)
+  type variadic = [
+    | `vastart of Var.t
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Returns the set of free variables in the variadic argument
-        instruction. *)
-    val free_vars_of_variadic : variadic -> Var.Set.t
+  (** Returns the set of free variables in the variadic argument
+      instruction. *)
+  val free_vars_of_variadic : variadic -> Var.Set.t
 
-    (** Pretty-prints a variadic argument instruction. *)
-    val pp_variadic : Format.formatter -> variadic -> unit
+  (** Pretty-prints a variadic argument instruction. *)
+  val pp_variadic : Format.formatter -> variadic -> unit
 
-    (** A data operation. *)
-    type op = [
-      | basic
-      | call
-      | variadic
-    ] [@@deriving bin_io, compare, equal, sexp]
+  (** A data operation. *)
+  type op = [
+    | basic
+    | call
+    | variadic
+  ] [@@deriving bin_io, compare, equal, sexp]
 
-    (** Returns the assigned variable of the operation, if it exists. *)
-    val lhs : op -> Var.t option
+  (** Returns the assigned variable of the operation, if it exists. *)
+  val lhs_of_op : op -> Var.t option
 
-    (** [has_lhs d x] returns [true] if the instruction [d] assigns the
-        variable [x]. *)
-    val has_lhs : op -> Var.t -> bool
-
-    (** Returns the set of free variables in the data instruction. *)
-    val free_vars : op -> Var.Set.t
-
-    (** Pretty-prints a data operation. *)
-    val pp_op : Format.formatter -> op -> unit
-
-    (** A labeled data operation. *)
-    type t [@@deriving bin_io, compare, equal, sexp]
-
-    (** The label of the instruction. *)
-    val label : t -> Label.t
-
-    (** The operation itself. *)
-    val op : t -> op
-
-    (** Returns [true] if the instruction has a given label. *)
-    val has_label : t -> Label.t -> bool
-
-    (** Transforms the underlying operation. *)
-    val map : t -> f:(op -> op) -> t
-
-    (** Same as [pp_op]. *)
-    val pp : Format.formatter -> t -> unit
-  end
-
-  (** Control-flow-effectful instructions. *)
-  module Ctrl : sig
-    (** A switch table. *)
-    module Table : sig
-      type t [@@deriving bin_io, compare, equal, sexp]
-
-      (** Creates a switch table from an association list.Afl_instrument
-
-          @raise Invalid_argument if the list has duplicate keys.
-      *)
-      val create_exn : (Bitvec.t * local) list -> t
-
-      (** Same as [create_exn], but returns an error upon failure. *)
-      val create : (Bitvec.t * local) list -> t Or_error.t
-
-      (** Returns the elements of the table. *)
-      val enum : t -> (Bitvec.t * local) seq
-
-      (** [find t v] searches the table [t] for the label associated
-          with the constant [v]. *)
-      val find : t -> Bitvec.t -> local option
-
-      (** [map_exn t ~f] applies [f] to each element of [t].
-
-          @raise Invalid_argument if [f] produces a duplicate key.
-      *)
-      val map_exn : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t
-
-      (** Same as [map_exn], but returns [Error _] if [f] produces a
-          duplicate key. *)
-      val map : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t Or_error.t
-    end
-
-    type table = Table.t [@@deriving bin_io, compare, equal, sexp]
-
-    (** A control-flow instruction.
-
-        [`hlt] terminates execution of the program. This is typically used
-        to mark certain program locations as unreachable.
-
-        [`jmp dst] is an unconditional jump to the destination [dst].
-
-        [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
-        is non-zero. Otherwise, the destination is [no].
-
-        [`ret x] returns from a function. If the function returns a value,
-        then [x] holds the value (and must not be [None]).
-
-        [`sw (typ, index, default, table)] implements a jump table.
-        For a variable [index] of type [typ], it will find the associated
-        label of [index] in [table] and jump to it, if it exists. If not,
-        then the destination of the jump is [default].
-    *)
-    type t = [
-      | `hlt
-      | `jmp of dst
-      | `br  of Var.t * dst * dst
-      | `ret of operand option
-      | `sw  of Type.imm * Var.t * local * table
-    ] [@@deriving bin_io, compare, equal, sexp]
-
-    (** Returns the set of free variables in the control-flow instruction. *)
-    val free_vars : t -> Var.Set.t
-
-    (** Pretty-prints a control-flow instruction. *)
-    val pp : Format.formatter -> t -> unit
-  end
-
-  type data = Data.t [@@deriving bin_io, compare, equal, sexp]
-  type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
-
-  (** Creates a labeled data instruction. *)
-  val data : Data.op -> label:Label.t -> data
-
-  (** Returns the assigned variable of the data instruction, if it exists. *)
-  val lhs_of_data : data -> Var.t option
+  (** [has_lhs d x] returns [true] if the instruction [d] assigns the
+      variable [x]. *)
+  val op_has_lhs : op -> Var.t -> bool
 
   (** Returns the set of free variables in the data instruction. *)
-  val free_vars_of_data : data -> Var.Set.t
+  val free_vars_of_op : op -> Var.Set.t
+
+  (** Pretty-prints a data operation. *)
+  val pp_op : Format.formatter -> op -> unit
+
+  (** A labeled data operation. *)
+  type t [@@deriving bin_io, compare, equal, sexp]
+
+  (** Creates a labeled instruction. *)
+  val create : op -> label:Label.t -> t
+
+  (** The label of the instruction. *)
+  val label : t -> Label.t
+
+  (** The operation itself. *)
+  val op : t -> op
+
+  (** Returns [true] if the instruction has a given label. *)
+  val has_label : t -> Label.t -> bool
+
+  (** Same as [free_vars_of_op (op d)]. *)
+  val free_vars : t -> Var.Set.t
+
+  (** Same as [lhs_of_op (op d)]. *)
+  val lhs : t -> Var.t option
+
+  (** Same as [op_has_lhs (op d)]. *)
+  val has_lhs : t -> Var.t -> bool
+
+  (** Transforms the underlying operation. *)
+  val map : t -> f:(op -> op) -> t
+
+  (** Same as [pp_op]. *)
+  val pp : Format.formatter -> t -> unit
+end
+
+type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
+
+(** Control-flow-effectful instructions. *)
+module Ctrl : sig
+  (** A switch table. *)
+  module Table : sig
+    type t [@@deriving bin_io, compare, equal, sexp]
+
+    (** Creates a switch table from an association list.Afl_instrument
+
+        @raise Invalid_argument if the list has duplicate keys.
+    *)
+    val create_exn : (Bitvec.t * local) list -> t
+
+    (** Same as [create_exn], but returns an error upon failure. *)
+    val create : (Bitvec.t * local) list -> t Or_error.t
+
+    (** Returns the elements of the table. *)
+    val enum : t -> (Bitvec.t * local) seq
+
+    (** [find t v] searches the table [t] for the label associated
+        with the constant [v]. *)
+    val find : t -> Bitvec.t -> local option
+
+    (** [map_exn t ~f] applies [f] to each element of [t].
+
+        @raise Invalid_argument if [f] produces a duplicate key.
+    *)
+    val map_exn : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t
+
+    (** Same as [map_exn], but returns [Error _] if [f] produces a
+        duplicate key. *)
+    val map : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t Or_error.t
+  end
+
+  type table = Table.t [@@deriving bin_io, compare, equal, sexp]
+
+  (** A control-flow instruction.
+
+      [`hlt] terminates execution of the program. This is typically used
+      to mark certain program locations as unreachable.
+
+      [`jmp dst] is an unconditional jump to the destination [dst].
+
+      [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
+      is non-zero. Otherwise, the destination is [no].
+
+      [`ret x] returns from a function. If the function returns a value,
+      then [x] holds the value (and must not be [None]).
+
+      [`sw (typ, index, default, table)] implements a jump table.
+      For a variable [index] of type [typ], it will find the associated
+      label of [index] in [table] and jump to it, if it exists. If not,
+      then the destination of the jump is [default].
+  *)
+  type t = [
+    | `hlt
+    | `jmp of dst
+    | `br  of Var.t * dst * dst
+    | `ret of operand option
+    | `sw  of Type.imm * Var.t * local * table
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the control-flow instruction. *)
-  val free_vars_of_ctrl : ctrl -> Var.Set.t
+  val free_vars : t -> Var.Set.t
 
-  (** Pretty-prints a data instruction. *)
-  val pp_data : Format.formatter -> data -> unit
-
-  (** Pretty-prints a control instruction. *)
-  val pp_ctrl : Format.formatter -> ctrl -> unit
+  (** Pretty-prints a control-flow instruction. *)
+  val pp : Format.formatter -> t -> unit
 end
+
+type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A control-flow edge. *)
 module Edge : sig
@@ -550,9 +542,9 @@ module Blk : sig
   (** Creates a basic block. *)
   val create :
     ?args:(Var.t * arg_typ) list ->
-    ?data:Insn.data list ->
+    ?insns:insn list ->
     label:Label.t ->
-    ctrl:Insn.ctrl ->
+    ctrl:ctrl ->
     unit ->
     t
 
@@ -563,11 +555,11 @@ module Blk : sig
   val args : ?rev:bool -> t -> (Var.t * arg_typ) seq
 
   (** Returns the sequence of data instructions. *)
-  val data : ?rev:bool -> t -> Insn.data seq
+  val insns : ?rev:bool -> t -> insn seq
 
   (** Returns the control-flow instruction (also called the terminator)
       of the block. *)
-  val ctrl : t -> Insn.ctrl
+  val ctrl : t -> ctrl
 
   (** [has_label b l] returns [true] if block [b] has label [l]. *)
   val has_label : t -> Label.t -> bool
@@ -594,28 +586,28 @@ module Blk : sig
 
   (** Returns [true] if the block has a data instruction associated with
       the label. *)
-  val has_data : t -> Label.t -> bool
+  val has_insn : t -> Label.t -> bool
 
   (** Finds the data instruction with the associated label. *)
-  val find_data : t -> Label.t -> Insn.data option
+  val find_insn : t -> Label.t -> insn option
 
   (** Returns the next data instruction (after the given label) if it
       exists. *)
-  val next_data : t -> Label.t -> Insn.data option
+  val next_insn : t -> Label.t -> insn option
 
   (** Returns the previous data instruction (before the given label) if it
       exists. *)
-  val prev_data : t -> Label.t -> Insn.data option
+  val prev_insn : t -> Label.t -> insn option
 
   (** Applies [f] to each argument of the block. *)
   val map_args : t -> f:(Var.t -> arg_typ -> Var.t * arg_typ) -> t
 
-  (** [map_data b ~f] returns [b] with each data instruction applied
+  (** [map_insns b ~f] returns [b] with each data instruction applied
       to [f]. *)
-  val map_data : t -> f:(Label.t -> Insn.Data.op -> Insn.Data.op) -> t
+  val map_insns : t -> f:(Label.t -> Insn.op -> Insn.op) -> t
 
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
-  val map_ctrl : t -> f:(Insn.ctrl -> Insn.ctrl) -> t
+  val map_ctrl : t -> f:(ctrl -> ctrl) -> t
 
   (** [prepend_arg b a ?before] prepends the argument [a] to the block
 
@@ -637,7 +629,7 @@ module Blk : sig
   *)
   val append_arg : ?after:Var.t option -> t -> (Var.t * arg_typ) -> t
 
-  (** [prepend_data b d ?before] prepends the data instruction [d] to
+  (** [prepend_insn b d ?before] prepends the data instruction [d] to
       the block [b].
 
       If [before] is [None], then [d] is inserted at the beginning of
@@ -647,9 +639,9 @@ module Blk : sig
       data instruction at label [l]. If [l] doesn't exist, then [d] is
       not inserted.
   *)
-  val prepend_data : ?before:Label.t option -> t -> Insn.data -> t
+  val prepend_insn : ?before:Label.t option -> t -> insn -> t
 
-  (** [append_data b d ?after] appends the data instruction [d] to
+  (** [append_insn b d ?after] appends the data instruction [d] to
       the block [b].
 
       If [after] is [None], then [d] is inserted at the end of the
@@ -659,15 +651,15 @@ module Blk : sig
       data instruction at label [l]. If [l] doesn't exist, then [d] is
       not inserted.
   *)
-  val append_data : ?after:Label.t option -> t -> Insn.data -> t
+  val append_insn : ?after:Label.t option -> t -> insn -> t
 
   (** [remove_arg b x] removes an argument [x] from the block [b],
       if it exists. *)
   val remove_arg : t -> Var.t -> t
 
-  (** [remove_data b l] removes a data instruction with label [l] from
+  (** [remove_insn b l] removes a data instruction with label [l] from
       the block [b], if it exists. *)
-  val remove_data : t -> Label.t -> t
+  val remove_insn : t -> Label.t -> t
 
   (** [has_arg b x] returns true if [b] has an argument [x]. *)
   val has_arg : t -> Var.t -> bool

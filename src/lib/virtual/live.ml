@@ -27,7 +27,7 @@ let pp_transfer ppf {uses; defs} =
   Format.fprintf ppf "(%a) / (%a)" pp_vars uses pp_vars defs
 
 let blk_defs b =
-  Blk.data b |> Seq.filter_map ~f:Insn.lhs_of_data |>
+  Blk.insns b |> Seq.filter_map ~f:Insn.lhs |>
   Seq.fold ~init:Var.Set.empty ~f:Set.add
 
 let update l trans ~f = Map.update trans l ~f:(function
@@ -54,7 +54,7 @@ let ctrl_uses b = match Blk.ctrl b with
   | `br (_, t, f) -> dst_uses t ++ dst_uses f
   | `sw (_, _, d, tbl) ->
     let init = local_uses d in
-    Insn.Ctrl.Table.enum tbl |> Seq.map ~f:snd |>
+    Ctrl.Table.enum tbl |> Seq.map ~f:snd |>
     Seq.fold ~init ~f:(fun uses e -> uses ++ local_uses e)
 
 let block_transitions g fn =

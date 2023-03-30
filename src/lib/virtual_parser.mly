@@ -154,21 +154,21 @@
 %type <string> section
 %type <Virtual.blk m> blk
 %type <(Var.t * Virtual.Blk.arg_typ) m> blk_arg
-%type <Virtual.Insn.Ctrl.t m> insn_ctrl
-%type <(Bitvec.t * Virtual.local) m> insn_ctrl_table_entry
-%type <Virtual.Insn.Data.op m> insn_data
+%type <Virtual.Ctrl.t m> ctrl
+%type <(Bitvec.t * Virtual.local) m> ctrl_table_entry
+%type <Virtual.Insn.op m> insn
 %type <call_arg list m> call_args
-%type <Virtual.Insn.Data.binop> insn_data_binop
-%type <Virtual.Insn.Data.unop> insn_data_unop
-%type <Virtual.Insn.Data.arith_binop> insn_data_arith_binop
-%type <Virtual.Insn.Data.bitwise_binop> insn_data_bitwise_binop
-%type <Virtual.Insn.Data.cmp> insn_data_cmp
-%type <Virtual.Insn.Data.arith_unop> insn_data_arith_unop
-%type <Virtual.Insn.Data.bitwise_unop> insn_data_bitwise_unop
-%type <Virtual.Insn.Data.cast> insn_data_cast
-%type <Virtual.Insn.Data.copy> insn_data_copy
-%type <Virtual.Insn.Data.mem m> insn_data_mem
-%type <Virtual.dst m> insn_dst
+%type <Virtual.Insn.binop> insn_binop
+%type <Virtual.Insn.unop> insn_unop
+%type <Virtual.Insn.arith_binop> insn_arith_binop
+%type <Virtual.Insn.bitwise_binop> insn_bitwise_binop
+%type <Virtual.Insn.cmp> insn_cmp
+%type <Virtual.Insn.arith_unop> insn_arith_unop
+%type <Virtual.Insn.bitwise_unop> insn_bitwise_unop
+%type <Virtual.Insn.cast> insn_cast
+%type <Virtual.Insn.copy> insn_copy
+%type <Virtual.Insn.mem m> insn_mem
+%type <Virtual.dst m> dst
 %type <Virtual.local m> local
 %type <Virtual.global m> global
 %type <Virtual.operand m> operand
@@ -273,30 +273,30 @@ section:
   | SECTION s = STRING { s }
 
 blk:
-  | ln = LABEL COLON data = list(insn_data) ctrl = insn_ctrl
+  | ln = LABEL COLON insns = list(insn) ctrl = ctrl
     {
       let* l = label_of_name ln
-      and* data = unwrap_list data
+      and* insns = unwrap_list insns
       and* ctrl = ctrl in
-      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~data ~ctrl
+      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~insns ~ctrl
     }
-  | ln = LABEL LPAREN args = separated_nonempty_list(COMMA, blk_arg) RPAREN COLON data = list(insn_data) ctrl = insn_ctrl
+  | ln = LABEL LPAREN args = separated_nonempty_list(COMMA, blk_arg) RPAREN COLON insns = list(insn) ctrl = ctrl
     {
       let* l = label_of_name ln
       and* args = unwrap_list args
-      and* data = unwrap_list data
+      and* insns = unwrap_list insns
       and* ctrl = ctrl in
-      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~args ~data ~ctrl
+      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~args ~insns ~ctrl
     }
 
 blk_arg:
   | t = type_blk_arg v = var { v >>| fun v -> v, t }
 
-insn_ctrl:
+ctrl:
   | HLT { !!`hlt }
-  | JMP d = insn_dst
+  | JMP d = dst
     { d >>| fun d -> `jmp d }
-  | BR c = var COMMA t = insn_dst COMMA f = insn_dst
+  | BR c = var COMMA t = dst COMMA f = dst
     {
       c >>= fun c ->
       t >>= fun t ->
@@ -309,32 +309,32 @@ insn_ctrl:
       | None -> !!(`ret None)
       | Some a -> a >>| fun a -> `ret (Some a)
     }
-  | t = SW i = var COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, insn_ctrl_table_entry) RSQUARE
+  | t = SW i = var COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
     {
       let* i = i and* d = def and* tbl = unwrap_list tbl in
-      match Virtual.Insn.Ctrl.Table.create tbl with
+      match Virtual.Ctrl.Table.create tbl with
       | Error err -> M.lift @@ Context.fail err
       | Ok tbl -> !!(`sw (t, i, d, tbl))
     }
 
-insn_ctrl_table_entry:
+ctrl_table_entry:
   | i = INT ARROW l = local { l >>| fun l -> i, l }
 
-insn_data:
-  | x = var EQUALS b = insn_data_binop l = operand COMMA r = operand
+insn:
+  | x = var EQUALS b = insn_binop l = operand COMMA r = operand
     {
       x >>= fun x ->
       l >>= fun l ->
       r >>| fun r ->
       `bop (x, b, l, r)
     }
-  | x = var EQUALS u = insn_data_unop a = operand
+  | x = var EQUALS u = insn_unop a = operand
     {
       x >>= fun x ->
       a >>| fun a ->
       `uop (x, u, a)
     }
-  | x = var EQUALS m = insn_data_mem
+  | x = var EQUALS m = insn_mem
     {
       x >>= fun x ->
       m >>| fun m ->
@@ -388,18 +388,18 @@ call_args:
       `arg a :: Core.List.map vargs ~f:(fun a -> `varg a)
     }
 
-insn_data_binop:
-  | a = insn_data_arith_binop { (a :> Virtual.Insn.Data.binop) }
-  | b = insn_data_bitwise_binop { (b :> Virtual.Insn.Data.binop) }
-  | c = insn_data_cmp { (c :> Virtual.Insn.Data.binop) }
+insn_binop:
+  | a = insn_arith_binop { (a :> Virtual.Insn.binop) }
+  | b = insn_bitwise_binop { (b :> Virtual.Insn.binop) }
+  | c = insn_cmp { (c :> Virtual.Insn.binop) }
 
-insn_data_unop:
-  | a = insn_data_arith_unop { (a :> Virtual.Insn.Data.unop) }
-  | b = insn_data_bitwise_unop { (b :> Virtual.Insn.Data.unop) }
-  | c = insn_data_cast { (c :> Virtual.Insn.Data.unop) }
-  | c = insn_data_copy { (c :> Virtual.Insn.Data.unop) }
+insn_unop:
+  | a = insn_arith_unop { (a :> Virtual.Insn.unop) }
+  | b = insn_bitwise_unop { (b :> Virtual.Insn.unop) }
+  | c = insn_cast { (c :> Virtual.Insn.unop) }
+  | c = insn_copy { (c :> Virtual.Insn.unop) }
 
-insn_data_arith_binop:
+insn_arith_binop:
   | t = ADD { `add t }
   | t = DIV { `div t }
   | t = MUL { `mul t }
@@ -408,7 +408,7 @@ insn_data_arith_binop:
   | t = UDIV { `udiv t }
   | t = UREM { `urem t }
 
-insn_data_bitwise_binop:
+insn_bitwise_binop:
   | t = AND { `and_ t }
   | t = OR { `or_ t }
   | t = ASR { `asr_ t }
@@ -418,7 +418,7 @@ insn_data_bitwise_binop:
   | t = ROR { `ror t }
   | t = XOR { `xor t }
 
-insn_data_cmp:
+insn_cmp:
   | t = EQ { `eq t }
   | t = GE { `ge t }
   | t = GT { `gt t }
@@ -432,13 +432,13 @@ insn_data_cmp:
   | t = SLT { `slt t }
   | t = UO { `uo t }
 
-insn_data_arith_unop:
+insn_arith_unop:
   | t = NEG { `neg t }
 
-insn_data_bitwise_unop:
+insn_bitwise_unop:
   | t = NOT { `not_ t }
 
-insn_data_cast:
+insn_cast:
   | t = BITS { `bits t }
   | t = FEXT { `fext t }
   | t = FTOSI { `ftosi (fst t, snd t) }
@@ -450,10 +450,10 @@ insn_data_cast:
   | t = UITOF { `uitof (fst t, snd t) }
   | t = ZEXT { `zext t }
 
-insn_data_copy:
+insn_copy:
   | t = COPY { `copy t }
 
-insn_data_mem:
+insn_mem:
   | ALLOC i = INT
     { !!(`alloc (Bitvec.to_int i)) }
   | t = LOAD m = var LSQUARE a = operand RSQUARE
@@ -470,7 +470,7 @@ insn_data_mem:
       `store (t, m, a, x)
     }
 
-insn_dst:
+dst:
   | g = global { g >>| fun g -> (g :> Virtual.dst) }
   | l = local { l >>| fun l -> (l :> Virtual.dst) }
 

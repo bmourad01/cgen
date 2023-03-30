@@ -60,22 +60,20 @@ module Label = struct
 end
 
 module Virtual = struct
-  module Insn = struct
-    let data d =
-      let+ label = Label.fresh in
-      Virtual.Insn.data d ~label
-  end
-
-  let blk ?(args = []) ?(data = []) ~ctrl () =
+  let insn d =
     let+ label = Label.fresh in
-    Virtual.Blk.create ~args ~data ~ctrl ~label ()
+    Virtual.Insn.create d ~label
 
-  let blk' ?(label = None) ?(args = []) ?data:(d = []) ~ctrl () =
-    let* data = List.map d ~f:Insn.data in
+  let blk ?(args = []) ?(insns = []) ~ctrl () =
+    let+ label = Label.fresh in
+    Virtual.Blk.create ~args ~insns ~ctrl ~label ()
+
+  let blk' ?(label = None) ?(args = []) ?insns:(d = []) ~ctrl () =
+    let* insns = List.map d ~f:insn in
     let+ label = match label with
       | None -> Label.fresh
       | Some l -> !!l in
-    Virtual.Blk.create ~args ~data ~ctrl ~label ()
+    Virtual.Blk.create ~args ~insns ~ctrl ~label ()
 end
 
 let init target = {

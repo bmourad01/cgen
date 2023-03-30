@@ -51,7 +51,7 @@ let map_arg vars : operand -> operand = function
   | `var x -> `var (map_var vars x)
   | a -> a
 
-let map_mem vars (m : Insn.Data.mem) =
+let map_mem vars (m : Insn.mem) =
   let arg = map_arg vars in
   let var = map_var vars in
   match m with
@@ -59,7 +59,7 @@ let map_mem vars (m : Insn.Data.mem) =
   | `load (t, m, a) -> `load (t, var m, arg a)
   | `store (t, m, a, v) -> `store (t, var m, arg a, arg v)
 
-let map_basic vars nums (b : Insn.Data.basic) =
+let map_basic vars nums (b : Insn.basic) =
   let arg = map_arg vars in
   let var = map_var vars in
   let mem = map_mem vars in
@@ -86,13 +86,13 @@ let rename_data vars nums b =
   let glo = map_global vars in
   let margs = List.map ~f:(map_arg vars) in
   let rename = new_name vars nums in
-  Blk.map_data b ~f:(fun _ -> function
+  Blk.map_insns b ~f:(fun _ -> function
       | `call (Some (x, t), f, args, vargs) ->
         `call (Some (rename x, t), glo f, margs args, margs vargs)
       | `call (None, f, args, vargs) ->
         `call (None, glo f, margs args, margs vargs)
       | `vastart x -> `vastart (var x)
-      | #Insn.Data.basic as o -> map_basic vars nums o)
+      | #Insn.basic as o -> map_basic vars nums o)
 
 let rename_ctrl vars b =
   let var = map_var vars in
@@ -106,14 +106,14 @@ let rename_ctrl vars b =
       | `ret None as r -> r
       | `ret (Some a) -> `ret (Some (arg a))
       | `sw (t, i, d, tbl) ->
-        let tbl = Insn.Ctrl.Table.map_exn tbl ~f:(fun v l -> v, loc l) in
+        let tbl = Ctrl.Table.map_exn tbl ~f:(fun v l -> v, loc l) in
         `sw (t, var i, loc d, tbl))
 
 let pop_args b pop =
   Blk.args b |> Seq.map ~f:fst |> Seq.iter ~f:pop
 
 let pop_data b pop =
-  Blk.data b |> Seq.filter_map ~f:Insn.lhs_of_data |> Seq.iter ~f:pop
+  Blk.insns b |> Seq.filter_map ~f:Insn.lhs |> Seq.iter ~f:pop
 
 let pop_defs vars b =
   let pop x = Var.base x |> Hashtbl.change vars ~f:(function
@@ -160,7 +160,7 @@ let argify_ctrl xs b =
       | `br (c, t, f) -> `br (c, dst t, dst f)
       | `ret _ as r -> r
       | `sw (t, i, d, tbl) ->
-        let tbl = Insn.Ctrl.Table.map_exn tbl ~f:(fun v l -> v, loc l) in
+        let tbl = Ctrl.Table.map_exn tbl ~f:(fun v l -> v, loc l) in
         `sw (t, i, loc d, tbl))
 
 exception Type_error of Error.t

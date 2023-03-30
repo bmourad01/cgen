@@ -53,28 +53,26 @@ module Label : sig
 end
 
 module Virtual : sig
-  module Insn : sig
-    (** [data d] returns a data instruction [d] with a fresh label. *)
-    val data : Virtual.Insn.Data.op -> Virtual.Insn.data t
-  end
+  (** [insn d] returns a data instruction [d] with a fresh label. *)
+  val insn : Virtual.Insn.op -> Virtual.insn t
 
-  (** [blk ?phi ?data ~ctrl ()] returns a block with the instructions
-      [phi], [data], and [ctrl], while generating a fresh label for the
+  (** [blk ?phi ?insns ~ctrl ()] returns a block with the instructions
+      [phi], [insns], and [ctrl], while generating a fresh label for the
       block. *)
   val blk :
     ?args:(var * Virtual.Blk.arg_typ) list ->
-    ?data:Virtual.Insn.data list ->
-    ctrl:Virtual.Insn.ctrl ->
+    ?insns:Virtual.insn list ->
+    ctrl:Virtual.ctrl ->
     unit ->
     Virtual.blk t
 
-  (** Same as [blk], but also generates fresh labels for the instructions.
+  (** Same as [blk], but also generates fresh labels for the [insns].
       Allows a pre-existing label for the block. *)
   val blk' :
     ?label:label option ->
     ?args:(var * Virtual.Blk.arg_typ) list ->
-    ?data:Virtual.Insn.Data.op list ->
-    ctrl:Virtual.Insn.ctrl ->
+    ?insns:Virtual.Insn.op list ->
+    ctrl:Virtual.ctrl ->
     unit ->
     Virtual.blk t
 end
