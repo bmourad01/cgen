@@ -12,10 +12,7 @@ module Reg : sig
 
       [width]: the size of the register in bits.
   *)
-  val create :
-    name:string ->
-    width:int ->
-    t
+  val create : name:string -> width:int -> t
 
   (** The name of the register. *)
   val name : t -> string
@@ -24,22 +21,22 @@ module Reg : sig
   val width : t -> int
 
   (** Helper for 1-bit registers. *)
-  val r1 : name:string -> t
+  val r1 : string -> t
 
   (** Helper for 8-bit registers. *)
-  val r8 : name:string -> t
+  val r8 : string -> t
 
   (** Helper for 16-bit registers. *)
-  val r16 : name:string -> t
+  val r16 : string -> t
 
   (** Helper for 32-bit registers. *)
-  val r32 : name:string -> t
+  val r32 : string -> t
 
   (** Helper for 64-bit registers. *)
-  val r64 : name:string -> t
+  val r64 : string -> t
 
   (** Helper for 128-bit registers. *)
-  val r128 : name:string -> t
+  val r128 : string -> t
 
   include Regular.S with type t := t
 end

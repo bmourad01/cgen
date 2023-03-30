@@ -15,12 +15,12 @@ module Reg = struct
   let name r = r.name
   let width r = r.width
 
-  let r1   = create ~width:1
-  let r8   = create ~width:8
-  let r16  = create ~width:16
-  let r32  = create ~width:32
-  let r64  = create ~width:64
-  let r128 = create ~width:128
+  let r1   name = create ~name ~width:1
+  let r8   name = create ~name ~width:8
+  let r16  name = create ~name ~width:16
+  let r32  name = create ~name ~width:32
+  let r64  name = create ~name ~width:64
+  let r128 name = create ~name ~width:128
 
   include Regular.Make(struct
       include T
