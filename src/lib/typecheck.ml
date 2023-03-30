@@ -580,7 +580,7 @@ let unify_arg_ctrl fn blk l ta a t = match ta, t with
     if Type.(ta = t) then !!()
     else unify_fail_arg_ctrl fn blk l t a ta
 
-let check_var_dst blks fn blk v =
+let check_var_dst fn blk v =
   let* env = M.get () in
   let word = Target.word @@ Env.target env in
   let*? t = Env.typeof_var fn v env in
@@ -605,7 +605,7 @@ let check_label_dst blks fn blk l args =
 
 let check_dst blks fn blk : dst -> unit t = function
   | `addr _ | `sym _ -> !!()
-  | `var v -> check_var_dst blks fn blk v
+  | `var v -> check_var_dst fn blk v
   | `label (l, args) -> check_label_dst blks fn blk l args
 
 let unify_flag_fail_ctrl fn blk t v =
