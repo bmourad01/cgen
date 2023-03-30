@@ -2,28 +2,18 @@ open Core
 open Regular.Std
 
 module Reg = struct
-  type cls = [
-    | `flag
-    | `fp
-    | `gpr
-    | `sp
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
   module T = struct
     type t = {
       name  : string;
       width : int;
-      cls   : cls;
     } [@@deriving bin_io, compare, equal, hash, sexp]
   end
 
   include T
 
-  let create ~name ~width ~cls = {name; width; cls}
+  let create ~name ~width = {name; width}
   let name r = r.name
   let width r = r.width
-  let cls r = r.cls
-  let is_cls r c = equal_cls r.cls c
 
   let r1   = create ~width:1
   let r8   = create ~width:8
@@ -83,6 +73,11 @@ let flag t = t.flag
 let fp t = t.fp
 let gpr t = t.gpr
 let sp t = t.sp
+
+let is_flag t r = Set.mem t.flag r
+let is_fp t r = Set.mem t.fp r
+let is_gpr t r = Set.mem t.flag r
+let is_sp t r = Reg.equal t.sp r
 
 include Regular.Make(struct
     include T

@@ -4,23 +4,6 @@ open Regular.Std
 
 (** Registers belonging to a target. *)
 module Reg : sig
-  (** Register classes.
-
-      [flag]: a flag register.
-
-      [fp]: a floating-point register.
-
-      [gpr]: a general-purpose register.
-
-      [sp]: a stack pointer register.
-  *)
-  type cls = [
-    | `flag
-    | `fp
-    | `gpr
-    | `sp
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
   type t
 
   (** Creates a register.
@@ -28,13 +11,10 @@ module Reg : sig
       [name]: the name of the register.
 
       [width]: the size of the register in bits.
-
-      [cls]: the register class.
   *)
   val create :
     name:string ->
     width:int ->
-    cls:cls ->
     t
 
   (** The name of the register. *)
@@ -43,29 +23,23 @@ module Reg : sig
   (** The size of the register in bits. *)
   val width : t -> int
 
-  (** The register class. *)
-  val cls : t -> cls
-
-  (** [is_cls r cls] returns [true] if [r] has belongs to [cls]. *)
-  val is_cls : t -> cls -> bool
-
   (** Helper for 1-bit registers. *)
-  val r1 : name:string -> cls:cls -> t
+  val r1 : name:string -> t
 
   (** Helper for 8-bit registers. *)
-  val r8 : name:string -> cls:cls -> t
+  val r8 : name:string -> t
 
   (** Helper for 16-bit registers. *)
-  val r16 : name:string -> cls:cls -> t
+  val r16 : name:string -> t
 
   (** Helper for 32-bit registers. *)
-  val r32 : name:string -> cls:cls -> t
+  val r32 : name:string -> t
 
   (** Helper for 64-bit registers. *)
-  val r64 : name:string -> cls:cls -> t
+  val r64 : name:string -> t
 
   (** Helper for 128-bit registers. *)
-  val r128 : name:string -> cls:cls -> t
+  val r128 : name:string -> t
 
   include Regular.S with type t := t
 end
@@ -124,5 +98,17 @@ val gpr : t -> Reg.Set.t
 
 (** Returns the stack pointer register. *)
 val sp : t -> reg
+
+(** [is_flag t r] returns [true] if [r] is a flag register in [t]. *)
+val is_flag : t -> reg -> bool
+
+(** [is_fp t r] returns [true] if [r] is a floating-point register in [t]. *)
+val is_fp : t -> reg -> bool
+
+(** [is_gpr t r] returns [true] if [r] is a general-purpose register in [t]. *)
+val is_gpr : t -> reg -> bool
+
+(** [is_sp t r] returns [true] if [r] is the stack pointer register in [t]. *)
+val is_sp : t -> reg -> bool
 
 include Regular.S with type t := t

@@ -2,22 +2,22 @@ open Core
 open Cgen
 
 module Test_target = struct
-  let r0 = Target.Reg.r64 ~name:"r0" ~cls:`gpr
-  let r1 = Target.Reg.r64 ~name:"r1" ~cls:`gpr
-  let r2 = Target.Reg.r64 ~name:"r2" ~cls:`gpr
-  let r3 = Target.Reg.r64 ~name:"r3" ~cls:`gpr
+  let r0 = Target.Reg.r64 ~name:"r0"
+  let r1 = Target.Reg.r64 ~name:"r1"
+  let r2 = Target.Reg.r64 ~name:"r2"
+  let r3 = Target.Reg.r64 ~name:"r3"
 
-  let d0 = Target.Reg.r64 ~name:"d0" ~cls:`fp
-  let d1 = Target.Reg.r64 ~name:"d1" ~cls:`fp
-  let d2 = Target.Reg.r64 ~name:"d2" ~cls:`fp
-  let d3 = Target.Reg.r64 ~name:"d3" ~cls:`fp
+  let d0 = Target.Reg.r64 ~name:"d0"
+  let d1 = Target.Reg.r64 ~name:"d1"
+  let d2 = Target.Reg.r64 ~name:"d2"
+  let d3 = Target.Reg.r64 ~name:"d3"
 
-  let sp = Target.Reg.r64 ~name:"sp" ~cls:`sp
+  let sp = Target.Reg.r64 ~name:"sp"
 
-  let cf = Target.Reg.r1 ~name:"cf" ~cls:`flag
-  let sf = Target.Reg.r1 ~name:"sf" ~cls:`flag
-  let zf = Target.Reg.r1 ~name:"zf" ~cls:`flag
-  let vf = Target.Reg.r1 ~name:"vf" ~cls:`flag
+  let cf = Target.Reg.r1 ~name:"cf"
+  let sf = Target.Reg.r1 ~name:"sf"
+  let zf = Target.Reg.r1 ~name:"zf"
+  let vf = Target.Reg.r1 ~name:"vf"
 
   let t = Target.create ()
       ~name:"test"
