@@ -1,10 +1,33 @@
 open Core
 open Cgen
 
-let test_target = Target.create ()
-    ~name:"test"
-    ~word:`i64
-    ~little:true
+module Test_target = struct
+  let r0 = Target.Reg.r64 ~name:"r0" ~cls:`gpr
+  let r1 = Target.Reg.r64 ~name:"r1" ~cls:`gpr
+  let r2 = Target.Reg.r64 ~name:"r2" ~cls:`gpr
+  let r3 = Target.Reg.r64 ~name:"r3" ~cls:`gpr
+
+  let d0 = Target.Reg.r64 ~name:"d0" ~cls:`fp
+  let d1 = Target.Reg.r64 ~name:"d1" ~cls:`fp
+  let d2 = Target.Reg.r64 ~name:"d2" ~cls:`fp
+  let d3 = Target.Reg.r64 ~name:"d3" ~cls:`fp
+
+  let sp = Target.Reg.r64 ~name:"sp" ~cls:`sp
+
+  let cf = Target.Reg.create ~name:"cf" ~width:1 ~cls:`flag
+  let sf = Target.Reg.create ~name:"sf" ~width:1 ~cls:`flag
+  let zf = Target.Reg.create ~name:"zf" ~width:1 ~cls:`flag
+  let vf = Target.Reg.create ~name:"vf" ~width:1 ~cls:`flag
+
+  let t = Target.create ()
+      ~name:"test"
+      ~word:`i64
+      ~little:true
+      ~flag:[cf; sf; zf; vf]
+      ~fp:[d0; d1; d2; d3]
+      ~gpr:[r0; r1; r2; r3]
+      ~sp
+end
 
 exception Failed of Error.t
 
@@ -28,6 +51,6 @@ let comp filename =
 
 let () =
   let args = Sys.get_argv () in
-  Context.init test_target |>
+  Context.init Test_target.t |>
   Context.run (comp args.(1)) |>
   Or_error.iter_error ~f:(Format.eprintf "%a\n%!" Error.pp)
