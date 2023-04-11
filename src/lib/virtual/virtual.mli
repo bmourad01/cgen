@@ -96,6 +96,8 @@ module Insn : sig
 
       [`mul t]: multiplication.
 
+      [`mulh t]: immediate high multiplication.
+
       [`rem t]: remainder.
 
       [`sub t]: subtraction.
@@ -108,6 +110,7 @@ module Insn : sig
     | `add  of Type.basic
     | `div  of Type.basic
     | `mul  of Type.basic
+    | `mulh of Type.imm
     | `rem  of Type.basic
     | `sub  of Type.basic
     | `udiv of Type.imm

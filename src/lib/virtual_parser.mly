@@ -102,7 +102,7 @@
 %token ELIPSIS
 %token W L B H S D Z M F
 %token <Type.basic> ADD DIV MUL REM SUB NEG
-%token <Type.imm> UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
+%token <Type.imm> MULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token ALLOC
 %token <Type.basic> LOAD STORE EQ GE GT LE LT NE
 %token <Type.imm> SGE SGT SLE SLT
@@ -403,6 +403,7 @@ insn_arith_binop:
   | t = ADD { `add t }
   | t = DIV { `div t }
   | t = MUL { `mul t }
+  | t = MULH { `mulh t }
   | t = REM { `rem t }
   | t = SUB { `sub t }
   | t = UDIV { `udiv t }
