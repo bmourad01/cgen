@@ -118,6 +118,12 @@ let typeof_arg fn env : operand -> typ t = function
     let*? t = Env.typeof_var fn v env in
     !!(t :> typ)
 
+let add_typs m =
+  let* init = M.get () in
+  let* env = Module.typs m |> M.Seq.fold ~init ~f:(fun env t ->
+      M.lift_err @@ Env.add_typ t env) in
+  M.put env
+
 let add_datas m =
   let* init = M.get () in
   let* env = Module.data m |> M.Seq.fold ~init ~f:(fun env d ->
@@ -739,6 +745,7 @@ let check_fn fn =
   check_blk doms (make_rpo cfg start) blks seen fn @@ Func.entry fn
 
 let check m =
+  let* () = add_typs m in
   let* () = add_datas m in
   let* () = add_funs m in
   Module.funs m |> M.Seq.iter ~f:check_fn
