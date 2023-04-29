@@ -63,10 +63,16 @@ module Env = struct
   let typeof_var fn v env =
     let fname = Func.name fn in
     match Map.find env.venv fname with
-    | None -> Or_error.errorf "No function %s in environment" fname
+    | None ->
+      Or_error.errorf
+        "No function %s in environment for variable %a"
+        fname Var.pps v
     | Some m -> match Map.find m v with
-      | None -> Or_error.errorf "No variable %a in function %s" Var.pps v fname
       | Some t -> Ok t
+      | None ->
+        Or_error.errorf
+          "No variable %a in function %s"
+          Var.pps v fname
 
   exception Unify_fail of Type.t
 
@@ -539,16 +545,16 @@ let op fn blk l env : Insn.op -> env t = function
   | #Insn.call     as c -> op_call     fn blk l env c
   | #Insn.variadic as v -> op_variadic fn blk l env v
 
-let blk_insns data fn blk =
+let blk_insns seen fn blk =
   let* init = M.get () in
   let* env = Blk.insns blk |> M.Seq.fold ~init ~f:(fun env d ->
       let l = Insn.label d in
       let o = Insn.op d in
-      let*? () = match Hash_set.strict_add data l with
+      let*? () = match Hash_set.strict_add seen l with
         | Ok _ as ok -> ok
         | Error _ ->
           Or_error.errorf
-            "Data instruction for label %a in block %a \
+            "Instruction for label %a in block %a \
              already exists in function %s"
             Label.pps l Label.pps (Blk.label blk) @@
           Func.name fn in
@@ -683,7 +689,7 @@ let blk_ctrl blks fn blk = match Blk.ctrl blk with
 
 let not_pseudo = Fn.non Label.is_pseudo
 
-let rec check_blk doms rpo blks data fn l =
+let rec check_blk doms rpo blks seen fn l =
   let*? blk = match Map.find blks l with
     | Some blk -> Ok blk
     | None ->
@@ -691,12 +697,12 @@ let rec check_blk doms rpo blks data fn l =
         "Invariant broken: block %a is missing"
         Label.pps l in
   let* () = blk_args fn blk in
-  let* () = blk_insns data fn blk in
+  let* () = blk_insns seen fn blk in
   let* () = blk_ctrl blks fn blk in
   let rpn = Hashtbl.find_exn rpo in
   Tree.children doms l |> Seq.filter ~f:not_pseudo |> Seq.to_list |>
   List.sort ~compare:(fun a b -> compare (rpn a) (rpn b)) |>
-  M.List.iter ~f:(check_blk doms rpo blks data fn)
+  M.List.iter ~f:(check_blk doms rpo blks seen fn)
 
 let make_rpo cfg start =
   let rpo = Label.Table.create () in
@@ -704,8 +710,23 @@ let make_rpo cfg start =
   Seq.iteri ~f:(fun i l -> Hashtbl.set rpo ~key:l ~data:i);
   rpo
 
+let typ_of_typ_arg env = function
+  | #Type.basic as b -> Ok (b :> Type.t)
+  | `name n ->
+    Env.typeof_typ n env |>
+    Or_error.map ~f:(fun t -> (t :> Type.t))
+
+let fn_args fn =
+  let* init = M.get () in
+  let* env = Func.args fn |> M.Seq.fold ~init ~f:(fun env (x, t) ->
+      let*? t = typ_of_typ_arg env t in
+      M.lift_err @@ Env.add_var fn x t env) in
+  M.put env
+
 let check_fn fn =
-  let data = Label.Hash_set.create () in
+  let* () = fn_args fn in
+  (* Be aware of duplicate labels for instructions. *)
+  let seen = Label.Hash_set.create () in
   let*? blks = try Ok (Func.map_of_blks fn) with
     | Invalid_argument msg -> Or_error.error_string msg in
   let cfg = Cfg.create fn in
@@ -715,7 +736,7 @@ let check_fn fn =
   let doms = Graphlib.dominators (module Cfg) cfg start in
   (* However, it requires us to visit children of each node in
      the tree according to the reverse postorder traversal. *)
-  check_blk doms (make_rpo cfg start) blks data fn @@ Func.entry fn
+  check_blk doms (make_rpo cfg start) blks seen fn @@ Func.entry fn
 
 let check m =
   let* () = add_datas m in
