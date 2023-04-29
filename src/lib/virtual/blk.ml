@@ -35,6 +35,16 @@ let ctrl b = b.ctrl
 let has_label b l = Label.(b.label = l)
 let hash b = Label.hash b.label
 
+let map_of_insns b =
+  Array.fold b.insns ~init:Label.Map.empty ~f:(fun m d ->
+      let key = Insn.label d in
+      match Map.add m ~key ~data:b with
+      | `Ok m -> m
+      | `Duplicate ->
+        invalid_argf
+          "Duplicate block of label %a in block %a"
+          Label.pps key Label.pps b.label ())
+
 let free_vars b =
   let (++) = Set.union and (--) = Set.diff in
   let init = Var.Set.(empty, empty) in
