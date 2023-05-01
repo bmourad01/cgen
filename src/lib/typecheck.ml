@@ -699,11 +699,32 @@ let check_fn fn =
      the tree according to the reverse postorder traversal. *)
   check_blk doms (make_rpo cfg start) blks seen fn @@ Func.entry fn
 
+let invalid_elt d elt msg =
+  let elt = Format.asprintf "%a" Data.pp_elt elt in
+  M.fail @@ Error.createf
+    "Invalid element %s in data %s: %s"
+    elt (Data.name d) msg
+
+let check_basic d elt t = M.List.iter ~f:(fun c ->
+    let* t' = typeof_const c in
+    if Type.equal (t :> Type.t) t' then !!()
+    else invalid_elt d elt "type mismatch")
+
+let check_data d = Data.elts d |> M.Seq.iter ~f:(function
+    | `basic (t, cs) as elt -> check_basic d elt t cs
+    | `string _ | `sym _ -> !!()
+    | `zero n when n >= 1 -> !!()
+    | `zero _ as elt ->
+      invalid_elt d (elt :> Data.elt)
+        "argument must be greater than 0")
+
 let check m =
   let* () = add_typs m in
   let* () = add_datas m in
   let* () = add_funs m in
-  Module.funs m |> M.Seq.iter ~f:check_fn
+  let* () = Module.data m |> M.Seq.iter ~f:check_data in
+  let* () = Module.funs m |> M.Seq.iter ~f:check_fn in
+  !!()
 
 let run m ~target =
   Env.create target |> (check m).run
