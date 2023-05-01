@@ -38,7 +38,7 @@ let hash b = Label.hash b.label
 let map_of_insns b =
   Array.fold b.insns ~init:Label.Map.empty ~f:(fun m d ->
       let key = Insn.label d in
-      match Map.add m ~key ~data:b with
+      match Map.add m ~key ~data:d with
       | `Ok m -> m
       | `Duplicate ->
         invalid_argf
