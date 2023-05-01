@@ -718,8 +718,36 @@ let check_data d = Data.elts d |> M.Seq.iter ~f:(function
       invalid_elt d (elt :> Data.elt)
         "argument must be greater than 0")
 
+let check_typs =
+  let* {Env.tenv; _} = M.get () in
+  let module G = Graphlib.Make(String)(Unit) in
+  let pp ppf = Format.fprintf ppf ":%s" in
+  let pp_sep ppf () = Format.fprintf ppf ",@;" in
+  (* Construct the graph and also check for undeclared type names. *)
+  let* g = Map.data tenv |> M.List.fold ~init:G.empty ~f:(fun g -> function
+      | `compound (name, _, fields) ->
+        let init = G.Node.insert name g in
+        M.List.fold fields ~init ~f:(fun g -> function
+            | `elt _ -> !!g
+            | `name n when Map.mem tenv n ->
+              !!G.Edge.(insert (create name n ()) g)
+            | `name n ->
+              M.fail @@ Error.createf
+                "Undeclared type field :%s in type :%s"
+                n name)) in
+  (* Check for cycles. *)
+  Graphlib.strong_components (module G) g |>
+  Partition.groups |> M.Seq.iter ~f:(fun grp ->
+      match Seq.to_list @@ Group.enum grp with
+      | [] | [_] -> !!()
+      | grp ->
+        M.fail @@ Error.of_string @@
+        Format.asprintf "Cycle detected in types %a"
+          (Format.pp_print_list ~pp_sep pp) grp)
+
 let check m =
   let* () = add_typs m in
+  let* () = check_typs in
   let* () = add_datas m in
   let* () = add_funs m in
   let* () = Module.data m |> M.Seq.iter ~f:check_data in
