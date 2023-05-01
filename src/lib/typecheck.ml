@@ -97,8 +97,27 @@ include M.Syntax
 
 type 'a t = 'a M.m
 
+let max_i8  = Bitvec.of_string "0xff"
+let max_i16 = Bitvec.of_string "0xffff"
+let max_i32 = Bitvec.of_string "0xffffffff"
+let max_i64 = Bitvec.of_string "0xffffffffffffffff"
+
+let max_of_imm : Type.imm -> Bitvec.t = function
+  | `i8 -> max_i8
+  | `i16 -> max_i16
+  | `i32 -> max_i32
+  | `i64 -> max_i64
+
+let check_max i t =
+  let m = max_of_imm t in
+  if Bitvec.(i > m) then
+    M.fail @@ Error.of_string @@ Format.asprintf
+      "Integer %a does not fit in type %a"
+      Bitvec.pp i Type.pp_imm t
+  else !!(t :> Type.t)
+
 let typeof_const : const -> Type.t t = function
-  | `int (_, t) -> !!(t :> Type.t)
+  | `int (i, t) -> check_max i t
   | `float _ -> !!`f32
   | `double _ -> !!`f64
   | `sym _ ->
