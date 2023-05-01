@@ -11,7 +11,7 @@ open Regular.Std
 
 (** A constant value.
 
-    [`int n] is a constant integer value.
+    [`int (n, t)] is a constant integer value of size [t].
 
     [`float f] is a single-precision floating-point value.
 
@@ -21,7 +21,7 @@ open Regular.Std
     constant offset [n].
 *)
 type const = [
-  | `int    of Bitvec.t
+  | `int    of Bitvec.t * Type.imm
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int
@@ -567,9 +567,6 @@ module Blk : sig
   (** [has_label b l] returns [true] if block [b] has label [l]. *)
   val has_label : t -> Label.t -> bool
 
-  (** Returns the hash of the block label. *)
-  val hash : t -> int
-
   (** Returns a mapping from instruction labels to instructions.
 
       @raise Invalid_argument if there are duplicate labels
@@ -681,9 +678,6 @@ module Blk : sig
       [x]. *)
   val has_lhs : t -> Var.t -> bool
 
-  (** Same as [has_lhs], but also includes arguments to the block. *)
-  val defines_var : t -> Var.t -> bool
-
   include Regular.S with type t := t
 end
 
@@ -751,9 +745,6 @@ module Func : sig
 
   (** Returns [true] if the function has the associated name. *)
   val has_name : t -> string -> bool
-
-  (** Returns the hash of the function name. *)
-  val hash : t -> int
 
   (** Returns the function prototype. *)
   val typeof : t -> Type.proto
@@ -933,9 +924,6 @@ module Data : sig
   (** Returns [true] if the struct has the associated name. *)
   val has_name : t -> string -> bool
 
-  (** Returns the hash of the struct name. *)
-  val hash : t -> int
-
   (** Returns the corresponding compound type of the struct. *)
   val typeof : t -> Target.t -> Type.compound
 
@@ -980,9 +968,6 @@ module Module : sig
 
   (** Returns [true] if the module has the associated name. *)
   val has_name : t -> string -> bool
-
-  (** Returns the hash of the module's name. *)
-  val hash : t -> int
 
   (** Appends a type to the module. *)
   val insert_type : t -> Type.compound -> t

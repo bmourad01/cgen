@@ -1,9 +1,6 @@
 module Data_ = Data
 
 open Core
-open Graphlib.Std
-open Monads.Std
-open Regular.Std
 
 include Common
 

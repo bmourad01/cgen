@@ -1,5 +1,4 @@
 open Core
-open Graphlib.Std
 open Regular.Std
 open Virtual
 

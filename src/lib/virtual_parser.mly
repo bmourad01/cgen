@@ -66,10 +66,6 @@
 
     let unwrap_list = M.List.map ~f:(fun x -> x >>| Core.Fn.id)
 
-    let pp_pos ppf pos =
-      let open Lexing in
-      Format.fprintf ppf "%d:%d" pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
-
     let make_fn blks args l name return noreturn =
       let* blks = unwrap_list blks in
       let* args, variadic = match args with
@@ -127,7 +123,8 @@
 %token SECTION
 %token NORETURN
 %token <string> STRING
-%token <Bitvec.t> INT
+%token <Bitvec.t * Type.imm> INT
+%token <int> NUM
 %token <float> DOUBLE
 %token <Float32.t> SINGLE
 %token <string * int> VAR
@@ -155,7 +152,7 @@
 %type <Virtual.blk m> blk
 %type <(Var.t * Virtual.Blk.arg_typ) m> blk_arg
 %type <Virtual.Ctrl.t m> ctrl
-%type <(Bitvec.t * Virtual.local) m> ctrl_table_entry
+%type <((Bitvec.t * Type.imm) * Virtual.local) m> ctrl_table_entry
 %type <Virtual.Insn.op m> insn
 %type <call_arg list m> call_args
 %type <Virtual.Insn.binop> insn_binop
@@ -209,24 +206,20 @@ data:
 data_elt:
   | b = type_basic cs = nonempty_list(const) { `basic (b, cs) }
   | B s = STRING { `string s }
-  | Z n = INT { `zero (Bitvec.to_int n) }
+  | Z n = NUM { `zero n }
   | s = SYM { `sym (s, 0) }
-  | s = SYM PLUS i = INT { `sym (s, Bitvec.to_int i) }
-  | s = SYM MINUS i = INT { `sym (s, -(Bitvec.to_int i)) }
+  | s = SYM PLUS i = NUM { `sym (s, i) }
+  | s = SYM MINUS i = NUM { `sym (s, -i) }
 
 typ:
   | TYPE name = TYPENAME EQUALS align = option(align) LBRACE fields = separated_nonempty_list(COMMA, typ_field) RBRACE
     { `compound (name, align, fields) }
 
 align:
-  | ALIGN n = INT { Bitvec.to_int n }
+  | ALIGN n = NUM { n }
 
 typ_field:
-  | b = type_basic n = option(INT)
-    {
-      let n = Core.Option.value_map n ~default:1 ~f:Bitvec.to_int in
-      `elt (b, n)
-    }
+  | b = type_basic n = option(NUM) { `elt (b, Core.Option.value n ~default:1) }
   | n = TYPENAME { `name n }
 
 func:
@@ -312,6 +305,14 @@ ctrl:
   | t = SW i = var COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
     {
       let* i = i and* d = def and* tbl = unwrap_list tbl in
+      let* tbl = M.List.map tbl ~f:(fun ((i, t'), l) ->
+          if not @@ Type.equal_imm t t' then
+            M.lift @@
+            Context.fail @@
+            Core.Error.of_string @@
+            Format.asprintf "Invalid switch value %a_%a, expected size %a"
+              Bitvec.pp i Type.pp_imm t' Type.pp_imm t
+          else !!(i, l)) in
       match Virtual.Ctrl.Table.create tbl with
       | Error err -> M.lift @@ Context.fail err
       | Ok tbl -> !!(`sw (t, i, d, tbl))
@@ -455,8 +456,7 @@ insn_copy:
   | t = COPY { `copy t }
 
 insn_mem:
-  | ALLOC i = INT
-    { !!(`alloc (Bitvec.to_int i)) }
+  | ALLOC i = NUM { !!(`alloc i) }
   | t = LOAD m = var LSQUARE a = operand RSQUARE
     {
       m >>= fun m ->
@@ -484,7 +484,7 @@ local:
     }
 
 global:
-  | i = INT { !!(`addr i) }
+  | i = INT { !!(`addr (fst i)) }
   | s = SYM { !!(`sym s) }
   | x = var { x >>| fun x -> `var x }
 
@@ -497,8 +497,8 @@ const:
   | s = SINGLE { `float s }
   | d = DOUBLE { `double d }
   | s = SYM { `sym (s, 0) }
-  | s = SYM PLUS i = INT { `sym (s, Bitvec.to_int i) }
-  | s = SYM MINUS i = INT { `sym (s, -(Bitvec.to_int i)) }
+  | s = SYM PLUS i = NUM { `sym (s, i) }
+  | s = SYM MINUS i = NUM { `sym (s, -i) }
 
 var:
   | x = VAR { !!Var.(with_index (create (fst x)) (snd x)) }

@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Common
 
 type arith_binop = [

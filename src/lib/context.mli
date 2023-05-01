@@ -21,10 +21,6 @@ type state = State.t
 (** The compilation context. *)
 type 'a t
 
-val return : 'a -> 'a t
-val bind : 'a t -> f:('a -> 'b t) -> 'b t
-val map : 'a t -> f:('a -> 'b) -> 'b t
-
 (** Terminates the computation with an error. *)
 val fail : Error.t -> 'a t
 

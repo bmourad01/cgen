@@ -5,9 +5,6 @@ open Regular.Std
 (** Linkage metadata. *)
 type t
 
-(** Pretty-prints the linkage. *)
-val pp : Format.formatter -> t -> unit
-
 (** Creates the linkage. *)
 val create : ?section:string option -> export:bool -> unit -> t
 

@@ -139,7 +139,4 @@ type t = [
   | special
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** Pretty-prints a type. *)
-val pp : Format.formatter -> t -> unit
-
 include Regular.S with type t := t

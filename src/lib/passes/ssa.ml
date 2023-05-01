@@ -3,8 +3,6 @@ open Graphlib.Std
 open Regular.Std
 open Virtual
 
-open Context.Syntax
-
 let iterated_frontier f blks =
   let df = Set.fold ~init:Label.Set.empty ~f:(fun init b ->
       Frontier.enum f b |> Seq.fold ~init ~f:Set.add) in
@@ -20,8 +18,6 @@ let find_blk fn l = match Func.find_blk fn l with
   | Some _ as b -> b
   | None when Label.is_pseudo l -> None
   | None -> raise @@ Missing_blk (Func.name fn, l)
-
-let succs cfg fn l = Cfg.Node.succs l cfg |> Seq.filter_map ~f:(find_blk fn)
 
 let collect_vars fn =
   Func.blks fn |> Seq.map ~f:Blk.free_vars |>
@@ -137,9 +133,6 @@ let rec rename_block vars nums cfg dom fn' l =
   Option.iter (find_blk fn' l) ~f:(pop_defs vars);
   fn
 
-let has_arg_for_var b x =
-  Blk.args b |> Seq.map ~f:fst |> Seq.exists ~f:(Var.equal x)
-
 let args_of_vars = List.map ~f:(fun x -> `var x)
 
 let argify_local xs : local -> local = function
@@ -193,7 +186,7 @@ let update_blk_args env fn cfg l x ins = match find_blk fn l with
 
 let insert_blk_args env vars fn frontier cfg =
   let init = fn, Label.Map.empty in
-  Set.fold vars ~init ~f:(fun ((fn, ins) as init) x ->
+  Set.fold vars ~init ~f:(fun ((fn, _ins) as init) x ->
       let bs = blocks_that_define_var x fn in
       iterated_frontier frontier (Label.pseudoentry :: bs) |>
       Set.to_sequence |> Seq.fold ~init ~f:(fun (fn, ins) l ->

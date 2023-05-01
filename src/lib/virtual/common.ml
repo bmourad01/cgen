@@ -53,16 +53,16 @@ module Array = struct
 end
 
 type const = [
-  | `int    of Bitvec.t
+  | `int    of Bitvec.t * Type.imm
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_const ppf : const -> unit = function
-  | `int n -> Format.fprintf ppf "%a" Bitvec.pp n
-  | `float f -> Format.fprintf ppf "%sf" @@ Float32.to_string f
-  | `double d -> Format.fprintf ppf "%a" Float.pp d
+  | `int (n, t) -> Format.fprintf ppf "%a_%a" Bitvec.pp n Type.pp_imm t
+  | `float f -> Format.fprintf ppf "%s_f" @@ Float32.to_string f
+  | `double d -> Format.fprintf ppf "%a_d" Float.pp d
   | `sym (s, 0) -> Format.fprintf ppf "$%s" s
   | `sym (s, n) when n > 0 -> Format.fprintf ppf "$%s+0x%x" s n
   | `sym (s, n) -> Format.fprintf ppf "$%s-0x%x" s (lnot n + 1)

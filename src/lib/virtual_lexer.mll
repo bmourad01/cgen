@@ -46,8 +46,9 @@ let ninteger = '-' integer
 let hinteger = "0x" ['0'-'9' 'a'-'f' 'A'-'F']+
 let ointeger = "0o" ['0'-'7']+
 let binteger = "0b" ['0'-'1']+
-let double = digit+ '.' digit+
-let single = double 'f'
+let ints = (integer | ninteger | hinteger | ointeger | binteger)
+let posints = (integer | hinteger | ointeger | binteger)
+let flt = digit+ '.' digit+
 let backslash_escapes = ['\\' '\'' '"' 'n' 't' 'b' 'r' ' ']
 let imm = ['w' 'l' 'b' 'h']
 let fp = ['s' 'd']
@@ -164,13 +165,15 @@ rule token = parse
     STRING (Buffer.contents string_buff)
   }
   | eof { EOF }
-  | integer as i { INT (Bitvec.of_string i) }
-  | ninteger as n { INT (Bitvec.of_string n) }
-  | hinteger as h { INT (Bitvec.of_string h) }
-  | ointeger as o { INT (Bitvec.of_string o) }
-  | binteger as b { INT (Bitvec.of_string b) }
-  | double as d { DOUBLE (Float.of_string d) }
-  | single as s { SINGLE (Float32.of_string s) }
+  | (ints as i) '_' (imm as t) {
+    let i = Z.of_string i in
+    let t = imm_of_char t in
+    let m = Bitvec.modulus (Type.sizeof_imm t) in
+    INT (Bitvec.(bigint i mod m), t)
+  }
+  | posints as i { NUM (int_of_string i) }
+  | (flt as f) "_d" { DOUBLE (Float.of_string f) }
+  | (flt as f) "_s" { SINGLE (Float32.of_string f) }
   | _ { raise Error }
 
 and string = parse

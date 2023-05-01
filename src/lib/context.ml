@@ -1,5 +1,4 @@
 open Core
-open Monads.Std
 open Regular.Std
 
 type state = {

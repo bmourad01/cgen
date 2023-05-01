@@ -39,7 +39,7 @@ let (++) = Set.union and (--) = Set.diff
 let find_blk fn l = Func.blks fn |> Seq.find ~f:(Fn.flip Blk.has_label l)
 
 let local_uses : local -> Var.Set.t = function
-  | `label (l, args) ->
+  | `label (_l, args) ->
     List.filter_map args ~f:(function
         | `var v -> Some v | _ -> None) |>
     Var.Set.of_list
