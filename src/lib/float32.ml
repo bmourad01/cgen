@@ -59,7 +59,7 @@ external (<)  : t -> t -> bool = "cgen_float32_lt"
 
 let compare x y = if x = y then 0 else if x < y then -1 else 1
 
-external is_unordered : t -> t -> bool = "cgen_float32_isunordered"
+external is_unordered : t -> t -> bool = "cgen_float32_is_unordered"
 
 let is_ordered x y = not @@ is_unordered x y
 
