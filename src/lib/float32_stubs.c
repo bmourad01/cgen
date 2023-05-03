@@ -25,7 +25,7 @@ static struct custom_operations cgen_float32_custom_ops = {
 #endif
 };
 
-#define Alloc_float \
+#define Alloc_float                                                            \
   caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1)
 
 value cgen_float32_of_float(value x) {
@@ -36,24 +36,20 @@ value cgen_float32_of_float(value x) {
   CAMLreturn(f);
 }
 
-value cgen_float_of_float32(value x) {
-  return caml_copy_double(Float_val(x));
-}
+value cgen_float_of_float32(value x) { return caml_copy_double(Float_val(x)); }
 
-value cgen_float32_is_zero(value x) {
-  return Val_bool(Float_val(x) == 0.0f);
-}
+value cgen_float32_is_zero(value x) { return Val_bool(Float_val(x) == 0.0f); }
 
-value cgen_float32_is_inf(value x) {
-  return Val_bool(isinf(Float_val(x)));
-}
+value cgen_float32_is_inf(value x) { return Val_bool(isinf(Float_val(x))); }
 
 value cgen_float32_is_negative(value x) {
   return Val_bool(signbit(Float_val(x)));
 }
 
-value cgen_float32_is_nan(value x) {
-  return Val_bool(isnan(Float_val(x)));
+value cgen_float32_is_nan(value x) { return Val_bool(isnan(Float_val(x))); }
+
+value cgen_float32_is_unordered(value x, value y) {
+  return Val_bool(isunordered(Float_val(x), Float_val(y)));
 }
 
 value cgen_float32_add(value x, value y) {
@@ -110,13 +106,9 @@ value cgen_bits_of_float32(value x) {
   return caml_copy_int32(i);
 }
 
-value cgen_int8_of_float32(value x) {
-  return Val_int((int8_t)Float_val(x));
-}
+value cgen_int8_of_float32(value x) { return Val_int((int8_t)Float_val(x)); }
 
-value cgen_int16_of_float32(value x) {
-  return Val_int((int16_t)Float_val(x));
-}
+value cgen_int16_of_float32(value x) { return Val_int((int16_t)Float_val(x)); }
 
 value cgen_int32_of_float32(value x) {
   return caml_copy_int32((int32_t)Float_val(x));
@@ -126,9 +118,7 @@ value cgen_int64_of_float32(value x) {
   return caml_copy_int64((int8_t)Float_val(x));
 }
 
-value cgen_uint8_of_float32(value x) {
-  return Val_int((uint8_t)Float_val(x));
-}
+value cgen_uint8_of_float32(value x) { return Val_int((uint8_t)Float_val(x)); }
 
 value cgen_uint16_of_float32(value x) {
   return Val_int((uint16_t)Float_val(x));

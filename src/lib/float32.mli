@@ -132,3 +132,11 @@ val (>=) : t -> t -> bool
 val (>) : t -> t -> bool
 val (<=) : t -> t -> bool
 val (<) : t -> t -> bool
+
+(** [is_ordered x y] returns [true] if the comparison between [x] and [y]
+    is ordered. *)
+val is_ordered : t -> t -> bool
+
+(** [is_unordered x y] returns [true] if the comparison between [x] and [y]
+    is unordered. *)
+val is_unordered : t -> t -> bool

@@ -59,6 +59,10 @@ external (<)  : t -> t -> bool = "cgen_float32_lt"
 
 let compare x y = if x = y then 0 else if x < y then -1 else 1
 
+external is_unordered : t -> t -> bool = "cgen_float32_isunordered"
+
+let is_ordered x y = not @@ is_unordered x y
+
 let sexp_of_t x = Sexp.Atom (to_string x)
 
 let t_of_sexp = function
