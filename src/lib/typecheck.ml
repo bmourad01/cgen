@@ -103,7 +103,7 @@ let max_i32 = Bitvec.of_string "0xffffffff"
 let max_i64 = Bitvec.of_string "0xffffffffffffffff"
 
 let max_of_imm : Type.imm -> Bitvec.t = function
-  | `i8 -> max_i8
+  | `i8  -> max_i8
   | `i16 -> max_i16
   | `i32 -> max_i32
   | `i64 -> max_i64
