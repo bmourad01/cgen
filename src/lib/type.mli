@@ -89,6 +89,25 @@ type compound = [
   | `compound of string * int option * field list
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+(** [sizeof_compound gamma c] returns the size of the compound
+    data type [c] in bits.
+
+    A function [gamma] is provided to resolve the layout of
+    fields [`name n] which refer to other compound types.
+    Each field of the layout must conform to the specified
+    alignment of the type, e.g.:
+
+    {v type :t = align 4 { w 4, b 1 } v}
+
+    becomes:
+
+    {v [`i32; `i32; `i32; `i32; `i32] v}
+
+    With the [b 1] field being promoted to the specified
+    alignment of [:t].
+*)
+val sizeof_compound : (string -> basic list) -> compound -> int
+
 (** Pretty-prints a compound type (without the name). *)
 val pp_compound : Format.formatter -> compound -> unit
 

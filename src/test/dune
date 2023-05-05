@@ -1,0 +1,5 @@
+(tests
+ (names test_type)
+ (libraries ounit2 cgen)
+ (flags -w -58)
+ (ocamlopt_flags -O3))

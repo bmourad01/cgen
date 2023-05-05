@@ -70,6 +70,26 @@ type compound = [
   | `compound of string * int option * field list
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+let padding off align = (align - off mod align) mod align
+
+let sizeof_compound gamma : compound -> int = function
+  | `compound (_, align, []) -> 8 * Option.value align ~default:0
+  | `compound (_, align, fields) ->
+    let sizes = List.concat_map fields ~f:(function
+        | `elt (t, n) ->
+          let s = sizeof_basic t in
+          List.init n ~f:(fun _ -> s)
+        | `name s -> gamma s |> List.map ~f:sizeof_basic) in
+    let align = match align with
+      | Some align -> align * 8
+      | None -> List.max_elt sizes ~compare |> Option.value_exn in
+    let off, total = List.fold sizes ~init:(0, 0) ~f:(fun (off, total) fsize ->
+        let pad = padding off align in
+        let off = off + fsize + pad in
+        let total = total + fsize + pad in
+        off, total) in
+    total + padding off align
+
 let pp_compound ppf : compound -> unit = function
   | `compound (_, align, fields) ->
     let pp_sep ppf () = Format.fprintf ppf ",@;" in
