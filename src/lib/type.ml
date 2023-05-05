@@ -78,7 +78,7 @@ type datum = [
 let sizeof_layout : datum list -> int =
   List.fold ~init:0 ~f:(fun sz -> function
       | `full t -> sz + sizeof_basic t
-      | `pad (t, n) -> sz + + sizeof_basic t + n * 8)
+      | `pad (t, n) -> sz + sizeof_basic t + n * 8)
 
 let padding off align = (align - off mod align) mod align
 
