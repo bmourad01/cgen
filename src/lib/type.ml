@@ -70,25 +70,51 @@ type compound = [
   | `compound of string * int option * field list
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+type datum = [
+  | `full of basic
+  | `pad of basic * int
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+let sizeof_layout : datum list -> int =
+  List.fold ~init:0 ~f:(fun sz -> function
+      | `full t -> sz + sizeof_basic t
+      | `pad (t, n) -> sz + + sizeof_basic t + n * 8)
+
 let padding off align = (align - off mod align) mod align
 
-let sizeof_compound gamma : compound -> int = function
-  | `compound (_, align, []) -> 8 * Option.value align ~default:0
+let layout gamma : compound -> datum list = function
+  | `compound (_, _, []) -> []
+  | `compound (_, Some n, _) when n <= 0 ->
+    invalid_argf "Invalid alignment %d" n ()
   | `compound (_, align, fields) ->
-    let sizes = List.concat_map fields ~f:(function
+    let layout = List.concat_map fields ~f:(function
         | `elt (t, n) ->
-          let s = sizeof_basic t in
-          List.init n ~f:(fun _ -> s)
-        | `name s -> gamma s |> List.map ~f:sizeof_basic) in
+          let e = `full t in
+          List.init n ~f:(fun _ -> e)
+        | `name n -> gamma n) in
     let align = match align with
       | Some align -> align * 8
-      | None -> List.max_elt sizes ~compare |> Option.value_exn in
-    let off, total = List.fold sizes ~init:(0, 0) ~f:(fun (off, total) fsize ->
+      | None -> List.fold layout ~init:8 ~f:(fun align -> function
+          | `full t | `pad (t, _) -> max align @@ sizeof_basic t) in
+    let off, seq = List.fold layout ~init:(0, []) ~f:(fun (off, seq) elt ->
+        let fsize = match elt with
+          | `full t -> sizeof_basic t
+          | `pad (t, n) -> sizeof_basic t + n * 8 in
         let pad = padding off align in
         let off = off + fsize + pad in
-        let total = total + fsize + pad in
-        off, total) in
-    total + padding off align
+        let seq = match pad with
+          | 0 -> elt :: seq
+          | _ -> match elt with
+            | `full t -> `pad (t, pad / 8) :: seq
+            | `pad (t, n) -> `pad (t, n + pad / 8) :: seq in
+        off, seq) in
+    let seq = match padding off align with
+      | 0 -> seq
+      | n -> match seq with
+        | [] -> seq
+        | `full t :: rest -> `pad (t, n / 8) :: rest
+        | `pad (t, m) :: rest -> `pad (t, m + n / 8) :: rest in
+    List.rev seq
 
 let pp_compound ppf : compound -> unit = function
   | `compound (_, align, fields) ->

@@ -89,24 +89,30 @@ type compound = [
   | `compound of string * int option * field list
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** [sizeof_compound gamma c] returns the size of the compound
-    data type [c] in bits.
+(** An element of a compound data type's layout.
+
+    [`full t]: the element is strictly of type [t] with no
+    padding.
+
+    [`pad (t, n)]: the element is of type [t] with [n] bytes
+    of padding immediately thereafter.
+*)
+type datum = [
+  | `full of basic
+  | `pad of basic * int
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+(** Returns the size of the layout in bits. *)
+val sizeof_layout : datum list -> int
+
+(** [layout gamma c] derives the layout of the compound data
+    type [c].
 
     A function [gamma] is provided to resolve the layout of
-    fields [`name n] which refer to other compound types.
-    Each field of the layout must conform to the specified
-    alignment of the type, e.g.:
-
-    {v type :t = align 4 { w 4, b 1 } v}
-
-    becomes:
-
-    {v [`i32; `i32; `i32; `i32; `i32] v}
-
-    With the [b 1] field being promoted to the specified
-    alignment of [:t].
+    fields [`name n], where [n] refers to another compound
+    type.
 *)
-val sizeof_compound : (string -> basic list) -> compound -> int
+val layout : (string -> datum list) -> compound -> datum list
 
 (** Pretty-prints a compound type (without the name). *)
 val pp_compound : Format.formatter -> compound -> unit
