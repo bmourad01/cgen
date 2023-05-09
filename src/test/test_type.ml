@@ -10,12 +10,12 @@ let c1 : Type.compound = `compound ("c1", Some 4, [
 let c1_layout : Type.layout = {
   align = 4;
   data = [
-    `elt `i32;
-    `elt `i32;
-    `elt `i32;
-    `elt `i32;
-    `elt `i8;
-    `elt `i8;
+    `i32;
+    `i32;
+    `i32;
+    `i32;
+    `i8;
+    `i8;
     `pad 2;
   ];
 }
@@ -29,15 +29,15 @@ let c2 : Type.compound = `compound ("c2", None, [
 let c2_layout : Type.layout = {
   align = 4;
   data = [
-    `elt `i32;
-    `elt `i32;
-    `elt `i32;
-    `elt `i32;
-    `elt `i32;
-    `elt `i8;
-    `elt `i8;
+    `i32;
+    `i32;
+    `i32;
+    `i32;
+    `i32;
+    `i8;
+    `i8;
     `pad 2;
-    `elt `i16;
+    `i16;
     `pad 2;
   ];
 }

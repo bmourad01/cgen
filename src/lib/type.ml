@@ -71,12 +71,12 @@ type compound = [
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 type datum = [
-  | `elt of basic
+  | basic
   | `pad of int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_datum ppf : datum -> unit = function
-  | `elt t -> Format.fprintf ppf "%a" pp_basic t
+  | #basic as b -> Format.fprintf ppf "%a" pp_basic b
   | `pad n -> Format.fprintf ppf "%d" n
 
 type layout = {
@@ -90,7 +90,7 @@ let pp_layout ppf l =
     (Format.pp_print_list ~pp_sep pp_datum) l.data
 
 let sizeof_layout l = List.fold l.data ~init:0 ~f:(fun sz -> function
-    | `elt t -> sz + sizeof_basic t
+    | #basic as b -> sz + sizeof_basic b
     | `pad n -> sz + n * 8)
 
 let padding size align =
@@ -122,7 +122,7 @@ let layout gamma : compound -> layout = function
           let fdata, falign, fsize = match f with
             | `elt (t, c) ->
               let s = sizeof_basic t / 8 in
-              let d = List.init c ~f:(fun _ -> `elt t) in
+              let d = List.init c ~f:(fun _ -> (t :> datum)) in
               d, s, s * c
             | `name s -> match gamma s with
               | {align = a; _} when a <= 0 ->

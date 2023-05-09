@@ -89,14 +89,10 @@ type compound = [
   | `compound of string * int option * field list
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** An element of a compound data type's layout.
-
-    [`elt t]: a field of type [t]
-
-    [`pad n]: [n] bytes of padding
-*)
+(** An element of a compound data type's layout. It is either
+    a basic type, or a [`pad n], which is [n] bytes of padding. *)
 type datum = [
-  | `elt of basic
+  | basic
   | `pad of int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
