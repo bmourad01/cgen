@@ -97,18 +97,25 @@ let padding size align =
   let align' = align - 1 in
   ((size + align') land (lnot align')) - size
 
+(* pre: the list is accumulated in reverse *)
+let padded data = function
+  | 0 -> data | p -> `pad p :: data
+
+(* pre: the list is accumulated in reverse *)
+let coalesce =
+  let rec aux acc = function
+    | [] -> acc
+    | `pad a :: `pad b :: ds ->
+      aux acc @@ `pad (a + b) :: ds
+    | d :: ds -> aux (d :: acc) ds in
+  aux []
+
 let layout gamma : compound -> layout = function
   | `compound (s, Some n, _) when n <= 0 ->
     invalid_argf "Invalid alignment %d for type :%s" n s ()
   | `compound (_, Some n, []) -> {align = n; data = [`pad n]}
   | `compound (_, None, []) -> {align = 1; data = [`pad 1]}
   | `compound (_, align, fields) ->
-    let padded data = function
-      | 0 -> data
-      | p -> match data with
-        | [] -> [`pad p]
-        | `elt _ :: _ -> `pad p :: data
-        | `pad n :: ds -> `pad (p + n) :: ds in
     let data, align, size =
       let init = [], Option.value align ~default:1, 0 in
       List.fold fields ~init ~f:(fun (data, align, size) f ->
@@ -125,8 +132,7 @@ let layout gamma : compound -> layout = function
           let pad = padding size align in
           let data = List.rev_append fdata @@ padded data pad in
           data, align, size + pad + fsize) in
-    let pad = padding size align in
-    {align; data = List.rev @@ padded data pad}
+    {align; data = coalesce @@ padded data @@ padding size align}
 
 let pp_compound ppf : compound -> unit = function
   | `compound (_, align, fields) ->
