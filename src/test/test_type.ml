@@ -4,16 +4,21 @@ open Cgen
 
 let c1 : Type.compound = `compound ("c1", Some 4, [
     `elt (`i32, 4);
-    `elt (`i8, 1);
+    `elt (`i8, 2);
   ])
 
-let c1_layout : Type.datum list = [
-  `full `i32;
-  `full `i32;
-  `full `i32;
-  `full `i32;
-  `pad (`i8, 3);
-]
+let c1_layout : Type.layout = {
+  align = 4;
+  data = [
+    `elt `i32;
+    `elt `i32;
+    `elt `i32;
+    `elt `i32;
+    `elt `i8;
+    `elt `i8;
+    `pad 2;
+  ];
+}
 
 let c2 : Type.compound = `compound ("c2", None, [
     `elt (`i32, 1);
@@ -21,15 +26,21 @@ let c2 : Type.compound = `compound ("c2", None, [
     `elt (`i16, 1);
   ])
 
-let c2_layout : Type.datum list = [
-  `full `i32;
-  `full `i32;
-  `full `i32;
-  `full `i32;
-  `full `i32;
-  `pad (`i8, 3);
-  `pad (`i16, 2);
-]
+let c2_layout : Type.layout = {
+  align = 4;
+  data = [
+    `elt `i32;
+    `elt `i32;
+    `elt `i32;
+    `elt `i32;
+    `elt `i32;
+    `elt `i8;
+    `elt `i8;
+    `pad 2;
+    `elt `i16;
+    `pad 2;
+  ];
+}
 
 let gamma = function
   | "c1" -> c1_layout
@@ -43,9 +54,9 @@ let test_sizeof_compound (`compound (name, _, _) as t) ~expected =
   let l_expected = gamma name in
   let layout_msg = Format.asprintf
       "expected layout %a, got %a"
-      Sexp.pp_hum (sexp_of_layout l_expected)
-      Sexp.pp_hum (sexp_of_layout l) in
-  assert_bool layout_msg @@ List.equal Type.equal_datum l l_expected;
+      Type.pp_layout l_expected
+      Type.pp_layout l in
+  assert_bool layout_msg @@ Type.equal_layout l l_expected;
   let s = Type.sizeof_layout l in
   let size_msg = Format.asprintf
       "expected size %d in bits for type %a, got %d"

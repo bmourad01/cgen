@@ -64,7 +64,7 @@ val pp_basic : Format.formatter -> basic -> unit
     or the [`name n] of another compound type, whose name is
     [n].
 
-    A basic type [`elt (t, n)`] can specify how many instances
+    A basic type [`elt (t, n)] can specify how many instances
     [n] of the element occur in the field (akin to an inlined
     array of these elements). Note that [n <= 0] is illegal.
 *)
@@ -91,19 +91,34 @@ type compound = [
 
 (** An element of a compound data type's layout.
 
-    [`full t]: the element is strictly of type [t] with no
-    padding.
+    [`elt t]: a field of type [t]
 
-    [`pad (t, n)]: the element is of type [t] with [n] bytes
-    of padding immediately thereafter.
+    [`pad n]: [n] bytes of padding
 *)
 type datum = [
-  | `full of basic
-  | `pad of basic * int
+  | `elt of basic
+  | `pad of int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+(** Pretty-prints a datum. *)
+val pp_datum : Format.formatter -> datum -> unit
+
+(** The layout of a compound data type.
+
+    [align]: The data alignment, in bytes.
+
+    [data]: The data layout, including padding.
+*)
+type layout = {
+  align : int;
+  data  : datum list;
+} [@@deriving bin_io, compare, equal, hash, sexp]
+
 (** Returns the size of the layout in bits. *)
-val sizeof_layout : datum list -> int
+val sizeof_layout : layout -> int
+
+(** Pretty-prints a layout. *)
+val pp_layout : Format.formatter -> layout -> unit
 
 (** [layout gamma c] derives the layout of the compound data
     type [c].
@@ -112,7 +127,7 @@ val sizeof_layout : datum list -> int
     fields [`name n], where [n] refers to another compound
     type.
 *)
-val layout : (string -> datum list) -> compound -> datum list
+val layout : (string -> layout) -> compound -> layout
 
 (** Pretty-prints a compound type (without the name). *)
 val pp_compound : Format.formatter -> compound -> unit
