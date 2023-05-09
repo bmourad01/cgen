@@ -98,8 +98,8 @@ let padding size align =
   ((size + align') land (lnot align')) - size
 
 let layout gamma : compound -> layout = function
-  | `compound (_, Some n, _) when n <= 0 ->
-    invalid_argf "Invalid alignment %d" n ()
+  | `compound (s, Some n, _) when n <= 0 ->
+    invalid_argf "Invalid alignment %d for type :%s" n s ()
   | `compound (_, Some n, []) -> {align = n; data = [`pad n]}
   | `compound (_, None, []) -> {align = 1; data = [`pad 1]}
   | `compound (_, align, fields) ->
@@ -117,9 +117,10 @@ let layout gamma : compound -> layout = function
               let s = sizeof_basic t / 8 in
               let d = List.init c ~f:(fun _ -> `elt t) in
               d, s, s * c
-            | `name n ->
-              let l = gamma n in
-              l.data, l.align, sizeof_layout l / 8 in
+            | `name s -> match gamma s with
+              | {align = a; _} when a <= 0 ->
+                invalid_argf "Invalid alignment %d for type :%s" a s ()
+              | {align; data} as l -> data, align, sizeof_layout l / 8 in
           let align = max align falign in
           let pad = padding size align in
           let data = List.rev_append fdata @@ padded data pad in
