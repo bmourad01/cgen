@@ -101,8 +101,8 @@ module Env = struct
       | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
       | `Ok genv -> Ok {env with genv}
     with
-      | Invalid_argument msg
-      | Failure msg -> Or_error.errorf "%s" msg
+    | Invalid_argument msg
+    | Failure msg -> Or_error.errorf "%s" msg
 end
 
 type env = Env.t
@@ -733,16 +733,13 @@ let check_data d = Data.elts d |> M.Seq.iter ~f:(function
 
 module TG = Graphlib.Make(String)(Unit)
 
-let check_typ_cycles g env =
+let check_typ_cycles g =
   Graphlib.strong_components (module TG) g |>
   Partition.groups |> M.Seq.iter ~f:(fun grp ->
       match Seq.to_list @@ Group.enum grp with
       | [] -> !!()
       | [name] ->
-        let `compound (_, _, fields) = Map.find_exn env.Env.tenv name in
-        if List.exists fields ~f:(function
-            | `name n -> String.(name = n)
-            | `elt _ -> false)
+        if Seq.mem (TG.Node.succs name g) name ~equal:String.equal
         then M.fail @@ Error.createf "Cycle detected in type :%s" name
         else !!()
       | xs ->
@@ -765,7 +762,7 @@ let check_typs =
                 M.fail @@ Error.createf
                   "Undeclared type field :%s in type :%s"
                   n name)) in
-  let* () = check_typ_cycles g env in
+  let* () = check_typ_cycles g in
   (* Fill gamma, now that we know there is a topological ordering. *)
   let* env =
     Graphlib.postorder_traverse (module TG) g |>

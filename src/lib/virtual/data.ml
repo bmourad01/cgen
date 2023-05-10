@@ -33,7 +33,7 @@ let create_exn
   match Array.of_list elts with
   | [||] -> invalid_argf "Cannot create empty data %s" name ()
   | elts ->
-     Option.iter align ~f:(function
+    Option.iter align ~f:(function
         | n when n < 1 ->
           invalid_argf "In data $%s: invalid alignment %d" name n ()
         | _ -> ());
