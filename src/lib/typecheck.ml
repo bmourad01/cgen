@@ -734,29 +734,20 @@ let check_data d = Data.elts d |> M.Seq.iter ~f:(function
 module TG = Graphlib.Make(String)(Unit)
 
 let check_typ_cycles g env =
-  let single, cycle =
-    Graphlib.strong_components (module TG) g |>
-    Partition.groups |>
-    Seq.map ~f:Group.enum |>
-    Seq.map ~f:Seq.to_list |>
-    Seq.filter ~f:(Fn.non List.is_empty) |>
-    Seq.to_list |> List.partition_tf ~f:(function
-        | [_] -> true | _ -> false) in
-  (* General case. *)
-  let* () = match cycle with
-    | [] -> !!()
-    | x :: _ ->
-      M.fail @@ Error.createf "Cycle detected in types %s" @@
-      List.to_string ~f:(fun s -> ":" ^ s) x in
-  (* Self-referential. *)
-  let is_cycle s = function
-    | `name n -> String.(s = n)
-    | `elt _ -> false in
-  List.concat single |> M.List.iter ~f:(fun name ->
-      let `compound (_, _, fields) = Map.find_exn env.Env.tenv name in
-      if List.exists fields ~f:(is_cycle name)
-      then M.fail @@ Error.createf "Cycle detected in type :%s" name
-      else !!())
+  Graphlib.strong_components (module TG) g |>
+  Partition.groups |> M.Seq.iter ~f:(fun grp ->
+      match Seq.to_list @@ Group.enum grp with
+      | [] -> !!()
+      | [name] ->
+        let `compound (_, _, fields) = Map.find_exn env.Env.tenv name in
+        if List.exists fields ~f:(function
+            | `name n -> String.(name = n)
+            | `elt _ -> false)
+        then M.fail @@ Error.createf "Cycle detected in type :%s" name
+        else !!()
+      | xs ->
+        M.fail @@ Error.createf "Cycle detected in types %s" @@
+        List.to_string ~f:(fun s -> ":" ^ s) xs)
 
 let check_typs =
   let* env = M.get () in
