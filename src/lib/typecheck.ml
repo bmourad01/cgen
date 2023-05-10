@@ -87,16 +87,22 @@ module Env = struct
       Ok {env with venv}
     with Unify_fail t' -> unify_fail t t' v fn
 
-  let gamma env = fun name -> match Map.find env.genv name with
-    | None -> invalid_argf "Type :%s not found in gamma" name ()
-    | Some l -> l
+  let layout name env = match Map.find env.genv name with
+    | None -> Or_error.errorf "Type :%s not found in gamma" name
+    | Some l -> Ok l
 
-  let add_gamma t env =
+  let add_layout t env =
     let name = match t with
       | `compound (name, _, _) -> name in
-    match Map.add env.genv ~key:name ~data:(Type.layout (gamma env) t) with
-    | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
-    | `Ok genv -> Ok {env with genv}
+    let gamma name = match layout name env with
+      | Error err -> failwithf "%s" (Error.to_string_hum err) ()
+      | Ok l -> l in
+    try match Map.add env.genv ~key:name ~data:(Type.layout gamma t) with
+      | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
+      | `Ok genv -> Ok {env with genv}
+    with
+      | Invalid_argument msg
+      | Failure msg -> Or_error.errorf "%s" msg
 end
 
 type env = Env.t
@@ -771,7 +777,7 @@ let check_typs =
     Graphlib.postorder_traverse (module TG) g |>
     M.Seq.fold ~init:env ~f:(fun env name ->
         let t = Map.find_exn env.tenv name in
-        M.lift_err @@ Env.add_gamma t env) in
+        M.lift_err @@ Env.add_layout t env) in
   M.put env
 
 let check m =
