@@ -3,23 +3,15 @@ open Regular.Std
 open Common
 
 type elt = [
-  | `basic  of Type.basic * const list
+  | const
   | `string of string
   | `zero   of int
-  | `sym    of string * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_elt ppf : elt -> unit = function
-  | `basic (t, cs) ->
-    let pp_sep ppf () = Format.fprintf ppf " " in
-    Format.fprintf ppf "%a %a"
-      Type.pp_basic t
-      (Format.pp_print_list ~pp_sep pp_const) cs
-  | `string s -> Format.fprintf ppf "%a \"%s\"" Type.pp_basic `i8 s
+  | #const as c -> Format.fprintf ppf "%a" pp_const c
+  | `string s -> Format.fprintf ppf "\"%s\"" s
   | `zero n -> Format.fprintf ppf "z %d" n
-  | `sym (s, 0) -> Format.fprintf ppf "$%s" s
-  | `sym (s, n) when n > 0 -> Format.fprintf ppf "$%s+0x%x" s n
-  | `sym (s, n) -> Format.fprintf ppf "$%s-0x%x" s (lnot n + 1)
 
 module T = struct
   type t = {
@@ -41,12 +33,7 @@ let create_exn
   match Array.of_list elts with
   | [||] -> invalid_argf "Cannot create empty data %s" name ()
   | elts ->
-    Array.iter elts ~f:(function
-        | `basic (t, []) -> invalid_arg @@ Format.asprintf
-            "In data $%s: `basic field of type %a is uninitialized"
-            name Type.pp_basic t
-        | _ -> ());
-    Option.iter align ~f:(function
+     Option.iter align ~f:(function
         | n when n < 1 ->
           invalid_argf "In data $%s: invalid alignment %d" name n ()
         | _ -> ());
@@ -72,8 +59,10 @@ let typeof d target =
   let name = Format.sprintf "%s_t" d.name in
   let fields = Array.fold_right d.elts ~init:[] ~f:(fun elt fields ->
       let t = match elt with
-        | `basic (t, cs) -> `elt (t, List.length cs)
-        | `string s -> `elt (`i8, String.length s)
+        | `int (_, t) -> `elt ((t :> Type.basic), 1)
+        | `float _ -> `elt (`f32, 1)
+        | `double _ -> `elt (`f64, 1)
+        | `string s -> `elt (`i8, String.length s + 1)
         | `zero n -> `elt (`i8, n)
         | `sym _ -> `elt (word, 1) in
       t :: fields) in

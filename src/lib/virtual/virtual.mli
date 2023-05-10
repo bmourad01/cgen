@@ -855,25 +855,18 @@ type live = Live.t
 
 (** A struct of data. *)
 module Data : sig
-  (** An element of the struct.
-
-      [`basic (t, cs)] is a list of constants [cs] of type [t]. Note that it
-      is illegal for [cs] to be empty. That is, all data must be initialized.
+  (** An element of the struct. It can be a [const], or one of the following:
 
       [`string s] is an instance of a string [s], represented as an array
       of bytes.
 
       [`zero n] is a zero-initialized array of [n] bytes. Note that [n <= 0]
       is illegal.
-
-      [`sym (s, off)] is a pointer to a symbol [s] with offset [off]. It is
-      implicitly the size returned by [Target.word].
   *)
   type elt = [
-    | `basic  of Type.basic * const list
+    | const
     | `string of string
     | `zero   of int
-    | `sym    of string * int
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints an element of the struct. *)
