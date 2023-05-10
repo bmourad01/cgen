@@ -32,6 +32,10 @@ module Env : sig
 
   (** The type of a variable in a given function. *)
   val typeof_var : func -> Var.t -> t -> Type.t Or_error.t
+
+  (** Returns the [gamma] function for computing the layouts
+      of compound types. *)
+  val gamma : t -> (string -> Type.layout)
 end
 
 type env = Env.t

@@ -14,6 +14,7 @@ module Env = struct
     fenv   : Type.proto String.Map.t;
     tenv   : Type.compound String.Map.t;
     venv   : Type.t Var.Map.t String.Map.t;
+    genv   : Type.layout String.Map.t;
   }
 
   let create target = {
@@ -22,6 +23,7 @@ module Env = struct
     fenv = String.Map.empty;
     tenv = String.Map.empty;
     venv = String.Map.empty;
+    genv = String.Map.empty;
   }
 
   let target t = t.target
@@ -29,8 +31,8 @@ module Env = struct
   let add_data d env =
     let name = Data.name d in
     match Map.add env.denv ~key:name ~data:(Data.typeof d env.target) with
-    | `Ok denv -> Ok {env with denv}
     | `Duplicate -> Or_error.errorf "Redefinition of data %s" name
+    | `Ok denv -> Ok {env with denv}
 
   (* If we don't have the data defined in the module, then assume it is
      external (i.e. it is linked with our program a posteriori), and that
@@ -40,8 +42,8 @@ module Env = struct
   let add_fn fn env =
     let name = Func.name fn in
     match Map.add env.fenv ~key:name ~data:(Func.typeof fn) with
-    | `Ok fenv -> Ok {env with fenv}
     | `Duplicate -> Or_error.errorf "Redefinition of function %s" name
+    | `Ok fenv -> Ok {env with fenv}
 
   (* If we don't have the function defined in the module, then assume
      it is external (i.e. it is linked with our program a posteriori),
@@ -52,8 +54,8 @@ module Env = struct
     let name = match t with
       | `compound (name, _, _) -> name in
     match Map.add env.tenv ~key:name ~data:t with
-    | `Ok tenv -> Ok {env with tenv}
     | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
+    | `Ok tenv -> Ok {env with tenv}
 
   let typeof_typ name env = match Map.find env.tenv name with
     | None -> Or_error.errorf "Undefined type %s" name
@@ -84,6 +86,17 @@ module Env = struct
               | None -> t)) in
       Ok {env with venv}
     with Unify_fail t' -> unify_fail t t' v fn
+
+  let gamma env = fun name -> match Map.find env.genv name with
+    | None -> invalid_argf "Type :%s not found in gamma" name ()
+    | Some l -> l
+
+  let add_gamma t env =
+    let name = match t with
+      | `compound (name, _, _) -> name in
+    match Map.add env.genv ~key:name ~data:(Type.layout (gamma env) t) with
+    | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
+    | `Ok genv -> Ok {env with genv}
 end
 
 type env = Env.t
@@ -718,32 +731,57 @@ let check_data d = Data.elts d |> M.Seq.iter ~f:(function
       invalid_elt d (elt :> Data.elt)
         "argument must be greater than 0")
 
+module TG = Graphlib.Make(String)(Unit)
+
+let check_typ_cycles g env =
+  let single, cycle =
+    Graphlib.strong_components (module TG) g |>
+    Partition.groups |>
+    Seq.map ~f:Group.enum |>
+    Seq.map ~f:Seq.to_list |>
+    Seq.filter ~f:(Fn.non List.is_empty) |>
+    Seq.to_list |> List.partition_tf ~f:(function
+        | [_] -> true | _ -> false) in
+  (* General case. *)
+  let* () = match cycle with
+    | [] -> !!()
+    | x :: _ ->
+      M.fail @@ Error.createf "Cycle detected in types %s" @@
+      List.to_string ~f:(fun s -> ":" ^ s) x in
+  (* Self-referential. *)
+  let is_cycle s = function
+    | `name n -> String.(s = n)
+    | `elt _ -> false in
+  List.concat single |> M.List.iter ~f:(fun name ->
+      let `compound (_, _, fields) = Map.find_exn env.Env.tenv name in
+      if List.exists fields ~f:(is_cycle name)
+      then M.fail @@ Error.createf "Cycle detected in type :%s" name
+      else !!())
+
 let check_typs =
-  let* {Env.tenv; _} = M.get () in
-  let module G = Graphlib.Make(String)(Unit) in
-  let pp ppf = Format.fprintf ppf ":%s" in
-  let pp_sep ppf () = Format.fprintf ppf ",@;" in
+  let* env = M.get () in
   (* Construct the graph and also check for undeclared type names. *)
-  let* g = Map.data tenv |> M.List.fold ~init:G.empty ~f:(fun g -> function
-      | `compound (name, _, fields) ->
-        let init = G.Node.insert name g in
-        M.List.fold fields ~init ~f:(fun g -> function
-            | `elt _ -> !!g
-            | `name n when Map.mem tenv n ->
-              !!G.Edge.(insert (create name n ()) g)
-            | `name n ->
-              M.fail @@ Error.createf
-                "Undeclared type field :%s in type :%s"
-                n name)) in
-  (* Check for cycles. *)
-  Graphlib.strong_components (module G) g |>
-  Partition.groups |> M.Seq.iter ~f:(fun grp ->
-      match Seq.to_list @@ Group.enum grp with
-      | [] | [_] -> !!()
-      | grp ->
-        M.fail @@ Error.of_string @@
-        Format.asprintf "Cycle detected in types %a"
-          (Format.pp_print_list ~pp_sep pp) grp)
+  let* g =
+    Map.data env.tenv |>
+    M.List.fold ~init:TG.empty ~f:(fun g -> function
+        | `compound (name, _, fields) ->
+          let init = TG.Node.insert name g in
+          M.List.fold fields ~init ~f:(fun g -> function
+              | `elt _ -> !!g
+              | `name n when Map.mem env.tenv n ->
+                !!TG.Edge.(insert (create name n ()) g)
+              | `name n ->
+                M.fail @@ Error.createf
+                  "Undeclared type field :%s in type :%s"
+                  n name)) in
+  let* () = check_typ_cycles g env in
+  (* Fill gamma, now that we know there is a topological ordering. *)
+  let* env =
+    Graphlib.postorder_traverse (module TG) g |>
+    M.Seq.fold ~init:env ~f:(fun env name ->
+        let t = Map.find_exn env.tenv name in
+        M.lift_err @@ Env.add_gamma t env) in
+  M.put env
 
 let check m =
   let* () = add_typs m in
