@@ -42,8 +42,8 @@ let insert_fn m fn = {
 }
 
 let remove_type m name = {
-  m with typs = Array.remove_if m.typs ~f:(function
-    | `compound (n, _, _) -> String.(n = name))
+  m with typs = Array.remove_if m.typs ~f:(fun c ->
+    String.equal name @@ Type.compound_name c);
 }
 
 let remove_data m name = {

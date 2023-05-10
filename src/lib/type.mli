@@ -60,40 +60,52 @@ val sizeof_basic : basic -> int
 (** Pretty-prints a basic type. *)
 val pp_basic : Format.formatter -> basic -> unit
 
-(** A field of a compound type, which is either a basic type,
-    or the [`name n] of another compound type, whose name is
-    [n].
+(** A field of a compound type, which is either a basic type
+    [`elt (t, n)] or the [`name (s, n)] of another compound
+    type, whose name is [s].
 
-    A basic type [`elt (t, n)] can specify how many instances
-    [n] of the element occur in the field (akin to an inlined
-    array of these elements). Note that [n <= 0] is illegal.
+    In both cases, [n] refers to how many instances of the
+    element occur in the field (akin to an inlined array of
+    these elements). Note that [n <= 0] is illegal.
 *)
 type field = [
-  | `elt  of basic * int
-  | `name of string
+  | `elt  of basic  * int
+  | `name of string * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty-prints a field. *)
 val pp_field : Format.formatter -> field -> unit
 
-(** A compound data type, consisting of a name, an optional
-    alignment (in bytes), and a list of fields.
+(** A [`compound (name, align, fields)] data type, consisting of
+    a [name], an optional [align]ment (in bytes), and a list of
+    [fields].
 
     An alignment [Some n] will indicate that the fields of the
     type are aligned by [n] bytes. Note that [n <= 0] is illegal.
 
     If no alignment is specified, then the fields of the type
     are aligned by the size of their largest member.
+
+    An [`opaque (name, align, n)] data type requires an [align]ment.
+    It is intended to describe [n] bytes of opaque data whose internal
+    structure is unspecified.
 *)
 type compound = [
   | `compound of string * int option * field list
+  | `opaque   of string * int * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+(** Convenience function to get the name of a compound type. *)
+val compound_name : compound -> string
+
 (** An element of a compound data type's layout. It is either
-    a basic type, or a [`pad n], which is [n] bytes of padding. *)
+    a basic type, a [`pad n], which is [n] bytes of padding,
+    or an [`opaque n], which is [n] bytes of opaque data (and
+    is semantically distinct from padding). *)
 type datum = [
   | basic
   | `pad of int
+  | `opaque of int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty-prints a datum. *)
@@ -122,6 +134,8 @@ val pp_layout : Format.formatter -> layout -> unit
     A function [gamma] is provided to resolve the layout of
     fields [`name n], where [n] refers to another compound
     type.
+
+    @raise Invalid_argument if [c] is not well-formed.
 *)
 val layout : (string -> layout) -> compound -> layout
 

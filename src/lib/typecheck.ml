@@ -51,8 +51,7 @@ module Env = struct
   let typeof_fn name env = Map.find env.fenv name
 
   let add_typ (t : Type.compound) env =
-    let name = match t with
-      | `compound (name, _, _) -> name in
+    let name = Type.compound_name t in
     match Map.add env.tenv ~key:name ~data:t with
     | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
     | `Ok tenv -> Ok {env with tenv}
@@ -91,9 +90,8 @@ module Env = struct
     | None -> Or_error.errorf "Type :%s not found in gamma" name
     | Some l -> Ok l
 
-  let add_layout t env =
-    let name = match t with
-      | `compound (name, _, _) -> name in
+  let add_layout (t : Type.compound) env =
+    let name = Type.compound_name t in
     let gamma name = match layout name env with
       | Error err -> failwithf "%s" (Error.to_string_hum err) ()
       | Ok l -> l in
@@ -752,13 +750,14 @@ let check_typs =
   let* g =
     Map.data env.tenv |>
     M.List.fold ~init:TG.empty ~f:(fun g -> function
+        | `opaque (name, _, _) -> !!(TG.Node.insert name g)
         | `compound (name, _, fields) ->
           let init = TG.Node.insert name g in
           M.List.fold fields ~init ~f:(fun g -> function
               | `elt _ -> !!g
-              | `name n when Map.mem env.tenv n ->
+              | `name (n, _) when Map.mem env.tenv n ->
                 !!TG.Edge.(insert (create name n ()) g)
-              | `name n ->
+              | `name (n, _) ->
                 M.fail @@ Error.createf
                   "Undeclared type field :%s in type :%s"
                   n name)) in

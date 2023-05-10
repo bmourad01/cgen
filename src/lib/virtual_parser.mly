@@ -140,6 +140,7 @@
 %type <Virtual.Data.elt> data_elt
 %type <Type.compound> typ
 %type <int> align
+%type <[`opaque of int | `fields of Type.field list]> typ_fields_or_opaque
 %type <Type.field> typ_field
 %type <Virtual.func m> func
 %type <((Var.t * Type.arg) list * bool) m> func_args
@@ -209,15 +210,25 @@ data_elt:
   | Z n = NUM { `zero n }
 
 typ:
-  | TYPE name = TYPENAME EQUALS align = option(align) LBRACE fields = separated_nonempty_list(COMMA, typ_field) RBRACE
-    { `compound (name, align, fields) }
+  | TYPE name = TYPENAME EQUALS LBRACE fields = separated_nonempty_list(COMMA, typ_field) RBRACE
+    { `compound (name, None, fields) }
+  | TYPE name = TYPENAME EQUALS align = align LBRACE t = typ_fields_or_opaque RBRACE
+    {
+      match t with
+      | `opaque n -> `opaque (name, align, n)
+      | `fields f -> `compound (name, Some align, f)
+    }
 
 align:
   | ALIGN n = NUM { n }
 
+typ_fields_or_opaque:
+  | n = NUM { `opaque n }
+  | fs = separated_nonempty_list(COMMA, typ_field) { `fields fs }
+
 typ_field:
   | b = type_basic n = option(NUM) { `elt (b, Core.Option.value n ~default:1) }
-  | n = TYPENAME { `name n }
+  | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value n ~default:1) }
 
 func:
   | l = option(linkage) FUNCTION return = option(type_basic) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE

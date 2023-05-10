@@ -22,7 +22,7 @@ let c1_layout : Type.layout = {
 
 let c2 : Type.compound = `compound ("c2", None, [
     `elt (`i32, 1);
-    `name "c1";
+    `name ("c1", 1);
     `elt (`i16, 1);
   ])
 
@@ -49,8 +49,9 @@ let gamma = function
 
 let sexp_of_layout l = Sexp.List (List.map l ~f:Type.sexp_of_datum)
 
-let test_sizeof_compound (`compound (name, _, _) as t) ~expected =
+let test_sizeof_compound (t : Type.compound) ~expected =
   let l = Type.layout gamma t in
+  let name = Type.compound_name t in
   let l_expected = gamma name in
   let layout_msg = Format.asprintf
       "expected layout %a, got %a"

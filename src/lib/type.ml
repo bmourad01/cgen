@@ -57,27 +57,35 @@ let pp_basic ppf : basic -> unit = function
   | #fp  as f -> Format.fprintf ppf "%a" pp_fp f
 
 type field = [
-  | `elt  of basic * int
-  | `name of string
+  | `elt  of basic  * int
+  | `name of string * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_field ppf : field -> unit = function
-  | `elt (t, 1) -> Format.fprintf ppf "%a" pp_basic t
-  | `elt (t, n) -> Format.fprintf ppf "%a %d" pp_basic t n
-  | `name s     -> Format.fprintf ppf ":%s" s
+  | `elt  (t, 1) -> Format.fprintf ppf "%a" pp_basic t
+  | `elt  (t, n) -> Format.fprintf ppf "%a %d" pp_basic t n
+  | `name (s, 1) -> Format.fprintf ppf ":%s" s
+  | `name (s, n) -> Format.fprintf ppf ":%s %d" s n
 
 type compound = [
   | `compound of string * int option * field list
+  | `opaque   of string * int * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
+
+let compound_name : compound -> string = function
+  | `compound (s, _, _)
+  | `opaque (s, _, _) -> s
 
 type datum = [
   | basic
-  | `pad of int
+  | `pad    of int
+  | `opaque of int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_datum ppf : datum -> unit = function
-  | #basic as b -> Format.fprintf ppf "%a" pp_basic b
-  | `pad n -> Format.fprintf ppf "%d" n
+  | #basic as b -> Format.fprintf ppf "%a"  pp_basic b
+  | `pad n      -> Format.fprintf ppf "%d"  n
+  | `opaque n   -> Format.fprintf ppf "?%d" n
 
 type layout = {
   align : int;
@@ -91,7 +99,7 @@ let pp_layout ppf l =
 
 let sizeof_layout l = List.fold l.data ~init:0 ~f:(fun sz -> function
     | #basic as b -> sz + sizeof_basic b
-    | `pad n -> sz + n * 8)
+    | `pad n | `opaque n -> sz + n * 8)
 
 let padding size align =
   let align' = align - 1 in
@@ -107,27 +115,39 @@ let coalesce =
     | [] -> acc
     | `pad a :: `pad b :: ds ->
       aux acc @@ `pad (a + b) :: ds
+    | `opaque a :: `opaque b :: ds ->
+      aux acc @@ `opaque (a + b) :: ds
     | d :: ds -> aux (d :: acc) ds in
   aux []
 
 let layout gamma : compound -> layout = function
-  | `compound (s, Some n, _) when n <= 0 ->
+  | `opaque (s, n, _) | `compound (s, Some n, _) when n <= 0 ->
     invalid_argf "Invalid alignment %d for type :%s" n s ()
+  | `opaque (s, _, n) when n < 0 ->
+    invalid_argf "Invalid number of bytes %d for opaque type :%s" n s ()
+  | `opaque (_, align, 0) -> {align; data = [`pad align]}
+  | `opaque (_, align, n) ->
+    {align; data = padded [`opaque n] @@ padding n align}
   | `compound (_, Some n, []) -> {align = n; data = [`pad n]}
   | `compound (_, None, []) -> {align = 1; data = [`pad 1]}
-  | `compound (_, align, fields) ->
+  | `compound (name, align, fields) ->
     let data, align, size =
       let init = [], Option.value align ~default:1, 0 in
       List.fold fields ~init ~f:(fun (data, align, size) f ->
           let fdata, falign, fsize = match f with
+            | `elt (_, c) | `name (_, c) when c <= 0 ->
+              invalid_argf "Invalid field %s for type :%s"
+                (Format.asprintf "%a" pp_field f) name ()
             | `elt (t, c) ->
               let s = sizeof_basic t / 8 in
               let d = List.init c ~f:(fun _ -> (t :> datum)) in
               d, s, s * c
-            | `name s -> match gamma s with
+            | `name (s, c) -> match gamma s with
               | {align = a; _} when a <= 0 ->
                 invalid_argf "Invalid alignment %d for type :%s" a s ()
-              | {align; data} as l -> data, align, sizeof_layout l / 8 in
+              | {align; data} as l ->
+                let data = List.init c ~f:(fun _ -> data) |> List.concat in
+                data, align, (sizeof_layout l / 8) * c in
           let align = max align falign in
           let pad = padding size align in
           let data = List.rev_append fdata @@ padded data pad in
@@ -140,6 +160,8 @@ let pp_compound ppf : compound -> unit = function
     Option.iter align ~f:(Format.fprintf ppf "align %d ");
     Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
       (Format.pp_print_list ~pp_sep pp_field) fields
+  | `opaque (_, align, n) ->
+    Format.fprintf ppf "align %d {%d}" align n
 
 let pp_compound_decl ppf : compound -> unit = function
   | `compound (name, align, fields) ->
@@ -148,6 +170,8 @@ let pp_compound_decl ppf : compound -> unit = function
     Option.iter align ~f:(Format.fprintf ppf "align %d ");
     Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
       (Format.pp_print_list ~pp_sep pp_field) fields
+  | `opaque (name, align, n) ->
+    Format.fprintf ppf "type :%s = align %d {%d}" name align n
 
 type special = [
   | `mem 

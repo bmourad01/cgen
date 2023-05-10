@@ -168,11 +168,11 @@ let update_ins fn cfg l x init =
 
 let blk_arg env fn x = match Typecheck.Env.typeof_var fn x env with
   | Error err -> raise @@ Type_error err
-  | Ok `compound (name, _, _) ->
+  | Ok (#Type.compound as c) ->
     let err = Error.createf
         "Cannot have block argument for variable %a \
          of type :%s in function %s" Var.pps x
-        name @@ Func.name fn in
+        (Type.compound_name c) (Func.name fn) in
     raise @@ Type_error err
   | Ok ((#Type.basic | #Type.special) as t) ->
     x, (t :> Blk.arg_typ)
