@@ -112,6 +112,9 @@ rule token = parse
   | "rol" '.' (imm as t) { ROL (imm_of_char t) }
   | "ror" '.' (imm as t) { ROR (imm_of_char t) }
   | "xor" '.' (imm as t) { XOR (imm_of_char t) }
+  | "clz" '.' (imm as t) { CLZ (imm_of_char t) }
+  | "ctz" '.' (imm as t) { CTZ (imm_of_char t) }
+  | "popcnt" '.' (imm as t) { POPCNT (imm_of_char t) }
   | "not" '.' (imm as t) { NOT (imm_of_char t) }
   | "alloc" { ALLOC }
   | "ld" '.' (basic as t) { LOAD (basic_of_char t) }

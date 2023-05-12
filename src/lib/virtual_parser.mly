@@ -106,7 +106,7 @@
 %token <Type.basic> BITS
 %token <Type.fp * Type.imm> FTOSI FTOUI
 %token <Type.fp> FEXT FTRUNC
-%token <Type.imm> ITRUNC SEXT ZEXT
+%token <Type.imm> CLZ CTZ ITRUNC POPCNT SEXT ZEXT
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL ACALL
 %token CALL
@@ -463,11 +463,14 @@ insn_bitwise_unop:
 
 insn_cast:
   | t = BITS { `bits t }
+  | t = CLZ { `clz t }
+  | t = CTZ { `ctz t }
   | t = FEXT { `fext t }
   | t = FTOSI { `ftosi (fst t, snd t) }
   | t = FTOUI { `ftoui (fst t, snd t) }
   | t = FTRUNC { `ftrunc t }
   | t = ITRUNC { `itrunc t }
+  | t = POPCNT { `popcnt t }
   | t = SEXT { `sext t }
   | t = SITOF { `sitof (fst t, snd t) }
   | t = UITOF { `uitof (fst t, snd t) }

@@ -298,6 +298,9 @@ let unify_fext_fail fn blk l t a =
 
 let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
   | `bits t -> !!t
+  | `clz t | `ctz t | `popcnt t ->
+    let+ () = unify_arg fn blk l ta a (t :> Type.t) in
+    (t :> Type.basic)
   | `fext t ->
     let+ () = match t, ta with
       | `f64, `f64

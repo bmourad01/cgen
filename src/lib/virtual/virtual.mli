@@ -168,7 +168,7 @@ module Insn : sig
       [`not_ t]: bitwise complement (NOT).
   *)
   type bitwise_unop = [
-    | `not_ of Type.imm
+    | `not_   of Type.imm
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints the bitwise unary operator. *)
@@ -222,6 +222,10 @@ module Insn : sig
 
       [`bits t]: reinterpret the underlying bits to type [t].
 
+      [`clz t]: count leading zeroes.
+
+      [`ctz t]: count trailing zeroes.
+
       [`fext t]: extends a floating point value to a higher
       precision.
 
@@ -235,6 +239,8 @@ module Insn : sig
 
       [`itrunc t]: truncate an integer to an integer of type [t].
 
+      [`popcnt t]: population count (number of set bits).
+
       [`sext t]: sign-extend an integer to an integer of type [t].
 
       [`sitof (t, f)]: cast a signed integer of type [t] to a float
@@ -247,11 +253,14 @@ module Insn : sig
   *)
   type cast = [
     | `bits   of Type.basic
+    | `clz    of Type.imm
+    | `ctz    of Type.imm
     | `fext   of Type.fp
     | `ftosi  of Type.fp * Type.imm
     | `ftoui  of Type.fp * Type.imm
     | `ftrunc of Type.fp
     | `itrunc of Type.imm
+    | `popcnt of Type.imm
     | `sext   of Type.imm
     | `sitof  of Type.imm * Type.fp
     | `uitof  of Type.imm * Type.fp
