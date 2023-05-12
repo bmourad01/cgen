@@ -375,9 +375,9 @@ insn:
       y >>| fun y ->
       `vaarg (x, t, y)
     }
-  | x = var ALLOC i = NUM
+  | x = var EQUALS ALLOC i = NUM
     { x >>| fun x -> `alloc (x, i) }
-  | x = var t = LOAD a = operand
+  | x = var EQUALS t = LOAD a = operand
     {
       x >>= fun x ->
       a >>| fun a ->
