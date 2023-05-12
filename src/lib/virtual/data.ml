@@ -60,11 +60,11 @@ let typeof d target =
   let fields = Array.fold_right d.elts ~init:[] ~f:(fun elt fields ->
       let t = match elt with
         | `int (_, t) -> `elt ((t :> Type.basic), 1)
-        | `float _ -> `elt (`f32, 1)
-        | `double _ -> `elt (`f64, 1)
-        | `string s -> `elt (`i8, String.length s + 1)
-        | `zero n -> `elt (`i8, n)
-        | `sym _ -> `elt (word, 1) in
+        | `float _    -> `elt (`f32, 1)
+        | `double _   -> `elt (`f64, 1)
+        | `string s   -> `elt (`i8, String.length s)
+        | `zero n     -> `elt (`i8, n)
+        | `sym _      -> `elt (word, 1) in
       t :: fields) in
   `compound (name, d.align, fields)
 
