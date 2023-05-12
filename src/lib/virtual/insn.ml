@@ -106,9 +106,9 @@ let pp_cast ppf : cast -> unit = function
   | `bits t ->
     Format.fprintf ppf "bits.%a" Type.pp_basic t
   | `clz t ->
-    Format.fprintf ppf "clz.%a"    Type.pp_imm t
+    Format.fprintf ppf "clz.%a" Type.pp_imm t
   | `ctz t ->
-    Format.fprintf ppf "ctz.%a"    Type.pp_imm t
+    Format.fprintf ppf "ctz.%a" Type.pp_imm t
   | `popcnt t ->
     Format.fprintf ppf "popcnt.%a" Type.pp_imm t
   | `fext t ->
