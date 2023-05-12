@@ -230,11 +230,11 @@ type mem = [
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_mem : mem -> Var.Set.t = function
+  | `alloc _ -> Var.Set.empty
   | `load  (_, _, a) ->
     var_of_operand a |> Option.to_list |> Var.Set.of_list
   | `store (_, v, a) ->
     List.filter_map [v; a] ~f:var_of_operand |> Var.Set.of_list
-  | `alloc _ -> Var.Set.empty
 
 let pp_mem ppf : mem -> unit = function
   | `alloc (x, n) ->
