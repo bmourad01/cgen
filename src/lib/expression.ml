@@ -197,26 +197,14 @@ open E.Let
 open E.Syntax
 
 type env = {
-  blks  : blk Label.Map.t;
-  insns : (insn * blk) Label.Map.t;
-  cfg   : Cfg.t;
-  seen  : Label.Hash_set.t;
+  blks : blk Label.Map.t;
+  cfg  : Cfg.t;
+  seen : Label.Hash_set.t;
 }
 
 let create_env fn =
   let blks = Func.map_of_blks fn in
-  let+ insns = try
-      Map.fold blks ~init:Label.Map.empty ~f:(fun ~key:_ ~data:blk m ->
-          let insns =
-            Blk.map_of_insns blk |>
-            Map.map ~f:(fun insn -> insn, blk) in
-          Map.merge_skewed insns m ~combine:(fun ~key _ _ ->
-              invalid_argf "Duplicate instruction label %a"
-                Label.pps key ())) |>
-      Or_error.return
-    with Invalid_argument msg ->
-      Or_error.error_string msg in
-  {blks; insns; cfg = Cfg.create fn; seen = Label.Hash_set.create ()}
+  {blks; cfg = Cfg.create fn; seen = Label.Hash_set.create ()}
 
 let operand (o : operand) w = match o with
   | `int (i, t) -> Pint (i, t), w
@@ -349,11 +337,16 @@ let of_insn env i blk =
     Some (subst vs @@ Estore (t, v, a))
   | `vastart _ | `vaarg _ -> !!None
 
+let find_insn fn l =
+  Func.blks fn |> Seq.find_map ~f:(fun blk ->
+      Blk.insns blk |> Seq.find_map ~f:(fun i ->
+          if Label.(l <> Insn.label i) then None else Some (i, blk)))
+
 let build fn l =
-  let* env = create_env fn in
+  let env = create_env fn in
   match Map.find env.blks l with
   | Some blk -> of_ctrl env blk
-  | None -> match Map.find env.insns l with
+  | None -> match find_insn fn l with
     | Some (insn, blk) -> of_insn env insn blk
     | None ->
       E.failf "Label %a not found in function $%s"
