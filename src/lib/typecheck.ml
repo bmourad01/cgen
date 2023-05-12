@@ -265,7 +265,10 @@ let op_arith_unop fn blk l ta a (o : Insn.arith_unop) =
 
 let op_bitwise_unop fn blk l ta a (o : Insn.bitwise_unop) =
   let t = match o with
-    | `not_ t -> t in
+    | `clz t
+    | `ctz t
+    | `not_ t
+    | `popcnt t -> t in
   let+ () = unify_arg fn blk l ta a t in
   (t :> Type.basic)
 
@@ -298,9 +301,6 @@ let unify_fext_fail fn blk l t a =
 
 let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
   | `bits t -> !!t
-  | `clz t | `ctz t | `popcnt t ->
-    let+ () = unify_arg fn blk l ta a (t :> Type.t) in
-    (t :> Type.basic)
   | `fext t ->
     let+ () = match t, ta with
       | `f64, `f64

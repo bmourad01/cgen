@@ -459,18 +459,18 @@ insn_arith_unop:
   | t = NEG { `neg t }
 
 insn_bitwise_unop:
+  | t = CLZ { `clz t }
+  | t = CTZ { `ctz t }
   | t = NOT { `not_ t }
+  | t = POPCNT { `popcnt t }
 
 insn_cast:
   | t = BITS { `bits t }
-  | t = CLZ { `clz t }
-  | t = CTZ { `ctz t }
   | t = FEXT { `fext t }
   | t = FTOSI { `ftosi (fst t, snd t) }
   | t = FTOUI { `ftoui (fst t, snd t) }
   | t = FTRUNC { `ftrunc t }
   | t = ITRUNC { `itrunc t }
-  | t = POPCNT { `popcnt t }
   | t = SEXT { `sext t }
   | t = SITOF { `sitof (fst t, snd t) }
   | t = UITOF { `uitof (fst t, snd t) }

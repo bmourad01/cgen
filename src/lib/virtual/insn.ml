@@ -51,11 +51,21 @@ let pp_bitwise_binop ppf : bitwise_binop -> unit = function
   | `xor  t -> Format.fprintf ppf "xor.%a" Type.pp_imm t
 
 type bitwise_unop = [
-  | `not_ of Type.imm
+  | `clz    of Type.imm
+  | `ctz    of Type.imm
+  | `not_   of Type.imm
+  | `popcnt of Type.imm
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_bitwise_unop ppf : bitwise_unop -> unit = function
-  | `not_ t -> Format.fprintf ppf "not.%a" Type.pp_imm t
+  | `clz t ->
+    Format.fprintf ppf "clz.%a" Type.pp_imm t
+  | `ctz t ->
+    Format.fprintf ppf "ctz.%a" Type.pp_imm t
+  | `not_ t ->
+    Format.fprintf ppf "not.%a" Type.pp_imm t
+  | `popcnt t ->
+    Format.fprintf ppf "popcnt.%a" Type.pp_imm t
 
 type cmp = [
   | `eq  of Type.basic
@@ -88,14 +98,11 @@ let pp_cmp ppf : cmp -> unit = function
 
 type cast = [
   | `bits   of Type.basic
-  | `clz    of Type.imm
-  | `ctz    of Type.imm
   | `fext   of Type.fp
   | `ftosi  of Type.fp * Type.imm
   | `ftoui  of Type.fp * Type.imm
   | `ftrunc of Type.fp
   | `itrunc of Type.imm
-  | `popcnt of Type.imm
   | `sext   of Type.imm
   | `sitof  of Type.imm * Type.fp
   | `uitof  of Type.imm * Type.fp
@@ -105,12 +112,6 @@ type cast = [
 let pp_cast ppf : cast -> unit = function
   | `bits t ->
     Format.fprintf ppf "bits.%a" Type.pp_basic t
-  | `clz t ->
-    Format.fprintf ppf "clz.%a" Type.pp_imm t
-  | `ctz t ->
-    Format.fprintf ppf "ctz.%a" Type.pp_imm t
-  | `popcnt t ->
-    Format.fprintf ppf "popcnt.%a" Type.pp_imm t
   | `fext t ->
     Format.fprintf ppf "fext.%a" Type.pp_fp t
   | `ftosi (tf, ti) ->
