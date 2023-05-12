@@ -367,9 +367,13 @@ module Insn : sig
 
       [`vastart x] initializes [x] with a pointer to the start of the
       variadic argument list for the current function.
+
+      [`vaarg (x, t, y)] fetches the next element of type [t] from the
+      variadic argument list [y], and assigns it to [x].
   *)
   type variadic = [
     | `vastart of Var.t
+    | `vaarg   of Var.t * Type.basic * Var.t
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the variadic argument

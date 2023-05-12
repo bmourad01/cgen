@@ -88,6 +88,7 @@ let rename_insns vars nums b =
       | `call (None, f, args, vargs) ->
         `call (None, glo f, margs args, margs vargs)
       | `vastart x -> `vastart (var x)
+      | `vaarg (x, t, y) -> `vaarg (rename x, t, var y)
       | #Insn.basic as o -> map_basic vars nums o)
 
 let rename_ctrl vars b =

@@ -152,6 +152,7 @@ rule token = parse
   | "call" '.' (basic as t) { ACALL (basic_of_char t) }
   | "call" { CALL }
   | "vastart" { VASTART }
+  | "vaarg" '.' (basic as t) { VAARG (basic_of_char t) }
   | "hlt" { HLT }
   | "jmp" { JMP }
   | "br" { BR }

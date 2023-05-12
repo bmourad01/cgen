@@ -524,16 +524,24 @@ let op_call fn blk l env : Insn.call -> env t = function
     let+ () = check_call fn blk l env None args vargs g in
     env
 
-let op_variadic fn blk l env : Insn.variadic -> env t = function
+let variadic_check_list_ty fn blk l v t word = match t with
+  | #Type.imm_base as b ->
+    (* Argument is expected to be a pointer. *)
+    if Type.equal_imm_base b word then !!()
+    else expect_ptr_size_base_var fn blk l v t word "variadic instruction"
+  | _ -> expect_ptr_size_var fn blk l v t "variadic instruction"
+
+let op_variadic fn blk l env (v : Insn.variadic) =
+  let* word = M.gets @@ Fn.compose Target.word Env.target in
+  match v with
   | `vastart v ->
     let*? t = Env.typeof_var fn v env in
-    match t with
-    | #Type.imm_base as b ->
-      (* Argument is expected to be a pointer. *)
-      let* word = M.gets @@ Fn.compose Target.word Env.target in
-      if Type.equal_imm_base b word then !!env
-      else expect_ptr_size_base_var fn blk l v t word "variadic instruction"
-    | _ -> expect_ptr_size_var fn blk l v t "variadic instruction"
+    let+ () = variadic_check_list_ty fn blk l v t word in
+    env
+  | `vaarg (x, t, y) ->
+    let*? ty = Env.typeof_var fn y env in
+    let* () = variadic_check_list_ty fn blk l y ty word in
+    M.lift_err @@ Env.add_var fn x (t :> Type.t) env
 
 let op fn blk l env : Insn.op -> env t = function
   | #Insn.basic    as b -> op_basic    fn blk l env b

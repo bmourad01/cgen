@@ -111,6 +111,7 @@
 %token <Type.basic> COPY SEL ACALL
 %token CALL
 %token VASTART
+%token <Type.basic> VAARG
 %token HLT
 %token JMP
 %token BR
@@ -376,6 +377,12 @@ insn:
     }
   | VASTART x = var
     { x >>| fun x -> `vastart x }
+  | x = var EQUALS t = VAARG y = var
+    {
+      x >>= fun x ->
+      y >>| fun y ->
+      `vaarg (x, t, y)
+    }
 
 call_args:
   | a = option(operand)
