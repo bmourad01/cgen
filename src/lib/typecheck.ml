@@ -283,12 +283,6 @@ let unify_imm_fail fn blk l t a =
      in block %a in function %s, got %a" a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn) Type.pps t
 
-let unify_mem_fail fn blk l t v =
-  M.fail @@ Error.createf
-    "Expected mem type for var %a in instruction %a \
-     in block %a in function %s, got %a" Var.pps v Label.pps l
-    Label.pps (Blk.label blk) (Func.name fn) Type.pps t
-
 let unify_flag_fail fn blk l t v =
   M.fail @@ Error.createf
     "Expected mem type for var %a in instruction %a \
@@ -364,25 +358,17 @@ let op_unop fn blk l env v u a =
       op_copy fn blk l ta a o in
   M.lift_err @@ Env.add_var fn v (t :> Type.t) env
 
-let op_mem_load fn blk l env word t m a =
-  let*? tm = Env.typeof_var fn m env in
-  let* () = match tm with
-    | `mem -> !!()
-    | _ -> unify_mem_fail fn blk l tm m in
+let op_mem_load fn blk l env word x t a =
   let* ta = typeof_arg fn env a in
-  let+ () = unify_arg fn blk l ta a (word :> Type.t) in
-  (t :> Type.t)
-
-let op_mem_store fn blk l env word t m a v =
-  let*? tm = Env.typeof_var fn m env in
-  let* () = match tm with
-    | `mem -> !!()
-    | _ -> unify_mem_fail fn blk l tm m in
-  let* ta = typeof_arg fn env a in
-  let* _tv = typeof_arg fn env v in
   let* () = unify_arg fn blk l ta a (word :> Type.t) in
-  let+ () = unify_arg fn blk l ta a (t :> Type.t) in
-  `mem
+  M.lift_err @@ Env.add_var fn x (t :> Type.t) env
+
+let op_mem_store fn blk l env word t v a =
+  let* tv = typeof_arg fn env v in
+  let* ta = typeof_arg fn env a in
+  let* () = unify_arg fn blk l tv a (t :> Type.t) in
+  let+ () = unify_arg fn blk l ta a (word :> Type.t) in
+  env
 
 let invalid_alloc fn blk l n =
   M.fail @@ Error.createf
@@ -390,14 +376,14 @@ let invalid_alloc fn blk l n =
      invalid size %d, must be greater than zero" Label.pps l
     Label.pps (Blk.label blk) (Func.name fn) n
 
-let op_mem fn blk l env v m =
+let op_mem fn blk l env m =
   let* word = M.gets @@ Fn.compose Target.word Env.target in
-  let* t = match m with
-    | `alloc n when n <= 0 -> invalid_alloc fn blk l n
-    | `alloc _n -> !!(word :> Type.t)
-    | `load (t, m, a) -> op_mem_load fn blk l env word t m a
-    | `store (t, m, a, v) -> op_mem_store fn blk l env word t m a v in
-  M.lift_err @@ Env.add_var fn v t env
+  match m with
+  | `alloc (_, n) when n <= 0 -> invalid_alloc fn blk l n
+  | `alloc (x, _) ->
+    M.lift_err @@ Env.add_var fn x (word :> Type.t) env
+  | `load (x, t, a) -> op_mem_load fn blk l env word x t a
+  | `store (t, v, a) -> op_mem_store fn blk l env word t v a
 
 let op_sel fn blk l env v t c al ar =
   let*? tc = Env.typeof_var fn c env in
@@ -413,7 +399,6 @@ let op_sel fn blk l env v t c al ar =
 let op_basic fn blk l env : Insn.basic -> env t = function
   | `bop (v, b, al, ar) -> op_binop fn blk l env v b al ar
   | `uop (v, u, a) -> op_unop fn blk l env v u a
-  | `mem (v, m) -> op_mem fn blk l env v m
   | `sel (v, t, c, al, ar) -> op_sel fn blk l env v t c al ar
 
 let unify_fail_void_call fn blk l t s =
@@ -546,6 +531,7 @@ let op_variadic fn blk l env (v : Insn.variadic) =
 let op fn blk l env : Insn.op -> env t = function
   | #Insn.basic    as b -> op_basic    fn blk l env b
   | #Insn.call     as c -> op_call     fn blk l env c
+  | #Insn.mem      as m -> op_mem      fn blk l env m
   | #Insn.variadic as v -> op_variadic fn blk l env v
 
 let blk_insns seen fn blk =

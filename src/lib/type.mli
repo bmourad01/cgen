@@ -147,14 +147,10 @@ val pp_compound_decl : Format.formatter -> compound -> unit
 
 (** Special types that are not meant to be user-defined.
 
-    [`mem] is the type of a memory. It is opaque and purely
-    used for typing memory accesses and updates.
-
     [`flag] is the type of a condition flag. It is used for
     typing comparisons and conditional jumps.
 *)
 type special = [
-  | `mem 
   | `flag
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 

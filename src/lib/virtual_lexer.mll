@@ -94,7 +94,6 @@ rule token = parse
   | 's' { S }
   | 'd' { D }
   | 'z' { Z }
-  | 'm' { M }
   | 'f' { F }
   | "add" '.' (basic as t) { ADD (basic_of_char t) }
   | "div" '.' (basic as t) { DIV (basic_of_char t) }

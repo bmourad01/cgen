@@ -174,28 +174,6 @@ module Insn : sig
   (** Pretty-prints the bitwise unary operator. *)
   val pp_bitwise_unop : Format.formatter -> bitwise_unop -> unit
 
-  (** Memory operations.
-
-      [`alloc n]: allocate [n] bytes and return a pointer.
-
-      [`load (t, m, a)]: load a value of type [t] from memory
-      [m] at address [a].
-
-      [`store (t, m, a, v)]: store a value [v] of type [t] to
-      memory [m] at address [a].
-  *)
-  type mem = [
-    | `alloc of int
-    | `load  of Type.basic * Var.t * operand
-    | `store of Type.basic * Var.t * operand * operand
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the set of free variables in the memory operation. *)
-  val free_vars_of_mem : mem -> Var.Set.t
-
-  (** Pretty-prints a memory operation. *)
-  val pp_mem : Format.formatter -> mem -> unit
-
   (** Comparison operations.
 
       [`eq t l, r)]: equal.
@@ -322,8 +300,6 @@ module Insn : sig
 
       [`uop (x, u, a)]: compute [u(a)] and store the result in [x].
 
-      [`mem (x, m)]: compute [m] and store the result in [x].
-
       [`sel (x, t, c, l, r)]: evaluate [c]; if non-zero then select [l]
       and assign to [x], otherwise select [r]. Both [l] and [r] must have
       type [t].
@@ -331,7 +307,6 @@ module Insn : sig
   type basic = [
     | `bop of Var.t * binop * operand * operand
     | `uop of Var.t * unop  * operand
-    | `mem of Var.t * mem
     | `sel of Var.t * Type.basic * Var.t * operand * operand
   ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -363,6 +338,28 @@ module Insn : sig
   (** Pretty-prints a call instruction. *)
   val pp_call : Format.formatter -> call -> unit
 
+  (** Memory operations.
+
+      [`alloc (x, n)]: allocate [n] bytes and return a pointer, which is
+      assigned to [x].
+
+      [`load (x, t, a)]: load a value of type [t] from address [a] and
+      assign the result to [x].
+
+      [`store (t, v, a)]: store a value [v] of type [t] to address [a].
+  *)
+  type mem = [
+    | `alloc of Var.t * int
+    | `load  of Var.t * Type.basic * operand
+    | `store of Type.basic * operand * operand
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  (** Returns the set of free variables in the memory operation. *)
+  val free_vars_of_mem : mem -> Var.Set.t
+
+  (** Pretty-prints a memory operation. *)
+  val pp_mem : Format.formatter -> mem -> unit
+
   (** A variadic argument instruction.
 
       [`vastart x] initializes [x] with a pointer to the start of the
@@ -387,6 +384,7 @@ module Insn : sig
   type op = [
     | basic
     | call
+    | mem
     | variadic
   ] [@@deriving bin_io, compare, equal, sexp]
 

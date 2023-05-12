@@ -96,7 +96,7 @@
 %token EQUALS
 %token ARROW
 %token ELIPSIS
-%token W L B H S D Z M F
+%token W L B H S D Z F
 %token <Type.basic> ADD DIV MUL REM SUB NEG
 %token <Type.imm> MULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token ALLOC
@@ -166,7 +166,6 @@
 %type <Virtual.Insn.bitwise_unop> insn_bitwise_unop
 %type <Virtual.Insn.cast> insn_cast
 %type <Virtual.Insn.copy> insn_copy
-%type <Virtual.Insn.mem m> insn_mem
 %type <Virtual.dst m> dst
 %type <Virtual.local m> local
 %type <Virtual.global m> global
@@ -256,7 +255,6 @@ type_basic:
   | D { `f64 }
 
 type_special:
-  | M { `mem }
   | F { `flag }
 
 type_arg:
@@ -344,12 +342,6 @@ insn:
       a >>| fun a ->
       `uop (x, u, a)
     }
-  | x = var EQUALS m = insn_mem
-    {
-      x >>= fun x ->
-      m >>| fun m ->
-      `mem (x, m)
-    }
   | x = var t = SEL c = var COMMA l = operand COMMA r = operand
     {
       x >>= fun x ->
@@ -382,6 +374,20 @@ insn:
       x >>= fun x ->
       y >>| fun y ->
       `vaarg (x, t, y)
+    }
+  | x = var ALLOC i = NUM
+    { x >>| fun x -> `alloc (x, i) }
+  | x = var t = LOAD a = operand
+    {
+      x >>= fun x ->
+      a >>| fun a ->
+      `load (x, t, a)
+    }
+  | t = STORE v = operand COMMA a = operand
+    {
+      v >>= fun v ->
+      a >>| fun a ->
+      `store (t, v, a)
     }
 
 call_args:
@@ -469,22 +475,6 @@ insn_cast:
 
 insn_copy:
   | t = COPY { `copy t }
-
-insn_mem:
-  | ALLOC i = NUM { !!(`alloc i) }
-  | t = LOAD m = var LSQUARE a = operand RSQUARE
-    {
-      m >>= fun m ->
-      a >>| fun a ->
-      `load (t, m, a)
-    }
-  | t = STORE m = var LSQUARE a = operand RSQUARE COMMA x = operand
-    {
-      m >>= fun m ->
-      a >>= fun a ->
-      x >>| fun x ->
-      `store (t, m, a, x)
-    }
 
 dst:
   | g = global { g >>| fun g -> (g :> Virtual.dst) }

@@ -173,12 +173,10 @@ let pp_compound_decl ppf : compound -> unit = function
     Format.fprintf ppf "type :%s = align %d {%d}" name align n
 
 type special = [
-  | `mem 
   | `flag
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_special ppf : special -> unit = function
-  | `mem  -> Format.fprintf ppf "m"
   | `flag -> Format.fprintf ppf "f"
 
 type arg = [

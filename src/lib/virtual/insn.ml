@@ -57,28 +57,6 @@ type bitwise_unop = [
 let pp_bitwise_unop ppf : bitwise_unop -> unit = function
   | `not_ t -> Format.fprintf ppf "not.%a" Type.pp_imm t
 
-type mem = [
-  | `alloc of int
-  | `load  of Type.basic * Var.t * operand
-  | `store of Type.basic * Var.t * operand * operand
-] [@@deriving bin_io, compare, equal, sexp]
-
-let free_vars_of_mem : mem -> Var.Set.t = function
-  | `load  (_, x, a) ->
-    var_of_operand a |> Option.to_list |> List.cons x |> Var.Set.of_list
-  | `store (_, x, a, v) ->
-    List.filter_map [a; v] ~f:var_of_operand |> List.cons x |> Var.Set.of_list
-  | `alloc _ -> Var.Set.empty
-
-let pp_mem ppf : mem -> unit = function
-  | `alloc n ->
-    Format.fprintf ppf "alloc %d" n
-  | `load (t, m, a) ->
-    Format.fprintf ppf "ld.%a %a[%a]" Type.pp_basic t Var.pp m pp_operand a
-  | `store (t, m, a, x) ->
-    Format.fprintf ppf "st.%a %a[%a], %a"
-      Type.pp_basic t Var.pp m pp_operand a pp_operand x
-
 type cmp = [
   | `eq  of Type.basic
   | `ge  of Type.basic
@@ -177,7 +155,6 @@ let pp_unop ppf : unop -> unit = function
 type basic = [
   | `bop of Var.t * binop * operand * operand
   | `uop of Var.t * unop  * operand
-  | `mem of Var.t * mem
   | `sel of Var.t * Type.basic * Var.t * operand * operand
 ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -185,7 +162,6 @@ let free_vars_of_basic : basic -> Var.Set.t = function
   | `bop (_, _, l, r) ->
     List.filter_map [l; r] ~f:var_of_operand |> Var.Set.of_list
   | `uop (_, _, a) -> var_set_of_option @@ var_of_operand a
-  | `mem (_, m) -> free_vars_of_mem m
   | `sel (_, _, x, t, f) ->
     List.filter_map [t; f] ~f:var_of_operand |> List.cons x |> Var.Set.of_list
 
@@ -194,8 +170,6 @@ let pp_basic ppf : basic -> unit = function
     Format.fprintf ppf "%a = %a %a, %a"  Var.pp x pp_binop b pp_operand l pp_operand r
   | `uop (x, u, a) ->
     Format.fprintf ppf "%a = %a %a" Var.pp x pp_unop u pp_operand a
-  | `mem (x, m) ->
-    Format.fprintf ppf "%a = %a" Var.pp x pp_mem m
   | `sel (x, t, c, l, r) ->
     Format.fprintf ppf "%a = sel.%a %a, %a, %a"
       Var.pp x Type.pp_basic t Var.pp c pp_operand l pp_operand r
@@ -239,6 +213,29 @@ let pp_call ppf c =
     pp_call_args args
     (pp_call_vargs args) vargs
 
+type mem = [
+  | `alloc of Var.t * int
+  | `load  of Var.t * Type.basic * operand
+  | `store of Type.basic * operand * operand
+] [@@deriving bin_io, compare, equal, sexp]
+
+let free_vars_of_mem : mem -> Var.Set.t = function
+  | `load  (_, _, a) ->
+    var_of_operand a |> Option.to_list |> Var.Set.of_list
+  | `store (_, v, a) ->
+    List.filter_map [v; a] ~f:var_of_operand |> Var.Set.of_list
+  | `alloc _ -> Var.Set.empty
+
+let pp_mem ppf : mem -> unit = function
+  | `alloc (x, n) ->
+    Format.fprintf ppf "%a = alloc %d" Var.pp x n
+  | `load (x, t, a) ->
+    Format.fprintf ppf "%a = ld.%a %a"
+      Var.pp x Type.pp_basic t pp_operand a
+  | `store (t, v, a) ->
+    Format.fprintf ppf "st.%a %a, %a"
+      Type.pp_basic t pp_operand v pp_operand a
+
 type variadic = [
   | `vastart of Var.t
   | `vaarg   of Var.t * Type.basic * Var.t
@@ -257,18 +254,21 @@ let pp_variadic ppf : variadic -> unit = function
 type op = [
   | basic
   | call
+  | mem
   | variadic
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let lhs_of_op : op -> Var.t option = function
   | `bop     (x, _, _, _)
   | `uop     (x, _, _)
-  | `mem     (x, _)
   | `sel     (x, _, _, _, _)
   | `call    (Some (x, _), _, _, _)
+  | `alloc   (x, _)
+  | `load    (x, _, _)
   | `vaarg   (x, _, _) -> Some x
   | `call    _ -> None
   | `vastart _ -> None
+  | `store   _ -> None
 
 let op_has_lhs d v = match lhs_of_op d with
   | Some x -> Var.(x = v)
@@ -277,11 +277,13 @@ let op_has_lhs d v = match lhs_of_op d with
 let free_vars_of_op : op -> Var.Set.t = function
   | #basic    as b -> free_vars_of_basic b
   | #call     as c -> free_vars_of_call c
+  | #mem      as m -> free_vars_of_mem m
   | #variadic as v -> free_vars_of_variadic v
 
 let pp_op ppf : op -> unit = function
   | #basic    as b -> pp_basic    ppf b
   | #call     as c -> pp_call     ppf c
+  | #mem      as m -> pp_mem      ppf m
   | #variadic as v -> pp_variadic ppf v
 
 type t = {

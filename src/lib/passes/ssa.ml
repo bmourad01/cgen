@@ -47,23 +47,21 @@ let map_arg vars : operand -> operand = function
   | `var x -> `var (map_var vars x)
   | a -> a
 
-let map_mem vars (m : Insn.mem) =
+let map_mem vars nums (m : Insn.mem) =
   let arg = map_arg vars in
-  let var = map_var vars in
+  let rename = new_name vars nums in
   match m with
-  | `alloc _ -> m
-  | `load (t, m, a) -> `load (t, var m, arg a)
-  | `store (t, m, a, v) -> `store (t, var m, arg a, arg v)
+  | `alloc (x, n) -> `alloc (rename x, n)
+  | `load (x, t, a) -> `load (rename x, t, arg a)
+  | `store (t, v, a) -> `store (t, arg v, arg a)
 
 let map_basic vars nums (b : Insn.basic) =
   let arg = map_arg vars in
   let var = map_var vars in
-  let mem = map_mem vars in
   let rename = new_name vars nums in
   match b with
   | `bop (x, b, l, r) -> `bop (rename x, b, arg l, arg r)
   | `uop (x, u, a) -> `uop (rename x, u, arg a)
-  | `mem (x, m) -> `mem (rename x, mem m)
   | `sel (x, t, c, l, r) -> `sel (rename x, t, var c, arg l, arg r)
 
 let map_global vars : global -> global = function
@@ -89,7 +87,8 @@ let rename_insns vars nums b =
         `call (None, glo f, margs args, margs vargs)
       | `vastart x -> `vastart (var x)
       | `vaarg (x, t, y) -> `vaarg (rename x, t, var y)
-      | #Insn.basic as o -> map_basic vars nums o)
+      | #Insn.basic as o -> map_basic vars nums o
+      | #Insn.mem as m -> map_mem vars nums m)
 
 let rename_ctrl vars b =
   let var = map_var vars in
