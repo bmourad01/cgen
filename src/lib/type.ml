@@ -102,8 +102,7 @@ let sizeof_layout l = List.fold l.data ~init:0 ~f:(fun sz -> function
     | `pad n | `opaque n -> sz + n * 8)
 
 let padding size align =
-  let align' = align - 1 in
-  ((size + align') land (lnot align')) - size
+  (align - size mod align) mod align
 
 (* pre: the list is accumulated in reverse *)
 let padded data = function
