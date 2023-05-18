@@ -193,9 +193,6 @@ let pp ppf = function
 
 module E = Monad.Result.Error
 
-open E.Let
-open E.Syntax
-
 type env = {
   blks : blk Label.Map.t;
   cfg  : Cfg.t;
@@ -235,9 +232,10 @@ let dst (d : Virtual.dst) w = match d with
     let l, w = local l w in
     Dlocal l, w
 
-let assign w vs x e = match Map.add vs ~key:x ~data:e with
-  | `Duplicate -> E.failf "Duplicate assignment to var %a" Var.pp x ()
-  | `Ok vs -> !!(Set.remove w x, vs)
+(* We assume that the function is in SSA form, which should enforce
+   the invariant that all variables are bound to the same expression. *)
+let should_assign w vs x = Set.mem w x && not (Map.mem vs x)
+let assign w vs x e = Set.remove w x, Map.add_exn vs ~key:x ~data:e
 
 let rec build ?(w = Var.Set.empty) ?(vs = Var.Map.empty) ?l env blk =
   Hash_set.add env.seen @@ Blk.label blk;
@@ -245,32 +243,33 @@ let rec build ?(w = Var.Set.empty) ?(vs = Var.Map.empty) ?l env blk =
   Option.value_map l ~default:ss ~f:(fun l ->
       Seq.drop_while ss ~f:(fun i -> Label.(l <> Insn.label i)) |>
       Fn.flip Seq.drop 1) |>
-  E.Seq.fold ~init:(w, vs) ~f:(fun (w, vs) i ->
+  Seq.fold ~init:(w, vs) ~f:(fun ((w, vs) as acc) i ->
       let l = Insn.label i in
+      let ok = should_assign w vs in
       match Insn.op i with
-      | `bop (x, o, a, b) when Set.mem w x ->
+      | `bop (x, o, a, b) when ok x ->
         let a, w = operand a w in
         let b, w = operand b w in
         assign w vs x @@ Pbinop (l, o, a, b)
-      | `uop (x, o, a) when Set.mem w x ->
+      | `uop (x, o, a) when ok x ->
         let a, w = operand a w in
         assign w vs x @@ Punop (l, o, a)
-      | `sel (x, t, c, y, n) when Set.mem w x ->
+      | `sel (x, t, c, y, n) when ok x ->
         let c, w = Pvar c, Set.add w c in
         let y, w = operand y w in
         let n, w = operand n w in
         assign w vs x @@ Psel (l, t, c, y, n)
-      | `call (Some (x, t), f, args, vargs) when Set.mem w x ->
+      | `call (Some (x, t), f, args, vargs) when ok x ->
         let f, w = global f w in
         let args, w = operands args w in
         let vargs, w = operands vargs w in
         assign w vs x @@ Pcall (l, t, f, args, vargs)
-      | `alloc (x, n) when Set.mem w x ->
+      | `alloc (x, n) when ok x ->
         assign w vs x @@ Palloc (l, n)
-      | `load (x, t, a) when Set.mem w x ->
+      | `load (x, t, a) when ok x ->
         let a, w = operand a w in
         assign w vs x @@ Pload (l, t, a)
-      | _ -> Ok (w, vs)) >>= fun (w, vs) ->
+      | _ -> acc) |> fun (w, vs) ->
   let w =
     Set.diff w @@
     Var.Set.of_sequence @@
@@ -279,27 +278,27 @@ let rec build ?(w = Var.Set.empty) ?(vs = Var.Map.empty) ?l env blk =
     Cfg.Node.preds (Blk.label blk) env.cfg |>
     Seq.filter ~f:(fun l ->
         not (Label.is_pseudo l || Hash_set.mem env.seen l)) |>
-    E.Seq.fold ~init:vs ~f:(fun vs l ->
+    Seq.fold ~init:vs ~f:(fun vs l ->
         let blk = Map.find_exn env.blks l in
         build env blk ~w ~vs)
-  else !!vs
+  else vs
 
 let of_ctrl env blk = match Blk.ctrl blk with
-  | `hlt -> !!None
+  | `hlt -> None
   | `jmp d ->
     let d, w = dst d Var.Set.empty in
-    let+ vs = build env blk ~w in
+    let vs = build env blk ~w in
     Some (subst vs @@ Ejmp d)
   | `br (c, y, n) ->
     let c, w = Pvar c, Var.Set.singleton c in
     let y, w = dst y w in
     let n, w = dst n w in
-    let+ vs = build env blk ~w in
+    let vs = build env blk ~w in
     Some (subst vs @@ Ebr (c, y, n))
-  | `ret None -> !!None
+  | `ret None -> None
   | `ret (Some x) ->
     let x, w = operand x Var.Set.empty in
-    let+ vs = build env blk ~w in
+    let vs = build env blk ~w in
     Some (subst vs @@ Eret x)
   | `sw (t, v, d, tbl) ->
     let v, w = Pvar v, Var.Set.singleton v in
@@ -309,7 +308,7 @@ let of_ctrl env blk = match Blk.ctrl blk with
       Seq.fold ~init:([], w) ~f:(fun (tbl, w) (i, l) ->
           let l, w = local l w in
           (i, l) :: tbl, w) in
-    let+ vs = build env blk ~w in
+    let vs = build env blk ~w in
     Some (subst vs @@ Esw (t, v, d, List.rev tbl))
 
 let of_insn env i blk =
@@ -322,20 +321,20 @@ let of_insn env i blk =
   | `call (Some (x, _), _, _, _)
   | `alloc (x, _)
   | `load (x, _, _) ->
-    let+ vs = build env blk ~w:(Var.Set.singleton x) in
+    let vs = build env blk ~w:(Var.Set.singleton x) in
     Some (subst vs @@ Eset (x, Map.find_exn vs x))
   | `call (None, f, args, vargs) ->
     let f, w = global f Var.Set.empty in
     let args, w = operands args w in
     let vargs, w = operands vargs w in
-    let+ vs = build env blk ~l ~w in
+    let vs = build env blk ~l ~w in
     Some (subst vs @@ Ecall (f, args, vargs))
   | `store (t, v, a) ->
     let v, w = operand v Var.Set.empty in
     let a, w = operand a w in
-    let+ vs = build env blk ~l ~w in
+    let vs = build env blk ~l ~w in
     Some (subst vs @@ Estore (t, v, a))
-  | `vastart _ | `vaarg _ -> !!None
+  | `vastart _ | `vaarg _ -> None
 
 let find_insn fn l =
   Func.blks fn |> Seq.find_map ~f:(fun blk ->
@@ -345,9 +344,9 @@ let find_insn fn l =
 let build fn l =
   let env = create_env fn in
   match Map.find env.blks l with
-  | Some blk -> of_ctrl env blk
+  | Some blk -> Ok (of_ctrl env blk)
   | None -> match find_insn fn l with
-    | Some (insn, blk) -> of_insn env insn blk
+    | Some (insn, blk) -> Ok (of_insn env insn blk)
     | None ->
       E.failf "Label %a not found in function $%s"
         Label.pp l (Func.name fn) ()
