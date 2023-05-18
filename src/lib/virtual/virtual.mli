@@ -773,6 +773,9 @@ module Func : sig
   *)
   val map_blks : t -> f:(blk -> blk) -> t
 
+  (** Same as [map_blks], but handles the case where [f] may fail. *)
+  val map_blks_err : t -> f:(blk -> blk Or_error.t) -> t Or_error.t
+
   (** Appends a block to the end of the function. *)
   val insert_blk : t -> blk -> t
 
@@ -999,6 +1002,19 @@ module Module : sig
 
   (** Returns the module with each function transformed by [f]. *)
   val map_funs : t -> f:(func -> func) -> t
+
+  (** Returns the module with each type transformed by [f],
+      where [f] may fail. *)
+  val map_typs_err :
+    t -> f:(Type.compound -> Type.compound Or_error.t) -> t Or_error.t
+
+  (** Returns the module with each struct transformed by [f],
+      where [f] may fail. *)
+  val map_data_err : t -> f:(data -> data Or_error.t) -> t Or_error.t
+
+  (** Returns the module with each function transformed by [f],
+      where [f] may fail. *)
+  val map_funs_err : t -> f:(func -> func Or_error.t) -> t Or_error.t
 
   include Regular.S with type t := t
 end

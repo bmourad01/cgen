@@ -61,6 +61,8 @@ let linkage fn = fn.linkage
 let has_name fn name = String.(name = fn.name)
 let hash fn = String.hash fn.name
 
+exception Failed of Error.t
+
 let typeof fn =
   let args = Array.enum fn.args |> Seq.map ~f:snd |> Seq.to_list in
   `proto (fn.return, args, fn.variadic)
@@ -83,6 +85,18 @@ let map_blks fn ~f =
       if is_entry b then entry := Blk.label b';
       b') in
   {fn with blks; entry = !entry}
+
+let map_blks_err fn ~f = try
+    let entry = ref fn.entry in
+    let is_entry b = Label.(Blk.label b = fn.entry) in
+    let blks = Array.map fn.blks ~f:(fun b ->
+        let b' = match f b with
+          | Error e -> raise @@ Failed e
+          | Ok b' -> b' in
+        if is_entry b then entry := Blk.label b';
+        b') in
+    Ok {fn with blks; entry = !entry}
+  with Failed e -> Error e
 
 let insert_blk fn b = {
   fn with blks = Array.push_back fn.blks b;
