@@ -207,12 +207,11 @@ module E = Monad.Result.Error
 type env = {
   blks : blk Label.Map.t;
   cfg  : Cfg.t;
-  seen : Label.Hash_set.t;
 }
 
 let create_env fn =
   let blks = Func.map_of_blks fn in
-  {blks; cfg = Cfg.create fn; seen = Label.Hash_set.create ()}
+  {blks; cfg = Cfg.create fn}
 
 let operand (o : operand) w = match o with
   | `int (i, t) -> Pint (i, t), w
@@ -249,58 +248,69 @@ let dst (d : Virtual.dst) w = match d with
 let should_assign w vs x = Set.mem w x && not (Map.mem vs x)
 let assign w vs x e = Set.remove w x, Map.add_exn vs ~key:x ~data:e
 
-(* Get the subset of instructions that we need to inspect backwards. *)
-let insns ?l blk =
+(* Next blocks to visit. *)
+let nexts blk env bs =
+  Cfg.Node.preds (Blk.label blk) env.cfg |> Seq.filter ~f:(fun l ->
+      not (Label.is_pseudo l || Set.mem bs l))
+
+(* Accumulate the results of an instruction. *)
+let insn ((w, vs) as acc) i =
+  let l = Insn.label i in
+  let ok = should_assign w vs in
+  match Insn.op i with
+  | `bop (x, o, a, b) when ok x ->
+    let a, w = operand a w in
+    let b, w = operand b w in
+    assign w vs x @@ Pbinop (l, o, a, b)
+  | `uop (x, o, a) when ok x ->
+    let a, w = operand a w in
+    assign w vs x @@ Punop (l, o, a)
+  | `sel (x, t, c, y, n) when ok x ->
+    let c, w = Pvar c, Set.add w c in
+    let y, w = operand y w in
+    let n, w = operand n w in
+    assign w vs x @@ Psel (l, t, c, y, n)
+  | `call (Some (x, t), f, args, vargs) when ok x ->
+    let f, w = global f w in
+    let args, w = operands args w in
+    let vargs, w = operands vargs w in
+    assign w vs x @@ Pcall (l, t, f, args, vargs)
+  | `alloc (x, n) when ok x ->
+    assign w vs x @@ Palloc (l, n)
+  | `load (x, t, a) when ok x ->
+    let a, w = operand a w in
+    assign w vs x @@ Pload (l, t, a)
+  | _ -> acc
+
+(* Get the subset of instructions that we need to inspect backwards
+   and then accumulate the results. *)
+let insns ?l blk w vs =
   Blk.insns blk ~rev:true |> fun ss ->
   Option.value_map l ~default:ss ~f:(fun l ->
       Seq.drop_while_option ss ~f:(fun i ->
           Label.(l <> Insn.label i)) |>
-      Option.value_map ~default:Seq.empty ~f:snd)
+      Option.value_map ~default:Seq.empty ~f:snd) |>
+  Seq.fold ~init:(w, vs) ~f:insn
 
-(* Next blocks to visit. *)
-let nexts blk env =
-  Cfg.Node.preds (Blk.label blk) env.cfg |> Seq.filter ~f:(fun l ->
-      not (Label.is_pseudo l || Hash_set.mem env.seen l))
+(* Kill the variables that appear in the arguments of the block.
+   This is the point where we can no longer represent their data
+   dependencies as a DAG. *)
+let killed blk w =
+  Blk.args blk |> Seq.map ~f:fst |> Var.Set.of_sequence |> Set.diff w
 
-(* Traverse the data dependencies, excluding variables that were
-   introduced as block arguments (phi nodes). *)
-let rec build ?(w = Var.Set.empty) ?(vs = Var.Map.empty) ?l env blk =
-  Hash_set.add env.seen @@ Blk.label blk;
-  insns ?l blk |> Seq.fold ~init:(w, vs) ~f:(fun ((w, vs) as acc) i ->
-      let l = Insn.label i in
-      let ok = should_assign w vs in
-      match Insn.op i with
-      | `bop (x, o, a, b) when ok x ->
-        let a, w = operand a w in
-        let b, w = operand b w in
-        assign w vs x @@ Pbinop (l, o, a, b)
-      | `uop (x, o, a) when ok x ->
-        let a, w = operand a w in
-        assign w vs x @@ Punop (l, o, a)
-      | `sel (x, t, c, y, n) when ok x ->
-        let c, w = Pvar c, Set.add w c in
-        let y, w = operand y w in
-        let n, w = operand n w in
-        assign w vs x @@ Psel (l, t, c, y, n)
-      | `call (Some (x, t), f, args, vargs) when ok x ->
-        let f, w = global f w in
-        let args, w = operands args w in
-        let vargs, w = operands vargs w in
-        assign w vs x @@ Pcall (l, t, f, args, vargs)
-      | `alloc (x, n) when ok x ->
-        assign w vs x @@ Palloc (l, n)
-      | `load (x, t, a) when ok x ->
-        let a, w = operand a w in
-        assign w vs x @@ Pload (l, t, a)
-      | _ -> acc) |> fun (w, vs) ->
-  let w =
-    Set.diff w @@
-    Var.Set.of_sequence @@
-    Seq.map ~f:fst @@ Blk.args blk in
+(* Traverse the data dependencies. *)
+let rec build
+    ?(w = Var.Set.empty)
+    ?(vs = Var.Map.empty)
+    ?(bs = Label.Set.empty)
+    ?l env blk =
+  let w, vs = insns ?l blk w vs in
+  let w = killed blk w in
   if not @@ Set.is_empty w then
-    nexts blk env |> Seq.fold ~init:vs ~f:(fun vs l ->
+    let bs = Set.add bs @@ Blk.label blk in
+    nexts blk env bs |> Seq.fold ~init:vs ~f:(fun vs l ->
         let blk = Map.find_exn env.blks l in
-        build env blk ~w ~vs)
+        build env blk ~w ~vs ~bs)
   else vs
 
 let of_ctrl env blk = match Blk.ctrl blk with
