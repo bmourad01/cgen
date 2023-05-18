@@ -38,6 +38,15 @@ and dst =
   | Dlocal  of local
 [@@deriving bin_io, compare, equal, sexp]
 
+let is_atom = function
+  | Palloc _
+  | Pdouble _
+  | Pint _
+  | Psingle _
+  | Psym _
+  | Pvar _ -> true
+  | _ -> false
+
 let rec subst_pure m = function
   | Palloc _ as a -> a
   | Pbinop (l, o, x, y) ->
@@ -55,7 +64,9 @@ let rec subst_pure m = function
   | Psym _ as s -> s
   | Punop (l, o, x) -> Punop (l, o, subst_pure m x)
   | Pvar x as default ->
-    Map.find m x |> Option.value ~default
+    Map.find m x |> Option.value_map ~default ~f:(continue m)
+
+and continue m e = if is_atom e then e else subst_pure m e
 
 and subst_global m = function
   | (Gaddr _ | Gsym _) as g -> g
@@ -68,35 +79,35 @@ let subst_dst m = function
   | Dlocal l -> Dlocal (subst_local m l)
 
 let rec pp_args args =
-  let pp_sep ppf () = Format.fprintf ppf "," in
+  let pp_sep ppf () = Format.fprintf ppf ", " in
   (Format.pp_print_list ~pp_sep pp_pure) args
 
 and pp_pure ppf = function
   | Palloc (l, n) ->
     Format.fprintf ppf "alloc%a(%d)" Label.pp l n
   | Pbinop (l, o, x, y) ->
-    Format.fprintf ppf "%a%a(%a,%a)"
-      Label.pp l Insn.pp_binop o pp_pure x pp_pure y
+    Format.fprintf ppf "%a%a(%a, %a)"
+      Insn.pp_binop o Label.pp l pp_pure x pp_pure y
   | Pcall (l, _t, f, [], []) ->
-    Format.fprintf ppf "%a%a()" Label.pp l pp_global f
+    Format.fprintf ppf "%a%a()" pp_global f Label.pp l
   | Pcall (l, _t, f, args, []) ->
     Format.fprintf ppf "%a%a(%a)"
-      Label.pp l pp_global f pp_args args
+      pp_global f Label.pp l pp_args args
   | Pcall (l, _t, f, [], vargs) ->
-    Format.fprintf ppf "%a%a(...,%a)"
-      Label.pp l pp_global f pp_args vargs
+    Format.fprintf ppf "%a%a(..., %a)"
+      pp_global f Label.pp l pp_args vargs
   | Pcall (l, _t, f, args, vargs) ->
-    Format.fprintf ppf "%a%a(%a,...,%a)"
-      Label.pp l pp_global f pp_args args pp_args vargs
+    Format.fprintf ppf "%a%a(%a, ..., %a)"
+      pp_global f Label.pp l pp_args args pp_args vargs
   | Pdouble d ->
     Format.fprintf ppf "%a_d" Float.pp d
   | Pint (i, t) ->
     Format.fprintf ppf "%a_%a" Bitvec.pp i Type.pp_imm t
   | Pload (l, t, a) ->
     Format.fprintf ppf "ld.%a%a(%a)"
-      Label.pp l Type.pp_basic t pp_pure a
+      Type.pp_basic t Label.pp l pp_pure a
   | Psel (l, t, c, y, n) ->
-    Format.fprintf ppf "sel.%a%a(%a,%a,%a)"
+    Format.fprintf ppf "sel.%a%a(%a, %a, %a)"
       Type.pp_basic t Label.pp l pp_pure c pp_pure y pp_pure n
   | Psingle s ->
     Format.fprintf ppf "%s_s" @@ Float32.to_string s
@@ -106,7 +117,7 @@ and pp_pure ppf = function
     else Format.fprintf ppf "$%s+%d" s o
   | Punop (l, o, x) ->
     Format.fprintf ppf "%a%a(%a)"
-      Label.pp l Insn.pp_unop o pp_pure x
+      Insn.pp_unop o Label.pp l pp_pure x
   | Pvar v ->
     Format.fprintf ppf "%a" Var.pp v
 
@@ -167,16 +178,16 @@ let subst m = function
 
 let pp ppf = function
   | Ebr (c, t, f) ->
-    Format.fprintf ppf "br(%a,%a,%a)"
+    Format.fprintf ppf "br(%a, %a, %a)"
       pp_pure c pp_dst t pp_dst f
   | Ecall (f, [], []) ->
     Format.fprintf ppf "%a()" pp_global f
   | Ecall (f, args, []) ->
     Format.fprintf ppf "%a(%a)" pp_global f pp_args args
   | Ecall (f, [], vargs) ->
-    Format.fprintf ppf "%a(...,%a)" pp_global f pp_args vargs
+    Format.fprintf ppf "%a(..., %a)" pp_global f pp_args vargs
   | Ecall (f, args, vargs) ->
-    Format.fprintf ppf "%a(%a,...,%a)"
+    Format.fprintf ppf "%a(%a, ..., %a)"
       pp_global f pp_args args pp_args vargs
   | Ejmp d ->
     Format.fprintf ppf "jmp(%a)" pp_dst d
@@ -185,10 +196,10 @@ let pp ppf = function
   | Eset (x, y) ->
     Format.fprintf ppf "%a = %a" Var.pp x pp_pure y
   | Estore (t, v, a) ->
-    Format.fprintf ppf "st%a(%a,%a)"
+    Format.fprintf ppf "st%a(%a, %a)"
       Type.pp_basic t pp_pure v pp_pure a
   | Esw (t, v, d, tbl) ->
-    Format.fprintf ppf "sw.%a(%a,%a,[%a])"
+    Format.fprintf ppf "sw.%a(%a, %a, [%a])"
       Type.pp_imm t pp_pure v pp_local d pp_table tbl
 
 module E = Monad.Result.Error
@@ -205,19 +216,20 @@ let create_env fn =
 
 let operand (o : operand) w = match o with
   | `int (i, t) -> Pint (i, t), w
-  | `float f -> Psingle f, w
-  | `double d -> Pdouble d, w
+  | `float f    -> Psingle f, w
+  | `double d   -> Pdouble d, w
   | `sym (s, o) -> Psym (s, o), w
-  | `var v -> Pvar v, Set.add w v
+  | `var v      -> Pvar v, Set.add w v
 
-let operands os w = List.fold_right os ~init:([], w) ~f:(fun o (os, w) ->
-    let o, w = operand o w in
-    o :: os, w)
+let operands os w =
+  List.fold_right os ~init:([], w) ~f:(fun o (os, w) ->
+      let o, w = operand o w in
+      o :: os, w)
 
 let global (g : Virtual.global) w = match g with
   | `addr a -> Gaddr a, w
-  | `sym s -> Gsym s, w
-  | `var v -> Gpure (Pvar v), Set.add w v
+  | `sym s  -> Gsym s, w
+  | `var v  -> Gpure (Pvar v), Set.add w v
 
 let local (l : Virtual.local) w = match l with
   | `label (l, args) ->
@@ -237,13 +249,24 @@ let dst (d : Virtual.dst) w = match d with
 let should_assign w vs x = Set.mem w x && not (Map.mem vs x)
 let assign w vs x e = Set.remove w x, Map.add_exn vs ~key:x ~data:e
 
-let rec build ?(w = Var.Set.empty) ?(vs = Var.Map.empty) ?l env blk =
-  Hash_set.add env.seen @@ Blk.label blk;
+(* Get the subset of instructions that we need to inspect backwards. *)
+let insns ?l blk =
   Blk.insns blk ~rev:true |> fun ss ->
   Option.value_map l ~default:ss ~f:(fun l ->
-      Seq.drop_while ss ~f:(fun i -> Label.(l <> Insn.label i)) |>
-      Fn.flip Seq.drop 1) |>
-  Seq.fold ~init:(w, vs) ~f:(fun ((w, vs) as acc) i ->
+      Seq.drop_while_option ss ~f:(fun i ->
+          Label.(l <> Insn.label i)) |>
+      Option.value_map ~default:Seq.empty ~f:snd)
+
+(* Next blocks to visit. *)
+let nexts blk env =
+  Cfg.Node.preds (Blk.label blk) env.cfg |> Seq.filter ~f:(fun l ->
+      not (Label.is_pseudo l || Hash_set.mem env.seen l))
+
+(* Traverse the data dependencies, excluding variables that were
+   introduced as block arguments (phi nodes). *)
+let rec build ?(w = Var.Set.empty) ?(vs = Var.Map.empty) ?l env blk =
+  Hash_set.add env.seen @@ Blk.label blk;
+  insns ?l blk |> Seq.fold ~init:(w, vs) ~f:(fun ((w, vs) as acc) i ->
       let l = Insn.label i in
       let ok = should_assign w vs in
       match Insn.op i with
@@ -275,10 +298,7 @@ let rec build ?(w = Var.Set.empty) ?(vs = Var.Map.empty) ?l env blk =
     Var.Set.of_sequence @@
     Seq.map ~f:fst @@ Blk.args blk in
   if not @@ Set.is_empty w then
-    Cfg.Node.preds (Blk.label blk) env.cfg |>
-    Seq.filter ~f:(fun l ->
-        not (Label.is_pseudo l || Hash_set.mem env.seen l)) |>
-    Seq.fold ~init:vs ~f:(fun vs l ->
+    nexts blk env |> Seq.fold ~init:vs ~f:(fun vs l ->
         let blk = Map.find_exn env.blks l in
         build env blk ~w ~vs)
   else vs
@@ -315,14 +335,33 @@ let of_insn env i blk =
   let op = Insn.op i in
   let l = Insn.label i in
   match op with
-  | `bop (x, _, _, _)
-  | `uop (x, _, _)
-  | `sel (x, _, _, _, _)
-  | `call (Some (x, _), _, _, _)
-  | `alloc (x, _)
-  | `load (x, _, _) ->
-    let vs = build env blk ~w:(Var.Set.singleton x) in
-    Some (subst vs @@ Eset (x, Map.find_exn vs x))
+  | `bop (x, o, a, b) ->
+    let a, w = operand a Var.Set.empty in
+    let b, w = operand b w in
+    let vs = build env blk ~l ~w in
+    Some (subst vs @@ Eset (x, Pbinop (l, o, a, b)))
+  | `uop (x, o, a) ->
+    let a, w = operand a Var.Set.empty in
+    let vs = build env blk ~l ~w in
+    Some (subst vs @@ Eset (x, Punop (l, o, a)))
+  | `sel (x, t, c, y, n) ->
+    let y, w = operand y @@ Var.Set.singleton c in
+    let n, w = operand n w in
+    let vs = build env blk ~l ~w in
+    Some (subst vs @@ Eset (x, Psel (l, t, Pvar c, y, n)))
+  | `call (Some (x, t), f, args, vargs) ->
+    let f, w = global f Var.Set.empty in
+    let args, w = operands args w in
+    let vargs, w = operands vargs w in
+    let vs = build env blk ~l ~w in
+    Some (subst vs @@ Eset (x, Pcall (l, t, f, args, vargs)))
+  | `alloc (x, n) ->
+    let vs = build env blk ~l in
+    Some (subst vs @@ Eset (x, Palloc (l, n)))
+  | `load (x, t, a) ->
+    let a, w = operand a Var.Set.empty in
+    let vs = build env blk ~l ~w in
+    Some (subst vs @@ Eset (x, Pload (l, t, a)))
   | `call (None, f, args, vargs) ->
     let f, w = global f Var.Set.empty in
     let args, w = operands args w in
