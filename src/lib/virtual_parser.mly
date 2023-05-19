@@ -110,8 +110,8 @@
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL ACALL
 %token CALL
-%token VASTART
 %token <Type.basic> VAARG
+%token VASTART
 %token HLT
 %token JMP
 %token BR
@@ -367,14 +367,14 @@ insn:
         | `arg a -> First a | `varg a -> Second a) in
       `call (None, f, args, vargs)
     }
-  | VASTART x = var
-    { x >>| fun x -> `vastart x }
   | x = var EQUALS t = VAARG y = var
     {
       x >>= fun x ->
       y >>| fun y ->
       `vaarg (x, t, y)
     }
+  | VASTART x = var
+    { x >>| fun x -> `vastart x }
   | x = var EQUALS ALLOC i = NUM
     { x >>| fun x -> `alloc (x, i) }
   | x = var EQUALS t = LOAD a = operand

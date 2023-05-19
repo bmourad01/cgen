@@ -247,19 +247,19 @@ let pp_mem ppf : mem -> unit = function
       Type.pp_basic t pp_operand v pp_operand a
 
 type variadic = [
-  | `vastart of Var.t
   | `vaarg   of Var.t * Type.basic * Var.t
+  | `vastart of Var.t
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_variadic : variadic -> Var.Set.t = function
-  | `vastart x | `vaarg (_, _, x) -> Var.Set.singleton x
+  | `vaarg (_, _, x) | `vastart x -> Var.Set.singleton x
 
 let pp_variadic ppf : variadic -> unit = function
-  | `vastart x ->
-    Format.fprintf ppf "vastart %a" Var.pp x
   | `vaarg (x, t, y) ->
     Format.fprintf ppf "%a = vaarg.%a %a"
       Var.pp x Type.pp_basic t Var.pp y
+  | `vastart x ->
+    Format.fprintf ppf "vastart %a" Var.pp x
 
 type op = [
   | basic

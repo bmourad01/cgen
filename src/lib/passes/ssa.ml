@@ -85,8 +85,8 @@ let rename_insns vars nums b =
         `call (Some (rename x, t), glo f, margs args, margs vargs)
       | `call (None, f, args, vargs) ->
         `call (None, glo f, margs args, margs vargs)
-      | `vastart x -> `vastart (var x)
       | `vaarg (x, t, y) -> `vaarg (rename x, t, var y)
+      | `vastart x -> `vastart (var x)
       | #Insn.basic as o -> map_basic vars nums o
       | #Insn.mem as m -> map_mem vars nums m)
 
