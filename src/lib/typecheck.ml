@@ -583,14 +583,14 @@ let check_var_dst fn _blk v =
 
 let check_label_dst blks fn blk l args =
   let* env = M.get () in
-  let*? _b = match Map.find blks l with
+  let*? b = match Map.find blks l with
     | Some b -> Ok b
     | None ->
       Or_error.errorf
         "Jump destination %a at block %a in function %s \
          does not exist." Label.pps l Label.pps (Blk.label blk)
         (Func.name fn) in
-  let targs = Seq.to_list @@ Seq.map ~f:snd @@ Blk.args blk in
+  let targs = Seq.to_list @@ Seq.map ~f:snd @@ Blk.args b in
   match List.zip args targs with
   | Unequal_lengths -> unequal_lengths_ctrl fn blk l args targs
   | Ok z -> M.List.iter z ~f:(fun (a, t) ->
