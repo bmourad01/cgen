@@ -67,32 +67,52 @@ val pp_table : Format.formatter -> table -> unit
 
 (** An expression. *)
 type t =
-  | Ebr    of pure * dst * dst
-  | Ecall  of global * pure list * pure list
-  | Ejmp   of dst
-  | Eret   of pure
-  | Eset   of Var.t * pure
-  | Estore of Type.basic * pure * pure
-  | Esw    of Type.imm * pure * local * table
+  | Ebr      of pure * dst * dst
+  | Ecall    of global * pure list * pure list
+  | Ehlt
+  | Ejmp     of dst
+  | Eret     of pure
+  | Eret0
+  | Eset     of Var.t * pure
+  | Estore   of Type.basic * pure * pure
+  | Esw      of Type.imm * pure * local * table
+  | Evaarg   of Var.t * Type.basic * Var.t
+  | Evastart of Var.t
 [@@deriving bin_io, compare, equal, sexp]
 
 (** Pretty-prints an expression. *)
 val pp : Format.formatter -> t -> unit
 
-(** [build fn l] attempts to construct an expression based on
+(** Returns the set of labels occurring in an expression. These
+    correspond to instruction labels in the function that the
+    expression was built from.
+
+    Note, this set does not include labels that are destinations
+    for control-flow operations.
+*)
+val labels : t -> Label.Set.t
+
+val labels_of_pure : pure -> Label.Set.t
+val labels_of_global : global -> Label.Set.t
+val labels_of_local : local -> Label.Set.t
+val labels_of_dst : dst -> Label.Set.t
+
+(** The expression-building context for a function. *)
+type ctx
+
+(** Creates the context for a function. *)
+val create_ctx : func -> ctx Or_error.t
+
+(** [build ctx l] attempts to construct an expression based on
     the label [l] in function [fn].
 
     [l] must refer to either a block, in which case the expression
     is built starting from the control instruction, or a regular
     data instruction.
 
-    The algorithm walks backwards and constructs a maximal dag,
+    The algorithm walks backwards and constructs a maximal DAG,
     substituting in subexpressions for variables when possible.
 
-    [fn] is assumed to be in SSA form. If [fn] is not well-formed
-    or [l] doesn't exist, an error is returned.
-
-    If the control/data instruction referred to by [l] is not
-    expressible, then [Ok None] is returned.
+    [fn] is assumed to be in SSA form.
 *)
-val build : func -> Label.t -> t option Or_error.t
+val build : ctx -> Label.t -> t Or_error.t

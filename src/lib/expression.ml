@@ -10,6 +10,10 @@ module Bitvec = struct
   include Bitvec_sexp
 end
 
+module E = Monad.Result.Error
+
+open E.Let
+
 type pure =
   | Palloc  of Label.t * int
   | Pbinop  of Label.t * Insn.binop * pure * pure
@@ -38,6 +42,109 @@ and dst =
   | Dlocal  of local
 [@@deriving bin_io, compare, equal, sexp]
 
+type table = (Bitvec.t * local) list
+[@@deriving bin_io, compare, equal, sexp]
+
+type t =
+  | Ebr      of pure * dst * dst
+  | Ecall    of global * pure list * pure list
+  | Ehlt
+  | Ejmp     of dst
+  | Eret     of pure
+  | Eret0
+  | Eset     of Var.t * pure
+  | Estore   of Type.basic * pure * pure
+  | Esw      of Type.imm * pure * local * table
+  | Evaarg   of Var.t * Type.basic * Var.t
+  | Evastart of Var.t
+[@@deriving bin_io, compare, equal, sexp]
+
+type ctx = {
+  insns  : (insn * blk) Label.Map.t;
+  blks   : blk Label.Map.t;
+  cfg    : Cfg.t;
+  pure   : pure Var.Table.t;
+  exp    : t Label.Table.t;
+  filled : Var.Hash_set.t;
+}
+
+let create_ctx fn =
+  let+ insns =
+    Func.blks fn |> E.Seq.fold ~init:Label.Map.empty ~f:(fun init blk ->
+        Blk.insns blk |> E.Seq.fold ~init ~f:(fun m i ->
+            let key = Insn.label i in
+            match Map.add m ~key ~data:(i, blk) with
+            | `Ok m -> Ok m
+            | `Duplicate ->
+              E.failf "Duplicate label for instruction %a in block %a"
+                Label.pp key Label.pp (Blk.label blk) ())) in
+  let blks = Func.map_of_blks fn in
+  let cfg = Cfg.create fn in
+  let pure = Var.Table.create () in
+  let exp = Label.Table.create () in
+  let filled = Var.Hash_set.create () in
+  {insns; blks; cfg; pure; exp; filled}
+
+let rec labels_of_pure = function
+  | Palloc (l, _) -> Label.Set.singleton l
+  | Pbinop (l, _, a, b) ->
+    let a = labels_of_pure a in
+    let b = labels_of_pure b in
+    Set.(add (union a b) l)
+  | Pcall (l, _, f, args, vargs) ->
+    let f = labels_of_global f in
+    let args = List.map args ~f:labels_of_pure in
+    let vargs = List.map vargs ~f:labels_of_pure in
+    Label.Set.(add (union f (union_list (args @ vargs))) l)
+  | Pdouble _ | Pint _ | Psingle _ | Psym _ | Pvar _ -> Label.Set.empty
+  | Pload (l, _, a) -> Set.(add (labels_of_pure a) l)
+  | Psel (l, _, c, t, f) ->
+    let c = labels_of_pure c in
+    let t = labels_of_pure t in
+    let f = labels_of_pure f in
+    Label.Set.(add (union_list [c; t; f]) l)
+  | Punop (l, _, a) -> Set.(add (labels_of_pure a) l)
+
+and labels_of_global = function
+  | Gaddr _ | Gsym _ -> Label.Set.empty
+  | Gpure p -> labels_of_pure p
+
+let labels_of_local (_, args) =
+  List.map args ~f:labels_of_pure |>
+  Label.Set.union_list
+
+let labels_of_dst = function
+  | Dglobal g -> labels_of_global g
+  | Dlocal l -> labels_of_local l
+
+let labels_of_table tbl =
+  List.map tbl ~f:(fun (_, l) -> labels_of_local l) |>
+  Label.Set.union_list
+
+let labels = function
+  | Ebr (c, t, f) ->
+    Label.Set.union_list [
+      labels_of_pure c;
+      labels_of_dst t;
+      labels_of_dst f;
+    ]
+  | Ecall (f, args, vargs) ->
+    let f = labels_of_global f in
+    let args = List.map args ~f:labels_of_pure in
+    let vargs = List.map vargs ~f:labels_of_pure in
+    Label.Set.union_list (f :: (args @ vargs))
+  | Ehlt | Eret0 | Evaarg _ | Evastart _ -> Label.Set.empty
+  | Ejmp d -> labels_of_dst d
+  | Eret p | Eset (_, p) -> labels_of_pure p
+  | Estore (_, v, a) ->
+    Set.union (labels_of_pure v) (labels_of_pure a)
+  | Esw (_, i, d, tbl) ->
+    Label.Set.union_list [
+      labels_of_pure i;
+      labels_of_local d;
+      labels_of_table tbl;
+    ]
+
 let is_atom = function
   | Palloc _
   | Pdouble _
@@ -47,26 +154,37 @@ let is_atom = function
   | Pvar _ -> true
   | _ -> false
 
-let rec subst_pure m = function
+let rec subst_pure ctx = function
   | Palloc _ as a -> a
   | Pbinop (l, o, x, y) ->
-    Pbinop (l, o, subst_pure m x, subst_pure m y)
+    Pbinop (l, o, subst_pure ctx x, subst_pure ctx y)
   | Pcall (l, t, f, args, vargs) ->
-    let args = List.map args ~f:(subst_pure m) in
-    let vargs = List.map vargs ~f:(subst_pure m) in
-    Pcall (l, t, subst_global m f, args, vargs)
+    let args = List.map args ~f:(subst_pure ctx) in
+    let vargs = List.map vargs ~f:(subst_pure ctx) in
+    Pcall (l, t, subst_global ctx f, args, vargs)
   | Pdouble _ as d -> d
   | Pint _ as i -> i
-  | Pload (l, t, a) -> Pload (l, t, subst_pure m a)
+  | Pload (l, t, a) -> Pload (l, t, subst_pure ctx a)
   | Psel (l, t, c, y, n) ->
-    Psel (l, t, subst_pure m c, subst_pure m y, subst_pure m n)
+    Psel (l, t, subst_pure ctx c, subst_pure ctx y, subst_pure ctx n)
   | Psingle _ as s -> s
   | Psym _ as s -> s
-  | Punop (l, o, x) -> Punop (l, o, subst_pure m x)
+  | Punop (l, o, x) -> Punop (l, o, subst_pure ctx x)
   | Pvar x as default ->
-    Map.find m x |> Option.value_map ~default ~f:(continue m)
+    Hashtbl.find ctx.pure x |>
+    Option.value_map ~default ~f:(continue x ctx)
 
-and continue m e = if is_atom e then e else subst_pure m e
+(* Make the full substitution on subterms and cache the results.
+   Since we have already performed an occurs-check for variable
+   bindings, we can be sure that the entry for `x` will not be
+   mutated while we re-substitute. *)
+and continue x ctx e =
+  if not (is_atom e || Hash_set.mem ctx.filled x) then
+    let e = subst_pure ctx e in
+    Hash_set.add ctx.filled x;
+    Hashtbl.set ctx.pure ~key:x ~data:e;
+    e
+  else e
 
 and subst_global m = function
   | (Gaddr _ | Gsym _) as g -> g
@@ -141,9 +259,6 @@ let pp_dst ppf = function
   | Dlocal l ->
     Format.fprintf ppf "%a" pp_local l
 
-type table = (Bitvec.t * local) list
-[@@deriving bin_io, compare, equal, sexp]
-
 let subst_table m = List.map ~f:(fun (i, l) -> i, subst_local m l)
 
 let pp_table tbl =
@@ -151,30 +266,21 @@ let pp_table tbl =
   let pp ppf (v, l) = Format.fprintf ppf "%a:%a" Bitvec.pp v pp_local l in
   (Format.pp_print_list ~pp_sep pp) tbl
 
-type t =
-  | Ebr    of pure * dst * dst
-  | Ecall  of global * pure list * pure list
-  | Ejmp   of dst
-  | Eret   of pure
-  | Eset   of Var.t * pure
-  | Estore of Type.basic * pure * pure
-  | Esw    of Type.imm * pure * local * table
-[@@deriving bin_io, compare, equal, sexp]
-
-let subst m = function
+let subst ctx = function
   | Ebr (c, y, n) ->
-    Ebr (subst_pure m c, subst_dst m y, subst_dst m n)
+    Ebr (subst_pure ctx c, subst_dst ctx y, subst_dst ctx n)
   | Ecall (f, args, vargs) ->
-    let args = List.map args ~f:(subst_pure m) in
-    let vargs = List.map vargs ~f:(subst_pure m) in
-    Ecall (subst_global m f, args, vargs)
-  | Ejmp d -> Ejmp (subst_dst m d)
-  | Eret r -> Eret (subst_pure m r)
-  | Eset (x, y) -> Eset (x, subst_pure m y)
+    let args = List.map args ~f:(subst_pure ctx) in
+    let vargs = List.map vargs ~f:(subst_pure ctx) in
+    Ecall (subst_global ctx f, args, vargs)
+  | Ejmp d -> Ejmp (subst_dst ctx d)
+  | Eret r -> Eret (subst_pure ctx r)
+  | Eset (x, y) -> Eset (x, subst_pure ctx y)
   | Estore (t, v, a) ->
-    Estore (t, subst_pure m v, subst_pure m a)
+    Estore (t, subst_pure ctx v, subst_pure ctx a)
   | Esw (t, v, d, tbl) ->
-    Esw (t, subst_pure m v, subst_local m d, subst_table m tbl)
+    Esw (t, subst_pure ctx v, subst_local ctx d, subst_table ctx tbl)
+  | (Ehlt | Eret0 | Evaarg _ | Evastart _) as e -> e
 
 let pp ppf = function
   | Ebr (c, t, f) ->
@@ -189,10 +295,14 @@ let pp ppf = function
   | Ecall (f, args, vargs) ->
     Format.fprintf ppf "%a(%a, ..., %a)"
       pp_global f pp_args args pp_args vargs
+  | Ehlt ->
+    Format.fprintf ppf "hlt"
   | Ejmp d ->
     Format.fprintf ppf "jmp(%a)" pp_dst d
   | Eret x ->
     Format.fprintf ppf "ret(%a)" pp_pure x
+  | Eret0 ->
+    Format.fprintf ppf "ret"
   | Eset (x, y) ->
     Format.fprintf ppf "%a = %a" Var.pp x pp_pure y
   | Estore (t, v, a) ->
@@ -201,17 +311,11 @@ let pp ppf = function
   | Esw (t, v, d, tbl) ->
     Format.fprintf ppf "sw.%a(%a, %a, [%a])"
       Type.pp_imm t pp_pure v pp_local d pp_table tbl
-
-module E = Monad.Result.Error
-
-type env = {
-  blks : blk Label.Map.t;
-  cfg  : Cfg.t;
-}
-
-let create_env fn =
-  let blks = Func.map_of_blks fn in
-  {blks; cfg = Cfg.create fn}
+  | Evaarg (x, t, y) ->
+    Format.fprintf ppf "%a = vaarg.%a(%a)"
+      Var.pp x Type.pp_basic t Var.pp y
+  | Evastart x ->
+    Format.fprintf ppf "vastart(%a)" Var.pp x
 
 let operand (o : operand) w = match o with
   | `int (i, t) -> Pint (i, t), w
@@ -243,68 +347,48 @@ let dst (d : Virtual.dst) w = match d with
     let l, w = local l w in
     Dlocal l, w
 
-(* Next blocks to visit. *)
-let nexts blk env bs =
-  Cfg.Node.preds (Blk.label blk) env.cfg |> Seq.filter ~f:(fun l ->
-      not (Label.is_pseudo l || Set.mem bs l))
-
 exception Occurs_failed of Var.t * Label.t
 
 (* We assume that the function is in SSA form, which should enforce
    the invariant that all variables are bound to the same expression. *)
-let accum ((w, vs) as acc) l x f =
+let accum ctx w l x f =
   if Set.mem w x then
     let w = Set.remove w x in
-    if not @@ Map.mem vs x then
+    if not @@ Hashtbl.mem ctx.pure x then
       let w, p = f w in
       if Set.mem w x then raise @@ Occurs_failed (x, l);
-      w, Map.set vs ~key:x ~data:p
-    else w, vs
-  else acc
+      Hashtbl.set ctx.pure ~key:x ~data:p;
+      w
+    else w
+  else w
 
 (* Accumulate the results of an instruction. *)
-let insn acc i =
+let insn ctx w i =
   let l = Insn.label i in
-  let go = accum acc l in
+  let go = accum ctx w l in
   match Insn.op i with
-  | `bop (x, o, a, b) ->
-    go x @@ fun w ->
+  | `bop (x, o, a, b) -> go x @@ fun w ->
     let a, w = operand a w in
     let b, w = operand b w in
     w, Pbinop (l, o, a, b)
-  | `uop (x, o, a) ->
-    go x @@ fun w ->
+  | `uop (x, o, a) -> go x @@ fun w ->
     let a, w = operand a w in
     w, Punop (l, o, a)
-  | `sel (x, t, c, y, n) ->
-    go x @@ fun w ->
+  | `sel (x, t, c, y, n) -> go x @@ fun w ->
     let c, w = Pvar c, Set.add w c in
     let y, w = operand y w in
     let n, w = operand n w in
     w, Psel (l, t, c, y, n)
-  | `call (Some (x, t), f, args, vargs) ->
-    go x @@ fun w ->
+  | `call (Some (x, t), f, args, vargs) -> go x @@ fun w ->
     let f, w = global f w in
     let args, w = operands args w in
     let vargs, w = operands vargs w in
     w, Pcall (l, t, f, args, vargs)
-  | `alloc (x, n) ->
-    go x @@ fun w -> w, Palloc (l, n)
-  | `load (x, t, a) ->
-    go x @@ fun w ->
+  | `alloc (x, n) -> go x @@ fun w -> w, Palloc (l, n)
+  | `load (x, t, a) -> go x @@ fun w ->
     let a, w = operand a w in
     w, Pload (l, t, a)
-  | _ -> acc
-
-(* Get the subset of instructions that we need to inspect backwards
-   and then accumulate the results. *)
-let insns ?l blk w vs =
-  Blk.insns blk ~rev:true |> fun ss ->
-  Option.value_map l ~default:ss ~f:(fun l ->
-      Seq.drop_while_option ss ~f:(fun i ->
-          Label.(l <> Insn.label i)) |>
-      Option.value_map ~default:Seq.empty ~f:snd) |>
-  Seq.fold ~init:(w, vs) ~f:insn
+  | _ -> w
 
 (* Kill the variables that appear in the arguments of the block.
    This is the point where we can no longer represent their data
@@ -312,107 +396,117 @@ let insns ?l blk w vs =
 let killed blk w =
   Blk.args blk |> Seq.map ~f:fst |> Var.Set.of_sequence |> Set.diff w
 
+(* Get the subset of instructions that we need to inspect backwards
+   and then accumulate the results. *)
+let insns ?l ctx blk w =
+  Blk.insns blk ~rev:true |> fun ss ->
+  Option.value_map l ~default:ss ~f:(fun l ->
+      Seq.drop_while_option ss ~f:(fun i ->
+          Label.(l <> Insn.label i)) |>
+      Option.value_map ~default:Seq.empty ~f:snd) |>
+  Seq.fold ~init:w ~f:(insn ctx) |> killed blk
+
+(* Next blocks to visit. *)
+let nexts ctx blk bs =
+  Cfg.Node.preds (Blk.label blk) ctx.cfg |> Seq.filter ~f:(fun l ->
+      not (Label.is_pseudo l || Set.mem bs l))
+
 (* Traverse the data dependencies. *)
-let rec build
-    ?(w = Var.Set.empty)
-    ?(vs = Var.Map.empty)
-    ?(bs = Label.Set.empty)
-    ?l env blk =
-  let w, vs = insns ?l blk w vs in
-  let w = killed blk w in
+let rec build ?(w = Var.Set.empty) ?(bs = Label.Set.empty) ?l ctx blk =
+  let w = insns ?l ctx blk w in
   if not @@ Set.is_empty w then
     let bs = Set.add bs @@ Blk.label blk in
-    nexts blk env bs |> Seq.fold ~init:vs ~f:(fun vs l ->
-        let blk = Map.find_exn env.blks l in
-        build env blk ~w ~vs ~bs)
-  else vs
+    nexts ctx blk bs |> Seq.iter ~f:(fun l ->
+        let blk = Map.find_exn ctx.blks l in
+        build ctx blk ~w ~bs)
 
-let of_ctrl env blk = match Blk.ctrl blk with
-  | `hlt -> None
-  | `jmp d ->
+let table tbl w =
+  Ctrl.Table.enum tbl |>
+  Seq.fold ~init:([], w) ~f:(fun (tbl, w) (i, l) ->
+      let l, w = local l w in
+      (i, l) :: tbl, w) |> fun (tbl, w) ->
+  List.rev tbl, w
+
+let go_ctrl ctx blk f =
+  let w, e = f () in
+  build ctx blk ~w;
+  let e = subst ctx e in
+  Hashtbl.set ctx.exp ~key:(Blk.label blk) ~data:e;
+  e
+
+let of_ctrl ctx blk =
+  let go = go_ctrl ctx blk in
+  match Blk.ctrl blk with
+  | `hlt -> Ehlt
+  | `jmp d -> go @@ fun () ->
     let d, w = dst d Var.Set.empty in
-    let vs = build env blk ~w in
-    Some (subst vs @@ Ejmp d)
-  | `br (c, y, n) ->
+    w, Ejmp d
+  | `br (c, y, n) -> go @@ fun () ->
     let c, w = Pvar c, Var.Set.singleton c in
     let y, w = dst y w in
     let n, w = dst n w in
-    let vs = build env blk ~w in
-    Some (subst vs @@ Ebr (c, y, n))
-  | `ret None -> None
-  | `ret (Some x) ->
+    w, Ebr (c, y, n)
+  | `ret None -> Eret0
+  | `ret (Some x) -> go @@ fun () ->
     let x, w = operand x Var.Set.empty in
-    let vs = build env blk ~w in
-    Some (subst vs @@ Eret x)
-  | `sw (t, v, d, tbl) ->
+    w, Eret x
+  | `sw (t, v, d, tbl) -> go @@ fun () ->
     let v, w = Pvar v, Var.Set.singleton v in
     let d, w = local d w in
-    let tbl, w =
-      Ctrl.Table.enum tbl |>
-      Seq.fold ~init:([], w) ~f:(fun (tbl, w) (i, l) ->
-          let l, w = local l w in
-          (i, l) :: tbl, w) in
-    let vs = build env blk ~w in
-    Some (subst vs @@ Esw (t, v, d, List.rev tbl))
+    let tbl, w = table tbl w in
+    w, Esw (t, v, d, tbl)
 
-let of_insn env i blk =
-  let op = Insn.op i in
+let go_insn ctx blk l f =
+  let w, e = f () in
+  build ctx blk ~l ~w;
+  let e = subst ctx e in
+  Hashtbl.set ctx.exp ~key:l ~data:e;
+  e
+
+let of_insn ctx i blk =
   let l = Insn.label i in
-  match op with
-  | `bop (x, o, a, b) ->
+  let go = go_insn ctx blk l in
+  match Insn.op i with
+  | `bop (x, o, a, b) -> go @@ fun () ->
     let a, w = operand a Var.Set.empty in
     let b, w = operand b w in
-    let vs = build env blk ~l ~w in
-    Some (subst vs @@ Eset (x, Pbinop (l, o, a, b)))
-  | `uop (x, o, a) ->
+    w, Eset (x, Pbinop (l, o, a, b))
+  | `uop (x, o, a) -> go @@ fun () ->
     let a, w = operand a Var.Set.empty in
-    let vs = build env blk ~l ~w in
-    Some (subst vs @@ Eset (x, Punop (l, o, a)))
-  | `sel (x, t, c, y, n) ->
+    w, Eset (x, Punop (l, o, a))
+  | `sel (x, t, c, y, n) -> go @@ fun () ->
     let y, w = operand y @@ Var.Set.singleton c in
     let n, w = operand n w in
-    let vs = build env blk ~l ~w in
-    Some (subst vs @@ Eset (x, Psel (l, t, Pvar c, y, n)))
-  | `call (Some (x, t), f, args, vargs) ->
+    w, Eset (x, Psel (l, t, Pvar c, y, n))
+  | `call (Some (x, t), f, args, vargs) -> go @@ fun () ->
     let f, w = global f Var.Set.empty in
     let args, w = operands args w in
     let vargs, w = operands vargs w in
-    let vs = build env blk ~l ~w in
-    Some (subst vs @@ Eset (x, Pcall (l, t, f, args, vargs)))
-  | `alloc (x, n) ->
-    let vs = build env blk ~l in
-    Some (subst vs @@ Eset (x, Palloc (l, n)))
-  | `load (x, t, a) ->
+    w, Eset (x, Pcall (l, t, f, args, vargs))
+  | `alloc (x, n) -> go @@ fun () ->
+    Var.Set.empty, Eset (x, Palloc (l, n))
+  | `load (x, t, a) -> go @@ fun () ->
     let a, w = operand a Var.Set.empty in
-    let vs = build env blk ~l ~w in
-    Some (subst vs @@ Eset (x, Pload (l, t, a)))
-  | `call (None, f, args, vargs) ->
+    w, Eset (x, Pload (l, t, a))
+  | `call (None, f, args, vargs) -> go @@ fun () ->
     let f, w = global f Var.Set.empty in
     let args, w = operands args w in
     let vargs, w = operands vargs w in
-    let vs = build env blk ~l ~w in
-    Some (subst vs @@ Ecall (f, args, vargs))
-  | `store (t, v, a) ->
+    w, Ecall (f, args, vargs)
+  | `store (t, v, a) -> go @@ fun () ->
     let v, w = operand v Var.Set.empty in
     let a, w = operand a w in
-    let vs = build env blk ~l ~w in
-    Some (subst vs @@ Estore (t, v, a))
-  | `vastart _ | `vaarg _ -> None
+    w, Estore (t, v, a)
+  | `vaarg (x, t, y) -> Evaarg (x, t, y)
+  | `vastart x -> Evastart x
 
-let find_insn fn l =
-  Func.blks fn |> Seq.find_map ~f:(fun blk ->
-      Blk.insns blk |> Seq.find_map ~f:(fun i ->
-          if Label.(l <> Insn.label i) then None else Some (i, blk)))
-
-let build fn l = try
-    let env = create_env fn in
-    match Map.find env.blks l with
-    | Some blk -> Ok (of_ctrl env blk)
-    | None -> match find_insn fn l with
-      | Some (insn, blk) -> Ok (of_insn env insn blk)
-      | None ->
-        E.failf "Label %a not found in function $%s"
-          Label.pp l (Func.name fn) ()
+let build ctx l = try match Hashtbl.find ctx.exp l with
+  | Some e -> Ok e
+  | None -> match Map.find ctx.blks l with
+    | Some blk -> Ok (of_ctrl ctx blk)
+    | None -> match Map.find ctx.insns l with
+      | Some (i, blk) -> Ok (of_insn ctx i blk)
+      | None -> E.failf "Label %a not found" Label.pp l ()
   with Occurs_failed (x, l) ->
     E.failf "Occurs check failed for variable %a at instruction %a"
       Var.pp x Label.pp l ()
