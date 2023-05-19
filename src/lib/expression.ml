@@ -95,7 +95,7 @@ let rec labels_of_pure = function
     let f = labels_of_global f in
     let args = List.map args ~f:labels_of_pure in
     let vargs = List.map vargs ~f:labels_of_pure in
-    Label.Set.(add (union f (union_list (args @ vargs))) l)
+    Label.Set.(add (union_list (f :: (args @ vargs))) l)
   | Pdouble _ | Pint _ | Psingle _ | Psym _ | Pvar _ -> Label.Set.empty
   | Pload (l, _, a) -> Set.(add (labels_of_pure a) l)
   | Psel (l, _, c, t, f) ->
@@ -154,47 +154,48 @@ let is_atom = function
   | Pvar _ -> true
   | _ -> false
 
-let rec subst_pure ctx = function
+exception Occurs_failed of Var.t * Label.t option
+
+let rec subst_pure ?(vs = Var.Set.empty) ctx e =
+  let go = subst_pure ctx ~vs in
+  match e with
   | Palloc _ as a -> a
   | Pbinop (l, o, x, y) ->
-    Pbinop (l, o, subst_pure ctx x, subst_pure ctx y)
+    Pbinop (l, o, go x, go y)
   | Pcall (l, t, f, args, vargs) ->
-    let args = List.map args ~f:(subst_pure ctx) in
-    let vargs = List.map vargs ~f:(subst_pure ctx) in
-    Pcall (l, t, subst_global ctx f, args, vargs)
+    let args = List.map args ~f:go in
+    let vargs = List.map vargs ~f:go in
+    Pcall (l, t, subst_global ctx f ~vs, args, vargs)
   | Pdouble _ as d -> d
   | Pint _ as i -> i
-  | Pload (l, t, a) -> Pload (l, t, subst_pure ctx a)
-  | Psel (l, t, c, y, n) ->
-    Psel (l, t, subst_pure ctx c, subst_pure ctx y, subst_pure ctx n)
+  | Pload (l, t, a) -> Pload (l, t, go a)
+  | Psel (l, t, c, y, n) -> Psel (l, t, go c, go y, go n)
   | Psingle _ as s -> s
   | Psym _ as s -> s
-  | Punop (l, o, x) -> Punop (l, o, subst_pure ctx x)
+  | Punop (l, o, x) -> Punop (l, o, go x)
+  | Pvar x when Set.mem vs x -> raise @@ Occurs_failed (x, None)
   | Pvar x as default ->
     Hashtbl.find ctx.pure x |>
-    Option.value_map ~default ~f:(continue x ctx)
+    Option.value_map ~default ~f:(continue x vs ctx)
 
-(* Make the full substitution on subterms and cache the results.
-   Since we have already performed an occurs-check for variable
-   bindings, we can be sure that the entry for `x` will not be
-   mutated while we re-substitute. *)
-and continue x ctx e =
+(* Make the full substitution on subterms and cache the results. *)
+and continue x vs ctx e =
   if not (is_atom e || Hash_set.mem ctx.filled x) then
-    let e = subst_pure ctx e in
+    let e = subst_pure ctx e ~vs:(Set.add vs x) in
     Hash_set.add ctx.filled x;
     Hashtbl.set ctx.pure ~key:x ~data:e;
     e
   else e
 
-and subst_global m = function
+and subst_global ?(vs = Var.Set.empty) ctx = function
   | (Gaddr _ | Gsym _) as g -> g
-  | Gpure p -> Gpure (subst_pure m p)
+  | Gpure p -> Gpure (subst_pure ctx p ~vs)
 
-let subst_local m (l, args) = l, List.map args ~f:(subst_pure m)
+let subst_local ctx (l, args) = l, List.map args ~f:(subst_pure ctx)
 
-let subst_dst m = function
-  | Dglobal g -> Dglobal (subst_global m g)
-  | Dlocal l -> Dlocal (subst_local m l)
+let subst_dst ctx = function
+  | Dglobal g -> Dglobal (subst_global ctx g)
+  | Dlocal l -> Dlocal (subst_local ctx l)
 
 let rec pp_args args =
   let pp_sep ppf () = Format.fprintf ppf ", " in
@@ -266,20 +267,21 @@ let pp_table tbl =
   let pp ppf (v, l) = Format.fprintf ppf "%a:%a" Bitvec.pp v pp_local l in
   (Format.pp_print_list ~pp_sep pp) tbl
 
-let subst ctx = function
-  | Ebr (c, y, n) ->
-    Ebr (subst_pure ctx c, subst_dst ctx y, subst_dst ctx n)
+let subst ctx e =
+  let pure = subst_pure ctx in
+  let dst = subst_dst ctx in
+  match e with
+  | Ebr (c, y, n) -> Ebr (pure c, dst y, dst n)
   | Ecall (f, args, vargs) ->
-    let args = List.map args ~f:(subst_pure ctx) in
-    let vargs = List.map vargs ~f:(subst_pure ctx) in
+    let args = List.map args ~f:pure in
+    let vargs = List.map vargs ~f:pure in
     Ecall (subst_global ctx f, args, vargs)
   | Ejmp d -> Ejmp (subst_dst ctx d)
   | Eret r -> Eret (subst_pure ctx r)
-  | Eset (x, y) -> Eset (x, subst_pure ctx y)
-  | Estore (t, v, a) ->
-    Estore (t, subst_pure ctx v, subst_pure ctx a)
+  | Eset (x, y) -> Eset (x, subst_pure ctx y ~vs:(Var.Set.singleton x))
+  | Estore (t, v, a) -> Estore (t, pure v, pure a)
   | Esw (t, v, d, tbl) ->
-    Esw (t, subst_pure ctx v, subst_local ctx d, subst_table ctx tbl)
+    Esw (t, pure v, subst_local ctx d, subst_table ctx tbl)
   | (Ehlt | Eret0 | Evaarg _ | Evastart _) as e -> e
 
 let pp ppf = function
@@ -347,8 +349,6 @@ let dst (d : Virtual.dst) w = match d with
     let l, w = local l w in
     Dlocal l, w
 
-exception Occurs_failed of Var.t * Label.t
-
 (* We assume that the function is in SSA form, which should enforce
    the invariant that all variables are bound to the same expression. *)
 let accum ctx w l x f =
@@ -356,7 +356,7 @@ let accum ctx w l x f =
     let w = Set.remove w x in
     if not @@ Hashtbl.mem ctx.pure x then
       let w, p = f w in
-      if Set.mem w x then raise @@ Occurs_failed (x, l);
+      if Set.mem w x then raise @@ Occurs_failed (x, Some l);
       Hashtbl.set ctx.pure ~key:x ~data:p;
       w
     else w
@@ -507,6 +507,9 @@ let build ctx l = try match Hashtbl.find ctx.exp l with
     | None -> match Map.find ctx.insns l with
       | Some (i, blk) -> Ok (of_insn ctx i blk)
       | None -> E.failf "Label %a not found" Label.pp l ()
-  with Occurs_failed (x, l) ->
+  with
+  | Occurs_failed (x, None) ->
+    E.failf "Occurs check failed for variable %a" Var.pp x ()
+  | Occurs_failed (x, Some l) ->
     E.failf "Occurs check failed for variable %a at instruction %a"
       Var.pp x Label.pp l ()
