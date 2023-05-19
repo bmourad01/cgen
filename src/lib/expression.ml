@@ -243,9 +243,6 @@ let dst (d : Virtual.dst) w = match d with
     let l, w = local l w in
     Dlocal l, w
 
-(* We assume that the function is in SSA form, which should enforce
-   the invariant that all variables are bound to the same expression. *)
-let should_assign w vs x = Set.mem w x && not (Map.mem vs x)
 let assign w vs x e = Set.remove w x, Map.add_exn vs ~key:x ~data:e
 
 (* Next blocks to visit. *)
@@ -253,33 +250,47 @@ let nexts blk env bs =
   Cfg.Node.preds (Blk.label blk) env.cfg |> Seq.filter ~f:(fun l ->
       not (Label.is_pseudo l || Set.mem bs l))
 
+(* We assume that the function is in SSA form, which should enforce
+   the invariant that all variables are bound to the same expression. *)
+let accum x ((w, vs) as acc) ~f =
+  if Set.mem w x then
+    if not @@ Map.mem vs x then
+      let w, p = f () in
+      assign w vs x p
+    else Set.remove w x, vs
+  else acc
+
 (* Accumulate the results of an instruction. *)
-let insn ((w, vs) as acc) i =
+let insn ((w, _) as acc) i =
   let l = Insn.label i in
-  let ok = should_assign w vs in
   match Insn.op i with
-  | `bop (x, o, a, b) when ok x ->
-    let a, w = operand a w in
-    let b, w = operand b w in
-    assign w vs x @@ Pbinop (l, o, a, b)
-  | `uop (x, o, a) when ok x ->
-    let a, w = operand a w in
-    assign w vs x @@ Punop (l, o, a)
-  | `sel (x, t, c, y, n) when ok x ->
-    let c, w = Pvar c, Set.add w c in
-    let y, w = operand y w in
-    let n, w = operand n w in
-    assign w vs x @@ Psel (l, t, c, y, n)
-  | `call (Some (x, t), f, args, vargs) when ok x ->
-    let f, w = global f w in
-    let args, w = operands args w in
-    let vargs, w = operands vargs w in
-    assign w vs x @@ Pcall (l, t, f, args, vargs)
-  | `alloc (x, n) when ok x ->
-    assign w vs x @@ Palloc (l, n)
-  | `load (x, t, a) when ok x ->
-    let a, w = operand a w in
-    assign w vs x @@ Pload (l, t, a)
+  | `bop (x, o, a, b) ->
+    accum x acc ~f:(fun () ->
+        let a, w = operand a w in
+        let b, w = operand b w in
+        w, Pbinop (l, o, a, b))
+  | `uop (x, o, a) ->
+    accum x acc ~f:(fun () ->
+        let a, w = operand a w in
+        w, Punop (l, o, a))
+  | `sel (x, t, c, y, n) ->
+    accum x acc ~f:(fun () ->
+        let c, w = Pvar c, Set.add w c in
+        let y, w = operand y w in
+        let n, w = operand n w in
+        w, Psel (l, t, c, y, n))
+  | `call (Some (x, t), f, args, vargs) ->
+    accum x acc ~f:(fun () ->
+        let f, w = global f w in
+        let args, w = operands args w in
+        let vargs, w = operands vargs w in
+        w, Pcall (l, t, f, args, vargs))
+  | `alloc (x, n) ->
+    accum x acc ~f:(fun () -> w, Palloc (l, n))
+  | `load (x, t, a) ->
+    accum x acc ~f:(fun () ->
+        let a, w = operand a w in
+        w, Pload (l, t, a))
   | _ -> acc
 
 (* Get the subset of instructions that we need to inspect backwards
