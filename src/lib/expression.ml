@@ -408,17 +408,22 @@ let insns ?l ctx blk w =
 
 (* Next blocks to visit. *)
 let nexts ctx blk bs =
-  Cfg.Node.preds (Blk.label blk) ctx.cfg |> Seq.filter ~f:(fun l ->
-      not (Label.is_pseudo l || Set.mem bs l))
+  Cfg.Node.preds (Blk.label blk) ctx.cfg |>
+  Seq.filter_map ~f:(fun l ->
+      if Label.is_pseudo l || Set.mem bs l
+      then None else Map.find ctx.blks l)
 
 (* Traverse the data dependencies. *)
-let rec build ?(w = Var.Set.empty) ?(bs = Label.Set.empty) ?l ctx blk =
-  let w = insns ?l ctx blk w in
-  if not @@ Set.is_empty w then
-    let bs = Set.add bs @@ Blk.label blk in
-    nexts ctx blk bs |> Seq.iter ~f:(fun l ->
-        let blk = Map.find_exn ctx.blks l in
-        build ctx blk ~w ~bs)
+let build ?(w = Var.Set.empty) ?l ctx blk =
+  let q = Stack.singleton (blk, w, Label.Set.empty) in
+  while not @@ Stack.is_empty q do
+    let blk, w, bs = Stack.pop_exn q in
+    let w = insns ?l ctx blk w in
+    if not @@ Set.is_empty w then
+      let bs = Set.add bs @@ Blk.label blk in
+      nexts ctx blk bs |> Seq.iter ~f:(fun blk ->
+          Stack.push q (blk, w, bs))
+  done
 
 let table tbl w =
   Ctrl.Table.enum tbl |>
