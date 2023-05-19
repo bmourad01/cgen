@@ -243,54 +243,57 @@ let dst (d : Virtual.dst) w = match d with
     let l, w = local l w in
     Dlocal l, w
 
-let assign w vs x e = Set.remove w x, Map.add_exn vs ~key:x ~data:e
-
 (* Next blocks to visit. *)
 let nexts blk env bs =
   Cfg.Node.preds (Blk.label blk) env.cfg |> Seq.filter ~f:(fun l ->
       not (Label.is_pseudo l || Set.mem bs l))
 
+exception Occurs_failed of Var.t * Label.t
+
 (* We assume that the function is in SSA form, which should enforce
    the invariant that all variables are bound to the same expression. *)
-let accum x ((w, vs) as acc) ~f =
+let accum ((w, vs) as acc) l x f =
   if Set.mem w x then
+    let w = Set.remove w x in
     if not @@ Map.mem vs x then
-      let w, p = f () in
-      assign w vs x p
-    else Set.remove w x, vs
+      let w, p = f w in
+      if Set.mem w x then raise @@ Occurs_failed (x, l);
+      w, Map.set vs ~key:x ~data:p
+    else w, vs
   else acc
 
 (* Accumulate the results of an instruction. *)
-let insn ((w, _) as acc) i =
+let insn acc i =
   let l = Insn.label i in
+  let go = accum acc l in
   match Insn.op i with
   | `bop (x, o, a, b) ->
-    accum x acc ~f:(fun () ->
-        let a, w = operand a w in
-        let b, w = operand b w in
-        w, Pbinop (l, o, a, b))
+    go x @@ fun w ->
+    let a, w = operand a w in
+    let b, w = operand b w in
+    w, Pbinop (l, o, a, b)
   | `uop (x, o, a) ->
-    accum x acc ~f:(fun () ->
-        let a, w = operand a w in
-        w, Punop (l, o, a))
+    go x @@ fun w ->
+    let a, w = operand a w in
+    w, Punop (l, o, a)
   | `sel (x, t, c, y, n) ->
-    accum x acc ~f:(fun () ->
-        let c, w = Pvar c, Set.add w c in
-        let y, w = operand y w in
-        let n, w = operand n w in
-        w, Psel (l, t, c, y, n))
+    go x @@ fun w ->
+    let c, w = Pvar c, Set.add w c in
+    let y, w = operand y w in
+    let n, w = operand n w in
+    w, Psel (l, t, c, y, n)
   | `call (Some (x, t), f, args, vargs) ->
-    accum x acc ~f:(fun () ->
-        let f, w = global f w in
-        let args, w = operands args w in
-        let vargs, w = operands vargs w in
-        w, Pcall (l, t, f, args, vargs))
+    go x @@ fun w ->
+    let f, w = global f w in
+    let args, w = operands args w in
+    let vargs, w = operands vargs w in
+    w, Pcall (l, t, f, args, vargs)
   | `alloc (x, n) ->
-    accum x acc ~f:(fun () -> w, Palloc (l, n))
+    go x @@ fun w -> w, Palloc (l, n)
   | `load (x, t, a) ->
-    accum x acc ~f:(fun () ->
-        let a, w = operand a w in
-        w, Pload (l, t, a))
+    go x @@ fun w ->
+    let a, w = operand a w in
+    w, Pload (l, t, a)
   | _ -> acc
 
 (* Get the subset of instructions that we need to inspect backwards
@@ -401,12 +404,15 @@ let find_insn fn l =
       Blk.insns blk |> Seq.find_map ~f:(fun i ->
           if Label.(l <> Insn.label i) then None else Some (i, blk)))
 
-let build fn l =
-  let env = create_env fn in
-  match Map.find env.blks l with
-  | Some blk -> Ok (of_ctrl env blk)
-  | None -> match find_insn fn l with
-    | Some (insn, blk) -> Ok (of_insn env insn blk)
-    | None ->
-      E.failf "Label %a not found in function $%s"
-        Label.pp l (Func.name fn) ()
+let build fn l = try
+    let env = create_env fn in
+    match Map.find env.blks l with
+    | Some blk -> Ok (of_ctrl env blk)
+    | None -> match find_insn fn l with
+      | Some (insn, blk) -> Ok (of_insn env insn blk)
+      | None ->
+        E.failf "Label %a not found in function $%s"
+          Label.pp l (Func.name fn) ()
+  with Occurs_failed (x, l) ->
+    E.failf "Occurs check failed for variable %a at instruction %a"
+      Var.pp x Label.pp l ()
