@@ -30,7 +30,14 @@ module Env : sig
   (** The compound type associated with a type name. *)
   val typeof_typ : string -> t -> Type.compound Or_error.t
 
-  (** The type of a variable in a given function. *)
+  (** The type of a variable in a given function. Note that the
+      result of [Var.base] is used to look up the variable in
+      the environment.
+
+      This is because the environment itself is needed by the
+      SSA transformation (for computing the types of block
+      arguments). Afterwards, the environment may be reused.
+  *)
   val typeof_var : func -> Var.t -> t -> Type.t Or_error.t
 
   (** [layout name env] returns the resolved layout of type [name],

@@ -67,7 +67,7 @@ module Env = struct
       Or_error.errorf
         "No function %s in environment for variable %a"
         fname Var.pps v
-    | Some m -> match Map.find m v with
+    | Some m -> match Map.find m @@ Var.base v with
       | Some t -> Ok t
       | None ->
         Or_error.errorf
@@ -77,6 +77,7 @@ module Env = struct
   exception Unify_fail of Type.t
 
   let add_var fn v t env = try
+      let v = Var.base v in
       let venv = Map.update env.venv (Func.name fn) ~f:(function
           | None -> Var.Map.singleton v t
           | Some m -> Map.update m v ~f:(function
