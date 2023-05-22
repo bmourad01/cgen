@@ -71,8 +71,7 @@ type t =
   | Ecall    of global * pure list * pure list
   | Ehlt
   | Ejmp     of dst
-  | Eret     of pure
-  | Eret0
+  | Eret     of pure option
   | Eset     of Var.t * pure
   | Estore   of Type.basic * pure * pure
   | Esw      of Type.imm * pure * local * table
@@ -82,6 +81,14 @@ type t =
 
 (** Pretty-prints an expression. *)
 val pp : Format.formatter -> t -> unit
+
+(** Returns the set of free variables occurring in an expression. *)
+val free_vars : t -> Var.Set.t
+
+val free_vars_of_pure : pure -> Var.Set.t
+val free_vars_of_global : global -> Var.Set.t
+val free_vars_of_local : local -> Var.Set.t
+val free_vars_of_dst : dst -> Var.Set.t
 
 (** Returns the set of labels occurring in an expression. These
     correspond to instruction labels in the function that the
