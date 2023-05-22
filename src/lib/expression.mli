@@ -43,9 +43,6 @@ and dst =
   | Dlocal  of local
 [@@deriving bin_io, compare, equal, sexp]
 
-(** Returns [true] if the subexpression is an atom (non-inductive). *)
-val is_atom : pure -> bool
-
 (** Pretty-prints a subexpression. *)
 val pp_pure : Format.formatter -> pure -> unit
 

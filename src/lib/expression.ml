@@ -205,17 +205,11 @@ let labels = function
       labels_of_table tbl;
     ]
 
-let is_atom = function
-  | Palloc _
-  | Pdouble _
-  | Pint _
-  | Psingle _
-  | Psym _
-  | Pvar _ -> true
-  | _ -> false
-
 exception Occurs_failed of Var.t * Label.t option
 
+(* Keep track of the set of variables we're substituting. If
+   we find a cycle in the dependency chain then the function
+   is probably not in SSA form. *)
 let rec subst_pure ?(vs = Var.Set.empty) ctx e =
   let go = subst_pure ctx ~vs in
   match e with
@@ -239,13 +233,14 @@ let rec subst_pure ?(vs = Var.Set.empty) ctx e =
     Option.value_map ~default ~f:(continue x vs ctx)
 
 (* Make the full substitution on subterms and cache the results. *)
-and continue x vs ctx e =
-  if not (is_atom e || Hash_set.mem ctx.filled x) then
+and continue x vs ctx = function
+  | (Palloc _ | Pdouble _ | Pint _ | Psingle _ | Psym _) as e -> e
+  | e when Hash_set.mem ctx.filled x -> e
+  | e ->
     let e = subst_pure ctx e ~vs:(Set.add vs x) in
-    Hash_set.add ctx.filled x;
     Hashtbl.set ctx.pure ~key:x ~data:e;
+    Hash_set.add ctx.filled x;
     e
-  else e
 
 and subst_global ?(vs = Var.Set.empty) ctx = function
   | (Gaddr _ | Gsym _) as g -> g
