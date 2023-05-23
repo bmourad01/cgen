@@ -111,22 +111,29 @@ type datum = [
 (** Pretty-prints a datum. *)
 val pp_datum : Format.formatter -> datum -> unit
 
-(** The layout of a compound data type.
-
-    [align]: The data alignment, in bytes.
-
-    [data]: The data layout, including padding.
-*)
-type layout = {
-  align : int;
-  data  : datum list;
-} [@@deriving bin_io, compare, equal, hash, sexp]
+(** The layout of a compound data type. *)
+type layout [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Returns the size of the layout in bits. *)
 val sizeof_layout : layout -> int
 
 (** Pretty-prints a layout. *)
 val pp_layout : Format.formatter -> layout -> unit
+
+module Layout : sig
+  type t = layout
+
+  (** Returns the size of the layout in bits. *)
+  val sizeof : t -> int
+
+  (** Returns the alignment of the data. *)
+  val align : t -> int
+
+  (** Returns the exact structure of the data. *)
+  val data : t -> datum list
+
+  include Regular.S with type t := t
+end
 
 (** [layout gamma c] derives the layout of the compound data
     type [c].

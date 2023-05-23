@@ -101,6 +101,20 @@ let sizeof_layout l = List.fold l.data ~init:0 ~f:(fun sz -> function
     | #basic as b -> sz + sizeof_basic b
     | `pad n | `opaque n -> sz + n * 8)
 
+module Layout = struct
+  type t = layout
+  let sizeof = sizeof_layout
+  let align l = l.align
+  let data l = l.data
+
+  include Regular.Make(struct
+      type t = layout [@@deriving bin_io, compare, equal, hash, sexp]
+      let pp = pp_layout
+      let version = "0.1"
+      let module_name = Some "Cgen.Type.Layout"
+    end)
+end
+
 let padding size align =
   (align - size mod align) mod align
 

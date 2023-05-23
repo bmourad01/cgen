@@ -7,40 +7,19 @@ let c1 : Type.compound = `compound ("c1", Some 4, [
     `elt (`i8, 2);
   ])
 
-let c1_layout : Type.layout = {
-  align = 4;
-  data = [
-    `i32;
-    `i32;
-    `i32;
-    `i32;
-    `i8;
-    `i8;
-    `pad 2;
-  ];
-}
-
 let c2 : Type.compound = `compound ("c2", None, [
     `elt (`i32, 1);
     `name ("c1", 1);
     `elt (`i16, 1);
   ])
 
-let c2_layout : Type.layout = {
-  align = 4;
-  data = [
-    `i32;
-    `i32;
-    `i32;
-    `i32;
-    `i32;
-    `i8;
-    `i8;
-    `pad 2;
-    `i16;
-    `pad 2;
-  ];
-}
+let sexp = Fn.compose Type.Layout.t_of_sexp Sexp.of_string
+
+let c1_layout = sexp
+    "((align 4) (data (i32 i32 i32 i32 i8 i8 (pad 2))))"
+
+let c2_layout = sexp
+    "((align 4) (data (i32 i32 i32 i32 i32 i8 i8 (pad 2) i16 (pad 2))))"
 
 let gamma = function
   | "c1" -> c1_layout
