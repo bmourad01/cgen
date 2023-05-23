@@ -298,9 +298,7 @@ ctrl:
     { d >>| fun d -> `jmp d }
   | BR c = var COMMA t = dst COMMA f = dst
     {
-      c >>= fun c ->
-      t >>= fun t ->
-      f >>| fun f ->
+      let+ c = c and+ t = t and+ f = f in
       `br (c, t, f)
     }
   | RET a = option(operand)
@@ -331,46 +329,36 @@ ctrl_table_entry:
 insn:
   | x = var EQUALS b = insn_binop l = operand COMMA r = operand
     {
-      x >>= fun x ->
-      l >>= fun l ->
-      r >>| fun r ->
+      let+ x = x and+ l = l and+ r = r in
       `bop (x, b, l, r)
     }
   | x = var EQUALS u = insn_unop a = operand
     {
-      x >>= fun x ->
-      a >>| fun a ->
+      let+ x = x and+ a = a in
       `uop (x, u, a)
     }
   | x = var t = SEL c = var COMMA l = operand COMMA r = operand
     {
-      x >>= fun x ->
-      c >>= fun c ->
-      l >>= fun l ->
-      r >>| fun r ->
+      let+ x = x and+ c = c and+ l = l and+ r = r in
       `sel (x, t, c, l, r)
     }
   | x = var t = ACALL f = global LPAREN args = call_args RPAREN
     {
-      x >>= fun x ->
-      f >>= fun f ->
-      args >>| fun args ->
+      let+ x = x and+ f = f and+ args = args in
       let args, vargs = Core.List.partition_map args ~f:(function
         | `arg a -> First a | `varg a -> Second a) in
       `call (Some (x, t), f, args, vargs)
     }
   | CALL f = global LPAREN args = call_args RPAREN
     {
-      f >>= fun f ->
-      args >>| fun args ->
+      let+ f = f and+ args = args in
       let args, vargs = Core.List.partition_map args ~f:(function
         | `arg a -> First a | `varg a -> Second a) in
       `call (None, f, args, vargs)
     }
   | x = var EQUALS t = VAARG y = var
     {
-      x >>= fun x ->
-      y >>| fun y ->
+      let+ x = x and+ y = y in
       `vaarg (x, t, y)
     }
   | VASTART x = var
@@ -379,14 +367,12 @@ insn:
     { x >>| fun x -> `alloc (x, i) }
   | x = var EQUALS t = LOAD a = operand
     {
-      x >>= fun x ->
-      a >>| fun a ->
+      let+ x = x and+ a = a in
       `load (x, t, a)
     }
   | t = STORE v = operand COMMA a = operand
     {
-      v >>= fun v ->
-      a >>| fun a ->
+      let+ v = v and+ a = a in
       `store (t, v, a)
     }
 
@@ -399,14 +385,12 @@ call_args:
     }
   | a = operand COMMA rest = call_args
     {
-      a >>= fun a ->
-      rest >>| fun rest ->
+      let+ a = a and+ rest = rest in
       `arg a :: rest
     }
   | a = operand COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, operand)
     {
-      a >>= fun a ->
-      unwrap_list vargs >>| fun vargs ->
+      let+ a = a and+ vargs = unwrap_list vargs in
       `arg a :: Core.List.map vargs ~f:(fun a -> `varg a)
     }
 
@@ -487,8 +471,8 @@ local:
   | l = LABEL { label_of_name l >>| fun l -> `label (l, []) }
   | l = LABEL LPAREN args = separated_nonempty_list(COMMA, operand) RPAREN
     {
-      unwrap_list args >>= fun args ->
-      label_of_name l >>| fun l -> `label (l, args)
+      let+ args = unwrap_list args and+ l = label_of_name l in
+      `label (l, args)
     }
 
 global:
