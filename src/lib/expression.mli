@@ -9,6 +9,7 @@
 *)
 
 open Core
+open Regular.Std
 open Virtual
 
 (** A subexpression used to compute the result of an instruction. *)
@@ -105,10 +106,36 @@ val labels_of_dst : dst -> Label.Set.t
 type ctx
 
 (** Creates the context for a function. *)
-val create_ctx : func -> ctx Or_error.t
+val init : func -> ctx Or_error.t
+
+(** A resolved label.
+
+    [`blk b]: the label corresponds to the control instruction
+    of block [b] (and is equivalent to [Blk.label b]).
+
+    [`insn (i, b)]: the label corresponds to instruction [i] in
+    block [b].
+*)
+type resolved = [
+  | `blk of blk
+  | `insn of insn * blk
+]
+
+(** Resolves the label in the given context. *)
+val resolve : ctx -> Label.t -> resolved option
+
+(** Returns the currently known dependents of a label. *)
+val dependents : ctx -> Label.t -> (Label.t * Var.t) seq
+
+(** Returns the currently known dependencies of a label. *)
+val dependencies : ctx -> Label.t -> (Label.t * Var.t) seq
+
+(** Pretty-prints the dependency graph in Graphviz DOT notation. *)
+val pp_deps : Format.formatter -> ctx -> unit
 
 (** [build ctx l] attempts to construct an expression based on
-    the label [l] in function [fn].
+    the label [l] in function [fn]. The results are memoized in
+    [ctx].
 
     [l] must refer to either a block, in which case the expression
     is built starting from the control instruction, or a regular

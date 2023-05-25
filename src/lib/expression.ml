@@ -1,4 +1,5 @@
 open Core
+open Graphlib.Std
 open Monads.Std
 open Regular.Std
 open Virtual
@@ -58,16 +59,19 @@ type t =
   | Evastart of Var.t
 [@@deriving bin_io, compare, equal, sexp]
 
+module Deps = Graphlib.Make(Label)(Var)
+
 type ctx = {
-  insns  : (insn * blk) Label.Map.t;
-  blks   : blk Label.Map.t;
-  cfg    : Cfg.t;
-  pure   : pure Var.Table.t;
-  exp    : t Label.Table.t;
-  filled : Var.Hash_set.t;
+  insns        : (insn * blk) Label.Map.t;
+  blks         : blk Label.Map.t;
+  cfg          : Cfg.t;
+  pure         : pure Var.Table.t;
+  exp          : t Label.Table.t;
+  filled       : Var.Hash_set.t;
+  mutable deps : Deps.t;
 }
 
-let build_insns fn =
+let map_of_insns fn =
   let init = Label.Map.empty in
   Func.blks fn |> E.Seq.fold ~init ~f:(fun init blk ->
       Blk.insns blk |> E.Seq.fold ~init ~f:(fun m i ->
@@ -78,14 +82,47 @@ let build_insns fn =
             E.failf "Duplicate label for instruction %a in block %a"
               Label.pp key Label.pp (Blk.label blk) ()))
 
-let create_ctx fn =
-  let+ insns = build_insns fn in
+let init fn =
+  let+ insns = map_of_insns fn in
   let blks = Func.map_of_blks fn in
   let cfg = Cfg.create fn in
   let pure = Var.Table.create () in
   let exp = Label.Table.create () in
   let filled = Var.Hash_set.create () in
-  {insns; blks; cfg; pure; exp; filled}
+  {insns; blks; cfg; pure; exp; filled; deps = Deps.empty}
+
+type resolved = [
+  | `blk  of blk
+  | `insn of insn * blk
+]
+
+let resolve ctx l = match Map.find ctx.blks l with
+  | Some b -> Some (`blk b)
+  | None -> match Map.find ctx.insns l with
+    | Some x -> Some (`insn x)
+    | None -> None
+
+let dependents ctx src =
+  Deps.Node.succs src ctx.deps |>
+  Seq.filter_map ~f:(fun dst ->
+      Deps.Node.edge src dst ctx.deps |>
+      Option.map ~f:(fun e -> dst, Deps.Edge.label e))
+
+let dependencies ctx dst =
+  Deps.Node.preds dst ctx.deps |>
+  Seq.filter_map ~f:(fun src ->
+      Deps.Node.edge src dst ctx.deps |>
+      Option.map ~f:(fun e -> src, Deps.Edge.label e))
+
+let pp_deps ppf ctx =
+  Graphlib.Dot.pp_graph
+    ~string_of_node:Label.to_string
+    ~node_label:Label.to_string
+    ~edge_label:(fun e -> Var.to_string @@ Deps.Edge.label e)
+    ~nodes_of_edge:(fun e -> Deps.Edge.(src e, dst e))
+    ~nodes:(Deps.nodes ctx.deps)
+    ~edges:(Deps.edges ctx.deps)
+    ppf
 
 let rec free_vars_of_pure = function
   | Palloc _ | Pdouble _ | Pint _ | Psingle _ | Psym _ ->
@@ -375,199 +412,242 @@ let pp ppf = function
   | Evastart x ->
     Format.fprintf ppf "vastart(%a)" Var.pp x
 
-let operand (o : operand) w = match o with
-  | `int (i, t) -> Pint (i, t), w
-  | `float f    -> Psingle f, w
-  | `double d   -> Pdouble d, w
-  | `sym (s, o) -> Psym (s, o), w
-  | `var v      -> Pvar v, Set.add w v
+module Builder : sig
+  val of_ctrl : ctx -> blk -> t
+  val of_insn : ctx -> insn -> blk -> t
+end = struct
+  (* The worklist keeps track of the dependencies that the
+     algorithm should attempt to resolve. It also helps us
+     construct the dependency graph on the fly. *)
+  module Worklist : sig
+    type t 
 
-let operands os w =
-  List.fold_right os ~init:([], w) ~f:(fun o (os, w) ->
-      let o, w = operand o w in
-      o :: os, w)
+    val empty : t
+    val is_empty : t -> bool
+    val remove : t -> Var.t -> t
+    val mem : t -> Var.t -> bool
+    val singleton : Var.t -> Label.t -> t
+    val add : t -> Var.t -> Label.t -> t
+    val graph : t -> Label.t -> Var.t -> Deps.t -> Deps.t
+  end = struct
+    type t = Label.Set.t Var.Map.t
 
-let global (g : Virtual.global) w = match g with
-  | `addr a -> Gaddr a, w
-  | `sym s  -> Gsym s, w
-  | `var v  -> Gpure (Pvar v), Set.add w v
+    let empty = Var.Map.empty
+    let is_empty = Map.is_empty
+    let remove = Map.remove
+    let mem = Map.mem
 
-let local (l : Virtual.local) w = match l with
-  | `label (l, args) ->
-    let args, w = operands args w in
-    (l, args), w
+    let singleton x l =
+      Var.Map.singleton x @@ Label.Set.singleton l
 
-let dst (d : Virtual.dst) w = match d with
-  | #Virtual.global as g ->
-    let g, w = global g w in
-    Dglobal g, w
-  | #Virtual.local as l ->
-    let l, w = local l w in
-    Dlocal l, w
+    let add w x l = Map.update w x ~f:(function
+        | None -> Label.Set.singleton l
+        | Some s -> Set.add s l)
 
-(* We assume that the function is in SSA form, which should enforce
-   the invariant that all variables are bound to the same expression. *)
-let accum ctx w l x f =
-  if Set.mem w x then
-    let w = Set.remove w x in
-    if not @@ Hashtbl.mem ctx.pure x then
-      let w, p = f w in
-      if Set.mem w x then raise @@ Occurs_failed (x, Some l);
-      Hashtbl.set ctx.pure ~key:x ~data:p;
-      w
-    else w
-  else w
+    let graph w src x g =
+      Map.find w x |> Option.value_map ~default:g ~f:(fun s ->
+          Set.fold s ~init:g ~f:(fun g dst ->
+              let e = Deps.Edge.create src dst x in
+              Deps.Edge.insert e g))
+  end
 
-(* Accumulate the results of an instruction. *)
-let insn ctx w i =
-  let l = Insn.label i in
-  let go = accum ctx w l in
-  match Insn.op i with
-  | `bop (x, o, a, b) -> go x @@ fun w ->
-    let a, w = operand a w in
-    let b, w = operand b w in
-    w, Pbinop (l, o, a, b)
-  | `uop (x, o, a) -> go x @@ fun w ->
-    let a, w = operand a w in
-    w, Punop (l, o, a)
-  | `sel (x, t, c, y, n) -> go x @@ fun w ->
-    let c, w = Pvar c, Set.add w c in
-    let y, w = operand y w in
-    let n, w = operand n w in
-    w, Psel (l, t, c, y, n)
-  | `call (Some (x, t), f, args, vargs) -> go x @@ fun w ->
-    let f, w = global f w in
-    let args, w = operands args w in
-    let vargs, w = operands vargs w in
-    w, Pcall (l, t, f, args, vargs)
-  | `alloc (x, n) -> go x @@ fun w -> w, Palloc (l, n)
-  | `load (x, t, a) -> go x @@ fun w ->
-    let a, w = operand a w in
-    w, Pload (l, t, a)
-  | _ -> w
+  let operand (o : operand) w l = match o with
+    | `int (i, t) -> Pint (i, t), w
+    | `float f    -> Psingle f, w
+    | `double d   -> Pdouble d, w
+    | `sym (s, o) -> Psym (s, o), w
+    | `var v      -> Pvar v, Worklist.add w v l
 
-(* Kill the variables that appear in the arguments of the block.
-   This is the point where we can no longer represent their data
-   dependencies as a DAG. *)
-let killed blk w =
-  Blk.args blk |> Seq.map ~f:fst |> Var.Set.of_sequence |> Set.diff w
+  let operands os w l =
+    List.fold_right os ~init:([], w) ~f:(fun o (os, w) ->
+        let o, w = operand o w l in
+        o :: os, w)
 
-(* Get the subset of instructions that we need to inspect backwards
-   and then accumulate the results. *)
-let insns ?l ctx blk w =
-  Blk.insns blk ~rev:true |> fun ss ->
-  Option.value_map l ~default:ss ~f:(fun l ->
-      Seq.drop_while_option ss ~f:(fun i ->
-          Label.(l <> Insn.label i)) |>
-      Option.value_map ~default:Seq.empty ~f:snd) |>
-  Seq.fold ~init:w ~f:(insn ctx) |> killed blk
+  let global (g : Virtual.global) w l = match g with
+    | `addr a -> Gaddr a, w
+    | `sym s  -> Gsym s, w
+    | `var v  -> Gpure (Pvar v), Worklist.add w v l
 
-(* Next blocks to visit. *)
-let nexts ctx blk bs =
-  Cfg.Node.preds (Blk.label blk) ctx.cfg |>
-  Seq.filter_map ~f:(fun l ->
-      if Label.is_pseudo l || Set.mem bs l
-      then None else Map.find ctx.blks l)
+  let local (loc : Virtual.local) w l = match loc with
+    | `label (lbl, args) ->
+      let args, w = operands args w l in
+      (lbl, args), w
 
-(* Traverse the data dependencies. *)
-let build ?(w = Var.Set.empty) ?l ctx blk =
-  let q = Stack.singleton (blk, w, Label.Set.empty) in
-  while not @@ Stack.is_empty q do
-    let blk, w, bs = Stack.pop_exn q in
-    let w = insns ?l ctx blk w in
-    if not @@ Set.is_empty w then
-      let bs = Set.add bs @@ Blk.label blk in
-      nexts ctx blk bs |> Seq.iter ~f:(fun blk ->
-          Stack.push q (blk, w, bs))
-  done
+  let dst (d : Virtual.dst) w l = match d with
+    | #Virtual.global as g ->
+      let g, w = global g w l in
+      Dglobal g, w
+    | #Virtual.local as loc ->
+      let loc, w = local loc w l in
+      Dlocal loc, w
 
-let table tbl w =
-  Ctrl.Table.enum tbl |>
-  Seq.fold ~init:([], w) ~f:(fun (tbl, w) (i, l) ->
-      let l, w = local l w in
-      (i, l) :: tbl, w) |> fun (tbl, w) ->
-  List.rev tbl, w
+  let table tbl w l =
+    let tbl, w =
+      Ctrl.Table.enum tbl |>
+      Seq.fold ~init:([], w) ~f:(fun (tbl, w) (i, loc) ->
+          let loc, w = local loc w l in
+          (i, loc) :: tbl, w) in
+    List.rev tbl, w
 
-let go_ctrl ctx blk f =
-  let w, e = f () in
-  build ctx blk ~w;
-  let e = subst ctx e in
-  Hashtbl.set ctx.exp ~key:(Blk.label blk) ~data:e;
-  e
+  (* Accumulate the results of an instruction. *)
+  let accum_insn ctx w i =
+    let l = Insn.label i in
+    let go x f =
+      if Worklist.mem w x then
+        let w' = ref @@ Worklist.remove w x in
+        (* Assume that the current bound expression is the same. *)
+        if not @@ Hashtbl.mem ctx.pure x then begin
+          let w, p = f !w' in
+          (* If we re-introduce the same variable then the SSA
+             invariants have been broken .*)
+          if Worklist.mem w x then
+            raise @@ Occurs_failed (x, Some l);
+          Hashtbl.set ctx.pure ~key:x ~data:p;
+          w' := w;
+        end;
+        ctx.deps <- Worklist.graph w l x ctx.deps;
+        !w'
+      else w in
+    match Insn.op i with
+    | `bop (x, o, a, b) -> go x @@ fun w ->
+      let a, w = operand a w l in
+      let b, w = operand b w l in
+      w, Pbinop (l, o, a, b)
+    | `uop (x, o, a) -> go x @@ fun w ->
+      let a, w = operand a w l in
+      w, Punop (l, o, a)
+    | `sel (x, t, c, y, n) -> go x @@ fun w ->
+      let c, w = Pvar c, Worklist.add w c l in
+      let y, w = operand y w l in
+      let n, w = operand n w l in
+      w, Psel (l, t, c, y, n)
+    | `call (Some (x, t), f, args, vargs) -> go x @@ fun w ->
+      let f, w = global f w l in
+      let args, w = operands args w l in
+      let vargs, w = operands vargs w l in
+      w, Pcall (l, t, f, args, vargs)
+    | `alloc (x, n) -> go x @@ fun w -> w, Palloc (l, n)
+    | `load (x, t, a) -> go x @@ fun w ->
+      let a, w = operand a w l in
+      w, Pload (l, t, a)
+    | _ -> w
 
-let of_ctrl ctx blk =
-  let go = go_ctrl ctx blk in
-  match Blk.ctrl blk with
-  | `hlt -> Ehlt
-  | `jmp d -> go @@ fun () ->
-    let d, w = dst d Var.Set.empty in
-    w, Ejmp d
-  | `br (c, y, n) -> go @@ fun () ->
-    let c, w = Pvar c, Var.Set.singleton c in
-    let y, w = dst y w in
-    let n, w = dst n w in
-    w, Ebr (c, y, n)
-  | `ret None -> Eret None
-  | `ret (Some x) -> go @@ fun () ->
-    let x, w = operand x Var.Set.empty in
-    w, Eret (Some x)
-  | `sw (t, v, d, tbl) -> go @@ fun () ->
-    let v, w = Pvar v, Var.Set.singleton v in
-    let d, w = local d w in
-    let tbl, w = table tbl w in
-    w, Esw (t, v, d, tbl)
+  (* Kill the variables that appear in the arguments of the block.
+     This is the point where we can no longer represent their data
+     dependencies as a DAG. *)
+  let killed blk w =
+    Blk.args blk |> Seq.map ~f:fst |>
+    Seq.fold ~init:w ~f:Worklist.remove
 
-let go_insn ctx blk l f =
-  let w, e = f () in
-  build ctx blk ~l ~w;
-  let e = subst ctx e in
-  Hashtbl.set ctx.exp ~key:l ~data:e;
-  e
+  (* Get the subset of instructions that we need to inspect backwards
+     and then accumulate the results. *)
+  let insns ?l ctx blk w =
+    Blk.insns blk ~rev:true |> fun ss ->
+    Option.value_map l ~default:ss ~f:(fun l ->
+        Seq.drop_while_option ss ~f:(fun i ->
+            Label.(l <> Insn.label i)) |>
+        Option.value_map ~default:Seq.empty ~f:snd) |>
+    Seq.fold ~init:w ~f:(accum_insn ctx) |> killed blk
 
-let of_insn ctx i blk =
-  let l = Insn.label i in
-  let go = go_insn ctx blk l in
-  match Insn.op i with
-  | `bop (x, o, a, b) -> go @@ fun () ->
-    let a, w = operand a Var.Set.empty in
-    let b, w = operand b w in
-    w, Eset (x, Pbinop (l, o, a, b))
-  | `uop (x, o, a) -> go @@ fun () ->
-    let a, w = operand a Var.Set.empty in
-    w, Eset (x, Punop (l, o, a))
-  | `sel (x, t, c, y, n) -> go @@ fun () ->
-    let y, w = operand y @@ Var.Set.singleton c in
-    let n, w = operand n w in
-    w, Eset (x, Psel (l, t, Pvar c, y, n))
-  | `call (Some (x, t), f, args, vargs) -> go @@ fun () ->
-    let f, w = global f Var.Set.empty in
-    let args, w = operands args w in
-    let vargs, w = operands vargs w in
-    w, Eset (x, Pcall (l, t, f, args, vargs))
-  | `alloc (x, n) -> go @@ fun () ->
-    Var.Set.empty, Eset (x, Palloc (l, n))
-  | `load (x, t, a) -> go @@ fun () ->
-    let a, w = operand a Var.Set.empty in
-    w, Eset (x, Pload (l, t, a))
-  | `call (None, f, args, vargs) -> go @@ fun () ->
-    let f, w = global f Var.Set.empty in
-    let args, w = operands args w in
-    let vargs, w = operands vargs w in
-    w, Ecall (f, args, vargs)
-  | `store (t, v, a) -> go @@ fun () ->
-    let v, w = operand v Var.Set.empty in
-    let a, w = operand a w in
-    w, Estore (t, v, a)
-  | `vaarg (x, t, y) -> Evaarg (x, t, y)
-  | `vastart x -> Evastart x
+  (* Next blocks to visit. *)
+  let nexts ctx blk bs =
+    Cfg.Node.preds (Blk.label blk) ctx.cfg |>
+    Seq.filter_map ~f:(fun l ->
+        if Label.is_pseudo l || Set.mem bs l
+        then None else Map.find ctx.blks l)
+
+  (* Traverse the data dependencies. *)
+  let run ?(w = Worklist.empty) ?l ctx blk =
+    let q = Stack.singleton (blk, w, Label.Set.empty) in
+    while not @@ Stack.is_empty q do
+      let blk, w, bs = Stack.pop_exn q in
+      let w = insns ?l ctx blk w in
+      if not @@ Worklist.is_empty w then
+        let bs = Set.add bs @@ Blk.label blk in
+        nexts ctx blk bs |> Seq.iter ~f:(fun blk ->
+            Stack.push q (blk, w, bs))
+    done
+
+  let of_ctrl ctx blk =
+    let l = Blk.label blk in
+    let go f =
+      let w, e = f () in
+      let e = if not @@ Worklist.is_empty w then begin
+          run ctx blk ~w;
+          subst ctx e
+        end else e in
+      Hashtbl.set ctx.exp ~key:l ~data:e;
+      e in
+    match Blk.ctrl blk with
+    | `hlt -> Ehlt
+    | `jmp d -> go @@ fun () ->
+      let d, w = dst d Worklist.empty l in
+      w, Ejmp d
+    | `br (c, y, n) -> go @@ fun () ->
+      let c, w = Pvar c, Worklist.singleton c l in
+      let y, w = dst y w l in
+      let n, w = dst n w l in
+      w, Ebr (c, y, n)
+    | `ret None -> Eret None
+    | `ret (Some x) -> go @@ fun () ->
+      let x, w = operand x Worklist.empty l in
+      w, Eret (Some x)
+    | `sw (t, v, d, tbl) -> go @@ fun () ->
+      let v, w = Pvar v, Worklist.singleton v l in
+      let d, w = local d w l in
+      let tbl, w = table tbl w l in
+      w, Esw (t, v, d, tbl)
+
+  let of_insn ctx i blk =
+    let l = Insn.label i in
+    let go f =
+      let w, e = f () in
+      let e = if not @@ Worklist.is_empty w then begin
+          run ctx blk ~l ~w;
+          subst ctx e
+        end else e in
+      Hashtbl.set ctx.exp ~key:l ~data:e;
+      e in
+    match Insn.op i with
+    | `bop (x, o, a, b) -> go @@ fun () ->
+      let a, w = operand a Worklist.empty l in
+      let b, w = operand b w l in
+      w, Eset (x, Pbinop (l, o, a, b))
+    | `uop (x, o, a) -> go @@ fun () ->
+      let a, w = operand a Worklist.empty l in
+      w, Eset (x, Punop (l, o, a))
+    | `sel (x, t, c, y, n) -> go @@ fun () ->
+      let y, w = operand y (Worklist.singleton c l) l in
+      let n, w = operand n w l in
+      w, Eset (x, Psel (l, t, Pvar c, y, n))
+    | `call (Some (x, t), f, args, vargs) -> go @@ fun () ->
+      let f, w = global f Worklist.empty l in
+      let args, w = operands args w l in
+      let vargs, w = operands vargs w l in
+      w, Eset (x, Pcall (l, t, f, args, vargs))
+    | `alloc (x, n) -> Eset (x, Palloc (l, n))
+    | `load (x, t, a) -> go @@ fun () ->
+      let a, w = operand a Worklist.empty l in
+      w, Eset (x, Pload (l, t, a))
+    | `call (None, f, args, vargs) -> go @@ fun () ->
+      let f, w = global f Worklist.empty l in
+      let args, w = operands args w l in
+      let vargs, w = operands vargs w l in
+      w, Ecall (f, args, vargs)
+    | `store (t, v, a) -> go @@ fun () ->
+      let v, w = operand v Worklist.empty l in
+      let a, w = operand a w l in
+      w, Estore (t, v, a)
+    | `vaarg (x, t, y) -> Evaarg (x, t, y)
+    | `vastart x -> Evastart x
+end
 
 let build ctx l = try match Hashtbl.find ctx.exp l with
   | Some e -> Ok e
-  | None -> match Map.find ctx.blks l with
-    | Some blk -> Ok (of_ctrl ctx blk)
-    | None -> match Map.find ctx.insns l with
-      | Some (i, blk) -> Ok (of_insn ctx i blk)
-      | None -> E.failf "Label %a not found" Label.pp l ()
+  | None -> match resolve ctx l with
+    | Some `blk b -> Ok (Builder.of_ctrl ctx b)
+    | Some `insn (i, b) -> Ok (Builder.of_insn ctx i b)
+    | None -> E.failf "Label %a not found" Label.pp l ()
   with
   | Occurs_failed (x, None) ->
     E.failf "Occurs check failed for variable %a" Var.pp x ()
