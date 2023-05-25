@@ -489,25 +489,29 @@ end = struct
           (i, loc) :: tbl, w) in
     List.rev tbl, w
 
+  let update ctx l ((w, xs) as acc) x f =
+    (* Fail if we've already seen this variable. *)
+    if Set.mem xs x then
+      raise @@ Occurs_failed (x, Some l);
+    if Worklist.mem w x then
+      let w' = ref @@ Worklist.remove w x in
+      (* Assume that the current bound expression is the same. *)
+      if not @@ Hashtbl.mem ctx.pure x then begin
+        let w, p = f !w' in
+        (* Fail early if we re-introduce the same variable. *)
+        if Worklist.mem w x then
+          raise @@ Occurs_failed (x, Some l);
+        Hashtbl.set ctx.pure ~key:x ~data:p;
+        w' := w;
+      end;
+      ctx.deps <- Worklist.graph w l x ctx.deps;
+      !w', Set.add xs x
+    else acc
+
   (* Accumulate the results of an instruction. *)
-  let accum_insn ctx w i =
+  let accum ctx acc i =
     let l = Insn.label i in
-    let go x f =
-      if Worklist.mem w x then
-        let w' = ref @@ Worklist.remove w x in
-        (* Assume that the current bound expression is the same. *)
-        if not @@ Hashtbl.mem ctx.pure x then begin
-          let w, p = f !w' in
-          (* If we re-introduce the same variable then the SSA
-             invariants have been broken .*)
-          if Worklist.mem w x then
-            raise @@ Occurs_failed (x, Some l);
-          Hashtbl.set ctx.pure ~key:x ~data:p;
-          w' := w;
-        end;
-        ctx.deps <- Worklist.graph w l x ctx.deps;
-        !w'
-      else w in
+    let go = update ctx l acc in
     match Insn.op i with
     | `bop (x, o, a, b) -> go x @@ fun w ->
       let a, w = operand a w l in
@@ -530,7 +534,7 @@ end = struct
     | `load (x, t, a) -> go x @@ fun w ->
       let a, w = operand a w l in
       w, Pload (l, t, a)
-    | _ -> w
+    | _ -> acc
 
   (* Kill the variables that appear in the arguments of the block.
      This is the point where we can no longer represent their data
@@ -539,15 +543,19 @@ end = struct
     Blk.args blk |> Seq.map ~f:fst |>
     Seq.fold ~init:w ~f:Worklist.remove
 
-  (* Get the subset of instructions that we need to inspect backwards
-     and then accumulate the results. *)
-  let insns ?l ctx blk w =
-    Blk.insns blk ~rev:true |> fun ss ->
-    Option.value_map l ~default:ss ~f:(fun l ->
-        Seq.drop_while_option ss ~f:(fun i ->
-            Label.(l <> Insn.label i)) |>
-        Option.value_map ~default:Seq.empty ~f:snd) |>
-    Seq.fold ~init:w ~f:(accum_insn ctx) |> killed blk
+  let different_insn l i = Label.(l <> Insn.label i)
+
+  let subseq blk l ss =
+    if Label.(l <> Blk.label blk) then
+      Seq.drop_while_option ss ~f:(different_insn l) |>
+      Option.value_map ~default:Seq.empty ~f:snd
+    else ss
+
+  let insns ctx blk l w xs =
+    let w, xs =
+      Blk.insns blk ~rev:true |> subseq blk l |>
+      Seq.fold ~init:(w, xs) ~f:(accum ctx) in
+    killed blk w, xs
 
   (* Next blocks to visit. *)
   let nexts ctx blk bs =
@@ -557,27 +565,27 @@ end = struct
         then None else Map.find ctx.blks l)
 
   (* Traverse the data dependencies. *)
-  let run ?(w = Worklist.empty) ?l ctx blk =
-    let q = Stack.singleton (blk, w, Label.Set.empty) in
+  let traverse ?(w = Worklist.empty) ctx blk l =
+    let q = Stack.singleton (blk, w, Label.Set.empty, Var.Set.empty) in
     while not @@ Stack.is_empty q do
-      let blk, w, bs = Stack.pop_exn q in
-      let w = insns ?l ctx blk w in
+      let blk, w, bs, xs = Stack.pop_exn q in
+      let w, xs = insns ctx blk l w xs in
       if not @@ Worklist.is_empty w then
         let bs = Set.add bs @@ Blk.label blk in
         nexts ctx blk bs |> Seq.iter ~f:(fun blk ->
-            Stack.push q (blk, w, bs))
+            Stack.push q (blk, w, bs, xs))
     done
+
+  let run ctx blk l f =
+    let w, e = f () in
+    if not @@ Worklist.is_empty w then traverse ctx blk l ~w;
+    let e = subst ctx e in
+    Hashtbl.set ctx.exp ~key:l ~data:e;
+    e
 
   let of_ctrl ctx blk =
     let l = Blk.label blk in
-    let go f =
-      let w, e = f () in
-      let e = if not @@ Worklist.is_empty w then begin
-          run ctx blk ~w;
-          subst ctx e
-        end else e in
-      Hashtbl.set ctx.exp ~key:l ~data:e;
-      e in
+    let go = run ctx blk l in
     match Blk.ctrl blk with
     | `hlt -> Ehlt
     | `jmp d -> go @@ fun () ->
@@ -600,14 +608,7 @@ end = struct
 
   let of_insn ctx i blk =
     let l = Insn.label i in
-    let go f =
-      let w, e = f () in
-      let e = if not @@ Worklist.is_empty w then begin
-          run ctx blk ~l ~w;
-          subst ctx e
-        end else e in
-      Hashtbl.set ctx.exp ~key:l ~data:e;
-      e in
+    let go = run ctx blk l in
     match Insn.op i with
     | `bop (x, o, a, b) -> go @@ fun () ->
       let a, w = operand a Worklist.empty l in
