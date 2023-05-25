@@ -564,21 +564,25 @@ end = struct
         if Label.is_pseudo l || Set.mem bs l
         then None else Map.find ctx.blks l)
 
+  let initq blk l w =
+    blk, l, w, Label.Set.empty, Var.Set.empty
+
   (* Traverse the data dependencies. *)
-  let traverse ?(w = Worklist.empty) ctx blk l =
-    let q = Stack.singleton (blk, w, Label.Set.empty, Var.Set.empty) in
-    while not @@ Stack.is_empty q do
-      let blk, w, bs, xs = Stack.pop_exn q in
-      let w, xs = insns ctx blk l w xs in
-      if not @@ Worklist.is_empty w then
-        let bs = Set.add bs @@ Blk.label blk in
-        nexts ctx blk bs |> Seq.iter ~f:(fun blk ->
-            Stack.push q (blk, w, bs, xs))
-    done
+  let traverse ctx blk l w =
+    if not @@ Worklist.is_empty w then
+      let q = Stack.singleton @@ initq blk l w in
+      while not @@ Stack.is_empty q do
+        let blk, l, w, bs, xs = Stack.pop_exn q in
+        let w, xs = insns ctx blk l w xs in
+        if not @@ Worklist.is_empty w then
+          let bs = Set.add bs @@ Blk.label blk in
+          nexts ctx blk bs |> Seq.iter ~f:(fun blk ->
+              Stack.push q (blk, Blk.label blk, w, bs, xs))
+      done
 
   let run ctx blk l f =
     let w, e = f () in
-    if not @@ Worklist.is_empty w then traverse ctx blk l ~w;
+    traverse ctx blk l w;
     let e = subst ctx e in
     Hashtbl.set ctx.exp ~key:l ~data:e;
     e
