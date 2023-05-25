@@ -147,3 +147,7 @@ val pp_deps : Format.formatter -> ctx -> unit
     [fn] is assumed to be in SSA form.
 *)
 val build : ctx -> Label.t -> t Or_error.t
+
+(** Same as [build], but runs for every instruction in the
+    context. *)
+val fill : ctx -> unit Or_error.t

@@ -647,15 +647,26 @@ end = struct
     | `vastart x -> Evastart x
 end
 
-let build ctx l = try match Hashtbl.find ctx.exp l with
-  | Some e -> Ok e
-  | None -> match resolve ctx l with
-    | Some `blk b -> Ok (Builder.of_ctrl ctx b)
-    | Some `insn (i, b) -> Ok (Builder.of_insn ctx i b)
-    | None -> E.failf "Label %a not found" Label.pp l ()
-  with
+let try_ f = try f () with
   | Occurs_failed (x, None) ->
     E.failf "Occurs check failed for variable %a" Var.pp x ()
   | Occurs_failed (x, Some l) ->
     E.failf "Occurs check failed for variable %a at instruction %a"
       Var.pp x Label.pp l ()
+
+let build ctx l = try_ @@ fun () ->
+  match Hashtbl.find ctx.exp l with
+  | Some e -> Ok e
+  | None -> match resolve ctx l with
+    | Some `blk b -> Ok (Builder.of_ctrl ctx b)
+    | Some `insn (i, b) -> Ok (Builder.of_insn ctx i b)
+    | None -> E.failf "Label %a not found" Label.pp l ()
+
+let fill ctx = try_ @@ fun () ->
+  Map.iter ctx.blks ~f:(fun b ->
+      if not @@ Hashtbl.mem ctx.exp @@ Blk.label b then
+        ignore @@ Builder.of_ctrl ctx b);
+  Map.iter ctx.insns ~f:(fun (i, b) ->
+      if not @@ Hashtbl.mem ctx.exp @@ Insn.label i then
+        ignore @@ Builder.of_insn ctx i b);
+  Ok ()
