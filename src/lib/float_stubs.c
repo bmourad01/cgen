@@ -239,7 +239,7 @@ value cgen_float32_lt(value x, value y) {
 value cgen_bits_of_float(value x) {
   CAMLparam1(x);
   CAMLlocal1(d);
-  float f = Double_val(x);
+  double f = Double_val(x);
   uint64_t i = *(uint64_t *)&f;
   d = caml_copy_int64(i);
   CAMLreturn(d);
