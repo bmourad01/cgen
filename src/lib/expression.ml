@@ -354,6 +354,7 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       (* FTRUNC *)
       | `ftrunc `f32, Pdouble a ->
         Psingle (Float32.of_float a)
+      (* IFBITS *)
       | `ifbits t, Psingle a ->
         let t = (t :> Type.imm) in
         Pint (Bitvec.(int32 (Float32.bits a) mod imod t), t)
