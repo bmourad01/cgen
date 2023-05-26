@@ -99,20 +99,29 @@ module Eval = struct
     | false, true -> 1
 
   let clz x n =
-    let x = Bitvec.to_bigint x in
-    let rec aux i =
-      if i < 0 then n
-      else if Z.testbit x i then n - i - 1
-      else aux (i - 1) in
-    Bitvec.(int (aux Int.(n - 1)) mod modulus n)
+    let i = Bitvec.to_int64 x in
+    let i = match n, i with
+      | 8, 0L -> 8
+      | 8, _ -> Int64.(clz (i lsl 56))
+      | 16, 0L -> 16
+      | 16, _ -> Int64.(clz (i lsl 48))
+      | 32, 0L -> 32
+      | 32, _ -> Int64.(clz (i lsl 32))
+      | 64, 0L -> 64
+      | 64, _ -> Int64.clz i
+      | _ -> assert false in
+    Bitvec.(int i mod modulus n)
 
   let ctz x n =
-    let x = Bitvec.to_bigint x in
-    let rec aux i =
-      if i >= n then n
-      else if Z.testbit x i then i
-      else aux (i + 1) in
-    Bitvec.(int (aux 0) mod modulus n)
+    let i = Bitvec.to_int64 x in
+    let i = match n, i with
+      | 8, 0L -> 8
+      | 16, 0L -> 16
+      | 32, 0L -> 32
+      | 64, 0L -> 64
+      | (8|16|32|64), _ -> Int64.ctz i
+      | _ -> assert false in
+    Bitvec.(int i mod modulus n)
 
   let popcnt x n =
     let x = Bitvec.to_bigint x in
