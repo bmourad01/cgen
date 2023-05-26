@@ -97,11 +97,12 @@ let pp_cmp ppf : cmp -> unit = function
   | `uo  t -> Format.fprintf ppf "uo.%a"  Type.pp_fp    t
 
 type cast = [
-  | `bits   of Type.basic
   | `fext   of Type.fp
+  | `fibits of Type.fp
   | `ftosi  of Type.fp * Type.imm
   | `ftoui  of Type.fp * Type.imm
   | `ftrunc of Type.fp
+  | `ifbits of Type.imm_base
   | `itrunc of Type.imm
   | `sext   of Type.imm
   | `sitof  of Type.imm * Type.fp
@@ -110,16 +111,18 @@ type cast = [
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_cast ppf : cast -> unit = function
-  | `bits t ->
-    Format.fprintf ppf "bits.%a" Type.pp_basic t
   | `fext t ->
     Format.fprintf ppf "fext.%a" Type.pp_fp t
+  | `fibits t ->
+    Format.fprintf ppf "fibits.%a" Type.pp_fp t
   | `ftosi (tf, ti) ->
     Format.fprintf ppf "ftosi.%a.%a" Type.pp_fp tf Type.pp_imm ti
   | `ftoui (tf, ti) ->
     Format.fprintf ppf "ftoui.%a.%a" Type.pp_fp tf Type.pp_imm ti
   | `ftrunc t ->
     Format.fprintf ppf "ftrunc.%a" Type.pp_fp t
+  | `ifbits t ->
+    Format.fprintf ppf "ifbits.%a" Type.pp_imm_base t
   | `itrunc t ->
     Format.fprintf ppf "itrunc.%a" Type.pp_imm t
   | `sext t ->

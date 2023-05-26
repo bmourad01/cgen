@@ -229,10 +229,11 @@ module Insn : sig
 
   (** Cast operations.
 
-      [`bits t]: reinterpret the underlying bits to type [t].
-
       [`fext t]: extends a floating point value to a higher
       precision.
+
+      [`fibits t]: reinterpret the bits of an integer as a
+      float of type [t].
 
       [`ftosi (t, i)]: cast a float of type [t] to a signed
       integer of type [i].
@@ -241,6 +242,9 @@ module Insn : sig
       integer of type [i].
 
       [`ftrunc t]: truncate a float to a float of type [t].
+
+      [`ifbits t]: reinterpret the bits of a floating point
+      number as an integer of type [t].
 
       [`itrunc t]: truncate an integer to an integer of type [t].
 
@@ -255,11 +259,12 @@ module Insn : sig
       [`zext t]: sign-extend an integer to an integer of type [t].
   *)
   type cast = [
-    | `bits   of Type.basic
     | `fext   of Type.fp
+    | `fibits of Type.fp
     | `ftosi  of Type.fp * Type.imm
     | `ftoui  of Type.fp * Type.imm
     | `ftrunc of Type.fp
+    | `ifbits of Type.imm_base
     | `itrunc of Type.imm
     | `sext   of Type.imm
     | `sitof  of Type.imm * Type.fp

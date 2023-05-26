@@ -305,26 +305,15 @@ let unify_fext_fail fn blk l t a =
      in block %a in function %s" Type.pps t a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn)
 
-let unify_bits_fail fn blk l t ta a =
+let unify_bits_fail fn blk l op t ta a =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Invalid type for arg %s in instruction %a in block %a in \
-     function %s: 'bits' cannot convert %a to %a"
+     function %s: '%s' cannot convert %a to %a"
     a Label.pps l Label.pps (Blk.label blk) (Func.name fn)
-    Type.pps ta Type.pps (t :> Type.t)
+    op Type.pps ta Type.pps (t :> Type.t)
 
 let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
-  | `bits t ->
-    begin match t, ta with
-      | #Type.imm_base as i, #Type.compound ->
-        let* tgt = M.gets Env.target in
-        if Type.equal_imm_base i (Target.word tgt) then !!t
-        else unify_bits_fail fn blk l t ta a
-      | #Type.imm, #Type.imm -> !!t
-      | #Type.imm, #Type.fp -> !!t
-      | #Type.fp, #Type.imm -> !!t
-      | _ -> unify_bits_fail fn blk l t ta a
-    end
   | `fext t ->
     let+ () = match t, ta with
       | `f64, `f64
@@ -333,6 +322,11 @@ let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
       | _, #Type.fp -> unify_fext_fail fn blk l ta a
       | _ -> unify_fp_fail fn blk l ta a in
     (t :> Type.basic)
+  | `fibits t ->
+    begin match t, ta with
+      | (`f32, `i32) | (`f64, `i64) -> !!(t :> Type.basic)
+      | _ -> unify_bits_fail fn blk l "fibits" t ta a
+    end
   | `ftosi (tf, ti)
   | `ftoui (tf, ti) ->
     let+ () = unify_arg fn blk l ta a (tf :> Type.t) in
@@ -342,6 +336,11 @@ let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
       | #Type.fp -> !!()
       | _ -> unify_fp_fail fn blk l ta a in
     (t :> Type.basic)
+  | `ifbits t ->
+    begin match t, ta with
+      | (`i32, `f32) | (`i64, `f64) -> !!(t :> Type.basic)
+      | _ -> unify_bits_fail fn blk l "ifbits" t ta a
+    end
   | `itrunc t | `sext t | `zext t ->
     let+ () = match ta with
       | #Type.imm -> !!()

@@ -26,6 +26,11 @@
     | 'h' -> `i16
     | _ -> raise Error
 
+  let imm_base_of_char : char -> Type.imm_base = function
+    | 'w' -> `i32
+    | 'l' -> `i64
+    | _ -> raise Error
+
   let fp_of_char : char -> Type.fp = function
     | 's' -> `f32
     | 'd' -> `f64
@@ -54,6 +59,7 @@ let nan = ("NAN" | "NaN" | "nan")
 let flt = ('-'? digit+ '.' digit+ exp?) | ('-'? inf) | ('-'? nan)
 let backslash_escapes = ['\\' '\'' '"' 'n' 't' 'b' 'r' ' ']
 let imm = ['w' 'l' 'b' 'h']
+let imm_base = ['w' 'l']
 let fp = ['s' 'd']
 let basic = (imm | fp)
 let special = ['m' 'f']
@@ -131,8 +137,8 @@ rule token = parse
   | "sle" '.' (imm as t) { SLE (imm_of_char t) }
   | "slt" '.' (imm as t) { SLT (imm_of_char t) }
   | "uo" '.' (fp as t) { UO (fp_of_char t) }
-  | "bits" '.' (basic as t) { BITS (basic_of_char t) }
   | "fext" '.' (fp as t) { FEXT (fp_of_char t) }
+  | "fibits" '.' (fp as t) { FEXT (fp_of_char t) }
   | "ftosi" '.' (fp as t) '.' (imm as i) {
     FTOSI (fp_of_char t, imm_of_char i)
   }
@@ -140,6 +146,7 @@ rule token = parse
     FTOUI (fp_of_char t, imm_of_char i)
   }
   | "ftrunc" '.' (fp as t) { FTRUNC (fp_of_char t) }
+  | "ifbits" '.' (imm_base as t) { IFBITS (imm_base_of_char t) }
   | "itrunc" '.' (imm as t) { ITRUNC (imm_of_char t) }
   | "sext" '.' (imm as t) { SEXT (imm_of_char t) }
   | "sitof" '.' (imm as t) '.' (fp as f) {

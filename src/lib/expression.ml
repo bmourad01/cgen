@@ -306,21 +306,14 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       (* POPCNT *)
       | `popcnt t, Pint (a, _) ->
         Pint (Eval.popcnt a @@ Type.sizeof_imm t, t)
-      (* BITS *)
-      | `bits (#Type.imm as t), Pint (a, _) ->
-        let m = imod t in
-        Pint (Bitvec.((a land (ones mod m)) mod m), t)
-      | `bits (#Type.imm as t), Psingle a ->
-        Pint (Bitvec.(int32 (Float32.bits a) mod imod t), t)
-      | `bits (#Type.imm as t), Pdouble a ->
-        Pint (Bitvec.(int64 (Eval.float_to_bits a) mod imod t), t)
-      | `bits `f32, Pint (a, _) ->
-        Psingle (Float32.of_bits @@ Bitvec.to_int32 a)
-      | `bits `f64, Pint (a, _) ->
-        Pdouble (Eval.float_of_bits @@ Bitvec.to_int64 a)
       (* FEXT *)
       | `fext `f64, Psingle a ->
         Pdouble (Float32.to_float a)
+      (* FIBITS *)
+      | `fibits `f32, Pint (a, _) ->
+        Psingle (Float32.of_bits @@ Bitvec.to_int32 a)
+      | `fibits `f64, Pint (a, _) ->
+        Pdouble (Eval.float_of_bits @@ Bitvec.to_int64 a)
       (* FTOSI *)
       | `ftosi (`f32, `i8), Psingle a ->
         Pint (Eval.int8 @@ Float32.to_int8 a, `i8)
@@ -358,6 +351,12 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       (* FTRUNC *)
       | `ftrunc `f32, Pdouble a ->
         Psingle (Float32.of_float a)
+      | `ifbits t, Psingle a ->
+        let t = (t :> Type.imm) in
+        Pint (Bitvec.(int32 (Float32.bits a) mod imod t), t)
+      | `ifbits t, Pdouble a ->
+        let t = (t :> Type.imm) in
+        Pint (Bitvec.(int64 (Eval.float_to_bits a) mod imod t), t)
       (* ITRUNC *)
       | `itrunc t, Pint (a, _) ->
         let hi = Type.sizeof_imm t -  1 in

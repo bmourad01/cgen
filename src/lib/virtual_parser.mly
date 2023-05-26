@@ -103,10 +103,10 @@
 %token <Type.basic> LOAD STORE EQ GE GT LE LT NE
 %token <Type.imm> SGE SGT SLE SLT
 %token <Type.fp> O UO
-%token <Type.basic> BITS
 %token <Type.fp * Type.imm> FTOSI FTOUI
-%token <Type.fp> FEXT FTRUNC
+%token <Type.fp> FEXT FIBITS FTRUNC
 %token <Type.imm> CLZ CTZ ITRUNC POPCNT SEXT ZEXT
+%token <Type.imm_base> IFBITS
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL ACALL
 %token CALL
@@ -449,11 +449,12 @@ insn_bitwise_unop:
   | t = POPCNT { `popcnt t }
 
 insn_cast:
-  | t = BITS { `bits t }
   | t = FEXT { `fext t }
+  | t = FIBITS { `fibits t }
   | t = FTOSI { `ftosi (fst t, snd t) }
   | t = FTOUI { `ftoui (fst t, snd t) }
   | t = FTRUNC { `ftrunc t }
+  | t = IFBITS { `ifbits t }
   | t = ITRUNC { `itrunc t }
   | t = SEXT { `sext t }
   | t = SITOF { `sitof (fst t, snd t) }
