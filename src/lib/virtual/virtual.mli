@@ -896,8 +896,8 @@ module Data : sig
       size of its largest element.
 
       @raise Invalid_argument if [elts] is empty, or if [elts] contains an
-        element of the form [`basic (_, [])], or if align is [Some n] where
-        [n < 1].
+      element of the form [`basic (_, [])], or if align is [Some n] where
+      [n] is not a positive power of 2.
   *)
   val create_exn :
     ?align:int option ->

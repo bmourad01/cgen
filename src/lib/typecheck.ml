@@ -31,7 +31,7 @@ module Env = struct
   let add_data d env =
     let name = Data.name d in
     match Map.add env.denv ~key:name ~data:(Data.typeof d env.target) with
-    | `Duplicate -> Or_error.errorf "Redefinition of data %s" name
+    | `Duplicate -> Or_error.errorf "Redefinition of data $%s" name
     | `Ok denv -> Ok {env with denv}
 
   (* If we don't have the data defined in the module, then assume it is
@@ -42,7 +42,7 @@ module Env = struct
   let add_fn fn env =
     let name = Func.name fn in
     match Map.add env.fenv ~key:name ~data:(Func.typeof fn) with
-    | `Duplicate -> Or_error.errorf "Redefinition of function %s" name
+    | `Duplicate -> Or_error.errorf "Redefinition of function $%s" name
     | `Ok fenv -> Ok {env with fenv}
 
   (* If we don't have the function defined in the module, then assume
@@ -50,11 +50,18 @@ module Env = struct
      and that the user accepts the risk. *)
   let typeof_fn name env = Map.find env.fenv name
 
-  let add_typ (t : Type.compound) env =
+  let check_typ_align t name = match Type.compound_align t with
+    | Some n when n < 1 || (n land (n - 1)) <> 0 ->
+      Or_error.errorf "Invalid alignment %d of type :%s, must be \
+                       positive power of 2" n name
+    | Some _ | None -> Ok ()
+
+  let add_typ t env =
     let name = Type.compound_name t in
-    match Map.add env.tenv ~key:name ~data:t with
-    | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
-    | `Ok tenv -> Ok {env with tenv}
+    check_typ_align t name |> Or_error.bind ~f:(fun () ->
+        match Map.add env.tenv ~key:name ~data:t with
+        | `Duplicate -> Or_error.errorf "Redefinition of type :%s" name
+        | `Ok tenv -> Ok {env with tenv})
 
   let typeof_typ name env = match Map.find env.tenv name with
     | None -> Or_error.errorf "Undefined type %s" name
@@ -94,14 +101,12 @@ module Env = struct
   let add_layout (t : Type.compound) env =
     let name = Type.compound_name t in
     let gamma name = match layout name env with
-      | Error err -> failwithf "%s" (Error.to_string_hum err) ()
+      | Error err -> invalid_argf "%s" (Error.to_string_hum err) ()
       | Ok l -> l in
     try match Map.add env.genv ~key:name ~data:(Type.layout gamma t) with
       | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
       | `Ok genv -> Ok {env with genv}
-    with
-    | Invalid_argument msg
-    | Failure msg -> Or_error.errorf "%s" msg
+    with Invalid_argument msg -> Or_error.errorf "%s" msg
 end
 
 type env = Env.t

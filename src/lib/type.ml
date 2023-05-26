@@ -76,6 +76,10 @@ let compound_name : compound -> string = function
   | `compound (s, _, _)
   | `opaque (s, _, _) -> s
 
+let compound_align : compound -> int option = function
+  | `compound (_, a, _) -> a
+  | `opaque (_, a, _) -> Some a
+
 type datum = [
   | basic
   | `pad    of int
@@ -115,8 +119,10 @@ module Layout = struct
     end)
 end
 
+(* pre: `align` is a positive power of 2 *)
 let padding size align =
-  (align - size mod align) mod align
+  let a = align - 1 in
+  ((size + a) land lnot a) - size
 
 (* pre: the list is accumulated in reverse *)
 let padded data = function
@@ -134,8 +140,10 @@ let coalesce =
   aux []
 
 let layout gamma : compound -> layout = function
-  | `opaque (s, n, _) | `compound (s, Some n, _) when n <= 0 ->
-    invalid_argf "Invalid alignment %d for type :%s" n s ()
+  | `opaque (s, n, _) | `compound (s, Some n, _)
+    when n < 1 || (n land (n - 1)) <> 0 ->
+    invalid_argf "Invalid alignment %d for type :%s, \
+                  must be positive power of 2" n s ()
   | `opaque (s, _, n) when n < 0 ->
     invalid_argf "Invalid number of bytes %d for opaque type :%s" n s ()
   | `opaque (_, align, 0) -> {align; data = [`pad align]}
@@ -156,6 +164,9 @@ let layout gamma : compound -> layout = function
               let d = List.init c ~f:(fun _ -> (t :> datum)) in
               d, s, s * c
             | `name (s, c) -> match gamma s with
+              | exception exn ->
+                invalid_argf "Invalid argument :%s for gamma: %s"
+                  s (Exn.to_string exn) ()
               | {align = a; _} when a <= 0 ->
                 invalid_argf "Invalid alignment %d for type :%s" a s ()
               | {align; data} as l ->

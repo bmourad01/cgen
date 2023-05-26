@@ -34,8 +34,9 @@ let create_exn
   | [||] -> invalid_argf "Cannot create empty data %s" name ()
   | elts ->
     Option.iter align ~f:(function
-        | n when n < 1 ->
-          invalid_argf "In data $%s: invalid alignment %d" name n ()
+        | n when n < 1 || (n land (n - 1)) <> 0 ->
+          invalid_argf "In data $%s: invalid alignment %d, \
+                        must be positive power of 2" name n ()
         | _ -> ());
     {name; elts; linkage; align}
 

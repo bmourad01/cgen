@@ -81,7 +81,7 @@ val pp_field : Format.formatter -> field -> unit
     [fields].
 
     An alignment [Some n] will indicate that the fields of the
-    type are aligned by [n] bytes. Note that [n <= 0] is illegal.
+    type are aligned by [n] bytes.
 
     If no alignment is specified, then the fields of the type
     are aligned by the size of their largest member.
@@ -89,6 +89,8 @@ val pp_field : Format.formatter -> field -> unit
     An [`opaque (name, align, n)] data type requires an [align]ment.
     It is intended to describe [n] bytes of opaque data whose internal
     structure is unspecified.
+
+    Note that an alignment [n] must be a positive power of 2.
 *)
 type compound = [
   | `compound of string * int option * field list
@@ -97,6 +99,9 @@ type compound = [
 
 (** Convenience function to get the name of a compound type. *)
 val compound_name : compound -> string
+
+(** Convenience function to get the alignment of a compound type. *)
+val compound_align : compound -> int option
 
 (** An element of a compound data type's layout. It is either
     a basic type, a [`pad n], which is [n] bytes of padding,
