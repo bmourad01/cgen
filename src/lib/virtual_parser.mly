@@ -105,10 +105,11 @@
 %token <Type.fp> O UO
 %token <Type.fp * Type.imm> FTOSI FTOUI
 %token <Type.fp> FEXT FIBITS FTRUNC
-%token <Type.imm> CLZ CTZ ITRUNC POPCNT SEXT ZEXT
+%token <Type.imm> CLZ CTZ FLAG ITRUNC POPCNT SEXT ZEXT
 %token <Type.imm_base> IFBITS
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL ACALL
+%token <Type.imm_base> REF
 %token CALL
 %token <Type.basic> VAARG
 %token VASTART
@@ -451,6 +452,7 @@ insn_bitwise_unop:
 insn_cast:
   | t = FEXT { `fext t }
   | t = FIBITS { `fibits t }
+  | t = FLAG { `flag t }
   | t = FTOSI { `ftosi (fst t, snd t) }
   | t = FTOUI { `ftoui (fst t, snd t) }
   | t = FTRUNC { `ftrunc t }
@@ -463,6 +465,7 @@ insn_cast:
 
 insn_copy:
   | t = COPY { `copy t }
+  | t = REF { `ref t }
 
 dst:
   | g = global { g >>| fun g -> (g :> Virtual.dst) }

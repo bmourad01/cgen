@@ -314,6 +314,9 @@ let rec eval_pure ?(env = Var.Map.empty) e =
         Psingle (Float32.of_bits @@ Bitvec.to_int32 a)
       | `fibits `f64, Pint (a, _) ->
         Pdouble (Eval.float_of_bits @@ Bitvec.to_int64 a)
+      (* FLAG *)
+      | `flag t, Pflag f ->
+        Pint (Bitvec.bool f, t)
       (* FTOSI *)
       | `ftosi (`f32, `i8), Psingle a ->
         Pint (Eval.int8 @@ Float32.to_int8 a, `i8)
@@ -408,9 +411,7 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       | `zext t, Pint (a, _) ->
         Pint (a, t)
       (* COPY *)
-      | `copy _, (Pdouble _ | Pflag _ | Pint _ | Psingle _ | Psym _ as a) ->
-        (* TODO: what about copying vars? *)
-        a
+      | `copy _, (Pdouble _ | Pint _ | Psingle _ | Psym _ | Pvar _ as a) -> a
       | _, a -> Punop (l, o, a)
     end
   | Pvar v -> Map.find env v |> Option.value ~default:e

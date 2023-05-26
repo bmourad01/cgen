@@ -139,6 +139,7 @@ rule token = parse
   | "uo" '.' (fp as t) { UO (fp_of_char t) }
   | "fext" '.' (fp as t) { FEXT (fp_of_char t) }
   | "fibits" '.' (fp as t) { FEXT (fp_of_char t) }
+  | "flag" '.' (imm as t) { FLAG (imm_of_char t) }
   | "ftosi" '.' (fp as t) '.' (imm as i) {
     FTOSI (fp_of_char t, imm_of_char i)
   }
@@ -157,6 +158,7 @@ rule token = parse
   }
   | "zext" '.' (imm as t) { ZEXT (imm_of_char t) }
   | "copy" '.' (basic as t) { COPY (basic_of_char t) }
+  | "ref" '.' (imm_base as t) { REF (imm_base_of_char t) }
   | "sel" '.' (basic as t) { SEL (basic_of_char t) }
   | "call" '.' (basic as t) { ACALL (basic_of_char t) }
   | "call" { CALL }

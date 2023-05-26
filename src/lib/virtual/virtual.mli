@@ -235,6 +235,8 @@ module Insn : sig
       [`fibits t]: reinterpret the bits of an integer as a
       float of type [t].
 
+      [`flag t]: converts a flag bit into an integer of type [t].
+
       [`ftosi (t, i)]: cast a float of type [t] to a signed
       integer of type [i].
 
@@ -261,6 +263,7 @@ module Insn : sig
   type cast = [
     | `fext   of Type.fp
     | `fibits of Type.fp
+    | `flag   of Type.imm
     | `ftosi  of Type.fp * Type.imm
     | `ftoui  of Type.fp * Type.imm
     | `ftrunc of Type.fp
@@ -277,11 +280,13 @@ module Insn : sig
 
   (** Copy operations.
 
-      [`copy t]: move to a destination of type [t]. Arguments of compound
-      type are interpreted as a pointer.
+      [`copy t]: move to a destination of type [t].
+
+      [`ref t]: copy a reference to a compound type.
   *)
   type copy = [
     | `copy of Type.basic
+    | `ref  of Type.imm_base
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Pretty-prints a copy operation. *)

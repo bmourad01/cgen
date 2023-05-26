@@ -99,6 +99,7 @@ let pp_cmp ppf : cmp -> unit = function
 type cast = [
   | `fext   of Type.fp
   | `fibits of Type.fp
+  | `flag   of Type.imm
   | `ftosi  of Type.fp * Type.imm
   | `ftoui  of Type.fp * Type.imm
   | `ftrunc of Type.fp
@@ -115,6 +116,8 @@ let pp_cast ppf : cast -> unit = function
     Format.fprintf ppf "fext.%a" Type.pp_fp t
   | `fibits t ->
     Format.fprintf ppf "fibits.%a" Type.pp_fp t
+  | `flag t ->
+    Format.fprintf ppf "flag.%a" Type.pp_imm t
   | `ftosi (tf, ti) ->
     Format.fprintf ppf "ftosi.%a.%a" Type.pp_fp tf Type.pp_imm ti
   | `ftoui (tf, ti) ->
@@ -136,10 +139,12 @@ let pp_cast ppf : cast -> unit = function
 
 type copy = [
   | `copy of Type.basic
+  | `ref  of Type.imm_base
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_copy ppf : copy -> unit = function
-  | `copy t -> Format.fprintf ppf "copy.%a" Type.pp_basic t
+  | `copy t -> Format.fprintf ppf "copy.%a" Type.pp_basic    t
+  | `ref  t -> Format.fprintf ppf "ref.%a"  Type.pp_imm_base t
 
 type binop = [
   | arith_binop

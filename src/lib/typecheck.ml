@@ -327,6 +327,11 @@ let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
       | (`f32, `i32) | (`f64, `i64) -> !!(t :> Type.basic)
       | _ -> unify_bits_fail fn blk l "fibits" t ta a
     end
+  | `flag t ->
+    begin match ta with
+      | `flag -> !!(t :> Type.basic)
+      | _ -> unify_bits_fail fn blk l "flag" t ta a
+    end
   | `ftosi (tf, ti)
   | `ftoui (tf, ti) ->
     let+ () = unify_arg fn blk l ta a (tf :> Type.t) in
@@ -351,13 +356,31 @@ let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
     let+ () = unify_arg fn blk l ta a (ti :> Type.t) in
     (tf :> Type.basic)
 
+let ref_expected_word_size fn blk l t w =
+  M.fail @@ Error.createf
+    "Expected return type %a for 'ref' instruction %a in block %a in \
+     function %s, got %a" Type.pps (w :> Type.t) Label.pps l
+    Label.pps (Blk.label blk) (Func.name fn) Type.pps (t :> Type.t)
+
+let ref_expected_compound fn blk l t a =
+  let a = Format.asprintf "%a" pp_operand a in
+  M.fail @@ Error.createf
+    "Expected compound type for arg %s in 'ref' instruction %a in \
+     block %a in function %s, got %a" a Label.pps l Label.pps
+    (Blk.label blk) (Func.name fn) Type.pps (t :> Type.t)
+
 let op_copy fn blk l ta a : Insn.copy -> Type.basic t = function
-  | `copy t -> match ta, t with
-    | #Type.compound, #Type.imm -> !!t
-    | #Type.t as ta, t ->
-      let t' = (t :> Type.t) in
-      if Type.(ta = t') then !!t
-      else unify_fail_arg fn blk l t' a ta
+  | `copy t ->
+    begin match ta, t with
+      | #Type.basic as b, t when Type.equal_basic b t -> !!t
+      | _ -> unify_fail_arg fn blk l (t :> Type.t) a ta
+    end
+  | `ref t ->
+    let* w = M.gets @@ Fn.compose Target.word Env.target in
+    if Type.equal_imm_base t w then match ta with
+      | #Type.compound -> !!(t :> Type.basic)
+      | _ -> ref_expected_compound fn blk l t a
+    else ref_expected_word_size fn blk l t w
 
 let op_binop fn blk l env v b al ar =
   let* tl = typeof_arg fn env al in
