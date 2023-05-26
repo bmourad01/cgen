@@ -101,9 +101,20 @@ value cgen_float32_sub(value x, value y) {
 }
 
 value cgen_bits_of_float32(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(i);
   float f = Float_val(x);
-  uint32_t i = *(uint32_t *)&f;
-  return caml_copy_int32(i);
+  i = caml_copy_int32(*(uint32_t *)&f);
+  CAMLreturn(i);
+}
+
+value cgen_float32_of_bits(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  uint32_t i = Int32_val(x);
+  f = Alloc_float;
+  Float_val(f) = *(float *)&i;
+  CAMLreturn(f);
 }
 
 value cgen_int8_of_float32(value x) { return Val_int((int8_t)Float_val(x)); }
@@ -223,6 +234,23 @@ value cgen_float32_le(value x, value y) {
 
 value cgen_float32_lt(value x, value y) {
   return Val_bool(Float_val(x) < Float_val(y));
+}
+
+value cgen_bits_of_float(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(d);
+  float f = Double_val(x);
+  uint64_t i = *(uint64_t *)&f;
+  d = caml_copy_int64(i);
+  CAMLreturn(d);
+}
+
+value cgen_float_of_bits(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  uint64_t i = Int64_val(x);
+  f = caml_copy_double(*(double *)&i);
+  CAMLreturn(f);
 }
 
 value cgen_int8_of_float(value x) { return Val_int((int8_t)Double_val(x)); }

@@ -24,7 +24,8 @@ let (-~)  x   = neg x
 let ( % ) x   = rem x
 let (-)   x y = sub x y
 
-external bits : t -> int32 = "cgen_bits_of_float32"
+external bits    : t -> int32 = "cgen_bits_of_float32"
+external of_bits : int32 -> t = "cgen_float32_of_bits"
 
 external to_int8   : t     -> int   = "cgen_int8_of_float32"
 external to_int16  : t     -> int   = "cgen_int16_of_float32"

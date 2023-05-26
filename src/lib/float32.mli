@@ -65,6 +65,9 @@ val (-) : t -> t -> t
 (** Returns the underlying bits of the number. *)
 val bits : t -> int32
 
+(** Converts the underlying bits to a number. *)
+val of_bits : int32 -> t
+
 (** Convert to an 8-bit signed integer. *)
 val to_int8 : t -> int
 

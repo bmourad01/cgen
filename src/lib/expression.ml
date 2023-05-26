@@ -72,6 +72,9 @@ module Eval = struct
   external float_ordered :
     float -> float -> bool = "cgen_float_is_ordered" [@@noalloc]
 
+  external float_to_bits : float -> int64 = "cgen_bits_of_float"
+  external float_of_bits : int64 -> float = "cgen_float_of_bits"
+
   external float_to_int8   : float     -> int   = "cgen_int8_of_float"
   external float_to_int16  : float     -> int   = "cgen_int16_of_float"
   external float_to_int32  : float     -> int32 = "cgen_int32_of_float"
@@ -303,7 +306,18 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       (* POPCNT *)
       | `popcnt t, Pint (a, _) ->
         Pint (Eval.popcnt a @@ Type.sizeof_imm t, t)
-      (* BITS (TODO) *)
+      (* BITS *)
+      | `bits (#Type.imm as t), Pint (a, _) ->
+        let m = imod t in
+        Pint (Bitvec.((a land (ones mod m)) mod m), t)
+      | `bits (#Type.imm as t), Psingle a ->
+        Pint (Bitvec.(int32 (Float32.bits a) mod imod t), t)
+      | `bits (#Type.imm as t), Pdouble a ->
+        Pint (Bitvec.(int64 (Eval.float_to_bits a) mod imod t), t)
+      | `bits `f32, Pint (a, _) ->
+        Psingle (Float32.of_bits @@ Bitvec.to_int32 a)
+      | `bits `f64, Pint (a, _) ->
+        Pdouble (Eval.float_of_bits @@ Bitvec.to_int64 a)
       (* FEXT *)
       | `fext `f64, Psingle a ->
         Pdouble (Float32.to_float a)
