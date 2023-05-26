@@ -120,6 +120,9 @@ type ctx
 (** Creates the context for a function. *)
 val init : func -> ctx Or_error.t
 
+(** The name of the function that was used to create the context. *)
+val func : ctx -> string
+
 (** A resolved label.
 
     [`blk b]: the label corresponds to the control instruction

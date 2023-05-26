@@ -315,13 +315,12 @@ let unify_bits_fail fn blk l op t ta a =
 
 let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
   | `fext t ->
-    let+ () = match t, ta with
-      | `f64, `f64
-      | `f64, `f32
-      | `f32, `f32 -> !!()
-      | _, #Type.fp -> unify_fext_fail fn blk l ta a
-      | _ -> unify_fp_fail fn blk l ta a in
-    (t :> Type.basic)
+    begin match ta with
+      | #Type.fp as f when Type.sizeof_fp t >= Type.sizeof_fp f ->
+        !!(t :> Type.basic)
+      | #Type.fp -> unify_fext_fail fn blk l ta a
+      | _ -> unify_imm_fail fn blk l ta a
+    end
   | `fibits t ->
     begin match t, ta with
       | (`f32, `i32) | (`f64, `i64) -> !!(t :> Type.basic)
@@ -337,20 +336,31 @@ let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
     let+ () = unify_arg fn blk l ta a (tf :> Type.t) in
     (ti :> Type.basic)
   | `ftrunc t ->
-    let+ () = match ta with
-      | #Type.fp -> !!()
-      | _ -> unify_fp_fail fn blk l ta a in
-    (t :> Type.basic)
+    begin match ta with
+      | #Type.fp as f when Type.sizeof_fp t <= Type.sizeof_fp f ->
+        !!(t :> Type.basic)
+      | #Type.fp -> unify_fext_fail fn blk l ta a
+      | _ -> unify_fp_fail fn blk l ta a
+    end
   | `ifbits t ->
     begin match t, ta with
       | (`i32, `f32) | (`i64, `f64) -> !!(t :> Type.basic)
       | _ -> unify_bits_fail fn blk l "ifbits" t ta a
     end
-  | `itrunc t | `sext t | `zext t ->
-    let+ () = match ta with
-      | #Type.imm -> !!()
-      | _ -> unify_imm_fail fn blk l ta a in
-    (t :> Type.basic)
+  | `itrunc t ->
+    begin match ta with
+      | #Type.imm as i when Type.sizeof_imm t <= Type.sizeof_imm i ->
+        !!(t :> Type.basic)
+      | #Type.imm -> unify_fext_fail fn blk l ta a
+      | _ -> unify_imm_fail fn blk l ta a
+    end
+  | `sext t | `zext t ->
+    begin match ta with
+      | #Type.imm as i when Type.sizeof_imm t >= Type.sizeof_imm i ->
+        !!(t :> Type.basic)
+      | #Type.imm -> unify_fext_fail fn blk l ta a
+      | _ -> unify_imm_fail fn blk l ta a
+    end
   | `sitof (ti, tf)
   | `uitof (ti, tf) ->
     let+ () = unify_arg fn blk l ta a (ti :> Type.t) in
