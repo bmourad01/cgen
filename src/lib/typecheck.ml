@@ -732,45 +732,46 @@ let check_data d = Data.elts d |> M.Seq.iter ~f:(function
       invalid_elt d (elt :> Data.elt)
         "argument must be greater than 0")
 
-module TG = Graphlib.Make(String)(Unit)
+module Typegraph = Graphlib.Make(String)(Unit)
+
+let build_typ_graph tenv =
+  Map.data tenv |> M.List.fold ~init:Typegraph.empty ~f:(fun g -> function
+      | `opaque (name, _, _) -> !!(Typegraph.Node.insert name g)
+      | `compound (name, _, fields) ->
+        let init = Typegraph.Node.insert name g in
+        M.List.fold fields ~init ~f:(fun g -> function
+            | `elt _ -> !!g
+            | `name (n, _) when Map.mem tenv n ->
+              !!Typegraph.Edge.(insert (create n name ()) g)
+            | `name (n, _) ->
+              M.fail @@ Error.createf
+                "Undeclared type field :%s in type :%s"
+                n name) )
 
 let check_typ_cycles g =
-  Graphlib.strong_components (module TG) g |>
+  Graphlib.strong_components (module Typegraph) g |>
   Partition.groups |> M.Seq.iter ~f:(fun grp ->
       match Seq.to_list @@ Group.enum grp with
       | [] -> !!()
       | [name] ->
-        if Seq.mem (TG.Node.succs name g) name ~equal:String.equal
-        then M.fail @@ Error.createf "Cycle detected in type :%s" name
-        else !!()
+        let succs = Typegraph.Node.succs name g in
+        if not @@ Seq.mem succs name ~equal:String.equal then !!()
+        else M.fail @@ Error.createf "Cycle detected in type :%s" name
       | xs ->
         M.fail @@ Error.createf "Cycle detected in types %s" @@
         List.to_string ~f:(fun s -> ":" ^ s) xs)
 
+let fill_typ_gamma (env : env) g =
+  Graphlib.reverse_postorder_traverse (module Typegraph) g |>
+  M.Seq.fold ~init:env ~f:(fun env name ->
+      let t = Map.find_exn env.tenv name in
+      M.lift_err @@ Env.add_layout t env)
+
 let check_typs =
   let* env = M.get () in
-  (* Construct the graph and also check for undeclared type names. *)
-  let* g =
-    Map.data env.tenv |>
-    M.List.fold ~init:TG.empty ~f:(fun g -> function
-        | `opaque (name, _, _) -> !!(TG.Node.insert name g)
-        | `compound (name, _, fields) ->
-          let init = TG.Node.insert name g in
-          M.List.fold fields ~init ~f:(fun g -> function
-              | `elt _ -> !!g
-              | `name (n, _) when Map.mem env.tenv n ->
-                !!TG.Edge.(insert (create name n ()) g)
-              | `name (n, _) ->
-                M.fail @@ Error.createf
-                  "Undeclared type field :%s in type :%s"
-                  n name)) in
+  let* g = build_typ_graph env.tenv in
   let* () = check_typ_cycles g in
-  (* Fill gamma, now that we know there is a topological ordering. *)
-  let* env =
-    Graphlib.postorder_traverse (module TG) g |>
-    M.Seq.fold ~init:env ~f:(fun env name ->
-        let t = Map.find_exn env.tenv name in
-        M.lift_err @@ Env.add_layout t env) in
+  let* env = fill_typ_gamma env g in
   M.put env
 
 let check m =
