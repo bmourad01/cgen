@@ -18,6 +18,7 @@ type pure =
   | Pbinop  of Label.t * Insn.binop * pure * pure
   | Pcall   of Label.t * Type.basic * global * pure list * pure list
   | Pdouble of float
+  | Pflag   of bool
   | Pint    of Bitvec.t * Type.imm
   | Pload   of Label.t * Type.basic * pure
   | Psel    of Label.t * Type.basic * pure * pure * pure
@@ -80,6 +81,15 @@ type t =
 (** Pretty-prints an expression. *)
 val pp : Format.formatter -> t -> unit
 
+(** Partially evaluates an expression, with an optional environment
+    for free variables. *)
+val eval : ?env:pure Var.Map.t -> t -> t
+
+val eval_pure : ?env:pure Var.Map.t -> pure -> pure
+val eval_global : ?env:pure Var.Map.t -> global -> global
+val eval_local : ?env:pure Var.Map.t -> local -> local
+val eval_dst : ?env:pure Var.Map.t -> dst -> dst
+
 (** Returns the set of free variables occurring in an expression. *)
 val free_vars : t -> Var.Set.t
 
@@ -87,6 +97,7 @@ val free_vars_of_pure : pure -> Var.Set.t
 val free_vars_of_global : global -> Var.Set.t
 val free_vars_of_local : local -> Var.Set.t
 val free_vars_of_dst : dst -> Var.Set.t
+val free_vars_of_table : table -> Var.Set.t
 
 (** Returns the set of labels occurring in an expression. These
     correspond to instruction labels in the function that the
@@ -101,6 +112,7 @@ val labels_of_pure : pure -> Label.Set.t
 val labels_of_global : global -> Label.Set.t
 val labels_of_local : local -> Label.Set.t
 val labels_of_dst : dst -> Label.Set.t
+val labels_of_table : table -> Label.Set.t
 
 (** The expression-building context for a function. *)
 type ctx

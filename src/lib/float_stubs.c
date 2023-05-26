@@ -224,3 +224,91 @@ value cgen_float32_le(value x, value y) {
 value cgen_float32_lt(value x, value y) {
   return Val_bool(Float_val(x) < Float_val(y));
 }
+
+value cgen_int8_of_float(value x) { return Val_int((int8_t)Double_val(x)); }
+
+value cgen_int16_of_float(value x) { return Val_int((int16_t)Double_val(x)); }
+
+value cgen_int32_of_float(value x) {
+  return caml_copy_int32((int32_t)Double_val(x));
+}
+
+value cgen_int64_of_float(value x) {
+  return caml_copy_int64((int8_t)Double_val(x));
+}
+
+value cgen_uint8_of_float(value x) { return Val_int((uint8_t)Double_val(x)); }
+
+value cgen_uint16_of_float(value x) { return Val_int((uint16_t)Double_val(x)); }
+
+value cgen_uint32_of_float(value x) {
+  return caml_copy_int32((uint32_t)Double_val(x));
+}
+
+value cgen_uint64_of_float(value x) {
+  return caml_copy_int64((uint8_t)Double_val(x));
+}
+
+value cgen_float_of_int8(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  f = caml_copy_double((double)((int8_t)Int_val(x)));
+  CAMLreturn(f);
+}
+
+value cgen_float_of_int16(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  f = caml_copy_double((double)((int16_t)Int_val(x)));
+  CAMLreturn(f);
+}
+
+value cgen_float_of_int32(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  f = caml_copy_double((double)((int32_t)Int32_val(x)));
+  CAMLreturn(f);
+}
+
+value cgen_float_of_int64(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  f = caml_copy_double((double)((int64_t)Int64_val(x)));
+  CAMLreturn(f);
+}
+
+value cgen_float_of_uint8(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  f = caml_copy_double((double)((uint8_t)Int_val(x)));
+  CAMLreturn(f);
+}
+
+value cgen_float_of_uint16(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  f = caml_copy_double((double)((uint16_t)Int_val(x)));
+  CAMLreturn(f);
+}
+
+value cgen_float_of_uint32(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  f = caml_copy_double((double)((uint32_t)Int32_val(x)));
+  CAMLreturn(f);
+}
+
+value cgen_float_of_uint64(value x) {
+  CAMLparam1(x);
+  CAMLlocal1(f);
+  f = caml_copy_double((double)((uint64_t)Int64_val(x)));
+  CAMLreturn(f);
+}
+
+value cgen_float_is_unordered(value x, value y) {
+  return Val_bool(isunordered(Double_val(x), Double_val(y)));
+}
+
+value cgen_float_is_ordered(value x, value y) {
+  return Val_bool(!isunordered(Double_val(x), Double_val(y)));
+}

@@ -22,12 +22,13 @@
    core_kernel.pairing_heap
    graphlib
    monads
-   regular)
+   regular
+   zarith)
  (private_modules
    sm
    virtual_lexer
    virtual_parser)
  (foreign_stubs
   (language c)
-  (names float32_stubs))
+  (names float_stubs))
  (ocamlopt_flags -O3))
