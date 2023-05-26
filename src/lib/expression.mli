@@ -156,7 +156,7 @@ val pp_deps : Format.formatter -> ctx -> unit
     The algorithm walks backwards and constructs a maximal DAG,
     substituting in subexpressions for variables when possible.
 
-    [fn] is assumed to be in SSA form.
+    Note that [fn] is assumed to be type-checked and in SSA form.
 *)
 val build : ctx -> Label.t -> t Or_error.t
 
