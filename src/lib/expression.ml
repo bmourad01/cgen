@@ -642,13 +642,9 @@ let rec subst_pure ?(vs = Var.Set.empty) ctx e =
     let args = List.map args ~f:go in
     let vargs = List.map vargs ~f:go in
     Pcall (l, t, subst_global ctx f ~vs, args, vargs)
-  | Pdouble _ as d -> d
-  | Pflag _ as f -> f
-  | Pint _ as i -> i
+  | Pdouble _ | Pflag _ | Pint _ | Psingle _ | Psym _ -> e
   | Pload (l, t, a) -> Pload (l, t, go a)
   | Psel (l, t, c, y, n) -> Psel (l, t, go c, go y, go n)
-  | Psingle _ as s -> s
-  | Psym _ as s -> s
   | Punop (l, o, x) -> Punop (l, o, go x)
   | Pvar x when Set.mem vs x -> raise @@ Occurs_failed (x, None)
   | Pvar x as default ->
@@ -657,7 +653,7 @@ let rec subst_pure ?(vs = Var.Set.empty) ctx e =
 
 (* Make the full substitution on subterms and cache the results. *)
 and continue x vs ctx = function
-  | (Palloc _ | Pdouble _ | Pint _ | Psingle _ | Psym _) as e -> e
+  | (Palloc _ | Pdouble _ | Pflag _ | Pint _ | Psingle _ | Psym _) as e -> e
   | e when Hash_set.mem ctx.filled x -> e
   | e ->
     let e = subst_pure ctx e ~vs:(Set.add vs x) in
