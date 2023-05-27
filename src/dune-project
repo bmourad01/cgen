@@ -25,4 +25,5 @@
     graphlib
     menhir
     monads
-    regular))
+    regular
+    zarith))

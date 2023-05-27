@@ -20,6 +20,7 @@ depends: [
   "menhir"
   "monads"
   "regular"
+  "zarith"
   "odoc" {with-doc}
 ]
 dev-repo: "git+https://github.com/bmourad01/cgen.git"
