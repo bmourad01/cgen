@@ -118,6 +118,13 @@ let update_blk fn b =
     fn with blks = Array.update_if fn.blks b ~f:(Fn.flip Blk.has_label l);
   }
 
+let update_blks fn bs =
+  let m = List.fold_right bs ~init:Label.Map.empty ~f:(fun b m ->
+      Map.set m ~key:(Blk.label b) ~data:b) in {
+    fn with blks = Array.map fn.blks ~f:(fun b ->
+      Blk.label b |> Map.find m |> Option.value ~default:b);
+  }
+
 let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
 
 let pp_args ppf fn =

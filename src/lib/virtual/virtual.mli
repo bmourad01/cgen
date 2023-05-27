@@ -815,6 +815,14 @@ module Func : sig
   (** [update_blk fn b] returns [fn] with block [b] updated, if it exists. *)
   val update_blk : t -> blk -> t
 
+  (** Same as [update_blk], but for a list of blocks for updating in batches,
+      which should be more efficient.
+
+      If the list of blocks has duplicate labels, the first such occurrence
+      in the list is the one that shall be used.
+  *)
+  val update_blks : t -> blk list -> t
+
   include Regular.S with type t := t
 end
 
