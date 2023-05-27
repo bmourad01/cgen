@@ -37,9 +37,7 @@ value cgen_float32_of_float(value x) {
 }
 
 value cgen_float_of_float32(value x) { return caml_copy_double(Float_val(x)); }
-
 value cgen_float32_is_zero(value x) { return Val_bool(Float_val(x) == 0.0f); }
-
 value cgen_float32_is_inf(value x) { return Val_bool(isinf(Float_val(x))); }
 
 value cgen_float32_is_negative(value x) {
@@ -118,7 +116,6 @@ value cgen_float32_of_bits(value x) {
 }
 
 value cgen_int8_of_float32(value x) { return Val_int((int8_t)Float_val(x)); }
-
 value cgen_int16_of_float32(value x) { return Val_int((int16_t)Float_val(x)); }
 
 value cgen_int32_of_float32(value x) {
@@ -126,7 +123,7 @@ value cgen_int32_of_float32(value x) {
 }
 
 value cgen_int64_of_float32(value x) {
-  return caml_copy_int64((int8_t)Float_val(x));
+  return caml_copy_int64((int64_t)Float_val(x));
 }
 
 value cgen_uint8_of_float32(value x) { return Val_int((uint8_t)Float_val(x)); }
@@ -140,7 +137,7 @@ value cgen_uint32_of_float32(value x) {
 }
 
 value cgen_uint64_of_float32(value x) {
-  return caml_copy_int64((uint8_t)Float_val(x));
+  return caml_copy_int64((uint64_t)Float_val(x));
 }
 
 value cgen_float32_of_int8(value x) {
@@ -240,8 +237,7 @@ value cgen_bits_of_float(value x) {
   CAMLparam1(x);
   CAMLlocal1(d);
   double f = Double_val(x);
-  uint64_t i = *(uint64_t *)&f;
-  d = caml_copy_int64(i);
+  d = caml_copy_int64(*(uint64_t *)&f);
   CAMLreturn(d);
 }
 
@@ -254,7 +250,6 @@ value cgen_float_of_bits(value x) {
 }
 
 value cgen_int8_of_float(value x) { return Val_int((int8_t)Double_val(x)); }
-
 value cgen_int16_of_float(value x) { return Val_int((int16_t)Double_val(x)); }
 
 value cgen_int32_of_float(value x) {
@@ -262,11 +257,10 @@ value cgen_int32_of_float(value x) {
 }
 
 value cgen_int64_of_float(value x) {
-  return caml_copy_int64((int8_t)Double_val(x));
+  return caml_copy_int64((int64_t)Double_val(x));
 }
 
 value cgen_uint8_of_float(value x) { return Val_int((uint8_t)Double_val(x)); }
-
 value cgen_uint16_of_float(value x) { return Val_int((uint16_t)Double_val(x)); }
 
 value cgen_uint32_of_float(value x) {
@@ -274,7 +268,7 @@ value cgen_uint32_of_float(value x) {
 }
 
 value cgen_uint64_of_float(value x) {
-  return caml_copy_int64((uint8_t)Double_val(x));
+  return caml_copy_int64((uint64_t)Double_val(x));
 }
 
 value cgen_float_of_int8(value x) {

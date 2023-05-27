@@ -61,8 +61,8 @@ type t =
 [@@deriving bin_io, compare, equal, sexp]
 
 module Eval = struct
-  let int8  i = Bitvec.(int i   mod Bitvec.m8)
-  let int16 i = Bitvec.(int i   mod Bitvec.m16)
+  let int8  i = Bitvec.(int   i mod Bitvec.m8)
+  let int16 i = Bitvec.(int   i mod Bitvec.m16)
   let int32 i = Bitvec.(int32 i mod Bitvec.m32)
   let int64 i = Bitvec.(int64 i mod Bitvec.m64)
 
@@ -75,12 +75,12 @@ module Eval = struct
   external float_to_bits : float -> int64 = "cgen_bits_of_float"
   external float_of_bits : int64 -> float = "cgen_float_of_bits"
 
-  external float_to_int8   : float     -> int   = "cgen_int8_of_float"
-  external float_to_int16  : float     -> int   = "cgen_int16_of_float"
+  external float_to_int8   : float     -> int   = "cgen_int8_of_float" [@@noalloc]
+  external float_to_int16  : float     -> int   = "cgen_int16_of_float" [@@noalloc]
   external float_to_int32  : float     -> int32 = "cgen_int32_of_float"
   external float_to_int64  : float     -> int64 = "cgen_int64_of_float"
-  external float_to_uint8  : float     -> int   = "cgen_uint8_of_float"
-  external float_to_uint16 : float     -> int   = "cgen_uint16_of_float"
+  external float_to_uint8  : float     -> int   = "cgen_uint8_of_float" [@@noalloc]
+  external float_to_uint16 : float     -> int   = "cgen_uint16_of_float" [@@noalloc]
   external float_to_uint32 : float     -> int32 = "cgen_uint32_of_float"
   external float_to_uint64 : float     -> int64 = "cgen_uint64_of_float"
   external float_of_int8   : int   -> float     = "cgen_float_of_int8"
@@ -93,33 +93,25 @@ module Eval = struct
   external float_of_uint64 : int64 -> float     = "cgen_float_of_uint64"
 
   let signed_compare x y m = match Bitvec.(msb x mod m, msb y mod m) with
-    | true, true -> Bitvec.compare y x
+    | true,  true  -> Bitvec.compare y x
     | false, false -> Bitvec.compare x y
-    | true, false -> -1
-    | false, true -> 1
+    | true,  false -> -1
+    | false, true  -> 1
 
   let clz x n =
     let i = Bitvec.to_int64 x in
-    let i = match n, i with
-      | 8, 0L -> 8
-      | 8, _ -> Int64.(clz (i lsl 56))
-      | 16, 0L -> 16
-      | 16, _ -> Int64.(clz (i lsl 48))
-      | 32, 0L -> 32
-      | 32, _ -> Int64.(clz (i lsl 32))
-      | 64, 0L -> 64
-      | 64, _ -> Int64.clz i
+    let i = match n with
+      | 8  -> Int64.(clz (i lsl 56))
+      | 16 -> Int64.(clz (i lsl 48))
+      | 32 -> Int64.(clz (i lsl 32))
+      | 64 -> Int64.clz i
       | _ -> assert false in
     Bitvec.(int i mod modulus n)
 
   let ctz x n =
     let i = Bitvec.to_int64 x in
-    let i = match n, i with
-      | 8, 0L -> 8
-      | 16, 0L -> 16
-      | 32, 0L -> 32
-      | 64, 0L -> 64
-      | (8|16|32|64), _ -> Int64.ctz i
+    let i = match n with
+      | (8|16|32|64) -> Int64.ctz i
       | _ -> assert false in
     Bitvec.(int i mod modulus n)
 
