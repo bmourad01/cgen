@@ -21,12 +21,12 @@ end
 
 include T
 
-let create ?(args = []) ?(insns = []) ~label ~ctrl () = try {
+let create ?(args = []) ?(insns = []) ~label ~ctrl () = {
   label;
   args = Array.of_list args;
   insns = Array.of_list insns;
   ctrl;
-} with exn -> invalid_argf "%s" (Exn.to_string exn) ()
+}
 
 let label b = b.label
 let args ?(rev = false) b = Array.enum b.args ~rev
