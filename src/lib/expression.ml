@@ -98,6 +98,7 @@ module Eval = struct
     | true,  false -> -1
     | false, true  -> 1
 
+  (* pre: x is nonzero *)
   let clz x n =
     let i = Bitvec.to_int64 x in
     let i = match n with
@@ -108,6 +109,7 @@ module Eval = struct
       | _ -> assert false in
     Bitvec.(int i mod modulus n)
 
+  (* pre: x is nonzero *)
   let ctz x n =
     let i = Bitvec.to_int64 x in
     let i = match n with
@@ -363,10 +365,10 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       | `neg `f64, Pdouble a ->
         Pdouble (Float.neg a)
       (* CLZ *)
-      | `clz t, Pint (a, _) ->
+      | `clz t, Pint (a, _) when Bitvec.(a <> zero) ->
         Pint (Eval.clz a @@ Type.sizeof_imm t, t)
       (* CTZ *)
-      | `ctz t, Pint (a, _) ->
+      | `ctz t, Pint (a, _) when Bitvec.(a <> zero) ->
         Pint (Eval.ctz a @@ Type.sizeof_imm t, t)
       (* NOT *)
       | `not_ _, Punop (_, `not_ _, a) -> a
