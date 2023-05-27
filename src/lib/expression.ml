@@ -102,10 +102,7 @@ module Eval = struct
   let clz x n =
     let i = Bitvec.to_int64 x in
     let i = match n with
-      | 8  -> Int64.(clz (i lsl 56))
-      | 16 -> Int64.(clz (i lsl 48))
-      | 32 -> Int64.(clz (i lsl 32))
-      | 64 -> Int64.clz i
+      | (8|16|32|64) -> Int64.(clz (i lsl Int.(64 - n)))
       | _ -> assert false in
     Bitvec.(int i mod modulus n)
 
