@@ -824,8 +824,7 @@ module Func : sig
   (** Same as [update_blk], but for a list of blocks for updating in batches,
       which should be more efficient.
 
-      If the list of blocks has duplicate labels, the first such occurrence
-      in the list is the one that shall be used.
+      @raise Invalid_argument if the list of blocks contains duplicate labels.
   *)
   val update_blks : t -> blk list -> t
 

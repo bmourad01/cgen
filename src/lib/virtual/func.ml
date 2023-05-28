@@ -119,8 +119,11 @@ let update_blk fn b =
   }
 
 let update_blks fn bs =
-  let m = List.fold_right bs ~init:Label.Map.empty ~f:(fun b m ->
-      Map.set m ~key:(Blk.label b) ~data:b) in {
+  let m = List.fold bs ~init:Label.Map.empty ~f:(fun m b ->
+      let key = Blk.label b in
+      match Map.add m ~key ~data:b with
+      | `Duplicate -> invalid_argf "Duplicate label %a" Label.pps key ()
+      | `Ok m -> m) in {
     fn with blks = Array.map fn.blks ~f:(fun b ->
       Blk.label b |> Map.find m |> Option.value ~default:b);
   }
