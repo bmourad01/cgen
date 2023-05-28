@@ -183,6 +183,9 @@ module Reify : sig
   (** The environment constructed from reifying an expression. *)
   type env
 
+  (** The empty enviromnent. *)
+  val empty : env
+
   (** Gets the reified instruction corresponding to a label. *)
   val get : Label.t -> env -> elt Or_error.t
 
@@ -190,9 +193,13 @@ module Reify : sig
   val enum : env -> (Label.t * elt) seq
 end
 
-(** [reify ctx l] returns the environment from reifying the
-    expression at label [l] in the given context [ctx]. *)
-val reify : ctx -> Label.t -> Reify.env Or_error.t
+(** [reify ctx l ~init] returns the environment from reifying the
+    expression at label [l] in the given context [ctx].
+
+    An optional starting enviromnent [init] can be provided to
+    avoid redundant computations.
+*)
+val reify : ?init:Reify.env -> ctx -> Label.t -> Reify.env Or_error.t
 
 (** [reify_to_fn ctx fn] transforms [fn] according to the
     expressions available to the context [ctx].

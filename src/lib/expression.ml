@@ -864,7 +864,12 @@ let subst ctx e =
   | Eset (x, y) -> Eset (x, subst_pure ctx y ~vs:(Var.Set.singleton x))
   | Estore (t, v, a) -> Estore (t, pure v, pure a)
   | Esw (t, v, d, tbl) ->
-    Esw (t, pure v, subst_local ctx d, subst_table ctx tbl)
+    (* It's valid to index into a switch table with a symbol,
+       but we can't reify it back to the IR if we perform the
+       substitution, so we will do this little hack. *)
+    let v = match pure v with
+      | Psym _ -> v | v -> v in
+    Esw (t, v, subst_local ctx d, subst_table ctx tbl)
   | (Ehlt | Evaarg _ | Evastart _) as e -> e
 
 let pp ppf = function
@@ -1175,7 +1180,15 @@ module Reify = struct
     | `insn o -> Format.fprintf ppf "%a" Insn.pp_op o
     | `ctrl c -> Format.fprintf ppf "%a" Ctrl.pp c
 
-  type env = elt Label.Map.t
+  type env = {
+    func : elt Label.Map.t;
+    vars : operand Var.Map.t;
+  }
+
+  let empty = {
+    func = Label.Map.empty;
+    vars = Var.Map.empty;
+  }
 
   module M = Sm.Make(struct
       type state = env
@@ -1188,67 +1201,76 @@ module Reify = struct
 
   exception Duplicate
 
-  let add l f = M.update @@ fun env ->
-    Map.update env l ~f:(function
-        | Some x -> x
-        | None -> f ())
+  (* Assume that if the key is already present then calling `f`
+     will just give the same result. *)
+  let add l f =
+    let* env = M.get () in
+    if not @@ Map.mem env.func l then
+      let* x = f () in
+      M.put {env with func = Map.set env.func ~key:l ~data:x}
+    else !!()
 
-  let get l env = match Map.find env l with
+  let set x o =
+    let* env = M.get () in
+    M.put {
+      env with vars = Map.update env.vars x ~f:(function
+        | Some x -> x
+        | None -> o)
+    }
+
+  let get l env = match Map.find env.func l with
     | None -> E.failf "Missing instruction %a" Label.pp l ()
     | Some e -> Ok e
 
-  let enum env = Map.to_sequence env
+  let enum env = Map.to_sequence env.func
+
+  let invalid_insn o l msg =
+    M.fail @@ Error.createf
+      "Invalid argument %s for %s instruction %a"
+      (Format.asprintf "%a" pp_operand o) msg Label.pps l
 
   let rec pure ctx p : operand t =
     let var = find_var ctx in
     let pure = pure ctx in
-    let insn l o = add l @@ fun () -> `insn o in
+    let insn l f =
+      let*? x = var l in
+      let+ () = add l @@ fun () -> let+ o = f x in `insn o in
+      `var x in
     match p with
-    | Palloc (l, n) ->
-      let*? x = var l in
-      let+ () = insn l @@ `alloc (x, n) in
-      `var x
-    | Pbinop (l, o, a, b) ->
-      let*? x = var l in
-      let* a = pure a and* b = pure b in
-      let+ () = insn l @@ `bop (x, o, a, b) in
-      `var x
-    | Pcall (l, t, f, args, vargs) ->
-      let*? x = var l in
-      let* f = global ctx f
-      and* args = M.List.map args ~f:pure
-      and* vargs = M.List.map vargs ~f:pure in
-      let+ () = insn l @@ `call (Some (x, t), f, args, vargs) in
-      `var x
+    | Palloc (l, n) -> insn l @@ fun x -> !!(`alloc (x, n))
+    | Pbinop (l, o, a, b) -> insn l @@ fun x ->
+      let+ a = pure a and+ b = pure b in
+      `bop (x, o, a, b)
+    | Pcall (l, t, f, args, vargs) -> insn l @@ fun x ->
+      let+ f = global ctx f
+      and+ args = M.List.map args ~f:pure
+      and+ vargs = M.List.map vargs ~f:pure in
+      `call (Some (x, t), f, args, vargs)
     | Pdouble d -> !!(`double d)
     | Pflag f -> !!(`flag f)
     | Pint (i, t) -> !!(`int (i, t))
-    | Pload (l, t, a) ->
-      let*? x = var l in
-      let* a = pure a in
-      let+ () = insn l @@ `load (x, t, a) in
-      `var x
-    | Psel (l, t, c, y, n) ->
-      let*? x = var l in
-      let* c = pure c >>= function
-        | `var c -> !!c
-        | c ->
-          M.fail @@ Error.createf
-            "Invalid argument %s for condition of `sel.%a` instruction %a"
-            (Format.asprintf "%a" pp_operand c)
-            Type.pps (t :> Type.t)
-            Label.pps l in
+    | Pload (l, t, a) -> insn l @@ fun x ->
+      let+ a = pure a in
+      `load (x, t, a)
+    | Psel (l, t, c, y, n) -> insn l @@ fun x ->
       let* y = pure y and* n = pure n in
-      let+ () = insn l @@ `sel (x, t, c, y, n) in
-      `var x
+      begin pure c >>= function
+        | `var c -> !!(`sel (x, t, c, y, n))
+        | `flag f -> 
+          let o = if f then y else n in
+          let+ () = set x o in
+          `uop (x, `copy t, o)
+        | c -> invalid_insn c l @@
+          Format.asprintf "condition of `sel.%a`"
+            Type.pp (t :> Type.t)
+      end
     | Psingle s -> !!(`float s)
     | Psym (s, n) -> !!(`sym (s, n))
-    | Punop (l, o, a) ->
-      let*? x = var l in
-      let* a = pure a in
-      let+ () = insn l @@ `uop (x, o, a) in
-      `var x
-    | Pvar x -> !!(`var x)
+    | Punop (l, o, a) -> insn l @@ fun x ->
+      let+ a = pure a in
+      `uop (x, o, a)
+    | Pvar x -> M.gets @@ fun {vars; _} ->
+      Map.find vars x |> Option.value ~default:(`var x)
 
   and global ctx : global -> Virtual.global t = function
     | Gaddr a -> !!(`addr a)
@@ -1257,8 +1279,7 @@ module Reify = struct
       begin match p with
         | `var x -> !!(`var x)
         | `int (i, _) -> !!(`addr i)
-        | op ->
-          M.fail @@ Error.createf "Invalid global %s" @@
+        | op -> M.fail @@ Error.createf "Invalid global %s" @@
           Format.asprintf "%a" pp_operand op
       end
     | Gsym s -> !!(`sym s)
@@ -1284,86 +1305,86 @@ module Reify = struct
   let exp ctx l e =
     let pure = pure ctx in
     let dst = dst ctx in
-    let insn l o = add l @@ fun () -> `insn o in
-    let ctrl l c = add l @@ fun () -> `ctrl c in
+    let insn f = add l @@ fun () -> let+ o = f () in `insn o in
+    let ctrl f = add l @@ fun () -> let+ c = f () in `ctrl c in
     match e with
-    | Ebr (c, y, n) ->
-      let* c = pure c >>= function
-        | `var c -> !!c
-        | c ->
-          M.fail @@ Error.createf
-            "Invalid argument %s for condition of `br` instruction %a"
-            (Format.asprintf "%a" pp_operand c) Label.pps l in
+    | Ebr (c, y, n) -> ctrl @@ fun () ->
       let* y = dst y and* n = dst n in
-      ctrl l @@ `br (c, n, y)
-    | Ecall (f, args, vargs) ->
-      let* f = global ctx f
-      and* args = M.List.map args ~f:pure
-      and* vargs = M.List.map vargs ~f:pure in
-      insn l @@ `call (None, f, args, vargs)
-    | Ehlt -> ctrl l `hlt
-    | Ejmp d ->
-      let* d = dst d in
-      ctrl l @@ `jmp d
-    | Eret None -> ctrl l @@ `ret None
-    | Eret (Some r) ->
-      let* r = pure r in
-      ctrl l @@ `ret (Some r)
+      begin pure c >>= function
+        | `var c -> !!(`br (c, y, n))
+        | `flag f ->
+          let d = if f then y else n in
+          !!(`jmp d)
+        | c -> invalid_insn c l "condition of `br`"
+      end
+    | Ecall (f, args, vargs) -> insn @@ fun () ->
+      let+ f = global ctx f
+      and+ args = M.List.map args ~f:pure
+      and+ vargs = M.List.map vargs ~f:pure in
+      `call (None, f, args, vargs)
+    | Ehlt -> ctrl @@ fun () -> !!`hlt
+    | Ejmp d -> ctrl @@ fun () ->
+      let+ d = dst d in
+      `jmp d
+    | Eret None -> ctrl @@ fun () -> !!(`ret None)
+    | Eret (Some r) -> ctrl @@ fun () ->
+      let+ r = pure r in
+      `ret (Some r)
     | Eset (_, y) -> pure y >>| ignore
-    | Estore (t, v, a) ->
-      let* v = pure v and* a = pure a in
-      insn l @@ `store (t, v, a)
-    | Esw (t, i, d, tbl) ->
-      let* i = pure i >>= function
-        | `var i -> !!i
-        | i ->
-          M.fail @@ Error.createf
-            "Invalid argument %s for condition of `sw` instruction %a"
-            (Format.asprintf "%a" pp_operand i) Label.pps l in
-      let* d = local ctx d and* tbl = table ctx tbl in
-      ctrl l @@ `sw (t, i, d, tbl)
-    | Evaarg (x, t, a) -> insn l @@ `vaarg (x, t, a)
-    | Evastart x -> insn l @@ `vastart x
+    | Estore (t, v, a) -> insn @@ fun () ->
+      let+ v = pure v and+ a = pure a in
+      `store (t, v, a)
+    | Esw (t, i, d, tbl) -> ctrl @@ fun () ->
+      let* d = local ctx d
+      and* tbl = table ctx tbl in
+      begin pure i >>= function
+        | `var i -> !!(`sw (t, i, d, tbl))
+        | `int (i, _) ->
+          let l =
+            Ctrl.Table.find tbl i |>
+            Option.value ~default:d in
+          !!(`jmp (l :> Virtual.dst))
+        | i -> invalid_insn i l "index of `sw`"
+      end
+    | Evaarg (x, t, a) -> insn @@ fun () -> !!(`vaarg (x, t, a))
+    | Evastart x -> insn @@ fun () -> !!(`vastart x)
 
-  let run ctx l e =
-    (exp ctx l e).run Label.Map.empty
+  let run ?(init = empty) ctx l e =
+    (exp ctx l e).run init
       ~reject:(fun e -> Error e)
       ~accept:(fun () env -> Ok env)
 end
 
-let reify ctx l =
+let reify ?(init = Reify.empty) ctx l =
   let* e = get ctx l in
-  Reify.run ctx l e
+  Reify.run ctx l e ~init
+
+let reify_fn ctx fn =
+  Func.blks fn |> E.Seq.fold ~init:Reify.empty ~f:(fun init b ->
+      let l = Blk.label b in
+      let* e = get ctx l in
+      let* init = Reify.run ctx l e ~init in
+      Blk.insns b |> E.Seq.fold ~init ~f:(fun init i ->
+          let l = Insn.label i in
+          let* e = get ctx l in
+          Reify.run ctx l e ~init))
 
 let reify_to_fn ctx fn =
-  let blks = Func.blks fn in
-  let insns = Label.Table.create () in
-  let ctrls = Label.Table.create () in
-  let unseen l = not (Hashtbl.mem insns l || Hashtbl.mem ctrls l) in
-  let update env =
-    Reify.enum env |>
-    Seq.filter ~f:(fun (l, _) -> unseen l) |>
-    Seq.iter ~f:(function
-        | l, `insn o -> Hashtbl.set insns ~key:l ~data:o
-        | l, `ctrl c -> Hashtbl.set ctrls ~key:l ~data:c) in
-  let* () = E.Seq.iter blks ~f:(fun b ->
-      Blk.label b |> reify ctx >>| update) in
-  let+ () = E.Seq.iter blks ~f:(fun b ->
-      Blk.insns b |> E.Seq.iter ~f:(fun i ->
-          let l = Insn.label i in
-          if not @@ unseen l then !!()
-          else reify ctx l >>| update)) in
-  Seq.map blks ~f:(fun b ->
+  let+ env = reify_fn ctx fn in
+  Func.blks fn |> Seq.map ~f:(fun b ->
       let label = Blk.label b in
-      let args = Blk.args b |> Seq.to_list in
-      let insns =
-        Blk.insns b |> Seq.map ~f:(fun i ->
-            let label = Insn.label i in
-            Hashtbl.find insns label |>
-            Option.value_map ~default:i ~f:(Insn.create ~label)) |>
-        Seq.to_list in
-      let ctrl = match Hashtbl.find ctrls label with
-        | None -> Blk.ctrl b
-        | Some c -> c in
-      Blk.create ~args ~insns ~ctrl ~label ()) |>
+      let insns = Blk.insns b |> Seq.map ~f:(fun i ->
+          let label = Insn.label i in
+          match Map.find env.func label with
+          | Some `insn o -> Insn.create o ~label
+          | Some `ctrl _ -> assert false
+          | None -> i) in
+      let ctrl = match Map.find env.func label with
+        | Some `insn _ -> assert false
+        | Some `ctrl c -> c
+        | None -> Blk.ctrl b in
+      Blk.create ()
+        ~args:(Blk.args b |> Seq.to_list)
+        ~insns:(Seq.to_list insns)
+        ~ctrl ~label) |>
   Seq.to_list |> Func.update_blks fn
