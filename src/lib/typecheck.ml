@@ -833,7 +833,37 @@ let check m =
   let* () = Module.funs m |> M.Seq.iter ~f:check_fn in
   !!()
 
+let reject e = Error e
+let accept _ env = Ok env
+
 let run m ~target =
-  Env.create target |> (check m).run
-    ~reject:(fun err -> Error err)
-    ~accept:(fun () env -> Ok env)
+  Env.create target |> (check m).run ~reject ~accept
+
+let remove_fn fn =
+  let name = Func.name fn in
+  M.update @@ fun env -> {
+    env with
+    fenv = Map.remove env.fenv name;
+    venv = Map.remove env.venv name;
+  }
+
+let add_fn fn =
+  let* env = M.get () in
+  let*? env = Env.add_fn fn env in
+  M.put env
+
+let update_fn env fn =
+  let go =
+    let* () = remove_fn fn in
+    let* () = add_fn fn in
+    let* () = check_fn fn in
+    M.put env in
+  go.run env ~reject ~accept
+
+let update_fns env fns =
+  let go =
+    let* () = M.List.iter fns ~f:remove_fn in
+    let* () = M.List.iter fns ~f:add_fn in
+    let* () = M.List.iter fns ~f:check_fn in
+    M.put env in
+  go.run env ~reject ~accept

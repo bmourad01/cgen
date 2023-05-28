@@ -50,3 +50,19 @@ type env = Env.t
 (** Type checks a module, parameterized by the target. If
     successful, the typing environment is returned. *)
 val run : module_ -> target:Target.t -> env Or_error.t
+
+(** [update_fn env fn] updates [env] with [fn].
+
+    If [fn] already exists in [env], the contents of the
+    previous version are overwritten. Otherwise, [env] is
+    extended with the details of [fn].
+*)
+val update_fn : env -> func -> env Or_error.t
+
+(** Same as [update_fn], but operates over a list of functions.
+
+    This can be used to update a batch of functions, or when
+    an update to a function's signature requires changes to
+    its callers in the same module.
+*)
+val update_fns : env -> func list -> env Or_error.t
