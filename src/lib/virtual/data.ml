@@ -61,6 +61,7 @@ let typeof d target =
   let fields = Array.fold_right d.elts ~init:[] ~f:(fun elt fields ->
       let t = match elt with
         | `int (_, t) -> `elt ((t :> Type.basic), 1)
+        | `flag f     -> `elt (`i8, Bool.to_int f)
         | `float _    -> `elt (`f32, 1)
         | `double _   -> `elt (`f64, 1)
         | `string s   -> `elt (`i8, String.length s)

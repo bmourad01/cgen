@@ -36,27 +36,6 @@ let update l trans ~f = Map.update trans l ~f:(function
 
 let (++) = Set.union and (--) = Set.diff
 
-let find_blk fn l = Func.blks fn |> Seq.find ~f:(Fn.flip Blk.has_label l)
-
-let local_uses : local -> Var.Set.t = function
-  | `label (_l, args) ->
-    List.filter_map args ~f:(function
-        | `var v -> Some v | _ -> None) |>
-    Var.Set.of_list
-
-let dst_uses : dst -> Var.Set.t = function
-  | #local as l -> local_uses l
-  | _ -> Var.Set.empty
-
-let ctrl_uses b = match Blk.ctrl b with
-  | `hlt | `ret _ -> Var.Set.empty
-  | `jmp d -> dst_uses d
-  | `br (_, t, f) -> dst_uses t ++ dst_uses f
-  | `sw (_, _, d, tbl) ->
-    let init = local_uses d in
-    Ctrl.Table.enum tbl |> Seq.map ~f:snd |>
-    Seq.fold ~init ~f:(fun uses e -> uses ++ local_uses e)
-
 let block_transitions g fn =
   Func.blks fn |> Seq.fold ~init:Label.Map.empty ~f:(fun fs b ->
       Map.add_exn fs ~key:(Blk.label b) ~data:{
@@ -69,11 +48,11 @@ let block_transitions g fn =
         Seq.fold ~init:Var.Set.empty ~f:Set.add in
       Cfg.Node.preds (Blk.label b) g |>
       Seq.fold ~init ~f:(fun fs p ->
-          match find_blk fn p with
+          match Func.find_blk fn p with
           | None -> fs
           | Some pb -> update p fs ~f:(fun {defs; uses} -> {
                 defs = Set.union defs args;
-                uses = uses ++ (ctrl_uses pb -- defs);
+                uses = uses ++ (Ctrl.free_vars (Blk.ctrl pb) -- defs);
               })))
 
 let lookup blks n = Map.find blks n |> Option.value ~default:empty_tran

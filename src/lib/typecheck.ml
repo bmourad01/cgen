@@ -141,6 +141,7 @@ let check_max i t =
 
 let typeof_const : const -> Type.t t = function
   | `int (i, t) -> check_max i t
+  | `flag _ -> !!`flag
   | `float _ -> !!`f32
   | `double _ -> !!`f64
   | `sym _ ->

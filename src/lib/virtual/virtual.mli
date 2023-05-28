@@ -13,6 +13,8 @@ open Regular.Std
 
     [`int (n, t)] is a constant integer value of size [t].
 
+    [`flag f] is a truth value, for internal use only.
+
     [`float f] is a single-precision floating-point value.
 
     [`double d] is a double-precision floating-point value.
@@ -22,6 +24,7 @@ open Regular.Std
 *)
 type const = [
   | `int    of Bitvec.t * Type.imm
+  | `flag   of bool
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int
@@ -71,6 +74,9 @@ type local = [
   | `label of Label.t * operand list
 ] [@@deriving bin_io, compare, equal, sexp]
 
+(** Returns the free variables in the local destination. *)
+val free_vars_of_local : local -> Var.Set.t
+
 (** Pretty-prints the local destination. *)
 val pp_local : Format.formatter -> local -> unit
 
@@ -80,8 +86,8 @@ type dst = [
   | local
 ] [@@deriving bin_io, compare, equal, sexp]
 
-(** [var_of_dst d] returns [Some x] if [d] is a variable [x]. *)
-val var_of_dst : dst -> Var.t option
+(** Returns the free variables in the destination. *)
+val free_vars_of_dst : dst -> Var.Set.t
 
 (** Pretty-prints a control-flow destination. *)
 val pp_dst : Format.formatter -> dst -> unit
@@ -481,6 +487,9 @@ module Ctrl : sig
     *)
     val map_exn : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t
 
+    (** Returns the set of free variables in the table. *)
+    val free_vars : t -> Var.Set.t
+
     (** Same as [map_exn], but returns [Error _] if [f] produces a
         duplicate key. *)
     val map : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t Or_error.t
@@ -594,10 +603,7 @@ module Blk : sig
   *)
   val map_of_insns : t -> insn Label.Map.t
 
-  (** Returns the set of free variables in the block.
-
-      Note: this calculation does not traverse phi instructions.
-  *)
+  (** Returns the set of free variables in the block. *)
   val free_vars : t -> Var.Set.t
 
   (** [uses_var b x] returns [true] if the variable [x] appears in the
@@ -866,7 +872,10 @@ module Live : sig
   val defs : t -> Label.t -> Var.Set.t
 
   (** The set of variables that were used in the block associated with the
-      label. *)
+      label.
+
+      Note that this set only includes the free variables of the block.
+  *)
   val uses : t -> Label.t -> Var.Set.t
 
   (** Folds over the live-ins of each block.

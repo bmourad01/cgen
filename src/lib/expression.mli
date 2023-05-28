@@ -148,7 +148,7 @@ val dependencies : ctx -> Label.t -> (Label.t * Var.t) seq
 (** Pretty-prints the dependency graph in Graphviz DOT notation. *)
 val pp_deps : Format.formatter -> ctx -> unit
 
-(** [build ctx l] attempts to construct an expression based on
+(** [get ctx l] attempts to construct an expression based on
     the label [l] in function [fn]. The results are memoized in
     [ctx].
 
@@ -161,8 +161,35 @@ val pp_deps : Format.formatter -> ctx -> unit
 
     Note that [fn] is assumed to be type-checked and in SSA form.
 *)
-val build : ctx -> Label.t -> t Or_error.t
+val get : ctx -> Label.t -> t Or_error.t
 
 (** Same as [build], but runs for every instruction in the
     context. *)
 val fill : ctx -> unit Or_error.t
+
+(** Partially evaluates all expressions in the context. *)
+val eval_all : ctx -> unit
+
+(** Information about reifying an expression back to a [Virtual]
+    datatype. *)
+module Reify : sig
+  (** An expression corresponds to either a data or control-flow
+      instruction. *)
+  type elt = [
+    | `insn of Insn.op
+    | `ctrl of ctrl
+  ]
+
+  (** The environment constructed from reifying an expression. *)
+  type env
+
+  (** Gets the reified instruction corresponding to a label. *)
+  val get : Label.t -> env -> elt Or_error.t
+
+  (** Returns the contents of the environment. *)
+  val enum : env -> (Label.t * elt) seq
+end
+
+(** [reify ctx l] returns the environment from reifying the
+    expression at label [l] in the given context [ctx]. *)
+val reify : ctx -> Label.t -> Reify.env Or_error.t

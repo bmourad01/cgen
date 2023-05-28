@@ -54,6 +54,7 @@ end
 
 type const = [
   | `int    of Bitvec.t * Type.imm
+  | `flag   of bool
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int
@@ -61,6 +62,7 @@ type const = [
 
 let pp_const ppf : const -> unit = function
   | `int (n, t) -> Format.fprintf ppf "%a_%a" Bitvec.pp n Type.pp_imm t
+  | `flag f -> Format.fprintf ppf "%a" Bool.pp f
   | `float f -> Format.fprintf ppf "%s_f" @@ Float32.to_string f
   | `double d -> Format.fprintf ppf "%a_d" Float.pp d
   | `sym (s, 0) -> Format.fprintf ppf "$%s" s
@@ -99,6 +101,12 @@ type local = [
   | `label of Label.t * operand list
 ] [@@deriving bin_io, compare, equal, sexp]
 
+let free_vars_of_local : local -> Var.Set.t = function
+  | `label (_, args) ->
+    List.fold args ~init:Var.Set.empty ~f:(fun s -> function
+        | `var v -> Set.add s v
+        | _ -> s)
+
 let pp_local ppf : local -> unit = function
   | `label (l, []) -> Format.fprintf ppf "%a" Label.pp l
   | `label (l, args) ->
@@ -111,9 +119,10 @@ type dst = [
   | local
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let var_of_dst : dst -> Var.t option = function
-  | #global as g -> var_of_global g
-  | #local -> None
+let free_vars_of_dst : dst -> Var.Set.t = function
+  | `var x -> Var.Set.singleton x
+  | #local as l -> free_vars_of_local l
+  | _ -> Var.Set.empty
 
 let pp_dst ppf : dst -> unit = function
   | #global as g -> Format.fprintf ppf "%a" pp_global g
