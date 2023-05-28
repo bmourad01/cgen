@@ -167,8 +167,8 @@ val get : ctx -> Label.t -> t Or_error.t
     context. *)
 val fill : ctx -> unit Or_error.t
 
-(** Partially evaluates all expressions in the context. *)
-val eval_all : ctx -> unit
+(** Transforms each expression in the context. *)
+val map : ctx -> f:(Label.t -> t -> t) -> unit
 
 (** Information about reifying an expression back to a [Virtual]
     datatype. *)
@@ -193,3 +193,10 @@ end
 (** [reify ctx l] returns the environment from reifying the
     expression at label [l] in the given context [ctx]. *)
 val reify : ctx -> Label.t -> Reify.env Or_error.t
+
+(** [reify_to_fn ctx fn] transforms [fn] according to the
+    expressions available to the context [ctx].
+
+    It is assumed that [fn] was used to generate [ctx].
+*)
+val reify_to_fn : ctx -> func -> func Or_error.t

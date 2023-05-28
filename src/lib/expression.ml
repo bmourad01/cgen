@@ -14,6 +14,7 @@ end
 module E = Monad.Result.Error
 
 open E.Let
+open E.Syntax
 
 type pure =
   | Palloc  of Label.t * int
@@ -1161,8 +1162,8 @@ let fill ctx = try_ @@ fun () ->
         ignore @@ Builder.of_insn ctx i b);
   Ok ()
 
-let eval_all ctx =
-  Hashtbl.map_inplace ctx.exp ~f:eval
+let map ctx ~f = Hashtbl.mapi_inplace ctx.exp
+    ~f:(fun ~key ~data -> f key data)
 
 module Reify = struct
   type elt = [
@@ -1333,3 +1334,36 @@ end
 let reify ctx l =
   let* e = get ctx l in
   Reify.run ctx l e
+
+let reify_to_fn ctx fn =
+  let blks = Func.blks fn in
+  let insns = Label.Table.create () in
+  let ctrls = Label.Table.create () in
+  let unseen l = not (Hashtbl.mem insns l || Hashtbl.mem ctrls l) in
+  let update env =
+    Reify.enum env |>
+    Seq.filter ~f:(fun (l, _) -> unseen l) |>
+    Seq.iter ~f:(function
+        | l, `insn o -> Hashtbl.set insns ~key:l ~data:o
+        | l, `ctrl c -> Hashtbl.set ctrls ~key:l ~data:c) in
+  let* () = E.Seq.iter blks ~f:(fun b ->
+      Blk.label b |> reify ctx >>| update) in
+  let+ () = E.Seq.iter blks ~f:(fun b ->
+      Blk.insns b |> E.Seq.iter ~f:(fun i ->
+          let l = Insn.label i in
+          if not @@ unseen l then !!()
+          else reify ctx l >>| update)) in
+  Seq.map blks ~f:(fun b ->
+      let label = Blk.label b in
+      let args = Blk.args b |> Seq.to_list in
+      let insns =
+        Blk.insns b |> Seq.map ~f:(fun i ->
+            let label = Insn.label i in
+            Hashtbl.find insns label |>
+            Option.value_map ~default:i ~f:(Insn.create ~label)) |>
+        Seq.to_list in
+      let ctrl = match Hashtbl.find ctrls label with
+        | None -> Blk.ctrl b
+        | Some c -> c in
+      Blk.create ~args ~insns ~ctrl ~label ()) |>
+  Seq.to_list |> Func.update_blks fn
