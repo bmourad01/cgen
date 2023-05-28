@@ -1,2 +1,2 @@
-module Remove_unreachable_blks = Remove_unreachable_blks
+module Remove_disjoint_blks = Remove_disjoint_blks
 module Ssa = Ssa
