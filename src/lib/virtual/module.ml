@@ -7,9 +7,9 @@ open Common
 module T = struct
   type t = {
     name : string;
-    typs : Type.compound array;
-    data : Data_.t array;
-    funs : Func.t array;
+    typs : Type.compound ftree;
+    data : Data_.t ftree;
+    funs : Func.t ftree;
   } [@@deriving bin_io, compare, equal, sexp]
 end
 
@@ -17,73 +17,73 @@ include T
 
 let create ?(typs = []) ?(data = []) ?(funs = []) ~name () = {
   name;
-  typs = Array.of_list typs;
-  data = Array.of_list data;
-  funs = Array.of_list funs;
+  typs = Ftree.of_list typs;
+  data = Ftree.of_list data;
+  funs = Ftree.of_list funs;
 }
 
 let name m = m.name
-let typs ?(rev = false) m = Array.enum m.typs ~rev
-let data ?(rev = false) m = Array.enum m.data ~rev
-let funs ?(rev = false) m = Array.enum m.funs ~rev
+let typs ?(rev = false) m = Ftree.enum m.typs ~rev
+let data ?(rev = false) m = Ftree.enum m.data ~rev
+let funs ?(rev = false) m = Ftree.enum m.funs ~rev
 let has_name m name = String.(name = m.name)
 let hash m = String.hash m.name
 
 exception Failed of Error.t
 
 let insert_type m t = {
-  m with typs = Array.push_back m.typs t;
+  m with typs = Ftree.snoc m.typs t;
 }
 
 let insert_data m d = {
-  m with data = Array.push_back m.data d;
+  m with data = Ftree.snoc m.data d;
 }
 
 let insert_fn m fn = {
-  m with funs = Array.push_back m.funs fn;
+  m with funs = Ftree.snoc m.funs fn;
 }
 
 let remove_type m name = {
-  m with typs = Array.remove_if m.typs ~f:(fun c ->
+  m with typs = Ftree.remove_if m.typs ~f:(fun c ->
     String.equal name @@ Type.compound_name c);
 }
 
 let remove_data m name = {
-  m with data = Array.remove_if m.data ~f:(Fn.flip Data_.has_name name);
+  m with data = Ftree.remove_if m.data ~f:(Fn.flip Data_.has_name name);
 }
 
 let remove_fn m name = {
-  m with funs = Array.remove_if m.funs ~f:(Fn.flip Func.has_name name);
+  m with funs = Ftree.remove_if m.funs ~f:(Fn.flip Func.has_name name);
 }
 
 let map_typs m ~f = {
-  m with typs = Array.map m.typs ~f;
+  m with typs = Ftree.map m.typs ~f;
 }
 
 let map_data m ~f = {
-  m with data = Array.map m.data ~f;
+  m with data = Ftree.map m.data ~f;
 }
 
 let map_funs m ~f = {
-  m with funs = Array.map m.funs ~f;
+  m with funs = Ftree.map m.funs ~f;
 }
 
 let map_typs_err m ~f = try
-    let typs = Array.map m.typs ~f:(fun t -> match f t with
+    let typs = Ftree.map m.typs ~f:(fun t -> match f t with
         | Error e -> raise @@ Failed e
         | Ok t -> t) in
     Ok {m with typs}
   with Failed err -> Error err
 
 let map_data_err m ~f = try
-    let data = Array.map m.data ~f:(fun d -> match f d with
+    let data = Ftree.map m.data ~f:(fun d -> match f d with
         | Error e -> raise @@ Failed e
         | Ok d -> d) in
     Ok {m with data}
   with Failed err -> Error err
 
 let map_funs_err m ~f = try
-    let funs = Array.map m.funs ~f:(fun fn -> match f fn with
+    let funs = Ftree.map m.funs ~f:(fun fn -> match f fn with
         | Error e -> raise @@ Failed e
         | Ok fn -> fn) in
     Ok {m with funs}
@@ -91,47 +91,48 @@ let map_funs_err m ~f = try
 
 let pp ppf m =
   let sep ppf = Format.fprintf ppf "@;@;" in
-  match m.typs, m.data, m.funs with
-  | [||], [||], [||] ->
+  let em = Ftree.is_empty in
+  match em m.typs, em m.data, em m.funs with
+  | true, true, true ->
     Format.fprintf ppf "@[<v 0>module %s@]" m.name
-  | [||], [||], funs ->
+  | true, true, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Array.pp Func.pp sep) funs
-  | [||], data, [||] ->
+      (Ftree.pp Func.pp sep) m.funs
+  | true, false, true ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Array.pp Data_.pp sep) data
-  | typs, [||], [||] ->
+      (Ftree.pp Data_.pp sep) m.data
+  | false, true, true ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Array.pp Type.pp_compound_decl sep) typs
-  | [||], data, funs ->
-    Format.fprintf ppf "@[<v 0>module %s@;@;\
-                        @[<v 0>%a@]@;@;\
-                        @[<v 0>%a@]@]" m.name
-      (Array.pp Data_.pp sep) data
-      (Array.pp Func.pp sep) funs
-  | typs, [||], funs ->
+      (Ftree.pp Type.pp_compound_decl sep) m.typs
+  | true, false, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Array.pp Type.pp_compound_decl sep) typs
-      (Array.pp Func.pp sep) funs
-  | typs, data, [||] ->
+      (Ftree.pp Data_.pp sep) m.data
+      (Ftree.pp Func.pp sep) m.funs
+  | false, true, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Array.pp Type.pp_compound_decl sep) typs
-      (Array.pp Data_.pp sep) data
-  | typs, data, funs ->
+      (Ftree.pp Type.pp_compound_decl sep) m.typs
+      (Ftree.pp Func.pp sep) m.funs
+  | false, false, true ->
+    Format.fprintf ppf "@[<v 0>module %s@;@;\
+                        @[<v 0>%a@]@;@;\
+                        @[<v 0>%a@]@]" m.name
+      (Ftree.pp Type.pp_compound_decl sep) m.typs
+      (Ftree.pp Data_.pp sep) m.data
+  | false, false, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Array.pp Type.pp_compound_decl sep) typs
-      (Array.pp Data_.pp sep) data
-      (Array.pp Func.pp sep) funs
+      (Ftree.pp Type.pp_compound_decl sep) m.typs
+      (Ftree.pp Data_.pp sep) m.data
+      (Ftree.pp Func.pp sep) m.funs
 
 include Regular.Make(struct
     include T

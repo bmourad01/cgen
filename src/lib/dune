@@ -25,6 +25,7 @@
    regular
    zarith)
  (private_modules
+   ftree
    sm
    virtual_lexer
    virtual_parser)

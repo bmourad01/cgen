@@ -16,7 +16,7 @@ let pp_elt ppf : elt -> unit = function
 module T = struct
   type t = {
     name    : string;
-    elts    : elt array;
+    elts    : elt ftree;
     linkage : Linkage.t;
     align   : int option;
   } [@@deriving bin_io, compare, equal, sexp]
@@ -30,15 +30,15 @@ let create_exn
     ~name
     ~elts
     () =
-  match Array.of_list elts with
-  | [||] -> invalid_argf "Cannot create empty data %s" name ()
-  | elts ->
+  match elts with
+  | [] -> invalid_argf "Cannot create empty data %s" name ()
+  | _ ->
     Option.iter align ~f:(function
         | n when n < 1 || (n land (n - 1)) <> 0 ->
           invalid_argf "In data $%s: invalid alignment %d, \
                         must be positive power of 2" name n ()
         | _ -> ());
-    {name; elts; linkage; align}
+    {name; elts = Ftree.of_list elts; linkage; align}
 
 let create
     ?(align = None)
@@ -49,7 +49,7 @@ let create
   Or_error.try_with @@ create_exn ~name ~elts ~linkage ~align
 
 let name d = d.name
-let elts ?(rev = false) d = Array.enum d.elts ~rev
+let elts ?(rev = false) d = Ftree.enum d.elts ~rev
 let linkage d = d.linkage
 let align d = d.align
 let has_name d name = String.(name = d.name)
@@ -58,7 +58,7 @@ let hash d = String.hash d.name
 let typeof d target =
   let word = (Target.word target :> Type.basic) in
   let name = Format.sprintf "%s_t" d.name in
-  let fields = Array.fold_right d.elts ~init:[] ~f:(fun elt fields ->
+  let fields = Ftree.fold_right d.elts ~init:[] ~f:(fun elt fields ->
       let t = match elt with
         | `int (_, t) -> `elt ((t :> Type.basic), 1)
         | `flag f     -> `elt (`i8, Bool.to_int f)
@@ -71,15 +71,15 @@ let typeof d target =
   `compound (name, d.align, fields)
 
 let prepend_elt d e = {
-  d with elts = Array.push_front d.elts e;
+  d with elts = Ftree.cons d.elts e;
 }
 
 let append_elt d e = {
-  d with elts = Array.push_back d.elts e;
+  d with elts = Ftree.snoc d.elts e;
 }
 
 let map_elts d ~f = {
-  d with elts = Array.map d.elts ~f;
+  d with elts = Ftree.map d.elts ~f;
 }
 
 let pp ppf d =
@@ -90,7 +90,7 @@ let pp ppf d =
   Format.fprintf ppf "data $%s = " d.name;
   Option.iter d.align ~f:(Format.fprintf ppf "align %d ");
   Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
-    (Array.pp pp_elt sep) d.elts
+    (Ftree.pp pp_elt sep) d.elts
 
 include Regular.Make(struct
     include T
