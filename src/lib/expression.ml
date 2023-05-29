@@ -844,9 +844,10 @@ let pp_dst ppf = function
 
 let subst_table m = List.map ~f:(fun (i, l) -> i, subst_local m l)
 
-let pp_table tbl =
-  let pp_sep ppf () = Format.fprintf ppf "," in
-  let pp ppf (v, l) = Format.fprintf ppf "%a:%a" Bitvec.pp v pp_local l in
+let pp_table t tbl =
+  let pp_sep ppf () = Format.fprintf ppf ", " in
+  let pp ppf (v, l) = Format.fprintf ppf "%a_%a%a"
+      Bitvec.pp v Type.pp_imm t pp_local l in
   (Format.pp_print_list ~pp_sep pp) tbl
 
 let subst ctx e =
@@ -864,12 +865,7 @@ let subst ctx e =
   | Eset (x, y) -> Eset (x, subst_pure ctx y ~vs:(Var.Set.singleton x))
   | Estore (t, v, a) -> Estore (t, pure v, pure a)
   | Esw (t, v, d, tbl) ->
-    (* It's valid to index into a switch table with a symbol,
-       but we can't reify it back to the IR if we perform the
-       substitution, so we will do this little hack. *)
-    let v = match pure v with
-      | Psym _ -> v | v -> v in
-    Esw (t, v, subst_local ctx d, subst_table ctx tbl)
+    Esw (t, pure v, subst_local ctx d, subst_table ctx tbl)
   | (Ehlt | Evaarg _ | Evastart _) as e -> e
 
 let pp ppf = function
@@ -900,7 +896,7 @@ let pp ppf = function
       Type.pp_basic t pp_pure v pp_pure a
   | Esw (t, v, d, tbl) ->
     Format.fprintf ppf "sw.%a(%a, %a, [%a])"
-      Type.pp_imm t pp_pure v pp_local d pp_table tbl
+      Type.pp_imm t pp_pure v pp_local d (pp_table t) tbl
   | Evaarg (x, t, y) ->
     Format.fprintf ppf "%a = vaarg.%a(%a)"
       Var.pp x Type.pp_basic t Var.pp y
@@ -1101,7 +1097,9 @@ end = struct
       let x, w = operand x Worklist.empty l in
       w, Eret (Some x)
     | `sw (t, v, d, tbl) -> go @@ fun () ->
-      let v, w = Pvar v, Worklist.singleton v l in
+      let v, w = match v with
+        | `var x -> Pvar x, Worklist.singleton x l
+        | `sym (s, n) -> Psym (s, n), Worklist.empty in
       let d, w = local d w l in
       let tbl, w = table tbl w l in
       w, Esw (t, v, d, tbl)
@@ -1297,10 +1295,11 @@ module Reify = struct
       let+ l = local ctx l in
       (l :> Virtual.dst)
 
-  let table ctx tbl =
+  let table ctx tbl t =
     M.List.map tbl ~f:(fun (i, l) ->
         let+ l = local ctx l in
-        i, l) >>| Ctrl.Table.create_exn
+        i, l) >>| fun tbl ->
+    Ctrl.Table.create_exn tbl t
 
   let exp ctx l e =
     let pure = pure ctx in
@@ -1336,9 +1335,9 @@ module Reify = struct
       `store (t, v, a)
     | Esw (t, i, d, tbl) -> ctrl @@ fun () ->
       let* d = local ctx d
-      and* tbl = table ctx tbl in
+      and* tbl = table ctx tbl t in
       begin pure i >>= function
-        | `var i -> !!(`sw (t, i, d, tbl))
+        | (`var _ | `sym _) as i -> !!(`sw (t, i, d, tbl))
         | `int (i, _) ->
           let l =
             Ctrl.Table.find tbl i |>

@@ -225,6 +225,10 @@ end = struct
   let map_tbl env =
     Ctrl.Table.map_exn ~f:(fun v l -> v, map_local env l)
 
+  let swindex env = function
+    | `var x -> `var (map_var env x)
+    | `sym _ as s -> s
+
   let rename_ctrl env b =
     let var = map_var env in
     let dst = map_dst env in
@@ -235,7 +239,7 @@ end = struct
     | `jmp d -> `jmp (dst d)
     | `br (c, t, f) -> `br (var c, dst t, dst f)
     | `ret r -> `ret (Option.map r ~f:opnd)
-    | `sw (t, i, d, tbl) -> `sw (t, var i, loc d, map_tbl env tbl)
+    | `sw (t, i, d, tbl) -> `sw (t, swindex env i, loc d, map_tbl env tbl)
 
   let pop_defs env b =
     let pop x = Var.base x |> Hashtbl.change env.stk ~f:(function

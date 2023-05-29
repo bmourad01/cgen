@@ -61,9 +61,6 @@ val pp_dst : Format.formatter -> dst -> unit
 type table = (Bitvec.t * local) list
 [@@deriving bin_io, compare, equal, sexp]
 
-(** Pretty-prints a switch table. *)
-val pp_table : Format.formatter -> table -> unit
-
 (** An expression. *)
 type t =
   | Ebr      of pure * dst * dst

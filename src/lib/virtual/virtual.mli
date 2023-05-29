@@ -469,13 +469,16 @@ module Ctrl : sig
 
         @raise Invalid_argument if the list has duplicate keys.
     *)
-    val create_exn : (Bitvec.t * local) list -> t
+    val create_exn : (Bitvec.t * local) list -> Type.imm -> t
 
     (** Same as [create_exn], but returns an error upon failure. *)
-    val create : (Bitvec.t * local) list -> t Or_error.t
+    val create : (Bitvec.t * local) list -> Type.imm -> t Or_error.t
 
     (** Returns the elements of the table. *)
     val enum : t -> (Bitvec.t * local) seq
+
+    (** Returns the immediate type for the index into the table. *)
+    val typ : t -> Type.imm
 
     (** [find t v] searches the table [t] for the label associated
         with the constant [v]. *)
@@ -496,6 +499,18 @@ module Ctrl : sig
   end
 
   type table = Table.t [@@deriving bin_io, compare, equal, sexp]
+
+  (** A valid index into the switch table.
+
+      The [`sym (s, offset)] constructor is included because it is
+      technically legal to use a symbol as an index into the table.
+      A constant propagation pass could resolve the index to some
+      symbol, although this is rarely a case.
+  *)
+  type swindex = [
+    | `var of Var.t
+    | `sym of string * int
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   (** A control-flow instruction.
 
@@ -520,7 +535,7 @@ module Ctrl : sig
     | `jmp of dst
     | `br  of Var.t * dst * dst
     | `ret of operand option
-    | `sw  of Type.imm * Var.t * local * table
+    | `sw  of Type.imm * swindex * local * table
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the control-flow instruction. *)
@@ -550,8 +565,8 @@ module Edge : sig
     | `always
     | `true_ of Var.t
     | `false_ of Var.t
-    | `switch of Var.t * Bitvec.t
-    | `default of Var.t
+    | `switch of Ctrl.swindex * Bitvec.t
+    | `default of Ctrl.swindex
   ] [@@deriving bin_io, compare, equal, sexp]
 
   include Regular.S with type t := t

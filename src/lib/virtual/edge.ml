@@ -7,19 +7,24 @@ module T = struct
     | `always
     | `true_ of Var.t
     | `false_ of Var.t
-    | `switch of Var.t * Bitvec.t
-    | `default of Var.t
+    | `switch of Ctrl.swindex * Bitvec.t
+    | `default of Ctrl.swindex
   ] [@@deriving bin_io, compare, equal, sexp]
 end
 
 include T
 
 let pp ppf : t -> unit = function
-  | `always -> Format.fprintf ppf "always"
-  | `true_ x -> Format.fprintf ppf "%a" Var.pp x
-  | `false_ x -> Format.fprintf ppf "~%a" Var.pp x
-  | `switch (x, v) -> Format.fprintf ppf "%a = %a" Var.pp x Bitvec.pp v
-  | `default x -> Format.fprintf ppf "default(%a)" Var.pp x
+  | `always ->
+    Format.fprintf ppf "always"
+  | `true_ x ->
+    Format.fprintf ppf "%a" Var.pp x
+  | `false_ x ->
+    Format.fprintf ppf "~%a" Var.pp x
+  | `switch (x, v) ->
+    Format.fprintf ppf "%a = %a" Ctrl.pp_swindex x Bitvec.pp v
+  | `default x ->
+    Format.fprintf ppf "default(%a)" Ctrl.pp_swindex x
 
 include Regular.Make(struct
     include T

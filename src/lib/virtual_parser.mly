@@ -155,6 +155,7 @@
 %type <Virtual.blk m> blk
 %type <(Var.t * Virtual.Blk.arg_typ) m> blk_arg
 %type <Virtual.Ctrl.t m> ctrl
+%type <Virtual.Ctrl.swindex m> ctrl_index
 %type <((Bitvec.t * Type.imm) * Virtual.local) m> ctrl_table_entry
 %type <Virtual.Insn.op m> insn
 %type <call_arg list m> call_args
@@ -308,7 +309,7 @@ ctrl:
       | None -> !!(`ret None)
       | Some a -> a >>| fun a -> `ret (Some a)
     }
-  | t = SW i = var COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
+  | t = SW i = ctrl_index COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
     {
       let* i = i and* d = def and* tbl = unwrap_list tbl in
       let* tbl = M.List.map tbl ~f:(fun ((i, t'), l) ->
@@ -319,10 +320,16 @@ ctrl:
             Format.asprintf "Invalid switch value %a_%a, expected size %a"
               Bitvec.pp i Type.pp_imm t' Type.pp_imm t
           else !!(i, l)) in
-      match Virtual.Ctrl.Table.create tbl with
+      match Virtual.Ctrl.Table.create tbl t with
       | Error err -> M.lift @@ Context.fail err
       | Ok tbl -> !!(`sw (t, i, d, tbl))
     }
+
+ctrl_index:
+  | x = var { x >>| fun x -> `var x }
+  | s = SYM { !!(`sym (s, 0)) }
+  | s = SYM PLUS i = NUM { !!(`sym (s, i)) }
+  | s = SYM MINUS i = NUM { !!(`sym (s, -i)) }
 
 ctrl_table_entry:
   | i = INT ARROW l = local { l >>| fun l -> i, l }

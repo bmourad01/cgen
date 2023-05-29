@@ -3,43 +3,66 @@ open Regular.Std
 open Common
 
 module Table = struct
-  type t = local Map.M(Bitvec).t [@@deriving bin_io, compare, equal, sexp]
+  type t = {
+    tbl : local Map.M(Bitvec).t;
+    typ : Type.imm;
+  } [@@deriving bin_io, compare, equal, sexp]
 
-  let create_exn l = try Map.of_alist_exn (module Bitvec) l with
-    | exn -> invalid_argf "%s" (Exn.to_string exn) ()
+  let create_exn l t = try {
+    tbl = Map.of_alist_exn (module Bitvec) l;
+    typ = t;
+  } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
 
-  let create l = Or_error.try_with @@ fun () -> create_exn l
-  let enum t = Map.to_sequence t
-  let find t v = Map.find t v
+  let create l t = Or_error.try_with @@ fun () -> create_exn l t
+  let enum t = Map.to_sequence t.tbl
+  let find t v = Map.find t.tbl v
+  let typ t = t.typ
 
   let map_exn t ~f = try
-      Map.to_sequence t |>
+      Map.to_sequence t.tbl |>
       Seq.map ~f:(fun (v, l) -> f v l) |>
-      Map.of_sequence_exn (module Bitvec)
+      Map.of_sequence_exn (module Bitvec) |>
+      fun tbl -> {t with tbl}
     with exn -> invalid_argf "%s" (Exn.to_string exn) ()
 
   let map t ~f = Or_error.try_with @@ fun () -> map_exn t ~f
 
   let free_vars t =
-    Map.fold t ~init:Var.Set.empty ~f:(fun ~key:_ ~data s ->
+    Map.fold t.tbl ~init:Var.Set.empty ~f:(fun ~key:_ ~data s ->
         Set.union s @@ free_vars_of_local data)
 
-  let pp_elt ppl ppf (v, l) =
-    Format.fprintf ppf "%a -> %a" Bitvec.pp v ppl l
+  let pp_elt t ppl ppf (v, l) =
+    Format.fprintf ppf "%a_%a -> %a" Bitvec.pp v Type.pp_imm t ppl l
 
   let pp ppf t =
     let pp_sep ppf () = Format.fprintf ppf ",@;" in
-    Format.pp_print_list ~pp_sep (pp_elt pp_local) ppf (Map.to_alist t)
+    Format.pp_print_list ~pp_sep (pp_elt t.typ pp_local)
+      ppf (Map.to_alist t.tbl)
 end
 
 type table = Table.t [@@deriving bin_io, compare, equal, sexp]
+
+type swindex = [
+  | `var of Var.t
+  | `sym of string * int
+] [@@deriving bin_io, compare, equal, sexp]
+
+let pp_swindex ppf = function
+  | `var x -> Format.fprintf ppf "%a" Var.pp x
+  | `sym (s, 0) -> Format.fprintf ppf "$%s" s
+  | `sym (s, n) when n > 0 -> Format.fprintf ppf "$%s+0x%x" s n
+  | `sym (s, n) -> Format.fprintf ppf "$%s-0x%x" s (lnot n + 1)
+
+let var_of_swindex = function
+  | `var x -> Some x
+  | `sym _ -> None
 
 type t = [
   | `hlt
   | `jmp of dst
   | `br  of Var.t * dst * dst
   | `ret of operand option
-  | `sw  of Type.imm * Var.t * local * table
+  | `sw  of Type.imm * swindex * local * table
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars : t -> Var.Set.t = function
@@ -53,7 +76,7 @@ let free_vars : t -> Var.Set.t = function
   | `ret None -> Var.Set.empty
   | `ret (Some a) -> var_set_of_option @@ var_of_operand a
   | `sw (_, x, d, tbl) -> Var.Set.union_list [
-      Var.Set.singleton x;
+      var_set_of_option @@ var_of_swindex x;
       free_vars_of_local d;
       Table.free_vars tbl;
     ]
@@ -70,4 +93,4 @@ let pp ppf : t -> unit = function
     Format.fprintf ppf "ret"
   | `sw (t, x, ld, tbl) ->
     Format.fprintf ppf "sw.%a %a, %a [@[<v 0>%a@]]"
-      Type.pp_imm t Var.pp x pp_local ld Table.pp tbl
+      Type.pp_imm t pp_swindex x pp_local ld Table.pp tbl

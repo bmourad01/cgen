@@ -31,7 +31,7 @@ let accum g b : Ctrl.t -> G.t = function
   | `ret _ -> g
   | `sw (_, x, `label (d, _), t) ->
     let init = G.Edge.(insert (create b d @@ `default x) g) in
-    Map.fold t ~init ~f:(fun ~key:v ~data:(`label (l, _)) g ->
+    Map.fold t.tbl ~init ~f:(fun ~key:v ~data:(`label (l, _)) g ->
         G.Edge.(insert (create b l @@ `switch (x, v)) g))
 
 let connect_unreachable g n =

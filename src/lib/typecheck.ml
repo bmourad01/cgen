@@ -701,15 +701,22 @@ let ctrl_ret_some _blks fn blk r =
     if Type.(r = t') then !!()
     else unify_fail_ret fn blk r t'
 
+let sw_unify_fail t t' blk fn = Or_error.errorf
+    "Expected type %a for index of `sw` instruction in block %a \
+     in function %s, got %a" Type.pps t Label.pps (Blk.label blk)
+    (Func.name fn) Type.pps t'
+
 let ctrl_sw blks fn blk t v d tbl =
   let t = (t :> Type.t) in
   let* env = M.get () in
-  let*? tv = Env.typeof_var fn v env in
+  let*? tv = match v with
+    | `var v -> Env.typeof_var fn v env
+    | `sym _ -> Ok (Target.word env.target :> Type.t) in
   if Type.(t = tv) then
     let* () = check_dst blks fn blk (d :> dst) in
     Ctrl.Table.enum tbl |> M.Seq.iter ~f:(fun (_, l) ->
         check_dst blks fn blk (l :> dst))
-  else M.lift_err @@ unify_fail t tv v fn
+  else M.lift_err @@ sw_unify_fail t tv blk fn
 
 let blk_ctrl blks fn blk = match Blk.ctrl blk with
   | `hlt -> !!()
