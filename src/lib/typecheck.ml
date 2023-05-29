@@ -865,7 +865,7 @@ let update_fn env fn =
     let* () = remove_fn fn in
     let* () = add_fn fn in
     let* () = check_fn fn in
-    M.put env in
+    !!() in
   go.run env ~reject ~accept
 
 let update_fns env fns =
@@ -873,5 +873,5 @@ let update_fns env fns =
     let* () = M.List.iter fns ~f:remove_fn in
     let* () = M.List.iter fns ~f:add_fn in
     let* () = M.List.iter fns ~f:check_fn in
-    M.put env in
+    !!() in
   go.run env ~reject ~accept
