@@ -125,12 +125,13 @@ val func : ctx -> string
     [`blk b]: the label corresponds to the control instruction
     of block [b] (and is equivalent to [Blk.label b]).
 
-    [`insn (i, b)]: the label corresponds to instruction [i] in
-    block [b].
+    [`insn (i, b, x)]: the label corresponds to instruction [i] in
+    block [b], and an optional variable [x] that is assigned the
+    result.
 *)
 type resolved = [
   | `blk of blk
-  | `insn of insn * blk
+  | `insn of insn * blk * Var.t option
 ]
 
 (** Resolves the label in the given context. *)

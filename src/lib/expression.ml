@@ -534,11 +534,14 @@ let eval ?(env = Var.Map.empty) e =
 
 module Deps = Graphlib.Make(Label)(Var)
 
+type resolved = [
+  | `blk  of blk
+  | `insn of insn * blk * Var.t option
+]
+
 type ctx = {
   func         : string;
-  insns        : (insn * blk) Label.Tree.t;
-  blks         : blk Label.Tree.t;
-  vars         : Var.t Label.Tree.t;
+  elts         : resolved Label.Tree.t;
   cfg          : Cfg.t;
   pure         : pure Var.Table.t;
   exp          : t Label.Table.t;
@@ -546,51 +549,38 @@ type ctx = {
   mutable deps : Deps.t;
 }
 
-let init_insns fn =
-  let init = Label.Tree.(empty, empty) in
-  Func.blks fn |> E.Seq.fold ~init ~f:(fun init blk ->
-      Blk.insns blk |> E.Seq.fold ~init ~f:(fun (insns, vars) i ->
+let init_elts fn =
+  Func.blks fn |> E.Seq.fold ~init:Label.Tree.empty ~f:(fun t b ->
+      let label = Blk.label b in
+      let* init = match Label.Tree.add t ~key:label ~data:(`blk b) with
+        | `Ok m -> Ok m
+        | `Duplicate ->
+          E.failf "Duplicate label for block %a" Label.pp label () in
+      Blk.insns b |> E.Seq.fold ~init ~f:(fun insns i ->
           let key = Insn.label i in
-          let* insns = match Label.Tree.add insns ~key ~data:(i, blk) with
-            | `Ok m -> Ok m
-            | `Duplicate ->
-              E.failf "Duplicate label for instruction %a in block %a"
-                Label.pp key Label.pp (Blk.label blk) () in
-          let+ vars = match Insn.lhs i with
-            | None -> Ok vars
-            | Some x -> match Label.Tree.add vars ~key ~data:x with
-              | `Ok m -> Ok m
-              | `Duplicate ->
-                E.failf "Duplicate label %a for variable %a in block %a"
-                  Label.pp key Var.pp x Label.pp (Blk.label blk) () in
-          insns, vars))
+          let data = `insn (i, b, Insn.lhs i) in
+          match Label.Tree.add insns ~key ~data with
+          | `Ok m -> Ok m
+          | `Duplicate ->
+            E.failf "Duplicate label for instruction %a in block %a"
+              Label.pp key Label.pp label ()))
 
 let init fn =
-  let+ insns, vars = init_insns fn in
-  let blks = Func.map_of_blks fn in
+  let+ elts = init_elts fn in
   let cfg = Cfg.create fn in
   let pure = Var.Table.create () in
   let exp = Label.Table.create () in
   let filled = Var.Hash_set.create () in
   let func = Func.name fn in
-  {func; insns; blks; vars; cfg; pure; exp; filled; deps = Deps.empty}
+  {func; elts; cfg; pure; exp; filled; deps = Deps.empty}
 
 let func ctx = ctx.func
 
-let find_var ctx l = match Label.Tree.find ctx.vars l with
-  | None -> E.failf "Missing variable for label %a" Label.pp l ()
-  | Some x -> Ok x
+let resolve ctx l = Label.Tree.find ctx.elts l
 
-type resolved = [
-  | `blk  of blk
-  | `insn of insn * blk
-]
-
-let resolve ctx l = match Label.Tree.find ctx.blks l with
-  | Some b -> Some (`blk b)
-  | None -> match Label.Tree.find ctx.insns l with
-    | Some x -> Some (`insn x)
-    | None -> None
+let find_var ctx l = match resolve ctx l with
+  | Some `insn (_, _, Some x) -> Ok x
+  | Some _ | None -> E.failf "Missing variable for label %a" Label.pp l ()
 
 let dependents ctx src =
   Deps.Node.succs src ctx.deps |>
@@ -1054,7 +1044,9 @@ end = struct
     Cfg.Node.preds (Blk.label blk) ctx.cfg |>
     Seq.filter_map ~f:(fun l ->
         if Label.is_pseudo l || Set.mem bs l
-        then None else Label.Tree.find ctx.blks l)
+        then None else match Label.Tree.find ctx.elts l with
+          | Some `blk b -> Some b
+          | Some _ | None -> None)
 
   let initq blk l w =
     blk, l, w, Label.Set.empty, Var.Set.empty
@@ -1153,16 +1145,14 @@ let get ctx l = try_ @@ fun () ->
   | Some e -> Ok e
   | None -> match resolve ctx l with
     | Some `blk b -> Ok (Builder.of_ctrl ctx b)
-    | Some `insn (i, b) -> Ok (Builder.of_insn ctx i b)
+    | Some `insn (i, b, _) -> Ok (Builder.of_insn ctx i b)
     | None -> E.failf "Label %a not found" Label.pp l ()
 
 let fill ctx = try_ @@ fun () ->
-  Label.Tree.iter ctx.blks ~f:(fun ~key:_ ~data:b ->
-      if not @@ Hashtbl.mem ctx.exp @@ Blk.label b then
-        ignore @@ Builder.of_ctrl ctx b);
-  Label.Tree.iter ctx.insns ~f:(fun ~key:_ ~data:(i, b) ->
-      if not @@ Hashtbl.mem ctx.exp @@ Insn.label i then
-        ignore @@ Builder.of_insn ctx i b);
+  Label.Tree.iter ctx.elts ~f:(fun ~key ~data ->
+      if not @@ Hashtbl.mem ctx.exp key then match data with
+        | `blk b -> ignore @@ Builder.of_ctrl ctx b
+        | `insn (i, b, _) -> ignore @@ Builder.of_insn ctx i b);
   Ok ()
 
 let map ctx ~f = Hashtbl.mapi_inplace ctx.exp
