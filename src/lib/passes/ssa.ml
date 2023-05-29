@@ -50,7 +50,7 @@ end = struct
     defs : Var.Set.t Label.Table.t;
     args : (Var.t * Blk.arg_typ) list Label.Table.t;
     ctrl : ctrl Label.Table.t;
-    outs : Var.t list Label.Map.t Label.Table.t;
+    outs : Var.t list Label.Tree.t Label.Table.t;
   }
 
   let define x = function
@@ -83,8 +83,11 @@ end = struct
   let update_incoming env l x outs =
     Cfg.Node.preds l env.cfg |> Seq.iter ~f:(fun l' ->
         Hashtbl.update outs l' ~f:(function
-            | None -> Label.Map.singleton l [x]
-            | Some inc -> Map.add_multi inc ~key:l ~data:x))
+            | None -> Label.Tree.singleton l [x]
+            | Some inc ->
+              Label.Tree.update_with inc l
+                ~has:(List.cons x)
+                ~nil:(fun () -> [x])))
 
   let typ_err env x c = Error.createf
       "Cannot have block argument for variable %a \
@@ -119,7 +122,7 @@ end = struct
   let args_of_vars = List.map ~f:(fun x -> `var x)
 
   let argify_local inc : local -> local = function
-    | `label (l, args) as loc -> match Map.find inc l with
+    | `label (l, args) as loc -> match Label.Tree.find inc l with
       | Some xs -> `label (l, args_of_vars xs @ args)
       | None -> loc
 

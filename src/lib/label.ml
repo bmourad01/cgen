@@ -19,3 +19,211 @@ include Regular.Make(struct
     let version = "0.1"
     let module_name = Some "Cgen.Label"
   end)
+
+(* Implementation of a PATRICIA tree for labels, adapted from BAP. *)
+module Tree = struct
+  open Int63
+
+  type key = t
+
+  let to_int = to_int_trunc
+
+  let mask ~bit x =
+    let m = one lsl to_int bit in
+    (x lor (m - one)) land (lnot m)
+
+  let clz v = of_int @@ clz v [@@inline]
+  let numbits v = of_int 63 - clz v [@@inline]
+  let highest_bit x = numbits x - one
+  let is_zero ~bit x = x land (one lsl to_int bit) = zero
+
+  module Key = struct
+    type t = {key : key} [@@unboxed]
+
+    let payload_size = 57
+    let branching_Size = 6
+
+    let branching_mask = of_int64_exn (-144115188075855872L)
+    let payload_mask = of_int64_exn 144115188075855871L
+
+    let branching {key} =
+      (key land branching_mask) lsr 57 [@@inline]
+
+    let payload {key} = key land payload_mask [@@inline]
+
+    let create ~branching ~payload = {
+      key = branching lsl 57 lor payload
+    }
+
+    type order = NA | LB | RB
+
+    let compare k k' =
+      let x = payload k in
+      let bit = branching k in
+      let m = one lsl to_int bit in
+      let y = (k' lor (m - one)) land (lnot m) in
+      match x = y with
+      | true when k' land m = zero -> LB
+      | true -> RB
+      | false -> NA
+    [@@inline]
+
+    let equal {key = k1} {key = k2} = equal k1 k2 [@@inline]
+  end
+
+  type +'a t =
+    | Bin of Key.t * 'a t * 'a t
+    | Tip of key * 'a
+    | Nil
+
+  type 'a or_duplicate = [
+    | `Ok of 'a t
+    | `Duplicate
+  ]
+
+  let empty = Nil
+
+  let is_empty = function
+    | Bin _ | Tip _ -> false
+    | Nil -> true
+  [@@inline]
+
+  let branching_bit a b = highest_bit (a lxor b)
+
+  exception Not_found
+  exception Duplicate
+
+  let rec find_exn t k = match t with
+    | Nil -> raise Not_found
+    | Tip (k', v) when k = k' -> v
+    | Tip _ -> raise Not_found
+    | Bin (k', l, r) -> match Key.compare k' k with
+      | NA -> raise Not_found
+      | LB -> find_exn l k
+      | RB -> find_exn r k
+
+  let find t k = try Some (find_exn t k) with
+    | Not_found -> None
+
+  let mem t k = try ignore (find_exn t k); true with
+    | Not_found -> false
+
+  let node payload branching l r = match l, r with
+    | Nil, o | o, Nil -> o
+    | _ -> Bin (Key.create ~branching ~payload, l, r)
+
+  let of_key key l r = match l, r with
+    | Nil, o | o, Nil -> o
+    | _ -> Bin (key, l, r)
+
+  let join t1 p1 t2 p2 =
+    let switch = branching_bit p1 p2 in
+    let prefix = mask p1 ~bit:switch in
+    if is_zero p1 ~bit:switch
+    then node prefix switch t1 t2
+    else node prefix switch t2 t1
+
+  let singleton k v = Tip (k, v)
+
+  let rec update_with t k ~has ~nil = match t with
+    | Nil -> Tip (k, nil ())
+    | Tip (k', v') when k = k' -> Tip (k, has v')
+    | Tip (k', v') -> join t k' (Tip (k, nil ())) k
+    | Bin (k', l, r) -> match Key.compare k' k with
+      | NA -> join (Tip (k, nil ())) k t (Key.payload k')
+      | LB -> Bin (k', update_with l k ~has ~nil, r)
+      | RB -> Bin (k', l, update_with r k ~has ~nil)
+  [@@specialise]
+
+  let rec update t k ~f = match t with
+    | Nil -> Tip (k, f None)
+    | Tip (k', v') when k = k' -> Tip (k, f (Some v'))
+    | Tip (k', v') -> join t k' (Tip (k, f None)) k
+    | Bin (k', l, r) -> match Key.compare k' k with
+      | NA -> join (Tip (k, f None)) k t (Key.payload k')
+      | LB -> Bin (k', update l k ~f, r)
+      | RB -> Bin (k', l, update r k ~f)
+  [@@specialise]
+
+  let rec set t ~key ~data = match t with
+    | Nil -> Tip (key, data)
+    | Tip (k', _) when key = k' -> Tip (key, data)
+    | Tip (k', _) -> join t k' (Tip (key, data)) key
+    | Bin (k', l, r) -> match Key.compare k' key with
+      | NA -> join (Tip (key, data)) key t (Key.payload k')
+      | LB -> Bin (k', set l ~key ~data, r)
+      | RB -> Bin (k', l, set r ~key ~data)
+
+  let rec add_exn t ~key ~data = match t with
+    | Nil -> Tip (key, data)
+    | Tip (k', _) when key = k' -> raise Duplicate
+    | Tip (k', _) -> join t k' (Tip (key, data)) key
+    | Bin (k', l, r) -> match Key.compare k' key with
+      | NA -> join (Tip (key, data)) key t (Key.payload k')
+      | LB -> Bin (k', add_exn l ~key ~data, r)
+      | RB -> Bin (k', l, add_exn r ~key ~data)
+
+  let add t ~key ~data = try `Ok (add_exn t ~key ~data) with
+    | Duplicate -> `Duplicate
+
+  let rec remove t k = match t with
+    | Nil -> Nil
+    | Tip (k', _) -> if k = k' then Nil else t
+    | Bin (k', l, r) -> match Key.compare k' k with
+      | NA -> t
+      | LB -> of_key k' (remove l k) r
+      | RB -> of_key k' l (remove r k)
+
+  let rec merge t1 t2 ~f = match t1, t2 with
+    | Nil, t | t, Nil -> t
+    | Tip (k, v1), t | t, Tip( k, v1) ->
+      update t k ~f:(function
+          | Some v2 -> f ~key:k v1 v2
+          | None -> v1)
+    | Bin (p1, l1, r1), Bin (p2, l2, r2) when Key.equal p1 p2 ->
+      of_key p1 (merge l1 l2 ~f) (merge r1 r2 ~f)
+    | Bin (p1, l1, r1), Bin (p2, l2, r2) ->
+      let k1 = Key.payload p1 in
+      let k2 = Key.payload p2 in
+      let b1 = Key.branching p1 in
+      let b2 = Key.branching p2 in
+      match Key.compare p1 k2 with
+      | NA -> join t1 k2 t2 k2
+      | RB -> if is_zero ~bit:b1 k2
+        then Bin (p1, merge l1 t2 ~f, r1)
+        else Bin (p1, l1, merge r1 t2 ~f)
+      | LB -> if is_zero ~bit:b2 k1
+        then Bin (p2, merge t1 l2 ~f, r2)
+        else Bin (p2, l2, merge t1 r2 ~f)
+  [@@specialise]
+
+  let rec iter t ~f = match t with
+    | Nil -> ()
+    | Tip (k, v) -> f ~key:k ~data:v
+    | Bin (_, l, r) -> iter l ~f; iter r ~f
+  [@@specialise]
+
+  let rec fold t ~init ~f = match t with
+    | Nil -> init
+    | Tip (k, v) -> f ~key:k ~data:v init
+    | Bin (_, l, r) -> fold r ~f ~init:(fold l ~init ~f)
+  [@@specialise]
+
+  let data t = fold t ~f:(fun ~key:_ ~data:x xs -> x :: xs) ~init:[]
+  let keys t = fold t ~f:(fun ~key:x ~data:_ xs -> x :: xs) ~init:[]
+
+  let to_list t =
+    let rec aux acc = function
+      | Nil -> acc
+      | Tip (k, x) -> (k, x) :: acc
+      | Bin (_, l, r) -> aux (aux acc l) r in
+    aux [] t
+
+  let to_sequence t =
+    let open Seq.Generator in
+    let rec aux = function
+      | Nil -> return ()
+      | Tip (k, x) -> yield (k, x)
+      | Bin (_, l, r) -> aux l >>= fun () -> aux r in
+    run @@ aux t
+end

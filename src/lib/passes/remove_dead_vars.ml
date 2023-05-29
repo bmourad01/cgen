@@ -10,13 +10,16 @@ let run fn =
       let ctrl = Blk.ctrl b in
       let cvs = Ctrl.free_vars ctrl in
       let outs = Live.outs live label in
-      let free = Seq.fold insns ~init:Label.Map.empty ~f:(fun m i ->
-          Map.set m ~key:(Insn.label i) ~data:(Insn.free_vars i)) in
+      let free = Seq.fold insns ~init:Label.Tree.empty ~f:(fun m i ->
+          let key = Insn.label i in
+          let data = Insn.free_vars i in
+          Label.Tree.set m ~key ~data) in
       let alive x rest =
         Set.mem outs x ||
         Set.mem cvs  x ||
         List.exists rest ~f:(fun i ->
-            Set.mem (Map.find_exn free (Insn.label i)) x) in
+            let l = Insn.label i in
+            Set.mem (Label.Tree.find_exn free l) x) in
       let changed = ref false in
       let rec filter acc = function
         | [] -> List.rev acc

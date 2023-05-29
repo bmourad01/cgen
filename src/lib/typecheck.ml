@@ -640,7 +640,7 @@ let check_var_dst fn _blk v =
 
 let check_label_dst blks fn blk l args =
   let* env = M.get () in
-  let*? b = match Map.find blks l with
+  let*? b = match Label.Tree.find blks l with
     | Some b -> Ok b
     | None ->
       Or_error.errorf
@@ -729,7 +729,7 @@ let blk_ctrl blks fn blk = match Blk.ctrl blk with
 let not_pseudo = Fn.non Label.is_pseudo
 
 let rec check_blk doms rpo blks seen fn l =
-  let*? blk = match Map.find blks l with
+  let*? blk = match Label.Tree.find blks l with
     | Some blk -> Ok blk
     | None ->
       Or_error.errorf

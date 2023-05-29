@@ -536,9 +536,9 @@ module Deps = Graphlib.Make(Label)(Var)
 
 type ctx = {
   func         : string;
-  insns        : (insn * blk) Label.Map.t;
-  blks         : blk Label.Map.t;
-  vars         : Var.t Label.Map.t;
+  insns        : (insn * blk) Label.Tree.t;
+  blks         : blk Label.Tree.t;
+  vars         : Var.t Label.Tree.t;
   cfg          : Cfg.t;
   pure         : pure Var.Table.t;
   exp          : t Label.Table.t;
@@ -547,18 +547,18 @@ type ctx = {
 }
 
 let init_insns fn =
-  let init = Label.Map.(empty, empty) in
+  let init = Label.Tree.(empty, empty) in
   Func.blks fn |> E.Seq.fold ~init ~f:(fun init blk ->
       Blk.insns blk |> E.Seq.fold ~init ~f:(fun (insns, vars) i ->
           let key = Insn.label i in
-          let* insns = match Map.add insns ~key ~data:(i, blk) with
+          let* insns = match Label.Tree.add insns ~key ~data:(i, blk) with
             | `Ok m -> Ok m
             | `Duplicate ->
               E.failf "Duplicate label for instruction %a in block %a"
                 Label.pp key Label.pp (Blk.label blk) () in
           let+ vars = match Insn.lhs i with
             | None -> Ok vars
-            | Some x -> match Map.add vars ~key ~data:x with
+            | Some x -> match Label.Tree.add vars ~key ~data:x with
               | `Ok m -> Ok m
               | `Duplicate ->
                 E.failf "Duplicate label %a for variable %a in block %a"
@@ -577,7 +577,7 @@ let init fn =
 
 let func ctx = ctx.func
 
-let find_var ctx l = match Map.find ctx.vars l with
+let find_var ctx l = match Label.Tree.find ctx.vars l with
   | None -> E.failf "Missing variable for label %a" Label.pp l ()
   | Some x -> Ok x
 
@@ -586,9 +586,9 @@ type resolved = [
   | `insn of insn * blk
 ]
 
-let resolve ctx l = match Map.find ctx.blks l with
+let resolve ctx l = match Label.Tree.find ctx.blks l with
   | Some b -> Some (`blk b)
-  | None -> match Map.find ctx.insns l with
+  | None -> match Label.Tree.find ctx.insns l with
     | Some x -> Some (`insn x)
     | None -> None
 
@@ -1054,7 +1054,7 @@ end = struct
     Cfg.Node.preds (Blk.label blk) ctx.cfg |>
     Seq.filter_map ~f:(fun l ->
         if Label.is_pseudo l || Set.mem bs l
-        then None else Map.find ctx.blks l)
+        then None else Label.Tree.find ctx.blks l)
 
   let initq blk l w =
     blk, l, w, Label.Set.empty, Var.Set.empty
@@ -1157,10 +1157,10 @@ let get ctx l = try_ @@ fun () ->
     | None -> E.failf "Label %a not found" Label.pp l ()
 
 let fill ctx = try_ @@ fun () ->
-  Map.iter ctx.blks ~f:(fun b ->
+  Label.Tree.iter ctx.blks ~f:(fun ~key:_ ~data:b ->
       if not @@ Hashtbl.mem ctx.exp @@ Blk.label b then
         ignore @@ Builder.of_ctrl ctx b);
-  Map.iter ctx.insns ~f:(fun (i, b) ->
+  Label.Tree.iter ctx.insns ~f:(fun ~key:_ ~data:(i, b) ->
       if not @@ Hashtbl.mem ctx.exp @@ Insn.label i then
         ignore @@ Builder.of_insn ctx i b);
   Ok ()
@@ -1179,12 +1179,12 @@ module Reify = struct
     | `ctrl c -> Format.fprintf ppf "%a" Ctrl.pp c
 
   type env = {
-    func : elt Label.Map.t;
+    func : elt Label.Tree.t;
     vars : operand Var.Map.t;
   }
 
   let empty = {
-    func = Label.Map.empty;
+    func = Label.Tree.empty;
     vars = Var.Map.empty;
   }
 
@@ -1203,9 +1203,9 @@ module Reify = struct
      will just give the same result. *)
   let add l f =
     let* env = M.get () in
-    if not @@ Map.mem env.func l then
+    if not @@ Label.Tree.mem env.func l then
       let* x = f () in
-      M.put {env with func = Map.set env.func ~key:l ~data:x}
+      M.put {env with func = Label.Tree.set env.func ~key:l ~data:x}
     else !!()
 
   let set x o =
@@ -1216,11 +1216,11 @@ module Reify = struct
         | None -> o)
     }
 
-  let get l env = match Map.find env.func l with
+  let get l env = match Label.Tree.find env.func l with
     | None -> E.failf "Missing instruction %a" Label.pp l ()
     | Some e -> Ok e
 
-  let enum env = Map.to_sequence env.func
+  let enum env = Label.Tree.to_sequence env.func
 
   let invalid_insn o l msg =
     M.fail @@ Error.createf
@@ -1374,11 +1374,11 @@ let reify_to_fn ctx fn =
       let label = Blk.label b in
       let insns = Blk.insns b |> Seq.map ~f:(fun i ->
           let label = Insn.label i in
-          match Map.find env.func label with
+          match Label.Tree.find env.func label with
           | Some `insn o -> Insn.create o ~label
           | Some `ctrl _ -> assert false
           | None -> i) in
-      let ctrl = match Map.find env.func label with
+      let ctrl = match Label.Tree.find env.func label with
         | Some `insn _ -> assert false
         | Some `ctrl c -> c
         | None -> Blk.ctrl b in

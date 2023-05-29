@@ -14,7 +14,7 @@ let empty_tran = {
 }
 
 type t = {
-  blks : tran Label.Map.t;
+  blks : tran Label.Tree.t;
   outs : (Label.t, Var.Set.t) Solution.t;
 }
 
@@ -30,15 +30,15 @@ let blk_defs b =
   Blk.insns b |> Seq.filter_map ~f:Insn.lhs |>
   Seq.fold ~init:Var.Set.empty ~f:Set.add
 
-let update l trans ~f = Map.update trans l ~f:(function
+let update l trans ~f = Label.Tree.update trans l ~f:(function
     | None -> f empty_tran
     | Some had -> f had)
 
 let (++) = Set.union and (--) = Set.diff
 
 let block_transitions g fn =
-  Func.blks fn |> Seq.fold ~init:Label.Map.empty ~f:(fun fs b ->
-      Map.add_exn fs ~key:(Blk.label b) ~data:{
+  Func.blks fn |> Seq.fold ~init:Label.Tree.empty ~f:(fun fs b ->
+      Label.Tree.add_exn fs ~key:(Blk.label b) ~data:{
         defs = blk_defs b;
         uses = Blk.free_vars b;
       }) |> fun init ->
@@ -55,7 +55,7 @@ let block_transitions g fn =
                 uses = uses ++ (Ctrl.free_vars (Blk.ctrl pb) -- defs);
               })))
 
-let lookup blks n = Map.find blks n |> Option.value ~default:empty_tran
+let lookup blks n = Label.Tree.find blks n |> Option.value ~default:empty_tran
 let apply {defs; uses} vars = vars -- defs ++ uses
 
 let transfer blks n vars =
@@ -81,7 +81,7 @@ let defs t l = (lookup t.blks l).defs
 let uses t l = (lookup t.blks l).uses
 
 let fold t ~init ~f =
-  Map.fold t.blks ~init ~f:(fun ~key:l ~data:trans init ->
+  Label.Tree.fold t.blks ~init ~f:(fun ~key:l ~data:trans init ->
       f init l @@ apply trans @@ outs t l)
 
 let blks t x = fold t ~init:Label.Set.empty ~f:(fun blks l ins ->

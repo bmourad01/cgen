@@ -616,7 +616,7 @@ module Blk : sig
 
       @raise Invalid_argument if there are duplicate labels
   *)
-  val map_of_insns : t -> insn Label.Map.t
+  val map_of_insns : t -> insn Label.Tree.t
 
   (** Returns the set of free variables in the block. *)
   val free_vars : t -> Var.Set.t
@@ -795,7 +795,7 @@ module Func : sig
 
       @raise Invalid_argument if there are duplicate labels
   *)
-  val map_of_blks : t -> blk Label.Map.t
+  val map_of_blks : t -> blk Label.Tree.t
 
   (** [map_blks fn ~f] returns [fn] with each basic block applied to [f].
 

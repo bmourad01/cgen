@@ -68,9 +68,9 @@ let typeof fn =
   `proto (fn.return, args, fn.variadic)
 
 let map_of_blks fn =
-  Array.fold fn.blks ~init:Label.Map.empty ~f:(fun m b ->
+  Array.fold fn.blks ~init:Label.Tree.empty ~f:(fun m b ->
       let key = Blk.label b in
-      match Map.add m ~key ~data:b with
+      match Label.Tree.add m ~key ~data:b with
       | `Ok m -> m
       | `Duplicate ->
         invalid_argf
@@ -119,13 +119,13 @@ let update_blk fn b =
   }
 
 let update_blks fn bs =
-  let m = List.fold bs ~init:Label.Map.empty ~f:(fun m b ->
+  let m = List.fold bs ~init:Label.Tree.empty ~f:(fun m b ->
       let key = Blk.label b in
-      match Map.add m ~key ~data:b with
+      match Label.Tree.add m ~key ~data:b with
       | `Duplicate -> invalid_argf "Duplicate label %a" Label.pps key ()
       | `Ok m -> m) in {
     fn with blks = Array.map fn.blks ~f:(fun b ->
-      Blk.label b |> Map.find m |> Option.value ~default:b);
+      Blk.label b |> Label.Tree.find m |> Option.value ~default:b);
   }
 
 let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
