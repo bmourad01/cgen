@@ -5,11 +5,10 @@ open Virtual
 
 let reachable fn =
   let cfg = Cfg.create fn in
-  let entry = Func.entry fn in
-  let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
-  Tree.descendants dom entry |>
-  Label.Set.of_sequence |>
-  Fn.flip Set.add entry
+  Graphlib.depth_first_search (module Cfg) cfg
+    ~start:(Func.entry fn)
+    ~init:Label.Set.empty
+    ~enter_node:(fun _ n s -> Set.add s n)
 
 let run fn =
   Func.blks fn |> Seq.map ~f:Blk.label |>
