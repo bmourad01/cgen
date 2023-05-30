@@ -6,30 +6,18 @@ let run fn =
   let live = Live.compute fn in
   Func.blks fn |> Seq.filter_map ~f:(fun b ->
       let label = Blk.label b in
-      let insns = Blk.insns b in
       let ctrl = Blk.ctrl b in
-      let cvs = Ctrl.free_vars ctrl in
+      let insns = Blk.insns b |> Seq.to_list in
       let outs = Live.outs live label in
-      let free = Seq.fold insns ~init:Label.Tree.empty ~f:(fun m i ->
-          let key = Insn.label i in
-          let data = Insn.free_vars i in
-          Label.Tree.set m ~key ~data) in
-      let alive x rest =
+      let iouts = Live.insns live label in
+      let alive x l =
         Set.mem outs x ||
-        Set.mem cvs  x ||
-        List.exists rest ~f:(fun i ->
-            let l = Insn.label i in
-            Set.mem (Label.Tree.find_exn free l) x) in
+        Set.mem (Label.Tree.find_exn iouts l) x in
       let changed = ref false in
-      let rec filter acc = function
-        | [] -> List.rev acc
-        | i :: rest ->
-          let acc = match Insn.lhs i with
-            | Some x when not @@ alive x rest ->
-              changed := true; acc
-            | Some _ | None -> i :: acc in
-          filter acc rest in
-      let insns = filter [] @@ Seq.to_list insns in
+      let insns = List.filter insns ~f:(fun i -> match Insn.lhs i with
+          | Some x when not @@ alive x @@ Insn.label i ->
+            changed := true; false
+          | Some _ | None -> true) in
       if !changed then
         Option.some @@ Blk.create ()
           ~args:(Blk.args b |> Seq.to_list)

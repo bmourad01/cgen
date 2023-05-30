@@ -618,7 +618,11 @@ module Blk : sig
   *)
   val map_of_insns : t -> insn Label.Tree.t
 
-  (** Returns the set of free variables in the block. *)
+  (** Returns the live-out mappings for each instruction and the set
+      of free variables in the block. *)
+  val liveness : t -> Var.Set.t Label.Tree.t * Var.Set.t
+
+  (** Equivalent to [snd (liveness blk)]. *)
   val free_vars : t -> Var.Set.t
 
   (** [uses_var b x] returns [true] if the variable [x] appears in the
@@ -884,6 +888,14 @@ module Live : sig
   (** The set of variables that were defined in the block associated with
       the label. *)
   val defs : t -> Label.t -> Var.Set.t
+
+  (** Returns the live-out mappings for each instruction in a given block.
+
+      Note that this mapping does not cross block boundaries. It should be
+      used to identify variables that are live within the scope of a single
+      block.
+  *)
+  val insns : t -> Label.t -> Var.Set.t Label.Tree.t
 
   (** The set of variables that were used in the block associated with the
       label.

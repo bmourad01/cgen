@@ -45,16 +45,17 @@ let map_of_insns b =
           "Duplicate block of label %a in block %a"
           Label.pps key Label.pps b.label ())
 
-let free_vars b =
+let liveness b =
   let (++) = Set.union and (--) = Set.diff in
-  let init = Var.Set.(empty, empty) in
-  let vars, kill = Ftree.fold b.insns ~init ~f:(fun (vars, kill) d ->
-      let kill' = match Insn.lhs d with
-        | Some x -> Set.add kill x
-        | None -> kill in
-      Insn.free_vars d -- kill ++ vars, kill') in
-  Ctrl.free_vars b.ctrl -- kill ++ vars
+  let def i = match Insn.lhs i with
+    | Some x -> Var.Set.singleton x
+    | None -> Var.Set.empty in
+  let init = Label.Tree.empty, Ctrl.free_vars b.ctrl in
+  Ftree.fold_right b.insns ~init ~f:(fun i (out, inc) ->
+      Label.Tree.set out ~key:i.label ~data:inc,
+      inc -- def i ++ Insn.free_vars i)
 
+let free_vars b = snd @@ liveness b
 let uses_var b x = Set.mem (free_vars b) x
 
 let map_args b ~f = {

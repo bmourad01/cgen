@@ -4,13 +4,15 @@ open Regular.Std
 open Common
 
 type tran = {
-  defs : Var.Set.t;
-  uses : Var.Set.t;
+  defs  : Var.Set.t;
+  uses  : Var.Set.t;
+  insns : Var.Set.t Label.Tree.t;
 }
 
 let empty_tran = {
-  defs = Var.Set.empty;
-  uses = Var.Set.empty;
+  defs  = Var.Set.empty;
+  uses  = Var.Set.empty;
+  insns = Label.Tree.empty;
 }
 
 type t = {
@@ -37,23 +39,24 @@ let update l trans ~f = Label.Tree.update trans l ~f:(function
 let (++) = Set.union and (--) = Set.diff
 
 let block_transitions g fn =
-  Func.blks fn |> Seq.fold ~init:Label.Tree.empty ~f:(fun fs b ->
-      Label.Tree.add_exn fs ~key:(Blk.label b) ~data:{
+  let blks = Func.map_of_blks fn in
+  Label.Tree.fold blks ~init:Label.Tree.empty ~f:(fun ~key ~data:b fs ->
+      let insns, uses = Blk.liveness b in
+      Label.Tree.add_exn fs ~key ~data:{
         defs = blk_defs b;
-        uses = Blk.free_vars b;
+        uses;
+        insns;
       }) |> fun init ->
-  Func.blks fn |> Seq.fold ~init ~f:(fun init b ->
+  Label.Tree.fold blks ~init ~f:(fun ~key ~data:b init ->
       let args =
         Blk.args b |> Seq.map ~f:fst |>
         Seq.fold ~init:Var.Set.empty ~f:Set.add in
-      Cfg.Node.preds (Blk.label b) g |>
+      Cfg.Node.preds key g |>
       Seq.fold ~init ~f:(fun fs p ->
-          match Func.find_blk fn p with
+          match Label.Tree.find blks p with
           | None -> fs
-          | Some pb -> update p fs ~f:(fun {defs; uses} -> {
-                defs = Set.union defs args;
-                uses = uses ++ (Ctrl.free_vars (Blk.ctrl pb) -- defs);
-              })))
+          | Some pb -> update p fs ~f:(fun x ->
+              {x with defs = Set.union x.defs args})))
 
 let lookup blks n = Label.Tree.find blks n |> Option.value ~default:empty_tran
 let apply {defs; uses} vars = vars -- defs ++ uses
@@ -75,10 +78,11 @@ let compute ?(keep = Var.Set.empty) fn =
         ~f:(transfer blks);
   }
 
-let outs t l = Solution.get t.outs l
-let ins  t l = transfer t.blks l @@ outs t l
-let defs t l = (lookup t.blks l).defs
-let uses t l = (lookup t.blks l).uses
+let outs  t l = Solution.get t.outs l
+let ins   t l = transfer t.blks l @@ outs t l
+let defs  t l = (lookup t.blks l).defs
+let uses  t l = (lookup t.blks l).uses
+let insns t l = (lookup t.blks l).insns
 
 let fold t ~init ~f =
   Label.Tree.fold t.blks ~init ~f:(fun ~key:l ~data:trans init ->
