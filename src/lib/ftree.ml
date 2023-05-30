@@ -1,4 +1,7 @@
-(* Implementation of a finger tree data structure, adapted from Batteries. *)
+(* Implementation of a finger tree data structure, adapted from Batteries:
+
+   https://github.com/ocaml-batteries-team/batteries-included/blob/master/src/batFingerTree.ml
+*)
 
 open Core
 open Regular.Std

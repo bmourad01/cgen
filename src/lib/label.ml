@@ -20,7 +20,10 @@ include Regular.Make(struct
     let module_name = Some "Cgen.Label"
   end)
 
-(* Implementation of a PATRICIA tree for labels, adapted from BAP. *)
+(* Implementation of a PATRICIA tree for labels, adapted from BAP:
+
+   https://github.com/BinaryAnalysisPlatform/bap/blob/517db3d15ee98e914cd970ab4a9bf4d17b65ee35/lib/knowledge/bap_knowledge.ml#L82
+*)
 module Tree = struct
   open Int63
 
