@@ -854,9 +854,10 @@ type func = Func.t [@@deriving bin_io, compare, equal, sexp]
 
 (** The control-flow graph of the function. *)
 module Cfg : sig
-  include Graph with type node = Label.t
-                 and type Node.label = Label.t
-                 and type Edge.label = edge
+  include Graph
+    with type node = Label.t
+     and type Node.label = Label.t
+     and type Edge.label = edge
 
   (** Creates the control-flow graph. *)
   val create : func -> t

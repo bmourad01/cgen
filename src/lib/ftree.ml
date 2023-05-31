@@ -891,7 +891,6 @@ type 'a t = ('a, int) Generic.t [@@deriving bin_io, sexp]
 
 let compare = Generic.compare
 let equal = Generic.equal
-
 let last_exn = Generic.last_exn
 let head_exn = Generic.head_exn
 let last = Generic.last
@@ -951,8 +950,6 @@ let set t i v =
   append (snoc l v) (tail_exn r)
 
 let update t i ~f = set t i @@ f @@ get_exn t i
-let compare = Generic.compare
-let equal = Generic.equal
 
 let insert t x i =
   if i > 0 then

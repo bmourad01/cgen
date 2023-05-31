@@ -6,7 +6,6 @@
     be referred to by name.
 *)
 
-open Core
 open Regular.Std
 
 (** A program label. *)
@@ -92,6 +91,9 @@ module Tree : sig
       with the existing data, otherwise [nil] is called. *)
   val update_with : 'a t -> key -> has:('a -> 'a) -> nil:(unit -> 'a) -> 'a t
 
+  (** Same as [update], but [f] can remove the element from the tree. *)
+  val change : 'a t -> key -> f:('a option -> 'a option) -> 'a t
+
   (** Combines two trees together according to [f]. *)
   val merge : 'a t -> 'a t -> f:(key:key -> 'a -> 'a -> 'a) -> 'a t
 
@@ -101,11 +103,24 @@ module Tree : sig
   (** Accumulates a result for each key-value pair in the tree. *)
   val fold : 'a t -> init:'b -> f:(key:key -> data:'a -> 'b -> 'b) -> 'b
 
+  (** Returns the number of elements in the tree. *)
+  val length : 'a t -> int
+
   (** Returns a list of all keys in the tree. *)
   val keys : 'a t -> key list
 
   (** Returns a list of all values in the tree. *)
   val data : 'a t -> 'a list
+
+  (** Creates a tree from an association list.
+
+      @raise Duplicate if the list has duplicate keys.
+  *)
+  val of_alist_exn : (key * 'a) list -> 'a t
+
+  (** Same as [of_alist_exn], but returns [None] instead of raising
+      when duplicate keys are present. *)
+  val of_alist : (key * 'a) list -> 'a t option
 
   (** Returns a list of each key-value pair in the tree. *)
   val to_list : 'a t -> (key * 'a) list

@@ -148,6 +148,20 @@ module Tree = struct
       | RB -> Bin (k', l, update r k ~f)
   [@@specialise]
 
+  let change_aux k v f =
+    f v |> Option.value_map ~default:Nil ~f:(singleton k)
+  [@@specialise]
+
+  let rec change t k ~f = match t with
+    | Nil -> change_aux k None f
+    | Tip (k', v') when k = k' -> change_aux k (Some v') f
+    | Tip (k', v') -> join t k' (change_aux k None f) k
+    | Bin (k', l, r) -> match Key.compare k' k with
+      | NA -> join (change_aux k None f) k t (Key.payload k')
+      | LB -> Bin (k', change l k ~f, r)
+      | RB -> Bin (k', l, change r k ~f)
+  [@@specialise]
+
   let rec set t ~key ~data = match t with
     | Nil -> Tip (key, data)
     | Tip (k', _) when key = k' -> Tip (key, data)
@@ -212,8 +226,14 @@ module Tree = struct
     | Bin (_, l, r) -> fold r ~f ~init:(fold l ~init ~f)
   [@@specialise]
 
+  let length t = fold t ~init:0 ~f:(fun ~key:_ ~data:_ n -> Int.succ n)
   let data t = fold t ~f:(fun ~key:_ ~data:x xs -> x :: xs) ~init:[]
   let keys t = fold t ~f:(fun ~key:x ~data:_ xs -> x :: xs) ~init:[]
+
+  let of_alist_exn =
+    List.fold ~init:empty ~f:(fun t (key, data) -> add_exn t ~key ~data)
+
+  let of_alist l = Option.try_with @@ fun () -> of_alist_exn l
 
   let to_list t =
     let rec aux acc = function
