@@ -859,7 +859,17 @@ module Cfg : sig
      and type Node.label = Label.t
      and type Edge.label = edge
 
-  (** Creates the control-flow graph. *)
+  (** Creates the control-flow graph.
+
+      Each node of the graph is the label of a basic block in the function,
+      and edges between basic blocks are labeled according to the type of
+      control-flow instruction that links them (see the [Edge] module).
+
+      Additionally, two pseudo-labels are added to the graph ([Label.pseudoentry]
+      and [Label.pseudoexit]). These labels link with each "entry" and "exit"
+      node in the function, respectively. This representation is useful for
+      computing the dominator tree of the function in question.
+  *)
   val create : func -> t
 end
 
