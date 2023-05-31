@@ -1,6 +1,4 @@
 open Core
-open Monads.Std
-open Regular.Std
 
 module Bitvec = struct
   include Bitvec

@@ -1,7 +1,6 @@
 open Core
 open Graphlib.Std
 open Regular.Std
-open Common
 
 type tran = {
   defs  : Var.Set.t;
@@ -25,7 +24,7 @@ let pp_vars ppf vars =
     ~pp_sep:Format.pp_print_space
     Var.pp ppf (Set.to_list vars)
 
-let pp_transfer ppf {uses; defs} =
+let pp_transfer ppf {uses; defs; _} =
   Format.fprintf ppf "(%a) / (%a)" pp_vars uses pp_vars defs
 
 let blk_defs b =
@@ -52,14 +51,12 @@ let block_transitions g fn =
         Blk.args b |> Seq.map ~f:fst |>
         Seq.fold ~init:Var.Set.empty ~f:Set.add in
       Cfg.Node.preds key g |>
-      Seq.fold ~init ~f:(fun fs p ->
-          match Label.Tree.find blks p with
-          | None -> fs
-          | Some pb -> update p fs ~f:(fun x ->
-              {x with defs = Set.union x.defs args})))
+      Seq.filter ~f:(Label.Tree.mem blks) |>
+      Seq.fold ~init ~f:(fun fs p -> update p fs ~f:(fun x ->
+          {x with defs = Set.union x.defs args})))
 
 let lookup blks n = Label.Tree.find blks n |> Option.value ~default:empty_tran
-let apply {defs; uses} vars = vars -- defs ++ uses
+let apply {defs; uses; _} vars = vars -- defs ++ uses
 
 let transfer blks n vars =
   if Label.is_pseudo n then vars else apply (lookup blks n) vars
