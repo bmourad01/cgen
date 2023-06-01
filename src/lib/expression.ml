@@ -1155,6 +1155,10 @@ let fill ctx = try_ @@ fun () ->
         | `insn (i, b, _) -> ignore @@ Builder.of_insn ctx i b);
   Ok ()
 
+let map_exp ctx l ~f = Hashtbl.change ctx.exp l ~f:(function
+    | Some e -> Some (f e)
+    | None -> None)
+
 let map ctx ~f = Hashtbl.mapi_inplace ctx.exp
     ~f:(fun ~key ~data -> f key data)
 

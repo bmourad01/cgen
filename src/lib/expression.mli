@@ -165,7 +165,20 @@ val get : ctx -> Label.t -> t Or_error.t
     context. *)
 val fill : ctx -> unit Or_error.t
 
-(** Transforms each expression in the context. *)
+(** [map_exp ctx l ~f] maps a single expression associated with label
+    [l] according to [f]. This is a mutable update to [ctx].
+
+    If [l] doesn't exist in [ctx], then no changes are made.
+
+    @raise Failure if [ctx] is mutated within the body of [f].
+*)
+val map_exp : ctx -> Label.t -> f:(t -> t) -> unit
+
+(** [map ctx ~f] transforms each expression in the context according
+    to [f]. This is a mutable update to [ctx].
+
+    @raise Failure if [ctx] is mutated within the body of [f].
+*)
 val map : ctx -> f:(Label.t -> t -> t) -> unit
 
 (** Information about reifying an expression back to a [Virtual]
