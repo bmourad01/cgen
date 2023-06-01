@@ -188,6 +188,8 @@ rule token = parse
   | posints as i { NUM (int_of_string i) }
   | (flt as f) "_d" { DOUBLE (Float.of_string f) }
   | (flt as f) "_s" { SINGLE (Float32.of_string f) }
+  | "true" { BOOL true }
+  | "false" { BOOL false }
   | _ { raise Error }
 
 and string = parse

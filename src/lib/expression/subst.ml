@@ -11,11 +11,11 @@ let rec subst_pure ?(vs = Var.Set.empty) ctx e =
   | Palloc _ as a -> a
   | Pbinop (l, o, x, y) ->
     Pbinop (l, o, go x, go y)
+  | Pbool _ | Pdouble _ | Pint _ | Psingle _ | Psym _ -> e
   | Pcall (l, t, f, args, vargs) ->
     let args = List.map args ~f:go in
     let vargs = List.map vargs ~f:go in
     Pcall (l, t, subst_global ctx f ~vs, args, vargs)
-  | Pdouble _ | Pflag _ | Pint _ | Psingle _ | Psym _ -> e
   | Pload (l, t, a) -> Pload (l, t, go a)
   | Psel (l, t, c, y, n) -> Psel (l, t, go c, go y, go n)
   | Punop (l, o, x) -> Punop (l, o, go x)
@@ -26,7 +26,7 @@ let rec subst_pure ?(vs = Var.Set.empty) ctx e =
 
 (* Make the full substitution on subterms and cache the results. *)
 and continue x vs ctx = function
-  | (Palloc _ | Pdouble _ | Pflag _ | Pint _ | Psingle _ | Psym _) as e -> e
+  | (Palloc _ | Pbool _ | Pdouble _ | Pint _ | Psingle _ | Psym _) as e -> e
   | e when Hash_set.mem ctx.filled x -> e
   | e ->
     let e = subst_pure ctx e ~vs:(Set.add vs x) in

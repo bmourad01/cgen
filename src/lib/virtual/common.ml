@@ -17,16 +17,16 @@ let compare_ftree compare t1 t2 = Ftree.compare t1 t2 ~compare
 let equal_ftree equal t1 t2 = Ftree.equal t1 t2 ~equal
 
 type const = [
+  | `bool   of bool
   | `int    of Bitvec.t * Type.imm
-  | `flag   of bool
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_const ppf : const -> unit = function
+  | `bool f -> Format.fprintf ppf "%a" Bool.pp f
   | `int (n, t) -> Format.fprintf ppf "%a_%a" Bitvec.pp n Type.pp_imm t
-  | `flag f -> Format.fprintf ppf "%a" Bool.pp f
   | `float f -> Format.fprintf ppf "%s_f" @@ Float32.to_string f
   | `double d -> Format.fprintf ppf "%a_d" Float.pp d
   | `sym (s, 0) -> Format.fprintf ppf "$%s" s

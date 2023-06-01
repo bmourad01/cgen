@@ -16,9 +16,9 @@ open Virtual
 type pure =
   | Palloc  of Label.t * int
   | Pbinop  of Label.t * Insn.binop * pure * pure
+  | Pbool   of bool
   | Pcall   of Label.t * Type.basic * global * pure list * pure list
   | Pdouble of float
-  | Pflag   of bool
   | Pint    of Bitvec.t * Type.imm
   | Pload   of Label.t * Type.basic * pure
   | Psel    of Label.t * Type.basic * pure * pure * pure

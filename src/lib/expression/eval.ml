@@ -198,99 +198,99 @@ let rec eval_pure ?(env = Var.Map.empty) e =
         Pint (Bitvec.((a lxor b) mod imod t), t)
       (* EQ *)
       | `eq #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pflag Bitvec.(a = b)
+        Pbool Bitvec.(a = b)
       | `eq #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag true
+        Pbool true
       | `eq `f32, Psingle a, Psingle b ->
-        Pflag Float32.(a = b)
+        Pbool Float32.(a = b)
       | `eq `f64, Pdouble a, Pdouble b ->
-        Pflag Float.(a = b)
+        Pbool Float.(a = b)
       (* GE *)
       | `ge #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pflag Bitvec.(a >= b)
+        Pbool Bitvec.(a >= b)
       | `ge #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag true
+        Pbool true
       | `ge `f32, Psingle a, Psingle b ->
-        Pflag Float32.(a >= b)
+        Pbool Float32.(a >= b)
       | `ge `f64, Pdouble a, Pdouble b ->
-        Pflag Float.(a >= b)
+        Pbool Float.(a >= b)
       (* GT *)
       | `gt #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pflag Bitvec.(a > b)
+        Pbool Bitvec.(a > b)
       | `gt #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag false
+        Pbool false
       | `gt `f32, Psingle a, Psingle b ->
-        Pflag Float32.(a > b)
+        Pbool Float32.(a > b)
       | `gt `f64, Pdouble a, Pdouble b ->
-        Pflag Float.(a > b)
+        Pbool Float.(a > b)
       (* LE *)
       | `le #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pflag Bitvec.(a <= b)
+        Pbool Bitvec.(a <= b)
       | `le #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag true
+        Pbool true
       | `le `f32, Psingle a, Psingle b ->
-        Pflag Float32.(a <= b)
+        Pbool Float32.(a <= b)
       | `le `f64, Pdouble a, Pdouble b ->
-        Pflag Float.(a <= b)
+        Pbool Float.(a <= b)
       (* LT *)
       | `lt #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pflag Bitvec.(a < b)
+        Pbool Bitvec.(a < b)
       | `lt #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag false
+        Pbool false
       | `lt `f32, Psingle a, Psingle b ->
-        Pflag Float32.(a < b)
+        Pbool Float32.(a < b)
       | `lt `f64, Pdouble a, Pdouble b ->
-        Pflag Float.(a < b)
+        Pbool Float.(a < b)
       (* NE *)
       | `ne #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pflag Bitvec.(a <> b)
+        Pbool Bitvec.(a <> b)
       | `ne #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag false
+        Pbool false
       | `ne `f32, Psingle a, Psingle b ->
-        Pflag Float32.(a <> b)
+        Pbool Float32.(a <> b)
       | `ne `f64, Pdouble a, Pdouble b ->
-        Pflag Float.(a <> b)
+        Pbool Float.(a <> b)
       (* O (ordered) *)
       | `o `f32, Psingle a, Psingle b ->
-        Pflag (Float32.is_ordered a b)
+        Pbool (Float32.is_ordered a b)
       | `o `f64, Pdouble a, Pdouble b ->
-        Pflag (Util.float_ordered a b)
+        Pbool (Util.float_ordered a b)
       (* SGE *)
       | `sge t, Pint (a, _), Pint (b, _) ->
-        Pflag (Util.signed_compare a b @@ imod t >= 0)
+        Pbool (Util.signed_compare a b @@ imod t >= 0)
       | `sge _, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag true
+        Pbool true
       (* SGT *)
       | `sgt t, Pint (a, _), Pint (b, _) ->
-        Pflag (Util.signed_compare a b @@ imod t > 0)
+        Pbool (Util.signed_compare a b @@ imod t > 0)
       | `sgt _, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag false
+        Pbool false
       (* SLE *)
       | `sle t, Pint (a, _), Pint (b, _) ->
-        Pflag (Util.signed_compare a b @@ imod t <= 0)
+        Pbool (Util.signed_compare a b @@ imod t <= 0)
       | `sle _, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag true
+        Pbool true
       (* SLT *)
       | `slt t, Pint (a, _), Pint (b, _) ->
-        Pflag (Util.signed_compare a b @@ imod t < 0)
+        Pbool (Util.signed_compare a b @@ imod t < 0)
       | `slt _, Pvar a, Pvar b when Var.(a = b) ->
-        Pflag false
+        Pbool false
       (* UO (unordered) *)
       | `uo `f32, Psingle a, Psingle b ->
-        Pflag (Float32.is_unordered a b)
+        Pbool (Float32.is_unordered a b)
       | `uo `f64, Pdouble a, Pdouble b ->
-        Pflag (Util.float_unordered a b)
+        Pbool (Util.float_unordered a b)
       | _, a, b -> Pbinop (l, o, a, b)
     end
   | Pcall (l, t, f, args, vargs) ->
     let args = List.map args ~f:pure in
     let vargs = List.map vargs ~f:pure in
     Pcall (l, t, eval_global f ~env, args, vargs)
-  | Pdouble _ | Pflag _ | Pint _ | Psingle _ | Psym _ -> e
+  | Pdouble _ | Pbool _ | Pint _ | Psingle _ | Psym _ -> e
   | Pload (l, t, a) -> Pload (l, t, pure a)
   | Psel (l, t, c, y, n) ->
     begin match pure c with
-      | Pflag f -> pure @@ if f then y else n
+      | Pbool f -> pure @@ if f then y else n
       | c ->  Psel (l, t, c, pure y, pure n)
     end
   | Punop (l, o, a) ->
@@ -327,7 +327,7 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       | `fibits `f64, Pint (a, _) ->
         Pdouble (Util.float_of_bits @@ Bitvec.to_int64 a)
       (* FLAG *)
-      | `flag t, Pflag f ->
+      | `flag t, Pbool f ->
         Pint (Bitvec.bool f, t)
       (* FTOSI *)
       | `ftosi (`f32, `i8), Psingle a ->
@@ -457,8 +457,11 @@ let eval ?(env = Var.Map.empty) e =
   match e with
   | Ebr (c, y, n) ->
     begin match pure c with
-      | Pflag f -> Ejmp (dst @@ if f then y else n)
-      | c -> Ebr (c, dst y, dst n)
+      | Pbool f -> Ejmp (dst @@ if f then y else n)
+      | c ->
+        let y = dst y and n = dst n in
+        if equal_dst y n then Ejmp y
+        else Ebr (c, dst y, dst n)
     end
   | Ecall (f, args, vargs) ->
     let args = List.map args ~f:pure in

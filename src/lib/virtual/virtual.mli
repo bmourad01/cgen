@@ -11,9 +11,9 @@ open Regular.Std
 
 (** A constant value.
 
-    [`int (n, t)] is a constant integer value of size [t].
+    [`bool f] is a truth value.
 
-    [`flag f] is a truth value, for internal use only.
+    [`int (n, t)] is a constant integer value of size [t].
 
     [`float f] is a single-precision floating-point value.
 
@@ -23,8 +23,8 @@ open Regular.Std
     constant offset [n].
 *)
 type const = [
+  | `bool   of bool
   | `int    of Bitvec.t * Type.imm
-  | `flag   of bool
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int

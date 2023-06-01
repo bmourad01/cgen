@@ -129,6 +129,7 @@
 %token <int> NUM
 %token <float> DOUBLE
 %token <Float32.t> SINGLE
+%token <bool> BOOL
 %token <string * int> VAR
 %token <string> IDENT
 %token <string> TEMP
@@ -496,6 +497,7 @@ operand:
   | x = var { x >>| fun x -> `var x }
 
 const:
+  | b = BOOL { `bool b }
   | i = INT { `int i }
   | s = SINGLE { `float s }
   | d = DOUBLE { `double d }

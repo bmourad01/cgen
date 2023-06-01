@@ -16,9 +16,9 @@ end
 type pure =
   | Palloc  of Label.t * int
   | Pbinop  of Label.t * Insn.binop * pure * pure
+  | Pbool   of bool
   | Pcall   of Label.t * Type.basic * global * pure list * pure list
   | Pdouble of float
-  | Pflag   of bool
   | Pint    of Bitvec.t * Type.imm
   | Pload   of Label.t * Type.basic * pure
   | Psel    of Label.t * Type.basic * pure * pure * pure
@@ -145,6 +145,8 @@ and pp_pure ppf = function
   | Pbinop (l, o, x, y) ->
     Format.fprintf ppf "%a%a(%a, %a)"
       Insn.pp_binop o Label.pp l pp_pure x pp_pure y
+  | Pbool f ->
+    Format.fprintf ppf "%a" Bool.pp f
   | Pcall (l, _t, f, [], []) ->
     Format.fprintf ppf "%a%a()" pp_global f Label.pp l
   | Pcall (l, _t, f, args, []) ->
@@ -158,8 +160,6 @@ and pp_pure ppf = function
       pp_global f Label.pp l pp_args args pp_args vargs
   | Pdouble d ->
     Format.fprintf ppf "%a_d" Float.pp d
-  | Pflag f ->
-    Format.fprintf ppf "%a" Bool.pp f
   | Pint (i, t) ->
     Format.fprintf ppf "%a_%a" Bitvec.pp i Type.pp_imm t
   | Pload (l, t, a) ->

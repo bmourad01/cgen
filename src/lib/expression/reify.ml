@@ -73,13 +73,13 @@ let rec pure ctx p : operand t =
   | Pbinop (l, o, a, b) -> insn l @@ fun x ->
     let+ a = pure a and+ b = pure b in
     `bop (x, o, a, b)
+  | Pbool f -> !!(`bool f)
   | Pcall (l, t, f, args, vargs) -> insn l @@ fun x ->
     let+ f = global ctx f
     and+ args = M.List.map args ~f:pure
     and+ vargs = M.List.map vargs ~f:pure in
     `call (Some (x, t), f, args, vargs)
   | Pdouble d -> !!(`double d)
-  | Pflag f -> !!(`flag f)
   | Pint (i, t) -> !!(`int (i, t))
   | Pload (l, t, a) -> insn l @@ fun x ->
     let+ a = pure a in
@@ -87,11 +87,11 @@ let rec pure ctx p : operand t =
   | Psel (l, t, c, y, n) -> insn l @@ fun x ->
     let* y = pure y and* n = pure n in
     begin pure c >>= function
-      | `var c -> !!(`sel (x, t, c, y, n))
-      | `flag f ->
+      | `bool f ->
         let o = if f then y else n in
         let+ () = set x o in
         `uop (x, `copy t, o)
+      | `var c -> !!(`sel (x, t, c, y, n))
       | c -> invalid_insn c l @@
         Format.asprintf "condition of `sel.%a`"
           Type.pp (t :> Type.t)
@@ -144,10 +144,11 @@ let exp ctx l e =
   | Ebr (c, y, n) -> ctrl @@ fun () ->
     let* y = dst y and* n = dst n in
     begin pure c >>= function
-      | `var c -> !!(`br (c, y, n))
-      | `flag f ->
+      | `bool f ->
         let d = if f then y else n in
         !!(`jmp d)
+      | `var c ->
+        !!(if Virtual.equal_dst y n then `jmp y else `br (c, y, n))
       | c -> invalid_insn c l "condition of `br`"
     end
   | Ecall (f, args, vargs) -> insn @@ fun () ->

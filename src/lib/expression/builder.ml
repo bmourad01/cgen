@@ -39,8 +39,8 @@ end = struct
 end
 
 let operand (o : operand) w l = match o with
+  | `bool f     -> Pbool f, w
   | `int (i, t) -> Pint (i, t), w
-  | `flag f     -> Pflag f, w
   | `float f    -> Psingle f, w
   | `double d   -> Pdouble d, w
   | `sym (s, o) -> Psym (s, o), w

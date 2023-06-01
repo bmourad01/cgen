@@ -13,7 +13,7 @@ let rec labels_of_pure = function
     let args = List.map args ~f:labels_of_pure in
     let vargs = List.map vargs ~f:labels_of_pure in
     Label.Set.(add (union_list (f :: (args @ vargs))) l)
-  | Pdouble _ | Pflag _ | Pint _ | Psingle _ | Psym _ | Pvar _ ->
+  | Pbool _ | Pdouble _ | Pint _ | Psingle _ | Psym _ | Pvar _ ->
     Label.Set.empty
   | Pload (l, _, a) -> Set.(add (labels_of_pure a) l)
   | Psel (l, _, c, t, f) ->

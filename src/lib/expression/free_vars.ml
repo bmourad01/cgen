@@ -3,7 +3,7 @@ open Virtual
 open Common
 
 let rec free_vars_of_pure = function
-  | Palloc _ | Pdouble _ | Pflag _ | Pint _ | Psingle _ | Psym _ ->
+  | Palloc _ | Pbool _ | Pdouble _ | Pint _ | Psingle _ | Psym _ ->
     Var.Set.empty
   | Pbinop (_, _, a, b) ->
     Set.union (free_vars_of_pure a) (free_vars_of_pure b)
