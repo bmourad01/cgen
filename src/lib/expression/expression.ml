@@ -32,12 +32,24 @@ let fill ctx = try_ @@ fun () ->
         | `insn (i, b, _) -> ignore @@ Builder.of_insn ctx i b);
   Ok ()
 
-let map_exp ctx l ~f = Hashtbl.change ctx.exp l ~f:(function
-    | Some e -> Some (f e)
-    | None -> None)
+let update_deps ctx l e =
+  let ls = labels e in
+  Deps.edges ctx.deps |> Seq.filter ~f:(fun e ->
+      (Label.equal l @@ Deps.Edge.dst e) &&
+      (not @@ Set.mem ls @@ Deps.Edge.src e)) |>
+  Seq.iter ~f:(fun e -> ctx.deps <- Deps.Edge.remove e ctx.deps)
 
-let map ctx ~f = Hashtbl.mapi_inplace ctx.exp
-    ~f:(fun ~key ~data -> f key data)
+let map_exp ctx l ~f =
+  Hashtbl.change ctx.exp l ~f:(Option.map ~f:(fun e ->
+      let e = f e in
+      update_deps ctx l e;
+      e))
+
+let map ctx ~f =
+  Hashtbl.mapi_inplace ctx.exp ~f:(fun ~key ~data ->
+      let e = f key data in
+      update_deps ctx key e;
+      e)
 
 module Reify = Reify
 
