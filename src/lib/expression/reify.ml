@@ -6,7 +6,7 @@ open Common
 type elt = [
   | `insn of Insn.op
   | `ctrl of ctrl
-] [@@deriving equal]
+]
 
 let pp_elt ppf : elt -> unit = function
   | `insn o -> Format.fprintf ppf "%a" Insn.pp_op o
@@ -27,11 +27,9 @@ module M = Sm.Make(struct
     let fail msg = Error.createf "Reify error: %s" msg
   end)
 
-include M.Syntax
-
 type 'a t = 'a M.m
 
-exception Duplicate
+include M.Syntax
 
 (* Assume that if the key is already present then calling `f`
    will just give the same result. *)
@@ -86,16 +84,19 @@ let rec pure ctx p : operand t =
     `load (x, t, a)
   | Psel (l, t, c, y, n) -> insn l @@ fun x ->
     let* y = pure y and* n = pure n in
-    begin pure c >>= function
+    let+ o = pure c >>= function
       | `bool f ->
         let o = if f then y else n in
+        (* The op we're returning is a dummy value; we will
+           instead substitute uses of `x` with `o`, and later
+           this assignment to `x` can be removed as dead code. *)
         let+ () = set x o in
         `uop (x, `copy t, o)
       | `var c -> !!(`sel (x, t, c, y, n))
       | c -> invalid_insn c l @@
         Format.asprintf "condition of `sel.%a`"
-          Type.pp (t :> Type.t)
-    end
+          Type.pp (t :> Type.t) in
+    o
   | Psingle s -> !!(`float s)
   | Psym (s, n) -> !!(`sym (s, n))
   | Punop (l, o, a) -> insn l @@ fun x ->
@@ -108,12 +109,12 @@ and global ctx : global -> Virtual.global t = function
   | Gaddr a -> !!(`addr a)
   | Gpure p ->
     let* p = pure ctx p in
-    begin match p with
+    let+ g = match p with
       | `var x -> !!(`var x)
       | `int (i, _) -> !!(`addr i)
       | op -> M.fail @@ Error.createf "Invalid global %s" @@
-        Format.asprintf "%a" pp_operand op
-    end
+        Format.asprintf "%a" pp_operand op in
+    g
   | Gsym s -> !!(`sym s)
 
 let local ctx : local -> Virtual.local t = function
@@ -135,6 +136,11 @@ let table ctx tbl t =
       i, l) >>| fun tbl ->
   Ctrl.Table.create_exn tbl t
 
+let table_dst tbl i d =
+  Ctrl.Table.find tbl i |>
+  Option.value ~default:d |> fun l ->
+  (l :> Virtual.dst)
+
 let exp ctx l e =
   let pure = pure ctx in
   let dst = dst ctx in
@@ -143,14 +149,12 @@ let exp ctx l e =
   match e with
   | Ebr (c, y, n) -> ctrl @@ fun () ->
     let* y = dst y and* n = dst n in
-    begin pure c >>= function
-      | `bool f ->
-        let d = if f then y else n in
-        !!(`jmp d)
-      | `var c ->
-        !!(if Virtual.equal_dst y n then `jmp y else `br (c, y, n))
-      | c -> invalid_insn c l "condition of `br`"
-    end
+    let+ op = pure c >>= function
+      | `bool f -> !!(`jmp (if f then y else n))
+      | `var c when Virtual.equal_dst y n -> !!(`jmp y)
+      | `var c -> !!(`br (c, y, n))
+      | c -> invalid_insn c l "condition of `br`" in
+    op
   | Ecall (f, args, vargs) -> insn @@ fun () ->
     let+ f = global ctx f
     and+ args = M.List.map args ~f:pure
@@ -171,19 +175,14 @@ let exp ctx l e =
   | Esw (t, i, d, tbl) -> ctrl @@ fun () ->
     let* d = local ctx d
     and* tbl = table ctx tbl t in
-    begin pure i >>= function
+    let+ op = pure i >>= function
       | (`var _ | `sym _) as i -> !!(`sw (t, i, d, tbl))
-      | `int (i, _) ->
-        let l =
-          Ctrl.Table.find tbl i |>
-          Option.value ~default:d in
-        !!(`jmp (l :> Virtual.dst))
-      | i -> invalid_insn i l "index of `sw`"
-    end
+      | `int (i, _) -> !!(`jmp (table_dst tbl i d))
+      | i -> invalid_insn i l "index of `sw`" in
+    op
   | Evaarg (x, t, a) -> insn @@ fun () -> !!(`vaarg (x, t, a))
   | Evastart x -> insn @@ fun () -> !!(`vastart x)
 
-let run ?(init = empty) ctx l e =
-  (exp ctx l e).run init
+let run ?(init = empty) ctx l e = (exp ctx l e).run init
     ~reject:(fun e -> Error e)
     ~accept:(fun () env -> Ok env)

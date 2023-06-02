@@ -113,6 +113,7 @@ let accum ctx acc i =
     let y, w = operand y w l in
     let n, w = operand n w l in
     w, Psel (l, t, c, y, n)
+  | `call (None, _, _, _) -> acc
   | `call (Some (x, t), f, args, vargs) -> go x @@ fun w ->
     let f, w = global f w l in
     let args, w = operands args w l in
@@ -122,7 +123,15 @@ let accum ctx acc i =
   | `load (x, t, a) -> go x @@ fun w ->
     let a, w = operand a w l in
     w, Pload (l, t, a)
-  | _ -> acc
+  | `store _ -> acc
+  | `vaarg (x, t, y) ->
+    let w, xs = acc in
+    let w = Worklist.remove w x in
+    let w = Worklist.remove w y in
+    w, xs
+  | `vastart x ->
+    let w, xs = acc in
+    Worklist.remove w x, xs
 
 (* Kill the variables that appear in the arguments of the block.
    This is the point where we can no longer represent their data
