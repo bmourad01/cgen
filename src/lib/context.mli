@@ -71,6 +71,15 @@ module Virtual : sig
     ctrl:Virtual.ctrl ->
     unit ->
     Virtual.blk t
+
+  module Module : sig
+    (** Same as [Virtual.Module.map_funs], but [f] is a context
+        computation. *)
+    val map_funs :
+      Virtual.module_ ->
+      f:(Virtual.func -> Virtual.func t) ->
+      Virtual.module_ t
+  end
 end
 
 (** Initializes the state. *)

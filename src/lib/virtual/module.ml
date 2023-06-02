@@ -89,6 +89,8 @@ let map_funs_err m ~f = try
     Ok {m with funs}
   with Failed err -> Error err
 
+let with_funs m funs = {m with funs = Ftree.of_list funs}
+
 let pp ppf m =
   let sep ppf = Format.fprintf ppf "@;@;" in
   let em = Ftree.is_empty in

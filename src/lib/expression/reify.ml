@@ -1,4 +1,5 @@
 open Core
+open Monads.Std
 open Regular.Std
 open Virtual
 open Common
@@ -54,35 +55,43 @@ let get l env = match Label.Tree.find env.func l with
 
 let enum env = Label.Tree.to_sequence env.func
 
-let invalid_insn o l msg =
-  M.fail @@ Error.createf
+let invalid_insn o l msg = M.fail @@ Error.createf
     "Invalid argument %s for %s instruction %a"
     (Format.asprintf "%a" pp_operand o) msg Label.pps l
+
+let find_var ctx = function
+  | Some l ->
+    let*? x = find_var ctx l in
+    !!(x, l)
+  | None ->
+    M.fail @@ Error.of_string "Tried to reify an expression with no label"
 
 let rec pure ctx p : operand t =
   let var = find_var ctx in
   let pure = pure ctx in
   let insn l f =
-    let*? x = var l in
-    let+ () = add l @@ fun () -> let+ o = f x in `insn o in
+    let* x, l = var l in
+    let+ () = add l @@ fun () ->
+      let+ o = f x l in
+      `insn o in
     `var x in
   match p with
-  | Palloc (l, n) -> insn l @@ fun x -> !!(`alloc (x, n))
-  | Pbinop (l, o, a, b) -> insn l @@ fun x ->
+  | Palloc (l, n) -> insn l @@ fun x _ -> !!(`alloc (x, n))
+  | Pbinop (l, o, a, b) -> insn l @@ fun x _ ->
     let+ a = pure a and+ b = pure b in
     `bop (x, o, a, b)
   | Pbool f -> !!(`bool f)
-  | Pcall (l, t, f, args, vargs) -> insn l @@ fun x ->
+  | Pcall (l, t, f, args, vargs) -> insn l @@ fun x l ->
     let+ f = global ctx f
     and+ args = M.List.map args ~f:pure
     and+ vargs = M.List.map vargs ~f:pure in
     `call (Some (x, t), f, args, vargs)
   | Pdouble d -> !!(`double d)
   | Pint (i, t) -> !!(`int (i, t))
-  | Pload (l, t, a) -> insn l @@ fun x ->
+  | Pload (l, t, a) -> insn l @@ fun x _ ->
     let+ a = pure a in
     `load (x, t, a)
-  | Psel (l, t, c, y, n) -> insn l @@ fun x ->
+  | Psel (l, t, c, y, n) -> insn l @@ fun x l ->
     let* y = pure y and* n = pure n in
     let+ o = pure c >>= function
       | `bool f ->
@@ -93,13 +102,14 @@ let rec pure ctx p : operand t =
         let+ () = set x o in
         `uop (x, `copy t, o)
       | `var c -> !!(`sel (x, t, c, y, n))
-      | c -> invalid_insn c l @@
+      | c ->
+        invalid_insn c l @@
         Format.asprintf "condition of `sel.%a`"
           Type.pp (t :> Type.t) in
     o
   | Psingle s -> !!(`float s)
   | Psym (s, n) -> !!(`sym (s, n))
-  | Punop (l, o, a) -> insn l @@ fun x ->
+  | Punop (l, o, a) -> insn l @@ fun x _ ->
     let+ a = pure a in
     `uop (x, o, a)
   | Pvar x -> M.gets @@ fun {vars; _} ->
@@ -112,7 +122,9 @@ and global ctx : global -> Virtual.global t = function
     let+ g = match p with
       | `var x -> !!(`var x)
       | `int (i, _) -> !!(`addr i)
-      | op -> M.fail @@ Error.createf "Invalid global %s" @@
+      | op ->
+        M.fail @@
+        Error.createf "Invalid global %s" @@
         Format.asprintf "%a" pp_operand op in
     g
   | Gsym s -> !!(`sym s)

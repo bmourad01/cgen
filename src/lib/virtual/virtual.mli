@@ -1067,6 +1067,9 @@ module Module : sig
   (** Returns the module with each function transformed by [f]. *)
   val map_funs : t -> f:(func -> func) -> t
 
+  (** Replaces the functions in the module. *)
+  val with_funs : t -> func list -> t
+
   (** Returns the module with each type transformed by [f],
       where [f] may fail. *)
   val map_typs_err :

@@ -12,19 +12,23 @@ open Core
 open Regular.Std
 open Virtual
 
-(** A subexpression used to compute the result of an instruction. *)
+(** A subexpression used to compute the result of an instruction.
+
+    If the expression wasn't a pure operand, then it may optionally
+    contain a label corresponding to an instruction.
+*)
 type pure =
-  | Palloc  of Label.t * int
-  | Pbinop  of Label.t * Insn.binop * pure * pure
+  | Palloc  of Label.t option * int
+  | Pbinop  of Label.t option * Insn.binop * pure * pure
   | Pbool   of bool
-  | Pcall   of Label.t * Type.basic * global * pure list * pure list
+  | Pcall   of Label.t option * Type.basic * global * pure list * pure list
   | Pdouble of float
   | Pint    of Bitvec.t * Type.imm
-  | Pload   of Label.t * Type.basic * pure
-  | Psel    of Label.t * Type.basic * pure * pure * pure
+  | Pload   of Label.t option * Type.basic * pure
+  | Psel    of Label.t option * Type.basic * pure * pure * pure
   | Psingle of Float32.t
   | Psym    of string * int
-  | Punop   of Label.t * Insn.unop * pure
+  | Punop   of Label.t option * Insn.unop * pure
   | Pvar    of Var.t
 [@@deriving bin_io, compare, equal, sexp]
 
@@ -172,14 +176,14 @@ val fill : ctx -> unit Or_error.t
 
     @raise Failure if [ctx] is mutated within the body of [f].
 *)
-val map_exp : ctx -> Label.t -> f:(t -> t) -> unit
+val map_exp : ctx -> Label.t -> f:(t -> t) -> unit Context.t
 
 (** [map ctx ~f] transforms each expression in the context according
     to [f]. This is a mutable update to [ctx].
 
     @raise Failure if [ctx] is mutated within the body of [f].
 *)
-val map : ctx -> f:(Label.t -> t -> t) -> unit
+val map : ctx -> f:(Label.t -> t -> t) -> unit Context.t
 
 (** Information about reifying an expression back to a [Virtual]
     datatype. *)
@@ -212,8 +216,8 @@ end
 *)
 val reify : ?init:Reify.env -> ctx -> Label.t -> Reify.env Or_error.t
 
-(** [reify_to_fn ctx fn] transforms [fn] according to the
-    expressions available to the context [ctx].
+(** [reify_to_fn ctx fn] transforms [fn] according to the expressions
+    available to the context [ctx].
 
     It is assumed that [fn] was used to generate [ctx].
 *)

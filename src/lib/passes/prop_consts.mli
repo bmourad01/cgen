@@ -7,4 +7,4 @@
 open Core
 open Virtual
 
-val run : func -> func Or_error.t
+val run : func -> func Context.t

@@ -14,17 +14,17 @@ module Bitvec = struct
 end
 
 type pure =
-  | Palloc  of Label.t * int
-  | Pbinop  of Label.t * Insn.binop * pure * pure
+  | Palloc  of Label.t option * int
+  | Pbinop  of Label.t option * Insn.binop * pure * pure
   | Pbool   of bool
-  | Pcall   of Label.t * Type.basic * global * pure list * pure list
+  | Pcall   of Label.t option * Type.basic * global * pure list * pure list
   | Pdouble of float
   | Pint    of Bitvec.t * Type.imm
-  | Pload   of Label.t * Type.basic * pure
-  | Psel    of Label.t * Type.basic * pure * pure * pure
+  | Pload   of Label.t option * Type.basic * pure
+  | Psel    of Label.t option * Type.basic * pure * pure * pure
   | Psingle of Float32.t
   | Psym    of string * int
-  | Punop   of Label.t * Insn.unop * pure
+  | Punop   of Label.t option * Insn.unop * pure
   | Pvar    of Var.t
 [@@deriving bin_io, compare, equal, sexp]
 
@@ -72,7 +72,9 @@ type resolved = [
 
 type ctx = {
   func         : string;
-  elts         : resolved Label.Tree.t;
+  elts         : resolved Label.Table.t;
+  l2t          : Var.t Label.Table.t;
+  t2l          : Label.t Var.Table.t;
   cfg          : Cfg.t;
   pure         : pure Var.Table.t;
   exp          : t Label.Table.t;
@@ -80,38 +82,52 @@ type ctx = {
   mutable deps : Deps.t;
 }
 
-let init_elts fn =
-  Func.blks fn |> E.Seq.fold ~init:Label.Tree.empty ~f:(fun t b ->
+let init_elts t fn =
+  Func.blks fn |> E.Seq.iter ~f:(fun b ->
       let label = Blk.label b in
-      let* init = match Label.Tree.add t ~key:label ~data:(`blk b) with
-        | `Ok m -> Ok m
+      let* () = match Hashtbl.add t ~key:label ~data:(`blk b) with
+        | `Ok -> Ok ()
         | `Duplicate ->
           E.failf "Duplicate label for block %a" Label.pp label () in
-      Blk.insns b |> E.Seq.fold ~init ~f:(fun insns i ->
+      Blk.insns b |> E.Seq.iter ~f:(fun i ->
           let key = Insn.label i in
           let data = `insn (i, b, Insn.lhs i) in
-          match Label.Tree.add insns ~key ~data with
-          | `Ok m -> Ok m
+          match Hashtbl.add t ~key ~data with
+          | `Ok -> Ok ()
           | `Duplicate ->
             E.failf "Duplicate label for instruction %a in block %a"
               Label.pp key Label.pp label ()))
 
 let init fn =
-  let+ elts = init_elts fn in
-  let cfg = Cfg.create fn in
-  let pure = Var.Table.create () in
-  let exp = Label.Table.create () in
-  let filled = Var.Hash_set.create () in
-  let func = Func.name fn in
-  {func; elts; cfg; pure; exp; filled; deps = Deps.empty}
+  let elts = Label.Table.create () in
+  let+ () = init_elts elts fn in {
+    func = Func.name fn;
+    elts;
+    l2t = Label.Table.create ();
+    t2l = Var.Table.create ();
+    cfg = Cfg.create fn;
+    pure = Var.Table.create ();
+    exp = Label.Table.create ();
+    filled = Var.Hash_set.create ();
+    deps = Deps.empty;
+  }
 
 let func ctx = ctx.func
+let resolve ctx l = Hashtbl.find ctx.elts l
 
-let resolve ctx l = Label.Tree.find ctx.elts l
+let new_var ctx =
+  let open Context.Syntax in
+  let* l = Context.Label.fresh in
+  let+ x = Context.Var.fresh in
+  Hashtbl.set ctx.l2t ~key:l ~data:x;
+  Hashtbl.set ctx.t2l ~key:x ~data:l;
+  l, x
 
 let find_var ctx l = match resolve ctx l with
   | Some `insn (_, _, Some x) -> Ok x
-  | Some _ | None -> E.failf "Missing variable for label %a" Label.pp l ()
+  | Some _ | None -> match Hashtbl.find ctx.l2t l with
+    | None -> E.failf "Missing variable for label %a" Label.pp l ()
+    | Some x -> Ok x
 
 let dependents ctx src =
   Deps.Node.succs src ctx.deps |>
@@ -135,39 +151,42 @@ let pp_deps ppf ctx =
     ~edges:(Deps.edges ctx.deps)
     ppf
 
+let pp_label ppf =
+  Option.iter ~f:(Format.fprintf ppf "%a" Label.pp)
+
 let rec pp_args args =
   let pp_sep ppf () = Format.fprintf ppf ", " in
   (Format.pp_print_list ~pp_sep pp_pure) args
 
 and pp_pure ppf = function
   | Palloc (l, n) ->
-    Format.fprintf ppf "alloc%a(%d)" Label.pp l n
+    Format.fprintf ppf "alloc%a(%d)" pp_label l n
   | Pbinop (l, o, x, y) ->
     Format.fprintf ppf "%a%a(%a, %a)"
-      Insn.pp_binop o Label.pp l pp_pure x pp_pure y
+      Insn.pp_binop o pp_label l pp_pure x pp_pure y
   | Pbool f ->
     Format.fprintf ppf "%a" Bool.pp f
   | Pcall (l, _t, f, [], []) ->
-    Format.fprintf ppf "%a%a()" pp_global f Label.pp l
+    Format.fprintf ppf "%a%a()" pp_global f pp_label l
   | Pcall (l, _t, f, args, []) ->
     Format.fprintf ppf "%a%a(%a)"
-      pp_global f Label.pp l pp_args args
+      pp_global f pp_label l pp_args args
   | Pcall (l, _t, f, [], vargs) ->
     Format.fprintf ppf "%a%a(..., %a)"
-      pp_global f Label.pp l pp_args vargs
+      pp_global f pp_label l pp_args vargs
   | Pcall (l, _t, f, args, vargs) ->
     Format.fprintf ppf "%a%a(%a, ..., %a)"
-      pp_global f Label.pp l pp_args args pp_args vargs
+      pp_global f pp_label l pp_args args pp_args vargs
   | Pdouble d ->
     Format.fprintf ppf "%a_d" Float.pp d
   | Pint (i, t) ->
     Format.fprintf ppf "%a_%a" Bitvec.pp i Type.pp_imm t
   | Pload (l, t, a) ->
     Format.fprintf ppf "ld.%a%a(%a)"
-      Type.pp_basic t Label.pp l pp_pure a
+      Type.pp_basic t pp_label l pp_pure a
   | Psel (l, t, c, y, n) ->
     Format.fprintf ppf "sel.%a%a(%a, %a, %a)"
-      Type.pp_basic t Label.pp l pp_pure c pp_pure y pp_pure n
+      Type.pp_basic t pp_label l pp_pure c pp_pure y pp_pure n
   | Psingle s ->
     Format.fprintf ppf "%s_s" @@ Float32.to_string s
   | Psym (s, o) ->
@@ -176,29 +195,22 @@ and pp_pure ppf = function
     else Format.fprintf ppf "$%s+%d" s o
   | Punop (l, o, x) ->
     Format.fprintf ppf "%a%a(%a)"
-      Insn.pp_unop o Label.pp l pp_pure x
+      Insn.pp_unop o pp_label l pp_pure x
   | Pvar v ->
     Format.fprintf ppf "%a" Var.pp v
 
 and pp_global ppf = function
-  | Gaddr a ->
-    Format.fprintf ppf "%a" Bitvec.pp a
-  | Gpure p ->
-    Format.fprintf ppf "%a" pp_pure p
-  | Gsym s ->
-    Format.fprintf ppf "$%s" s
+  | Gaddr a -> Format.fprintf ppf "%a" Bitvec.pp a
+  | Gpure p -> Format.fprintf ppf "%a" pp_pure p
+  | Gsym  s -> Format.fprintf ppf "$%s" s
 
 let pp_local ppf = function
-  | l, [] ->
-    Format.fprintf ppf "%a" Label.pp l
-  | l, args ->
-    Format.fprintf ppf "%a(%a)" Label.pp l pp_args args
+  | l, []   -> Format.fprintf ppf "%a" Label.pp l
+  | l, args -> Format.fprintf ppf "%a(%a)" Label.pp l pp_args args
 
 let pp_dst ppf = function
-  | Dglobal g ->
-    Format.fprintf ppf "%a" pp_global g
-  | Dlocal l ->
-    Format.fprintf ppf "%a" pp_local l
+  | Dglobal g -> Format.fprintf ppf "%a" pp_global g
+  | Dlocal  l -> Format.fprintf ppf "%a" pp_local l
 
 let pp_table t tbl =
   let pp_sep ppf () = Format.fprintf ppf ", " in

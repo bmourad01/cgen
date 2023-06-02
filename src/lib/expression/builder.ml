@@ -104,25 +104,25 @@ let accum ctx acc i =
   | `bop (x, o, a, b) -> go x @@ fun w ->
     let a, w = operand a w l in
     let b, w = operand b w l in
-    w, Pbinop (l, o, a, b)
+    w, Pbinop (Some l, o, a, b)
   | `uop (x, o, a) -> go x @@ fun w ->
     let a, w = operand a w l in
-    w, Punop (l, o, a)
+    w, Punop (Some l, o, a)
   | `sel (x, t, c, y, n) -> go x @@ fun w ->
     let c, w = Pvar c, Worklist.add w c l in
     let y, w = operand y w l in
     let n, w = operand n w l in
-    w, Psel (l, t, c, y, n)
+    w, Psel (Some l, t, c, y, n)
   | `call (None, _, _, _) -> acc
   | `call (Some (x, t), f, args, vargs) -> go x @@ fun w ->
     let f, w = global f w l in
     let args, w = operands args w l in
     let vargs, w = operands vargs w l in
-    w, Pcall (l, t, f, args, vargs)
-  | `alloc (x, n) -> go x @@ fun w -> w, Palloc (l, n)
+    w, Pcall (Some l, t, f, args, vargs)
+  | `alloc (x, n) -> go x @@ fun w -> w, Palloc (Some l, n)
   | `load (x, t, a) -> go x @@ fun w ->
     let a, w = operand a w l in
-    w, Pload (l, t, a)
+    w, Pload (Some l, t, a)
   | `store _ -> acc
   | `vaarg (x, t, y) ->
     let w, xs = acc in
@@ -163,7 +163,7 @@ let nexts ctx blk bs =
   Cfg.Node.preds (Blk.label blk) ctx.cfg |>
   Seq.filter_map ~f:(fun l ->
       if Label.is_pseudo l || Set.mem bs l
-      then None else match Label.Tree.find ctx.elts l with
+      then None else match resolve ctx l with
         | Some `blk b -> Some b
         | Some _ | None -> None)
 
@@ -222,23 +222,23 @@ let of_insn ctx i blk =
   | `bop (x, o, a, b) -> go @@ fun () ->
     let a, w = operand a Worklist.empty l in
     let b, w = operand b w l in
-    w, Eset (x, Pbinop (l, o, a, b))
+    w, Eset (x, Pbinop (Some l, o, a, b))
   | `uop (x, o, a) -> go @@ fun () ->
     let a, w = operand a Worklist.empty l in
-    w, Eset (x, Punop (l, o, a))
+    w, Eset (x, Punop (Some l, o, a))
   | `sel (x, t, c, y, n) -> go @@ fun () ->
     let y, w = operand y (Worklist.singleton c l) l in
     let n, w = operand n w l in
-    w, Eset (x, Psel (l, t, Pvar c, y, n))
+    w, Eset (x, Psel (Some l, t, Pvar c, y, n))
   | `call (Some (x, t), f, args, vargs) -> go @@ fun () ->
     let f, w = global f Worklist.empty l in
     let args, w = operands args w l in
     let vargs, w = operands vargs w l in
-    w, Eset (x, Pcall (l, t, f, args, vargs))
-  | `alloc (x, n) -> Eset (x, Palloc (l, n))
+    w, Eset (x, Pcall (Some l, t, f, args, vargs))
+  | `alloc (x, n) -> Eset (x, Palloc (Some l, n))
   | `load (x, t, a) -> go @@ fun () ->
     let a, w = operand a Worklist.empty l in
-    w, Eset (x, Pload (l, t, a))
+    w, Eset (x, Pload (Some l, t, a))
   | `call (None, f, args, vargs) -> go @@ fun () ->
     let f, w = global f Worklist.empty l in
     let args, w = operands args w l in

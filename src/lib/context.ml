@@ -29,20 +29,19 @@ module M = Sm.Make(struct
     let fail msg = Error.createf "Context error: %s" msg
   end)
 
-include M
 include M.Syntax
 
-type 'a t = 'a m
+type 'a t = 'a M.m
 
-let target = gets @@ fun s -> s.target
+let target = M.gets @@ fun s -> s.target
 
 type var = Var.t
 
 module Var = struct
   let fresh =
-    let* s = get () in
+    let* s = M.get () in
     let id = s.nextvar in
-    let+ () = put {s with nextvar = Int63.succ id} in
+    let+ () = M.put {s with nextvar = Int63.succ id} in
     Var.temp (Obj.magic id : Var.id)
 end
 
@@ -52,9 +51,9 @@ module Label = struct
   let init = Int63.(succ (Obj.magic Label.pseudoexit : t))
 
   let fresh =
-    let* s = get () in
+    let* s = M.get () in
     let l = s.nextlabel in
-    let+ () = put {s with nextlabel = Int63.succ l} in
+    let+ () = M.put {s with nextlabel = Int63.succ l} in
     (Obj.magic l : Label.t)
 end
 
@@ -68,11 +67,17 @@ module Virtual = struct
     Virtual.Blk.create ~args ~insns ~ctrl ~label ()
 
   let blk' ?(label = None) ?(args = []) ?insns:(d = []) ~ctrl () =
-    let* insns = List.map d ~f:insn in
+    let* insns = M.List.map d ~f:insn in
     let+ label = match label with
       | None -> Label.fresh
       | Some l -> !!l in
     Virtual.Blk.create ~args ~insns ~ctrl ~label ()
+
+  module Module = struct
+    let map_funs m ~f =
+      Virtual.Module.funs m |> M.Seq.map ~f >>| fun funs ->
+      Seq.to_list funs |> Virtual.Module.with_funs m
+  end
 end
 
 let init target = {
@@ -80,6 +85,8 @@ let init target = {
   nextvar = Int63.zero;
   nextlabel = Label.init;
 }
+
+include M
 
 let reject err = Error err
 let run x s = x.run s ~reject ~accept:(fun x s -> Ok (x, s))
