@@ -980,21 +980,14 @@ let enum ?(rev = false) t =
 
 let to_list t = fold_right t ~init:[] ~f:List.cons
 
-let next t ~f =
-  let rec aux s ~f = match Seq.next s with
-    | Some (x, xs) when f x -> Seq.hd xs
-    | Some (_, xs) -> aux xs ~f
-    | None -> None in
-  to_sequence t |> aux ~f
+let rec next_aux s ~f = match Seq.next s with
+  | Some (x, xs) when f x -> Seq.hd xs
+  | Some (_, xs) -> next_aux xs ~f
+  | None -> None
 [@@specialise]
 
-let prev t ~f =
-  let rec aux s ~f = match Seq.next s with
-    | Some (x, xs) when f x -> Seq.hd xs
-    | Some (_, xs) -> aux xs ~f
-    | None -> None in
-  to_sequence_rev t |> aux ~f
-[@@specialise]
+let next t ~f = next_aux ~f @@ to_sequence t [@@specialise]
+let prev t ~f = next_aux ~f @@ to_sequence_rev t [@@specialise]
 
 let pp ppx sep ppf t =
   let i = ref 0 in
