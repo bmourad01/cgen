@@ -773,6 +773,17 @@ let fn_args fn =
       M.lift_err @@ Env.add_var fn x t env) in
   M.put env
 
+let check_entry_inc fn cfg =
+  let l = Func.entry fn in
+  Cfg.Node.preds l cfg |>
+  Seq.filter ~f:(Fn.non Label.is_pseudo) |>
+  Seq.length |> function
+  | n when n > 0 ->
+    M.fail @@ Error.createf
+      "Entry block %a of function %s contains %d incoming edges, \
+       expected 0" Label.pps l (Func.name fn) n
+  | _ -> !!()
+
 let check_fn fn =
   let* () = fn_args fn in
   (* Be aware of duplicate labels for instructions. *)
@@ -780,6 +791,7 @@ let check_fn fn =
   let*? blks = try Ok (Func.map_of_blks fn) with
     | Invalid_argument msg -> Or_error.error_string msg in
   let cfg = Cfg.create fn in
+  let* () = check_entry_inc fn cfg in
   let start = Label.pseudoentry in
   (* We will traverse the blocks according to the dominator tree
      so that we get the right ordering for definitions. *)

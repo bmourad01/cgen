@@ -8,8 +8,8 @@ exception Type_error of Error.t
 
 type env = {
   fn       : func;
+  live     : Live.t;
   cfg      : Cfg.t;
-  fv       : Var.Set.t;
   dom      : Label.t tree;
   frontier : Label.t frontier;
   blks     : blk Label.Table.t;
@@ -18,13 +18,9 @@ type env = {
   typs     : Typecheck.env;
 }
 
-let collect_vars fn =
-  Func.blks fn |> Seq.map ~f:Blk.free_vars |>
-  Seq.fold ~init:Var.Set.empty ~f:Set.union
-
 let init fn typs =
+  let live = Live.compute fn in
   let cfg = Cfg.create fn in
-  let fv = collect_vars fn in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   let frontier = Graphlib.dom_frontier (module Cfg) cfg dom in
   let blks = Label.Table.create () in
@@ -32,7 +28,7 @@ let init fn typs =
   let nums = Var.Table.create () in
   Func.blks fn |> Seq.iter ~f:(fun b ->
       Hashtbl.set blks ~key:(Blk.label b) ~data:b);
-  {fn; cfg; fv; dom; frontier; blks; stk; nums; typs}
+  {fn; live; cfg; dom; frontier; blks; stk; nums; typs}
 
 let typeof_var env x = Typecheck.Env.typeof_var env.fn x env.typs
 
@@ -47,38 +43,38 @@ module Phi : sig
   val go : env -> unit
 end = struct
   type state = {
-    defs : Var.Set.t Label.Table.t;
+    defs : Label.Set.t Var.Table.t;
     args : (Var.t * Blk.arg_typ) list Label.Table.t;
     ctrl : ctrl Label.Table.t;
     outs : Var.t list Label.Tree.t Label.Table.t;
   }
 
-  let define x = function
-    | None -> Var.Set.singleton x
-    | Some s -> Set.add s x
+  let define defs x l = Hashtbl.update defs x ~f:(function
+      | None -> Label.Set.singleton l
+      | Some s -> Set.add s l)
+
+  let blocks_that_define_var st x =
+    Hashtbl.find st.defs x |>
+    Option.value ~default:Label.Set.empty
+
+  let has_arg st l x =
+    Hashtbl.find st.args l |>
+    Option.value_map ~default:false ~f:(fun args ->
+        List.Assoc.mem args x ~equal:Var.equal)
 
   let init env =
-    let defs = Label.Table.create () in
+    let defs = Var.Table.create () in
     let args = Label.Table.create () in
     let ctrl = Label.Table.create () in
     let outs = Label.Table.create () in
     Hashtbl.iteri env.blks ~f:(fun ~key:l ~data:b ->
         let args' = Seq.to_list @@ Blk.args b in
         Hashtbl.set args ~key:l ~data:args';
-        List.iter args' ~f:(fun (x, _) ->
-            Hashtbl.update defs l ~f:(define x));
+        List.iter args' ~f:(fun (x, _) -> define defs x l);
         Blk.insns b |> Seq.filter_map ~f:Insn.lhs |>
-        Seq.iter ~f:(fun x -> Hashtbl.update defs l ~f:(define x));
+        Seq.iter ~f:(fun x -> define defs x l);
         Hashtbl.set ctrl ~key:l ~data:(Blk.ctrl b));
     {defs; args; ctrl; outs}
-
-  let blocks_that_define_var st x =
-    Hashtbl.fold st.defs
-      ~init:Label.Set.empty
-      ~f:(fun ~key ~data s ->
-          if Set.mem data x
-          then Set.add s key
-          else s)
 
   let update_incoming env l x outs =
     Cfg.Node.preds l env.cfg |> Seq.iter ~f:(fun l' ->
@@ -94,15 +90,13 @@ end = struct
        of type :%s in function $%s" Var.pps x
       (Type.compound_name c) (Func.name env.fn)
 
-  let blk_arg env x = match typeof_var env x with
+  let add_arg env st l x = match typeof_var env x with
     | Error err -> raise @@ Type_error err
     | Ok (#Type.compound as c) -> raise @@ Type_error (typ_err env x c)
-    | Ok ((#Type.basic | #Type.special) as t) -> x, (t :> Blk.arg_typ)
-
-  let update_blk_args env st x l =
-    update_incoming env l x st.outs;
-    Hashtbl.add_multi st.args ~key:l ~data:(blk_arg env x);
-    Hashtbl.update st.defs l ~f:(define x)
+    | Ok ((#Type.basic | #Type.special) as t) ->
+      let data = x, (t :> Blk.arg_typ) in
+      Hashtbl.add_multi st.args ~key:l ~data;
+      update_incoming env l x st.outs
 
   let iterated_frontier f blks =
     let blks = Set.add blks Label.pseudoentry in
@@ -113,18 +107,27 @@ end = struct
       if Set.equal idf idf' then idf' else fixpoint idf' in
     fixpoint Label.Set.empty
 
+  let needs_arg env st l x =
+    Set.mem (Live.ins env.live l) x &&
+    not (has_arg st l x)
+
   let insert_blk_args env st =
-    Set.iter env.fv ~f:(fun x ->
+    Live.fold env.live ~init:Var.Set.empty
+      ~f:(fun u _ v -> Set.union u v) |>
+    Set.iter ~f:(fun x ->
         blocks_that_define_var st x |>
         iterated_frontier env.frontier |>
-        Set.iter ~f:(update_blk_args env st x))
+        Set.iter ~f:(fun l ->
+            if needs_arg env st l x
+            then add_arg env st l x))
 
   let args_of_vars = List.map ~f:(fun x -> `var x)
 
   let argify_local inc : local -> local = function
-    | `label (l, args) as loc -> match Label.Tree.find inc l with
-      | Some xs -> `label (l, args_of_vars xs @ args)
-      | None -> loc
+    | `label (l, args) as loc ->
+      Label.Tree.find inc l |>
+      Option.value_map ~default:loc ~f:(fun xs ->
+          `label (l, args_of_vars xs @ args))
 
   let argify_dst inc : dst -> dst = function
     | #local as l -> (argify_local inc l :> dst)
@@ -145,9 +148,10 @@ end = struct
 
   let insert_ctrl_args st =
     Hashtbl.iteri st.outs ~f:(fun ~key:l ~data:inc ->
-        Hashtbl.update st.ctrl l ~f:(function
-            | Some c -> argify_ctrl inc c
-            | None -> assert false))
+        if not @@ Label.is_pseudo l then
+          Hashtbl.update st.ctrl l ~f:(function
+              | Some c -> argify_ctrl inc c
+              | None -> assert false))
 
   let go env =
     let st = init env in

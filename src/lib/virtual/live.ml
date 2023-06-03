@@ -55,23 +55,28 @@ let block_transitions g fn =
       Seq.fold ~init ~f:(fun fs p -> update p fs ~f:(fun x ->
           {x with defs = Set.union x.defs args})))
 
-let lookup blks n = Label.Tree.find blks n |> Option.value ~default:empty_tran
+let lookup blks n =
+  Label.Tree.find blks n |>
+  Option.value ~default:empty_tran
+
 let apply {defs; uses; _} vars = vars -- defs ++ uses
 
 let transfer blks n vars =
   if Label.is_pseudo n then vars else apply (lookup blks n) vars
 
+let init keep =
+  let s = Label.(Map.singleton pseudoexit keep) in
+  Solution.create s Var.Set.empty
+
 let compute ?(keep = Var.Set.empty) fn =
   let g = Cfg.create fn in
-  let init =
-    Solution.create
-      (Label.Map.singleton Label.pseudoexit keep)
-      Var.Set.empty in
   let blks = block_transitions g fn in {
     blks;
-    outs = Graphlib.fixpoint (module Cfg) g ~init
-        ~rev:true ~start:Label.pseudoexit
-        ~merge:Set.union ~equal:Var.Set.equal
+    outs = Graphlib.fixpoint (module Cfg) g
+        ~init:(init keep) ~rev:true
+        ~start:Label.pseudoexit
+        ~merge:Set.union
+        ~equal:Var.Set.equal
         ~f:(transfer blks);
   }
 

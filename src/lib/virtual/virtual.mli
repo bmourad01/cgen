@@ -740,6 +740,9 @@ module Func : sig
       It is assumed that [blks] is ordered such that the entry block is
       the first element.
 
+      The entry block must have no incoming control-flow edges (this is
+      enforced in [Typecheck]).
+
       @raise Invalid_argument if [blks] is empty.
   *)
   val create_exn :
