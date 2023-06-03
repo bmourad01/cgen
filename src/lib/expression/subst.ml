@@ -1,5 +1,4 @@
 open Core
-open Virtual
 open Common
 
 (* Keep track of the set of variables we're substituting. If

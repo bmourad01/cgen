@@ -61,7 +61,6 @@ type t =
 module E = Monad.Result.Error
 
 open E.Let
-open E.Syntax
 
 module Deps = Graphlib.Make(Label)(Var)
 

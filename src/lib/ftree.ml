@@ -89,9 +89,10 @@ module Generic = struct
       fold_left_digit sf ~init ~f
   [@@specialise]
 
-  let fold = fold_left
+  let fold = fold_left [@@warning "-32"]
 
   type ('w, 'a, 'm) wrap = monoid:'m monoid -> measure:('a -> 'm) -> 'w
+  [@@warning "-34"]
 
   let measure_digit = function
     | One (v, _)
@@ -317,6 +318,7 @@ module Generic = struct
     | [a; b; c; d] -> four_node ~monoid a b c d
     | _ -> assert false
   [@@specialise]
+  [@@warning "-32"]
 
   let head_digit = function
     | One (_, a)
@@ -442,7 +444,7 @@ module Generic = struct
     | Vcons (x, t) -> f x || exists t ~f ~monoid ~measure
   [@@specialise]
 
-  let rec to_sequence t ~monoid ~measure =
+  let to_sequence t ~monoid ~measure =
     let open Seq.Generator in
     let rec aux t ~monoid ~measure =
       match view_left t ~monoid ~measure with
@@ -452,7 +454,7 @@ module Generic = struct
     run @@ aux t ~monoid ~measure
   [@@specialise]
 
-  let rec to_sequence_rev t ~monoid ~measure =
+  let to_sequence_rev t ~monoid ~measure =
     let open Seq.Generator in
     let rec aux t ~monoid ~measure =
       match view_right t ~monoid ~measure with
@@ -808,6 +810,7 @@ module Generic = struct
       | Single a -> Next (a, k)
       | Deep (_, pr, m, sf) ->
         Digit (sf, Fg (to_iter_rev m End, Digit (pr, k)))
+  [@@warning "-32"]
 
   let rec iter_next : 'a.
     ('a, 'm) iter ->
@@ -840,6 +843,7 @@ module Generic = struct
       | Some (Node2 (_, a, b), kn) -> Some (b, Next (a, Fg (kn, k)))
       | Some (Node3 (_, a, b, c), kn) ->
         Some (c, Next (b, Next (a, Fg (kn, k))))
+  [@@warning "-32"]
 
   let of_list ~monoid ~measure =
     List.fold ~init:empty ~f:(snoc ~monoid ~measure)

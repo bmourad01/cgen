@@ -43,9 +43,6 @@ module Tree = struct
   module Key = struct
     type t = {key : key} [@@unboxed]
 
-    let payload_size = 57
-    let branching_Size = 6
-
     let branching_mask = of_int64_exn (-144115188075855872L)
     let payload_mask = of_int64_exn 144115188075855871L
 
@@ -131,7 +128,7 @@ module Tree = struct
   let rec update_with t k ~has ~nil = match t with
     | Nil -> Tip (k, nil ())
     | Tip (k', v') when k = k' -> Tip (k, has v')
-    | Tip (k', v') -> join t k' (Tip (k, nil ())) k
+    | Tip (k', _) -> join t k' (Tip (k, nil ())) k
     | Bin (k', l, r) -> match Key.compare k' k with
       | NA -> join (Tip (k, nil ())) k t (Key.payload k')
       | LB -> Bin (k', update_with l k ~has ~nil, r)
@@ -141,7 +138,7 @@ module Tree = struct
   let rec update t k ~f = match t with
     | Nil -> Tip (k, f None)
     | Tip (k', v') when k = k' -> Tip (k, f (Some v'))
-    | Tip (k', v') -> join t k' (Tip (k, f None)) k
+    | Tip (k', _) -> join t k' (Tip (k, f None)) k
     | Bin (k', l, r) -> match Key.compare k' k with
       | NA -> join (Tip (k, f None)) k t (Key.payload k')
       | LB -> Bin (k', update l k ~f, r)
@@ -155,7 +152,7 @@ module Tree = struct
   let rec change t k ~f = match t with
     | Nil -> change_aux k None f
     | Tip (k', v') when k = k' -> change_aux k (Some v') f
-    | Tip (k', v') -> join t k' (change_aux k None f) k
+    | Tip (k', _) -> join t k' (change_aux k None f) k
     | Bin (k', l, r) -> match Key.compare k' k with
       | NA -> join (change_aux k None f) k t (Key.payload k')
       | LB -> Bin (k', change l k ~f, r)

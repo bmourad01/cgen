@@ -1,5 +1,4 @@
 open Core
-open Virtual
 open Common
 
 let label_opt = function

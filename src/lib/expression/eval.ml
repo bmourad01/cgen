@@ -1,5 +1,4 @@
 open Core
-open Virtual
 open Common
 
 module Util = struct

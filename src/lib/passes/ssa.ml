@@ -143,7 +143,7 @@ end = struct
     | `ret _ as r -> r
     | `sw (t, i, d, tbl) -> `sw (t, i, loc d, argify_tbl inc tbl)
 
-  let insert_ctrl_args env st =
+  let insert_ctrl_args st =
     Hashtbl.iteri st.outs ~f:(fun ~key:l ~data:inc ->
         Hashtbl.update st.ctrl l ~f:(function
             | Some c -> argify_ctrl inc c
@@ -152,7 +152,7 @@ end = struct
   let go env =
     let st = init env in
     insert_blk_args env st;
-    insert_ctrl_args env st;
+    insert_ctrl_args st;
     Hashtbl.map_inplace env.blks ~f:(fun b ->
         let label = Blk.label b in
         let args = Hashtbl.find_exn st.args label in

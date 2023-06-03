@@ -11,7 +11,6 @@
 open Core
 open Regular.Std
 open Graphlib.Std
-open Virtual
 open Common
 
 open Context.Syntax

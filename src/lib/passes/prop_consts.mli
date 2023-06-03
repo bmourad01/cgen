@@ -4,7 +4,6 @@
     The function is assumed to be in SSA form.
 *)
 
-open Core
 open Virtual
 
 val run : func -> func Context.t

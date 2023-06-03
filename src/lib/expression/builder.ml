@@ -124,7 +124,7 @@ let accum ctx acc i =
     let a, w = operand a w l in
     w, Pload (Some l, t, a)
   | `store _ -> acc
-  | `vaarg (x, t, y) ->
+  | `vaarg (x, _, y) ->
     let w, xs = acc in
     let w = Worklist.remove w x in
     let w = Worklist.remove w y in

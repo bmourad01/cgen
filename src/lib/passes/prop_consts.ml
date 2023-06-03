@@ -1,8 +1,3 @@
-open Core
-open Monads.Std
-open Regular.Std
-open Virtual
-
 open Context.Syntax
 
 let run fn =

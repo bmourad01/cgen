@@ -1,6 +1,4 @@
 open Core
-open Graphlib.Std
-open Monads.Std
 open Regular.Std
 open Virtual
 

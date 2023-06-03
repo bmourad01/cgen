@@ -1,6 +1,4 @@
 open Core
-open Monads.Std
-open Regular.Std
 open Virtual
 open Common
 
@@ -81,7 +79,7 @@ let rec pure ctx p : operand t =
     let+ a = pure a and+ b = pure b in
     `bop (x, o, a, b)
   | Pbool f -> !!(`bool f)
-  | Pcall (l, t, f, args, vargs) -> insn l @@ fun x l ->
+  | Pcall (l, t, f, args, vargs) -> insn l @@ fun x _ ->
     let+ f = global ctx f
     and+ args = M.List.map args ~f:pure
     and+ vargs = M.List.map vargs ~f:pure in
@@ -163,7 +161,7 @@ let exp ctx l e =
     let* y = dst y and* n = dst n in
     let+ op = pure c >>= function
       | `bool f -> !!(`jmp (if f then y else n))
-      | `var c when Virtual.equal_dst y n -> !!(`jmp y)
+      | `var _ when Virtual.equal_dst y n -> !!(`jmp y)
       | `var c -> !!(`br (c, y, n))
       | c -> invalid_insn c l "condition of `br`" in
     op

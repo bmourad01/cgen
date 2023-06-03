@@ -60,7 +60,7 @@ let typeof d target =
   let name = Format.sprintf "%s_t" d.name in
   let fields = Ftree.fold_right d.elts ~init:[] ~f:(fun elt fields ->
       let t = match elt with
-        | `bool f     -> `elt (`i8, 1)
+        | `bool _     -> `elt (`i8, 1)
         | `int (_, t) -> `elt ((t :> Type.basic), 1)
         | `float _    -> `elt (`f32, 1)
         | `double _   -> `elt (`f64, 1)

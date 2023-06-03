@@ -1,5 +1,4 @@
 open Core
-open Virtual
 open Common
 
 let rec free_vars_of_pure = function
