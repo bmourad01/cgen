@@ -264,7 +264,7 @@ module Insn : sig
       [`uitof (t, f)]: cast an unsigned integer of type [t] to a
       float of type [f].
 
-      [`zext t]: sign-extend an integer to an integer of type [t].
+      [`zext t]: zero-extend an integer to an integer of type [t].
   *)
   type cast = [
     | `fext   of Type.fp
