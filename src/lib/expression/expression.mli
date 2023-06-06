@@ -15,7 +15,13 @@ open Virtual
 (** A subexpression used to compute the result of an instruction.
 
     If the expression wasn't a pure operand, then it may optionally
-    contain a label corresponding to an instruction.
+    contain a label corresponding to an instruction. This is to maintain
+    provenance with the CFG representation of the program where possible.
+
+    Transformations to expressions can omit this label, in which case
+    fresh label-variable pairs will be generated, given a compilation
+    context. Otherwise, updates to terms sharing the same label are
+    expected to be (syntactically) equal.
 *)
 type pure =
   | Palloc  of Label.t option * int

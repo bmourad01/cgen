@@ -5,7 +5,7 @@ open Common
 type elt = [
   | `insn of Insn.op
   | `ctrl of ctrl
-]
+] [@@deriving equal]
 
 let pp_elt ppf : elt -> unit = function
   | `insn o -> Format.fprintf ppf "%a" Insn.pp_op o
@@ -30,22 +30,40 @@ type 'a t = 'a M.m
 
 include M.Syntax
 
-(* Assume that if the key is already present then calling `f`
-   will just give the same result. *)
+(* A transformation on the program might produce different terms
+   for the same identity. Since we have no semantic notion of
+   equivalence we will resort to syntactic equality. *)
+exception Elt_conflict of elt
+exception Op_conflict of operand
+
+let upd_elt env t l = M.put {
+    env with func = Label.Tree.update env.func l ~f:(function
+    | Some t' when equal_elt t t' -> t'
+    | Some t' -> raise @@ Elt_conflict t'
+    | None -> t)
+  }
+
+let upd_var env o x = M.put {
+    env with vars = Map.update env.vars x ~f:(function
+    | Some o' when equal_operand o o' -> o'
+    | Some o' -> raise @@ Op_conflict o'
+    | None -> o)
+  }
+
 let add l f =
   let* env = M.get () in
-  if not @@ Label.Tree.mem env.func l then
-    let* x = f () in
-    M.put {env with func = Label.Tree.set env.func ~key:l ~data:x}
-  else !!()
+  let* t = f () in
+  try upd_elt env t l with Elt_conflict t' ->
+    M.fail @@ Error.of_string @@ Format.asprintf
+      "Conflict: no join exists for terms %a and %a at label %a"
+      pp_elt t pp_elt t' Label.pp l
 
 let set x o =
   let* env = M.get () in
-  M.put {
-    env with vars = Map.update env.vars x ~f:(function
-      | Some x -> x
-      | None -> o)
-  }
+  try upd_var env o x with Op_conflict o' ->
+    M.fail @@ Error.of_string @@ Format.asprintf
+      "Conflict: no join exists for operands %a and %a for variable %a"
+      pp_operand o pp_operand o' Var.pp x
 
 let get l env = match Label.Tree.find env.func l with
   | None -> E.failf "Missing instruction %a" Label.pp l ()
