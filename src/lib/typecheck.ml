@@ -103,10 +103,10 @@ module Env = struct
     let gamma name = match layout name env with
       | Error err -> invalid_argf "%s" (Error.to_string_hum err) ()
       | Ok l -> l in
-    try match Map.add env.genv ~key:name ~data:(Type.layout gamma t) with
-      | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
-      | `Ok genv -> Ok {env with genv}
-    with Invalid_argument msg -> Or_error.errorf "%s" msg
+    Type.layout gamma t |> Or_error.bind ~f:(fun data ->
+        match Map.add env.genv ~key:name ~data with
+        | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
+        | `Ok genv -> Ok {env with genv})
 end
 
 type env = Env.t

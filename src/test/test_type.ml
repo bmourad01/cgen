@@ -29,7 +29,7 @@ let gamma = function
 let sexp_of_layout l = Sexp.List (List.map l ~f:Type.sexp_of_datum)
 
 let test_sizeof_compound (t : Type.compound) ~expected =
-  let l = Type.layout gamma t in
+  let l = Type.layout_exn gamma t in
   let name = Type.compound_name t in
   let l_expected = gamma name in
   let layout_msg = Format.asprintf

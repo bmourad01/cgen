@@ -202,7 +202,8 @@ module Layout = struct
     end)
 end
 
-let layout = Layout.create
+let layout_exn = Layout.create
+let layout g c = Or_error.try_with @@ fun () -> layout_exn g c
 
 let pp_compound ppf : compound -> unit = function
   | `compound (_, align, fields) ->

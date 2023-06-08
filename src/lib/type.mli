@@ -5,6 +5,7 @@
     of programs.
 *)
 
+open Core
 open Regular.Std
 
 (** The base immediate types, which includes words [`i32]
@@ -140,7 +141,7 @@ module Layout : sig
   include Regular.S with type t := t
 end
 
-(** [layout gamma c] derives the layout of the compound data
+(** [layout_exn gamma c] derives the layout of the compound data
     type [c].
 
     A function [gamma] is provided to resolve the layout of
@@ -149,7 +150,9 @@ end
 
     @raise Invalid_argument if [c] is not well-formed.
 *)
-val layout : (string -> layout) -> compound -> layout
+val layout_exn : (string -> layout) -> compound -> layout
+
+val layout : (string -> layout) -> compound -> layout Or_error.t
 
 (** Pretty-prints a compound type (without the name). *)
 val pp_compound : Format.formatter -> compound -> unit
