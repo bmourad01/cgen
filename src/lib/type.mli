@@ -135,7 +135,7 @@ module Layout : sig
   val align : t -> int
 
   (** Returns the exact structure of the data. *)
-  val data : t -> datum list
+  val data : t -> datum seq
 
   include Regular.S with type t := t
 end
