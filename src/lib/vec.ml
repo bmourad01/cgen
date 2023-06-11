@@ -24,7 +24,9 @@ let capacity t = t.capacity
 let copy t = {t with data = Oa.copy t.data}
 
 let clear t =
-  Oa.clear t.data;
+  for i = 0 to t.length - 1 do
+    Oa.unsafe_set_none t.data i;
+  done;
   t.length <- 0
 
 let newcap n = Int.ceil_pow2 @@ max n 1
