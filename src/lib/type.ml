@@ -115,10 +115,7 @@ type layout = {
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_layout ppf l =
-  let pp_sep ppf () = Format.fprintf ppf ", " in
-  Format.fprintf ppf "%d(%a)" l.align
-    (Format.pp_print_list ~pp_sep pp_datum)
-    (Array.to_list l.data)
+  Format.fprintf ppf "%d(%a)" l.align Data.pp l.data
 
 let sizeof_layout l = Array.fold l.data ~init:0 ~f:(fun sz -> function
     | #basic as b -> sz + sizeof_basic b
