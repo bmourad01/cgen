@@ -1,3 +1,5 @@
+(* Union-find: the greatest data structure since sliced bread. *)
+
 open Core
 
 type t = Id.t Vec.t
@@ -9,8 +11,9 @@ let fresh t : Id.t =
   Vec.push t id;
   id
 
-let parent t (id : Id.t) = Vec.get_exn t (id :> int)
-let set_parent t (id : Id.t) p = Vec.set_exn t (id :> int) p
+let parent t (id : Id.t) = Vec.unsafe_get t (id :> int)
+let set_parent t (id : Id.t) p = Vec.unsafe_set t (id :> int) p
+let union t r1 r2 = set_parent t (parent t r2) r1; r1
 
 let rec find t (id : Id.t) =
   let p = parent t id in
@@ -19,7 +22,3 @@ let rec find t (id : Id.t) =
     set_parent t id g;
     find t g
   else p
-
-let union t r1 r2 =
-  set_parent t (parent t r2) r1;
-  r1
