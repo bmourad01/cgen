@@ -183,7 +183,7 @@ rule token = parse
   | (ints as i) '_' (imm as t) {
     let i = Z.of_string i in
     let t = imm_of_char t in
-    INT (Bitvec.bigint_unsafe i, t)
+    INT (Bv.bigint_unsafe i, t)
   }
   | posints as i { NUM (int_of_string i) }
   | (flt as f) "_d" { DOUBLE (Float.of_string f) }

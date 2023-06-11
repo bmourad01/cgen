@@ -1,12 +1,5 @@
 open Core
 
-module Bitvec = struct
-  include Bitvec
-  include Bitvec_binprot
-  include Bitvec_order
-  include Bitvec_sexp
-end
-
 let var_set_of_option = function
   | Some x -> Var.Set.singleton x
   | None -> Var.Set.empty
@@ -18,7 +11,7 @@ let equal_ftree equal t1 t2 = Ftree.equal t1 t2 ~equal
 
 type const = [
   | `bool   of bool
-  | `int    of Bitvec.t * Type.imm
+  | `int    of Bv.t * Type.imm
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int
@@ -26,7 +19,7 @@ type const = [
 
 let pp_const ppf : const -> unit = function
   | `bool f -> Format.fprintf ppf "%a" Bool.pp f
-  | `int (n, t) -> Format.fprintf ppf "%a_%a" Bitvec.pp n Type.pp_imm t
+  | `int (n, t) -> Format.fprintf ppf "%a_%a" Bv.pp n Type.pp_imm t
   | `float f -> Format.fprintf ppf "%s_f" @@ Float32.to_string f
   | `double d -> Format.fprintf ppf "%a_d" Float.pp d
   | `sym (s, 0) -> Format.fprintf ppf "$%s" s
@@ -47,7 +40,7 @@ let pp_operand ppf : operand -> unit = function
   | `var v -> Format.fprintf ppf "%a" Var.pp v
 
 type global = [
-  | `addr of Bitvec.t
+  | `addr of Bv.t
   | `sym  of string
   | `var  of Var.t
 ] [@@deriving bin_io, compare, equal, sexp]
@@ -57,7 +50,7 @@ let var_of_global : global -> Var.t option = function
   | `addr _ | `sym _ -> None
 
 let pp_global ppf : global -> unit = function
-  | `addr a -> Format.fprintf ppf "%a" Bitvec.pp a
+  | `addr a -> Format.fprintf ppf "%a" Bv.pp a
   | `sym s  -> Format.fprintf ppf "$%s" s
   | `var v  -> Format.fprintf ppf "%a" Var.pp v
 

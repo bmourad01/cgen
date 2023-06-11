@@ -2,10 +2,10 @@ open Core
 open Common
 
 module Util = struct
-  let int8  i = Bitvec.(int   i mod Bitvec.m8)
-  let int16 i = Bitvec.(int   i mod Bitvec.m16)
-  let int32 i = Bitvec.(int32 i mod Bitvec.m32)
-  let int64 i = Bitvec.(int64 i mod Bitvec.m64)
+  let int8  i = Bv.(int   i mod Bv.m8)
+  let int16 i = Bv.(int   i mod Bv.m16)
+  let int32 i = Bv.(int32 i mod Bv.m32)
+  let int64 i = Bv.(int64 i mod Bv.m64)
 
   external float_unordered :
     float -> float -> bool = "cgen_float_is_unordered" [@@noalloc]
@@ -33,171 +33,171 @@ module Util = struct
   external float_of_uint32 : int32 -> float     = "cgen_float_of_uint32"
   external float_of_uint64 : int64 -> float     = "cgen_float_of_uint64"
 
-  let signed_compare x y m = match Bitvec.(msb x mod m, msb y mod m) with
-    | true,  true  -> Bitvec.compare y x
-    | false, false -> Bitvec.compare x y
+  let signed_compare x y m = match Bv.(msb x mod m, msb y mod m) with
+    | true,  true  -> Bv.compare y x
+    | false, false -> Bv.compare x y
     | true,  false -> -1
     | false, true  -> 1
 
   (* pre: x is nonzero *)
   let clz x n =
-    let i = Bitvec.to_int64 x in
+    let i = Bv.to_int64 x in
     let i = match n with
       | (8|16|32|64) -> Int64.(clz (i lsl Int.(64 - n)))
       | _ -> assert false in
-    Bitvec.(int i mod modulus n)
+    Bv.(int i mod modulus n)
 
   (* pre: x is nonzero *)
   let ctz x n =
-    let i = Bitvec.to_int64 x in
+    let i = Bv.to_int64 x in
     let i = match n with
       | (8|16|32|64) -> Int64.ctz i
       | _ -> assert false in
-    Bitvec.(int i mod modulus n)
+    Bv.(int i mod modulus n)
 
   let popcnt x n =
-    let x = Bitvec.to_bigint x in
-    Bitvec.(int (Z.popcount x) mod modulus n)
+    let x = Bv.to_bigint x in
+    Bv.(int (Z.popcount x) mod modulus n)
 end
 
 let rec eval_pure ?(env = Var.Map.empty) e =
   let pure = eval_pure ~env in
-  let imod t = Bitvec.modulus @@ Type.sizeof_imm t in
+  let imod t = Bv.modulus @@ Type.sizeof_imm t in
   match e with
   | Palloc _ as a -> a
   | Pbinop (l, o, a, b) ->
     begin match o, pure a, pure b with
       (* ADD *)
       | `add (#Type.imm as t), Pint (a, _), Pint (b, _) ->
-        Pint (Bitvec.((a + b) mod imod t), t)
-      | `add #Type.imm, a, Pint (b, _) when Bitvec.(b = zero) -> a
-      | `add #Type.imm, Pint (a, _), b when Bitvec.(a = zero) -> b
+        Pint (Bv.((a + b) mod imod t), t)
+      | `add #Type.imm, a, Pint (b, _) when Bv.(b = zero) -> a
+      | `add #Type.imm, Pint (a, _), b when Bv.(a = zero) -> b
       | `add `f32, Psingle a, Psingle b ->
         Psingle Float32.(a + b)
       | `add `f64, Pdouble a, Pdouble b ->
         Pdouble Float.(a + b)
       (* DIV *)
-      | `div #Type.imm, a, Pint (b, _) when Bitvec.(b = one) -> a
+      | `div #Type.imm, a, Pint (b, _) when Bv.(b = one) -> a
       | `div (#Type.imm as t), Pint (a, _), Pint (b, _)
-        when Bitvec.(b <> zero) ->
-        Pint (Bitvec.((sdiv a b) mod imod t), t)
+        when Bv.(b <> zero) ->
+        Pint (Bv.((sdiv a b) mod imod t), t)
       | `div `f32, Psingle a, Psingle b ->
         Psingle Float32.(a / b)
       | `div `f64, Pdouble a, Pdouble b ->
         Pdouble Float.(a / b)
       (* MUL *)
-      | `mul (#Type.imm as t), _, Pint (z, _) when Bitvec.(z = zero) ->
+      | `mul (#Type.imm as t), _, Pint (z, _) when Bv.(z = zero) ->
         Pint (z, t)
-      | `mul (#Type.imm as t), Pint (z, _), _ when Bitvec.(z = zero) ->
+      | `mul (#Type.imm as t), Pint (z, _), _ when Bv.(z = zero) ->
         Pint (z, t)
-      | `mul #Type.imm, a, Pint (b, _) when Bitvec.(b = one) -> a
-      | `mul #Type.imm, Pint (a, _), b when Bitvec.(a = one) -> b
+      | `mul #Type.imm, a, Pint (b, _) when Bv.(b = one) -> a
+      | `mul #Type.imm, Pint (a, _), b when Bv.(a = one) -> b
       | `mul (#Type.imm as t), Pint (a, _), Pint (b, _) ->
-        Pint (Bitvec.((a * b) mod imod t), t)
+        Pint (Bv.((a * b) mod imod t), t)
       | `mul `f32, Psingle a, Psingle b ->
         Psingle Float32.(a * b)
       | `mul `f64, Pdouble a, Pdouble b ->
         Pdouble Float.(a * b)
       (* MULH *)
-      | `mulh (#Type.imm as t), _, Pint (z, _) when Bitvec.(z = zero) ->
+      | `mulh (#Type.imm as t), _, Pint (z, _) when Bv.(z = zero) ->
         Pint (z, t)
-      | `mulh (#Type.imm as t), Pint (z, _), _ when Bitvec.(z = zero) ->
+      | `mulh (#Type.imm as t), Pint (z, _), _ when Bv.(z = zero) ->
         Pint (z, t)
-      | `mulh #Type.imm, a, Pint (b, _) when Bitvec.(b = one) -> a
-      | `mulh #Type.imm, Pint (a, _), b when Bitvec.(a = one) -> b
+      | `mulh #Type.imm, a, Pint (b, _) when Bv.(b = one) -> a
+      | `mulh #Type.imm, Pint (a, _), b when Bv.(a = one) -> b
       | `mulh t, Pint (a, _), Pint (b, _) ->
         let sz = Type.sizeof_imm t in
-        let m = Bitvec.modulus sz in
-        let m2 = Bitvec.modulus (sz * 2) in
-        let sh = Bitvec.(int sz mod m) in
-        Pint (Bitvec.((((a * b) mod m2) lsr sh) mod m), t)
+        let m = Bv.modulus sz in
+        let m2 = Bv.modulus (sz * 2) in
+        let sh = Bv.(int sz mod m) in
+        Pint (Bv.((((a * b) mod m2) lsr sh) mod m), t)
       (* REM *)
-      | `rem (#Type.imm as t), _, Pint (b, _) when Bitvec.(b = one) ->
-        Pint (Bitvec.zero, t)
+      | `rem (#Type.imm as t), _, Pint (b, _) when Bv.(b = one) ->
+        Pint (Bv.zero, t)
       | `rem (#Type.imm as t), Pint (a, _), Pint (b, _)
-        when Bitvec.(b <> zero) ->
-        Pint (Bitvec.((srem a b) mod imod t), t)
+        when Bv.(b <> zero) ->
+        Pint (Bv.((srem a b) mod imod t), t)
       | `rem `f32, Psingle a, Psingle b ->
         Psingle Float32.(rem a b)
       | `rem `f64, Pdouble a, Pdouble b ->
         Pdouble Float.(a % b)
       (* SUB *)
-      | `sub #Type.imm, a, Pint (b, _) when Bitvec.(b = zero) -> a
+      | `sub #Type.imm, a, Pint (b, _) when Bv.(b = zero) -> a
       | `sub (#Type.imm as t), Pint (a, _), Pint (b, _) ->
-        Pint (Bitvec.((a - b) mod imod t), t)
+        Pint (Bv.((a - b) mod imod t), t)
       | `sub `f32, Psingle a, Psingle b ->
         Psingle Float32.(a - b)
       | `sub `f64, Pdouble a, Pdouble b ->
         Pdouble Float.(a - b)
       (* UDIV *)
-      | `udiv _, a, Pint (b, _) when Bitvec.(b = one) -> a
-      | `udiv t, Pint (a, _), Pint (b, _) when Bitvec.(b <> zero) ->
-        Pint (Bitvec.((div a b) mod imod t), t)
+      | `udiv _, a, Pint (b, _) when Bv.(b = one) -> a
+      | `udiv t, Pint (a, _), Pint (b, _) when Bv.(b <> zero) ->
+        Pint (Bv.((div a b) mod imod t), t)
       (* UREM *)
-      | `urem t, _, Pint (b, _) when Bitvec.(b = one) ->
-        Pint (Bitvec.zero, t)
-      | `urem t, Pint (a, _), Pint (b, _) when Bitvec.(b <> zero) ->
-        Pint (Bitvec.((rem a b) mod imod t), t)
+      | `urem t, _, Pint (b, _) when Bv.(b = one) ->
+        Pint (Bv.zero, t)
+      | `urem t, Pint (a, _), Pint (b, _) when Bv.(b <> zero) ->
+        Pint (Bv.((rem a b) mod imod t), t)
       (* AND *)
-      | `and_ t, _, Pint (z, _) when Bitvec.(z = zero) ->
+      | `and_ t, _, Pint (z, _) when Bv.(z = zero) ->
         Pint (z, t)
-      | `and_ t, Pint (z, _), _ when Bitvec.(z = zero) ->
+      | `and_ t, Pint (z, _), _ when Bv.(z = zero) ->
         Pint (z, t)
-      | `and_ t, a, Pint (b, _) when Bitvec.(b = ones mod imod t) -> a
-      | `and_ t, Pint (a, _), b when Bitvec.(a = ones mod imod t) -> b
+      | `and_ t, a, Pint (b, _) when Bv.(b = ones mod imod t) -> a
+      | `and_ t, Pint (a, _), b when Bv.(a = ones mod imod t) -> b
       | `and_ t, Pint (a, _), Pint (b, _) ->
-        Pint (Bitvec.((a land b) mod imod t), t)
+        Pint (Bv.((a land b) mod imod t), t)
       | `and_ _, Pvar a, Pvar b when Var.(a = b) -> Pvar a
       (* OR *)
-      | `or_ _, a, Pint (b, _) when Bitvec.(b = zero) -> a
-      | `or_ _, Pint (a, _), b when Bitvec.(a = zero) -> b
-      | `or_ t, _, Pint (b, _) when Bitvec.(b = ones mod imod t) ->
+      | `or_ _, a, Pint (b, _) when Bv.(b = zero) -> a
+      | `or_ _, Pint (a, _), b when Bv.(a = zero) -> b
+      | `or_ t, _, Pint (b, _) when Bv.(b = ones mod imod t) ->
         Pint (b, t)
-      | `or_ t, Pint (a, _), _ when Bitvec.(a = ones mod imod t) ->
+      | `or_ t, Pint (a, _), _ when Bv.(a = ones mod imod t) ->
         Pint (a, t)
       | `or_ t, Pint (a, _), Pint (b ,_) ->
-        Pint (Bitvec.((a lor b) mod imod t), t)
+        Pint (Bv.((a lor b) mod imod t), t)
       | `or_ _, Pvar a, Pvar b when Var.(a = b) -> Pvar a
       (* ASR *)
-      | `asr_ _, a, Pint (b, _) when Bitvec.(b = zero) -> a
+      | `asr_ _, a, Pint (b, _) when Bv.(b = zero) -> a
       | `asr_ t, Pint (a, _), Pint (b, _) ->
-        Pint (Bitvec.((a asr b) mod imod t), t)
+        Pint (Bv.((a asr b) mod imod t), t)
       (* LSL *)
-      | `lsl_ _, a, Pint (b, _) when Bitvec.(b = zero) -> a
+      | `lsl_ _, a, Pint (b, _) when Bv.(b = zero) -> a
       | `lsl_ t, Pint (a, _), Pint (b, _) ->
-        Pint (Bitvec.((a lsl b) mod imod t), t)
+        Pint (Bv.((a lsl b) mod imod t), t)
       (* LSR *)
-      | `lsr_ _, a, Pint (b, _) when Bitvec.(b = zero) -> a
+      | `lsr_ _, a, Pint (b, _) when Bv.(b = zero) -> a
       | `lsr_ t, Pint (a, _), Pint (b, _) ->
-        Pint (Bitvec.((a lsr b) mod imod t), t)
+        Pint (Bv.((a lsr b) mod imod t), t)
       (* ROL *)
-      | `rol _, a, Pint (b, _) when Bitvec.(b = zero) -> a
+      | `rol _, a, Pint (b, _) when Bv.(b = zero) -> a
       | `rol t, Pint (a, _), Pint (b, _) ->
         let sz = Type.sizeof_imm t in
-        let m = Bitvec.modulus sz in
-        let sh = Bitvec.(((int sz mod m) - b) mod m) in
-        let lsh = Bitvec.((a lsl b) mod m) in
-        let rsh = Bitvec.((a lsr sh) mod m) in
-        Pint (Bitvec.((lsh lor rsh) mod m), t)
+        let m = Bv.modulus sz in
+        let sh = Bv.(((int sz mod m) - b) mod m) in
+        let lsh = Bv.((a lsl b) mod m) in
+        let rsh = Bv.((a lsr sh) mod m) in
+        Pint (Bv.((lsh lor rsh) mod m), t)
       (* ROR *)
-      | `ror _, a, Pint (b, _) when Bitvec.(b = zero) -> a
+      | `ror _, a, Pint (b, _) when Bv.(b = zero) -> a
       | `ror t, Pint (a, _), Pint (b, _) ->
         let sz = Type.sizeof_imm t in
-        let m = Bitvec.modulus sz in
-        let sh = Bitvec.(((int sz mod m) - b) mod m) in
-        let lsh = Bitvec.((a lsl sh) mod m) in
-        let rsh = Bitvec.((a lsr b) mod m) in
-        Pint (Bitvec.((lsh lor rsh) mod m), t)
+        let m = Bv.modulus sz in
+        let sh = Bv.(((int sz mod m) - b) mod m) in
+        let lsh = Bv.((a lsl sh) mod m) in
+        let rsh = Bv.((a lsr b) mod m) in
+        Pint (Bv.((lsh lor rsh) mod m), t)
       (* XOR *)
       | `xor t, Pvar a, Pvar b when Var.(a = b) ->
-        Pint (Bitvec.zero, t)
-      | `xor _, a, Pint (b, _) when Bitvec.(b = zero) -> a
-      | `xor _, Pint (a, _), b when Bitvec.(a = zero) -> b
+        Pint (Bv.zero, t)
+      | `xor _, a, Pint (b, _) when Bv.(b = zero) -> a
+      | `xor _, Pint (a, _), b when Bv.(a = zero) -> b
       | `xor t, Pint (a, _), Pint (b, _) ->
-        Pint (Bitvec.((a lxor b) mod imod t), t)
+        Pint (Bv.((a lxor b) mod imod t), t)
       (* EQ *)
       | `eq #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pbool Bitvec.(a = b)
+        Pbool Bv.(a = b)
       | `eq #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
         Pbool true
       | `eq `f32, Psingle a, Psingle b ->
@@ -206,7 +206,7 @@ let rec eval_pure ?(env = Var.Map.empty) e =
         Pbool Float.(a = b)
       (* GE *)
       | `ge #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pbool Bitvec.(a >= b)
+        Pbool Bv.(a >= b)
       | `ge #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
         Pbool true
       | `ge `f32, Psingle a, Psingle b ->
@@ -215,7 +215,7 @@ let rec eval_pure ?(env = Var.Map.empty) e =
         Pbool Float.(a >= b)
       (* GT *)
       | `gt #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pbool Bitvec.(a > b)
+        Pbool Bv.(a > b)
       | `gt #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
         Pbool false
       | `gt `f32, Psingle a, Psingle b ->
@@ -224,7 +224,7 @@ let rec eval_pure ?(env = Var.Map.empty) e =
         Pbool Float.(a > b)
       (* LE *)
       | `le #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pbool Bitvec.(a <= b)
+        Pbool Bv.(a <= b)
       | `le #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
         Pbool true
       | `le `f32, Psingle a, Psingle b ->
@@ -233,7 +233,7 @@ let rec eval_pure ?(env = Var.Map.empty) e =
         Pbool Float.(a <= b)
       (* LT *)
       | `lt #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pbool Bitvec.(a < b)
+        Pbool Bv.(a < b)
       | `lt #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
         Pbool false
       | `lt `f32, Psingle a, Psingle b ->
@@ -242,7 +242,7 @@ let rec eval_pure ?(env = Var.Map.empty) e =
         Pbool Float.(a < b)
       (* NE *)
       | `ne #Type.imm, Pint (a, _), Pint (b, _) ->
-        Pbool Bitvec.(a <> b)
+        Pbool Bv.(a <> b)
       | `ne #Type.imm, Pvar a, Pvar b when Var.(a = b) ->
         Pbool false
       | `ne `f32, Psingle a, Psingle b ->
@@ -297,21 +297,21 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       (* NEG *)
       | `neg #Type.imm, Punop (_, `neg #Type.imm, a) -> a
       | `neg (#Type.imm as t), Pint (a, _) ->
-        Pint (Bitvec.((neg a) mod imod t), t)
+        Pint (Bv.((neg a) mod imod t), t)
       | `neg `f32, Psingle a ->
         Psingle (Float32.neg a)
       | `neg `f64, Pdouble a ->
         Pdouble (Float.neg a)
       (* CLZ *)
-      | `clz t, Pint (a, _) when Bitvec.(a <> zero) ->
+      | `clz t, Pint (a, _) when Bv.(a <> zero) ->
         Pint (Util.clz a @@ Type.sizeof_imm t, t)
       (* CTZ *)
-      | `ctz t, Pint (a, _) when Bitvec.(a <> zero) ->
+      | `ctz t, Pint (a, _) when Bv.(a <> zero) ->
         Pint (Util.ctz a @@ Type.sizeof_imm t, t)
       (* NOT *)
       | `not_ _, Punop (_, `not_ _, a) -> a
       | `not_ t, Pint (a, _) ->
-        Pint (Bitvec.((lnot a) mod imod t), t)
+        Pint (Bv.((lnot a) mod imod t), t)
       (* POPCNT *)
       | `popcnt t, Pint (a, _) ->
         Pint (Util.popcnt a @@ Type.sizeof_imm t, t)
@@ -322,12 +322,12 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       | `fext `f64, (Pdouble _ as a) -> a
       (* FIBITS *)
       | `fibits `f32, Pint (a, _) ->
-        Psingle (Float32.of_bits @@ Bitvec.to_int32 a)
+        Psingle (Float32.of_bits @@ Bv.to_int32 a)
       | `fibits `f64, Pint (a, _) ->
-        Pdouble (Util.float_of_bits @@ Bitvec.to_int64 a)
+        Pdouble (Util.float_of_bits @@ Bv.to_int64 a)
       (* FLAG *)
       | `flag t, Pbool f ->
-        Pint (Bitvec.bool f, t)
+        Pint (Bv.bool f, t)
       (* FTOSI *)
       | `ftosi (`f32, `i8), Psingle a ->
         Pint (Util.int8 @@ Float32.to_int8 a, `i8)
@@ -369,59 +369,59 @@ let rec eval_pure ?(env = Var.Map.empty) e =
       (* IFBITS *)
       | `ifbits t, Psingle a ->
         let t = (t :> Type.imm) in
-        Pint (Bitvec.(int32 (Float32.bits a) mod imod t), t)
+        Pint (Bv.(int32 (Float32.bits a) mod imod t), t)
       | `ifbits t, Pdouble a ->
         let t = (t :> Type.imm) in
-        Pint (Bitvec.(int64 (Util.float_to_bits a) mod imod t), t)
+        Pint (Bv.(int64 (Util.float_to_bits a) mod imod t), t)
       (* ITRUNC *)
       | `itrunc t, (Pint (_, i) as a) when Type.equal_imm t i -> a
       | `itrunc t, Pint (a, _) ->
         let hi = Type.sizeof_imm t -  1 in
-        Pint (Bitvec.extract ~hi ~lo:0 a, t)
+        Pint (Bv.extract ~hi ~lo:0 a, t)
       (* SEXT *)
       | `sext t, (Pint (_, i) as a) when Type.equal_imm t i -> a
       | `sext t, Pint (a, t') ->
         let sz' = Type.sizeof_imm t' in
-        let m' = Bitvec.modulus sz' in
-        if Bitvec.(msb a mod m') then
+        let m' = Bv.modulus sz' in
+        if Bv.(msb a mod m') then
           let m = imod t in
-          let sh = Bitvec.(int sz' mod m) in
-          Pint (Bitvec.(((((ones mod m) lsl sh) mod m) lor a) mod m), t)
+          let sh = Bv.(int sz' mod m) in
+          Pint (Bv.(((((ones mod m) lsl sh) mod m) lor a) mod m), t)
         else Pint (a, t)
       (* SITOF *)
       | `sitof (`i8, `f32), Pint (a, _) ->
-        Psingle (Float32.of_int8 @@ Bitvec.to_int a)
+        Psingle (Float32.of_int8 @@ Bv.to_int a)
       | `sitof (`i16, `f32), Pint (a, _) ->
-        Psingle (Float32.of_int16 @@ Bitvec.to_int a)
+        Psingle (Float32.of_int16 @@ Bv.to_int a)
       | `sitof (`i32, `f32), Pint (a, _) ->
-        Psingle (Float32.of_int32 @@ Bitvec.to_int32 a)
+        Psingle (Float32.of_int32 @@ Bv.to_int32 a)
       | `sitof (`i64, `f32), Pint (a, _) ->
-        Psingle (Float32.of_int64 @@ Bitvec.to_int64 a)
+        Psingle (Float32.of_int64 @@ Bv.to_int64 a)
       | `sitof (`i8, `f64), Pint (a, _) ->
-        Pdouble (Util.float_of_int8 @@ Bitvec.to_int a)
+        Pdouble (Util.float_of_int8 @@ Bv.to_int a)
       | `sitof (`i16, `f64), Pint (a, _) ->
-        Pdouble (Util.float_of_int16 @@ Bitvec.to_int a)
+        Pdouble (Util.float_of_int16 @@ Bv.to_int a)
       | `sitof (`i32, `f64), Pint (a, _) ->
-        Pdouble (Util.float_of_int32 @@ Bitvec.to_int32 a)
+        Pdouble (Util.float_of_int32 @@ Bv.to_int32 a)
       | `sitof (`i64, `f64), Pint (a, _) ->
-        Pdouble (Util.float_of_int64 @@ Bitvec.to_int64 a)
+        Pdouble (Util.float_of_int64 @@ Bv.to_int64 a)
       (* UITOF *)
       | `uitof (`i8, `f32), Pint (a, _) ->
-        Psingle (Float32.of_uint8 @@ Bitvec.to_int a)
+        Psingle (Float32.of_uint8 @@ Bv.to_int a)
       | `uitof (`i16, `f32), Pint (a, _) ->
-        Psingle (Float32.of_uint16 @@ Bitvec.to_int a)
+        Psingle (Float32.of_uint16 @@ Bv.to_int a)
       | `uitof (`i32, `f32), Pint (a, _) ->
-        Psingle (Float32.of_uint32 @@ Bitvec.to_int32 a)
+        Psingle (Float32.of_uint32 @@ Bv.to_int32 a)
       | `uitof (`i64, `f32), Pint (a, _) ->
-        Psingle (Float32.of_uint64 @@ Bitvec.to_int64 a)
+        Psingle (Float32.of_uint64 @@ Bv.to_int64 a)
       | `uitof (`i8, `f64), Pint (a, _) ->
-        Pdouble (Util.float_of_uint8 @@ Bitvec.to_int a)
+        Pdouble (Util.float_of_uint8 @@ Bv.to_int a)
       | `uitof (`i16, `f64), Pint (a, _) ->
-        Pdouble (Util.float_of_uint16 @@ Bitvec.to_int a)
+        Pdouble (Util.float_of_uint16 @@ Bv.to_int a)
       | `uitof (`i32, `f64), Pint (a, _) ->
-        Pdouble (Util.float_of_uint32 @@ Bitvec.to_int32 a)
+        Pdouble (Util.float_of_uint32 @@ Bv.to_int32 a)
       | `uitof (`i64, `f64), Pint (a, _) ->
-        Pdouble (Util.float_of_uint64 @@ Bitvec.to_int64 a)
+        Pdouble (Util.float_of_uint64 @@ Bv.to_int64 a)
       (* ZEXT *)
       | `zext t, Pint (a, _) ->
         Pint (a, t)
@@ -446,7 +446,7 @@ let eval_table ?(env = Var.Map.empty) tbl =
   List.map tbl ~f:(fun (i, l) -> i, eval_local ~env l)
 
 let find_table tbl i d =
-  List.Assoc.find tbl i ~equal:Bitvec.equal |>
+  List.Assoc.find tbl i ~equal:Bv.equal |>
   Option.value ~default:d
 
 let eval ?(env = Var.Map.empty) e =

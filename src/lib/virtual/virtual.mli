@@ -24,7 +24,7 @@ open Regular.Std
 *)
 type const = [
   | `bool   of bool
-  | `int    of Bitvec.t * Type.imm
+  | `int    of Bv.t * Type.imm
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int
@@ -54,7 +54,7 @@ val pp_operand : Format.formatter -> operand -> unit
     [`var v] is a dynamic absolute address.
 *)
 type global = [
-  | `addr of Bitvec.t
+  | `addr of Bv.t
   | `sym  of string
   | `var  of Var.t
 ] [@@deriving bin_io, compare, equal, sexp]
@@ -121,7 +121,7 @@ module Insn : sig
     | `sub  of Type.basic
     | `udiv of Type.imm
     | `urem of Type.imm
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints the arithmetic binary operator. *)
   val pp_arith_binop : Format.formatter -> arith_binop -> unit
@@ -132,7 +132,7 @@ module Insn : sig
   *)
   type arith_unop = [
     | `neg of Type.basic
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints the arithmetic unary operator. *)
   val pp_arith_unop : Format.formatter -> arith_unop -> unit
@@ -164,7 +164,7 @@ module Insn : sig
     | `rol  of Type.imm
     | `ror  of Type.imm
     | `xor  of Type.imm
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints the bitwise binary operator. *)
   val pp_bitwise_binop : Format.formatter -> bitwise_binop -> unit
@@ -184,7 +184,7 @@ module Insn : sig
     | `ctz    of Type.imm
     | `not_   of Type.imm
     | `popcnt of Type.imm
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints the bitwise unary operator. *)
   val pp_bitwise_unop : Format.formatter -> bitwise_unop -> unit
@@ -228,7 +228,7 @@ module Insn : sig
     | `sle of Type.imm
     | `slt of Type.imm
     | `uo  of Type.fp
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints a comparison operation. *)
   val pp_cmp : Format.formatter -> cmp -> unit
@@ -279,7 +279,7 @@ module Insn : sig
     | `sitof  of Type.imm * Type.fp
     | `uitof  of Type.imm * Type.fp
     | `zext   of Type.imm
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints a cast operation. *)
   val pp_cast : Format.formatter -> cast -> unit 
@@ -293,7 +293,7 @@ module Insn : sig
   type copy = [
     | `copy of Type.basic
     | `ref  of Type.imm_base
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints a copy operation. *)
   val pp_copy : Format.formatter -> copy -> unit
@@ -303,7 +303,7 @@ module Insn : sig
     | arith_binop
     | bitwise_binop
     | cmp
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints the binary operator. *)
   val pp_binop : Format.formatter -> binop -> unit
@@ -314,7 +314,7 @@ module Insn : sig
     | bitwise_unop
     | cast
     | copy
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints the unary operator. *)
   val pp_unop : Format.formatter -> unop -> unit
@@ -469,33 +469,33 @@ module Ctrl : sig
 
         @raise Invalid_argument if the list has duplicate keys.
     *)
-    val create_exn : (Bitvec.t * local) list -> Type.imm -> t
+    val create_exn : (Bv.t * local) list -> Type.imm -> t
 
     (** Same as [create_exn], but returns an error upon failure. *)
-    val create : (Bitvec.t * local) list -> Type.imm -> t Or_error.t
+    val create : (Bv.t * local) list -> Type.imm -> t Or_error.t
 
     (** Returns the elements of the table. *)
-    val enum : t -> (Bitvec.t * local) seq
+    val enum : t -> (Bv.t * local) seq
 
     (** Returns the immediate type for the index into the table. *)
     val typ : t -> Type.imm
 
     (** [find t v] searches the table [t] for the label associated
         with the constant [v]. *)
-    val find : t -> Bitvec.t -> local option
+    val find : t -> Bv.t -> local option
 
     (** [map_exn t ~f] applies [f] to each element of [t].
 
         @raise Invalid_argument if [f] produces a duplicate key.
     *)
-    val map_exn : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t
+    val map_exn : t -> f:(Bv.t -> local -> Bv.t * local) -> t
 
     (** Returns the set of free variables in the table. *)
     val free_vars : t -> Var.Set.t
 
     (** Same as [map_exn], but returns [Error _] if [f] produces a
         duplicate key. *)
-    val map : t -> f:(Bitvec.t -> local -> Bitvec.t * local) -> t Or_error.t
+    val map : t -> f:(Bv.t -> local -> Bv.t * local) -> t Or_error.t
   end
 
   type table = Table.t [@@deriving bin_io, compare, equal, sexp]
@@ -565,7 +565,7 @@ module Edge : sig
     | `always
     | `true_ of Var.t
     | `false_ of Var.t
-    | `switch of Ctrl.swindex * Bitvec.t
+    | `switch of Ctrl.swindex * Bv.t
     | `default of Ctrl.swindex
   ] [@@deriving bin_io, compare, equal, sexp]
 

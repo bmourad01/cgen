@@ -6,20 +6,13 @@ open Virtual
 
 exception Occurs_failed of Var.t * Label.t option
 
-module Bitvec = struct
-  include Bitvec
-  include Bitvec_binprot
-  include Bitvec_order
-  include Bitvec_sexp
-end
-
 type pure =
   | Palloc  of Label.t option * int
   | Pbinop  of Label.t option * Insn.binop * pure * pure
   | Pbool   of bool
   | Pcall   of Label.t option * Type.basic * global * pure list * pure list
   | Pdouble of float
-  | Pint    of Bitvec.t * Type.imm
+  | Pint    of Bv.t * Type.imm
   | Pload   of Label.t option * Type.basic * pure
   | Psel    of Label.t option * Type.basic * pure * pure * pure
   | Psingle of Float32.t
@@ -29,7 +22,7 @@ type pure =
 [@@deriving bin_io, compare, equal, sexp]
 
 and global =
-  | Gaddr of Bitvec.t
+  | Gaddr of Bv.t
   | Gpure of pure
   | Gsym  of string
 [@@deriving bin_io, compare, equal, sexp]
@@ -42,7 +35,7 @@ and dst =
   | Dlocal  of local
 [@@deriving bin_io, compare, equal, sexp]
 
-type table = (Bitvec.t * local) list
+type table = (Bv.t * local) list
 [@@deriving bin_io, compare, equal, sexp]
 
 type t =
@@ -179,7 +172,7 @@ and pp_pure ppf = function
   | Pdouble d ->
     Format.fprintf ppf "%a_d" Float.pp d
   | Pint (i, t) ->
-    Format.fprintf ppf "%a_%a" Bitvec.pp i Type.pp_imm t
+    Format.fprintf ppf "%a_%a" Bv.pp i Type.pp_imm t
   | Pload (l, t, a) ->
     Format.fprintf ppf "ld.%a%a(%a)"
       Type.pp_basic t pp_label l pp_pure a
@@ -199,7 +192,7 @@ and pp_pure ppf = function
     Format.fprintf ppf "%a" Var.pp v
 
 and pp_global ppf = function
-  | Gaddr a -> Format.fprintf ppf "%a" Bitvec.pp a
+  | Gaddr a -> Format.fprintf ppf "%a" Bv.pp a
   | Gpure p -> Format.fprintf ppf "%a" pp_pure p
   | Gsym  s -> Format.fprintf ppf "$%s" s
 
@@ -214,7 +207,7 @@ let pp_dst ppf = function
 let pp_table t tbl =
   let pp_sep ppf () = Format.fprintf ppf ", " in
   let pp ppf (v, l) = Format.fprintf ppf "%a_%a%a"
-      Bitvec.pp v Type.pp_imm t pp_local l in
+      Bv.pp v Type.pp_imm t pp_local l in
   (Format.pp_print_list ~pp_sep pp) tbl
 
 let pp ppf = function

@@ -10,7 +10,7 @@ type arith_binop = [
   | `sub  of Type.basic
   | `udiv of Type.imm
   | `urem of Type.imm
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_arith_binop ppf : arith_binop -> unit = function
   | `add  t -> Format.fprintf ppf "add.%a"  Type.pp_basic t
@@ -24,7 +24,7 @@ let pp_arith_binop ppf : arith_binop -> unit = function
 
 type arith_unop = [
   | `neg of Type.basic
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_arith_unop ppf : arith_unop -> unit = function
   | `neg t -> Format.fprintf ppf "neg.%a" Type.pp_basic t
@@ -38,7 +38,7 @@ type bitwise_binop = [
   | `rol  of Type.imm
   | `ror  of Type.imm
   | `xor  of Type.imm
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_bitwise_binop ppf : bitwise_binop -> unit = function
   | `and_ t -> Format.fprintf ppf "and.%a" Type.pp_imm t
@@ -55,7 +55,7 @@ type bitwise_unop = [
   | `ctz    of Type.imm
   | `not_   of Type.imm
   | `popcnt of Type.imm
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_bitwise_unop ppf : bitwise_unop -> unit = function
   | `clz t ->
@@ -80,7 +80,7 @@ type cmp = [
   | `sle of Type.imm
   | `slt of Type.imm
   | `uo  of Type.fp
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_cmp ppf : cmp -> unit = function
   | `eq  t -> Format.fprintf ppf "eq.%a"  Type.pp_basic t
@@ -109,7 +109,7 @@ type cast = [
   | `sitof  of Type.imm * Type.fp
   | `uitof  of Type.imm * Type.fp
   | `zext   of Type.imm
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_cast ppf : cast -> unit = function
   | `fext t ->
@@ -140,7 +140,7 @@ let pp_cast ppf : cast -> unit = function
 type copy = [
   | `copy of Type.basic
   | `ref  of Type.imm_base
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_copy ppf : copy -> unit = function
   | `copy t -> Format.fprintf ppf "copy.%a" Type.pp_basic    t
@@ -150,7 +150,7 @@ type binop = [
   | arith_binop
   | bitwise_binop
   | cmp
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_binop ppf : binop -> unit = function
   | #arith_binop as a -> Format.fprintf ppf "%a" pp_arith_binop a
@@ -162,7 +162,7 @@ type unop = [
   | bitwise_unop
   | cast
   | copy
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_unop ppf : unop -> unit = function
   | #arith_unop as a -> Format.fprintf ppf "%a" pp_arith_unop a

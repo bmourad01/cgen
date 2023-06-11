@@ -120,12 +120,12 @@ include M.Syntax
 
 type 'a t = 'a M.m
 
-let max_i8  = Bitvec.of_string "0xff"
-let max_i16 = Bitvec.of_string "0xffff"
-let max_i32 = Bitvec.of_string "0xffffffff"
-let max_i64 = Bitvec.of_string "0xffffffffffffffff"
+let max_i8  = Bv.of_string "0xff"
+let max_i16 = Bv.of_string "0xffff"
+let max_i32 = Bv.of_string "0xffffffff"
+let max_i64 = Bv.of_string "0xffffffffffffffff"
 
-let max_of_imm : Type.imm -> Bitvec.t = function
+let max_of_imm : Type.imm -> Bv.t = function
   | `i8  -> max_i8
   | `i16 -> max_i16
   | `i32 -> max_i32
@@ -133,10 +133,10 @@ let max_of_imm : Type.imm -> Bitvec.t = function
 
 let check_max i t =
   let m = max_of_imm t in
-  if Bitvec.(i > m) then
+  if Bv.(i > m) then
     M.fail @@ Error.of_string @@ Format.asprintf
       "Integer %a does not fit in type %a"
-      Bitvec.pp i Type.pp_imm t
+      Bv.pp i Type.pp_imm t
   else !!(t :> Type.t)
 
 let typeof_const : const -> Type.t t = function
@@ -708,12 +708,12 @@ let sw_unify_fail t t' blk fn = Or_error.errorf
 
 let check_sw_index fn blk t i =
   let m = max_of_imm t in
-  if Bitvec.(i > m) then
+  if Bv.(i > m) then
     M.fail @@ Error.of_string @@ Format.asprintf
       "In `sw` instruction in block %a in function %s: index %a_%a \
        does not fit in type %a"
       Label.pp (Blk.label blk) (Func.name fn)
-      Bitvec.pp i Type.pp_imm t Type.pp_imm t
+      Bv.pp i Type.pp_imm t Type.pp_imm t
   else !!()
 
 let ctrl_sw blks fn blk t v d tbl =

@@ -4,12 +4,12 @@ open Common
 
 module Table = struct
   type t = {
-    tbl : local Map.M(Bitvec).t;
+    tbl : local Map.M(Bv).t;
     typ : Type.imm;
   } [@@deriving bin_io, compare, equal, sexp]
 
   let create_exn l t = try {
-    tbl = Map.of_alist_exn (module Bitvec) l;
+    tbl = Map.of_alist_exn (module Bv) l;
     typ = t;
   } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
 
@@ -21,7 +21,7 @@ module Table = struct
   let map_exn t ~f = try
       Map.to_sequence t.tbl |>
       Seq.map ~f:(fun (v, l) -> f v l) |>
-      Map.of_sequence_exn (module Bitvec) |>
+      Map.of_sequence_exn (module Bv) |>
       fun tbl -> {t with tbl}
     with exn -> invalid_argf "%s" (Exn.to_string exn) ()
 
@@ -32,7 +32,7 @@ module Table = struct
         Set.union s @@ free_vars_of_local data)
 
   let pp_elt t ppl ppf (v, l) =
-    Format.fprintf ppf "%a_%a -> %a" Bitvec.pp v Type.pp_imm t ppl l
+    Format.fprintf ppf "%a_%a -> %a" Bv.pp v Type.pp_imm t ppl l
 
   let pp ppf t =
     let pp_sep ppf () = Format.fprintf ppf ",@;" in

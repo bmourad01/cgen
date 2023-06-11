@@ -6,6 +6,8 @@
     to support those seen in [Virtual.Insn.Data].
 *)
 
+open Core
+
 type t [@@deriving bin_io, sexp]
 
 (** Convert from a double-precistion float. *)
@@ -143,3 +145,6 @@ val is_ordered : t -> t -> bool
 (** [is_unordered x y] returns [true] if the comparison between [x] and [y]
     is unordered. *)
 val is_unordered : t -> t -> bool
+
+val hash : t -> int
+val hash_fold_t : Hash.state -> t -> Hash.state

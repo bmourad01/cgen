@@ -125,7 +125,7 @@
 %token SECTION
 %token NORETURN
 %token <string> STRING
-%token <Bitvec.t * Type.imm> INT
+%token <Bv.t * Type.imm> INT
 %token <int> NUM
 %token <float> DOUBLE
 %token <Float32.t> SINGLE
@@ -157,7 +157,7 @@
 %type <(Var.t * Virtual.Blk.arg_typ) m> blk_arg
 %type <Virtual.Ctrl.t m> ctrl
 %type <Virtual.Ctrl.swindex m> ctrl_index
-%type <((Bitvec.t * Type.imm) * Virtual.local) m> ctrl_table_entry
+%type <((Bv.t * Type.imm) * Virtual.local) m> ctrl_table_entry
 %type <Virtual.Insn.op m> insn
 %type <call_arg list m> call_args
 %type <Virtual.Insn.binop> insn_binop
@@ -319,7 +319,7 @@ ctrl:
             Context.fail @@
             Core.Error.of_string @@
             Format.asprintf "Invalid switch value %a_%a, expected size %a"
-              Bitvec.pp i Type.pp_imm t' Type.pp_imm t
+              Bv.pp i Type.pp_imm t' Type.pp_imm t
           else !!(i, l)) in
       match Virtual.Ctrl.Table.create tbl t with
       | Error err -> M.lift @@ Context.fail err

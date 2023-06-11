@@ -27,6 +27,7 @@
  (private_modules
    ftree
    sm
+   vec
    virtual_lexer
    virtual_parser)
  (foreign_stubs

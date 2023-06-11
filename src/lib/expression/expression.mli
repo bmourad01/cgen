@@ -29,7 +29,7 @@ type pure =
   | Pbool   of bool
   | Pcall   of Label.t option * Type.basic * global * pure list * pure list
   | Pdouble of float
-  | Pint    of Bitvec.t * Type.imm
+  | Pint    of Bv.t * Type.imm
   | Pload   of Label.t option * Type.basic * pure
   | Psel    of Label.t option * Type.basic * pure * pure * pure
   | Psingle of Float32.t
@@ -40,7 +40,7 @@ type pure =
 
 (** A global control-flow destination. *)
 and global =
-  | Gaddr of Bitvec.t
+  | Gaddr of Bv.t
   | Gpure of pure
   | Gsym  of string
 [@@deriving bin_io, compare, equal, sexp]
@@ -68,7 +68,7 @@ val pp_local : Format.formatter -> local -> unit
 val pp_dst : Format.formatter -> dst -> unit
 
 (** A switch table. *)
-type table = (Bitvec.t * local) list
+type table = (Bv.t * local) list
 [@@deriving bin_io, compare, equal, sexp]
 
 (** An expression. *)

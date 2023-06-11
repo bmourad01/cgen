@@ -65,6 +65,9 @@ let compare x y = if x = y then 0 else if x < y then -1 else 1
 
 let sexp_of_t x = Sexp.Atom (to_string x)
 
+let hash x = Float.hash @@ to_float x
+let hash_fold_t st x =  Float.hash_fold_t st @@ to_float x
+
 let t_of_sexp = function
   | Sexp.Atom s -> of_string s
   | x ->
