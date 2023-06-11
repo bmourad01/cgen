@@ -48,6 +48,8 @@ val mapi : 'a t -> f:(int -> 'a -> 'b) -> 'b t
 val map : 'a t -> f:('a -> 'b) -> 'b t
 val filteri : 'a t -> f:(int -> 'a -> bool) -> 'a t
 val filter : 'a t -> f:('a -> bool) -> 'a t
+val filter_mapi : 'a t -> f:(int -> 'a -> 'b option) -> 'b t
+val filter_map : 'a t -> f:('a -> 'b option) -> 'b t
 val filteri_inplace : 'a t -> f:(int -> 'a -> bool) -> unit
 val filter_inplace : 'a t -> f:('a -> bool) -> unit
 val to_array : 'a t -> 'a array

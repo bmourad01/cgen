@@ -195,13 +195,26 @@ let map t ~f =
   done;
   t'
 
+let oldcap t = max default_capacity t.length
+
 let filteri t ~f =
-  let t' = create () in
+  let t' = create ~capacity:(oldcap t) () in
   iteri t ~f:(fun i x -> if f i x then push t' x);
   t'
 [@@specialise]
 
 let filter t ~f = filteri t ~f:(fun _ x -> f x)
+[@@specialise]
+
+let filter_mapi t ~f =
+  let t' = create ~capacity:(oldcap t) () in
+  iteri t ~f:(fun i x -> match f i x with
+      | Some y -> push t' y
+      | None -> ());
+  t'
+[@@specialise]
+
+let filter_map t ~f = filter_mapi t ~f:(fun _ x -> f x)
 [@@specialise]
 
 let filteri_inplace t ~f =
