@@ -220,23 +220,28 @@ class extractor t ~(cost : cost) = object(self)
   val costs = Id.Table.create ()
   val mutable sat = false
 
+  (* Provide a callback for finding the cost of a child node. *)
   method private id_cost id =
     Uf.find t.uf id |> Hashtbl.find_exn costs |> fst
 
+  (* Check if the children of a node have their costs accounted for. *)
   method private has_cost n =
     Enode.children n |> List.for_all ~f:(Hashtbl.mem costs)
 
+  (* Try to apply the cost function for a node. *)
   method private node_cost n =
     if not @@ self#has_cost n then None
     else Some (cost self#id_cost n, n)
 
+  (* For all the nodes in an e-class, find the optimal term. *)
   method private best_term ns =
     Vec.fold ns ~init:None ~f:(fun acc n ->
         self#node_cost n |> Option.merge acc
           ~f:(fun ((c1, _) as a) ((c2, _) as b) ->
               if c2 < c1 then b else a))
 
-  method private fixpoint (cs : classes) =
+  (* Saturate the cost table for each e-class. *)
+  method private saturate (cs : classes) =
     sat <- true;
     Hashtbl.iteri cs ~f:(fun ~key:id ~data:ns ->
         match Hashtbl.find costs id, self#best_term ns with
@@ -247,7 +252,7 @@ class extractor t ~(cost : cost) = object(self)
           Hashtbl.set costs ~key:id ~data:term;
           sat <- false
         | _ -> ());
-    if not sat then self#fixpoint cs
+    if not sat then self#saturate cs
 
   method private extract_aux id =
     let id = Uf.find t.uf id in
@@ -256,7 +261,7 @@ class extractor t ~(cost : cost) = object(self)
     E (Enode.op n, List.map cs ~f:self#extract_aux)
 
   method extract id =
-    if not sat then self#fixpoint @@ eclasses t;
+    if not sat then self#saturate @@ eclasses t;
     self#extract_aux id
 
   method reset =
@@ -267,6 +272,7 @@ end
 (* Map each e-class ID to a substitution environment. *)
 type matches = subst Id.Map.t
 
+(* Match a pre-condition with the available nodes in the graph. *)
 let ematch t (cs : classes) p : matches =
   let rec enode env p (n : enode) = match p, n with
     | Q (x,  _), N (y,  _) when not @@ Enode.equal_op x y -> None
@@ -293,6 +299,7 @@ let ematch t (cs : classes) p : matches =
       go id p |> Option.value_map ~default:m ~f:(fun env ->
           Map.set m ~key:id ~data:env))
 
+(* Apply the substitution environment to a post-condition. *)
 let rec subst t (env : subst) = function
   | V x -> Map.find_exn env x
   | Q (o, q) -> add_enode t @@ N (o, List.map q ~f:(subst t env))
@@ -301,11 +308,11 @@ let apply t rules =
   let cs = eclasses t in
   List.iter rules ~f:(fun {pre; post} ->
       ematch t cs pre |> Map.iteri ~f:(fun ~key:id ~data:env ->
-          let go q = merge t id @@ subst t env q in
+          let rewrite q = merge t id @@ subst t env q in
           match post with
-          | Const q -> go q
-          | Cond (q, cond) -> if cond t id env then go q
-          | Dyn gen -> gen t id env |> Option.iter ~f:go));
+          | Const q -> rewrite q
+          | Cond (q, cond) -> if cond t id env then rewrite q
+          | Dyn gen -> gen t id env |> Option.iter ~f:rewrite));
   rebuild t
 
 let fixpoint ?fuel t rules = match fuel with
