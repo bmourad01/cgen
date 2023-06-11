@@ -139,11 +139,22 @@ val data : t -> id -> const option
 (** A cost heuristic. *)
 type cost = (id -> int) -> enode -> int
 
-(** Extracts an expression from an ID. *)
-type extractor = id -> exp
+(** Extracts optimized terms from the e-graph based on the [cost]
+    heuristic function. *)
+class extractor : t -> cost:cost -> object
+    (** Extract the term associated with an ID in the provided
+        e-graph
 
-(** Performs term extraction. *)
-val extract : t -> cost:cost -> extractor
+        Note that the costs for each term are applied up-front
+        and are not synchronized with subsequent updates to the
+        provided e-graph.
+    *)
+    method extract : id -> exp
+
+    (** Reset the state of the extractor. Subsequent calls to
+        [extract] will reflect the updated state of the e-graph. *)
+    method reset : unit
+  end
 
 (** Applies a list of rewrite rules to the e-graph. *)
 val apply : t -> rule list -> unit

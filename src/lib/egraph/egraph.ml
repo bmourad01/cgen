@@ -106,13 +106,11 @@ let data t id =
   Hashtbl.find t.classes id |>
   Option.bind ~f:(fun c -> c.data)
 
-let merge_data l r = match l, r with
-  | Some l, Some r ->
-    assert (equal_const l r);
-    Some l, (false, false)
-  | Some l, None -> Some l, (false, true)
-  | None, Some r -> Some r, (true, false)
-  | _ -> None, (false, false)
+let merge_data l r ~left ~right = match l, r with
+  | Some l, Some r -> assert (equal_const l r); Some l
+  | Some l, None -> right (); Some l
+  | None, Some r -> left (); Some r
+  | _ -> None
 
 let rec add_enode t n =
   let n = Enode.canonicalize n t.uf in
@@ -149,12 +147,9 @@ and merge t a b =
     let ca = eclass t a in
     assert Id.(a = ca.id);
     Vec.append t.pending cb.parents;
-    let ua, ub =
-      let d, r = merge_data ca.data cb.data in
-      ca.data <- d;
-      r in
-    if ua then Vec.append t.analyses ca.parents;
-    if ub then Vec.append t.analyses cb.parents;
+    let q a () = Vec.append t.analyses a in
+    ca.data <- merge_data ca.data cb.data
+        ~left:(q ca.parents) ~right:(q cb.parents);
     Vec.append ca.nodes cb.nodes;
     Vec.append ca.parents cb.parents;
     modify_analysis t a
@@ -181,10 +176,10 @@ let rec update_nodes t = match Vec.pop t.pending with
     let n' = Enode.canonicalize n t.uf in
     if Enode.compare n n' <> 0 then
       Hashtbl.remove t.nodes n;
-    begin match Hashtbl.find t.nodes n with
-      | None -> Hashtbl.set t.nodes ~key:n ~data:cid
-      | Some id -> merge t id cid
-    end;
+    Hashtbl.find_and_call t.nodes n
+      ~if_found:(fun id -> merge t id cid)
+      ~if_not_found:(fun key ->
+          Hashtbl.set t.nodes ~key ~data:cid);
     update_nodes t
 
 let rec update_analyses t = match Vec.pop t.analyses with
@@ -194,14 +189,9 @@ let rec update_analyses t = match Vec.pop t.analyses with
     let d = Enode.eval n ~data:(data t) in
     let c = eclass t cid in
     assert Id.(c.id = cid);
-    let u, _ =
-      let d, r = merge_data c.data d in
-      c.data <- d;
-      r in
-    if u then begin
-      Vec.append t.analyses c.parents;
-      modify_analysis t cid
-    end;
+    c.data <- merge_data c.data d ~right:Fn.id ~left:(fun () ->
+        Vec.append t.analyses c.parents;
+        modify_analysis t cid);
     update_analyses t
 
 let process_unions t =
@@ -225,37 +215,57 @@ let eclasses t : classes =
   r
 
 type cost = (id -> int) -> enode -> int
-type extractor = id -> exp
 
-let extract t ~(cost : cost) : extractor =
-  let costs = Id.Table.create () in
-  let id_cost id = Uf.find t.uf id |> Hashtbl.find_exn costs |> fst in
-  let has_cost n = Enode.children n |> List.for_all ~f:(Hashtbl.mem costs) in
-  let node_cost n = if has_cost n then Some (cost id_cost n) else None in
-  let calculate ns =
+class extractor t ~cost = object(self)
+  val costs = Id.Table.create ()
+  val mutable sat = false
+
+  method private id_cost id =
+    Uf.find t.uf id |> Hashtbl.find_exn costs |> fst
+
+  method private has_cost n =
+    Enode.children n |> List.for_all ~f:(Hashtbl.mem costs)
+
+  method private node_cost n =
+    if not @@ self#has_cost n then None
+    else Some (cost self#id_cost n)
+
+  method private calculate ns =
     Vec.fold ns ~init:Int.Map.empty ~f:(fun m n ->
-        node_cost n |> Option.value_map ~default:m
+        self#node_cost n |> Option.value_map ~default:m
           ~f:(Map.update m ~f:(Option.value ~default:n))) |>
-    Map.min_elt in
-  let update ~key:id ~data:ns sat =
-    let c = calculate ns in
+    Map.min_elt
+
+  method private update ~key:id ~data:ns =
+    let c = self#calculate ns in
     match Hashtbl.find costs id, c with
     | None, Some data ->
       Hashtbl.set costs ~key:id ~data;
-      false
+      sat <- false
     | Some (x, _), Some ((y, _) as data) when compare y x < 0 ->
       Hashtbl.set costs ~key:id ~data;
-      false
-    | _ -> sat in
-  let rec fixpoint (cs : classes) =
-    Hashtbl.fold cs ~init:true ~f:update || fixpoint cs in
-  let rec extract id =
+      sat <- false
+    | _ -> ()
+
+  method private fixpoint (cs : classes) =
+    sat <- true;
+    Hashtbl.iteri cs ~f:self#update;
+    if not sat then self#fixpoint cs
+
+  method private extract_aux id =
     let id = Uf.find t.uf id in
     let _, n = Hashtbl.find_exn costs id in
     let cs = Enode.children n in
-    E (Enode.op n, List.map cs ~f:extract) in
-  ignore @@ fixpoint @@ eclasses t;
-  extract
+    E (Enode.op n, List.map cs ~f:self#extract_aux)
+
+  method extract id =
+    if not sat then self#fixpoint @@ eclasses t;
+    self#extract_aux id
+
+  method reset =
+    Hashtbl.clear costs;
+    sat <- false
+end
 
 (* Map each e-class ID to a substitution environment. *)
 type matches = subst Id.Map.t
