@@ -216,7 +216,7 @@ let eclasses t : classes =
 
 type cost = (id -> int) -> enode -> int
 
-class extractor t ~cost = object(self)
+class extractor t ~(cost : cost) = object(self)
   val costs = Id.Table.create ()
   val mutable sat = false
 
@@ -228,28 +228,25 @@ class extractor t ~cost = object(self)
 
   method private node_cost n =
     if not @@ self#has_cost n then None
-    else Some (cost self#id_cost n)
+    else Some (cost self#id_cost n, n)
 
-  method private calculate ns =
-    Vec.fold ns ~init:Int.Map.empty ~f:(fun m n ->
-        self#node_cost n |> Option.value_map ~default:m
-          ~f:(Map.update m ~f:(Option.value ~default:n))) |>
-    Map.min_elt
-
-  method private update ~key:id ~data:ns =
-    let c = self#calculate ns in
-    match Hashtbl.find costs id, c with
-    | None, Some data ->
-      Hashtbl.set costs ~key:id ~data;
-      sat <- false
-    | Some (x, _), Some ((y, _) as data) when compare y x < 0 ->
-      Hashtbl.set costs ~key:id ~data;
-      sat <- false
-    | _ -> ()
+  method private best_term ns =
+    Vec.fold ns ~init:None ~f:(fun acc n ->
+        self#node_cost n |> Option.merge acc
+          ~f:(fun ((c1, _) as a) ((c2, _) as b) ->
+              if c2 < c1 then b else a))
 
   method private fixpoint (cs : classes) =
     sat <- true;
-    Hashtbl.iteri cs ~f:self#update;
+    Hashtbl.iteri cs ~f:(fun ~key:id ~data:ns ->
+        match Hashtbl.find costs id, self#best_term ns with
+        | None, Some term ->
+          Hashtbl.set costs ~key:id ~data:term;
+          sat <- false
+        | Some (x, _), Some ((y, _) as term) when y < x ->
+          Hashtbl.set costs ~key:id ~data:term;
+          sat <- false
+        | _ -> ());
     if not sat then self#fixpoint cs
 
   method private extract_aux id =
