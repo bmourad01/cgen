@@ -168,6 +168,7 @@ let sort_and_dedup t ~compare =
   Vec.filter_inplace t ~f:(fun x -> match !prev with
       | Some y when compare x y = 0 -> false
       | Some _ | None -> prev := Some x; true)
+[@@specialise]
 
 let rebuild_classes t = Hashtbl.iter t.classes ~f:(fun c ->
     Vec.map_inplace c.nodes ~f:(Fn.flip Enode.canonicalize t.uf);
