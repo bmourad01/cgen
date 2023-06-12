@@ -108,6 +108,8 @@ let data t id =
   Hashtbl.find t.classes id |>
   Option.bind ~f:(fun c -> c.data)
 
+let find t id = Uf.find t.uf id
+
 let merge_data c l r ~left ~right = match l, r with
   | Some l, Some r -> assert (equal_const l r); c.data <- Some l
   | Some l, None   -> c.data <- Some l; right ()
@@ -117,7 +119,7 @@ let merge_data c l r ~left ~right = match l, r with
 
 let rec add_enode t n =
   let n = Enode.canonicalize n t.uf in
-  Uf.find t.uf @@ match Hashtbl.find t.nodes n with
+  find t @@ match Hashtbl.find t.nodes n with
   | Some id -> id
   | None ->
     t.v <- t.v + 1;
@@ -136,8 +138,8 @@ and add t (E (o, args)) =
   add_enode t @@ N (o, List.map args ~f:(add t))
 
 and merge t a b =
-  let a = Uf.find t.uf a in
-  let b = Uf.find t.uf b in
+  let a = find t a in
+  let b = find t b in
   if Id.(a <> b) then begin
     t.v <- t.v + 1;
     let ca = eclass t a in
@@ -193,7 +195,7 @@ let rec update_nodes t = next t.pending @@ fun (n, cid) ->
   update_nodes t
 
 let rec update_analyses t = next t.analyses @@ fun (n, cid) ->
-  let cid = Uf.find t.uf cid in
+  let cid = find t cid in
   let d = Enode.eval n ~data:(data t) in
   let c = eclass t cid in
   assert Id.(c.id = cid);
@@ -218,7 +220,7 @@ type classes = enode Vec.t Id.Table.t
 let eclasses t : classes =
   let r = Id.Table.create () in
   Hashtbl.iteri t.nodes ~f:(fun ~key:n ~data:id ->
-      let id = Uf.find t.uf id in
+      let id = find t id in
       Vec.push (Hashtbl.find_or_add r id ~default:Vec.create) n);
   r
 
@@ -230,7 +232,7 @@ class extractor t ~(cost : cost) = object(self)
   val mutable version = t.v
 
   (* Provide a callback for finding the cost of a child node. *)
-  method private id_cost id = match Hashtbl.find costs @@ Uf.find t.uf id with
+  method private id_cost id = match Hashtbl.find costs @@ find t id with
     | None -> failwithf "Couldn't calculate cost for node id %a" Id.pps id ()
     | Some (c, _) -> c
 
@@ -266,7 +268,7 @@ class extractor t ~(cost : cost) = object(self)
 
   method private extract_aux id =
     let open O.Let in
-    let id = Uf.find t.uf id in
+    let id = find t id in
     let* _, n = Hashtbl.find costs id in
     let+ cs = Enode.children n |> O.List.map ~f:self#extract_aux in
     E (Enode.op n, cs)
@@ -312,7 +314,7 @@ let ematch t (cs : classes) p : matches =
   and first env q id =
     Option.(Hashtbl.find cs id >>= Vec.find_map ~f:(enode env q))
   and go ?(env = String.Map.empty) x =
-    let id = Uf.find t.uf x in function
+    let id = find t x in function
       | V x -> var env x id
       | Q _ as q -> first env q id in
   Hashtbl.fold cs ~init:Id.Map.empty ~f:(fun ~key:id ~data:_ m ->
