@@ -1,10 +1,12 @@
 (* Adapted from: https://github.com/verse-lab/ego *)
 
 open Core
+open Monads.Std
 open Virtual
 
 module Id = Id
 module Enode = Enode
+module O = Monad.Option
 
 type exp = E of Enode.op * exp list
 [@@deriving compare, equal, sexp]
@@ -256,10 +258,11 @@ class extractor t ~(cost : cost) = object(self)
     if not sat then self#saturate cs
 
   method private extract_aux id =
+    let open O.Let in
     let id = Uf.find t.uf id in
-    let _, n = Hashtbl.find_exn costs id in
-    let cs = Enode.children n in
-    E (Enode.op n, List.map cs ~f:self#extract_aux)
+    let* _, n = Hashtbl.find costs id in
+    let+ cs = Enode.children n |> O.List.map ~f:self#extract_aux in
+    E (Enode.op n, cs)
 
   (* Check if the e-graph updated. If so, we need to re-saturate
      the cost table. *)
@@ -273,6 +276,10 @@ class extractor t ~(cost : cost) = object(self)
     self#check;
     if not sat then self#saturate @@ eclasses t;
     self#extract_aux id
+
+  method extract_exn id = match self#extract id with
+    | None -> invalid_argf "Couldn't extract term for id %a" Id.pps id ()
+    | Some term -> term
 end
 
 (* Map each e-class ID to a substitution environment. *)

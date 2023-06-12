@@ -143,8 +143,17 @@ type cost = (id -> int) -> enode -> int
     heuristic function. *)
 class extractor : t -> cost:cost -> object
     (** Extract the term associated with an ID in the provided
-        e-graph. *)
-    method extract : id -> exp
+        e-graph.
+
+        Returns [None] if the ID does not exist.
+    *)
+    method extract : id -> exp option
+
+    (** Same as [extract id].
+
+        @raise Invalid_argument if the ID does not exist.
+    *)
+    method extract_exn : id -> exp
   end
 
 (** Applies a list of rewrite rules to the e-graph. *)
