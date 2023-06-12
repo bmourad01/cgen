@@ -143,17 +143,8 @@ type cost = (id -> int) -> enode -> int
     heuristic function. *)
 class extractor : t -> cost:cost -> object
     (** Extract the term associated with an ID in the provided
-        e-graph
-
-        Note that the costs for each term are applied up-front
-        and are not synchronized with subsequent updates to the
-        provided e-graph.
-    *)
+        e-graph. *)
     method extract : id -> exp
-
-    (** Reset the state of the extractor. Subsequent calls to
-        [extract] will reflect the updated state of the e-graph. *)
-    method reset : unit
   end
 
 (** Applies a list of rewrite rules to the e-graph. *)

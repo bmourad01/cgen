@@ -219,6 +219,7 @@ type cost = (id -> int) -> enode -> int
 class extractor t ~(cost : cost) = object(self)
   val costs = Id.Table.create ()
   val mutable sat = false
+  val mutable version = t.v
 
   (* Provide a callback for finding the cost of a child node. *)
   method private id_cost id =
@@ -260,13 +261,18 @@ class extractor t ~(cost : cost) = object(self)
     let cs = Enode.children n in
     E (Enode.op n, List.map cs ~f:self#extract_aux)
 
+  (* Check if the e-graph updated. If so, we need to re-saturate
+     the cost table. *)
+  method private check = if version <> t.v then begin
+      Hashtbl.clear costs;
+      version <- t.v;
+      sat <- false;
+    end
+
   method extract id =
+    self#check;
     if not sat then self#saturate @@ eclasses t;
     self#extract_aux id
-
-  method reset =
-    Hashtbl.clear costs;
-    sat <- false
 end
 
 (* Map each e-class ID to a substitution environment. *)
