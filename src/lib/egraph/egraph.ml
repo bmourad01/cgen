@@ -174,27 +174,33 @@ let rebuild_classes t = Hashtbl.iter t.classes ~f:(fun c ->
     Vec.map_inplace c.nodes ~f:(Fn.flip Enode.canonicalize t.uf);
     sort_and_dedup c.nodes ~compare:Enode.compare)
 
-let rec update_nodes t = match Vec.pop t.pending with
-  | None -> ()
-  | Some (n', cid) ->
-    let n = Enode.canonicalize n' t.uf in
-    if Enode.compare n n' <> 0 then Hashtbl.remove t.nodes n';
-    Hashtbl.find_and_call t.nodes n
-      ~if_not_found:(fun key -> Hashtbl.set t.nodes ~key ~data:cid)
-      ~if_found:(fun id -> merge t id cid);
-    update_nodes t
+let next v f = Option.iter ~f @@ Vec.pop v
+[@@specialise]
 
-let rec update_analyses t = match Vec.pop t.analyses with
-  | None -> ()
-  | Some (n, cid) ->
-    let cid = Uf.find t.uf cid in
-    let d = Enode.eval n ~data:(data t) in
-    let c = eclass t cid in
-    assert Id.(c.id = cid);
-    merge_data c c.data d ~right:Fn.id ~left:(fun () ->
-        Vec.append t.analyses c.parents;
-        modify_analysis t cid);
-    update_analyses t
+let equal_children n n' =
+  List.equal Id.equal (Enode.children n) (Enode.children n')
+
+let update_node t n =
+  let n' = Enode.canonicalize n t.uf in
+  if not @@ equal_children n n' then Hashtbl.remove t.nodes n;
+  n'
+
+let rec update_nodes t = next t.pending @@ fun (n, cid) ->
+  let n = update_node t n in
+  Hashtbl.find_and_call t.nodes n
+    ~if_not_found:(fun key -> Hashtbl.set t.nodes ~key ~data:cid)
+    ~if_found:(fun id -> merge t id cid);
+  update_nodes t
+
+let rec update_analyses t = next t.analyses @@ fun (n, cid) ->
+  let cid = Uf.find t.uf cid in
+  let d = Enode.eval n ~data:(data t) in
+  let c = eclass t cid in
+  assert Id.(c.id = cid);
+  merge_data c c.data d ~right:Fn.id ~left:(fun () ->
+      Vec.append t.analyses c.parents;
+      modify_analysis t cid);
+  update_analyses t
 
 let process_unions t =
   while not @@ Vec.is_empty t.pending do
