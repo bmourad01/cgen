@@ -222,7 +222,7 @@ let eclasses t : classes =
       Vec.push (Hashtbl.find_or_add r id ~default:Vec.create) n);
   r
 
-type cost = (id -> int) -> enode -> int
+type cost = child:(id -> int) -> enode -> int
 
 class extractor t ~(cost : cost) = object(self)
   val costs = Id.Table.create ()
@@ -230,8 +230,9 @@ class extractor t ~(cost : cost) = object(self)
   val mutable version = t.v
 
   (* Provide a callback for finding the cost of a child node. *)
-  method private id_cost id =
-    Uf.find t.uf id |> Hashtbl.find_exn costs |> fst
+  method private id_cost id = match Hashtbl.find costs @@ Uf.find t.uf id with
+    | None -> failwithf "Couldn't calculate cost for node id %a" Id.pps id ()
+    | Some (c, _) -> c
 
   (* Check if the children of a node have their costs accounted for. *)
   method private has_cost n =
@@ -240,7 +241,7 @@ class extractor t ~(cost : cost) = object(self)
   (* Try to apply the cost function for a node. *)
   method private node_cost n =
     if not @@ self#has_cost n then None
-    else Some (cost self#id_cost n, n)
+    else Some (cost ~child:self#id_cost n, n)
 
   (* For all the nodes in an e-class, find the optimal term. *)
   method private best_term ns =

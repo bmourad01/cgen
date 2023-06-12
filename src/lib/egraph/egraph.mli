@@ -136,8 +136,14 @@ val add : t -> exp -> id
 (** Returns the analysis data for a given ID. *)
 val data : t -> id -> const option
 
-(** A cost heuristic. *)
-type cost = (id -> int) -> enode -> int
+(** A cost heuristic.
+
+    [child] provides a callback for calculating the cost of the
+    children of the e-node.
+
+    @raise Failure if [child] is called for an ID that doesn't exist.
+*)
+type cost = child:(id -> int) -> enode -> int
 
 (** Extracts optimized terms from the e-graph based on the [cost]
     heuristic function. *)
