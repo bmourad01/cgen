@@ -176,14 +176,12 @@ let rebuild_classes t = Hashtbl.iter t.classes ~f:(fun c ->
 
 let rec update_nodes t = match Vec.pop t.pending with
   | None -> ()
-  | Some (n, cid) ->
-    let n' = Enode.canonicalize n t.uf in
-    if Enode.compare n n' <> 0 then
-      Hashtbl.remove t.nodes n;
+  | Some (n', cid) ->
+    let n = Enode.canonicalize n' t.uf in
+    if Enode.compare n n' <> 0 then Hashtbl.remove t.nodes n';
     Hashtbl.find_and_call t.nodes n
-      ~if_found:(fun id -> merge t id cid)
-      ~if_not_found:(fun key ->
-          Hashtbl.set t.nodes ~key ~data:cid);
+      ~if_not_found:(fun key -> Hashtbl.set t.nodes ~key ~data:cid)
+      ~if_found:(fun id -> merge t id cid);
     update_nodes t
 
 let rec update_analyses t = match Vec.pop t.analyses with
