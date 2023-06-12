@@ -108,11 +108,12 @@ let data t id =
   Hashtbl.find t.classes id |>
   Option.bind ~f:(fun c -> c.data)
 
-let merge_data l r ~left ~right = match l, r with
-  | Some l, Some r -> assert (equal_const l r); Some l
-  | Some l, None -> right (); Some l
-  | None, Some r -> left (); Some r
-  | _ -> None
+let merge_data c l r ~left ~right = match l, r with
+  | Some l, Some r -> assert (equal_const l r); c.data <- Some l
+  | Some l, None   -> c.data <- Some l; right ()
+  | None,   Some r -> c.data <- Some r; left ()
+  | None,   None   -> c.data <- None
+[@@specialise]
 
 let rec add_enode t n =
   let n = Enode.canonicalize n t.uf in
@@ -149,9 +150,9 @@ and merge t a b =
     let ca = eclass t a in
     assert Id.(a = ca.id);
     Vec.append t.pending cb.parents;
-    let q a () = Vec.append t.analyses a in
-    ca.data <- merge_data ca.data cb.data
-        ~left:(q ca.parents) ~right:(q cb.parents);
+    merge_data ca ca.data cb.data
+      ~left:(fun () -> Vec.append t.analyses ca.parents)
+      ~right:(fun () -> Vec.append t.analyses cb.parents);
     Vec.append ca.nodes cb.nodes;
     Vec.append ca.parents cb.parents;
     modify_analysis t a
@@ -191,7 +192,7 @@ let rec update_analyses t = match Vec.pop t.analyses with
     let d = Enode.eval n ~data:(data t) in
     let c = eclass t cid in
     assert Id.(c.id = cid);
-    c.data <- merge_data c.data d ~right:Fn.id ~left:(fun () ->
+    merge_data c c.data d ~right:Fn.id ~left:(fun () ->
         Vec.append t.analyses c.parents;
         modify_analysis t cid);
     update_analyses t
