@@ -162,12 +162,34 @@ class extractor : t -> cost:cost -> object
     method extract_exn : id -> exp
   end
 
-(** Applies a list of rewrite rules to the e-graph. *)
-val apply : t -> rule list -> unit
+(** Parameters for scheduling which rules should be applied at a given
+    time.
 
-(** [fixpoint t rules ?fuel] repeatedly calls [apply t rules] until
-    a fixed-point is reached, or [fuel] is exhausted.
+    This is useful for preventing blowup of infinitely-sized terms when
+    applying certain classes of rewrite rules.
+*)
+type scheduler
+
+module Scheduler : sig
+  type t = scheduler
+
+  (** Creates the parameters for the scheduler.
+
+      [match_limit] limits the number of matches that a rule can produce
+      before being "banned" for a fixed number of iterations.
+
+      [ban_length] is the number of iterations for which a rule is "banned"
+      from being applied.
+
+      @raise Invalid_argument if [match_limit < 1] or [ban_length < 1].
+  *)
+  val create_exn : ?match_limit:int -> ?ban_length:int -> unit -> t
+end
+
+(** [fixpoint t rules ?sched ?fuel] repeatedly applies [rules] to the
+    e-graph until a fixed-point is reached, [fuel < 0], or the [sched]
+    parameters indicate that the algorithm should terminate.
 
     Returns [true] if a fixed-point was reached.
 *)
-val fixpoint : ?fuel:int -> t -> rule list -> bool
+val fixpoint : ?sched:scheduler -> ?fuel:int -> t -> rule list -> bool

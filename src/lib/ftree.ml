@@ -931,6 +931,14 @@ let find t ~f = Generic.find ~monoid ~measure t ~f
 let findi t ~f = Generic.findi ~monoid ~measure t ~f
 let exists t ~f = Generic.exists ~monoid ~measure t ~f
 
+let min_elt t ~compare = fold t ~init:None ~f:(fun acc x -> match acc with
+    | Some y when compare y x <= 0 -> acc
+    | Some _ | None -> Some x)
+
+let max_elt t ~compare = fold t ~init:None ~f:(fun acc x -> match acc with
+    | Some y when compare y x >= 0 -> acc
+    | Some _ | None -> Some x)
+
 let split_at_exn t i =
   if i < 0 || i >= length t then
     invalid_argf "split_at_exn: index %d out of bounds" i ();

@@ -291,8 +291,7 @@ class extractor t ~(cost : cost) = object(self)
     | Some term -> term
 end
 
-(* Map each e-class ID to a substitution environment. *)
-type matches = subst Id.Map.t
+type matches = (id * subst) Vec.t
 
 (* Match a pre-condition with the available nodes in the graph. *)
 let ematch t (cs : classes) p : matches =
@@ -317,34 +316,117 @@ let ematch t (cs : classes) p : matches =
     let id = find t x in function
       | V x -> var env x id
       | Q _ as q -> first env q id in
-  Hashtbl.fold cs ~init:Id.Map.empty ~f:(fun ~key:id ~data:_ m ->
-      go id p |> Option.value_map ~default:m ~f:(fun env ->
-          Map.set m ~key:id ~data:env))
+  let r = Vec.create () in
+  Hashtbl.iter_keys cs ~f:(fun id -> match go id p with
+      | Some env -> Vec.push r (id, env)
+      | None -> ());
+  r
 
 (* Apply the substitution environment to a post-condition. *)
 let rec subst t (env : subst) = function
   | V x -> Map.find_exn env x
   | Q (o, q) -> add_enode t @@ N (o, List.map q ~f:(subst t env))
 
-let apply t rules =
+module Scheduler = struct
+  type t = {
+    match_limit : int;
+    ban_length  : int;
+  }
+
+  let create_exn ?(match_limit = 1000) ?(ban_length = 5) () =
+    if match_limit < 1 then invalid_arg "match_limit must be greater than zero";
+    if ban_length < 1 then invalid_arg "ban_length must be greater than zero";
+    {match_limit; ban_length}
+
+  type data = {
+    mutable banned_until : int;
+    mutable times_banned : int;
+  }
+
+  let create_data () = {
+    banned_until = 0;
+    times_banned = 0;
+  }
+
+  let threshold t d = t.match_limit lsl d.times_banned
+
+  let ban t d =
+    (* XXX: a shift could set the MSB, which would give us a negative
+       value, or it could overflow to zero. *)
+    let b = t.ban_length lsl d.times_banned in
+    d.banned_until <- if b <= 0 then Int.max_value else b;
+    d.times_banned <- d.times_banned + 1
+
+  (* This should be called when no changes are made after a single
+     iteration, at which point we check if there are rules that we
+     banned from being applied. If so, we should relax their ban
+     lengths and try applying them again to see if we will get any
+     changes. *)
+  let should_stop t rules i =
+    let banned = Ftree.filter rules ~f:(fun (_, d) ->
+        (* Reject rules that have been banned too many times. *)
+        d.times_banned < Sys.int_size_in_bits &&
+        (* Also reject rules that will never match. *)
+        threshold t d > 0 &&
+        d.banned_until > i) in
+    Ftree.min_elt banned ~compare:(fun (_, a) (_, b) ->
+        compare a.banned_until b.banned_until) |>
+    Option.value_map ~default:true ~f:(fun (_, d) ->
+        let n = d.banned_until - i in
+        Ftree.iter banned ~f:(fun (_, d) ->
+            d.banned_until <- d.banned_until - n);
+        false)
+
+  let check t d i =
+    if d.times_banned < Sys.int_size_in_bits
+    && i >= d.banned_until then
+      (* XXX: can we assume that the result is zero if the shift
+         overflows? *)
+      let threshold = threshold t d in
+      Option.some_if (threshold > 0) threshold
+    else None
+
+  let guard t d i ~(f : unit -> matches) : matches option =
+    check t d i |> Option.bind ~f:(fun threshold ->
+        let matches = f () in
+        if Vec.length matches > threshold
+        then (ban t d; None) else Some matches)
+end
+
+type scheduler = Scheduler.t
+
+let apply t s i rules =
   let cs = eclasses t in
-  List.iter rules ~f:(fun {pre; post} ->
-      ematch t cs pre |> Map.iteri ~f:(fun ~key:id ~data:env ->
+  Ftree.iter rules ~f:(fun (r, d) ->
+      Scheduler.guard s d i ~f:(fun () -> ematch t cs r.pre) |>
+      Option.iter ~f:(Vec.iter ~f:(fun (id, env) ->
           let rewrite q = merge t id @@ subst t env q in
-          match post with
+          match r.post with
           | Const q -> rewrite q
           | Cond (q, cond) -> if cond t id env then rewrite q
-          | Dyn gen -> gen t id env |> Option.iter ~f:rewrite));
+          | Dyn gen -> gen t id env |> Option.iter ~f:rewrite)));
   rebuild t
 
-let fixpoint ?fuel t rules = match fuel with
+let fixpoint ?sched ?fuel t rules =
+  let sched = match sched with
+    | None -> Scheduler.create_exn ()
+    | Some sched -> sched in
+  let rules = List.fold rules ~init:Ftree.empty ~f:(fun t r ->
+      Ftree.snoc t (r, Scheduler.create_data ())) in
+  match fuel with
   | None ->
-    let rec loop prev =
-      apply t rules;
-      t.v = prev || loop t.v in
-    loop t.v
+    let rec loop i prev =
+      apply t sched i rules;
+      if t.v = prev then
+        Scheduler.should_stop sched rules i ||
+        loop (i + 1) t.v
+      else loop (i + 1) t.v in
+    loop 0 t.v
   | Some fuel ->
-    let rec loop f prev =
-      apply t rules;
-      t.v = prev || (f > 0 && loop (f - 1) t.v) in
-    loop fuel t.v
+    let rec loop i prev =
+      apply t sched i rules;
+      if t.v = prev then
+        Scheduler.should_stop sched rules i ||
+        loop (i + 1) t.v
+      else fuel > i && loop (i + 1) t.v in
+    loop 0 t.v
