@@ -244,25 +244,25 @@ module Extractor = struct
     v = eg.v;
     sat = false;
   }
-  
- let id_cost t id = match Hashtbl.find t.table @@ find t.eg id with
+
+  let id_cost t id = match Hashtbl.find t.table @@ find t.eg id with
     | None -> failwithf "Couldn't calculate cost for node id %a" Id.pps id ()
     | Some (c, _) -> c
 
- let has_cost t n =
+  let has_cost t n =
     Enode.children n |> List.for_all ~f:(Hashtbl.mem t.table)
 
- let node_cost t n =
-     if not @@ has_cost t n then None
+  let node_cost t n =
+    if not @@ has_cost t n then None
     else Some (t.cost ~child:(id_cost t) n, n)
 
- let best_term t ns = 
-   Vec.fold ns ~init:None ~f:(fun acc n ->
-       node_cost t n |> Option.merge acc
-         ~f:(fun ((c1, _) as a) ((c2, _) as b) ->
-             if c2 < c1 then b else a))
+  let best_term t ns =
+    Vec.fold ns ~init:None ~f:(fun acc n ->
+        node_cost t n |> Option.merge acc
+          ~f:(fun ((c1, _) as a) ((c2, _) as b) ->
+              if c2 < c1 then b else a))
 
- let rec saturate t (cs : classes) =
+  let rec saturate t (cs : classes) =
     t.sat <- true;
     Hashtbl.iteri cs ~f:(fun ~key:id ~data:ns ->
         match Hashtbl.find t.table id, best_term t ns with
@@ -275,20 +275,20 @@ module Extractor = struct
         | _ -> ());
     if not t.sat then saturate t cs
 
- let rec extract_aux t id =
-   let open O.Let in
-   let id = find t.eg id in
-   let* _, n = Hashtbl.find t.table id in
-   let+ cs = Enode.children n |> O.List.map ~f:(extract_aux t) in
-   E (Enode.op n, cs)
+  let rec extract_aux t id =
+    let open O.Let in
+    let id = find t.eg id in
+    let* _, n = Hashtbl.find t.table id in
+    let+ cs = Enode.children n |> O.List.map ~f:(extract_aux t) in
+    E (Enode.op n, cs)
 
- let check t = if t.v <> t.eg.v then begin
+  let check t = if t.v <> t.eg.v then begin
       Hashtbl.clear t.table;
       t.v <- t.eg.v;
       t.sat <- false;
     end
 
- let extract t id =
+  let extract t id =
     check t;
     if not t.sat then saturate t @@ eclasses t.eg;
     extract_aux t id
