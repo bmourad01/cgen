@@ -90,6 +90,8 @@ end
 (** An e-graph. *)
 type t
 
+type egraph = t
+
 (** Constructs an e-graph. *)
 val create : unit -> t
 
@@ -145,22 +147,29 @@ val data : t -> id -> const option
 *)
 type cost = child:(id -> int) -> enode -> int
 
+type extractor
+
 (** Extracts optimized terms from the e-graph based on the [cost]
     heuristic function. *)
-class extractor : t -> cost:cost -> object
-    (** Extract the term associated with an ID in the provided
-        e-graph.
+module Extractor : sig
+  type t = extractor
 
-        Returns [None] if the ID does not exist.
-    *)
-    method extract : id -> exp option
+  (** Initialize the extractor. *)
+  val init : egraph -> cost:cost -> t
 
-    (** Same as [extract id].
+  (** Extract the term associated with an ID in the provided
+      e-graph.
 
-        @raise Invalid_argument if the ID does not exist.
-    *)
-    method extract_exn : id -> exp
-  end
+      Returns [None] if the ID does not exist.
+  *)
+  val extract : t -> id -> exp option
+
+  (** Same as [extract t id].
+
+      @raise Invalid_argument if the ID does not exist.
+  *)
+  val extract_exn : t -> id -> exp
+end
 
 (** Parameters for scheduling which rules should be applied at a given
     time.

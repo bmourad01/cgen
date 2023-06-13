@@ -57,6 +57,8 @@ type t = {
   mutable v : int;
 }
 
+type egraph = t
+
 let create () = {
   uf = Uf.create ();
   nodes = Hashtbl.create (module Enode);
@@ -226,71 +228,77 @@ let eclasses t : classes =
 
 type cost = child:(id -> int) -> enode -> int
 
-class extractor t ~(cost : cost) = object(self)
-  val costs = Id.Table.create ()
-  val mutable sat = false
-  val mutable version = t.v
+module Extractor = struct
+  type t = {
+    eg          : egraph;
+    cost        : cost;
+    table       : (int * enode) Id.Table.t;
+    mutable v   : int;
+    mutable sat : bool;
+  }
 
-  (* Provide a callback for finding the cost of a child node. *)
-  method private id_cost id = match Hashtbl.find costs @@ find t id with
+  let init eg ~cost = {
+    eg;
+    cost;
+    table = Id.Table.create ();
+    v = eg.v;
+    sat = false;
+  }
+  
+ let id_cost t id = match Hashtbl.find t.table @@ find t.eg id with
     | None -> failwithf "Couldn't calculate cost for node id %a" Id.pps id ()
     | Some (c, _) -> c
 
-  (* Check if the children of a node have their costs accounted for. *)
-  method private has_cost n =
-    Enode.children n |> List.for_all ~f:(Hashtbl.mem costs)
+ let has_cost t n =
+    Enode.children n |> List.for_all ~f:(Hashtbl.mem t.table)
 
-  (* Try to apply the cost function for a node. *)
-  method private node_cost n =
-    if not @@ self#has_cost n then None
-    else Some (cost ~child:self#id_cost n, n)
+ let node_cost t n =
+     if not @@ has_cost t n then None
+    else Some (t.cost ~child:(id_cost t) n, n)
 
-  (* For all the nodes in an e-class, find the optimal term. *)
-  method private best_term ns =
-    Vec.fold ns ~init:None ~f:(fun acc n ->
-        self#node_cost n |> Option.merge acc
-          ~f:(fun ((c1, _) as a) ((c2, _) as b) ->
-              if c2 < c1 then b else a))
+ let best_term t ns = 
+   Vec.fold ns ~init:None ~f:(fun acc n ->
+       node_cost t n |> Option.merge acc
+         ~f:(fun ((c1, _) as a) ((c2, _) as b) ->
+             if c2 < c1 then b else a))
 
-  (* Saturate the cost table for each e-class. *)
-  method private saturate (cs : classes) =
-    sat <- true;
+ let rec saturate t (cs : classes) =
+    t.sat <- true;
     Hashtbl.iteri cs ~f:(fun ~key:id ~data:ns ->
-        match Hashtbl.find costs id, self#best_term ns with
+        match Hashtbl.find t.table id, best_term t ns with
         | None, Some term ->
-          Hashtbl.set costs ~key:id ~data:term;
-          sat <- false
+          Hashtbl.set t.table ~key:id ~data:term;
+          t.sat <- false
         | Some (x, _), Some ((y, _) as term) when y < x ->
-          Hashtbl.set costs ~key:id ~data:term;
-          sat <- false
+          Hashtbl.set t.table ~key:id ~data:term;
+          t.sat <- false
         | _ -> ());
-    if not sat then self#saturate cs
+    if not t.sat then saturate t cs
 
-  method private extract_aux id =
-    let open O.Let in
-    let id = find t id in
-    let* _, n = Hashtbl.find costs id in
-    let+ cs = Enode.children n |> O.List.map ~f:self#extract_aux in
-    E (Enode.op n, cs)
+ let rec extract_aux t id =
+   let open O.Let in
+   let id = find t.eg id in
+   let* _, n = Hashtbl.find t.table id in
+   let+ cs = Enode.children n |> O.List.map ~f:(extract_aux t) in
+   E (Enode.op n, cs)
 
-  (* Check if the e-graph updated. If so, we need to re-saturate
-     the cost table. *)
-  method private check = if version <> t.v then begin
-      Hashtbl.clear costs;
-      version <- t.v;
-      sat <- false;
+ let check t = if t.v <> t.eg.v then begin
+      Hashtbl.clear t.table;
+      t.v <- t.eg.v;
+      t.sat <- false;
     end
 
-  method extract id =
-    self#check;
-    if not sat then self#saturate @@ eclasses t;
-    self#extract_aux id
+ let extract t id =
+    check t;
+    if not t.sat then saturate t @@ eclasses t.eg;
+    extract_aux t id
 
-  method extract_exn id = match self#extract id with
+  let extract_exn t id = match extract t id with
     | None -> invalid_argf "Couldn't extract term for id %a" Id.pps id ()
     | Some term -> term
 end
 
+type extractor = Extractor.t
 type matches = (id * subst) Vec.t
 
 (* Match a pre-condition with the available nodes in the graph. *)
