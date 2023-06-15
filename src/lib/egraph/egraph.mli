@@ -139,6 +139,16 @@ val add : t -> exp -> id
 (** Returns the analysis data for a given ID. *)
 val data : t -> id -> const option
 
+(** [find_exn eg id] returns the representative element for [id] in [eg],
+    if it exists.
+
+    @raise Invalid_argument if [id] is not present in [eg].
+*)
+val find_exn : t -> id -> id
+
+(** Same as [find_exn eg id], but returns [None] if [id] is not present. *)
+val find : t -> id -> id option
+
 (** A cost heuristic.
 
     [child] provides a callback for calculating the cost of the

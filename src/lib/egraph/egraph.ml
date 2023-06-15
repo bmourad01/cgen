@@ -110,7 +110,15 @@ let data t id =
   Hashtbl.find t.classes id |>
   Option.bind ~f:(fun c -> c.data)
 
-let find t id = Uf.find t.uf id
+let find' t id = Uf.find t.uf id
+
+let find_exn t (id : id) =
+  let i = (id :> int) in
+  if i < 0 || i >= Vec.length t.uf
+  then invalid_argf "Invalid id %d" i ()
+  else find' t id
+
+let find t id = Option.try_with @@ fun () -> find_exn t id
 
 let merge_data c l r ~left ~right = match l, r with
   | Some l, Some r -> assert (equal_const l r); c.data <- Some l
@@ -121,7 +129,7 @@ let merge_data c l r ~left ~right = match l, r with
 
 let rec add_enode t n =
   let n = Enode.canonicalize n t.uf in
-  find t @@ match Hashtbl.find t.nodes n with
+  find' t @@ match Hashtbl.find t.nodes n with
   | Some id -> id
   | None ->
     t.v <- t.v + 1;
@@ -140,8 +148,8 @@ and add t (E (o, args)) =
   add_enode t @@ N (o, List.map args ~f:(add t))
 
 and merge t a b =
-  let a = find t a in
-  let b = find t b in
+  let a = find' t a in
+  let b = find' t b in
   if Id.(a <> b) then begin
     t.v <- t.v + 1;
     let ca = eclass t a in
@@ -197,7 +205,7 @@ let rec update_nodes t = next t.pending @@ fun (n, cid) ->
   update_nodes t
 
 let rec update_analyses t = next t.analyses @@ fun (n, cid) ->
-  let cid = find t cid in
+  let cid = find' t cid in
   let d = Enode.eval n ~data:(data t) in
   let c = eclass t cid in
   assert Id.(c.id = cid);
@@ -222,7 +230,7 @@ type classes = enode Vec.t Id.Table.t
 let eclasses t : classes =
   let r = Id.Table.create () in
   Hashtbl.iteri t.nodes ~f:(fun ~key:n ~data:id ->
-      let id = find t id in
+      let id = find' t id in
       Vec.push (Hashtbl.find_or_add r id ~default:Vec.create) n);
   r
 
@@ -245,7 +253,7 @@ module Extractor = struct
     sat = false;
   }
 
-  let id_cost t id = match Hashtbl.find t.table @@ find t.eg id with
+  let id_cost t id = match Hashtbl.find t.table @@ find' t.eg id with
     | None -> failwithf "Couldn't calculate cost for node id %a" Id.pps id ()
     | Some (c, _) -> c
 
@@ -277,7 +285,7 @@ module Extractor = struct
 
   let rec extract_aux t id =
     let open O.Let in
-    let id = find t.eg id in
+    let id = find' t.eg id in
     let* _, n = Hashtbl.find t.table id in
     let+ cs = Enode.children n |> O.List.map ~f:(extract_aux t) in
     E (Enode.op n, cs)
@@ -321,7 +329,7 @@ let ematch t (cs : classes) p : matches =
   and first env q id =
     Option.(Hashtbl.find cs id >>= Vec.find_map ~f:(enode env q))
   and go ?(env = String.Map.empty) x =
-    let id = find t x in function
+    let id = find' t x in function
       | V x -> var env x id
       | Q _ as q -> first env q id in
   let r = Vec.create () in
