@@ -25,6 +25,7 @@ module Enode : sig
     | Ocall0
     | Ocall   of Type.basic
     | Odouble of float
+    | Odst    of dst
     | Oglobal of global
     | Ojmp
     | Oint    of Bv.t * Type.imm

@@ -9,6 +9,7 @@ type op =
   | Ocall0
   | Ocall   of Type.basic
   | Odouble of float
+  | Odst    of dst
   | Oglobal of global
   | Ojmp
   | Oint    of Bv.t * Type.imm
@@ -311,6 +312,8 @@ module Eval = struct
     | Ocall _, _ -> None
     | Odouble d, [] -> Some (`double d)
     | Odouble _, _ -> None
+    | Odst (Dglobal (Gop op)), args -> go op args
+    | Odst _, _ -> None
     | Oglobal (Gop op), args -> go op args
     | Oglobal _, _ -> None
     | Ojmp, _ -> None
@@ -354,6 +357,8 @@ let rec pp_op ppf = function
     Format.fprintf ppf "call.%a" Type.pp_basic t
   | Odouble d ->
     Format.fprintf ppf "%a_d" Float.pp d
+  | Odst d ->
+    Format.fprintf ppf "%a" pp_dst d
   | Oglobal g ->
     Format.fprintf ppf "%a" pp_global g
   | Ojmp ->
@@ -393,7 +398,7 @@ and pp_global ppf = function
   | Gsym s ->
     Format.fprintf ppf "$%s" s
 
-let pp_dst ppf = function
+and pp_dst ppf = function
   | Dglobal g ->
     Format.fprintf ppf "%a" pp_global g
   | Dlocal l ->
