@@ -355,14 +355,20 @@ module Scheduler = struct
     {match_limit; ban_length}
 
   type data = {
+    rule                 : rule;
     mutable banned_until : int;
     mutable times_banned : int;
   }
 
-  let create_data () = {
+  let create_data rule = {
+    rule;
     banned_until = 0;
     times_banned = 0;
   }
+
+  let from_rules rules =
+    Array.of_list_map rules ~f:create_data |>
+    Array.to_sequence_mutable
 
   let threshold t d = t.match_limit lsl d.times_banned
 
@@ -379,17 +385,17 @@ module Scheduler = struct
      lengths and try applying them again to see if we will get any
      changes. *)
   let should_stop t rules i =
-    let banned = Seq.filter rules ~f:(fun (_, d) ->
+    let banned = Seq.filter rules ~f:(fun d ->
         (* Reject rules that have been banned too many times. *)
         d.times_banned < Sys.int_size_in_bits &&
         (* Also reject rules that will never match. *)
         threshold t d > 0 &&
         d.banned_until > i) in
-    Seq.min_elt banned ~compare:(fun (_, a) (_, b) ->
+    Seq.min_elt banned ~compare:(fun a b ->
         compare a.banned_until b.banned_until) |>
-    Option.value_map ~default:true ~f:(fun (_, d) ->
+    Option.value_map ~default:true ~f:(fun d ->
         let n = d.banned_until - i in
-        Seq.iter banned ~f:(fun (_, d) ->
+        Seq.iter banned ~f:(fun d ->
             d.banned_until <- d.banned_until - n);
         false)
 
@@ -415,16 +421,16 @@ let fixpoint ?sched ?(fuel = Int.max_value) t rules =
   let sched = match sched with
     | None -> Scheduler.create_exn ()
     | Some sched -> sched in
-  let rules = Seq.of_list @@ List.map rules ~f:(fun r ->
-      r, Scheduler.create_data ()) in
+  let rules = Scheduler.from_rules rules in
   Seq.range 0 (max 1 fuel) |>
   Seq.fold_until ~init:t.ver ~finish:(const false) ~f:(fun prev i ->
       let cs = eclasses t in
-      Seq.iter rules ~f:(fun (r, d) ->
-          Scheduler.guard sched d i ~f:(fun () -> ematch t cs r.pre) |>
+      Seq.iter rules ~f:(fun d ->
+          Scheduler.guard sched d i ~f:(fun () ->
+              ematch t cs d.rule.pre) |>
           Option.iter ~f:(Vec.iter ~f:(fun (id, env) ->
               let rewrite q = merge t id @@ subst t env q in
-              match r.post with
+              match d.rule.post with
               | Const q -> rewrite q
               | Cond (q, cond) -> if cond t id env then rewrite q
               | Dyn gen -> gen t id env |> Option.iter ~f:rewrite)));
