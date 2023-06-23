@@ -35,10 +35,12 @@ type id = Id.t
 type enode = Enode.t
 [@@deriving compare, equal, hash, sexp]
 
+type nodes = (enode * id) Vec.t
+
 type eclass = {
-  id           : Id.t;
-  nodes        : Enode.t Vec.t;
-  parents      : (Enode.t * Id.t) Vec.t;
+  id           : id;
+  nodes        : enode Vec.t;
+  parents      : nodes;
   mutable data : const option;
 }
 
@@ -49,12 +51,14 @@ let create_eclass id = {
   data = None;
 }
 
+let rank c = Vec.length c.parents
+
 type t = {
   uf          : Uf.t;
   nodes       : (enode, id) Hashtbl.t;
   classes     : eclass Id.Table.t;
-  pending     : (enode * id) Vec.t;
-  analyses    : (enode * id) Vec.t;
+  pending     : nodes;
+  analyses    : nodes;
   mutable ver : int;
 }
 
@@ -104,9 +108,6 @@ end
 let eclass t id = Hashtbl.find_or_add t.classes id
     ~default:(fun () -> create_eclass id)
 
-let remove_eclass t id =
-  Option.value_exn @@ Hashtbl.find_and_remove t.classes id
-
 let data t id =
   Hashtbl.find t.classes id |>
   Option.bind ~f:(fun c -> c.data)
@@ -142,7 +143,7 @@ let rec add_enode t n =
         Vec.push (eclass t ch).parents x);
     Vec.push t.pending x;
     Hashtbl.set t.nodes ~key:n ~data:id;
-    modify_analysis t id;
+    merge_analysis t id;
     id
 
 and add t (E (o, args)) =
@@ -151,29 +152,25 @@ and add t (E (o, args)) =
 and merge t a b =
   let a = find' t a in
   let b = find' t b in
-  if Id.(a <> b) then begin
-    t.ver <- t.ver + 1;
+  if Id.(a <> b) then
     let ca = eclass t a in
     let cb = eclass t b in
-    let a, b =
-      if Vec.length ca.parents < Vec.length cb.parents
-      then b, a else a, b in
+    let a, b, ca, cb = if rank ca < rank cb
+      then b, a, cb, ca else a, b, ca, cb in
     assert Id.(a = Uf.union t.uf a b);
-    let cb = remove_eclass t b in
-    let ca = eclass t a in
     assert Id.(a = ca.id);
+    t.ver <- t.ver + 1;
+    Hashtbl.remove t.classes b;
     Vec.append t.pending cb.parents;
+    Vec.append ca.nodes cb.nodes;
+    Vec.append ca.parents cb.parents;
     merge_data ca ca.data cb.data
       ~left:(fun () -> Vec.append t.analyses ca.parents)
       ~right:(fun () -> Vec.append t.analyses cb.parents);
-    Vec.append ca.nodes cb.nodes;
-    Vec.append ca.parents cb.parents;
-    modify_analysis t a
-  end
+    merge_analysis t a
 
-and modify_analysis t id =
-  data t id |> Option.map ~f:Enode.of_const |>
-  Option.iter ~f:(fun n -> merge t (add_enode t n) id)
+and merge_analysis t id = data t id |> Option.iter ~f:(fun d ->
+    merge t (add_enode t @@ Enode.of_const d) id)
 
 let sort_and_dedup t ~compare = 
   Vec.sort t ~compare;
@@ -212,7 +209,7 @@ let rec update_analyses t = next t.analyses @@ fun (n, cid) ->
   assert Id.(c.id = cid);
   merge_data c c.data d ~right:Fn.id ~left:(fun () ->
       Vec.append t.analyses c.parents;
-      modify_analysis t cid);
+      merge_analysis t cid);
   update_analyses t
 
 let process_unions t =
@@ -314,35 +311,6 @@ end
 type extractor = Extractor.t
 type matches = (id * subst) Vec.t
 
-(* Match a pre-condition with the available nodes in the graph. *)
-let ematch t (cs : classes) p : matches =
-  let rec enode env p (n : enode) = match p, n with
-    | Q (x,  _), N (y,  _) when not @@ Enode.equal_op x y -> None
-    | Q (_, xs), N (_, ys) -> args env xs ys
-    | _ -> None
-  and args init qs xs = match List.zip qs xs with
-    | Ok l -> O.List.fold l ~init ~f:(fun env (q, x) -> go x q ~env)
-    | Unequal_lengths -> None
-  and var env x id = match Map.find env x with
-    | None -> Some (Map.set env ~key:x ~data:id)
-    | Some id' -> Option.some_if Id.(id = id') env
-  and first env q id =
-    O.(Hashtbl.find cs id >>= Vec.find_map ~f:(enode env q))
-  and go ?(env = String.Map.empty) x =
-    let id = find' t x in function
-      | V x -> var env x id
-      | Q _ as q -> first env q id in
-  let r = Vec.create () in
-  Hashtbl.iter_keys cs ~f:(fun id ->
-      go id p |> Option.iter ~f:(fun env ->
-          Vec.push r (id, env)));
-  r
-
-(* Apply the substitution environment to a post-condition. *)
-let rec subst t (env : subst) = function
-  | V x -> Map.find_exn env x
-  | Q (o, q) -> add_enode t @@ N (o, List.map q ~f:(subst t env))
-
 module Scheduler = struct
   type t = {
     match_limit : int;
@@ -417,6 +385,48 @@ end
 
 type scheduler = Scheduler.t
 
+(* Match a pre-condition with the available nodes in the graph. *)
+let ematch t (cs : classes) p : matches =
+  let rec enode env p (n : enode) = match p, n with
+    | Q (x,  _), N (y,  _) when not @@ Enode.equal_op x y -> None
+    | Q (_, xs), N (_, ys) -> args env xs ys
+    | _ -> None
+  and args init qs xs = match List.zip qs xs with
+    | Ok l -> O.List.fold l ~init ~f:(fun env (q, x) -> go x q ~env)
+    | Unequal_lengths -> None
+  and var env x id = match Map.find env x with
+    | None -> Some (Map.set env ~key:x ~data:id)
+    | Some id' -> Option.some_if Id.(id = id') env
+  and first env q id =
+    O.(Hashtbl.find cs id >>= Vec.find_map ~f:(enode env q))
+  and go ?(env = String.Map.empty) x =
+    let id = find' t x in function
+      | V x -> var env x id
+      | Q _ as q -> first env q id in
+  let r = Vec.create () in
+  Hashtbl.iter_keys cs ~f:(fun id ->
+      go id p |> Option.iter ~f:(fun env ->
+          Vec.push r (id, env)));
+  r
+
+(* Apply the substitution environment to a post-condition. *)
+let rec subst t (env : subst) = function
+  | V x -> Map.find_exn env x
+  | Q (o, q) -> add_enode t @@ N (o, List.map q ~f:(subst t env))
+
+let apply_const q t id env = merge t id @@ subst t env q
+
+let apply_cond q k t id env =
+  if k t id env then apply_const q t id env
+
+let apply_dyn q t id env =
+  q t id env |> Option.iter ~f:(fun q -> apply_const q t id env)
+
+let apply = function
+  | Const q -> apply_const q
+  | Cond (q, k) -> apply_cond q k
+  | Dyn q -> apply_dyn q
+
 let fixpoint ?sched ?(fuel = Int.max_value) t rules =
   let sched = match sched with
     | None -> Scheduler.create_exn ()
@@ -425,15 +435,12 @@ let fixpoint ?sched ?(fuel = Int.max_value) t rules =
   Seq.range 0 (max 1 fuel) |>
   Seq.fold_until ~init:t.ver ~finish:(const false) ~f:(fun prev i ->
       let cs = eclasses t in
-      Seq.iter rules ~f:(fun d ->
+      Seq.filter_map rules ~f:(fun d ->
           Scheduler.guard sched d i ~f:(fun () ->
               ematch t cs d.rule.pre) |>
-          Option.iter ~f:(Vec.iter ~f:(fun (id, env) ->
-              let rewrite q = merge t id @@ subst t env q in
-              match d.rule.post with
-              | Const q -> rewrite q
-              | Cond (q, cond) -> if cond t id env then rewrite q
-              | Dyn gen -> gen t id env |> Option.iter ~f:rewrite)));
+          Option.map ~f:(fun m -> apply d.rule.post, m)) |>
+      Seq.iter ~f:(fun (apply, m) ->
+          Vec.iter m ~f:(fun (id, env) -> apply t id env));
       rebuild t;
       if t.ver = prev && Scheduler.should_stop sched rules i
       then Stop true else Continue t.ver)
