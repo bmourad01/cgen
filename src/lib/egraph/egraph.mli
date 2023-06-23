@@ -1,8 +1,8 @@
 (** An e-graph data structure. *)
 
 open Core
-open Virtual
 open Regular.Std
+open Virtual
 
 module Id : sig
   type t = private int
@@ -13,43 +13,39 @@ end
 (** A unique identifier. *)
 type id = Id.t [@@deriving compare, equal, hash, sexp]
 
-(** An e-node. *)
+(** An e-node.
+
+    This is a specialized form for each operation in a [Virtual] program,
+    where any possible operation is associated with zero or more children.
+*)
 type enode [@@deriving compare, equal, hash, sexp]
 
 module Enode : sig
+  (** A special form for each instruction type in a [Virtual] program. *)
   type op =
-    | Oalloc  of int
-    | Obinop  of Insn.binop
-    | Obool   of bool
+    | Oaddr     of Bv.t
+    | Oalloc    of int
+    | Obinop    of Insn.binop
+    | Obool     of bool
     | Obr
     | Ocall0
-    | Ocall   of Type.basic
-    | Odouble of float
-    | Odst    of dst
-    | Oglobal of global
+    | Ocall     of Type.basic
+    | Ocallargs
+    | Odouble   of float
     | Ojmp
-    | Oint    of Bv.t * Type.imm
-    | Oload   of Type.basic
-    | Olocal  of Label.t
+    | Oint      of Bv.t * Type.imm
+    | Oload     of Type.basic
+    | Olocal    of Label.t
     | Oret
-    | Osel    of Type.basic
-    | Osingle of Float32.t
-    | Ostore  of Type.basic
-    | Osw     of Type.imm
-    | Osym    of string * int
-    | Ounop   of Insn.unop
-    | Ovar    of Var.t
-  [@@deriving compare, equal, hash, sexp]
-
-  and global =
-    | Gaddr   of Bv.t
-    | Gop     of op
-    | Gsym    of string
-  [@@deriving compare, equal, hash, sexp]
-
-  and dst =
-    | Dglobal of global
-    | Dlocal  of Label.t
+    | Osel      of Type.basic
+    | Oset      of Var.t
+    | Osingle   of Float32.t
+    | Ostore    of Type.basic
+    | Osw       of Type.imm
+    | Osym      of string * int
+    | Otbl      of Bv.t
+    | Ounop     of Insn.unop
+    | Ovar      of Var.t
   [@@deriving compare, equal, hash, sexp]
 
   type t = enode [@@deriving compare, equal, hash, sexp]
@@ -58,43 +54,77 @@ module Enode : sig
   val op : t -> op
 
   (** The children of the e-node. *)
-  val children : t -> Id.t list
+  val children : t -> id list
 
   val pp_op : Format.formatter -> op -> unit
-  val pp_global : Format.formatter -> global -> unit
-  val pp_dst : Format.formatter -> dst -> unit
 end
 
-(** An expression *)
-type exp [@@deriving compare, equal, sexp]
-
-val pp_exp : Format.formatter -> exp -> unit
-
+(** Expression trees with provenance tracking. *)
 module Exp : sig
-  type t = exp [@@deriving compare, equal, sexp]
+  (** A "pure" expression. *)
+  type 'a pure =
+    | Palloc  of 'a * int
+    | Pbinop  of 'a * Insn.binop * 'a pure * 'a pure
+    | Pbool   of bool
+    | Pcall   of 'a * Type.basic * 'a global * 'a pure list * 'a pure list
+    | Pdouble of float
+    | Pint    of Bv.t * Type.imm
+    | Pload   of 'a * Type.basic * 'a pure
+    | Psel    of 'a * Type.basic * 'a pure * 'a pure * 'a pure
+    | Psingle of Float32.t
+    | Psym    of string * int
+    | Punop   of 'a * Insn.unop * 'a pure
+    | Pvar    of Var.t
+  [@@deriving bin_io, compare, equal, sexp]
 
-  val pp : Format.formatter -> t -> unit
+  (** A global control-flow destination. *)
+  and 'a global =
+    | Gaddr of Bv.t
+    | Gpure of 'a pure
+    | Gsym  of string
+  [@@deriving bin_io, compare, equal, sexp]
 
-  (** The operator of the expression. *)
-  val op : t -> Enode.op
+  (** A local control-flow destination. *)
+  and 'a local = Label.t * 'a pure list
+  [@@deriving bin_io, compare, equal, sexp]
 
-  (** The arguments of the expression. *)
-  val args : t -> t list
+  (** A control-flow destination. *)
+  and 'a dst =
+    | Dglobal of 'a global
+    | Dlocal  of 'a local
+  [@@deriving bin_io, compare, equal, sexp]
 
-  (** [exp op] is equivalent to [op & []]. *)
-  val exp : Enode.op -> t
+  (** A switch table. *)
+  type 'a table = (Bv.t * 'a local) list
+  [@@deriving bin_io, compare, equal, sexp]
 
-  (** [op & args] constructs an expression. *)
-  val (&) : Enode.op -> t list -> t
+  (** A "base" expression, which corresponds directly to a [Virtual]
+      instruction. *)
+  type 'a t =
+    | Ebr      of 'a pure * 'a dst * 'a dst
+    | Ecall    of 'a global * 'a pure list * 'a pure list
+    | Ejmp     of 'a dst
+    | Eret     of 'a pure
+    | Eset     of Var.t * 'a pure
+    | Estore   of Type.basic * 'a pure * 'a pure
+    | Esw      of Type.imm * 'a pure * 'a local * 'a table
+  [@@deriving bin_io, compare, equal, sexp]
 end
 
-(** An e-graph. *)
-type t
+type 'a exp = 'a Exp.t [@@deriving compare, equal, sexp]
 
-type egraph = t
+(** A callback [f] where [f ~parent x] returns [true] if [parent]
+    dominates [x]. *)
+type 'a dominance = parent:'a -> 'a -> bool
+
+(** An e-graph, where ['a] is the type used to establish provenance
+    between expressions and node IDs. *)
+type 'a t
+
+type 'a egraph = 'a t
 
 (** Constructs an e-graph. *)
-val create : unit -> t
+val create : dominance:'a dominance -> 'a t
 
 (** A component of a rule. *)
 type query [@@deriving compare, equal, sexp]
@@ -103,13 +133,13 @@ type query [@@deriving compare, equal, sexp]
 type subst = id String.Map.t
 
 (** A callback that can be invoked when applying a rule. *)
-type 'a callback = t -> id -> subst -> 'a
+type ('a, 'b) callback = 'a t -> id -> subst -> 'b
 
 (** A rewrite rule. *)
-type rule
+type 'a rule
 
 module Rule : sig
-  type t = rule
+  type 'a t = 'a rule
 
   (** [var x] constructs a substitition for variable [x]. *)
   val var : string -> query
@@ -122,64 +152,70 @@ module Rule : sig
 
   (** [pre => post] constructs a rewrite rule where expressions
       matching [pre] shall be rewritten to [post]. *)
-  val (=>) : query -> query -> t
+  val (=>) : query -> query -> 'a t
 
   (** [(pre =>? post) ~if_] is similar to [pre => post], but the
       rule is applied conditionally according to [if_]. *)
-  val (=>?) : query -> query -> if_:(bool callback) -> t
+  val (=>?) : query -> query -> if_:(('a, bool) callback) -> 'a t
 
   (** [pre => gen] allows a post-condition to be generated
       dynamically according to [gen]. *)
-  val (=>*) : query -> query option callback -> t
+  val (=>*) : query -> ('a, query option) callback -> 'a t
 end
 
-(** Adds an expression to the e-graph and returns its ID. *)
-val add : t -> exp -> id
+(** Adds an expression to the e-graph and returns its corresponding ID. *)
+val add : 'a t -> 'a exp -> id
 
 (** Returns the analysis data for a given ID. *)
-val data : t -> id -> const option
+val data : 'a t -> id -> const option
 
 (** [find_exn eg id] returns the representative element for [id] in [eg],
     if it exists.
 
     @raise Invalid_argument if [id] is not present in [eg].
 *)
-val find_exn : t -> id -> id
+val find_exn : 'a t -> id -> id
 
 (** Same as [find_exn eg id], but returns [None] if [id] is not present. *)
-val find : t -> id -> id option
+val find : 'a t -> id -> id option
 
-(** A cost heuristic.
+(** [provenance eg id] finds the provenance associated with [id] in [eg],
+    if it exists. *)
+val provenance : 'a t -> id -> 'a option
 
-    [child] provides a callback for calculating the cost of the
-    children of the e-node.
-
-    @raise Failure if [child] is called for an ID that doesn't exist.
-*)
-type cost = child:(id -> int) -> enode -> int
-
-type extractor
+type 'a extractor
 
 (** Extracts optimized terms from the e-graph based on the [cost]
     heuristic function. *)
 module Extractor : sig
-  type t = extractor
+  (** A cost heuristic.
+
+      [child] provides a callback for calculating the cost of the
+      children of the e-node.
+
+      @raise Failure if [child] is called for an ID that doesn't exist.
+  *)
+  type cost = child:(id -> int) -> enode -> int
+
+  type 'a t = 'a extractor
 
   (** Initialize the extractor. *)
-  val init : egraph -> cost:cost -> t
+  val init : 'a egraph -> cost:cost -> 'a t
 
   (** Extract the term associated with an ID in the provided
       e-graph.
 
-      Returns [None] if the ID does not exist.
+      Returns an error if the ID does not exist or the resulting term is
+      not well-formed.
   *)
-  val extract : t -> id -> exp option
+  val extract : 'a t -> id -> 'a exp Or_error.t
 
   (** Same as [extract t id].
 
-      @raise Invalid_argument if the ID does not exist.
+      @raise Invalid_argument if the ID does not exist or the resulting
+      term is not well-formed.
   *)
-  val extract_exn : t -> id -> exp
+  val extract_exn : 'a t -> id -> 'a exp
 end
 
 (** Parameters for scheduling which rules should be applied at a given
@@ -216,4 +252,4 @@ end
     By default, [fuel] is set to [Int.max_value]. If [fuel <= 1] then at
     least one iteration is performed.
 *)
-val fixpoint : ?sched:scheduler -> ?fuel:int -> t -> rule list -> bool
+val fixpoint : ?sched:scheduler -> ?fuel:int -> 'a t -> 'a rule list -> bool

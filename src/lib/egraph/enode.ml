@@ -2,38 +2,29 @@ open Core
 open Virtual
 
 type op =
-  | Oalloc  of int
-  | Obinop  of Insn.binop
-  | Obool   of bool
+  | Oaddr     of Bv.t
+  | Oalloc    of int
+  | Obinop    of Insn.binop
+  | Obool     of bool
   | Obr
   | Ocall0
-  | Ocall   of Type.basic
-  | Odouble of float
-  | Odst    of dst
-  | Oglobal of global
+  | Ocall     of Type.basic
+  | Ocallargs
+  | Odouble   of float
   | Ojmp
-  | Oint    of Bv.t * Type.imm
-  | Oload   of Type.basic
-  | Olocal  of Label.t
+  | Oint      of Bv.t * Type.imm
+  | Oload     of Type.basic
+  | Olocal    of Label.t
   | Oret
-  | Osel    of Type.basic
-  | Osingle of Float32.t
-  | Ostore  of Type.basic
-  | Osw     of Type.imm
-  | Osym    of string * int
-  | Ounop   of Insn.unop
-  | Ovar    of Var.t
-[@@deriving compare, equal, hash, sexp]
-
-and global =
-  | Gaddr   of Bv.t
-  | Gop     of op
-  | Gsym    of string
-[@@deriving compare, equal, hash, sexp]
-
-and dst =
-  | Dglobal of global
-  | Dlocal  of Label.t
+  | Osel      of Type.basic
+  | Oset      of Var.t
+  | Osingle   of Float32.t
+  | Ostore    of Type.basic
+  | Osw       of Type.imm
+  | Osym      of string * int
+  | Otbl      of Bv.t
+  | Ounop     of Insn.unop
+  | Ovar      of Var.t
 [@@deriving compare, equal, hash, sexp]
 
 type t = N of op * Id.t list
@@ -44,6 +35,9 @@ let canonicalize (N (op, children)) uf =
 
 let op (N (op, _)) = op
 let children (N (_, children)) = children
+
+let equal_children (N (_, a)) (N (_, b)) =
+  List.equal Id.equal a b
 
 let of_const : const -> t = function
   | `bool b -> N (Obool b, [])
@@ -298,7 +292,8 @@ module Eval = struct
       Some (`int (Bv.(int64 (float_to_bits a) mod imod t), t))
     | _ -> None
 
-  let rec go op args = match op, args with
+  let go op args = match op, args with
+    | Oaddr _, _ -> None
     | Oalloc _, _ -> None
     | Obinop o, [Some `int (a, _); Some `int (b, _)] -> binop_int o a b
     | Obinop o, [Some `float a; Some `float b] -> binop_single o a b
@@ -309,18 +304,16 @@ module Eval = struct
     | Obr, _ -> None
     | Ocall0, _ -> None
     | Ocall _, _ -> None
+    | Ocallargs, _ -> None
     | Odouble d, [] -> Some (`double d)
     | Odouble _, _ -> None
-    | Odst (Dglobal (Gop op)), args -> go op args
-    | Odst _, _ -> None
-    | Oglobal (Gop op), args -> go op args
-    | Oglobal _, _ -> None
     | Ojmp, _ -> None
     | Oint (i, t), [] -> Some (`int (i, t))
     | Oint _, _ -> None
     | Oload _, _ -> None
     | Olocal _, _ -> None
     | Oret, _ -> None
+    | Oset _, _ -> None
     | Osel _, [Some `bool true;  t; _] -> t
     | Osel _, [Some `bool false; _; f] -> f
     | Osel _, _ -> None
@@ -330,6 +323,7 @@ module Eval = struct
     | Osw _, _ -> None
     | Osym (s, o), [] -> Some (`sym (s, o))
     | Osym _, _ -> None
+    | Otbl _, _ -> None
     | Ounop o, [Some `int (a, ty)] -> unop_int o a ty
     | Ounop o, [Some `float a] -> unop_single o a
     | Ounop o, [Some `double a] -> unop_double o a
@@ -341,9 +335,11 @@ end
 let eval (N (op, children)) ~(data : Id.t -> const option) : const option =
   Eval.go op @@ List.map children ~f:data
 
-let rec pp_op ppf = function
+let pp_op ppf = function
+  | Oaddr a ->
+    Format.fprintf ppf "(addr %a)" Bv.pp a
   | Oalloc n ->
-    Format.fprintf ppf "alloc(%d)" n
+    Format.fprintf ppf "(alloc %d)" n
   | Obinop b ->
     Format.fprintf ppf "%a" Insn.pp_binop b
   | Obool b ->
@@ -354,12 +350,10 @@ let rec pp_op ppf = function
     Format.fprintf ppf "call"
   | Ocall t ->
     Format.fprintf ppf "call.%a" Type.pp_basic t
+  | Ocallargs ->
+    Format.fprintf ppf "callargs"
   | Odouble d ->
     Format.fprintf ppf "%a_d" Float.pp d
-  | Odst d ->
-    Format.fprintf ppf "%a" pp_dst d
-  | Oglobal g ->
-    Format.fprintf ppf "%a" pp_global g
   | Ojmp ->
     Format.fprintf ppf "jmp"
   | Oint (i, t) ->
@@ -372,6 +366,8 @@ let rec pp_op ppf = function
     Format.fprintf ppf "ret"
   | Osel t ->
     Format.fprintf ppf "sel.%a" Type.pp_basic t
+  | Oset x ->
+    Format.fprintf ppf "(set %a)" Var.pp x
   | Osingle s ->
     Format.fprintf ppf "%s_s" @@ Float32.to_string s
   | Ostore t ->
@@ -384,21 +380,9 @@ let rec pp_op ppf = function
     Format.fprintf ppf "$%s+%d" s o
   | Osym (s, o) ->
     Format.fprintf ppf "$%s-%d" s (lnot o + 1)
+  | Otbl i ->
+    Format.fprintf ppf "(tbl %a)" Bv.pp i
   | Ounop u ->
     Format.fprintf ppf "%a" Insn.pp_unop u
   | Ovar x ->
     Format.fprintf ppf "%a" Var.pp x
-
-and pp_global ppf = function
-  | Gaddr a ->
-    Format.fprintf ppf "%a" Bv.pp a
-  | Gop o ->
-    Format.fprintf ppf "%a" pp_op o
-  | Gsym s ->
-    Format.fprintf ppf "$%s" s
-
-and pp_dst ppf = function
-  | Dglobal g ->
-    Format.fprintf ppf "%a" pp_global g
-  | Dlocal l ->
-    Format.fprintf ppf "%a" Label.pp l
