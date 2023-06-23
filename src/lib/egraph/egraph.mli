@@ -207,9 +207,13 @@ module Scheduler : sig
 end
 
 (** [fixpoint t rules ?sched ?fuel] repeatedly applies [rules] to the
-    e-graph until a fixed-point is reached, [fuel < 0], or the [sched]
-    parameters indicate that the algorithm should terminate.
+    e-graph until a fixed-point is reached, [fuel] iterations have
+    occurred, or the [sched] parameters indicate that the algorithm
+    should terminate.
 
     Returns [true] if a fixed-point was reached.
+
+    By default, [fuel] is set to [Int.max_value]. If [fuel <= 1] then at
+    least one iteration is performed.
 *)
 val fixpoint : ?sched:scheduler -> ?fuel:int -> t -> rule list -> bool

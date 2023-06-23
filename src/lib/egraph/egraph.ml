@@ -411,38 +411,23 @@ end
 
 type scheduler = Scheduler.t
 
-let apply t s i rules =
-  let cs = eclasses t in
-  Seq.iter rules ~f:(fun (r, d) ->
-      Scheduler.guard s d i ~f:(fun () -> ematch t cs r.pre) |>
-      Option.iter ~f:(Vec.iter ~f:(fun (id, env) ->
-          let rewrite q = merge t id @@ subst t env q in
-          match r.post with
-          | Const q -> rewrite q
-          | Cond (q, cond) -> if cond t id env then rewrite q
-          | Dyn gen -> gen t id env |> Option.iter ~f:rewrite)));
-  rebuild t
-
-let fixpoint ?sched ?fuel t rules =
+let fixpoint ?sched ?(fuel = Int.max_value) t rules =
   let sched = match sched with
     | None -> Scheduler.create_exn ()
     | Some sched -> sched in
   let rules = Seq.of_list @@ List.map rules ~f:(fun r ->
       r, Scheduler.create_data ()) in
-  match fuel with
-  | None ->
-    let rec loop i prev =
-      apply t sched i rules;
-      if t.ver = prev then
-        Scheduler.should_stop sched rules i ||
-        loop (i + 1) t.ver
-      else loop (i + 1) t.ver in
-    loop 0 t.ver
-  | Some fuel ->
-    let rec loop i prev =
-      apply t sched i rules;
-      if t.ver = prev then
-        Scheduler.should_stop sched rules i ||
-        loop (i + 1) t.ver
-      else fuel > i && loop (i + 1) t.ver in
-    loop 0 t.ver
+  Seq.range 0 (max 1 fuel) |>
+  Seq.fold_until ~init:t.ver ~finish:(const false) ~f:(fun prev i ->
+      let cs = eclasses t in
+      Seq.iter rules ~f:(fun (r, d) ->
+          Scheduler.guard sched d i ~f:(fun () -> ematch t cs r.pre) |>
+          Option.iter ~f:(Vec.iter ~f:(fun (id, env) ->
+              let rewrite q = merge t id @@ subst t env q in
+              match r.post with
+              | Const q -> rewrite q
+              | Cond (q, cond) -> if cond t id env then rewrite q
+              | Dyn gen -> gen t id env |> Option.iter ~f:rewrite)));
+      rebuild t;
+      if t.ver = prev && Scheduler.should_stop sched rules i
+      then Stop true else Continue t.ver)
