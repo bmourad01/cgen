@@ -1,6 +1,7 @@
 (* Adapted from: https://github.com/verse-lab/ego *)
 
 open Core
+open Regular.Std
 open Monads.Std
 open Virtual
 
@@ -49,12 +50,12 @@ let create_eclass id = {
 }
 
 type t = {
-  uf        : Uf.t;
-  nodes     : (enode, id) Hashtbl.t;
-  classes   : eclass Id.Table.t;
-  pending   : (enode * id) Vec.t;
-  analyses  : (enode * id) Vec.t;
-  mutable v : int;
+  uf          : Uf.t;
+  nodes       : (enode, id) Hashtbl.t;
+  classes     : eclass Id.Table.t;
+  pending     : (enode * id) Vec.t;
+  analyses    : (enode * id) Vec.t;
+  mutable ver : int;
 }
 
 type egraph = t
@@ -65,7 +66,7 @@ let create () = {
   classes = Id.Table.create ();
   pending = Vec.create ();
   analyses = Vec.create ();
-  v = 0;
+  ver = 0;
 }
 
 type query =
@@ -132,7 +133,7 @@ let rec add_enode t n =
   find' t @@ match Hashtbl.find t.nodes n with
   | Some id -> id
   | None ->
-    t.v <- t.v + 1;
+    t.ver <- t.ver + 1;
     let id = Uf.fresh t.uf in
     let c = eclass t id in
     let x = n, id in
@@ -151,7 +152,7 @@ and merge t a b =
   let a = find' t a in
   let b = find' t b in
   if Id.(a <> b) then begin
-    t.v <- t.v + 1;
+    t.ver <- t.ver + 1;
     let ca = eclass t a in
     let cb = eclass t b in
     let a, b =
@@ -241,7 +242,7 @@ module Extractor = struct
     eg          : egraph;
     cost        : cost;
     table       : (int * enode) Id.Table.t;
-    mutable v   : int;
+    mutable ver : int;
     mutable sat : bool;
   }
 
@@ -249,7 +250,7 @@ module Extractor = struct
     eg;
     cost;
     table = Id.Table.create ();
-    v = eg.v;
+    ver = eg.ver;
     sat = false;
   }
 
@@ -264,12 +265,14 @@ module Extractor = struct
     if not @@ has_cost t n then None
     else Some (t.cost ~child:(id_cost t) n, n)
 
+  (* Find the least-expensive term. *)
   let best_term t ns =
     Vec.fold ns ~init:None ~f:(fun acc n ->
         node_cost t n |> Option.merge acc
           ~f:(fun ((c1, _) as a) ((c2, _) as b) ->
               if c2 < c1 then b else a))
 
+  (* Saturate the cost table. *)
   let rec saturate t (cs : classes) =
     t.sat <- true;
     Hashtbl.iteri cs ~f:(fun ~key:id ~data:ns ->
@@ -290,9 +293,11 @@ module Extractor = struct
     let+ cs = Enode.children n |> O.List.map ~f:(extract_aux t) in
     E (Enode.op n, cs)
 
-  let check t = if t.v <> t.eg.v then begin
+  (* Check if the underlying e-graph has been updated. If so, we should
+     re-compute the costs for each node. *)
+  let check t = if t.ver <> t.eg.ver then begin
       Hashtbl.clear t.table;
-      t.v <- t.eg.v;
+      t.ver <- t.eg.ver;
       t.sat <- false;
     end
 
@@ -315,27 +320,22 @@ let ematch t (cs : classes) p : matches =
     | Q (x,  _), N (y,  _) when not @@ Enode.equal_op x y -> None
     | Q (_, xs), N (_, ys) -> args env xs ys
     | _ -> None
-  and args env xs ys = match List.zip xs ys with
-    | Ok l -> List.fold_until l ~finish:Fn.id ~init:(Some env) ~f:arg
+  and args init qs xs = match List.zip qs xs with
+    | Ok l -> O.List.fold l ~init ~f:(fun env (q, x) -> go x q ~env)
     | Unequal_lengths -> None
-  and arg acc (q, x) : _ Continue_or_stop.t = match acc with
-    | None -> Stop None
-    | Some env -> match go x q ~env with
-      | Some _ as x -> Continue x
-      | None -> Stop None
   and var env x id = match Map.find env x with
     | None -> Some (Map.set env ~key:x ~data:id)
     | Some id' -> Option.some_if Id.(id = id') env
   and first env q id =
-    Option.(Hashtbl.find cs id >>= Vec.find_map ~f:(enode env q))
+    O.(Hashtbl.find cs id >>= Vec.find_map ~f:(enode env q))
   and go ?(env = String.Map.empty) x =
     let id = find' t x in function
       | V x -> var env x id
       | Q _ as q -> first env q id in
   let r = Vec.create () in
-  Hashtbl.iter_keys cs ~f:(fun id -> match go id p with
-      | Some env -> Vec.push r (id, env)
-      | None -> ());
+  Hashtbl.iter_keys cs ~f:(fun id ->
+      go id p |> Option.iter ~f:(fun env ->
+          Vec.push r (id, env)));
   r
 
 (* Apply the substitution environment to a post-condition. *)
@@ -379,17 +379,17 @@ module Scheduler = struct
      lengths and try applying them again to see if we will get any
      changes. *)
   let should_stop t rules i =
-    let banned = Ftree.filter rules ~f:(fun (_, d) ->
+    let banned = Seq.filter rules ~f:(fun (_, d) ->
         (* Reject rules that have been banned too many times. *)
         d.times_banned < Sys.int_size_in_bits &&
         (* Also reject rules that will never match. *)
         threshold t d > 0 &&
         d.banned_until > i) in
-    Ftree.min_elt banned ~compare:(fun (_, a) (_, b) ->
+    Seq.min_elt banned ~compare:(fun (_, a) (_, b) ->
         compare a.banned_until b.banned_until) |>
     Option.value_map ~default:true ~f:(fun (_, d) ->
         let n = d.banned_until - i in
-        Ftree.iter banned ~f:(fun (_, d) ->
+        Seq.iter banned ~f:(fun (_, d) ->
             d.banned_until <- d.banned_until - n);
         false)
 
@@ -413,7 +413,7 @@ type scheduler = Scheduler.t
 
 let apply t s i rules =
   let cs = eclasses t in
-  Ftree.iter rules ~f:(fun (r, d) ->
+  Seq.iter rules ~f:(fun (r, d) ->
       Scheduler.guard s d i ~f:(fun () -> ematch t cs r.pre) |>
       Option.iter ~f:(Vec.iter ~f:(fun (id, env) ->
           let rewrite q = merge t id @@ subst t env q in
@@ -427,22 +427,22 @@ let fixpoint ?sched ?fuel t rules =
   let sched = match sched with
     | None -> Scheduler.create_exn ()
     | Some sched -> sched in
-  let rules = List.fold rules ~init:Ftree.empty ~f:(fun t r ->
-      Ftree.snoc t (r, Scheduler.create_data ())) in
+  let rules = Seq.of_list @@ List.map rules ~f:(fun r ->
+      r, Scheduler.create_data ()) in
   match fuel with
   | None ->
     let rec loop i prev =
       apply t sched i rules;
-      if t.v = prev then
+      if t.ver = prev then
         Scheduler.should_stop sched rules i ||
-        loop (i + 1) t.v
-      else loop (i + 1) t.v in
-    loop 0 t.v
+        loop (i + 1) t.ver
+      else loop (i + 1) t.ver in
+    loop 0 t.ver
   | Some fuel ->
     let rec loop i prev =
       apply t sched i rules;
-      if t.v = prev then
+      if t.ver = prev then
         Scheduler.should_stop sched rules i ||
-        loop (i + 1) t.v
-      else fuel > i && loop (i + 1) t.v in
-    loop 0 t.v
+        loop (i + 1) t.ver
+      else fuel > i && loop (i + 1) t.ver in
+    loop 0 t.ver
