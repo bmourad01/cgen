@@ -64,25 +64,24 @@ module Eval = struct
   external float_ordered :
     float -> float -> bool = "cgen_float_is_ordered" [@@noalloc]
 
-  external float_to_bits : float -> int64 = "cgen_bits_of_float"
-  external float_of_bits : int64 -> float = "cgen_float_of_bits"
-
-  external float_to_int8   : float     -> int   = "cgen_int8_of_float" [@@noalloc]
-  external float_to_int16  : float     -> int   = "cgen_int16_of_float" [@@noalloc]
-  external float_to_int32  : float     -> int32 = "cgen_int32_of_float"
-  external float_to_int64  : float     -> int64 = "cgen_int64_of_float"
-  external float_to_uint8  : float     -> int   = "cgen_uint8_of_float" [@@noalloc]
-  external float_to_uint16 : float     -> int   = "cgen_uint16_of_float" [@@noalloc]
-  external float_to_uint32 : float     -> int32 = "cgen_uint32_of_float"
-  external float_to_uint64 : float     -> int64 = "cgen_uint64_of_float"
-  external float_of_int8   : int   -> float     = "cgen_float_of_int8"
-  external float_of_int16  : int   -> float     = "cgen_float_of_int16"
-  external float_of_int32  : int32 -> float     = "cgen_float_of_int32"
-  external float_of_int64  : int64 -> float     = "cgen_float_of_int64"
-  external float_of_uint8  : int   -> float     = "cgen_float_of_uint8"
-  external float_of_uint16 : int   -> float     = "cgen_float_of_uint16"
-  external float_of_uint32 : int32 -> float     = "cgen_float_of_uint32"
-  external float_of_uint64 : int64 -> float     = "cgen_float_of_uint64"
+  external float_to_bits   : float -> int64 = "cgen_bits_of_float"
+  external float_of_bits   : int64 -> float = "cgen_float_of_bits"
+  external float_to_int8   : float -> int   = "cgen_int8_of_float" [@@noalloc]
+  external float_to_int16  : float -> int   = "cgen_int16_of_float" [@@noalloc]
+  external float_to_int32  : float -> int32 = "cgen_int32_of_float"
+  external float_to_int64  : float -> int64 = "cgen_int64_of_float"
+  external float_to_uint8  : float -> int   = "cgen_uint8_of_float" [@@noalloc]
+  external float_to_uint16 : float -> int   = "cgen_uint16_of_float" [@@noalloc]
+  external float_to_uint32 : float -> int32 = "cgen_uint32_of_float"
+  external float_to_uint64 : float -> int64 = "cgen_uint64_of_float"
+  external float_of_int8   : int   -> float = "cgen_float_of_int8"
+  external float_of_int16  : int   -> float = "cgen_float_of_int16"
+  external float_of_int32  : int32 -> float = "cgen_float_of_int32"
+  external float_of_int64  : int64 -> float = "cgen_float_of_int64"
+  external float_of_uint8  : int   -> float = "cgen_float_of_uint8"
+  external float_of_uint16 : int   -> float = "cgen_float_of_uint16"
+  external float_of_uint32 : int32 -> float = "cgen_float_of_uint32"
+  external float_of_uint64 : int64 -> float = "cgen_float_of_uint64"
 
   let signed_compare x y m = match Bv.(msb x mod m, msb y mod m) with
     | true,  true  -> Bv.compare y x
@@ -162,9 +161,9 @@ module Eval = struct
     | `asr_ t -> Some (`int (Bv.((a asr  b) mod imod t), t))
     | `lsl_ t -> Some (`int (Bv.((a lsl  b) mod imod t), t))
     | `lsr_ t -> Some (`int (Bv.((a lsr  b) mod imod t), t))
-    | `rol t -> Some (`int (rol t a b, t))
-    | `ror t -> Some (`int (ror t a b, t))
-    | `xor t -> Some (`int (Bv.((a lxor b) mod imod t), t))
+    | `rol t  -> Some (`int (rol t a b, t))
+    | `ror t  -> Some (`int (ror t a b, t))
+    | `xor t  -> Some (`int (Bv.((a lxor b) mod imod t), t))
     | `eq #Type.imm -> Some (`bool Bv.(a =  b))
     | `ge #Type.imm -> Some (`bool Bv.(a >= b))
     | `gt #Type.imm -> Some (`bool Bv.(a >  b))
