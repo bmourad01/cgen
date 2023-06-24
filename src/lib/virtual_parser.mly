@@ -194,9 +194,9 @@ module_:
     }
 
 module_elt:
-  | f = func { f >>| fun f -> `func f }
+  | f = func { let+ f = f in `func f }
   | t = typ { !!(`typ t) }
-  | d = data { d >>| fun d -> `data d }
+  | d = data { let+ d = d in `data d }
 
 data:
   | l = option(linkage) DATA name = SYM EQUALS align = option(align) LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
@@ -241,11 +241,10 @@ func:
 
 func_args:
   | ELIPSIS { !!([], true) }
-  | t = type_arg x = var { x >>| fun x -> [x, t], false }
+  | t = type_arg x = var { let+ x = x in [x, t], false }
   | t = type_arg x = var COMMA rest = func_args
     {
-      rest >>= fun rest ->
-      x >>| fun x ->
+      let+ rest = rest and+ x = x in
       (x, t) :: fst rest, snd rest
     }
 
@@ -293,12 +292,11 @@ blk:
     }
 
 blk_arg:
-  | t = type_blk_arg v = var { v >>| fun v -> v, t }
+  | t = type_blk_arg v = var { let+ v = v in v, t }
 
 ctrl:
   | HLT { !!`hlt }
-  | JMP d = dst
-    { d >>| fun d -> `jmp d }
+  | JMP d = dst { let+ d = d in `jmp d }
   | BR c = var COMMA t = dst COMMA f = dst
     {
       let+ c = c and+ t = t and+ f = f in
@@ -308,7 +306,7 @@ ctrl:
     {
       match a with
       | None -> !!(`ret None)
-      | Some a -> a >>| fun a -> `ret (Some a)
+      | Some a -> let+ a = a in `ret (Some a)
     }
   | t = SW i = ctrl_index COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
     {
@@ -327,13 +325,13 @@ ctrl:
     }
 
 ctrl_index:
-  | x = var { x >>| fun x -> `var x }
+  | x = var { let+ x = x in `var x }
   | s = SYM { !!(`sym (s, 0)) }
   | s = SYM PLUS i = NUM { !!(`sym (s, i)) }
   | s = SYM MINUS i = NUM { !!(`sym (s, -i)) }
 
 ctrl_table_entry:
-  | i = INT ARROW l = local { l >>| fun l -> i, l }
+  | i = INT ARROW l = local { let+ l = l in i, l }
 
 insn:
   | x = var EQUALS b = insn_binop l = operand COMMA r = operand
@@ -370,10 +368,8 @@ insn:
       let+ x = x and+ y = y in
       `vaarg (x, t, y)
     }
-  | VASTART x = var
-    { x >>| fun x -> `vastart x }
-  | x = var EQUALS ALLOC i = NUM
-    { x >>| fun x -> `alloc (x, i) }
+  | VASTART x = var { let+ x = x in `vastart x }
+  | x = var EQUALS ALLOC i = NUM { let+ x = x in `alloc (x, i) }
   | x = var EQUALS t = LOAD a = operand
     {
       let+ x = x and+ a = a in
@@ -390,7 +386,7 @@ call_args:
     {
       match a with
       | None -> !![]
-      | Some a -> a >>| fun a -> [`arg a]
+      | Some a -> let+ a = a in [`arg a]
     }
   | a = operand COMMA rest = call_args
     {
@@ -476,11 +472,15 @@ insn_copy:
   | t = REF { `ref t }
 
 dst:
-  | g = global { g >>| fun g -> (g :> Virtual.dst) }
-  | l = local { l >>| fun l -> (l :> Virtual.dst) }
+  | g = global { let+ g = g in (g :> Virtual.dst) }
+  | l = local { let+ l = l in (l :> Virtual.dst) }
 
 local:
-  | l = LABEL { label_of_name l >>| fun l -> `label (l, []) }
+  | l = LABEL
+    {
+      let+ l = label_of_name l in
+      `label (l, [])
+    }
   | l = LABEL LPAREN args = separated_nonempty_list(COMMA, operand) RPAREN
     {
       let+ args = unwrap_list args and+ l = label_of_name l in
@@ -490,11 +490,11 @@ local:
 global:
   | i = INT { !!(`addr (fst i)) }
   | s = SYM { !!(`sym s) }
-  | x = var { x >>| fun x -> `var x }
+  | x = var { let+ x = x in `var x }
 
 operand:
   | c = const { !!(c :> Virtual.operand) }
-  | x = var { x >>| fun x -> `var x }
+  | x = var { let+ x = x in `var x }
 
 const:
   | b = BOOL { `bool b }
