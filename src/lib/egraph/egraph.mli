@@ -111,20 +111,19 @@ module Exp : sig
   [@@deriving bin_io, compare, equal, sexp]
 end
 
-type 'a exp = 'a Exp.t [@@deriving compare, equal, sexp]
+type exp = Label.t Exp.t [@@deriving compare, equal, sexp]
 
 (** A callback [f] where [f ~parent x] returns [true] if [parent]
     dominates [x]. *)
-type 'a dominance = parent:'a -> 'a -> bool
+type dominance = parent:Label.t -> Label.t -> bool
 
-(** An e-graph, where ['a] is the type used to establish provenance
-    between expressions and node IDs. *)
-type 'a t
+(** An e-graph. *)
+type t
 
-type 'a egraph = 'a t
+type egraph = t
 
 (** Constructs an e-graph. *)
-val create : dominance:'a dominance -> 'a t
+val create : dominance:dominance -> t
 
 (** A component of a rule. *)
 type query [@@deriving compare, equal, sexp]
@@ -133,13 +132,13 @@ type query [@@deriving compare, equal, sexp]
 type subst = id String.Map.t
 
 (** A callback that can be invoked when applying a rule. *)
-type ('a, 'b) callback = 'a t -> id -> subst -> 'b
+type 'a callback = t -> id -> subst -> 'a
 
 (** A rewrite rule. *)
-type 'a rule
+type rule
 
 module Rule : sig
-  type 'a t = 'a rule
+  type t = rule
 
   (** [var x] constructs a substitition for variable [x]. *)
   val var : string -> query
@@ -152,38 +151,38 @@ module Rule : sig
 
   (** [pre => post] constructs a rewrite rule where expressions
       matching [pre] shall be rewritten to [post]. *)
-  val (=>) : query -> query -> 'a t
+  val (=>) : query -> query -> t
 
   (** [(pre =>? post) ~if_] is similar to [pre => post], but the
       rule is applied conditionally according to [if_]. *)
-  val (=>?) : query -> query -> if_:(('a, bool) callback) -> 'a t
+  val (=>?) : query -> query -> if_:(bool callback) -> t
 
   (** [pre => gen] allows a post-condition to be generated
       dynamically according to [gen]. *)
-  val (=>*) : query -> ('a, query option) callback -> 'a t
+  val (=>*) : query -> query option callback -> t
 end
 
 (** Adds an expression to the e-graph and returns its corresponding ID. *)
-val add : 'a t -> 'a exp -> id
+val add : t -> exp -> id
 
 (** Returns the analysis data for a given ID. *)
-val data : 'a t -> id -> const option
+val data : t -> id -> const option
 
 (** [find_exn eg id] returns the representative element for [id] in [eg],
     if it exists.
 
     @raise Invalid_argument if [id] is not present in [eg].
 *)
-val find_exn : 'a t -> id -> id
+val find_exn : t -> id -> id
 
 (** Same as [find_exn eg id], but returns [None] if [id] is not present. *)
-val find : 'a t -> id -> id option
+val find : t -> id -> id option
 
 (** [provenance eg id] finds the provenance associated with [id] in [eg],
     if it exists. *)
-val provenance : 'a t -> id -> 'a option
+val provenance : t -> id -> Label.t option
 
-type 'a extractor
+type extractor
 
 (** Extracts optimized terms from the e-graph based on the [cost]
     heuristic function. *)
@@ -197,10 +196,10 @@ module Extractor : sig
   *)
   type cost = child:(id -> int) -> enode -> int
 
-  type 'a t = 'a extractor
+  type t = extractor
 
   (** Initialize the extractor. *)
-  val init : 'a egraph -> cost:cost -> 'a t
+  val init : egraph -> cost:cost -> t
 
   (** Extract the term associated with an ID in the provided
       e-graph.
@@ -208,14 +207,14 @@ module Extractor : sig
       Returns an error if the ID does not exist or the resulting term is
       not well-formed.
   *)
-  val extract : 'a t -> id -> 'a exp Or_error.t
+  val extract : t -> id -> exp Or_error.t
 
   (** Same as [extract t id].
 
       @raise Invalid_argument if the ID does not exist or the resulting
       term is not well-formed.
   *)
-  val extract_exn : 'a t -> id -> 'a exp
+  val extract_exn : t -> id -> exp
 end
 
 (** Parameters for scheduling which rules should be applied at a given
@@ -252,4 +251,4 @@ end
     By default, [fuel] is set to [Int.max_value]. If [fuel <= 1] then at
     least one iteration is performed.
 *)
-val fixpoint : ?sched:scheduler -> ?fuel:int -> 'a t -> 'a rule list -> bool
+val fixpoint : ?sched:scheduler -> ?fuel:int -> t -> rule list -> bool

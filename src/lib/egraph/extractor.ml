@@ -5,7 +5,7 @@ type cost = child:(id -> int) -> enode -> int
 
 (* We'll use an intermediate data structure to extract back to our real
    expression tree representation .*)
-type 'a ext = E of 'a option * Enode.op * 'a ext list
+type ext = E of Label.t option * Enode.op * ext list
 
 let rec pp_ext ppf = function
   | E (_, op, args) ->
@@ -15,11 +15,11 @@ let rec pp_ext ppf = function
 
 let pps_ext () e = Format.asprintf "%a" pp_ext e
 
-type 'a t = {
-  eg          : 'a egraph;
+type t = {
+  eg          : egraph;
   cost        : cost;
   table       : (int * enode) Id.Table.t;
-  memo        : 'a ext Id.Table.t;
+  memo        : ext Id.Table.t;
   mutable ver : int;
   mutable sat : bool;
 }

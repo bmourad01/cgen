@@ -12,8 +12,8 @@ let create_exn ?(match_limit = 1000) ?(ban_length = 5) () =
   if ban_length < 1 then invalid_arg "ban_length must be greater than zero";
   {match_limit; ban_length}
 
-type 'a data = {
-  rule                 : 'a rule;
+type data = {
+  rule                 : rule;
   mutable banned_until : int;
   mutable times_banned : int;
 }

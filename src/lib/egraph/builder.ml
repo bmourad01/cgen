@@ -47,7 +47,7 @@ and add_prov t a op args =
       | Some _ | None -> a);
   n, id
 
-and add_pure t : 'a Exp.pure -> (enode * id) = function
+and add_pure t : _ Exp.pure -> (enode * id) = function
   | Palloc (a, n) ->
     add_prov t a (Oalloc n) []
   | Pbinop (a, b, l, r) ->
@@ -91,7 +91,7 @@ and add_pure t : 'a Exp.pure -> (enode * id) = function
     let n : enode = N (Ovar x, []) in
     n, add_enode t n
 
-and add_global t : 'a Exp.global -> (enode * id) = function
+and add_global t : _ Exp.global -> (enode * id) = function
   | Gaddr a ->
     let n : enode = N (Oaddr a, []) in
     n, add_enode t n
@@ -100,17 +100,17 @@ and add_global t : 'a Exp.global -> (enode * id) = function
     let n : enode = N (Osym (s, 0), []) in
     n, add_enode t n
 
-and add_local t : 'a Exp.local -> (enode * id) = function
+and add_local t : _ Exp.local -> (enode * id) = function
   | l, args ->
     let args = List.map args ~f:(snd @. add_pure t) in
     let n : enode = N (Olocal l, args) in
     n, add_enode t n
 
-and add_dst t : 'a Exp.dst -> (enode * id) = function
+and add_dst t : _ Exp.dst -> (enode * id) = function
   | Dglobal g -> add_global t g
   | Dlocal l -> add_local t l
 
-and add t : 'a exp -> id = function
+and add t : exp -> id = function
   | Ebr (c, y, n) ->
     let _, c = add_pure t c in
     let _, y = add_dst t y in

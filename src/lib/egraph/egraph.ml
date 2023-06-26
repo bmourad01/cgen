@@ -5,7 +5,7 @@ include Common
 module Extractor = Extractor
 module Scheduler = Scheduler
 
-type 'a extractor = 'a Extractor.t
+type extractor = Extractor.t
 type scheduler = Scheduler.t
 
 let add = Builder.add

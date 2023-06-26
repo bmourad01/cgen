@@ -7,7 +7,7 @@ module Enode = Enode
 module Exp = Exp
 module O = Monad.Option
 
-type 'a exp = 'a Exp.t
+type exp = Label.t Exp.t
 [@@deriving compare, equal, sexp]
 
 type id = Id.t
@@ -42,20 +42,20 @@ let create_eclass id = {
 
 let rank c = Vec.length c.parents
 
-type 'a dominance = parent:'a -> 'a -> bool
+type dominance = parent:Label.t -> Label.t -> bool
 
-type 'a t = {
+type t = {
   uf          : Uf.t;
   nodes       : (enode, id) Hashtbl.t;
   classes     : eclass Id.Table.t;
   pending     : nodes;
   analyses    : nodes;
-  provenance  : 'a Id.Table.t;
-  dominance   : 'a dominance;
+  provenance  : Label.t Id.Table.t;
+  dominance   : dominance;
   mutable ver : int;
 }
 
-type 'a egraph = 'a t
+type egraph = t
 
 let create ~dominance = {
   uf = Uf.create ();
@@ -77,20 +77,20 @@ type query =
 type subst = id String.Map.t
 
 (* A callback for the rule. *)
-type ('a, 'b) callback = 'a t -> id -> subst -> 'b
+type 'a callback = t -> id -> subst -> 'a
 
-type 'a formula =
+type formula =
   | Const of query
-  | Cond of query * ('a, bool) callback
-  | Dyn of ('a, query option) callback
+  | Cond of query * bool callback
+  | Dyn of query option callback
 
-type 'a rule = {
+type rule = {
   pre  : query;
-  post : 'a formula;
+  post : formula;
 }
 
 module Rule = struct
-  type 'a t = 'a rule
+  type t = rule
 
   let var x = V x
   let exp o = Q (o, [])
