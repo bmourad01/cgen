@@ -33,7 +33,7 @@ let init eg ~cost = {
   sat = false;
 }
 
-let id_cost t id = match Hashtbl.find t.table @@ find' t.eg id with
+let id_cost t id = match Hashtbl.find t.table @@ find t.eg id with
   | None -> failwithf "Couldn't calculate cost for node id %a" Id.pps id ()
   | Some (c, _) -> c
 
@@ -76,15 +76,17 @@ let check t = if t.ver <> t.eg.ver then begin
 
 open O.Let
 
+let prov t id = Hashtbl.find t.eg.provenance.src id
+
 (* Extract to our intermediate form and cache the results. *)
 let rec extract_aux t id =
-  let id = find' t.eg id in
+  let id = find t.eg id in
   match Hashtbl.find t.memo id with
   | Some _ as e -> e
   | None ->
     let* _, n = Hashtbl.find t.table id in
     let+ cs = Enode.children n |> O.List.map ~f:(extract_aux t) in
-    let e = E (provenance t.eg id, Enode.op n, cs) in
+    let e = E (prov t id, Enode.op n, cs) in
     Hashtbl.set t.memo ~key:id ~data:e;
     e
 
@@ -224,16 +226,21 @@ let exp = function
   | E (_, Ounop _, _)
   | E (_, Ovar _, _) -> None
 
-let extract_exn t id =
-  check t;
-  if not t.sat then saturate t @@ eclasses t.eg;
-  match extract_aux t id with
-  | None -> invalid_argf "Couldn't extract term for id %a" Id.pps id ()
-  | Some e -> match exp e with
-    | Some e -> e
+let extract_exn t l = match Hashtbl.find t.eg.provenance.dst l with
+  | None -> invalid_argf "No term exists for label %a" Label.pps l ()
+  | Some id ->
+    let id = find t.eg id in
+    check t;
+    if not t.sat then saturate t @@ eclasses t.eg;
+    match extract_aux t id with
     | None ->
-      invalid_argf
-        "Term for id %a is not well-formed: %a"
-        Id.pps id pps_ext e ()
+      invalid_argf "Couldn't extract term for label %a (id %a)"
+        Label.pps l Id.pps id ()
+    | Some e -> match exp e with
+      | Some e -> e
+      | None ->
+        invalid_argf
+          "Term for label %a (id %a) is not well-formed: %a"
+          Label.pps l Id.pps id pps_ext e ()
 
-let extract t id = Or_error.try_with @@ fun () -> extract_exn t id
+let extract t l = Or_error.try_with @@ fun () -> extract_exn t l

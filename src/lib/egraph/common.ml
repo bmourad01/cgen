@@ -1,5 +1,6 @@
 open Core
 open Monads.Std
+open Graphlib.Std
 open Virtual
 
 module Id = Id
@@ -7,8 +8,10 @@ module Enode = Enode
 module Exp = Exp
 module O = Monad.Option
 
-type exp = Label.t Exp.t
-[@@deriving compare, equal, sexp]
+type exp = Exp.t
+[@@deriving bin_io, compare, equal, sexp]
+
+let pp_exp = Exp.pp
 
 type id = Id.t
 [@@deriving compare, equal, hash, sexp]
@@ -42,31 +45,33 @@ let create_eclass id = {
 
 let rank c = Vec.length c.parents
 
-type dominance = parent:Label.t -> Label.t -> bool
+type resolved = [
+  | `blk  of blk
+  | `insn of insn * blk * Var.t option
+]
+
+(* `src` maps IDs back to their equivalent labels.
+
+   `dst` maps labels to their IDs (note that these IDs may
+   not be the representative element).
+*)
+type prov = {
+  src : Label.t Id.Table.t;
+  dst : id Label.Table.t;
+}
 
 type t = {
+  input       : Input.t;
   uf          : Uf.t;
   nodes       : (enode, id) Hashtbl.t;
   classes     : eclass Id.Table.t;
   pending     : nodes;
   analyses    : nodes;
-  provenance  : Label.t Id.Table.t;
-  dominance   : dominance;
+  provenance  : prov;
   mutable ver : int;
 }
 
 type egraph = t
-
-let create ~dominance = {
-  uf = Uf.create ();
-  nodes = Hashtbl.create (module Enode);
-  classes = Id.Table.create ();
-  pending = Vec.create ();
-  analyses = Vec.create ();
-  provenance = Id.Table.create ();
-  dominance;
-  ver = 0;
-}
 
 type query =
   | V of string
@@ -107,16 +112,8 @@ let data t id =
   Hashtbl.find t.classes id |>
   Option.bind ~f:(fun c -> c.data)
 
-let find' t id = Uf.find t.uf id
-
-let find_exn t (id : id) =
-  if id < 0 || id >= Vec.length t.uf
-  then invalid_argf "Invalid id %d" id ()
-  else find' t id
-
-let find t id = Option.try_with @@ fun () -> find_exn t id
-
-let provenance t id = Hashtbl.find t.provenance id
+let find t id = Uf.find t.uf id
+let dominates t = Tree.is_descendant_of t.input.dom
 
 (* Maps e-class IDs to equivalent e-nodes. *)
 type classes = enode Vec.t Id.Table.t
@@ -124,9 +121,79 @@ type classes = enode Vec.t Id.Table.t
 let eclasses t : classes =
   let r = Id.Table.create () in
   Hashtbl.iteri t.nodes ~f:(fun ~key:n ~data:id ->
-      let id = find' t id in
+      let id = find t id in
       Vec.push (Hashtbl.find_or_add r id ~default:Vec.create) n);
   r
 
 (* Node IDs and their substitutions. *)
 type matches = (id * subst) Vec.t
+
+let merge_data c l r ~left ~right = match l, r with
+  | Some l, Some r -> assert (equal_const l r); c.data <- Some l
+  | Some l, None   -> c.data <- Some l; right ()
+  | None,   Some r -> c.data <- Some r; left ()
+  | None,   None   -> c.data <- None
+[@@specialise]
+
+(* The canonical form for merge operations should be biased towards
+   node `a`, except when `b` is known to dominate it. *)
+let merge_provenance t a b =
+  let p = t.provenance in
+  match Hashtbl.find p.src a, Hashtbl.find p.src b with
+  | None, Some pb ->
+    Hashtbl.set p.src ~key:a ~data:pb
+  | Some pa, Some pb when dominates t ~parent:pb pa ->
+    Hashtbl.set p.src ~key:a ~data:pb
+  | Some pa, (Some _ | None) ->
+    Hashtbl.set p.src ~key:b ~data:pa
+  | None, None -> ()
+
+let update_provenance t id a =
+  let p = t.provenance in
+  Hashtbl.update p.src id ~f:(function
+      | Some b when dominates t ~parent:b a -> b
+      | Some _ | None -> a)
+
+let rec add_enode t n =
+  let n = Enode.canonicalize n t.uf in
+  find t @@ match Hashtbl.find t.nodes n with
+  | Some id -> id
+  | None ->
+    t.ver <- t.ver + 1;
+    let id = Uf.fresh t.uf in
+    let c = eclass t id in
+    let x = n, id in
+    Vec.push c.nodes n;
+    Enode.children n |> List.iter ~f:(fun ch ->
+        Vec.push (eclass t ch).parents x);
+    Vec.push t.pending x;
+    Vec.push t.analyses x;
+    Hashtbl.set t.nodes ~key:n ~data:id;
+    merge_analysis t id;
+    id
+
+and merge t a b =
+  let a = find t a in
+  let b = find t b in
+  if Id.(a <> b) then
+    (* Decide on the representative element. *)
+    let ca = eclass t a in
+    let cb = eclass t b in
+    let a, b, ca, cb = if rank ca < rank cb
+      then b, a, cb, ca else a, b, ca, cb in
+    assert Id.(a = Uf.union t.uf a b);
+    assert Id.(a = ca.id);
+    t.ver <- t.ver + 1;
+    Hashtbl.remove t.classes b;
+    (* Perform the merge. *)
+    Vec.append t.pending cb.parents;
+    Vec.append ca.nodes cb.nodes;
+    Vec.append ca.parents cb.parents;
+    merge_data ca ca.data cb.data
+      ~left:(fun () -> Vec.append t.analyses ca.parents)
+      ~right:(fun () -> Vec.append t.analyses cb.parents);
+    merge_provenance t a b;
+    merge_analysis t a
+
+and merge_analysis t id = data t id |> Option.iter ~f:(fun d ->
+    merge t (add_enode t @@ Enode.of_const d) id)

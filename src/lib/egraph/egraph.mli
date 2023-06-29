@@ -62,68 +62,72 @@ end
 (** Expression trees with provenance tracking. *)
 module Exp : sig
   (** A "pure" expression. *)
-  type 'a pure =
-    | Palloc  of 'a * int
-    | Pbinop  of 'a * Insn.binop * 'a pure * 'a pure
+  type pure =
+    | Palloc  of Label.t * int
+    | Pbinop  of Label.t * Insn.binop * pure * pure
     | Pbool   of bool
-    | Pcall   of 'a * Type.basic * 'a global * 'a pure list * 'a pure list
+    | Pcall   of Label.t * Type.basic * global * pure list * pure list
     | Pdouble of float
     | Pint    of Bv.t * Type.imm
-    | Pload   of 'a * Type.basic * 'a pure
-    | Psel    of 'a * Type.basic * 'a pure * 'a pure * 'a pure
+    | Pload   of Label.t * Type.basic * pure
+    | Psel    of Label.t * Type.basic * pure * pure * pure
     | Psingle of Float32.t
     | Psym    of string * int
-    | Punop   of 'a * Insn.unop * 'a pure
+    | Punop   of Label.t * Insn.unop * pure
     | Pvar    of Var.t
   [@@deriving bin_io, compare, equal, sexp]
 
   (** A global control-flow destination. *)
-  and 'a global =
+  and global =
     | Gaddr of Bv.t
-    | Gpure of 'a pure
+    | Gpure of pure
     | Gsym  of string
   [@@deriving bin_io, compare, equal, sexp]
 
   (** A local control-flow destination. *)
-  and 'a local = Label.t * 'a pure list
+  type local = Label.t * pure list
   [@@deriving bin_io, compare, equal, sexp]
 
   (** A control-flow destination. *)
-  and 'a dst =
-    | Dglobal of 'a global
-    | Dlocal  of 'a local
+  type dst =
+    | Dglobal of global
+    | Dlocal  of local
   [@@deriving bin_io, compare, equal, sexp]
 
   (** A switch table. *)
-  type 'a table = (Bv.t * 'a local) list
+  type table = (Bv.t * local) list
   [@@deriving bin_io, compare, equal, sexp]
 
   (** A "base" expression, which corresponds directly to a [Virtual]
       instruction. *)
-  type 'a t =
-    | Ebr      of 'a pure * 'a dst * 'a dst
-    | Ecall    of 'a global * 'a pure list * 'a pure list
-    | Ejmp     of 'a dst
-    | Eret     of 'a pure
-    | Eset     of Var.t * 'a pure
-    | Estore   of Type.basic * 'a pure * 'a pure
-    | Esw      of Type.imm * 'a pure * 'a local * 'a table
+  type t =
+    | Ebr      of pure * dst * dst
+    | Ecall    of global * pure list * pure list
+    | Ejmp     of dst
+    | Eret     of pure
+    | Eset     of Var.t * pure
+    | Estore   of Type.basic * pure * pure
+    | Esw      of Type.imm * pure * local * table
   [@@deriving bin_io, compare, equal, sexp]
+
+  val pp_pure : Format.formatter -> pure -> unit
+  val pp_global : Format.formatter -> global -> unit
+  val pp_local : Format.formatter -> local -> unit
+  val pp_dst : Format.formatter -> dst -> unit
+  val pp : Format.formatter -> t -> unit
 end
 
-type exp = Label.t Exp.t [@@deriving compare, equal, sexp]
+type exp = Exp.t [@@deriving bin_io, compare, equal, sexp]
 
-(** A callback [f] where [f ~parent x] returns [true] if [parent]
-    dominates [x]. *)
-type dominance = parent:Label.t -> Label.t -> bool
+val pp_exp : Format.formatter -> exp -> unit
 
 (** An e-graph. *)
 type t
 
 type egraph = t
 
-(** Constructs an e-graph. *)
-val create : dominance:dominance -> t
+(** Constructs an e-graph from a function. *)
+val create : func -> t Or_error.t
 
 (** A component of a rule. *)
 type query [@@deriving compare, equal, sexp]
@@ -162,25 +166,8 @@ module Rule : sig
   val (=>*) : query -> query option callback -> t
 end
 
-(** Adds an expression to the e-graph and returns its corresponding ID. *)
-val add : t -> exp -> id
-
 (** Returns the analysis data for a given ID. *)
 val data : t -> id -> const option
-
-(** [find_exn eg id] returns the representative element for [id] in [eg],
-    if it exists.
-
-    @raise Invalid_argument if [id] is not present in [eg].
-*)
-val find_exn : t -> id -> id
-
-(** Same as [find_exn eg id], but returns [None] if [id] is not present. *)
-val find : t -> id -> id option
-
-(** [provenance eg id] finds the provenance associated with [id] in [eg],
-    if it exists. *)
-val provenance : t -> id -> Label.t option
 
 type extractor
 
@@ -201,20 +188,19 @@ module Extractor : sig
   (** Initialize the extractor. *)
   val init : egraph -> cost:cost -> t
 
-  (** Extract the term associated with an ID in the provided
-      e-graph.
+  (** Extract the term associated with a label in the provided e-graph.
 
-      Returns an error if the ID does not exist or the resulting term is
+      Returns an error if the term does not exist or the resulting term is
       not well-formed.
   *)
-  val extract : t -> id -> exp Or_error.t
+  val extract : t -> Label.t -> exp Or_error.t
 
-  (** Same as [extract t id].
+  (** Same as [extract t l].
 
-      @raise Invalid_argument if the ID does not exist or the resulting
+      @raise Invalid_argument if the label does not exist or the resulting
       term is not well-formed.
   *)
-  val extract_exn : t -> id -> exp
+  val extract_exn : t -> Label.t -> exp
 end
 
 (** Parameters for scheduling which rules should be applied at a given
