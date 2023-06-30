@@ -63,17 +63,17 @@ end
 module Exp : sig
   (** A "pure" expression. *)
   type pure =
-    | Palloc  of Label.t * int
-    | Pbinop  of Label.t * Insn.binop * pure * pure
+    | Palloc  of Label.t option * int
+    | Pbinop  of Label.t option * Insn.binop * pure * pure
     | Pbool   of bool
-    | Pcall   of Label.t * Type.basic * global * pure list * pure list
+    | Pcall   of Label.t option * Type.basic * global * pure list * pure list
     | Pdouble of float
     | Pint    of Bv.t * Type.imm
-    | Pload   of Label.t * Type.basic * pure
-    | Psel    of Label.t * Type.basic * pure * pure * pure
+    | Pload   of Label.t option * Type.basic * pure
+    | Psel    of Label.t option * Type.basic * pure * pure * pure
     | Psingle of Float32.t
     | Psym    of string * int
-    | Punop   of Label.t * Insn.unop * pure
+    | Punop   of Label.t option * Insn.unop * pure
     | Pvar    of Var.t
   [@@deriving bin_io, compare, equal, sexp]
 

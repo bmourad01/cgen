@@ -2,17 +2,17 @@ open Core
 open Virtual
 
 type pure =
-  | Palloc  of Label.t * int
-  | Pbinop  of Label.t * Insn.binop * pure * pure
+  | Palloc  of Label.t option * int
+  | Pbinop  of Label.t option * Insn.binop * pure * pure
   | Pbool   of bool
-  | Pcall   of Label.t * Type.basic * global * pure list * pure list
+  | Pcall   of Label.t option * Type.basic * global * pure list * pure list
   | Pdouble of float
   | Pint    of Bv.t * Type.imm
-  | Pload   of Label.t * Type.basic * pure
-  | Psel    of Label.t * Type.basic * pure * pure * pure
+  | Pload   of Label.t option * Type.basic * pure
+  | Psel    of Label.t option * Type.basic * pure * pure * pure
   | Psingle of Float32.t
   | Psym    of string * int
-  | Punop   of Label.t * Insn.unop * pure
+  | Punop   of Label.t option * Insn.unop * pure
   | Pvar    of Var.t
 [@@deriving bin_io, compare, equal, sexp]
 
@@ -43,39 +43,43 @@ type t =
   | Esw      of Type.imm * pure * local * table
 [@@deriving bin_io, compare, equal, sexp]
 
+let pp_label ppf = function
+  | Some l -> Format.fprintf ppf "%a" Label.pp l
+  | None -> ()
+
 let rec pp_args args =
   let pp_sep ppf () = Format.fprintf ppf ", " in
   (Format.pp_print_list ~pp_sep pp_pure) args
 
 and pp_pure ppf = function
   | Palloc (l, n) ->
-    Format.fprintf ppf "alloc%a(%d)" Label.pp l n
+    Format.fprintf ppf "alloc%a(%d)" pp_label l n
   | Pbinop (l, o, x, y) ->
     Format.fprintf ppf "%a%a(%a, %a)"
-      Insn.pp_binop o Label.pp l pp_pure x pp_pure y
+      Insn.pp_binop o pp_label l pp_pure x pp_pure y
   | Pbool f ->
     Format.fprintf ppf "%a" Bool.pp f
   | Pcall (l, _t, f, [], []) ->
-    Format.fprintf ppf "%a%a()" pp_global f Label.pp l
+    Format.fprintf ppf "%a%a()" pp_global f pp_label l
   | Pcall (l, _t, f, args, []) ->
     Format.fprintf ppf "%a%a(%a)"
-      pp_global f Label.pp l pp_args args
+      pp_global f pp_label l pp_args args
   | Pcall (l, _t, f, [], vargs) ->
     Format.fprintf ppf "%a%a(..., %a)"
-      pp_global f Label.pp l pp_args vargs
+      pp_global f pp_label l pp_args vargs
   | Pcall (l, _t, f, args, vargs) ->
     Format.fprintf ppf "%a%a(%a, ..., %a)"
-      pp_global f Label.pp l pp_args args pp_args vargs
+      pp_global f pp_label l pp_args args pp_args vargs
   | Pdouble d ->
     Format.fprintf ppf "%a_d" Float.pp d
   | Pint (i, t) ->
     Format.fprintf ppf "%a_%a" Bv.pp i Type.pp_imm t
   | Pload (l, t, a) ->
     Format.fprintf ppf "ld.%a%a(%a)"
-      Type.pp_basic t Label.pp l pp_pure a
+      Type.pp_basic t pp_label l pp_pure a
   | Psel (l, t, c, y, n) ->
     Format.fprintf ppf "sel.%a%a(%a, %a, %a)"
-      Type.pp_basic t Label.pp l pp_pure c pp_pure y pp_pure n
+      Type.pp_basic t pp_label l pp_pure c pp_pure y pp_pure n
   | Psingle s ->
     Format.fprintf ppf "%s_s" @@ Float32.to_string s
   | Psym (s, o) ->
@@ -84,7 +88,7 @@ and pp_pure ppf = function
     else Format.fprintf ppf "$%s+%d" s o
   | Punop (l, o, x) ->
     Format.fprintf ppf "%a%a(%a)"
-      Insn.pp_unop o Label.pp l pp_pure x
+      Insn.pp_unop o pp_label l pp_pure x
   | Pvar v ->
     Format.fprintf ppf "%a" Var.pp v
 

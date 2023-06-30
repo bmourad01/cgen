@@ -8,7 +8,7 @@ let (@.) = Fn.compose
 let prov t a op args =
   let n : enode = N (op, args) in
   let id = add_enode t n in
-  update_provenance t id a;
+  Option.iter a ~f:(update_provenance t id);
   n, id
 
 let rec pure t : Exp.pure -> (enode * id) = function

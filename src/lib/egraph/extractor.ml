@@ -92,27 +92,27 @@ let rec extract_aux t id =
 
 let rec pure = function
   (* Only canonical forms are accepted. *)
-  | E (Some a, Oalloc n, []) -> Some (Exp.Palloc (a, n))
-  | E (Some a, Obinop b, [l; r]) ->
+  | E (a, Oalloc n, []) -> Some (Exp.Palloc (a, n))
+  | E (a, Obinop b, [l; r]) ->
     let+ l = pure l and+ r = pure r in
     Exp.Pbinop (a, b, l, r)
   | E (_, Obool b, []) -> Some (Exp.Pbool b)
-  | E (Some a, Ocall t, [f; args; vargs]) ->
+  | E (a, Ocall t, [f; args; vargs]) ->
     let+ f = global f
     and+ args = callargs args
     and+ vargs = callargs vargs in
     Exp.Pcall (a, t, f, args, vargs)
   | E (_, Odouble d, []) -> Some (Exp.Pdouble d)
   | E (_, Oint (i, t), []) -> Some (Exp.Pint (i, t))
-  | E (Some a, Oload t, [x]) ->
+  | E (a, Oload t, [x]) ->
     let+ x = pure x in
     Exp.Pload (a, t, x)
-  | E (Some a, Osel t, [c; y; n]) ->
+  | E (a, Osel t, [c; y; n]) ->
     let+ c = pure c and+ y = pure y and+ n = pure n in
     Exp.Psel (a, t, c, y, n)
   | E (_, Osingle s, []) -> Some (Exp.Psingle s)
   | E (_, Osym (s, n), []) -> Some (Exp.Psym (s, n))
-  | E (Some a, Ounop u, [x]) ->
+  | E (a, Ounop u, [x]) ->
     let+ x = pure x in
     Exp.Punop (a, u, x)
   | E (_, Ovar x, []) -> Some (Exp.Pvar x)
