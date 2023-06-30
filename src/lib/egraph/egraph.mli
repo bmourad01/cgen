@@ -190,17 +190,16 @@ module Extractor : sig
 
   (** Extract the term associated with a label in the provided e-graph.
 
-      Returns an error if the term does not exist or the resulting term is
-      not well-formed.
+      If the resulting term is not well-formed, an error is returned.
+      If there is no term associated with the label, [None] is returned.
   *)
-  val extract : t -> Label.t -> exp Or_error.t
+  val extract : t -> Label.t -> exp option Or_error.t
 
   (** Same as [extract t l].
 
-      @raise Invalid_argument if the label does not exist or the resulting
-      term is not well-formed.
+      @raise Invalid_argument if the the resulting term is not well-formed.
   *)
-  val extract_exn : t -> Label.t -> exp
+  val extract_exn : t -> Label.t -> exp option
 end
 
 (** Parameters for scheduling which rules should be applied at a given

@@ -227,7 +227,7 @@ let exp = function
   | E (_, Ovar _, _) -> None
 
 let extract_exn t l = match Hashtbl.find t.eg.provenance.dst l with
-  | None -> invalid_argf "No term exists for label %a" Label.pps l ()
+  | None -> None
   | Some id ->
     let id = find t.eg id in
     check t;
@@ -237,7 +237,7 @@ let extract_exn t l = match Hashtbl.find t.eg.provenance.dst l with
       invalid_argf "Couldn't extract term for label %a (id %a)"
         Label.pps l Id.pps id ()
     | Some e -> match exp e with
-      | Some e -> e
+      | Some _ as e -> e
       | None ->
         invalid_argf
           "Term for label %a (id %a) is not well-formed: %a"
