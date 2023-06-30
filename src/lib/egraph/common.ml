@@ -29,6 +29,7 @@ let sort_and_dedup t ~compare =
       | Some _ | None -> prev := Some x; true)
 [@@specialise]
 
+(* A class of related nodes. *)
 type eclass = {
   id           : id;
   nodes        : enode Vec.t;
@@ -50,16 +51,6 @@ type resolved = [
   | `insn of insn * blk * Var.t option
 ]
 
-(* `src` maps IDs back to their equivalent labels.
-
-   `dst` maps labels to their IDs (note that these IDs may
-   not be the representative element).
-*)
-type prov = {
-  src : Label.t Id.Table.t;
-  dst : id Label.Table.t;
-}
-
 type t = {
   input       : Input.t;
   uf          : Uf.t;
@@ -67,7 +58,8 @@ type t = {
   classes     : eclass Id.Table.t;
   pending     : nodes;
   analyses    : nodes;
-  provenance  : prov;
+  id2lbl      : Label.t Id.Table.t;
+  lbl2id      : id Label.Table.t;
   mutable ver : int;
 }
 
@@ -137,20 +129,24 @@ let merge_data c l r ~left ~right = match l, r with
 
 (* The canonical form for merge operations should be biased towards
    node `a`, except when `b` is known to dominate it. *)
-let merge_provenance t a b =
-  let p = t.provenance in
-  match Hashtbl.find p.src a, Hashtbl.find p.src b with
+let merge_provenance ({id2lbl = p; _} as t) a b =
+  match Hashtbl.(find p a, find p b) with
   | None, Some pb ->
-    Hashtbl.set p.src ~key:a ~data:pb
+    Hashtbl.set p ~key:a ~data:pb
   | Some pa, Some pb when dominates t ~parent:pb pa ->
-    Hashtbl.set p.src ~key:a ~data:pb
+    Hashtbl.set p ~key:a ~data:pb
   | Some pa, (Some _ | None) ->
-    Hashtbl.set p.src ~key:b ~data:pa
+    Hashtbl.set p ~key:b ~data:pa
   | None, None -> ()
 
+(* Only update the mapping from IDs to labels.
+
+   The mapping from labels to IDs only needs to be set once when
+   we lift the CFG to the e-node representation. We can find the
+   representative node for each label thanks to union-find.
+*)
 let update_provenance t id a =
-  let p = t.provenance in
-  Hashtbl.update p.src id ~f:(function
+  Hashtbl.update t.id2lbl id ~f:(function
       | Some b when dominates t ~parent:b a -> b
       | Some _ | None -> a)
 

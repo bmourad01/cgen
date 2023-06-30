@@ -193,13 +193,13 @@ module Extractor : sig
       If the resulting term is not well-formed, an error is returned.
       If there is no term associated with the label, [None] is returned.
   *)
-  val extract : t -> Label.t -> exp option Or_error.t
+  val term : t -> Label.t -> exp option Or_error.t
 
   (** Same as [extract t l].
 
       @raise Invalid_argument if the the resulting term is not well-formed.
   *)
-  val extract_exn : t -> Label.t -> exp option
+  val term_exn : t -> Label.t -> exp option
 end
 
 (** Parameters for scheduling which rules should be applied at a given

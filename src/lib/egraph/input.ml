@@ -75,7 +75,7 @@ let create_tbl fn =
    to work with our strategy for maintaining provenance in the e-graph.
 
    The tree should also include labels of instructions when considering
-   the data-flow of hte function.
+   the data-flow of the function.
 *)
 let doms fn tbl cfg =
   let d = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in

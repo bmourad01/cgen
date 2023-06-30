@@ -19,10 +19,8 @@ let init input = {
   classes = Id.Table.create ();
   pending = Vec.create ();
   analyses = Vec.create ();
-  provenance = {
-    src = Id.Table.create ();
-    dst = Label.Table.create ();
-  };
+  id2lbl = Id.Table.create ();
+  lbl2id = Label.Table.create ();
   ver = 0;
 }
 
@@ -31,8 +29,8 @@ let create fn =
   let+ input, exp = Input.create fn in
   let t = init input in
   Hashtbl.iteri exp ~f:(fun ~key:l ~data:e ->
-      let id = Parser.exp t e in
-      Hashtbl.set t.provenance.dst ~key:l ~data:id;
+      let id = Lifter.exp t e in
+      Hashtbl.set t.lbl2id ~key:l ~data:id;
       update_provenance t id l);
   (* Propagate constants immediately. *)
   Rewrite.rebuild t;
