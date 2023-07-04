@@ -60,6 +60,7 @@ type t = {
   analyses    : nodes;
   id2lbl      : Label.t Id.Table.t;
   lbl2id      : id Label.Table.t;
+  analyze     : bool;
   mutable ver : int;
 }
 
@@ -163,7 +164,7 @@ let rec add_enode t n =
     Enode.children n |> List.iter ~f:(fun ch ->
         Vec.push (eclass t ch).parents x);
     Vec.push t.pending x;
-    Vec.push t.analyses x;
+    if t.analyze then Vec.push t.analyses x;
     Hashtbl.set t.nodes ~key:n ~data:id;
     merge_analysis t id;
     id
