@@ -1,11 +1,17 @@
 open Core
+open Graphlib.Std
+open Regular.Std
 open Common
 
 type cost = child:(id -> int) -> enode -> int
 
+type prov =
+  | Label of Label.t
+  | Id of id
+
 (* We'll use an intermediate data structure to extract back to our real
    expression tree representation. *)
-type ext = E of Label.t option * Enode.op * ext list
+type ext = E of prov * Enode.op * ext list
 
 let rec pp_ext ppf = function
   | E (_, op, args) ->
@@ -80,31 +86,35 @@ let check t = if t.ver <> t.eg.ver then begin
 module Term = struct
   open O.Let
 
+  let lbl = function
+    | Label l -> Some l
+    | Id _ -> None
+
   let rec pure = function
     (* Only canonical forms are accepted. *)
-    | E (a, Oalloc n, []) -> Some (Exp.Palloc (a, n))
+    | E (a, Oalloc n, []) -> Some (Exp.Palloc (lbl a, n))
     | E (a, Obinop b, [l; r]) ->
       let+ l = pure l and+ r = pure r in
-      Exp.Pbinop (a, b, l, r)
+      Exp.Pbinop (lbl a, b, l, r)
     | E (_, Obool b, []) -> Some (Exp.Pbool b)
     | E (a, Ocall t, [f; args; vargs]) ->
       let+ f = global f
       and+ args = callargs args
       and+ vargs = callargs vargs in
-      Exp.Pcall (a, t, f, args, vargs)
+      Exp.Pcall (lbl a, t, f, args, vargs)
     | E (_, Odouble d, []) -> Some (Exp.Pdouble d)
     | E (_, Oint (i, t), []) -> Some (Exp.Pint (i, t))
     | E (a, Oload t, [x]) ->
       let+ x = pure x in
-      Exp.Pload (a, t, x)
+      Exp.Pload (lbl a, t, x)
     | E (a, Osel t, [c; y; n]) ->
       let+ c = pure c and+ y = pure y and+ n = pure n in
-      Exp.Psel (a, t, c, y, n)
+      Exp.Psel (lbl a, t, c, y, n)
     | E (_, Osingle s, []) -> Some (Exp.Psingle s)
     | E (_, Osym (s, n), []) -> Some (Exp.Psym (s, n))
     | E (a, Ounop u, [x]) ->
       let+ x = pure x in
-      Exp.Punop (a, u, x)
+      Exp.Punop (lbl a, u, x)
     | E (_, Ovar x, []) -> Some (Exp.Pvar x)
     (* The rest are rejected. *)
     | E (_, Oaddr _, _)
@@ -226,7 +236,9 @@ let rec extract_aux t id =
     let open O.Let in
     let* _, n = Hashtbl.find t.table id in
     let+ cs = Enode.children n |> O.List.map ~f:(extract_aux t) in
-    let p = Hashtbl.find t.eg.id2lbl id in
+    let p = match Hashtbl.find t.eg.id2lbl id with
+      | Some l -> Label l
+      | None -> Id id in
     let e = E (p, Enode.op n, cs) in
     Hashtbl.set t.memo ~key:id ~data:e;
     e
@@ -252,3 +264,304 @@ let term_exn t l = match Hashtbl.find t.eg.lbl2id l with
           Label.pps l Id.pps id pps_ext e ()
 
 let term t l = Or_error.try_with @@ fun () -> term_exn t l
+
+module Reify = struct
+  open Virtual
+  open Context.Syntax
+
+  type temp = {
+    var : Var.t;
+    lbl : Label.t;
+    lvl : Label.t;
+  }
+
+  type env = {
+    insn        : Insn.op Label.Table.t;
+    ctrl        : ctrl Label.Table.t;
+    temp        : (Var.t * Label.t) Id.Table.t;
+    news        : Label.t list Label.Table.t;
+    mutable lvl : Label.t;
+  }
+
+  let init () = {
+    insn = Label.Table.create ();
+    ctrl = Label.Table.create ();
+    temp = Id.Table.create ();
+    news = Label.Table.create();
+    lvl = Label.pseudoentry;
+  }
+
+  let extract_fail l id =
+    Context.fail @@ Error.createf
+      "Couldn't extract term for label %a (id %a)"
+      Label.pps l Id.pps id
+
+  let invalid l e =
+    Context.fail @@ Error.createf
+      "Invalid term %a for label %a"
+      pps_ext e Label.pps l
+
+  let invalid_pure e =
+    Context.fail @@ Error.createf "Invalid pure term %a" pps_ext e
+
+  let invalid_callargs e =
+    Context.fail @@ Error.createf "Invalid callargs term %a" pps_ext e
+
+  let invalid_global e =
+    Context.fail @@ Error.createf "Invalid global term %a" pps_ext e
+
+  let invalid_tbl e =
+    Context.fail @@ Error.createf "Invalid table term %a" pps_ext e
+
+  let no_var l =
+    Context.fail @@ Error.createf
+      "No variable is bound for label %a"
+      Label.pps l
+
+  let extract t l = match Hashtbl.find t.eg.lbl2id l with
+    | None -> !!None
+    | Some id ->
+      let id = find t.eg id in
+      match extract t id with
+      | None -> extract_fail l id
+      | Some _ as e -> !!e
+
+  let insn t env a f =
+    let* x, l = match a with
+      | Label l ->
+        begin match Hashtbl.find t.eg.input.tbl l with
+          | Some `insn (_, _, Some x) -> !!(x, l)
+          | Some _ | None -> no_var l
+        end
+      | Id id -> match Hashtbl.find env.temp id with
+        | Some p -> !!p
+        | None ->
+          let* l = Context.Label.fresh in
+          let+ x = Context.Var.fresh in
+          Hashtbl.set env.temp ~key:id ~data:(x, l);
+          Hashtbl.add_multi env.news ~key:env.lvl ~data:l;
+          x, l in
+    let+ op = f x in
+    Hashtbl.update env.insn l ~f:(function
+        | Some a -> a
+        | None -> op);
+    `var x
+
+  let insn' env l f =
+    let+ op = f () in
+    Hashtbl.update env.insn l ~f:(function
+        | Some a -> a
+        | None -> op)
+
+  let ctrl env l f =
+    let+ c = f () in
+    Hashtbl.update env.ctrl l ~f:(function
+        | Some a -> a
+        | None -> c)
+
+  let rec pure t env e : operand Context.t =
+    let pure = pure t env in
+    let insn = insn t env in
+    match e with
+    (* Only canonical forms are accepted. *)
+    | E (a, Oalloc n, []) -> insn a @@ fun x ->
+      !!(`alloc (x, n))
+    | E (a, Obinop b, [l; r]) -> insn a @@ fun x ->
+      let+ l = pure l and+ r = pure r in
+      `bop (x, b, l, r)
+    | E (_, Obool b, []) -> !!(`bool b)
+    | E (a, Ocall ty, [f; args; vargs]) -> insn a @@ fun x ->
+      let+ f = global t env f
+      and+ args = callargs t env args
+      and+ vargs = callargs t env vargs in
+      `call (Some (x, ty), f, args, vargs)
+    | E (_, Odouble d, []) -> !!(`double d)
+    | E (_, Oint (i, t), []) -> !!(`int (i, t))
+    | E (a, Oload ty, [y]) -> insn a @@ fun x ->
+      let+ y = pure y in
+      `load (x, ty, y)
+    | E (a, Osel ty, [c; y; n]) -> insn a @@ fun x ->
+      let* y = pure y and* n = pure n in
+      begin pure c >>= function
+        | `var c -> !!(`sel (x, ty, c, y, n))
+        | _ -> invalid_pure e
+      end
+    | E (_, Osingle s, []) -> !!(`float s)
+    | E (_, Osym (s, n), []) -> !!(`sym (s, n))
+    | E (a, Ounop u, [y]) -> insn a @@ fun x ->
+      let+ y = pure y in
+      `uop (x, u, y)
+    | E (_, Ovar x, []) -> !!(`var x)
+    (* The rest are rejected. *)
+    | E (_, Oaddr _, _)
+    | E (_, Oalloc _, _)
+    | E (_, Obinop _, _)
+    | E (_, Obool _, _)
+    | E (_, Obr, _)
+    | E (_, Ocall0, _)
+    | E (_, Ocall _, _)
+    | E (_, Ocallargs, _)
+    | E (_, Odouble _, _)
+    | E (_, Ojmp, _)
+    | E (_, Oint _, _)
+    | E (_, Oload _, _)
+    | E (_, Olocal _, _)
+    | E (_, Oret, _)
+    | E (_, Osel _, _)
+    | E (_, Oset _, _)
+    | E (_, Osingle _, _)
+    | E (_, Ostore _, _)
+    | E (_, Osw _, _)
+    | E (_, Osym _, _)
+    | E (_, Otbl _, _)
+    | E (_, Ounop _, _)
+    | E (_, Ovar _, _) -> invalid_pure e
+
+  and callargs t env = function
+    | E (_, Ocallargs, args) -> Context.List.map args ~f:(pure t env)
+    | e -> invalid_callargs e
+
+  and global t env e : global Context.t = match e with
+    | E (_, Oaddr a, []) -> !!(`addr a)
+    | E (_, Oaddr _, _) -> invalid_global e
+    | E (_, Osym (s, 0), []) -> !!(`sym s)
+    | E (_, Osym _, _) -> invalid_global e
+    | _ -> pure t env e >>= function
+      | `var x -> !!(`var x)
+      | `int (i, _) -> !!(`addr i)
+      | _ -> invalid_global e
+
+  let local t env l args =
+    let+ args = Context.List.map args ~f:(pure t env) in
+    l, args
+
+  let dst t env : ext -> dst Context.t = function
+    | E (_, Olocal l, args) ->
+      let+ l, args = local t env l args in
+      `label (l, args)
+    | e ->
+      let+ g = global t env e in
+      (g :> dst)
+
+  let table_elt t env : ext -> (Bv.t * local) Context.t = function
+    | E (_, Otbl i, [E (_, Olocal l, args)]) ->
+      let+ l, args = local t env l args in
+      i, `label (l, args)
+    | e -> invalid_tbl e 
+
+  let table t env tbl ty =
+    Context.List.map tbl ~f:(table_elt t env) >>| fun tbl ->
+    Ctrl.Table.create_exn tbl ty
+
+  let table_dst tbl i d =
+    Ctrl.Table.find tbl i |>
+    Option.value ~default:d |> fun l ->
+    (l :> dst)
+
+  let exp t env l e =
+    let pure = pure t env in
+    let dst = dst t env in
+    let insn = insn' env in
+    let ctrl = ctrl env in
+    match e with
+    (* Only canonical forms are accepted. *)
+    | E (_, Obr, [c; y; n]) -> ctrl l @@ fun () ->
+      let* y = dst y and* n = dst n in
+      begin pure c >>= function
+        | `bool f -> !!(`jmp (if f then y else n))
+        | `var _ when equal_dst y n -> !!(`jmp y)
+        | `var c -> !!(`br (c, y, n))
+        | _ -> invalid l e
+      end
+    | E (_, Ocall0, [f; args; vargs]) -> insn l @@ fun () ->
+      let+ f = global t env f
+      and+ args = callargs t env args
+      and+ vargs = callargs t env vargs in
+      `call (None, f, args, vargs)
+    | E (_, Ojmp, [d]) -> ctrl l @@ fun () ->
+      let+ d = dst d in
+      `jmp d
+    | E (_, Oret, [x]) -> ctrl l @@ fun () ->
+      let+ x = pure x in
+      `ret (Some x)
+    | E (_, Oset _, [y]) -> pure y >>| ignore
+    | E (_, Ostore t, [v; x]) -> insn l @@ fun () ->
+      let+ v = pure v and+ x = pure x in
+      `store (t, v, x)
+    | E (_, Osw ty, i :: d :: tbl) -> ctrl l @@ fun () ->
+      let* d = match d with
+        | E (_, Olocal l', args) ->
+          let+ l, args = local t env l' args in
+          (`label (l, args) :> local)
+        | _ -> invalid l d
+      and* tbl = table t env tbl ty in
+      begin pure i >>= function
+        | (`var _ | `sym _) as i -> !!(`sw (ty, i, d, tbl))
+        | `int (i, _) -> !!(`jmp (table_dst tbl i d))
+        | _ -> invalid l i
+      end
+    (* The rest are rejected. *)
+    | E (_, Oaddr _, _)
+    | E (_, Oalloc _, _)
+    | E (_, Obinop _, _)
+    | E (_, Obool _, _)
+    | E (_, Obr, _)
+    | E (_, Ocall0, _)
+    | E (_, Ocall _, _)
+    | E (_, Ocallargs, _)
+    | E (_, Odouble _, _)
+    | E (_, Ojmp, _)
+    | E (_, Oint _, _)
+    | E (_, Oload _, _)
+    | E (_, Olocal _, _)
+    | E (_, Oret, _)
+    | E (_, Osel _, _)
+    | E (_, Oset _, _)
+    | E (_, Osingle _, _)
+    | E (_, Ostore _, _)
+    | E (_, Osw _, _)
+    | E (_, Osym _, _)
+    | E (_, Otbl _, _)
+    | E (_, Ounop _, _)
+    | E (_, Ovar _, _) -> invalid l e
+
+  let collect t l =
+    let env = init () in
+    let q = Stack.singleton l in
+    let rec loop () = match Stack.pop q with
+      | None -> !!env
+      | Some l ->
+        env.lvl <- l;
+        let* () = extract t l >>= function
+          | Some e -> exp t env l e
+          | None -> !!() in
+        Tree.children t.eg.input.dom l |> Seq.iter ~f:(Stack.push q);
+        loop () in
+    loop ()
+end
+
+let reify t =
+  let open Virtual in
+  let open Context.Syntax in
+  let+ env = Reify.collect t Label.pseudoentry in
+  let fn = t.eg.input.fn in
+  Func.blks fn |> Seq.map ~f:(fun b ->
+      let label = Blk.label b in
+      let ctrl = match Hashtbl.find env.ctrl label with
+        | None -> Blk.ctrl b
+        | Some c -> c in
+      let insns = Blk.insns b |> Seq.map ~f:(fun i ->
+          let label = Insn.label i in
+          match Hashtbl.find env.insn label with
+          | Some o -> Insn.create o ~label
+          | None -> i) |> Seq.to_list in
+      let insns = match Hashtbl.find env.news label with
+        | None -> insns
+        | Some news ->
+          List.fold news ~init:insns ~f:(fun acc label ->
+              match Hashtbl.find env.insn label with
+              | Some o -> Insn.create o ~label :: acc
+              | None -> acc) in
+      Blk.create () ~insns ~ctrl ~label
+        ~args:(Blk.args b |> Seq.to_list)) |>
+  Seq.to_list |> Func.update_blks fn

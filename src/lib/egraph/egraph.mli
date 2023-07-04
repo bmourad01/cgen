@@ -206,6 +206,10 @@ module Extractor : sig
       @raise Invalid_argument if the the resulting term is not well-formed.
   *)
   val term_exn : t -> Label.t -> exp option
+
+  (** [reify t] attempts to extract the terms in the underlying e-graph
+      back to the input function .*)
+  val reify : t -> func Context.t
 end
 
 (** Parameters for scheduling which rules should be applied at a given
