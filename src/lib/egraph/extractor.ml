@@ -450,8 +450,8 @@ module Reify = struct
     | e -> invalid_tbl e 
 
   let table t env tbl ty =
-    Context.List.map tbl ~f:(table_elt t env) >>| fun tbl ->
-    Ctrl.Table.create_exn tbl ty
+    Context.List.map tbl ~f:(table_elt t env) >>= fun tbl ->
+    Ctrl.Table.create tbl ty |> Context.lift_err
 
   let table_dst tbl i d =
     Ctrl.Table.find tbl i |>
