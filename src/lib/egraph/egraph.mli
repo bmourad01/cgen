@@ -1,4 +1,10 @@
-(** An e-graph data structure. *)
+(** An e-graph data structure for performing equality saturation.
+
+    The main motivation for using this data structure is that it allows
+    us to keep track of equivalent program terms, as well as iteratively
+    apply rewrite rules, in a relatively efficient and principled way
+    that solves the phase ordering problem.
+*)
 
 open Core
 open Regular.Std
