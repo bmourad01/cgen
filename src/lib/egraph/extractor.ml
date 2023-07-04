@@ -527,15 +527,16 @@ module Reify = struct
 
   let collect t l =
     let env = init () in
-    let q = Stack.singleton l in
-    let rec loop () = match Stack.pop q with
+    (* Traverse the tree breadth-first. *)
+    let q = Queue.singleton l in
+    let rec loop () = match Queue.dequeue q with
       | None -> !!env
       | Some l ->
         env.lvl <- l;
         let* () = extract t l >>= function
           | Some e -> exp t env l e
           | None -> !!() in
-        Tree.children t.eg.input.dom l |> Seq.iter ~f:(Stack.push q);
+        Tree.children t.eg.input.dom l |> Seq.iter ~f:(Queue.enqueue q);
         loop () in
     loop ()
 end
