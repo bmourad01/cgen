@@ -134,6 +134,7 @@ let cost ~child n =
   let init = match Egraph.Enode.op n with
     | Obool _ | Odouble _ | Oint _ | Osingle _ | Osym _ -> 0
     | Ovar _ -> 1
+    | Osel _ -> 5
     | _ -> 2 in
   Egraph.Enode.children n |>
   List.fold ~init ~f:(fun k c -> k + child c)
