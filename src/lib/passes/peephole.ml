@@ -4,29 +4,32 @@ open Context.Syntax
 
 module O = Monad.Option
 
-let mul_imm_pow2 x y eg _ env =
-  let open O.Syntax in
-  Map.find env y >>= Egraph.data eg >>= function
-  | `int (i, ty) ->
-    let i = Bv.to_int64 i in
-    if Int64.is_pow2 i then
-      let open Egraph.Enode in
-      let open Egraph.Rule in
+module Rules = struct
+  open Egraph.Enode
+  open Egraph.Rule
+
+  let x = var "x"
+  let y = var "y"
+
+  let i8  s = exp (Oint (Bv.of_string s,  `i8))
+  let i16 s = exp (Oint (Bv.of_string s, `i16))
+  let i32 s = exp (Oint (Bv.of_string s, `i32))
+  let i64 s = exp (Oint (Bv.of_string s, `i64))
+
+  (* Dynamically rewrite a multiplication by a power of two into
+     a left shift. *)
+  let mul_imm_pow2 x y eg _ env =
+    let open O.Syntax in
+    Map.find env y >>= Egraph.data eg >>= function
+    | `int (i, ty) ->
+      let i = Bv.to_int64 i in
+      O.guard (Int64.is_pow2 i) >>| fun () ->
       let m = Bv.modulus @@ Type.sizeof_imm ty in
       let i = exp (Oint (Bv.(int (Int64.ctz i) mod m), ty)) in
-      !!(Obinop (`lsl_ ty) & [x; i])
-    else None
-  | _ -> None
+      Obinop (`lsl_ ty) & [x; i]
+    | _ -> None
 
-let rules =
-  let open Egraph.Enode in
-  let open Egraph.Rule in
-  let i8  s = exp (Oint (Bv.of_string s,  `i8)) in
-  let i16 s = exp (Oint (Bv.of_string s, `i16)) in
-  let i32 s = exp (Oint (Bv.of_string s, `i32)) in
-  let i64 s = exp (Oint (Bv.of_string s, `i64)) in
-  let x = var "x" in
-  let y = var "y" in [
+  let rules = [
     (* x + 0 = x. *)
     (Obinop (`add  `i8) & [x;  i8 "0"]) => x;
     (Obinop (`add `i16) & [x; i16 "0"]) => x;
@@ -129,6 +132,7 @@ let rules =
     (Ounop (`copy `f32) & [x]) => x;
     (Ounop (`copy `f64) & [x]) => x;
   ]  
+end
 
 let cost ~child n =
   let init = match Egraph.Enode.op n with
@@ -141,6 +145,6 @@ let cost ~child n =
 
 let run fn =
   let*? eg = Egraph.create fn in
-  let _ = Egraph.fixpoint eg rules in
+  let _ = Egraph.fixpoint eg Rules.rules in
   let ex = Egraph.Extractor.init eg ~cost in
   Egraph.Extractor.reify ex
