@@ -344,12 +344,12 @@ insn:
       let+ x = x and+ a = a in
       `uop (x, u, a)
     }
-  | x = var t = SEL c = var COMMA l = operand COMMA r = operand
+  | x = var EQUALS t = SEL c = var COMMA l = operand COMMA r = operand
     {
       let+ x = x and+ c = c and+ l = l and+ r = r in
       `sel (x, t, c, l, r)
     }
-  | x = var t = ACALL f = global LPAREN args = call_args RPAREN
+  | x = var EQUALS t = ACALL f = global LPAREN args = call_args RPAREN
     {
       let+ x = x and+ f = f and+ args = args in
       let args, vargs = Core.List.partition_map args ~f:(function
