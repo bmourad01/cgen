@@ -530,30 +530,34 @@ module Reify = struct
         Tree.children t.eg.input.dom l |> Seq.iter ~f:(Queue.enqueue q);
         loop () in
     loop ()
+
+  let find_insn env l =
+    Hashtbl.find env.insn l |>
+    Option.map ~f:(fun o -> Insn.create o ~label:l)
+
+  let find_news env l =
+    Hashtbl.find env.news l |>
+    Option.value_map ~default:[]
+      ~f:(List.filter_map ~f:(find_insn env))
+
+  let reify t =
+    let open Context.Syntax in
+    let+ env = collect t Label.pseudoentry in
+    let fn = t.eg.input.fn in
+    Func.blks fn |> Seq.map ~f:(fun b ->
+        let label = Blk.label b in
+        let ctrl = match Hashtbl.find env.ctrl label with
+          | None -> Blk.ctrl b
+          | Some c -> c in
+        let insns =
+          Blk.insns b ~rev:true |>
+          Seq.fold ~init:(find_news env label) ~f:(fun acc i ->
+              let label = Insn.label i in
+              let i = find_insn env label |> Option.value ~default:i in
+              find_news env label @ (i :: acc)) in
+        Blk.create () ~insns ~ctrl ~label
+          ~args:(Blk.args b |> Seq.to_list)) |>
+    Seq.to_list |> Func.update_blks fn
 end
 
-let reify t =
-  let open Virtual in
-  let open Context.Syntax in
-  let+ env = Reify.collect t Label.pseudoentry in
-  let fn = t.eg.input.fn in
-  Func.blks fn |> Seq.map ~f:(fun b ->
-      let label = Blk.label b in
-      let ctrl = match Hashtbl.find env.ctrl label with
-        | None -> Blk.ctrl b
-        | Some c -> c in
-      let insns = Blk.insns b |> Seq.map ~f:(fun i ->
-          let label = Insn.label i in
-          match Hashtbl.find env.insn label with
-          | Some o -> Insn.create o ~label
-          | None -> i) |> Seq.to_list in
-      let insns = match Hashtbl.find env.news label with
-        | None -> insns
-        | Some news ->
-          List.fold news ~init:insns ~f:(fun acc label ->
-              match Hashtbl.find env.insn label with
-              | Some o -> Insn.create o ~label :: acc
-              | None -> acc) in
-      Blk.create () ~insns ~ctrl ~label
-        ~args:(Blk.args b |> Seq.to_list)) |>
-  Seq.to_list |> Func.update_blks fn
+let reify = Reify.reify
