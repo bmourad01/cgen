@@ -269,18 +269,12 @@ module Reify = struct
   open Virtual
   open Context.Syntax
 
-  type temp = {
-    var : Var.t;
-    lbl : Label.t;
-    lvl : Label.t;
-  }
-
   type env = {
     insn        : Insn.op Label.Table.t;
     ctrl        : ctrl Label.Table.t;
     temp        : (Var.t * Label.t) Id.Table.t;
     news        : Label.t list Label.Table.t;
-    mutable lvl : Label.t;
+    mutable cur : Label.t;
   }
 
   let init () = {
@@ -288,7 +282,7 @@ module Reify = struct
     ctrl = Label.Table.create ();
     temp = Id.Table.create ();
     news = Label.Table.create();
-    lvl = Label.pseudoentry;
+    cur = Label.pseudoentry;
   }
 
   let extract_fail l id =
@@ -326,6 +320,8 @@ module Reify = struct
       | None -> extract_fail l id
       | Some _ as e -> !!e
 
+  let upd t x y = Hashtbl.update t x ~f:(Option.value ~default:y)
+
   let insn t env a f =
     let* x, l = match a with
       | Label l ->
@@ -339,25 +335,19 @@ module Reify = struct
           let* l = Context.Label.fresh in
           let+ x = Context.Var.fresh in
           Hashtbl.set env.temp ~key:id ~data:(x, l);
-          Hashtbl.add_multi env.news ~key:env.lvl ~data:l;
+          Hashtbl.add_multi env.news ~key:env.cur ~data:l;
           x, l in
     let+ op = f x in
-    Hashtbl.update env.insn l ~f:(function
-        | Some a -> a
-        | None -> op);
+    upd env.insn l op;
     `var x
 
   let insn' env l f =
     let+ op = f () in
-    Hashtbl.update env.insn l ~f:(function
-        | Some a -> a
-        | None -> op)
+    upd env.insn l op
 
   let ctrl env l f =
     let+ c = f () in
-    Hashtbl.update env.ctrl l ~f:(function
-        | Some a -> a
-        | None -> c)
+    upd env.ctrl l c
 
   let rec pure t env e : operand Context.t =
     let pure = pure t env in
@@ -450,8 +440,9 @@ module Reify = struct
     | e -> invalid_tbl e 
 
   let table t env tbl ty =
-    Context.List.map tbl ~f:(table_elt t env) >>= fun tbl ->
-    Ctrl.Table.create tbl ty |> Context.lift_err
+    let* tbl = Context.List.map tbl ~f:(table_elt t env) in
+    let*? x = Ctrl.Table.create tbl ty in
+    !!x
 
   let table_dst tbl i d =
     Ctrl.Table.find tbl i |>
@@ -461,11 +452,11 @@ module Reify = struct
   let exp t env l e =
     let pure = pure t env in
     let dst = dst t env in
-    let insn = insn' env in
-    let ctrl = ctrl env in
+    let insn = insn' env l in
+    let ctrl = ctrl env l in
     match e with
     (* Only canonical forms are accepted. *)
-    | E (_, Obr, [c; y; n]) -> ctrl l @@ fun () ->
+    | E (_, Obr, [c; y; n]) -> ctrl @@ fun () ->
       let* y = dst y and* n = dst n in
       begin pure c >>= function
         | `bool f -> !!(`jmp (if f then y else n))
@@ -473,22 +464,22 @@ module Reify = struct
         | `var c -> !!(`br (c, y, n))
         | _ -> invalid l e
       end
-    | E (_, Ocall0, [f; args; vargs]) -> insn l @@ fun () ->
+    | E (_, Ocall0, [f; args; vargs]) -> insn @@ fun () ->
       let+ f = global t env f
       and+ args = callargs t env args
       and+ vargs = callargs t env vargs in
       `call (None, f, args, vargs)
-    | E (_, Ojmp, [d]) -> ctrl l @@ fun () ->
+    | E (_, Ojmp, [d]) -> ctrl @@ fun () ->
       let+ d = dst d in
       `jmp d
-    | E (_, Oret, [x]) -> ctrl l @@ fun () ->
+    | E (_, Oret, [x]) -> ctrl @@ fun () ->
       let+ x = pure x in
       `ret (Some x)
     | E (_, Oset _, [y]) -> pure y >>| ignore
-    | E (_, Ostore t, [v; x]) -> insn l @@ fun () ->
+    | E (_, Ostore t, [v; x]) -> insn @@ fun () ->
       let+ v = pure v and+ x = pure x in
       `store (t, v, x)
-    | E (_, Osw ty, i :: d :: tbl) -> ctrl l @@ fun () ->
+    | E (_, Osw ty, i :: d :: tbl) -> ctrl @@ fun () ->
       let* d = match d with
         | E (_, Olocal l', args) ->
           let+ l, args = local t env l' args in
@@ -532,7 +523,7 @@ module Reify = struct
     let rec loop () = match Queue.dequeue q with
       | None -> !!env
       | Some l ->
-        env.lvl <- l;
+        env.cur <- l;
         let* () = extract t l >>= function
           | Some e -> exp t env l e
           | None -> !!() in
