@@ -23,7 +23,7 @@ module Rules = struct
     Map.find env y >>= Egraph.data eg >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
-      O.guard (Int64.is_pow2 i) >>| fun () ->
+      O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
       let m = Bv.modulus @@ Type.sizeof_imm ty in
       let i = exp (Oint (Bv.(int (Int64.ctz i) mod m), ty)) in
       Obinop (`lsl_ ty) & [x; i]
