@@ -2,7 +2,7 @@ open Core
 open Regular.Std
 open Virtual
 
-let run fn =
+let rec run fn =
   let live = Live.compute fn in
   Func.blks fn |> Seq.filter_map ~f:(fun b ->
       let label = Blk.label b in
@@ -22,5 +22,6 @@ let run fn =
         Option.some @@ Blk.create ()
           ~args:(Blk.args b |> Seq.to_list)
           ~insns ~ctrl ~label
-      else None) |>
-  Seq.to_list |> Func.update_blks fn
+      else None) |> Seq.to_list |> function
+  | [] -> fn (* No changes, so we're done. *)
+  | blks -> run @@ Func.update_blks fn blks
