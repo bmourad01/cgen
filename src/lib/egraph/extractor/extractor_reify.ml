@@ -281,8 +281,7 @@ let find_news env l =
 
 let reify t =
   let+ env = collect t Label.pseudoentry in
-  let fn = t.eg.input.fn in
-  Func.blks fn |> Seq.map ~f:(fun b ->
+  Func.map_blks t.eg.input.fn ~f:(fun b ->
       let label = Blk.label b in
       let ctrl = match Hashtbl.find env.ctrl label with
         | None -> Blk.ctrl b
@@ -294,5 +293,4 @@ let reify t =
             let i = find_insn env label |> Option.value ~default:i in
             find_news env label @ (i :: acc)) in
       Blk.create () ~insns ~ctrl ~label
-        ~args:(Blk.args b |> Seq.to_list)) |>
-  Seq.to_list |> Func.update_blks fn
+        ~args:(Blk.args b |> Seq.to_list))
