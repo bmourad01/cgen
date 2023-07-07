@@ -174,6 +174,77 @@ module Rule : sig
   (** [pre => gen] allows a post-condition to be generated
       dynamically according to [gen]. *)
   val (=>*) : query -> query option callback -> t
+
+  (** Helpers for constructing patterns. *)
+  module Op : sig
+    val addr : Bv.t -> query
+    val alloc : int -> query
+    val bop : Insn.binop -> query -> query -> query
+    val bool : bool -> query
+    val br : query -> query -> query -> query
+    val call0 : query -> query list -> query list -> query
+    val call : Type.basic -> query -> query list -> query list -> query
+    val double : float -> query
+    val int : Bv.t -> Type.imm -> query
+    val i8 : int -> query
+    val i16 : int -> query
+    val i32 : int32 -> query
+    val i64 : int64 -> query
+    val jmp : query -> query
+    val load : Type.basic -> query -> query
+    val ret : query -> query
+    val sel : Type.basic -> query -> query -> query -> query
+    val single : Float32.t -> query
+    val store : Type.basic -> query -> query -> query
+    val sym : string -> int -> query
+    val uop : Insn.unop -> query -> query
+    val add : Type.basic -> query -> query -> query
+    val div : Type.basic -> query -> query -> query
+    val mul : Type.basic -> query -> query -> query
+    val mulh : Type.imm -> query -> query -> query
+    val rem : Type.basic -> query -> query -> query
+    val sub : Type.basic -> query -> query -> query
+    val udiv : Type.imm -> query -> query -> query
+    val urem : Type.imm -> query -> query -> query
+    val and_ : Type.imm -> query -> query -> query
+    val or_ : Type.imm -> query -> query -> query
+    val asr_ : Type.imm -> query -> query -> query
+    val lsl_ : Type.imm -> query -> query -> query
+    val lsr_ : Type.imm -> query -> query -> query
+    val rol : Type.imm -> query -> query -> query
+    val ror : Type.imm -> query -> query -> query
+    val xor : Type.imm -> query -> query -> query
+    val neg : Type.basic -> query -> query
+    val not_ : Type.imm -> query -> query
+    val clz : Type.imm -> query -> query
+    val ctz : Type.imm -> query -> query
+    val popcnt : Type.imm -> query -> query
+    val eq : Type.basic -> query -> query -> query
+    val ge : Type.basic -> query -> query -> query
+    val gt : Type.basic -> query -> query -> query
+    val ne : Type.basic -> query -> query -> query
+    val le : Type.basic -> query -> query -> query
+    val lt : Type.basic -> query -> query -> query
+    val o : Type.fp -> query -> query -> query
+    val sge : Type.imm -> query -> query -> query
+    val sgt : Type.imm -> query -> query -> query
+    val sle : Type.imm -> query -> query -> query
+    val slt : Type.imm -> query -> query -> query
+    val uo : Type.fp -> query -> query -> query
+    val fext : Type.fp -> query -> query
+    val fibits : Type.fp -> query -> query
+    val flag : Type.imm -> query -> query
+    val ftosi : Type.fp -> Type.imm -> query -> query
+    val ftoui : Type.fp -> Type.imm -> query -> query
+    val ftrunc : Type.fp -> query -> query
+    val ifbits : Type.imm_base -> query -> query
+    val itrunc : Type.imm -> query -> query
+    val sext : Type.imm -> query -> query
+    val sitof : Type.imm -> Type.fp -> query -> query
+    val uitof : Type.imm -> Type.fp -> query -> query
+    val zext : Type.imm -> query -> query
+    val copy : Type.basic -> query -> query
+  end
 end
 
 (** Returns the analysis data for a given ID. *)
