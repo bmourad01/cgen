@@ -1,6 +1,7 @@
 open Core
 open Monads.Std
 open Context.Syntax
+open Virtual
 
 module O = Monad.Option
 
@@ -569,10 +570,25 @@ end
 
 let cost ~child n =
   let init = match Egraph.Enode.op n with
-    | Obool _ | Odouble _ | Oint _ | Osingle _ | Osym _ -> 0
-    | Ovar _ -> 1
-    | Osel _ -> 5
-    | _ -> 2 in
+    | Oaddr _
+    | Oalloc _
+    | Obool _
+    | Ocall0
+    | Ocall _
+    | Ocallargs
+    | Odouble _
+    | Oint _
+    | Ojmp
+    | Olocal _
+    | Oret
+    | Osingle _
+    | Osym _
+    | Oset _ -> 0
+    | Obr | Otbl _ | Ovar _ -> 1
+    | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 2
+    | Obinop (`div _ | `udiv _) -> 10
+    | Obinop _ | Oload _ | Ostore _ -> 3
+    | Osel _ -> 6 in
   Egraph.Enode.children n |>
   List.fold ~init ~f:(fun k c -> k + child c)
 
