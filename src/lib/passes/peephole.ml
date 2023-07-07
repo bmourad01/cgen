@@ -6,13 +6,14 @@ open Virtual
 module O = Monad.Option
 
 module Rules = struct
-  open Egraph.Enode
   open Egraph.Rule
 
   let is_const x eg _ env =
     Map.find env x |>
     Option.bind ~f:(Egraph.data eg) |>
     Option.is_some
+
+  let imod t = Bv.modulus @@ Type.sizeof_imm t
 
   (* Dynamically rewrite a multiplication by a power of two into
      a left shift. *)
@@ -22,9 +23,7 @@ module Rules = struct
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
-      let m = Bv.modulus @@ Type.sizeof_imm ty in
-      let i = exp (Oint (Bv.(int (Int64.ctz i) mod m), ty)) in
-      Op.lsl_ ty x i
+      Op.(lsl_ ty x (int Bv.(int (Int64.ctz i) mod imod ty) ty))
     | _ -> None
 
   let x = var "x"
