@@ -70,7 +70,8 @@ let rec run fn =
         Set.mem outs x ||
         Set.mem (Label.Tree.find_exn iouts l) x in
       let changed = ref (ca || cc) in
-      let insns = List.filter insns ~f:(fun i -> match Insn.lhs i with
+      let insns = List.filter insns ~f:(fun i ->
+          Insn.is_effectful i || match Insn.lhs i with
           | Some x when not @@ alive x @@ Insn.label i ->
             changed := true; false
           | Some _ | None -> true) in

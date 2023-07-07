@@ -318,5 +318,11 @@ let lhs d = lhs_of_op d.op
 let has_lhs d v = op_has_lhs d.op v
 let free_vars d = free_vars_of_op d.op
 
+let is_effectful_op : op -> bool = function
+  | #call | #variadic | `store _ -> true
+  | _ -> false
+
+let is_effectful t = is_effectful_op t.op
+
 let pp ppf d =
   Format.fprintf ppf "@[%a@ @[; %a@]@]" pp_op d.op Label.pp d.label

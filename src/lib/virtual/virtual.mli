@@ -450,6 +450,12 @@ module Insn : sig
   (** Same as [op_has_lhs (op d)]. *)
   val has_lhs : t -> Var.t -> bool
 
+  (** Returns [true] for instructions that have side effects. *)
+  val is_effectful_op : op -> bool
+
+  (** Same as [is_effectful_op (op d)]. *)
+  val is_effectful : t -> bool
+
   (** Transforms the underlying operation. *)
   val map : t -> f:(op -> op) -> t
 
