@@ -118,15 +118,17 @@ let update_blk fn b =
     fn with blks = Ftree.update_if fn.blks b ~f:(Fn.flip Blk.has_label l);
   }
 
-let update_blks fn bs =
-  let m = List.fold bs ~init:Label.Tree.empty ~f:(fun m b ->
-      let key = Blk.label b in
-      match Label.Tree.add m ~key ~data:b with
-      | `Duplicate -> invalid_argf "Duplicate label %a" Label.pps key ()
-      | `Ok m -> m) in {
-    fn with blks = Ftree.map fn.blks ~f:(fun b ->
-      Blk.label b |> Label.Tree.find m |> Option.value ~default:b);
-  }
+let update_blks fn = function
+  | [] -> fn
+  | bs ->
+    let m = List.fold bs ~init:Label.Tree.empty ~f:(fun m b ->
+        let key = Blk.label b in
+        match Label.Tree.add m ~key ~data:b with
+        | `Duplicate -> invalid_argf "Duplicate label %a" Label.pps key ()
+        | `Ok m -> m) in {
+      fn with blks = Ftree.map fn.blks ~f:(fun b ->
+        Blk.label b |> Label.Tree.find m |> Option.value ~default:b);
+    }
 
 let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
 
