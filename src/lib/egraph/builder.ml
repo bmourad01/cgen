@@ -54,14 +54,14 @@ module Lifter = struct
     | Pvar x when Set.mem vs x -> raise @@ Occurs_failed (x, None)
     | Pvar x -> var t eg vs x
 
-  and var t eg vs x = match Hashtbl.find t.pure x with
-    | None -> add_enode eg @@ N (Ovar x, [])
-    | Some p -> match Hashtbl.find t.filled x with
-      | Some id -> id
-      | None ->
-        let id = pure t eg p ~vs:(Set.add vs x) in
-        Hashtbl.set t.filled ~key:x ~data:id;
-        id
+  and var t eg vs x = match Hashtbl.find t.filled x with
+    | Some id -> id
+    | None ->
+      let id = match Hashtbl.find t.pure x with
+        | None -> add_enode eg @@ N (Ovar x, [])
+        | Some p -> pure t eg p ~vs:(Set.add vs x) in
+      Hashtbl.set t.filled ~key:x ~data:id;
+      id
 
   and args' ?(vs = Var.Set.empty) t eg = List.map ~f:(pure t eg ~vs)
 
