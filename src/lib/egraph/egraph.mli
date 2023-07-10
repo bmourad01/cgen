@@ -136,6 +136,8 @@ type egraph = t
 
     If [analyze] is [false] (default is [true]), then constant
     propagation is not performed.
+
+    [fn] is expected to be in SSA form.
 *)
 val create : ?analyze:bool -> func -> t Or_error.t
 
