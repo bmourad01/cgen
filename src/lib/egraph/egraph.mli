@@ -132,14 +132,11 @@ type t
 
 type egraph = t
 
-(** [create fn ?analyze] constructs an e-graph from a function [fn].
-
-    If [analyze] is [false] (default is [true]), then constant
-    propagation is not performed.
+(** [create fn] constructs an e-graph from a function [fn].
 
     [fn] is expected to be in SSA form.
 *)
-val create : ?analyze:bool -> func -> t Or_error.t
+val create : func -> t Or_error.t
 
 (** A component of a rule. *)
 type query [@@deriving compare, equal, sexp]

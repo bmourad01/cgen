@@ -35,6 +35,7 @@ let canonicalize (N (op, children)) uf =
 
 let op (N (op, _)) = op
 let children (N (_, children)) = children
+let is_leaf n = List.is_empty @@ children n
 
 let equal_children (N (_, a)) (N (_, b)) =
   List.equal Id.equal a b

@@ -12,7 +12,7 @@ type scheduler = Scheduler.t
 
 let fixpoint = Rewrite.fixpoint
 
-let init analyze input = {
+let init input = {
   input;
   uf = Uf.create ();
   nodes = Hashtbl.create (module Enode);
@@ -21,14 +21,12 @@ let init analyze input = {
   analyses = Vec.create ();
   id2lbl = Id.Table.create ();
   lbl2id = Label.Table.create ();
-  analyze;
   ver = 0;
 }
 
-let create ?(analyze = true) fn =
+let create fn =
   let open Input.E.Let in
   let* input = Input.init fn in
-  let t = init analyze input in
+  let t = init input in
   let+ () = Builder.run t in
-  if analyze then Rewrite.rebuild t;
   t

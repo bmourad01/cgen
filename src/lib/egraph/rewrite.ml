@@ -13,13 +13,13 @@ let ematch t cs p : matches =
     | Unequal_lengths -> None
   and var env x id = match Map.find env x with
     | None -> Some (Map.set env ~key:x ~data:id)
-    | Some id' -> Option.some_if Id.(id = id') env
+    | Some id' -> Option.some_if (id = id') env
   and first env q id =
     O.(Hashtbl.find cs id >>= Vec.find_map ~f:(enode env q))
-  and go ?(env = String.Map.empty) x =
-    let id = find t x in function
-      | V x -> var env x id
-      | Q _ as q -> first env q id in
+  and go ?(env = String.Map.empty) x q =
+    let id = find t x in match q with
+    | V x -> var env x id
+    | Q _ as q -> first env q id in
   let r = Vec.create () in
   Hashtbl.iter_keys cs ~f:(fun id ->
       go id p |> Option.iter ~f:(fun env ->
@@ -62,13 +62,14 @@ let rec update_analyses t = next t.analyses @@ fun (n, cid) ->
   let cid = find t cid in
   let d = Enode.eval n ~data:(data t) in
   let c = eclass t cid in
-  assert Id.(c.id = cid);
+  assert (c.id = cid);
   merge_data c c.data d ~right:Fn.id ~left:(fun () ->
       Vec.append t.analyses c.parents;
-      merge_analysis t cid);
+      modify_analysis t cid);
   update_analyses t
 
-let process_unions t = while not @@ Vec.is_empty t.pending do
+let process_unions t =
+  while not @@ Vec.(is_empty t.pending && is_empty t.analyses) do
     update_nodes t;
     update_analyses t
   done

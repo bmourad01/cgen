@@ -55,7 +55,6 @@ type t = {
   analyses    : nodes;
   id2lbl      : Label.t Id.Table.t;
   lbl2id      : id Label.Table.t;
-  analyze     : bool;
   mutable ver : int;
 }
 
@@ -164,14 +163,17 @@ module Rule = struct
   end
 end
 
-let eclass t id = Hashtbl.find_or_add t.classes id
+let find t id = Uf.find t.uf id
+
+let eclass t id =
+  let id = find t id in
+  Hashtbl.find_or_add t.classes id
     ~default:(fun () -> create_eclass id)
 
 let data t id =
-  Hashtbl.find t.classes id |>
+  find t id |> Hashtbl.find t.classes |>
   Option.bind ~f:(fun c -> c.data)
 
-let find t id = Uf.find t.uf id
 let dominates t = Tree.is_descendant_of t.input.dom
 
 (* Maps e-class IDs to equivalent e-nodes. *)
@@ -191,7 +193,7 @@ let merge_data c l r ~left ~right = match l, r with
   | Some l, Some r -> assert (equal_const l r); c.data <- Some l
   | Some l, None   -> c.data <- Some l; right ()
   | None,   Some r -> c.data <- Some r; left ()
-  | None,   None   -> c.data <- None
+  | None,   None   -> ()
 [@@specialise]
 
 (* The canonical form for merge operations should be biased towards
@@ -227,25 +229,25 @@ let rec add_enode t n =
     let c = eclass t id in
     let x = n, id in
     Vec.push c.nodes n;
+    Vec.push t.pending x;
+    c.data <- Enode.eval n ~data:(data t);
     Enode.children n |> List.iter ~f:(fun ch ->
         Vec.push (eclass t ch).parents x);
-    Vec.push t.pending x;
-    if t.analyze then Vec.push t.analyses x;
     Hashtbl.set t.nodes ~key:n ~data:id;
-    merge_analysis t id;
+    modify_analysis t id;
     id
 
 and merge t a b =
   let a = find t a in
   let b = find t b in
-  if Id.(a <> b) then
+  if a <> b then
     (* Decide on the representative element. *)
     let ca = eclass t a in
     let cb = eclass t b in
     let a, b, ca, cb = if rank ca < rank cb
       then b, a, cb, ca else a, b, ca, cb in
-    assert Id.(a = Uf.union t.uf a b);
-    assert Id.(a = ca.id);
+    assert (a = Uf.union t.uf a b);
+    assert (a = ca.id);
     t.ver <- t.ver + 1;
     Hashtbl.remove t.classes b;
     (* Perform the merge. *)
@@ -256,7 +258,7 @@ and merge t a b =
       ~left:(fun () -> Vec.append t.analyses ca.parents)
       ~right:(fun () -> Vec.append t.analyses cb.parents);
     merge_provenance t a b;
-    merge_analysis t a
+    modify_analysis t a
 
-and merge_analysis t id = data t id |> Option.iter ~f:(fun d ->
-    merge t (add_enode t @@ Enode.of_const d) id)
+and modify_analysis t id = data t id |> Option.iter ~f:(fun d ->
+    merge t id @@ add_enode t @@ Enode.of_const d)
