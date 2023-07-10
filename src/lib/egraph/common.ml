@@ -46,11 +46,6 @@ let create_eclass id = {
 
 let rank c = Vec.length c.parents
 
-type resolved = [
-  | `blk  of blk
-  | `insn of insn * blk * Var.t option
-]
-
 type t = {
   input       : Input.t;
   uf          : Uf.t;

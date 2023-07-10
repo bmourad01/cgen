@@ -27,11 +27,8 @@ let init analyze input = {
 
 let create ?(analyze = true) fn =
   let open Input.E.Let in
-  let+ input, exp = Input.create fn in
+  let* input = Input.init fn in
   let t = init analyze input in
-  Hashtbl.iteri exp ~f:(fun ~key:l ~data:e ->
-      let id = Lifter.exp t e in
-      Hashtbl.set t.lbl2id ~key:l ~data:id;
-      update_provenance t id l);
+  let+ () = Builder.run t in
   if analyze then Rewrite.rebuild t;
   t
