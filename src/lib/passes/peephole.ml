@@ -26,6 +26,17 @@ module Rules = struct
       Op.(lsl_ ty x (int Bv.(int (Int64.ctz i) mod imod ty) ty))
     | _ -> None
 
+  (* Dynamically rewrite an unsigned division by a power of two into
+     a right shift. *)
+  let udiv_imm_pow2 x y eg _ env =
+    let open O.Syntax in
+    Map.find env y >>= Egraph.data eg >>= function
+    | `int (i, ty) ->
+      let i = Bv.to_int64 i in
+      O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
+      Op.(lsr_ ty x (int Bv.(int (Int64.ctz i) mod imod ty) ty))
+    | _ -> None
+
   (* Dynamically rewrite an unsigned remainder by a power of two into
      a bitwise AND. *)
   let urem_imm_pow2 x y eg _ env =
@@ -217,6 +228,11 @@ module Rules = struct
       mul `i16 x y =>* mul_imm_pow2 x "y";
       mul `i32 x y =>* mul_imm_pow2 x "y";
       mul `i64 x y =>* mul_imm_pow2 x "y";
+      (* unsigned x / c = x >> log2(c) when c is power of two *)
+      udiv `i8 x y =>* udiv_imm_pow2 x "y";
+      udiv `i16 x y =>* udiv_imm_pow2 x "y";
+      udiv `i32 x y =>* udiv_imm_pow2 x "y";
+      udiv `i64 x y =>* udiv_imm_pow2 x "y";
       (* unsigned x % c = x & (c - 1) when c is power of two *)
       urem `i8 x y =>* urem_imm_pow2 x "y";
       urem `i16 x y =>* urem_imm_pow2 x "y";
