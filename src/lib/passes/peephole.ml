@@ -26,6 +26,18 @@ module Rules = struct
       Op.(lsl_ ty x (int Bv.(int (Int64.ctz i) mod imod ty) ty))
     | _ -> None
 
+  (* Dynamically rewrite an unsigned remainder by a power of two into
+     a bitwise AND. *)
+  let urem_imm_pow2 x y eg _ env =
+    let open O.Syntax in
+    Map.find env y >>= Egraph.data eg >>= function
+    | `int (i, ty) ->
+      let i = Bv.to_int64 i in
+      let i' = Int64.pred i in
+      O.guard Int64.(i <> 0L && (i land i') = 0L) >>| fun () ->
+      Op.(and_ ty x (int Bv.(int64 i' mod imod ty) ty))
+    | _ -> None
+
   let x = var "x"
   let y = var "y"
   let z = var "z"
@@ -205,6 +217,11 @@ module Rules = struct
       mul `i16 x y =>* mul_imm_pow2 x "y";
       mul `i32 x y =>* mul_imm_pow2 x "y";
       mul `i64 x y =>* mul_imm_pow2 x "y";
+      (* unsigned x % c = x & (c - 1) when c is power of two *)
+      urem `i8 x y =>* urem_imm_pow2 x "y";
+      urem `i16 x y =>* urem_imm_pow2 x "y";
+      urem `i32 x y =>* urem_imm_pow2 x "y";
+      urem `i64 x y =>* urem_imm_pow2 x "y";
       (* x / 1 = x *)
       div `i8  x (i8 1) => x;
       div `i16 x (i16 1) => x;
@@ -219,7 +236,7 @@ module Rules = struct
       rem `i16 x (i16 1) => i16 0;
       rem `i32 x (i32 1l) => i32 0l;
       rem `i64 x (i64 1L) => i64 0L;
-      urem `i8 x  (i8 1) => i8 0;
+      urem `i8 x (i8 1) => i8 0;
       urem `i16 x (i16 1) => i16 0;
       urem `i32 x (i32 1l) => i32 0l;
       urem `i64 x (i64 1L) => i64 0L;
@@ -584,7 +601,7 @@ let cost ~child n =
     | Oset _ -> 0
     | Obr | Otbl _ | Ovar _ -> 1
     | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 2
-    | Obinop (`div _ | `udiv _) -> 10
+    | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 25
     | Obinop _ | Oload _ | Ostore _ -> 3
     | Osel _ -> 6 in
   Egraph.Enode.children n |>
