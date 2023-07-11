@@ -57,7 +57,7 @@ let step t sched rules i =
   (* Apply the rules. *)
   apply t sched rules i;
   (* Restore canonical forms. *)
-  rebuild t;
+  repair t;
   (* If true, then fixpoint was reached. *)
   t.ver = prev && Scheduler.should_stop sched rules i
 

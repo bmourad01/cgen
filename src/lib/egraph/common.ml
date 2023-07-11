@@ -278,6 +278,6 @@ let rebuild_classes t = Hashtbl.iter t.classes ~f:(fun c ->
     Vec.map_inplace c.nodes ~f:(Fn.flip Enode.canonicalize t.uf);
     sort_and_dedup c.nodes ~compare:Enode.compare)
 
-let rebuild t =
+let repair t =
   process_unions t;
   rebuild_classes t

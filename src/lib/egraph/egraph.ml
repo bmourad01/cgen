@@ -29,4 +29,5 @@ let create fn =
   let* input = Input.init fn in
   let t = init input in
   let+ () = Builder.run t in
+  repair t;
   t
