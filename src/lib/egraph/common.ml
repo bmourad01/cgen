@@ -241,3 +241,49 @@ and merge t a b =
 and modify_analysis t id = data t id |> Option.iter ~f:(fun d ->
     merge t id @@ add_enode t @@ Enode.of_const d;
     Vec.filter_inplace (eclass t id).nodes ~f:Enode.is_const)
+
+let next v f = Option.iter ~f @@ Vec.pop v [@@specialise]
+
+let update_node t n =
+  let n' = Enode.canonicalize n t.uf in
+  if not @@ Enode.equal_children n n' then Hashtbl.remove t.memo n;
+  n'
+
+let rec update_nodes t = next t.pending @@ fun (n, cid) ->
+  let n = update_node t n in
+  Hashtbl.find_and_call t.memo n
+    ~if_not_found:(fun key -> Hashtbl.set t.memo ~key ~data:cid)
+    ~if_found:(fun id -> merge t id cid);
+  update_nodes t
+
+let rec update_analyses t = next t.analyses @@ fun (n, cid) ->
+  let cid = find t cid in
+  let d = Enode.eval n ~data:(data t) in
+  let c = eclass t cid in
+  assert (c.id = cid);
+  merge_data c c.data d ~right:Fn.id ~left:(fun () ->
+      Vec.append t.analyses c.parents;
+      modify_analysis t cid);
+  update_analyses t
+
+let process_unions t =
+  while not Vec.(is_empty t.pending && is_empty t.analyses) do
+    update_nodes t;
+    update_analyses t
+  done
+
+let sort_and_dedup t ~compare =
+  Vec.sort t ~compare;
+  let prev = ref None in
+  Vec.filter_inplace t ~f:(fun x -> match !prev with
+      | Some y when compare x y = 0 -> false
+      | Some _ | None -> prev := Some x; true)
+[@@specialise]
+
+let rebuild_classes t = Hashtbl.iter t.classes ~f:(fun c ->
+    Vec.map_inplace c.nodes ~f:(Fn.flip Enode.canonicalize t.uf);
+    sort_and_dedup c.nodes ~compare:Enode.compare)
+
+let rebuild t =
+  process_unions t;
+  rebuild_classes t
