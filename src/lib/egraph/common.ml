@@ -8,18 +8,12 @@ module Enode = Enode
 module Exp = Exp
 module O = Monad.Option
 
-type exp = Exp.t
-[@@deriving bin_io, compare, equal, sexp]
+type exp = Exp.t [@@deriving bin_io, compare, equal, sexp]
+type id = Id.t [@@deriving compare, equal, hash, sexp]
+type enode = Enode.t [@@deriving compare, equal, hash, sexp]
+type nodes = (enode * id) Vec.t
 
 let pp_exp = Exp.pp
-
-type id = Id.t
-[@@deriving compare, equal, hash, sexp]
-
-type enode = Enode.t
-[@@deriving compare, equal, hash, sexp]
-
-type nodes = (enode * id) Vec.t
 
 (* A class of related nodes. *)
 type eclass = {
