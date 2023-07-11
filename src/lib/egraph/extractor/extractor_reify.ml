@@ -94,13 +94,15 @@ let rec pure t env e : operand Context.t =
   match e with
   (* Only canonical forms are accepted. *)
   | E (a, Obinop b, [l; r]) -> insn a @@ fun x ->
-    let+ l = pure l and+ r = pure r in
+    let* l = pure l in
+    let+ r = pure r in
     `bop (x, b, l, r)
   | E (_, Obool b, []) -> !!(`bool b)
   | E (_, Odouble d, []) -> !!(`double d)
   | E (_, Oint (i, t), []) -> !!(`int (i, t))
   | E (a, Osel ty, [c; y; n]) -> insn a @@ fun x ->
-    let* y = pure y and* n = pure n in
+    let* y = pure y in
+    let* n = pure n in
     begin pure c >>= function
       | `var c -> !!(`sel (x, ty, c, y, n))
       | _ -> invalid_pure e
@@ -185,7 +187,8 @@ let exp t env l e =
   match e with
   (* Only canonical forms are accepted. *)
   | E (_, Obr, [c; y; n]) -> ctrl @@ fun () ->
-    let* y = dst y and* n = dst n in
+    let* y = dst y in
+    let* n = dst n in
     begin pure c >>= function
       | `bool f -> !!(`jmp (if f then y else n))
       | `var _ when equal_dst y n -> !!(`jmp y)
@@ -193,14 +196,14 @@ let exp t env l e =
       | _ -> invalid l e
     end
   | E (_, Ocall0, [f; args; vargs]) -> insn @@ fun () ->
-    let+ f = global t env f
-    and+ args = callargs t env args
-    and+ vargs = callargs t env vargs in
+    let* f = global t env f in
+    let* args = callargs t env args in
+    let+ vargs = callargs t env vargs in
     `call (None, f, args, vargs)
   | E (_, Ocall (x, ty), [f; args; vargs]) -> insn @@ fun () ->
-    let+ f = global t env f
-    and+ args = callargs t env args
-    and+ vargs = callargs t env vargs in
+    let* f = global t env f in
+    let* args = callargs t env args in
+    let+ vargs = callargs t env vargs in
     `call (Some (x, ty), f, args, vargs)
   | E (_, Oload (x, t), [y]) -> insn @@ fun () ->
     let+ y = pure y in
@@ -213,15 +216,16 @@ let exp t env l e =
     `ret (Some x)
   | E (_, Oset _, [y]) -> pure y >>| ignore
   | E (_, Ostore t, [v; x]) -> insn @@ fun () ->
-    let+ v = pure v and+ x = pure x in
+    let* v = pure v in
+    let+ x = pure x in
     `store (t, v, x)
   | E (_, Osw ty, i :: d :: tbl) -> ctrl @@ fun () ->
     let* d = match d with
       | E (_, Olocal l', args) ->
         let+ l, args = local t env l' args in
         (`label (l, args) :> local)
-      | _ -> invalid l d
-    and* tbl = table t env tbl ty in
+      | _ -> invalid l d in
+    let* tbl = table t env tbl ty in
     begin pure i >>= function
       | (`var _ | `sym _) as i -> !!(`sw (ty, i, d, tbl))
       | `int (i, _) -> !!(`jmp (table_dst tbl i d))
