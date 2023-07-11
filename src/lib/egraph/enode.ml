@@ -8,12 +8,12 @@ type op =
   | Obool     of bool
   | Obr
   | Ocall0
-  | Ocall     of Type.basic
+  | Ocall     of Var.t * Type.basic
   | Ocallargs
   | Odouble   of float
   | Ojmp
   | Oint      of Bv.t * Type.imm
-  | Oload     of Type.basic
+  | Oload     of Var.t * Type.basic
   | Olocal    of Label.t
   | Oret
   | Osel      of Type.basic
@@ -35,7 +35,14 @@ let canonicalize (N (op, children)) uf =
 
 let op (N (op, _)) = op
 let children (N (_, children)) = children
-let is_leaf n = List.is_empty @@ children n
+
+let is_const = function
+  | N (Obool _, [])
+  | N (Oint _, [])
+  | N (Odouble _, [])
+  | N (Osingle _, [])
+  | N (Osym _, []) -> true
+  | N (_, _) -> false
 
 let equal_children (N (_, a)) (N (_, b)) =
   List.equal Id.equal a b
@@ -349,7 +356,7 @@ let pp_op ppf = function
     Format.fprintf ppf "br"
   | Ocall0 ->
     Format.fprintf ppf "call"
-  | Ocall t ->
+  | Ocall (_, t) ->
     Format.fprintf ppf "call.%a" Type.pp_basic t
   | Ocallargs ->
     Format.fprintf ppf "callargs"
@@ -359,8 +366,8 @@ let pp_op ppf = function
     Format.fprintf ppf "jmp"
   | Oint (i, t) ->
     Format.fprintf ppf "%a_%a" Bv.pp i Type.pp_imm t
-  | Oload t ->
-    Format.fprintf ppf "ld.%a" Type.pp_basic t
+  | Oload (x, t) ->
+    Format.fprintf ppf "(ld.%a %a)" Type.pp_basic t Var.pp x
   | Olocal l ->
     Format.fprintf ppf "%a" Label.pp l
   | Oret ->

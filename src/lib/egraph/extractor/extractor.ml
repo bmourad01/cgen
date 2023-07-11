@@ -3,6 +3,8 @@ open Common
 
 include Extractor_core
 
+let reify = Extractor_reify.reify
+
 let term_exn t l = match Hashtbl.find t.eg.lbl2id l with
   | None -> None
   | Some id ->
@@ -19,4 +21,3 @@ let term_exn t l = match Hashtbl.find t.eg.lbl2id l with
           Label.pps l Id.pps id pps_ext e ()
 
 let term t l = Or_error.try_with @@ fun () -> term_exn t l
-let reify = Extractor_reify.reify

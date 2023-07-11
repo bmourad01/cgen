@@ -35,12 +35,12 @@ module Enode : sig
     | Obool     of bool
     | Obr
     | Ocall0
-    | Ocall     of Type.basic
+    | Ocall     of Var.t * Type.basic
     | Ocallargs
     | Odouble   of float
     | Ojmp
     | Oint      of Bv.t * Type.imm
-    | Oload     of Type.basic
+    | Oload     of Var.t * Type.basic
     | Olocal    of Label.t
     | Oret
     | Osel      of Type.basic
@@ -72,10 +72,8 @@ module Exp : sig
     | Palloc  of Label.t option * int
     | Pbinop  of Label.t option * Insn.binop * pure * pure
     | Pbool   of bool
-    | Pcall   of Label.t option * Type.basic * global * pure list * pure list
     | Pdouble of float
     | Pint    of Bv.t * Type.imm
-    | Pload   of Label.t option * Type.basic * pure
     | Psel    of Label.t option * Type.basic * pure * pure * pure
     | Psingle of Float32.t
     | Psym    of string * int
@@ -107,13 +105,14 @@ module Exp : sig
   (** A "base" expression, which corresponds directly to a [Virtual]
       instruction. *)
   type t =
-    | Ebr      of pure * dst * dst
-    | Ecall    of global * pure list * pure list
-    | Ejmp     of dst
-    | Eret     of pure
-    | Eset     of Var.t * pure
-    | Estore   of Type.basic * pure * pure
-    | Esw      of Type.imm * pure * local * table
+    | Ebr    of pure * dst * dst
+    | Ecall  of (Var.t * Type.basic) option * global * pure list * pure list
+    | Ejmp   of dst
+    | Eload  of Var.t * Type.basic * pure
+    | Eret   of pure
+    | Eset   of Var.t * pure
+    | Estore of Type.basic * pure * pure
+    | Esw    of Type.imm * pure * local * table
   [@@deriving bin_io, compare, equal, sexp]
 
   val pp_pure : Format.formatter -> pure -> unit
@@ -181,8 +180,6 @@ module Rule : sig
     val bop : Insn.binop -> query -> query -> query
     val bool : bool -> query
     val br : query -> query -> query -> query
-    val call0 : query -> query list -> query list -> query
-    val call : Type.basic -> query -> query list -> query list -> query
     val double : float -> query
     val int : Bv.t -> Type.imm -> query
     val i8 : int -> query
@@ -190,7 +187,6 @@ module Rule : sig
     val i32 : int32 -> query
     val i64 : int64 -> query
     val jmp : query -> query
-    val load : Type.basic -> query -> query
     val ret : query -> query
     val sel : Type.basic -> query -> query -> query -> query
     val single : Float32.t -> query

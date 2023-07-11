@@ -39,14 +39,8 @@ module Lifter = struct
     | Palloc (a, n) -> prov eg a (Oalloc n) []
     | Pbinop (a, b, l, r) -> prov eg a (Obinop b) [pure l; pure r]
     | Pbool b -> add_enode eg @@ N (Obool b, [])
-    | Pcall (a, ty, f, args, vargs) ->
-      let f = global t eg f ~vs in
-      let args = add_enode eg @@ N (Ocallargs, args' t eg args ~vs) in
-      let vargs = add_enode eg @@ N (Ocallargs, args' t eg vargs ~vs) in
-      prov eg a (Ocall ty) [f; args; vargs]
     | Pdouble d -> add_enode eg @@ N (Odouble d, [])
     | Pint (i, ty) -> add_enode eg @@ N (Oint (i, ty), [])
-    | Pload (a, ty, x) -> prov eg a (Oload ty) [pure x]
     | Psel (a, ty, c, y, n) -> prov eg a (Osel ty) [pure c; pure y; pure n]
     | Psingle s -> add_enode eg @@ N (Osingle s, [])
     | Psym (s, o) -> add_enode eg @@ N (Osym (s, o), [])
@@ -81,11 +75,15 @@ module Lifter = struct
     let pure = pure t eg in
     let dst = dst t eg in function
       | Ebr (c, y, n) -> add_enode eg @@ N (Obr, [pure c; dst y; dst n])
-      | Ecall (f, args, vargs) ->
+      | Ecall (x, f, args, vargs) ->
         let f = global t eg f in
         let args = add_enode eg @@ N (Ocallargs, args' t eg args) in
         let vargs = add_enode eg @@ N (Ocallargs, args' t eg vargs) in
-        add_enode eg @@ N (Ocall0, [f; args; vargs])
+        let op = match x with
+          | Some (x, t) -> Enode.Ocall (x, t)
+          | None -> Enode.Ocall0 in
+        add_enode eg @@ N (op, [f; args; vargs])
+      | Eload (x, t, y) -> add_enode eg @@ N (Oload (x, t), [pure y])
       | Ejmp d -> add_enode eg @@ N (Ojmp, [dst d])
       | Eret x -> add_enode eg @@ N (Oret, [pure x])
       | Eset (x, y) -> add_enode eg @@ N (Oset x, [pure y])
@@ -171,15 +169,13 @@ let accum t acc i =
     let n, w = operand n w in
     w, Psel (Some l, t, c, y, n)
   | `call (None, _, _, _) -> acc
-  | `call (Some (x, t), f, args, vargs) -> go x @@ fun w ->
-    let f, w = global f w in
-    let args, w = operands args w in
-    let vargs, w = operands vargs w in
-    w, Pcall (Some l, t, f, args, vargs)
+  | `call (Some (x, _), _, _, _) ->
+    let w, xs = acc in
+    Set.remove w x, xs
   | `alloc (x, n) -> go x @@ fun w -> w, Palloc (Some l, n)
-  | `load (x, t, a) -> go x @@ fun w ->
-    let a, w = operand a w in
-    w, Pload (Some l, t, a)
+  | `load (x, _, _) ->
+    let w, xs = acc in
+    Set.remove w x, xs
   | `store _ -> acc
   | `vaarg (x, _, y) ->
     let w, xs = acc in
@@ -240,15 +236,14 @@ let traverse t input blk l w =
             Stack.push q (blk, Blk.label blk, w, bs, xs))
     done
 
-let run t eg blk l f =
+let lift t eg blk l f =
   let w, e = f () in
   traverse t eg.input blk l w;
-  let id = Lifter.exp t eg e in
-  Hashtbl.set eg.lbl2id ~key:l ~data:id
+  Hashtbl.set eg.lbl2id ~key:l ~data:(Lifter.exp t eg e)
 
 let ctrl t eg blk =
   let l = Blk.label blk in
-  let go = run t eg blk l in
+  let go = lift t eg blk l in
   match Blk.ctrl blk with
   | `hlt -> ()
   | `jmp d -> go @@ fun () ->
@@ -273,7 +268,7 @@ let ctrl t eg blk =
 
 let insn t eg i blk =
   let l = Insn.label i in
-  let go = run t eg blk l in
+  let go = lift t eg blk l in
   match Insn.op i with
   | `bop (x, o, a, b) -> go @@ fun () ->
     let a, w = operand a Var.Set.empty in
@@ -286,21 +281,16 @@ let insn t eg i blk =
     let y, w = operand y @@ Var.Set.singleton c in
     let n, w = operand n w in
     w, Eset (x, Psel (Some l, t, Pvar c, y, n))
-  | `call (Some (x, t), f, args, vargs) -> go @@ fun () ->
+  | `call (x, f, args, vargs) -> go @@ fun () ->
     let f, w = global f Var.Set.empty in
     let args, w = operands args w in
     let vargs, w = operands vargs w in
-    w, Eset (x, Pcall (Some l, t, f, args, vargs))
+    w, Ecall (x, f, args, vargs)
   | `alloc (x, n) -> go @@ fun () ->
     Var.Set.empty, Eset (x, Palloc (Some l, n))
   | `load (x, t, a) -> go @@ fun () ->
     let a, w = operand a Var.Set.empty in
-    w, Eset (x, Pload (Some l, t, a))
-  | `call (None, f, args, vargs) -> go @@ fun () ->
-    let f, w = global f Var.Set.empty in
-    let args, w = operands args w in
-    let vargs, w = operands vargs w in
-    w, Ecall (f, args, vargs)
+    w, Eload (x, t, a)
   | `store (t, v, a) -> go @@ fun () ->
     let v, w = operand v Var.Set.empty in
     let a, w = operand a w in

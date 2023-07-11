@@ -15,7 +15,7 @@ let fixpoint = Rewrite.fixpoint
 let init input = {
   input;
   uf = Uf.create ();
-  nodes = Hashtbl.create (module Enode);
+  memo = Hashtbl.create (module Enode);
   classes = Id.Table.create ();
   pending = Vec.create ();
   analyses = Vec.create ();

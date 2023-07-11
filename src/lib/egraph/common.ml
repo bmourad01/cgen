@@ -21,14 +21,6 @@ type enode = Enode.t
 
 type nodes = (enode * id) Vec.t
 
-let sort_and_dedup t ~compare =
-  Vec.sort t ~compare;
-  let prev = ref None in
-  Vec.filter_inplace t ~f:(fun x -> match !prev with
-      | Some y when compare x y = 0 -> false
-      | Some _ | None -> prev := Some x; true)
-[@@specialise]
-
 (* A class of related nodes. *)
 type eclass = {
   id           : id;
@@ -49,7 +41,7 @@ let rank c = Vec.length c.parents
 type t = {
   input       : Input.t;
   uf          : Uf.t;
-  nodes       : (enode, id) Hashtbl.t;
+  memo        : (enode, id) Hashtbl.t;
   classes     : eclass Id.Table.t;
   pending     : nodes;
   analyses    : nodes;
@@ -97,8 +89,6 @@ module Rule = struct
     let bop b l r = Obinop b & [l; r]
     let bool b = exp (Obool b)
     let br c y n = Obr & [c; y; n]
-    let call0 f args vargs = Ocall0 & [f; Ocallargs & args; Ocallargs & vargs]
-    let call t f args vargs = Ocall t & [f; Ocallargs & args; Ocallargs & vargs]
     let double d = exp (Odouble d)
     let int i t = exp (Oint (i, t))
     let i8 n = int Bv.(int n mod m8) `i8
@@ -106,7 +96,6 @@ module Rule = struct
     let i32 n = int Bv.(int32 n mod m32) `i32
     let i64 n = int Bv.(int64 n mod m64) `i64
     let jmp d = Ojmp & [d]
-    let load t x = Oload t & [x]
     let ret x = Oret & [x]
     let sel t c y n = Osel t & [c; y; n]
     let single s = exp (Osingle s)
@@ -176,16 +165,6 @@ let data t id =
 
 let dominates t = Tree.is_descendant_of t.input.dom
 
-(* Maps e-class IDs to equivalent e-nodes. *)
-type classes = enode Vec.t Id.Table.t
-
-let eclasses t : classes =
-  let r = Id.Table.create () in
-  Hashtbl.iteri t.nodes ~f:(fun ~key:n ~data:id ->
-      let id = find t id in
-      Vec.push (Hashtbl.find_or_add r id ~default:Vec.create) n);
-  r
-
 (* Node IDs and their substitutions. *)
 type matches = (id * subst) Vec.t
 
@@ -221,7 +200,7 @@ let update_provenance t id a =
 
 let rec add_enode t n =
   let n = Enode.canonicalize n t.uf in
-  find t @@ match Hashtbl.find t.nodes n with
+  find t @@ match Hashtbl.find t.memo n with
   | Some id -> id
   | None ->
     t.ver <- t.ver + 1;
@@ -233,7 +212,7 @@ let rec add_enode t n =
     c.data <- Enode.eval n ~data:(data t);
     Enode.children n |> List.iter ~f:(fun ch ->
         Vec.push (eclass t ch).parents x);
-    Hashtbl.set t.nodes ~key:n ~data:id;
+    Hashtbl.set t.memo ~key:n ~data:id;
     modify_analysis t id;
     id
 
@@ -261,4 +240,5 @@ and merge t a b =
     modify_analysis t a
 
 and modify_analysis t id = data t id |> Option.iter ~f:(fun d ->
-    merge t id @@ add_enode t @@ Enode.of_const d)
+    merge t id @@ add_enode t @@ Enode.of_const d;
+    Vec.filter_inplace (eclass t id).nodes ~f:Enode.is_const)

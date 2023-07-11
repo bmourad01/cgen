@@ -60,10 +60,10 @@ let best_term t ns =
             if c2 < c1 then b else a))
 
 (* Saturate the cost table. *)
-let rec saturate t (cs : classes) =
+let rec saturate t =
   t.sat <- true;
-  Hashtbl.iteri cs ~f:(fun ~key:id ~data:ns ->
-      match Hashtbl.find t.table id, best_term t ns with
+  Hashtbl.iteri t.eg.classes ~f:(fun ~key:id ~data:c ->
+      match Hashtbl.find t.table id, best_term t c.nodes with
       | None, Some term ->
         Hashtbl.set t.table ~key:id ~data:term;
         t.sat <- false
@@ -71,7 +71,7 @@ let rec saturate t (cs : classes) =
         Hashtbl.set t.table ~key:id ~data:term;
         t.sat <- false
       | _ -> ());
-  if not t.sat then saturate t cs
+  if not t.sat then saturate t
 
 (* Check if the underlying e-graph has been updated. If so, we should
    re-compute the costs for each node. *)
@@ -100,5 +100,5 @@ let rec extract_aux t id =
 
 let extract t id =
   check t;
-  if not t.sat then saturate t @@ eclasses t.eg;
+  if not t.sat then saturate t;
   extract_aux t id

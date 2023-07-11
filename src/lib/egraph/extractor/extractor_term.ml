@@ -14,16 +14,8 @@ let rec pure = function
     let+ l = pure l and+ r = pure r in
     Exp.Pbinop (lbl a, b, l, r)
   | E (_, Obool b, []) -> Some (Exp.Pbool b)
-  | E (a, Ocall t, [f; args; vargs]) ->
-    let+ f = global f
-    and+ args = callargs args
-    and+ vargs = callargs vargs in
-    Exp.Pcall (lbl a, t, f, args, vargs)
   | E (_, Odouble d, []) -> Some (Exp.Pdouble d)
   | E (_, Oint (i, t), []) -> Some (Exp.Pint (i, t))
-  | E (a, Oload t, [x]) ->
-    let+ x = pure x in
-    Exp.Pload (lbl a, t, x)
   | E (a, Osel t, [c; y; n]) ->
     let+ c = pure c and+ y = pure y and+ n = pure n in
     Exp.Psel (lbl a, t, c, y, n)
@@ -98,10 +90,18 @@ let exp = function
     let+ f = global f
     and+ args = callargs args
     and+ vargs = callargs vargs in
-    Exp.Ecall (f, args, vargs)
+    Exp.Ecall (None, f, args, vargs)
+  | E (_, Ocall (x, t), [f; args; vargs]) ->
+    let+ f = global f
+    and+ args = callargs args
+    and+ vargs = callargs vargs in
+    Exp.Ecall (Some (x, t), f, args, vargs)
   | E (_, Ojmp, [d]) ->
     let+ d = dst d in
     Exp.Ejmp d
+  | E (_, Oload (x, ty), [y]) ->
+    let+ y = pure y in
+    Exp.Eload (x, ty, y)
   | E (_, Oret, [x]) ->
     let+ x = pure x in
     Exp.Eret x

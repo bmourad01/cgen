@@ -99,16 +99,8 @@ let rec pure t env e : operand Context.t =
     let+ l = pure l and+ r = pure r in
     `bop (x, b, l, r)
   | E (_, Obool b, []) -> !!(`bool b)
-  | E (a, Ocall ty, [f; args; vargs]) -> insn a @@ fun x ->
-    let+ f = global t env f
-    and+ args = callargs t env args
-    and+ vargs = callargs t env vargs in
-    `call (Some (x, ty), f, args, vargs)
   | E (_, Odouble d, []) -> !!(`double d)
   | E (_, Oint (i, t), []) -> !!(`int (i, t))
-  | E (a, Oload ty, [y]) -> insn a @@ fun x ->
-    let+ y = pure y in
-    `load (x, ty, y)
   | E (a, Osel ty, [c; y; n]) -> insn a @@ fun x ->
     let* y = pure y and* n = pure n in
     begin pure c >>= function
@@ -208,6 +200,14 @@ let exp t env l e =
     and+ args = callargs t env args
     and+ vargs = callargs t env vargs in
     `call (None, f, args, vargs)
+  | E (_, Ocall (x, ty), [f; args; vargs]) -> insn @@ fun () ->
+    let+ f = global t env f
+    and+ args = callargs t env args
+    and+ vargs = callargs t env vargs in
+    `call (Some (x, ty), f, args, vargs)
+  | E (_, Oload (x, t), [y]) -> insn @@ fun () ->
+    let+ y = pure y in
+    `load (x, t, y)
   | E (_, Ojmp, [d]) -> ctrl @@ fun () ->
     let+ d = dst d in
     `jmp d

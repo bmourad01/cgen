@@ -3,7 +3,7 @@ open Regular.Std
 open Common
 
 (* Match a pre-condition with the available nodes in the graph. *)
-let ematch t cs p : matches =
+let ematch t p : matches =
   let rec enode env p (n : enode) = match p, n with
     | Q (x,  _), N (y,  _) when not @@ Enode.equal_op x y -> None
     | Q (_, xs), N (_, ys) -> args env xs ys
@@ -14,14 +14,13 @@ let ematch t cs p : matches =
   and var env x id = match Map.find env x with
     | None -> Some (Map.set env ~key:x ~data:id)
     | Some id' -> Option.some_if (id = id') env
-  and first env q id =
-    O.(Hashtbl.find cs id >>= Vec.find_map ~f:(enode env q))
+  and first env q id = Vec.find_map (eclass t id).nodes ~f:(enode env q)
   and go ?(env = String.Map.empty) x q =
     let id = find t x in match q with
     | V x -> var env x id
     | Q _ as q -> first env q id in
   let r = Vec.create () in
-  Hashtbl.iter_keys cs ~f:(fun id ->
+  Hashtbl.iter_keys t.classes ~f:(fun id ->
       go id p |> Option.iter ~f:(fun env ->
           Vec.push r (id, env)));
   r
@@ -29,9 +28,9 @@ let ematch t cs p : matches =
 (* Apply the substitution environment to a post-condition. *)
 let rec subst t (env : subst) = function
   | V x -> Map.find_exn env x
-  | Q (o, q) -> add_enode t @@ N (o, substs t env q)
-
-and substs t (env : subst) = List.map ~f:(subst t env)
+  | Q (o, q) ->
+    let q = List.map q ~f:(subst t env) in
+    add_enode t @@ N (o, q)
 
 let apply_const q t id env = merge t id @@ subst t env q
 let apply_cond q k t id env = if k t id env then apply_const q t id env
@@ -48,13 +47,13 @@ let next v f = Option.iter ~f @@ Vec.pop v [@@specialise]
 
 let update_node t n =
   let n' = Enode.canonicalize n t.uf in
-  if not @@ Enode.equal_children n n' then Hashtbl.remove t.nodes n;
+  if not @@ Enode.equal_children n n' then Hashtbl.remove t.memo n;
   n'
 
 let rec update_nodes t = next t.pending @@ fun (n, cid) ->
   let n = update_node t n in
-  Hashtbl.find_and_call t.nodes n
-    ~if_not_found:(fun key -> Hashtbl.set t.nodes ~key ~data:cid)
+  Hashtbl.find_and_call t.memo n
+    ~if_not_found:(fun key -> Hashtbl.set t.memo ~key ~data:cid)
     ~if_found:(fun id -> merge t id cid);
   update_nodes t
 
@@ -69,10 +68,18 @@ let rec update_analyses t = next t.analyses @@ fun (n, cid) ->
   update_analyses t
 
 let process_unions t =
-  while not @@ Vec.(is_empty t.pending && is_empty t.analyses) do
+  while not Vec.(is_empty t.pending && is_empty t.analyses) do
     update_nodes t;
     update_analyses t
   done
+
+let sort_and_dedup t ~compare =
+  Vec.sort t ~compare;
+  let prev = ref None in
+  Vec.filter_inplace t ~f:(fun x -> match !prev with
+      | Some y when compare x y = 0 -> false
+      | Some _ | None -> prev := Some x; true)
+[@@specialise]
 
 let rebuild_classes t = Hashtbl.iter t.classes ~f:(fun c ->
     Vec.map_inplace c.nodes ~f:(Fn.flip Enode.canonicalize t.uf);
@@ -83,10 +90,9 @@ let rebuild t =
   rebuild_classes t
 
 let apply t sched rules i =
-  let cs = eclasses t in
   Seq.filter_map rules ~f:(fun d ->
       Scheduler.guard sched d i ~f:(fun () ->
-          ematch t cs d.rule.pre) |>
+          ematch t d.rule.pre) |>
       Option.map ~f:(fun m ->
           apply d.Scheduler.rule.post, m)) |>
   Seq.iter ~f:(fun (apply, m) ->

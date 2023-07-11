@@ -5,10 +5,8 @@ type pure =
   | Palloc  of Label.t option * int
   | Pbinop  of Label.t option * Insn.binop * pure * pure
   | Pbool   of bool
-  | Pcall   of Label.t option * Type.basic * global * pure list * pure list
   | Pdouble of float
   | Pint    of Bv.t * Type.imm
-  | Pload   of Label.t option * Type.basic * pure
   | Psel    of Label.t option * Type.basic * pure * pure * pure
   | Psingle of Float32.t
   | Psym    of string * int
@@ -34,13 +32,14 @@ type table = (Bv.t * local) list
 [@@deriving bin_io, compare, equal, sexp]
 
 type t =
-  | Ebr      of pure * dst * dst
-  | Ecall    of global * pure list * pure list
-  | Ejmp     of dst
-  | Eret     of pure
-  | Eset     of Var.t * pure
-  | Estore   of Type.basic * pure * pure
-  | Esw      of Type.imm * pure * local * table
+  | Ebr    of pure * dst * dst
+  | Ecall  of (Var.t * Type.basic) option * global * pure list * pure list
+  | Ejmp   of dst
+  | Eload  of Var.t * Type.basic * pure
+  | Eret   of pure
+  | Eset   of Var.t * pure
+  | Estore of Type.basic * pure * pure
+  | Esw    of Type.imm * pure * local * table
 [@@deriving bin_io, compare, equal, sexp]
 
 let pp_label ppf = function
@@ -59,24 +58,10 @@ and pp_pure ppf = function
       Insn.pp_binop o pp_label l pp_pure x pp_pure y
   | Pbool f ->
     Format.fprintf ppf "%a" Bool.pp f
-  | Pcall (l, _t, f, [], []) ->
-    Format.fprintf ppf "%a%a()" pp_global f pp_label l
-  | Pcall (l, _t, f, args, []) ->
-    Format.fprintf ppf "%a%a(%a)"
-      pp_global f pp_label l pp_args args
-  | Pcall (l, _t, f, [], vargs) ->
-    Format.fprintf ppf "%a%a(..., %a)"
-      pp_global f pp_label l pp_args vargs
-  | Pcall (l, _t, f, args, vargs) ->
-    Format.fprintf ppf "%a%a(%a, ..., %a)"
-      pp_global f pp_label l pp_args args pp_args vargs
   | Pdouble d ->
     Format.fprintf ppf "%a_d" Float.pp d
   | Pint (i, t) ->
     Format.fprintf ppf "%a_%a" Bv.pp i Type.pp_imm t
-  | Pload (l, t, a) ->
-    Format.fprintf ppf "ld.%a%a(%a)"
-      Type.pp_basic t pp_label l pp_pure a
   | Psel (l, t, c, y, n) ->
     Format.fprintf ppf "sel.%a%a(%a, %a, %a)"
       Type.pp_basic t pp_label l pp_pure c pp_pure y pp_pure n
@@ -115,17 +100,20 @@ let pp ppf = function
   | Ebr (c, t, f) ->
     Format.fprintf ppf "br(%a, %a, %a)"
       pp_pure c pp_dst t pp_dst f
-  | Ecall (f, [], []) ->
+  | Ecall (_, f, [], []) ->
     Format.fprintf ppf "%a()" pp_global f
-  | Ecall (f, args, []) ->
+  | Ecall (_, f, args, []) ->
     Format.fprintf ppf "%a(%a)" pp_global f pp_args args
-  | Ecall (f, [], vargs) ->
+  | Ecall (_, f, [], vargs) ->
     Format.fprintf ppf "%a(..., %a)" pp_global f pp_args vargs
-  | Ecall (f, args, vargs) ->
+  | Ecall (_, f, args, vargs) ->
     Format.fprintf ppf "%a(%a, ..., %a)"
       pp_global f pp_args args pp_args vargs
   | Ejmp d ->
     Format.fprintf ppf "jmp(%a)" pp_dst d
+  | Eload (x, t, a) ->
+    Format.fprintf ppf "%a = ld.%a(%a)"
+      Var.pp x Type.pp_basic t pp_pure a
   | Eret x ->
     Format.fprintf ppf "ret(%a)" pp_pure x
   | Eset (x, y) ->
