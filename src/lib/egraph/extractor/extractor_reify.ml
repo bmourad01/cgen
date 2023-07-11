@@ -93,8 +93,6 @@ let rec pure t env e : operand Context.t =
   let insn = insn t env in
   match e with
   (* Only canonical forms are accepted. *)
-  | E (a, Oalloc n, []) -> insn a @@ fun x ->
-    !!(`alloc (x, n))
   | E (a, Obinop b, [l; r]) -> insn a @@ fun x ->
     let+ l = pure l and+ r = pure r in
     `bop (x, b, l, r)
@@ -115,7 +113,6 @@ let rec pure t env e : operand Context.t =
   | E (_, Ovar x, []) -> !!(`var x)
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
-  | E (_, Oalloc _, _)
   | E (_, Obinop _, _)
   | E (_, Obool _, _)
   | E (_, Obr, _)
@@ -232,7 +229,6 @@ let exp t env l e =
     end
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
-  | E (_, Oalloc _, _)
   | E (_, Obinop _, _)
   | E (_, Obool _, _)
   | E (_, Obr, _)

@@ -9,7 +9,6 @@ let lbl = function
 
 let rec pure = function
   (* Only canonical forms are accepted. *)
-  | E (a, Oalloc n, []) -> Some (Exp.Palloc (lbl a, n))
   | E (a, Obinop b, [l; r]) ->
     let+ l = pure l and+ r = pure r in
     Exp.Pbinop (lbl a, b, l, r)
@@ -27,7 +26,6 @@ let rec pure = function
   | E (_, Ovar x, []) -> Some (Exp.Pvar x)
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
-  | E (_, Oalloc _, _)
   | E (_, Obinop _, _)
   | E (_, Obool _, _)
   | E (_, Obr, _)
@@ -120,7 +118,6 @@ let exp = function
     Exp.Esw (t, i, d, tbl)
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
-  | E (_, Oalloc _, _)
   | E (_, Obinop _, _)
   | E (_, Obool _, _)
   | E (_, Obr, _)

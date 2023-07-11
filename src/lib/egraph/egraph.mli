@@ -30,7 +30,6 @@ module Enode : sig
   (** A special form for each instruction type in a [Virtual] program. *)
   type op =
     | Oaddr     of Bv.t
-    | Oalloc    of int
     | Obinop    of Insn.binop
     | Obool     of bool
     | Obr
@@ -69,7 +68,6 @@ end
 module Exp : sig
   (** A "pure" expression. *)
   type pure =
-    | Palloc  of Label.t option * int
     | Pbinop  of Label.t option * Insn.binop * pure * pure
     | Pbool   of bool
     | Pdouble of float
@@ -176,7 +174,6 @@ module Rule : sig
   (** Helpers for constructing patterns. *)
   module Op : sig
     val addr : Bv.t -> query
-    val alloc : int -> query
     val bop : Insn.binop -> query -> query -> query
     val bool : bool -> query
     val br : query -> query -> query -> query

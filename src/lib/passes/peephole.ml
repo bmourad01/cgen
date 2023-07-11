@@ -570,7 +570,6 @@ end
 let cost ~child n =
   let init = match Egraph.Enode.op n with
     | Oaddr _
-    | Oalloc _
     | Obool _
     | Ocall0
     | Ocall _

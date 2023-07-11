@@ -36,7 +36,6 @@ module Lifter = struct
 
   let rec pure ?(vs = Var.Set.empty) t eg (p : Exp.pure) : id =
     let pure = pure t eg ~vs in match p with
-    | Palloc (a, n) -> prov eg a (Oalloc n) []
     | Pbinop (a, b, l, r) -> prov eg a (Obinop b) [pure l; pure r]
     | Pbool b -> add_enode eg @@ N (Obool b, [])
     | Pdouble d -> add_enode eg @@ N (Odouble d, [])
@@ -172,7 +171,9 @@ let accum t acc i =
   | `call (Some (x, _), _, _, _) ->
     let w, xs = acc in
     Set.remove w x, xs
-  | `alloc (x, n) -> go x @@ fun w -> w, Palloc (Some l, n)
+  | `alloc (x, _) ->
+    let w, xs = acc in
+    Set.remove w x, xs
   | `load (x, _, _) ->
     let w, xs = acc in
     Set.remove w x, xs
@@ -286,8 +287,6 @@ let insn t eg i blk =
     let args, w = operands args w in
     let vargs, w = operands vargs w in
     w, Ecall (x, f, args, vargs)
-  | `alloc (x, n) -> go @@ fun () ->
-    Var.Set.empty, Eset (x, Palloc (Some l, n))
   | `load (x, t, a) -> go @@ fun () ->
     let a, w = operand a Var.Set.empty in
     w, Eload (x, t, a)
@@ -295,7 +294,7 @@ let insn t eg i blk =
     let v, w = operand v Var.Set.empty in
     let a, w = operand a w in
     w, Estore (t, v, a)
-  | `vaarg _ | `vastart _ -> ()
+  | `alloc _ | `vaarg _ | `vastart _ -> ()
 
 let try_ f = try f () with
   | Occurs_failed (x, None) ->

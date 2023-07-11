@@ -3,7 +3,6 @@ open Virtual
 
 type op =
   | Oaddr     of Bv.t
-  | Oalloc    of int
   | Obinop    of Insn.binop
   | Obool     of bool
   | Obr
@@ -302,7 +301,6 @@ module Eval = struct
 
   let go op args = match op, args with
     | Oaddr _, _ -> None
-    | Oalloc _, _ -> None
     | Obinop o, [Some `int (a, _); Some `int (b, _)] -> binop_int o a b
     | Obinop o, [Some `float a; Some `float b] -> binop_single o a b
     | Obinop o, [Some `double a; Some `double b] -> binop_double o a b
@@ -346,8 +344,6 @@ let eval (N (op, children)) ~(data : Id.t -> const option) : const option =
 let pp_op ppf = function
   | Oaddr a ->
     Format.fprintf ppf "(addr %a)" Bv.pp a
-  | Oalloc n ->
-    Format.fprintf ppf "(alloc %d)" n
   | Obinop b ->
     Format.fprintf ppf "%a" Insn.pp_binop b
   | Obool b ->

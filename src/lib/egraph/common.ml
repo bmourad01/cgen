@@ -85,7 +85,6 @@ module Rule = struct
 
   module Op = struct
     let addr x = exp (Oaddr x)
-    let alloc n = exp (Oalloc n)
     let bop b l r = Obinop b & [l; r]
     let bool b = exp (Obool b)
     let br c y n = Obr & [c; y; n]

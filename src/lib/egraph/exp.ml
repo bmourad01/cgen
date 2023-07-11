@@ -2,7 +2,6 @@ open Core
 open Virtual
 
 type pure =
-  | Palloc  of Label.t option * int
   | Pbinop  of Label.t option * Insn.binop * pure * pure
   | Pbool   of bool
   | Pdouble of float
@@ -51,8 +50,6 @@ let rec pp_args args =
   (Format.pp_print_list ~pp_sep pp_pure) args
 
 and pp_pure ppf = function
-  | Palloc (l, n) ->
-    Format.fprintf ppf "alloc%a(%d)" pp_label l n
   | Pbinop (l, o, x, y) ->
     Format.fprintf ppf "%a%a(%a, %a)"
       Insn.pp_binop o pp_label l pp_pure x pp_pure y
