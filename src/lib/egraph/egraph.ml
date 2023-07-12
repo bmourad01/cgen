@@ -4,9 +4,11 @@ open Core
 
 include Common
 
+module Rule = Rule
 module Extractor = Extractor
 module Scheduler = Scheduler
 
+type rule = Rule.t
 type extractor = Extractor.t
 type scheduler = Scheduler.t
 

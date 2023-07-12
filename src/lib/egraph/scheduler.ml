@@ -13,7 +13,7 @@ let create_exn ?(match_limit = 1000) ?(ban_length = 5) () =
   {match_limit; ban_length}
 
 type data = {
-  rule                 : rule;
+  rule                 : Rule.t;
   mutable banned_until : int;
   mutable times_banned : int;
 }

@@ -4,7 +4,7 @@ open Common
 
 (* Match a pre-condition with the available nodes in the graph. *)
 let ematch t p : matches =
-  let rec enode env p (n : enode) = match p, n with
+  let rec enode env (p : Rule.query) (n : enode) = match p, n with
     | Q (x,  _), N (y,  _) when not @@ Enode.equal_op x y -> None
     | Q (_, xs), N (_, ys) -> args env xs ys
     | _ -> None
@@ -26,7 +26,7 @@ let ematch t p : matches =
   r
 
 (* Apply the substitution environment to a post-condition. *)
-let rec subst t (env : subst) = function
+let rec subst t (env : subst) : Rule.query -> id = function
   | V x -> Map.find_exn env x
   | Q (o, q) -> insert t @@ N (o, List.map q ~f:(subst t env))
 
@@ -36,7 +36,7 @@ let apply_cond q k t id env = if k t id env then apply_const q t id env
 let apply_dyn q t id env =
   q t id env |> Option.iter ~f:(fun q -> apply_const q t id env)
 
-let apply = function
+let apply : Rule.formula -> _ = function
   | Const q -> apply_const q
   | Cond (q, k) -> apply_cond q k
   | Dyn q -> apply_dyn q

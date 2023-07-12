@@ -126,7 +126,6 @@ val pp_exp : Format.formatter -> exp -> unit
 
 (** An e-graph. *)
 type t
-
 type egraph = t
 
 (** [create fn] constructs an e-graph from a function [fn].
@@ -135,20 +134,20 @@ type egraph = t
 *)
 val create : func -> t Or_error.t
 
-(** A component of a rule. *)
-type query [@@deriving compare, equal, sexp]
-
 (** A substitution environment from query variables to IDs. *)
 type subst = id String.Map.t
-
-(** A callback that can be invoked when applying a rule. *)
-type 'a callback = t -> id -> subst -> 'a
 
 (** A rewrite rule. *)
 type rule
 
 module Rule : sig
   type t = rule
+
+  (** A component of a rule. *)
+  type query [@@deriving compare, equal, sexp]
+
+  (** A callback that can be invoked when applying a rule. *)
+  type 'a callback = egraph -> id -> subst -> 'a
 
   (** [var x] constructs a substitition for variable [x]. *)
   val var : string -> query
