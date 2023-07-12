@@ -28,9 +28,7 @@ let ematch t p : matches =
 (* Apply the substitution environment to a post-condition. *)
 let rec subst t (env : subst) = function
   | V x -> Map.find_exn env x
-  | Q (o, q) ->
-    let q = List.map q ~f:(subst t env) in
-    add_enode t @@ N (o, q)
+  | Q (o, q) -> insert t @@ N (o, List.map q ~f:(subst t env))
 
 let apply_const q t id env = merge t id @@ subst t env q
 let apply_cond q k t id env = if k t id env then apply_const q t id env

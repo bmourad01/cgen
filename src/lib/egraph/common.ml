@@ -191,7 +191,7 @@ let update_provenance t id a =
       | Some b when dominates t ~parent:b a -> b
       | Some _ | None -> a)
 
-let rec add_enode t n =
+let rec insert t n =
   let n = Enode.canonicalize n t.uf in
   find t @@ match Hashtbl.find t.memo n with
   | Some id -> id
@@ -233,7 +233,7 @@ and merge t a b =
     modify_analysis t a
 
 and modify_analysis t id = data t id |> Option.iter ~f:(fun d ->
-    merge t id @@ add_enode t @@ Enode.of_const d;
+    merge t id @@ insert t @@ Enode.of_const d;
     Vec.filter_inplace (eclass t id).nodes ~f:Enode.is_const)
 
 let next v f = Option.iter ~f @@ Vec.pop v [@@specialise]

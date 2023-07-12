@@ -30,19 +30,19 @@ type work = Var.Set.t
 *)
 module Lifter = struct
   let prov eg a op args =
-    let id = add_enode eg @@ N (op, args) in
+    let id = insert eg @@ N (op, args) in
     Option.iter a ~f:(update_provenance eg id);
     id
 
   let rec pure ?(vs = Var.Set.empty) t eg (p : Exp.pure) : id =
     let pure = pure t eg ~vs in match p with
     | Pbinop (a, b, l, r) -> prov eg a (Obinop b) [pure l; pure r]
-    | Pbool b -> add_enode eg @@ N (Obool b, [])
-    | Pdouble d -> add_enode eg @@ N (Odouble d, [])
-    | Pint (i, ty) -> add_enode eg @@ N (Oint (i, ty), [])
+    | Pbool b -> insert eg @@ N (Obool b, [])
+    | Pdouble d -> insert eg @@ N (Odouble d, [])
+    | Pint (i, ty) -> insert eg @@ N (Oint (i, ty), [])
     | Psel (a, ty, c, y, n) -> prov eg a (Osel ty) [pure c; pure y; pure n]
-    | Psingle s -> add_enode eg @@ N (Osingle s, [])
-    | Psym (s, o) -> add_enode eg @@ N (Osym (s, o), [])
+    | Psingle s -> insert eg @@ N (Osingle s, [])
+    | Psym (s, o) -> insert eg @@ N (Osym (s, o), [])
     | Punop (a, u, x) -> prov eg a (Ounop u) [pure x]
     | Pvar x when Set.mem vs x -> raise @@ Occurs_failed (x, None)
     | Pvar x -> var t eg vs x
@@ -51,7 +51,7 @@ module Lifter = struct
     | Some id -> id
     | None ->
       let id = match Hashtbl.find t.pure x with
-        | None -> add_enode eg @@ N (Ovar x, [])
+        | None -> insert eg @@ N (Ovar x, [])
         | Some p -> pure t eg p ~vs:(Set.add vs x) in
       Hashtbl.set t.filled ~key:x ~data:id;
       id
@@ -59,12 +59,12 @@ module Lifter = struct
   and args' ?(vs = Var.Set.empty) t eg = List.map ~f:(pure t eg ~vs)
 
   and global ?(vs = Var.Set.empty) t eg : Exp.global -> id = function
-    | Gaddr a -> add_enode eg @@ N (Oaddr a, [])
+    | Gaddr a -> insert eg @@ N (Oaddr a, [])
     | Gpure p -> pure t eg p ~vs
-    | Gsym s -> add_enode eg @@ N (Osym (s, 0), [])
+    | Gsym s -> insert eg @@ N (Osym (s, 0), [])
 
   let local t eg : Exp.local -> id = function
-    | l, args -> add_enode eg @@ N (Olocal l, args' t eg args)
+    | l, args -> insert eg @@ N (Olocal l, args' t eg args)
 
   let dst t eg : Exp.dst -> id = function
     | Dglobal g -> global t eg g
@@ -73,24 +73,24 @@ module Lifter = struct
   let exp t eg : exp -> id =
     let pure = pure t eg in
     let dst = dst t eg in function
-      | Ebr (c, y, n) -> add_enode eg @@ N (Obr, [pure c; dst y; dst n])
+      | Ebr (c, y, n) -> insert eg @@ N (Obr, [pure c; dst y; dst n])
       | Ecall (x, f, args, vargs) ->
         let f = global t eg f in
-        let args = add_enode eg @@ N (Ocallargs, args' t eg args) in
-        let vargs = add_enode eg @@ N (Ocallargs, args' t eg vargs) in
+        let args = insert eg @@ N (Ocallargs, args' t eg args) in
+        let vargs = insert eg @@ N (Ocallargs, args' t eg vargs) in
         let op = match x with
           | Some (x, t) -> Enode.Ocall (x, t)
           | None -> Enode.Ocall0 in
-        add_enode eg @@ N (op, [f; args; vargs])
-      | Eload (x, t, y) -> add_enode eg @@ N (Oload (x, t), [pure y])
-      | Ejmp d -> add_enode eg @@ N (Ojmp, [dst d])
-      | Eret x -> add_enode eg @@ N (Oret, [pure x])
-      | Eset (x, y) -> add_enode eg @@ N (Oset x, [pure y])
-      | Estore (ty, v, x) -> add_enode eg @@ N (Ostore ty, [pure v; pure x])
+        insert eg @@ N (op, [f; args; vargs])
+      | Eload (x, t, y) -> insert eg @@ N (Oload (x, t), [pure y])
+      | Ejmp d -> insert eg @@ N (Ojmp, [dst d])
+      | Eret x -> insert eg @@ N (Oret, [pure x])
+      | Eset (x, y) -> insert eg @@ N (Oset x, [pure y])
+      | Estore (ty, v, x) -> insert eg @@ N (Ostore ty, [pure v; pure x])
       | Esw (ty, i, d, tbl) ->
         let tbl = List.map tbl ~f:(fun (i, l) ->
-            add_enode eg @@ N (Otbl i, [local t eg l])) in
-        add_enode eg @@ N (Osw ty, pure i :: local t eg d :: tbl)
+            insert eg @@ N (Otbl i, [local t eg l])) in
+        insert eg @@ N (Osw ty, pure i :: local t eg d :: tbl)
 end
 
 let operand (o : operand) w : Exp.pure * work = match o with
