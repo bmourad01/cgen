@@ -25,6 +25,8 @@ type t = {
 }
 
 let rec pp_ext ppf = function
+  | E (_, op, []) ->
+    Format.fprintf ppf "%a" Enode.pp_op op
   | E (_, op, args) ->
     let pp_sep ppf () = Format.fprintf ppf " " in
     Format.fprintf ppf "(%a %a)" Enode.pp_op op
