@@ -61,9 +61,9 @@ let data t id =
 let dominates t = Tree.is_descendant_of t.input.dom
 
 let merge_data c l r ~left ~right = match l, r with
-  | Some l, Some r -> assert (equal_const l r); c.data <- Some l
-  | Some l, None   -> c.data <- Some l; right ()
-  | None,   Some r -> c.data <- Some r; left ()
+  | Some a, Some b -> assert (equal_const a b); c.data <- l
+  | Some _, None   -> c.data <- l; right ()
+  | None,   Some _ -> c.data <- r; left ()
   | None,   None   -> ()
 [@@specialise]
 
