@@ -236,6 +236,13 @@ let filteri_inplace t ~f =
 let filter_inplace t ~f = filteri_inplace t ~f:(fun _ x -> f x)
 [@@specialise]
 
+let remove_consecutive_duplicates t ~compare =
+  let prev = ref None in
+  filter_inplace t ~f:(fun x -> match !prev with
+      | Some y when compare x y = 0 -> false
+      | Some _ | None -> prev := Some x; true)
+[@@specialise]
+
 let to_array t = Array.init t.length ~f:(unsafe_get t)
 
 let to_list t =
@@ -416,3 +423,8 @@ let sort ?pos ?len t ~compare =
   let pos, len = Ordered_collection_common.get_pos_len_exn ()
       ?pos ?len ~total_length:t.length in
   Sort.Intro_sort.sort t.data ~compare ~left:pos ~right:(pos + len - 1)
+
+let dedup_and_sort t ~compare =
+  sort t ~compare;
+  remove_consecutive_duplicates t ~compare
+[@@specialise]

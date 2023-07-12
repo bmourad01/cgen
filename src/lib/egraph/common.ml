@@ -266,17 +266,9 @@ let process_unions t =
     update_analyses t
   done
 
-let sort_and_dedup t ~compare =
-  Vec.sort t ~compare;
-  let prev = ref None in
-  Vec.filter_inplace t ~f:(fun x -> match !prev with
-      | Some y when compare x y = 0 -> false
-      | Some _ | None -> prev := Some x; true)
-[@@specialise]
-
 let rebuild_classes t = Hashtbl.iter t.classes ~f:(fun c ->
     Vec.map_inplace c.nodes ~f:(Fn.flip Enode.canonicalize t.uf);
-    sort_and_dedup c.nodes ~compare:Enode.compare)
+    Vec.dedup_and_sort c.nodes ~compare:Enode.compare)
 
 let repair t =
   process_unions t;

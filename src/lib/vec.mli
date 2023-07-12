@@ -52,6 +52,7 @@ val filter_mapi : 'a t -> f:(int -> 'a -> 'b option) -> 'b t
 val filter_map : 'a t -> f:('a -> 'b option) -> 'b t
 val filteri_inplace : 'a t -> f:(int -> 'a -> bool) -> unit
 val filter_inplace : 'a t -> f:('a -> bool) -> unit
+val remove_consecutive_duplicates : 'a t -> compare:('a -> 'a -> int) -> unit
 val to_array : 'a t -> 'a array
 val to_list : 'a t -> 'a list
 val to_list_rev : 'a t -> 'a list
@@ -62,3 +63,4 @@ val to_sequence_rev : 'a t -> 'a seq
 val of_array : 'a array -> 'a t
 val of_list : 'a list -> 'a t
 val sort : ?pos:int -> ?len:int -> 'a t -> compare:('a -> 'a -> int) -> unit
+val dedup_and_sort : 'a t -> compare:('a -> 'a -> int) -> unit
