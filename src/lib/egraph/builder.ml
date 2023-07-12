@@ -1,311 +1,136 @@
 open Core
-open Monads.Std
 open Regular.Std
+open Graphlib.Std
+open Monads.Std
 open Virtual
 open Common
 
 module E = Monad.Result.Error
 
-exception Occurs_failed of Var.t * Label.t option
+exception Missing of Label.t
+exception Duplicate of Var.t * Label.t
 
-(* The state of the expression builder. *)
-type t = {
-  pure   : Exp.pure Var.Table.t;
-  exp    : Exp.t Label.Table.t;
-  filled : Id.t Var.Table.t;
-}
+let node eg op args = insert eg @@ N (op, args)
+let atom eg op = node eg op []
 
-let init () = {
-  pure = Var.Table.create ();
-  exp = Label.Table.create ();
-  filled = Var.Table.create ();
-}
+let var env eg x = Hashtbl.find_or_add env x
+    ~default:(fun () -> atom eg @@ Ovar x)
 
-type work = Var.Set.t
+let operand env eg : operand -> id = function
+  | #const as c -> insert eg @@ Enode.of_const c
+  | `var x -> var env eg x
 
-(* Lift our tree representation into e-nodes.
+let operands env eg = List.map ~f:(operand env eg)
 
-   This is a bottom-up process, whereas building the expression trees
-   is done top-down.
-*)
-module Lifter = struct
-  let prov eg a op args =
-    let id = insert eg @@ N (op, args) in
-    Option.iter a ~f:(update_provenance eg id);
-    id
+let global env eg : global -> id = function
+  | `addr a -> atom eg @@ Oaddr a
+  | `sym s -> atom eg @@ Osym (s, 0)
+  | `var x -> var env eg x
 
-  let rec pure ?(vs = Var.Set.empty) t eg (p : Exp.pure) : id =
-    let pure = pure t eg ~vs in match p with
-    | Pbinop (a, b, l, r) -> prov eg a (Obinop b) [pure l; pure r]
-    | Pbool b -> insert eg @@ N (Obool b, [])
-    | Pdouble d -> insert eg @@ N (Odouble d, [])
-    | Pint (i, ty) -> insert eg @@ N (Oint (i, ty), [])
-    | Psel (a, ty, c, y, n) -> prov eg a (Osel ty) [pure c; pure y; pure n]
-    | Psingle s -> insert eg @@ N (Osingle s, [])
-    | Psym (s, o) -> insert eg @@ N (Osym (s, o), [])
-    | Punop (a, u, x) -> prov eg a (Ounop u) [pure x]
-    | Pvar x when Set.mem vs x -> raise @@ Occurs_failed (x, None)
-    | Pvar x -> var t eg vs x
+let local env eg : local -> id = function
+  | `label (l, args) -> node eg (Olocal l) (operands env eg args)
 
-  and var t eg vs x = match Hashtbl.find t.filled x with
-    | Some id -> id
-    | None ->
-      let id = match Hashtbl.find t.pure x with
-        | None -> insert eg @@ N (Ovar x, [])
-        | Some p -> pure t eg p ~vs:(Set.add vs x) in
-      Hashtbl.set t.filled ~key:x ~data:id;
-      id
+let dst env eg : dst -> id = function
+  | #global as g -> global env eg g
+  | #local as l -> local env eg l
 
-  and args' ?(vs = Var.Set.empty) t eg = List.map ~f:(pure t eg ~vs)
+let table env eg tbl =
+  Ctrl.Table.enum tbl |> Seq.map ~f:(fun (i, l) ->
+      node eg (Otbl i) [local env eg l]) |> Seq.to_list
 
-  and global ?(vs = Var.Set.empty) t eg : Exp.global -> id = function
-    | Gaddr a -> insert eg @@ N (Oaddr a, [])
-    | Gpure p -> pure t eg p ~vs
-    | Gsym s -> insert eg @@ N (Osym (s, 0), [])
+let prov ?x ?(f = Fn.const) env eg l op args =
+  let id = node eg op args in
+  Option.iter x ~f:(fun x ->
+      match Hashtbl.add env ~key:x ~data:id with
+      | `Duplicate -> raise @@ Duplicate (x, l)
+      | `Ok -> ());
+  update_provenance eg id l;
+  Hashtbl.set eg.lbl2id ~key:l ~data:(f id eg)
 
-  let local t eg : Exp.local -> id = function
-    | l, args -> insert eg @@ N (Olocal l, args' t eg args)
+let set x id eg = node eg (Oset x) [id]
 
-  let dst t eg : Exp.dst -> id = function
-    | Dglobal g -> global t eg g
-    | Dlocal l -> local t eg l
-
-  let exp t eg : exp -> id =
-    let pure = pure t eg in
-    let dst = dst t eg in function
-      | Ebr (c, y, n) -> insert eg @@ N (Obr, [pure c; dst y; dst n])
-      | Ecall (x, f, args, vargs) ->
-        let f = global t eg f in
-        let args = insert eg @@ N (Ocallargs, args' t eg args) in
-        let vargs = insert eg @@ N (Ocallargs, args' t eg vargs) in
-        let op = match x with
-          | Some (x, t) -> Enode.Ocall (x, t)
-          | None -> Enode.Ocall0 in
-        insert eg @@ N (op, [f; args; vargs])
-      | Eload (x, t, y) -> insert eg @@ N (Oload (x, t), [pure y])
-      | Ejmp d -> insert eg @@ N (Ojmp, [dst d])
-      | Eret x -> insert eg @@ N (Oret, [pure x])
-      | Eset (x, y) -> insert eg @@ N (Oset x, [pure y])
-      | Estore (ty, v, x) -> insert eg @@ N (Ostore ty, [pure v; pure x])
-      | Esw (ty, i, d, tbl) ->
-        let tbl = List.map tbl ~f:(fun (i, l) ->
-            insert eg @@ N (Otbl i, [local t eg l])) in
-        insert eg @@ N (Osw ty, pure i :: local t eg d :: tbl)
-end
-
-let operand (o : operand) w : Exp.pure * work = match o with
-  | `bool f     -> Pbool f, w
-  | `int (i, t) -> Pint (i, t), w
-  | `float f    -> Psingle f, w
-  | `double d   -> Pdouble d, w
-  | `sym (s, o) -> Psym (s, o), w
-  | `var v      -> Pvar v, Set.add w v
-
-let operands os w =
-  List.fold_right os ~init:([], w) ~f:(fun o (os, w) ->
-      let o, w = operand o w in
-      o :: os, w)
-
-let global (g : Virtual.global) w : Exp.global * work = match g with
-  | `addr a -> Gaddr a, w
-  | `sym s  -> Gsym s, w
-  | `var v  -> Gpure (Pvar v), Set.add w v
-
-let local (loc : Virtual.local) w = match loc with
-  | `label (lbl, args) ->
-    let args, w = operands args w in
-    (lbl, args), w
-
-let dst (d : Virtual.dst) w : Exp.dst * work = match d with
-  | #Virtual.global as g ->
-    let g, w = global g w in
-    Dglobal g, w
-  | #Virtual.local as loc ->
-    let loc, w = local loc w in
-    Dlocal loc, w
-
-let table tbl w =
-  let tbl, w =
-    Ctrl.Table.enum tbl |>
-    Seq.fold ~init:([], w) ~f:(fun (tbl, w) (i, loc) ->
-        let loc, w = local loc w in
-        (i, loc) :: tbl, w) in
-  List.rev tbl, w
-
-let update t l ((w, xs) as acc) x f =
-  (* Fail if we've already seen this variable. *)
-  if Set.mem xs x then
-    raise @@ Occurs_failed (x, Some l);
-  if Set.mem w x then
-    let w' = ref @@ Set.remove w x in
-    (* Assume that the current bound expression is the same. *)
-    if not @@ Hashtbl.mem t.pure x then begin
-      let w, p = f !w' in
-      (* Fail early if we re-introduce the same variable. *)
-      if Set.mem w x then
-        raise @@ Occurs_failed (x, Some l);
-      Hashtbl.set t.pure ~key:x ~data:p;
-      w' := w;
-    end;
-    !w', Set.add xs x
-  else acc
-
-(* Accumulate the results of an instruction. *)
-let accum t acc i =
-  let l = Insn.label i in
-  let go = update t l acc in
-  match Insn.op i with
-  | `bop (x, o, a, b) -> go x @@ fun w ->
-    let a, w = operand a w in
-    let b, w = operand b w in
-    w, Pbinop (Some l, o, a, b)
-  | `uop (x, o, a) -> go x @@ fun w ->
-    let a, w = operand a w in
-    w, Punop (Some l, o, a)
-  | `sel (x, t, c, y, n) -> go x @@ fun w ->
-    let c, w = Exp.Pvar c, Set.add w c in
-    let y, w = operand y w in
-    let n, w = operand n w in
-    w, Psel (Some l, t, c, y, n)
-  | `call (None, _, _, _) -> acc
-  | `call (Some (x, _), _, _, _) ->
-    let w, xs = acc in
-    Set.remove w x, xs
-  | `alloc (x, _) ->
-    let w, xs = acc in
-    Set.remove w x, xs
-  | `load (x, _, _) ->
-    let w, xs = acc in
-    Set.remove w x, xs
-  | `store _ -> acc
-  | `vaarg (x, _, y) ->
-    let w, xs = acc in
-    let w = Set.remove w x in
-    let w = Set.remove w y in
-    w, xs
-  | `vastart x ->
-    let w, xs = acc in
-    Set.remove w x, xs
-
-(* Kill the variables that appear in the arguments of the block.
-   This is the point where we can no longer represent their data
-   dependencies as an expression tree.
-
-   Note that this could be a result of a "diamond" property in
-   the CFG, not necessarily a loop.
-*)
-let killed blk w =
-  Blk.args blk |> Seq.map ~f:fst |>
-  Seq.fold ~init:w ~f:Set.remove
-
-let different_insn l i = Label.(l <> Insn.label i)
-
-let subseq blk l ss =
-  if Label.(l <> Blk.label blk) then
-    Seq.drop_while_option ss ~f:(different_insn l) |>
-    Option.value_map ~default:Seq.empty ~f:snd
-  else ss
-
-let insns t blk l w xs =
-  let w, xs =
-    Blk.insns blk ~rev:true |> subseq blk l |>
-    Seq.fold ~init:(w, xs) ~f:(accum t) in
-  killed blk w, xs
-
-(* Next blocks to visit. *)
-let nexts (input : Input.t) blk bs =
-  Cfg.Node.preds (Blk.label blk) input.cfg |>
-  Seq.filter_map ~f:(fun l ->
-      if Label.is_pseudo l || Set.mem bs l
-      then None else match Hashtbl.find input.tbl l with
-        | Some `blk b -> Some b
-        | Some _ | None -> None)
-
-let initq blk l w =
-  blk, l, w, Label.Set.empty, Var.Set.empty
-
-(* Traverse the data dependencies. *)
-let traverse t input blk l w =
-  if not @@ Set.is_empty w then
-    let q = Stack.singleton @@ initq blk l w in
-    while not @@ Stack.is_empty q do
-      let blk, l, w, bs, xs = Stack.pop_exn q in
-      let w, xs = insns t blk l w xs in
-      if not @@ Set.is_empty w then
-        let bs = Set.add bs @@ Blk.label blk in
-        nexts input blk bs |> Seq.iter ~f:(fun blk ->
-            Stack.push q (blk, Blk.label blk, w, bs, xs))
-    done
-
-let lift t eg blk l f =
-  let w, e = f () in
-  traverse t eg.input blk l w;
-  Hashtbl.set eg.lbl2id ~key:l ~data:(Lifter.exp t eg e)
-
-let ctrl t eg blk =
-  let l = Blk.label blk in
-  let go = lift t eg blk l in
-  match Blk.ctrl blk with
+let ctrl env eg l : ctrl -> unit = function
   | `hlt -> ()
-  | `jmp d -> go @@ fun () ->
-    let d, w = dst d Var.Set.empty in
-    w, Ejmp d
-  | `br (c, y, n) -> go @@ fun () ->
-    let c, w = Exp.Pvar c, Var.Set.singleton c in
-    let y, w = dst y w in
-    let n, w = dst n w in
-    w, Ebr (c, y, n)
-  | `ret None -> ()
-  | `ret (Some x) -> go @@ fun () ->
-    let x, w = operand x Var.Set.empty in
-    w, Eret x
-  | `sw (t, v, d, tbl) -> go @@ fun () ->
-    let v, w = match v with
-      | `var x -> Exp.Pvar x, Var.Set.singleton x
-      | `sym (s, n) -> Exp.Psym (s, n), Var.Set.empty in
-    let d, w = local d w in
-    let tbl, w = table tbl w in
-    w, Esw (t, v, d, tbl)
+  | `jmp d ->
+    prov env eg l Ojmp [
+      dst env eg d;
+    ]
+  | `br (c, y, n) ->
+    prov env eg l Obr [
+      var env eg c;
+      dst env eg y;
+      dst env eg n;
+    ]
+  | `ret None -> ()      
+  | `ret (Some r) ->
+    prov env eg l Oret [operand env eg r]
+  | `sw (ty, i, d, tbl) ->
+    let i = operand env eg (i :> operand) in
+    let d = local env eg d in
+    let tbl = table env eg tbl in
+    prov env eg l (Osw ty) (i :: d :: tbl)
 
-let insn t eg i blk =
-  let l = Insn.label i in
-  let go = lift t eg blk l in
-  match Insn.op i with
-  | `bop (x, o, a, b) -> go @@ fun () ->
-    let a, w = operand a Var.Set.empty in
-    let b, w = operand b w in
-    w, Eset (x, Pbinop (Some l, o, a, b))
-  | `uop (x, o, a) -> go @@ fun () ->
-    let a, w = operand a Var.Set.empty in
-    w, Eset (x, Punop (Some l, o, a))
-  | `sel (x, t, c, y, n) -> go @@ fun () ->
-    let y, w = operand y @@ Var.Set.singleton c in
-    let n, w = operand n w in
-    w, Eset (x, Psel (Some l, t, Pvar c, y, n))
-  | `call (x, f, args, vargs) -> go @@ fun () ->
-    let f, w = global f Var.Set.empty in
-    let args, w = operands args w in
-    let vargs, w = operands vargs w in
-    w, Ecall (x, f, args, vargs)
-  | `load (x, t, a) -> go @@ fun () ->
-    let a, w = operand a Var.Set.empty in
-    w, Eload (x, t, a)
-  | `store (t, v, a) -> go @@ fun () ->
-    let v, w = operand v Var.Set.empty in
-    let a, w = operand a w in
-    w, Estore (t, v, a)
-  | `alloc _ | `vaarg _ | `vastart _ -> ()
+let callop x : Enode.op * Var.t option = match x with
+  | Some (x, t) -> Ocall (x, t), Some x
+  | None -> Ocall0, None
 
-let try_ f = try f () with
-  | Occurs_failed (x, None) ->
-    E.failf "Occurs check failed for variable %a" Var.pp x ()
-  | Occurs_failed (x, Some l) ->
-    E.failf "Occurs check failed for variable %a at instruction %a"
+let callargs env eg args = node eg Ocallargs @@ operands env eg args
+
+let insn env eg l : Insn.op -> unit = function
+  | `bop (x, o, a, b) ->
+    prov ~x env eg l (Obinop o) [
+      operand env eg a;
+      operand env eg b;
+    ] ~f:(set x)
+  | `uop (x, o, a) ->
+    prov ~x env eg l (Ounop o) [
+      operand env eg a;
+    ] ~f:(set x)
+  | `sel (x, ty, c, y, n) ->
+    prov ~x env eg l (Osel ty) [
+      var env eg c;
+      operand env eg y;
+      operand env eg n;
+    ] ~f:(set x)
+  | `call (x, f, args, vargs) ->
+    let op, x = callop x in
+    prov ?x env eg l op [
+      global env eg f;
+      callargs env eg args;
+      callargs env eg vargs;
+    ]
+  | `alloc _ -> ()
+  | `load (x, ty, a) ->
+    prov ~x env eg l (Oload (x, ty)) [
+      operand env eg a;
+    ]
+  | `store (ty, v, a) ->
+    prov env eg l (Ostore ty) [
+      operand env eg v;
+      operand env eg a;
+    ]
+  | `vaarg _ -> ()
+  | `vastart _ -> ()
+
+let step env eg l = match Hashtbl.find eg.input.tbl l with
+  | Some (`insn (i, _, _)) -> insn env eg l @@ Insn.op i
+  | Some (`blk b) -> ctrl env eg l @@ Blk.ctrl b
+  | None when Label.is_pseudo l -> ()
+  | None -> raise @@ Missing l
+
+let run eg =
+  let env = Var.Table.create () in
+  let q = Queue.singleton Label.pseudoentry in
+  let rec loop () = match Queue.dequeue q with
+    | None -> Ok ()
+    | Some l ->
+      step env eg l;
+      Tree.children eg.input.dom l |>
+      Seq.iter ~f:(Queue.enqueue q);
+      loop () in
+  try loop () with
+  | Missing l ->
+    E.failf "Missing instruction %a" Label.pp l ()
+  | Duplicate (x, l) ->
+    E.failf "Duplicate definition of var %a at instruction %a"
       Var.pp x Label.pp l ()
-
-let run eg = try_ @@ fun () ->
-  let t = init () in
-  Hashtbl.iter eg.input.tbl ~f:(function
-      | `blk b -> ctrl t eg b
-      | `insn (i, b, _) -> insn t eg i b);
-  Ok ()

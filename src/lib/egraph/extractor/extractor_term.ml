@@ -13,8 +13,10 @@ let rec pure = function
     let+ l = pure l and+ r = pure r in
     Exp.Pbinop (lbl a, b, l, r)
   | E (_, Obool b, []) -> Some (Exp.Pbool b)
+  | E (_, Ocall (x, _), _) -> Some (Exp.Pvar x)
   | E (_, Odouble d, []) -> Some (Exp.Pdouble d)
   | E (_, Oint (i, t), []) -> Some (Exp.Pint (i, t))
+  | E (_, Oload (x, _), _) -> Some (Exp.Pvar x)
   | E (a, Osel t, [c; y; n]) ->
     let+ c = pure c and+ y = pure y and+ n = pure n in
     Exp.Psel (lbl a, t, c, y, n)
@@ -30,12 +32,10 @@ let rec pure = function
   | E (_, Obool _, _)
   | E (_, Obr, _)
   | E (_, Ocall0, _)
-  | E (_, Ocall _, _)
   | E (_, Ocallargs, _)
   | E (_, Odouble _, _)
   | E (_, Ojmp, _)
   | E (_, Oint _, _)
-  | E (_, Oload _, _)
   | E (_, Olocal _, _)
   | E (_, Oret, _)
   | E (_, Osel _, _)

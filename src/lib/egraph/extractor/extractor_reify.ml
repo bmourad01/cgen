@@ -98,8 +98,10 @@ let rec pure t env e : operand Context.t =
     let+ r = pure r in
     `bop (x, b, l, r)
   | E (_, Obool b, []) -> !!(`bool b)
+  | E (_, Ocall (x, _), _) -> !!(`var x)
   | E (_, Odouble d, []) -> !!(`double d)
   | E (_, Oint (i, t), []) -> !!(`int (i, t))
+  | E (_, Oload (x, _), _) -> !!(`var x)
   | E (a, Osel ty, [c; y; n]) -> insn a @@ fun x ->
     let* y = pure y in
     let* n = pure n in
@@ -119,12 +121,10 @@ let rec pure t env e : operand Context.t =
   | E (_, Obool _, _)
   | E (_, Obr, _)
   | E (_, Ocall0, _)
-  | E (_, Ocall _, _)
   | E (_, Ocallargs, _)
   | E (_, Odouble _, _)
   | E (_, Ojmp, _)
   | E (_, Oint _, _)
-  | E (_, Oload _, _)
   | E (_, Olocal _, _)
   | E (_, Oret, _)
   | E (_, Osel _, _)
@@ -266,7 +266,8 @@ let collect t l =
       let* () = extract t l >>= function
         | Some e -> exp t env l e
         | None -> !!() in
-      Tree.children t.eg.input.dom l |> Seq.iter ~f:(Queue.enqueue q);
+      Tree.children t.eg.input.dom l |>
+      Seq.iter ~f:(Queue.enqueue q);
       loop () in
   loop ()
 
