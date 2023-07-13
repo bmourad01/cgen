@@ -2,12 +2,15 @@ open Core
 open Regular.Std
 open Virtual
 
+let (@/) i s = not @@ Set.mem s i
+let (--) = Var.Set.remove
+let (++) = Var.Set.union
+let noti s i _ = i @/ s
+
 let map_loc unused : local -> local * bool = function
   | `label (l, args) as loc -> match Label.Tree.find unused l with
+    | Some s -> `label (l, List.filteri args ~f:(noti s)), true
     | None -> loc, false
-    | Some s -> (* `s` should never be empty. *)
-      let args = List.filteri args ~f:(fun i _ -> not @@ Set.mem s i) in
-      `label (l, args), true
 
 let map_dst unused : dst -> dst * bool = function
   | #local as l ->
@@ -41,41 +44,40 @@ let map_ctrl unused (c : ctrl) =
     let tbl, ct = map_tbl unused tbl in
     `sw (t, i, d, tbl), (cd || ct)
 
+let collect_unused_args live blks =
+  Seq.fold blks ~init:Label.Tree.empty ~f:(fun acc b ->
+      let l = Blk.label b in
+      let needed = Live.uses live l ++ Live.outs live l in
+      let args =
+        Blk.args b |> Seq.filter_mapi ~f:(fun i (x, _) ->
+            Option.some_if (x @/ needed) i) |>
+        Int.Set.of_sequence in
+      if Set.is_empty args then acc
+      else Label.Tree.set acc ~key:l ~data:args)
+
+let keep i x alive = Insn.is_effectful i || Set.mem alive x
+
+let insn (acc, changed, alive) i = match Insn.lhs i with
+  | Some x when not @@ keep i x alive -> acc, true, alive
+  | Some x -> i :: acc, changed, alive -- x ++ Insn.free_vars i
+  | None -> i :: acc, changed, alive ++ Insn.free_vars i
+
 let rec run fn =
   let live = Live.compute fn in
   let blks = Func.blks fn in
-  let unused_args =
-    Seq.fold blks ~init:Label.Tree.empty ~f:(fun acc b ->
-        let l = Blk.label b in
-        let uses = Live.uses live l in
-        let outs = Live.outs live l in
-        let needed = Set.union uses outs in
-        let args =
-          Blk.args b |> Seq.filter_mapi ~f:(fun i (x, _) ->
-              Option.some_if (not @@ Set.mem needed x) i) |>
-          Int.Set.of_sequence in
-        if Set.is_empty args then acc
-        else Label.Tree.set acc ~key:l ~data:args) in
+  let unused = collect_unused_args live blks in
   Seq.filter_map blks ~f:(fun b ->
       let label = Blk.label b in
-      let ctrl, cc = map_ctrl unused_args @@ Blk.ctrl b in
-      let args, ca = match Label.Tree.find unused_args label with
-        | None -> Blk.args b, false
-        | Some s -> Blk.args b |> Seq.filteri ~f:(fun i _ ->
-            not @@ Set.mem s i), true in
-      let insns = Blk.insns b |> Seq.to_list in
-      let outs = Live.outs live label in
-      let iouts = Live.insns live label in
-      let alive x l =
-        Set.mem outs x ||
-        Set.mem (Label.Tree.find_exn iouts l) x in
-      let changed = ref (ca || cc) in
-      let insns = List.filter insns ~f:(fun i ->
-          Insn.is_effectful i || match Insn.lhs i with
-          | Some x when not @@ alive x @@ Insn.label i ->
-            changed := true; false
-          | Some _ | None -> true) in
-      if !changed then
+      let ctrl, cc = map_ctrl unused @@ Blk.ctrl b in
+      let args = Blk.args b in
+      let args, ca = match Label.Tree.find unused label with
+        | Some s -> Seq.filteri args ~f:(noti s), true
+        | None -> args, false in
+      let alive = Live.outs live label ++ Ctrl.free_vars ctrl in
+      let insns, changed, _ =
+        Blk.insns b ~rev:true |>
+        Seq.fold ~init:([], ca || cc, alive) ~f:insn in
+      if changed then
         Option.some @@ Blk.create () ~insns ~ctrl ~label
           ~args:(Seq.to_list args)
       else None) |> Seq.to_list |> function
