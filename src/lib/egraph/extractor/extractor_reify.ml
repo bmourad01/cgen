@@ -61,21 +61,23 @@ let extract t l = match Hashtbl.find t.eg.lbl2id l with
 
 let upd t x y = Hashtbl.update t x ~f:(Option.value ~default:y)
 
+let find_var t l = match Hashtbl.find t.eg.input.tbl l with
+  | Some `insn (_, _, Some x) -> !!(x, l)
+  | Some _ | None -> no_var l
+
+let new_var env id = match Hashtbl.find env.temp id with
+  | Some p -> !!p
+  | None ->
+    let* l = Context.Label.fresh in
+    let+ x = Context.Var.fresh in
+    Hashtbl.set env.temp ~key:id ~data:(x, l);
+    Hashtbl.add_multi env.news ~key:env.cur ~data:l;
+    x, l
+
 let insn t env a f =
   let* x, l = match a with
-    | Label l ->
-      begin match Hashtbl.find t.eg.input.tbl l with
-        | Some `insn (_, _, Some x) -> !!(x, l)
-        | Some _ | None -> no_var l
-      end
-    | Id id -> match Hashtbl.find env.temp id with
-      | Some p -> !!p
-      | None ->
-        let* l = Context.Label.fresh in
-        let+ x = Context.Var.fresh in
-        Hashtbl.set env.temp ~key:id ~data:(x, l);
-        Hashtbl.add_multi env.news ~key:env.cur ~data:l;
-        x, l in
+    | Label l -> find_var t l
+    | Id id -> new_var env id in
   let+ op = f x in
   upd env.insn l op;
   `var x
@@ -87,6 +89,10 @@ let insn' env l f =
 let ctrl env l f =
   let+ c = f () in
   upd env.ctrl l c
+
+let sel e x ty c y n = match c with
+  | `var c -> !!(`sel (x, ty, c, y, n))
+  | _ -> invalid_pure e
 
 let rec pure t env e : operand Context.t =
   let pure = pure t env in
@@ -103,12 +109,10 @@ let rec pure t env e : operand Context.t =
   | E (_, Oint (i, t), []) -> !!(`int (i, t))
   | E (_, Oload (x, _), _) -> !!(`var x)
   | E (a, Osel ty, [c; y; n]) -> insn a @@ fun x ->
+    let* c = pure c in
     let* y = pure y in
     let* n = pure n in
-    begin pure c >>= function
-      | `var c -> !!(`sel (x, ty, c, y, n))
-      | _ -> invalid_pure e
-    end
+    sel e x ty c y n
   | E (_, Osingle s, []) -> !!(`float s)
   | E (_, Osym (s, n), []) -> !!(`sym (s, n))
   | E (a, Ounop u, [y]) -> insn a @@ fun x ->
@@ -179,6 +183,24 @@ let table_dst tbl i d =
   Option.value ~default:d |> fun l ->
   (l :> dst)
 
+(* Ideally this would be captured in our rewrite rules. *)
+let br l e c y n = match c with
+  | `bool f -> !!(`jmp (if f then y else n))
+  | `var _ when equal_dst y n -> !!(`jmp y)
+  | `var c -> !!(`br (c, y, n))
+  | _ -> invalid l e
+
+let sw_default t env l = function
+  | E (_, Olocal l', args) ->
+    let+ l, args = local t env l' args in
+    `label (l, args)
+  | d -> invalid l d
+
+let sw l e ty i d tbl = match i with
+  | #Ctrl.swindex as i -> !!(`sw (ty, i, d, tbl))
+  | `int (i, _) -> !!(`jmp (table_dst tbl i d))
+  | _ -> invalid l e
+
 let exp t env l e =
   let pure = pure t env in
   let dst = dst t env in
@@ -187,14 +209,10 @@ let exp t env l e =
   match e with
   (* Only canonical forms are accepted. *)
   | E (_, Obr, [c; y; n]) -> ctrl @@ fun () ->
+    let* c = pure c in
     let* y = dst y in
     let* n = dst n in
-    begin pure c >>= function
-      | `bool f -> !!(`jmp (if f then y else n))
-      | `var _ when equal_dst y n -> !!(`jmp y)
-      | `var c -> !!(`br (c, y, n))
-      | _ -> invalid l e
-    end
+    br l e c y n
   | E (_, Ocall0, [f; args; vargs]) -> insn @@ fun () ->
     let* f = global t env f in
     let* args = callargs t env args in
@@ -220,17 +238,10 @@ let exp t env l e =
     let+ x = pure x in
     `store (t, v, x)
   | E (_, Osw ty, i :: d :: tbl) -> ctrl @@ fun () ->
-    let* d = match d with
-      | E (_, Olocal l', args) ->
-        let+ l, args = local t env l' args in
-        (`label (l, args) :> local)
-      | _ -> invalid l d in
+    let* i = pure i in
+    let* d = sw_default t env l d in
     let* tbl = table t env tbl ty in
-    begin pure i >>= function
-      | (`var _ | `sym _) as i -> !!(`sw (ty, i, d, tbl))
-      | `int (i, _) -> !!(`jmp (table_dst tbl i d))
-      | _ -> invalid l i
-    end
+    sw l e ty i d tbl
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
   | E (_, Obinop _, _)
@@ -257,7 +268,6 @@ let exp t env l e =
 
 let collect t l =
   let env = init () in
-  (* Traverse the tree breadth-first. *)
   let q = Queue.singleton l in
   let rec loop () = match Queue.dequeue q with
     | None -> !!env
