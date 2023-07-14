@@ -977,6 +977,10 @@ module Loops : sig
       part of a loop. *)
   val mem : t -> Label.t -> bool
 
+  (** [is_header t l] returns [true] if the block at label [l]
+      is the header of a loop. *)
+  val is_header : t -> Label.t -> bool
+
   (** [is_child_of t m n] returns [true] if [m = n] or [m] is
       nested in [n]. *)
   val is_child_of : t -> loop -> loop -> bool
