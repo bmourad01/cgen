@@ -635,8 +635,8 @@ let cost ~child n =
   Egraph.Enode.children n |>
   List.fold ~init ~f:(fun k c -> k + child c)
 
-let run fn =
-  let*? eg = Egraph.create fn in
+let run tenv fn =
+  let*? eg = Egraph.create fn tenv in
   let _ = Egraph.fixpoint eg Rules.rules in
   let ex = Egraph.Extractor.init eg ~cost in
   Egraph.Extractor.reify ex

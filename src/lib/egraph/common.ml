@@ -9,7 +9,7 @@ module Exp = Exp
 module O = Monad.Option
 
 type exp = Exp.t [@@deriving bin_io, compare, equal, sexp]
-type id = Id.t [@@deriving compare, equal, hash, sexp]
+type id = Id.t [@@deriving bin_io, compare, equal, hash, sexp]
 type enode = Enode.t [@@deriving compare, equal, hash, sexp]
 type nodes = (enode * id) Vec.t
 
@@ -58,7 +58,7 @@ let data t id =
   find t id |> Hashtbl.find t.classes |>
   Option.bind ~f:(fun c -> c.data)
 
-let dominates t = Tree.is_descendant_of t.input.dom
+let dominates t = Tree.is_descendant_of t.input.cdom
 
 let merge_data c l r ~left ~right = match l, r with
   | Some a, Some b -> assert (equal_const a b); c.data <- l

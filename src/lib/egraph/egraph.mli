@@ -128,11 +128,11 @@ val pp_exp : Format.formatter -> exp -> unit
 type t
 type egraph = t
 
-(** [create fn] constructs an e-graph from a function [fn].
+(** [create fn tenv] constructs an e-graph from a function [fn].
 
     [fn] is expected to be in SSA form.
 *)
-val create : func -> t Or_error.t
+val create : func -> Typecheck.env -> t Or_error.t
 
 (** A substitution environment from query variables to IDs. *)
 type subst = id String.Map.t

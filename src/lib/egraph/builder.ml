@@ -10,10 +10,39 @@ module E = Monad.Result.Error
 exception Missing of Label.t
 exception Duplicate of Var.t * Label.t
 
+type mem = {
+  lst  : Label.t;
+  addr : id;
+  ty   : Type.basic;
+} [@@deriving bin_io, compare, equal, hash, sexp]
+
+type st =
+  | Undef
+  | Value of id * Label.t
+
+module Mem = Regular.Make(struct
+    type t = mem [@@deriving bin_io, compare, equal, hash, sexp]
+    let pp ppf t = Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_t t
+    let module_name = Some "Cgen.Egraph.Builder.Mem"
+    let version = "0.1"
+  end)
+
+type env = {
+  vars        : id Var.Table.t;
+  mems        : st Mem.Table.t;
+  mutable lst : Label.t option;
+}
+
+let init () = {
+  vars = Var.Table.create ();
+  mems = Mem.Table.create ();
+  lst = None;
+}
+
 let node eg op args = insert eg @@ N (op, args)
 let atom eg op = node eg op []
 
-let var env eg x = Hashtbl.find_or_add env x
+let var env eg x = Hashtbl.find_or_add env.vars x
     ~default:(fun () -> atom eg @@ Ovar x)
 
 let operand env eg : operand -> id = function
@@ -41,7 +70,7 @@ let table env eg tbl =
 let prov ?x ?(f = Fn.const) env eg l op args =
   let id = node eg op args in
   Option.iter x ~f:(fun x ->
-      match Hashtbl.add env ~key:x ~data:id with
+      match Hashtbl.add env.vars ~key:x ~data:id with
       | `Duplicate -> raise @@ Duplicate (x, l)
       | `Ok -> ());
   update_provenance eg id l;
@@ -49,26 +78,32 @@ let prov ?x ?(f = Fn.const) env eg l op args =
 
 let set x id eg = node eg (Oset x) [id]
 
-let ctrl env eg l : ctrl -> unit = function
-  | `hlt -> ()
-  | `jmp d ->
-    prov env eg l Ojmp [
-      dst env eg d;
-    ]
-  | `br (c, y, n) ->
-    prov env eg l Obr [
-      var env eg c;
-      dst env eg y;
-      dst env eg n;
-    ]
-  | `ret None -> ()      
-  | `ret (Some r) ->
-    prov env eg l Oret [operand env eg r]
-  | `sw (ty, i, d, tbl) ->
-    let i = operand env eg (i :> operand) in
-    let d = local env eg d in
-    let tbl = table env eg tbl in
-    prov env eg l (Osw ty) (i :: d :: tbl)
+let store env eg l ty v a =
+  let v = operand env eg v in
+  let a = operand env eg a in
+  let key = {lst = l; addr = a; ty} in
+  Hashtbl.set env.mems ~key ~data:(Value (v, l));
+  prov env eg l (Ostore ty) [v; a];
+  env.lst <- Some l
+
+let alias env eg key l =
+  Hashtbl.find env.mems key |>
+  Option.bind ~f:(function
+      | Undef -> None
+      | Value (v, parent) ->
+        Option.some_if (dominates eg ~parent l) v)
+
+let load env eg l x ty a =
+  let a = operand env eg a in
+  let lst = Option.value env.lst ~default:l in
+  let key = {lst; addr = a; ty} in
+  match alias env eg key l with
+  | Some v ->
+    prov ~x env eg l (Ounop (`copy ty)) [v] ~f:(set x)
+  | None ->
+    prov ~x env eg l (Oload (x, ty)) [a] ~f:(fun id _ ->
+        Hashtbl.set env.mems ~key ~data:(Value (id, l));
+        id)
 
 let callop x : Enode.op * Var.t option = match x with
   | Some (x, t) -> Ocall (x, t), Some x
@@ -76,7 +111,37 @@ let callop x : Enode.op * Var.t option = match x with
 
 let callargs env eg args = node eg Ocallargs @@ operands env eg args
 
-let insn env eg l : Insn.op -> unit = function
+(* Our analysis is intraprocedural, so assume that a function call
+   can do any arbitrary effects to memory. *)
+let call env eg l x f args vargs =
+  let op, x = callop x in
+  env.lst <- Some l;
+  prov ?x env eg l op [
+    global env eg f;
+    callargs env eg args;
+    callargs env eg vargs;
+  ]
+
+(* Certain instructions such as variadic helpers have ABI-dependent
+   or otherwise underspecified behaviors, which are not useful for
+   removing redundant loads anyway. *)
+let undef env lst addr ty =
+  Hashtbl.set env.mems ~key:{lst; addr; ty} ~data:Undef;
+  env.lst <- Some lst
+
+let vaarg env eg l x ty a =
+  ignore @@ var env eg x;
+  let a = var env eg a in
+  undef env l a ty
+
+let vastart env eg tenv l x =
+  let a = var env eg x in
+  let ty = match Typecheck.Env.typeof_var eg.input.fn x tenv with
+    | Ok (#Type.basic as ty) -> ty
+    | Ok _ | Error _ -> assert false in
+  undef env l a ty
+
+let insn env eg tenv l : Insn.op -> unit = function
   | `bop (x, o, a, b) ->
     prov ~x env eg l (Obinop o) [
       operand env eg a;
@@ -93,44 +158,68 @@ let insn env eg l : Insn.op -> unit = function
       operand env eg n;
     ] ~f:(set x)
   | `call (x, f, args, vargs) ->
-    let op, x = callop x in
-    prov ?x env eg l op [
-      global env eg f;
-      callargs env eg args;
-      callargs env eg vargs;
-    ]
-  | `alloc _ -> ()
+    call env eg l x f args vargs
+  | `alloc (x, _) ->
+    ignore @@ var env eg x
   | `load (x, ty, a) ->
-    prov ~x env eg l (Oload (x, ty)) [
-      operand env eg a;
-    ]
+    load env eg l x ty a
   | `store (ty, v, a) ->
-    prov env eg l (Ostore ty) [
-      operand env eg v;
-      operand env eg a;
+    store env eg l ty v a
+  | `vaarg (x, ty, a) ->
+    vaarg env eg l x ty a
+  | `vastart x ->
+    vastart env eg tenv l x
+
+let sw env eg l ty i d tbl =
+  let i = operand env eg (i :> operand) in
+  let d = local env eg d in
+  let tbl = table env eg tbl in
+  prov env eg l (Osw ty) (i :: d :: tbl)
+
+let ctrl env eg l : ctrl -> unit = function
+  | `hlt -> ()
+  | `jmp d ->
+    prov env eg l Ojmp [
+      dst env eg d;
     ]
-  | `vaarg _ -> ()
-  | `vastart _ -> ()
+  | `br (c, y, n) ->
+    prov env eg l Obr [
+      var env eg c;
+      dst env eg y;
+      dst env eg n;
+    ]
+  | `ret None -> ()
+  | `ret (Some r) ->
+    prov env eg l Oret [
+      operand env eg r;
+    ]
+  | `sw (ty, i, d, tbl) ->
+    sw env eg l ty i d tbl
 
-let step env eg l = match Hashtbl.find eg.input.tbl l with
-  | Some (`insn (i, _, _)) -> insn env eg l @@ Insn.op i
-  | Some (`blk b) -> ctrl env eg l @@ Blk.ctrl b
+let step env eg tenv l = match Hashtbl.find eg.input.tbl l with
   | None when Label.is_pseudo l -> ()
-  | None -> raise @@ Missing l
+  | None | Some `insn _ -> raise @@ Missing l
+  | Some `blk b ->
+    env.lst <- Hashtbl.find_exn eg.input.lst l;
+    Blk.args b |> Seq.iter ~f:(fun (x, _) ->
+        ignore @@ var env eg x);
+    Blk.insns b |> Seq.iter ~f:(fun i ->
+        insn env eg tenv (Insn.label i) (Insn.op i));
+    ctrl env eg l @@ Blk.ctrl b
 
-let run eg =
-  let env = Var.Table.create () in
-  let q = Queue.singleton Label.pseudoentry in
-  let rec loop () = match Queue.dequeue q with
+let run eg tenv =
+  let env = init () in
+  let q = Stack.singleton Label.pseudoentry in
+  let rec loop () = match Stack.pop q with
     | None -> Ok ()
     | Some l ->
-      step env eg l;
+      step env eg tenv l;
       Tree.children eg.input.dom l |>
-      Seq.iter ~f:(Queue.enqueue q);
+      Seq.iter ~f:(Stack.push q);
       loop () in
   try loop () with
   | Missing l ->
-    E.failf "Missing instruction %a" Label.pp l ()
+    E.failf "Missing block %a" Label.pp l ()
   | Duplicate (x, l) ->
     E.failf "Duplicate definition of var %a at instruction %a"
       Var.pp x Label.pp l ()

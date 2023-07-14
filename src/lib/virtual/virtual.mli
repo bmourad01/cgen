@@ -453,8 +453,20 @@ module Insn : sig
   (** Returns [true] for instructions that have side effects. *)
   val is_effectful_op : op -> bool
 
+  (** Returns [true] for instructions that can store to memory. *)
+  val can_store_op : op -> bool
+
+  (** Returns [true] for instructions that can load from memory. *)
+  val can_load_op : op -> bool
+
   (** Same as [is_effectful_op (op d)]. *)
   val is_effectful : t -> bool
+
+  (** Same as [can_store_op (op d)]. *)
+  val can_store : t -> bool
+
+  (** Same as [can_load_op (op d)]. *)
+  val can_load : t -> bool
 
   (** Transforms the underlying operation. *)
   val map : t -> f:(op -> op) -> t

@@ -322,7 +322,17 @@ let is_effectful_op : op -> bool = function
   | #call | #variadic | `store _ -> true
   | _ -> false
 
+let can_store_op : op -> bool = function
+  | #call | #variadic | `store _ -> true
+  | _ -> false
+
+let can_load_op : op -> bool = function
+  | `load _ | `vaarg _ -> true
+  | _ -> false
+
 let is_effectful t = is_effectful_op t.op
+let can_store t = can_store_op t.op
+let can_load t = can_load_op t.op
 
 let pp ppf d =
   Format.fprintf ppf "@[%a@ @[; %a@]@]" pp_op d.op Label.pp d.label

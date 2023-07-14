@@ -276,7 +276,7 @@ let collect t l =
       let* () = extract t l >>= function
         | Some e -> exp t env l e
         | None -> !!() in
-      Tree.children t.eg.input.dom l |>
+      Tree.children t.eg.input.cdom l |>
       Seq.iter ~f:(Queue.enqueue q);
       loop () in
   loop ()

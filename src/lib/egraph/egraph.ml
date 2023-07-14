@@ -26,10 +26,10 @@ let init input = {
   ver = 0;
 }
 
-let create fn =
+let create fn tenv =
   let open Input.E.Let in
   let* input = Input.init fn in
   let t = init input in
-  let+ () = Builder.run t in
+  let+ () = Builder.run t tenv in
   repair t;
   t
