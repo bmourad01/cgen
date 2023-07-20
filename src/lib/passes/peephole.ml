@@ -1,25 +1,24 @@
 open Core
 open Monads.Std
 open Context.Syntax
-open Virtual
 
 module O = Monad.Option
 
 module Rules = struct
   open Egraph.Rule
 
-  let is_const x eg _ env =
+  let is_const x eg env =
     Map.find env x |>
-    Option.bind ~f:(Egraph.data eg) |>
+    Option.bind ~f:(Egraph.const eg) |>
     Option.is_some
 
   let imod t = Bv.modulus @@ Type.sizeof_imm t
 
   (* Dynamically rewrite a multiplication by a power of two into
      a left shift. *)
-  let mul_imm_pow2 x y eg _ env =
+  let mul_imm_pow2 x y eg env =
     let open O.Syntax in
-    Map.find env y >>= Egraph.data eg >>= function
+    Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
@@ -28,9 +27,9 @@ module Rules = struct
 
   (* Dynamically rewrite an unsigned division by a power of two into
      a right shift. *)
-  let udiv_imm_pow2 x y eg _ env =
+  let udiv_imm_pow2 x y eg env =
     let open O.Syntax in
-    Map.find env y >>= Egraph.data eg >>= function
+    Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
@@ -39,9 +38,9 @@ module Rules = struct
 
   (* Dynamically rewrite an unsigned remainder by a power of two into
      a bitwise AND. *)
-  let urem_imm_pow2 x y eg _ env =
+  let urem_imm_pow2 x y eg env =
     let open O.Syntax in
-    Map.find env y >>= Egraph.data eg >>= function
+    Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       let i' = Int64.pred i in
@@ -612,31 +611,7 @@ module Rules = struct
     ]
 end
 
-let cost ~child n =
-  let init = match Egraph.Enode.op n with
-    | Oaddr _
-    | Obool _
-    | Ocall0
-    | Ocall _
-    | Ocallargs
-    | Odouble _
-    | Oint _
-    | Ojmp
-    | Olocal _
-    | Oret
-    | Osingle _
-    | Osym _
-    | Oset _ -> 0
-    | Obr | Otbl _ | Ovar _ -> 1
-    | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 2
-    | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 25
-    | Obinop _ | Oload _ | Ostore _ -> 3
-    | Osel _ -> 6 in
-  Egraph.Enode.children n |>
-  List.fold ~init ~f:(fun k c -> k + child c)
-
 let run tenv fn =
-  let*? eg = Egraph.create fn tenv in
-  let _ = Egraph.fixpoint eg Rules.rules in
-  let ex = Egraph.Extractor.init eg ~cost in
+  let*? eg = Egraph.create fn tenv Rules.rules in
+  let ex = Egraph.Extractor.init eg in
   Egraph.Extractor.reify ex

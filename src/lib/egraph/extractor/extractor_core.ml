@@ -4,8 +4,6 @@ open Monads.Std
 
 module O = Monad.Option
 
-type cost = child:(id -> int) -> enode -> int
-
 type prov =
   | Label of Label.t
   | Id of id
@@ -16,12 +14,9 @@ type prov =
 type ext = E of prov * Enode.op * ext list
 
 type t = {
-  eg          : egraph;
-  cost        : cost;
-  table       : (int * enode) Id.Table.t;
-  memo        : ext Id.Table.t;
-  mutable ver : int;
-  mutable sat : bool;
+  eg    : egraph;
+  table : (int * enode) Id.Table.t;
+  memo  : ext Id.Table.t;
 }
 
 let rec pp_ext ppf = function
@@ -34,73 +29,59 @@ let rec pp_ext ppf = function
 
 let pps_ext () e = Format.asprintf "%a" pp_ext e
 
-let init eg ~cost = {
-  eg;
-  cost;
-  table = Id.Table.create ();
-  memo = Id.Table.create ();
-  ver = eg.ver;
-  sat = false;
-}
+let has t id = Hashtbl.mem t.table @@ find t.eg id
 
 let id_cost t id = match Hashtbl.find t.table @@ find t.eg id with
   | None -> failwithf "Couldn't calculate cost for node id %a" Id.pps id ()
   | Some (c, _) -> c
 
-let has_cost t n =
-  Enode.children n |> List.for_all ~f:(Hashtbl.mem t.table)
+let has_cost t : enode -> bool = function
+  | N (_, cs) -> List.for_all cs ~f:(has t)
+  | U (a, b) -> has t a && has t b
 
 let node_cost t n =
   if not @@ has_cost t n then None
-  else Some (t.cost ~child:(id_cost t) n, n)
+  else Some (Enode.cost ~child:(id_cost t) n, n)
 
-(* Find the least-expensive term. *)
-let best_term t ns =
-  Vec.fold ns ~init:None ~f:(fun acc n ->
-      node_cost t n |> Option.merge acc
-        ~f:(fun ((c1, _) as a) ((c2, _) as b) ->
-            if c2 < c1 then b else a))
-
-(* Saturate the cost table. *)
 let rec saturate t =
-  t.sat <- true;
-  Hashtbl.iteri t.eg.classes ~f:(fun ~key:id ~data:c ->
-      match Hashtbl.find t.table id, best_term t c.nodes with
+  Vec.foldi t.eg.node ~init:true ~f:(fun id sat n ->
+      let id = find t.eg id in
+      match Hashtbl.find t.table id, node_cost t n with
       | None, Some term ->
         Hashtbl.set t.table ~key:id ~data:term;
-        t.sat <- false
+        false
       | Some (x, _), Some ((y, _) as term) when y < x ->
         Hashtbl.set t.table ~key:id ~data:term;
-        t.sat <- false
-      | _ -> ());
-  if not t.sat then saturate t
+        false
+      | _ -> sat) || saturate t
 
-(* Check if the underlying e-graph has been updated. If so, we should
-   re-compute the costs for each node. *)
-let check t = if t.ver <> t.eg.ver then begin
-    Hashtbl.clear t.table;
-    Hashtbl.clear t.memo;
-    t.ver <- t.eg.ver;
-    t.sat <- false;
-  end
+let init eg =
+  let t = {
+    eg;
+    table = Id.Table.create ();
+    memo = Id.Table.create ();
+  } in
+  assert (saturate t);
+  t
 
-(* Extract to our intermediate form and cache the results. *)
-let rec extract_aux t id =
+let prov t id = match Hashtbl.find t.eg.id2lbl id with
+  | Some l -> Label l
+  | None -> Id id
+
+let rec extract t id =
   let id = find t.eg id in
   match Hashtbl.find t.memo id with
   | Some _ as e -> e
   | None ->
     let open O.Let in
     let* _, n = Hashtbl.find t.table id in
-    let+ cs = Enode.children n |> O.List.map ~f:(extract_aux t) in
-    let p = match Hashtbl.find t.eg.id2lbl id with
-      | Some l -> Label l
-      | None -> Id id in
-    let e = E (p, Enode.op n, cs) in
-    Hashtbl.set t.memo ~key:id ~data:e;
-    e
-
-let extract t id =
-  check t;
-  if not t.sat then saturate t;
-  extract_aux t id
+    match n with
+    | N (op, cs) ->
+      let+ cs = O.List.map cs ~f:(extract t) in
+      let e = E (prov t id, op, cs) in
+      Hashtbl.set t.memo ~key:id ~data:e;
+      e
+    | U (a, b) ->
+      let a = find t.eg a in
+      assert (a = find t.eg b);
+      extract t a

@@ -26,25 +26,10 @@ type op =
   | Ovar      of Var.t
 [@@deriving compare, equal, hash, sexp]
 
-type t = N of op * Id.t list
+type t =
+  | N of op * Id.t list
+  | U of Id.t * Id.t
 [@@deriving compare, equal, hash, sexp]
-
-let canonicalize (N (op, children)) uf =
-  N (op, List.map children ~f:(Uf.find uf))
-
-let op (N (op, _)) = op
-let children (N (_, children)) = children
-
-let is_const = function
-  | N (Obool _, [])
-  | N (Oint _, [])
-  | N (Odouble _, [])
-  | N (Osingle _, [])
-  | N (Osym _, []) -> true
-  | N (_, _) -> false
-
-let equal_children (N (_, a)) (N (_, b)) =
-  List.equal Id.equal a b
 
 let of_const : const -> t = function
   | `bool b -> N (Obool b, [])
@@ -52,6 +37,30 @@ let of_const : const -> t = function
   | `double d -> N (Odouble d, [])
   | `float s -> N (Osingle s, [])
   | `sym (s, o) -> N (Osym (s, o), [])
+
+let cost ~child = function
+  | N (op, children) ->
+    let init = match op with
+      | Oaddr _
+      | Obool _
+      | Ocall0
+      | Ocall _
+      | Ocallargs
+      | Odouble _
+      | Oint _
+      | Ojmp
+      | Olocal _
+      | Oret
+      | Osingle _
+      | Osym _
+      | Oset _ -> 0
+      | Obr | Otbl _ | Ovar _ -> 1
+      | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 2
+      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 25
+      | Obinop _ | Oload _ | Ostore _ -> 3
+      | Osel _ -> 6 in
+    List.fold children ~init ~f:(fun k c -> k + child c)
+  | U (a, b) -> min (child a) (child b)
 
 module Eval = struct
   let int8  i = Bv.(int   i mod Bv.m8)
@@ -338,8 +347,31 @@ module Eval = struct
     | Ovar _, _ -> None
 end
 
-let eval (N (op, children)) ~(data : Id.t -> const option) : const option =
-  Eval.go op @@ List.map children ~f:data
+let rec const ~node n : const option = match n with
+  | N (Obool b, []) -> Some (`bool b)
+  | N (Oint (i, t), []) -> Some (`int (i, t))
+  | N (Odouble d, []) -> Some (`double d)
+  | N (Osingle s, []) -> Some (`float s)
+  | N (Osym (s, o), []) -> Some (`sym (s, o))
+  | N _ -> None
+  | U (a, b) ->
+    let a = const ~node @@ node a in
+    let b = const ~node @@ node b in
+    Option.merge a b ~f:(fun a b ->
+        assert (equal_const a b);
+        a)
+
+let rec eval ~node n : const option = match n with
+  | N (op, children) ->
+    let cs = List.map children ~f:(fun c ->
+        const ~node @@ node c) in
+    Eval.go op cs
+  | U (a, b) ->
+    let a = eval ~node @@ node a in
+    let b = eval ~node @@ node b in
+    Option.merge a b ~f:(fun a b ->
+        assert (equal_const a b);
+        a)
 
 let pp_op ppf = function
   | Oaddr a ->
@@ -390,3 +422,11 @@ let pp_op ppf = function
     Format.fprintf ppf "%a" Insn.pp_unop u
   | Ovar x ->
     Format.fprintf ppf "%a" Var.pp x
+
+let pp ppf = function
+  | N (op, []) -> Format.fprintf ppf "%a" pp_op op
+  | N (op, cs) ->
+    let pp_sep ppf () = Format.fprintf ppf " " in
+    Format.fprintf ppf "(%a %a)" pp_op op
+      (Format.pp_print_list ~pp_sep Id.pp) cs
+  | U (a, b) -> Format.fprintf ppf "(union %a %a)" Id.pp a Id.pp b

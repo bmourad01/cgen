@@ -34,9 +34,13 @@ let comp filename =
   let open Context.Syntax in
   let* target = Context.target in
   let* m = Parse.Virtual.from_file filename in
-  let m = Virtual.Module.map_funs m ~f:Passes.Remove_unreachable_blks.run in
-  let*? env = Typecheck.run m ~target in
-  let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Ssa.run env) in
+  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
+  let*? tenv = Typecheck.run m ~target in
+  let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Ssa.run tenv) in
+  Format.printf "%a\n%!" Virtual.Module.pp m;
+  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Peephole.run tenv) in
+  let m = Virtual.Module.map_funs m ~f:Passes.Remove_dead_vars.run in
+  Format.printf "=================================================\n%!";
   Format.printf "%a\n%!" Virtual.Module.pp m;
   !!()
 

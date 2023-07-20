@@ -1,7 +1,6 @@
 open Core
 open Monads.Std
 open Graphlib.Std
-open Virtual
 
 module Id = Id
 module Enode = Enode
@@ -10,65 +9,46 @@ module O = Monad.Option
 
 type exp = Exp.t [@@deriving bin_io, compare, equal, sexp]
 type id = Id.t [@@deriving bin_io, compare, equal, hash, sexp]
-type enode = Enode.t [@@deriving compare, equal, hash, sexp]
-type nodes = (enode * id) Vec.t
+type enode = Enode.t
 
 let pp_exp = Exp.pp
 
-type eclass = {
-  id           : id;
-  nodes        : enode Vec.t;
-  parents      : nodes;
-  mutable data : const option;
-}
-
-let create_eclass id = {
-  id;
-  nodes = Vec.create ();
-  parents = Vec.create ();
-  data = None;
-}
-
-let rank c = Vec.length c.parents
-
 type t = {
-  input       : Input.t;
-  uf          : Uf.t;
-  memo        : (enode, id) Hashtbl.t;
-  classes     : eclass Id.Table.t;
-  pending     : nodes;
-  analyses    : nodes;
-  id2lbl      : Label.t Id.Table.t;
-  lbl2id      : id Label.Table.t;
-  mutable ver : int;
+  input   : Input.t;
+  classes : Uf.t;
+  node    : enode Vec.t;
+  memo    : (enode, id) Hashtbl.t;
+  id2lbl  : Label.t Id.Table.t;
+  lbl2id  : id Label.Table.t;
+  fuel    : int;
 }
 
 type egraph = t
 type subst = id String.Map.t
-type matches = (id * subst) Vec.t
+type 'a callback = egraph -> subst -> 'a
 
-let find t id = Uf.find t.uf id
+let empty_subst = String.Map.empty
 
-let eclass t id =
-  let id = find t id in
-  Hashtbl.find_or_add t.classes id
-    ~default:(fun () -> create_eclass id)
+type pattern =
+  | V of string
+  | P of Enode.op * pattern list
+[@@deriving compare, equal, sexp]
 
-let data t id =
-  find t id |> Hashtbl.find t.classes |>
-  Option.bind ~f:(fun c -> c.data)
+type formula =
+  | Const of pattern
+  | Cond of pattern * bool callback
+  | Dyn of pattern option callback
 
+type rule = {
+  pre  : pattern;
+  post : formula;
+}
+
+let find t id = Uf.find t.classes id
+let node t id = Vec.get_exn t.node id
 let dominates t = Tree.is_descendant_of t.input.cdom
+let const t id = Enode.const ~node:(node t) @@ node t id
 
-let merge_data c l r ~left ~right = match l, r with
-  | Some a, Some b -> assert (equal_const a b); c.data <- l
-  | Some _, None   -> c.data <- l; right ()
-  | None,   Some _ -> c.data <- r; left ()
-  | None,   None   -> ()
-[@@specialise]
-
-(* The canonical form for merge operations should be biased towards
-   node `a`, except when `b` is known to dominate it. *)
 let merge_provenance ({id2lbl = p; _} as t) a b =
   match Hashtbl.(find p a, find p b) with
   | None, Some pb ->
@@ -79,96 +59,114 @@ let merge_provenance ({id2lbl = p; _} as t) a b =
     Hashtbl.set p ~key:b ~data:pa
   | None, None -> ()
 
-(* Only update the mapping from IDs to labels.
+let canon t : enode -> enode = function
+  | N (_, []) as n -> n
+  | N (op, cs) -> N (op, List.map cs ~f:(find t))
+  | U _ -> assert false
 
-   The mapping from labels to IDs only needs to be set once when
-   we lift the CFG to the e-node representation. We can find the
-   representative node for each label thanks to union-find.
-*)
-let update_provenance t id a =
-  Hashtbl.update t.id2lbl id ~f:(function
-      | Some b when dominates t ~parent:b a -> b
-      | Some _ | None -> a)
+let new_node t n =
+  let id = Uf.fresh t.classes in
+  Vec.push t.node n;
+  assert (id = Vec.length t.node - 1);
+  id
 
-let rec insert t n =
-  let n = Enode.canonicalize n t.uf in
-  find t @@ match Hashtbl.find t.memo n with
+(* If the node is already normalized then don't bother searching
+   for matches. *)
+let subsume_const t c id =
+  let n = Enode.of_const c in
+  let c = match Hashtbl.find t.memo n with
+    | Some c -> c
+    | None ->
+      let id = new_node t n in
+      Hashtbl.set t.memo ~key:n ~data:id;
+      id in
+  Uf.union t.classes id c;
+  merge_provenance t id c;
+  c
+
+(* Represent the union of two e-classes with a "union" node. *)
+let union t id oid =
+  let u = new_node t @@ U (id, oid) in
+  Uf.union t.classes id oid;
+  Uf.union t.classes id u;
+  merge_provenance t id oid;
+  merge_provenance t id u;
+  u
+
+let rec insert ?(d = 0) ?l ~rules t n =
+  let k = canon t n in
+  match Hashtbl.find t.memo k with
   | Some id -> id
   | None ->
-    t.ver <- t.ver + 1;
-    let id = Uf.fresh t.uf in
-    let c = eclass t id in
-    let x = n, id in
-    Vec.push c.nodes n;
-    Vec.push t.pending x;
-    c.data <- Enode.eval n ~data:(data t);
-    Enode.children n |> List.iter ~f:(fun ch ->
-        Vec.push (eclass t ch).parents x);
-    Hashtbl.set t.memo ~key:n ~data:id;
-    modify_analysis t id;
-    id
+    let id = new_node t n in
+    Option.iter l ~f:(fun l ->
+        Hashtbl.set t.id2lbl ~key:id ~data:l);
+    let id' = optimize ~d ~rules t n id in
+    Hashtbl.set t.memo ~key:k ~data:id';
+    id'
 
-and merge t a b =
-  let a = find t a in
-  let b = find t b in
-  if a <> b then
-    (* Decide on the representative element. *)
-    let ca = eclass t a in
-    let cb = eclass t b in
-    let a, b, ca, cb = if rank ca < rank cb
-      then b, a, cb, ca else a, b, ca, cb in
-    assert (a = Uf.union t.uf a b);
-    assert (a = ca.id);
-    t.ver <- t.ver + 1;
-    Hashtbl.remove t.classes b;
-    (* Perform the merge. *)
-    Vec.append t.pending cb.parents;
-    Vec.append ca.nodes cb.nodes;
-    Vec.append ca.parents cb.parents;
-    merge_data ca ca.data cb.data
-      ~left:(fun () -> Vec.append t.analyses ca.parents)
-      ~right:(fun () -> Vec.append t.analyses cb.parents);
-    merge_provenance t a b;
-    modify_analysis t a
+and optimize ~d ~rules t n id = match Enode.eval ~node:(node t) n with
+  | Some c -> subsume_const t c id
+  | None when d > t.fuel -> id
+  | None ->
+    search ~d:(d + 1) ~rules t id n |>
+    Vec.fold ~init:id ~f:(fun id oid ->
+        if id <> oid then union t id oid else id)
 
-and modify_analysis t id = data t id |> Option.iter ~f:(fun d ->
-    merge t id @@ insert t @@ Enode.of_const d;
-    Vec.filter_inplace (eclass t id).nodes ~f:Enode.is_const)
+and search ~d ~rules t id n =
+  let m = Vec.create () in
+  let u = Stack.create () in
+  (* Match a constructor. *)
+  let rec cons ?(env = empty_subst) p id (n : enode) = match p, n with
+    | P (x,  _), N (y,  _) when not @@ Enode.equal_op x y -> None
+    | P (_, xs), N (_, ys) -> children env xs ys
+    | _, U (a, b) -> union env p a b
+    | V x, N _ -> var env x id
+  (* Get the first matching e-class of the union, and enqueue the
+     second one for further exploration later (if necessary). *)
+  and union env p a b = match cls env a p with
+    | Some _ as a -> Stack.push u (env, b, p); a
+    | None -> cls env b p
+  (* Match all the children of an e-node. *)
+  and children init qs xs = match List.zip qs xs with
+    | Ok l -> O.List.fold l ~init ~f:(fun env (q, x) -> cls env x q)
+    | Unequal_lengths -> None
+  (* Produce a substitution for the variable. *)
+  and var env x id = match Map.find env x with
+    | None -> Some (Map.set env ~key:x ~data:id)
+    | Some id' -> Option.some_if (id = id') env
+  (* Match an e-class. *)
+  and cls env id = function
+    | V x -> var env x id
+    | P _ as q -> cons ~env q id @@ node t id in
+  (* Apply a post-condition to the substitution. *)
+  let app f env =
+    apply ~d ~rules f t env |>
+    Option.iter ~f:(Vec.push m) in
+  (* Try matching with every rule. *)
+  List.iter rules ~f:(fun r ->
+      (* Try an arbitrary path, and then look at the pending unioned
+         nodes for further matches. *)
+      cons r.pre id n |> Option.iter ~f:(app r.post);
+      while not @@ Stack.is_empty u do
+        let env, id, p = Stack.pop_exn u in
+        cls env id p |> Option.iter ~f:(app r.post);
+      done);
+  m
 
-let next v f = Option.iter ~f @@ Vec.pop v [@@specialise]
+and apply ~d ~rules = function
+  | Const q -> apply_const ~d ~rules q
+  | Cond (q, k) -> apply_cond ~d ~rules q k
+  | Dyn q -> apply_dyn ~d ~rules q
 
-let update_node t n =
-  let n' = Enode.canonicalize n t.uf in
-  if not @@ Enode.equal_children n n' then Hashtbl.remove t.memo n;
-  n'
+and apply_const ~d ~rules q t env = match q with
+  | V x -> Map.find env x
+  | P (o, q) ->
+    O.List.map q ~f:(fun q -> apply_const ~d ~rules q t env) |>
+    O.map ~f:(fun cs -> insert ~d ~rules t @@ N (o, cs))
 
-let rec update_nodes t = next t.pending @@ fun (n, cid) ->
-  let n = update_node t n in
-  Hashtbl.find_and_call t.memo n
-    ~if_not_found:(fun key -> Hashtbl.set t.memo ~key ~data:cid)
-    ~if_found:(fun id -> merge t id cid);
-  update_nodes t
+and apply_cond ~d ~rules q k t env =
+  if k t env then apply_const ~d ~rules q t env else None
 
-let rec update_analyses t = next t.analyses @@ fun (n, cid) ->
-  let cid = find t cid in
-  let d = Enode.eval n ~data:(data t) in
-  let c = eclass t cid in
-  assert (c.id = cid);
-  merge_data c c.data d ~right:Fn.id ~left:(fun () ->
-      Vec.append t.analyses c.parents;
-      modify_analysis t cid);
-  update_analyses t
-
-let process_unions t =
-  while not Vec.(is_empty t.pending && is_empty t.analyses) do
-    update_nodes t;
-    update_analyses t
-  done
-
-let rebuild_classes t = Hashtbl.iter t.classes ~f:(fun c ->
-    Vec.map_inplace c.nodes ~f:(Fn.flip Enode.canonicalize t.uf);
-    Vec.dedup_and_sort c.nodes ~compare:Enode.compare)
-
-let repair t =
-  process_unions t;
-  rebuild_classes t
+and apply_dyn ~d ~rules q t env =
+  q t env |> O.bind ~f:(fun q -> apply_const ~d ~rules q t env)

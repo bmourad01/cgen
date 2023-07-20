@@ -28,36 +28,38 @@ module Mem = Regular.Make(struct
   end)
 
 type env = {
+  rules       : rule list;
   vars        : id Var.Table.t;
   mems        : st Mem.Table.t;
   mutable lst : Label.t option;
 }
 
-let init () = {
+let init rules = {
+  rules;
   vars = Var.Table.create ();
   mems = Mem.Table.create ();
   lst = None;
 }
 
-let node eg op args = insert eg @@ N (op, args)
-let atom eg op = node eg op []
+let node ?l env eg op args = insert ?l ~rules:env.rules eg @@ N (op, args)
+let atom env eg op = node env eg op []
 
 let var env eg x = Hashtbl.find_or_add env.vars x
-    ~default:(fun () -> atom eg @@ Ovar x)
+    ~default:(fun () -> atom env eg @@ Ovar x)
 
 let operand env eg : operand -> id = function
-  | #const as c -> insert eg @@ Enode.of_const c
+  | #const as c -> insert ~rules:env.rules eg @@ Enode.of_const c
   | `var x -> var env eg x
 
 let operands env eg = List.map ~f:(operand env eg)
 
 let global env eg : global -> id = function
-  | `addr a -> atom eg @@ Oaddr a
-  | `sym s -> atom eg @@ Osym (s, 0)
+  | `addr a -> atom env eg @@ Oaddr a
+  | `sym s -> atom env eg @@ Osym (s, 0)
   | `var x -> var env eg x
 
 let local env eg : local -> id = function
-  | `label (l, args) -> node eg (Olocal l) (operands env eg args)
+  | `label (l, args) -> node env eg (Olocal l) (operands env eg args)
 
 let dst env eg : dst -> id = function
   | #global as g -> global env eg g
@@ -65,18 +67,17 @@ let dst env eg : dst -> id = function
 
 let table env eg tbl =
   Ctrl.Table.enum tbl |> Seq.map ~f:(fun (i, l) ->
-      node eg (Otbl i) [local env eg l]) |> Seq.to_list
+      node env eg (Otbl i) [local env eg l]) |> Seq.to_list
 
 let prov ?x ?(f = Fn.const) env eg l op args =
-  let id = node eg op args in
+  let id = node ~l env eg op args in
   Option.iter x ~f:(fun x ->
       match Hashtbl.add env.vars ~key:x ~data:id with
       | `Duplicate -> raise @@ Duplicate (x, l)
       | `Ok -> ());
-  update_provenance eg id l;
   Hashtbl.set eg.lbl2id ~key:l ~data:(f id eg)
 
-let set x id eg = node eg (Oset x) [id]
+let set env x id eg = node env eg (Oset x) [id]
 
 let store env eg l ty v a =
   let v = operand env eg v in
@@ -99,7 +100,7 @@ let load env eg l x ty a =
   let key = {lst; addr = a; ty} in
   match alias env eg key l with
   | Some v ->
-    prov ~x env eg l (Ounop (`copy ty)) [v] ~f:(set x)
+    prov ~x env eg l (Ounop (`copy ty)) [v] ~f:(set env x)
   | None ->
     prov ~x env eg l (Oload (x, ty)) [a] ~f:(fun id _ ->
         Hashtbl.set env.mems ~key ~data:(Value (id, l));
@@ -109,7 +110,8 @@ let callop x : Enode.op * Var.t option = match x with
   | Some (x, t) -> Ocall (x, t), Some x
   | None -> Ocall0, None
 
-let callargs env eg args = node eg Ocallargs @@ operands env eg args
+let callargs env eg args =
+  node env eg Ocallargs @@ operands env eg args
 
 (* Our analysis is intraprocedural, so assume that a function call
    can do any arbitrary effects to memory. *)
@@ -146,17 +148,17 @@ let insn env eg tenv l : Insn.op -> unit = function
     prov ~x env eg l (Obinop o) [
       operand env eg a;
       operand env eg b;
-    ] ~f:(set x)
+    ] ~f:(set env x)
   | `uop (x, o, a) ->
     prov ~x env eg l (Ounop o) [
       operand env eg a;
-    ] ~f:(set x)
+    ] ~f:(set env x)
   | `sel (x, ty, c, y, n) ->
     prov ~x env eg l (Osel ty) [
       var env eg c;
       operand env eg y;
       operand env eg n;
-    ] ~f:(set x)
+    ] ~f:(set env x)
   | `call (x, f, args, vargs) ->
     call env eg l x f args vargs
   | `alloc (x, _) ->
@@ -207,8 +209,8 @@ let step env eg tenv l = match Hashtbl.find eg.input.tbl l with
         insn env eg tenv (Insn.label i) (Insn.op i));
     ctrl env eg l @@ Blk.ctrl b
 
-let run eg tenv =
-  let env = init () in
+let run eg tenv rules =
+  let env = init rules in
   let q = Stack.singleton Label.pseudoentry in
   let rec loop () = match Stack.pop q with
     | None -> Ok ()

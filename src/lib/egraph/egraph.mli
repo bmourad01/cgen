@@ -1,10 +1,4 @@
-(** An e-graph data structure for performing equality saturation.
-
-    The main motivation for using this data structure is that it allows
-    us to keep track of equivalent program terms, as well as iteratively
-    apply rewrite rules, in a relatively efficient and principled way
-    that solves the phase ordering problem.
-*)
+(** An e-graph data structure. *)
 
 open Core
 open Regular.Std
@@ -16,53 +10,8 @@ module Id : sig
   include Regular.S with type t := t
 end
 
-(** A unique identifier. *)
+(** An identifier for an e-class. *)
 type id = Id.t [@@deriving compare, equal, hash, sexp]
-
-(** An e-node.
-
-    This is a specialized form for each operation in a [Virtual] program,
-    where any possible operation is associated with zero or more children.
-*)
-type enode [@@deriving compare, equal, hash, sexp]
-
-module Enode : sig
-  (** A special form for each instruction type in a [Virtual] program. *)
-  type op =
-    | Oaddr     of Bv.t
-    | Obinop    of Insn.binop
-    | Obool     of bool
-    | Obr
-    | Ocall0
-    | Ocall     of Var.t * Type.basic
-    | Ocallargs
-    | Odouble   of float
-    | Ojmp
-    | Oint      of Bv.t * Type.imm
-    | Oload     of Var.t * Type.basic
-    | Olocal    of Label.t
-    | Oret
-    | Osel      of Type.basic
-    | Oset      of Var.t
-    | Osingle   of Float32.t
-    | Ostore    of Type.basic
-    | Osw       of Type.imm
-    | Osym      of string * int
-    | Otbl      of Bv.t
-    | Ounop     of Insn.unop
-    | Ovar      of Var.t
-  [@@deriving compare, equal, hash, sexp]
-
-  type t = enode [@@deriving compare, equal, hash, sexp]
-
-  (** The operator of the e-node. *)
-  val op : t -> op
-
-  (** The children of the e-node. *)
-  val children : t -> id list
-
-  val pp_op : Format.formatter -> op -> unit
-end
 
 (** Expression trees with provenance tracking. *)
 module Exp : sig
@@ -128,137 +77,126 @@ val pp_exp : Format.formatter -> exp -> unit
 type t
 type egraph = t
 
-(** [create fn tenv] constructs an e-graph from a function [fn].
-
-    [fn] is expected to be in SSA form.
-*)
-val create : func -> Typecheck.env -> t Or_error.t
-
-(** A substitution environment from query variables to IDs. *)
+(** A substitution environment from pattern variables to IDs. *)
 type subst = id String.Map.t
+
+(** A component of a rule. *)
+type pattern [@@deriving compare, equal, sexp]
+
+(** A callback that can be invoked when applying a rule. *)
+type 'a callback = egraph -> subst -> 'a
 
 (** A rewrite rule. *)
 type rule
 
+(** [create fn tenv rules ?fuel] constructs an e-graph from a function [fn]
+    and applies the [rules] eagerly.
+
+    [tenv] is the typing environment of the module that [fn] belongs to.
+
+    [fuel] is the maximum rewrite depth. This is to limit state explosion
+    since rewrites are themselves recursively rewritten. Note that if
+    [fuel < 1], then no rewrite rules will be applied.
+
+    [fn] is expected to be in SSA form.
+*)
+val create : ?fuel:int -> func -> Typecheck.env -> rule list -> t Or_error.t
+
+(** Returns the constant associated with the e-class ID. *)
+val const : t -> id -> const option
+
 module Rule : sig
   type t = rule
 
-  (** A component of a rule. *)
-  type query [@@deriving compare, equal, sexp]
-
-  (** A callback that can be invoked when applying a rule. *)
-  type 'a callback = egraph -> id -> subst -> 'a
-
   (** [var x] constructs a substitition for variable [x]. *)
-  val var : string -> query
-
-  (** [exp op] is equivalent to [op & []]. *)
-  val exp : Enode.op -> query
-
-  (** [op & args] constructs an substitution for [op] and [args]. *)
-  val (&) : Enode.op -> query list -> query
+  val var : string -> pattern
 
   (** [pre => post] constructs a rewrite rule where expressions
       matching [pre] shall be rewritten to [post]. *)
-  val (=>) : query -> query -> t
+  val (=>) : pattern -> pattern -> t
 
   (** [(pre =>? post) ~if_] is similar to [pre => post], but the
       rule is applied conditionally according to [if_]. *)
-  val (=>?) : query -> query -> if_:(bool callback) -> t
+  val (=>?) : pattern -> pattern -> if_:(bool callback) -> t
 
   (** [pre => gen] allows a post-condition to be generated
       dynamically according to [gen]. *)
-  val (=>*) : query -> query option callback -> t
+  val (=>*) : pattern -> pattern option callback -> t
 
   (** Helpers for constructing patterns. *)
   module Op : sig
-    val addr : Bv.t -> query
-    val bop : Insn.binop -> query -> query -> query
-    val bool : bool -> query
-    val br : query -> query -> query -> query
-    val double : float -> query
-    val int : Bv.t -> Type.imm -> query
-    val i8 : int -> query
-    val i16 : int -> query
-    val i32 : int32 -> query
-    val i64 : int64 -> query
-    val jmp : query -> query
-    val ret : query -> query
-    val sel : Type.basic -> query -> query -> query -> query
-    val single : Float32.t -> query
-    val store : Type.basic -> query -> query -> query
-    val sym : string -> int -> query
-    val uop : Insn.unop -> query -> query
-    val add : Type.basic -> query -> query -> query
-    val div : Type.basic -> query -> query -> query
-    val mul : Type.basic -> query -> query -> query
-    val mulh : Type.imm -> query -> query -> query
-    val rem : Type.basic -> query -> query -> query
-    val sub : Type.basic -> query -> query -> query
-    val udiv : Type.imm -> query -> query -> query
-    val urem : Type.imm -> query -> query -> query
-    val and_ : Type.imm -> query -> query -> query
-    val or_ : Type.imm -> query -> query -> query
-    val asr_ : Type.imm -> query -> query -> query
-    val lsl_ : Type.imm -> query -> query -> query
-    val lsr_ : Type.imm -> query -> query -> query
-    val rol : Type.imm -> query -> query -> query
-    val ror : Type.imm -> query -> query -> query
-    val xor : Type.imm -> query -> query -> query
-    val neg : Type.basic -> query -> query
-    val not_ : Type.imm -> query -> query
-    val clz : Type.imm -> query -> query
-    val ctz : Type.imm -> query -> query
-    val popcnt : Type.imm -> query -> query
-    val eq : Type.basic -> query -> query -> query
-    val ge : Type.basic -> query -> query -> query
-    val gt : Type.basic -> query -> query -> query
-    val ne : Type.basic -> query -> query -> query
-    val le : Type.basic -> query -> query -> query
-    val lt : Type.basic -> query -> query -> query
-    val o : Type.fp -> query -> query -> query
-    val sge : Type.imm -> query -> query -> query
-    val sgt : Type.imm -> query -> query -> query
-    val sle : Type.imm -> query -> query -> query
-    val slt : Type.imm -> query -> query -> query
-    val uo : Type.fp -> query -> query -> query
-    val fext : Type.fp -> query -> query
-    val fibits : Type.fp -> query -> query
-    val flag : Type.imm -> query -> query
-    val ftosi : Type.fp -> Type.imm -> query -> query
-    val ftoui : Type.fp -> Type.imm -> query -> query
-    val ftrunc : Type.fp -> query -> query
-    val ifbits : Type.imm_base -> query -> query
-    val itrunc : Type.imm -> query -> query
-    val sext : Type.imm -> query -> query
-    val sitof : Type.imm -> Type.fp -> query -> query
-    val uitof : Type.imm -> Type.fp -> query -> query
-    val zext : Type.imm -> query -> query
-    val copy : Type.basic -> query -> query
+    val bop : Insn.binop -> pattern -> pattern -> pattern
+    val bool : bool -> pattern
+    val br : pattern -> pattern -> pattern -> pattern
+    val double : float -> pattern
+    val int : Bv.t -> Type.imm -> pattern
+    val i8 : int -> pattern
+    val i16 : int -> pattern
+    val i32 : int32 -> pattern
+    val i64 : int64 -> pattern
+    val jmp : pattern -> pattern
+    val sel : Type.basic -> pattern -> pattern -> pattern -> pattern
+    val single : Float32.t -> pattern
+    val sym : string -> int -> pattern
+    val uop : Insn.unop -> pattern -> pattern
+    val add : Type.basic -> pattern -> pattern -> pattern
+    val div : Type.basic -> pattern -> pattern -> pattern
+    val mul : Type.basic -> pattern -> pattern -> pattern
+    val mulh : Type.imm -> pattern -> pattern -> pattern
+    val rem : Type.basic -> pattern -> pattern -> pattern
+    val sub : Type.basic -> pattern -> pattern -> pattern
+    val udiv : Type.imm -> pattern -> pattern -> pattern
+    val urem : Type.imm -> pattern -> pattern -> pattern
+    val and_ : Type.imm -> pattern -> pattern -> pattern
+    val or_ : Type.imm -> pattern -> pattern -> pattern
+    val asr_ : Type.imm -> pattern -> pattern -> pattern
+    val lsl_ : Type.imm -> pattern -> pattern -> pattern
+    val lsr_ : Type.imm -> pattern -> pattern -> pattern
+    val rol : Type.imm -> pattern -> pattern -> pattern
+    val ror : Type.imm -> pattern -> pattern -> pattern
+    val xor : Type.imm -> pattern -> pattern -> pattern
+    val neg : Type.basic -> pattern -> pattern
+    val not_ : Type.imm -> pattern -> pattern
+    val clz : Type.imm -> pattern -> pattern
+    val ctz : Type.imm -> pattern -> pattern
+    val popcnt : Type.imm -> pattern -> pattern
+    val eq : Type.basic -> pattern -> pattern -> pattern
+    val ge : Type.basic -> pattern -> pattern -> pattern
+    val gt : Type.basic -> pattern -> pattern -> pattern
+    val ne : Type.basic -> pattern -> pattern -> pattern
+    val le : Type.basic -> pattern -> pattern -> pattern
+    val lt : Type.basic -> pattern -> pattern -> pattern
+    val o : Type.fp -> pattern -> pattern -> pattern
+    val sge : Type.imm -> pattern -> pattern -> pattern
+    val sgt : Type.imm -> pattern -> pattern -> pattern
+    val sle : Type.imm -> pattern -> pattern -> pattern
+    val slt : Type.imm -> pattern -> pattern -> pattern
+    val uo : Type.fp -> pattern -> pattern -> pattern
+    val fext : Type.fp -> pattern -> pattern
+    val fibits : Type.fp -> pattern -> pattern
+    val flag : Type.imm -> pattern -> pattern
+    val ftosi : Type.fp -> Type.imm -> pattern -> pattern
+    val ftoui : Type.fp -> Type.imm -> pattern -> pattern
+    val ftrunc : Type.fp -> pattern -> pattern
+    val ifbits : Type.imm_base -> pattern -> pattern
+    val itrunc : Type.imm -> pattern -> pattern
+    val sext : Type.imm -> pattern -> pattern
+    val sitof : Type.imm -> Type.fp -> pattern -> pattern
+    val uitof : Type.imm -> Type.fp -> pattern -> pattern
+    val zext : Type.imm -> pattern -> pattern
+    val copy : Type.basic -> pattern -> pattern
   end
 end
-
-(** Returns the analysis data for a given ID. *)
-val data : t -> id -> const option
 
 type extractor
 
 (** Extracts optimized terms from the e-graph based on the [cost]
     heuristic function. *)
 module Extractor : sig
-  (** A cost heuristic.
-
-      [child] provides a callback for calculating the cost of the
-      children of the e-node.
-
-      @raise Failure if [child] is called for an ID that doesn't exist.
-  *)
-  type cost = child:(id -> int) -> enode -> int
-
   type t = extractor
 
   (** Initialize the extractor. *)
-  val init : egraph -> cost:cost -> t
+  val init : egraph -> t
 
   (** Extract the term associated with a label in the provided e-graph.
 
@@ -277,39 +215,3 @@ module Extractor : sig
       back to the input function .*)
   val reify : t -> func Context.t
 end
-
-(** Parameters for scheduling which rules should be applied at a given
-    time.
-
-    This is useful for preventing blowup of infinitely-sized terms when
-    applying certain classes of rewrite rules.
-*)
-type scheduler
-
-module Scheduler : sig
-  type t = scheduler
-
-  (** Creates the parameters for the scheduler.
-
-      [match_limit] limits the number of matches that a rule can produce
-      before being "banned" for a fixed number of iterations.
-
-      [ban_length] is the number of iterations for which a rule is "banned"
-      from being applied.
-
-      @raise Invalid_argument if [match_limit < 1] or [ban_length < 1].
-  *)
-  val create_exn : ?match_limit:int -> ?ban_length:int -> unit -> t
-end
-
-(** [fixpoint t rules ?sched ?fuel] repeatedly applies [rules] to the
-    e-graph until a fixed-point is reached, [fuel] iterations have
-    occurred, or the [sched] parameters indicate that the algorithm
-    should terminate.
-
-    Returns [true] if a fixed-point was reached.
-
-    By default, [fuel] is set to [Int.max_value]. If [fuel <= 1] then at
-    least one iteration is performed.
-*)
-val fixpoint : ?sched:scheduler -> ?fuel:int -> t -> rule list -> bool

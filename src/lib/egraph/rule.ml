@@ -1,33 +1,15 @@
-open Core
 open Common
 
-type query =
-  | V of string
-  | Q of Enode.op * query list
-[@@deriving compare, equal, sexp]
-
-(* A callback for the rule. *)
-type 'a callback = egraph -> id -> subst -> 'a
-
-type formula =
-  | Const of query
-  | Cond of query * bool callback
-  | Dyn of query option callback
-
-type t = {
-  pre  : query;
-  post : formula;
-}
+type t = rule
 
 let var x = V x
-let exp o = Q (o, [])
-let (&) o q = Q (o, q)
+let exp o = P (o, [])
+let (&) o q = P (o, q)
 let (=>) pre post = {pre; post = Const post}
 let (=>?) pre post ~if_ = {pre; post = Cond (post, if_)}
 let (=>*) pre gen = {pre; post = Dyn gen}
 
 module Op = struct
-  let addr x = exp (Oaddr x)
   let bop b l r = Obinop b & [l; r]
   let bool b = exp (Obool b)
   let br c y n = Obr & [c; y; n]
@@ -38,10 +20,8 @@ module Op = struct
   let i32 n = int Bv.(int32 n mod m32) `i32
   let i64 n = int Bv.(int64 n mod m64) `i64
   let jmp d = Ojmp & [d]
-  let ret x = Oret & [x]
   let sel t c y n = Osel t & [c; y; n]
   let single s = exp (Osingle s)
-  let store t v x = Ostore t & [v; x]
   let sym s o = exp (Osym (s, o))
   let uop u x = Ounop u & [x]
 

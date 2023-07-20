@@ -11,7 +11,6 @@ let fresh t : Id.t =
 
 let parent t (id : Id.t) = Vec.unsafe_get t id
 let set_parent t (id : Id.t) p = Vec.unsafe_set t id p
-let union t r1 r2 = set_parent t r2 r1; r1
 
 let rec find t (id : Id.t) =
   let p = parent t id in
@@ -20,3 +19,9 @@ let rec find t (id : Id.t) =
     set_parent t id g;
     find t g
   else p
+
+let union t r1 r2 =
+  let r1 = find t r1 in
+  let r2 = find t r2 in
+  let r1, r2 = min r1 r2, max r1 r2 in
+  if r1 <> r2 then set_parent t r2 r1
