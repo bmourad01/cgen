@@ -136,14 +136,14 @@ let vaarg env eg l x ty a =
   let a = var env eg a in
   undef env l a ty
 
-let vastart env eg tenv l x =
+let vastart env eg l x =
   let a = var env eg x in
-  let ty = match Typecheck.Env.typeof_var eg.input.fn x tenv with
+  let ty = match typeof_var eg x with
     | Ok (#Type.basic as ty) -> ty
     | Ok _ | Error _ -> assert false in
   undef env l a ty
 
-let insn env eg tenv l : Insn.op -> unit = function
+let insn env eg l : Insn.op -> unit = function
   | `bop (x, o, a, b) ->
     prov ~x env eg l (Obinop o) [
       operand env eg a;
@@ -170,7 +170,7 @@ let insn env eg tenv l : Insn.op -> unit = function
   | `vaarg (x, ty, a) ->
     vaarg env eg l x ty a
   | `vastart x ->
-    vastart env eg tenv l x
+    vastart env eg l x
 
 let sw env eg l ty i d tbl =
   let i = operand env eg (i :> operand) in
@@ -198,7 +198,7 @@ let ctrl env eg l : ctrl -> unit = function
   | `sw (ty, i, d, tbl) ->
     sw env eg l ty i d tbl
 
-let step env eg tenv l = match Hashtbl.find eg.input.tbl l with
+let step env eg l = match Hashtbl.find eg.input.tbl l with
   | None when Label.is_pseudo l -> ()
   | None | Some `insn _ -> raise @@ Missing l
   | Some `blk b ->
@@ -206,16 +206,16 @@ let step env eg tenv l = match Hashtbl.find eg.input.tbl l with
     Blk.args b |> Seq.iter ~f:(fun (x, _) ->
         ignore @@ var env eg x);
     Blk.insns b |> Seq.iter ~f:(fun i ->
-        insn env eg tenv (Insn.label i) (Insn.op i));
+        insn env eg (Insn.label i) (Insn.op i));
     ctrl env eg l @@ Blk.ctrl b
 
-let run eg tenv rules =
+let run eg rules =
   let env = init rules in
   let q = Stack.singleton Label.pseudoentry in
   let rec loop () = match Stack.pop q with
     | None -> Ok ()
     | Some l ->
-      step env eg tenv l;
+      step env eg l;
       Tree.children eg.input.dom l |>
       Seq.iter ~f:(Stack.push q);
       loop () in

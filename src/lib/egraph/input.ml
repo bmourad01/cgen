@@ -22,6 +22,7 @@ type t = {
   dom  : Label.t tree;
   cdom : Label.t tree;
   lst  : Label.t option Label.Table.t;
+  tenv : Typecheck.env;
 }
 
 module Pseudo = struct
@@ -152,10 +153,10 @@ module Last_stores = struct
     last
 end
 
-let init fn =
+let init fn tenv =
   let+ tbl = create_tbl fn in
   let cfg = Cfg.create fn in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   let cdom = cdoms fn tbl dom in
   let lst = Last_stores.create fn tbl cfg in
-  {fn; tbl; cfg; dom; cdom; lst}
+  {fn; tbl; cfg; dom; cdom; lst; tenv}

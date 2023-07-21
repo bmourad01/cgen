@@ -48,6 +48,7 @@ let find t id = Uf.find t.classes id
 let node t id = Vec.get_exn t.node id
 let dominates t = Tree.is_descendant_of t.input.cdom
 let const t id = Enode.const ~node:(node t) @@ node t id
+let typeof_var t x = Typecheck.Env.typeof_var t.input.fn x t.input.tenv
 
 let merge_provenance ({id2lbl = p; _} as t) a b =
   match Hashtbl.(find p a, find p b) with
