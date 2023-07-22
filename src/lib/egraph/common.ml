@@ -86,7 +86,7 @@ let subsume_const t n id =
 
 (* Represent the union of two e-classes with a "union" node. *)
 let union t id oid =
-  let u = new_node t @@ U (id, oid) in
+  let u = new_node t @@ U {pre = id; post = oid} in
   Uf.union t.classes id oid;
   Uf.union t.classes id u;
   merge_provenance t id oid;
@@ -115,13 +115,15 @@ and search ~d ~rules t id n =
   let rec cons ?(env = empty_subst) p id (n : enode) = match p, n with
     | P (x,  _), N (y,  _) when not @@ Enode.equal_op x y -> None
     | P (_, xs), N (_, ys) -> children env xs ys
-    | _, U (a, b) -> union env p a b
+    | _, U {pre; post} -> union env p pre post
     | V x, N _ -> var env x id
-  (* Get the first matching e-class of the union, and enqueue the
-     second one for further exploration later (if necessary). *)
-  and union env p a b = match cls env a p with
-    | Some _ as a -> Stack.push u (env, b, p); a
-    | None -> cls env b p
+  (* Explore the rewritten term first. In some cases, constant folding
+     will run much faster if we keep rewriting it. If there's a match
+     then we can enqueue the "original" term with the current state of
+     the search for further exploration. *)
+  and union env p pre post = match cls env post p with
+    | Some _ as x -> Stack.push u (env, pre, p); x
+    | None -> cls env pre p
   (* Match all the children of an e-node. *)
   and children init qs xs = match List.zip qs xs with
     | Ok l -> O.List.fold l ~init ~f:(fun env (q, x) -> cls env x q)
@@ -140,9 +142,9 @@ and search ~d ~rules t id n =
     Option.iter ~f:(Vec.push m) in
   (* Try matching with every rule. *)
   List.iter rules ~f:(fun r ->
-      (* Try an arbitrary path, and then look at the pending unioned
-         nodes for further matches. *)
+      (* Explore the most recent rewrites first. *)
       cons r.pre id n |> Option.iter ~f:(app r.post);
+      (* Then explore the "original" terms. *)
       while not @@ Stack.is_empty u do
         let env, id, p = Stack.pop_exn u in
         cls env id p |> Option.iter ~f:(app r.post);

@@ -28,7 +28,7 @@ type op =
 
 type t =
   | N of op * Id.t list
-  | U of Id.t * Id.t
+  | U of {pre: Id.t; post: Id.t}
 [@@deriving compare, equal, hash, sexp]
 
 let is_const = function
@@ -68,7 +68,7 @@ let cost ~child = function
       | Obinop _ | Oload _ | Ostore _ -> 3
       | Osel _ -> 6 in
     List.fold children ~init ~f:(fun k c -> k + child c)
-  | U (a, b) -> min (child a) (child b)
+  | U {pre; post} -> min (child pre) (child post)
 
 module Eval = struct
   let int8  i = Bv.(int   i mod Bv.m8)
@@ -362,9 +362,9 @@ let rec const ~node n : const option = match n with
   | N (Osingle s, []) -> Some (`float s)
   | N (Osym (s, o), []) -> Some (`sym (s, o))
   | N _ -> None
-  | U (a, b) ->
-    let a = const ~node @@ node a in
-    let b = const ~node @@ node b in
+  | U {pre; post} ->
+    let a = const ~node @@ node pre in
+    let b = const ~node @@ node post in
     Option.merge a b ~f:(fun a b ->
         assert (equal_const a b);
         a)
@@ -374,9 +374,9 @@ let rec eval ~node n : const option = match n with
     let cs = List.map children ~f:(fun c ->
         const ~node @@ node c) in
     Eval.go op cs
-  | U (a, b) ->
-    let a = eval ~node @@ node a in
-    let b = eval ~node @@ node b in
+  | U {pre; post} ->
+    let a = eval ~node @@ node pre in
+    let b = eval ~node @@ node post in
     Option.merge a b ~f:(fun a b ->
         assert (equal_const a b);
         a)
@@ -437,4 +437,5 @@ let pp ppf = function
     let pp_sep ppf () = Format.fprintf ppf " " in
     Format.fprintf ppf "(%a %a)" pp_op op
       (Format.pp_print_list ~pp_sep Id.pp) cs
-  | U (a, b) -> Format.fprintf ppf "(union %a %a)" Id.pp a Id.pp b
+  | U {pre; post} ->
+    Format.fprintf ppf "(union %a %a)" Id.pp pre Id.pp post

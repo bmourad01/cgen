@@ -37,7 +37,7 @@ let id_cost t id = match Hashtbl.find t.table @@ find t.eg id with
 
 let has_cost t : enode -> bool = function
   | N (_, cs) -> List.for_all cs ~f:(has t)
-  | U (a, b) -> has t a && has t b
+  | U {pre; post} -> has t pre && has t post
 
 let node_cost t n =
   if not @@ has_cost t n then None
@@ -81,7 +81,7 @@ let rec extract t id =
       let e = E (prov t id, op, cs) in
       Hashtbl.set t.memo ~key:id ~data:e;
       e
-    | U (a, b) ->
-      let a = find t.eg a in
-      assert (a = find t.eg b);
-      extract t a
+    | U {pre; post} ->
+      let id = find t.eg pre in
+      assert (id = find t.eg post);
+      extract t id
