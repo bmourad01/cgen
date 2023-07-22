@@ -31,6 +31,14 @@ type t =
   | U of Id.t * Id.t
 [@@deriving compare, equal, hash, sexp]
 
+let is_const = function
+  | N (Obool _, [])
+  | N (Oint _, [])
+  | N (Odouble _, [])
+  | N (Osingle _, [])
+  | N (Osym _, []) -> true
+  | N _ | U _ -> false
+
 let of_const : const -> t = function
   | `bool b -> N (Obool b, [])
   | `int (i, t) -> N (Oint (i, t), [])

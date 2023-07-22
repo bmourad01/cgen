@@ -73,19 +73,20 @@ let new_node t n =
 
 (* If the node is already normalized then don't bother searching
    for matches. *)
-let subsume_const t c n id =
-  let k = Enode.of_const c in
-  if not @@ Enode.equal n k then
-    let c = match Hashtbl.find t.memo k with
-      | Some c -> c
-      | None ->
-        let id = new_node t k in
-        Hashtbl.set t.memo ~key:k ~data:id;
-        id in
-    Uf.union t.classes id c;
-    merge_provenance t id c;
-    c
-  else id
+let subsume_const t n id =
+  if not @@ Enode.is_const n then
+    Enode.eval ~node:(node t) n |> O.map ~f:(fun c ->
+        let k = Enode.of_const c in
+        let c = match Hashtbl.find t.memo k with
+          | Some c -> c
+          | None ->
+            let id = new_node t k in
+            Hashtbl.set t.memo ~key:k ~data:id;
+            id in
+        Uf.union t.classes id c;
+        merge_provenance t id c;
+        c)
+  else Some id
 
 (* Represent the union of two e-classes with a "union" node. *)
 let union t id oid =
@@ -108,8 +109,8 @@ let rec insert ?(d = 0) ?l ~rules t n =
     Hashtbl.set t.memo ~key:k ~data:oid;
     oid
 
-and optimize ~d ~rules t n id = match Enode.eval ~node:(node t) n with
-  | Some c -> subsume_const t c n id
+and optimize ~d ~rules t n id = match subsume_const t n id with
+  | Some id -> id
   | None when d > t.fuel -> id
   | None ->
     search ~d:(d + 1) ~rules t id n |>
