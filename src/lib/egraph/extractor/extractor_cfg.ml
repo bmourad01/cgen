@@ -171,7 +171,7 @@ let table_elt t env : ext -> (Bv.t * local) Context.t = function
   | E (_, Otbl i, [E (_, Olocal l, args)]) ->
     let+ l, args = local t env l args in
     i, `label (l, args)
-  | e -> invalid_tbl e 
+  | e -> invalid_tbl e
 
 let table t env tbl ty =
   let* tbl = Context.List.map tbl ~f:(table_elt t env) in
@@ -290,7 +290,7 @@ let find_news env l =
   Option.value_map ~default:[]
     ~f:(List.filter_map ~f:(find_insn env))
 
-let reify t =
+let cfg t =
   let+ env = collect t Label.pseudoentry in
   Func.map_blks t.eg.input.fn ~f:(fun b ->
       let label = Blk.label b in

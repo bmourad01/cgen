@@ -3,7 +3,7 @@ open Common
 
 include Extractor_core
 
-let reify = Extractor_reify.reify
+let cfg = Extractor_cfg.cfg
 
 let term_exn t l = match Hashtbl.find t.eg.lbl2id l with
   | None -> None

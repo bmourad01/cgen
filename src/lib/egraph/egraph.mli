@@ -84,7 +84,7 @@ type subst = id String.Map.t
 type pattern [@@deriving compare, equal, sexp]
 
 (** A callback that can be invoked when applying a rule. *)
-type 'a callback = egraph -> subst -> 'a
+type 'a callback = t -> subst -> 'a
 
 (** A rewrite rule. *)
 type rule
@@ -108,7 +108,7 @@ val const : t -> id -> const option
 module Rule : sig
   type t = rule
 
-  (** [var x] constructs a substitition for variable [x]. *)
+  (** [var x] constructs a substitution for variable [x]. *)
   val var : string -> pattern
 
   (** [pre => post] constructs a rewrite rule where expressions
@@ -119,7 +119,7 @@ module Rule : sig
       rule is applied conditionally according to [if_]. *)
   val (=>?) : pattern -> pattern -> if_:(bool callback) -> t
 
-  (** [pre => gen] allows a post-condition to be generated
+  (** [pre =>* gen] allows a post-condition to be generated
       dynamically according to [gen]. *)
   val (=>*) : pattern -> pattern option callback -> t
 
@@ -190,8 +190,7 @@ end
 
 type extractor
 
-(** Extracts optimized terms from the e-graph based on the [cost]
-    heuristic function. *)
+(** Extracts optimized terms from the e-graph. *)
 module Extractor : sig
   type t = extractor
 
@@ -205,13 +204,13 @@ module Extractor : sig
   *)
   val term : t -> Label.t -> exp option Or_error.t
 
-  (** Same as [extract t l].
+  (** Same as [term t l].
 
       @raise Invalid_argument if the the resulting term is not well-formed.
   *)
   val term_exn : t -> Label.t -> exp option
 
-  (** [reify t] attempts to extract the terms in the underlying e-graph
-      back to the input function .*)
-  val reify : t -> func Context.t
+  (** [cfg t] attempts to extract the terms in the underlying e-graph
+      back to the input function. *)
+  val cfg : t -> func Context.t
 end

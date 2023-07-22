@@ -613,5 +613,4 @@ end
 
 let run tenv fn =
   let*? eg = Egraph.create fn tenv Rules.rules in
-  let ex = Egraph.Extractor.init eg in
-  Egraph.Extractor.reify ex
+  Egraph.Extractor.(cfg @@ init eg)
