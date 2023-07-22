@@ -5,7 +5,7 @@ type t = rule
 let var x = V x
 let exp o = P (o, [])
 let (&) o q = P (o, q)
-let (=>) pre post = {pre; post = Const post}
+let (=>) pre post = {pre; post = Static post}
 let (=>?) pre post ~if_ = {pre; post = Cond (post, if_)}
 let (=>*) pre gen = {pre; post = Dyn gen}
 

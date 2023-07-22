@@ -35,7 +35,7 @@ type pattern =
 [@@deriving compare, equal, sexp]
 
 type formula =
-  | Const of pattern
+  | Static of pattern
   | Cond of pattern * bool callback
   | Dyn of pattern option callback
 
@@ -150,18 +150,18 @@ and search ~d ~rules t id n =
   m
 
 and apply ~d ~rules = function
-  | Const q -> apply_const ~d ~rules q
+  | Static q -> apply_static ~d ~rules q
   | Cond (q, k) -> apply_cond ~d ~rules q k
   | Dyn q -> apply_dyn ~d ~rules q
 
-and apply_const ~d ~rules q t env = match q with
+and apply_static ~d ~rules q t env = match q with
   | V x -> Map.find env x
-  | P (o, q) ->
-    O.List.map q ~f:(fun q -> apply_const ~d ~rules q t env) |>
+  | P (o, ps) ->
+    O.List.map ps ~f:(fun q -> apply_static ~d ~rules q t env) |>
     O.map ~f:(fun cs -> insert ~d ~rules t @@ N (o, cs))
 
 and apply_cond ~d ~rules q k t env =
-  if k t env then apply_const ~d ~rules q t env else None
+  if k t env then apply_static ~d ~rules q t env else None
 
 and apply_dyn ~d ~rules q t env =
-  q t env |> O.bind ~f:(fun q -> apply_const ~d ~rules q t env)
+  q t env |> O.bind ~f:(fun q -> apply_static ~d ~rules q t env)
