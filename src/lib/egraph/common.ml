@@ -77,12 +77,8 @@ let subsume_const t n id =
   if not @@ Enode.is_const n then
     Enode.eval ~node:(node t) n |> O.map ~f:(fun c ->
         let k = Enode.of_const c in
-        let c = match Hashtbl.find t.memo k with
-          | Some c -> c
-          | None ->
-            let id = new_node t k in
-            Hashtbl.set t.memo ~key:k ~data:id;
-            id in
+        let c = Hashtbl.find_or_add t.memo k
+            ~default:(fun () -> new_node t k) in
         Uf.union t.classes id c;
         merge_provenance t id c;
         c)
@@ -98,16 +94,11 @@ let union t id oid =
   u
 
 let rec insert ?(d = 0) ?l ~rules t n =
-  let k = canon t n in
-  match Hashtbl.find t.memo k with
-  | Some id -> id
-  | None ->
-    let id = new_node t n in
-    Option.iter l ~f:(fun l ->
-        Hashtbl.set t.id2lbl ~key:id ~data:l);
-    let oid = optimize ~d ~rules t n id in
-    Hashtbl.set t.memo ~key:k ~data:oid;
-    oid
+  canon t n |> Hashtbl.find_or_add t.memo ~default:(fun () ->
+      let id = new_node t n in
+      Option.iter l ~f:(fun l ->
+          Hashtbl.set t.id2lbl ~key:id ~data:l);
+      optimize ~d ~rules t n id)
 
 and optimize ~d ~rules t n id = match subsume_const t n id with
   | Some id -> id
