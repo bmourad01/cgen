@@ -39,21 +39,25 @@ let has_cost t : enode -> bool = function
   | N (_, cs) -> List.for_all cs ~f:(has t)
   | U {pre; post} -> has t pre && has t post
 
-let node_cost t n =
-  if not @@ has_cost t n then None
-  else Some (Enode.cost ~child:(id_cost t) n, n)
+open O.Let
 
-let rec saturate t =
-  Vec.foldi t.eg.node ~init:true ~f:(fun id sat n ->
-      let id = find t.eg id in
-      match Hashtbl.find t.table id, node_cost t n with
-      | None, Some term ->
-        Hashtbl.set t.table ~key:id ~data:term;
-        false
-      | Some (x, _), Some ((y, _) as term) when y < x ->
-        Hashtbl.set t.table ~key:id ~data:term;
-        false
-      | _ -> sat) || saturate t
+let node_cost t n =
+  let+ () = O.guard @@ has_cost t n in
+  Enode.cost ~child:(id_cost t) n, n
+
+let saturate t =
+  let unsat = ref true in
+  while !unsat do
+    unsat := false;
+    (* Explore newer nodes first. *)
+    for i = Vec.length t.eg.node - 1 downto 0 do
+      node t.eg i |> node_cost t |>
+      Option.iter ~f:(fun ((x, _) as term) ->
+          find t.eg i |> Hashtbl.update t.table ~f:(function
+              | Some ((y, _) as prev) when x >= y -> prev
+              | Some _ | None -> unsat := true; term))
+    done
+  done
 
 let init eg =
   let t = {
@@ -61,7 +65,7 @@ let init eg =
     table = Id.Table.create ();
     memo = Id.Table.create ();
   } in
-  assert (saturate t);
+  saturate t;
   t
 
 let prov t id = match Hashtbl.find t.eg.id2lbl id with
@@ -73,7 +77,6 @@ let rec extract t id =
   match Hashtbl.find t.memo id with
   | Some _ as e -> e
   | None ->
-    let open O.Let in
     let* _, n = Hashtbl.find t.table id in
     match n with
     | N (op, cs) ->
