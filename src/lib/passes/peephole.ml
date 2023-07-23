@@ -12,7 +12,23 @@ module Rules = struct
     Option.bind ~f:(Egraph.const eg) |>
     Option.is_some
 
-  let imod t = Bv.modulus @@ Type.sizeof_imm t
+  let bv t = Bv.modular @@ Type.sizeof_imm t
+
+  (* Edge case where lsr can subsume the result of an asr, which is when
+     we are extracting the MSB. *)
+  let lsr_asr_bitwidth a b eg env =
+    Option.is_some begin
+      let open O.Syntax in
+      Map.find env a >>= Egraph.const eg >>= fun a ->
+      Map.find env b >>= Egraph.const eg >>= fun b ->
+      match a, b with
+      | `int (a, ty), `int (b, ty') when Type.equal_imm ty ty' ->
+        let a = Bv.to_int64 a in
+        let b = Bv.to_int64 b in
+        let sz = Type.sizeof_imm ty - 1 in
+        O.guard Int64.(a >= 0L && a <= b && b = of_int sz)
+      | _ -> None
+    end
 
   (* Dynamically rewrite a multiplication by a power of two into
      a left shift. *)
@@ -22,7 +38,50 @@ module Rules = struct
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
-      Op.(lsl_ ty x (int Bv.(int (Int64.ctz i) mod imod ty) ty))
+      let module B = (val bv ty) in
+      Op.(lsl_ ty x (int B.(int (Int64.ctz i)) ty))
+    | _ -> None
+
+  (* For a signed division by a power of two `n` modulo `k` bits, rewrite to:
+
+     (x + ((x >>> (k-1)) & ((1 << n) + ~0))) >>> n
+  *)
+  let div_imm_pow2 x y eg env =
+    let open O.Syntax in
+    Map.find env y >>= Egraph.const eg >>= function
+    | `int (i, ty) ->
+      let i = Bv.to_int64 i in
+      O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
+      let module B = (val bv ty) in
+      let n = B.(int Int64.(ctz i)) in
+      let m = B.((one lsl n) + ones) in
+      let s = B.(int (Type.sizeof_imm ty) - one) in
+      let tb = (ty :> Type.basic) in
+      Op.(asr_ ty (add tb x (and_ ty (asr_ ty x (int s ty)) (int m ty))) (int n ty))
+    | _ -> None
+
+  (*  For a signed remainder by a power of two `n` modulo `k` bits, rewrite to:
+
+      ((x + t) & (n-1)) - t
+
+      where
+
+      t = (x >>> (k-1)) >> (k - n)
+  *)
+  let rem_imm_pow2 x y eg env =
+    let open O.Syntax in
+    Map.find env y >>= Egraph.const eg >>= function
+    | `int (i, ty) ->
+      let i' = Bv.to_int64 i in
+      O.guard Int64.(i' <> 0L && i' <> 1L && (i' land pred i') = 0L) >>| fun () ->
+      let module B = (val bv ty) in
+      let tb = (ty :> Type.basic) in
+      let ss = B.(int (Type.sizeof_imm ty) - one) in
+      let n = B.(int Int64.(ctz i')) in
+      let su = B.(int (Type.sizeof_imm ty) - n) in
+      let i1 = B.(i - one) in
+      let t = Op.(lsr_ ty (asr_ ty x (int ss ty)) (int su ty)) in
+      Op.(sub tb (and_ ty (add tb x t) (int i1 ty)) t)
     | _ -> None
 
   (* Dynamically rewrite an unsigned division by a power of two into
@@ -33,7 +92,8 @@ module Rules = struct
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
-      Op.(lsr_ ty x (int Bv.(int (Int64.ctz i) mod imod ty) ty))
+      let module B = (val bv ty) in
+      Op.(lsr_ ty x (int B.(int (Int64.ctz i)) ty))
     | _ -> None
 
   (* Dynamically rewrite an unsigned remainder by a power of two into
@@ -45,7 +105,8 @@ module Rules = struct
       let i = Bv.to_int64 i in
       let i' = Int64.pred i in
       O.guard Int64.(i <> 0L && (i land i') = 0L) >>| fun () ->
-      Op.(and_ ty x (int Bv.(int64 i' mod imod ty) ty))
+      let module B = (val bv ty) in
+      Op.(and_ ty x (int B.(int64 i') ty))
     | _ -> None
 
   let x = var "x"
@@ -55,7 +116,11 @@ module Rules = struct
   let is_const_x = is_const "x"
   let is_const_y = is_const "y"
 
+  let lsr_asr_bitwidth_y_z = lsr_asr_bitwidth "y" "z"
+
   let mul_imm_pow2_y = mul_imm_pow2 x "y"
+  let div_imm_pow2_y = div_imm_pow2 x "y"
+  let rem_imm_pow2_y = rem_imm_pow2 x "y"
   let udiv_imm_pow2_y = udiv_imm_pow2 x "y"
   let urem_imm_pow2_y = urem_imm_pow2 x "y"
 
@@ -239,6 +304,16 @@ module Rules = struct
       mul `i16 x y =>* mul_imm_pow2_y;
       mul `i32 x y =>* mul_imm_pow2_y;
       mul `i64 x y =>* mul_imm_pow2_y;
+      (* signed x / c when c is power of two *)
+      div `i8 x y =>* div_imm_pow2_y;
+      div `i16 x y =>* div_imm_pow2_y;
+      div `i32 x y =>* div_imm_pow2_y;
+      div `i64 x y =>* div_imm_pow2_y;
+      (* signed x % c when c is power of two *)
+      rem `i8 x y =>* rem_imm_pow2_y;
+      rem `i16 x y =>* rem_imm_pow2_y;
+      rem `i32 x y =>* rem_imm_pow2_y;
+      rem `i64 x y =>* rem_imm_pow2_y;
       (* unsigned x / c = x >> log2(c) when c is power of two *)
       udiv `i8 x y =>* udiv_imm_pow2_y;
       udiv `i16 x y =>* udiv_imm_pow2_y;
@@ -342,6 +417,11 @@ module Rules = struct
       lsr_ `i16 x (i16 0) => x;
       lsr_ `i32 x (i32 0l) => x;
       lsr_ `i64 x (i64 0L) => x;
+      (* (x >>> y) >> z = x >> z when z >= y and z is bitwidth - 1 *)
+      (lsr_ `i8 (asr_ `i8 x y) z =>? (lsr_ `i8 x z)) ~if_:lsr_asr_bitwidth_y_z;
+      (lsr_ `i16 (asr_ `i16 x y) z =>? (lsr_ `i16 x z)) ~if_:lsr_asr_bitwidth_y_z;
+      (lsr_ `i32 (asr_ `i32 x y) z =>? (lsr_ `i32 x z)) ~if_:lsr_asr_bitwidth_y_z;
+      (lsr_ `i64 (asr_ `i64 x y) z =>? (lsr_ `i64 x z)) ~if_:lsr_asr_bitwidth_y_z;
       (* rol x 0 = x *)
       rol `i8 x (i8 0) => x;
       rol `i16 x (i16 0) => x;
