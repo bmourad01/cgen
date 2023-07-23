@@ -51,7 +51,7 @@ let no_var l =
     "No variable is bound for label %a"
     Label.pps l
 
-let extract t l = match Hashtbl.find t.eg.lbl2id l with
+let extract_label t l = match Hashtbl.find t.eg.lbl2id l with
   | None -> !!None
   | Some id ->
     let id = Common.find t.eg id in
@@ -266,6 +266,31 @@ let exp t env l e =
   | E (_, Ounop _, _)
   | E (_, Ovar _, _) -> invalid l e
 
+let reify t env l =
+  let* () = match Hashtbl.find t.eg.moved l with
+    | None -> !!()
+    | Some s ->
+      (* Explore the newest nodes first. *)
+      Set.to_sequence s ~order:`Decreasing |>
+      Context.Seq.iter ~f:(fun id ->
+          let id = Common.find t.eg id in
+          match extract t id with
+          | None -> extract_fail l id
+          | Some e -> match e with
+            | E (_, Obr, _)
+            | E (_, Ocall0, _)
+            | E (_, Ocall _, _)
+            | E (_, Oload _, _)
+            | E (_, Ojmp, _)
+            | E (_, Oret, _)
+            | E (_, Oset _, _)
+            | E (_, Ostore _, _)
+            | E (_, Osw _, _) -> exp t env l e
+            | _ -> pure t env e >>| ignore) in
+  extract_label t l >>= function
+  | Some e -> exp t env l e
+  | None -> !!()
+
 let collect t l =
   let env = init () in
   let q = Queue.singleton l in
@@ -273,9 +298,7 @@ let collect t l =
     | None -> !!env
     | Some l ->
       env.cur <- l;
-      let* () = extract t l >>= function
-        | Some e -> exp t env l e
-        | None -> !!() in
+      let* () = reify t env l in
       Tree.children t.eg.input.cdom l |>
       Seq.iter ~f:(Queue.enqueue q);
       loop () in

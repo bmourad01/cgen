@@ -40,6 +40,7 @@ let comp filename =
   Format.printf "%a\n%!" Virtual.Module.pp m;
   let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Peephole.run tenv) in
   let m = Virtual.Module.map_funs m ~f:Passes.Remove_dead_vars.run in
+  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
   Format.printf "=================================================\n%!";
   Format.printf "%a\n%!" Virtual.Module.pp m;
   !!()

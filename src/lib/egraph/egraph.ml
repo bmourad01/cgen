@@ -13,6 +13,7 @@ let init input fuel = {
   classes = Uf.create ();
   memo = Hashtbl.create (module Enode);
   node = Vec.create ();
+  moved = Label.Table.create ();
   id2lbl = Id.Table.create ();
   lbl2id = Label.Table.create ();
   fuel;

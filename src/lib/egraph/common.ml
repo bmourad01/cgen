@@ -18,6 +18,7 @@ type t = {
   classes : Uf.t;
   node    : enode Vec.t;
   memo    : (enode, id) Hashtbl.t;
+  moved   : Id.Set.t Label.Table.t;
   id2lbl  : Label.t Id.Table.t;
   lbl2id  : id Label.Table.t;
   fuel    : int;
@@ -50,15 +51,59 @@ let dominates t = Tree.is_descendant_of t.input.cdom
 let const t id = Enode.const ~node:(node t) @@ node t id
 let typeof_var t x = Typecheck.Env.typeof_var t.input.fn x t.input.tenv
 
-let merge_provenance ({id2lbl = p; _} as t) a b =
-  match Hashtbl.(find p a, find p b) with
-  | None, Some pb ->
-    Hashtbl.set p ~key:a ~data:pb
-  | Some pa, Some pb when dominates t ~parent:pb pa ->
-    Hashtbl.set p ~key:a ~data:pb
-  | Some pa, (Some _ | None) ->
-    Hashtbl.set p ~key:b ~data:pa
-  | None, None -> ()
+(* Track the provenance between e-class IDs and labels in the CFG
+   representation. *)
+module Prov = struct
+  (* Lowest common ancestor in the dominator tree. *)
+  let rec lca t a b =
+    let p = Tree.parent t.input.cdom in
+    match p a, p b with
+    | Some a, Some b when Label.(a = b) -> a
+    | Some a, Some b -> lca t a b
+    | None, _ | _, None ->
+      (* The root is pseudoentry, which we should never reach. *)
+      assert false
+
+  (* Mark this label as having moved up in the dominator tree. *)
+  let move t l id = Hashtbl.update t.moved l ~f:(function
+      | None -> Id.Set.singleton id
+      | Some s -> Set.add s id)
+
+  (* Update when we union two nodes together. *)
+  let merge ({id2lbl = p; _} as t) a b =
+    if a <> b then match Hashtbl.(find p a, find p b) with
+      | None, None -> ()
+      | None, Some pb ->
+        Hashtbl.set p ~key:a ~data:pb
+      | Some pa, None ->
+        Hashtbl.set p ~key:b ~data:pa
+      | Some pa, Some pb when Label.(pa = pb) -> ()
+      | Some pa, Some pb when dominates t ~parent:pb pa ->
+        Hashtbl.set p ~key:a ~data:pb
+      | Some pa, Some pb when dominates t ~parent:pa pb ->
+        Hashtbl.set p ~key:b ~data:pa
+      | Some pa, Some pb ->
+        let c = lca t pa pb in
+        Hashtbl.remove p a;
+        Hashtbl.remove p b;
+        move t c @@ find t a;
+        move t c @@ find t b
+
+  (* We've matched on a value that we already hash-consed, so
+     figure out which label it should correspond to. *)
+  let update t id a = match Hashtbl.find t.id2lbl id with
+    | None -> Hashtbl.set t.id2lbl ~key:id ~data:a
+    | Some b when Label.(b = a) -> ()
+    | Some b when dominates t ~parent:b a -> ()
+    | Some b when dominates t ~parent:a b ->
+      Hashtbl.set t.id2lbl ~key:id ~data:a
+    | Some b ->
+      let c = lca t a b in
+      let cid = find t id in
+      Hashtbl.remove t.id2lbl id;
+      Hashtbl.remove t.id2lbl cid;
+      move t c cid
+end
 
 let canon t : enode -> enode = function
   | N (_, []) as n -> n
@@ -80,7 +125,7 @@ let subsume_const t n id =
         let c = Hashtbl.find_or_add t.memo k
             ~default:(fun () -> new_node t k) in
         Uf.union t.classes id c;
-        merge_provenance t id c;
+        Prov.merge t id c;
         c)
   else Some id
 
@@ -89,16 +134,22 @@ let union t id oid =
   let u = new_node t @@ U {pre = id; post = oid} in
   Uf.union t.classes id oid;
   Uf.union t.classes id u;
-  merge_provenance t id oid;
-  merge_provenance t id u;
+  Prov.merge t id oid;
+  Prov.merge t id u;
   u
 
 let rec insert ?(d = 0) ?l ~rules t n =
-  canon t n |> Hashtbl.find_or_add t.memo ~default:(fun () ->
-      let id = new_node t n in
-      Option.iter l ~f:(fun l ->
-          Hashtbl.set t.id2lbl ~key:id ~data:l);
-      optimize ~d ~rules t n id)
+  canon t n |> Hashtbl.find_and_call t.memo
+    ~if_found:(fun id ->
+        Option.iter l ~f:(Prov.update t id);
+        id)
+    ~if_not_found:(fun k ->
+        let id = new_node t n in
+        Option.iter l ~f:(fun l ->
+            Hashtbl.set t.id2lbl ~key:id ~data:l);
+        let oid = optimize ~d ~rules t n id in
+        Hashtbl.set t.memo ~key:k ~data:oid;
+        oid)
 
 and optimize ~d ~rules t n id = match subsume_const t n id with
   | Some id -> id
