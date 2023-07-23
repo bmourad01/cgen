@@ -44,20 +44,26 @@ module Rules = struct
 
   (* For a signed division by a power of two `n` modulo `k` bits, rewrite to:
 
-     (x + ((x >>> (k-1)) & ((1 << n) + ~0))) >>> n
+     (x < 0 ? x + (y-1) : x) >>> n when x > 2
+
+     ((x >> (k-1)) + x) >>> 1 otherwise
   *)
   let div_imm_pow2 x y eg env =
     let open O.Syntax in
     Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
-      O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
+      O.guard Int64.(i <> 0L && i <> 1L && (i land pred i) = 0L) >>| fun () ->
       let module B = (val bv ty) in
       let n = B.(int Int64.(ctz i)) in
-      let m = B.((one lsl n) + ones) in
+      let i1 = B.(int64 Int64.(pred i)) in
       let s = B.(int (Type.sizeof_imm ty) - one) in
       let tb = (ty :> Type.basic) in
-      Op.(asr_ ty (add tb x (and_ ty (asr_ ty x (int s ty)) (int m ty))) (int n ty))
+      if Int64.(i > 2L) then
+        let cmp = Op.(slt ty x (int B.zero ty)) in
+        Op.(asr_ ty (sel tb cmp (add tb x (int i1 ty)) x) (int n ty))
+      else
+        Op.(asr_ ty (add tb (lsr_ ty x (int s ty)) x) (int B.one ty))
     | _ -> None
 
   (*  For a signed remainder by a power of two `n` modulo `k` bits, rewrite to:
