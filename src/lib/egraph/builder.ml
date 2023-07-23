@@ -55,7 +55,7 @@ let operands env eg = List.map ~f:(operand env eg)
 
 let global env eg : global -> id = function
   | `addr a -> atom env eg @@ Oaddr a
-  | `sym s -> atom env eg @@ Osym (s, 0)
+  | `sym (s, o) -> atom env eg @@ Osym (s, o)
   | `var x -> var env eg x
 
 let local env eg : local -> id = function
@@ -131,16 +131,20 @@ let undef env lst addr ty =
   Hashtbl.set env.mems ~key:{lst; addr; ty} ~data:Undef;
   env.lst <- Some lst
 
+let alist env eg : Insn.alist -> id = function
+  | `var x -> var env eg x
+  | `addr a -> atom env eg @@ Oaddr a
+  | `sym (s, o) -> atom env eg @@ Osym (s, o)
+
 let vaarg env eg l x ty a =
   ignore @@ var env eg x;
-  let a = var env eg a in
+  let a = alist env eg a in
   undef env l a ty
 
 let vastart env eg l x =
-  let a = var env eg x in
-  let ty = match typeof_var eg x with
-    | Ok (#Type.basic as ty) -> ty
-    | Ok _ | Error _ -> assert false in
+  let a = alist env eg x in
+  let tgt = Typecheck.Env.target eg.input.tenv in
+  let ty = (Target.word tgt :> Type.basic) in
   undef env l a ty
 
 let insn env eg l : Insn.op -> unit = function

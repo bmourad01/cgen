@@ -41,7 +41,7 @@ let pp_operand ppf : operand -> unit = function
 
 type global = [
   | `addr of Bv.t
-  | `sym  of string
+  | `sym  of string * int
   | `var  of Var.t
 ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -51,8 +51,10 @@ let var_of_global : global -> Var.t option = function
 
 let pp_global ppf : global -> unit = function
   | `addr a -> Format.fprintf ppf "%a" Bv.pp a
-  | `sym s  -> Format.fprintf ppf "$%s" s
-  | `var v  -> Format.fprintf ppf "%a" Var.pp v
+  | `sym (s, 0) -> Format.fprintf ppf "$%s" s
+  | `sym (s, o) when o > 0 -> Format.fprintf ppf "$%s+%d" s o
+  | `sym (s, o) -> Format.fprintf ppf "$%s-%d" s (lnot o + 1)
+  | `var v -> Format.fprintf ppf "%a" Var.pp v
 
 type local = [
   | `label of Label.t * operand list

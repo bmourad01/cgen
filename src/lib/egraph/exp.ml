@@ -16,7 +16,7 @@ type pure =
 and global =
   | Gaddr of Bv.t
   | Gpure of pure
-  | Gsym  of string
+  | Gsym  of string * int
 [@@deriving bin_io, compare, equal, sexp]
 
 type local = Label.t * pure list
@@ -77,7 +77,9 @@ and pp_pure ppf = function
 and pp_global ppf = function
   | Gaddr a -> Format.fprintf ppf "%a" Bv.pp a
   | Gpure p -> Format.fprintf ppf "%a" pp_pure p
-  | Gsym  s -> Format.fprintf ppf "$%s" s
+  | Gsym (s, 0) -> Format.fprintf ppf "$%s" s
+  | Gsym (s, o) when o > 0 -> Format.fprintf ppf "$%s+%d" s o
+  | Gsym (s, o) -> Format.fprintf ppf "$%s-%d" s (lnot o + 1)
 
 let pp_local ppf = function
   | l, []   -> Format.fprintf ppf "%a" Label.pp l

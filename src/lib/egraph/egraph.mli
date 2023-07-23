@@ -32,7 +32,7 @@ module Exp : sig
   and global =
     | Gaddr of Bv.t
     | Gpure of pure
-    | Gsym  of string
+    | Gsym  of string * int
   [@@deriving bin_io, compare, equal, sexp]
 
   (** A local control-flow destination. *)

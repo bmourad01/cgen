@@ -184,6 +184,15 @@ let expect_ptr_size_base_var fn blk l v t word msg =
     word Var.pps v msg Label.pps l Label.pps (Blk.label blk)
     (Func.name fn) Type.pps t
 
+let expect_ptr_size_alist fn blk l v t word msg =
+  let word = Format.asprintf "%a" Type.pp_imm_base word in
+  let v = Format.asprintf "%a" Insn.pp_alist v in
+  M.fail @@ Error.createf
+    "Expected imm_base of type %s for alist %s in %s %a \
+     in block %a in function %s, got %a"
+    word v msg Label.pps l Label.pps (Blk.label blk)
+    (Func.name fn) Type.pps t
+
 let expect_ptr_size_var fn blk l v t msg =
   M.fail @@ Error.createf
     "Expected imm_base type for var %a in %s %a in \
@@ -554,10 +563,13 @@ let check_call_sym fn blk l env t args vargs s ret targs variadic =
 let check_call fn blk l env t args vargs : global -> unit t = function
   | `addr _ -> !!() (* No guarantees for call to raw address. *)
   | `var v -> check_call_var fn blk l env t args vargs v
-  | `sym s -> match Env.typeof_fn s env with
-    | Some (`proto (ret, targs, variadic)) ->
-      check_call_sym fn blk l env t args vargs s ret targs variadic
-    | None -> !!() (* No guarantees for an external function. *)
+  | `sym (s, 0) ->
+    begin match Env.typeof_fn s env with
+      | Some (`proto (ret, targs, variadic)) ->
+        check_call_sym fn blk l env t args vargs s ret targs variadic
+      | None -> !!() (* No guarantees for an external function. *)
+    end
+  | `sym _ -> !!() (* No guarantees for a symbol with a non-zero offset. *)
 
 let op_call fn blk l env : Insn.call -> env t = function
   | `call (Some (v, t), g, args, vargs) ->
@@ -573,18 +585,22 @@ let variadic_check_list_ty fn blk l v t word = match t with
   | #Type.imm_base as b ->
     (* Argument is expected to be a pointer. *)
     if Type.equal_imm_base b word then !!()
-    else expect_ptr_size_base_var fn blk l v t word "variadic instruction"
-  | _ -> expect_ptr_size_var fn blk l v t "variadic instruction"
+    else expect_ptr_size_alist fn blk l v t word "variadic instruction"
+  | _ -> expect_ptr_size_alist fn blk l v t word "variadic instruction"
 
 let op_variadic fn blk l env (v : Insn.variadic) =
   let* word = M.gets @@ Fn.compose Target.word Env.target in
   match v with
   | `vaarg (x, t, y) ->
-    let*? ty = Env.typeof_var fn y env in
+    let*? ty = match y with
+      | `var y -> Env.typeof_var fn y env
+      | `addr _ | `sym _ -> Ok (word :> Type.t) in
     let* () = variadic_check_list_ty fn blk l y ty word in
     M.lift_err @@ Env.add_var fn x (t :> Type.t) env
   | `vastart v ->
-    let*? t = Env.typeof_var fn v env in
+    let*? t = match v with
+      | `var v -> Env.typeof_var fn v env
+      | `addr _ | `sym _ -> Ok (word :> Type.t) in
     let+ () = variadic_check_list_ty fn blk l v t word in
     env
 

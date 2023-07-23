@@ -206,16 +206,20 @@ end = struct
 
   let acall env = Option.map ~f:(fun (x, t) -> new_name env x, t)
 
+  let alist env : Insn.alist -> Insn.alist = function
+    | `var x -> `var (map_var env x)
+    | `addr _ | `sym _ as x -> x
+
   let map_op env op =
     let var = map_var env in
     let glo = map_global env in
     let opnd = map_operand env in
     let args = List.map ~f:opnd in
     let rename = new_name env in
-    match op with
+    match (op : Insn.op) with
     | `call (r, f, a, va) -> `call (acall env r, glo f, args a, args va)
-    | `vaarg (x, t, y) -> `vaarg (rename x, t, var y)
-    | `vastart x -> `vastart (var x)
+    | `vaarg (x, t, y) -> `vaarg (rename x, t, y)
+    | `vastart x -> `vastart (alist env x)
     | `bop (x, b, l, r) -> `bop (rename x, b, opnd l, opnd r)
     | `uop (x, u, a) -> `uop (rename x, u, opnd a)
     | `sel (x, t, c, l, r) -> `sel (rename x, t, var c, opnd l, opnd r)

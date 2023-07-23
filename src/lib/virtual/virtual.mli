@@ -49,13 +49,13 @@ val pp_operand : Format.formatter -> operand -> unit
 
     [`addr a] is a static absolute addrsss.
 
-    [`sym s] is a global symbol.
+    [`sym (s, o)] is a global symbol [s] plus an offset [o].
 
     [`var v] is a dynamic absolute address.
 *)
 type global = [
   | `addr of Bv.t
-  | `sym  of string
+  | `sym  of string * int
   | `var  of Var.t
 ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -385,6 +385,15 @@ module Insn : sig
   (** Pretty-prints a memory operation. *)
   val pp_mem : Format.formatter -> mem -> unit
 
+  (** Variadic argument list pointer. *)
+  type alist = [
+    | `var of Var.t
+    | `addr of Bv.t
+    | `sym of string * int
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  val pp_alist : Format.formatter -> alist -> unit
+
   (** A variadic argument instruction.
 
       [`vastart x] initializes [x] with a pointer to the start of the
@@ -394,8 +403,8 @@ module Insn : sig
       variadic argument list [y], and assigns it to [x].
   *)
   type variadic = [
-    | `vastart of Var.t
-    | `vaarg   of Var.t * Type.basic * Var.t
+    | `vastart of alist
+    | `vaarg   of Var.t * Type.basic * alist
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the variadic argument
@@ -483,7 +492,7 @@ module Ctrl : sig
   module Table : sig
     type t [@@deriving bin_io, compare, equal, sexp]
 
-    (** Creates a switch table from an association list.Afl_instrument
+    (** Creates a switch table from an association list.
 
         @raise Invalid_argument if the list has duplicate keys.
     *)

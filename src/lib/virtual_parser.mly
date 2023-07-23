@@ -366,9 +366,33 @@ insn:
   | x = var EQUALS t = VAARG y = var
     {
       let+ x = x and+ y = y in
-      `vaarg (x, t, y)
+      `vaarg (x, t, `var y)
     }
-  | VASTART x = var { let+ x = x in `vastart x }
+  | x = var EQUALS t = VAARG y = INT
+    {
+      let+ x = x in
+      `vaarg (x, t, `addr (fst y))
+    }
+  | x = var EQUALS t = VAARG y = SYM
+    {
+      let+ x = x in
+      `vaarg (x, t, `sym (y, 0))
+    }
+  | x = var EQUALS t = VAARG y = SYM PLUS i = NUM
+    {
+      let+ x = x in
+      `vaarg (x, t, `sym (y, i))
+    }
+  | x = var EQUALS t = VAARG y = SYM MINUS i = NUM
+    {
+      let+ x = x in
+      `vaarg (x, t, `sym (y, -i))
+    }
+  | VASTART x = var { let+ x = x in `vastart (`var x) }
+  | VASTART x = INT { !!(`vastart (`addr (fst x))) }
+  | VASTART x = SYM { !!(`vastart (`sym (x, 0))) }
+  | VASTART x = SYM PLUS i = NUM { !!(`vastart (`sym (x, i))) }
+  | VASTART x = SYM MINUS i = NUM { !!(`vastart (`sym (x, -i))) }
   | x = var EQUALS ALLOC i = NUM { let+ x = x in `alloc (x, i) }
   | x = var EQUALS t = LOAD a = operand
     {
@@ -489,7 +513,9 @@ local:
 
 global:
   | i = INT { !!(`addr (fst i)) }
-  | s = SYM { !!(`sym s) }
+  | s = SYM { !!(`sym (s, 0)) }
+  | s = SYM PLUS i = NUM { !!(`sym (s, i)) }
+  | s = SYM MINUS i = NUM { !!(`sym (s, -i)) }
   | x = var { let+ x = x in `var x }
 
 operand:

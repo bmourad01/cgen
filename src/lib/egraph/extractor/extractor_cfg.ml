@@ -148,7 +148,7 @@ and callargs t env = function
 and global t env e : global Context.t = match e with
   | E (_, Oaddr a, []) -> !!(`addr a)
   | E (_, Oaddr _, _) -> invalid_global e
-  | E (_, Osym (s, 0), []) -> !!(`sym s)
+  | E (_, Osym (s, o), []) -> !!(`sym (s, o))
   | E (_, Osym _, _) -> invalid_global e
   | _ -> pure t env e >>= function
     | `var x -> !!(`var x)

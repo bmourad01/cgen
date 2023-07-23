@@ -41,6 +41,7 @@ let comp filename =
   let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Peephole.run tenv) in
   let m = Virtual.Module.map_funs m ~f:Passes.Remove_dead_vars.run in
   let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
+  let m = Virtual.Module.map_funs m ~f:Passes.Merge_straightline_blks.run in
   Format.printf "=================================================\n%!";
   Format.printf "%a\n%!" Virtual.Module.pp m;
   !!()

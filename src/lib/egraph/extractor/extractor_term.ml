@@ -55,7 +55,7 @@ and callargs = function
 and global = function
   | E (_, Oaddr a, []) -> Some (Exp.Gaddr a)
   | E (_, Oaddr _, _) -> None
-  | E (_, Osym (s, 0), []) -> Some (Exp.Gsym s)
+  | E (_, Osym (s, o), []) -> Some (Exp.Gsym (s, o))
   | E (_, Osym _, _) -> None
   | e ->
     let+ p = pure e in
