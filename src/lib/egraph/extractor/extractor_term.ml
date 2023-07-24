@@ -31,7 +31,7 @@ let rec pure = function
   | E (_, Obinop _, _)
   | E (_, Obool _, _)
   | E (_, Obr, _)
-  | E (_, Ocall0, _)
+  | E (_, Ocall0 _, _)
   | E (_, Ocallargs, _)
   | E (_, Odouble _, _)
   | E (_, Ojmp, _)
@@ -84,7 +84,7 @@ let exp = function
   | E (_, Obr, [c; y; n]) ->
     let+ c = pure c and+ y = dst y and+ n = dst n in
     Exp.Ebr (c, y, n)
-  | E (_, Ocall0, [f; args; vargs]) ->
+  | E (_, Ocall0 _, [f; args; vargs]) ->
     let+ f = global f
     and+ args = callargs args
     and+ vargs = callargs vargs in
@@ -106,7 +106,7 @@ let exp = function
   | E (_, Oset x, [y]) ->
     let+ y = pure y in
     Exp.Eset (x, y)
-  | E (_, Ostore t, [v; x]) ->
+  | E (_, Ostore (t, _), [v; x]) ->
     let+ v = pure v and+ x = pure x in
     Exp.Estore (t, v, x)
   | E (_, Osw t, i :: d :: tbl) ->
@@ -121,7 +121,7 @@ let exp = function
   | E (_, Obinop _, _)
   | E (_, Obool _, _)
   | E (_, Obr, _)
-  | E (_, Ocall0, _)
+  | E (_, Ocall0 _, _)
   | E (_, Ocall _, _)
   | E (_, Ocallargs, _)
   | E (_, Odouble _, _)

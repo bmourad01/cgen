@@ -8,6 +8,10 @@ type prov =
   | Label of Label.t
   | Id of id
 
+let pp_prov ppf = function
+  | Label l -> Format.fprintf ppf "%a" Label.pp l
+  | Id id -> Format.fprintf ppf "%d" id
+
 (* We'll use an intermediate data structure for smoothing
    out the edges of translating to both the expression tree
    and CFG representations. *)
@@ -20,11 +24,11 @@ type t = {
 }
 
 let rec pp_ext ppf = function
-  | E (_, op, []) ->
-    Format.fprintf ppf "%a" Enode.pp_op op
-  | E (_, op, args) ->
+  | E (p, op, []) ->
+    Format.fprintf ppf "(%a %a)" pp_prov p Enode.pp_op op
+  | E (p, op, args) ->
     let pp_sep ppf () = Format.fprintf ppf " " in
-    Format.fprintf ppf "(%a %a)" Enode.pp_op op
+    Format.fprintf ppf "(%a %a %a)" pp_prov p Enode.pp_op op
       (Format.pp_print_list ~pp_sep pp_ext) args
 
 let pps_ext () e = Format.asprintf "%a" pp_ext e

@@ -84,7 +84,7 @@ let store env eg l ty v a =
   let a = operand env eg a in
   let key = {lst = l; addr = a; ty} in
   Hashtbl.set env.mems ~key ~data:(Value (v, l));
-  prov env eg l (Ostore ty) [v; a];
+  prov env eg l (Ostore (ty, l)) [v; a];
   env.lst <- Some l
 
 let alias env eg key l =
@@ -106,9 +106,9 @@ let load env eg l x ty a =
         Hashtbl.set env.mems ~key ~data:(Value (id, l));
         id)
 
-let callop x : Enode.op * Var.t option = match x with
+let callop x l : Enode.op * Var.t option = match x with
   | Some (x, t) -> Ocall (x, t), Some x
-  | None -> Ocall0, None
+  | None -> Ocall0 l, None
 
 let callargs env eg args =
   node env eg Ocallargs @@ operands env eg args
@@ -116,7 +116,7 @@ let callargs env eg args =
 (* Our analysis is intraprocedural, so assume that a function call
    can do any arbitrary effects to memory. *)
 let call env eg l x f args vargs =
-  let op, x = callop x in
+  let op, x = callop x l in
   env.lst <- Some l;
   prov ?x env eg l op [
     global env eg f;

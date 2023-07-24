@@ -1,12 +1,22 @@
 open Core
 open Virtual
 
+(* Notes:
+
+   - Some ops are just auxilliary to certain other ops.
+
+   - Loads, stores, and calls are marked with either a unique
+     variable or a label, in order to prevent them from being
+     erroneously hash-consed as equal to some other similarly
+     structured node. The reason for this is that these can't
+     be safely re-ordered (since they are effectful).
+*)
 type op =
   | Oaddr     of Bv.t
   | Obinop    of Insn.binop
   | Obool     of bool
   | Obr
-  | Ocall0
+  | Ocall0    of Label.t
   | Ocall     of Var.t * Type.basic
   | Ocallargs
   | Odouble   of float
@@ -18,7 +28,7 @@ type op =
   | Osel      of Type.basic
   | Oset      of Var.t
   | Osingle   of Float32.t
-  | Ostore    of Type.basic
+  | Ostore    of Type.basic * Label.t
   | Osw       of Type.imm
   | Osym      of string * int
   | Otbl      of Bv.t
@@ -51,7 +61,7 @@ let cost ~child = function
     let init = match op with
       | Oaddr _
       | Obool _
-      | Ocall0
+      | Ocall0 _
       | Ocall _
       | Ocallargs
       | Odouble _
@@ -325,7 +335,7 @@ module Eval = struct
     | Obool b, [] -> Some (`bool b)
     | Obool _, _ -> None
     | Obr, _ -> None
-    | Ocall0, _ -> None
+    | Ocall0 _, _ -> None
     | Ocall _, _ -> None
     | Ocallargs, _ -> None
     | Odouble d, [] -> Some (`double d)
@@ -390,7 +400,7 @@ let pp_op ppf = function
     Format.fprintf ppf "%a" Bool.pp b
   | Obr ->
     Format.fprintf ppf "br"
-  | Ocall0 ->
+  | Ocall0 _ ->
     Format.fprintf ppf "call"
   | Ocall (_, t) ->
     Format.fprintf ppf "call.%a" Type.pp_basic t
@@ -414,7 +424,7 @@ let pp_op ppf = function
     Format.fprintf ppf "(set %a)" Var.pp x
   | Osingle s ->
     Format.fprintf ppf "%s_s" @@ Float32.to_string s
-  | Ostore t ->
+  | Ostore (t, _) ->
     Format.fprintf ppf "st.%a" Type.pp_basic t
   | Osw t ->
     Format.fprintf ppf "sw.%a" Type.pp_imm t

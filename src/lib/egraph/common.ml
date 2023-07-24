@@ -18,7 +18,8 @@ type t = {
   classes : Uf.t;
   node    : enode Vec.t;
   memo    : (enode, id) Hashtbl.t;
-  moved   : Id.Set.t Label.Table.t;
+  lmoved  : Id.Set.t Label.Table.t;
+  imoved  : Label.Set.t Id.Table.t;
   id2lbl  : Label.t Id.Table.t;
   lbl2id  : id Label.Table.t;
   fuel    : int;
@@ -64,45 +65,54 @@ module Prov = struct
       (* The root is pseudoentry, which we should never reach. *)
       assert false
 
-  (* Mark this label as having moved up in the dominator tree. *)
-  let move t l id = Hashtbl.update t.moved l ~f:(function
-      | None -> Id.Set.singleton id
-      | Some s -> Set.add s id)
+  let move t a b c id =
+    Hashtbl.remove t.id2lbl id;
+    Hashtbl.update t.imoved id ~f:(function
+        | None -> Label.Set.of_list [a; b]
+        | Some s -> Set.(add (add s a) b));
+    Hashtbl.update t.lmoved c ~f:(function
+        | None -> Id.Set.singleton id
+        | Some s -> Set.add s id)
 
   (* Update when we union two nodes together. *)
   let merge ({id2lbl = p; _} as t) a b =
     if a <> b then match Hashtbl.(find p a, find p b) with
       | None, None -> ()
-      | None, Some pb ->
-        Hashtbl.set p ~key:a ~data:pb
-      | Some pa, None ->
-        Hashtbl.set p ~key:b ~data:pa
+      | None, Some pb -> Hashtbl.set p ~key:a ~data:pb
+      | Some pa, None -> Hashtbl.set p ~key:b ~data:pa
       | Some pa, Some pb when Label.(pa = pb) -> ()
       | Some pa, Some pb when dominates t ~parent:pb pa ->
         Hashtbl.set p ~key:a ~data:pb
       | Some pa, Some pb when dominates t ~parent:pa pb ->
         Hashtbl.set p ~key:b ~data:pa
       | Some pa, Some pb ->
-        let c = lca t pa pb in
+        let pc = lca t pa pb in
+        let c = find t a in
         Hashtbl.remove p a;
         Hashtbl.remove p b;
-        move t c @@ find t a;
-        move t c @@ find t b
+        assert (c = find t b);
+        move t pa pb pc c
+
+  let check_moved t id a =
+    let id = find t id in
+    Hashtbl.change t.imoved id ~f:(function
+        | Some s -> Some (Set.add s a)
+        | None ->
+          Hashtbl.set t.id2lbl ~key:id ~data:a;
+          None)
 
   (* We've matched on a value that we already hash-consed, so
      figure out which label it should correspond to. *)
   let update t id a = match Hashtbl.find t.id2lbl id with
-    | None -> Hashtbl.set t.id2lbl ~key:id ~data:a
+    | None -> check_moved t id a
     | Some b when Label.(b = a) -> ()
     | Some b when dominates t ~parent:b a -> ()
     | Some b when dominates t ~parent:a b ->
       Hashtbl.set t.id2lbl ~key:id ~data:a
     | Some b ->
       let c = lca t a b in
-      let cid = find t id in
       Hashtbl.remove t.id2lbl id;
-      Hashtbl.remove t.id2lbl cid;
-      move t c cid
+      move t a b c @@ find t id
 end
 
 let canon t : enode -> enode = function

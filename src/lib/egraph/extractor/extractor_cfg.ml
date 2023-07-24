@@ -124,7 +124,7 @@ let rec pure t env e : operand Context.t =
   | E (_, Obinop _, _)
   | E (_, Obool _, _)
   | E (_, Obr, _)
-  | E (_, Ocall0, _)
+  | E (_, Ocall0 _, _)
   | E (_, Ocallargs, _)
   | E (_, Odouble _, _)
   | E (_, Ojmp, _)
@@ -213,7 +213,7 @@ let exp t env l e =
     let* y = dst y in
     let* n = dst n in
     br l e c y n
-  | E (_, Ocall0, [f; args; vargs]) -> insn @@ fun () ->
+  | E (_, Ocall0 _, [f; args; vargs]) -> insn @@ fun () ->
     let* f = global t env f in
     let* args = callargs t env args in
     let+ vargs = callargs t env vargs in
@@ -233,7 +233,7 @@ let exp t env l e =
     let+ x = pure x in
     `ret (Some x)
   | E (_, Oset _, [y]) -> pure y >>| ignore
-  | E (_, Ostore t, [v; x]) -> insn @@ fun () ->
+  | E (_, Ostore (t, _), [v; x]) -> insn @@ fun () ->
     let* v = pure v in
     let+ x = pure x in
     `store (t, v, x)
@@ -247,7 +247,7 @@ let exp t env l e =
   | E (_, Obinop _, _)
   | E (_, Obool _, _)
   | E (_, Obr, _)
-  | E (_, Ocall0, _)
+  | E (_, Ocall0 _, _)
   | E (_, Ocall _, _)
   | E (_, Ocallargs, _)
   | E (_, Odouble _, _)
@@ -267,7 +267,7 @@ let exp t env l e =
   | E (_, Ovar _, _) -> invalid l e
 
 let reify t env l =
-  let* () = match Hashtbl.find t.eg.moved l with
+  let* () = match Hashtbl.find t.eg.lmoved l with
     | None -> !!()
     | Some s ->
       (* Explore the newest nodes first. *)
@@ -278,14 +278,18 @@ let reify t env l =
           | None -> extract_fail l id
           | Some e -> match e with
             | E (_, Obr, _)
-            | E (_, Ocall0, _)
-            | E (_, Ocall _, _)
-            | E (_, Oload _, _)
             | E (_, Ojmp, _)
             | E (_, Oret, _)
+            | E (_, Osw _, _)
+            | E (_, Ocall0 _, _)
+            | E (_, Ocall _, _)
+            | E (_, Oload _, _)
             | E (_, Oset _, _)
-            | E (_, Ostore _, _)
-            | E (_, Osw _, _) -> exp t env l e
+            | E (_, Ostore _, _) ->
+              (* Ignore "effectful" operators that got moved; maybe we
+                 can do something with the control-flow operators, but
+                 I think it would be delicate to handle correctly. *)
+              !!()
             | _ -> pure t env e >>| ignore) in
   extract_label t l >>= function
   | Some e -> exp t env l e
