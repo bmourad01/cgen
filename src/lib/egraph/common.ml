@@ -138,6 +138,17 @@ let union t id oid =
   Prov.merge t id u;
   u
 
+(* Stop iterating when we find that we've optimized to a constant. *)
+let step t id oid =
+  let open Continue_or_stop in
+  if id <> oid then match node t oid with
+    | n when Enode.is_const n ->
+      Uf.union t.classes id oid;
+      Prov.merge t id oid;
+      Stop oid
+    | _ -> Continue (union t id oid)
+  else Continue id
+
 let rec insert ?(d = 0) ?l ~rules t n =
   canon t n |> Hashtbl.find_and_call t.memo
     ~if_found:(fun id ->
@@ -156,8 +167,7 @@ and optimize ~d ~rules t n id = match subsume_const t n id with
   | None when d > t.fuel -> id
   | None ->
     search ~d:(d + 1) ~rules t id n |>
-    Vec.fold ~init:id ~f:(fun id oid ->
-        if id <> oid then union t id oid else id)
+    Vec.fold_until ~init:id ~finish:Fn.id ~f:(step t)
 
 and search ~d ~rules t id n =
   let m = Vec.create () in
