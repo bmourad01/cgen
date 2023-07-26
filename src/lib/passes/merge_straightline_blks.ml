@@ -6,18 +6,9 @@ open Virtual
 
 module O = Monad.Option
 
-type subst = operand Var.Map.t
+open O.Let
 
-let match_args subst b b' =
-  let open O.Let in
-  let* args = match Blk.ctrl b with
-    | `jmp (`label (_, args)) -> Some args
-    | _ -> None in
-  Blk.args b' |> Seq.to_list |> List.zip args |> function
-  | Unequal_lengths -> None
-  | Ok l ->
-    List.fold l ~init:subst ~f:(fun subst (o, (x, _)) ->
-        Map.set subst ~key:x ~data:o) |> O.return
+type subst = operand Var.Map.t
 
 let map_arg subst (o : operand) = match o with
   | `var x -> Map.find subst x |> Option.value ~default:o
@@ -119,63 +110,103 @@ let map_blk subst b =
   let insns = Blk.insns b |> Seq.map ~f:(map_insn subst) in
   Seq.to_list insns, map_ctrl subst (Blk.ctrl b)
 
-let can_merge cfg start l l' =
+type env = {
+  blks        : blk Label.Table.t;
+  doms        : Label.t tree;
+  start       : Label.t;
+  mutable cfg : Cfg.t;
+}
+
+let init fn =
+  let cfg = Cfg.create fn in
+  let blks = Label.Table.create () in
+  let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
+  Func.blks fn |> Seq.iter ~f:(fun b ->
+      Hashtbl.set blks ~key:(Blk.label b) ~data:b);
+  {blks; doms; start = Func.entry fn; cfg}
+
+let extend subst b b' =
+  let* args = match Blk.ctrl b with
+    | `jmp (`label (_, args)) -> Some args
+    | _ -> None in
+  Blk.args b' |> Seq.to_list |> List.zip args |> function
+  | Unequal_lengths -> None
+  | Ok l ->
+    List.fold l ~init:subst ~f:(fun subst (o, (x, _)) ->
+        Map.set subst ~key:x ~data:o) |> O.return
+
+let can_merge env l l' =
   Label.(l <> l') &&
-  Label.(l' <> start) &&
+  Label.(l' <> env.start) &&
   not (Label.is_pseudo l') &&
-  Cfg.Node.degree ~dir:`In l' cfg = 1
+  Cfg.Node.degree ~dir:`In l' env.cfg = 1
 
-let try_merge tbl subst cfg start b l =
-  match Seq.to_list @@ Cfg.Node.succs l cfg with
-  | [l'] when can_merge cfg start l l' ->
-    Hashtbl.find tbl l' |>
-    Option.value_map ~default:subst ~f:(fun b' ->
-        match match_args subst b b' with
-        | None -> subst
-        | Some subst ->
-          let insns', ctrl = map_blk subst b' in
-          let insns = Blk.insns b |> Seq.to_list in
-          let b = Blk.create () ~ctrl ~label:l
-              ~args:(Seq.to_list @@ Blk.args b)
-              ~insns:(insns @ insns') in
-          Hashtbl.set tbl ~key:l ~data:b;
-          Hashtbl.remove tbl l';
-          subst)
-  | _ -> subst
+let candidate subst env b l =
+  Cfg.Node.succs l env.cfg |> Seq.to_list |> function
+  | [l'] when can_merge env l l' ->
+    let* b' = Hashtbl.find env.blks l' in
+    let+ subst = extend subst b b' in
+    subst, l', b'
+  | _ -> None
 
-let update_fn tbl fn =
+let map_edges env l l' =
+  Cfg.edges env.cfg |> Seq.filter_map ~f:(fun e ->
+      let+ () = O.guard Label.(l' = Cfg.Edge.src e) in
+      Cfg.Edge.(create l (dst e) (label e))) |>
+  Seq.to_list
+
+let rec try_merge ?child subst env l =
+  let next () = subst, Option.value child ~default:l in
+  match Hashtbl.find env.blks l with
+  | None -> next ()
+  | Some b -> match candidate subst env b l with
+    | Some (subst, l', b') -> merge subst env l l' b b'
+    | None -> next ()
+
+and merge subst env l l' b b' =
+  let insns', ctrl = if Map.is_empty subst
+    then Seq.to_list (Blk.insns b'), Blk.ctrl b'
+    else map_blk subst b' in
+  let insns = Blk.insns b |> Seq.to_list in
+  let b = Blk.create () ~ctrl ~label:l
+      ~args:(Seq.to_list @@ Blk.args b)
+      ~insns:(insns @ insns') in
+  Hashtbl.set env.blks ~key:l ~data:b;
+  Hashtbl.remove env.blks l';
+  let es = map_edges env l l' in
+  env.cfg <- Cfg.Node.remove l' env.cfg;
+  List.iter es ~f:(fun e ->
+      env.cfg <- Cfg.Edge.insert e env.cfg);
+  try_merge ~child:l' subst env l
+
+let update_fn env fn =
   Func.blks fn |> Seq.fold ~init:fn ~f:(fun fn b ->
       let l = Blk.label b in
-      if Hashtbl.mem tbl l then fn
+      if Hashtbl.mem env.blks l then fn
       else Func.remove_blk_exn fn l) |>
   Func.map_blks ~f:(fun b ->
-      Hashtbl.find_exn tbl @@ Blk.label b)
-
-let rec fixpoint tbl fn =
-  let cfg = Cfg.create fn in
-  let start = Func.entry fn in
-  let orig_len = Hashtbl.length tbl in
-  let q = Stack.singleton (Label.pseudoentry, Var.Map.empty) in
-  let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
-  while not @@ Stack.is_empty q do
-    let l, subst = Stack.pop_exn q in
-    Hashtbl.change tbl l ~f:(O.map ~f:(fun b ->
-        if not @@ Map.is_empty subst then
-          let args = Blk.args b |> Seq.to_list in
-          let insns, ctrl = map_blk subst b in
-          Blk.create () ~args ~insns ~ctrl ~label:l
-        else b));
-    let subst = match Hashtbl.find tbl l with
-      | Some b -> try_merge tbl subst cfg start b l
-      | None -> subst in
-    Tree.children dom l |>
-    Seq.iter ~f:(fun l -> Stack.push q (l, subst))
-  done;
-  if Hashtbl.length tbl = orig_len then fn
-  else fixpoint tbl @@ update_fn tbl fn
+      Hashtbl.find_exn env.blks @@ Blk.label b)
 
 let run fn =
-  let tbl = Label.Table.create () in
-  Func.blks fn |> Seq.iter ~f:(fun b ->
-      Hashtbl.set tbl ~key:(Blk.label b) ~data:b);
-  fixpoint tbl fn
+  let env = init fn in
+  let orig_len = Hashtbl.length env.blks in
+  let q = Stack.singleton (Label.pseudoentry, Var.Map.empty) in
+  while not @@ Stack.is_empty q do
+    let l, subst = Stack.pop_exn q in
+    if not @@ Map.is_empty subst then
+      Hashtbl.change env.blks l ~f:(O.map ~f:(fun b ->
+          let args = Blk.args b |> Seq.to_list in
+          let insns, ctrl = map_blk subst b in
+          Blk.create () ~args ~insns ~ctrl ~label:l));
+    (* If we successfully merge for the block at this label,
+       then we know it has only one child in the dominator
+       tree, so we can just skip forward to the child that
+       we merged with. *)
+    let subst, l = try_merge subst env l in
+    Tree.children env.doms l |>
+    Seq.iter ~f:(fun l -> Stack.push q (l, subst))
+  done;
+  (* We're only ever removing blocks, so this is the only
+     condition where something would've changed. *)
+  if Hashtbl.length env.blks < orig_len
+  then update_fn env fn else fn
