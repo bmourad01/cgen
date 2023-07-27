@@ -438,6 +438,15 @@ module Generic = struct
     aux t 0 ~f ~monoid ~measure
   [@@specialise]
 
+  let index t ~f ~monoid ~measure =
+    let rec aux t i ~f ~monoid ~measure =
+      match view_left t ~monoid ~measure with
+      | Vnil -> None
+      | Vcons (x, _) when f x -> Some i
+      | Vcons (_, t) -> aux t (i + 1) ~f ~monoid ~measure in
+    aux t 0 ~f ~monoid ~measure
+  [@@specialise]
+
   let rec exists t ~f ~monoid ~measure =
     match view_left t ~monoid ~measure with
     | Vnil -> false
@@ -929,6 +938,7 @@ let to_sequence t = Generic.to_sequence ~monoid ~measure t
 let to_sequence_rev t = Generic.to_sequence_rev ~monoid ~measure t
 let find t ~f = Generic.find ~monoid ~measure t ~f
 let findi t ~f = Generic.findi ~monoid ~measure t ~f
+let index t ~f = Generic.index ~monoid ~measure t ~f
 let exists t ~f = Generic.exists ~monoid ~measure t ~f
 
 let min_elt t ~compare = fold t ~init:None ~f:(fun acc x -> match acc with
@@ -980,8 +990,9 @@ let remove t i =
 let filter t ~f = fold t ~init:empty ~f:(fun acc a ->
     if f a then snoc acc a else acc)
 
-let remove_if t ~f =
-  if exists t ~f then filter t ~f:(Fn.non f) else t
+let remove_if t ~f = match index t ~f with
+  | Some i -> remove t i
+  | None -> t
 
 let update_if t x ~f = match findi t ~f:(fun _ x -> f x) with
   | Some (i, _) -> set t i x

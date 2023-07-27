@@ -49,6 +49,7 @@ val filter : 'a t -> f:('a -> bool) -> 'a t
 val enum : ?rev:bool -> 'a t -> 'a seq
 val find : 'a t -> f:('a -> bool) -> 'a option
 val findi : 'a t -> f:(int -> 'a -> bool) -> (int * 'a) option
+val index : 'a t -> f:('a -> bool) -> int option
 val exists : 'a t -> f:('a -> bool) -> bool
 val next : 'a t -> f:('a -> bool) -> 'a option
 val prev : 'a t -> f:('a -> bool) -> 'a option
