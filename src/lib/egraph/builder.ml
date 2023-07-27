@@ -41,6 +41,7 @@ let init rules = {
   lst = None;
 }
 
+let insert = Rewrite.insert
 let node ?l env eg op args = insert ?l ~rules:env.rules eg @@ N (op, args)
 let atom env eg op = node env eg op []
 
@@ -213,19 +214,20 @@ let step env eg l = match Hashtbl.find eg.input.tbl l with
         insn env eg (Insn.label i) (Insn.op i));
     ctrl env eg l @@ Blk.ctrl b
 
-let run eg rules =
-  let env = init rules in
-  let q = Stack.singleton Label.pseudoentry in
-  let rec loop () = match Stack.pop q with
-    | None -> Ok ()
-    | Some l ->
-      step env eg l;
-      Tree.children eg.input.dom l |>
-      Seq.iter ~f:(Stack.push q);
-      loop () in
-  try loop () with
+let try_ f = try f () with
   | Missing l ->
     E.failf "Missing block %a" Label.pp l ()
   | Duplicate (x, l) ->
     E.failf "Duplicate definition of var %a at instruction %a"
       Var.pp x Label.pp l ()
+
+let run eg rules = try_ @@ fun () ->
+  let env = init rules in
+  let q = Stack.singleton Label.pseudoentry in
+  while not @@ Stack.is_empty q do
+    let l = Stack.pop_exn q in
+    step env eg l;
+    Tree.children eg.input.dom l |>
+    Seq.iter ~f:(Stack.push q);
+  done;
+  Ok ()
