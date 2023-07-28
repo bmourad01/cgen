@@ -4,6 +4,8 @@ open Common
 
 module O = Monad.Option
 
+open O.Let
+
 let canon t : enode -> enode = function
   | N (_, []) as n -> n
   | N (op, cs) -> N (op, List.map cs ~f:(find t))
@@ -71,19 +73,20 @@ and optimize ~d ~rules t n id = match subsume_const t n id with
 and search ~d ~rules t id n =
   let m = Vec.create () in
   let u = Stack.create () in
-  (* Match a constructor. *)
-  let rec cons ?(env = empty_subst) p id (n : enode) = match p, n with
-    | P (x,  _), N (y,  _) when not @@ Enode.equal_op x y -> None
-    | P (_, xs), N (_, ys) -> children env xs ys
-    | _, U {pre; post} -> union env p pre post
+  (* Match a node. *)
+  let rec go ?(env = empty_subst) p id (n : enode) = match p, n with
     | V x, N _ -> var env x id
-  (* Explore the rewritten term first. In some cases, constant folding
-     will run much faster if we keep rewriting it. If there's a match
-     then we can enqueue the "original" term with the current state of
-     the search for further exploration. *)
-  and union env p pre post = match cls env post p with
-    | Some _ as x -> Stack.push u (env, pre, p); x
-    | None -> cls env pre p
+    | P (x, xs), N (y, ys) ->
+      let* () = O.guard @@ Enode.equal_op x y in
+      children env xs ys
+    | _, U {pre; post} ->
+      (* Explore the rewritten term first. In some cases, constant folding
+         will run much faster if we keep rewriting it. If there's a match
+         then we can enqueue the "original" term with the current state of
+         the search for further exploration. *)
+      match cls env post p with
+      | Some _ as x -> Stack.push u (env, pre, p); x
+      | None -> cls env pre p
   (* Match all the children of an e-node. *)
   and children init qs xs = match List.zip qs xs with
     | Ok l -> O.List.fold l ~init ~f:(fun env (q, x) -> cls env x q)
@@ -95,7 +98,7 @@ and search ~d ~rules t id n =
   (* Match an e-class. *)
   and cls env id = function
     | V x -> var env x id
-    | P _ as q -> cons ~env q id @@ node t id in
+    | P _ as q -> go ~env q id @@ node t id in
   (* Apply a post-condition to the substitution. *)
   let app f env =
     apply ~d ~rules f t env |>
@@ -103,7 +106,7 @@ and search ~d ~rules t id n =
   (* Try matching with every rule. *)
   List.iter rules ~f:(fun r ->
       (* Explore the most recent rewrites first. *)
-      cons r.pre id n |> Option.iter ~f:(app r.post);
+      go r.pre id n |> Option.iter ~f:(app r.post);
       (* Then explore the "original" terms. *)
       while not @@ Stack.is_empty u do
         let env, id, p = Stack.pop_exn u in
