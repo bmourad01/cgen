@@ -20,7 +20,7 @@ let init input fuel = {
   fuel;
 }
 
-let create ?(fuel = 5) fn tenv rules =
+let create ?(fuel = 6) fn tenv rules =
   let open Input.E.Let in
   let* input = Input.init fn tenv in
   let t = init input fuel in

@@ -63,7 +63,7 @@ let rec insert ?(d = 0) ?l ~rules t n =
 
 and optimize ~d ~rules t n id = match subsume_const t n id with
   | Some id -> id
-  | None when d > t.fuel -> id
+  | None when d >= t.fuel -> id
   | None ->
     search ~d:(d + 1) ~rules t id n |>
     Vec.fold_until ~init:id ~finish:Fn.id ~f:(step t)
