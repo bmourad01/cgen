@@ -214,7 +214,7 @@ let step env eg l = match Hashtbl.find eg.input.tbl l with
         insn env eg (Insn.label i) (Insn.op i));
     ctrl env eg l @@ Blk.ctrl b
 
-let try_ f = try f () with
+let try_ f = try Ok (f ()) with
   | Missing l ->
     E.failf "Missing block %a" Label.pp l ()
   | Duplicate (x, l) ->
@@ -229,5 +229,4 @@ let run eg rules = try_ @@ fun () ->
     step env eg l;
     Tree.children eg.input.dom l |>
     Seq.iter ~f:(Stack.push q);
-  done;
-  Ok ()
+  done
