@@ -1,6 +1,7 @@
 open Core
 open Common
 open Monads.Std
+open Virtual
 
 module O = Monad.Option
 
@@ -45,9 +46,37 @@ let has_cost t : enode -> bool = function
 
 open O.Let
 
+let cost t : enode -> int = function
+  | N (op, children) ->
+    let init = match op with
+      | Oint (i, t) ->
+        (* In practice, a negative constant might need some work to
+           compute. *)
+        Bool.to_int Bv.(msb i mod modulus (Type.sizeof_imm t))
+      | Oaddr _
+      | Obool _
+      | Ocall0 _
+      | Ocall _
+      | Ocallargs
+      | Odouble _
+      | Ojmp
+      | Olocal _
+      | Oret
+      | Osingle _
+      | Osym _
+      | Oset _ -> 0
+      | Obr | Otbl _ | Ovar _ -> 2
+      | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
+      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 32
+      | Obinop _ -> 4
+      | Oload _ | Ostore _ -> 5
+      | Osel _ -> 8 in
+    List.fold children ~init ~f:(fun k c -> k + id_cost t c)
+  | U {pre; post} -> min (id_cost t pre) (id_cost t post)
+
 let node_cost t n =
   let+ () = O.guard @@ has_cost t n in
-  Enode.cost ~child:(id_cost t) n, n
+  cost t n, n
 
 let saturate t =
   let unsat = ref true in

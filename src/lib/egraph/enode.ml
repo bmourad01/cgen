@@ -56,30 +56,6 @@ let of_const : const -> t = function
   | `float s -> N (Osingle s, [])
   | `sym (s, o) -> N (Osym (s, o), [])
 
-let cost ~child = function
-  | N (op, children) ->
-    let init = match op with
-      | Oaddr _
-      | Obool _
-      | Ocall0 _
-      | Ocall _
-      | Ocallargs
-      | Odouble _
-      | Oint _
-      | Ojmp
-      | Olocal _
-      | Oret
-      | Osingle _
-      | Osym _
-      | Oset _ -> 0
-      | Obr | Otbl _ | Ovar _ -> 1
-      | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 2
-      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 25
-      | Obinop _ | Oload _ | Ostore _ -> 3
-      | Osel _ -> 6 in
-    List.fold children ~init ~f:(fun k c -> k + child c)
-  | U {pre; post} -> min (child pre) (child post)
-
 module Eval = struct
   let int8  i = Bv.(int   i mod Bv.m8)
   let int16 i = Bv.(int   i mod Bv.m16)

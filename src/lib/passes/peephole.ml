@@ -7,12 +7,22 @@ module O = Monad.Option
 module Rules = struct
   open Egraph.Rule
 
+  let bv t = Bv.modular @@ Type.sizeof_imm t
+
   let is_const x eg env =
     Map.find env x |>
     Option.bind ~f:(Egraph.const eg) |>
     Option.is_some
 
-  let bv t = Bv.modular @@ Type.sizeof_imm t
+  let is_neg_const x eg env =
+    Option.is_some begin
+      let open O.Syntax in
+      Map.find env x >>= Egraph.const eg >>= function
+      | `int (x, t) ->
+        let module B = (val bv t) in
+        O.guard @@ B.msb x
+      | _ -> None
+    end
 
   (* Edge case where lsr can subsume the result of an asr, which is when
      we are extracting the MSB. *)
@@ -121,6 +131,8 @@ module Rules = struct
 
   let is_const_x = is_const "x"
   let is_const_y = is_const "y"
+
+  let is_neg_const_y = is_neg_const "y"
 
   let lsr_asr_bitwidth_y_z = lsr_asr_bitwidth "y" "z"
 
@@ -237,6 +249,16 @@ module Rules = struct
       (add `i16 (sub `i16 x y) z =>? sub `i16 (add `i16 x z) y) ~if_:is_const_x;
       (add `i32 (sub `i32 x y) z =>? sub `i32 (add `i32 x z) y) ~if_:is_const_x;
       (add `i64 (sub `i64 x y) z =>? sub `i64 (add `i64 x z) y) ~if_:is_const_x;
+      (* x + (-y) = x - y when y is a constant *)
+      (add `i8 x y =>? sub `i8 x (neg `i8 y)) ~if_:is_neg_const_y;
+      (add `i16 x y =>? sub `i16 x (neg `i16 y)) ~if_:is_neg_const_y;
+      (add `i32 x y =>? sub `i32 x (neg `i32 y)) ~if_:is_neg_const_y;
+      (add `i64 x y =>? sub `i64 x (neg `i64 y)) ~if_:is_neg_const_y;
+      (* x - (-y) = x + y when y is a constant *)
+      (sub `i8 x y =>? add `i8 x (neg `i8 y)) ~if_:is_neg_const_y;
+      (sub `i16 x y =>? add `i16 x (neg `i16 y)) ~if_:is_neg_const_y;
+      (sub `i32 x y =>? add `i32 x (neg `i32 y)) ~if_:is_neg_const_y;
+      (sub `i64 x y =>? add `i64 x (neg `i64 y)) ~if_:is_neg_const_y;
       (* x + 0 = x. *)
       add `i8 x  (i8 0) => x;
       add `i16 x (i16 0) => x;
