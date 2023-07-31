@@ -171,9 +171,17 @@ let add_funs m =
   M.put env
 
 let blk_args fn blk =
-  let* init = M.get () in
-  let* env = Blk.args blk |> M.Seq.fold ~init ~f:(fun env (v, t) ->
-      M.lift_err @@ Env.add_var fn v (t :> Type.t) env) in
+  let* env = M.get () in
+  let* env, _ =
+    let init = env, Var.Set.empty in
+    Blk.args blk |> M.Seq.fold ~init ~f:(fun (env, seen) (v, t) ->
+        if Set.mem seen v then
+          M.fail @@ Error.createf
+            "Duplicate argument %a for block %a in function $%s"
+            Var.pps v Label.pps (Blk.label blk) (Func.name fn)
+        else
+          let*? env = Env.add_var fn v (t :> Type.t) env in
+          !!(env, Set.add seen v)) in
   M.put env
 
 let expect_ptr_size_base_var fn blk l v t word msg =
@@ -783,10 +791,18 @@ let typ_of_typ_arg env = function
     Or_error.map ~f:(fun t -> (t :> Type.t))
 
 let fn_args fn =
-  let* init = M.get () in
-  let* env = Func.args fn |> M.Seq.fold ~init ~f:(fun env (x, t) ->
-      let*? t = typ_of_typ_arg env t in
-      M.lift_err @@ Env.add_var fn x t env) in
+  let* env = M.get () in
+  let* env, _ =
+    let init = env, Var.Set.empty in
+    Func.args fn |> M.Seq.fold ~init ~f:(fun (env, seen) (x, t) ->
+        if Set.mem seen x then
+          M.fail @@ Error.createf
+            "Duplicate argument %a for function $%s"
+            Var.pps x (Func.name fn)
+        else
+          let*? t = typ_of_typ_arg env t in
+          let*? env = Env.add_var fn x t env in
+          !!(env, Set.add seen x)) in
   M.put env
 
 let fn_slots fn =
@@ -801,8 +817,8 @@ let fn_slots fn =
             "Duplicate slot %a in function $%s"
             Var.pps x (Func.name fn)
         else
-          let+ env = M.lift_err @@ Env.add_var fn x t env in
-          env, Set.add seen x) in
+          let*? env = Env.add_var fn x t env in
+          !!(env, Set.add seen x)) in
   M.put env
 
 let check_entry_inc fn cfg =
