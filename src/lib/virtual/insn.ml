@@ -232,21 +232,17 @@ let pp_call ppf c =
     (pp_call_vargs args) vargs
 
 type mem = [
-  | `alloc of Var.t * int
   | `load  of Var.t * Type.basic * operand
   | `store of Type.basic * operand * operand
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_mem : mem -> Var.Set.t = function
-  | `alloc _ -> Var.Set.empty
   | `load  (_, _, a) ->
     var_of_operand a |> Option.to_list |> Var.Set.of_list
   | `store (_, v, a) ->
     List.filter_map [v; a] ~f:var_of_operand |> Var.Set.of_list
 
 let pp_mem ppf : mem -> unit = function
-  | `alloc (x, n) ->
-    Format.fprintf ppf "%a = alloc %d" Var.pp x n
   | `load (x, t, a) ->
     Format.fprintf ppf "%a = ld.%a %a"
       Var.pp x Type.pp_basic t pp_operand a
@@ -296,7 +292,6 @@ let lhs_of_op : op -> Var.t option = function
   | `uop     (x, _, _)
   | `sel     (x, _, _, _, _)
   | `call    (Some (x, _), _, _, _)
-  | `alloc   (x, _)
   | `load    (x, _, _)
   | `vaarg   (x, _, _) -> Some x
   | `call    _ -> None

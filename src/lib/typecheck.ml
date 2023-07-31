@@ -4,7 +4,7 @@ open Graphlib.Std
 open Virtual
 
 let unify_fail t t' v fn = Or_error.errorf
-    "Failed to unify types '%a' and '%a' for var %a in function %s"
+    "Failed to unify types '%a' and '%a' for var %a in function $%s"
     Type.pps t Type.pps t' Var.pps v @@ Func.name fn
 
 module Env = struct
@@ -72,13 +72,13 @@ module Env = struct
     match Map.find env.venv fname with
     | None ->
       Or_error.errorf
-        "No function %s in environment for variable %a"
+        "No function $%s in environment for variable %a"
         fname Var.pps v
     | Some m -> match Map.find m @@ Var.base v with
       | Some t -> Ok t
       | None ->
         Or_error.errorf
-          "No variable %a in function %s"
+          "No variable %a in function $%s"
           Var.pps v fname
 
   exception Unify_fail of Type.t
@@ -180,7 +180,7 @@ let expect_ptr_size_base_var fn blk l v t word msg =
   let word = Format.asprintf "%a" Type.pp_imm_base word in
   M.fail @@ Error.createf
     "Expected imm_base of type %s for var %a in %s %a \
-     in block %a in function %s, got %a"
+     in block %a in function $%s, got %a"
     word Var.pps v msg Label.pps l Label.pps (Blk.label blk)
     (Func.name fn) Type.pps t
 
@@ -189,14 +189,14 @@ let expect_ptr_size_alist fn blk l v t word msg =
   let v = Format.asprintf "%a" Insn.pp_alist v in
   M.fail @@ Error.createf
     "Expected imm_base of type %s for alist %s in %s %a \
-     in block %a in function %s, got %a"
+     in block %a in function $%s, got %a"
     word v msg Label.pps l Label.pps (Blk.label blk)
     (Func.name fn) Type.pps t
 
 let expect_ptr_size_var fn blk l v t msg =
   M.fail @@ Error.createf
     "Expected imm_base type for var %a in %s %a in \
-     block %a in function %s, got %a"
+     block %a in function $%s, got %a"
     Var.pps v msg Label.pps l Label.pps (Blk.label blk)
     (Func.name fn) Type.pps t 
 
@@ -205,7 +205,7 @@ let expect_ptr_size_base_arg fn blk l a t word msg =
   let word = Format.asprintf "%a" Type.pp_imm_base word in
   M.fail @@ Error.createf
     "Expected imm_base of size %s for arg %s in %s %a \
-     in block %a in function %s, got %a"
+     in block %a in function $%s, got %a"
     word a msg Label.pps l Label.pps (Blk.label blk)
     (Func.name fn) Type.pps t
 
@@ -213,7 +213,7 @@ let unify_fail_arg fn blk l t a t' =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Expected type %a for arg %s in instruction %a in \
-     block %a in function %s, got %a"
+     block %a in function $%s, got %a"
     Type.pps t a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn) Type.pps t'
 
@@ -292,34 +292,34 @@ let unify_fp_fail fn blk l t a =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Expected floating point type for arg %s in instruction %a \
-     in block %a in function %s, got %a" a Label.pps l Label.pps
+     in block %a in function $%s, got %a" a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn) Type.pps t
 
 let unify_imm_fail fn blk l t a =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Expected immediate type for arg %s in instruction %a \
-     in block %a in function %s, got %a" a Label.pps l Label.pps
+     in block %a in function $%s, got %a" a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn) Type.pps t
 
 let unify_flag_fail fn blk l t v =
   M.fail @@ Error.createf
     "Expected flag type for var %a in instruction %a \
-     in block %a in function %s, got %a" Var.pps v Label.pps l
+     in block %a in function $%s, got %a" Var.pps v Label.pps l
     Label.pps (Blk.label blk) (Func.name fn) Type.pps t
 
 let unify_fext_fail fn blk l t a =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Invalid floating point type %a for arg %s in instruction %a \
-     in block %a in function %s" Type.pps t a Label.pps l Label.pps
+     in block %a in function $%s" Type.pps t a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn)
 
 let unify_bits_fail fn blk l op t ta a =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Invalid type for arg %s in instruction %a in block %a in \
-     function %s: '%s' cannot convert %a to %a"
+     function $%s: '%s' cannot convert %a to %a"
     a Label.pps l Label.pps (Blk.label blk) (Func.name fn)
     op Type.pps ta Type.pps (t :> Type.t)
 
@@ -379,14 +379,14 @@ let op_cast fn blk l ta a : Insn.cast -> Type.basic t = function
 let ref_expected_word_size fn blk l t w =
   M.fail @@ Error.createf
     "Expected return type %a for 'ref' instruction %a in block %a in \
-     function %s, got %a" Type.pps (w :> Type.t) Label.pps l
+     function $%s, got %a" Type.pps (w :> Type.t) Label.pps l
     Label.pps (Blk.label blk) (Func.name fn) Type.pps (t :> Type.t)
 
 let ref_expected_compound fn blk l t a =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Expected compound type for arg %s in 'ref' instruction %a in \
-     block %a in function %s, got %a" a Label.pps l Label.pps
+     block %a in function $%s, got %a" a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn) Type.pps (t :> Type.t)
 
 let op_copy fn blk l ta a : Insn.copy -> Type.basic t = function
@@ -441,7 +441,7 @@ let op_mem_store fn blk l env word t v a =
 
 let invalid_alloc fn blk l n =
   M.fail @@ Error.createf
-    "In alloc instruction %a of block %a in function %s: \
+    "In alloc instruction %a of block %a in function $%s: \
      invalid size %d, must be greater than zero" Label.pps l
     Label.pps (Blk.label blk) (Func.name fn) n
 
@@ -474,25 +474,25 @@ let unify_fail_void_call fn blk l t s =
   let t = Format.asprintf "%a" Type.pp_arg t in
   M.fail @@ Error.createf
     "Failed to unify return types %s and <void> for \
-     call at %a to function %s in block %a of function %s"
+     call at %a to function $%s in block %a of function $%s"
     t Label.pps l s Label.pps (Blk.label blk) (Func.name fn)
 
 let unify_fail_call_ret fn blk l t1 t2 s =
   let ts = Format.asprintf "%a and %a" Type.pp_arg t1 Type.pp_arg t2 in
   M.fail @@ Error.createf
     "Failed to unify return types %s for \
-     call at %a to function %s in block %a of function %s"
+     call at %a to function $%s in block %a of function $%s"
     ts Label.pps l s Label.pps (Blk.label blk) (Func.name fn)
 
 let non_variadic_call fn blk l s =
   M.fail @@ Error.createf
-    "Variadic call at %a to non-variadic function %s in \
-     block %a of function %s" Label.pps l s Label.pps
+    "Variadic call at %a to non-variadic function $%s in \
+     block %a of function $%s" Label.pps l s Label.pps
     (Blk.label blk) (Func.name fn)
 
 let unequal_lengths_call fn blk l s args targs =
   M.fail @@ Error.createf
-    "Call at %a to function %s in block %a of function %s: \
+    "Call at %a to function $%s in block %a of function $%s: \
      expected %d arguments, got %d" Label.pps l s Label.pps
     (Blk.label blk) (Func.name fn) (List.length targs)
     (List.length args)
@@ -500,14 +500,14 @@ let unequal_lengths_call fn blk l s args targs =
 let unify_fail_call_arg fn blk l s t a t' =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
-    "Call at %a to function %s in block %a of function %s: \
+    "Call at %a to function $%s in block %a of function $%s: \
      expected %a for arg %s, got %a" Label.pps l s Label.pps
     (Blk.label blk) (Func.name fn) Type.pps t a Type.pps t'
 
 let name_arg_expected_imm fn blk l s t a n =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
-    "Call at %a to function %s in block %a of function %s: \
+    "Call at %a to function $%s in block %a of function $%s: \
      expected pointer-sized immediate for :%s arg %s, got %a"
     Label.pps l s Label.pps (Blk.label blk) (Func.name fn)
     n a Type.pps t
@@ -620,7 +620,7 @@ let blk_insns seen fn blk =
         | Error _ ->
           Or_error.errorf
             "Instruction for label %a in block %a \
-             already exists in function %s"
+             already exists in function $%s"
             Label.pps l Label.pps (Blk.label blk) @@
           Func.name fn in
       op fn blk l env o) in
@@ -628,7 +628,7 @@ let blk_insns seen fn blk =
 
 let unequal_lengths_ctrl fn blk l args targs =
   M.fail @@ Error.createf
-    "Jump to %a in block %a of function %s: \
+    "Jump to %a in block %a of function $%s: \
      expected %d arguments, got %d" Label.pps l Label.pps
     (Blk.label blk) (Func.name fn) (List.length targs)
     (List.length args)
@@ -637,7 +637,7 @@ let unify_fail_arg_ctrl fn blk l t a t' =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Expected type %a for arg %s in jump to %a in \
-     block %a in function %s, got %a"
+     block %a in function $%s, got %a"
     Type.pps t a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn) Type.pps t'
 
@@ -660,7 +660,7 @@ let check_label_dst blks fn blk l args =
     | Some b -> Ok b
     | None ->
       Or_error.errorf
-        "Jump destination %a at block %a in function %s \
+        "Jump destination %a at block %a in function $%s \
          does not exist." Label.pps l Label.pps (Blk.label blk)
         (Func.name fn) in
   let targs = Seq.to_list @@ Seq.map ~f:snd @@ Blk.args b in
@@ -678,20 +678,20 @@ let check_dst blks fn blk : dst -> unit t = function
 let unify_flag_fail_ctrl fn blk t v =
   M.fail @@ Error.createf
     "Expected mem type for var %a of jnz in block %a in \
-     function %s, got %a" Var.pps v Label.pps (Blk.label blk)
+     function $%s, got %a" Var.pps v Label.pps (Blk.label blk)
     (Func.name fn) Type.pps t
 
 let unify_fail_void_ret fn blk t =
   M.fail @@ Error.createf
     "Failed to unify return types %a and <void> for \
-     ret in block %a of function %s"
+     ret in block %a of function $%s"
     Type.pps t Label.pps (Blk.label blk) (Func.name fn)
 
 let unify_fail_ret fn blk t1 t2 =
   let ts = Format.asprintf "%a and %a" Type.pp t1 Type.pp t2 in
   M.fail @@ Error.createf
     "Failed to unify return types %s for \
-     ret in block %a of function %s" ts Label.pps
+     ret in block %a of function $%s" ts Label.pps
     (Blk.label blk) (Func.name fn)
 
 let ctrl_br blks fn blk c t f =
@@ -719,14 +719,14 @@ let ctrl_ret_some _blks fn blk r =
 
 let sw_unify_fail t t' blk fn = Or_error.errorf
     "Expected type %a for index of `sw` instruction in block %a \
-     in function %s, got %a" Type.pps t Label.pps (Blk.label blk)
+     in function $%s, got %a" Type.pps t Label.pps (Blk.label blk)
     (Func.name fn) Type.pps t'
 
 let check_sw_index fn blk t i =
   let m = max_of_imm t in
   if Bv.(i > m) then
     M.fail @@ Error.of_string @@ Format.asprintf
-      "In `sw` instruction in block %a in function %s: index %a_%a \
+      "In `sw` instruction in block %a in function $%s: index %a_%a \
        does not fit in type %a"
       Label.pp (Blk.label blk) (Func.name fn)
       Bv.pp i Type.pp_imm t Type.pp_imm t
@@ -789,6 +789,22 @@ let fn_args fn =
       M.lift_err @@ Env.add_var fn x t env) in
   M.put env
 
+let fn_slots fn =
+  let* env = M.get () in
+  let t = (Target.word (Env.target env) :> Type.t) in
+  let* env, _ =
+    let init = env, Var.Set.empty in
+    Func.slots fn |> M.Seq.fold ~init ~f:(fun (env, seen) s ->
+        let x = Func.Slot.var s in
+        if Set.mem seen x then
+          M.fail @@ Error.createf
+            "Duplicate slot %a in function $%s"
+            Var.pps x (Func.name fn)
+        else
+          let+ env = M.lift_err @@ Env.add_var fn x t env in
+          env, Set.add seen x) in
+  M.put env
+
 let check_entry_inc fn cfg =
   let l = Func.entry fn in
   Cfg.Node.preds l cfg |>
@@ -796,12 +812,13 @@ let check_entry_inc fn cfg =
   Seq.length |> function
   | n when n > 0 ->
     M.fail @@ Error.createf
-      "Entry block %a of function %s contains %d incoming edges, \
+      "Entry block %a of function $%s contains %d incoming edges, \
        expected 0" Label.pps l (Func.name fn) n
   | _ -> !!()
 
 let check_fn fn =
   let* () = fn_args fn in
+  let* () = fn_slots fn in
   (* Be aware of duplicate labels for instructions. *)
   let seen = Label.Hash_set.create () in
   let*? blks = try Ok (Func.map_of_blks fn) with

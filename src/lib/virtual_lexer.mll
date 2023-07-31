@@ -122,7 +122,7 @@ rule token = parse
   | "ctz" '.' (imm as t) { CTZ (imm_of_char t) }
   | "popcnt" '.' (imm as t) { POPCNT (imm_of_char t) }
   | "not" '.' (imm as t) { NOT (imm_of_char t) }
-  | "alloc" { ALLOC }
+  | "slot" { SLOT }
   | "ld" '.' (basic as t) { LOAD (basic_of_char t) }
   | "st" '.' (basic as t) { STORE (basic_of_char t) }
   | "eq" '.' (basic as t) { EQ (basic_of_char t) }

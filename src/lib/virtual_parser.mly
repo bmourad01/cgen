@@ -66,13 +66,14 @@
 
     let unwrap_list = M.List.map ~f:(fun x -> x >>| Core.Fn.id)
 
-    let make_fn blks args l name return noreturn =
+    let make_fn slots blks args l name return noreturn =
+      let* slots = unwrap_list slots in
       let* blks = unwrap_list blks in
       let* args, variadic = match args with
         | None -> !!([], false)
         | Some a -> a in
       let linkage = Core.Option.value l ~default:Linkage.default_static in
-      match Virtual.Func.create () ~name ~blks ~args ~return ~noreturn ~variadic ~linkage with
+      match Virtual.Func.create () ~name ~blks ~args ~slots ~return ~noreturn ~variadic ~linkage with
       | Error err -> M.lift @@ Context.fail err
       | Ok fn -> !!fn
  %}
@@ -99,7 +100,7 @@
 %token W L B H S D Z F
 %token <Type.basic> ADD DIV MUL REM SUB NEG
 %token <Type.imm> MULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
-%token ALLOC
+%token SLOT
 %token <Type.basic> LOAD STORE EQ GE GT LE LT NE
 %token <Type.imm> SGE SGT SLE SLT
 %token <Type.fp> O UO
@@ -153,6 +154,7 @@
 %type <Virtual.Blk.arg_typ> type_blk_arg
 %type <Linkage.t> linkage
 %type <string> section
+%type <Virtual.Func.slot m> slot
 %type <Virtual.blk m> blk
 %type <(Var.t * Virtual.Blk.arg_typ) m> blk_arg
 %type <Virtual.Ctrl.t m> ctrl
@@ -234,10 +236,10 @@ typ_field:
   | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value n ~default:1) }
 
 func:
-  | l = option(linkage) FUNCTION return = option(type_basic) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
-    { make_fn blks args l name return false }
-  | l = option(linkage) NORETURN FUNCTION return = option(type_basic) name = SYM LPAREN args = option(func_args) RPAREN LBRACE blks = nonempty_list(blk) RBRACE
-    { make_fn blks args l name return true }
+  | l = option(linkage) FUNCTION return = option(type_basic) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
+    { make_fn slots blks args l name return false }
+  | l = option(linkage) NORETURN FUNCTION return = option(type_basic) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
+    { make_fn slots blks args l name return true }
 
 func_args:
   | ELIPSIS { !!([], true) }
@@ -273,6 +275,15 @@ linkage:
 
 section:
   | SECTION s = STRING { s }
+
+slot:
+  | x = var EQUALS SLOT size = NUM COMMA ALIGN align = NUM
+    {
+      let* x = x in
+      match Virtual.Func.Slot.create x ~size ~align with
+      | Error e -> M.lift @@ Context.fail e
+      | Ok s -> !!s
+    }
 
 blk:
   | ln = LABEL COLON insns = list(insn) ctrl = ctrl
@@ -393,7 +404,6 @@ insn:
   | VASTART x = SYM { !!(`vastart (`sym (x, 0))) }
   | VASTART x = SYM PLUS i = NUM { !!(`vastart (`sym (x, i))) }
   | VASTART x = SYM MINUS i = NUM { !!(`vastart (`sym (x, -i))) }
-  | x = var EQUALS ALLOC i = NUM { let+ x = x in `alloc (x, i) }
   | x = var EQUALS t = LOAD a = operand
     {
       let+ x = x and+ a = a in

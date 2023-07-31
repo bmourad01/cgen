@@ -223,7 +223,6 @@ end = struct
     | `bop (x, b, l, r) -> `bop (rename x, b, opnd l, opnd r)
     | `uop (x, u, a) -> `uop (rename x, u, opnd a)
     | `sel (x, t, c, l, r) -> `sel (rename x, t, var c, opnd l, opnd r)
-    | `alloc (x, n) -> `alloc (rename x, n)
     | `load (x, t, a) -> `load (rename x, t, opnd a)
     | `store (t, v, a) -> `store (t, opnd v, opnd a)
 

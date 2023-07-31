@@ -166,8 +166,6 @@ let insn env eg l : Insn.op -> unit = function
     ] ~f:(set env x)
   | `call (x, f, args, vargs) ->
     call env eg l x f args vargs
-  | `alloc (x, _) ->
-    ignore @@ var env eg x
   | `load (x, ty, a) ->
     load env eg l x ty a
   | `store (ty, v, a) ->

@@ -62,6 +62,12 @@ let insn (acc, changed, alive) i = match Insn.lhs i with
   | Some x -> i :: acc, changed, alive -- x ++ Insn.free_vars i
   | None -> i :: acc, changed, alive ++ Insn.free_vars i
 
+let remove_unused_slots fn live =
+  let ins = Live.ins live @@ Func.entry fn in
+  Func.slots fn |> Seq.fold ~init:fn ~f:(fun fn s ->
+      let x = Func.Slot.var s in
+      if Set.mem ins x then fn else Func.remove_slot fn x)
+
 let rec run fn =
   let live = Live.compute fn in
   let blks = Func.blks fn in
@@ -81,5 +87,5 @@ let rec run fn =
         Option.some @@ Blk.create () ~insns ~ctrl ~label
           ~args:(Seq.to_list args)
       else None) |> Seq.to_list |> function
-  | [] -> fn (* No changes, so we're done. *)
+  | [] -> remove_unused_slots fn live
   | blks -> run @@ Func.update_blks fn blks

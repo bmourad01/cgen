@@ -70,7 +70,6 @@ let map_op subst (op : Insn.op) =
     let args = List.map args ~f:arg in
     let vargs = List.map vargs ~f:arg in
     `call (x, f, args, vargs)
-  | `alloc _ as a -> a
   | `load (x, t, a) -> `load (x, t, arg a)
   | `store (t, v, a) -> `store (t, arg v, arg a)
   | `vastart a -> `vastart (map_alist subst a)

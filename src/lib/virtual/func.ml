@@ -2,9 +2,46 @@ open Core
 open Regular.Std
 open Common
 
+module Slot = struct
+  type t = {
+    var   : Var.t;
+    size  : int;
+    align : int;
+  } [@@deriving bin_io, compare, equal, sexp]
+
+  let create_exn x ~size ~align =
+    if size < 1 then
+      invalid_argf "Slot size for %a must be greater than 0, got %d"
+        Var.pps x size ();
+    if align < 1 then
+      invalid_argf "Slot alignment for %a must be greater than 0, got %d"
+        Var.pps x align ();
+    if (align land (align - 1)) <> 0 then
+      invalid_argf "Slot alignment for %a must be a power of 2, got %d"
+        Var.pps x align ();
+    {var = x; size; align}
+
+  let create x ~size ~align =
+    Or_error.try_with @@ fun () -> create_exn x ~size ~align
+
+  let var t = t.var
+  let size t = t.size
+  let align t = t.align
+  let is_var t x = Var.(t.var = x)
+
+  let pp ppf t =
+    Format.fprintf ppf "%a = slot %d, align %d"
+      Var.pp t.var t.size t.align
+end
+
+type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
+
+let pp_slot = Slot.pp
+
 module T = struct
   type t = {
     name     : string;
+    slots    : slot ftree;
     blks     : Blk.t ftree;
     entry    : Label.t;
     args     : (Var.t * Type.arg) ftree;
@@ -18,6 +55,7 @@ end
 include T
 
 let create_exn
+    ?(slots = [])
     ?(return = None)
     ?(variadic = false)
     ?(noreturn = false)
@@ -29,6 +67,7 @@ let create_exn
   | [] -> invalid_argf "Cannot create empty function %s" name ()
   | {Blk.label = entry; _} :: _ -> {
       name;
+      slots = Ftree.of_list slots;
       blks = Ftree.of_list blks;
       entry;
       args = Ftree.of_list args;
@@ -39,6 +78,7 @@ let create_exn
     }
 
 let create
+    ?(slots = [])
     ?(return = None)
     ?(variadic = false)
     ?(noreturn = false)
@@ -48,9 +88,12 @@ let create
     ~args
     () =
   Or_error.try_with @@
-  create_exn ~name ~blks ~args ~return ~variadic ~noreturn ~linkage
+  create_exn ~name ~blks ~args
+    ~slots ~return ~variadic
+    ~noreturn ~linkage
 
 let name fn = fn.name
+let slots ?(rev = false) fn = Ftree.enum fn.slots ~rev
 let blks ?(rev = false) fn = Ftree.enum fn.blks ~rev
 let entry fn = fn.entry
 let args ?(rev = false) fn = Ftree.enum fn.args ~rev
@@ -102,10 +145,18 @@ let insert_blk fn b = {
   fn with blks = Ftree.snoc fn.blks b;
 }
 
+let insert_slot fn s = {
+  fn with slots = Ftree.snoc fn.slots s;
+}
+
 let remove_blk_exn fn l =
   if Label.(l = fn.entry)
   then invalid_argf "Cannot remove entry block of function $%s" fn.name ()
   else {fn with blks = Ftree.remove_if fn.blks ~f:(Fn.flip Blk.has_label l)}
+
+let remove_slot fn x = {
+  fn with slots = Ftree.remove_if fn.slots ~f:(Fn.flip Slot.is_var x);
+}  
 
 let remove_blk fn l = Or_error.try_with @@ fun () -> remove_blk_exn fn l
 let has_blk fn l = Ftree.exists fn.blks ~f:(Fn.flip Blk.has_label l)
@@ -141,15 +192,19 @@ let pp_args ppf fn =
   | _,    true  -> Format.fprintf ppf ", ..."
 
 let pp ppf fn =
-  let sep ppf = Format.fprintf ppf "@;" in
   if Linkage.export fn.linkage
   || Linkage.section fn.linkage |> Option.is_some then
     Format.fprintf ppf "%a " Linkage.pp fn.linkage;
   if fn.noreturn then Format.fprintf ppf "noreturn ";
   Format.fprintf ppf "function ";
   Option.iter fn.return ~f:(Format.fprintf ppf "%a " Type.pp_basic);
-  Format.fprintf ppf "$%s(%a) {@;@[<v 0>%a@]@;}"
-    fn.name pp_args fn (Ftree.pp Blk.pp sep) fn.blks
+  Format.fprintf ppf "$%s(%a) {@;" fn.name pp_args fn;
+  if not @@ Ftree.is_empty fn.slots then begin
+    let sep ppf = Format.fprintf ppf "@;  " in
+    Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp pp_slot sep) fn.slots
+  end;
+  let sep ppf = Format.fprintf ppf "@;" in
+  Format.fprintf ppf "@[<v 0>%a@]@;}"(Ftree.pp Blk.pp sep) fn.blks
 
 include Regular.Make(struct
     include T

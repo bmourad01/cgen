@@ -365,16 +365,12 @@ module Insn : sig
 
   (** Memory operations.
 
-      [`alloc (x, n)]: allocate [n] bytes and return a pointer, which is
-      assigned to [x].
-
       [`load (x, t, a)]: load a value of type [t] from address [a] and
       assign the result to [x].
 
       [`store (t, v, a)]: store a value [v] of type [t] to address [a].
   *)
   type mem = [
-    | `alloc of Var.t * int
     | `load  of Var.t * Type.basic * operand
     | `store of Type.basic * operand * operand
   ] [@@deriving bin_io, compare, equal, sexp]
@@ -758,6 +754,41 @@ type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A function. *)
 module Func : sig
+  (** A stack slot. *)
+  module Slot : sig
+    type t [@@deriving bin_io, compare, equal, sexp]
+
+    (** [create_exn x ~size ~align] creates a slot for variable [x] with
+        [size] and [align].
+
+        @raise Invalid_argument if [size < 1], [align < 1], or [align] is
+        not a power of two.
+    *)
+    val create_exn : Var.t -> size:int -> align:int -> t
+
+    (** Same as [create_exn], but returns an error instead of raising. *)
+    val create : Var.t -> size:int -> align:int -> t Or_error.t
+
+    (** The variable associated with the slot. *)
+    val var : t -> Var.t
+
+    (** The size of the slot in bytes. *)
+    val size : t -> int
+
+    (** The alignment of the slot in bytes. *)
+    val align : t -> int
+
+    (** [is_var s x] returns [true] if slot [s] is associated with the
+        variable [x]. *)
+    val is_var : t -> Var.t -> bool
+
+    val pp : Format.formatter -> t -> unit
+  end
+
+  type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
+
+  val pp_slot : Format.formatter -> slot -> unit
+
   type t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a function.
@@ -773,6 +804,7 @@ module Func : sig
       @raise Invalid_argument if [blks] is empty.
   *)
   val create_exn :
+    ?slots:slot list ->
     ?return:Type.basic option ->
     ?variadic:bool ->
     ?noreturn:bool ->
@@ -785,6 +817,7 @@ module Func : sig
 
   (** Same as [create_exn], but returns an error upon failure. *)
   val create :
+    ?slots:slot list ->
     ?return:Type.basic option ->
     ?variadic:bool ->
     ?noreturn:bool ->
@@ -797,6 +830,9 @@ module Func : sig
 
   (** Returns the name of the function. *)
   val name : t -> string
+
+  (** Returns the slots of the function. *)
+  val slots : ?rev:bool -> t -> slot seq
 
   (** Returns the basic blocks of the function. *)
   val blks : ?rev:bool -> t -> blk seq
@@ -843,6 +879,12 @@ module Func : sig
 
   (** Appends a block to the end of the function. *)
   val insert_blk : t -> blk -> t
+
+  (** Appends a slot to the function. *)
+  val insert_slot : t -> slot -> t
+
+  (** Removes a slot from the function. *)
+  val remove_slot : t -> Var.t -> t
 
   (** [remove_blk_exn fn l] removes the block with label [l] from function
       [f].
