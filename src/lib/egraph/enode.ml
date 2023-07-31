@@ -49,6 +49,21 @@ let is_const = function
   | N (Osym _, []) -> true
   | N _ | U _ -> false
 
+let commute = function
+  | N (Obinop b, [x; y]) ->
+    begin match b with
+      | `add _
+      | `mul _
+      | `mulh _
+      | `and_ _
+      | `or_ _
+      | `xor _
+      | `eq _
+      | `ne _ -> Some (N (Obinop b, [y; x]))
+      | _ -> None
+    end
+  | N _ | U _ -> None
+
 let of_const : const -> t = function
   | `bool b -> N (Obool b, [])
   | `int (i, t) -> N (Oint (i, t), [])

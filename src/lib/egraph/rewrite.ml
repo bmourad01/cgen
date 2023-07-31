@@ -6,10 +6,22 @@ module O = Monad.Option
 
 open O.Let
 
+(* Canonicalize the node according to union-find. *)
 let canon t : enode -> enode = function
   | N (_, []) as n -> n
   | N (op, cs) -> N (op, List.map cs ~f:(find t))
   | U _ -> assert false
+
+(* See if the node is commutative, and if so, swap the arguments
+   and check to see if we hash-consed it already.
+
+   We can't add a rewrite rule for this because it would blow up
+   the e-graph very quickly (since it trivially introduces an
+   infinite loop).
+*)
+let commute t n =
+  let* n = Enode.commute n in
+  Hashtbl.find t.memo n
 
 let new_node t n =
   let id = Uf.fresh t.classes in
@@ -55,13 +67,17 @@ let rec insert ?(d = 0) ?l ~rules t n =
     ~if_found:(fun id ->
         Option.iter l ~f:(Prov.duplicate t id);
         id)
-    ~if_not_found:(fun k ->
-        let id = new_node t n in
-        Option.iter l ~f:(fun l ->
-            Hashtbl.set t.id2lbl ~key:id ~data:l);
-        let oid = optimize ~d ~rules t n id in
-        Hashtbl.set t.memo ~key:k ~data:oid;
-        oid)
+    ~if_not_found:(fun k -> match commute t k with
+        | Some id ->
+          Option.iter l ~f:(Prov.duplicate t id);
+          id
+        | None ->
+          let id = new_node t n in
+          Option.iter l ~f:(fun l ->
+              Hashtbl.set t.id2lbl ~key:id ~data:l);
+          let oid = optimize ~d ~rules t n id in
+          Hashtbl.set t.memo ~key:k ~data:oid;
+          oid)
 
 and optimize ~d ~rules t n id = match subsume_const t n id with
   | Some id -> id
