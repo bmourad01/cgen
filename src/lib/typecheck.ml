@@ -447,18 +447,9 @@ let op_mem_store fn blk l env word t v a =
   let+ () = unify_arg fn blk l ta a (word :> Type.t) in
   env
 
-let invalid_alloc fn blk l n =
-  M.fail @@ Error.createf
-    "In alloc instruction %a of block %a in function $%s: \
-     invalid size %d, must be greater than zero" Label.pps l
-    Label.pps (Blk.label blk) (Func.name fn) n
-
 let op_mem fn blk l env m =
   let* word = M.gets @@ Fn.compose Target.word Env.target in
   match m with
-  | `alloc (_, n) when n <= 0 -> invalid_alloc fn blk l n
-  | `alloc (x, _) ->
-    M.lift_err @@ Env.add_var fn x (word :> Type.t) env
   | `load (x, t, a) -> op_mem_load fn blk l env word x t a
   | `store (t, v, a) -> op_mem_store fn blk l env word t v a
 
