@@ -41,15 +41,19 @@ let init rules = {
   lst = None;
 }
 
-let insert = Rewrite.insert
-let node ?l env eg op args = insert ?l ~rules:env.rules eg @@ N (op, args)
+let node ?l env eg op args =
+  Rewrite.insert ?l ~d:eg.fuel ~rules:env.rules
+    eg @@ N (op, args)
+
 let atom env eg op = node env eg op []
 
 let var env eg x = Hashtbl.find_or_add env.vars x
     ~default:(fun () -> atom env eg @@ Ovar x)
 
 let operand env eg : operand -> id = function
-  | #const as c -> insert ~rules:env.rules eg @@ Enode.of_const c
+  | #const as c ->
+    Rewrite.insert ~d:eg.fuel ~rules:env.rules
+      eg @@ Enode.of_const c
   | `var x -> var env eg x
 
 let operands env eg = List.map ~f:(operand env eg)

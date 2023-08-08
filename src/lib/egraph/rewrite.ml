@@ -62,7 +62,7 @@ let step t id oid =
     | _ -> Continue (union t id oid)
   else Continue id
 
-let rec insert ?(d = 0) ?l ~rules t n =
+let rec insert ?l ~d ~rules t n =
   canon t n |> Hashtbl.find_and_call t.memo
     ~if_found:(fun id ->
         Option.iter l ~f:(Prov.duplicate t id);
@@ -81,9 +81,9 @@ let rec insert ?(d = 0) ?l ~rules t n =
 
 and optimize ~d ~rules t n id = match subsume_const t n id with
   | Some id -> id
-  | None when d >= t.fuel -> id
+  | None when d < 0 -> id
   | None ->
-    search ~d:(d + 1) ~rules t id n |>
+    search ~d:(d - 1) ~rules t id n |>
     Vec.fold_until ~init:id ~finish:Fn.id ~f:(step t)
 
 and search ~d ~rules t id n =

@@ -96,7 +96,7 @@ type rule
 
     [fuel] is the maximum rewrite depth. This is to limit state explosion
     since rewrites are themselves recursively rewritten. Note that if
-    [fuel < 1], then no rewrite rules will be applied.
+    [fuel < 0], then no rewrite rules will be applied.
 
     [fn] is expected to be in SSA form.
 *)
