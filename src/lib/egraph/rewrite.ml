@@ -5,6 +5,7 @@ open Common
 module O = Monad.Option
 
 open O.Let
+open O.Syntax
 
 (* Canonicalize the node according to union-find. *)
 let canon t : enode -> enode = function
@@ -19,9 +20,7 @@ let canon t : enode -> enode = function
    the e-graph very quickly (since it trivially introduces an
    infinite loop).
 *)
-let commute t n =
-  let* n = Enode.commute n in
-  Hashtbl.find t.memo n
+let commute t n = Enode.commute n >>= Hashtbl.find t.memo
 
 let new_node t n =
   let id = Uf.fresh t.classes in
@@ -33,13 +32,13 @@ let new_node t n =
    for matches. *)
 let subsume_const t n id =
   if not @@ Enode.is_const n then
-    Enode.eval ~node:(node t) n |> O.map ~f:(fun c ->
-        let k = Enode.of_const c in
-        let c = Hashtbl.find_or_add t.memo k
-            ~default:(fun () -> new_node t k) in
-        Uf.union t.classes id c;
-        Prov.merge t id c;
-        c)
+    let+ c = Enode.eval ~node:(node t) n in
+    let k = Enode.of_const c in
+    let oid = Hashtbl.find_or_add t.memo k
+        ~default:(fun () -> new_node t k) in
+    Uf.union t.classes id oid;
+    Prov.merge t id oid;
+    oid
   else Some id
 
 (* Represent the union of two e-classes with a "union" node. *)
@@ -138,11 +137,14 @@ and apply ~d ~rules = function
 and apply_static ~d ~rules q t env = match q with
   | V x -> Map.find env x
   | P (o, ps) ->
-    O.List.map ps ~f:(fun q -> apply_static ~d ~rules q t env) |>
-    O.map ~f:(fun cs -> insert ~d ~rules t @@ N (o, cs))
+    let+ cs = O.List.map ps ~f:(fun q ->
+        apply_static ~d ~rules q t env) in
+    insert ~d ~rules t @@ N (o, cs)
 
 and apply_cond ~d ~rules q k t env =
-  if k t env then apply_static ~d ~rules q t env else None
+  let* () = O.guard @@ k t env in
+  apply_static ~d ~rules q t env
 
 and apply_dyn ~d ~rules q t env =
-  q t env |> O.bind ~f:(fun q -> apply_static ~d ~rules q t env)
+  let* q = q t env in
+  apply_static ~d ~rules q t env
