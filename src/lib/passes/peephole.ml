@@ -14,6 +14,11 @@ module Rules = struct
     Option.bind ~f:(Egraph.const eg) |>
     Option.is_some
 
+  let is_not_const x eg env =
+    Map.find env x |>
+    Option.bind ~f:(Egraph.const eg) |>
+    Option.is_none
+
   let is_neg_const x eg env =
     Option.is_some begin
       let open O.Syntax in
@@ -131,11 +136,9 @@ module Rules = struct
 
   let is_const_x = is_const "x"
   let is_const_y = is_const "y"
-
+  let is_not_const_y = is_not_const "y"
   let is_neg_const_y = is_neg_const "y"
-
   let lsr_asr_bitwidth_y_z = lsr_asr_bitwidth "y" "z"
-
   let mul_imm_pow2_y = mul_imm_pow2 x "y"
   let div_imm_pow2_y = div_imm_pow2 x "y"
   let rem_imm_pow2_y = rem_imm_pow2 x "y"
@@ -259,6 +262,20 @@ module Rules = struct
       (sub `i16 x y =>? add `i16 x (neg `i16 y)) ~if_:is_neg_const_y;
       (sub `i32 x y =>? add `i32 x (neg `i32 y)) ~if_:is_neg_const_y;
       (sub `i64 x y =>? add `i64 x (neg `i64 y)) ~if_:is_neg_const_y;
+      (* x + (-y) = (-y) + x = x - y *)
+      (add `i8 x (neg `i8 y) =>? sub `i8 x y) ~if_:is_not_const_y;
+      (add `i16 x (neg `i16 y) =>? sub `i16 x y) ~if_:is_not_const_y;
+      (add `i32 x (neg `i32 y) =>? sub `i32 x y) ~if_:is_not_const_y;
+      (add `i64 x (neg `i64 y) =>? sub `i64 x y) ~if_:is_not_const_y;
+      (add `i8 (neg `i8 y) x =>? sub `i8 x y) ~if_:is_not_const_y;
+      (add `i16 (neg `i16 y) x =>? sub `i16 x y) ~if_:is_not_const_y;
+      (add `i32 (neg `i32 y) x =>? sub `i32 x y) ~if_:is_not_const_y;
+      (add `i64 (neg `i64 y) x =>? sub `i64 x y) ~if_:is_not_const_y;
+      (* x - (-y) = x + y *)
+      (sub `i8 x (neg `i8 y) =>? add `i8 x y) ~if_:is_not_const_y;
+      (sub `i16 x (neg `i16 y) =>? add `i16 x y) ~if_:is_not_const_y;
+      (sub `i32 x (neg `i32 y) =>? add `i32 x y) ~if_:is_not_const_y;
+      (sub `i64 x (neg `i64 y) =>? add `i64 x y) ~if_:is_not_const_y;
       (* x + 0 = x. *)
       add `i8 x  (i8 0) => x;
       add `i16 x (i16 0) => x;
