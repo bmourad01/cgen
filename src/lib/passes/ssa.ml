@@ -4,10 +4,8 @@ open Regular.Std
 open Virtual
 
 exception Missing_blk of Label.t
-exception Type_error of Error.t
 
 type env = {
-  fn       : func;
   live     : Live.t;
   cfg      : Cfg.t;
   dom      : Label.t tree;
@@ -15,10 +13,9 @@ type env = {
   blks     : blk Label.Table.t;
   stk      : Var.t list Var.Table.t;
   nums     : int Var.Table.t;
-  typs     : Typecheck.env;
 }
 
-let init fn typs =
+let init fn =
   let live = Live.compute fn in
   let cfg = Cfg.create fn in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
@@ -28,9 +25,7 @@ let init fn typs =
   let nums = Var.Table.create () in
   Func.blks fn |> Seq.iter ~f:(fun b ->
       Hashtbl.set blks ~key:(Blk.label b) ~data:b);
-  {fn; live; cfg; dom; frontier; blks; stk; nums; typs}
-
-let typeof_var env x = Typecheck.Env.typeof_var env.fn x env.typs
+  {live; cfg; dom; frontier; blks; stk; nums}
 
 let find_blk env l = match Hashtbl.find env.blks l with
   | None when Label.is_pseudo l -> None
@@ -44,7 +39,7 @@ module Phi : sig
 end = struct
   type state = {
     defs : Label.Set.t Var.Table.t;
-    args : (Var.t * Blk.arg_typ) list Label.Table.t;
+    args : Var.t list Label.Table.t;
     ctrl : ctrl Label.Table.t;
     outs : Var.t list Label.Tree.t Label.Table.t;
   }
@@ -60,7 +55,7 @@ end = struct
   let has_arg st l x =
     Hashtbl.find st.args l |>
     Option.value_map ~default:false ~f:(fun args ->
-        List.Assoc.mem args x ~equal:Var.equal)
+        List.mem args x ~equal:Var.equal)
 
   let init env =
     let defs = Var.Table.create () in
@@ -70,7 +65,7 @@ end = struct
     Hashtbl.iteri env.blks ~f:(fun ~key:l ~data:b ->
         let args' = Seq.to_list @@ Blk.args b in
         Hashtbl.set args ~key:l ~data:args';
-        List.iter args' ~f:(fun (x, _) -> define defs x l);
+        List.iter args' ~f:(fun x -> define defs x l);
         Blk.insns b |> Seq.filter_map ~f:Insn.lhs |>
         Seq.iter ~f:(fun x -> define defs x l);
         Hashtbl.set ctrl ~key:l ~data:(Blk.ctrl b));
@@ -85,18 +80,9 @@ end = struct
                 ~has:(List.cons x)
                 ~nil:(fun () -> [x])))
 
-  let typ_err env x c = Error.createf
-      "Cannot have block argument for variable %a \
-       of type :%s in function $%s" Var.pps x
-      (Type.compound_name c) (Func.name env.fn)
-
-  let add_arg env st l x = match typeof_var env x with
-    | Error err -> raise @@ Type_error err
-    | Ok (#Type.compound as c) -> raise @@ Type_error (typ_err env x c)
-    | Ok ((#Type.basic | #Type.special) as t) ->
-      let data = x, (t :> Blk.arg_typ) in
-      Hashtbl.add_multi st.args ~key:l ~data;
-      update_incoming env l x st.outs
+  let add_arg env st l x =
+    Hashtbl.add_multi st.args ~key:l ~data:x;
+    update_incoming env l x st.outs
 
   let iterated_frontier f blks =
     let blks = Set.add blks Label.pseudoentry in
@@ -181,9 +167,7 @@ end = struct
     y
 
   let rename_args env b =
-    Blk.args b |>
-    Seq.map ~f:(fun (x, t) -> new_name env x, t) |>
-    Seq.to_list
+    Blk.args b |> Seq.map ~f:(new_name env) |> Seq.to_list
 
   let map_var env x = match Hashtbl.find env.stk x with
     | Some [] | None -> x
@@ -255,7 +239,7 @@ end = struct
     let pop x = Var.base x |> Hashtbl.change env.stk ~f:(function
         | Some ([] | [_]) | None -> None
         | Some (_ :: xs) -> Some xs) in
-    Blk.args b |> Seq.map ~f:fst |> Seq.iter ~f:pop;
+    Blk.args b |> Seq.iter ~f:pop;
     Blk.insns b |> Seq.filter_map ~f:Insn.lhs |> Seq.iter ~f:pop
 
   let rec rename_block env l =
@@ -280,12 +264,9 @@ let try_ fn f = try f () with
     Or_error.errorf
       "SSA: missing block %a in function $%s"
       Label.pps l (Func.name fn)
-  | Type_error err ->
-    Or_error.errorf "SSA: type error: %s" @@
-    Error.to_string_hum err
 
-let run typs fn = try_ fn @@ fun () ->
-  let env = init fn typs in
+let run fn = try_ fn @@ fun () ->
+  let env = init fn in
   Phi.go env;
   Rename.go env;
   Hashtbl.data env.blks |>

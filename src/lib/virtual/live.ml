@@ -47,9 +47,7 @@ let block_transitions g fn =
         insns;
       }) |> fun init ->
   Label.Tree.fold blks ~init ~f:(fun ~key ~data:b init ->
-      let args =
-        Blk.args b |> Seq.map ~f:fst |>
-        Seq.fold ~init:Var.Set.empty ~f:Set.add in
+      let args = Blk.args b |> Seq.fold ~init:Var.Set.empty ~f:Set.add in
       Cfg.Node.preds key g |>
       Seq.filter ~f:(Label.Tree.mem blks) |>
       Seq.fold ~init ~f:(fun fs p -> update p fs ~f:(fun x ->

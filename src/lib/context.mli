@@ -56,7 +56,7 @@ module Virtual : sig
       [phi], [insns], and [ctrl], while generating a fresh label for the
       block. *)
   val blk :
-    ?args:(var * Virtual.Blk.arg_typ) list ->
+    ?args:var list ->
     ?insns:Virtual.insn list ->
     ctrl:Virtual.ctrl ->
     unit ->
@@ -66,7 +66,7 @@ module Virtual : sig
       Allows a pre-existing label for the block. *)
   val blk' :
     ?label:label option ->
-    ?args:(var * Virtual.Blk.arg_typ) list ->
+    ?args:var list ->
     ?insns:Virtual.Insn.op list ->
     ctrl:Virtual.ctrl ->
     unit ->

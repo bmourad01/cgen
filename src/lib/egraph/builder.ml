@@ -210,8 +210,7 @@ let step env eg l = match Hashtbl.find eg.input.tbl l with
   | None | Some `insn _ -> raise @@ Missing l
   | Some `blk b ->
     env.lst <- Hashtbl.find_exn eg.input.lst l;
-    Blk.args b |> Seq.iter ~f:(fun (x, _) ->
-        ignore @@ var env eg x);
+    Blk.args b |> Seq.iter ~f:(fun x -> ignore @@ var env eg x);
     Blk.insns b |> Seq.iter ~f:(fun i ->
         insn env eg (Insn.label i) (Insn.op i));
     ctrl env eg l @@ Blk.ctrl b

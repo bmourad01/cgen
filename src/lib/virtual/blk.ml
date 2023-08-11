@@ -2,18 +2,10 @@ open Core
 open Regular.Std
 open Common
 
-type arg_typ = [
-  | Type.basic
-  | Type.special
-] [@@deriving bin_io, compare, equal, sexp]
-
-let pp_arg_typ ppf t =
-  Format.fprintf ppf "%a" Type.pp (t :> Type.t)
-
 module T = struct
   type t = {
     label : Label.t;
-    args  : (Var.t * arg_typ) ftree;
+    args  : Var.t ftree;
     insns : Insn.t ftree;
     ctrl  : Ctrl.t;
   } [@@deriving bin_io, compare, equal, sexp]
@@ -59,7 +51,7 @@ let free_vars b = snd @@ liveness b
 let uses_var b x = Set.mem (free_vars b) x
 
 let map_args b ~f = {
-  b with args = Ftree.map b.args ~f:(fun (x, t) -> f x t);
+  b with args = Ftree.map b.args ~f:(fun x -> f x);
 }
 
 let map_insns b ~f = {
@@ -86,14 +78,12 @@ let append ?(after = None) xs x f = match after with
     | Some i -> Ftree.insert xs x (i + 1)
     | None -> xs
 
-let is_arg (x, _) y = Var.(x = y)
-
 let prepend_arg ?(before = None) b a = {
-  b with args = prepend b.args a is_arg ~before;
+  b with args = prepend b.args a Var.equal ~before;
 }
 
 let append_arg ?(after = None) b a = {
-  b with args = append b.args a is_arg ~after;
+  b with args = append b.args a Var.equal ~after;
 }
 
 let prepend_insn ?(before = None) b d = {
@@ -105,31 +95,22 @@ let append_insn ?(after = None) b d = {
 }
 
 let remove xs i f = Ftree.remove_if xs ~f:(Fn.flip f i)
-let remove_arg b x = {b with args = remove b.args x is_arg}
+let remove_arg b x = {b with args = remove b.args x Var.equal}
 let remove_insn b l = {b with insns = remove b.insns l Insn.has_label}
 
-let has_arg b x = Ftree.exists b.args ~f:(Fn.flip is_arg x)
-
-let typeof_arg b x =
-  Ftree.find b.args ~f:(Fn.flip is_arg x) |>
-  Option.map ~f:snd
-
+let has_arg b x = Ftree.exists b.args ~f:(Var.equal x)
 let has_lhs b x = Ftree.exists b.insns ~f:(fun i -> Insn.(has_lhs i) x)
 let defines_var b x = has_arg b x || has_lhs b x
-
 let has_insn b l = Ftree.exists b.insns ~f:(Fn.flip Insn.has_label l)
 let find_insn b l = Ftree.find b.insns ~f:(Fn.flip Insn.has_label l)
 let next_insn b l = Ftree.next b.insns ~f:(Fn.flip Insn.has_label l)
 let prev_insn b l = Ftree.prev b.insns ~f:(Fn.flip Insn.has_label l)
 
-let pp_arg ppf (x, t) =
-  Format.fprintf ppf "%a %a" pp_arg_typ t Var.pp x
-
 let pp_args ppf args =
   let sep ppf = Format.fprintf ppf ", " in
   if not @@ Ftree.is_empty args then
     Format.fprintf ppf "(%a)"
-      (Ftree.pp pp_arg sep) args
+      (Ftree.pp Var.pp sep) args
 
 let pp ppf b =
   let sep ppf = Format.fprintf ppf "@;" in

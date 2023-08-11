@@ -174,14 +174,14 @@ let blk_args fn blk =
   let* env = M.get () in
   let* env, _ =
     let init = env, Var.Set.empty in
-    Blk.args blk |> M.Seq.fold ~init ~f:(fun (env, seen) (v, t) ->
-        if Set.mem seen v then
+    Blk.args blk |> M.Seq.fold ~init ~f:(fun (env, seen) x ->
+        if Set.mem seen x then
           M.fail @@ Error.createf
             "Duplicate argument %a for block %a in function $%s"
-            Var.pps v Label.pps (Blk.label blk) (Func.name fn)
+            Var.pps x Label.pps (Blk.label blk) (Func.name fn)
         else
-          let*? env = Env.add_var fn v (t :> Type.t) env in
-          !!(env, Set.add seen v)) in
+          let*? _ = Env.typeof_var fn x env in
+          !!(env, Set.add seen x)) in
   M.put env
 
 let expect_ptr_size_base_var fn blk l v t word msg =
@@ -632,20 +632,6 @@ let unequal_lengths_ctrl fn blk l args targs =
     (Blk.label blk) (Func.name fn) (List.length targs)
     (List.length args)
 
-let unify_fail_arg_ctrl fn blk l t a t' =
-  let a = Format.asprintf "%a" pp_operand a in
-  M.fail @@ Error.createf
-    "Expected type %a for arg %s in jump to %a in \
-     block %a in function $%s, got %a"
-    Type.pps t a Label.pps l Label.pps
-    (Blk.label blk) (Func.name fn) Type.pps t'
-
-let unify_arg_ctrl fn blk l ta a t = match ta, t with
-  | #Type.t as ta, _ ->
-    let t = (t :> Type.t) in        
-    if Type.(ta = t) then !!()
-    else unify_fail_arg_ctrl fn blk l t a ta
-
 let check_var_dst fn _blk v =
   let* env = M.get () in
   let word = Target.word @@ Env.target env in
@@ -654,7 +640,6 @@ let check_var_dst fn _blk v =
   else M.lift_err @@ unify_fail t (word :> Type.t) v fn
 
 let check_label_dst blks fn blk l args =
-  let* env = M.get () in
   let*? b = match Label.Tree.find blks l with
     | Some b -> Ok b
     | None ->
@@ -662,12 +647,14 @@ let check_label_dst blks fn blk l args =
         "Jump destination %a at block %a in function $%s \
          does not exist." Label.pps l Label.pps (Blk.label blk)
         (Func.name fn) in
-  let targs = Seq.to_list @@ Seq.map ~f:snd @@ Blk.args b in
+  let targs = Seq.to_list @@ Blk.args b in
   match List.zip args targs with
   | Unequal_lengths -> unequal_lengths_ctrl fn blk l args targs
-  | Ok z -> M.List.iter z ~f:(fun (a, t) ->
+  | Ok z -> M.List.iter z ~f:(fun (a, x) ->
+      let* env = M.get () in
       let* ta = typeof_arg fn env a in
-      unify_arg_ctrl fn blk l ta a (t :> Type.t))
+      let*? env = Env.add_var fn x ta env in
+      M.put env)
 
 let check_dst blks fn blk : dst -> unit t = function
   | `addr _ | `sym _ -> !!()

@@ -599,20 +599,11 @@ type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A basic block. *)
 module Blk : sig
-  (** The type of an argument to a block. *)
-  type arg_typ = [
-    | Type.basic
-    | Type.special
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Pretty-prints the type of an argument. *)
-  val pp_arg_typ : Format.formatter -> arg_typ -> unit
-
   type t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a basic block. *)
   val create :
-    ?args:(Var.t * arg_typ) list ->
+    ?args:Var.t list ->
     ?insns:insn list ->
     label:Label.t ->
     ctrl:ctrl ->
@@ -623,7 +614,7 @@ module Blk : sig
   val label : t -> Label.t
 
   (** Returns the arguments of the basic block. *)
-  val args : ?rev:bool -> t -> (Var.t * arg_typ) seq
+  val args : ?rev:bool -> t -> Var.t seq
 
   (** Returns the sequence of data instructions. *)
   val insns : ?rev:bool -> t -> insn seq
@@ -675,7 +666,7 @@ module Blk : sig
   val prev_insn : t -> Label.t -> insn option
 
   (** Applies [f] to each argument of the block. *)
-  val map_args : t -> f:(Var.t -> arg_typ -> Var.t * arg_typ) -> t
+  val map_args : t -> f:(Var.t -> Var.t) -> t
 
   (** [map_insns b ~f] returns [b] with each data instruction applied
       to [f]. *)
@@ -692,7 +683,7 @@ module Blk : sig
       If [before] is [Some x], then [a] will appear directly before the
       argument [x]. If [x] doesn't exist, then [a] is not inserted.
   *)
-  val prepend_arg : ?before:Var.t option -> t -> (Var.t * arg_typ) -> t
+  val prepend_arg : ?before:Var.t option -> t -> Var.t -> t
 
   (** [append_arg b a ?after] appends the argument [a] to the block [b].
 
@@ -702,7 +693,7 @@ module Blk : sig
       If [after] is [Some x], then [a] will appear directly after the
       argument [x]. If [x] doesn't exist, then [a] is not inserted.
   *)
-  val append_arg : ?after:Var.t option -> t -> (Var.t * arg_typ) -> t
+  val append_arg : ?after:Var.t option -> t -> Var.t -> t
 
   (** [prepend_insn b d ?before] prepends the data instruction [d] to
       the block [b].
@@ -738,10 +729,6 @@ module Blk : sig
 
   (** [has_arg b x] returns true if [b] has an argument [x]. *)
   val has_arg : t -> Var.t -> bool
-
-  (** [typeof_arg b x] returns the type of argument [x] to [b], if it
-      exists. *)
-  val typeof_arg : t -> Var.t -> arg_typ option
 
   (** [has_lhs b x] returns [true] if a data instruction in [b] defines
       [x]. *)

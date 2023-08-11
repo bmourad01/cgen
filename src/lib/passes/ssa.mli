@@ -3,4 +3,4 @@
 open Core
 open Virtual
 
-val run : Typecheck.env -> func -> func Or_error.t
+val run : func -> func Or_error.t

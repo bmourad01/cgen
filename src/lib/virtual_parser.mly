@@ -97,7 +97,7 @@
 %token EQUALS
 %token ARROW
 %token ELIPSIS
-%token W L B H S D Z F
+%token W L B H S D Z
 %token <Type.basic> ADD DIV MUL REM SUB NEG
 %token <Type.imm> MULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token SLOT
@@ -149,14 +149,12 @@
 %type <Virtual.func m> func
 %type <((Var.t * Type.arg) list * bool) m> func_args
 %type <Type.basic> type_basic
-%type <Type.special> type_special
 %type <Type.arg> type_arg
-%type <Virtual.Blk.arg_typ> type_blk_arg
 %type <Linkage.t> linkage
 %type <string> section
 %type <Virtual.Func.slot m> slot
 %type <Virtual.blk m> blk
-%type <(Var.t * Virtual.Blk.arg_typ) m> blk_arg
+%type <Var.t m> blk_arg
 %type <Virtual.Ctrl.t m> ctrl
 %type <Virtual.Ctrl.swindex m> ctrl_index
 %type <((Bv.t * Type.imm) * Virtual.local) m> ctrl_table_entry
@@ -258,16 +256,9 @@ type_basic:
   | S { `f32 }
   | D { `f64 }
 
-type_special:
-  | F { `flag }
-
 type_arg:
   | b = type_basic { (b :> Type.arg) }
   | n = TYPENAME { `name n }
-
-type_blk_arg:
-  | b = type_basic { (b :> Virtual.Blk.arg_typ) }
-  | s = type_special { (s :> Virtual.Blk.arg_typ) }
 
 linkage:
   | section = option(section) EXPORT { Linkage.create () ~section ~export:true }
@@ -303,7 +294,7 @@ blk:
     }
 
 blk_arg:
-  | t = type_blk_arg v = var { let+ v = v in v, t }
+  | v = var { v }
 
 ctrl:
   | HLT { !!`hlt }

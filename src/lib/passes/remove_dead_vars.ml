@@ -49,7 +49,7 @@ let collect_unused_args live blks =
       let l = Blk.label b in
       let needed = Live.uses live l ++ Live.outs live l in
       let args =
-        Blk.args b |> Seq.filter_mapi ~f:(fun i (x, _) ->
+        Blk.args b |> Seq.filter_mapi ~f:(fun i x ->
             Option.some_if (x @/ needed) i) |>
         Int.Set.of_sequence in
       if Set.is_empty args then acc

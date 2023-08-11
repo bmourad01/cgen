@@ -124,7 +124,7 @@ let extend subst b b' =
   Blk.args b' |> Seq.to_list |> List.zip args |> function
   | Unequal_lengths -> None
   | Ok l ->
-    List.fold l ~init:subst ~f:(fun subst (o, (x, _)) ->
+    List.fold l ~init:subst ~f:(fun subst (o, x) ->
         Map.set subst ~key:x ~data:o) |> O.return
 
 (* Various state. *)
@@ -288,7 +288,7 @@ module Contract = struct
 
   let init_subst env l args =
     let* b = Hashtbl.find env.blks l in
-    let args' = Seq.to_list @@ Seq.map ~f:fst @@ Blk.args b in
+    let args' = Seq.to_list @@ Blk.args b in
     match List.zip args' args with
     | Unequal_lengths -> None
     | Ok xs -> match Var.Map.of_alist xs with
