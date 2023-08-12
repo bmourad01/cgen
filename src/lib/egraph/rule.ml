@@ -32,6 +32,7 @@ module Op = struct
   let rem     t = bop (`rem t)
   let sub     t = bop (`sub t)
   let udiv    t = bop (`udiv t)
+  let umulh   t = bop (`umulh t)
   let urem    t = bop (`urem t)
   let and_    t = bop (`and_ t)
   let or_     t = bop (`or_ t)

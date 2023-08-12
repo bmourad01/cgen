@@ -55,6 +55,7 @@ let commute = function
       | `add _
       | `mul _
       | `mulh _
+      | `umulh _
       | `and_ _
       | `or_ _
       | `xor _
@@ -135,6 +136,13 @@ module Eval = struct
     let m = Bv.modulus sz in
     let m2 = Bv.modulus (sz * 2) in
     let sh = Bv.(int sz mod m) in
+    Bv.((((a * b) mod m2) asr sh) mod m)
+
+  let umulh t a b =
+    let sz = Type.sizeof_imm t in
+    let m = Bv.modulus sz in
+    let m2 = Bv.modulus (sz * 2) in
+    let sh = Bv.(int sz mod m) in
     Bv.((((a * b) mod m2) lsr sh) mod m)
 
   let rol t a b =
@@ -168,6 +176,7 @@ module Eval = struct
       Some (`int (Bv.((sdiv a b) mod imod t), t))
     | `mul  (#Type.imm as t) -> Some (`int (Bv.((a * b) mod imod t), t))
     | `mulh (#Type.imm as t) -> Some (`int (mulh t a b, t))
+    | `umulh (#Type.imm as t) -> Some (`int (umulh t a b, t))
     | `rem (#Type.imm as t) when Bv.(b <> zero) ->
       Some (`int (Bv.((srem a b) mod imod t), t))
     | `sub (#Type.imm as t) -> Some (`int (Bv.((a - b) mod imod t), t))

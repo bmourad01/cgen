@@ -99,7 +99,7 @@
 %token ELIPSIS
 %token W L B H S D Z
 %token <Type.basic> ADD DIV MUL REM SUB NEG
-%token <Type.imm> MULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
+%token <Type.imm> MULH UMULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token SLOT
 %token <Type.basic> LOAD STORE EQ GE GT LE LT NE
 %token <Type.imm> SGE SGT SLE SLT
@@ -443,6 +443,7 @@ insn_arith_binop:
   | t = REM { `rem t }
   | t = SUB { `sub t }
   | t = UDIV { `udiv t }
+  | t = UMULH { `umulh t }
   | t = UREM { `urem t }
 
 insn_bitwise_binop:

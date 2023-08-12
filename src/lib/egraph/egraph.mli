@@ -146,6 +146,7 @@ module Rule : sig
     val rem : Type.basic -> pattern -> pattern -> pattern
     val sub : Type.basic -> pattern -> pattern -> pattern
     val udiv : Type.imm -> pattern -> pattern -> pattern
+    val umulh : Type.imm -> pattern -> pattern -> pattern
     val urem : Type.imm -> pattern -> pattern -> pattern
     val and_ : Type.imm -> pattern -> pattern -> pattern
     val or_ : Type.imm -> pattern -> pattern -> pattern

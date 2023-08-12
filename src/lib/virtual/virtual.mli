@@ -102,7 +102,7 @@ module Insn : sig
 
       [`mul t]: multiplication.
 
-      [`mulh t]: immediate high multiplication.
+      [`mulh t]: signed immediate high multiplication.
 
       [`rem t]: remainder.
 
@@ -110,17 +110,20 @@ module Insn : sig
 
       [`udiv t]: unsigned division (immediate only).
 
+      [`umulh t]: unsigned immediate high multiplication.
+
       [`urem t]: unsigned remainder (immediate only).
   *)
   type arith_binop = [
-    | `add  of Type.basic
-    | `div  of Type.basic
-    | `mul  of Type.basic
-    | `mulh of Type.imm
-    | `rem  of Type.basic
-    | `sub  of Type.basic
-    | `udiv of Type.imm
-    | `urem of Type.imm
+    | `add   of Type.basic
+    | `div   of Type.basic
+    | `mul   of Type.basic
+    | `mulh  of Type.imm
+    | `rem   of Type.basic
+    | `sub   of Type.basic
+    | `udiv  of Type.imm
+    | `umulh of Type.imm
+    | `urem  of Type.imm
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints the arithmetic binary operator. *)

@@ -4,6 +4,90 @@ open Context.Syntax
 
 module O = Monad.Option
 
+module Magic_div = struct
+  type u = {
+    mul : Bitvec.t;
+    add : bool;
+    shr : int;
+  }
+
+  let unsigned d t =
+    let sz = Type.sizeof_imm t in
+    let sz1 = sz - 1 in
+    let sz2 = sz * 2 in
+    let module B = (val Bv.modular sz) in
+    let nc = B.(ones - (~-d) % d) in
+    let mins = B.(one lsl int sz1) in
+    let maxs = B.(mins - one) in
+    let rec loop a p q1 r1 q2 r2 =
+      let p = p + 1 in
+      let q1, r1 = if Bitvec.(B.(r1 >= (nc - r1)))
+        then B.(q1 * int 2 + one, r1 * int 2 - nc)
+        else B.(q1 * int 2, r1 * int 2) in
+      let a, q2, r2 =
+        if Bitvec.(B.(r2 + one >= d - r2)) then
+          a || Bitvec.(q2 >= maxs),
+          B.(q2 * int 2 + one),
+          B.(((r2 * int 2) + one) - d)
+        else
+          a || Bitvec.(q2 >= mins),
+          B.(q2 * int 2),
+          B.(r2 * int 2 + one) in
+      let delta = B.(d - one - r2) in
+      if p >= sz2 || (
+          Bitvec.(q1 >= delta) &&
+          Bitvec.(q1 <> delta || r1 <> B.zero)
+        ) then loop a p q1 r1 q2 r2
+      else {
+        mul = B.(q2 + one);
+        add = a;
+        shr = p - sz
+      } in
+    let q1 = B.(mins / nc) in
+    let r1 = B.(mins - q1 * nc) in
+    let q2 = B.(maxs / d) in
+    let r2 = B.(maxs - q2 * d) in
+    loop false sz1 q1 r1 q2 r2
+
+  type s = {
+    mul : Bitvec.t;
+    shr : int;
+  }
+
+  let signed d t =
+    let sz = Type.sizeof_imm t in
+    let sz1 = sz - 1 in
+    let module B = (val Bv.modular sz) in
+    let mins = B.(one lsl int sz1) in
+    let ad = B.abs d in
+    let t = B.(mins + bool (msb d)) in
+    let anc = B.((t - one) - (t % ad)) in
+    let rec loop p q1 r1 q2 r2 =
+      let p = p + 1 in
+      let q1 = B.(q1 * int 2) in
+      let r1 = B.(r1 * int 2) in
+      let q1, r1 = if Bitvec.(r1 >= anc)
+        then B.(q1 + one, r1 - anc)
+        else q1, r1 in
+      let q2 = B.(q2 * int 2) in
+      let r2 = B.(r2 * int 2) in
+      let q2, r2 = if Bitvec.(r2 >= ad)
+        then B.(q2 + one, r2 - ad)
+        else q2, r2 in
+      let delta = B.(ad - r2) in
+      if Bitvec.(q1 < delta || (q1 = delta && r1 = zero)) then
+        let m = B.(q2 + one) in {
+          mul = if B.msb d then B.neg m else m;
+          shr = p - sz;
+        }
+      else loop p q1 r1 q2 r2 in
+    let q1 = B.(mins / anc) in
+    let r1 = B.(mins - q1 * anc) in
+    let q2 = B.(mins / ad) in
+    let r2 = B.(mins - q2 * ad) in
+    loop sz1 q1 r1 q2 r2
+end
+
 module Rules = struct
   open Egraph.Rule
 
@@ -81,6 +165,36 @@ module Rules = struct
         Op.(asr_ ty (add tb (lsr_ ty x (int s ty)) x) (int B.one ty))
     | _ -> None
 
+  (* Turn a signed division/remainder by a constant non-power of two into
+     a series of multiplications and shifts. *)
+  let div_rem_imm_non_pow2 ?(rem = false) x y eg env =
+    let open O.Syntax in
+    Map.find env y >>= Egraph.const eg >>= function
+    | `int (i, ty) ->
+      let n = Bv.to_int64 i in
+      O.guard Int64.(
+          n <> -1L &&
+          n <> 0L &&
+          n <> 1L &&
+          (n land pred n) <> 0L
+        ) >>| fun () ->
+      let module B = (val bv ty) in
+      let sz1 = Type.sizeof_imm ty - 1 in
+      let s = Magic_div.signed i ty in
+      let tb = (ty :> Type.basic) in
+      let q1 = Op.(mulh ty x (int s.mul ty)) in
+      let q2 =
+        if Int64.(n > 0L) && B.msb s.mul then
+          Op.add tb q1 x
+        else if Int64.(n < 0L) && not (B.msb s.mul) then
+          Op.sub tb q1 x
+        else q1 in
+      let q3 = if s.shr = 0 then q2
+        else Op.(asr_ ty q2 (int B.(int s.shr) ty)) in
+      let qf = Op.(add tb q3 (lsr_ ty q3 (int B.(int sz1) ty))) in
+      if rem then Op.(sub tb x (mul tb qf (int i ty))) else qf
+    | _ -> None
+
   (*  For a signed remainder by a power of two `n` modulo `k` bits, rewrite to:
 
       ((x + t) & (n-1)) - t
@@ -130,6 +244,34 @@ module Rules = struct
       Op.(and_ ty x (int B.(int64 i') ty))
     | _ -> None
 
+  (* Turn an unsigned division/remainder by a constant non-power of two
+     into a series of multiplications and shifts. *)
+  let udiv_urem_imm_non_pow2 ?(rem = false) x y eg env =
+    let open O.Syntax in
+    Map.find env y >>= Egraph.const eg >>= function
+    | `int (i, ty) ->
+      let n = Bv.to_int64 i in
+      O.guard Int64.(
+          n <> 0L &&
+          n <> 1L &&
+          (n land pred n) <> 0L
+        ) >>| fun () ->
+      let module B = (val bv ty) in
+      let u = Magic_div.unsigned i ty in
+      let tb = (ty :> Type.basic) in
+      let q1 = Op.(umulh ty x (int u.mul ty)) in
+      let qf =
+        if u.add then
+          Op.(lsr_ ty
+                (add tb (lsr_ ty (sub tb x q1) (int B.one ty)) q1)
+                (int B.(int Int.(u.shr - 1)) ty))
+        else if u.shr > 0 then
+          Op.(lsr_ ty q1 (int B.(int u.shr) ty))
+        else q1 in
+      if not rem then qf
+      else Op.(sub tb x (mul tb qf (int i ty)))
+    | _ -> None
+
   let x = var "x"
   let y = var "y"
   let z = var "z"
@@ -142,8 +284,12 @@ module Rules = struct
   let mul_imm_pow2_y = mul_imm_pow2 x "y"
   let div_imm_pow2_y = div_imm_pow2 x "y"
   let rem_imm_pow2_y = rem_imm_pow2 x "y"
+  let div_imm_non_pow2_y = div_rem_imm_non_pow2 x "y"
+  let rem_imm_non_pow2_y = div_rem_imm_non_pow2 x "y" ~rem:true
   let udiv_imm_pow2_y = udiv_imm_pow2 x "y"
   let urem_imm_pow2_y = urem_imm_pow2 x "y"
+  let udiv_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y"
+  let urem_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y" ~rem:true
 
   let rules = Op.[
       (* Commutativity of constants. *)
@@ -159,6 +305,10 @@ module Rules = struct
       (mulh `i16 x y =>? mulh `i16 y x) ~if_:is_const_x;
       (mulh `i32 x y =>? mulh `i32 y x) ~if_:is_const_x;
       (mulh `i64 x y =>? mulh `i64 y x) ~if_:is_const_x;
+      (umulh `i8 x y =>? umulh `i8 y x) ~if_:is_const_x;
+      (umulh `i16 x y =>? umulh `i16 y x) ~if_:is_const_x;
+      (umulh `i32 x y =>? umulh `i32 y x) ~if_:is_const_x;
+      (umulh `i64 x y =>? umulh `i64 y x) ~if_:is_const_x;
       (and_ `i8 x y =>? and_ `i8 y x) ~if_:is_const_x;
       (and_ `i16 x y =>? and_ `i16 y x) ~if_:is_const_x;
       (and_ `i32 x y =>? and_ `i32 y x) ~if_:is_const_x;
@@ -325,6 +475,10 @@ module Rules = struct
       mulh `i16 x (i16 0) => i16 0;
       mulh `i32 x (i32 0l) => i32 0l;
       mulh `i64 x (i64 0L) => i64 0L;
+      umulh `i8 x  (i8 0) =>  i8 0;
+      umulh `i16 x (i16 0) => i16 0;
+      umulh `i32 x (i32 0l) => i32 0l;
+      umulh `i64 x (i64 0L) => i64 0L;
       (* x * 1 = x *)
       mul `i8 x  (i8 1) => x;
       mul `i16 x (i16 1) => x;
@@ -334,6 +488,10 @@ module Rules = struct
       mulh `i16 x (i16 1) => x;
       mulh `i32 x (i32 1l) => x;
       mulh `i64 x (i64 1L) => x;
+      umulh `i8 x  (i8 1) => x;
+      umulh `i16 x (i16 1) => x;
+      umulh `i32 x (i32 1l) => x;
+      umulh `i64 x (i64 1L) => x;
       (* x * -1 = -x *)
       mul `i8 x  (i8 (-1)) => neg `i8 x;
       mul `i16 x (i16 (-1)) => neg `i16 x;
@@ -349,26 +507,42 @@ module Rules = struct
       mul `i16 x y =>* mul_imm_pow2_y;
       mul `i32 x y =>* mul_imm_pow2_y;
       mul `i64 x y =>* mul_imm_pow2_y;
-      (* signed x / c when c is power of two *)
+      (* signed x / c when c is constant *)
       div `i8 x y =>* div_imm_pow2_y;
       div `i16 x y =>* div_imm_pow2_y;
       div `i32 x y =>* div_imm_pow2_y;
       div `i64 x y =>* div_imm_pow2_y;
-      (* signed x % c when c is power of two *)
+      div `i8 x y =>* div_imm_non_pow2_y;
+      div `i16 x y =>* div_imm_non_pow2_y;
+      div `i32 x y =>* div_imm_non_pow2_y;
+      div `i64 x y =>* div_imm_non_pow2_y;
+      (* signed x % c when c is a constant *)
       rem `i8 x y =>* rem_imm_pow2_y;
       rem `i16 x y =>* rem_imm_pow2_y;
       rem `i32 x y =>* rem_imm_pow2_y;
       rem `i64 x y =>* rem_imm_pow2_y;
-      (* unsigned x / c = x >> log2(c) when c is power of two *)
+      rem `i8 x y =>* rem_imm_non_pow2_y;
+      rem `i16 x y =>* rem_imm_non_pow2_y;
+      rem `i32 x y =>* rem_imm_non_pow2_y;
+      rem `i64 x y =>* rem_imm_non_pow2_y;
+      (* unsigned x / c = x >> log2(c) when c is a constant *)
       udiv `i8 x y =>* udiv_imm_pow2_y;
       udiv `i16 x y =>* udiv_imm_pow2_y;
       udiv `i32 x y =>* udiv_imm_pow2_y;
       udiv `i64 x y =>* udiv_imm_pow2_y;
-      (* unsigned x % c = x & (c - 1) when c is power of two *)
+      udiv `i8 x y =>* udiv_imm_non_pow2_y;
+      udiv `i16 x y =>* udiv_imm_non_pow2_y;
+      udiv `i32 x y =>* udiv_imm_non_pow2_y;
+      udiv `i64 x y =>* udiv_imm_non_pow2_y;
+      (* unsigned x % c = x & (c - 1) when c is a constant *)
       urem `i8 x y =>* urem_imm_pow2_y;
       urem `i16 x y =>* urem_imm_pow2_y;
       urem `i32 x y =>* urem_imm_pow2_y;
       urem `i64 x y =>* urem_imm_pow2_y;
+      urem `i8 x y =>* urem_imm_non_pow2_y;
+      urem `i16 x y =>* urem_imm_non_pow2_y;
+      urem `i32 x y =>* urem_imm_non_pow2_y;
+      urem `i64 x y =>* urem_imm_non_pow2_y;
       (* x / 1 = x *)
       div `i8  x (i8 1) => x;
       div `i16 x (i16 1) => x;

@@ -2,25 +2,27 @@ open Core
 open Common
 
 type arith_binop = [
-  | `add  of Type.basic
-  | `div  of Type.basic
-  | `mul  of Type.basic
-  | `mulh of Type.imm
-  | `rem  of Type.basic
-  | `sub  of Type.basic
-  | `udiv of Type.imm
-  | `urem of Type.imm
+  | `add   of Type.basic
+  | `div   of Type.basic
+  | `mul   of Type.basic
+  | `mulh  of Type.imm
+  | `rem   of Type.basic
+  | `sub   of Type.basic
+  | `udiv  of Type.imm
+  | `umulh of Type.imm
+  | `urem  of Type.imm
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_arith_binop ppf : arith_binop -> unit = function
-  | `add  t -> Format.fprintf ppf "add.%a"  Type.pp_basic t
-  | `div  t -> Format.fprintf ppf "div.%a"  Type.pp_basic t
-  | `mul  t -> Format.fprintf ppf "mul.%a"  Type.pp_basic t
-  | `mulh t -> Format.fprintf ppf "mulh.%a" Type.pp_imm t
-  | `rem  t -> Format.fprintf ppf "rem.%a"  Type.pp_basic t
-  | `sub  t -> Format.fprintf ppf "sub.%a"  Type.pp_basic t
-  | `udiv t -> Format.fprintf ppf "udiv.%a" Type.pp_imm t
-  | `urem t -> Format.fprintf ppf "urem.%a" Type.pp_imm t
+  | `add   t -> Format.fprintf ppf "add.%a"   Type.pp_basic t
+  | `div   t -> Format.fprintf ppf "div.%a"   Type.pp_basic t
+  | `mul   t -> Format.fprintf ppf "mul.%a"   Type.pp_basic t
+  | `mulh  t -> Format.fprintf ppf "mulh.%a"  Type.pp_imm t
+  | `rem   t -> Format.fprintf ppf "rem.%a"   Type.pp_basic t
+  | `sub   t -> Format.fprintf ppf "sub.%a"   Type.pp_basic t
+  | `udiv  t -> Format.fprintf ppf "udiv.%a"  Type.pp_imm t
+  | `umulh t -> Format.fprintf ppf "umulh.%a" Type.pp_imm t
+  | `urem  t -> Format.fprintf ppf "urem.%a"  Type.pp_imm t
 
 type arith_unop = [
   | `neg of Type.basic

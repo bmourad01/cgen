@@ -244,6 +244,7 @@ let op_arith_binop fn blk l tl al tr ar (o : Insn.arith_binop) =
     | `sub t -> t
     | `mulh t
     | `udiv t
+    | `umulh t
     | `urem t -> (t :> Type.basic) in
   let* () = unify_arg fn blk l tl al t in
   let+ () = unify_arg fn blk l tr ar t in
