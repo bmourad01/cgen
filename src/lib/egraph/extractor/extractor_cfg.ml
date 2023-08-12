@@ -12,7 +12,7 @@ type env = {
   insn        : Insn.op Label.Table.t;
   ctrl        : ctrl Label.Table.t;
   temp        : (Var.t * Label.t) Id.Table.t;
-  news        : Label.t list Label.Table.t;
+  news        : (Id.t * Label.t) list Label.Table.t;
   mutable cur : Label.t;
 }
 
@@ -53,10 +53,8 @@ let no_var l =
 
 let extract_label t l = match Hashtbl.find t.eg.lbl2id l with
   | None -> !!None
-  | Some id ->
-    let id = Common.find t.eg id in
-    match extract t id with
-    | None -> extract_fail l id
+  | Some id -> match extract t id with
+    | None -> extract_fail l @@ Common.find t.eg id
     | Some _ as e -> !!e
 
 let upd t x y = Hashtbl.update t x ~f:(Option.value ~default:y)
@@ -65,19 +63,19 @@ let find_var t l = match Hashtbl.find t.eg.input.tbl l with
   | Some `insn (_, _, Some x) -> !!(x, l)
   | Some _ | None -> no_var l
 
-let new_var env id = match Hashtbl.find env.temp id with
+let new_var env canon real = match Hashtbl.find env.temp canon with
   | Some p -> !!p
   | None ->
     let* l = Context.Label.fresh in
     let+ x = Context.Var.fresh in
-    Hashtbl.set env.temp ~key:id ~data:(x, l);
-    Hashtbl.add_multi env.news ~key:env.cur ~data:l;
+    Hashtbl.set env.temp ~key:canon ~data:(x, l);
+    Hashtbl.add_multi env.news ~key:env.cur ~data:(real, l);
     x, l
 
 let insn t env a f =
   let* x, l = match a with
     | Label l -> find_var t l
-    | Id id -> new_var env id in
+    | Id {canon; real} -> new_var env canon real in
   let+ op = f x in
   upd env.insn l op;
   `var x
@@ -314,8 +312,11 @@ let find_insn env l =
 
 let find_news env l =
   Hashtbl.find env.news l |>
-  Option.value_map ~default:[]
-    ~f:(List.filter_map ~f:(find_insn env))
+  Option.value_map ~default:[] ~f:(fun xs ->
+      List.sort xs ~compare:(fun (a, _) (b, _) ->
+          Id.compare a b) |>
+      List.filter_map ~f:(fun (_, l) ->
+          find_insn env l))
 
 let cfg t =
   let+ env = collect t Label.pseudoentry in

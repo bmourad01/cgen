@@ -7,11 +7,11 @@ module O = Monad.Option
 
 type prov =
   | Label of Label.t
-  | Id of id
+  | Id of {canon: id; real: id}
 
 let pp_prov ppf = function
   | Label l -> Format.fprintf ppf "%a" Label.pp l
-  | Id id -> Format.fprintf ppf "%d" id
+  | Id {canon; real} -> Format.fprintf ppf "%d:%d" canon real
 
 (* We'll use an intermediate data structure for smoothing
    out the edges of translating to both the expression tree
@@ -67,7 +67,7 @@ let cost t : enode -> int = function
       | Oset _ -> 0
       | Obr | Otbl _ | Ovar _ -> 2
       | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
-      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 32
+      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 45
       | Obinop _ -> 4
       | Oload _ | Ostore _ -> 5
       | Osel _ -> 8 in
@@ -101,23 +101,25 @@ let init eg =
   saturate t;
   t
 
-let prov t id = match Hashtbl.find t.eg.id2lbl id with
+let prov t cid id = match Hashtbl.find t.eg.id2lbl cid with
   | Some l -> Label l
-  | None -> Id id
+  | None -> match Hashtbl.find t.eg.id2lbl id with
+    | None -> Id {canon = cid; real = id}
+    | Some l -> Label l
 
 let rec extract t id =
-  let id = find t.eg id in
-  match Hashtbl.find t.memo id with
+  let cid = find t.eg id in
+  match Hashtbl.find t.memo cid with
   | Some _ as e -> e
   | None ->
-    let* _, n = Hashtbl.find t.table id in
+    let* _, n = Hashtbl.find t.table cid in
     match n with
     | N (op, cs) ->
       let+ cs = O.List.map cs ~f:(extract t) in
-      let e = E (prov t id, op, cs) in
+      let e = E (prov t cid id, op, cs) in
       Hashtbl.set t.memo ~key:id ~data:e;
       e
     | U {pre; post} ->
-      let id = find t.eg pre in
-      assert (id = find t.eg post);
-      extract t id
+      let id = find t.eg post in
+      assert (id = find t.eg pre);
+      extract t post
