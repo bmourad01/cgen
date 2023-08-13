@@ -131,19 +131,19 @@ module Eval = struct
 
   let imod t = Bv.modulus @@ Type.sizeof_imm t
 
-  let mulh t a b =
-    let sz = Type.sizeof_imm t in
-    let m = Bv.modulus sz in
-    let m2 = Bv.modulus (sz * 2) in
-    let sh = Bv.(int sz mod m) in
-    Bv.((((a * b) mod m2) asr sh) mod m)
-
   let umulh t a b =
     let sz = Type.sizeof_imm t in
     let m = Bv.modulus sz in
     let m2 = Bv.modulus (sz * 2) in
     let sh = Bv.(int sz mod m) in
     Bv.((((a * b) mod m2) lsr sh) mod m)
+
+  let mulh t a b =
+    let c = umulh t a b in
+    let m = imod t in
+    let s1 = if Bv.(msb a mod m) then b else Bv.zero in
+    let s2 = if Bv.(msb b mod m) then a else Bv.zero in
+    Bv.((((c - s1) mod m) - s2) mod m)
 
   let rol t a b =
     let sz = Type.sizeof_imm t in
