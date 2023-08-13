@@ -6,7 +6,7 @@ module O = Monad.Option
 
 module Magic_div = struct
   type u = {
-    mul : Bitvec.t;
+    mul : Bv.t;
     add : bool;
     shr : int;
   }
@@ -21,22 +21,22 @@ module Magic_div = struct
     let maxs = B.(mins - one) in
     let rec loop a p q1 r1 q2 r2 =
       let p = p + 1 in
-      let q1, r1 = if Bitvec.(B.(r1 >= (nc - r1)))
+      let q1, r1 = if Bv.(B.(r1 >= (nc - r1)))
         then B.(q1 * int 2 + one, r1 * int 2 - nc)
         else B.(q1 * int 2, r1 * int 2) in
       let a, q2, r2 =
-        if Bitvec.(B.(r2 + one >= d - r2)) then
-          a || Bitvec.(q2 >= maxs),
+        if Bv.(B.(r2 + one >= d - r2)) then
+          a || Bv.(q2 >= maxs),
           B.(q2 * int 2 + one),
           B.(((r2 * int 2) + one) - d)
         else
-          a || Bitvec.(q2 >= mins),
+          a || Bv.(q2 >= mins),
           B.(q2 * int 2),
           B.(r2 * int 2 + one) in
       let delta = B.(d - one - r2) in
       if p >= sz2 || (
-          Bitvec.(q1 >= delta) &&
-          Bitvec.(q1 <> delta || r1 <> B.zero)
+          Bv.(q1 >= delta) &&
+          Bv.(q1 <> delta || r1 <> B.zero)
         ) then loop a p q1 r1 q2 r2
       else {
         mul = B.(q2 + one);
@@ -50,7 +50,7 @@ module Magic_div = struct
     loop false sz1 q1 r1 q2 r2
 
   type s = {
-    mul : Bitvec.t;
+    mul : Bv.t;
     shr : int;
   }
 
@@ -66,16 +66,16 @@ module Magic_div = struct
       let p = p + 1 in
       let q1 = B.(q1 * int 2) in
       let r1 = B.(r1 * int 2) in
-      let q1, r1 = if Bitvec.(r1 >= anc)
+      let q1, r1 = if Bv.(r1 >= anc)
         then B.(q1 + one, r1 - anc)
         else q1, r1 in
       let q2 = B.(q2 * int 2) in
       let r2 = B.(r2 * int 2) in
-      let q2, r2 = if Bitvec.(r2 >= ad)
+      let q2, r2 = if Bv.(r2 >= ad)
         then B.(q2 + one, r2 - ad)
         else q2, r2 in
       let delta = B.(ad - r2) in
-      if Bitvec.(q1 < delta || (q1 = delta && r1 = zero)) then
+      if Bv.(q1 < delta || (q1 = delta && r1 = zero)) then
         let m = B.(q2 + one) in {
           mul = if B.msb d then B.neg m else m;
           shr = p - sz;
