@@ -5,6 +5,15 @@ open Virtual
 
 module O = Monad.Option
 
+(* We store the canonical and real IDs to help us determine
+   the ordering when reifying back to the CFG representation.
+
+   Canonical IDs help us extract the best term, but the real
+   ID of the term determines the ordering; in particular, we
+   order from oldest to newest. This makes sense since the way
+   we build terms in the e-graph will be such that terms with
+   a newer ID will always depend on an ID that is older.
+*)
 type prov =
   | Label of Label.t
   | Id of {canon: id; real: id}

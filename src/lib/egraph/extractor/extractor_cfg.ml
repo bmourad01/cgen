@@ -313,6 +313,7 @@ let find_insn env l =
 let find_news env l =
   Hashtbl.find env.news l |>
   Option.value_map ~default:[] ~f:(fun xs ->
+      (* Order them from oldest to newest. *)
       List.sort xs ~compare:(fun (a, _) (b, _) ->
           Id.compare a b) |>
       List.filter_map ~f:(fun (_, l) ->
