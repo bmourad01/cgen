@@ -12,7 +12,7 @@ type env = {
   insn        : Insn.op Label.Table.t;
   ctrl        : ctrl Label.Table.t;
   temp        : (Var.t * Label.t) Id.Table.t;
-  news        : (Id.t * Label.t) list Label.Table.t;
+  news        : Label.t Id.Map.t Label.Table.t;
   mutable cur : Label.t;
 }
 
@@ -66,10 +66,14 @@ let find_var t l = match Hashtbl.find t.eg.input.tbl l with
 let new_var env canon real = match Hashtbl.find env.temp canon with
   | Some p -> !!p
   | None ->
-    let* l = Context.Label.fresh in
-    let+ x = Context.Var.fresh in
+    let* x = Context.Var.fresh in
+    let+ l = Context.Label.fresh in
     Hashtbl.set env.temp ~key:canon ~data:(x, l);
-    Hashtbl.add_multi env.news ~key:env.cur ~data:(real, l);
+    Hashtbl.update env.news env.cur ~f:(function
+        | None -> Id.Map.singleton real l
+        | Some m -> match Map.add m ~key:real ~data:l with
+          | `Duplicate -> assert false
+          | `Ok m -> m);
     x, l
 
 let insn t env a f =
@@ -307,16 +311,14 @@ let collect t l =
   loop ()
 
 let find_insn env l =
-  Hashtbl.find env.insn l |>
-  Option.map ~f:(fun o -> Insn.create o ~label:l)
+  Hashtbl.find env.insn l |> Option.map ~f:(Insn.create ~label:l)
 
 let find_news ?(rev = false) env l =
-  let cmp = Id.compare in
-  let cmp = if rev then Fn.flip cmp else cmp in
+  let order = if rev then `Decreasing_key else `Increasing_key in
   Hashtbl.find env.news l |>
-  Option.value_map ~default:[] ~f:(fun xs ->
-      List.stable_sort xs ~compare:(fun (a, _) (b, _) -> cmp a b) |>
-      List.filter_map ~f:(fun (_, l) -> find_insn env l))
+  Option.value_map ~default:[] ~f:(fun m ->
+      Map.to_sequence ~order m |> Seq.map ~f:snd |>
+      Seq.filter_map ~f:(find_insn env) |> Seq.to_list)
 
 let cfg t =
   let+ env = collect t Label.pseudoentry in
