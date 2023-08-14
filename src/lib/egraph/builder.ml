@@ -41,14 +41,16 @@ let init rules = {
   lst = None;
 }
 
-let node ?l env eg op args =
-  Rewrite.insert ?l ~d:eg.fuel ~rules:env.rules
+let node ?ty ?l env eg op args =
+  Rewrite.insert ?ty ?l ~d:eg.fuel ~rules:env.rules
     eg @@ N (op, args)
 
-let atom env eg op = node env eg op []
+let atom ?ty env eg op = node ?ty env eg op []
 
 let var env eg x = Hashtbl.find_or_add env.vars x
-    ~default:(fun () -> atom env eg @@ Ovar x)
+    ~default:(fun () ->
+        let ty = typeof_var eg x in
+        atom ?ty env eg @@ Ovar x)
 
 let operand env eg : operand -> id = function
   | #const as c ->
@@ -75,7 +77,8 @@ let table env eg tbl =
       node env eg (Otbl i) [local env eg l]) |> Seq.to_list
 
 let prov ?x ?(f = Fn.const) env eg l op args =
-  let id = node ~l env eg op args in
+  let ty = Option.bind x ~f:(typeof_var eg) in
+  let id = node ?ty ~l env eg op args in
   Option.iter x ~f:(fun x ->
       match Hashtbl.add env.vars ~key:x ~data:id with
       | `Duplicate -> raise @@ Duplicate (x, l)

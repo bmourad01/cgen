@@ -17,6 +17,7 @@ let init input fuel = {
   imoved = Id.Table.create ();
   id2lbl = Id.Table.create ();
   lbl2id = Label.Table.create ();
+  typs = Id.Table.create ();
   fuel;
 }
 

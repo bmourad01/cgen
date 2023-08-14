@@ -90,6 +90,8 @@ end
 
 module Rules = struct
   open Egraph.Rule
+  open O.Let
+  open O.Syntax
 
   let bv t = Bv.modular @@ Type.sizeof_imm t
 
@@ -105,7 +107,6 @@ module Rules = struct
 
   let is_neg_const x eg env =
     Option.is_some begin
-      let open O.Syntax in
       Map.find env x >>= Egraph.const eg >>= function
       | `int (x, t) ->
         let module B = (val bv t) in
@@ -117,9 +118,8 @@ module Rules = struct
      we are extracting the MSB. *)
   let lsr_asr_bitwidth a b eg env =
     Option.is_some begin
-      let open O.Syntax in
-      Map.find env a >>= Egraph.const eg >>= fun a ->
-      Map.find env b >>= Egraph.const eg >>= fun b ->
+      let* a = Map.find env a >>= Egraph.const eg in
+      let* b = Map.find env b >>= Egraph.const eg in
       match a, b with
       | `int (a, ty), `int (b, ty') when Type.equal_imm ty ty' ->
         let a = Bv.to_int64 a in
@@ -132,11 +132,10 @@ module Rules = struct
   (* Dynamically rewrite a multiplication by a power of two into
      a left shift. *)
   let mul_imm_pow2 x y eg env =
-    let open O.Syntax in
     Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
-      O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
+      let+ () = O.guard Int64.(i <> 0L && (i land pred i) = 0L) in
       let module B = (val bv ty) in
       Op.(lsl_ ty x (int B.(int (Int64.ctz i)) ty))
     | _ -> None
@@ -148,11 +147,14 @@ module Rules = struct
      ((x >> (k-1)) + x) >>> 1 otherwise
   *)
   let div_imm_pow2 x y eg env =
-    let open O.Syntax in
     Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
-      O.guard Int64.(i <> 0L && i <> 1L && (i land pred i) = 0L) >>| fun () ->
+      let+ () = O.guard Int64.(
+          i <> 0L &&
+          i <> 1L &&
+          (i land pred i) = 0L
+        ) in
       let module B = (val bv ty) in
       let n = B.(int Int64.(ctz i)) in
       let i1 = B.(int64 Int64.(pred i)) in
@@ -168,16 +170,15 @@ module Rules = struct
   (* Turn a signed division/remainder by a constant non-power of two into
      a series of multiplications and shifts. *)
   let div_rem_imm_non_pow2 ?(rem = false) x y eg env =
-    let open O.Syntax in
     Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let n = Bv.to_int64 i in
-      O.guard Int64.(
+      let+ () = O.guard Int64.(
           n <> -1L &&
           n <> 0L &&
           n <> 1L &&
           (n land pred n) <> 0L
-        ) >>| fun () ->
+        ) in
       let module B = (val bv ty) in
       let sz1 = Type.sizeof_imm ty - 1 in
       let s = Magic_div.signed i ty in
@@ -204,11 +205,14 @@ module Rules = struct
       t = (x >>> (k-1)) >> (k - n)
   *)
   let rem_imm_pow2 x y eg env =
-    let open O.Syntax in
     Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let i' = Bv.to_int64 i in
-      O.guard Int64.(i' <> 0L && i' <> 1L && (i' land pred i') = 0L) >>| fun () ->
+      let+ () = O.guard Int64.(
+          i' <> 0L &&
+          i' <> 1L &&
+          (i' land pred i') = 0L
+        ) in
       let module B = (val bv ty) in
       let tb = (ty :> Type.basic) in
       let ss = B.(int (Type.sizeof_imm ty) - one) in
@@ -222,11 +226,10 @@ module Rules = struct
   (* Dynamically rewrite an unsigned division by a power of two into
      a right shift. *)
   let udiv_imm_pow2 x y eg env =
-    let open O.Syntax in
     Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
-      O.guard Int64.(i <> 0L && (i land pred i) = 0L) >>| fun () ->
+      let+ () = O.guard Int64.(i <> 0L && (i land pred i) = 0L) in
       let module B = (val bv ty) in
       Op.(lsr_ ty x (int B.(int (Int64.ctz i)) ty))
     | _ -> None
@@ -234,12 +237,11 @@ module Rules = struct
   (* Dynamically rewrite an unsigned remainder by a power of two into
      a bitwise AND. *)
   let urem_imm_pow2 x y eg env =
-    let open O.Syntax in
     Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       let i' = Int64.pred i in
-      O.guard Int64.(i <> 0L && (i land i') = 0L) >>| fun () ->
+      let+ () = O.guard Int64.(i <> 0L && (i land i') = 0L) in
       let module B = (val bv ty) in
       Op.(and_ ty x (int B.(int64 i') ty))
     | _ -> None
@@ -247,15 +249,14 @@ module Rules = struct
   (* Turn an unsigned division/remainder by a constant non-power of two
      into a series of multiplications and shifts. *)
   let udiv_urem_imm_non_pow2 ?(rem = false) x y eg env =
-    let open O.Syntax in
     Map.find env y >>= Egraph.const eg >>= function
     | `int (i, ty) ->
       let n = Bv.to_int64 i in
-      O.guard Int64.(
+      let+ () = O.guard Int64.(
           n <> 0L &&
           n <> 1L &&
           (n land pred n) <> 0L
-        ) >>| fun () ->
+        ) in
       let module B = (val bv ty) in
       let u = Magic_div.unsigned i ty in
       let tb = (ty :> Type.basic) in
@@ -271,6 +272,11 @@ module Rules = struct
       if not rem then qf
       else Op.(sub tb x (mul tb qf (int i ty)))
     | _ -> None
+
+  let trunc_extend_imm x ty eg env =
+    let* tx = Map.find env x >>= Egraph.typeof eg in
+    let+ () = O.guard @@ Type.equal tx (ty :> Type.t) in
+    var x
 
   let x = var "x"
   let y = var "y"
@@ -290,6 +296,7 @@ module Rules = struct
   let urem_imm_pow2_y = urem_imm_pow2 x "y"
   let udiv_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y"
   let urem_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y" ~rem:true
+  let trunc_extend_imm_x = trunc_extend_imm "x"
 
   let rules = Op.[
       (* Commutativity of constants. *)
@@ -864,6 +871,27 @@ module Rules = struct
       zext `i64 (zext `i16 x) => zext `i64 x;
       zext `i64 (zext `i32 x) => zext `i64 x;
       zext `i64 (zext `i64 x) => zext `i64 x;
+      (* itrunc (sext/zext x) to original type = x *)
+      itrunc `i8 (sext `i8 x) =>* trunc_extend_imm_x `i8;
+      itrunc `i8 (zext `i8 x) =>* trunc_extend_imm_x `i8;
+      itrunc `i8 (sext `i16 x) =>* trunc_extend_imm_x `i8;
+      itrunc `i8 (zext `i16 x) =>* trunc_extend_imm_x `i8;
+      itrunc `i8 (sext `i32 x) =>* trunc_extend_imm_x `i8;
+      itrunc `i8 (zext `i32 x) =>* trunc_extend_imm_x `i8;
+      itrunc `i8 (sext `i64 x) =>* trunc_extend_imm_x `i8;
+      itrunc `i8 (zext `i64 x) =>* trunc_extend_imm_x `i8;
+      itrunc `i16 (sext `i16 x) =>* trunc_extend_imm_x `i16;
+      itrunc `i16 (zext `i16 x) =>* trunc_extend_imm_x `i16;
+      itrunc `i16 (sext `i32 x) =>* trunc_extend_imm_x `i16;
+      itrunc `i16 (zext `i32 x) =>* trunc_extend_imm_x `i16;
+      itrunc `i16 (sext `i64 x) =>* trunc_extend_imm_x `i16;
+      itrunc `i16 (zext `i64 x) =>* trunc_extend_imm_x `i16;
+      itrunc `i32 (sext `i32 x) =>* trunc_extend_imm_x `i32;
+      itrunc `i32 (zext `i32 x) =>* trunc_extend_imm_x `i32;
+      itrunc `i32 (sext `i64 x) =>* trunc_extend_imm_x `i32;
+      itrunc `i32 (zext `i64 x) =>* trunc_extend_imm_x `i32;
+      itrunc `i64 (sext `i64 x) =>* trunc_extend_imm_x `i64;
+      itrunc `i64 (zext `i64 x) =>* trunc_extend_imm_x `i64;
       (* br true, x, y = jmp x *)
       br (bool true) x y => jmp x;
       (* br false, x, y = jmp y *)

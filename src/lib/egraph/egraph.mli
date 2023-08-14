@@ -105,6 +105,9 @@ val create : ?fuel:int -> func -> Typecheck.env -> rule list -> t Or_error.t
 (** Returns the constant associated with the e-class ID. *)
 val const : t -> id -> const option
 
+(** Returns the type associated with the e-class ID. *)
+val typeof : t -> id -> Type.t option
+
 module Rule : sig
   type t = rule
 
