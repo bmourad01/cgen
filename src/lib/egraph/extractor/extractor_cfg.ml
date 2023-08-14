@@ -310,14 +310,13 @@ let find_insn env l =
   Hashtbl.find env.insn l |>
   Option.map ~f:(fun o -> Insn.create o ~label:l)
 
-let find_news env l =
+let find_news ?(rev = false) env l =
+  let cmp = Id.compare in
+  let cmp = if rev then Fn.flip cmp else cmp in
   Hashtbl.find env.news l |>
   Option.value_map ~default:[] ~f:(fun xs ->
-      (* Order them from oldest to newest. *)
-      List.sort xs ~compare:(fun (a, _) (b, _) ->
-          Id.compare a b) |>
-      List.filter_map ~f:(fun (_, l) ->
-          find_insn env l))
+      List.stable_sort xs ~compare:(fun (a, _) (b, _) -> cmp a b) |>
+      List.filter_map ~f:(fun (_, l) -> find_insn env l))
 
 let cfg t =
   let+ env = collect t Label.pseudoentry in
@@ -331,6 +330,7 @@ let cfg t =
         Seq.fold ~init:(find_news env label) ~f:(fun acc i ->
             let label = Insn.label i in
             let i = find_insn env label |> Option.value ~default:i in
-            find_news env label @ (i :: acc)) in
+            let news = find_news env label ~rev:true in
+            List.rev_append news (i :: acc)) in
       Blk.create () ~insns ~ctrl ~label
         ~args:(Blk.args b |> Seq.to_list))
