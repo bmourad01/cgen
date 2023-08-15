@@ -878,11 +878,12 @@ module Rules = struct
       zext `i32 x =>* identity_same_type_x `i32;
       sext `i64 x =>* identity_same_type_x `i64;
       zext `i64 x =>* identity_same_type_x `i64;
+      (* itrunc i64 x = x *)
+      itrunc `i64 x => x;
       (* itrunc x to original type = x *)
       itrunc `i8 x =>* identity_same_type_x `i8;
       itrunc `i16 x =>* identity_same_type_x `i16;
       itrunc `i32 x =>* identity_same_type_x `i32;
-      itrunc `i64 x =>* identity_same_type_x `i64;
       (* itrunc (sext/zext x) to original type = x; these are the cases
          not covered by the general case above. *)
       itrunc `i8 (sext `i16 x) =>* identity_same_type_x `i8;
