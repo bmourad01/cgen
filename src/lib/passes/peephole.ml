@@ -273,7 +273,7 @@ module Rules = struct
       else Op.(sub tb x (mul tb qf (int i ty)))
     | _ -> None
 
-  let trunc_extend_imm x ty eg env =
+  let identity_same_type x ty eg env =
     let* tx = Map.find env x >>= Egraph.typeof eg in
     let+ () = O.guard @@ Type.equal tx (ty :> Type.t) in
     var x
@@ -296,7 +296,7 @@ module Rules = struct
   let urem_imm_pow2_y = urem_imm_pow2 x "y"
   let udiv_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y"
   let urem_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y" ~rem:true
-  let trunc_extend_imm_x = trunc_extend_imm "x"
+  let identity_same_type_x = identity_same_type "x"
 
   let rules = Op.[
       (* Commutativity of constants. *)
@@ -871,27 +871,41 @@ module Rules = struct
       zext `i64 (zext `i16 x) => zext `i64 x;
       zext `i64 (zext `i32 x) => zext `i64 x;
       zext `i64 (zext `i64 x) => zext `i64 x;
+      (* extend x to original type = x *)
+      sext `i16 x =>* identity_same_type_x `i16;
+      zext `i16 x =>* identity_same_type_x `i16;
+      sext `i32 x =>* identity_same_type_x `i32;
+      zext `i32 x =>* identity_same_type_x `i32;
+      sext `i64 x =>* identity_same_type_x `i64;
+      zext `i64 x =>* identity_same_type_x `i64;
+      (* itrunc x to original type = x *)
+      itrunc `i8 x =>* identity_same_type_x `i8;
+      itrunc `i16 x =>* identity_same_type_x `i16;
+      itrunc `i32 x =>* identity_same_type_x `i32;
+      itrunc `i64 x =>* identity_same_type_x `i64;
+      (* Special case for i8 trunc+extend; x must be i8 for this to be
+         well-typed *)
+      itrunc `i8 (sext `i8 x) => x;
+      itrunc `i8 (zext `i8 x) => x;
       (* itrunc (sext/zext x) to original type = x *)
-      itrunc `i8 (sext `i8 x) =>* trunc_extend_imm_x `i8;
-      itrunc `i8 (zext `i8 x) =>* trunc_extend_imm_x `i8;
-      itrunc `i8 (sext `i16 x) =>* trunc_extend_imm_x `i8;
-      itrunc `i8 (zext `i16 x) =>* trunc_extend_imm_x `i8;
-      itrunc `i8 (sext `i32 x) =>* trunc_extend_imm_x `i8;
-      itrunc `i8 (zext `i32 x) =>* trunc_extend_imm_x `i8;
-      itrunc `i8 (sext `i64 x) =>* trunc_extend_imm_x `i8;
-      itrunc `i8 (zext `i64 x) =>* trunc_extend_imm_x `i8;
-      itrunc `i16 (sext `i16 x) =>* trunc_extend_imm_x `i16;
-      itrunc `i16 (zext `i16 x) =>* trunc_extend_imm_x `i16;
-      itrunc `i16 (sext `i32 x) =>* trunc_extend_imm_x `i16;
-      itrunc `i16 (zext `i32 x) =>* trunc_extend_imm_x `i16;
-      itrunc `i16 (sext `i64 x) =>* trunc_extend_imm_x `i16;
-      itrunc `i16 (zext `i64 x) =>* trunc_extend_imm_x `i16;
-      itrunc `i32 (sext `i32 x) =>* trunc_extend_imm_x `i32;
-      itrunc `i32 (zext `i32 x) =>* trunc_extend_imm_x `i32;
-      itrunc `i32 (sext `i64 x) =>* trunc_extend_imm_x `i32;
-      itrunc `i32 (zext `i64 x) =>* trunc_extend_imm_x `i32;
-      itrunc `i64 (sext `i64 x) =>* trunc_extend_imm_x `i64;
-      itrunc `i64 (zext `i64 x) =>* trunc_extend_imm_x `i64;
+      itrunc `i8 (sext `i16 x) =>* identity_same_type_x `i8;
+      itrunc `i8 (zext `i16 x) =>* identity_same_type_x `i8;
+      itrunc `i8 (sext `i32 x) =>* identity_same_type_x `i8;
+      itrunc `i8 (zext `i32 x) =>* identity_same_type_x `i8;
+      itrunc `i8 (sext `i64 x) =>* identity_same_type_x `i8;
+      itrunc `i8 (zext `i64 x) =>* identity_same_type_x `i8;
+      itrunc `i16 (sext `i16 x) =>* identity_same_type_x `i16;
+      itrunc `i16 (zext `i16 x) =>* identity_same_type_x `i16;
+      itrunc `i16 (sext `i32 x) =>* identity_same_type_x `i16;
+      itrunc `i16 (zext `i32 x) =>* identity_same_type_x `i16;
+      itrunc `i16 (sext `i64 x) =>* identity_same_type_x `i16;
+      itrunc `i16 (zext `i64 x) =>* identity_same_type_x `i16;
+      itrunc `i32 (sext `i32 x) =>* identity_same_type_x `i32;
+      itrunc `i32 (zext `i32 x) =>* identity_same_type_x `i32;
+      itrunc `i32 (sext `i64 x) =>* identity_same_type_x `i32;
+      itrunc `i32 (zext `i64 x) =>* identity_same_type_x `i32;
+      itrunc `i64 (sext `i64 x) =>* identity_same_type_x `i64;
+      itrunc `i64 (zext `i64 x) =>* identity_same_type_x `i64;
       (* br true, x, y = jmp x *)
       br (bool true) x y => jmp x;
       (* br false, x, y = jmp y *)
