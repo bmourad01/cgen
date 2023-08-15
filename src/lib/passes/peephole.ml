@@ -114,6 +114,12 @@ module Rules = struct
       | _ -> None
     end
 
+  let has_type x ty eg env =
+    Map.find env x |>
+    Option.bind ~f:(Egraph.typeof eg) |> function
+    | Some tx -> Type.equal tx ty
+    | None -> false
+
   (* Edge case where lsr can subsume the result of an asr, which is when
      we are extracting the MSB. *)
   let lsr_asr_bitwidth a b eg env =
@@ -286,6 +292,7 @@ module Rules = struct
   let is_const_y = is_const "y"
   let is_not_const_y = is_not_const "y"
   let is_neg_const_y = is_neg_const "y"
+  let has_type_x = has_type "x"
   let lsr_asr_bitwidth_y_z = lsr_asr_bitwidth "y" "z"
   let mul_imm_pow2_y = mul_imm_pow2 x "y"
   let div_imm_pow2_y = div_imm_pow2 x "y"
@@ -855,6 +862,20 @@ module Rules = struct
       sle `i16 x (i16 0x7fff) => bool true;
       sle `i32 x (i32 0x7fff_ffffl) => bool true;
       sle `i64 x (i64 0x7fff_ffff_ffff_ffffL) => bool true;
+      (* signed (zext x) < 0 = false when x has a smaller type *)
+      (slt `i16 (zext `i16 x) (i16 0) =>? bool false) ~if_:(has_type_x `i8);
+      (slt `i32 (zext `i32 x) (i32 0l) =>? bool false) ~if_:(has_type_x `i8);
+      (slt `i32 (zext `i32 x) (i32 0l) =>? bool false) ~if_:(has_type_x `i16);
+      (slt `i64 (zext `i64 x) (i64 0L) =>? bool false) ~if_:(has_type_x `i8);
+      (slt `i64 (zext `i64 x) (i64 0L) =>? bool false) ~if_:(has_type_x `i16);
+      (slt `i64 (zext `i64 x) (i64 0L) =>? bool false) ~if_:(has_type_x `i32);
+      (* signed (zext x) >= 0 = true when x has a smaller type *)
+      (sge `i16 (zext `i16 x) (i16 0) =>? bool true) ~if_:(has_type_x `i8);
+      (sge `i32 (zext `i32 x) (i32 0l) =>? bool true) ~if_:(has_type_x `i8);
+      (sge `i32 (zext `i32 x) (i32 0l) =>? bool true) ~if_:(has_type_x `i16);
+      (sge `i64 (zext `i64 x) (i64 0L) =>? bool true) ~if_:(has_type_x `i8);
+      (sge `i64 (zext `i64 x) (i64 0L) =>? bool true) ~if_:(has_type_x `i16);
+      (sge `i64 (zext `i64 x) (i64 0L) =>? bool true) ~if_:(has_type_x `i32);
       (* extend i8 x = x *)
       sext `i8 x => x;
       zext `i8 x => x;
