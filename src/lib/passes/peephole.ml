@@ -883,29 +883,20 @@ module Rules = struct
       itrunc `i16 x =>* identity_same_type_x `i16;
       itrunc `i32 x =>* identity_same_type_x `i32;
       itrunc `i64 x =>* identity_same_type_x `i64;
-      (* Special case for i8 trunc+extend; x must be i8 for this to be
-         well-typed *)
-      itrunc `i8 (sext `i8 x) => x;
-      itrunc `i8 (zext `i8 x) => x;
-      (* itrunc (sext/zext x) to original type = x *)
+      (* itrunc (sext/zext x) to original type = x; these are the cases
+         not covered by the general case above. *)
       itrunc `i8 (sext `i16 x) =>* identity_same_type_x `i8;
       itrunc `i8 (zext `i16 x) =>* identity_same_type_x `i8;
       itrunc `i8 (sext `i32 x) =>* identity_same_type_x `i8;
       itrunc `i8 (zext `i32 x) =>* identity_same_type_x `i8;
       itrunc `i8 (sext `i64 x) =>* identity_same_type_x `i8;
       itrunc `i8 (zext `i64 x) =>* identity_same_type_x `i8;
-      itrunc `i16 (sext `i16 x) =>* identity_same_type_x `i16;
-      itrunc `i16 (zext `i16 x) =>* identity_same_type_x `i16;
       itrunc `i16 (sext `i32 x) =>* identity_same_type_x `i16;
       itrunc `i16 (zext `i32 x) =>* identity_same_type_x `i16;
       itrunc `i16 (sext `i64 x) =>* identity_same_type_x `i16;
       itrunc `i16 (zext `i64 x) =>* identity_same_type_x `i16;
-      itrunc `i32 (sext `i32 x) =>* identity_same_type_x `i32;
-      itrunc `i32 (zext `i32 x) =>* identity_same_type_x `i32;
       itrunc `i32 (sext `i64 x) =>* identity_same_type_x `i32;
       itrunc `i32 (zext `i64 x) =>* identity_same_type_x `i32;
-      itrunc `i64 (sext `i64 x) =>* identity_same_type_x `i64;
-      itrunc `i64 (zext `i64 x) =>* identity_same_type_x `i64;
       (* br true, x, y = jmp x *)
       br (bool true) x y => jmp x;
       (* br false, x, y = jmp y *)
