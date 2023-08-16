@@ -52,17 +52,27 @@ let var env eg x = Hashtbl.find_or_add env.vars x
         let ty = typeof_var eg x in
         atom ?ty env eg @@ Ovar x)
 
+let typeof_const eg : const -> Type.t = function
+  | `bool _ -> `flag
+  | `int (_, t) -> (t :> Type.t)
+  | `float _ -> `f32
+  | `double _ -> `f64
+  | `sym _ -> word eg
+
 let operand env eg : operand -> id = function
   | #const as c ->
-    Rewrite.insert ~d:eg.fuel ~rules:env.rules
+    Rewrite.insert
+      ~ty:(typeof_const eg c)
+      ~d:eg.fuel
+      ~rules:env.rules
       eg @@ Enode.of_const c
   | `var x -> var env eg x
 
 let operands env eg = List.map ~f:(operand env eg)
 
 let global env eg : global -> id = function
-  | `addr a -> atom env eg @@ Oaddr a
-  | `sym (s, o) -> atom env eg @@ Osym (s, o)
+  | `addr a -> atom ~ty:(word eg) env eg @@ Oaddr a
+  | `sym (s, o) -> atom ~ty:(word eg) env eg @@ Osym (s, o)
   | `var x -> var env eg x
 
 let local env eg : local -> id = function

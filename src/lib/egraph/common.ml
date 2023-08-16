@@ -53,3 +53,6 @@ let typeof t id = Hashtbl.find t.typs id
 
 let typeof_var t x =
   Typecheck.Env.typeof_var t.input.fn x t.input.tenv |> Or_error.ok
+
+let word t =
+  (Target.word @@ Typecheck.Env.target t.input.tenv :> Type.t)
