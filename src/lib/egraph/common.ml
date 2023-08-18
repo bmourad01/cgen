@@ -8,8 +8,15 @@ module Exp = Exp
 type exp = Exp.t [@@deriving bin_io, compare, equal, sexp]
 type id = Id.t [@@deriving bin_io, compare, equal, hash, sexp]
 type enode = Enode.t
+type subst = id String.Map.t
 
+let empty_subst = String.Map.empty
 let pp_exp = Exp.pp
+
+type pattern =
+  | V of string
+  | P of Enode.op * pattern list
+[@@deriving compare, equal, hash, sexp]
 
 type t = {
   input   : Input.t;
@@ -24,26 +31,28 @@ type t = {
   fuel    : int;
 }
 
-type egraph = t
-type subst = id String.Map.t
-type 'a callback = egraph -> subst -> 'a
+and egraph = t
+and 'a callback = t -> subst -> 'a
 
-let empty_subst = String.Map.empty
-
-type pattern =
-  | V of string
-  | P of Enode.op * pattern list
-[@@deriving compare, equal, sexp]
-
-type formula =
+and formula =
   | Static of pattern
   | Cond of pattern * bool callback
   | Dyn of pattern option callback
 
-type rule = {
+and rule = {
   pre  : pattern;
   post : formula;
 }
+
+type rules = (pattern, formula list) Hashtbl.t
+
+let create_table rules =
+  let t = Hashtbl.create (module struct
+      type t = pattern [@@deriving compare, equal, hash, sexp]
+    end) in
+  List.iter rules ~f:(fun {pre; post} ->
+      Hashtbl.add_multi t ~key:pre ~data:post);
+  t
 
 let find t id = Uf.find t.classes id
 let node t id = Vec.get_exn t.node id

@@ -117,17 +117,17 @@ and search ?ty ~d ~rules t id n =
     | V x -> var env x id
     | P _ as q -> go ~env q id @@ node t id in
   (* Apply a post-condition to the substitution. *)
-  let app f env =
-    apply ?ty ~d ~rules f t env |>
-    Option.iter ~f:(Vec.push m) in
+  let app fs env = List.iter fs ~f:(fun f ->
+      apply ?ty ~d ~rules f t env |>
+      Option.iter ~f:(Vec.push m)) in
   (* Try matching with every rule. *)
-  List.iter rules ~f:(fun r ->
+  Hashtbl.iteri rules ~f:(fun ~key:p ~data:fs ->
       (* Explore the most recent rewrites first. *)
-      go r.pre id n |> Option.iter ~f:(app r.post);
+      go p id n |> Option.iter ~f:(app fs);
       (* Then explore the "original" terms. *)
       while not @@ Stack.is_empty u do
         let env, id, p = Stack.pop_exn u in
-        cls env id p |> Option.iter ~f:(app r.post);
+        cls env id p |> Option.iter ~f:(app fs);
       done);
   m
 

@@ -28,7 +28,7 @@ module Mem = Regular.Make(struct
   end)
 
 type env = {
-  rules       : rule list;
+  rules       : rules;
   vars        : id Var.Table.t;
   mems        : st Mem.Table.t;
   mutable lst : Label.t option;

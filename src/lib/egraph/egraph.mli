@@ -89,6 +89,12 @@ type 'a callback = t -> subst -> 'a
 (** A rewrite rule. *)
 type rule
 
+(** A table of rules. *)
+type rules
+
+(** Creates a table from a list of rules. *)
+val create_table : rule list -> rules
+
 (** [create fn tenv rules ?fuel] constructs an e-graph from a function [fn]
     and applies the [rules] eagerly.
 
@@ -100,7 +106,7 @@ type rule
 
     [fn] is expected to be in SSA form.
 *)
-val create : ?fuel:int -> func -> Typecheck.env -> rule list -> t Or_error.t
+val create : ?fuel:int -> func -> Typecheck.env -> rules -> t Or_error.t
 
 (** Returns the constant associated with the e-class ID. *)
 val const : t -> id -> const option

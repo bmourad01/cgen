@@ -305,7 +305,7 @@ module Rules = struct
   let urem_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y" ~rem:true
   let identity_same_type_x = identity_same_type "x"
 
-  let rules = Op.[
+  let rules = Egraph.create_table Op.[
       (* Commutativity of constants. *)
       (add `i8 x y =>? add `i8 y x) ~if_:is_const_x;
       (add `i16 x y =>? add `i16 y x) ~if_:is_const_x;
