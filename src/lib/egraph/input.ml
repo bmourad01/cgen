@@ -25,34 +25,10 @@ type t = {
   tenv : Typecheck.env;
 }
 
-module Pseudo = struct
-  let connect_with_entry n =
-    let e = Label.pseudoentry in
-    if Label.(n = e) then Fn.id
-    else G.Edge.(insert (create e n ()))
-
-  let connect_with_exit n =
-    let e = Label.pseudoexit in
-    if Label.(n = e) then Fn.id
-    else G.Edge.(insert (create n e ()))
-
-  let if_unreachable ~from connect g n =
-    if G.Node.degree ~dir:from n g = 0 then connect n else Fn.id
-
-  let connect_unreachable g n =
-    if_unreachable ~from:`Out connect_with_exit  g n @@
-    if_unreachable ~from:`In  connect_with_entry g n @@
-    g
-
-  let add g =
-    G.nodes g |> Seq.fold ~init:g ~f:connect_unreachable |> fun g ->
-    Graphlib.depth_first_search (module G) g
-      ~init:g ~start:Label.pseudoentry
-      ~start_tree:connect_with_entry |> fun g ->
-    Graphlib.depth_first_search (module G) g
-      ~rev:true ~init:g ~start:Label.pseudoexit
-      ~start_tree:connect_with_exit
-end
+module Pseudo = Label.Pseudo(struct
+    include G
+    let e = ()
+  end)
 
 let create_tbl fn =
   let input = Label.Table.create () in

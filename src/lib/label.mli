@@ -6,6 +6,7 @@
     be referred to by name.
 *)
 
+open Graphlib.Std
 open Regular.Std
 
 (** A program label. *)
@@ -127,4 +128,19 @@ module Tree : sig
 
   (** Returns a sequence of each key-value pair in the tree. *)
   val to_sequence : 'a t -> (key * 'a) seq
+end
+
+(** The signature for graphs with labels as nodes. *)
+module type Graph = sig
+  include Graph with type node = t
+
+  (** [e] is the default edge label, specifically for edges that
+      connect nodes with [pseudoentry] and [pseudoexit]. *)
+  val e : Edge.label
+end
+
+(** An interface for connecting entry and exit nodes of the graph
+    with [pseudoentry] and [pseudoexit], respectively. *)
+module Pseudo(G : Graph) : sig
+  val add : G.t -> G.t
 end

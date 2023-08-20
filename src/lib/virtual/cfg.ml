@@ -4,18 +4,10 @@ open Regular.Std
 
 module G = Graphlib.Make(Label)(Edge)
 
-let connect_with_entry n =
-  let e = Label.pseudoentry in
-  if Label.(n = e) then Fn.id
-  else G.Edge.(insert (create e n `always))
-
-let connect_with_exit n =
-  let e = Label.pseudoexit in
-  if Label.(n = e) then Fn.id
-  else G.Edge.(insert (create n e `always))
-
-let if_unreachable ~from connect g n =
-  if G.Node.degree ~dir:from n g = 0 then connect n else Fn.id
+module Pseudo = Label.Pseudo(struct
+    include G
+    let e = `always
+  end)
 
 let accum g b : Ctrl.t -> G.t = function
   | `hlt -> g
@@ -34,21 +26,9 @@ let accum g b : Ctrl.t -> G.t = function
     Map.fold t.tbl ~init ~f:(fun ~key:v ~data:(`label (l, _)) g ->
         G.Edge.(insert (create b l @@ `switch (x, v)) g))
 
-let connect_unreachable g n =
-  if_unreachable ~from:`Out connect_with_exit  g n @@
-  if_unreachable ~from:`In  connect_with_entry g n @@
-  g
-
 let create fn =
   Func.blks fn |> Seq.fold ~init:G.empty ~f:(fun g b ->
       let l = Blk.label b and c = Blk.ctrl b in
-      accum (G.Node.insert l g) l c) |> fun g ->
-  G.nodes g |> Seq.fold ~init:g ~f:connect_unreachable |> fun g ->
-  Graphlib.depth_first_search (module G) g
-    ~init:g ~start:Label.pseudoentry
-    ~start_tree:connect_with_entry |> fun g ->
-  Graphlib.depth_first_search (module G) g
-    ~rev:true ~init:g ~start:Label.pseudoexit
-    ~start_tree:connect_with_exit
+      accum (G.Node.insert l g) l c) |> Pseudo.add
 
 include G
