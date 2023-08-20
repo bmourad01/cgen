@@ -69,16 +69,18 @@ let cost t : enode -> int = function
       | Ocallargs
       | Odouble _
       | Ojmp
+      | Oload _
       | Olocal _
       | Oret
       | Osingle _
       | Osym _
-      | Oset _ -> 0
+      | Oset _
+      | Ostore _ -> 0
       | Obr | Otbl _ | Ovar _ -> 2
       | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
-      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 45
+      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 60
+      | Obinop (`mul _) -> 19
       | Obinop _ -> 4
-      | Oload _ | Ostore _ -> 5
       | Osel _ -> 8 in
     List.fold children ~init ~f:(fun k c -> k + id_cost t c)
   | U {pre; post} -> min (id_cost t pre) (id_cost t post)

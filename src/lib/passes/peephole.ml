@@ -195,6 +195,47 @@ module Rules = struct
       else Op.(sub tb x (mul tb qf (int i ty)))
     | _ -> None
 
+  (* Rewrite a multiplication by a constant that is not a power of two.
+
+     Can be a series of shifts, additions, and subtractions. Essentially
+     we are doing an algebraic factoring.
+  *)
+  let mul_imm_non_pow2 x y eg env =
+    Map.find env y >>= Egraph.const eg >>= function
+    | `int (i, ty) ->
+      let n = Bv.to_int64 i in
+      let n' = Int64.pred n in
+      let+ () = O.guard Int64.(
+          n <> -1L &&
+          n <> 0L &&
+          n <> 1L &&
+          n land n' <> 0L
+        ) in
+      let module B = (val bv ty) in
+      let tb = (ty :> Type.basic) in
+      let n1 = Int64.succ n in
+      if Int64.(n1 land n = 0L) then
+        (* Next integer is a power of two, so shift up to it
+           and then subtract x. *)
+        let sh = Int64.ctz n1 in
+        Op.(sub tb (lsl_ ty x (int B.(int sh) ty)) x)
+      else if Int64.(n' land pred n' = 0L) then
+        (* Previous integer is a power of two, so shift up to
+           it and add x. *)
+        let sh = Int64.ctz n' in
+        Op.(add tb (lsl_ ty x (int B.(int sh) ty)) x)
+      else
+        (* Get the highest power of two that is less than y,
+           shift to it, and then add the multiplication of the
+           remaining constant. This new multiplication can be
+           recursively rewritten to a less expensive version. *)
+        let z = Int64.floor_pow2 n in
+        let sh = Int64.ctz z in
+        let d = Int64.(n - z) in
+        Op.(add tb (lsl_ ty x (int B.(int sh) ty))
+              (mul tb x (int B.(int64 d) ty)))
+    | _ -> None
+
   let identity_same_type x ty eg env =
     let* tx = Map.find env x >>= Egraph.typeof eg in
     let+ () = O.guard @@ Type.equal tx (ty :> Type.t) in
@@ -211,6 +252,7 @@ module Rules = struct
   let has_type_x = has_type "x"
   let lsr_asr_bitwidth_y_z = lsr_asr_bitwidth "y" "z"
   let mul_imm_pow2_y = mul_imm_pow2 x "y"
+  let mul_imm_non_pow2_y = mul_imm_non_pow2 x "y"
   let div_imm_pow2_y = div_imm_pow2 x "y"
   let rem_imm_pow2_y = rem_imm_pow2 x "y"
   let div_imm_non_pow2_y = div_rem_imm_non_pow2 x "y"
@@ -432,11 +474,15 @@ module Rules = struct
       mul `i16 x (i16 2) => add `i16 x x;
       mul `i32 x (i32 2l) => add `i32 x x;
       mul `i64  x(i64 2L) => add `i64 x x;
-      (* x * c = x << log2(c) when c is power of two *)
+      (* x * c = x << log2(c) when c is a constant *)
       mul `i8 x y =>* mul_imm_pow2_y;
       mul `i16 x y =>* mul_imm_pow2_y;
       mul `i32 x y =>* mul_imm_pow2_y;
       mul `i64 x y =>* mul_imm_pow2_y;
+      mul `i8 x y =>* mul_imm_non_pow2_y;
+      mul `i16 x y =>* mul_imm_non_pow2_y;
+      mul `i32 x y =>* mul_imm_non_pow2_y;
+      mul `i64 x y =>* mul_imm_non_pow2_y;
       (* signed x / c when c is constant *)
       div `i8 x y =>* div_imm_pow2_y;
       div `i16 x y =>* div_imm_pow2_y;
