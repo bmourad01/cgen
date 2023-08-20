@@ -175,6 +175,7 @@ module Rules = struct
     | `int (i, ty) ->
       let n = Bv.to_int64 i in
       let+ () = O.guard Int64.(
+          n <> -1L &&
           n <> 0L &&
           n <> 1L &&
           (n land pred n) <> 0L
@@ -528,6 +529,16 @@ module Rules = struct
       udiv `i16 x (i16 1) => x;
       udiv `i32 x (i32 1l) => x;
       udiv `i64 x (i64 1L) => x;
+      (* signed x / -1 = -x *)
+      div `i8 x (i8 (-1)) => neg `i8 x;
+      div `i16 x (i16 (-1)) => neg `i16 x;
+      div `i32 x (i32 (-1l)) => neg `i32 x;
+      div `i64 x (i64 (-1L)) => neg `i64 x;
+      (* unsigned x / -1 = x == -1 *)
+      udiv `i8 x (i8 (-1)) => flag `i8 (eq `i8 x (i8 (-1)));
+      udiv `i16 x (i16 (-1)) => flag `i16 (eq `i16 x (i16 (-1)));
+      udiv `i32 x (i32 (-1l)) => flag `i32 (eq `i32 x (i32 (-1l)));
+      udiv `i64 x (i64 (-1L)) => flag `i64 (eq `i64 x (i64 (-1L)));
       (* x % 1 = 0 *)
       rem `i8 x (i8 1) => i8 0;
       rem `i16 x (i16 1) => i16 0;
@@ -537,6 +548,16 @@ module Rules = struct
       urem `i16 x (i16 1) => i16 0;
       urem `i32 x (i32 1l) => i32 0l;
       urem `i64 x (i64 1L) => i64 0L;
+      (* signed x % -1 = 0 *)
+      rem `i8 x (i8 (-1)) => i8 0;
+      rem `i16 x (i16 (-1)) => i16 0;
+      rem `i32 x (i32 (-1l)) => i32 0l;
+      rem `i64 x (i64 (-1L)) => i64 0L;
+      (* unsigned x % -1 = x != -1 *)
+      urem `i8 x (i8 (-1)) => flag `i8 (ne `i8 x (i8 (-1)));
+      urem `i16 x (i16 (-1)) => flag `i16 (ne `i16 x (i16 (-1)));
+      urem `i32 x (i32 (-1l)) => flag `i32 (ne `i32 x (i32 (-1l)));
+      urem `i64 x (i64 (-1L)) => flag `i64 (ne `i64 x (i64 (-1L)));
       (* x & 0 = 0 *)
       and_ `i8 x (i8 0) => i8 0;
       and_ `i16 x (i16 0) => i16 0;

@@ -80,6 +80,7 @@ let cost t : enode -> int = function
       | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
       | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 60
       | Obinop (`mul _) -> 19
+      | Obinop (`mulh _ | `umulh _) -> 11
       | Obinop _ -> 4
       | Osel _ -> 8 in
     List.fold children ~init ~f:(fun k c -> k + id_cost t c)
