@@ -216,10 +216,16 @@ module Rules = struct
       let tb = (ty :> Type.basic) in
       let n1 = Int64.succ n in
       if Int64.(n1 land n = 0L) then
-        (* Next integer is a power of two, so shift up to it
-           and then subtract x. *)
-        let sh = Int64.ctz n1 in
-        Op.(sub tb (lsl_ ty x (int B.(int sh) ty)) x)
+        if Int64.(n = 3L) then
+          (* Special case when n is 3, we bias towards the lower
+             power of two. Shift-and-add addressing modes are common
+             on several architectures. *)
+          Op.(add tb (lsl_ ty x (int B.one ty)) x)
+        else
+          (* Next integer is a power of two, so shift up to it
+             and then subtract x. *)
+          let sh = Int64.ctz n1 in
+          Op.(sub tb (lsl_ ty x (int B.(int sh) ty)) x)
       else if Int64.(n' land pred n' = 0L) then
         (* Previous integer is a power of two, so shift up to
            it and add x. *)
