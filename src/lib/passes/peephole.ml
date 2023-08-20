@@ -4,90 +4,6 @@ open Context.Syntax
 
 module O = Monad.Option
 
-module Magic_div = struct
-  type u = {
-    mul : Bv.t;
-    add : bool;
-    shr : int;
-  }
-
-  let unsigned d t =
-    let sz = Type.sizeof_imm t in
-    let sz1 = sz - 1 in
-    let sz2 = sz * 2 in
-    let module B = (val Bv.modular sz) in
-    let nc = B.(ones - (~-d) % d) in
-    let mins = B.(one lsl int sz1) in
-    let maxs = B.(mins - one) in
-    let rec loop a p q1 r1 q2 r2 =
-      let p = p + 1 in
-      let q1, r1 = if Bv.(B.(r1 >= (nc - r1)))
-        then B.(q1 * int 2 + one, r1 * int 2 - nc)
-        else B.(q1 * int 2, r1 * int 2) in
-      let a, q2, r2 =
-        if Bv.(B.(r2 + one >= d - r2)) then
-          a || Bv.(q2 >= maxs),
-          B.(q2 * int 2 + one),
-          B.(((r2 * int 2) + one) - d)
-        else
-          a || Bv.(q2 >= mins),
-          B.(q2 * int 2),
-          B.(r2 * int 2 + one) in
-      let delta = B.(d - one - r2) in
-      if p >= sz2 || (
-          Bv.(q1 >= delta) &&
-          Bv.(q1 <> delta || r1 <> B.zero)
-        ) then loop a p q1 r1 q2 r2
-      else {
-        mul = B.(q2 + one);
-        add = a;
-        shr = p - sz
-      } in
-    let q1 = B.(mins / nc) in
-    let r1 = B.(mins - q1 * nc) in
-    let q2 = B.(maxs / d) in
-    let r2 = B.(maxs - q2 * d) in
-    loop false sz1 q1 r1 q2 r2
-
-  type s = {
-    mul : Bv.t;
-    shr : int;
-  }
-
-  let signed d t =
-    let sz = Type.sizeof_imm t in
-    let sz1 = sz - 1 in
-    let module B = (val Bv.modular sz) in
-    let mins = B.(one lsl int sz1) in
-    let ad = B.abs d in
-    let t = B.(mins + bool (msb d)) in
-    let anc = B.((t - one) - (t % ad)) in
-    let rec loop p q1 r1 q2 r2 =
-      let p = p + 1 in
-      let q1 = B.(q1 * int 2) in
-      let r1 = B.(r1 * int 2) in
-      let q1, r1 = if Bv.(r1 >= anc)
-        then B.(q1 + one, r1 - anc)
-        else q1, r1 in
-      let q2 = B.(q2 * int 2) in
-      let r2 = B.(r2 * int 2) in
-      let q2, r2 = if Bv.(r2 >= ad)
-        then B.(q2 + one, r2 - ad)
-        else q2, r2 in
-      let delta = B.(ad - r2) in
-      if Bv.(q1 < delta || (q1 = delta && r1 = zero)) then
-        let m = B.(q2 + one) in {
-          mul = if B.msb d then B.neg m else m;
-          shr = p - sz;
-        }
-      else loop p q1 r1 q2 r2 in
-    let q1 = B.(mins / anc) in
-    let r1 = B.(mins - q1 * anc) in
-    let q2 = B.(mins / ad) in
-    let r2 = B.(mins - q2 * ad) in
-    loop sz1 q1 r1 q2 r2
-end
-
 module Rules = struct
   open Egraph.Rule
   open O.Let
@@ -187,17 +103,17 @@ module Rules = struct
         ) in
       let module B = (val bv ty) in
       let sz1 = Type.sizeof_imm ty - 1 in
-      let s = Magic_div.signed i ty in
+      let s_mul, s_shr = Magic_div.signed i ty in
       let tb = (ty :> Type.basic) in
-      let q1 = Op.(mulh ty x (int s.mul ty)) in
+      let q1 = Op.(mulh ty x (int s_mul ty)) in
       let q2 =
-        if Int64.(n > 0L) && B.msb s.mul then
+        if Int64.(n > 0L) && B.msb s_mul then
           Op.add tb q1 x
-        else if Int64.(n < 0L) && not (B.msb s.mul) then
+        else if Int64.(n < 0L) && not (B.msb s_mul) then
           Op.sub tb q1 x
         else q1 in
-      let q3 = if s.shr = 0 then q2
-        else Op.(asr_ ty q2 (int B.(int s.shr) ty)) in
+      let q3 = if s_shr = 0 then q2
+        else Op.(asr_ ty q2 (int B.(int s_shr) ty)) in
       let qf = Op.(add tb q3 (lsr_ ty q3 (int B.(int sz1) ty))) in
       if rem then Op.(sub tb x (mul tb qf (int i ty))) else qf
     | _ -> None
@@ -264,16 +180,16 @@ module Rules = struct
           (n land pred n) <> 0L
         ) in
       let module B = (val bv ty) in
-      let u = Magic_div.unsigned i ty in
+      let u_mul, u_add, u_shr = Magic_div.unsigned i ty in
       let tb = (ty :> Type.basic) in
-      let q1 = Op.(umulh ty x (int u.mul ty)) in
+      let q1 = Op.(umulh ty x (int u_mul ty)) in
       let qf =
-        if u.add then
+        if u_add then
           Op.(lsr_ ty
                 (add tb (lsr_ ty (sub tb x q1) (int B.one ty)) q1)
-                (int B.(int Int.(u.shr - 1)) ty))
-        else if u.shr > 0 then
-          Op.(lsr_ ty q1 (int B.(int u.shr) ty))
+                (int B.(int Int.(u_shr - 1)) ty))
+        else if u_shr > 0 then
+          Op.(lsr_ ty q1 (int B.(int u_shr) ty))
         else q1 in
       if not rem then qf
       else Op.(sub tb x (mul tb qf (int i ty)))
