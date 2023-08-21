@@ -78,8 +78,8 @@ let cost t : enode -> int = function
       | Ostore _ -> 0
       | Obr | Otbl _ | Ovar _ -> 2
       | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
-      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 60
-      | Obinop (`mul _) -> 19
+      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 90
+      | Obinop (`mul _) -> 42
       | Obinop (`mulh _ | `umulh _) -> 11
       | Obinop _ -> 4
       | Osel _ -> 8 in

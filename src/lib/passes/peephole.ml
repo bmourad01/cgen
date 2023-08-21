@@ -232,15 +232,23 @@ module Rules = struct
         let sh = Int64.ctz n' in
         Op.(add tb (lsl_ ty x (int B.(int sh) ty)) x)
       else
-        (* Get the highest power of two that is less than y,
-           shift to it, and then add the multiplication of the
-           remaining constant. This new multiplication can be
-           recursively rewritten to a less expensive version. *)
+        (* Check the next and previous power of two, and see which
+           one is closer. We'll add or subtract the remaining factor
+           from the shift, which can be recursively rewritten. If we
+           end up doing this too many times then it will outweigh the
+           cost of just using a `mul` instruction. *)
         let z = Int64.floor_pow2 n in
-        let sh = Int64.ctz z in
+        let z' = Int64.ceil_pow2 n in
         let d = Int64.(n - z) in
-        Op.(add tb (lsl_ ty x (int B.(int sh) ty))
-              (mul tb x (int B.(int64 d) ty)))
+        let d' = Int64.(z' - n) in
+        if Int64.(d <= d') then
+          let sh = Int64.ctz z in
+          Op.(add tb (lsl_ ty x (int B.(int sh) ty))
+                (mul tb x (int B.(int64 d) ty)))
+        else
+          let sh = Int64.ctz z' in
+          Op.(sub tb (lsl_ ty x (int B.(int sh) ty))
+                (mul tb x (int B.(int64 d') ty)))
     | _ -> None
 
   let identity_same_type x ty eg env =
