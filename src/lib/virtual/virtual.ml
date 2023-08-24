@@ -16,6 +16,7 @@ type data = Data_.t [@@deriving bin_io, compare, equal, sexp]
 type module_ = Module.t
 
 module Insn = Insn
+module Eval = Eval
 module Ctrl = Ctrl
 module Edge = Edge
 module Blk = Blk
