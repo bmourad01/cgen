@@ -91,7 +91,7 @@ and search ?ty ~d ~rules t id n =
   let m = Vec.create () in
   let u = Stack.create () in
   (* Match a node. *)
-  let rec go ?(env = empty_subst) p id (n : enode) = match p, n with
+  let rec go env p id (n : enode) = match p, n with
     | V x, N _ -> var env x id
     | P (x, xs), N (y, ys) ->
       let* () = O.guard @@ Enode.equal_op x y in
@@ -115,21 +115,27 @@ and search ?ty ~d ~rules t id n =
   (* Match an e-class. *)
   and cls env id = function
     | V x -> var env x id
-    | P _ as q -> go ~env q id @@ node t id in
+    | P _ as q -> go env q id @@ node t id in
   (* Apply a post-condition to the substitution. *)
-  let app fs env = List.iter fs ~f:(fun f ->
-      apply ?ty ~d ~rules f t env |>
-      Option.iter ~f:(Vec.push m)) in
-  (* Try matching with every rule. *)
-  Hashtbl.iteri rules ~f:(fun ~key:p ~data:fs ->
-      (* Explore the most recent rewrites first. *)
-      go p id n |> Option.iter ~f:(app fs);
-      (* Then explore the "original" terms. *)
-      while not @@ Stack.is_empty u do
-        let env, id, p = Stack.pop_exn u in
-        cls env id p |> Option.iter ~f:(app fs);
-      done);
-  m
+  let app f env =
+    apply ?ty ~d ~rules f t env |>
+    Option.iter ~f:(Vec.push m) in
+  (* Apply every rule that starts with a top-level variable. *)
+  Hashtbl.iteri rules.vars ~f:(fun ~key:x ~data:fs ->
+      let env = String.Map.singleton x id in
+      List.iter fs ~f:(fun f -> app f env));
+  (* Now match based on the top-level constructor. *)
+  match n with
+  | U _ -> assert false
+  | N (o, cs) ->
+    Hashtbl.find rules.ops o |>
+    Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
+        children empty_subst ps cs |> Option.iter ~f:(app f);
+        while not @@ Stack.is_empty u do
+          let env, id, p = Stack.pop_exn u in
+          cls env id p |> Option.iter ~f:(app f);
+        done));
+    m
 
 and apply ?ty ~d ~rules = function
   | Static q -> apply_static ?ty ~d ~rules q

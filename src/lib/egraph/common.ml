@@ -44,14 +44,21 @@ and rule = {
   post : formula;
 }
 
-type rules = (pattern, formula list) Hashtbl.t
+type rules = {
+  ops  : (Enode.op, (pattern list * formula) list) Hashtbl.t;
+  vars : formula list String.Table.t;
+}
 
 let create_table rules =
-  let t = Hashtbl.create (module struct
-      type t = pattern [@@deriving compare, equal, hash, sexp]
-    end) in
-  List.iter rules ~f:(fun {pre; post} ->
-      Hashtbl.add_multi t ~key:pre ~data:post);
+  let t = {
+    ops = Hashtbl.create (module struct
+        type t = Enode.op [@@deriving compare, hash, sexp]
+      end);
+    vars = String.Table.create ();
+  } in
+  List.iter rules ~f:(fun r -> match r.pre with
+      | V x -> Hashtbl.add_multi t.vars ~key:x ~data:r.post
+      | P (o, ps) -> Hashtbl.add_multi t.ops ~key:o ~data:(ps, r.post));
   t
 
 let find t id = Uf.find t.classes id
