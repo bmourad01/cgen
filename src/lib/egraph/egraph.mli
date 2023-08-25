@@ -92,7 +92,11 @@ type rule
 (** A table of rules. *)
 type rules
 
-(** Creates a table from a list of rules. *)
+(** Creates a table from a list of rules.
+
+    @raise Invalid_argument if there is a rule where the precondition is
+    simply a variable.
+*)
 val create_table : rule list -> rules
 
 (** [create fn tenv rules ?fuel] constructs an e-graph from a function [fn]

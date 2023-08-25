@@ -84,10 +84,10 @@ and optimize ?ty ~d ~rules t n id = match subsume_const t n id with
   | Some id -> id
   | None when d < 0 -> id
   | None ->
-    search ?ty ~d:(d - 1) ~rules t id n |>
+    search ?ty ~d:(d - 1) ~rules t n |>
     Vec.fold_until ~init:id ~finish:Fn.id ~f:(step t)
 
-and search ?ty ~d ~rules t id n =
+and search ?ty ~d ~rules t n =
   let m = Vec.create () in
   let u = Stack.create () in
   (* Match a node. *)
@@ -120,15 +120,11 @@ and search ?ty ~d ~rules t id n =
   let app f env =
     apply ?ty ~d ~rules f t env |>
     Option.iter ~f:(Vec.push m) in
-  (* Apply every rule that starts with a top-level variable. *)
-  Hashtbl.iteri rules.vars ~f:(fun ~key:x ~data:fs ->
-      let env = String.Map.singleton x id in
-      List.iter fs ~f:(fun f -> app f env));
   (* Now match based on the top-level constructor. *)
   match n with
   | U _ -> assert false
   | N (o, cs) ->
-    Hashtbl.find rules.ops o |>
+    Hashtbl.find rules o |>
     Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
         children empty_subst ps cs |> Option.iter ~f:(app f);
         while not @@ Stack.is_empty u do

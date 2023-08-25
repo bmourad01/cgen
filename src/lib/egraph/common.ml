@@ -44,21 +44,19 @@ and rule = {
   post : formula;
 }
 
-type rules = {
-  ops  : (Enode.op, (pattern list * formula) list) Hashtbl.t;
-  vars : formula list String.Table.t;
-}
+type rules = (Enode.op, (pattern list * formula) list) Hashtbl.t
 
 let create_table rules =
-  let t = {
-    ops = Hashtbl.create (module struct
-        type t = Enode.op [@@deriving compare, hash, sexp]
-      end);
-    vars = String.Table.create ();
-  } in
+  let t = Hashtbl.create (module struct
+      type t = Enode.op [@@deriving compare, hash, sexp]
+    end) in
   List.iter rules ~f:(fun r -> match r.pre with
-      | V x -> Hashtbl.add_multi t.vars ~key:x ~data:r.post
-      | P (o, ps) -> Hashtbl.add_multi t.ops ~key:o ~data:(ps, r.post));
+      | P (o, ps) -> Hashtbl.add_multi t ~key:o ~data:(ps, r.post)
+      | V x ->
+        (* Such rules are not really useful for anything and definitely
+           will create soundness issues. *)
+        invalid_argf "Cannot create a rule with a variable \
+                      %s at the top-level" x ());
   t
 
 let find t id = Uf.find t.classes id
