@@ -68,20 +68,14 @@ let duplicate t id a = match Hashtbl.find t.id2lbl id with
     Hashtbl.remove t.id2lbl id;
     move t [a; b] c @@ find t id
 
-let is_in_loop t l = match Hashtbl.find t.input.tbl l with
-  | Some (`blk b | `insn (_, b, _)) ->
-    Loops.mem t.input.loop @@ Blk.label b
-  | None -> assert false
-
 let find_loop t l = match Hashtbl.find t.input.tbl l with
   | Some (`blk b | `insn (_, b, _)) ->
     Loops.blk t.input.loop @@ Blk.label b
   | None -> assert false
 
-type loop_invariance =
-  | Not_in_loop
-  | Invariant
-  | Variant
+type invariance =
+  | Inv (* Invariant w.r.t. the loop it belongs to (if any) *)
+  | Fix (* Depends on values produced in the loop; must remain fixed *)
 
 let is_arg t x =
   Func.args t.input.fn |> Seq.exists ~f:(fun (y, _) -> Var.(x = y))
@@ -91,59 +85,60 @@ let is_slot t x =
 
 let is_arg_or_slot t x = is_arg t x || is_slot t x
 
-let loop_no_label t : enode -> _ Continue_or_stop.t = function
-  | N (Ovar x, []) when is_arg_or_slot t x ->
-    Continue Invariant
-  | n when Enode.is_const n ->
-    Continue Invariant
-  | _ -> Stop Variant
+let is_child_loop t a b =
+  not (Loops.equal_loop a b) &&
+  Loops.is_child_of t.input.loop a b
+
+let loop_no_label ~lp t n = match (n : enode) with
+  | N (Ovar x, []) when is_arg_or_slot t x -> Inv
+  | N (Ovar x, []) ->
+    (* If this is a block argument, then find out if it belongs to
+       a loop. *)
+    Hashtbl.find t.input.barg x |>
+    Option.value_map ~default:Fix ~f:(fun l -> match find_loop t l with
+        | Some lp' when is_child_loop t lp lp' -> Inv
+        | Some _ | None -> Fix)
+  | n when Enode.is_const n -> Inv
+  | _ -> Fix
+
+let id2lbl t id = match Hashtbl.find t.id2lbl id with
+  | None -> Hashtbl.find t.imoved2 id
+  | Some _ as l -> l
 
 let rec loop_invariance ~lp t l n = match find_loop t l with
-  | None -> Not_in_loop
-  | Some lp' when Loops.equal_loop lp lp' ->
-    loop_children ~lp t n
-  | Some lp' ->
-    (* See if we've broken out of the loop. *)
-    if Loops.is_child_of t.input.loop lp lp'
-    then Invariant else loop_children ~lp t n
+  | Some lp' when is_child_loop t lp lp' -> Inv
+  | Some _ -> loop_children ~lp t n
+  | None -> Inv
 
 and loop_children ~lp t n =
   let cs = match (n : enode) with
     | N (_, cs) -> cs
     | U {pre; post} -> [pre; post] in
-  let init = Invariant and finish = Fn.id in
-  List.fold_until cs ~init ~finish ~f:(fun acc id ->
-      let n = node t id in
-      match Hashtbl.find t.id2lbl id with
-      | Some l -> loop_child ~lp acc t l n
-      | None -> match Hashtbl.find t.imoved2 id with
-        | None -> loop_no_label t n
-        | Some l -> loop_child ~lp acc t l n)
+  List.fold_until cs ~init:Inv ~finish:Fn.id ~f:(fun _ id ->
+      let f = match id2lbl t id with
+        | Some l -> loop_invariance ~lp t l
+        | None -> loop_no_label ~lp t in
+      match f @@ node t id with
+      | Inv -> Continue Inv
+      | Fix -> Stop Fix)
 
-and loop_child ~lp acc t l n = match loop_invariance ~lp t l n with
-  | Not_in_loop | Invariant -> Continue acc
-  | Variant -> Stop Variant
+let header t lp = Loops.(header @@ get t.input.loop lp)
 
+(* We've determined that `n` is invariant with respect to `lp`, but
+   if `lp` is nested in a parent loop `lp'`, then we should find out if
+   `n` is also invariant with respect to `lp'`, and so on. *)
 let rec licm' t l n lp id =
-  let data = Loops.get t.input.loop lp in
-  let hdr = Loops.header data in
-  (* Get the immediate dominator of the loop header. *)
-  match Tree.parent t.input.dom hdr with
+  match Tree.parent t.input.dom @@ header t lp with
   | None -> assert false
-  | Some l' ->
-    (* Now see if this new label is also part of a loop. *)
-    match find_loop t l' with
+  | Some l' -> match find_loop t l' with
     | None -> move t [l] l' id
-    | Some lp ->
-      (* Determine the loop-invariance of our node at this level. *)
-      match loop_children ~lp t n with
-      | Not_in_loop | Variant -> move t [l] l' id
-      | Invariant -> licm' t l n lp id (* Repeat. *)
+    | Some lp' -> match loop_children ~lp:lp' t n with
+      | Inv -> licm' t l n lp' id
+      | Fix -> move t [l] l' id
 
 let licm t l n lp id = match loop_children ~lp t n with
-  | Invariant -> licm' t l n lp id
-  | Not_in_loop | Variant ->
-    Hashtbl.set t.id2lbl ~key:id ~data:l
+  | Fix -> Hashtbl.set t.id2lbl ~key:id ~data:l
+  | Inv -> licm' t l n lp id
 
 (* Track the provenance between the node and the label, but first see
    if we can do LICM (loop-invariant code motion). *)

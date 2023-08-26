@@ -24,6 +24,7 @@ type t = {
   cdom : Label.t tree;
   lst  : Label.t option Label.Table.t;
   tenv : Typecheck.env;
+  barg : Label.t Var.Table.t;
 }
 
 module Pseudo = Label.Pseudo(struct
@@ -32,22 +33,29 @@ module Pseudo = Label.Pseudo(struct
   end)
 
 let create_tbl fn =
-  let input = Label.Table.create () in
+  let tbl = Label.Table.create () in
+  let barg = Var.Table.create () in
   let+ () = Func.blks fn |> E.Seq.iter ~f:(fun b ->
       let label = Blk.label b in
-      let* () = match Hashtbl.add input ~key:label ~data:(`blk b) with
+      let* () = match Hashtbl.add tbl ~key:label ~data:(`blk b) with
         | `Ok -> Ok ()
         | `Duplicate ->
           E.failf "Duplicate label for block %a" Label.pp label () in
+      let* () = Blk.args b |> E.Seq.iter ~f:(fun x ->
+          match Hashtbl.add barg ~key:x ~data:label with
+          | `Ok -> Ok ()
+          | `Duplicate ->
+            E.failf "Duplicate label for block argument %a in block %a"
+              Var.pp x Label.pp label ()) in
       Blk.insns b |> E.Seq.iter ~f:(fun i ->
           let key = Insn.label i in
           let data = `insn (i, b, Insn.lhs i) in
-          match Hashtbl.add input ~key ~data with
+          match Hashtbl.add tbl ~key ~data with
           | `Ok -> Ok ()
           | `Duplicate ->
             E.failf "Duplicate label for instruction %a in block %a"
               Label.pp key Label.pp label ())) in
-  input
+  tbl, barg
 
 (* The "regular" dominator tree from the CFG is not fine-grained enough
    to work with our strategy for maintaining provenance in the e-graph.
@@ -131,10 +139,10 @@ module Last_stores = struct
 end
 
 let init fn tenv =
-  let+ tbl = create_tbl fn in
+  let+ tbl, barg = create_tbl fn in
   let loop = Loops.analyze fn in
   let cfg = Cfg.create fn in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   let cdom = cdoms fn tbl dom in
   let lst = Last_stores.create fn tbl cfg in
-  {fn; loop; tbl; cfg; dom; cdom; lst; tenv}
+  {fn; loop; tbl; cfg; dom; cdom; lst; tenv; barg}
