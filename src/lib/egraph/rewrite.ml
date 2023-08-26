@@ -72,8 +72,7 @@ let rec insert ?ty ?l ~d ~rules t n =
           id
         | None ->
           let id = new_node t n in
-          Option.iter l ~f:(fun l ->
-              Hashtbl.set t.id2lbl ~key:id ~data:l);
+          Option.iter l ~f:(fun l -> Prov.add t l id n);
           Option.iter ty ~f:(fun ty ->
               Hashtbl.set t.typs ~key:id ~data:ty);
           let oid = optimize ?ty ~d ~rules t n id in

@@ -15,6 +15,7 @@ let init input fuel = {
   node = Vec.create ();
   lmoved = Label.Table.create ();
   imoved = Id.Table.create ();
+  imoved2 = Id.Table.create ();
   id2lbl = Id.Table.create ();
   lbl2id = Label.Table.create ();
   typs = Id.Table.create ();

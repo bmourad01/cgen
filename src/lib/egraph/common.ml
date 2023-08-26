@@ -25,6 +25,7 @@ type t = {
   memo    : (enode, id) Hashtbl.t;
   lmoved  : Id.Set.t Label.Table.t;
   imoved  : Label.Set.t Id.Table.t;
+  imoved2 : Label.t Id.Table.t;
   id2lbl  : Label.t Id.Table.t;
   lbl2id  : id Label.Table.t;
   typs    : Type.t Id.Table.t;

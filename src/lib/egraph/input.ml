@@ -17,6 +17,7 @@ type resolved = [
 (* General information about the function we're translating. *)
 type t = {
   fn   : func;
+  loop : loops;
   tbl  : resolved Label.Table.t;
   cfg  : Cfg.t;
   dom  : Label.t tree;
@@ -131,8 +132,9 @@ end
 
 let init fn tenv =
   let+ tbl = create_tbl fn in
+  let loop = Loops.analyze fn in
   let cfg = Cfg.create fn in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   let cdom = cdoms fn tbl dom in
   let lst = Last_stores.create fn tbl cfg in
-  {fn; tbl; cfg; dom; cdom; lst; tenv}
+  {fn; loop; tbl; cfg; dom; cdom; lst; tenv}
