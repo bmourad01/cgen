@@ -1,6 +1,11 @@
 open Core
 open Regular.Std
 open Graphlib.Std
+open Monads.Std
+
+module O = Monad.Option
+
+open O.Let
 
 type loop = int [@@deriving compare, equal]
 type level = int [@@deriving compare, equal]
@@ -86,57 +91,63 @@ let find_headers t cfg dom =
           Hashtbl.set t.blks ~key:l ~data:(new_loop t l))
 
 let chase_parent t n m =
-  let rec parent m = function
+  let rec chase m = function
     | None -> Some m
-    | Some p when p = n -> None
-    | Some p -> parent p (get t p).parent in
-  parent m (get t m).parent
+    | Some p when n = p -> None
+    | Some p -> chase p (get t p).parent in
+  chase m (get t m).parent
 
 let find_next t n l = match Hashtbl.find t.blks l with
   | None ->
     Hashtbl.set t.blks ~key:l ~data:n;
     Some l
-  | Some m -> match chase_parent t n m with
-    | None -> None
-    | Some m when n = m -> None
-    | Some m ->
-      let d = get t m in
-      d.parent <- Some n;
-      Some d.header
+  | Some m ->
+    let* m = chase_parent t n m in
+    let+ () = O.guard (n <> m) in
+    let d = get t m in
+    d.parent <- Some n;
+    d.header
+
+let rec explore_loop t cfg q n =
+  Stack.pop q |> Option.iter ~f:(fun l ->
+      find_next t n l |> Option.iter ~f:(fun c ->
+          Cfg.Node.preds c cfg |> Seq.iter ~f:(Stack.push q));
+      explore_loop t cfg q n)
 
 let find_loop_blks t cfg dom =
   let q = Stack.create () in
-  Vec.to_sequence_rev_mutable t.loops |>
-  Seq.iteri ~f:(fun n d ->
-      dom_backedge d.header cfg dom |>
-      Seq.iter ~f:(Stack.push q);
-      while not @@ Stack.is_empty q do
-        Stack.pop_exn q |>
-        find_next t n |> 
-        Option.iter ~f:(fun c ->
-            Cfg.Node.preds c cfg |>
-            Seq.iter ~f:(Stack.push q))
-      done)
+  for n = Vec.length t.loops - 1 downto 0 do
+    dom_backedge (get t n).header cfg dom |>
+    Seq.iter ~f:(Stack.push q);
+    explore_loop t cfg q n
+  done
+
+let set_level q d k =
+  d.level <- k;
+  ignore @@ Stack.pop_exn q
+
+let loop_level t q d = match d.parent with
+  | None ->  set_level q d 0
+  | Some p -> match (get t p).level with
+    | k when k < 0 -> Stack.push q p
+    | k -> set_level q d (k + 1)
+
+let rec assign_loop t q = match Stack.top q with
+  | None -> ()
+  | Some n ->
+    let d = get t n in
+    loop_level t q d;
+    assign_loop t q
 
 let assign_levels t =
   let q = Stack.create () in
-  let set d n =
-    d.level <- n;
-    ignore @@ Stack.pop_exn q in
-  Vec.to_sequence_mutable t.loops |>
-  Seq.iteri ~f:(fun n d ->
-      if d.level < 0 then begin
-        Stack.push q n;
-        while not @@ Stack.is_empty q do
-          let n = Stack.top_exn q in
-          let d = get t n in
-          match d.parent with
-          | None -> set d 0
-          | Some p -> match (get t p).level with
-            | k when k < 0 -> Stack.push q p
-            | k -> set d (k + 1)
-        done
-      end)
+  for n = 0 to Vec.length t.loops - 1 do
+    let d = get t n in
+    if d.level < 0 then begin
+      Stack.push q n;
+      assign_loop t q
+    end
+  done
 
 let analyze fn =
   let t = init () in
