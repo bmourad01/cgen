@@ -69,12 +69,14 @@ let duplicate t id a = match Hashtbl.find t.id2lbl id with
     move t [a; b] c @@ find t id
 
 let is_in_loop t l = match Hashtbl.find t.input.tbl l with
-  | None | Some `blk _ -> assert false
-  | Some `insn (_, b, _) -> Loops.mem t.input.loop @@ Blk.label b
+  | Some (`blk b | `insn (_, b, _)) ->
+    Loops.mem t.input.loop @@ Blk.label b
+  | None -> assert false
 
 let find_loop t l = match Hashtbl.find t.input.tbl l with
-  | None | Some `blk _ -> assert false
-  | Some `insn (_, b, _) -> Loops.blk t.input.loop @@ Blk.label b
+  | Some (`blk b | `insn (_, b, _)) ->
+    Loops.blk t.input.loop @@ Blk.label b
+  | None -> assert false
 
 type loop_invariance =
   | Not_in_loop
@@ -96,24 +98,52 @@ let loop_no_label t : enode -> _ Continue_or_stop.t = function
     Continue Invariant
   | _ -> Stop Variant
 
-let rec loop_invariance t l n =
-  if is_in_loop t l then
-    let cs = match (n : enode) with
-      | N (_, cs) -> cs
-      | U {pre; post} -> [pre; post] in
-    let init = Invariant and finish = Fn.id in
-    List.fold_until cs ~init ~finish ~f:(fun acc id ->
-        let n = node t id in
-        match Hashtbl.find t.id2lbl id with
-        | Some l -> loop_child acc t l n
-        | None -> match Hashtbl.find t.imoved2 id with
-          | None -> loop_no_label t n
-          | Some l -> loop_child acc t l n)
-  else Not_in_loop
+let rec loop_invariance ~lp t l n = match find_loop t l with
+  | None -> Not_in_loop
+  | Some lp' when Loops.equal_loop lp lp' ->
+    loop_children ~lp t n
+  | Some lp' ->
+    (* See if we've broken out of the loop. *)
+    if Loops.is_child_of t.input.loop lp lp'
+    then Invariant else loop_children ~lp t n
 
-and loop_child acc t l n = match loop_invariance t l n with
+and loop_children ~lp t n =
+  let cs = match (n : enode) with
+    | N (_, cs) -> cs
+    | U {pre; post} -> [pre; post] in
+  let init = Invariant and finish = Fn.id in
+  List.fold_until cs ~init ~finish ~f:(fun acc id ->
+      let n = node t id in
+      match Hashtbl.find t.id2lbl id with
+      | Some l -> loop_child ~lp acc t l n
+      | None -> match Hashtbl.find t.imoved2 id with
+        | None -> loop_no_label t n
+        | Some l -> loop_child ~lp acc t l n)
+
+and loop_child ~lp acc t l n = match loop_invariance ~lp t l n with
   | Not_in_loop | Invariant -> Continue acc
   | Variant -> Stop Variant
+
+let rec licm' t l n lp id =
+  let data = Loops.get t.input.loop lp in
+  let hdr = Loops.header data in
+  (* Get the immediate dominator of the loop header. *)
+  match Tree.parent t.input.dom hdr with
+  | None -> assert false
+  | Some l' ->
+    (* Now see if this new label is also part of a loop. *)
+    match find_loop t l' with
+    | None -> move t [l] l' id
+    | Some lp ->
+      (* Determine the loop-invariance of our node at this level. *)
+      match loop_children ~lp t n with
+      | Not_in_loop | Variant -> move t [l] l' id
+      | Invariant -> licm' t l n lp id (* Repeat. *)
+
+let licm t l n lp id = match loop_children ~lp t n with
+  | Invariant -> licm' t l n lp id
+  | Not_in_loop | Variant ->
+    Hashtbl.set t.id2lbl ~key:id ~data:l
 
 (* Track the provenance between the node and the label, but first see
    if we can do LICM (loop-invariant code motion). *)
@@ -122,14 +152,6 @@ let add t l id n = match Hashtbl.find t.input.tbl l with
   | Some `blk _ -> Hashtbl.set t.id2lbl ~key:id ~data:l
   | Some `insn (i, _, _) when Insn.is_effectful i ->
     Hashtbl.set t.id2lbl ~key:id ~data:l
-  | Some `insn _ -> match loop_invariance t l n with
-    | Not_in_loop | Variant -> Hashtbl.set t.id2lbl ~key:id ~data:l
-    | Invariant -> match find_loop t l with
-      | None -> assert false
-      | Some lp ->
-        let data = Loops.get t.input.loop lp in
-        let hdr = Loops.header data in
-        (* TODO: see if we're also loop-invariant at this new label. *)
-        match Tree.parent t.input.dom hdr with
-        | Some l' -> move t [l] l' id
-        | None -> assert false
+  | Some `insn _ -> match find_loop t l with
+    | None -> Hashtbl.set t.id2lbl ~key:id ~data:l
+    | Some lp -> licm t l n lp id
