@@ -253,9 +253,9 @@ let pp_mem ppf : mem -> unit = function
       Type.pp_basic t pp_operand v pp_operand a
 
 type alist = [
-  | `var of Var.t
+  | `var  of Var.t
   | `addr of Bv.t
-  | `sym of string * int
+  | `sym  of string * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_alist ppf : alist -> unit = function

@@ -386,9 +386,9 @@ module Insn : sig
 
   (** Variadic argument list pointer. *)
   type alist = [
-    | `var of Var.t
+    | `var  of Var.t
     | `addr of Bv.t
-    | `sym of string * int
+    | `sym  of string * int
   ] [@@deriving bin_io, compare, equal, sexp]
 
   val pp_alist : Format.formatter -> alist -> unit
