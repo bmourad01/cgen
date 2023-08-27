@@ -110,17 +110,19 @@ let rec loop_invariance ~lp t l n = match find_loop t l with
   | Some _ -> loop_children ~lp t n
   | None -> Inv
 
-and loop_children ~lp t n =
-  let cs = match (n : enode) with
-    | N (_, cs) -> cs
-    | U {pre; post} -> [pre; post] in
-  List.fold_until cs ~init:Inv ~finish:Fn.id ~f:(fun _ id ->
-      let f = match id2lbl t id with
-        | Some l -> loop_invariance ~lp t l
-        | None -> loop_no_label ~lp t in
-      match f @@ node t id with
-      | Inv -> Continue Inv
-      | Fix -> Stop Fix)
+and loop_children ~lp t n = match (n : enode) with
+  | N (_, cs) ->
+    List.fold_until cs ~init:Inv ~finish:Fn.id ~f:(fun _ id ->
+        let f = match id2lbl t id with
+          | Some l -> loop_invariance ~lp t l
+          | None -> loop_no_label ~lp t in
+        match f @@ node t id with
+        | Inv -> Continue Inv
+        | Fix -> Stop Fix)
+  | U {pre; post} ->
+    let id = find t pre in
+    assert (id = find t post);
+    loop_children ~lp t @@ node t id
 
 let header t lp = Loops.(header @@ get t.input.loop lp)
 
