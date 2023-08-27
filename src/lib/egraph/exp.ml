@@ -31,14 +31,16 @@ type table = (Bv.t * local) list
 [@@deriving bin_io, compare, equal, sexp]
 
 type t =
-  | Ebr    of pure * dst * dst
-  | Ecall  of (Var.t * Type.basic) option * global * pure list * pure list
-  | Ejmp   of dst
-  | Eload  of Var.t * Type.basic * pure
-  | Eret   of pure
-  | Eset   of Var.t * pure
-  | Estore of Type.basic * pure * pure
-  | Esw    of Type.imm * pure * local * table
+  | Ebr      of pure * dst * dst
+  | Ecall    of (Var.t * Type.basic) option * global * pure list * pure list
+  | Ejmp     of dst
+  | Eload    of Var.t * Type.basic * pure
+  | Eret     of pure
+  | Eset     of Var.t * pure
+  | Estore   of Type.basic * pure * pure
+  | Esw      of Type.imm * pure * local * table
+  | Evaarg   of Var.t * Type.basic * pure
+  | Evastart of pure
 [@@deriving bin_io, compare, equal, sexp]
 
 let pp_label ppf = function
@@ -123,3 +125,8 @@ let pp ppf = function
   | Esw (t, v, d, tbl) ->
     Format.fprintf ppf "sw.%a(%a, %a, [%a])"
       Type.pp_imm t pp_pure v pp_local d (pp_table t) tbl
+  | Evaarg (x, t, a) ->
+    Format.fprintf ppf "%a = vaarg.%a(%a)"
+      Var.pp x Type.pp_basic t pp_pure a
+  | Evastart a ->
+    Format.fprintf ppf "vastart(%a)" pp_pure a

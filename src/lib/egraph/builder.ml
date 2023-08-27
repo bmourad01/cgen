@@ -155,15 +155,16 @@ let alist env eg : Insn.alist -> id = function
   | `sym (s, o) -> atom env eg @@ Osym (s, o)
 
 let vaarg env eg l x ty a =
-  ignore @@ var env eg x;
   let a = alist env eg a in
-  undef env l a ty
+  undef env l a ty;
+  prov ~x env eg l (Ovaarg (x, ty)) [a]
 
 let vastart env eg l x =
   let a = alist env eg x in
   let tgt = Typecheck.Env.target eg.input.tenv in
   let ty = (Target.word tgt :> Type.basic) in
-  undef env l a ty
+  undef env l a ty;
+  prov env eg l (Ovastart l) [a]
 
 let insn env eg l : Insn.op -> unit = function
   | `bop (x, o, a, b) ->

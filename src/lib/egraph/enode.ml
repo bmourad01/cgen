@@ -33,7 +33,9 @@ type op =
   | Osym      of string * int
   | Otbl      of Bv.t
   | Ounop     of Insn.unop
+  | Ovaarg    of Var.t * Type.basic
   | Ovar      of Var.t
+  | Ovastart  of Label.t
 [@@deriving compare, equal, hash, sexp]
 
 type t =
@@ -117,7 +119,9 @@ module Eval = struct
       (unop_double o a :> const option)
     | Ounop `flag t, [Some `bool b] -> Some (`int (Bv.bool b, t))
     | Ounop _, _ -> None
+    | Ovaarg _, _ -> None
     | Ovar _, _ -> None
+    | Ovastart _, _ -> None
 end
 
 let rec const ~node n : const option = match n with
@@ -193,8 +197,12 @@ let pp_op ppf = function
     Format.fprintf ppf "(tbl %a)" Bv.pp i
   | Ounop u ->
     Format.fprintf ppf "%a" Insn.pp_unop u
+  | Ovaarg (_, t) ->
+    Format.fprintf ppf "vaarg.%a" Type.pp_basic t
   | Ovar x ->
     Format.fprintf ppf "%a" Var.pp x
+  | Ovastart _ ->
+    Format.fprintf ppf "vastart"
 
 let pp ppf = function
   | N (op, []) -> Format.fprintf ppf "%a" pp_op op

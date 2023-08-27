@@ -71,14 +71,16 @@ module Exp : sig
   (** A "base" expression, which corresponds directly to a [Virtual]
       instruction. *)
   type t =
-    | Ebr    of pure * dst * dst
-    | Ecall  of (Var.t * Type.basic) option * global * pure list * pure list
-    | Ejmp   of dst
-    | Eload  of Var.t * Type.basic * pure
-    | Eret   of pure
-    | Eset   of Var.t * pure
-    | Estore of Type.basic * pure * pure
-    | Esw    of Type.imm * pure * local * table
+    | Ebr      of pure * dst * dst
+    | Ecall    of (Var.t * Type.basic) option * global * pure list * pure list
+    | Ejmp     of dst
+    | Eload    of Var.t * Type.basic * pure
+    | Eret     of pure
+    | Eset     of Var.t * pure
+    | Estore   of Type.basic * pure * pure
+    | Esw      of Type.imm * pure * local * table
+    | Evaarg   of Var.t * Type.basic * pure
+    | Evastart of pure
   [@@deriving bin_io, compare, equal, sexp]
 
   val pp_pure : Format.formatter -> pure -> unit

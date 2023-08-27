@@ -46,7 +46,9 @@ let rec pure = function
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
   | E (_, Ounop _, _)
-  | E (_, Ovar _, _) -> None
+  | E (_, Ovaarg _, _)
+  | E (_, Ovar _, _)
+  | E (_, Ovastart _, _) -> None
 
 and callargs = function
   | E (_, Ocallargs, args) -> O.List.map args ~f:pure
@@ -116,6 +118,12 @@ let exp = function
       | _ -> None
     and+ tbl = O.List.map tbl ~f:table in
     Exp.Esw (t, i, d, tbl)
+  | E (_, Ovaarg (x, t), [a]) ->
+    let+ a = pure a in
+    Exp.Evaarg (x, t, a)
+  | E (_, Ovastart _, [a]) ->
+    let+ a = pure a in
+    Exp.Evastart a
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
   | E (_, Obinop _, _)
@@ -138,4 +146,6 @@ let exp = function
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
   | E (_, Ounop _, _)
-  | E (_, Ovar _, _) -> None
+  | E (_, Ovaarg _, _)
+  | E (_, Ovar _, _)
+  | E (_, Ovastart _, _) -> None

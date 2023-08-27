@@ -120,6 +120,7 @@ let rec pure t env e : operand Context.t =
   | E (a, Ounop u, [y]) -> insn a @@ fun x ->
     let+ y = pure y in
     `uop (x, u, y)
+  | E (_, Ovaarg (x, _), [_]) -> !!(`var x)
   | E (_, Ovar x, []) -> !!(`var x)
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
@@ -141,7 +142,9 @@ let rec pure t env e : operand Context.t =
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
   | E (_, Ounop _, _)
-  | E (_, Ovar _, _) -> invalid_pure e
+  | E (_, Ovaarg _, _)
+  | E (_, Ovar _, _)
+  | E (_, Ovastart _, _) -> invalid_pure e
 
 and callargs t env = function
   | E (_, Ocallargs, args) -> Context.List.map args ~f:(pure t env)
@@ -203,6 +206,16 @@ let sw l e ty i d tbl = match i with
   | `int (i, _) -> !!(`jmp (table_dst tbl i d))
   | _ -> invalid l e
 
+let vaarg l e x t = function
+  | (`var _ | `sym _) as a -> !!(`vaarg (x, t, a))
+  | `int (a, _) -> !!(`vaarg (x, t, `addr a))
+  | _ -> invalid l e
+
+let vastart l e = function
+  | (`var _ | `sym _) as a -> !!(`vastart a)
+  | `int (a, _) -> !!(`vastart (`addr a))
+  | _ -> invalid l e
+
 let exp t env l e =
   let pure = pure t env in
   let dst = dst t env in
@@ -244,6 +257,12 @@ let exp t env l e =
     let* d = sw_default t env l d in
     let* tbl = table t env tbl ty in
     sw l e ty i d tbl
+  | E (_, Ovaarg (x, t), [a]) -> insn @@ fun () ->
+    let* a = pure a in
+    vaarg l e x t a
+  | E (_, Ovastart _, [a]) -> insn @@ fun () ->
+    let* a = pure a in
+    vastart l e a
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
   | E (_, Obinop _, _)
@@ -266,7 +285,9 @@ let exp t env l e =
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
   | E (_, Ounop _, _)
-  | E (_, Ovar _, _) -> invalid l e
+  | E (_, Ovaarg _, _)
+  | E (_, Ovar _, _)
+  | E (_, Ovastart _, _) -> invalid l e
 
 let reify t env l =
   let* () = match Hashtbl.find t.eg.lmoved l with
@@ -287,7 +308,9 @@ let reify t env l =
             | E (_, Ocall _, _)
             | E (_, Oload _, _)
             | E (_, Oset _, _)
-            | E (_, Ostore _, _) ->
+            | E (_, Ostore _, _)
+            | E (_, Ovaarg _, _)
+            | E (_, Ovastart _, _) ->
               (* Ignore "effectful" operators that got moved; maybe we
                  can do something with the control-flow operators, but
                  I think it would be delicate to handle correctly. *)

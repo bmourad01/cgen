@@ -75,7 +75,9 @@ let cost t : enode -> int = function
       | Osingle _
       | Osym _
       | Oset _
-      | Ostore _ -> 0
+      | Ostore _
+      | Ovaarg _
+      | Ovastart _ -> 0
       | Obr | Otbl _ | Ovar _ -> 2
       | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
       | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 90
