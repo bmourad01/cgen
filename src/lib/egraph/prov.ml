@@ -112,16 +112,14 @@ let rec loop_invariance ~lp t l n = match find_loop t l with
 
 and loop_children ~lp t n = match (n : enode) with
   | N (_, cs) ->
-    let rec aux = function
-      | [] -> Inv
-      | id :: rest -> match loop_child ~lp t id with
-        | Inv -> aux rest
-        | Fix -> Fix in
-    aux cs
+    if List.exists cs ~f:(is_variant ~lp t) then Fix else Inv
   | U {pre; post} ->
     let id = find t pre in
     assert (id = find t post);
     loop_children ~lp t @@ node t id
+
+and is_variant ~lp t id = match loop_child ~lp t id with
+  | Fix -> true | Inv -> false
 
 and loop_child ~lp t id =
   let n = node t id in
