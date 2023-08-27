@@ -1,4 +1,23 @@
-(** An e-graph data structure. *)
+(** An e-graph data structure.
+
+    The e-graph allows us to track equivalent terms in a function and
+    simultaneously apply rewrite rules on these terms, which solves
+    the phase-ordering problem.
+
+    This enables us to do several key optimizations, such as common
+    subexpression elimination, loop-invariant code motion, constant
+    folding, constant propagation, store-to-load forwarding, strength
+    reduction, and so on.
+
+    The implementation used is a slightly less-powerful version of
+    a standard e-graph known as an "acyclic e-graph". This technique
+    was first seen in the Cranelift compiler and proves to be a decent
+    trade-off between expressivity and efficiency. Specifically, it
+    allows us to avoid an expensive fixpoint loop to maintain the
+    invariants of the data structure and instead apply all the rewrites
+    in a single, carefully-ordered pass over the dominator tree of the
+    function.
+*)
 
 open Core
 open Regular.Std
