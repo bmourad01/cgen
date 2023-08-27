@@ -90,6 +90,9 @@ let find_headers t cfg dom =
         if dom_backedge l cfg dom |> Seq.is_empty |> not then
           Hashtbl.set t.blks ~key:l ~data:(new_loop t l))
 
+(* For our analysis of the loop `n` we have a block associated
+   with loop `m`. We need to recursively chase the parent of `m`
+   until we reach `n` or we find no parent. *)
 let chase_parent t n m =
   let rec chase m = function
     | None -> Some m
@@ -99,27 +102,37 @@ let chase_parent t n m =
 
 let find_next t n l = match Hashtbl.find t.blks l with
   | None ->
+    (* We haven't visited this block yet, so it needs to be
+       enqueued for analysis. *)
     Hashtbl.set t.blks ~key:l ~data:n;
     Some l
   | Some m ->
+    (* We found that `m` has no parent. *)
     let* m = chase_parent t n m in
+    (* Check to see if it's the loop we're analyzing. *)
     let+ () = O.guard (n <> m) in
+    (* Set the parent. *)
     let d = get t m in
     d.parent <- Some n;
     d.header
 
-let rec explore_loop t cfg q n =
+let rec analyze_loop t cfg q n =
   Stack.pop q |> Option.iter ~f:(fun l ->
       find_next t n l |> Option.iter ~f:(fun c ->
+          (* We discovered this block as being part of the current
+             loop, so enqueue its predecessors for analysis. *)
           Cfg.Node.preds c cfg |> Seq.iter ~f:(Stack.push q));
-      explore_loop t cfg q n)
+      analyze_loop t cfg q n)
 
 let find_loop_blks t cfg dom =
   let q = Stack.create () in
+  (* We need to traverse the loops in pseudo-postorder. *)
   for n = Vec.length t.loops - 1 downto 0 do
+    (* Enqueue the predecessors that the loop header dominates. *)
     dom_backedge (get t n).header cfg dom |>
     Seq.iter ~f:(Stack.push q);
-    explore_loop t cfg q n
+    (* Analyze the loop. *)
+    analyze_loop t cfg q n
   done
 
 let set_level q d k =
@@ -135,8 +148,7 @@ let loop_level t q d = match d.parent with
 let rec assign_loop t q = match Stack.top q with
   | None -> ()
   | Some n ->
-    let d = get t n in
-    loop_level t q d;
+    loop_level t q @@ get t n;
     assign_loop t q
 
 let assign_levels t =
