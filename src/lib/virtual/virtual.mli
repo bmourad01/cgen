@@ -828,11 +828,25 @@ module Func : sig
 
   val pp_slot : Format.formatter -> slot -> unit
 
+  (** Tags for various information about the function. *)
+  module Tag : sig
+    (** The return type of the function. *)
+    val return : Type.basic Dict.tag
+
+    (** Indicates whether the function is variadic or not. *)
+    val variadic : unit Dict.tag
+
+    (** Indicates whether the function should be interpreted
+        as not returning. *)
+    val noreturn : unit Dict.tag
+
+    (** The linkage of the function. *)
+    val linkage : Linkage.t Dict.tag
+  end
+
   type t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a function.
-
-      By default, [linkage] is [Linkage.default_export].
 
       It is assumed that [blks] is ordered such that the entry block is
       the first element.
@@ -843,11 +857,8 @@ module Func : sig
       @raise Invalid_argument if [blks] is empty.
   *)
   val create_exn :
+    ?dict:Dict.t ->
     ?slots:slot list ->
-    ?return:Type.basic option ->
-    ?variadic:bool ->
-    ?noreturn:bool ->
-    ?linkage:Linkage.t ->
     name:string ->
     blks:blk list ->
     args:(Var.t * Type.arg) list ->
@@ -856,11 +867,8 @@ module Func : sig
 
   (** Same as [create_exn], but returns an error upon failure. *)
   val create :
+    ?dict:Dict.t ->
     ?slots:slot list ->
-    ?return:Type.basic option ->
-    ?variadic:bool ->
-    ?noreturn:bool ->
-    ?linkage:Linkage.t ->
     name:string ->
     blks:blk list ->
     args:(Var.t * Type.arg) list ->
@@ -891,8 +899,21 @@ module Func : sig
   (** Returns [true] if the function does not return. *)
   val noreturn : t -> bool
 
-  (** Returns the linkage of the function. *)
+  (** Returns the linkage of the function.
+
+      If no value was given for it in the [dict], then the result defaults
+      to [Linkage.default_export].
+  *)
   val linkage : t -> Linkage.t
+
+  (** Returns the dictionary of the function. *)
+  val dict : t -> Dict.t
+
+  (** Replaces the dictionary of the function. *)
+  val with_dict : t -> Dict.t -> t
+
+  (** [with_tag fn t v] binds [v] to tag [t] in the dictionary of [fn]. *)
+  val with_tag : t -> 'a Dict.tag -> 'a -> t
 
   (** Returns [true] if the function has the associated name. *)
   val has_name : t -> string -> bool

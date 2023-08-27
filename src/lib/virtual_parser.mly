@@ -73,7 +73,15 @@
         | None -> !!([], false)
         | Some a -> a in
       let linkage = Core.Option.value l ~default:Linkage.default_static in
-      match Virtual.Func.create () ~name ~blks ~args ~slots ~return ~noreturn ~variadic ~linkage with
+      let module Tag = Virtual.Func.Tag in
+      let dict = Dict.empty in
+      let dict = if noreturn then Dict.set dict Tag.noreturn () else dict in
+      let dict = if variadic then Dict.set dict Tag.variadic () else dict in
+      let dict = match return with
+        | Some t -> Dict.set dict Tag.return t
+        | None -> dict in
+      let dict = Dict.set dict Tag.linkage linkage in
+      match Virtual.Func.create () ~name ~blks ~args ~slots ~dict with
       | Error err -> M.lift @@ Context.fail err
       | Ok fn -> !!fn
  %}
