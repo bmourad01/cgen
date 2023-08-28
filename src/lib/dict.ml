@@ -120,6 +120,7 @@ let set d {key} x = Univ_map.set d ~key ~data:x
 let remove d {key} = Univ_map.remove d key
 let mem d {key} = Univ_map.mem d key
 let find d {key} = Univ_map.find d key
+let find_exn d {key} = Univ_map.find_exn d key
 let add d {key} x = Univ_map.add d ~key ~data:x
 let change d {key} ~f = Univ_map.change d key ~f
 let data d = Univ_map.to_alist d |> Seq.of_list

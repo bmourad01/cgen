@@ -73,6 +73,10 @@ val mem : t -> 'a tag -> bool
 (** [find d t] returns the binding for [t] in [d], if it exists. *)
 val find : t -> 'a tag -> 'a option
 
+(** [find_exn d t] returns the binding for [t] in [d]. Raises if
+    it doesn't exist. *)
+val find_exn : t -> 'a tag -> 'a
+
 (** [add d t v] attemts to add a binding from [t] to [v] in [d],
     returning [`Duplicate] if a binding already exists. *)
 val add : t -> 'a tag -> 'a -> [`Duplicate | `Ok of t]
