@@ -438,7 +438,7 @@ module Insn : sig
   type t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a labeled instruction. *)
-  val create : op -> label:Label.t -> t
+  val create : ?dict:Dict.t -> op -> label:Label.t -> t
 
   (** The label of the instruction. *)
   val label : t -> Label.t
@@ -446,16 +446,28 @@ module Insn : sig
   (** The operation itself. *)
   val op : t -> op
 
+  (** Replaces the operation *)
+  val with_op : t -> op -> t
+
+  (** Returns the dictionary of the instruction. *)
+  val dict : t -> Dict.t
+
+  (** Replaces the dictionary of the instruction. *)
+  val with_dict : t -> Dict.t -> t
+
+  (** [with_tag i t v] binds [v] to tag [t] in the dictionary of [i]. *)
+  val with_tag : t -> 'a Dict.tag -> 'a -> t
+
   (** Returns [true] if the instruction has a given label. *)
   val has_label : t -> Label.t -> bool
 
-  (** Same as [free_vars_of_op (op d)]. *)
+  (** Same as [free_vars_of_op (op i)]. *)
   val free_vars : t -> Var.Set.t
 
-  (** Same as [lhs_of_op (op d)]. *)
+  (** Same as [lhs_of_op (op i)]. *)
   val lhs : t -> Var.t option
 
-  (** Same as [op_has_lhs (op d)]. *)
+  (** Same as [op_has_lhs (op i)]. *)
   val has_lhs : t -> Var.t -> bool
 
   (** Returns [true] for instructions that have side effects. *)
@@ -467,13 +479,13 @@ module Insn : sig
   (** Returns [true] for instructions that can load from memory. *)
   val can_load_op : op -> bool
 
-  (** Same as [is_effectful_op (op d)]. *)
+  (** Same as [is_effectful_op (op i)]. *)
   val is_effectful : t -> bool
 
-  (** Same as [can_store_op (op d)]. *)
+  (** Same as [can_store_op (op i)]. *)
   val can_store : t -> bool
 
-  (** Same as [can_load_op (op d)]. *)
+  (** Same as [can_load_op (op i)]. *)
   val can_load : t -> bool
 
   (** Transforms the underlying operation. *)
@@ -684,7 +696,7 @@ module Blk : sig
 
   (** [with_tag b t v] binds [v] to tag [t] in the dictionary of [b]. *)
   val with_tag : t -> 'a Dict.tag -> 'a -> t
-  
+
   (** [has_label b l] returns [true] if block [b] has label [l]. *)
   val has_label : t -> Label.t -> bool
 

@@ -354,7 +354,9 @@ let cfg t =
         Blk.insns b ~rev:true |>
         Seq.fold ~init:(find_news env label) ~f:(fun acc i ->
             let label = Insn.label i in
-            let i = find_insn env label |> Option.value ~default:i in
+            let i = match find_insn env label with
+              | Some i' -> Insn.with_dict i' @@ Insn.dict i
+              | None -> i in
             let news = find_news env label ~rev:true in
             List.rev_append news (i :: acc)) in
       Blk.create () ~insns ~ctrl ~label

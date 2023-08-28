@@ -213,8 +213,7 @@ end = struct
 
   let rename_insns env b =
     Blk.insns b |> Seq.map ~f:(fun i ->
-        Insn.op i |> map_op env |>
-        Insn.create ~label:(Insn.label i)) |>
+        Insn.op i |> map_op env |> Insn.with_op i) |>
     Seq.to_list
 
   let map_tbl env =

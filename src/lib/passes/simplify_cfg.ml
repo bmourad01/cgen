@@ -77,8 +77,7 @@ let map_op subst (op : Insn.op) =
   | `vaarg (x, t, a) -> `vaarg (x, t, map_alist subst a)
 
 let map_insn subst i =
-  Insn.create ~label:(Insn.label i) @@
-  map_op subst @@ Insn.op i
+  Insn.with_op i @@ map_op subst @@ Insn.op i
 
 let map_tbl_entry subst i l = i, map_local subst l
 

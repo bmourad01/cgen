@@ -318,17 +318,22 @@ let pp_op ppf : op -> unit = function
 
 type t = {
   label : Label.t;
+  dict  : Dict.t;
   op    : op;
 } [@@deriving bin_io, compare, equal, sexp]
 
-let create op ~label = {label; op}
-let label d = d.label
-let op d = d.op
-let has_label d l = Label.(d.label = l)
-let map d ~f = {d with op = f d.op}
-let lhs d = lhs_of_op d.op
-let has_lhs d v = op_has_lhs d.op v
-let free_vars d = free_vars_of_op d.op
+let create ?(dict = Dict.empty) op ~label = {label; dict; op}
+let label i = i.label
+let op i = i.op
+let with_op i op = {i with op}
+let has_label i l = Label.(i.label = l)
+let map i ~f = {i with op = f i.op}
+let lhs i = lhs_of_op i.op
+let has_lhs i v = op_has_lhs i.op v
+let free_vars i = free_vars_of_op i.op
+let dict i = i.dict
+let with_dict i dict = {i with dict}
+let with_tag i tag x = {i with dict = Dict.set i.dict tag x}
 
 let is_effectful_op : op -> bool = function
   | #call | #variadic | `store _ -> true

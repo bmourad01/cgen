@@ -49,8 +49,8 @@ module Label : sig
 end
 
 module Virtual : sig
-  (** [insn d] returns a data instruction [d] with a fresh label. *)
-  val insn : Virtual.Insn.op -> Virtual.insn t
+  (** [insn d ?dict] returns a data instruction [d] with a fresh label. *)
+  val insn : ?dict:Dict.t -> Virtual.Insn.op -> Virtual.insn t
 
   (** [blk ?dict ?args ?insns ~ctrl ()] returns a block with [dict],
       [args], [insns], and [ctrl], while generating a fresh label for

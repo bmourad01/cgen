@@ -58,9 +58,9 @@ module Label = struct
 end
 
 module Virtual = struct
-  let insn d =
+  let insn ?(dict = Dict.empty) d =
     let+ label = Label.fresh in
-    Virtual.Insn.create d ~label
+    Virtual.Insn.create d ~label ~dict
 
   let blk ?(dict = Dict.empty) ?(args = []) ?(insns = []) ~ctrl () =
     let+ label = Label.fresh in
