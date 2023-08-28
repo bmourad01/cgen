@@ -1142,22 +1142,25 @@ module Data : sig
   (** Pretty-prints an element of the struct. *)
   val pp_elt : Format.formatter -> elt -> unit
 
+  (** Attributes of the struct *)
+  module Tag : sig
+    (** The alignment of the struct. *)
+    val align : int Dict.tag
+
+    (** The linkage of the struct. *)
+    val linkage : Linkage.t Dict.tag
+  end
+
   type t [@@deriving bin_io, compare, equal, sexp]
 
   (** Creates a struct.
-
-      By default, [linkage] is [Linkage.default_export].
-
-      By default, [align] is [None], and so the data will be aligned by the
-      size of its largest element.
 
       @raise Invalid_argument if [elts] is empty, or if [elts] contains an
       element of the form [`basic (_, [])], or if align is [Some n] where
       [n] is not a positive power of 2.
   *)
   val create_exn :
-    ?align:int option ->
-    ?linkage:Linkage.t ->
+    ?dict:Dict.t ->
     name:string ->
     elts:elt list ->
     unit ->
@@ -1165,8 +1168,7 @@ module Data : sig
 
   (** Same as [create_exn], but returns an error upon failure. *)
   val create :
-    ?align:int option ->
-    ?linkage:Linkage.t ->
+    ?dict:Dict.t ->
     name:string ->
     elts:elt list ->
     unit ->
@@ -1178,11 +1180,24 @@ module Data : sig
   (** Returns the elements of the struct. *)
   val elts : ?rev:bool -> t -> elt seq
 
-  (** Returns the linkage of the struct. *)
+  (** Returns the linkage of the struct.
+
+      If no value was given for it in the [dict], then the result defaults
+      to [Linkage.default_export].
+  *)
   val linkage : t -> Linkage.t
 
   (** Returns the desired alignment, if any. *)
   val align : t -> int option
+
+  (** Returns the dictionary of the struct. *)
+  val dict : t -> Dict.t
+
+  (** Replaces the dictionary of the struct. *)
+  val with_dict : t -> Dict.t -> t
+
+  (** [with_tag d t v] binds [v] to tag [t] in the dictionary of [d]. *)
+  val with_tag : t -> 'a Dict.tag -> 'a -> t
 
   (** Returns [true] if the struct has the associated name. *)
   val has_name : t -> string -> bool

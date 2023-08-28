@@ -15,43 +15,51 @@ let pp_elt ppf : elt -> unit = function
 
 module T = struct
   type t = {
-    name    : string;
-    elts    : elt ftree;
-    linkage : Linkage.t;
-    align   : int option;
+    name : string;
+    elts : elt ftree;
+    dict : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
 end
 
 include T
 
+module Tag = struct
+  let align = Dict.register
+      ~uuid:"e1099f19-c478-4e89-a462-15af393068ad"
+      "data-align" (module Int)
+
+  let linkage = Dict.register
+      ~uuid:"c3c1ad03-b3d7-42b5-8529-b21b7d04173b"
+      "data-linkage" (module Linkage)
+end
+
 let create_exn
-    ?(align = None)
-    ?(linkage = Linkage.default_export)
+    ?(dict = Dict.empty)
     ~name
     ~elts
     () =
   match elts with
   | [] -> invalid_argf "Cannot create empty data %s" name ()
-  | _ ->
-    Option.iter align ~f:(function
-        | n when n < 1 || (n land (n - 1)) <> 0 ->
-          invalid_argf "In data $%s: invalid alignment %d, \
-                        must be positive power of 2" name n ()
-        | _ -> ());
-    {name; elts = Ftree.of_list elts; linkage; align}
+  | _ -> {name; elts = Ftree.of_list elts; dict}
 
 let create
-    ?(align = None)
-    ?(linkage = Linkage.default_export)
+    ?(dict = Dict.empty)
     ~name
     ~elts
     () =
-  Or_error.try_with @@ create_exn ~name ~elts ~linkage ~align
+  Or_error.try_with @@ create_exn ~name ~elts ~dict
 
 let name d = d.name
 let elts ?(rev = false) d = Ftree.enum d.elts ~rev
-let linkage d = d.linkage
-let align d = d.align
+
+let linkage d = match Dict.find d.dict Tag.linkage with
+  | None -> Linkage.default_export
+  | Some l -> l
+    
+let align d = Dict.find d.dict Tag.align
+let dict d = d.dict
+let with_dict d dict = {d with dict}
+let with_tag d tag x = {d with dict = Dict.set d.dict tag x}
 let has_name d name = String.(name = d.name)
 let hash d = String.hash d.name
 
@@ -68,7 +76,7 @@ let typeof d target =
         | `zero n     -> `elt (`i8, n)
         | `sym _      -> `elt (word, 1) in
       t :: fields) in
-  `compound (name, d.align, fields)
+  `compound (name, align d, fields)
 
 let prepend_elt d e = {
   d with elts = Ftree.cons d.elts e;
@@ -84,11 +92,12 @@ let map_elts d ~f = {
 
 let pp ppf d =
   let sep ppf = Format.fprintf ppf ",@;" in
-  if Linkage.export d.linkage
-  || Linkage.section d.linkage |> Option.is_some then
-    Format.fprintf ppf "%a " Linkage.pp d.linkage;
+  let lnk = linkage d in
+  if Linkage.export lnk
+  || Linkage.section lnk |> Option.is_some then
+    Format.fprintf ppf "%a " Linkage.pp lnk;
   Format.fprintf ppf "data $%s = " d.name;
-  Option.iter d.align ~f:(Format.fprintf ppf "align %d ");
+  Option.iter (align d) ~f:(Format.fprintf ppf "align %d ");
   Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
     (Ftree.pp pp_elt sep) d.elts
 
