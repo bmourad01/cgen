@@ -40,11 +40,11 @@ let pp_slot = Slot.pp
 
 module T = struct
   type t = {
-    name     : string;
-    slots    : slot ftree;
-    blks     : Blk.t ftree;
-    args     : (Var.t * Type.arg) ftree;
-    dict     : Dict.t;
+    name  : string;
+    slots : slot ftree;
+    blks  : Blk.t ftree;
+    args  : (Var.t * Type.arg) ftree;
+    dict  : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
 end
 
