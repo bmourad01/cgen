@@ -358,4 +358,5 @@ let cfg t =
             let news = find_news env label ~rev:true in
             List.rev_append news (i :: acc)) in
       Blk.create () ~insns ~ctrl ~label
-        ~args:(Blk.args b |> Seq.to_list))
+        ~args:(Blk.args b |> Seq.to_list)
+        ~dict:(Blk.dict b))

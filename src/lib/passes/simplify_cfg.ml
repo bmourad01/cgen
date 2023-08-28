@@ -212,7 +212,8 @@ module Merge = struct
     let insns = Blk.insns b |> Seq.to_list in
     let b = Blk.create () ~ctrl ~label:l
         ~args:(Seq.to_list @@ Blk.args b)
-        ~insns:(insns @ insns') in
+        ~insns:(insns @ insns')
+        ~dict:(Blk.dict b) in
     Hashtbl.set env.blks ~key:l ~data:b;
     Hashtbl.remove env.blks l';
     let es = map_edges env l l' in
@@ -228,9 +229,10 @@ module Merge = struct
       let l, subst = Stack.pop_exn q in
       if not @@ Map.is_empty subst then
         Hashtbl.change env.blks l ~f:(O.map ~f:(fun b ->
+            let dict = Blk.dict b in
             let args = Blk.args b |> Seq.to_list in
             let insns, ctrl = map_blk subst b in
-            Blk.create () ~args ~insns ~ctrl ~label:l));
+            Blk.create () ~dict ~args ~insns ~ctrl ~label:l));
       (* If we successfully merge for the block at this label,
          then we know it has only one child in the dominator
          tree, so we can just skip forward to the child that

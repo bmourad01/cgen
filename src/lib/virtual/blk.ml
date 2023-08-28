@@ -8,16 +8,22 @@ module T = struct
     args  : Var.t ftree;
     insns : Insn.t ftree;
     ctrl  : Ctrl.t;
+    dict  : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
 end
 
 include T
 
-let create ?(args = []) ?(insns = []) ~label ~ctrl () = {
+let create
+    ?(dict = Dict.empty)
+    ?(args = [])
+    ?(insns = [])
+    ~label ~ctrl () = {
   label;
   args = Ftree.of_list args;
   insns = Ftree.of_list insns;
   ctrl;
+  dict;
 }
 
 let label b = b.label
@@ -26,6 +32,9 @@ let insns ?(rev = false) b = Ftree.enum b.insns ~rev
 let ctrl b = b.ctrl
 let has_label b l = Label.(b.label = l)
 let hash b = Label.hash b.label
+let dict b = b.dict
+let with_dict b dict = {b with dict}
+let with_tag b tag x = {b with dict = Dict.set b.dict tag x}
 
 let map_of_insns b =
   Ftree.fold b.insns ~init:Label.Tree.empty ~f:(fun m d ->

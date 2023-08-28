@@ -43,7 +43,6 @@ module T = struct
     name     : string;
     slots    : slot ftree;
     blks     : Blk.t ftree;
-    entry    : Label.t;
     args     : (Var.t * Type.arg) ftree;
     dict     : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
@@ -80,11 +79,10 @@ let create_exn
     ~args
     () = match blks with
   | [] -> invalid_argf "Cannot create empty function %s" name ()
-  | {Blk.label = entry; _} :: _ -> {
+  | _ :: _ -> {
       name;
       slots = Ftree.of_list slots;
       blks = Ftree.of_list blks;
-      entry;
       args = Ftree.of_list args;
       dict;
     }
@@ -102,7 +100,7 @@ let create
 let name fn = fn.name
 let slots ?(rev = false) fn = Ftree.enum fn.slots ~rev
 let blks ?(rev = false) fn = Ftree.enum fn.blks ~rev
-let entry fn = fn.entry
+let entry fn = Blk.label @@ Ftree.head_exn fn.blks
 let args ?(rev = false) fn = Ftree.enum fn.args ~rev
 let return fn = Dict.find fn.dict Tag.return
 let variadic fn = Dict.mem fn.dict Tag.variadic
@@ -118,8 +116,6 @@ let linkage fn = match Dict.find fn.dict Tag.linkage with
 let has_name fn name = String.(name = fn.name)
 let hash fn = String.hash fn.name
 
-exception Failed of Error.t
-
 let typeof fn =
   let args = Ftree.enum fn.args |> Seq.map ~f:snd |> Seq.to_list in
   `proto (return fn, args, variadic fn)
@@ -134,25 +130,15 @@ let map_of_blks fn =
           "Duplicate block of label %a in function %s"
           Label.pps key fn.name ())
 
-let map_blks fn ~f =
-  let entry = ref fn.entry in
-  let is_entry b = Label.(Blk.label b = fn.entry) in
-  let blks = Ftree.map fn.blks ~f:(fun b ->
-      let b' = f b in
-      if is_entry b then entry := Blk.label b';
-      b') in
-  {fn with blks; entry = !entry}
+let map_blks fn ~f = {fn with blks = Ftree.map fn.blks ~f}
+
+exception Failed of Error.t
 
 let map_blks_err fn ~f = try
-    let entry = ref fn.entry in
-    let is_entry b = Label.(Blk.label b = fn.entry) in
-    let blks = Ftree.map fn.blks ~f:(fun b ->
-        let b' = match f b with
-          | Error e -> raise @@ Failed e
-          | Ok b' -> b' in
-        if is_entry b then entry := Blk.label b';
-        b') in
-    Ok {fn with blks; entry = !entry}
+    let blks = Ftree.map fn.blks ~f:(fun b -> match f b with
+        | Error e -> raise @@ Failed e
+        | Ok b' -> b') in
+    Ok {fn with blks}
   with Failed e -> Error e
 
 let insert_blk fn b = {
@@ -164,7 +150,7 @@ let insert_slot fn s = {
 }
 
 let remove_blk_exn fn l =
-  if Label.(l = fn.entry)
+  if Label.(l = entry fn)
   then invalid_argf "Cannot remove entry block of function $%s" fn.name ()
   else {fn with blks = Ftree.remove_if fn.blks ~f:(Fn.flip Blk.has_label l)}
 

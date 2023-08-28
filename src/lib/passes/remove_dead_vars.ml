@@ -88,7 +88,7 @@ let rec run' fn =
         Seq.fold ~init:([], ca || cc, alive) ~f:insn in
       if changed then
         Option.some @@ Blk.create () ~insns ~ctrl ~label
-          ~args:(Seq.to_list args)
+          ~args:(Seq.to_list args) ~dict:(Blk.dict b)
       else None) |> Seq.to_list |> function
   | [] -> remove_unused_slots fn live
   | blks -> run' @@ Func.update_blks fn blks

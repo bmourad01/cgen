@@ -52,10 +52,11 @@ module Virtual : sig
   (** [insn d] returns a data instruction [d] with a fresh label. *)
   val insn : Virtual.Insn.op -> Virtual.insn t
 
-  (** [blk ?phi ?insns ~ctrl ()] returns a block with the instructions
-      [phi], [insns], and [ctrl], while generating a fresh label for the
-      block. *)
+  (** [blk ?dict ?args ?insns ~ctrl ()] returns a block with [dict],
+      [args], [insns], and [ctrl], while generating a fresh label for
+      the block. *)
   val blk :
+    ?dict:Dict.t ->
     ?args:var list ->
     ?insns:Virtual.insn list ->
     ctrl:Virtual.ctrl ->
@@ -65,6 +66,7 @@ module Virtual : sig
   (** Same as [blk], but also generates fresh labels for the [insns].
       Allows a pre-existing label for the block. *)
   val blk' :
+    ?dict:Dict.t ->
     ?label:label option ->
     ?args:var list ->
     ?insns:Virtual.Insn.op list ->

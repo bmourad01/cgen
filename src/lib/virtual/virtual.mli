@@ -655,6 +655,7 @@ module Blk : sig
 
   (** Creates a basic block. *)
   val create :
+    ?dict:Dict.t ->
     ?args:Var.t list ->
     ?insns:insn list ->
     label:Label.t ->
@@ -675,6 +676,15 @@ module Blk : sig
       of the block. *)
   val ctrl : t -> ctrl
 
+  (** Returns the dictionary of the block. *)
+  val dict : t -> Dict.t
+
+  (** Replaces the dictionary of the block. *)
+  val with_dict : t -> Dict.t -> t
+
+  (** [with_tag b t v] binds [v] to tag [t] in the dictionary of [b]. *)
+  val with_tag : t -> 'a Dict.tag -> 'a -> t
+  
   (** [has_label b l] returns [true] if block [b] has label [l]. *)
   val has_label : t -> Label.t -> bool
 

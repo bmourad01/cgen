@@ -145,10 +145,11 @@ end = struct
     insert_ctrl_args st;
     Hashtbl.map_inplace env.blks ~f:(fun b ->
         let label = Blk.label b in
+        let dict = Blk.dict b in
         let args = Hashtbl.find_exn st.args label in
         let ctrl = Hashtbl.find_exn st.ctrl label in
         let insns = Blk.insns b |> Seq.to_list in
-        Blk.create ~args ~insns ~ctrl ~label ())
+        Blk.create ~dict ~args ~insns ~ctrl ~label ())
 end
 
 (* Second phase of the algorithm is to traverse the dominator tree
@@ -246,10 +247,11 @@ end = struct
     let b = find_blk env l in
     (* Rename the variables in the block. *)
     Option.iter b ~f:(fun b ->
+        let dict = Blk.dict b in
         let args = rename_args env b in
         let insns = rename_insns env b in
         let ctrl = rename_ctrl env b in
-        let b = Blk.create ~args ~insns ~ctrl ~label:l () in
+        let b = Blk.create ~dict ~args ~insns ~ctrl ~label:l () in
         Hashtbl.set env.blks ~key:l ~data:b);
     (* Repeat for the children in the dominator tree. *)
     Tree.children env.dom l |> Seq.iter ~f:(rename_block env);

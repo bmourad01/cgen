@@ -62,16 +62,21 @@ module Virtual = struct
     let+ label = Label.fresh in
     Virtual.Insn.create d ~label
 
-  let blk ?(args = []) ?(insns = []) ~ctrl () =
+  let blk ?(dict = Dict.empty) ?(args = []) ?(insns = []) ~ctrl () =
     let+ label = Label.fresh in
-    Virtual.Blk.create ~args ~insns ~ctrl ~label ()
+    Virtual.Blk.create ~dict ~args ~insns ~ctrl ~label ()
 
-  let blk' ?(label = None) ?(args = []) ?insns:(d = []) ~ctrl () =
+  let blk'
+      ?(dict = Dict.empty)
+      ?(label = None)
+      ?(args = [])
+      ?insns:(d = [])
+      ~ctrl () =
     let* insns = M.List.map d ~f:insn in
     let+ label = match label with
       | None -> Label.fresh
       | Some l -> !!l in
-    Virtual.Blk.create ~args ~insns ~ctrl ~label ()
+    Virtual.Blk.create ~dict ~args ~insns ~ctrl ~label ()
 
   module Module = struct
     let map_funs m ~f =
