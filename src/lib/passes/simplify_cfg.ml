@@ -5,6 +5,7 @@ open Graphlib.Std
 open Virtual
 
 module O = Monad.Option
+module E = Monad.Result.Error
 
 open O.Let
 open O.Syntax
@@ -355,11 +356,14 @@ let try_ f = try Ok (f ()) with
     Monad.Result.Error.failf "In simplify_cfg: %s" msg ()
 
 let run fn =
-  let env = init fn in
-  let upd = update_fn env in
-  let rec loop fn =
-    let merged = Merge.run env in
-    if Contract.run env then loop @@ recompute_cfg env @@ upd fn
-    else if merged then upd fn
-    else fn in
-  try_ @@ fun () -> loop fn
+  if Dict.mem (Func.dict fn) Tags.ssa then
+    let env = init fn in
+    let upd = update_fn env in
+    let rec loop fn =
+      let merged = Merge.run env in
+      if Contract.run env then loop @@ recompute_cfg env @@ upd fn
+      else if merged then upd fn
+      else fn in
+    try_ @@ fun () -> loop fn
+  else E.failf "Expected SSA form for function %s"
+      (Func.name fn) ()

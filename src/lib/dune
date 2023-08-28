@@ -27,6 +27,7 @@
  (private_modules
    ftree
    sm
+   tags
    vec
    virtual_lexer
    virtual_parser)

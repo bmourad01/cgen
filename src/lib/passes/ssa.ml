@@ -266,9 +266,13 @@ let try_ fn f = try f () with
       Label.pps l (Func.name fn)
 
 let run fn = try_ fn @@ fun () ->
-  let env = init fn in
-  Phi.go env;
-  Rename.go env;
-  Hashtbl.data env.blks |>
-  Func.update_blks fn |>
-  Or_error.return
+  if Dict.mem (Func.dict fn) Tags.ssa then
+    Ok fn
+  else
+    let env = init fn in
+    Phi.go env;
+    Rename.go env;
+    let fn =
+      Hashtbl.data env.blks |>
+      Func.update_blks fn in
+    Or_error.return @@ Func.with_tag fn Tags.ssa ()

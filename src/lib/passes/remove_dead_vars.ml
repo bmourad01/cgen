@@ -1,6 +1,9 @@
 open Core
 open Regular.Std
+open Monads.Std
 open Virtual
+
+module E = Monad.Result.Error
 
 let (@/) i s = not @@ Set.mem s i
 let (--) = Var.Set.remove
@@ -68,7 +71,7 @@ let remove_unused_slots fn live =
       let x = Func.Slot.var s in
       if Set.mem ins x then fn else Func.remove_slot fn x)
 
-let rec run fn =
+let rec run' fn =
   let live = Live.compute fn in
   let blks = Func.blks fn in
   let unused = collect_unused_args live blks in
@@ -88,4 +91,11 @@ let rec run fn =
           ~args:(Seq.to_list args)
       else None) |> Seq.to_list |> function
   | [] -> remove_unused_slots fn live
-  | blks -> run @@ Func.update_blks fn blks
+  | blks -> run' @@ Func.update_blks fn blks
+
+let run fn =
+  if Dict.mem (Func.dict fn) Tags.ssa then
+    Ok (run' fn)
+  else
+    E.failf "Expected SSA form for function %s"
+      (Func.name fn) ()
