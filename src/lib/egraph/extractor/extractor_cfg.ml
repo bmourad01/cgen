@@ -315,7 +315,11 @@ let reify t env l =
                  can do something with the control-flow operators, but
                  I think it would be delicate to handle correctly. *)
               !!()
-            | _ -> pure t env e >>| ignore) in
+            | _ ->
+              (* XXX: this can sometimes lead to partial redundancies,
+                 so the question to answer is when we should decide to
+                 duplicate code, if at all? *)
+              pure t env e >>| ignore) in
   extract_label t l >>= function
   | Some e -> exp t env l e
   | None -> !!()
