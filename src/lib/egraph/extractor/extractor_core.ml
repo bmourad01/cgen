@@ -44,53 +44,50 @@ let rec pp_ext ppf = function
 let pps_ext () e = Format.asprintf "%a" pp_ext e
 
 let has t id = Hashtbl.mem t.table @@ find t.eg id
-
-let id_cost t id = match Hashtbl.find t.table @@ find t.eg id with
-  | None -> failwithf "Couldn't calculate cost for node id %a" Id.pps id ()
-  | Some (c, _) -> c
-
-let has_cost t : enode -> bool = function
-  | N (_, cs) -> List.for_all cs ~f:(has t)
-  | U {pre; post} -> has t pre && has t post
+let get t id = Hashtbl.find t.table @@ find t.eg id
 
 open O.Let
 
-let cost t : enode -> int = function
-  | N (op, children) ->
-    let init = match op with
-      | Oint (i, t) ->
-        (* In practice, a negative constant might need some work to
-           compute. *)
-        Bool.to_int Bv.(msb i mod modulus (Type.sizeof_imm t))
-      | Oaddr _
-      | Obool _
-      | Ocall0 _
-      | Ocall _
-      | Ocallargs
-      | Odouble _
-      | Ojmp
-      | Oload _
-      | Olocal _
-      | Oret
-      | Osingle _
-      | Osym _
-      | Oset _
-      | Ostore _
-      | Ovaarg _
-      | Ovastart _ -> 0
-      | Obr | Otbl _ | Ovar _ -> 2
-      | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
-      | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 90
-      | Obinop (`mul _) -> 42
-      | Obinop (`mulh _ | `umulh _) -> 11
-      | Obinop _ -> 4
-      | Osel _ -> 8 in
-    List.fold children ~init ~f:(fun k c -> k + id_cost t c)
-  | U {pre; post} -> min (id_cost t pre) (id_cost t post)
+let op_cost : Enode.op -> int = function
+  | Oint (i, t) ->
+    (* In practice, a negative constant might need some work to
+       compute. *)
+    Bool.to_int Bv.(msb i mod modulus (Type.sizeof_imm t))
+  | Oaddr _
+  | Obool _
+  | Ocall0 _
+  | Ocall _
+  | Ocallargs
+  | Odouble _
+  | Ojmp
+  | Oload _
+  | Olocal _
+  | Oret
+  | Osingle _
+  | Osym _
+  | Oset _
+  | Ostore _
+  | Ovaarg _
+  | Ovastart _ -> 0
+  | Obr | Otbl _ | Ovar _ -> 2
+  | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
+  | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 90
+  | Obinop (`mul _) -> 42
+  | Obinop (`mulh _ | `umulh _) -> 11
+  | Obinop _ -> 4
+  | Osel _ -> 8
 
-let node_cost t n =
-  let+ () = O.guard @@ has_cost t n in
-  cost t n, n
+let cost t (n : enode) = match n with
+  | N (op, children) ->
+    let+ k = O.List.fold children ~init:0 ~f:(fun k id ->
+        let+ c, _ = get t id in
+        k + c) in
+    k + op_cost op, n
+  | U {pre; post} ->
+    (* Favor the rewritten term. *)
+    let* pre, a = get t pre in
+    let+ post, b = get t post in
+    if pre < post then pre, a else post, b
 
 let saturate t =
   let unsat = ref true in
@@ -98,7 +95,7 @@ let saturate t =
     unsat := false;
     (* Explore newer nodes first. *)
     for i = Vec.length t.eg.node - 1 downto 0 do
-      node t.eg i |> node_cost t |>
+      node t.eg i |> cost t |>
       Option.iter ~f:(fun ((x, _) as term) ->
           find t.eg i |> Hashtbl.update t.table ~f:(function
               | Some ((y, _) as prev) when x >= y -> prev
