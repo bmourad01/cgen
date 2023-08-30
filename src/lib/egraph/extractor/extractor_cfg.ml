@@ -313,6 +313,8 @@ let rec closure ?(self = true) t l =
     Seq.append f |> Seq.append s in
   if self then Seq.cons l s' else s'
 
+let post_dominated t l = Tree.is_ancestor_of t.eg.input.pdom ~child:l
+
 let is_partial_redundancy t l id =
   (* Ignore the results of LICM. *)
   not (Hash_set.mem t.eg.licm id) && begin
@@ -324,16 +326,21 @@ let is_partial_redundancy t l id =
           match Hashtbl.find_exn t.eg.input.tbl l' with
           | `insn (_, b, _) -> Blk.label b
           | `blk _ -> assert false) in
-    (* For each of these blocks, get its reflexive transitive
-       closure in the dominator tree. *)
-    let tc = to_set @@ Seq.concat_map bs ~f:(closure t) in
-    (* Get the non-reflexive transitive closure of the block
-       that we moved to. Note that `l` may still appear here
-       if it is part of its own dominance frontier. *)
-    let ds = to_set @@ closure t l ~self:false in
-    (* If these sets are not equal, then we have a partial
-       redundancy, and thus need to duplicate code. *)
-    not @@ Label.Set.equal ds tc
+    (* If one of these blocks post-dominates the block that we're
+       moving to, then it is safe to allow the move to happen,
+       since we are inevitably going to compute it. *)
+    not (Seq.exists bs ~f:(post_dominated t l)) && begin
+      (* For each of these blocks, get its reflexive transitive
+         closure in the dominator tree. *)
+      let tc = to_set @@ Seq.concat_map bs ~f:(closure t) in
+      (* Get the non-reflexive transitive closure of the block
+         that we moved to. Note that `l` may still appear here
+         if it is part of its own dominance frontier. *)
+      let ds = to_set @@ closure t l ~self:false in
+      (* If these sets are not equal, then we have a partial
+         redundancy, and thus need to duplicate code. *)
+      not @@ Label.Set.equal ds tc
+    end
   end
 
 let reify t env scp l =
