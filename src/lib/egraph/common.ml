@@ -26,6 +26,7 @@ type t = {
   lmoved  : Id.Set.t Label.Table.t;
   imoved  : Label.Set.t Id.Table.t;
   imoved2 : Label.t Id.Table.t;
+  licm    : Id.Hash_set.t;
   id2lbl  : Label.t Id.Table.t;
   lbl2id  : id Label.Table.t;
   typs    : Type.t Id.Table.t;

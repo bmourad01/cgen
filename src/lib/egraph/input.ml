@@ -22,6 +22,7 @@ type t = {
   cfg  : Cfg.t;
   dom  : Label.t tree;
   cdom : Label.t tree;
+  df   : Label.t frontier;
   lst  : Label.t option Label.Table.t;
   tenv : Typecheck.env;
   barg : Label.t Var.Table.t;
@@ -143,6 +144,7 @@ let init fn tenv =
   let loop = Loops.analyze fn in
   let cfg = Cfg.create fn in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
+  let df = Graphlib.dom_frontier (module Cfg) cfg dom in
   let cdom = cdoms fn tbl dom in
   let lst = Last_stores.create fn tbl cfg in
-  {fn; loop; tbl; cfg; dom; cdom; lst; tenv; barg}
+  {fn; loop; tbl; cfg; dom; cdom; df; lst; tenv; barg}

@@ -8,10 +8,17 @@ open Virtual
 
 open Context.Syntax
 
+(* Maps IDs to generated temporaries. We use a persistent map
+   because it is scoped to the current line in the dominator
+   tree. This way, we can duplicate code when we find a partial
+   redundancy. *)
+type scp = (Var.t * Label.t) Id.Map.t
+
+let empty_scp : scp = Id.Map.empty
+
 type env = {
   insn        : Insn.op Label.Table.t;
   ctrl        : ctrl Label.Table.t;
-  temp        : (Var.t * Label.t) Id.Table.t;
   news        : Label.t Id.Map.t Label.Table.t;
   mutable cur : Label.t;
 }
@@ -19,7 +26,6 @@ type env = {
 let init () = {
   insn = Label.Table.create ();
   ctrl = Label.Table.create ();
-  temp = Id.Table.create ();
   news = Label.Table.create();
   cur = Label.pseudoentry;
 }
@@ -63,12 +69,12 @@ let find_var t l = match Hashtbl.find t.eg.input.tbl l with
   | Some `insn (_, _, Some x) -> !!(x, l)
   | Some _ | None -> no_var l
 
-let new_var env canon real = match Hashtbl.find env.temp canon with
+let new_var env scp canon real = match Map.find !scp canon with
   | Some p -> !!p
   | None ->
     let* x = Context.Var.fresh in
     let+ l = Context.Label.fresh in
-    Hashtbl.set env.temp ~key:canon ~data:(x, l);
+    scp := Map.set !scp ~key:canon ~data:(x, l);
     Hashtbl.update env.news env.cur ~f:(function
         | None -> Id.Map.singleton real l
         | Some m -> match Map.add m ~key:real ~data:l with
@@ -76,10 +82,11 @@ let new_var env canon real = match Hashtbl.find env.temp canon with
           | `Ok m -> m);
     x, l
 
-let insn t env a f =
+let insn t env scp a f =
   let* x, l = match a with
     | Label l -> find_var t l
-    | Id {canon; real} -> new_var env canon real in
+    | Id {canon; real} ->
+      new_var env scp canon real in
   let+ op = f x in
   upd env.insn l op;
   `var x
@@ -96,9 +103,9 @@ let sel e x ty c y n = match c with
   | `var c -> !!(`sel (x, ty, c, y, n))
   | _ -> invalid_pure e
 
-let rec pure t env e : operand Context.t =
-  let pure = pure t env in
-  let insn = insn t env in
+let rec pure t env scp e : operand Context.t =
+  let pure = pure t env scp in
+  let insn = insn t env scp in
   match e with
   (* Only canonical forms are accepted. *)
   | E (a, Obinop b, [l; r]) -> insn a @@ fun x ->
@@ -146,40 +153,41 @@ let rec pure t env e : operand Context.t =
   | E (_, Ovar _, _)
   | E (_, Ovastart _, _) -> invalid_pure e
 
-and callargs t env = function
-  | E (_, Ocallargs, args) -> Context.List.map args ~f:(pure t env)
+and callargs t env scp = function
+  | E (_, Ocallargs, args) ->
+    Context.List.map args ~f:(pure t env scp)
   | e -> invalid_callargs e
 
-and global t env e : global Context.t = match e with
+and global t env scp e : global Context.t = match e with
   | E (_, Oaddr a, []) -> !!(`addr a)
   | E (_, Oaddr _, _) -> invalid_global e
   | E (_, Osym (s, o), []) -> !!(`sym (s, o))
   | E (_, Osym _, _) -> invalid_global e
-  | _ -> pure t env e >>= function
+  | _ -> pure t env scp e >>= function
     | `var x -> !!(`var x)
     | `int (i, _) -> !!(`addr i)
     | _ -> invalid_global e
 
-let local t env l args =
-  let+ args = Context.List.map args ~f:(pure t env) in
+let local t env scp l args =
+  let+ args = Context.List.map args ~f:(pure t env scp) in
   l, args
 
-let dst t env : ext -> dst Context.t = function
+let dst t env scp : ext -> dst Context.t = function
   | E (_, Olocal l, args) ->
-    let+ l, args = local t env l args in
+    let+ l, args = local t env scp l args in
     `label (l, args)
   | e ->
-    let+ g = global t env e in
+    let+ g = global t env scp e in
     (g :> dst)
 
-let table_elt t env : ext -> (Bv.t * local) Context.t = function
+let table_elt t env scp : ext -> (Bv.t * local) Context.t = function
   | E (_, Otbl i, [E (_, Olocal l, args)]) ->
-    let+ l, args = local t env l args in
+    let+ l, args = local t env scp l args in
     i, `label (l, args)
   | e -> invalid_tbl e
 
-let table t env tbl ty =
-  let* tbl = Context.List.map tbl ~f:(table_elt t env) in
+let table t env scp tbl ty =
+  let* tbl = Context.List.map tbl ~f:(table_elt t env scp) in
   let*? x = Ctrl.Table.create tbl ty in
   !!x
 
@@ -195,9 +203,9 @@ let br l e c y n = match c with
   | `var c -> !!(`br (c, y, n))
   | _ -> invalid l e
 
-let sw_default t env l = function
+let sw_default t env scp l = function
   | E (_, Olocal l', args) ->
-    let+ l, args = local t env l' args in
+    let+ l, args = local t env scp l' args in
     `label (l, args)
   | d -> invalid l d
 
@@ -216,9 +224,9 @@ let vastart l e = function
   | `int (a, _) -> !!(`vastart (`addr a))
   | _ -> invalid l e
 
-let exp t env l e =
-  let pure = pure t env in
-  let dst = dst t env in
+let exp t env scp l e =
+  let pure = pure t env scp in
+  let dst = dst t env scp in
   let insn = insn' env l in
   let ctrl = ctrl env l in
   match e with
@@ -229,14 +237,14 @@ let exp t env l e =
     let* n = dst n in
     br l e c y n
   | E (_, Ocall0 _, [f; args; vargs]) -> insn @@ fun () ->
-    let* f = global t env f in
-    let* args = callargs t env args in
-    let+ vargs = callargs t env vargs in
+    let* f = global t env scp f in
+    let* args = callargs t env scp args in
+    let+ vargs = callargs t env scp vargs in
     `call (None, f, args, vargs)
   | E (_, Ocall (x, ty), [f; args; vargs]) -> insn @@ fun () ->
-    let* f = global t env f in
-    let* args = callargs t env args in
-    let+ vargs = callargs t env vargs in
+    let* f = global t env scp f in
+    let* args = callargs t env scp args in
+    let+ vargs = callargs t env scp vargs in
     `call (Some (x, ty), f, args, vargs)
   | E (_, Oload (x, t), [y]) -> insn @@ fun () ->
     let+ y = pure y in
@@ -254,8 +262,8 @@ let exp t env l e =
     `store (t, v, x)
   | E (_, Osw ty, i :: d :: tbl) -> ctrl @@ fun () ->
     let* i = pure i in
-    let* d = sw_default t env l d in
-    let* tbl = table t env tbl ty in
+    let* d = sw_default t env scp l d in
+    let* tbl = table t env scp tbl ty in
     sw l e ty i d tbl
   | E (_, Ovaarg (x, t), [a]) -> insn @@ fun () ->
     let* a = pure a in
@@ -289,7 +297,46 @@ let exp t env l e =
   | E (_, Ovar _, _)
   | E (_, Ovastart _, _) -> invalid l e
 
-let reify t env l =
+let not_pseudo = Fn.non Label.is_pseudo
+let descendants t = Tree.descendants t.eg.input.dom
+let frontier t = Frontier.enum t.eg.input.df
+let to_set = Fn.compose Label.Set.of_sequence @@ Seq.filter ~f:not_pseudo
+
+let rec closure ?(self = true) t l =
+  let s = Tree.descendants t.eg.input.dom l in
+  let f = frontier t l in
+  let s' =
+    (* A block can be in its own dominance frontier, so
+       we need to avoid an infinite loop. *)
+    Seq.filter f ~f:(Fn.non @@ Label.equal l) |>
+    Seq.concat_map ~f:(closure t) |>
+    Seq.append f |> Seq.append s in
+  if self then Seq.cons l s' else s'
+
+let is_partial_redundancy t l id =
+  (* Ignore the results of LICM. *)
+  not (Hash_set.mem t.eg.licm id) && begin
+    (* Get the blocks associated with the labels that were
+       "moved" for this node. *)
+    let bs =
+      Hashtbl.find_exn t.eg.imoved id |>
+      Set.to_sequence |> Seq.map ~f:(fun l' ->
+          match Hashtbl.find_exn t.eg.input.tbl l' with
+          | `insn (_, b, _) -> Blk.label b
+          | `blk _ -> assert false) in
+    (* For each of these blocks, get its reflexive transitive
+       closure in the dominator tree. *)
+    let tc = to_set @@ Seq.concat_map bs ~f:(closure t) in
+    (* Get the non-reflexive transitive closure of the block
+       that we moved to. Note that `l` may still appear here
+       if it is part of its own dominance frontier. *)
+    let ds = to_set @@ closure t l ~self:false in
+    (* If these sets are not equal, then we have a partial
+       redundancy, and thus need to duplicate code. *)
+    not @@ Label.Set.equal ds tc
+  end
+
+let reify t env scp l =
   let* () = match Hashtbl.find t.eg.lmoved l with
     | None -> !!()
     | Some s ->
@@ -315,25 +362,23 @@ let reify t env l =
                  can do something with the control-flow operators, but
                  I think it would be delicate to handle correctly. *)
               !!()
-            | _ ->
-              (* XXX: this can sometimes lead to partial redundancies,
-                 so the question to answer is when we should decide to
-                 duplicate code, if at all? *)
-              pure t env e >>| ignore) in
+            | _ when is_partial_redundancy t l id -> !!()
+            | _ -> pure t env scp e >>| ignore) in
   extract_label t l >>= function
-  | Some e -> exp t env l e
+  | Some e -> exp t env scp l e
   | None -> !!()
 
 let collect t l =
   let env = init () in
-  let q = Queue.singleton l in
-  let rec loop () = match Queue.dequeue q with
+  let q = Stack.singleton (l, empty_scp) in
+  let rec loop () = match Stack.pop q with
     | None -> !!env
-    | Some l ->
+    | Some (l, scp) ->
       env.cur <- l;
-      let* () = reify t env l in
+      let scp = ref scp in
+      let* () = reify t env scp l in
       Tree.children t.eg.input.cdom l |>
-      Seq.iter ~f:(Queue.enqueue q);
+      Seq.iter ~f:(fun l -> Stack.push q (l, !scp));
       loop () in
   loop ()
 

@@ -7,13 +7,18 @@ open Graphlib.Std
 open Common
 open Virtual
 
-(* Lowest common ancestor in the dominator tree. *)
+(* Lowest common ancestor in the dominator tree. Note that this
+   should always be a block label. *)
 let rec lca t a b =
   let p = Tree.parent t.input.cdom in
   match p a, p b with
-  | Some a, Some b when Label.(a = b) -> a
-  | Some a, Some b -> lca t a b
-  | None, _ | _, None ->
+  | Some a', Some b' when Label.(a' = b') -> a'
+  | Some a', Some _  when dominates t ~parent:a' b -> a'
+  | Some _,  Some b' when dominates t ~parent:b' a -> b'
+  | Some a', Some b' when dominates t ~parent:a' b' -> a'
+  | Some a', Some b' when dominates t ~parent:b' a' -> b'
+  | Some a', Some b' -> lca t a' b'
+   | None, _ | _, None ->
     (* The root is pseudoentry, which we should never reach. *)
     assert false
 
@@ -129,6 +134,10 @@ and loop_child ~lp t id =
 
 let header t lp = Loops.(header @@ get t.input.loop lp)
 
+let licm_move t l l' id =
+  Hash_set.add t.licm id;
+  move t [l] l' id
+
 (* We've determined that `n` is invariant with respect to `lp`, but
    if `lp` is nested in a parent loop `lp'`, then we should find out if
    `n` is also invariant with respect to `lp'`, and so on. *)
@@ -136,10 +145,10 @@ let rec licm' t l n lp id =
   match Tree.parent t.input.dom @@ header t lp with
   | None -> assert false
   | Some l' -> match find_loop t l' with
-    | None -> move t [l] l' id
+    | None -> licm_move t l l' id
     | Some lp' -> match loop_children ~lp:lp' t n with
       | Inv -> licm' t l n lp' id
-      | Fix -> move t [l] l' id
+      | Fix -> licm_move t l l' id
 
 let licm t l n lp id = match loop_children ~lp t n with
   | Fix -> Hashtbl.set t.id2lbl ~key:id ~data:l
