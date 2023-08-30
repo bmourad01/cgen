@@ -159,7 +159,7 @@ let licm t l n lp id = match loop_children ~lp t n with
 let add t l id n = match Hashtbl.find t.input.tbl l with
   | None -> assert false
   | Some `blk _ -> Hashtbl.set t.id2lbl ~key:id ~data:l
-  | Some `insn (i, _, _) when Insn.is_effectful i ->
+  | Some `insn (i, _, _) when Insn.(can_load i || is_effectful i) ->
     Hashtbl.set t.id2lbl ~key:id ~data:l
   | Some `insn _ -> match find_loop t l with
     | None -> Hashtbl.set t.id2lbl ~key:id ~data:l
