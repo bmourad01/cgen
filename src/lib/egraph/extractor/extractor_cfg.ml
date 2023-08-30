@@ -20,6 +20,7 @@ type env = {
   insn        : Insn.op Label.Table.t;
   ctrl        : ctrl Label.Table.t;
   news        : Label.t Id.Map.t Label.Table.t;
+  closure     : Label.Set.t Label.Table.t;
   mutable cur : Label.t;
 }
 
@@ -27,6 +28,7 @@ let init () = {
   insn = Label.Table.create ();
   ctrl = Label.Table.create ();
   news = Label.Table.create();
+  closure = Label.Table.create ();
   cur = Label.pseudoentry;
 }
 
@@ -302,20 +304,24 @@ let descendants t = Tree.descendants t.eg.input.dom
 let frontier t = Frontier.enum t.eg.input.df
 let to_set = Fn.compose Label.Set.of_sequence @@ Seq.filter ~f:not_pseudo
 
-let rec closure ?(self = true) t l =
-  let s = Tree.descendants t.eg.input.dom l in
-  let f = frontier t l in
-  let s' =
-    (* A block can be in its own dominance frontier, so
-       we need to avoid an infinite loop. *)
-    Seq.filter f ~f:(Fn.non @@ Label.equal l) |>
-    Seq.concat_map ~f:(closure t) |>
-    Seq.append f |> Seq.append s in
-  if self then Seq.cons l s' else s'
+let rec closure ?(self = true) t env l =
+  let c = match Hashtbl.find env.closure l with
+    | Some c -> c
+    | None ->
+      let c =
+        frontier t l |> Seq.filter ~f:not_pseudo |>
+        (* A block can be in its own dominance frontier, so
+           we need to avoid an infinite loop. *)
+        Seq.filter ~f:(Fn.non @@ Label.equal l) |>
+        Seq.map ~f:(closure t env) |>
+        Seq.fold ~init:(to_set @@ descendants t l) ~f:Set.union in
+      Hashtbl.set env.closure ~key:l ~data:c;
+      c in
+  if self then Set.add c l else c
 
 let post_dominated t l = Tree.is_ancestor_of t.eg.input.pdom ~child:l
 
-let is_partial_redundancy t l id =
+let is_partial_redundancy t env l id =
   (* Ignore the results of LICM. *)
   not (Hash_set.mem t.eg.licm id) && begin
     (* Get the blocks associated with the labels that were
@@ -331,12 +337,12 @@ let is_partial_redundancy t l id =
        since we are inevitably going to compute it. *)
     not (Seq.exists bs ~f:(post_dominated t l)) && begin
       (* For each of these blocks, get its reflexive transitive
-         closure in the dominator tree. *)
-      let tc = to_set @@ Seq.concat_map bs ~f:(closure t) in
+         closure in the dominator tree, and union them together. *)
+      let tc = Seq.fold bs ~init:Label.Set.empty ~f:(fun tc l ->
+          Set.union tc @@ closure t env l) in
       (* Get the non-reflexive transitive closure of the block
-         that we moved to. Note that `l` may still appear here
-         if it is part of its own dominance frontier. *)
-      let ds = to_set @@ closure t l ~self:false in
+         that we moved to. *)
+      let ds = closure t env l ~self:false in
       (* If these sets are not equal, then we have a partial
          redundancy, and thus need to duplicate code. *)
       not @@ Label.Set.equal ds tc
@@ -369,7 +375,7 @@ let reify t env scp l =
                  can do something with the control-flow operators, but
                  I think it would be delicate to handle correctly. *)
               !!()
-            | _ when is_partial_redundancy t l id -> !!()
+            | _ when is_partial_redundancy t env l id -> !!()
             | _ -> pure t env scp e >>| ignore) in
   extract_label t l >>= function
   | Some e -> exp t env scp l e
