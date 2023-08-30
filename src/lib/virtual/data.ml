@@ -55,7 +55,7 @@ let elts ?(rev = false) d = Ftree.enum d.elts ~rev
 let linkage d = match Dict.find d.dict Tag.linkage with
   | None -> Linkage.default_export
   | Some l -> l
-    
+
 let align d = Dict.find d.dict Tag.align
 let dict d = d.dict
 let with_dict d dict = {d with dict}

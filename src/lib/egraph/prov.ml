@@ -18,7 +18,7 @@ let rec lca t a b =
   | Some a', Some b' when dominates t ~parent:a' b' -> a'
   | Some a', Some b' when dominates t ~parent:b' a' -> b'
   | Some a', Some b' -> lca t a' b'
-   | None, _ | _, None ->
+  | None, _ | _, None ->
     (* The root is pseudoentry, which we should never reach. *)
     assert false
 

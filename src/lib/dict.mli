@@ -34,7 +34,7 @@ val register : uuid:string -> string -> (module S with type t = 'a) -> 'a tag
 
 (** [create t x] creates a value [x] with tag [t]. *)
 val create: 'a tag -> 'a -> value
- 
+
 (** [is t v] returns [true] if [v] was constructed with the tag [t]. *)
 val is : 'a tag -> value -> bool
 
