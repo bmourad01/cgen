@@ -299,58 +299,82 @@ let exp t env scp l e =
   | E (_, Ovar _, _)
   | E (_, Ovastart _, _) -> invalid l e
 
-let not_pseudo = Fn.non Label.is_pseudo
-let descendants t = Tree.descendants t.eg.input.dom
-let frontier t = Frontier.enum t.eg.input.df
-let to_set = Fn.compose Label.Set.of_sequence @@ Seq.filter ~f:not_pseudo
+module Hoisting = struct
+  let (++) = Set.union
+  let not_pseudo = Fn.non Label.is_pseudo
+  let descendants t = Tree.descendants t.eg.input.dom
+  let frontier t = Frontier.enum t.eg.input.df
+  let to_set = Fn.compose Label.Set.of_sequence @@ Seq.filter ~f:not_pseudo
+  let post_dominated t l = Tree.is_ancestor_of t.eg.input.pdom ~child:l
 
-let rec closure ?(self = true) t env l =
-  let c = match Hashtbl.find env.closure l with
-    | Some c -> c
-    | None ->
-      let c =
-        frontier t l |> Seq.filter ~f:not_pseudo |>
-        (* A block can be in its own dominance frontier, so
-           we need to avoid an infinite loop. *)
-        Seq.filter ~f:(Fn.non @@ Label.equal l) |>
-        Seq.map ~f:(closure t env) |>
-        Seq.fold ~init:(to_set @@ descendants t l) ~f:Set.union in
-      Hashtbl.set env.closure ~key:l ~data:c;
-      c in
-  if self then Set.add c l else c
+  let rec closure ?(self = true) t env l =
+    let c = match Hashtbl.find env.closure l with
+      | Some c -> c
+      | None ->
+        let c =
+          frontier t l |> Seq.filter ~f:not_pseudo |>
+          (* A block can be in its own dominance frontier, so
+             we need to avoid an infinite loop. *)
+          Seq.filter ~f:(Fn.non @@ Label.equal l) |>
+          Seq.map ~f:(closure t env) |>
+          Seq.fold ~init:(to_set @@ descendants t l) ~f:(++) in
+        Hashtbl.set env.closure ~key:l ~data:c;
+        c in
+    if self then Set.add c l else c
 
-let post_dominated t l = Tree.is_ancestor_of t.eg.input.pdom ~child:l
+  let moved_blks t id =
+    Hashtbl.find_exn t.eg.imoved id |> Label.Set.map ~f:(fun l ->
+        match Hashtbl.find_exn t.eg.input.tbl l with
+        | `insn (_, b, _) -> Blk.label b
+        | `blk _ -> assert false)
 
-let is_partial_redundancy t env l id =
-  (* Ignore the results of LICM. *)
-  not (Hash_set.mem t.eg.licm id) && begin
-    (* Get the blocks associated with the labels that were
-       "moved" for this node. *)
-    let bs =
-      Hashtbl.find_exn t.eg.imoved id |>
-      Set.to_sequence |> Seq.map ~f:(fun l' ->
-          match Hashtbl.find_exn t.eg.input.tbl l' with
-          | `insn (_, b, _) -> Blk.label b
-          | `blk _ -> assert false) in
-    (* If one of these blocks post-dominates the block that we're
-       moving to, then it is safe to allow the move to happen,
-       since we are inevitably going to compute it. *)
-    not (Seq.exists bs ~f:(post_dominated t l)) && begin
-      (* For each of these blocks, get its reflexive transitive
-         closure in the dominator tree, and union them together. *)
-      let tc = Seq.fold bs ~init:Label.Set.empty ~f:(fun tc l ->
-          Set.union tc @@ closure t env l) in
-      (* Get the non-reflexive transitive closure of the block
-         that we moved to. *)
-      let ds = closure t env l ~self:false in
-      (* If these sets are not equal, then we have a partial
-         redundancy, and thus need to duplicate code. *)
-      not @@ Label.Set.equal ds tc
+  (* When we "move" duplicate nodes up to the LCA (least-common ancestor)
+     in the dominator tree, we might be introducing a partial redundancy.
+     This means that, at the LCA, the node is not going to be used on all
+     paths that are dominated by it, so we need to do a simple analysis to
+     see if this is the case. *)
+  let is_partial_redundancy t env l id =
+    (* Ignore the results of LICM. *)
+    not (Hash_set.mem t.eg.licm id) && begin
+      (* Get the blocks associated with the labels that were
+         "moved" for this node. *)
+      let bs = moved_blks t id in
+      (* If one of these blocks post-dominates the block that we're
+         moving to, then it is safe to allow the move to happen,
+         since we are inevitably going to compute it. *)
+      not (Set.exists bs ~f:(post_dominated t l)) && begin
+        (* For each of these blocks, get its reflexive transitive
+           closure in the dominator tree, and union them together. *)
+        let a = Set.fold bs ~init:Label.Set.empty
+            ~f:(fun acc l -> acc ++ closure t env l) in
+        (* Get the non-reflexive transitive closure of the block
+           that we moved to. *)
+        let b = closure t env l ~self:false in
+        (* If these sets are not equal, then we have a partial
+           redundancy, and thus need to duplicate code. *)
+        not @@ Label.Set.equal a b
+      end
     end
-  end
 
-let reify t env scp l =
-  let* () = match Hashtbl.find t.eg.lmoved l with
+  (* Even if these nodes got moved, we can't re-order them. *)
+  let must_remain_fixed : Enode.op -> bool = function
+    | Obr
+    | Ojmp
+    | Oret
+    | Osw _
+    | Ocall0 _
+    | Ocall _
+    | Oload _
+    | Oset _
+    | Ostore _
+    | Ovaarg _
+    | Ovastart _ -> true
+    | _ -> false
+
+  (* If any nodes got moved up to this label, then we should check
+     to see if it is eligible for this code motion optimization. *)
+  let process_moved_nodes t env scp l =
+    match Hashtbl.find t.eg.lmoved l with
     | None -> !!()
     | Some s ->
       (* Explore the newest nodes first. *)
@@ -360,23 +384,13 @@ let reify t env scp l =
           match extract t id with
           | None -> extract_fail l id
           | Some e -> match e with
-            | E (_, Obr, _)
-            | E (_, Ojmp, _)
-            | E (_, Oret, _)
-            | E (_, Osw _, _)
-            | E (_, Ocall0 _, _)
-            | E (_, Ocall _, _)
-            | E (_, Oload _, _)
-            | E (_, Oset _, _)
-            | E (_, Ostore _, _)
-            | E (_, Ovaarg _, _)
-            | E (_, Ovastart _, _) ->
-              (* Ignore "effectful" operators that got moved; maybe we
-                 can do something with the control-flow operators, but
-                 I think it would be delicate to handle correctly. *)
-              !!()
+            | E (_, op, _) when must_remain_fixed op -> !!()
             | _ when is_partial_redundancy t env l id -> !!()
-            | _ -> pure t env scp e >>| ignore) in
+            | _ -> pure t env scp e >>| ignore)
+end
+
+let reify t env scp l =
+  let* () = Hoisting.process_moved_nodes t env scp l in
   extract_label t l >>= function
   | Some e -> exp t env scp l e
   | None -> !!()
