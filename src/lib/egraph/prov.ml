@@ -73,86 +73,88 @@ let duplicate t id a = match Hashtbl.find t.id2lbl id with
     Hashtbl.remove t.id2lbl id;
     move t [a; b] c @@ find t id
 
-let find_loop t l = match Hashtbl.find t.input.tbl l with
-  | Some (`blk b | `insn (_, b, _)) ->
-    Loops.blk t.input.loop @@ Blk.label b
-  | None -> assert false
+module Licm = struct
+  type invariance =
+    | Inv (* Invariant w.r.t. the loop it belongs to (if any) *)
+    | Fix (* Depends on values produced in the loop; must remain fixed *)
 
-type invariance =
-  | Inv (* Invariant w.r.t. the loop it belongs to (if any) *)
-  | Fix (* Depends on values produced in the loop; must remain fixed *)
+  let find_loop t l = match Hashtbl.find t.input.tbl l with
+    | Some (`blk b | `insn (_, b, _)) ->
+      Loops.blk t.input.loop @@ Blk.label b
+    | None -> assert false
 
-let is_arg t x =
-  Func.args t.input.fn |> Seq.exists ~f:(fun (y, _) -> Var.(x = y))
+  let is_arg t x =
+    Func.args t.input.fn |> Seq.exists ~f:(fun (y, _) -> Var.(x = y))
 
-let is_slot t x =
-  Func.slots t.input.fn |> Seq.exists ~f:(Fn.flip Func.Slot.is_var x)
+  let is_slot t x =
+    Func.slots t.input.fn |> Seq.exists ~f:(Fn.flip Func.Slot.is_var x)
 
-let is_arg_or_slot t x = is_arg t x || is_slot t x
+  let is_arg_or_slot t x = is_arg t x || is_slot t x
 
-let is_child_loop t a b =
-  not (Loops.equal_loop a b) &&
-  Loops.is_child_of t.input.loop a b
+  let is_child_loop t a b =
+    not (Loops.equal_loop a b) &&
+    Loops.is_child_of t.input.loop a b
 
-let loop_no_label ~lp t n = match (n : enode) with
-  | N (Ovar x, []) when is_arg_or_slot t x -> Inv
-  | N (Ovar x, []) ->
-    (* If this is a block argument, then find out if it belongs to
-       a loop. *)
-    Hashtbl.find t.input.barg x |>
-    Option.value_map ~default:Fix ~f:(fun l -> match find_loop t l with
-        | Some lp' when is_child_loop t lp lp' -> Inv
-        | Some _ | None -> Fix)
-  | n when Enode.is_const n -> Inv
-  | _ -> Fix
+  let loop_no_label ~lp t n = match (n : enode) with
+    | N (Ovar x, []) when is_arg_or_slot t x -> Inv
+    | N (Ovar x, []) ->
+      (* If this is a block argument, then find out if it belongs to
+         a loop. *)
+      Hashtbl.find t.input.barg x |>
+      Option.value_map ~default:Fix ~f:(fun l -> match find_loop t l with
+          | Some lp' when is_child_loop t lp lp' -> Inv
+          | Some _ | None -> Fix)
+    | n when Enode.is_const n -> Inv
+    | _ -> Fix
 
-let id2lbl t id = match Hashtbl.find t.id2lbl id with
-  | None -> Hashtbl.find t.imoved2 id
-  | Some _ as l -> l
+  let id2lbl t id = match Hashtbl.find t.id2lbl id with
+    | None -> Hashtbl.find t.imoved2 id
+    | Some _ as l -> l
 
-let rec loop_invariance ~lp t l n = match find_loop t l with
-  | Some lp' when is_child_loop t lp lp' -> Inv
-  | Some _ -> loop_children ~lp t n
-  | None -> Inv
+  let rec loop_invariance ~lp t l n = match find_loop t l with
+    | Some lp' when is_child_loop t lp lp' -> Inv
+    | Some _ -> loop_children ~lp t n
+    | None -> Inv
 
-and loop_children ~lp t n = match (n : enode) with
-  | N (_, cs) ->
-    if List.exists cs ~f:(is_variant ~lp t) then Fix else Inv
-  | U {pre; post} ->
-    let id = find t pre in
-    assert (id = find t post);
-    loop_children ~lp t @@ node t id
+  and loop_children ~lp t n = match (n : enode) with
+    | N (_, cs) ->
+      if List.exists cs ~f:(is_variant ~lp t) then Fix else Inv
+    | U {pre; post} ->
+      let id = find t pre in
+      assert (id = find t post);
+      loop_children ~lp t @@ node t id
 
-and is_variant ~lp t id = match loop_child ~lp t id with
-  | Fix -> true | Inv -> false
+  and is_variant ~lp t id = match loop_child ~lp t id with
+    | Fix -> true | Inv -> false
 
-and loop_child ~lp t id =
-  let n = node t id in
-  match id2lbl t id with
-  | Some l -> loop_invariance ~lp t l n
-  | None -> loop_no_label ~lp t n
+  and loop_child ~lp t id =
+    let n = node t id in
+    match id2lbl t id with
+    | Some l -> loop_invariance ~lp t l n
+    | None -> loop_no_label ~lp t n
 
-let header t lp = Loops.(header @@ get t.input.loop lp)
+  let header t lp = Loops.(header @@ get t.input.loop lp)
 
-let licm_move t l l' id =
-  Hash_set.add t.licm id;
-  move t [l] l' id
+  let licm_move t l l' id =
+    Hash_set.add t.licm id;
+    move t [l] l' id
 
-(* We've determined that `n` is invariant with respect to `lp`, but
-   if `lp` is nested in a parent loop `lp'`, then we should find out if
-   `n` is also invariant with respect to `lp'`, and so on. *)
-let rec licm' t l n lp id =
-  match Tree.parent t.input.dom @@ header t lp with
-  | None -> assert false
-  | Some l' -> match find_loop t l' with
-    | None -> licm_move t l l' id
-    | Some lp' -> match loop_children ~lp:lp' t n with
-      | Inv -> licm' t l n lp' id
-      | Fix -> licm_move t l l' id
+  (* We've determined that `n` is invariant with respect to `lp`, but
+     if `lp` is nested in a parent loop `lp'`, then we should find out if
+     `n` is also invariant with respect to `lp'`, and so on. *)
+  let rec licm' t l n lp id =
+    match Tree.parent t.input.dom @@ header t lp with
+    | None -> assert false
+    | Some l' -> match find_loop t l' with
+      | None -> licm_move t l l' id
+      | Some lp' -> match loop_children ~lp:lp' t n with
+        | Inv -> licm' t l n lp' id
+        | Fix -> licm_move t l l' id
 
-let licm t l n lp id = match loop_children ~lp t n with
-  | Fix -> Hashtbl.set t.id2lbl ~key:id ~data:l
-  | Inv -> licm' t l n lp id
+  let licm t l n lp id = match loop_children ~lp t n with
+    | Fix -> Hashtbl.set t.id2lbl ~key:id ~data:l
+    | Inv -> licm' t l n lp id
+end
 
 (* Track the provenance between the node and the label, but first see
    if we can do LICM (loop-invariant code motion). *)
@@ -161,6 +163,6 @@ let add t l id n = match Hashtbl.find t.input.tbl l with
   | Some `blk _ -> Hashtbl.set t.id2lbl ~key:id ~data:l
   | Some `insn (i, _, _) when Insn.(can_load i || is_effectful i) ->
     Hashtbl.set t.id2lbl ~key:id ~data:l
-  | Some `insn _ -> match find_loop t l with
+  | Some `insn _ -> match Licm.find_loop t l with
     | None -> Hashtbl.set t.id2lbl ~key:id ~data:l
-    | Some lp -> licm t l n lp id
+    | Some lp -> Licm.licm t l n lp id
