@@ -103,6 +103,8 @@ let ctrl env l f =
 
 let sel e x ty c y n = match c with
   | `var c -> !!(`sel (x, ty, c, y, n))
+  | `bool true -> !!(`uop (x, `copy ty, y))
+  | `bool false -> !!(`uop (x, `copy ty, n))
   | _ -> invalid_pure e
 
 let rec pure t env scp e : operand Context.t =
