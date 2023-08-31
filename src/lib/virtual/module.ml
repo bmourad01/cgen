@@ -10,16 +10,24 @@ module T = struct
     typs : Type.compound ftree;
     data : Data_.t ftree;
     funs : Func.t ftree;
+    dict : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
 end
 
 include T
 
-let create ?(typs = []) ?(data = []) ?(funs = []) ~name () = {
+let create
+    ?(dict = Dict.empty)
+    ?(typs = [])
+    ?(data = [])
+    ?(funs = [])
+    ~name
+    () = {
   name;
   typs = Ftree.of_list typs;
   data = Ftree.of_list data;
   funs = Ftree.of_list funs;
+  dict;
 }
 
 let name m = m.name
@@ -28,6 +36,9 @@ let data ?(rev = false) m = Ftree.enum m.data ~rev
 let funs ?(rev = false) m = Ftree.enum m.funs ~rev
 let has_name m name = String.(name = m.name)
 let hash m = String.hash m.name
+let dict fn = fn.dict
+let with_dict fn dict = {fn with dict}
+let with_tag fn tag x = {fn with dict = Dict.set fn.dict tag x}
 
 exception Failed of Error.t
 

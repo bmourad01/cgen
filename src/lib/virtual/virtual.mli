@@ -1247,6 +1247,7 @@ module Module : sig
 
   (** Creates a module. *)
   val create :
+    ?dict:Dict.t ->
     ?typs:Type.compound list ->
     ?data:data list ->
     ?funs:func list ->
@@ -1265,6 +1266,15 @@ module Module : sig
 
   (** Functions defined in the module. *)
   val funs : ?rev:bool -> t -> func seq
+
+  (** Returns the dictionary of the module. *)
+  val dict : t -> Dict.t
+
+  (** Replaces the dictionary of the module. *)
+  val with_dict : t -> Dict.t -> t
+
+  (** [with_tag m t v] binds [v] to tag [t] in the dictionary of [m]. *)
+  val with_tag : t -> 'a Dict.tag -> 'a -> t
 
   (** Returns [true] if the module has the associated name. *)
   val has_name : t -> string -> bool
