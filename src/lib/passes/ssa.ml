@@ -242,22 +242,33 @@ end = struct
     Blk.args b |> Seq.iter ~f:pop;
     Blk.insns b |> Seq.filter_map ~f:Insn.lhs |> Seq.iter ~f:pop
 
-  let rec rename_block env l =
+  type action =
+    | Visit of Label.t
+    | Pop of blk
+
+  let visit q env l =
     let b = find_blk env l in
-    (* Rename the variables in the block. *)
     Option.iter b ~f:(fun b ->
+        (* Rename the variables in the block. *)
         let dict = Blk.dict b in
         let args = rename_args env b in
         let insns = rename_insns env b in
         let ctrl = rename_ctrl env b in
-        let b = Blk.create ~dict ~args ~insns ~ctrl ~label:l () in
-        Hashtbl.set env.blks ~key:l ~data:b);
+        let b' = Blk.create ~dict ~args ~insns ~ctrl ~label:l () in
+        Hashtbl.set env.blks ~key:l ~data:b';
+        (* Pop the renamed variables from the stack. *)
+        Stack.push q @@ Pop b);
     (* Repeat for the children in the dominator tree. *)
-    Tree.children env.dom l |> Seq.iter ~f:(rename_block env);
-    (* Pop the renamed variables from the stack. *)
-    Option.iter b ~f:(pop_defs env)
+    Tree.children env.dom l |> Seq.iter
+      ~f:(fun l -> Stack.push q @@ Visit l)
 
-  let go env = rename_block env Label.pseudoentry
+  let go env =
+    let q = Stack.singleton @@ Visit Label.pseudoentry in
+    while not @@ Stack.is_empty q do
+      match Stack.pop_exn q with
+      | Visit l -> visit q env l
+      | Pop b -> pop_defs env b
+    done
 end
 
 let try_ fn f = try f () with
