@@ -1,3 +1,7 @@
+(* This is the "magic division by constants" algorithm from
+   Hacker's Delight, and adapted to work with arbitrary-precision
+   bitvectors. *)
+
 let unsigned d t =
   let sz = Type.sizeof_imm t in
   let sz1 = sz - 1 in
