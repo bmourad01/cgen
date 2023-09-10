@@ -59,6 +59,32 @@ let no_var l =
     "No variable is bound for label %a"
     Label.pps l
 
+let must_remain_fixed (E (_, op, args)) = match op with
+  | Obr
+  | Ojmp
+  | Oret
+  | Osw _
+  | Ocall0 _
+  | Ocall _
+  | Oload _
+  | Oset _
+  | Ostore _
+  | Ovaarg _
+  | Ovastart _ ->
+    (* Control-flow and other side-effecting instructions must
+       remain fixed. *)
+    true
+  | Obinop (`div #Type.imm | `udiv _ | `rem #Type.imm | `urem _) ->
+    (* With division/remainder on integers where the RHS is a
+       known non-zero constant, we can safely move it. Otherwise,
+       there is a chance that the instruction will trap, which
+       is an observable effect. *)
+    begin match args with
+      | [_; E (_, Oint (i, _), [])] -> Bv.(i = zero)
+      | _ -> true
+    end
+  | _ -> false
+
 let extract_label t l = match Hashtbl.find t.eg.lbl2id l with
   | None -> !!None
   | Some id -> match extract t id with
@@ -358,21 +384,6 @@ module Hoisting = struct
       end
     end
 
-  (* Even if these nodes got moved, we can't re-order them. *)
-  let must_remain_fixed : Enode.op -> bool = function
-    | Obr
-    | Ojmp
-    | Oret
-    | Osw _
-    | Ocall0 _
-    | Ocall _
-    | Oload _
-    | Oset _
-    | Ostore _
-    | Ovaarg _
-    | Ovastart _ -> true
-    | _ -> false
-
   (* If any nodes got moved up to this label, then we should check
      to see if it is eligible for this code motion optimization. *)
   let process_moved_nodes t env scp l =
@@ -385,10 +396,10 @@ module Hoisting = struct
           let id = Common.find t.eg id in
           match extract t id with
           | None -> extract_fail l id
-          | Some e -> match e with
-            | E (_, op, _) when must_remain_fixed op -> !!()
-            | _ when is_partial_redundancy t env l id -> !!()
-            | _ -> pure t env scp e >>| ignore)
+          | Some e ->
+            if must_remain_fixed e
+            || is_partial_redundancy t env l id then !!()
+            else pure t env scp e >>| ignore)
 end
 
 let reify t env scp l =

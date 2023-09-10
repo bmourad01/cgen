@@ -156,12 +156,26 @@ module Licm = struct
     | Inv -> licm' t l n lp id
 end
 
+(* Verify that a div/rem instruction may trap. *)
+let check_div_rem t : enode -> bool = function
+  | N (Obinop (`div #Type.imm | `udiv _ | `rem #Type.imm | `urem _), [_; r]) ->
+    begin match node t r with
+      | N (Oint (i, _), []) -> Bv.(i = zero)
+      | _ -> true
+    end
+  | _ -> false
+
+let is_effectful t n i =
+  Insn.can_load i ||
+  Insn.is_effectful i ||
+  check_div_rem t n
+
 (* Track the provenance between the node and the label, but first see
    if we can do LICM (loop-invariant code motion). *)
 let add t l id n = match Hashtbl.find t.input.tbl l with
   | None -> assert false
   | Some `blk _ -> Hashtbl.set t.id2lbl ~key:id ~data:l
-  | Some `insn (i, _, _) when Insn.(can_load i || is_effectful i) ->
+  | Some `insn (i, _, _) when is_effectful t n i ->
     Hashtbl.set t.id2lbl ~key:id ~data:l
   | Some `insn _ -> match Licm.find_loop t l with
     | None -> Hashtbl.set t.id2lbl ~key:id ~data:l

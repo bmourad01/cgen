@@ -58,7 +58,20 @@ let collect_unused_args live blks =
       if Set.is_empty args then acc
       else Label.Tree.set acc ~key:l ~data:args)
 
-let keep i x alive = Insn.is_effectful i || Set.mem alive x
+(* Even if the result of a div/rem may be unused, if the instruction has
+   the potential to trap then removing it will change the semantics. *)
+let check_div_rem i = match Insn.op i with
+  | `bop (_, (`div #Type.imm | `udiv _ | `rem #Type.imm | `urem _), _, r) ->
+    begin match r with
+      | `int (i, _) -> Bv.(i = zero)
+      | _ -> true
+    end
+  | _ -> false
+
+let keep i x alive =
+  Insn.is_effectful i ||
+  Set.mem alive x ||
+  check_div_rem i
 
 let insn (acc, changed, alive) i = match Insn.lhs i with
   | Some x when not @@ keep i x alive -> acc, true, alive
