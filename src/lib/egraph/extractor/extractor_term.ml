@@ -3,15 +3,15 @@
 open Extractor_core
 open O.Let
 
-let lbl = function
-  | Label l -> Some l
-  | Id _ -> None
+let prov = function
+  | Label l -> Exp.Label l
+  | Id {canon; _} -> Exp.Id canon
 
 let rec pure = function
   (* Only canonical forms are accepted. *)
   | E (a, Obinop b, [l; r]) ->
     let+ l = pure l and+ r = pure r in
-    Exp.Pbinop (lbl a, b, l, r)
+    Exp.Pbinop (prov a, b, l, r)
   | E (_, Obool b, []) -> Some (Exp.Pbool b)
   | E (_, Ocall (x, _), _) -> Some (Exp.Pvar x)
   | E (_, Odouble d, []) -> Some (Exp.Pdouble d)
@@ -19,12 +19,12 @@ let rec pure = function
   | E (_, Oload (x, _), _) -> Some (Exp.Pvar x)
   | E (a, Osel t, [c; y; n]) ->
     let+ c = pure c and+ y = pure y and+ n = pure n in
-    Exp.Psel (lbl a, t, c, y, n)
+    Exp.Psel (prov a, t, c, y, n)
   | E (_, Osingle s, []) -> Some (Exp.Psingle s)
   | E (_, Osym (s, n), []) -> Some (Exp.Psym (s, n))
   | E (a, Ounop u, [x]) ->
     let+ x = pure x in
-    Exp.Punop (lbl a, u, x)
+    Exp.Punop (prov a, u, x)
   | E (_, Ovar x, []) -> Some (Exp.Pvar x)
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)

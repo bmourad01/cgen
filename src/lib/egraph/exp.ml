@@ -1,15 +1,20 @@
 open Core
 open Virtual
 
+type prov =
+  | Id of Id.t
+  | Label of Label.t
+[@@deriving bin_io, compare, equal, sexp]
+
 type pure =
-  | Pbinop  of Label.t option * Insn.binop * pure * pure
+  | Pbinop  of prov * Insn.binop * pure * pure
   | Pbool   of bool
   | Pdouble of float
   | Pint    of Bv.t * Type.imm
-  | Psel    of Label.t option * Type.basic * pure * pure * pure
+  | Psel    of prov * Type.basic * pure * pure * pure
   | Psingle of Float32.t
   | Psym    of string * int
-  | Punop   of Label.t option * Insn.unop * pure
+  | Punop   of prov * Insn.unop * pure
   | Pvar    of Var.t
 [@@deriving bin_io, compare, equal, sexp]
 
@@ -43,36 +48,36 @@ type t =
   | Evastart of pure
 [@@deriving bin_io, compare, equal, sexp]
 
-let pp_label ppf = function
-  | Some l -> Format.fprintf ppf "%a" Label.pp l
-  | None -> ()
+let pp_prov ppf = function
+  | Id id -> Format.fprintf ppf "#%d" id
+  | Label l -> Format.fprintf ppf "%a" Label.pp l
 
 let rec pp_args args =
   let pp_sep ppf () = Format.fprintf ppf ", " in
   (Format.pp_print_list ~pp_sep pp_pure) args
 
 and pp_pure ppf = function
-  | Pbinop (l, o, x, y) ->
+  | Pbinop (p, o, x, y) ->
     Format.fprintf ppf "%a%a(%a, %a)"
-      Insn.pp_binop o pp_label l pp_pure x pp_pure y
+      Insn.pp_binop o pp_prov p pp_pure x pp_pure y
   | Pbool f ->
     Format.fprintf ppf "%a" Bool.pp f
   | Pdouble d ->
     Format.fprintf ppf "%a_d" Float.pp d
   | Pint (i, t) ->
     Format.fprintf ppf "%a_%a" Bv.pp i Type.pp_imm t
-  | Psel (l, t, c, y, n) ->
+  | Psel (p, t, c, y, n) ->
     Format.fprintf ppf "sel.%a%a(%a, %a, %a)"
-      Type.pp_basic t pp_label l pp_pure c pp_pure y pp_pure n
+      Type.pp_basic t pp_prov p pp_pure c pp_pure y pp_pure n
   | Psingle s ->
     Format.fprintf ppf "%s_s" @@ Float32.to_string s
   | Psym (s, o) ->
     if o = 0 then Format.fprintf ppf "$%s" s
     else if o < 0 then Format.fprintf ppf "$%s-%d" s (lnot o + 1)
     else Format.fprintf ppf "$%s+%d" s o
-  | Punop (l, o, x) ->
+  | Punop (p, o, x) ->
     Format.fprintf ppf "%a%a(%a)"
-      Insn.pp_unop o pp_label l pp_pure x
+      Insn.pp_unop o pp_prov p pp_pure x
   | Pvar v ->
     Format.fprintf ppf "%a" Var.pp v
 

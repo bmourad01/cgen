@@ -34,16 +34,21 @@ type id = Id.t [@@deriving compare, equal, hash, sexp]
 
 (** Expression trees with provenance tracking. *)
 module Exp : sig
+  type prov =
+    | Id of id
+    | Label of Label.t
+  [@@deriving bin_io, compare, equal, sexp]
+
   (** A "pure" expression. *)
   type pure =
-    | Pbinop  of Label.t option * Insn.binop * pure * pure
+    | Pbinop  of prov * Insn.binop * pure * pure
     | Pbool   of bool
     | Pdouble of float
     | Pint    of Bv.t * Type.imm
-    | Psel    of Label.t option * Type.basic * pure * pure * pure
+    | Psel    of prov * Type.basic * pure * pure * pure
     | Psingle of Float32.t
     | Psym    of string * int
-    | Punop   of Label.t option * Insn.unop * pure
+    | Punop   of prov * Insn.unop * pure
     | Pvar    of Var.t
   [@@deriving bin_io, compare, equal, sexp]
 
