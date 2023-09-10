@@ -3,39 +3,39 @@ open Regular.Std
 
 type id = Int63.t [@@deriving bin_io, compare, equal, hash, sexp]
 
-type ident =
-  | Temp of id
-  | Name of string
-[@@deriving bin_io, compare, equal, hash, sexp]
-
 module T = struct
-  type t = {
-    ident : ident;
-    index : int;
-  } [@@deriving bin_io, compare, equal, hash, sexp]
+  type t =
+    | Temp of id * int
+    | Name of string * int
+  [@@deriving bin_io, compare, equal, hash, sexp]
 end
 
 include T
 
-let is_temp x = match x.ident with
+let is_temp x = match x with
   | Temp _ -> true
   | Name _ -> false
 
-let is_named x = match x.ident with
+let is_named x = match x with
   | Temp _ -> false
   | Name _ -> true
 
-let name x = match x.ident with
+let name x = match x with
   | Temp _ -> None
-  | Name n -> Some n
+  | Name (n, _) -> Some n
 
-let index x = x.index
-let with_index x index = {x with index}
+let index x = match x with
+  | Temp (_, i) | Name (_, i) -> i
+
+let with_index x i = match x with
+  | Temp (t, _) -> Temp (t, i)
+  | Name (n, _) -> Name (n, i)
+
 let base x = with_index x 0
 
-let same x y = match x.ident, y.ident with
-  | Temp ix, Temp iy -> Int63.(ix = iy)
-  | Name nx, Name ny -> String.(nx = ny)
+let same x y = match x, y with
+  | Temp (ix, _), Temp (iy, _) -> Int63.(ix = iy)
+  | Name (nx, _), Name (ny, _) -> String.(nx = ny)
   | _ -> false
 
 let valid_first_char = function
@@ -47,14 +47,14 @@ let mangle = function
   | s when valid_first_char s.[0] -> s
   | s -> "_" ^ s
 
-let create ?(index = 0) name = {ident = Name (mangle name); index}
-let temp ?(index = 0) id = {ident = Temp id; index}
+let create ?(index = 0) name = Name (mangle name, index)
+let temp ?(index = 0) id = Temp (id, index)
 
-let pp ppf x = match x.ident with
-  | Temp id when x.index = 0 -> Format.fprintf ppf "%%%a" Int63.pp id
-  | Temp id -> Format.fprintf ppf "%%%a.%u" Int63.pp id x.index
-  | Name n when x.index = 0 -> Format.fprintf ppf "%%%s" n
-  | Name n -> Format.fprintf ppf "%%%s.%u" n x.index
+let pp ppf x = match x with
+  | Temp (id, 0) -> Format.fprintf ppf "%%%a" Int63.pp id
+  | Temp (id, index) -> Format.fprintf ppf "%%%a.%u" Int63.pp id index
+  | Name (n, 0) -> Format.fprintf ppf "%%%s" n
+  | Name (n, index) -> Format.fprintf ppf "%%%s.%u" n index
 
 include Regular.Make(struct
     include T
