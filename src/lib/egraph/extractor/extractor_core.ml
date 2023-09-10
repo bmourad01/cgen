@@ -28,9 +28,10 @@ let pp_prov ppf = function
 type ext = E of prov * Enode.op * ext list
 
 type t = {
-  eg    : egraph;
-  table : (int * enode) Id.Table.t;
-  memo  : ext Id.Table.t;
+  eg     : egraph;
+  table  : (int * enode) Id.Table.t;
+  memo   : ext Id.Table.t;
+  impure : Id.Hash_set.t;
 }
 
 let rec pp_ext ppf = function
@@ -108,15 +109,46 @@ let init eg =
     eg;
     table = Id.Table.create ();
     memo = Id.Table.create ();
+    impure = Id.Hash_set.create ();
   } in
   saturate t;
   t
 
-let prov t cid id = match Hashtbl.find t.eg.id2lbl cid with
-  | Some l -> Label l
-  | None -> match Hashtbl.find t.eg.id2lbl id with
-    | None -> Id {canon = cid; real = id}
+let must_remain_fixed op args = match (op : Enode.op) with
+  | Obr
+  | Ojmp
+  | Oret
+  | Osw _
+  | Ocall0 _
+  | Ocall _
+  | Oload _
+  | Oset _
+  | Ostore _
+  | Ovaarg _
+  | Ovastart _ ->
+    (* Control-flow and other side-effecting instructions must
+       remain fixed. *)
+    true
+  | Obinop (`div #Type.imm | `udiv _ | `rem #Type.imm | `urem _) ->
+    (* With division/remainder on integers where the RHS is a
+       known non-zero constant, we can safely move it. Otherwise,
+       there is a chance that the instruction will trap, which
+       is an observable effect. *)
+    begin match args with
+      | [_; E (_, Oint (i, _), [])] -> Bv.(i = zero)
+      | _ -> true
+    end
+  | _ -> false
+
+let prov t cid id op args =
+  if must_remain_fixed op args then begin
+    Hash_set.add t.impure cid;
+    match Hashtbl.find t.eg.id2lbl cid with
     | Some l -> Label l
+    | None -> match Hashtbl.find t.eg.id2lbl id with
+      | None -> Id {canon = cid; real = id}
+      | Some l -> Label l
+  end else Id {canon = cid; real = id}
 
 let rec extract t id =
   let cid = find t.eg id in
@@ -127,7 +159,7 @@ let rec extract t id =
     match n with
     | N (op, cs) ->
       let+ cs = O.List.map cs ~f:(extract t) in
-      let e = E (prov t cid id, op, cs) in
+      let e = E (prov t cid id op cs, op, cs) in
       Hashtbl.set t.memo ~key:id ~data:e;
       e
     | U {pre; post} ->

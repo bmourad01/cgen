@@ -59,36 +59,17 @@ let no_var l =
     "No variable is bound for label %a"
     Label.pps l
 
-let must_remain_fixed (E (_, op, args)) = match op with
-  | Obr
-  | Ojmp
-  | Oret
-  | Osw _
-  | Ocall0 _
-  | Ocall _
-  | Oload _
-  | Oset _
-  | Ostore _
-  | Ovaarg _
-  | Ovastart _ ->
-    (* Control-flow and other side-effecting instructions must
-       remain fixed. *)
-    true
-  | Obinop (`div #Type.imm | `udiv _ | `rem #Type.imm | `urem _) ->
-    (* With division/remainder on integers where the RHS is a
-       known non-zero constant, we can safely move it. Otherwise,
-       there is a chance that the instruction will trap, which
-       is an observable effect. *)
-    begin match args with
-      | [_; E (_, Oint (i, _), [])] -> Bv.(i = zero)
-      | _ -> true
-    end
-  | _ -> false
-
 let extract_label t l = match Hashtbl.find t.eg.lbl2id l with
   | None -> !!None
   | Some id -> match extract t id with
     | None -> extract_fail l @@ Common.find t.eg id
+    | Some (E (Id {canon; _}, _, _)) when not @@ Hash_set.mem t.impure canon ->
+      (* There may be an opportunity to "sink" this instruction,
+         which is the dual of the "hoisting" optimization below.
+         Since this is a pure operation, we can wait until it is
+         actually needed by an effectful instruction or for
+         control-flow. *)
+      !!None
     | Some _ as e -> !!e
 
 let upd t x y = Hashtbl.update t x ~f:(Option.value ~default:y)
@@ -397,7 +378,7 @@ module Hoisting = struct
           match extract t id with
           | None -> extract_fail l id
           | Some e ->
-            if must_remain_fixed e
+            if Hash_set.mem t.impure id
             || is_partial_redundancy t env l id then !!()
             else pure t env scp e >>| ignore)
 end
