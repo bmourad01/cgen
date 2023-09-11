@@ -588,7 +588,14 @@ let variadic_check_list_ty fn blk l v t word = match t with
     else expect_ptr_size_alist fn blk l v t word "variadic instruction"
   | _ -> expect_ptr_size_alist fn blk l v t word "variadic instruction"
 
+let variadic_in_fixed_args fn blk l = M.fail @@ Error.createf
+    "In function %s, block %a, instruction %a, attempted to use a \
+     variadic instruction in a function with fixed arguments."
+    (Func.name fn) Label.pps (Blk.label blk) Label.pps l
+
 let op_variadic fn blk l env (v : Insn.variadic) =
+  let* () = if Func.variadic fn then !!()
+    else variadic_in_fixed_args fn blk l in
   let* word = M.gets @@ Fn.compose Target.word Env.target in
   match v with
   | `vaarg (x, t, y) ->
