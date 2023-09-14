@@ -122,12 +122,12 @@ let must_remain_fixed op args = match (op : Enode.op) with
   | Ocall0 _
   | Ocall _
   | Oload _
-  | Oset _
   | Ostore _
   | Ovaarg _
   | Ovastart _ ->
     (* Control-flow and other side-effecting instructions must
-       remain fixed. *)
+       remain fixed. However, `Oset` can be moved as we only
+       generate this for operations that are known to be pure. *)
     true
   | Obinop (`div #Type.imm | `udiv _ | `rem #Type.imm | `urem _) ->
     (* With division/remainder on integers where the RHS is a
