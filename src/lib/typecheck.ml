@@ -97,16 +97,6 @@ module Env = struct
   let layout name env = match Map.find env.genv name with
     | None -> Or_error.errorf "Type :%s not found in gamma" name
     | Some l -> Ok l
-
-  let add_layout (t : Type.compound) env =
-    let name = Type.compound_name t in
-    let gamma name = match layout name env with
-      | Error err -> invalid_argf "%s" (Error.to_string_hum err) ()
-      | Ok l -> l in
-    Type.layout gamma t |> Or_error.bind ~f:(fun data ->
-        match Map.add env.genv ~key:name ~data with
-        | `Duplicate -> Or_error.errorf "Redefinition of type %s" name
-        | `Ok genv -> Ok {env with genv})
 end
 
 type env = Env.t
@@ -848,47 +838,14 @@ let check_data d = Data.elts d |> M.Seq.iter ~f:(function
       invalid_elt d (elt :> Data.elt)
         "argument must be greater than 0")
 
-module Typegraph = Graphlib.Make(String)(Unit)
-
-let build_typ_graph tenv =
-  Map.data tenv |> M.List.fold ~init:Typegraph.empty ~f:(fun g -> function
-      | `opaque (name, _, _) -> !!(Typegraph.Node.insert name g)
-      | `compound (name, _, fields) ->
-        let init = Typegraph.Node.insert name g in
-        M.List.fold fields ~init ~f:(fun g -> function
-            | `elt _ -> !!g
-            | `name (n, _) when Map.mem tenv n ->
-              !!Typegraph.Edge.(insert (create n name ()) g)
-            | `name (n, _) ->
-              M.fail @@ Error.createf
-                "Undeclared type field :%s in type :%s"
-                n name) )
-
-let check_typ_cycles g =
-  Graphlib.strong_components (module Typegraph) g |>
-  Partition.groups |> M.Seq.iter ~f:(fun grp ->
-      match Seq.to_list @@ Group.enum grp with
-      | [] -> !!()
-      | [name] ->
-        let succs = Typegraph.Node.succs name g in
-        if not @@ Seq.mem succs name ~equal:String.equal then !!()
-        else M.fail @@ Error.createf "Cycle detected in type :%s" name
-      | xs ->
-        M.fail @@ Error.createf "Cycle detected in types %s" @@
-        List.to_string ~f:(fun s -> ":" ^ s) xs)
-
-let fill_typ_gamma (env : env) g =
-  Graphlib.reverse_postorder_traverse (module Typegraph) g |>
-  M.Seq.fold ~init:env ~f:(fun env name ->
-      let t = Map.find_exn env.tenv name in
-      M.lift_err @@ Env.add_layout t env)
-
 let check_typs =
   let* env = M.get () in
-  let* g = build_typ_graph env.tenv in
-  let* () = check_typ_cycles g in
-  let* env = fill_typ_gamma env g in
-  M.put env
+  Type.layouts_of_types (Map.data env.tenv) >>?
+  M.List.fold ~init:env ~f:(fun env (name, l) ->
+      match Map.add env.genv ~key:name ~data:l with
+      | `Ok genv -> !!{env with genv}
+      | `Duplicate -> M.fail @@ Error.createf
+          "Redefinition of layout for :%s" name) >>= M.put
 
 let check m =
   let* () = add_typs m in

@@ -1,5 +1,9 @@
 open Core
+open Monads.Std
 open Regular.Std
+open Graphlib.Std
+
+module E = Monad.Result.Error
 
 type imm_base = [
   | `i32
@@ -191,6 +195,61 @@ module Layout = struct
             data, align, size + pad + fsize) in
       {align; data = finalize data align size}
 
+  module Typegraph = Graphlib.Make(String)(Unit)
+
+  let build_tenv (ts : compound list) =
+    List.fold ts ~init:String.Map.empty ~f:(fun tenv t ->
+        let name = match t with
+          | `opaque (name, _, _) -> name
+          | `compound (name, _, _) -> name in
+        match Map.add tenv ~key:name ~data:t with
+        | `Duplicate -> invalid_argf "Duplicate type :%s" name ()
+        | `Ok tenv -> tenv)
+
+  let build_typ_graph tenv ts =
+    List.fold ts ~init:Typegraph.empty ~f:(fun g -> function
+        | `opaque (name, _, _) -> Typegraph.Node.insert name g
+        | `compound (name, _, fields) ->
+          let init = Typegraph.Node.insert name g in
+          List.fold fields ~init ~f:(fun g -> function
+              | `elt _ -> g
+              | `name (n, _) when Map.mem tenv n ->
+                Typegraph.Edge.(insert (create n name ()) g)
+              | `name (n, _) ->
+                invalid_argf "Undeclared type field :%s in type :%s"
+                  n name ()))
+
+  let check_typ_cycles g =
+    Graphlib.strong_components (module Typegraph) g |>
+    Partition.groups |> Seq.iter ~f:(fun grp ->
+        match Seq.to_list @@ Group.enum grp with
+        | [] -> ()
+        | [name] ->
+          let succs = Typegraph.Node.succs name g in
+          if not @@ Seq.mem succs name ~equal:String.equal then ()
+          else invalid_argf "Cycle detected in type :%s" name ()
+        | xs ->
+          invalid_argf "Cycle detected in types %s"
+            (List.to_string ~f:(fun s -> ":" ^ s) xs)
+            ())
+
+  let layouts tenv g =
+    Graphlib.reverse_postorder_traverse (module Typegraph) g |>
+    Seq.fold ~init:(String.Map.empty, []) ~f:(fun (genv, xs) name ->
+        let t = Map.find_exn tenv name in
+        let gamma name = match Map.find genv name with
+          | None -> invalid_argf "Type :%s not found in gamma" name ()
+          | Some l -> l in
+        let l = create gamma t in
+        Map.set genv ~key:name ~data:l,
+        (name, l) :: xs) |> snd |> List.rev
+
+  let of_types ts =
+    let tenv = build_tenv ts in
+    let g = build_typ_graph tenv ts in
+    check_typ_cycles g;
+    layouts tenv g
+
   include Regular.Make(struct
       type t = layout [@@deriving bin_io, compare, equal, hash, sexp]
       let pp = pp_layout
@@ -201,6 +260,8 @@ end
 
 let layout_exn = Layout.create
 let layout g c = Or_error.try_with @@ fun () -> layout_exn g c
+let layouts_of_types_exn = Layout.of_types
+let layouts_of_types ts = Or_error.try_with @@ fun () -> layouts_of_types_exn ts
 
 let pp_compound ppf : compound -> unit = function
   | `compound (_, align, fields) ->

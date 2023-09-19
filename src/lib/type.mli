@@ -154,6 +154,22 @@ val layout_exn : (string -> layout) -> compound -> layout
 
 val layout : (string -> layout) -> compound -> layout Or_error.t
 
+(** [layouts_of_types_exn ts] attempts to compute a topological ordering
+    for [ts] and then compute their layouts in this order.
+
+    This ordering is important because any type [t] in [ts] may refer to
+    another type [t'] in [ts] in one of its fields. Knowing the layout of
+    [t'] is then necessary for computing the layout of [t].
+
+    The result is a list in topological order of these dependencies,
+    containing the name of each type and its layout.
+
+    @raise Invalid_argument if [ts] is not well-formed.
+*)
+val layouts_of_types_exn : compound list -> (string * layout) list
+
+val layouts_of_types : compound list -> (string * layout) list Or_error.t
+
 (** Pretty-prints a compound type (without the name). *)
 val pp_compound : Format.formatter -> compound -> unit
 
