@@ -74,10 +74,6 @@ let duplicate t id a = match Hashtbl.find t.id2lbl id with
     move t [a; b] c @@ find t id
 
 module Licm = struct
-  type invariance =
-    | Inv (* Invariant w.r.t. the loop it belongs to (if any) *)
-    | Fix (* Depends on values produced in the loop; must remain fixed *)
-
   let find_loop t l = match Hashtbl.find t.input.tbl l with
     | Some (`blk b | `insn (_, b, _)) ->
       Loops.blk t.input.loop @@ Blk.label b
@@ -95,43 +91,44 @@ module Licm = struct
     not (Loops.equal_loop a b) &&
     Loops.is_child_of t.input.loop a b
 
-  let loop_no_label ~lp t n = match (n : enode) with
-    | N (Ovar x, []) when is_arg_or_slot t x -> Inv
-    | N (Ovar x, []) ->
-      (* If this is a block argument, then find out if it belongs to
-         a loop. *)
-      Hashtbl.find t.input.barg x |>
-      Option.value_map ~default:Fix ~f:(fun l -> match find_loop t l with
-          | Some lp' when is_child_loop t lp lp' -> Inv
-          | Some _ | None -> Fix)
-    | n when Enode.is_const n -> Inv
-    | _ -> Fix
-
   let id2lbl t id = match Hashtbl.find t.id2lbl id with
     | None -> Hashtbl.find t.imoved2 id
     | Some _ as l -> l
 
-  let rec loop_invariance ~lp t l n = match find_loop t l with
-    | Some lp' when is_child_loop t lp lp' -> Inv
-    | Some _ -> loop_children ~lp t n
-    | None -> Inv
+  module Variance = struct
+    let rec is_variant ~lp t l n = match find_loop t l with
+      | Some lp' when is_child_loop t lp lp' -> false
+      | Some _ -> children ~lp t n
+      | None -> false
 
-  and loop_children ~lp t n = match (n : enode) with
-    | N (_, cs) ->
-      if List.exists cs ~f:(is_variant ~lp t) then Fix else Inv
-    | U {pre; post} ->
-      let id = find t pre in
-      assert (id = find t post);
-      loop_children ~lp t @@ node t id
+    and children ~lp t n = match (n : enode) with
+      | N (_, cs) -> List.exists cs ~f:(child ~lp t)
+      | U {pre; post} ->
+        let id = find t pre in
+        assert (id = find t post);
+        children ~lp t @@ node t id
 
-  and is_variant ~lp t id = match loop_child ~lp t id with
-    | Fix -> true | Inv -> false
-
-  and loop_child ~lp t id =
-    let n = node t id in
-    match id2lbl t id with
-    | Some l -> loop_invariance ~lp t l n
-    | None -> loop_no_label ~lp t n
+    (* If the child node has a known label, then recursively ask if it
+       is variant w.r.t. the current loop. *)
+    and child ~lp t id =
+      let n = node t id in
+      match id2lbl t id with
+      | Some l -> is_variant ~lp t l n
+      | None -> match n with
+        | N (Ovar x, []) ->
+          (* Arguments and stack slots have scope for the entire
+             function. *)
+          not (is_arg_or_slot t x) &&
+          (* If this is a block argument, then find out if it belongs to
+             a loop. *)
+          Hashtbl.find t.input.barg x |>
+          Option.value_map ~default:true ~f:(fun l -> match find_loop t l with
+              | Some lp' when is_child_loop t lp lp' -> false
+              | Some _ | None -> true)
+        | _ ->
+          (* At this point, anything that is not a constant is suspect. *)
+          not @@ Enode.is_const n
+  end
 
   let header t lp = Loops.(header @@ get t.input.loop lp)
 
@@ -147,13 +144,15 @@ module Licm = struct
     | None -> assert false
     | Some l' -> match find_loop t l' with
       | None -> licm_move t l l' id
-      | Some lp' -> match loop_children ~lp:lp' t n with
-        | Inv -> licm' t l n lp' id
-        | Fix -> licm_move t l l' id
+      | Some lp' ->
+        if Variance.children ~lp:lp' t n
+        then licm_move t l l' id
+        else licm' t l n lp' id
 
-  let licm t l n lp id = match loop_children ~lp t n with
-    | Fix -> Hashtbl.set t.id2lbl ~key:id ~data:l
-    | Inv -> licm' t l n lp id
+  let licm t l n lp id =
+    if Variance.children ~lp t n
+    then Hashtbl.set t.id2lbl ~key:id ~data:l
+    else licm' t l n lp id
 end
 
 (* Verify that a div/rem instruction may trap. *)
