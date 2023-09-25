@@ -117,9 +117,9 @@
 %token <Type.imm> CLZ CTZ FLAG ITRUNC POPCNT SEXT ZEXT
 %token <Type.imm_base> IFBITS
 %token <Type.imm * Type.fp> SITOF UITOF
-%token <Type.basic> COPY SEL ACALL
+%token <Type.basic> COPY SEL ACALL ATCALL
 %token <Type.imm_base> REF
-%token CALL
+%token CALL TCALL
 %token <Type.basic> VAARG
 %token VASTART
 %token HLT
@@ -339,6 +339,20 @@ ctrl:
       match Virtual.Ctrl.Table.create tbl t with
       | Error err -> M.lift @@ Context.fail err
       | Ok tbl -> !!(`sw (t, i, d, tbl))
+    }
+  | t = ATCALL f = global LPAREN args = call_args RPAREN
+    {
+      let+ f = f and+ args = args in
+      let args, vargs = Core.List.partition_map args ~f:(function
+        | `arg a -> First a | `varg a -> Second a) in
+      `tcall (Some t, f, args, vargs)
+    }
+  | TCALL f = global LPAREN args = call_args RPAREN
+    {
+      let+ f = f and+ args = args in
+      let args, vargs = Core.List.partition_map args ~f:(function
+        | `arg a -> First a | `varg a -> Second a) in
+      `tcall (None, f, args, vargs)
     }
 
 ctrl_index:

@@ -25,6 +25,7 @@ let accum g b : Ctrl.t -> G.t = function
     let init = G.Edge.(insert (create b d @@ `default x) g) in
     Map.fold t.tbl ~init ~f:(fun ~key:v ~data:(`label (l, _)) g ->
         G.Edge.(insert (create b l @@ `switch (x, v)) g))
+  | `tcall _ -> g
 
 let create fn =
   Func.blks fn |> Seq.fold ~init:G.empty ~f:(fun g b ->

@@ -63,7 +63,23 @@ type t = [
   | `br  of Var.t * dst * dst
   | `ret of operand option
   | `sw  of Type.imm * swindex * local * table
+  | `tcall of Type.basic option * global * operand list * operand list
 ] [@@deriving bin_io, compare, equal, sexp]
+
+let pp_tcall_res ppf = function
+  | None -> Format.fprintf ppf "tcall "
+  | Some t ->
+    Format.fprintf ppf "tcall.%a " Type.pp_basic t
+
+let pp_tcall ppf c =
+  let res, dst, args, vargs = match c with
+    | `tcall (Some _ as t, d, a, va) -> t, d, a, va
+    | `tcall (None, d, a, va) -> None, d, a, va in
+  Format.fprintf ppf "%a%a(%a%a)"
+    pp_tcall_res res
+    pp_global dst
+    Insn.pp_call_args args
+    (Insn.pp_call_vargs args) vargs
 
 let free_vars : t -> Var.Set.t = function
   | `hlt -> Var.Set.empty
@@ -80,6 +96,11 @@ let free_vars : t -> Var.Set.t = function
       free_vars_of_local d;
       Table.free_vars tbl;
     ]
+  | `tcall (_, f, args, vargs) ->
+    let f = var_of_global f |> Option.to_list |> Var.Set.of_list in
+    let args = List.filter_map args ~f:var_of_operand |> Var.Set.of_list in
+    let vargs = List.filter_map vargs ~f:var_of_operand |> Var.Set.of_list in
+    Var.Set.union_list [f; args; vargs]
 
 let pp ppf : t -> unit = function
   | `hlt -> Format.fprintf ppf "hlt"
@@ -94,3 +115,5 @@ let pp ppf : t -> unit = function
   | `sw (t, x, ld, tbl) ->
     Format.fprintf ppf "sw.%a %a, %a [@[<v 0>%a@]]"
       Type.pp_imm t pp_swindex x pp_local ld Table.pp tbl
+  | `tcall _ as c ->
+    Format.fprintf ppf "%a" pp_tcall c

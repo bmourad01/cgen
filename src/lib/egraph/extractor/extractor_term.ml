@@ -45,6 +45,8 @@ let rec pure = function
   | E (_, Osw _, _)
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
+  | E (_, Otcall0, _)
+  | E (_, Otcall _, _)
   | E (_, Ounop _, _)
   | E (_, Ovaarg _, _)
   | E (_, Ovar _, _)
@@ -118,6 +120,16 @@ let exp = function
       | _ -> None
     and+ tbl = O.List.map tbl ~f:table in
     Exp.Esw (t, i, d, tbl)
+  | E (_, Otcall0, [f; args; vargs]) ->
+    let+ f = global f
+    and+ args = callargs args
+    and+ vargs = callargs vargs in
+    Exp.Etcall (None, f, args, vargs)
+  | E (_, Otcall t, [f; args; vargs]) ->
+    let+ f = global f
+    and+ args = callargs args
+    and+ vargs = callargs vargs in
+    Exp.Etcall (Some t, f, args, vargs)
   | E (_, Ovaarg (x, t), [a]) ->
     let+ a = pure a in
     Exp.Evaarg (x, t, a)
@@ -145,6 +157,8 @@ let exp = function
   | E (_, Osw _, _)
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
+  | E (_, Otcall0, _)
+  | E (_, Otcall _, _)
   | E (_, Ounop _, _)
   | E (_, Ovaarg _, _)
   | E (_, Ovar _, _)

@@ -68,9 +68,12 @@ let op_cost : Enode.op -> int = function
   | Osym _
   | Oset _
   | Ostore _
+  | Otbl _
+  | Otcall0
+  | Otcall _
   | Ovaarg _
   | Ovastart _ -> 0
-  | Obr | Otbl _ | Ovar _ -> 2
+  | Obr | Ovar _ -> 2
   | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
   | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 90
   | Obinop (`mul _) -> 42
@@ -123,6 +126,8 @@ let must_remain_fixed op args = match (op : Enode.op) with
   | Ocall _
   | Oload _
   | Ostore _
+  | Otcall0
+  | Otcall _
   | Ovaarg _
   | Ovastart _ ->
     (* Control-flow and other side-effecting instructions must

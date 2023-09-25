@@ -44,6 +44,7 @@ type t =
   | Eset     of Var.t * pure
   | Estore   of Type.basic * pure * pure
   | Esw      of Type.imm * pure * local * table
+  | Etcall   of Type.basic option * global * pure list * pure list
   | Evaarg   of Var.t * Type.basic * pure
   | Evastart of pure
 [@@deriving bin_io, compare, equal, sexp]
@@ -106,13 +107,13 @@ let pp ppf = function
   | Ebr (c, t, f) ->
     Format.fprintf ppf "br(%a, %a, %a)"
       pp_pure c pp_dst t pp_dst f
-  | Ecall (_, f, [], []) ->
+  | Ecall (_, f, [], []) | Etcall (_, f, [], []) ->
     Format.fprintf ppf "%a()" pp_global f
-  | Ecall (_, f, args, []) ->
+  | Ecall (_, f, args, []) | Etcall (_, f, args, []) ->
     Format.fprintf ppf "%a(%a)" pp_global f pp_args args
-  | Ecall (_, f, [], vargs) ->
+  | Ecall (_, f, [], vargs) | Etcall (_, f, [], vargs) ->
     Format.fprintf ppf "%a(..., %a)" pp_global f pp_args vargs
-  | Ecall (_, f, args, vargs) ->
+  | Ecall (_, f, args, vargs) | Etcall (_, f, args, vargs) ->
     Format.fprintf ppf "%a(%a, ..., %a)"
       pp_global f pp_args args pp_args vargs
   | Ejmp d ->

@@ -467,12 +467,28 @@ let unify_fail_void_call fn blk l t s =
      call at %a to function $%s in block %a of function $%s"
     t Label.pps l s Label.pps (Blk.label blk) (Func.name fn)
 
+let unify_fail_void_tcall fn blk l t f =
+  let t = Format.asprintf "%a" Type.pp_arg t in
+  M.fail @@ Error.createf
+    "Failed to unify return types %s and <void> for \
+     call at %a to %s in block %a of function $%s"
+    t Label.pps l (Format.asprintf "%a" pp_global f)
+    Label.pps (Blk.label blk) (Func.name fn)
+
 let unify_fail_call_ret fn blk l t1 t2 s =
   let ts = Format.asprintf "%a and %a" Type.pp_arg t1 Type.pp_arg t2 in
   M.fail @@ Error.createf
     "Failed to unify return types %s for \
      call at %a to function $%s in block %a of function $%s"
     ts Label.pps l s Label.pps (Blk.label blk) (Func.name fn)
+
+let unify_fail_call_ret_glob fn blk l t1 t2 f =
+  let ts = Format.asprintf "%a and %a" Type.pp_arg t1 Type.pp_arg t2 in
+  M.fail @@ Error.createf
+    "Failed to unify return types %s for \
+     call at %a to %s in block %a of function $%s"
+    ts Label.pps l (Format.asprintf "%a" pp_global f)
+    Label.pps (Blk.label blk) (Func.name fn)
 
 let non_variadic_call fn blk l s =
   M.fail @@ Error.createf
@@ -729,6 +745,19 @@ let ctrl_sw blks fn blk t v d tbl =
         check_dst blks fn blk (l :> dst))
   else M.lift_err @@ sw_unify_fail t' tv blk fn
 
+let ctrl_tcall fn blk t f args vargs =
+  let* env = M.get () in
+  let t = Option.map t ~f:(fun t -> (t :> Type.arg)) in
+  let* () = match Func.typeof fn, t with
+    | `proto (Some rt, _, _), Some t ->
+      let ta = (rt :> Type.arg) in
+      if Type.equal_arg ta t then !!()
+      else unify_fail_call_ret_glob fn blk (Blk.label blk) ta t f
+    | `proto (Some t, _, _), None ->
+      unify_fail_void_tcall fn blk (Blk.label blk) (t :> Type.arg) f
+    | `proto (None, _, _), (None | Some _) -> !!() in
+  check_call fn blk (Blk.label blk) env t args vargs f
+
 let blk_ctrl blks fn blk = match Blk.ctrl blk with
   | `hlt -> !!()
   | `jmp d -> check_dst blks fn blk d
@@ -736,6 +765,7 @@ let blk_ctrl blks fn blk = match Blk.ctrl blk with
   | `ret None -> ctrl_ret_none blks fn blk
   | `ret (Some r) -> ctrl_ret_some blks fn blk r
   | `sw (t, v, d, tbl) -> ctrl_sw blks fn blk t v d tbl
+  | `tcall (t, f, args, vargs) -> ctrl_tcall fn blk t f args vargs
 
 let not_pseudo = Fn.non Label.is_pseudo
 

@@ -84,6 +84,7 @@ module Exp : sig
     | Eset     of Var.t * pure
     | Estore   of Type.basic * pure * pure
     | Esw      of Type.imm * pure * local * table
+    | Etcall   of Type.basic option * global * pure list * pure list
     | Evaarg   of Var.t * Type.basic * pure
     | Evastart of pure
   [@@deriving bin_io, compare, equal, sexp]

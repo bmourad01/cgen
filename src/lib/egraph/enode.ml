@@ -32,6 +32,8 @@ type op =
   | Osw       of Type.imm
   | Osym      of string * int
   | Otbl      of Bv.t
+  | Otcall0
+  | Otcall    of Type.basic
   | Ounop     of Insn.unop
   | Ovaarg    of Var.t * Type.basic
   | Ovar      of Var.t
@@ -111,6 +113,8 @@ module Eval = struct
     | Osym (s, o), [] -> Some (`sym (s, o))
     | Osym _, _ -> None
     | Otbl _, _ -> None
+    | Otcall0, _ -> None
+    | Otcall _, _-> None
     | Ounop o, [Some `int (a, ty)] ->
       (unop_int o a ty :> const option)
     | Ounop o, [Some `float a] ->
@@ -195,6 +199,10 @@ let pp_op ppf = function
     Format.fprintf ppf "$%s-%d" s (lnot o + 1)
   | Otbl i ->
     Format.fprintf ppf "(tbl %a)" Bv.pp i
+  | Otcall0 ->
+    Format.fprintf ppf "tcall"
+  | Otcall t ->
+    Format.fprintf ppf "tcall.%a" Type.pp_basic t
   | Ounop u ->
     Format.fprintf ppf "%a" Insn.pp_unop u
   | Ovaarg (_, t) ->

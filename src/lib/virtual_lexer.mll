@@ -162,6 +162,8 @@ rule token = parse
   | "sel" '.' (basic as t) { SEL (basic_of_char t) }
   | "call" '.' (basic as t) { ACALL (basic_of_char t) }
   | "call" { CALL }
+  | "tcall" '.' (basic as t) { ATCALL (basic_of_char t) }
+  | "tcall" { TCALL }
   | "vaarg" '.' (basic as t) { VAARG (basic_of_char t) }
   | "vastart" { VASTART }
   | "hlt" { HLT }

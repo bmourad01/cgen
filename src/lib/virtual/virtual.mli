@@ -616,13 +616,17 @@ module Ctrl : sig
       For a variable [index] of type [typ], it will find the associated
       label of [index] in [table] and jump to it, if it exists. If not,
       then the destination of the jump is [default].
+
+      [`tcall (typ, f, args, vargs)] is similar to a [`call] instruction,
+      but is in tail position of the function.
   *)
   type t = [
     | `hlt
-    | `jmp of dst
-    | `br  of Var.t * dst * dst
-    | `ret of operand option
-    | `sw  of Type.imm * swindex * local * table
+    | `jmp   of dst
+    | `br    of Var.t * dst * dst
+    | `ret   of operand option
+    | `sw    of Type.imm * swindex * local * table
+    | `tcall of Type.basic option * global * operand list * operand list
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the control-flow instruction. *)
