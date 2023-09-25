@@ -434,6 +434,12 @@ module Insn : sig
   (** Pretty-prints a data operation. *)
   val pp_op : Format.formatter -> op -> unit
 
+  (** Tags for various information about the instruction. *)
+  module Tag : sig
+    (** Do not attempt to transform this call into a tail call. *)
+    val non_tail : unit Dict.tag
+  end
+
   (** A labeled data operation. *)
   type t [@@deriving bin_io, compare, equal, sexp]
 

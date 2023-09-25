@@ -316,6 +316,12 @@ let pp_op ppf : op -> unit = function
   | #mem      as m -> pp_mem      ppf m
   | #variadic as v -> pp_variadic ppf v
 
+module Tag = struct
+  let non_tail = Dict.register
+      ~uuid:"3d94ecfb-36c4-4218-abc7-96c2200b4e04"
+      "non-tail" (module Unit)
+end
+
 type t = {
   label : Label.t;
   dict  : Dict.t;
