@@ -8,3 +8,8 @@ include Regular.Make(struct
     let module_name = Some "Cgen.Egraph.Id"
     let version = "0.1"
   end)
+
+module Tree = Patricia_tree.Make(struct
+    include Int
+    let size = Sys.int_size_in_bits
+  end)

@@ -12,14 +12,14 @@ open Context.Syntax
    because it is scoped to the current line in the dominator
    tree. This way, we can duplicate code when we find a partial
    redundancy. *)
-type scp = (Var.t * Label.t) Id.Map.t
+type scp = (Var.t * Label.t) Id.Tree.t
 
-let empty_scp : scp = Id.Map.empty
+let empty_scp : scp = Id.Tree.empty
 
 type env = {
   insn        : Insn.op Label.Table.t;
   ctrl        : ctrl Label.Table.t;
-  news        : Label.t Id.Map.t Label.Table.t;
+  news        : Label.t Id.Tree.t Label.Table.t;
   closure     : Label.Set.t Label.Table.t;
   mutable cur : Label.t;
 }
@@ -78,15 +78,16 @@ let find_var t l = match Hashtbl.find t.eg.input.tbl l with
   | Some `insn (_, _, Some x) -> !!(x, l)
   | Some _ | None -> no_var l
 
-let new_var env scp canon real = match Map.find !scp canon with
+let new_var env scp canon real =
+  match Id.Tree.find !scp canon with
   | Some p -> !!p
   | None ->
     let* x = Context.Var.fresh in
     let+ l = Context.Label.fresh in
-    scp := Map.set !scp ~key:canon ~data:(x, l);
+    scp := Id.Tree.set !scp ~key:canon ~data:(x, l);
     Hashtbl.update env.news env.cur ~f:(function
-        | None -> Id.Map.singleton real l
-        | Some m -> match Map.add m ~key:real ~data:l with
+        | None -> Id.Tree.singleton real l
+        | Some m -> match Id.Tree.add m ~key:real ~data:l with
           | `Duplicate -> assert false
           | `Ok m -> m);
     x, l
@@ -424,7 +425,7 @@ let find_news ?(rev = false) env l =
   let order = if rev then `Decreasing_key else `Increasing_key in
   Hashtbl.find env.news l |>
   Option.value_map ~default:[] ~f:(fun m ->
-      Map.to_sequence ~order m |> Seq.map ~f:snd |>
+      Id.Tree.to_sequence ~order m |> Seq.map ~f:snd |>
       Seq.filter_map ~f:(find_insn env) |> Seq.to_list)
 
 let cfg t =
