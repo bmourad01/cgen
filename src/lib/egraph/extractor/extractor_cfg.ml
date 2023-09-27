@@ -423,10 +423,12 @@ let find_insn env l =
 
 let find_news ?(rev = false) env l =
   let order = if rev then `Decreasing_key else `Increasing_key in
+  let seq = Id.Tree.to_sequence ~order in
   Hashtbl.find env.news l |>
   Option.value_map ~default:[] ~f:(fun m ->
-      Id.Tree.to_sequence ~order m |> Seq.map ~f:snd |>
-      Seq.filter_map ~f:(find_insn env) |> Seq.to_list)
+      seq m |> Seq.map ~f:snd |>
+      Seq.filter_map ~f:(find_insn env) |>
+      Seq.to_list)
 
 let cfg t =
   let+ env = collect t Label.pseudoentry in
