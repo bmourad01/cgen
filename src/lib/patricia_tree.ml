@@ -199,9 +199,15 @@ module Make(K : Patricia_tree_intf.Key) = struct
     | Bin (_, l, r) -> fold r ~f ~init:(fold l ~init ~f)
   [@@specialise]
 
+  let rec fold_right t ~init ~f = match t with
+    | Nil -> init
+    | Tip (k, v) -> f ~key:k ~data:v init
+    | Bin (_, l, r) -> fold_right l ~f ~init:(fold_right r ~init ~f)
+  [@@specialise]
+
   let length t = fold t ~init:0 ~f:(fun ~key:_ ~data:_ n -> Int.succ n)
-  let data t = fold t ~f:(fun ~key:_ ~data:x xs -> x :: xs) ~init:[]
-  let keys t = fold t ~f:(fun ~key:x ~data:_ xs -> x :: xs) ~init:[]
+  let data t = fold_right t ~f:(fun ~key:_ ~data:x xs -> x :: xs) ~init:[]
+  let keys t = fold_right t ~f:(fun ~key:x ~data:_ xs -> x :: xs) ~init:[]
 
   let of_alist_exn =
     List.fold ~init:empty ~f:(fun t (key, data) -> add_exn t ~key ~data)

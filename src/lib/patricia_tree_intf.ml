@@ -130,16 +130,22 @@ module type S = sig
   (** Iterates the tree according to [f]. *)
   val iter : 'a t -> f:(key:key -> data:'a -> unit) -> unit
 
-  (** Accumulates a result for each key-value pair in the tree. *)
+  (** Accumulates a result for each key-value pair in the tree, in
+      increasing order. *)
   val fold : 'a t -> init:'b -> f:(key:key -> data:'a -> 'b -> 'b) -> 'b
+
+  (** Accumulates a result for each key-value pair in the tree, in
+      decreasing order. *)
+  val fold_right : 'a t -> init:'b -> f:(key:key -> data:'a -> 'b -> 'b) -> 'b
 
   (** Returns the number of elements in the tree. *)
   val length : 'a t -> int
 
-  (** Returns a list of all keys in the tree. *)
+  (** Returns a list of all keys in the tree, in increasing order. *)
   val keys : 'a t -> key list
 
-  (** Returns a list of all values in the tree. *)
+  (** Returns a list of all values in the tree, in inrcreasing order
+      with respect to their corresponding keys.  *)
   val data : 'a t -> 'a list
 
   (** Creates a tree from an association list.
