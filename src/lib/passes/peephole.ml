@@ -30,6 +30,14 @@ module Rules = struct
       | _ -> None
     end
 
+  (* `x` is a constant and is not 0 or 1 *)
+  let is_not_bool x eg env =
+    Option.value ~default:false begin
+      Map.find env x >>= Egraph.const eg >>| function
+      | `int (i, _) -> Bv.(i <> one && i <> zero)
+      | _ -> false
+    end
+
   let has_type x ty eg env =
     Map.find env x |>
     Option.bind ~f:(Egraph.typeof eg) |> function
@@ -264,6 +272,7 @@ module Rules = struct
   let is_const_y = is_const "y"
   let is_not_const_y = is_not_const "y"
   let is_neg_const_y = is_neg_const "y"
+  let is_not_bool_y = is_not_bool "y"
   let has_type_x = has_type "x"
   let lsr_asr_bitwidth_y_z = lsr_asr_bitwidth "y" "z"
   let mul_imm_pow2_y = mul_imm_pow2 x "y"
@@ -893,6 +902,142 @@ module Rules = struct
       (sge `i64 (zext `i64 x) (i64 0L) =>? bool true) ~if_:(has_type_x `i8);
       (sge `i64 (zext `i64 x) (i64 0L) =>? bool true) ~if_:(has_type_x `i16);
       (sge `i64 (zext `i64 x) (i64 0L) =>? bool true) ~if_:(has_type_x `i32);
+      (* flag x == 1 = x *)
+      eq `i8 (flag `i8 x) (i8 1) => x;
+      eq `i16 (flag `i16 x) (i16 1) => x;
+      eq `i32 (flag `i32 x) (i32 1l) => x;
+      eq `i64 (flag `i64 x) (i64 1L) => x;
+      (* flag x == 0 = (flag x ^ 1) == 1 *)
+      eq `i8 (flag `i8 x) (i8 0) => eq `i8 (xor `i8 (flag `i8 x) (i8 1)) (i8 1);
+      eq `i16 (flag `i16 x) (i16 0) => eq `i16 (xor `i16 (flag `i16 x) (i16 1)) (i16 1);
+      eq `i32 (flag `i32 x) (i32 0l) => eq `i32 (xor `i32 (flag `i32 x) (i32 1l)) (i32 1l);
+      eq `i64 (flag `i64 x) (i64 0L) => eq `i64 (xor `i64 (flag `i64 x) (i64 1L)) (i64 1L);
+      (* flag x != 1 = flag == 0 *)
+      ne `i8 (flag `i8 x) (i8 1) => eq `i8 (flag `i8 x) (i8 0);
+      ne `i16 (flag `i16 x) (i16 1) => eq `i16 (flag `i16 x) (i16 0);
+      ne `i32 (flag `i32 x) (i32 1l) => eq `i32 (flag `i32 x) (i32 0l);
+      ne `i64 (flag `i64 x) (i64 1L) => eq `i64 (flag `i64 x) (i64 0L);
+      (* flag x != 0 = x *)
+      ne `i8 (flag `i8 x) (i8 0) => x;
+      ne `i16 (flag `i16 x) (i16 0) => x;
+      ne `i32 (flag `i32 x) (i32 0l) => x;
+      ne `i64 (flag `i64 x) (i64 0L) => x;
+      (* flag x <= 0 = flag x == 0 *)
+      le `i8 (flag `i8 x) (i8 0) => eq `i8 (flag `i8 x) (i8 0);
+      le `i16 (flag `i16 x) (i16 0) => eq `i16 (flag `i16 x) (i16 0);
+      le `i32 (flag `i32 x) (i32 0l) => eq `i32 (flag `i32 x) (i32 0l);
+      le `i64 (flag `i64 x) (i64 0L) => eq `i64 (flag `i64 x) (i64 0L);
+      (* flag x <= 1 = true *)
+      le `i8 (flag `i8 x) (i8 1) => bool true;
+      le `i16 (flag `i16 x) (i16 1) => bool true;
+      le `i32 (flag `i32 x) (i32 1l) => bool true;
+      le `i64 (flag `i64 x) (i64 1L) => bool true;
+      (* signed flag x <= 1 = true *)
+      sle `i8 (flag `i8 x) (i8 1) => bool true;
+      sle `i16 (flag `i16 x) (i16 1) => bool true;
+      sle `i32 (flag `i32 x) (i32 1l) => bool true;
+      sle `i64 (flag `i64 x) (i64 1L) => bool true;
+      (* signed flag x <= 0 = true *)
+      sle `i8 (flag `i8 x) (i8 0) => bool true;
+      sle `i16 (flag `i16 x) (i16 0) => bool true;
+      sle `i32 (flag `i32 x) (i32 0l) => bool true;
+      sle `i64 (flag `i64 x) (i64 0L) => bool true;
+      (* flag x < 1 = flag x == 0 *)
+      lt `i8 (flag `i8 x) (i8 1) => eq `i8 (flag `i8 x) (i8 0);
+      lt `i16 (flag `i16 x) (i16 1) => eq `i16 (flag `i16 x) (i16 0);
+      lt `i32 (flag `i32 x) (i32 1l) => eq `i32 (flag `i32 x) (i32 0l);
+      lt `i64 (flag `i64 x) (i64 1L) => eq `i64 (flag `i64 x) (i64 0L);
+      (* signed flag < 1 = flag x == 0 *)
+      slt `i8 (flag `i8 x) (i8 1) => eq `i8 (flag `i8 x) (i8 0);
+      slt `i16 (flag `i16 x) (i16 1) => eq `i16 (flag `i16 x) (i16 0);
+      slt `i32 (flag `i32 x) (i32 1l) => eq `i32 (flag `i32 x) (i32 0l);
+      slt `i64 (flag `i64 x) (i64 1L) => eq `i64 (flag `i64 x) (i64 0L);
+      (* signed flag x < 0 = false *)
+      slt `i8 (flag `i8 x) (i8 0) => bool false;
+      slt `i16 (flag `i16 x) (i16 0) => bool false;
+      slt `i32 (flag `i32 x) (i32 0l) => bool false;
+      slt `i64 (flag `i64 x) (i64 0L) => bool false;
+      (* flag x >= 0 = true *)
+      ge `i8 (flag `i8 x) (i8 0) => bool true;
+      ge `i16 (flag `i16 x) (i16 0) => bool true;
+      ge `i32 (flag `i32 x) (i32 0l) => bool true;
+      ge `i64 (flag `i64 x) (i64 0L) => bool true;
+      (* signed flag >= 0 = true *)
+      sge `i8 (flag `i8 x) (i8 0) => bool true;
+      sge `i16 (flag `i16 x) (i16 0) => bool true;
+      sge `i32 (flag `i32 x) (i32 0l) => bool true;
+      sge `i64 (flag `i64 x) (i64 0L) => bool true;
+      (* flag x >= 1 = flag x == 1 *)
+      ge `i8 (flag `i8 x) (i8 1) => eq `i8 (flag `i8 x) (i8 1);
+      ge `i16 (flag `i16 x) (i16 1) => eq `i16 (flag `i16 x) (i16 1);
+      ge `i32 (flag `i32 x) (i32 1l) => eq `i32 (flag `i32 x) (i32 1l);
+      ge `i64 (flag `i64 x) (i64 1L) => eq `i64 (flag `i64 x) (i64 1L);
+      (* signed flag x >= 1 = flag x == 1 *)
+      sge `i8 (flag `i8 x) (i8 1) => eq `i8 (flag `i8 x) (i8 1);
+      sge `i16 (flag `i16 x) (i16 1) => eq `i16 (flag `i16 x) (i16 1);
+      sge `i32 (flag `i32 x) (i32 1l) => eq `i32 (flag `i32 x) (i32 1l);
+      sge `i64 (flag `i64 x) (i64 1L) => eq `i64 (flag `i64 x) (i64 1L);
+      (* flag x > 0 = flag x == 1 *)
+      gt `i8 (flag `i8 x) (i8 0) => eq `i8 (flag `i8 x) (i8 1);
+      gt `i16 (flag `i16 x) (i16 0) => eq `i16 (flag `i16 x) (i16 1);
+      gt `i32 (flag `i32 x) (i32 0l) => eq `i32 (flag `i32 x) (i32 1l);
+      gt `i64 (flag `i64 x) (i64 0L) => eq `i64 (flag `i64 x) (i64 1L);
+      (* signed flag x > 0 = flag x == 1 *)
+      sgt `i8 (flag `i8 x) (i8 0) => eq `i8 (flag `i8 x) (i8 1);
+      sgt `i16 (flag `i16 x) (i16 0) => eq `i16 (flag `i16 x) (i16 1);
+      sgt `i32 (flag `i32 x) (i32 0l) => eq `i32 (flag `i32 x) (i32 1l);
+      sgt `i64 (flag `i64 x) (i64 0L) => eq `i64 (flag `i64 x) (i64 1L);
+      (* flag x > 1 = false *)
+      gt `i8 (flag `i8 x) (i8 1) => bool false;
+      gt `i16 (flag `i16 x) (i16 1) => bool false;
+      gt `i32 (flag `i32 x) (i32 1l) => bool false;
+      gt `i64 (flag `i64 x) (i64 1L) => bool false;
+      (* signed flag x > 1 = false *)
+      sgt `i8 (flag `i8 x) (i8 1) => bool false;
+      sgt `i16 (flag `i16 x) (i16 1) => bool false;
+      sgt `i32 (flag `i32 x) (i32 1l) => bool false;
+      sgt `i64 (flag `i64 x) (i64 1L) => bool false;
+      (* flag `cmp` y = false when y not bool *)
+      (eq `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (eq `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (eq `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (eq `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (ne `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (ne `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (ne `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (ne `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (lt `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (lt `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (lt `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (lt `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (slt `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (slt `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (slt `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (slt `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (le `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (le `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (le `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (le `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sle `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sle `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sle `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sle `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (gt `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (gt `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (gt `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (gt `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sgt `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sgt `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sgt `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sgt `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (ge `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (ge `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (ge `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (ge `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sge `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sge `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sge `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
+      (sge `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
       (* extend i8 x = x *)
       sext `i8 x => x;
       zext `i8 x => x;
