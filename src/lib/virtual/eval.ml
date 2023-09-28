@@ -30,12 +30,6 @@ external float_of_uint16 : int   -> float = "cgen_float_of_uint16"
 external float_of_uint32 : int32 -> float = "cgen_float_of_uint32"
 external float_of_uint64 : int64 -> float = "cgen_float_of_uint64"
 
-let signed_compare x y m = match Bv.(msb x mod m, msb y mod m) with
-  | true,  true  -> Bv.compare y x
-  | false, false -> Bv.compare x y
-  | true,  false -> -1
-  | false, true  -> 1
-
 (* pre: x is nonzero *)
 let clz x n =
   let i = Bv.to_int64 x in
@@ -125,10 +119,10 @@ let binop_int o a b = match (o : Insn.binop) with
   | `le #Type.imm -> Some (`bool Bv.(a <= b))
   | `lt #Type.imm -> Some (`bool Bv.(a <  b))
   | `ne #Type.imm -> Some (`bool Bv.(a <> b))
-  | `sge t -> Some (`bool (signed_compare a b (imod t) >= 0))
-  | `sgt t -> Some (`bool (signed_compare a b (imod t) >  0))
-  | `sle t -> Some (`bool (signed_compare a b (imod t) <= 0))
-  | `slt t -> Some (`bool (signed_compare a b (imod t) <  0))
+  | `sge t -> Some (`bool (Bv.signed_compare a b (imod t) >= 0))
+  | `sgt t -> Some (`bool (Bv.signed_compare a b (imod t) >  0))
+  | `sle t -> Some (`bool (Bv.signed_compare a b (imod t) <= 0))
+  | `slt t -> Some (`bool (Bv.signed_compare a b (imod t) <  0))
   | _ -> None
 
 let binop_single o a b = match (o : Insn.binop) with
