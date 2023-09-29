@@ -1095,6 +1095,37 @@ end
 
 type live = Live.t
 
+(** Abstract interpretation over intervals. *)
+module Intervals : sig
+  (** Mapping of variables to intervals. *)
+  type state [@@deriving equal, sexp]
+
+  (** The empty mapping. *)
+  val empty_state : state
+
+  (** Finds the interval associated with a variable, if it exists. *)
+  val find_var : state -> Var.t -> Bv_interval.t option
+
+  (** Enumerates the mapping. *)
+  val enum_state : state -> (Var.t * Bv_interval.t) seq
+
+  (** Performs the interval analysis.
+
+      [word] is the pointer size for the target.
+
+      [typeof] is the typing relation for variables.
+
+      [steps] is an upper bound on the number of iterations before
+      a fixed point can be reached.
+  *)
+  val analyze :
+    ?steps:int ->
+    func ->
+    word:Type.imm_base ->
+    typeof:(Var.t -> Type.t) ->
+    (Label.t, state) Solution.t
+end
+
 (** Loop analysis of a function. *)
 module Loops : sig
   (** The identifier of a loop. *)
