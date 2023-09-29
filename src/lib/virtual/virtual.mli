@@ -1121,6 +1121,8 @@ module Intervals : sig
       of steps is always bounded, the solution returned by the analysis
       may be an underapproximation of the truth (in particular, if the
       function has loops).
+
+      @raise Invalid_argument if the function is not in SSA form.
   *)
   val analyze :
     ?steps:int ->

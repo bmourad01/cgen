@@ -318,14 +318,19 @@ let cyclomatic_complexity cfg =
 let scale = 42
 
 let analyze ?steps fn ~word ~typeof =
-  let cfg = Cfg.create fn in
-  let steps = match steps with
-    | None -> cyclomatic_complexity cfg * scale
-    | Some n -> n in
-  let blks = Func.map_of_blks fn in
-  let info = create_info ~blks ~word ~typeof in
-  Graphlib.fixpoint (module Cfg) cfg ~steps
-    ~init:(init_state info fn)
-    ~equal:equal_state
-    ~merge:join_state
-    ~f:(transfer info)
+  if Dict.mem (Func.dict fn) Tags.ssa then
+    let cfg = Cfg.create fn in
+    let steps = match steps with
+      | None -> cyclomatic_complexity cfg * scale
+      | Some n -> n in
+    let blks = Func.map_of_blks fn in
+    let info = create_info ~blks ~word ~typeof in
+    Graphlib.fixpoint (module Cfg) cfg ~steps
+      ~init:(init_state info fn)
+      ~equal:equal_state
+      ~merge:join_state
+      ~f:(transfer info)
+  else
+    invalid_argf
+      "Intervals analysis: function $%s is not in SSA form"
+      (Func.name fn) ()
