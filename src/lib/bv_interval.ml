@@ -168,7 +168,7 @@ let rec intersect ?(range = Smallest) t1 t2 =
   assert (t1.size = t2.size);
   let size = t1.size in
   if is_empty t1 || is_full t2 then t1
-  else if is_empty t2 && is_full t1 then t2
+  else if is_empty t2 || is_full t1 then t2
   else if not (is_wrapped_hi t1) && is_wrapped_hi t2 then
     intersect t2 t1 ~range
   else if not (is_wrapped_hi t1) && not (is_wrapped_hi t2) then
