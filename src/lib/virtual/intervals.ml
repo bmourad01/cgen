@@ -93,33 +93,37 @@ let interp_bitwise_binop o a b = match (o : Insn.bitwise_binop) with
 let interp_cmp o a b = match (o : Insn.cmp) with
   | `eq #Type.imm ->
     begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
       | Some a, Some b -> I.boolean Bv.(a = b)
+      | None, _ | _, None ->
+        let i = I.intersect a b in
+        if I.is_empty i then I.boolean_false else I.boolean_full
     end
   | `ne #Type.imm ->
     begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
       | Some a, Some b -> I.boolean Bv.(a <> b)
+      | None, _ | _, None ->
+        let i = I.intersect a b in
+        if I.is_empty i then I.boolean_true else I.boolean_full
     end
   | `lt #Type.imm ->
     begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
       | Some a, Some b -> I.boolean Bv.(a < b)
+      | None, _ | _, None -> I.boolean_full
     end
   | `le #Type.imm ->
     begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
       | Some a, Some b -> I.boolean Bv.(a <= b)
+      | None, _ | _, None -> I.boolean_full
     end
   | `gt #Type.imm ->
     begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
       | Some a, Some b -> I.boolean Bv.(a > b)
+      | None, _ | _, None -> I.boolean_full
     end
   | `ge #Type.imm ->
     begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
       | Some a, Some b -> I.boolean Bv.(a >= b)
+      | None, _ | _, None -> I.boolean_full
     end
   | `slt t ->
     begin match I.(single_of a, single_of b) with
