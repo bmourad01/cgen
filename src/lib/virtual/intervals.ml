@@ -253,7 +253,7 @@ let incr_param info x =
         i);
   !n
 
-let constr_params info s l args =
+let assign_blk_args info s l args =
   match Label.Tree.find info.blks l with
   | None -> s
   | Some b ->
@@ -275,14 +275,14 @@ let interp_blk info s b =
     Seq.fold ~init:s ~f:(interp_insn info) in
   match Blk.ctrl b with
   | `jmp `label (l, args) ->
-    constr_params info s l args
+    assign_blk_args info s l args
   | `br (_, `label (y, yargs), `label (n, nargs)) ->
-    let s = constr_params info s y yargs in
-    constr_params info s n nargs
+    let s = assign_blk_args info s y yargs in
+    assign_blk_args info s n nargs
   | `br (_, `label (y, yargs), _) ->
-    constr_params info s y yargs
+    assign_blk_args info s y yargs
   | `br (_, _, `label (n, nargs)) ->
-    constr_params info s n nargs
+    assign_blk_args info s n nargs
   | `sw (t, `var x, `label (d, args), tbl) ->
     let size = Type.sizeof_imm t in
     let s, all =
@@ -290,11 +290,11 @@ let interp_blk info s b =
       Seq.fold ~init:(s, I.create_empty ~size)
         ~f:(fun (s, i) (v, `label (l, args)) ->
             let k = I.create_single ~value:v ~size in
+            let s = assign_blk_args info s l args in
             update_constr info l x k;
-            let s = constr_params info s l args in
             s, I.union i k) in
     update_constr info d x @@ I.inverse all;
-    constr_params info s d args
+    assign_blk_args info s d args
   | _ -> s
 
 let init_state info fn =
