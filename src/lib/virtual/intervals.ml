@@ -9,8 +9,11 @@ type state = I.t Var.Map.t [@@deriving equal, sexp]
 
 let empty_state : state = Var.Map.empty
 
-let merge_state x y =
+let join_state x y =
   Map.merge_skewed x y ~combine:(fun ~key:_ a b -> I.union a b)
+
+let meet_state x y =
+  Map.merge_skewed x y ~combine:(fun ~key:_ a b -> I.intersect a b)
 
 let update s x i = Map.update s x ~f:(function
     | Some i' -> I.union i i'
@@ -19,7 +22,28 @@ let update s x i = Map.update s x ~f:(function
 let find_var = Map.find
 let enum_state s = Map.to_sequence s
 
-let interp_const ~word : const -> I.t = function
+type info = {
+  constr : state Label.Table.t;
+  param  : int Var.Table.t;
+  blks   : Blk.t Label.Tree.t;
+  word   : Type.imm_base;
+  typeof : Var.t -> Type.t;
+}
+
+let create_info ~blks ~word ~typeof = {
+  constr = Label.Table.create ();
+  param = Var.Table.create ();
+  blks;
+  word;
+  typeof;
+}
+
+let update_constr info l x i =
+  Hashtbl.update info.constr l ~f:(function
+      | None -> Var.Map.singleton x i
+      | Some s -> update s x i)
+
+let interp_const info : const -> I.t = function
   | `bool b -> I.boolean b
   | `int (value, t) -> I.create_single ~value ~size:(Type.sizeof_imm t)
   | `float f ->
@@ -28,17 +52,17 @@ let interp_const ~word : const -> I.t = function
   | `double d ->
     let value = Bv.M64.int64 @@ Eval.float_to_bits d in
     I.create_single ~value ~size:64
-  | `sym _ -> I.create_full ~size:(Type.sizeof_imm_base word)
+  | `sym _ -> I.create_full ~size:(Type.sizeof_imm_base info.word)
 
-let sizeof x ~word ~typeof = match typeof x with
+let sizeof x info = match info.typeof x with
   | #Type.basic as b -> Type.sizeof_basic b
   | `flag -> 1
-  | _ -> Type.sizeof_imm_base word
+  | _ -> Type.sizeof_imm_base info.word
 
-let interp_operand ~word ~typeof s : operand -> I.t = function
-  | #const as c -> interp_const ~word c
+let interp_operand info s : operand -> I.t = function
+  | #const as c -> interp_const info c
   | `var x -> match find_var s x with
-    | None -> I.create_full ~size:(sizeof x ~word ~typeof)
+    | None -> I.create_full ~size:(sizeof x info)
     | Some i -> i
 
 let interp_arith_binop o a b = match (o : Insn.arith_binop) with
@@ -175,18 +199,18 @@ let interp_unop o a = match (o : Insn.unop) with
   | #Insn.cast as o -> interp_cast o a
   | #Insn.copy as o -> interp_copy o a
 
-let interp_basic ~word ~typeof s : Insn.basic -> state = function
+let interp_basic info s : Insn.basic -> state = function
   | `bop (x, o, a, b) ->
-    let a = interp_operand ~word ~typeof s a in
-    let b = interp_operand ~word ~typeof s b in
+    let a = interp_operand info s a in
+    let b = interp_operand info s b in
     update s x @@ interp_binop o a b
   | `uop (x, o, a) ->
-    let a = interp_operand ~word ~typeof s a in
+    let a = interp_operand info s a in
     update s x @@ interp_unop o a
   | `sel (x, _, c, y, n) ->
-    let c = interp_operand ~word ~typeof s @@ `var c in
-    let y = interp_operand ~word ~typeof s y in
-    let n = interp_operand ~word ~typeof s n in
+    let c = interp_operand info s @@ `var c in
+    let y = interp_operand info s y in
+    let n = interp_operand info s n in
     let r = match I.single_of c with
       | None -> I.union y n
       | Some i when Bv.(i = zero) -> n
@@ -196,46 +220,112 @@ let interp_basic ~word ~typeof s : Insn.basic -> state = function
 let make_top s x t =
   update s x @@ I.create_full ~size:(Type.sizeof_basic t)
 
-let interp_call ~word:_ ~typeof:_ s : Insn.call -> state = function
+let interp_call _ s : Insn.call -> state = function
   | `call (Some (x, t), _, _, _) -> make_top s x t
   | `call (None, _, _, _) -> s
 
 (* TODO: maybe model memory? *)
-let interp_mem ~word:_ ~typeof:_ s : Insn.mem -> state = function
+let interp_mem _ s : Insn.mem -> state = function
   | `load (x, t, _) -> make_top s x t
   | `store _ -> s
 
-let interp_variadic ~word:_ ~typeof:_ s : Insn.variadic -> state = function
+let interp_variadic _ s : Insn.variadic -> state = function
   | `vaarg (x, t, _) -> make_top s x t
   | `vastart _ -> s
 
-let interp_insn ~word ~typeof s i = match Insn.op i with
-  | #Insn.basic as b -> interp_basic ~word ~typeof s b
-  | #Insn.call as c -> interp_call ~word ~typeof s c
-  | #Insn.mem as m -> interp_mem ~word ~typeof s m
-  | #Insn.variadic as v -> interp_variadic ~word ~typeof s v
+let interp_insn info s i = match Insn.op i with
+  | #Insn.basic as b -> interp_basic info s b
+  | #Insn.call as c -> interp_call info s c
+  | #Insn.mem as m -> interp_mem info s m
+  | #Insn.variadic as v -> interp_variadic info s v
 
-let interp_blk ~word ~typeof s b =
-  Blk.insns b |> Seq.fold ~init:s ~f:(interp_insn ~word ~typeof)
+let incr_param info x =
+  let n = ref 0 in
+  Hashtbl.update info.param x ~f:(function
+      | None -> !n
+      | Some i ->
+        let i = i + 1 in
+        n := i;
+        i);
+  !n
 
-let init_state ~word ~typeof fn =
+let constr_params info s l args =
+  match Label.Tree.find info.blks l with
+  | None -> s
+  | Some b ->
+    let args' = Blk.args b |> Seq.to_list in
+    match List.zip args args' with
+    | Unequal_lengths -> s
+    | Ok xs -> List.fold xs ~init:s ~f:(fun s (o, x) ->
+        (* This could be improved, but it's a start. *)
+        update s x @@ if incr_param info x > 10
+        then I.create_full ~size:(sizeof x info)
+        else interp_operand info s o)
+
+let interp_blk info s b =
+  let s = match Hashtbl.find info.constr @@ Blk.label b with
+    | Some s' -> meet_state s' s
+    | None -> s in
+  let s =
+    Blk.insns b |>
+    Seq.fold ~init:s ~f:(interp_insn info) in
+  match Blk.ctrl b with
+  | `jmp `label (l, args) ->
+    constr_params info s l args
+  | `br (_, `label (y, yargs), `label (n, nargs)) ->
+    let s = constr_params info s y yargs in
+    constr_params info s n nargs
+  | `br (_, `label (y, yargs), _) ->
+    constr_params info s y yargs
+  | `br (_, _, `label (n, nargs)) ->
+    constr_params info s n nargs
+  | `sw (t, `var x, `label (d, args), tbl) ->
+    let size = Type.sizeof_imm t in
+    let s, all =
+      Ctrl.Table.enum tbl |>
+      Seq.fold ~init:(s, I.create_empty ~size)
+        ~f:(fun (s, i) (v, `label (l, args)) ->
+            let k = I.create_single ~value:v ~size in
+            update_constr info l x k;
+            let s = constr_params info s l args in
+            s, I.union i k) in
+    update_constr info d x @@ I.inverse all;
+    constr_params info s d args
+  | _ -> s
+
+let init_state info fn =
   let init =
     Func.args fn |> Seq.fold ~init:empty_state ~f:(fun s (x, _) ->
-        let data = I.create_full ~size:(sizeof ~word ~typeof x) in
+        let data = I.create_full ~size:(sizeof x info) in
         Map.set s ~key:x ~data) in
   let init =
     Func.slots fn |> Seq.fold ~init ~f:(fun s x ->
-        let data = I.create_full ~size:(Type.sizeof_imm_base word) in
+        let data = I.create_full ~size:(Type.sizeof_imm_base info.word) in
         Map.set s ~key:(Func.Slot.var x) ~data) in
   Solution.create Label.(Map.singleton pseudoentry init) init
 
+let transfer info l s = match Label.Tree.find info.blks l with
+  | Some b -> interp_blk info s b
+  | None -> s
+
+let cyclomatic_complexity cfg =
+  let e = Cfg.number_of_edges cfg in
+  let n = Cfg.number_of_nodes cfg in
+  e - n + 2
+
+(* Scale the cyclomatic complecity by some number to increase
+   the precision of the results. *)
+let scale = 42
+
 let analyze ?steps fn ~word ~typeof =
   let cfg = Cfg.create fn in
+  let steps = match steps with
+    | None -> cyclomatic_complexity cfg * scale
+    | Some n -> n in
   let blks = Func.map_of_blks fn in
-  Graphlib.fixpoint (module Cfg) cfg ?steps
-    ~init:(init_state ~word ~typeof fn)
+  let info = create_info ~blks ~word ~typeof in
+  Graphlib.fixpoint (module Cfg) cfg ~steps
+    ~init:(init_state info fn)
     ~equal:equal_state
-    ~merge:merge_state
-    ~f:(fun l s -> match Label.Tree.find blks l with
-        | Some b -> interp_blk ~word ~typeof s b
-        | None -> s)
+    ~merge:join_state
+    ~f:(transfer info)
