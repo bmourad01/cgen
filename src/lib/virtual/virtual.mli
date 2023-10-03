@@ -1097,7 +1097,7 @@ type live = Live.t
 
 (** Abstract interpretation over intervals. *)
 module Intervals : sig
-  (** Mapping of variables to intervals. *)
+  (** Mapping of variables to intervals at the beginning of a block. *)
   type state [@@deriving equal, sexp]
 
   (** The empty mapping. *)
