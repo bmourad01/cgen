@@ -24,7 +24,7 @@ type t = {
   pdom : Label.t tree;
   cdom : Label.t tree;
   df   : Label.t frontier;
-  lst  : Label.t option Label.Table.t;
+  lst  : (Label.t, Label.t option) Solution.t;
   tenv : Typecheck.env;
   barg : Label.t Var.Table.t;
 }
@@ -95,49 +95,26 @@ module Last_stores = struct
       | Some i -> Insn.label i
       | None -> l
 
-  let merge_state blks old upd l =
-    Option.merge old upd ~f:(fun a b ->
-        if Label.(a = b) then a else first_insn blks l)
+  let init fn =
+    Solution.create Label.(Map.singleton (Func.entry fn) None) None
 
-  let update last tbl l =
-    let init = Hashtbl.find_or_add last l
-        ~default:(fun () -> None) in
-    let st = match Hashtbl.find_exn tbl l with
-      | `insn _ -> assert false
-      | `blk b ->
-        Blk.insns b |> Seq.fold ~init ~f:(fun s i ->
-            if Insn.can_store i
-            then Some (Insn.label i)
-            else s) in
-    Hashtbl.set last ~key:l ~data:st;
-    st
+  let transfer tbl l init = match Hashtbl.find_exn tbl l with
+    | `insn _ -> assert false
+    | `blk b -> Blk.insns b |> Seq.fold ~init ~f:(fun s i ->
+        if Insn.can_store i then Some (Insn.label i) else s)
 
-  let merge last blks inp l =
-    let changed = ref false in
-    if not @@ Label.is_pseudo l then
-      Hashtbl.update last l ~f:(function
-          | None -> changed := true; inp
-          | Some old ->
-            let upd = merge_state blks old inp l in
-            if not @@ equal_state old upd then changed := true;
-            upd);
-    !changed
+  let step tbl _ l = Option.merge ~f:(fun a b ->
+      if Label.(a = b) then a else first_insn tbl l)
 
-  let create fn tbl cfg =
-    let last = Label.Table.create () in
-    let q = Stack.singleton @@ Func.entry fn in
-    let s = Label.Hash_set.create () in
-    while not @@ Stack.is_empty q do
-      let l = Stack.pop_exn q in
-      Hash_set.remove s l;
-      let inp = update last tbl l in
-      Cfg.Node.succs l cfg |>
-      Seq.filter ~f:(merge last tbl inp) |>
-      Seq.iter ~f:(fun l -> match Hash_set.strict_add s l with
-          | Ok () -> Stack.push q l
-          | Error _ -> ())
-    done;
-    last
+  let analyze fn tbl cfg =
+    Graphlib.fixpoint (module Cfg)
+      ~init:(init fn)
+      ~step:(step tbl)
+      ~equal:equal_state
+      ~merge:Fn.const
+      ~f:(transfer tbl) @@
+    Cfg.Node.remove Label.pseudoentry @@
+    Cfg.Node.remove Label.pseudoexit cfg
 end
 
 let init fn tenv =
@@ -148,5 +125,5 @@ let init fn tenv =
   let pdom = Graphlib.dominators (module Cfg) cfg Label.pseudoexit ~rev:true in
   let df = Graphlib.dom_frontier (module Cfg) cfg dom in
   let cdom = cdoms fn tbl dom in
-  let lst = Last_stores.create fn tbl cfg in
+  let lst = Last_stores.analyze fn tbl cfg in
   {fn; loop; tbl; cfg; dom; pdom; cdom; df; lst; tenv; barg}

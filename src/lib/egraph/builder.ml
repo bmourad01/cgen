@@ -232,7 +232,7 @@ let step env eg l = match Hashtbl.find eg.input.tbl l with
   | None when Label.is_pseudo l -> ()
   | None | Some `insn _ -> raise @@ Missing l
   | Some `blk b ->
-    env.lst <- Hashtbl.find_exn eg.input.lst l;
+    env.lst <- Solution.get eg.input.lst l;
     Blk.args b |> Seq.iter ~f:(fun x -> ignore @@ var env eg x);
     Blk.insns b |> Seq.iter ~f:(fun i ->
         insn env eg (Insn.label i) (Insn.op i));
