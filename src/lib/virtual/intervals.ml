@@ -24,7 +24,6 @@ let enum_state s = Map.to_sequence s
 
 type info = {
   constr : state Label.Table.t;
-  param  : int Var.Table.t;
   blks   : Blk.t Label.Tree.t;
   word   : Type.imm_base;
   typeof : Var.t -> Type.t;
@@ -32,7 +31,6 @@ type info = {
 
 let create_info ~blks ~word ~typeof = {
   constr = Label.Table.create ();
-  param = Var.Table.create ();
   blks;
   word;
   typeof;
@@ -243,16 +241,6 @@ let interp_insn info s i = match Insn.op i with
   | #Insn.mem as m -> interp_mem info s m
   | #Insn.variadic as v -> interp_variadic info s v
 
-let incr_param info x =
-  let n = ref 0 in
-  Hashtbl.update info.param x ~f:(function
-      | None -> !n
-      | Some i ->
-        let i = i + 1 in
-        n := i;
-        i);
-  !n
-
 let assign_blk_args info s l args =
   match Label.Tree.find info.blks l with
   | None -> s
@@ -261,15 +249,9 @@ let assign_blk_args info s l args =
     match List.zip args args' with
     | Unequal_lengths -> s
     | Ok xs -> List.fold xs ~init:s ~f:(fun s (o, x) ->
-        (* This could be improved, but it's a start. *)
-        update s x @@ if incr_param info x > 10
-        then I.create_full ~size:(sizeof x info)
-        else interp_operand info s o)
+        update s x @@ interp_operand info s o)
 
 let interp_blk info s b =
-  let s = match Hashtbl.find info.constr @@ Blk.label b with
-    | Some s' -> meet_state s' s
-    | None -> s in
   let s =
     Blk.insns b |>
     Seq.fold ~init:s ~f:(interp_insn info) in
@@ -297,6 +279,22 @@ let interp_blk info s b =
     assign_blk_args info s d args
   | _ -> s
 
+let step info i l _ s =
+  (* Widening for block args. *)
+  let s = match Label.Tree.find info.blks l with
+    | None -> s
+    | Some b ->
+      (* This could be improved, but it's a start. *)
+      if i > 10 then
+        Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
+            let data = I.create_full ~size:(sizeof x info) in
+            Map.set s ~key:x ~data)
+      else s in
+  (* Narrowing for constraints. *)
+  match Hashtbl.find info.constr l with
+  | Some s' -> meet_state s' s
+  | None -> s
+
 let init_state info fn =
   let init =
     Func.args fn |> Seq.fold ~init:empty_state ~f:(fun s (x, _) ->
@@ -306,7 +304,7 @@ let init_state info fn =
     Func.slots fn |> Seq.fold ~init ~f:(fun s x ->
         let data = I.create_full ~size:(Type.sizeof_imm_base info.word) in
         Map.set s ~key:(Func.Slot.var x) ~data) in
-  Solution.create Label.(Map.singleton pseudoentry init) init
+  Solution.create Label.(Map.singleton pseudoentry init) empty_state
 
 let transfer info l s = match Label.Tree.find info.blks l with
   | Some b -> interp_blk info s b
@@ -330,6 +328,7 @@ let analyze ?steps fn ~word ~typeof =
     let blks = Func.map_of_blks fn in
     let info = create_info ~blks ~word ~typeof in
     Graphlib.fixpoint (module Cfg) cfg ~steps
+      ~step:(step info)
       ~init:(init_state info fn)
       ~equal:equal_state
       ~merge:join_state
