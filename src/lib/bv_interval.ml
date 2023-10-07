@@ -749,8 +749,7 @@ let umulh t1 t2 =
   let size2 = size * 2 in
   let a = zext t1 ~size:size2 in
   let b = zext t2 ~size:size2 in
-  let sh = create_single ~value:Bv.(int size mod modulus size) ~size:size2 in
-  trunc (logical_shift_right (mul a b) sh) ~size
+  extract (mul a b) ~hi:size2 ~lo:size
 
 let mulh t1 t2 =
   let t3 = umulh t1 t2 in
