@@ -90,69 +90,94 @@ let interp_bitwise_binop o a b = match (o : Insn.bitwise_binop) with
   | `ror _ -> I.rotate_right a b
   | `xor _ -> I.logxor a b
 
+module Cmp = struct
+  let bool_eq a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean Bv.(a = b)
+    | _ when I.(is_empty @@ intersect a b) -> I.boolean_false
+    | _ -> I.boolean_full
+
+  let bool_ne a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean Bv.(a <> b)
+    | _ when I.(is_empty @@ intersect a b) -> I.boolean_true
+    | _ -> I.boolean_full
+
+  let umin = I.unsigned_min
+  let umax = I.unsigned_max
+
+  let less f = fun a b ->
+    if f (umax a) (umin b) then I.boolean_true
+    else if not (f (umin a) (umax b)) then I.boolean_false
+    else I.boolean_full
+
+  let greater f = fun a b ->
+    if f (umin a) (umax b) then I.boolean_true
+    else if not (f (umax a) (umin b)) then I.boolean_false
+    else I.boolean_full
+
+  let bool_lt a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean Bv.(a < b)
+    | _ -> less Bv.(<) a b
+
+  let bool_le a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean Bv.(a <= b)
+    | _ -> less Bv.(<=) a b
+
+  let bool_gt a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean Bv.(a > b)
+    | _ -> greater Bv.(>) a b
+
+  let bool_ge a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean Bv.(a >= b)
+    | _ -> greater Bv.(>=) a b
+
+  let scmp t a b = Bv.(signed_compare a b @@ modulus @@ Type.sizeof_imm t)
+
+  let scmplt t = fun a b -> scmp t a b <  0
+  let scmple t = fun a b -> scmp t a b <= 0
+  let scmpgt t = fun a b -> scmp t a b >  0
+  let scmpge t = fun a b -> scmp t a b >= 0
+
+  let smin = I.signed_min
+  let smax = I.signed_max
+
+  let sless f = fun a b ->
+    if f (smax a) (smin b) then I.boolean_true
+    else if not (f (smin a) (smax b)) then I.boolean_false
+    else I.boolean_full
+
+  let sgreater f = fun a b ->
+    if f (smin a) (smax b) then I.boolean_true
+    else if not (f (smax a) (smin b)) then I.boolean_false
+    else I.boolean_full
+
+  let bool_slt t a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean @@ scmplt t a b
+    | _ -> sless (scmplt t) a b
+
+  let bool_sle t a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean @@ scmple t a b
+    | _ -> sless (scmple t) a b
+
+  let bool_sgt t a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean @@ scmpgt t a b
+    | _ -> sgreater (scmpgt t) a b
+
+  let bool_sge t a b = match I.(single_of a, single_of b) with
+    | Some a, Some b -> I.boolean @@ scmpge t a b
+    | _ -> sgreater (scmpge t) a b
+end
+
 let interp_cmp o a b = match (o : Insn.cmp) with
-  | `eq #Type.imm ->
-    begin match I.(single_of a, single_of b) with
-      | Some a, Some b -> I.boolean Bv.(a = b)
-      | None, _ | _, None ->
-        let i = I.intersect a b in
-        if I.is_empty i then I.boolean_false else I.boolean_full
-    end
-  | `ne #Type.imm ->
-    begin match I.(single_of a, single_of b) with
-      | Some a, Some b -> I.boolean Bv.(a <> b)
-      | None, _ | _, None ->
-        let i = I.intersect a b in
-        if I.is_empty i then I.boolean_true else I.boolean_full
-    end
-  | `lt #Type.imm ->
-    begin match I.(single_of a, single_of b) with
-      | Some a, Some b -> I.boolean Bv.(a < b)
-      | None, _ | _, None -> I.boolean_full
-    end
-  | `le #Type.imm ->
-    begin match I.(single_of a, single_of b) with
-      | Some a, Some b -> I.boolean Bv.(a <= b)
-      | None, _ | _, None -> I.boolean_full
-    end
-  | `gt #Type.imm ->
-    begin match I.(single_of a, single_of b) with
-      | Some a, Some b -> I.boolean Bv.(a > b)
-      | None, _ | _, None -> I.boolean_full
-    end
-  | `ge #Type.imm ->
-    begin match I.(single_of a, single_of b) with
-      | Some a, Some b -> I.boolean Bv.(a >= b)
-      | None, _ | _, None -> I.boolean_full
-    end
-  | `slt t ->
-    begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
-      | Some a, Some b ->
-        let m = Bv.modulus @@ Type.sizeof_imm t in
-        I.boolean (Bv.signed_compare a b m < 0)
-    end
-  | `sle t ->
-    begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
-      | Some a, Some b ->
-        let m = Bv.modulus @@ Type.sizeof_imm t in
-        I.boolean (Bv.signed_compare a b m <= 0)
-    end
-  | `sgt t ->
-    begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
-      | Some a, Some b ->
-        let m = Bv.modulus @@ Type.sizeof_imm t in
-        I.boolean (Bv.signed_compare a b m > 0)
-    end
-  | `sge t ->
-    begin match I.(single_of a, single_of b) with
-      | None, _ | _, None -> I.boolean_full
-      | Some a, Some b ->
-        let m = Bv.modulus @@ Type.sizeof_imm t in
-        I.boolean (Bv.signed_compare a b m >= 0)
-    end
+  | `eq #Type.imm -> Cmp.bool_eq a b
+  | `ne #Type.imm -> Cmp.bool_ne a b
+  | `lt #Type.imm -> Cmp.bool_lt a b
+  | `le #Type.imm -> Cmp.bool_le a b
+  | `gt #Type.imm -> Cmp.bool_gt a b
+  | `ge #Type.imm -> Cmp.bool_ge a b
+  | `slt t -> Cmp.bool_slt t a b
+  | `sle t -> Cmp.bool_sle t a b
+  | `sgt t -> Cmp.bool_sgt t a b
+  | `sge t -> Cmp.bool_sge t a b
   | `eq #Type.fp
   | `ne #Type.fp
   | `lt #Type.fp
