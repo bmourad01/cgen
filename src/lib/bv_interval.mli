@@ -214,6 +214,20 @@ val extract : t -> hi:int -> lo:int -> t
 (** Concatenates two intervals. *)
 val concat : t -> t -> t
 
+(** [umulh t1 t2] extends [t1] and [t2] to double the amount of bits,
+    multiplies them, and returns the range of the upper half. *)
+val umulh : t -> t -> t
+
+(** Same as [umulh], but interprets the result in terms of the signedness
+    of both arguments. *)
+val mulh : t -> t -> t
+
+(** Rotate left. *)
+val rotate_left : t -> t -> t
+
+(** Rotate right. *)
+val rotate_right : t -> t -> t
+
 (** Pretty printing. *)
 val pp : Format.formatter -> t -> unit
 

@@ -118,7 +118,8 @@ let signed_max t =
   else Bv.(pred t.hi mod modulus t.size)
 
 let signed_min t =
-  if is_full t || is_sign_wrapped t then Bv.min_signed_value t.size
+  if is_full t || is_sign_wrapped t
+  then Bv.min_signed_value t.size
   else t.lo
 
 let equal t1 t2 =
@@ -741,6 +742,36 @@ let concat t1 t2 =
   let value = Bv.(int s2 mod modulus size) in
   let t1' = logical_shift_left t1' @@ create_single ~value ~size in
   add t1' t2'
+
+let umulh t1 t2 =
+  assert (t1.size = t2.size);
+  let size = t1.size in
+  let size2 = size * 2 in
+  let a = zext t1 ~size:size2 in
+  let b = zext t2 ~size:size2 in
+  let sh = create_single ~value:Bv.(int size mod modulus size) ~size:size2 in
+  trunc (logical_shift_right (mul a b) sh) ~size
+
+let mulh t1 t2 =
+  let t3 = umulh t1 t2 in
+  let size = t1.size in
+  let n = create ~lo:(Bv.min_signed_value size) ~hi:Bv.zero ~size in
+  let z = create_single ~value:Bv.zero ~size in
+  let s1 = if is_empty @@ intersect t1 n then z else t2 in
+  let s2 = if is_empty @@ intersect t2 n then z else t1 in
+  sub (sub t3 s1) s2
+
+let rotate_left t1 t2 =
+  assert (t1.size = t2.size);
+  let size = t1.size in
+  let sh = create_single ~value:Bv.(int size mod modulus size) ~size in
+  logor (logical_shift_left t1 t2) (logical_shift_right t1 (sub sh t2))
+
+let rotate_right t1 t2 =
+  assert (t1.size = t2.size);
+  let size = t1.size in
+  let sh = create_single ~value:Bv.(int size mod modulus size) ~size in
+  logor (logical_shift_right t1 t2) (logical_shift_left t1 (sub sh t2))
 
 let pp ppf t =
   if equal t boolean_false then

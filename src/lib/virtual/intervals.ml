@@ -67,7 +67,8 @@ let interp_arith_binop o a b = match (o : Insn.arith_binop) with
   | `add #Type.imm -> I.add a b
   | `div #Type.imm -> I.sdiv a b
   | `mul #Type.imm -> I.mul a b
-  | `mulh t | `umulh t -> I.create_full ~size:(Type.sizeof_imm t) (* TODO *)
+  | `mulh _ -> I.mulh a b
+  | `umulh _ -> I.umulh a b
   | `rem #Type.imm -> I.srem a b
   | `sub #Type.imm -> I.sub a b
   | `udiv _ -> I.udiv a b
@@ -85,7 +86,8 @@ let interp_bitwise_binop o a b = match (o : Insn.bitwise_binop) with
   | `asr_ _ -> I.arithmetic_shift_right a b
   | `lsl_ _ -> I.logical_shift_left a b
   | `lsr_ _ -> I.logical_shift_right a b
-  | `rol t | `ror t -> I.create_full ~size:(Type.sizeof_imm t) (* TODO *)
+  | `rol _ -> I.rotate_left a b
+  | `ror _ -> I.rotate_right a b
   | `xor _ -> I.logxor a b
 
 let interp_cmp o a b = match (o : Insn.cmp) with
