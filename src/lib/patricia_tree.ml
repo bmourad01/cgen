@@ -1,6 +1,10 @@
 open Core
 open Regular.Std
 
+(* Implementation of a PATRICIA tree, adapted from BAP:
+
+   https://github.com/BinaryAnalysisPlatform/bap/blob/517db3d15ee98e914cd970ab4a9bf4d17b65ee35/lib/knowledge/bap_knowledge.ml#L82
+*)
 module Make(K : Patricia_tree_intf.Key) = struct
   open K
 
