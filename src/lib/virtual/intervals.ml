@@ -24,6 +24,7 @@ let enum_state s = Map.to_sequence s
 
 type info = {
   constr : state Label.Table.t;
+  cond   : state Var.Table.t;
   blks   : Blk.t Label.Tree.t;
   word   : Type.imm_base;
   typeof : Var.t -> Type.t;
@@ -31,6 +32,7 @@ type info = {
 
 let create_info ~blks ~word ~typeof = {
   constr = Label.Table.create ();
+  cond = Var.Table.create ();
   blks;
   word;
   typeof;
@@ -167,17 +169,152 @@ module Cmp = struct
     | _ -> sgreater (scmpge t) a b
 end
 
-let interp_cmp o a b = match (o : Insn.cmp) with
-  | `eq #Type.imm -> Cmp.bool_eq a b
-  | `ne #Type.imm -> Cmp.bool_ne a b
-  | `lt #Type.imm -> Cmp.bool_lt a b
-  | `le #Type.imm -> Cmp.bool_le a b
-  | `gt #Type.imm -> Cmp.bool_gt a b
-  | `ge #Type.imm -> Cmp.bool_ge a b
-  | `slt t -> Cmp.bool_slt t a b
-  | `sle t -> Cmp.bool_sle t a b
-  | `sgt t -> Cmp.bool_sgt t a b
-  | `sge t -> Cmp.bool_sge t a b
+module Cond = struct
+  (* Constrain `y` to `i` in relation to the condition `x`. *)
+  let constr info x y i = match (y : operand) with
+    | `var y -> Hashtbl.update info.cond x ~f:(function
+        | Some s -> Var.Map.set s ~key:y ~data:i
+        | None -> Var.Map.singleton y i)
+    | _ -> ()
+
+  let lt size a b =
+    let il = I.create_non_empty
+        ~lo:(I.unsigned_min b)
+        ~hi:Bv.zero
+        ~size in
+    let ir = I.create_non_empty
+        ~lo:Bv.zero
+        ~hi:Bv.(succ (I.unsigned_max a) mod modulus size)
+        ~size in
+    il, ir
+
+  let le size a b =
+    let il = I.create_non_empty
+        ~lo:Bv.(succ (I.unsigned_min b) mod modulus size)
+        ~hi:Bv.zero
+        ~size in
+    let ir = I.create_non_empty
+        ~lo:Bv.zero
+        ~hi:(I.unsigned_max a)
+        ~size in
+    il, ir
+
+  let gt size a b =
+    let ir = I.create_non_empty
+        ~lo:(I.unsigned_min a)
+        ~hi:Bv.zero
+        ~size in
+    let il = I.create_non_empty
+        ~lo:Bv.zero
+        ~hi:Bv.(succ (I.unsigned_max b) mod modulus size)
+        ~size in
+    il, ir
+
+  let ge size a b =
+    let ir = I.create_non_empty
+        ~lo:Bv.(succ (I.unsigned_min a) mod modulus size)
+        ~hi:Bv.zero
+        ~size in
+    let il = I.create_non_empty
+        ~lo:Bv.zero
+        ~hi:(I.unsigned_max b)
+        ~size in
+    il, ir
+
+  let slt size a b =
+    let il = I.create_non_empty
+        ~lo:(I.signed_min b)
+        ~hi:Bv.(succ (max_signed_value size) mod modulus size)
+        ~size in
+    let ir = I.create_non_empty
+        ~lo:(Bv.min_signed_value size)
+        ~hi:Bv.(succ (I.signed_max a) mod modulus size)
+        ~size in
+    il, ir
+
+  let sle size a b =
+    let il = I.create_non_empty
+        ~lo:(I.signed_min b)
+        ~hi:(Bv.max_signed_value size)
+        ~size in
+    let ir = I.create_non_empty
+        ~lo:(Bv.min_signed_value size)
+        ~hi:(I.signed_max a)
+        ~size in
+    il, ir
+
+  let sgt size a b =
+    let ir = I.create_non_empty
+        ~lo:(I.signed_min a)
+        ~hi:Bv.(succ (max_signed_value size) mod modulus size)
+        ~size in
+    let il = I.create_non_empty
+        ~lo:(Bv.min_signed_value size)
+        ~hi:Bv.(succ (I.signed_max b) mod modulus size)
+        ~size in
+    il, ir
+
+  let sge size a b =
+    let ir = I.create_non_empty
+        ~lo:(I.signed_min a)
+        ~hi:(Bv.max_signed_value size)
+        ~size in
+    let il = I.create_non_empty
+        ~lo:(Bv.min_signed_value size)
+        ~hi:(I.signed_max b)
+        ~size in
+    il, ir
+end
+
+let interp_cmp info o x l r a b = match (o : Insn.cmp) with
+  | `eq #Type.imm ->
+    Cond.constr info x l b;
+    Cond.constr info x r a;
+    Cmp.bool_eq a b
+  | `ne #Type.imm ->
+    Cond.constr info x l @@ I.inverse b;
+    Cond.constr info x r @@ I.inverse a;
+    Cmp.bool_ne a b
+  | `lt (#Type.imm as t) ->
+    let il, ir = Cond.lt (Type.sizeof_imm t) a b in
+    Cond.constr info x l @@ I.inverse il;
+    Cond.constr info x r @@ I.inverse ir;
+    Cmp.bool_lt a b
+  | `le (#Type.imm as t) ->
+    let il, ir = Cond.le (Type.sizeof_imm t) a b in
+    Cond.constr info x l @@ I.inverse il;
+    Cond.constr info x r @@ I.inverse ir;
+    Cmp.bool_le a b
+  | `gt (#Type.imm as t) ->
+    let il, ir = Cond.gt (Type.sizeof_imm t) a b in
+    Cond.constr info x l @@ I.inverse il;
+    Cond.constr info x r @@ I.inverse ir;
+    Cmp.bool_gt a b
+  | `ge (#Type.imm as t) ->
+    let il, ir = Cond.ge (Type.sizeof_imm t) a b in
+    Cond.constr info x l @@ I.inverse il;
+    Cond.constr info x r @@ I.inverse ir;
+    Cmp.bool_ge a b
+  | `slt t ->
+    let il, ir = Cond.slt (Type.sizeof_imm t) a b in
+    Cond.constr info x l @@ I.inverse il;
+    Cond.constr info x r @@ I.inverse ir;
+    Cmp.bool_slt t a b
+  | `sle t ->
+    let il, ir = Cond.sle (Type.sizeof_imm t) a b in
+    Cond.constr info x l @@ I.inverse il;
+    Cond.constr info x r @@ I.inverse ir;
+    Cmp.bool_sle t a b
+  | `sgt t ->
+    let il, ir = Cond.sgt (Type.sizeof_imm t) a b in
+    Cond.constr info x l @@ I.inverse il;
+    Cond.constr info x r @@ I.inverse ir;
+    Cmp.bool_sgt t a b
+  | `sge t ->
+    let il, ir = Cond.sge (Type.sizeof_imm t) a b in
+    Cond.constr info x l @@ I.inverse il;
+    Cond.constr info x r @@ I.inverse ir;
+    Cmp.bool_sge t a b
   | `eq #Type.fp
   | `ne #Type.fp
   | `lt #Type.fp
@@ -187,10 +324,10 @@ let interp_cmp o a b = match (o : Insn.cmp) with
   | `o _
   | `uo _ -> I.boolean_full
 
-let interp_binop o a b = match (o : Insn.binop) with
+let interp_binop info o x l r a b = match (o : Insn.binop) with
   | #Insn.arith_binop as o -> interp_arith_binop o a b
   | #Insn.bitwise_binop as o -> interp_bitwise_binop o a b
-  | #Insn.cmp as o -> interp_cmp o a b
+  | #Insn.cmp as o -> interp_cmp info o x l r a b
 
 let interp_arith_unop o a = match (o : Insn.arith_unop) with
   | `neg _ -> I.neg a
@@ -229,10 +366,10 @@ let interp_unop o a = match (o : Insn.unop) with
   | #Insn.copy as o -> interp_copy o a
 
 let interp_basic info s : Insn.basic -> state = function
-  | `bop (x, o, a, b) ->
-    let a = interp_operand info s a in
-    let b = interp_operand info s b in
-    update s x @@ interp_binop o a b
+  | `bop (x, o, l, r) ->
+    let a = interp_operand info s l in
+    let b = interp_operand info s r in
+    update s x @@ interp_binop info o x l r a b
   | `uop (x, o, a) ->
     let a = interp_operand info s a in
     update s x @@ interp_unop o a
@@ -285,12 +422,22 @@ let interp_blk info s b =
   match Blk.ctrl b with
   | `jmp `label (l, args) ->
     assign_blk_args info s l args
-  | `br (_, `label (y, yargs), `label (n, nargs)) ->
+  | `br (c, `label (y, yargs), `label (n, nargs)) ->
+    Hashtbl.find info.cond c |> Option.iter ~f:(fun s' ->
+        Map.iteri s' ~f:(fun ~key:x ~data:i ->
+            update_constr info y x i;
+            update_constr info n x @@ I.inverse i));
     let s = assign_blk_args info s y yargs in
     assign_blk_args info s n nargs
-  | `br (_, `label (y, yargs), _) ->
+  | `br (c, `label (y, yargs), _) ->
+    Hashtbl.find info.cond c |> Option.iter ~f:(fun s' ->
+        Map.iteri s' ~f:(fun ~key:x ~data:i ->
+            update_constr info y x i));
     assign_blk_args info s y yargs
-  | `br (_, _, `label (n, nargs)) ->
+  | `br (c, _, `label (n, nargs)) ->
+    Hashtbl.find info.cond c |> Option.iter ~f:(fun s' ->
+        Map.iteri s' ~f:(fun ~key:x ~data:i ->
+            update_constr info n x @@ I.inverse i));
     assign_blk_args info s n nargs
   | `sw (t, `var x, `label (d, args), tbl) ->
     let size = Type.sizeof_imm t in
