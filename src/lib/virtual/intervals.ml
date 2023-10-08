@@ -15,6 +15,8 @@ let join_state x y =
 let meet_state x y =
   Map.merge_skewed x y ~combine:(fun ~key:_ a b -> I.intersect a b)
 
+let invert_state = Map.map ~f:I.inverse
+
 let update s x i = Map.update s x ~f:(function
     | Some i' -> I.union i i'
     | None -> i)
@@ -177,144 +179,148 @@ module Cond = struct
         | None -> Var.Map.singleton y i)
     | _ -> ()
 
+  (* Allow empty intervals to be created without breaking the
+     invariants thereof. *)
+  let mkint ~lo ~hi ~size =
+    if Bv.(lo = hi) then I.create_empty ~size
+    else I.create ~lo ~hi ~size
+
   let lt size a b =
-    let il = I.create_non_empty
-        ~lo:(I.unsigned_min b)
-        ~hi:Bv.zero
-        ~size in
-    let ir = I.create_non_empty
+    let il = mkint
         ~lo:Bv.zero
-        ~hi:Bv.(succ (I.unsigned_max a) mod modulus size)
+        ~hi:(I.unsigned_min b)
+        ~size in
+    let ir = mkint
+        ~lo:Bv.(succ (I.unsigned_max a) mod modulus size)
+        ~hi:Bv.zero
         ~size in
     il, ir
 
   let le size a b =
-    let il = I.create_non_empty
-        ~lo:Bv.(succ (I.unsigned_min b) mod modulus size)
-        ~hi:Bv.zero
-        ~size in
-    let ir = I.create_non_empty
+    let il = mkint
         ~lo:Bv.zero
-        ~hi:(I.unsigned_max a)
+        ~hi:Bv.(succ (I.unsigned_min b) mod modulus size)
+        ~size in
+    let ir = mkint
+        ~lo:(I.unsigned_max a)
+        ~hi:Bv.zero
         ~size in
     il, ir
 
   let gt size a b =
-    let ir = I.create_non_empty
-        ~lo:(I.unsigned_min a)
-        ~hi:Bv.zero
-        ~size in
-    let il = I.create_non_empty
+    let ir = mkint
         ~lo:Bv.zero
-        ~hi:Bv.(succ (I.unsigned_max b) mod modulus size)
+        ~hi:(I.unsigned_min a)
+        ~size in
+    let il = mkint
+        ~lo:Bv.(succ (I.unsigned_max b) mod modulus size)
+        ~hi:Bv.zero
         ~size in
     il, ir
 
   let ge size a b =
-    let ir = I.create_non_empty
-        ~lo:Bv.(succ (I.unsigned_min a) mod modulus size)
-        ~hi:Bv.zero
-        ~size in
-    let il = I.create_non_empty
+    let ir = mkint
         ~lo:Bv.zero
-        ~hi:(I.unsigned_max b)
+        ~hi:Bv.(succ (I.unsigned_min a) mod modulus size)
+        ~size in
+    let il = mkint
+        ~lo:(I.unsigned_max b)
+        ~hi:Bv.zero
         ~size in
     il, ir
 
   let slt size a b =
-    let il = I.create_non_empty
-        ~lo:(I.signed_min b)
-        ~hi:Bv.(succ (max_signed_value size) mod modulus size)
+    let il = mkint
+        ~lo:Bv.(succ (max_signed_value size) mod modulus size)
+        ~hi:(I.signed_min b)
         ~size in
-    let ir = I.create_non_empty
-        ~lo:(Bv.min_signed_value size)
-        ~hi:Bv.(succ (I.signed_max a) mod modulus size)
+    let ir = mkint
+        ~lo:Bv.(succ (I.signed_max a) mod modulus size)
+        ~hi:(Bv.min_signed_value size)
         ~size in
     il, ir
 
   let sle size a b =
-    let il = I.create_non_empty
-        ~lo:(I.signed_min b)
-        ~hi:(Bv.max_signed_value size)
+    let il = mkint
+        ~lo:(Bv.max_signed_value size)
+        ~hi:(I.signed_min b)
         ~size in
-    let ir = I.create_non_empty
-        ~lo:(Bv.min_signed_value size)
-        ~hi:(I.signed_max a)
+    let ir = mkint
+        ~lo:(I.signed_max a)
+        ~hi:(Bv.min_signed_value size)
         ~size in
     il, ir
 
   let sgt size a b =
-    let ir = I.create_non_empty
-        ~lo:(I.signed_min a)
-        ~hi:Bv.(succ (max_signed_value size) mod modulus size)
+    let ir = mkint
+        ~lo:Bv.(succ (max_signed_value size) mod modulus size)
+        ~hi:(I.signed_min a)
         ~size in
-    let il = I.create_non_empty
-        ~lo:(Bv.min_signed_value size)
-        ~hi:Bv.(succ (I.signed_max b) mod modulus size)
+    let il = mkint
+        ~lo:Bv.(succ (I.signed_max b) mod modulus size)
+        ~hi:(Bv.min_signed_value size)
         ~size in
     il, ir
 
   let sge size a b =
-    let ir = I.create_non_empty
-        ~lo:(I.signed_min a)
-        ~hi:(Bv.max_signed_value size)
+    let ir = mkint
+        ~lo:(Bv.max_signed_value size)
+        ~hi:(I.signed_min a)
         ~size in
-    let il = I.create_non_empty
-        ~lo:(Bv.min_signed_value size)
-        ~hi:(I.signed_max b)
+    let il = mkint
+        ~lo:(I.signed_max b)
+        ~hi:(Bv.min_signed_value size)
         ~size in
     il, ir
 end
 
+let do_cmp info t x l r a b ~cond ~cmp =
+  let il, ir = cond (Type.sizeof_imm t) a b in
+  Cond.constr info x l il;
+  Cond.constr info x r ir;
+  cmp a b
+
 let interp_cmp info o x l r a b = match (o : Insn.cmp) with
-  | `eq #Type.imm ->
-    Cond.constr info x l b;
-    Cond.constr info x r a;
-    Cmp.bool_eq a b
-  | `ne #Type.imm ->
-    Cond.constr info x l @@ I.inverse b;
-    Cond.constr info x r @@ I.inverse a;
-    Cmp.bool_ne a b
+  | `eq (#Type.imm as t) ->
+    do_cmp info t x l r a b
+      ~cond:(fun _ a b -> a, b)
+      ~cmp:Cmp.bool_eq
+  | `ne (#Type.imm as t) ->
+    do_cmp info t x l r a b
+      ~cond:(fun _ a b -> I.(inverse a, inverse b))
+      ~cmp:Cmp.bool_ne
   | `lt (#Type.imm as t) ->
-    let il, ir = Cond.lt (Type.sizeof_imm t) a b in
-    Cond.constr info x l @@ I.inverse il;
-    Cond.constr info x r @@ I.inverse ir;
-    Cmp.bool_lt a b
+    do_cmp info t x l r a b
+      ~cond:Cond.lt
+      ~cmp:Cmp.bool_lt
   | `le (#Type.imm as t) ->
-    let il, ir = Cond.le (Type.sizeof_imm t) a b in
-    Cond.constr info x l @@ I.inverse il;
-    Cond.constr info x r @@ I.inverse ir;
-    Cmp.bool_le a b
+    do_cmp info t x l r a b
+      ~cond:Cond.le
+      ~cmp:Cmp.bool_le
   | `gt (#Type.imm as t) ->
-    let il, ir = Cond.gt (Type.sizeof_imm t) a b in
-    Cond.constr info x l @@ I.inverse il;
-    Cond.constr info x r @@ I.inverse ir;
-    Cmp.bool_gt a b
+    do_cmp info t x l r a b
+      ~cond:Cond.gt
+      ~cmp:Cmp.bool_gt
   | `ge (#Type.imm as t) ->
-    let il, ir = Cond.ge (Type.sizeof_imm t) a b in
-    Cond.constr info x l @@ I.inverse il;
-    Cond.constr info x r @@ I.inverse ir;
-    Cmp.bool_ge a b
+    do_cmp info t x l r a b
+      ~cond:Cond.ge
+      ~cmp:Cmp.bool_ge
   | `slt t ->
-    let il, ir = Cond.slt (Type.sizeof_imm t) a b in
-    Cond.constr info x l @@ I.inverse il;
-    Cond.constr info x r @@ I.inverse ir;
-    Cmp.bool_slt t a b
+    do_cmp info t x l r a b
+      ~cond:Cond.slt
+      ~cmp:(Cmp.bool_slt t)
   | `sle t ->
-    let il, ir = Cond.sle (Type.sizeof_imm t) a b in
-    Cond.constr info x l @@ I.inverse il;
-    Cond.constr info x r @@ I.inverse ir;
-    Cmp.bool_sle t a b
+    do_cmp info t x l r a b
+      ~cond:Cond.sle
+      ~cmp:(Cmp.bool_sle t)
   | `sgt t ->
-    let il, ir = Cond.sgt (Type.sizeof_imm t) a b in
-    Cond.constr info x l @@ I.inverse il;
-    Cond.constr info x r @@ I.inverse ir;
-    Cmp.bool_sgt t a b
+    do_cmp info t x l r a b
+      ~cond:Cond.sgt
+      ~cmp:(Cmp.bool_sgt t)
   | `sge t ->
-    let il, ir = Cond.sge (Type.sizeof_imm t) a b in
-    Cond.constr info x l @@ I.inverse il;
-    Cond.constr info x r @@ I.inverse ir;
-    Cmp.bool_sge t a b
+    do_cmp info t x l r a b
+      ~cond:Cond.sge
+      ~cmp:(Cmp.bool_sge t)
   | `eq #Type.fp
   | `ne #Type.fp
   | `lt #Type.fp
@@ -373,10 +379,15 @@ let interp_basic info s : Insn.basic -> state = function
   | `uop (x, o, a) ->
     let a = interp_operand info s a in
     update s x @@ interp_unop o a
-  | `sel (x, _, c, y, n) ->
-    let c = interp_operand info s @@ `var c in
-    let y = interp_operand info s y in
-    let n = interp_operand info s n in
+  | `sel (x, _, k, y, n) ->
+    let c = interp_operand info s @@ `var k in
+    let y, n = match Hashtbl.find info.cond k with
+      | Some s' ->
+        interp_operand info (meet_state s s') y,
+        interp_operand info (meet_state s @@ invert_state s') n
+      | None ->
+        interp_operand info s y,
+        interp_operand info s n in
     let r = match I.single_of c with
       | None -> I.union y n
       | Some i when Bv.(i = zero) -> n
