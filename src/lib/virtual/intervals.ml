@@ -391,18 +391,16 @@ let interp_bitwise_unop o a = match (o : Insn.bitwise_unop) with
 
 let interp_cast o a = match (o : Insn.cast) with
   | `fext t
-  | `fibits t
   | `ftrunc t
   | `sitof (_, t)
   | `uitof (_, t) ->
     I.create_full ~size:(Type.sizeof_fp t)
+  | `fibits _ | `ifbits _ -> a
   | `flag t | `zext t ->
     I.zext a ~size:(Type.sizeof_imm t)
   | `ftosi (_, t)
   | `ftoui (_, t) ->
     I.create_full ~size:(Type.sizeof_imm t)
-  | `ifbits t ->
-    I.create_full ~size:(Type.sizeof_imm_base t)
   | `itrunc t ->
     I.trunc a ~size:(Type.sizeof_imm t)
   | `sext t ->
