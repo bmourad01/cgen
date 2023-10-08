@@ -496,10 +496,10 @@ let interp_blk info s b =
          an overapproximation of `x` in the default case. *)
       Ctrl.Table.enum tbl |>
       Seq.fold ~init:s ~f:(fun s (v, `label (l, args)) ->
-            let k = I.create_single ~value:v ~size in
-            let s = assign_blk_args info s l args in
-            update_constr info l x k;
-            s) in
+          let k = I.create_single ~value:v ~size in
+          let s = assign_blk_args info s l args in
+          update_constr info l x k;
+          s) in
     assign_blk_args info s d args
   | _ -> s
 
