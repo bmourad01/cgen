@@ -301,7 +301,20 @@ let do_cmp info t x l r a b ~cond ~cmp =
   Cond.constr info x r ir;
   cmp a b
 
-let interp_cmp info o x l r a b = match (o : Insn.cmp) with
+let interp_cmp info o x l r a b =
+  (* Handle trivial case when the operands are equal. *)
+  let eq = equal_operand l r in
+  match (o : Insn.cmp) with
+  | `eq  _ when eq -> I.boolean_true
+  | `ne  _ when eq -> I.boolean_false
+  | `lt  _ when eq -> I.boolean_false
+  | `le  _ when eq -> I.boolean_true
+  | `gt  _ when eq -> I.boolean_false
+  | `ge  _ when eq -> I.boolean_true
+  | `slt _ when eq -> I.boolean_false
+  | `sle _ when eq -> I.boolean_true
+  | `sgt _ when eq -> I.boolean_false
+  | `sge _ when eq -> I.boolean_true
   | `eq (#Type.imm as t) ->
     do_cmp info t x l r a b
       ~cond:(fun _ a b -> lazy a, lazy b)
