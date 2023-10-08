@@ -27,10 +27,15 @@ module Mem = Regular.Make(struct
     let version = "0.1"
   end)
 
+type cur =
+  | Blk of Label.t
+  | Insn of Label.t
+
 type env = {
   rules       : rules;
   vars        : id Var.Table.t;
   mems        : st Mem.Table.t;
+  mutable cur : cur;
   mutable lst : Label.t option;
 }
 
@@ -38,19 +43,33 @@ let init rules = {
   rules;
   vars = Var.Table.create ();
   mems = Mem.Table.create ();
+  cur = Blk Label.pseudoentry;
   lst = None;
 }
 
-let node ?ty ?l env eg op args =
-  Rewrite.insert ?ty ?l ~d:eg.fuel ~rules:env.rules
+let node ?iv ?ty ?l env eg op args =
+  Rewrite.insert ?iv ?ty ?l ~d:eg.fuel ~rules:env.rules
     eg @@ N (op, args)
 
-let atom ?ty env eg op = node ?ty env eg op []
+let atom ?iv ?ty env eg op = node ?iv ?ty env eg op []
 
-let var env eg x = Hashtbl.find_or_add env.vars x
-    ~default:(fun () ->
-        let ty = typeof_var eg x in
-        atom ?ty env eg @@ Ovar x)
+let var env eg x =
+  let iv = match env.cur with
+    | Blk b ->
+      let inp = Intervals.input eg.input.intv in
+      let s = Solution.get inp b in
+      Intervals.find_var s x
+    | Insn i ->
+      let open Monad.Option.Let in
+      let* s = Intervals.insn eg.input.intv i in
+      Intervals.find_var s x in
+  match Hashtbl.find env.vars x with
+  | None ->
+    let ty = typeof_var eg x in
+    atom ?iv ?ty env eg @@ Ovar x
+  | Some id ->
+    Rewrite.setiv ?iv eg id;
+    id
 
 let typeof_const eg : const -> Type.t = function
   | `bool _ -> `flag
@@ -86,9 +105,16 @@ let table env eg tbl =
   Ctrl.Table.enum tbl |> Seq.map ~f:(fun (i, l) ->
       node env eg (Otbl i) [local env eg l]) |> Seq.to_list
 
+let interval ?x eg l =
+  let open Monad.Option.Let in
+  let* x = x in
+  let* s = Intervals.insn eg.input.intv l in
+  Intervals.find_var s x
+
 let prov ?x ?(f = Fn.const) env eg l op args =
   let ty = Option.bind x ~f:(typeof_var eg) in
-  let id = node ?ty ~l env eg op args in
+  let iv = interval ?x eg l in
+  let id = node ?iv ?ty ~l env eg op args in
   Option.iter x ~f:(fun x ->
       match Hashtbl.add env.vars ~key:x ~data:id with
       | `Duplicate -> raise @@ Duplicate (x, l)
@@ -233,9 +259,13 @@ let step env eg l = match Hashtbl.find eg.input.tbl l with
   | None | Some `insn _ -> raise @@ Missing l
   | Some `blk b ->
     env.lst <- Solution.get eg.input.lst l;
-    Blk.args b |> Seq.iter ~f:(fun x -> ignore @@ var env eg x);
+    Blk.args b |> Seq.iter ~f:(fun x ->
+        env.cur <- Blk (Blk.label b);
+        ignore @@ var env eg x);
     Blk.insns b |> Seq.iter ~f:(fun i ->
-        insn env eg (Insn.label i) (Insn.op i));
+        let l = Insn.label i in
+        env.cur <- Insn l;
+        insn env eg l (Insn.op i));
     ctrl env eg l @@ Blk.ctrl b
 
 let try_ f = try Ok (f ()) with

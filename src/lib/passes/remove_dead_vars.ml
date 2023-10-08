@@ -65,7 +65,7 @@ let check_div_rem i = match Insn.op i with
   | `bop (_, (`div #Type.imm | `udiv _ | `rem #Type.imm | `urem _), _, r) ->
     begin match r with
       | `int (i, _) -> Bv.(i = zero)
-      | _ -> true
+      | _ -> not @@ Dict.mem (Insn.dict i) Tags.div_rem_nonzero
     end
   | _ -> false
 

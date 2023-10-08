@@ -145,6 +145,9 @@ val const : t -> id -> const option
 (** Returns the type associated with the e-class ID. *)
 val typeof : t -> id -> Type.t option
 
+(** Returns the bitvector interval associated with the e-class ID. *)
+val interval : t -> id -> Bv_interval.t option
+
 module Rule : sig
   type t = rule
 

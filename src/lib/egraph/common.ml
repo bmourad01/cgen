@@ -30,6 +30,7 @@ type t = {
   id2lbl  : Label.t Id.Table.t;
   lbl2id  : id Label.Table.t;
   typs    : Type.t Id.Table.t;
+  intv    : Bv_interval.t Id.Table.t;
   fuel    : int;
 }
 
@@ -66,6 +67,7 @@ let node t id = Vec.get_exn t.node id
 let dominates t = Tree.is_descendant_of t.input.cdom
 let const t id = Enode.const ~node:(node t) @@ node t id
 let typeof t id = Hashtbl.find t.typs id
+let interval t id = Hashtbl.find t.intv id
 
 let typeof_var t x =
   Typecheck.Env.typeof_var t.input.fn x t.input.tenv |> Or_error.ok

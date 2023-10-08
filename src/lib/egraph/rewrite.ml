@@ -28,11 +28,25 @@ let new_node t n =
   assert (id = Vec.length t.node - 1);
   id
 
+external float_of_bits   : int64 -> float = "cgen_float_of_bits"
+
+let single_interval iv ty : Virtual.const option =
+  let* iv = iv and* ty = ty in
+  let* v = Bv_interval.single_of iv in
+  match ty with
+  | #Type.imm as t -> Some (`int (v, t))
+  | `f32 -> Some (`float (Float32.of_bits (Bv.to_int32 v)))
+  | `f64 -> Some (`double (float_of_bits (Bv.to_int64 v)))
+  | `flag -> Some (`bool Bv.(v <> zero))
+  | _ -> None
+
 (* If the node is already normalized then don't bother searching
    for matches. *)
-let subsume_const t n id =
+let subsume_const ?iv ?ty t n id =
   if not @@ Enode.is_const n then
-    let+ c = Enode.eval ~node:(node t) n in
+    let+ c = match Enode.eval ~node:(node t) n with
+      | None -> single_interval iv ty
+      | Some _ as c -> c in
     let k = Enode.of_const c in
     let oid = Hashtbl.find_or_add t.memo k
         ~default:(fun () -> new_node t k) in
@@ -61,25 +75,32 @@ let step t id oid =
     | _ -> Continue (union t id oid)
   else Continue id
 
-let rec insert ?ty ?l ~d ~rules t n =
+let setiv ?iv t id = Option.iter iv ~f:(fun iv ->
+    Hashtbl.set t.intv ~key:id ~data:iv)
+
+let rec insert ?iv ?ty ?l ~d ~rules t n =
   canon t n |> Hashtbl.find_and_call t.memo
     ~if_found:(fun id ->
         Option.iter l ~f:(Prov.duplicate t id);
+        setiv ?iv t id;
         id)
     ~if_not_found:(fun k -> match commute t k with
         | Some id ->
           Option.iter l ~f:(Prov.duplicate t id);
+          setiv ?iv t id;
           id
         | None ->
           let id = new_node t n in
           Option.iter l ~f:(fun l -> Prov.add t l id n);
           Option.iter ty ~f:(fun ty ->
               Hashtbl.set t.typs ~key:id ~data:ty);
-          let oid = optimize ?ty ~d ~rules t n id in
+          setiv ?iv t id;
+          let oid = optimize ?iv ?ty ~d ~rules t n id in
           Hashtbl.set t.memo ~key:k ~data:oid;
           oid)
 
-and optimize ?ty ~d ~rules t n id = match subsume_const t n id with
+and optimize ?iv ?ty ~d ~rules t n id =
+  match subsume_const ?iv ?ty t n id with
   | Some id -> id
   | None when d < 0 -> id
   | None ->

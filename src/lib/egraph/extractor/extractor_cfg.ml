@@ -430,6 +430,27 @@ let find_news ?(rev = false) env l =
       Seq.filter_map ~f:(find_insn env) |>
       Seq.to_list)
 
+(* Based on the intervals analysis, we can safely remove a div/rem
+   whose RHS is known to never be zero. *)
+let mark_div_rem_nonzero t i = match Insn.op i with
+  | `bop (_, b, _, `var x) ->
+    begin match b with
+      | `div #Type.imm
+      | `udiv _
+      | `rem #Type.imm
+      | `urem _ ->
+        let l = Insn.label i in
+        begin match Intervals.insn t.eg.input.intv l with
+          | None -> i
+          | Some s -> match Intervals.find_var s x with
+            | None -> i
+            | Some iv when Bv_interval.contains_value iv Bv.zero -> i
+            | Some _ -> Insn.with_tag i Tags.div_rem_nonzero ()
+        end
+      | _ -> i
+    end
+  | _ -> i
+
 let cfg t =
   let+ env = collect t Label.pseudoentry in
   Func.map_blks t.eg.input.fn ~f:(fun b ->
@@ -441,7 +462,7 @@ let cfg t =
         Blk.insns b ~rev:true |>
         Seq.fold ~init:(find_news env label) ~f:(fun acc i ->
             let label = Insn.label i in
-            let i = match find_insn env label with
+            let i = mark_div_rem_nonzero t @@ match find_insn env label with
               | Some i' -> Insn.with_dict i' @@ Insn.dict i
               | None -> i in
             let news = find_news env label ~rev:true in

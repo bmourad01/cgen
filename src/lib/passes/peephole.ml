@@ -264,6 +264,11 @@ module Rules = struct
     let+ () = O.guard @@ Type.equal tx (ty :> Type.t) in
     var x
 
+  let cannot_be_zero x eg env = Option.is_some begin
+      let* i = Map.find env x >>= Egraph.interval eg in
+      O.guard @@ not @@ Bv_interval.contains_value i Bv.zero
+    end
+
   let x = var "x"
   let y = var "y"
   let z = var "z"
@@ -286,6 +291,7 @@ module Rules = struct
   let udiv_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y"
   let urem_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y" ~rem:true
   let identity_same_type_x = identity_same_type "x"
+  let cannot_be_zero_x = cannot_be_zero "x"
 
   let rules = Egraph.create_table Op.[
       (* Commutativity of constants. *)
@@ -552,6 +558,15 @@ module Rules = struct
       udiv `i16 x (i16 1) => x;
       udiv `i32 x (i32 1l) => x;
       udiv `i64 x (i64 1L) => x;
+      (* x / x = 1 when x cannot be zero *)
+      (div `i8 x x =>? i8 1) ~if_:cannot_be_zero_x;
+      (div `i16 x x =>? i16 1) ~if_:cannot_be_zero_x;
+      (div `i32 x x =>? i32 1l) ~if_:cannot_be_zero_x;
+      (div `i64 x x =>? i64 1L) ~if_:cannot_be_zero_x;
+      (udiv `i8 x x =>? i8 1) ~if_:cannot_be_zero_x;
+      (udiv `i16 x x =>? i16 1) ~if_:cannot_be_zero_x;
+      (udiv `i32 x x =>? i32 1l) ~if_:cannot_be_zero_x;
+      (udiv `i64 x x =>? i64 1L) ~if_:cannot_be_zero_x;
       (* signed x / -1 = -x *)
       div `i8 x (i8 (-1)) => neg `i8 x;
       div `i16 x (i16 (-1)) => neg `i16 x;
@@ -571,6 +586,15 @@ module Rules = struct
       urem `i16 x (i16 1) => i16 0;
       urem `i32 x (i32 1l) => i32 0l;
       urem `i64 x (i64 1L) => i64 0L;
+      (* x % x = 0 when x cannot be zero *)
+      (rem `i8 x x =>? i8 0) ~if_:cannot_be_zero_x;
+      (rem `i16 x x =>? i16 0) ~if_:cannot_be_zero_x;
+      (rem `i32 x x =>? i32 0l) ~if_:cannot_be_zero_x;
+      (rem `i64 x x =>? i64 0L) ~if_:cannot_be_zero_x;
+      (urem `i8 x x =>? i8 0) ~if_:cannot_be_zero_x;
+      (urem `i16 x x =>? i16 0) ~if_:cannot_be_zero_x;
+      (urem `i32 x x =>? i32 0l) ~if_:cannot_be_zero_x;
+      (urem `i64 x x =>? i64 0L) ~if_:cannot_be_zero_x;
       (* signed x % -1 = 0 *)
       rem `i8 x (i8 (-1)) => i8 0;
       rem `i16 x (i16 (-1)) => i16 0;
