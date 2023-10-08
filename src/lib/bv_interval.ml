@@ -131,8 +131,8 @@ let equal t1 t2 =
 
 let contains_value t v =
   if Bv.(t.lo = t.hi) then is_full t
-  else if is_wrapped_hi t then Bv.(t.lo <= v && v < t.hi)
-  else Bv.(t.lo <= v || v < t.hi)
+  else if is_wrapped_hi t then Bv.(t.lo <= v || v < t.hi)
+  else Bv.(t.lo <= v && v < t.hi)
 
 let contains t1 t2 =
   is_full t1 || is_empty t2 || begin
@@ -584,34 +584,40 @@ let srem t1 t2 =
   let size = t1.size in
   let m = Bv.modulus size in
   if is_empty t1 || is_empty t2 then create_empty ~size
-  else
-    let abs2 = abs t2 in
-    let min_abs2 = unsigned_min abs2 in
-    let max_abs2 = unsigned_max abs2 in
-    if Bv.(max_abs2 = zero)
-    then create_empty ~size
-    else
-      let min_abs2 =
-        if Bv.(min_abs2 = zero) then Bv.(succ min_abs2 mod m)
-        else min_abs2 in
-      let min1 = signed_min t1 in
-      let max1 = signed_max t1 in
-      if Bv.(signed_compare min1 zero m) >= 0 then
-        if Bv.(max1 < min_abs2)
-        then t1
-        else
-          create ~size ~lo:Bv.zero
-            ~hi:Bv.(succ (min max1 (pred max_abs2 mod m)) mod m)
-      else if Bv.(signed_compare max1 zero m) < 0 then
-        if Bv.(min1 < ~-min_abs2 mod m)
-        then t1
-        else
-          create ~size ~hi:Bv.one
-            ~lo:Bv.(max min1 (succ (~-max_abs2 mod m) mod m))
+  else match single_of t1, single_of t2 with
+    | _, Some s2 when Bv.(s2 = zero) -> create_empty ~size
+    | Some s1, Some s2 ->
+      let value = Bv.(srem s1 s2 mod m) in
+      create_single ~value ~size
+    | _ ->
+      let abs2 = abs t2 in
+      let min_abs2 = unsigned_min abs2 in
+      let max_abs2 = unsigned_max abs2 in
+      if Bv.(max_abs2 = zero)
+      then create_empty ~size
       else
-        create ~size
-          ~lo:Bv.(max min1 (succ (~-max_abs2 mod m) mod m))
-          ~hi:Bv.(succ (min max1 (pred max_abs2 mod m)) mod m)
+        let min_abs2 =
+          if Bv.(min_abs2 = zero)
+          then Bv.(succ min_abs2 mod m)
+          else min_abs2 in
+        let min1 = signed_min t1 in
+        let max1 = signed_max t1 in
+        if Bv.(msb min1 mod m) then
+          if Bv.(max1 < min_abs2)
+          then t1
+          else
+            create ~size ~lo:Bv.zero
+              ~hi:Bv.(succ (min max1 (pred max_abs2 mod m)) mod m)
+        else if Bv.(msb max1 mod m) then
+          if Bv.(min1 > (neg min_abs2 mod m))
+          then t1
+          else
+            create ~size ~hi:Bv.one
+              ~lo:Bv.(max min1 (succ (neg max_abs2 mod m) mod m))
+        else
+          create ~size
+            ~lo:Bv.(max min1 (succ (neg max_abs2 mod m) mod m))
+            ~hi:Bv.(succ (min max1 (pred max_abs2 mod m)) mod m)
 
 let lnot t =
   let size = t.size in
