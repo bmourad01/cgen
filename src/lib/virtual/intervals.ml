@@ -530,24 +530,12 @@ let transfer info l s = match Label.Tree.find info.blks l with
   | Some b -> interp_blk info s b
   | None -> s
 
-let cyclomatic_complexity cfg =
-  let e = Cfg.number_of_edges cfg in
-  let n = Cfg.number_of_nodes cfg in
-  e - n + 2
-
-(* Scale the cyclomatic complecity by some number to increase
-   the precision of the results. *)
-let scale = 42
-
 let analyze ?steps fn ~word ~typeof =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let cfg = Cfg.create fn in
-    let steps = match steps with
-      | None -> cyclomatic_complexity cfg * scale
-      | Some n -> n in
     let blks = Func.map_of_blks fn in
     let info = create_info ~blks ~word ~typeof in
-    Graphlib.fixpoint (module Cfg) cfg ~steps
+    Graphlib.fixpoint (module Cfg) cfg ?steps
       ~step:(step info)
       ~init:(init_state info fn)
       ~equal:equal_state

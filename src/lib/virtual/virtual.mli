@@ -1116,11 +1116,7 @@ module Intervals : sig
       [typeof] is the typing relation for variables.
 
       [steps] is an upper bound on the number of iterations before
-      a fixed point can be reached. By default, it is a multiple of
-      the cyclomatic complexity of the function. Since the number
-      of steps is always bounded, the solution returned by the analysis
-      may be an underapproximation of the truth (in particular, if the
-      function has loops).
+      a fixed point can be reached.
 
       @raise Invalid_argument if the function is not in SSA form.
   *)
