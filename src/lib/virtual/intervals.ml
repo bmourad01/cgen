@@ -94,6 +94,7 @@ let interp_bitwise_binop o a b = match (o : Insn.bitwise_binop) with
   | `ror _ -> I.rotate_right a b
   | `xor _ -> I.logxor a b
 
+(* Helpers for computing the possible boolean values of a comparison. *)
 module Cmp = struct
   let bool_eq a b = match I.(single_of a, single_of b) with
     | Some a, Some b -> I.boolean Bv.(a = b)
@@ -171,12 +172,16 @@ module Cmp = struct
     | _ -> sgreater (scmpge t) a b
 end
 
+(* Helpers for inferring the constraints on variables with respect
+   to a given condition. *)
 module Cond = struct
   (* Constrain `y` to `i` in relation to the condition `x`. *)
   let constr info x y i = match (y : operand) with
-    | `var y -> Hashtbl.update info.cond x ~f:(function
-        | Some s -> Var.Map.set s ~key:y ~data:i
-        | None -> Var.Map.singleton y i)
+    | `var y ->
+      let i = Lazy.force i in
+      Hashtbl.update info.cond x ~f:(function
+          | Some s -> Var.Map.set s ~key:y ~data:i
+          | None -> Var.Map.singleton y i)
     | _ -> ()
 
   (* Allow empty intervals to be created without breaking the
@@ -186,91 +191,107 @@ module Cond = struct
     else I.create ~lo ~hi ~size
 
   let lt size a b =
-    let il = mkint
+    let il = lazy begin mkint
         ~lo:Bv.zero
         ~hi:(I.unsigned_min b)
-        ~size in
-    let ir = mkint
+        ~size
+    end in
+    let ir = lazy begin mkint
         ~lo:Bv.(succ (I.unsigned_max a) mod modulus size)
         ~hi:Bv.zero
-        ~size in
+        ~size
+    end in
     il, ir
 
   let le size a b =
-    let il = mkint
+    let il = lazy begin mkint
         ~lo:Bv.zero
         ~hi:Bv.(succ (I.unsigned_min b) mod modulus size)
-        ~size in
-    let ir = mkint
+        ~size
+    end in
+    let ir = lazy begin mkint
         ~lo:(I.unsigned_max a)
         ~hi:Bv.zero
-        ~size in
+        ~size
+    end in
     il, ir
 
   let gt size a b =
-    let ir = mkint
+    let ir = lazy begin mkint
         ~lo:Bv.zero
         ~hi:(I.unsigned_min a)
-        ~size in
-    let il = mkint
+        ~size
+    end in
+    let il = lazy begin mkint
         ~lo:Bv.(succ (I.unsigned_max b) mod modulus size)
         ~hi:Bv.zero
-        ~size in
+        ~size
+    end in
     il, ir
 
   let ge size a b =
-    let ir = mkint
+    let ir = lazy begin mkint
         ~lo:Bv.zero
         ~hi:Bv.(succ (I.unsigned_min a) mod modulus size)
-        ~size in
-    let il = mkint
+        ~size
+    end in
+    let il = lazy begin mkint
         ~lo:(I.unsigned_max b)
         ~hi:Bv.zero
-        ~size in
+        ~size
+    end in
     il, ir
 
   let slt size a b =
-    let il = mkint
+    let il = lazy begin mkint
         ~lo:Bv.(succ (max_signed_value size) mod modulus size)
         ~hi:(I.signed_min b)
-        ~size in
-    let ir = mkint
+        ~size
+    end in
+    let ir = lazy begin mkint
         ~lo:Bv.(succ (I.signed_max a) mod modulus size)
         ~hi:(Bv.min_signed_value size)
-        ~size in
+        ~size
+    end in
     il, ir
 
   let sle size a b =
-    let il = mkint
+    let il = lazy begin mkint
         ~lo:(Bv.max_signed_value size)
         ~hi:(I.signed_min b)
-        ~size in
-    let ir = mkint
+        ~size
+    end in
+    let ir = lazy begin mkint
         ~lo:(I.signed_max a)
         ~hi:(Bv.min_signed_value size)
-        ~size in
+        ~size
+    end in
     il, ir
 
   let sgt size a b =
-    let ir = mkint
+    let ir = lazy begin mkint
         ~lo:Bv.(succ (max_signed_value size) mod modulus size)
         ~hi:(I.signed_min a)
-        ~size in
-    let il = mkint
+        ~size
+    end in
+    let il = lazy begin mkint
         ~lo:Bv.(succ (I.signed_max b) mod modulus size)
         ~hi:(Bv.min_signed_value size)
-        ~size in
+        ~size
+    end in
     il, ir
 
   let sge size a b =
-    let ir = mkint
+    let ir = lazy begin mkint
         ~lo:(Bv.max_signed_value size)
         ~hi:(I.signed_min a)
-        ~size in
-    let il = mkint
+        ~size
+    end in
+    let il = lazy begin mkint
         ~lo:(I.signed_max b)
         ~hi:(Bv.min_signed_value size)
-        ~size in
+        ~size
+    end in
     il, ir
 end
 
@@ -283,11 +304,11 @@ let do_cmp info t x l r a b ~cond ~cmp =
 let interp_cmp info o x l r a b = match (o : Insn.cmp) with
   | `eq (#Type.imm as t) ->
     do_cmp info t x l r a b
-      ~cond:(fun _ a b -> a, b)
+      ~cond:(fun _ a b -> lazy a, lazy b)
       ~cmp:Cmp.bool_eq
   | `ne (#Type.imm as t) ->
     do_cmp info t x l r a b
-      ~cond:(fun _ a b -> I.(inverse a, inverse b))
+      ~cond:(fun _ a b -> lazy (I.inverse a), lazy (I.inverse b))
       ~cmp:Cmp.bool_ne
   | `lt (#Type.imm as t) ->
     do_cmp info t x l r a b
