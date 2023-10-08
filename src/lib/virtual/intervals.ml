@@ -468,6 +468,8 @@ let interp_blk info s b =
   | `jmp `label (l, args) ->
     assign_blk_args info s l args
   | `br (c, `label (y, yargs), `label (n, nargs)) ->
+    update_constr info y c I.boolean_true;
+    update_constr info n c I.boolean_false;
     Hashtbl.find info.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
             update_constr info y x i;
@@ -475,11 +477,13 @@ let interp_blk info s b =
     let s = assign_blk_args info s y yargs in
     assign_blk_args info s n nargs
   | `br (c, `label (y, yargs), _) ->
+    update_constr info y c I.boolean_true;
     Hashtbl.find info.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
             update_constr info y x i));
     assign_blk_args info s y yargs
   | `br (c, _, `label (n, nargs)) ->
+    update_constr info n c I.boolean_false;
     Hashtbl.find info.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
             update_constr info n x @@ I.inverse i));
