@@ -191,106 +191,106 @@ module Cond = struct
     else I.create ~lo ~hi ~size
 
   let lt size a b =
-    let il = lazy begin mkint
+    (* a < b: a \in [0, umin(b)) *)
+    let il = lazy begin mkint ~size
         ~lo:Bv.zero
         ~hi:(I.unsigned_min b)
-        ~size
     end in
-    let ir = lazy begin mkint
+    (* b > a: b \in [umax(a) + 1, 0) *)
+    let ir = lazy begin mkint ~size
         ~lo:Bv.(succ (I.unsigned_max a) mod modulus size)
         ~hi:Bv.zero
-        ~size
     end in
     il, ir
 
   let le size a b =
-    let il = lazy begin mkint
+    (* a <= b: a \in [0, umin(b) + 1) *)
+    let il = lazy begin mkint ~size
         ~lo:Bv.zero
         ~hi:Bv.(succ (I.unsigned_min b) mod modulus size)
-        ~size
     end in
-    let ir = lazy begin mkint
+    (* b >= a: b \in [umax(a), 0) *)
+    let ir = lazy begin mkint ~size
         ~lo:(I.unsigned_max a)
         ~hi:Bv.zero
-        ~size
     end in
     il, ir
 
   let gt size a b =
-    let ir = lazy begin mkint
-        ~lo:Bv.zero
-        ~hi:(I.unsigned_min a)
-        ~size
-    end in
-    let il = lazy begin mkint
+    (* a > b: a \in [umax(b) + 1, 0) *)
+    let il = lazy begin mkint ~size
         ~lo:Bv.(succ (I.unsigned_max b) mod modulus size)
         ~hi:Bv.zero
-        ~size
+    end in
+    (* b < a: b \in [0, umin(a)) *)
+    let ir = lazy begin mkint ~size
+        ~lo:Bv.zero
+        ~hi:(I.unsigned_min a)
     end in
     il, ir
 
   let ge size a b =
-    let ir = lazy begin mkint
-        ~lo:Bv.zero
-        ~hi:Bv.(succ (I.unsigned_min a) mod modulus size)
-        ~size
-    end in
-    let il = lazy begin mkint
+    (* a >= b: a \in [umax(b), 0) *)
+    let il = lazy begin mkint ~size
         ~lo:(I.unsigned_max b)
         ~hi:Bv.zero
-        ~size
+    end in
+    (* b <= a: b \in [0, umin(a) + 1) *)
+    let ir = lazy begin mkint ~size
+        ~lo:Bv.zero
+        ~hi:Bv.(succ (I.unsigned_min a) mod modulus size)
     end in
     il, ir
 
   let slt size a b =
-    let il = lazy begin mkint
-        ~lo:Bv.(succ (max_signed_value size) mod modulus size)
+    (* a <$ b: a \in [0x80..., smin(b)) *)
+    let il = lazy begin mkint ~size
+        ~lo:(Bv.min_signed_value size)
         ~hi:(I.signed_min b)
-        ~size
     end in
-    let ir = lazy begin mkint
+    (* b >$ a: b \in [smax(a) + 1, 0x80...) *)
+    let ir = lazy begin mkint ~size
         ~lo:Bv.(succ (I.signed_max a) mod modulus size)
         ~hi:(Bv.min_signed_value size)
-        ~size
     end in
     il, ir
 
   let sle size a b =
-    let il = lazy begin mkint
-        ~lo:(Bv.max_signed_value size)
-        ~hi:(I.signed_min b)
-        ~size
+    (* a <=$ b: a \in [0x80..., smin(b) + 1) *)
+    let il = lazy begin mkint ~size
+        ~lo:(Bv.min_signed_value size)
+        ~hi:Bv.(succ (I.signed_min b) mod modulus size)
     end in
-    let ir = lazy begin mkint
+    (* b >=$ a: b \in [smax(a), 0x80...) *)
+    let ir = lazy begin mkint ~size
         ~lo:(I.signed_max a)
         ~hi:(Bv.min_signed_value size)
-        ~size
     end in
     il, ir
 
   let sgt size a b =
-    let ir = lazy begin mkint
-        ~lo:Bv.(succ (max_signed_value size) mod modulus size)
-        ~hi:(I.signed_min a)
-        ~size
-    end in
-    let il = lazy begin mkint
+    (* a >$ b: a \in [smax(b) + 1, 0x80...) *)
+    let il = lazy begin mkint ~size
         ~lo:Bv.(succ (I.signed_max b) mod modulus size)
         ~hi:(Bv.min_signed_value size)
-        ~size
+    end in
+    (* b <$ a: b \in [0x80..., smin(a)) *)
+    let ir = lazy begin mkint ~size
+        ~lo:(Bv.min_signed_value size)
+        ~hi:(I.signed_min a)
     end in
     il, ir
 
   let sge size a b =
-    let ir = lazy begin mkint
-        ~lo:(Bv.max_signed_value size)
-        ~hi:(I.signed_min a)
-        ~size
-    end in
-    let il = lazy begin mkint
+    (* a >=$ b: a \in [smax(b), 0x80...) *)
+    let il = lazy begin mkint ~size
         ~lo:(I.signed_max b)
         ~hi:(Bv.min_signed_value size)
-        ~size
+    end in
+    (* b <=$ a: b \in [0x80..., smin(a)) *)
+    let ir = lazy begin mkint ~size
+        ~lo:(Bv.min_signed_value size)
+        ~hi:Bv.(succ (I.signed_min a) mod modulus size)
     end in
     il, ir
 end
