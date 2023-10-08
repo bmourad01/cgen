@@ -452,15 +452,16 @@ let interp_blk info s b =
     assign_blk_args info s n nargs
   | `sw (t, `var x, `label (d, args), tbl) ->
     let size = Type.sizeof_imm t in
-    let s, all =
+    let s =
+      (* XXX: the set of known values for `x` in each arm
+         of the switch may be disjoint, so we settle for
+         an overapproximation of `x` in the default case. *)
       Ctrl.Table.enum tbl |>
-      Seq.fold ~init:(s, I.create_empty ~size)
-        ~f:(fun (s, i) (v, `label (l, args)) ->
+      Seq.fold ~init:s ~f:(fun s (v, `label (l, args)) ->
             let k = I.create_single ~value:v ~size in
             let s = assign_blk_args info s l args in
             update_constr info l x k;
-            s, I.union i k) in
-    update_constr info d x @@ I.inverse all;
+            s) in
     assign_blk_args info s d args
   | _ -> s
 
