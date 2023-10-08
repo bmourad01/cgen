@@ -28,17 +28,19 @@ let new_node t n =
   assert (id = Vec.length t.node - 1);
   id
 
-external float_of_bits   : int64 -> float = "cgen_float_of_bits"
+external float_of_bits : int64 -> float = "cgen_float_of_bits"
+
+let single_val v ty : Virtual.const option = match ty with
+  | #Type.imm as t -> Some (`int (v, t))
+  | `f32 -> Some (`float (Float32.of_bits @@ Bv.to_int32 v))
+  | `f64 -> Some (`double (float_of_bits @@ Bv.to_int64 v))
+  | `flag -> Some (`bool Bv.(v <> zero))
+  | _ -> None
 
 let single_interval iv ty : Virtual.const option =
   let* iv = iv and* ty = ty in
   let* v = Bv_interval.single_of iv in
-  match ty with
-  | #Type.imm as t -> Some (`int (v, t))
-  | `f32 -> Some (`float (Float32.of_bits (Bv.to_int32 v)))
-  | `f64 -> Some (`double (float_of_bits (Bv.to_int64 v)))
-  | `flag -> Some (`bool Bv.(v <> zero))
-  | _ -> None
+  single_val v ty
 
 (* If the node is already normalized then don't bother searching
    for matches. *)

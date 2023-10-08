@@ -63,13 +63,25 @@ let var env eg x =
       let open Monad.Option.Let in
       let* s = Intervals.insn eg.input.intv i in
       Intervals.find_var s x in
+  let ty = typeof_var eg x in
   match Hashtbl.find env.vars x with
   | None ->
-    let ty = typeof_var eg x in
-    atom ?iv ?ty env eg @@ Ovar x
+    begin match Rewrite.single_interval iv ty with
+      | None ->
+        let id = atom ?iv ?ty env eg @@ Ovar x in
+        Rewrite.setiv ?iv eg id;
+        id
+      | Some k ->
+        Rewrite.insert ?iv ?ty ~d:eg.fuel ~rules:env.rules
+          eg @@ Enode.of_const k
+    end
   | Some id ->
     Rewrite.setiv ?iv eg id;
-    id
+    match Rewrite.single_interval iv ty with
+    | None -> id
+    | Some k ->
+      Rewrite.insert ?iv ?ty ~d:eg.fuel ~rules:env.rules
+        eg @@ Enode.of_const k
 
 let typeof_const eg : const -> Type.t = function
   | `bool _ -> `flag
@@ -259,9 +271,8 @@ let step env eg l = match Hashtbl.find eg.input.tbl l with
   | None | Some `insn _ -> raise @@ Missing l
   | Some `blk b ->
     env.lst <- Solution.get eg.input.lst l;
-    Blk.args b |> Seq.iter ~f:(fun x ->
-        env.cur <- Blk (Blk.label b);
-        ignore @@ var env eg x);
+    env.cur <- Blk (Blk.label b);
+    Blk.args b |> Seq.iter ~f:(fun x -> ignore @@ var env eg x);
     Blk.insns b |> Seq.iter ~f:(fun i ->
         let l = Insn.label i in
         env.cur <- Insn l;
