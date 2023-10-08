@@ -1,3 +1,16 @@
+(* This analysis performs abstract interpretation in the usual
+   Kildall fixpoint loop, where our abstract domain is contiguous
+   intervals of bitvectors.
+
+   This does not capture the semantics of floating point numbers,
+   which would require its own abstract domain (likely orders of
+   magnitude more complicated than BV intervals). Thus in most
+   cases we settle for overapproximation.
+
+   Additionally, we avoid modeling memory for now to keep things
+   relatively simple.
+*)
+
 open Core
 open Regular.Std
 open Graphlib.Std
