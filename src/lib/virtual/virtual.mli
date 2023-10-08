@@ -1097,7 +1097,7 @@ type live = Live.t
 
 (** Abstract interpretation over intervals. *)
 module Intervals : sig
-  (** Mapping of variables to intervals at the beginning of a block. *)
+  (** Mapping of variables to intervals. *)
   type state [@@deriving equal, sexp]
 
   (** The empty mapping. *)
@@ -1108,6 +1108,15 @@ module Intervals : sig
 
   (** Enumerates the mapping. *)
   val enum_state : state -> (Var.t * Bv_interval.t) seq
+
+  (** The analysis results. *)
+  type t
+
+  (** The output state of an instruction. *)
+  val insn : t -> Label.t -> state option
+
+  (** The input state for each basic block. *)
+  val input : t -> (Label.t, state) Solution.t
 
   (** Performs the interval analysis.
 
@@ -1125,7 +1134,7 @@ module Intervals : sig
     func ->
     word:Type.imm_base ->
     typeof:(Var.t -> Type.t) ->
-    (Label.t, state) Solution.t
+    t
 end
 
 (** Loop analysis of a function. *)

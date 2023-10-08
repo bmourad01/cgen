@@ -37,7 +37,8 @@ let update s x i = Map.update s x ~f:(function
 let find_var = Map.find
 let enum_state s = Map.to_sequence s
 
-type info = {
+type ctx = {
+  insns  : state Label.Table.t;
   constr : state Label.Table.t;
   cond   : state Var.Table.t;
   blks   : Blk.t Label.Tree.t;
@@ -45,7 +46,8 @@ type info = {
   typeof : Var.t -> Type.t;
 }
 
-let create_info ~blks ~word ~typeof = {
+let create_ctx ~blks ~word ~typeof = {
+  insns = Label.Table.create ();
   constr = Label.Table.create ();
   cond = Var.Table.create ();
   blks;
@@ -53,12 +55,12 @@ let create_info ~blks ~word ~typeof = {
   typeof;
 }
 
-let update_constr info l x i =
-  Hashtbl.update info.constr l ~f:(function
+let update_constr ctx l x i =
+  Hashtbl.update ctx.constr l ~f:(function
       | None -> Var.Map.singleton x i
       | Some s -> update s x i)
 
-let interp_const info : const -> I.t = function
+let interp_const ctx : const -> I.t = function
   | `bool b -> I.boolean b
   | `int (value, t) -> I.create_single ~value ~size:(Type.sizeof_imm t)
   | `float f ->
@@ -67,17 +69,17 @@ let interp_const info : const -> I.t = function
   | `double d ->
     let value = Bv.M64.int64 @@ Eval.float_to_bits d in
     I.create_single ~value ~size:64
-  | `sym _ -> I.create_full ~size:(Type.sizeof_imm_base info.word)
+  | `sym _ -> I.create_full ~size:(Type.sizeof_imm_base ctx.word)
 
-let sizeof x info = match info.typeof x with
+let sizeof x ctx = match ctx.typeof x with
   | #Type.basic as b -> Type.sizeof_basic b
   | `flag -> 1
-  | _ -> Type.sizeof_imm_base info.word
+  | _ -> Type.sizeof_imm_base ctx.word
 
-let interp_operand info s : operand -> I.t = function
-  | #const as c -> interp_const info c
+let interp_operand ctx s : operand -> I.t = function
+  | #const as c -> interp_const ctx c
   | `var x -> match find_var s x with
-    | None -> I.create_full ~size:(sizeof x info)
+    | None -> I.create_full ~size:(sizeof x ctx)
     | Some i -> i
 
 let interp_arith_binop o a b = match (o : Insn.arith_binop) with
@@ -189,10 +191,10 @@ end
    to a given condition. *)
 module Cond = struct
   (* Constrain `y` to `i` in relation to the condition `x`. *)
-  let constr info x y i = match (y : operand) with
+  let constr ctx x y i = match (y : operand) with
     | `var y ->
       let i = Lazy.force i in
-      Hashtbl.update info.cond x ~f:(function
+      Hashtbl.update ctx.cond x ~f:(function
           | Some s -> Var.Map.set s ~key:y ~data:i
           | None -> Var.Map.singleton y i)
     | _ -> ()
@@ -308,13 +310,13 @@ module Cond = struct
     il, ir
 end
 
-let do_cmp info t x l r a b ~cond ~cmp =
+let do_cmp ctx t x l r a b ~cond ~cmp =
   let il, ir = cond (Type.sizeof_imm t) a b in
-  Cond.constr info x l il;
-  Cond.constr info x r ir;
+  Cond.constr ctx x l il;
+  Cond.constr ctx x r ir;
   cmp a b
 
-let interp_cmp info o x l r a b =
+let interp_cmp ctx o x l r a b =
   (* Handle trivial case when the operands are equal. *)
   let eq = equal_operand l r in
   match (o : Insn.cmp) with
@@ -329,43 +331,43 @@ let interp_cmp info o x l r a b =
   | `sgt _ when eq -> I.boolean_false
   | `sge _ when eq -> I.boolean_true
   | `eq (#Type.imm as t) ->
-    do_cmp info t x l r a b
-      ~cond:(fun _ a b -> lazy a, lazy b)
+    do_cmp ctx t x l r a b
+      ~cond:(fun _ a b -> lazy b, lazy a)
       ~cmp:Cmp.bool_eq
   | `ne (#Type.imm as t) ->
-    do_cmp info t x l r a b
-      ~cond:(fun _ a b -> lazy (I.inverse a), lazy (I.inverse b))
+    do_cmp ctx t x l r a b
+      ~cond:(fun _ a b -> lazy (I.inverse b), lazy (I.inverse a))
       ~cmp:Cmp.bool_ne
   | `lt (#Type.imm as t) ->
-    do_cmp info t x l r a b
+    do_cmp ctx t x l r a b
       ~cond:Cond.lt
       ~cmp:Cmp.bool_lt
   | `le (#Type.imm as t) ->
-    do_cmp info t x l r a b
+    do_cmp ctx t x l r a b
       ~cond:Cond.le
       ~cmp:Cmp.bool_le
   | `gt (#Type.imm as t) ->
-    do_cmp info t x l r a b
+    do_cmp ctx t x l r a b
       ~cond:Cond.gt
       ~cmp:Cmp.bool_gt
   | `ge (#Type.imm as t) ->
-    do_cmp info t x l r a b
+    do_cmp ctx t x l r a b
       ~cond:Cond.ge
       ~cmp:Cmp.bool_ge
   | `slt t ->
-    do_cmp info t x l r a b
+    do_cmp ctx t x l r a b
       ~cond:Cond.slt
       ~cmp:(Cmp.bool_slt t)
   | `sle t ->
-    do_cmp info t x l r a b
+    do_cmp ctx t x l r a b
       ~cond:Cond.sle
       ~cmp:(Cmp.bool_sle t)
   | `sgt t ->
-    do_cmp info t x l r a b
+    do_cmp ctx t x l r a b
       ~cond:Cond.sgt
       ~cmp:(Cmp.bool_sgt t)
   | `sge t ->
-    do_cmp info t x l r a b
+    do_cmp ctx t x l r a b
       ~cond:Cond.sge
       ~cmp:(Cmp.bool_sge t)
   | `eq #Type.fp
@@ -377,10 +379,10 @@ let interp_cmp info o x l r a b =
   | `o _
   | `uo _ -> I.boolean_full
 
-let interp_binop info o x l r a b = match (o : Insn.binop) with
+let interp_binop ctx o x l r a b = match (o : Insn.binop) with
   | #Insn.arith_binop as o -> interp_arith_binop o a b
   | #Insn.bitwise_binop as o -> interp_bitwise_binop o a b
-  | #Insn.cmp as o -> interp_cmp info o x l r a b
+  | #Insn.cmp as o -> interp_cmp ctx o x l r a b
 
 let interp_arith_unop o a = match (o : Insn.arith_unop) with
   | `neg _ -> I.neg a
@@ -416,23 +418,23 @@ let interp_unop o a = match (o : Insn.unop) with
   | #Insn.cast as o -> interp_cast o a
   | #Insn.copy as o -> interp_copy o a
 
-let interp_basic info s : Insn.basic -> state = function
+let interp_basic ctx s : Insn.basic -> state = function
   | `bop (x, o, l, r) ->
-    let a = interp_operand info s l in
-    let b = interp_operand info s r in
-    update s x @@ interp_binop info o x l r a b
+    let a = interp_operand ctx s l in
+    let b = interp_operand ctx s r in
+    update s x @@ interp_binop ctx o x l r a b
   | `uop (x, o, a) ->
-    let a = interp_operand info s a in
+    let a = interp_operand ctx s a in
     update s x @@ interp_unop o a
   | `sel (x, _, k, y, n) ->
-    let c = interp_operand info s @@ `var k in
-    let y, n = match Hashtbl.find info.cond k with
+    let c = interp_operand ctx s @@ `var k in
+    let y, n = match Hashtbl.find ctx.cond k with
       | Some s' ->
-        interp_operand info (meet_state s s') y,
-        interp_operand info (meet_state s @@ invert_state s') n
+        interp_operand ctx (meet_state s s') y,
+        interp_operand ctx (meet_state s @@ invert_state s') n
       | None ->
-        interp_operand info s y,
-        interp_operand info s n in
+        interp_operand ctx s y,
+        interp_operand ctx s n in
     let r = match I.single_of c with
       | None -> I.union y n
       | Some i when Bv.(i = zero) -> n
@@ -455,50 +457,53 @@ let interp_variadic _ s : Insn.variadic -> state = function
   | `vaarg (x, t, _) -> make_top s x t
   | `vastart _ -> s
 
-let interp_insn info s i = match Insn.op i with
-  | #Insn.basic as b -> interp_basic info s b
-  | #Insn.call as c -> interp_call info s c
-  | #Insn.mem as m -> interp_mem info s m
-  | #Insn.variadic as v -> interp_variadic info s v
+let interp_insn ctx s i =
+  let s = match Insn.op i with
+    | #Insn.basic as b -> interp_basic ctx s b
+    | #Insn.call as c -> interp_call ctx s c
+    | #Insn.mem as m -> interp_mem ctx s m
+    | #Insn.variadic as v -> interp_variadic ctx s v in
+  Hashtbl.set ctx.insns ~key:(Insn.label i) ~data:s;
+  s
 
-let assign_blk_args info s l args =
-  match Label.Tree.find info.blks l with
+let assign_blk_args ctx s l args =
+  match Label.Tree.find ctx.blks l with
   | None -> s
   | Some b ->
     let args' = Blk.args b |> Seq.to_list in
     match List.zip args args' with
     | Unequal_lengths -> s
     | Ok xs -> List.fold xs ~init:s ~f:(fun s (o, x) ->
-        update s x @@ interp_operand info s o)
+        update s x @@ interp_operand ctx s o)
 
-let interp_blk info s b =
+let interp_blk ctx s b =
   let s =
     Blk.insns b |>
-    Seq.fold ~init:s ~f:(interp_insn info) in
+    Seq.fold ~init:s ~f:(interp_insn ctx) in
   match Blk.ctrl b with
   | `jmp `label (l, args) ->
-    assign_blk_args info s l args
+    assign_blk_args ctx s l args
   | `br (c, `label (y, yargs), `label (n, nargs)) ->
-    update_constr info y c I.boolean_true;
-    update_constr info n c I.boolean_false;
-    Hashtbl.find info.cond c |> Option.iter ~f:(fun s' ->
+    update_constr ctx y c I.boolean_true;
+    update_constr ctx n c I.boolean_false;
+    Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
-            update_constr info y x i;
-            update_constr info n x @@ I.inverse i));
-    let s = assign_blk_args info s y yargs in
-    assign_blk_args info s n nargs
+            update_constr ctx y x i;
+            update_constr ctx n x @@ I.inverse i));
+    let s = assign_blk_args ctx s y yargs in
+    assign_blk_args ctx s n nargs
   | `br (c, `label (y, yargs), _) ->
-    update_constr info y c I.boolean_true;
-    Hashtbl.find info.cond c |> Option.iter ~f:(fun s' ->
+    update_constr ctx y c I.boolean_true;
+    Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
-            update_constr info y x i));
-    assign_blk_args info s y yargs
+            update_constr ctx y x i));
+    assign_blk_args ctx s y yargs
   | `br (c, _, `label (n, nargs)) ->
-    update_constr info n c I.boolean_false;
-    Hashtbl.find info.cond c |> Option.iter ~f:(fun s' ->
+    update_constr ctx n c I.boolean_false;
+    Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
-            update_constr info n x @@ I.inverse i));
-    assign_blk_args info s n nargs
+            update_constr ctx n x @@ I.inverse i));
+    assign_blk_args ctx s n nargs
   | `sw (t, `var x, `label (d, args), tbl) ->
     let size = Type.sizeof_imm t in
     let s =
@@ -508,54 +513,63 @@ let interp_blk info s b =
       Ctrl.Table.enum tbl |>
       Seq.fold ~init:s ~f:(fun s (v, `label (l, args)) ->
           let k = I.create_single ~value:v ~size in
-          let s = assign_blk_args info s l args in
-          update_constr info l x k;
+          let s = assign_blk_args ctx s l args in
+          update_constr ctx l x k;
           s) in
-    assign_blk_args info s d args
+    assign_blk_args ctx s d args
   | _ -> s
 
-let step info i l _ s =
+let step ctx i l _ s =
   (* Widening for block args. *)
-  let s = match Label.Tree.find info.blks l with
+  let s = match Label.Tree.find ctx.blks l with
     | None -> s
     | Some b ->
       (* This could be improved, but it's a start. *)
       if i > 10 then
         Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
-            let data = I.create_full ~size:(sizeof x info) in
+            let data = I.create_full ~size:(sizeof x ctx) in
             Map.set s ~key:x ~data)
       else s in
   (* Narrowing for constraints. *)
-  match Hashtbl.find info.constr l with
+  match Hashtbl.find ctx.constr l with
   | Some s' -> meet_state s' s
   | None -> s
 
-let init_state info fn =
+let init_state ctx fn =
   let init =
     Func.args fn |> Seq.fold ~init:empty_state ~f:(fun s (x, _) ->
-        let data = I.create_full ~size:(sizeof x info) in
+        let data = I.create_full ~size:(sizeof x ctx) in
         Map.set s ~key:x ~data) in
   let init =
     Func.slots fn |> Seq.fold ~init ~f:(fun s x ->
-        let data = I.create_full ~size:(Type.sizeof_imm_base info.word) in
+        let data = I.create_full ~size:(Type.sizeof_imm_base ctx.word) in
         Map.set s ~key:(Func.Slot.var x) ~data) in
   Solution.create Label.(Map.singleton pseudoentry init) empty_state
 
-let transfer info l s = match Label.Tree.find info.blks l with
-  | Some b -> interp_blk info s b
+let transfer ctx l s = match Label.Tree.find ctx.blks l with
+  | Some b -> interp_blk ctx s b
   | None -> s
+
+type t = {
+  insns : state Label.Table.t;
+  input : (Label.t, state) Solution.t;
+}
+
+let insn t = Hashtbl.find t.insns
+let input t = t.input
 
 let analyze ?steps fn ~word ~typeof =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
-    let info = create_info ~blks ~word ~typeof in
-    Graphlib.fixpoint (module Cfg) cfg ?steps
-      ~step:(step info)
-      ~init:(init_state info fn)
-      ~equal:equal_state
-      ~merge:join_state
-      ~f:(transfer info)
+    let ctx = create_ctx ~blks ~word ~typeof in
+    let input = Graphlib.fixpoint (module Cfg) cfg ?steps
+        ~step:(step ctx)
+        ~init:(init_state ctx fn)
+        ~equal:equal_state
+        ~merge:join_state
+        ~f:(transfer ctx) in
+    {insns = ctx.insns; input}
   else
     invalid_argf
       "Intervals analysis: function $%s is not in SSA form"
