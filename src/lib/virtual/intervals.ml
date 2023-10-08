@@ -302,7 +302,7 @@ module Cond = struct
         ~lo:(I.signed_max b)
         ~hi:(Bv.min_signed_value size)
     end in
-    (* b <=$ a: b \in [0x80..., smin(a)) *)
+    (* b <=$ a: b \in [0x80..., smin(a) + 1) *)
     let ir = lazy begin mkint ~size
         ~lo:(Bv.min_signed_value size)
         ~hi:Bv.(succ (I.signed_min a) mod modulus size)
