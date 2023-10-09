@@ -39,7 +39,7 @@ let enum_state s = Map.to_sequence s
 
 type ctx = {
   insns  : state Label.Table.t;
-  constr : state Label.Table.t;
+  narrow : state Label.Table.t;
   cond   : state Var.Table.t;
   blks   : Blk.t Label.Tree.t;
   word   : Type.imm_base;
@@ -48,15 +48,15 @@ type ctx = {
 
 let create_ctx ~blks ~word ~typeof = {
   insns = Label.Table.create ();
-  constr = Label.Table.create ();
+  narrow = Label.Table.create ();
   cond = Var.Table.create ();
   blks;
   word;
   typeof;
 }
 
-let update_constr ctx l x i =
-  Hashtbl.update ctx.constr l ~f:(function
+let narrow ctx l x i =
+  Hashtbl.update ctx.narrow l ~f:(function
       | None -> Var.Map.singleton x i
       | Some s -> update s x i)
 
@@ -109,7 +109,7 @@ let interp_bitwise_binop o a b = match (o : Insn.bitwise_binop) with
   | `ror _ -> I.rotate_right a b
   | `xor _ -> I.logxor a b
 
-(* Helpers for computing the possible boolean values of a comparison. *)
+(* Helpers for dealing with comparisons. *)
 module Cmp = struct
   let bool_eq a b = match I.(single_of a, single_of b) with
     | Some a, Some b -> I.boolean Bv.(a = b)
@@ -124,12 +124,12 @@ module Cmp = struct
   let umin = I.unsigned_min
   let umax = I.unsigned_max
 
-  let less f = fun a b ->
+  let less f a b =
     if f (umax a) (umin b) then I.boolean_true
     else if not (f (umin a) (umax b)) then I.boolean_false
     else I.boolean_full
 
-  let greater f = fun a b ->
+  let greater f a b =
     if f (umin a) (umax b) then I.boolean_true
     else if not (f (umax a) (umin b)) then I.boolean_false
     else I.boolean_full
@@ -152,20 +152,20 @@ module Cmp = struct
 
   let scmp t a b = Bv.(signed_compare a b @@ modulus @@ Type.sizeof_imm t)
 
-  let scmplt t = fun a b -> scmp t a b <  0
-  let scmple t = fun a b -> scmp t a b <= 0
-  let scmpgt t = fun a b -> scmp t a b >  0
-  let scmpge t = fun a b -> scmp t a b >= 0
+  let scmplt t a b = scmp t a b <  0
+  let scmple t a b = scmp t a b <= 0
+  let scmpgt t a b = scmp t a b >  0
+  let scmpge t a b = scmp t a b >= 0
 
   let smin = I.signed_min
   let smax = I.signed_max
 
-  let sless f = fun a b ->
+  let sless f a b =
     if f (smax a) (smin b) then I.boolean_true
     else if not (f (smin a) (smax b)) then I.boolean_false
     else I.boolean_full
 
-  let sgreater f = fun a b ->
+  let sgreater f a b =
     if f (smin a) (smax b) then I.boolean_true
     else if not (f (smax a) (smin b)) then I.boolean_false
     else I.boolean_full
@@ -185,11 +185,7 @@ module Cmp = struct
   let bool_sge t a b = match I.(single_of a, single_of b) with
     | Some a, Some b -> I.boolean @@ scmpge t a b
     | _ -> sgreater (scmpge t) a b
-end
 
-(* Helpers for inferring the constraints on variables with respect
-   to a given condition. *)
-module Cond = struct
   (* Constrain `y` to `i` in relation to the condition `x`. *)
   let constr ctx x y i = match (y : operand) with
     | `var y ->
@@ -313,8 +309,8 @@ end
 
 let do_cmp ctx t x l r a b ~cond ~cmp =
   let il, ir = cond (Type.sizeof_imm t) a b in
-  Cond.constr ctx x l il;
-  Cond.constr ctx x r ir;
+  Cmp.constr ctx x l il;
+  Cmp.constr ctx x r ir;
   cmp a b
 
 let interp_cmp ctx o x l r a b =
@@ -341,35 +337,35 @@ let interp_cmp ctx o x l r a b =
       ~cmp:Cmp.bool_ne
   | `lt (#Type.imm as t) ->
     do_cmp ctx t x l r a b
-      ~cond:Cond.lt
+      ~cond:Cmp.lt
       ~cmp:Cmp.bool_lt
   | `le (#Type.imm as t) ->
     do_cmp ctx t x l r a b
-      ~cond:Cond.le
+      ~cond:Cmp.le
       ~cmp:Cmp.bool_le
   | `gt (#Type.imm as t) ->
     do_cmp ctx t x l r a b
-      ~cond:Cond.gt
+      ~cond:Cmp.gt
       ~cmp:Cmp.bool_gt
   | `ge (#Type.imm as t) ->
     do_cmp ctx t x l r a b
-      ~cond:Cond.ge
+      ~cond:Cmp.ge
       ~cmp:Cmp.bool_ge
   | `slt t ->
     do_cmp ctx t x l r a b
-      ~cond:Cond.slt
+      ~cond:Cmp.slt
       ~cmp:(Cmp.bool_slt t)
   | `sle t ->
     do_cmp ctx t x l r a b
-      ~cond:Cond.sle
+      ~cond:Cmp.sle
       ~cmp:(Cmp.bool_sle t)
   | `sgt t ->
     do_cmp ctx t x l r a b
-      ~cond:Cond.sgt
+      ~cond:Cmp.sgt
       ~cmp:(Cmp.bool_sgt t)
   | `sge t ->
     do_cmp ctx t x l r a b
-      ~cond:Cond.sge
+      ~cond:Cmp.sge
       ~cmp:(Cmp.bool_sge t)
   | `eq #Type.fp
   | `ne #Type.fp
@@ -485,25 +481,25 @@ let interp_blk ctx s b =
   | `jmp `label (l, args) ->
     assign_blk_args ctx s l args
   | `br (c, `label (y, yargs), `label (n, nargs)) ->
-    update_constr ctx y c I.boolean_true;
-    update_constr ctx n c I.boolean_false;
+    narrow ctx y c I.boolean_true;
+    narrow ctx n c I.boolean_false;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
-            update_constr ctx y x i;
-            update_constr ctx n x @@ I.inverse i));
+            narrow ctx y x i;
+            narrow ctx n x @@ I.inverse i));
     let s = assign_blk_args ctx s y yargs in
     assign_blk_args ctx s n nargs
   | `br (c, `label (y, yargs), _) ->
-    update_constr ctx y c I.boolean_true;
+    narrow ctx y c I.boolean_true;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
-            update_constr ctx y x i));
+            narrow ctx y x i));
     assign_blk_args ctx s y yargs
   | `br (c, _, `label (n, nargs)) ->
-    update_constr ctx n c I.boolean_false;
+    narrow ctx n c I.boolean_false;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
-            update_constr ctx n x @@ I.inverse i));
+            narrow ctx n x @@ I.inverse i));
     assign_blk_args ctx s n nargs
   | `sw (t, `var x, `label (d, args), tbl) ->
     let size = Type.sizeof_imm t in
@@ -515,7 +511,7 @@ let interp_blk ctx s b =
       Seq.fold ~init:s ~f:(fun s (v, `label (l, args)) ->
           let k = I.create_single ~value:v ~size in
           let s = assign_blk_args ctx s l args in
-          update_constr ctx l x k;
+          narrow ctx l x k;
           s) in
     assign_blk_args ctx s d args
   | _ -> s
@@ -532,7 +528,7 @@ let step ctx i l _ s =
             Map.set s ~key:x ~data)
       else s in
   (* Narrowing for constraints. *)
-  match Hashtbl.find ctx.constr l with
+  match Hashtbl.find ctx.narrow l with
   | Some s' -> meet_state s' s
   | None -> s
 
