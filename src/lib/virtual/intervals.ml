@@ -199,20 +199,21 @@ module Cond = struct
           | None -> Var.Map.singleton y i)
     | _ -> ()
 
-  (* Allow empty intervals to be created without breaking the
-     invariants thereof. *)
-  let mkint ~lo ~hi ~size =
+  (* Allow the empty interval to be created. *)
+  let mkint_empty ~lo ~hi ~size =
     if Bv.(lo = hi) then I.create_empty ~size
     else I.create ~lo ~hi ~size
 
+  let mkint = I.create_non_empty
+
   let lt size a b =
     (* a < b: a \in [0, umin(b)) *)
-    let il = lazy begin mkint ~size
+    let il = lazy begin mkint_empty ~size
         ~lo:Bv.zero
         ~hi:(I.unsigned_min b)
     end in
     (* b > a: b \in [umax(a) + 1, 0) *)
-    let ir = lazy begin mkint ~size
+    let ir = lazy begin mkint_empty ~size
         ~lo:Bv.(succ (I.unsigned_max a) mod modulus size)
         ~hi:Bv.zero
     end in
@@ -233,12 +234,12 @@ module Cond = struct
 
   let gt size a b =
     (* a > b: a \in [umax(b) + 1, 0) *)
-    let il = lazy begin mkint ~size
+    let il = lazy begin mkint_empty ~size
         ~lo:Bv.(succ (I.unsigned_max b) mod modulus size)
         ~hi:Bv.zero
     end in
     (* b < a: b \in [0, umin(a)) *)
-    let ir = lazy begin mkint ~size
+    let ir = lazy begin mkint_empty ~size
         ~lo:Bv.zero
         ~hi:(I.unsigned_min a)
     end in
@@ -259,12 +260,12 @@ module Cond = struct
 
   let slt size a b =
     (* a <$ b: a \in [0x80..., smin(b)) *)
-    let il = lazy begin mkint ~size
+    let il = lazy begin mkint_empty ~size
         ~lo:(Bv.min_signed_value size)
         ~hi:(I.signed_min b)
     end in
     (* b >$ a: b \in [smax(a) + 1, 0x80...) *)
-    let ir = lazy begin mkint ~size
+    let ir = lazy begin mkint_empty ~size
         ~lo:Bv.(succ (I.signed_max a) mod modulus size)
         ~hi:(Bv.min_signed_value size)
     end in
@@ -285,12 +286,12 @@ module Cond = struct
 
   let sgt size a b =
     (* a >$ b: a \in [smax(b) + 1, 0x80...) *)
-    let il = lazy begin mkint ~size
+    let il = lazy begin mkint_empty ~size
         ~lo:Bv.(succ (I.signed_max b) mod modulus size)
         ~hi:(Bv.min_signed_value size)
     end in
     (* b <$ a: b \in [0x80..., smin(a)) *)
-    let ir = lazy begin mkint ~size
+    let ir = lazy begin mkint_empty ~size
         ~lo:(Bv.min_signed_value size)
         ~hi:(I.signed_min a)
     end in
