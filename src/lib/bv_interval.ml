@@ -58,7 +58,7 @@ let create_non_empty ~lo ~hi ~size =
 
 let lower t = t.lo [@@inline]
 let upper t = t.hi [@@inline]
-let size_of t = t.size [@@inline]
+let size t = t.size [@@inline]
 let is_empty t = Bv.(t.lo = t.hi && t.lo = min_unsigned_value) [@@inline]
 let is_full t = Bv.(t.lo = t.hi && t.lo = max_unsigned_value t.size) [@@inline]
 let is_wrapped t = Bv.(t.lo > t.hi && t.hi <> zero) [@@inline]
@@ -755,7 +755,7 @@ let umulh t1 t2 =
   let size2 = size * 2 in
   let a = zext t1 ~size:size2 in
   let b = zext t2 ~size:size2 in
-  extract (mul a b) ~hi:size2 ~lo:size
+  extract (mul a b) ~hi:(size2 - 1) ~lo:size
 
 let mulh t1 t2 =
   let t3 = umulh t1 t2 in

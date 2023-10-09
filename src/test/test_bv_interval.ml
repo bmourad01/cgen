@@ -5,7 +5,7 @@ open Cgen
 module I = Bv_interval
 
 let expect x i =
-  let size = I.size_of i in
+  let size = I.size i in
   let i' = match x with
     | `empty -> I.create_empty ~size
     | `full -> I.create_full ~size

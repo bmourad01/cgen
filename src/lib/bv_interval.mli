@@ -44,7 +44,7 @@ val lower : t -> Bv.t
 val upper : t -> Bv.t
 
 (** The number of possible bits in the bitvector interval. *)
-val size_of : t -> int
+val size : t -> int
 
 (** Returns [true] if the interval is empty. *)
 val is_empty : t -> bool
@@ -208,7 +208,7 @@ val logical_shift_right : t -> t -> t
 (** Arithmetic shift right. *)
 val arithmetic_shift_right : t -> t -> t
 
-(** Extract from bits in the range [\[lo,hi)] *)
+(** Extract from bits in the range [\[lo,hi]] *)
 val extract : t -> hi:int -> lo:int -> t
 
 (** Concatenates two intervals. *)
