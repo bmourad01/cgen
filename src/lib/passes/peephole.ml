@@ -5,25 +5,27 @@ open Context.Syntax
 module O = Monad.Option
 
 module Rules = struct
+  module Subst = Egraph.Subst
+
   open Egraph.Rule
   open O.Let
   open O.Syntax
 
   let bv t = Bv.modular @@ Type.sizeof_imm t
 
-  let is_const x eg env =
-    Map.find env x |>
-    Option.bind ~f:(Egraph.const eg) |>
+  let is_const x env =
+    Subst.find env x |>
+    Option.bind ~f:Subst.const |>
     Option.is_some
 
-  let is_not_const x eg env =
-    Map.find env x |>
-    Option.bind ~f:(Egraph.const eg) |>
+  let is_not_const x env =
+    Subst.find env x |>
+    Option.bind ~f:Subst.const |>
     Option.is_none
 
-  let is_neg_const x eg env =
+  let is_neg_const x env =
     Option.is_some begin
-      Map.find env x >>= Egraph.const eg >>= function
+      Subst.find env x >>= Subst.const >>= function
       | `int (x, t) ->
         let module B = (val bv t) in
         O.guard @@ B.msb x
@@ -31,25 +33,25 @@ module Rules = struct
     end
 
   (* `x` is a constant and is not 0 or 1 *)
-  let is_not_bool x eg env =
+  let is_not_bool x env =
     Option.value ~default:false begin
-      Map.find env x >>= Egraph.const eg >>| function
+      Subst.find env x >>= Subst.const >>| function
       | `int (i, _) -> Bv.(i <> one && i <> zero)
       | _ -> false
     end
 
-  let has_type x ty eg env =
-    Map.find env x |>
-    Option.bind ~f:(Egraph.typeof eg) |> function
+  let has_type x ty env =
+    Subst.find env x |>
+    Option.bind ~f:Subst.typ |> function
     | Some tx -> Type.equal tx ty
     | None -> false
 
   (* Edge case where lsr can subsume the result of an asr, which is when
      we are extracting the MSB. *)
-  let lsr_asr_bitwidth a b eg env =
+  let lsr_asr_bitwidth a b env =
     Option.is_some begin
-      let* a = Map.find env a >>= Egraph.const eg in
-      let* b = Map.find env b >>= Egraph.const eg in
+      let* a = Subst.find env a >>= Subst.const in
+      let* b = Subst.find env b >>= Subst.const in
       match a, b with
       | `int (a, ty), `int (b, ty') when Type.equal_imm ty ty' ->
         let a = Bv.to_int64 a in
@@ -61,8 +63,8 @@ module Rules = struct
 
   (* Dynamically rewrite a multiplication by a power of two into
      a left shift. *)
-  let mul_imm_pow2 x y eg env =
-    Map.find env y >>= Egraph.const eg >>= function
+  let mul_imm_pow2 x y env =
+    Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       let+ () = O.guard Int64.(i <> 0L && (i land pred i) = 0L) in
@@ -76,8 +78,8 @@ module Rules = struct
 
      ((x >> (k-1)) + x) >>> 1 otherwise
   *)
-  let div_imm_pow2 x y eg env =
-    Map.find env y >>= Egraph.const eg >>= function
+  let div_imm_pow2 x y env =
+    Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       let+ () = O.guard Int64.(
@@ -99,8 +101,8 @@ module Rules = struct
 
   (* Turn a signed division/remainder by a constant non-power of two into
      a series of multiplications and shifts. *)
-  let div_rem_imm_non_pow2 ?(rem = false) x y eg env =
-    Map.find env y >>= Egraph.const eg >>= function
+  let div_rem_imm_non_pow2 ?(rem = false) x y env =
+    Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
       let n = Bv.to_int64 i in
       let+ () = O.guard Int64.(
@@ -134,8 +136,8 @@ module Rules = struct
 
       t = (x >>> (k-1)) >> (k - n)
   *)
-  let rem_imm_pow2 x y eg env =
-    Map.find env y >>= Egraph.const eg >>= function
+  let rem_imm_pow2 x y env =
+    Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
       let i' = Bv.to_int64 i in
       let+ () = O.guard Int64.(
@@ -155,8 +157,8 @@ module Rules = struct
 
   (* Dynamically rewrite an unsigned division by a power of two into
      a right shift. *)
-  let udiv_imm_pow2 x y eg env =
-    Map.find env y >>= Egraph.const eg >>= function
+  let udiv_imm_pow2 x y env =
+    Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       let+ () = O.guard Int64.(i <> 0L && (i land pred i) = 0L) in
@@ -166,8 +168,8 @@ module Rules = struct
 
   (* Dynamically rewrite an unsigned remainder by a power of two into
      a bitwise AND. *)
-  let urem_imm_pow2 x y eg env =
-    Map.find env y >>= Egraph.const eg >>= function
+  let urem_imm_pow2 x y env =
+    Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
       let i = Bv.to_int64 i in
       let i' = Int64.pred i in
@@ -178,8 +180,8 @@ module Rules = struct
 
   (* Turn an unsigned division/remainder by a constant non-power of two
      into a series of multiplications and shifts. *)
-  let udiv_urem_imm_non_pow2 ?(rem = false) x y eg env =
-    Map.find env y >>= Egraph.const eg >>= function
+  let udiv_urem_imm_non_pow2 ?(rem = false) x y env =
+    Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
       let n = Bv.to_int64 i in
       let+ () = O.guard Int64.(
@@ -209,8 +211,8 @@ module Rules = struct
      Can be a series of shifts, additions, and subtractions. Essentially
      we are doing an algebraic factoring.
   *)
-  let mul_imm_non_pow2 x y eg env =
-    Map.find env y >>= Egraph.const eg >>= function
+  let mul_imm_non_pow2 x y env =
+    Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
       let n = Bv.to_int64 i in
       let n' = Int64.pred n in
@@ -259,13 +261,13 @@ module Rules = struct
                 (mul tb x (int B.(int64 d') ty)))
     | _ -> None
 
-  let identity_same_type x ty eg env =
-    let* tx = Map.find env x >>= Egraph.typeof eg in
+  let identity_same_type x ty env =
+    let* tx = Subst.find env x >>= Subst.typ in
     let+ () = O.guard @@ Type.equal tx (ty :> Type.t) in
     var x
 
-  let cannot_be_zero x eg env = Option.is_some begin
-      let* i = Map.find env x >>= Egraph.interval eg in
+  let cannot_be_zero x env = Option.is_some begin
+      let* i = Subst.find env x >>= Subst.intv in
       O.guard @@ not @@ Bv_interval.contains_value i Bv.zero
     end
 

@@ -3,6 +3,7 @@ open Monads.Std
 open Common
 
 module O = Monad.Option
+module I = Bv_interval
 
 open O.Let
 open O.Syntax
@@ -29,6 +30,7 @@ let new_node t n =
   id
 
 external float_of_bits : int64 -> float = "cgen_float_of_bits"
+external float_to_bits : float -> int64 = "cgen_bits_of_float"
 
 let single_val v ty : Virtual.const option = match ty with
   | #Type.imm as t -> Some (`int (v, t))
@@ -39,23 +41,40 @@ let single_val v ty : Virtual.const option = match ty with
 
 let single_interval iv ty : Virtual.const option =
   let* iv = iv and* ty = ty in
-  let* v = Bv_interval.single_of iv in
+  let* v = I.single_of iv in
   single_val v ty
+
+let to_interval t : Virtual.const -> Bv_interval.t = function
+  | `bool b -> I.boolean b
+  | `int (value, t) ->
+    I.create_single ~value ~size:(Type.sizeof_imm t)
+  | `float f ->
+    let value = Bv.M32.int32 @@ Float32.bits f in
+    I.create_single ~value ~size:32
+  | `double d ->
+    let value = Bv.M64.int64 @@ float_to_bits d in
+    I.create_single ~value ~size:64
+  | `sym _ -> I.create_full ~size:(wordsz t)
 
 (* If the node is already normalized then don't bother searching
    for matches. *)
 let subsume_const ?iv ?ty t n id =
-  if not @@ Enode.is_const n then
+  match Enode.const ~node:(node t) n with
+  | None ->
     let+ c = match Enode.eval ~node:(node t) n with
       | None -> single_interval iv ty
-      | Some _ as c -> c in
+      | Some k as c ->
+        setiv ~iv:(to_interval t k) t id;
+        c in
     let k = Enode.of_const c in
     let oid = Hashtbl.find_or_add t.memo k
         ~default:(fun () -> new_node t k) in
     Uf.union t.classes id oid;
     Prov.merge t id oid;
     oid
-  else Some id
+  | Some k ->
+    setiv ~iv:(to_interval t k) t id;
+    Some id
 
 (* Represent the union of two e-classes with a "union" node. *)
 let union t id oid =
@@ -77,9 +96,13 @@ let step t id oid =
     | _ -> Continue (union t id oid)
   else Continue id
 
-let setiv ?iv t id = Option.iter iv ~f:(fun iv ->
-    Hashtbl.set t.intv ~key:id ~data:iv)
+(* This is the entry point to the insert/rewrite loop, to be called
+   from the algorithm in `Builder` (i.e. in depth-first dominator tree
+   order).
 
+   Note that we still continuously update the interval associated
+   with the ID because it varies across program points.
+*)
 let rec insert ?iv ?ty ?l ~d ~rules t n =
   canon t n |> Hashtbl.find_and_call t.memo
     ~if_found:(fun id ->
@@ -113,7 +136,7 @@ and search ?ty ~d ~rules t n =
   let m = Vec.create () in
   let u = Stack.create () in
   (* Match a node. *)
-  let rec go env p id (n : enode) = match p, n with
+  let rec go (env : subst) p id (n : enode) = match p, n with
     | V x, N _ -> var env x id
     | P (x, xs), N (y, ys) ->
       let* () = O.guard @@ Enode.equal_op x y in
@@ -132,8 +155,12 @@ and search ?ty ~d ~rules t n =
     | Unequal_lengths -> None
   (* Produce a substitution for the variable. *)
   and var env x id = match Map.find env x with
-    | None -> Some (Map.set env ~key:x ~data:id)
-    | Some id' -> Option.some_if (id = id') env
+    | Some i -> Option.some_if (id = i.id) env
+    | None ->
+      let const = const t id in
+      let intv = interval t id in
+      let typ = typeof t id in
+      Some (Map.set env ~key:x ~data:{const; intv; typ; id})
   (* Match an e-class. *)
   and cls env id = function
     | V x -> var env x id
@@ -161,16 +188,16 @@ and apply ?ty ~d ~rules = function
   | Dyn q -> apply_dyn ?ty ~d ~rules q
 
 and apply_static ?ty ~d ~rules q t env = match q with
-  | V x -> Map.find env x
+  | V x -> Map.find env x |> Option.map ~f:(fun i -> i.Subst.id)
   | P (o, ps) ->
     let+ cs = O.List.map ps ~f:(fun q ->
         apply_static ?ty ~d ~rules q t env) in
     insert ?ty ~d ~rules t @@ N (o, cs)
 
 and apply_cond ?ty ~d ~rules q k t env =
-  let* () = O.guard @@ k t env in
+  let* () = O.guard @@ k env in
   apply_static ?ty ~d ~rules q t env
 
 and apply_dyn ?ty ~d ~rules q t env =
-  let* q = q t env in
+  let* q = q env in
   apply_static ?ty ~d ~rules q t env

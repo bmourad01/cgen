@@ -47,41 +47,44 @@ let init rules = {
   lst = None;
 }
 
+let cur_interval env eg x = match env.cur with
+  | Blk b ->
+    let inp = Intervals.input eg.input.intv in
+    let s = Solution.get inp b in
+    Intervals.find_var s x
+  | Insn i ->
+    let open Monad.Option.Let in
+    let* s = Intervals.insn eg.input.intv i in
+    Intervals.find_var s x
+
 let node ?iv ?ty ?l env eg op args =
   Rewrite.insert ?iv ?ty ?l ~d:eg.fuel ~rules:env.rules
     eg @@ N (op, args)
 
 let atom ?iv ?ty env eg op = node ?iv ?ty env eg op []
 
+let constant ?iv ?ty env eg k =
+  Rewrite.insert ?iv ?ty ~d:eg.fuel ~rules:env.rules
+    eg @@ Enode.of_const k
+
 let var env eg x =
-  let iv = match env.cur with
-    | Blk b ->
-      let inp = Intervals.input eg.input.intv in
-      let s = Solution.get inp b in
-      Intervals.find_var s x
-    | Insn i ->
-      let open Monad.Option.Let in
-      let* s = Intervals.insn eg.input.intv i in
-      Intervals.find_var s x in
+  let iv = cur_interval env eg x in
   let ty = typeof_var eg x in
-  match Hashtbl.find env.vars x with
-  | None ->
-    begin match Rewrite.single_interval iv ty with
-      | None ->
-        let id = atom ?iv ?ty env eg @@ Ovar x in
-        Rewrite.setiv ?iv eg id;
-        id
-      | Some k ->
-        Rewrite.insert ?iv ?ty ~d:eg.fuel ~rules:env.rules
-          eg @@ Enode.of_const k
-    end
-  | Some id ->
-    Rewrite.setiv ?iv eg id;
-    match Rewrite.single_interval iv ty with
-    | None -> id
-    | Some k ->
-      Rewrite.insert ?iv ?ty ~d:eg.fuel ~rules:env.rules
-        eg @@ Enode.of_const k
+  Hashtbl.find_and_call env.vars x
+    ~if_not_found:(fun _ ->
+        (* This var is either a block param, a function argument,
+           or a stack slot. *)
+        match Rewrite.single_interval iv ty with
+        | Some k -> constant ?iv ?ty env eg k
+        | None -> atom ?iv ?ty env eg @@ Ovar x)
+    ~if_found:(fun id ->
+        (* This var was defined by an instruction. *)
+        match Rewrite.single_interval iv ty with
+        | None -> id
+        | Some k ->
+          let oid = constant ?iv ?ty env eg k in
+          Uf.union eg.classes id oid;
+          oid)
 
 let typeof_const eg : const -> Type.t = function
   | `bool _ -> `flag
@@ -91,12 +94,7 @@ let typeof_const eg : const -> Type.t = function
   | `sym _ -> word eg
 
 let operand env eg : operand -> id = function
-  | #const as c ->
-    Rewrite.insert
-      ~ty:(typeof_const eg c)
-      ~d:eg.fuel
-      ~rules:env.rules
-      eg @@ Enode.of_const c
+  | #const as c -> constant ~ty:(typeof_const eg c) env eg c
   | `var x -> var env eg x
 
 let operands env eg = List.map ~f:(operand env eg)
@@ -272,7 +270,6 @@ let step env eg l = match Hashtbl.find eg.input.tbl l with
   | Some `blk b ->
     env.lst <- Solution.get eg.input.lst l;
     env.cur <- Blk (Blk.label b);
-    Blk.args b |> Seq.iter ~f:(fun x -> ignore @@ var env eg x);
     Blk.insns b |> Seq.iter ~f:(fun i ->
         let l = Insn.label i in
         env.cur <- Insn l;

@@ -4,6 +4,7 @@ open Virtual
 include Common
 
 module Rule = Rule
+module Subst = Subst
 module Extractor = Extractor
 
 type extractor = Extractor.t

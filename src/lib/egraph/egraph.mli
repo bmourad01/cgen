@@ -104,14 +104,34 @@ val pp_exp : Format.formatter -> exp -> unit
 type t
 type egraph = t
 
-(** A substitution environment from pattern variables to IDs. *)
-type subst = id String.Map.t
+(** A substitution environment for pattern variables. *)
+module Subst : sig
+  (** Information about the matched variable. *)
+  type info
+
+  (** The substiution environment. *)
+  type t
+
+  (** Performs a lookup of the variable. *)
+  val find : t -> string -> info option
+
+  (** The constant for the varialbe, if it is known. *)
+  val const : info -> const option
+
+  (** The bitvector interval for the variable, if it is known. *)
+  val intv : info -> Bv_interval.t option
+
+  (** The type of the variable, if it is known. *)
+  val typ : info -> Type.t option
+end
+
+type subst = Subst.t
 
 (** A component of a rule. *)
 type pattern [@@deriving compare, equal, sexp]
 
 (** A callback that can be invoked when applying a rule. *)
-type 'a callback = t -> subst -> 'a
+type 'a callback = subst -> 'a
 
 (** A rewrite rule. *)
 type rule
@@ -138,15 +158,6 @@ val create_table : rule list -> rules
     [fn] is expected to be in SSA form.
 *)
 val create : ?fuel:int -> func -> Typecheck.env -> rules -> t Or_error.t
-
-(** Returns the constant associated with the e-class ID. *)
-val const : t -> id -> const option
-
-(** Returns the type associated with the e-class ID. *)
-val typeof : t -> id -> Type.t option
-
-(** Returns the bitvector interval associated with the e-class ID. *)
-val interval : t -> id -> Bv_interval.t option
 
 module Rule : sig
   type t = rule

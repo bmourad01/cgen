@@ -12,6 +12,7 @@ let fresh t : Id.t =
 let parent t (id : Id.t) = Vec.unsafe_get t id
 let set_parent t (id : Id.t) p = Vec.unsafe_set t id p
 
+(* Perform path compression while looking up the canonical ID. *)
 let rec find t (id : Id.t) =
   let p = parent t id in
   if id <> p then
@@ -20,6 +21,7 @@ let rec find t (id : Id.t) =
     find t g
   else p
 
+(* Canonicalize towards lower (older) IDs. *)
 let union t r1 r2 =
   let r1 = find t r1 in
   let r2 = find t r2 in

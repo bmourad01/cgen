@@ -8,15 +8,10 @@ module Exp = Exp
 type exp = Exp.t [@@deriving bin_io, compare, equal, sexp]
 type id = Id.t [@@deriving bin_io, compare, equal, hash, sexp]
 type enode = Enode.t
-type subst = id String.Map.t
+type subst = Subst.t
 
-let empty_subst = String.Map.empty
+let empty_subst : subst = String.Map.empty
 let pp_exp = Exp.pp
-
-type pattern =
-  | V of string
-  | P of Enode.op * pattern list
-[@@deriving compare, equal, hash, sexp]
 
 type t = {
   input   : Input.t;
@@ -34,15 +29,21 @@ type t = {
   fuel    : int;
 }
 
-and egraph = t
-and 'a callback = t -> subst -> 'a
+type egraph = t
 
-and formula =
+type 'a callback = subst -> 'a
+
+type pattern =
+  | V of string
+  | P of Enode.op * pattern list
+[@@deriving compare, equal, hash, sexp]
+
+type formula =
   | Static of pattern
   | Cond of pattern * bool callback
   | Dyn of pattern option callback
 
-and rule = {
+type rule = {
   pre  : pattern;
   post : formula;
 }
@@ -74,3 +75,11 @@ let typeof_var t x =
 
 let word t =
   (Target.word @@ Typecheck.Env.target t.input.tenv :> Type.t)
+
+let wordsz t =
+  Type.sizeof_imm_base @@
+  Target.word @@
+  Typecheck.Env.target t.input.tenv
+
+let setiv ?iv t id = Option.iter iv ~f:(fun iv ->
+    Hashtbl.set t.intv ~key:id ~data:iv)
