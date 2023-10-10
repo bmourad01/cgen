@@ -61,16 +61,17 @@ let to_interval t : Virtual.const -> Bv_interval.t = function
 let subsume_const ?iv ?ty t n id =
   match Enode.const ~node:(node t) n with
   | None ->
-    let+ c = match Enode.eval ~node:(node t) n with
-      | None -> single_interval iv ty
-      | Some k as c ->
+    let+ c, u = match Enode.eval ~node:(node t) n with
+      | None ->
+        let+ k = single_interval iv ty in
+        k, false
+      | Some k ->
         setiv ~iv:(to_interval t k) t id;
-        c in
+        Some (k, true) in
     let k = Enode.of_const c in
     let oid = Hashtbl.find_or_add t.memo k
         ~default:(fun () -> new_node t k) in
-    Uf.union t.classes id oid;
-    Prov.merge t id oid;
+    if u then Uf.union t.classes id oid;
     oid
   | Some k ->
     setiv ~iv:(to_interval t k) t id;

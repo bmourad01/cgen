@@ -80,11 +80,8 @@ let var env eg x =
     ~if_found:(fun id ->
         (* This var was defined by an instruction. *)
         match Rewrite.single_interval iv ty with
-        | None -> id
-        | Some k ->
-          let oid = constant ?iv ?ty env eg k in
-          Uf.union eg.classes id oid;
-          oid)
+        | Some k -> constant ?iv ?ty env eg k
+        | None -> id)
 
 let typeof_const eg : const -> Type.t = function
   | `bool _ -> `flag
