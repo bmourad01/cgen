@@ -654,7 +654,8 @@ module Edge : sig
 
       [`false_ x]: taken if [x] is zero.
 
-      [`switch_ (x, v)]: taken if [x = v].
+      [`switch_ (x, vs, def)]: taken if [x \in vs]. If [def] is [true], then
+      the edge also applies to the default case.
 
       [`default x]: taken if [x] doesn't match any entry in the switch table.
   *)
@@ -662,7 +663,7 @@ module Edge : sig
     | `always
     | `true_ of Var.t
     | `false_ of Var.t
-    | `switch of Ctrl.swindex * Bv.t
+    | `switch of Ctrl.swindex * Bv.t list * bool
     | `default of Ctrl.swindex
   ] [@@deriving bin_io, compare, equal, sexp]
 

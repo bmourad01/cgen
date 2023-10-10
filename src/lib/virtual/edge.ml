@@ -6,7 +6,7 @@ module T = struct
     | `always
     | `true_ of Var.t
     | `false_ of Var.t
-    | `switch of Ctrl.swindex * Bv.t
+    | `switch of Ctrl.swindex * Bv.t list * bool
     | `default of Ctrl.swindex
   ] [@@deriving bin_io, compare, equal, sexp]
 end
@@ -20,8 +20,12 @@ let pp ppf : t -> unit = function
     Format.fprintf ppf "%a" Var.pp x
   | `false_ x ->
     Format.fprintf ppf "~%a" Var.pp x
-  | `switch (x, v) ->
-    Format.fprintf ppf "%a = %a" Ctrl.pp_swindex x Bv.pp v
+  | `switch (x, vs, def) ->
+    let pp_sep ppf () = Format.fprintf ppf ". " in
+    Format.fprintf ppf "%a = {%a"
+      Ctrl.pp_swindex x (Format.pp_print_list ~pp_sep Bv.pp) vs;
+    if def then Format.fprintf ppf ", default}"
+    else Format.fprintf ppf "}"
   | `default x ->
     Format.fprintf ppf "default(%a)" Ctrl.pp_swindex x
 
