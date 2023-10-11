@@ -3,7 +3,6 @@ open Monads.Std
 open Common
 
 module O = Monad.Option
-module I = Bv_interval
 
 open O.Let
 open O.Syntax
@@ -29,33 +28,6 @@ let new_node t n =
   assert (id = Vec.length t.node - 1);
   id
 
-external float_of_bits : int64 -> float = "cgen_float_of_bits"
-external float_to_bits : float -> int64 = "cgen_bits_of_float"
-
-let single_val v ty : Virtual.const option = match ty with
-  | #Type.imm as t -> Some (`int (v, t))
-  | `f32 -> Some (`float (Float32.of_bits @@ Bv.to_int32 v))
-  | `f64 -> Some (`double (float_of_bits @@ Bv.to_int64 v))
-  | `flag -> Some (`bool Bv.(v <> zero))
-  | _ -> None
-
-let single_interval iv ty : Virtual.const option =
-  let* iv = iv and* ty = ty in
-  let* v = I.single_of iv in
-  single_val v ty
-
-let to_interval t : Virtual.const -> Bv_interval.t = function
-  | `bool b -> I.boolean b
-  | `int (value, t) ->
-    I.create_single ~value ~size:(Type.sizeof_imm t)
-  | `float f ->
-    let value = Bv.M32.int32 @@ Float32.bits f in
-    I.create_single ~value ~size:32
-  | `double d ->
-    let value = Bv.M64.int64 @@ float_to_bits d in
-    I.create_single ~value ~size:64
-  | `sym _ -> I.create_full ~size:(wordsz t)
-
 (* If the node is already normalized then don't bother searching
    for matches. *)
 let subsume_const ?iv ?ty t n id =
@@ -63,10 +35,10 @@ let subsume_const ?iv ?ty t n id =
   | None ->
     let+ c, u = match Enode.eval ~node:(node t) n with
       | None ->
-        let+ k = single_interval iv ty in
+        let+ k = Util.single_interval iv ty in
         k, false
       | Some k ->
-        setiv ~iv:(to_interval t k) t id;
+        setiv ~iv:(Util.interval_of_const ~wordsz:(wordsz t) k) t id;
         Some (k, true) in
     let k = Enode.of_const c in
     let oid = Hashtbl.find_or_add t.memo k
@@ -74,7 +46,7 @@ let subsume_const ?iv ?ty t n id =
     if u then Uf.union t.classes id oid;
     oid
   | Some k ->
-    setiv ~iv:(to_interval t k) t id;
+    setiv ~iv:(Util.interval_of_const ~wordsz:(wordsz t) k) t id;
     Some id
 
 (* Represent the union of two e-classes with a "union" node. *)

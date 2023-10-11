@@ -74,12 +74,12 @@ let var env eg x =
     ~if_not_found:(fun _ ->
         (* This var is either a block param, a function argument,
            or a stack slot. *)
-        match Rewrite.single_interval iv ty with
+        match Util.single_interval iv ty with
         | Some k -> constant ?iv ?ty env eg k
         | None -> atom ?iv ?ty env eg @@ Ovar x)
     ~if_found:(fun id ->
         (* This var was defined by an instruction. *)
-        match Rewrite.single_interval iv ty with
+        match Util.single_interval iv ty with
         | Some k -> constant ?iv ?ty env eg k
         | None ->
           setiv ?iv eg id;

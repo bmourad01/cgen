@@ -11,6 +11,9 @@ type t = info String.Map.t
 
 let find = Map.find
 
-let const i = i.const
+let const i = match i.const with
+  | None -> Util.single_interval i.intv i.typ
+  | Some _ as c -> c
+
 let intv i = i.intv
 let typ i = i.typ
