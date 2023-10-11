@@ -93,7 +93,10 @@ let typeof_const eg : const -> Type.t = function
   | `sym _ -> word eg
 
 let operand env eg : operand -> id = function
-  | #const as c -> constant ~ty:(typeof_const eg c) env eg c
+  | #const as c ->
+    let ty = typeof_const eg c in
+    let iv = Util.interval_of_const c ~wordsz:(wordsz eg) in
+    constant ~iv ~ty env eg c
   | `var x -> var env eg x
 
 let operands env eg = List.map ~f:(operand env eg)
