@@ -81,7 +81,9 @@ let var env eg x =
         (* This var was defined by an instruction. *)
         match Rewrite.single_interval iv ty with
         | Some k -> constant ?iv ?ty env eg k
-        | None -> id)
+        | None ->
+          setiv ?iv eg id;
+          id)
 
 let typeof_const eg : const -> Type.t = function
   | `bool _ -> `flag
@@ -112,7 +114,7 @@ let table env eg tbl =
   Ctrl.Table.enum tbl |> Seq.map ~f:(fun (i, l) ->
       node env eg (Otbl i) [local env eg l]) |> Seq.to_list
 
-let interval ?x eg l =
+let prov_interval ?x eg l =
   let open Monad.Option.Let in
   let* x = x in
   let* s = Intervals.insn eg.input.intv l in
@@ -120,7 +122,7 @@ let interval ?x eg l =
 
 let prov ?x ?(f = Fn.const) env eg l op args =
   let ty = Option.bind x ~f:(typeof_var eg) in
-  let iv = interval ?x eg l in
+  let iv = prov_interval ?x eg l in
   let id = node ?iv ?ty ~l env eg op args in
   Option.iter x ~f:(fun x ->
       match Hashtbl.add env.vars ~key:x ~data:id with
