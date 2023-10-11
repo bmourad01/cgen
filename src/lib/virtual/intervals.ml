@@ -511,7 +511,9 @@ let interp_blk ctx s b =
       Seq.fold ~init:s ~f:(fun s (v, `label (l, args)) ->
           let k = I.create_single ~value:v ~size in
           let s = assign_blk_args ctx s l args in
-          narrow ctx l x k;
+          (* If an arm of the switch also targets the default
+             label then we shouldn't try to narrow. *)
+          if Label.(l <> d) then narrow ctx l x k;
           s) in
     assign_blk_args ctx s d args
   | _ -> s
