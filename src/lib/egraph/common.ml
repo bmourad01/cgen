@@ -3,15 +3,12 @@ open Graphlib.Std
 
 module Id = Id
 module Enode = Enode
-module Exp = Exp
 
-type exp = Exp.t [@@deriving bin_io, compare, equal, sexp]
 type id = Id.t [@@deriving bin_io, compare, equal, hash, sexp]
 type enode = Enode.t
 type subst = Subst.t
 
 let empty_subst : subst = String.Map.empty
-let pp_exp = Exp.pp
 
 type t = {
   input   : Input.t;
@@ -80,6 +77,9 @@ let wordsz t =
   Type.sizeof_imm_base @@
   Target.word @@
   Typecheck.Env.target t.input.tenv
+
+let setty ?ty t id = Option.iter ty ~f:(fun ty ->
+    Hashtbl.set t.typs ~key:id ~data:ty)
 
 let setiv ?iv t id = Option.iter iv ~f:(fun iv ->
     Hashtbl.set t.intv ~key:id ~data:iv)

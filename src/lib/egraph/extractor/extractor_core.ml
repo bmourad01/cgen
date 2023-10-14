@@ -23,8 +23,7 @@ let pp_prov ppf = function
   | Id {canon; real} -> Format.fprintf ppf "%d:%d" canon real
 
 (* We'll use an intermediate data structure for smoothing
-   out the edges of translating to both the expression tree
-   and CFG representations. *)
+   out the edges of translating the CFG representation. *)
 type ext = E of prov * Enode.op * ext list
 
 type t = {

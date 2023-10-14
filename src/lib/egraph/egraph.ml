@@ -5,9 +5,7 @@ include Common
 
 module Rule = Rule
 module Subst = Subst
-module Extractor = Extractor
 
-type extractor = Extractor.t
 type rule = Rule.t
 
 let init input fuel = {
@@ -33,10 +31,11 @@ let check_ssa fn =
     Input.E.failf "Expected SSA form for function %s"
       (Func.name fn) ()
 
-let create ?(fuel = 5) fn tenv rules =
-  let open Input.E.Let in
-  let* () = check_ssa fn in
-  let* input = Input.init fn tenv in
+let run ?(fuel = 5) fn tenv rules =
+  let open Context.Syntax in
+  let*? () = check_ssa fn in
+  let*? input = Input.init fn tenv in
   let t = init input fuel in
-  let+ () = Builder.run t rules in
-  t
+  let*? () = Builder.run t rules in
+  let ex = Extractor.init t in
+  Extractor.cfg ex

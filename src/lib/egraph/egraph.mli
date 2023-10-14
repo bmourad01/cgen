@@ -19,90 +19,7 @@
     function.
 *)
 
-open Core
-open Regular.Std
 open Virtual
-
-module Id : sig
-  type t = private int
-
-  include Regular.S with type t := t
-end
-
-(** An identifier for an e-class. *)
-type id = Id.t [@@deriving compare, equal, hash, sexp]
-
-(** Expression trees with provenance tracking. *)
-module Exp : sig
-  type prov =
-    | Id of id
-    | Label of Label.t
-  [@@deriving bin_io, compare, equal, sexp]
-
-  (** A "pure" expression. *)
-  type pure =
-    | Pbinop  of prov * Insn.binop * pure * pure
-    | Pbool   of bool
-    | Pdouble of float
-    | Pint    of Bv.t * Type.imm
-    | Psel    of prov * Type.basic * pure * pure * pure
-    | Psingle of Float32.t
-    | Psym    of string * int
-    | Punop   of prov * Insn.unop * pure
-    | Pvar    of Var.t
-  [@@deriving bin_io, compare, equal, sexp]
-
-  (** A global control-flow destination. *)
-  and global =
-    | Gaddr of Bv.t
-    | Gpure of pure
-    | Gsym  of string * int
-  [@@deriving bin_io, compare, equal, sexp]
-
-  (** A local control-flow destination. *)
-  type local = Label.t * pure list
-  [@@deriving bin_io, compare, equal, sexp]
-
-  (** A control-flow destination. *)
-  type dst =
-    | Dglobal of global
-    | Dlocal  of local
-  [@@deriving bin_io, compare, equal, sexp]
-
-  (** A switch table. *)
-  type table = (Bv.t * local) list
-  [@@deriving bin_io, compare, equal, sexp]
-
-  (** A "base" expression, which corresponds directly to a [Virtual]
-      instruction. *)
-  type t =
-    | Ebr      of pure * dst * dst
-    | Ecall    of (Var.t * Type.basic) option * global * pure list * pure list
-    | Ejmp     of dst
-    | Eload    of Var.t * Type.basic * pure
-    | Eret     of pure
-    | Eset     of Var.t * pure
-    | Estore   of Type.basic * pure * pure
-    | Esw      of Type.imm * pure * local * table
-    | Etcall   of Type.basic option * global * pure list * pure list
-    | Evaarg   of Var.t * Type.basic * pure
-    | Evastart of pure
-  [@@deriving bin_io, compare, equal, sexp]
-
-  val pp_pure : Format.formatter -> pure -> unit
-  val pp_global : Format.formatter -> global -> unit
-  val pp_local : Format.formatter -> local -> unit
-  val pp_dst : Format.formatter -> dst -> unit
-  val pp : Format.formatter -> t -> unit
-end
-
-type exp = Exp.t [@@deriving bin_io, compare, equal, sexp]
-
-val pp_exp : Format.formatter -> exp -> unit
-
-(** An e-graph. *)
-type t
-type egraph = t
 
 (** A substitution environment for pattern variables. *)
 module Subst : sig
@@ -146,8 +63,8 @@ type rules
 *)
 val create_table : rule list -> rules
 
-(** [create fn tenv rules ?fuel] constructs an e-graph from a function [fn]
-    and applies the [rules] eagerly.
+(** [run fn tenv rules ?fuel] constructs an e-graph from a function [fn]
+    and applies the [rules] eagerly to produce a transformed function.
 
     [tenv] is the typing environment of the module that [fn] belongs to.
 
@@ -157,7 +74,7 @@ val create_table : rule list -> rules
 
     [fn] is expected to be in SSA form.
 *)
-val create : ?fuel:int -> func -> Typecheck.env -> rules -> t Or_error.t
+val run : ?fuel:int -> func -> Typecheck.env -> rules -> func Context.t
 
 module Rule : sig
   type t = rule
@@ -241,31 +158,4 @@ module Rule : sig
     val zext : Type.imm -> pattern -> pattern
     val copy : Type.basic -> pattern -> pattern
   end
-end
-
-type extractor
-
-(** Extracts optimized terms from the e-graph. *)
-module Extractor : sig
-  type t = extractor
-
-  (** Initialize the extractor. *)
-  val init : egraph -> t
-
-  (** Extract the term associated with a label in the provided e-graph.
-
-      If the resulting term is not well-formed, an error is returned.
-      If there is no term associated with the label, [None] is returned.
-  *)
-  val term : t -> Label.t -> exp option Or_error.t
-
-  (** Same as [term t l].
-
-      @raise Invalid_argument if the the resulting term is not well-formed.
-  *)
-  val term_exn : t -> Label.t -> exp option
-
-  (** [cfg t] attempts to extract the terms in the underlying e-graph
-      back to the input function. *)
-  val cfg : t -> func Context.t
 end

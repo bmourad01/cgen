@@ -31,6 +31,7 @@ let new_node t n =
 (* If the node is already normalized then don't bother searching
    for matches. *)
 let subsume_const ?iv ?ty t n id =
+  let mkiv = Util.interval_of_const ~wordsz:(wordsz t) in
   match Enode.const ~node:(node t) n with
   | None ->
     let+ c, u = match Enode.eval ~node:(node t) n with
@@ -38,7 +39,7 @@ let subsume_const ?iv ?ty t n id =
         let+ k = Util.single_interval iv ty in
         k, false
       | Some k ->
-        setiv ~iv:(Util.interval_of_const ~wordsz:(wordsz t) k) t id;
+        setiv ~iv:(mkiv k) t id;
         Some (k, true) in
     let k = Enode.of_const c in
     let oid = Hashtbl.find_or_add t.memo k
@@ -46,7 +47,7 @@ let subsume_const ?iv ?ty t n id =
     if u then Uf.union t.classes id oid;
     oid
   | Some k ->
-    setiv ~iv:(Util.interval_of_const ~wordsz:(wordsz t) k) t id;
+    setiv ~iv:(mkiv k) t id;
     Some id
 
 (* Represent the union of two e-classes with a "union" node. *)
@@ -59,8 +60,7 @@ let union t id oid =
   u
 
 (* Stop iterating when we find that we've optimized to a constant. *)
-let step t id oid =
-  let open Continue_or_stop in
+let step t id oid : (id, id) Continue_or_stop.t =
   if id <> oid then match node t oid with
     | n when Enode.is_const n ->
       Uf.union t.classes id oid;
@@ -68,6 +68,12 @@ let step t id oid =
       Stop oid
     | _ -> Continue (union t id oid)
   else Continue id
+
+(* Called when a duplicate node is inserted. *)
+let duplicate ?iv ?l t id =
+  Option.iter l ~f:(Prov.duplicate t id);
+  setiv ?iv t id;
+  id
 
 (* This is the entry point to the insert/rewrite loop, to be called
    from the algorithm in `Builder` (i.e. in depth-first dominator tree
@@ -78,21 +84,14 @@ let step t id oid =
 *)
 let rec insert ?iv ?ty ?l ~d ~rules t n =
   canon t n |> Hashtbl.find_and_call t.memo
-    ~if_found:(fun id ->
-        Option.iter l ~f:(Prov.duplicate t id);
-        setiv ?iv t id;
-        id)
+    ~if_found:(duplicate ?iv ?l t)
     ~if_not_found:(fun k -> match commute t k with
-        | Some id ->
-          Option.iter l ~f:(Prov.duplicate t id);
-          setiv ?iv t id;
-          id
+        | Some id -> duplicate ?iv ?l t id
         | None ->
           let id = new_node t n in
-          Option.iter l ~f:(fun l -> Prov.add t l id n);
-          Option.iter ty ~f:(fun ty ->
-              Hashtbl.set t.typs ~key:id ~data:ty);
+          setty ?ty t id;
           setiv ?iv t id;
+          Option.iter l ~f:(fun l -> Prov.add t l id n);
           let oid = optimize ?iv ?ty ~d ~rules t n id in
           Hashtbl.set t.memo ~key:k ~data:oid;
           oid)

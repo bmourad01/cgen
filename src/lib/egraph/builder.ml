@@ -27,15 +27,11 @@ module Mem = Regular.Make(struct
     let version = "0.1"
   end)
 
-type cur =
-  | Blk of Label.t
-  | Insn of Label.t
-
 type env = {
   rules       : rules;
   vars        : id Var.Table.t;
   mems        : st Mem.Table.t;
-  mutable cur : cur;
+  mutable cur : Label.t;
   mutable lst : Label.t option;
 }
 
@@ -43,19 +39,14 @@ let init rules = {
   rules;
   vars = Var.Table.create ();
   mems = Mem.Table.create ();
-  cur = Blk Label.pseudoentry;
+  cur = Label.pseudoentry;
   lst = None;
 }
 
-let cur_interval env eg x = match env.cur with
-  | Blk b ->
-    let inp = Intervals.input eg.input.intv in
-    let s = Solution.get inp b in
-    Intervals.find_var s x
-  | Insn i ->
-    let open Monad.Option.Let in
-    let* s = Intervals.insn eg.input.intv i in
-    Intervals.find_var s x
+let cur_interval env eg x =
+  let open Monad.Option.Let in
+  let* s = Intervals.insn eg.input.intv env.cur in
+  Intervals.find_var s x
 
 let node ?iv ?ty ?l env eg op args =
   Rewrite.insert ?iv ?ty ?l ~d:eg.fuel ~rules:env.rules
@@ -271,10 +262,9 @@ let step env eg l = match Hashtbl.find eg.input.tbl l with
   | None | Some `insn _ -> raise @@ Missing l
   | Some `blk b ->
     env.lst <- Solution.get eg.input.lst l;
-    env.cur <- Blk (Blk.label b);
     Blk.insns b |> Seq.iter ~f:(fun i ->
         let l = Insn.label i in
-        env.cur <- Insn l;
+        env.cur <- l;
         insn env eg l (Insn.op i));
     ctrl env eg l @@ Blk.ctrl b
 

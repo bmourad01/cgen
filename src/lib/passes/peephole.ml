@@ -1,6 +1,5 @@
 open Core
 open Monads.Std
-open Context.Syntax
 
 module O = Monad.Option
 
@@ -1173,6 +1172,4 @@ module Rules = struct
     ]
 end
 
-let run tenv fn =
-  let*? eg = Egraph.create fn tenv Rules.rules in
-  Egraph.Extractor.(cfg @@ init eg)
+let run tenv fn = Egraph.run fn tenv Rules.rules
