@@ -13,6 +13,9 @@ val create_full : size:int -> t
 (** Creates an interval of [size] bits with a single [value]. *)
 val create_single : value:Bv.t -> size:int -> t
 
+(** Creates an interval of [size] bits with all negative numbers. *)
+val create_negative : size:int -> t
+
 (** The full interval of booleans. *)
 val boolean_full : t
 

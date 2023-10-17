@@ -36,6 +36,10 @@ let create_full ~size =
   let lo = Bv.max_unsigned_value size in
   {lo; hi = lo; size}
 
+let create_negative ~size =
+  let lo = Bv.min_signed_value size in
+  {lo; hi = Bv.zero; size}
+
 let create_single ~value ~size =
   {lo = value; hi = Bv.(succ value mod modulus size); size}
 
@@ -760,7 +764,7 @@ let umulh t1 t2 =
 let mulh t1 t2 =
   let t3 = umulh t1 t2 in
   let size = t1.size in
-  let n = create ~lo:(Bv.min_signed_value size) ~hi:Bv.zero ~size in
+  let n = create_negative ~size in
   let z = create_single ~value:Bv.zero ~size in
   let s1 = if is_empty @@ intersect t1 n then z else t2 in
   let s2 = if is_empty @@ intersect t2 n then z else t1 in
