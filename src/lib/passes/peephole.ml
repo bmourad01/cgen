@@ -2,6 +2,7 @@ open Core
 open Monads.Std
 
 module O = Monad.Option
+module I = Bv_interval
 
 module Rules = struct
   module Subst = Egraph.Subst
@@ -24,19 +25,26 @@ module Rules = struct
 
   let is_neg_const x env =
     Option.is_some begin
-      Subst.find env x >>= Subst.const >>= function
-      | `int (x, t) ->
+      let* s = Subst.find env x in
+      match Subst.const s with
+      | Some `int (x, t) ->
         let module B = (val bv t) in
         O.guard @@ B.msb x
-      | _ -> None
+      | _ ->
+        let* i = Subst.intv s in
+        let n = I.create_negative ~size:(I.size i) in
+        O.guard @@ I.contains n i
     end
 
-  (* `x` is a constant and is not 0 or 1 *)
+  (* `x` is not 0 or 1 *)
   let is_not_bool x env =
     Option.value ~default:false begin
-      Subst.find env x >>= Subst.const >>| function
-      | `int (i, _) -> Bv.(i <> one && i <> zero)
-      | _ -> false
+      let* s = Subst.find env x in
+      match Subst.const s with
+      | Some `int (i, _) -> !!Bv.(i <> one && i <> zero)
+      | _ ->
+        let+ i = Subst.intv s in
+        not I.(contains_value i Bv.one || contains_value i Bv.zero)
     end
 
   let has_type x ty env =
@@ -266,8 +274,12 @@ module Rules = struct
     var x
 
   let cannot_be_zero x env = Option.is_some begin
-      let* i = Subst.find env x >>= Subst.intv in
-      O.guard @@ not @@ Bv_interval.contains_value i Bv.zero
+      let* s = Subst.find env x in
+      match Subst.const s with
+      | Some `int (i, _) -> O.guard @@ Bv.(i <> zero)
+      | _ ->
+        let* i = Subst.intv s in
+        O.guard @@ not @@ I.contains_value i Bv.zero
     end
 
   let x = var "x"
