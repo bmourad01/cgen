@@ -140,13 +140,15 @@ let pp_cast ppf : cast -> unit = function
     Format.fprintf ppf "zext.%a" Type.pp_imm t
 
 type copy = [
-  | `copy of Type.basic
-  | `ref  of Type.imm_base
+  | `copy  of Type.basic
+  | `ref   of Type.imm_base
+  | `unref of string
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_copy ppf : copy -> unit = function
-  | `copy t -> Format.fprintf ppf "copy.%a" Type.pp_basic    t
-  | `ref  t -> Format.fprintf ppf "ref.%a"  Type.pp_imm_base t
+  | `copy  t -> Format.fprintf ppf "copy.%a"   Type.pp_basic    t
+  | `ref   t -> Format.fprintf ppf "ref.%a"    Type.pp_imm_base t
+  | `unref s -> Format.fprintf ppf "unref :%s" s
 
 type binop = [
   | arith_binop

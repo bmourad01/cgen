@@ -119,6 +119,7 @@
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL ACALL ATCALL
 %token <Type.imm_base> REF
+%token UNREF
 %token CALL TCALL
 %token <Type.basic> VAARG
 %token VASTART
@@ -525,6 +526,7 @@ insn_cast:
 insn_copy:
   | t = COPY { `copy t }
   | t = REF { `ref t }
+  | UNREF s = TYPENAME { `unref s }
 
 dst:
   | g = global { let+ g = g in (g :> Virtual.dst) }

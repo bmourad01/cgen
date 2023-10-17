@@ -198,15 +198,6 @@ let expect_ptr_size_var fn blk l v t msg =
     Var.pps v msg Label.pps l Label.pps (Blk.label blk)
     (Func.name fn) Type.pps t 
 
-let expect_ptr_size_base_arg fn blk l a t word msg =
-  let a = Format.asprintf "%a" pp_operand a in
-  let word = Format.asprintf "%a" Type.pp_imm_base word in
-  M.fail @@ Error.createf
-    "Expected imm_base of size %s for arg %s in %s %a \
-     in block %a in function $%s, got %a"
-    word a msg Label.pps l Label.pps (Blk.label blk)
-    (Func.name fn) Type.pps t
-
 let unify_fail_arg fn blk l t a t' =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
@@ -388,18 +379,30 @@ let ref_expected_compound fn blk l t a =
      block %a in function $%s, got %a" a Label.pps l Label.pps
     (Blk.label blk) (Func.name fn) Type.pps (t :> Type.t)
 
-let op_copy fn blk l ta a : Insn.copy -> Type.basic t = function
+let unref_expected_word_size fn blk l t w =
+  M.fail @@ Error.createf
+    "Expected type %a for 'unref' instruction %a in block %a in \
+     function $%s, got %a" Type.pps (w :> Type.t) Label.pps l
+    Label.pps (Blk.label blk) (Func.name fn) Type.pps (t :> Type.t)
+
+let op_copy fn blk l ta a : Insn.copy -> Type.t t = function
   | `copy t ->
     begin match ta, t with
-      | #Type.basic as b, t when Type.equal_basic b t -> !!t
+      | #Type.basic as b, t when Type.equal_basic b t -> !!(t :> Type.t)
       | _ -> unify_fail_arg fn blk l (t :> Type.t) a ta
     end
   | `ref t ->
     let* w = M.gets @@ Fn.compose Target.word Env.target in
     if Type.equal_imm_base t w then match ta with
-      | #Type.compound -> !!(t :> Type.basic)
+      | #Type.compound -> !!(t :> Type.t)
       | _ -> ref_expected_compound fn blk l t a
     else ref_expected_word_size fn blk l t w
+  | `unref s ->
+    let* env = M.get () in
+    let*? t = Env.typeof_typ s env in
+    let w = Target.word @@ Env.target env in
+    if Type.equal ta (w :> Type.t) then !!(t :> Type.t)
+    else unref_expected_word_size fn blk l ta w
 
 let op_binop fn blk l env v b al ar =
   let* tl = typeof_arg fn env al in
@@ -417,11 +420,14 @@ let op_unop fn blk l env v u a =
   let* ta = typeof_arg fn env a in
   let* t = match u with
     | #Insn.arith_unop as o ->
-      op_arith_unop fn blk l ta a o
+      let+ t = op_arith_unop fn blk l ta a o in
+      (t :> Type.t)
     | #Insn.bitwise_unop as o ->
-      op_bitwise_unop fn blk l ta a o
+      let+ t = op_bitwise_unop fn blk l ta a o in
+      (t :> Type.t)
     | #Insn.cast as o ->
-      op_cast fn blk l ta a o
+      let+ t = op_cast fn blk l ta a o in
+      (t :> Type.t)
     | #Insn.copy as o ->
       op_copy fn blk l ta a o in
   M.lift_err @@ Env.add_var fn v (t :> Type.t) env
@@ -510,13 +516,29 @@ let unify_fail_call_arg fn blk l s t a t' =
      expected %a for arg %s, got %a" Label.pps l s Label.pps
     (Blk.label blk) (Func.name fn) Type.pps t a Type.pps t'
 
-let name_arg_expected_imm fn blk l s t a n =
+let name_arg_fail fn blk l s cn n a =
   let a = Format.asprintf "%a" pp_operand a in
   M.fail @@ Error.createf
     "Call at %a to function $%s in block %a of function $%s: \
-     expected pointer-sized immediate for :%s arg %s, got %a"
+     expected compound type :%s, got :%s for arg %s"
     Label.pps l s Label.pps (Blk.label blk) (Func.name fn)
-    n a Type.pps t
+    cn n a
+
+let expected_compound_arg fn blk l s cn t a =
+  let a = Format.asprintf "%a" pp_operand a in
+  M.fail @@ Error.createf
+    "Call at %a to function $%s in block %a of function $%s: \
+     expected compound type :%s, got %a for arg %s"
+    Label.pps l s Label.pps (Blk.label blk) (Func.name fn)
+    cn Type.pps t a
+
+let expected_basic_arg fn blk l s cn t a =
+  let a = Format.asprintf "%a" pp_operand a in
+  M.fail @@ Error.createf
+    "Call at %a to function $%s in block %a of function $%s: \
+     expected type %a, got :%s for arg %s"
+    Label.pps l s Label.pps (Blk.label blk) (Func.name fn)
+    Type.pps t cn a
 
 let check_call_var fn blk l env _t _args _vargs v =
   let*? t = Env.typeof_var fn v env in
@@ -540,24 +562,24 @@ let check_call_sym_variadic fn blk l s vargs variadic =
   if variadic || List.is_empty vargs then !!()
   else non_variadic_call fn blk l s
 
-let check_call_sym_args fn blk l env _t s = M.List.iter ~f:(fun (a, t) ->
-    let* at = typeof_arg fn env a in
-    let* word = M.gets @@ Fn.compose Target.word Env.target in
-    match at, t with
-    | #Type.imm_base as b, `name _ ->
-      (* If the argument has a named type (i.e. a compound)
-         then it is expected to be passed as a pointer. *)
-      let bt = (b :> Type.t) in
-      if Type.equal_imm_base b word then !!()
-      else expect_ptr_size_base_arg fn blk l a bt word "call"
-    | #Type.t as at, `name n ->
-      (* Fail otherwise. *)
-      name_arg_expected_imm fn blk l s at a n
-    | (#Type.t as at), (#Type.basic as t) ->
-      (* Normal unification. *)
-      let t = (t :> Type.t) in
-      if Type.(at = t) then !!()
-      else unify_fail_call_arg fn blk l s t a at)
+let check_call_sym_args fn blk l env _t s (args : (operand * Type.arg) list) =
+  M.List.iter args ~f:(fun (a, t) ->
+      let* at = typeof_arg fn env a in
+      match at, t with
+      | (#Type.compound as c), `name n ->
+        let cn = Type.compound_name c in
+        if String.(cn = n) then !!()
+        else name_arg_fail fn blk l s cn n a
+      | (#Type.compound as c), (#Type.basic as b) ->
+        let cn = Type.compound_name c in
+        expected_compound_arg fn blk l s cn (b : Type.t) a
+      | (#Type.t as at), `name n ->
+        expected_basic_arg fn blk l s n at a
+      | (#Type.t as at), (#Type.basic as t) ->
+        (* Normal unification. *)
+        let t = (t :> Type.t) in
+        if Type.(at = t) then !!()
+        else unify_fail_call_arg fn blk l s t a at)
 
 let check_call_sym fn blk l env t args vargs s ret targs variadic =
   let* () = check_call_sym_ret fn blk l t ret s in

@@ -74,7 +74,9 @@ let interp_const ctx : const -> I.t = function
 let sizeof x ctx = match ctx.typeof x with
   | #Type.basic as b -> Type.sizeof_basic b
   | `flag -> 1
-  | _ -> Type.sizeof_imm_base ctx.word
+  | _ ->
+    (* XXX: we should be discarding the results of compound types *)
+    Type.sizeof_imm_base ctx.word
 
 let interp_operand ctx s : operand -> I.t = function
   | #const as c -> interp_const ctx c
@@ -406,13 +408,14 @@ let interp_cast o a = match (o : Insn.cast) with
     I.sext a ~size:(Type.sizeof_imm t)
 
 let interp_copy o a = match (o : Insn.copy) with
-  | `copy _ -> a
-  | `ref t -> I.create_full ~size:(Type.sizeof_imm_base t)
+  | `copy _ -> Some a
+  | `ref t -> Some (I.create_full ~size:(Type.sizeof_imm_base t))
+  | `unref _ -> None
 
 let interp_unop o a = match (o : Insn.unop) with
-  | #Insn.arith_unop as o -> interp_arith_unop o a
-  | #Insn.bitwise_unop as o -> interp_bitwise_unop o a
-  | #Insn.cast as o -> interp_cast o a
+  | #Insn.arith_unop as o -> Some (interp_arith_unop o a)
+  | #Insn.bitwise_unop as o -> Some (interp_bitwise_unop o a)
+  | #Insn.cast as o -> Some (interp_cast o a)
   | #Insn.copy as o -> interp_copy o a
 
 let interp_basic ctx s : Insn.basic -> state = function
@@ -422,7 +425,7 @@ let interp_basic ctx s : Insn.basic -> state = function
     update s x @@ interp_binop ctx o x l r a b
   | `uop (x, o, a) ->
     let a = interp_operand ctx s a in
-    update s x @@ interp_unop o a
+    interp_unop o a |> Option.value_map ~default:s ~f:(update s x)
   | `sel (x, _, k, y, n) ->
     let c = interp_operand ctx s @@ `var k in
     let y, n = match Hashtbl.find ctx.cond k with
@@ -536,7 +539,11 @@ let step ctx i l _ s =
 
 let init_state ctx fn =
   let init =
-    Func.args fn |> Seq.fold ~init:empty_state ~f:(fun s (x, _) ->
+    Func.args fn |>
+    Seq.filter_map ~f:(fun (x, t) -> match t with
+        | #Type.basic -> Some x
+        | `name _ -> None) |>
+    Seq.fold ~init:empty_state ~f:(fun s x ->
         let data = I.create_full ~size:(sizeof x ctx) in
         Map.set s ~key:x ~data) in
   let init =
