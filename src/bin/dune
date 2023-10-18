@@ -4,4 +4,4 @@
  (package cgen)
  (libraries cgen)
  (flags -w -58)
- (ocamlopt_flags -O3))
+ (ocamlopt_flags -O2))

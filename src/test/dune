@@ -2,4 +2,4 @@
  (names test_type test_bv_interval)
  (libraries ounit2 cgen)
  (flags -w -58)
- (ocamlopt_flags -O3))
+ (ocamlopt_flags -O2))

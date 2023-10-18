@@ -1,7 +1,7 @@
 .PHONY: clean install uninstall test doc
 
 all:
-	dune build
+	dune build --profile=release
 
 clean:
 	dune clean
