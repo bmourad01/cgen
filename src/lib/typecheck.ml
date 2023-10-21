@@ -123,21 +123,15 @@ type 'a t = 'a M.m
 
 let getenv = M.gets @@ fun ctx -> ctx.env
 
-let getfn =
-  let+ fn = M.gets @@ fun ctx -> ctx.fn in
-  match fn with
+let getfn = M.gets @@ fun ctx -> match ctx.fn with
   | None -> assert false
   | Some fn -> fn
 
-let getblk =
-  let+ blk = M.gets @@ fun ctx -> ctx.blk in
-  match blk with
+let getblk = M.gets @@ fun ctx -> match ctx.blk with
   | None -> assert false
   | Some blk -> blk
 
-let getins =
-  let+ ins = M.gets @@ fun ctx -> ctx.ins in
-  match ins with
+let getins = M.gets @@ fun ctx -> match ctx.ins with
   | None -> assert false
   | Some ins -> ins
 
