@@ -55,10 +55,9 @@ let create_ctx ~blks ~word ~typeof = {
   typeof;
 }
 
-let narrow ctx l x i =
-  Hashtbl.update ctx.narrow l ~f:(function
-      | None -> Var.Map.singleton x i
-      | Some s -> update s x i)
+let narrow ctx l x i = Hashtbl.update ctx.narrow l ~f:(function
+    | None -> Var.Map.singleton x i
+    | Some s -> update s x i)
 
 let interp_const ctx : const -> I.t = function
   | `bool b -> I.boolean b
@@ -72,17 +71,17 @@ let interp_const ctx : const -> I.t = function
   | `sym _ -> I.create_full ~size:(Type.sizeof_imm_base ctx.word)
 
 let sizeof x ctx = match ctx.typeof x with
-  | #Type.basic as b -> Type.sizeof_basic b
-  | `flag -> 1
-  | _ ->
-    (* XXX: we should be discarding the results of compound types *)
-    Type.sizeof_imm_base ctx.word
+  | #Type.basic as b -> Some (Type.sizeof_basic b)
+  | #Type.compound -> None
+  | `flag -> Some 1
 
-let interp_operand ctx s : operand -> I.t = function
-  | #const as c -> interp_const ctx c
+let interp_operand ctx s : operand -> I.t option = function
+  | #const as c -> Some (interp_const ctx c)
   | `var x -> match find_var s x with
-    | None -> I.create_full ~size:(sizeof x ctx)
-    | Some i -> i
+    | Some _ as i -> i
+    | None ->
+      sizeof x ctx |> Option.map ~f:(fun size ->
+          I.create_full ~size)
 
 let interp_arith_binop o a b = match (o : Insn.arith_binop) with
   | `add #Type.imm -> I.add a b
@@ -422,24 +421,37 @@ let interp_basic ctx s : Insn.basic -> state = function
   | `bop (x, o, l, r) ->
     let a = interp_operand ctx s l in
     let b = interp_operand ctx s r in
-    update s x @@ interp_binop ctx o x l r a b
+    begin match a, b with
+      | None, _ | _, None -> s
+      | Some a, Some b ->
+        update s x @@ interp_binop ctx o x l r a b
+    end
   | `uop (x, o, a) ->
-    let a = interp_operand ctx s a in
-    interp_unop o a |> Option.value_map ~default:s ~f:(update s x)
+    begin match interp_operand ctx s a with
+      | None -> s
+      | Some a ->
+        interp_unop o a |>
+        Option.value_map ~default:s ~f:(update s x)
+    end
   | `sel (x, _, k, y, n) ->
-    let c = interp_operand ctx s @@ `var k in
-    let y, n = match Hashtbl.find ctx.cond k with
-      | Some s' ->
-        interp_operand ctx (meet_state s s') y,
-        interp_operand ctx (meet_state s @@ invert_state s') n
-      | None ->
-        interp_operand ctx s y,
-        interp_operand ctx s n in
-    let r = match I.single_of c with
-      | None -> I.union y n
-      | Some i when Bv.(i = zero) -> n
-      | Some _ -> y in
-    update s x r
+    match interp_operand ctx s @@ `var k with
+    | None -> s
+    | Some c ->
+      let y, n = match Hashtbl.find ctx.cond k with
+        | Some s' ->
+          interp_operand ctx (meet_state s s') y,
+          interp_operand ctx (meet_state s @@ invert_state s') n
+        | None ->
+          interp_operand ctx s y,
+          interp_operand ctx s n in
+      match y, n with
+      | None, _ | _, None -> s
+      | Some y, Some n ->
+        let r = match I.single_of c with
+          | None -> I.union y n
+          | Some i when Bv.(i = zero) -> n
+          | Some _ -> y in
+        update s x r
 
 let make_top s x t =
   update s x @@ I.create_full ~size:(Type.sizeof_basic t)
@@ -474,7 +486,8 @@ let assign_blk_args ctx s l args =
     match List.zip args args' with
     | Unequal_lengths -> s
     | Ok xs -> List.fold xs ~init:s ~f:(fun s (o, x) ->
-        update s x @@ interp_operand ctx s o)
+        interp_operand ctx s o |>
+        Option.value_map ~default:s ~f:(update s x))
 
 let interp_blk ctx s b =
   let s =
@@ -529,8 +542,9 @@ let step ctx i l _ s =
       (* This could be improved, but it's a start. *)
       if i > 10 then
         Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
-            let data = I.create_full ~size:(sizeof x ctx) in
-            Map.set s ~key:x ~data)
+            match sizeof x ctx with
+            | Some size -> Map.set s ~key:x ~data:(I.create_full ~size)
+            | None -> s)
       else s in
   (* Narrowing for constraints. *)
   match Hashtbl.find ctx.narrow l with
@@ -544,8 +558,9 @@ let init_state ctx fn =
         | #Type.basic -> Some x
         | `name _ -> None) |>
     Seq.fold ~init:empty_state ~f:(fun s x ->
-        let data = I.create_full ~size:(sizeof x ctx) in
-        Map.set s ~key:x ~data) in
+        match sizeof x ctx with
+        | Some size -> Map.set s ~key:x ~data:(I.create_full ~size)
+        | None -> s) in
   let init =
     Func.slots fn |> Seq.fold ~init ~f:(fun s x ->
         let data = I.create_full ~size:(Type.sizeof_imm_base ctx.word) in
