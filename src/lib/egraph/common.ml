@@ -10,24 +10,6 @@ type subst = Subst.t
 
 let empty_subst : subst = String.Map.empty
 
-type t = {
-  input   : Input.t;
-  classes : Uf.t;
-  node    : enode Vec.t;
-  memo    : (enode, id) Hashtbl.t;
-  lmoved  : Id.Set.t Label.Table.t;
-  imoved  : Label.Set.t Id.Table.t;
-  imoved2 : Label.t Id.Table.t;
-  licm    : Id.Hash_set.t;
-  id2lbl  : Label.t Id.Table.t;
-  lbl2id  : id Label.Table.t;
-  typs    : Type.t Id.Table.t;
-  intv    : Bv_interval.t Id.Table.t;
-  fuel    : int;
-}
-
-type egraph = t
-
 type 'a callback = subst -> 'a
 
 type pattern =
@@ -46,6 +28,25 @@ type rule = {
 }
 
 type rules = (Enode.op, (pattern list * formula) list) Hashtbl.t
+
+type t = {
+  input   : Input.t;
+  classes : Uf.t;
+  node    : enode Vec.t;
+  memo    : (enode, id) Hashtbl.t;
+  lmoved  : Id.Set.t Label.Table.t;
+  imoved  : Label.Set.t Id.Table.t;
+  imoved2 : Label.t Id.Table.t;
+  licm    : Id.Hash_set.t;
+  id2lbl  : Label.t Id.Table.t;
+  lbl2id  : id Label.Table.t;
+  typs    : Type.t Id.Table.t;
+  intv    : Bv_interval.t Id.Table.t;
+  fuel    : int;
+  rules   : rules;
+}
+
+type egraph = t
 
 let create_table rules =
   let t = Hashtbl.create (module struct

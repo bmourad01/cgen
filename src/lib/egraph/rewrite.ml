@@ -82,7 +82,7 @@ let duplicate ?iv ?l t id =
    Note that we still continuously update the interval associated
    with the ID because it varies across program points.
 *)
-let rec insert ?iv ?ty ?l ~d ~rules t n =
+let rec insert ?iv ?ty ?l ~d t n =
   canon t n |> Hashtbl.find_and_call t.memo
     ~if_found:(duplicate ?iv ?l t)
     ~if_not_found:(fun k -> match commute t k with
@@ -92,19 +92,19 @@ let rec insert ?iv ?ty ?l ~d ~rules t n =
           setty ?ty t id;
           setiv ?iv t id;
           Option.iter l ~f:(fun l -> Prov.add t l id n);
-          let oid = optimize ?iv ?ty ~d ~rules t n id in
+          let oid = optimize ?iv ?ty ~d t n id in
           Hashtbl.set t.memo ~key:k ~data:oid;
           oid)
 
-and optimize ?iv ?ty ~d ~rules t n id =
+and optimize ?iv ?ty ~d t n id =
   match subsume_const ?iv ?ty t n id with
   | Some id -> id
   | None when d < 0 -> id
   | None ->
-    search ?ty ~d:(d - 1) ~rules t n |>
+    search ?ty ~d:(d - 1) t n |>
     Vec.fold_until ~init:id ~finish:Fn.id ~f:(step t)
 
-and search ?ty ~d ~rules t n =
+and search ?ty ~d t n =
   let m = Vec.create () in
   let u = Stack.create () in
   (* Match a node. *)
@@ -139,13 +139,13 @@ and search ?ty ~d ~rules t n =
     | P _ as q -> go env q id @@ node t id in
   (* Apply a post-condition to the substitution. *)
   let app f env =
-    apply ?ty ~d ~rules f t env |>
+    apply ?ty ~d f t env |>
     Option.iter ~f:(Vec.push m) in
   (* Now match based on the top-level constructor. *)
   match n with
   | U _ -> assert false
   | N (o, cs) ->
-    Hashtbl.find rules o |>
+    Hashtbl.find t.rules o |>
     Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
         children empty_subst ps cs |> Option.iter ~f:(app f);
         while not @@ Stack.is_empty u do
@@ -154,22 +154,22 @@ and search ?ty ~d ~rules t n =
         done));
     m
 
-and apply ?ty ~d ~rules = function
-  | Static q -> apply_static ?ty ~d ~rules q
-  | Cond (q, k) -> apply_cond ?ty ~d ~rules q k
-  | Dyn q -> apply_dyn ?ty ~d ~rules q
+and apply ?ty ~d = function
+  | Static q -> apply_static ?ty ~d q
+  | Cond (q, k) -> apply_cond ?ty ~d q k
+  | Dyn q -> apply_dyn ?ty ~d q
 
-and apply_static ?ty ~d ~rules q t env = match q with
+and apply_static ?ty ~d q t env = match q with
   | V x -> Map.find env x |> Option.map ~f:(fun i -> i.Subst.id)
   | P (o, ps) ->
     let+ cs = O.List.map ps ~f:(fun q ->
-        apply_static ?ty ~d ~rules q t env) in
-    insert ?ty ~d ~rules t @@ N (o, cs)
+        apply_static ?ty ~d q t env) in
+    insert ?ty ~d t @@ N (o, cs)
 
-and apply_cond ?ty ~d ~rules q k t env =
+and apply_cond ?ty ~d q k t env =
   let* () = O.guard @@ k env in
-  apply_static ?ty ~d ~rules q t env
+  apply_static ?ty ~d q t env
 
-and apply_dyn ?ty ~d ~rules q t env =
+and apply_dyn ?ty ~d q t env =
   let* q = q env in
-  apply_static ?ty ~d ~rules q t env
+  apply_static ?ty ~d q t env

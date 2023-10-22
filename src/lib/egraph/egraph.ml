@@ -8,7 +8,7 @@ module Subst = Subst
 
 type rule = Rule.t
 
-let init input fuel = {
+let init input fuel rules = {
   input;
   classes = Uf.create ();
   memo = Hashtbl.create (module Enode);
@@ -22,6 +22,7 @@ let init input fuel = {
   typs = Id.Table.create ();
   intv = Id.Table.create ();
   fuel;
+  rules;
 }
 
 let check_ssa fn =
@@ -35,7 +36,7 @@ let run ?(fuel = 5) fn tenv rules =
   let open Context.Syntax in
   let*? () = check_ssa fn in
   let*? input = Input.init fn tenv in
-  let t = init input fuel in
-  let*? () = Builder.run t rules in
+  let t = init input fuel rules in
+  let*? () = Builder.run t in
   let ex = Extractor.init t in
   Extractor.cfg ex

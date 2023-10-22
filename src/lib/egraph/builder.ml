@@ -28,15 +28,13 @@ module Mem = Regular.Make(struct
   end)
 
 type env = {
-  rules       : rules;
   vars        : id Var.Table.t;
   mems        : st Mem.Table.t;
   mutable cur : Label.t;
   mutable lst : Label.t option;
 }
 
-let init rules = {
-  rules;
+let init () = {
   vars = Var.Table.create ();
   mems = Mem.Table.create ();
   cur = Label.pseudoentry;
@@ -49,14 +47,12 @@ let cur_interval env eg x =
   Intervals.find_var s x
 
 let node ?iv ?ty ?l env eg op args =
-  Rewrite.insert ?iv ?ty ?l ~d:eg.fuel ~rules:env.rules
-    eg @@ N (op, args)
+  Rewrite.insert ?iv ?ty ?l ~d:eg.fuel eg @@ N (op, args)
 
 let atom ?iv ?ty env eg op = node ?iv ?ty env eg op []
 
 let constant ?iv ?ty env eg k =
-  Rewrite.insert ?iv ?ty ~d:eg.fuel ~rules:env.rules
-    eg @@ Enode.of_const k
+  Rewrite.insert ?iv ?ty ~d:eg.fuel eg @@ Enode.of_const k
 
 let var env eg x =
   let iv = cur_interval env eg x in
@@ -275,8 +271,8 @@ let try_ f = try Ok (f ()) with
     E.failf "Duplicate definition of var %a at instruction %a"
       Var.pp x Label.pp l ()
 
-let run eg rules = try_ @@ fun () ->
-  let env = init rules in
+let run eg = try_ @@ fun () ->
+  let env = init () in
   let q = Stack.singleton Label.pseudoentry in
   while not @@ Stack.is_empty q do
     let l = Stack.pop_exn q in
