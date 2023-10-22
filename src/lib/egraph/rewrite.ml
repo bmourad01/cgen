@@ -75,6 +75,13 @@ let duplicate ?iv ?l t id =
   setiv ?iv t id;
   id
 
+let subst_info t id : Subst.info = {
+  const = const t id;
+  intv = interval t id;
+  typ = typeof t id;
+  id;
+}
+
 (* This is the entry point to the insert/rewrite loop, to be called
    from the algorithm in `Builder` (i.e. in depth-first dominator tree
    order).
@@ -128,11 +135,7 @@ and search ?ty ~d t n =
   (* Produce a substitution for the variable. *)
   and var env x id = match Map.find env x with
     | Some i -> Option.some_if (id = i.id) env
-    | None ->
-      let const = const t id in
-      let intv = interval t id in
-      let typ = typeof t id in
-      Some (Map.set env ~key:x ~data:{const; intv; typ; id})
+    | None -> Some (Map.set env ~key:x ~data:(subst_info t id))
   (* Match an e-class. *)
   and cls env id = function
     | V x -> var env x id

@@ -31,7 +31,7 @@ module Rules = struct
         let module B = (val bv t) in
         O.guard @@ B.msb x
       | _ ->
-        let* i = Subst.intv s in
+        let* i = Subst.interval s in
         let n = I.create_negative ~size:(I.size i) in
         O.guard @@ I.contains n i
     end
@@ -43,13 +43,13 @@ module Rules = struct
       match Subst.const s with
       | Some `int (i, _) -> !!Bv.(i <> one && i <> zero)
       | _ ->
-        let+ i = Subst.intv s in
+        let+ i = Subst.interval s in
         not I.(contains_value i Bv.one || contains_value i Bv.zero)
     end
 
   let has_type x ty env =
     Subst.find env x |>
-    Option.bind ~f:Subst.typ |> function
+    Option.bind ~f:Subst.typeof |> function
     | Some tx -> Type.equal tx ty
     | None -> false
 
@@ -269,7 +269,7 @@ module Rules = struct
     | _ -> None
 
   let identity_same_type x ty env =
-    let* tx = Subst.find env x >>= Subst.typ in
+    let* tx = Subst.find env x >>= Subst.typeof in
     let+ () = O.guard @@ Type.equal tx (ty :> Type.t) in
     var x
 
@@ -278,7 +278,7 @@ module Rules = struct
       match Subst.const s with
       | Some `int (i, _) -> O.guard @@ Bv.(i <> zero)
       | _ ->
-        let* i = Subst.intv s in
+        let* i = Subst.interval s in
         O.guard @@ not @@ I.contains_value i Bv.zero
     end
 

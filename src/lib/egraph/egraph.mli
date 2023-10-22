@@ -36,10 +36,10 @@ module Subst : sig
   val const : info -> const option
 
   (** The bitvector interval for the variable, if it is known. *)
-  val intv : info -> Bv_interval.t option
+  val interval : info -> Bv_interval.t option
 
   (** The type of the variable, if it is known. *)
-  val typ : info -> Type.t option
+  val typeof : info -> Type.t option
 end
 
 type subst = Subst.t
