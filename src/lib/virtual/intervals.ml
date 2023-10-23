@@ -417,26 +417,25 @@ let interp_unop o a = match (o : Insn.unop) with
   | #Insn.cast as o -> Some (interp_cast o a)
   | #Insn.copy as o -> interp_copy o a
 
-let interp_basic ctx s : Insn.basic -> state = function
-  | `bop (x, o, l, r) ->
-    let a = interp_operand ctx s l in
-    let b = interp_operand ctx s r in
-    begin match a, b with
-      | None, _ | _, None -> s
-      | Some a, Some b ->
-        update s x @@ interp_binop ctx o x l r a b
-    end
-  | `uop (x, o, a) ->
-    begin match interp_operand ctx s a with
-      | None -> s
-      | Some a ->
-        interp_unop o a |>
-        Option.value_map ~default:s ~f:(update s x)
-    end
-  | `sel (x, _, k, y, n) ->
-    match interp_operand ctx s @@ `var k with
-    | None -> s
-    | Some c ->
+let try1 s x ~f =
+  Option.value_map x ~default:s ~f
+
+let try2 s x y ~f =
+  Option.both x y |>
+  Option.value_map ~default:s ~f
+
+let interp_basic_binop ctx s x o l r =
+  let a = interp_operand ctx s l in
+  let b = interp_operand ctx s r in
+  try2 s a b ~f:(fun (a, b) ->
+      update s x @@ interp_binop ctx o x l r a b)
+
+let interp_basic_unop ctx s x o a =
+  interp_operand ctx s a |> try1 s ~f:(fun a ->
+      interp_unop o a |> try1 s ~f:(update s x))
+
+let interp_basic_sel ctx s x k y n =
+  interp_operand ctx s (`var k) |> try1 s ~f:(fun c ->
       let y, n = match Hashtbl.find ctx.cond k with
         | Some s' ->
           interp_operand ctx (meet_state s s') y,
@@ -444,14 +443,16 @@ let interp_basic ctx s : Insn.basic -> state = function
         | None ->
           interp_operand ctx s y,
           interp_operand ctx s n in
-      match y, n with
-      | None, _ | _, None -> s
-      | Some y, Some n ->
-        let r = match I.single_of c with
+      try2 s y n ~f:(fun (y, n) ->
+          update s x @@ match I.single_of c with
           | None -> I.union y n
           | Some i when Bv.(i = zero) -> n
-          | Some _ -> y in
-        update s x r
+          | Some _ -> y))
+
+let interp_basic ctx s : Insn.basic -> state = function
+  | `bop (x, o, l, r) -> interp_basic_binop ctx s x o l r
+  | `uop (x, o, a) -> interp_basic_unop ctx s x o a
+  | `sel (x, _, k, y, n) -> interp_basic_sel ctx s x k y n
 
 let make_top s x t =
   update s x @@ I.create_full ~size:(Type.sizeof_basic t)
@@ -486,8 +487,7 @@ let assign_blk_args ctx s l args =
     match List.zip args args' with
     | Unequal_lengths -> s
     | Ok xs -> List.fold xs ~init:s ~f:(fun s (o, x) ->
-        interp_operand ctx s o |>
-        Option.value_map ~default:s ~f:(update s x))
+        interp_operand ctx s o |> try1 s ~f:(update s x))
 
 let interp_blk ctx s b =
   let s =
