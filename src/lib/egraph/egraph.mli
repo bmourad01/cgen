@@ -1,12 +1,13 @@
-(** An e-graph data structure.
+(** An e-graph-based optimizer.
 
     The e-graph allows us to track equivalent terms in a function and
     simultaneously apply rewrite rules on these terms, which solves
     the phase-ordering problem.
 
-    This enables us to do several key optimizations, such as common
-    subexpression elimination, loop-invariant code motion, constant
-    folding, constant propagation, store-to-load forwarding, strength
+    This enables us to do several key optimizations within a single,
+    unified framework, such as common subexpression elimination,
+    loop-invariant code motion, constant folding, constant propagation,
+    store-to-load forwarding, redundant load elimination, strength
     reduction, and so on.
 
     The implementation used is a slightly less-powerful version of
