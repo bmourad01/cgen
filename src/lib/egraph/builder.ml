@@ -46,12 +46,12 @@ let cur_interval env eg x =
   let* s = Intervals.insn eg.input.intv env.cur in
   Intervals.find_var s x
 
-let node ?iv ?ty ?l env eg op args =
+let node ?iv ?ty ?l eg op args =
   Rewrite.insert ?iv ?ty ?l ~d:eg.fuel eg @@ N (op, args)
 
-let atom ?iv ?ty env eg op = node ?iv ?ty env eg op []
+let atom ?iv ?ty eg op = node ?iv ?ty eg op []
 
-let constant ?iv ?ty env eg k =
+let constant ?iv ?ty eg k =
   Rewrite.insert ?iv ?ty ~d:eg.fuel eg @@ Enode.of_const k
 
 let var env eg x =
@@ -62,12 +62,12 @@ let var env eg x =
         (* This var is either a block param, a function argument,
            or a stack slot. *)
         match Util.single_interval iv ty with
-        | Some k -> constant ?iv ?ty env eg k
-        | None -> atom ?iv ?ty env eg @@ Ovar x)
+        | Some k -> constant ?iv ?ty eg k
+        | None -> atom ?iv ?ty eg @@ Ovar x)
     ~if_found:(fun id ->
         (* This var was defined by an instruction. *)
         match Util.single_interval iv ty with
-        | Some k -> constant ?iv ?ty env eg k
+        | Some k -> constant ?iv ?ty eg k
         | None ->
           setiv ?iv eg id;
           id)
@@ -83,18 +83,18 @@ let operand env eg : operand -> id = function
   | #const as c ->
     let ty = typeof_const eg c in
     let iv = Util.interval_of_const c ~wordsz:(wordsz eg) in
-    constant ~iv ~ty env eg c
+    constant ~iv ~ty eg c
   | `var x -> var env eg x
 
 let operands env eg = List.map ~f:(operand env eg)
 
 let global env eg : global -> id = function
-  | `addr a -> atom ~ty:(word eg) env eg @@ Oaddr a
-  | `sym (s, o) -> atom ~ty:(word eg) env eg @@ Osym (s, o)
+  | `addr a -> atom ~ty:(word eg) eg @@ Oaddr a
+  | `sym (s, o) -> atom ~ty:(word eg) eg @@ Osym (s, o)
   | `var x -> var env eg x
 
 let local env eg : local -> id = function
-  | `label (l, args) -> node env eg (Olocal l) (operands env eg args)
+  | `label (l, args) -> node eg (Olocal l) (operands env eg args)
 
 let dst env eg : dst -> id = function
   | #global as g -> global env eg g
@@ -102,7 +102,7 @@ let dst env eg : dst -> id = function
 
 let table env eg tbl =
   Ctrl.Table.enum tbl |> Seq.map ~f:(fun (i, l) ->
-      node env eg (Otbl i) [local env eg l]) |> Seq.to_list
+      node eg (Otbl i) [local env eg l]) |> Seq.to_list
 
 let prov_interval ?x eg l =
   let open Monad.Option.Let in
@@ -113,14 +113,14 @@ let prov_interval ?x eg l =
 let prov ?x ?(f = Fn.const) env eg l op args =
   let ty = Option.bind x ~f:(typeof_var eg) in
   let iv = prov_interval ?x eg l in
-  let id = node ?iv ?ty ~l env eg op args in
+  let id = node ?iv ?ty ~l eg op args in
   Option.iter x ~f:(fun x ->
       match Hashtbl.add env.vars ~key:x ~data:id with
       | `Duplicate -> raise @@ Duplicate (x, l)
       | `Ok -> ());
   Hashtbl.set eg.lbl2id ~key:l ~data:(f id eg)
 
-let set env x id eg = node env eg (Oset x) [id]
+let set x id eg = node eg (Oset x) [id]
 
 let store env eg l ty v a =
   let v = operand env eg v in
@@ -143,7 +143,7 @@ let load env eg l x ty a =
   let key = {lst; addr = a; ty} in
   match alias env eg key l with
   | Some v ->
-    prov ~x env eg l (Ounop (`copy ty)) [v] ~f:(set env x)
+    prov ~x env eg l (Ounop (`copy ty)) [v] ~f:(set x)
   | None ->
     prov ~x env eg l (Oload (x, ty)) [a] ~f:(fun id _ ->
         Hashtbl.set env.mems ~key ~data:(Value (id, l));
@@ -154,7 +154,7 @@ let callop x l : Enode.op * Var.t option = match x with
   | None -> Ocall0 l, None
 
 let callargs env eg args =
-  node env eg Ocallargs @@ operands env eg args
+  node eg Ocallargs @@ operands env eg args
 
 (* Our analysis is intraprocedural, so assume that a function call
    can do any arbitrary effects to memory. *)
@@ -176,8 +176,8 @@ let undef env lst addr ty =
 
 let alist env eg : Insn.alist -> id = function
   | `var x -> var env eg x
-  | `addr a -> atom env eg @@ Oaddr a
-  | `sym (s, o) -> atom env eg @@ Osym (s, o)
+  | `addr a -> atom eg @@ Oaddr a
+  | `sym (s, o) -> atom eg @@ Osym (s, o)
 
 let vaarg env eg l x ty a =
   let a = alist env eg a in
@@ -196,17 +196,17 @@ let insn env eg l : Insn.op -> unit = function
     prov ~x env eg l (Obinop o) [
       operand env eg a;
       operand env eg b;
-    ] ~f:(set env x)
+    ] ~f:(set x)
   | `uop (x, o, a) ->
     prov ~x env eg l (Ounop o) [
       operand env eg a;
-    ] ~f:(set env x)
+    ] ~f:(set x)
   | `sel (x, ty, c, y, n) ->
     prov ~x env eg l (Osel ty) [
       var env eg c;
       operand env eg y;
       operand env eg n;
-    ] ~f:(set env x)
+    ] ~f:(set x)
   | `call (x, f, args, vargs) ->
     call env eg l x f args vargs
   | `load (x, ty, a) ->
