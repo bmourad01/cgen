@@ -114,65 +114,65 @@ and optimize ?iv ?ty ~d t n id =
 and search ?ty ~d t n =
   let m = Vec.create () in
   let u = Stack.create () in
+  let exception Mismatch in
   (* Match a node. *)
-  let rec go (env : subst) p id (n : enode) = match p, n with
+  let rec go env p id n = match p, (n : enode) with
     | V x, N _ -> var env x id
-    | P (x, xs), N (y, ys) ->
-      let* () = O.guard @@ Enode.equal_op x y in
-      children env xs ys
+    | P (x, xs), N (y, ys) when Enode.equal_op x y ->
+      children ~init:env xs ys
+    | P _, N _ -> raise Mismatch
     | _, U {pre; post} ->
       (* Explore the rewritten term first. In some cases, constant folding
          will run much faster if we keep rewriting it. If there's a match
          then we can enqueue the "original" term with the current state of
          the search for further exploration. *)
-      match cls env post p with
-      | Some _ as x -> Stack.push u (env, pre, p); x
-      | None -> cls env pre p
+      try
+        let env' = cls env post p in
+        Stack.push u (env, pre, p);
+        env'
+      with Mismatch -> cls env pre p
   (* Match all the children of an e-node. *)
-  and children init qs xs = match List.zip qs xs with
-    | Ok l -> O.List.fold l ~init ~f:(fun env (q, x) -> cls env x q)
-    | Unequal_lengths -> None
+  and children ?(init = empty_subst) qs xs = match List.zip qs xs with
+    | Ok l -> List.fold l ~init ~f:(fun env (q, x) -> cls env x q)
+    | Unequal_lengths -> raise Mismatch
   (* Produce a substitution for the variable. *)
   and var env x id = match Map.find env x with
-    | Some i -> Option.some_if (id = i.id) env
-    | None -> Some (Map.set env ~key:x ~data:(subst_info t id))
-  (* Match an e-class. *)
+    | None -> Map.set env ~key:x ~data:(subst_info t id)
+    | Some i when i.id = id -> env
+    | Some _ -> raise Mismatch
+  (* Match the canonical element of an e-class. *)
   and cls env id = function
-    | V x -> var env x id
-    | P _ as q -> go env q id @@ node t id in
+    | P _ as q -> go env q id @@ node t id
+    | V x -> var env x id in
+  (* Insert a rewritten term based on the substitution. *)
+  let rec rewrite ~d q env = match q with
+    | P (o, ps) ->
+      let cs = List.map ps ~f:(fun q ->
+          rewrite ~d q env) in
+      insert ~d t @@ N (o, cs)
+    | V x -> match Map.find env x with
+      | None -> raise Mismatch
+      | Some i -> i.Subst.id in
   (* Apply a post-condition to the substitution. *)
-  let app f env =
-    apply ?ty ~d f t env |>
-    Option.iter ~f:(Vec.push m) in
+  let apply f env = Vec.push m @@ match f with
+    | Static q -> rewrite ~d q env
+    | Cond (q, k) when k env -> rewrite ~d q env
+    | Cond _ -> raise Mismatch
+    | Dyn f -> match f env with
+      | Some q -> rewrite ~d q env
+      | None -> raise Mismatch in
   (* Now match based on the top-level constructor. *)
   match n with
   | U _ -> assert false
   | N (o, cs) ->
     Hashtbl.find t.rules o |>
     Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
-        children empty_subst ps cs |> Option.iter ~f:(app f);
+        (* Match the children of this node first. *)
+        (try apply f @@ children ps cs
+         with Mismatch -> ());
+        (* Then match any pending unioned nodes. *)
         while not @@ Stack.is_empty u do
           let env, id, p = Stack.pop_exn u in
-          cls env id p |> Option.iter ~f:(app f);
+          try apply f @@ cls env id p with Mismatch -> ()
         done));
     m
-
-and apply ?ty ~d = function
-  | Static q -> apply_static ?ty ~d q
-  | Cond (q, k) -> apply_cond ?ty ~d q k
-  | Dyn q -> apply_dyn ?ty ~d q
-
-and apply_static ?ty ~d q t env = match q with
-  | V x -> Map.find env x |> Option.map ~f:(fun i -> i.Subst.id)
-  | P (o, ps) ->
-    let+ cs = O.List.map ps ~f:(fun q ->
-        apply_static ?ty ~d q t env) in
-    insert ?ty ~d t @@ N (o, cs)
-
-and apply_cond ?ty ~d q k t env =
-  let* () = O.guard @@ k env in
-  apply_static ?ty ~d q t env
-
-and apply_dyn ?ty ~d q t env =
-  let* q = q env in
-  apply_static ?ty ~d q t env
