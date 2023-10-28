@@ -44,6 +44,8 @@ let subsume_const ?iv ?ty t n id =
     let k = Enode.of_const c in
     let oid = Hashtbl.find_or_add t.memo k
         ~default:(fun () -> new_node t k) in
+    (* Don't union with the constant if it came strictly from
+       the intervals analysis. *)
     if u then Uf.union t.classes id oid;
     oid
   | Some k ->
