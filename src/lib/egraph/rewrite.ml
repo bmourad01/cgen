@@ -160,6 +160,8 @@ let infer_ty t : enode -> Type.t option = function
     | Ovar x -> typeof_var t x
     | Ovastart _ -> None
 
+exception Mismatch
+
 (* This is the entry point to the insert/rewrite loop, to be called
    from the algorithm in `Builder` (i.e. in depth-first dominator tree
    order).
@@ -195,7 +197,6 @@ and optimize ?iv ?ty ~d t n id =
 and search ~d t n =
   let m = Vec.create () in
   let u = Stack.create () in
-  let exception Mismatch in
   (* Match a node. *)
   let rec go env p id n = match p, (n : enode) with
     | V x, N _ -> var env x id
@@ -213,8 +214,8 @@ and search ~d t n =
         env'
       with Mismatch -> cls env pre p
   (* Match all the children of an e-node. *)
-  and children ?(init = empty_subst) qs xs = match List.zip qs xs with
-    | Ok l -> List.fold l ~init ~f:(fun env (q, x) -> cls env x q)
+  and children ?(init = empty_subst) ps cs = match List.zip ps cs with
+    | Ok l -> List.fold l ~init ~f:(fun env (p, c) -> cls env c p)
     | Unequal_lengths -> raise Mismatch
   (* Produce a substitution for the variable. *)
   and var env x id = match Map.find env x with
@@ -223,25 +224,26 @@ and search ~d t n =
     | Some _ -> raise Mismatch
   (* Match the canonical element of an e-class. *)
   and cls env id = function
-    | P _ as q -> go env q id @@ node t id
+    | P _ as p -> go env p id @@ node t id
     | V x -> var env x id in
   (* Insert a rewritten term based on the substitution. *)
-  let rec rewrite ~d q env = match q with
+  let rec rewrite ~d env = function
     | P (o, ps) ->
-      let cs = List.map ps ~f:(fun q ->
-          rewrite ~d q env) in
+      let cs = List.map ps ~f:(rewrite ~d env) in
       insert ~d t @@ N (o, cs)
     | V x -> match Map.find env x with
       | None -> raise Mismatch
       | Some i -> i.Subst.id in
   (* Apply a post-condition to the substitution. *)
   let apply f env = Vec.push m @@ match f with
-    | Static q -> rewrite ~d q env
-    | Cond (q, k) when k env -> rewrite ~d q env
+    | Static p -> rewrite ~d env p
+    | Cond (p, k) when k env -> rewrite ~d env p
     | Cond _ -> raise Mismatch
     | Dyn f -> match f env with
-      | Some q -> rewrite ~d q env
+      | Some p -> rewrite ~d env p
       | None -> raise Mismatch in
+  let run f g = try apply f @@ g () with
+    | Mismatch -> () in
   (* Now match based on the top-level constructor. *)
   match n with
   | U _ -> assert false
@@ -249,11 +251,10 @@ and search ~d t n =
     Hashtbl.find t.rules o |>
     Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
         (* Match the children of this node first. *)
-        (try apply f @@ children ps cs
-         with Mismatch -> ());
+        run f (fun () -> children ps cs);
         (* Then match any pending unioned nodes. *)
         while not @@ Stack.is_empty u do
           let env, id, p = Stack.pop_exn u in
-          try apply f @@ cls env id p with Mismatch -> ()
+          run f (fun () -> cls env id p)
         done));
     m
