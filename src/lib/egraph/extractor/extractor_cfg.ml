@@ -451,6 +451,8 @@ let mark_div_rem_nonzero t i = match Insn.op i with
     end
   | _ -> i
 
+let move_dict i i' = Insn.(with_dict i' @@ dict i)
+
 let cfg t =
   let+ env = collect t Label.pseudoentry in
   Func.map_blks t.eg.input.fn ~f:(fun b ->
@@ -462,9 +464,10 @@ let cfg t =
         Blk.insns b ~rev:true |>
         Seq.fold ~init:(find_news env label) ~f:(fun acc i ->
             let label = Insn.label i in
-            let i = mark_div_rem_nonzero t @@ match find_insn env label with
-              | Some i' -> Insn.with_dict i' @@ Insn.dict i
-              | None -> i in
+            let i =
+              find_insn env label |>
+              Option.value_map ~default:i ~f:(move_dict i) |>
+              mark_div_rem_nonzero t in
             let news = find_news env label ~rev:true in
             List.rev_append news (i :: acc)) in
       Blk.create () ~insns ~ctrl ~label
