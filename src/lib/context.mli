@@ -24,6 +24,9 @@ type 'a t
 (** Terminates the computation with an error. *)
 val fail : Error.t -> 'a t
 
+(** Same as [fail], but formats a pretty-printed error message. *)
+val failf : ('a, Format.formatter, unit, unit -> 'b t) format4 -> 'a
+
 (** Lifts an [Or_error] computation into the context.
 
     If it is [Ok x], then [x] is returned, otherwise the computation fails

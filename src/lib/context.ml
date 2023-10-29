@@ -26,7 +26,7 @@ end
 
 module M = Sm.Make(struct
     type nonrec state = state
-    let fail msg = Error.createf "Context error: %s" msg
+    let error_prefix = "Context error"
   end)
 
 include M.Syntax

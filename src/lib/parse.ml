@@ -15,16 +15,15 @@ let file_pos ?filename lexbuf =
   let f = match filename with
     | None -> "<none>"
     | Some f -> f in
-  Format.sprintf "%s:%d:%d" f l c
+  f, l, c
 
 let try_parse ?filename lexbuf ~f = try f () with
   | _ ->
-    Context.fail @@
-    Error.createf "Parser error: %s" @@
-    file_pos lexbuf ?filename
+    let f, l, c = file_pos ?filename lexbuf in
+    Context.failf "Parser error: %s:%d:%d" f l c ()
 
 let with_file name ~f = try In_channel.with_file name ~f with
-  | Sys_error msg -> Context.fail @@ Error.createf "%s" msg
+  | Sys_error msg -> Context.failf "%s" msg ()
 
 module Virtual : S with type t := Virtual.module_ = struct
   let from_string s =

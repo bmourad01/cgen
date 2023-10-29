@@ -41,8 +41,6 @@ let rec pp_ext ppf = function
     Format.fprintf ppf "(%a %a %a)" pp_prov p Enode.pp_op op
       (Format.pp_print_list ~pp_sep pp_ext) args
 
-let pps_ext () e = Format.asprintf "%a" pp_ext e
-
 let has t id = Hashtbl.mem t.table @@ find t.eg id
 let get t id = Hashtbl.find t.table @@ find t.eg id
 

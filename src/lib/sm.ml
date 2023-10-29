@@ -5,8 +5,7 @@ open Monads.Std
 
 module type S = sig
   type state
-
-  val fail : string -> Error.t
+  val error_prefix : string
 end
 
 module Make(M : S) = struct
@@ -15,9 +14,19 @@ module Make(M : S) = struct
   }
 
   let fail err = {
-    run = fun ~reject ~accept:_ _ ->
-      Error.to_string_hum err |> M.fail |> reject
+    run = fun ~reject ~accept:_ _ -> reject err
   }
+
+  let failf fmt =
+    let buf = Buffer.create 512 in
+    let ppf = Format.formatter_of_buffer buf in
+    let kon ppf () =
+      Format.pp_print_flush ppf ();
+      let err =
+        Error.createf "%s: %s" M.error_prefix @@
+        Buffer.contents buf in
+      fail err in
+    Format.kfprintf kon ppf fmt
 
   module SM = Monad.Make(struct
       type 'a t = 'a m
@@ -43,7 +52,7 @@ module Make(M : S) = struct
   include SM
 
   let lift_err : 'a Or_error.t -> 'a m = function
-    | Error err -> fail err
+    | Error err -> failf "%a" Error.pp err ()
     | Ok x -> return x
 
   module Syntax = struct
@@ -69,8 +78,4 @@ module Make(M : S) = struct
   let update f = {
     run = fun ~reject:_ ~accept s -> accept () (f s)
   } [@@inline]
-
-  let lift_err : 'a Or_error.t -> 'a m = function
-    | Error err -> fail err
-    | Ok x -> return x
 end

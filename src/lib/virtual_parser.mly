@@ -331,11 +331,9 @@ ctrl:
       let* i = i and* d = def and* tbl = unwrap_list tbl in
       let* tbl = M.List.map tbl ~f:(fun ((i, t'), l) ->
           if not @@ Type.equal_imm t t' then
-            M.lift @@
-            Context.fail @@
-            Core.Error.of_string @@
-            Format.asprintf "Invalid switch value %a_%a, expected size %a"
-              Bv.pp i Type.pp_imm t' Type.pp_imm t
+            M.lift @@ Context.failf
+              "Invalid switch value %a_%a, expected size %a"
+              Bv.pp i Type.pp_imm t' Type.pp_imm t ()
           else !!(i, l)) in
       match Virtual.Ctrl.Table.create tbl t with
       | Error err -> M.lift @@ Context.fail err

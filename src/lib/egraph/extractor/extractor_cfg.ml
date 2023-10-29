@@ -33,31 +33,27 @@ let init () = {
 }
 
 let extract_fail l id =
-  Context.fail @@ Error.createf
-    "Couldn't extract term for label %a (id %a)"
-    Label.pps l Id.pps id
+  Context.failf "Couldn't extract term for label %a (id %a)"
+    Label.pp l Id.pp id ()
 
 let invalid l e =
-  Context.fail @@ Error.createf
-    "Invalid term %a for label %a"
-    pps_ext e Label.pps l
+  Context.failf "Invalid term %a for label %a"
+    pp_ext e Label.pp l ()
 
 let invalid_pure e =
-  Context.fail @@ Error.createf "Invalid pure term %a" pps_ext e
+  Context.failf "Invalid pure term %a" pp_ext e ()
 
 let invalid_callargs e =
-  Context.fail @@ Error.createf "Invalid callargs term %a" pps_ext e
+  Context.failf "Invalid callargs term %a" pp_ext e ()
 
 let invalid_global e =
-  Context.fail @@ Error.createf "Invalid global term %a" pps_ext e
+  Context.failf "Invalid global term %a" pp_ext e ()
 
 let invalid_tbl e =
-  Context.fail @@ Error.createf "Invalid table term %a" pps_ext e
+  Context.failf "Invalid table term %a" pp_ext e ()
 
 let no_var l =
-  Context.fail @@ Error.createf
-    "No variable is bound for label %a"
-    Label.pps l
+  Context.failf "No variable is bound for label %a" Label.pp l ()
 
 let extract_label t l = match Hashtbl.find t.eg.lbl2id l with
   | None -> !!None
