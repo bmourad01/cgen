@@ -226,23 +226,24 @@ module Layout = struct
         | [] -> ()
         | [name] ->
           let succs = Typegraph.Node.succs name g in
-          if not @@ Seq.mem succs name ~equal:String.equal then ()
-          else invalid_argf "Cycle detected in type :%s" name ()
+          if Seq.mem succs name ~equal:String.equal
+          then invalid_argf "Cycle detected in type :%s" name ()
         | xs ->
           invalid_argf "Cycle detected in types %s"
             (List.to_string ~f:(fun s -> ":" ^ s) xs)
             ())
 
   let layouts tenv g =
+    let genv = String.Table.create () in
     Graphlib.reverse_postorder_traverse (module Typegraph) g |>
-    Seq.fold ~init:(String.Map.empty, []) ~f:(fun (genv, xs) name ->
+    Seq.map ~f:(fun name ->
         let t = Map.find_exn tenv name in
-        let gamma name = match Map.find genv name with
+        let gamma name = match Hashtbl.find genv name with
           | None -> invalid_argf "Type :%s not found in gamma" name ()
           | Some l -> l in
         let l = create gamma t in
-        Map.set genv ~key:name ~data:l,
-        (name, l) :: xs) |> snd |> List.rev
+        Hashtbl.set genv ~key:name ~data:l;
+        name, l) |> Seq.to_list
 
   let of_types ts =
     let tenv = build_tenv ts in
