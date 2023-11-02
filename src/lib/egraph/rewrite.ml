@@ -107,6 +107,7 @@ let infer_ty_binop : Virtual.Insn.binop -> Type.t option = function
 let infer_ty_unop t : Virtual.Insn.unop -> Type.t option = function
   | `neg t
   | `copy t -> Some (t :> Type.t)
+  | `ref -> Some (word t)
   | `clz t
   | `ctz t
   | `not_ t
@@ -117,7 +118,7 @@ let infer_ty_unop t : Virtual.Insn.unop -> Type.t option = function
   | `itrunc t
   | `sext t
   | `zext t -> Some (t :> Type.t)
-  | `ifbits t | `ref t -> Some (t :> Type.t)
+  | `ifbits t -> Some (t :> Type.t)
   | `fext t
   | `fibits t
   | `ftrunc t

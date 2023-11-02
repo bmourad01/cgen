@@ -291,14 +291,14 @@ module Insn : sig
 
       [`copy t]: move to a destination of type [t].
 
-      [`ref t]: copy a reference to a compound type.
+      [`ref]: copy a reference to a compound type.
 
       [`unref s]: reinterpret a reference as a compound type [s],
       mainly for passing as an argument to a function.
   *)
   type copy = [
     | `copy  of Type.basic
-    | `ref   of Type.imm_base
+    | `ref
     | `unref of string
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 

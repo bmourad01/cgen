@@ -118,8 +118,7 @@
 %token <Type.imm_base> IFBITS
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL ACALL ATCALL
-%token <Type.imm_base> REF
-%token UNREF
+%token REF UNREF
 %token CALL TCALL
 %token <Type.basic> VAARG
 %token VASTART
@@ -523,7 +522,7 @@ insn_cast:
 
 insn_copy:
   | t = COPY { `copy t }
-  | t = REF { `ref t }
+  | REF { `ref }
   | UNREF s = TYPENAME { `unref s }
 
 dst:

@@ -391,12 +391,12 @@ module Insns = struct
         | #Type.basic as b, t when Type.equal_basic b t -> !!(t :> Type.t)
         | _ -> unify_fail_arg (t :> Type.t) a ta
       end
-    | `ref t ->
+    | `ref ->
       let* w = target >>| Target.word in
-      if Type.equal_imm_base t w then match ta with
-        | #Type.compound -> !!(t :> Type.t)
-        | _ -> ref_expected_compound t a
-      else ref_expected_word_size t w
+      begin match ta with
+        | #Type.compound -> !!(w :> Type.t)
+        | _ -> ref_expected_compound ta a
+      end
     | `unref s ->
       let* env = getenv in
       let*? t = Env.typeof_typ s env in
