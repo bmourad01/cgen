@@ -221,11 +221,11 @@ and search ~d t n =
     | Ok l -> List.fold l ~init ~f:(fun env (p, c) -> cls env c p)
     | Unequal_lengths -> raise Mismatch
   (* Produce a substitution for the variable. *)
-  and var env x id = match Map.find env x with
-    | None -> Map.set env ~key:x ~data:(subst_info t id)
-    | Some i when i.id = id -> env
-    | Some _ -> raise Mismatch
-  (* Match the canonical element of an e-class. *)
+  and var env x id = Map.update env x ~f:(function
+      | Some i when i.id = id -> i
+      | Some _ -> raise Mismatch
+      | None -> subst_info t id)
+  (* Match with an e-class ID. *)
   and cls env id = function
     | P _ as p -> go env p id @@ node t id
     | V x -> var env x id in
