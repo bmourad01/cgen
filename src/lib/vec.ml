@@ -29,22 +29,16 @@ let clear t =
   done;
   t.length <- 0
 
-let newcap n = Int.ceil_pow2 @@ max n 1
-
 let append t1 t2 =
   if t2.length > 0 then begin
     let l1 = t1.length in
     let l2 = t2.length in
     let new_length = l1 + l2 in
-    let dst =
-      (* Even if we have enough space, we should still account for
-         future insertions. *)
-      if t1.capacity <= new_length then
-        let new_capacity = newcap new_length in
-        let dst = Oa.create ~len:new_capacity in
+    let dst = if t1.capacity < new_length then
+        let dst = Oa.create ~len:new_length in
         Oa.unsafe_blit ~src:t1.data ~src_pos:0 ~dst ~dst_pos:0 ~len:l1;
         t1.data <- dst;
-        t1.capacity <- new_capacity;
+        t1.capacity <- new_length;
         dst
       else t1.data in
     Oa.unsafe_blit ~src:t2.data ~src_pos:0 ~dst ~dst_pos:l1 ~len:l2;
@@ -52,7 +46,7 @@ let append t1 t2 =
   end
 
 let grow t =
-  let new_capacity = newcap (t.capacity * growth_factor) in
+  let new_capacity = t.capacity * growth_factor in
   let dst = Oa.create ~len:new_capacity in
   Oa.unsafe_blit ~src:t.data ~src_pos:0 ~dst ~dst_pos:0 ~len:t.length;
   t.data <- dst;
@@ -276,17 +270,15 @@ let to_sequence_rev t = to_sequence_rev_mutable @@ copy t
 
 let of_array a =
   let length = Array.length a in
-  let capacity = newcap length in
-  let data = Oa.create ~len:capacity in
+  let data = Oa.create ~len:length in
   Array.iteri a ~f:(Oa.unsafe_set_some data);
-  {data; length; capacity}
+  {data; length; capacity = length}
 
 let of_list l =
   let length = List.length l in
-  let capacity = newcap length in
-  let data = Oa.create ~len:capacity in
+  let data = Oa.create ~len:length in
   List.iteri l ~f:(Oa.unsafe_set_some data);
-  {data; length; capacity}
+  {data; length; capacity = length}
 
 (* This is taken from the Array module in Jane Street's Base library. *)
 
