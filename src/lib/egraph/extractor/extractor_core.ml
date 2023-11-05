@@ -16,7 +16,7 @@ module O = Monad.Option
 *)
 type prov =
   | Label of Label.t
-  | Id of {canon: id; real: id}
+  | Id of {canon : id; real : id}
 
 let pp_prov ppf = function
   | Label l -> Format.fprintf ppf "%a" Label.pp l

@@ -42,7 +42,7 @@ type op =
 
 type t =
   | N of op * Id.t list
-  | U of {pre: Id.t; post: Id.t}
+  | U of {pre : Id.t; post : Id.t}
 [@@deriving compare, equal, hash, sexp]
 
 let is_const = function
