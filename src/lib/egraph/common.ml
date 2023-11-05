@@ -29,21 +29,41 @@ type rule = {
 
 type rules = (Enode.op, (pattern list * formula) list) Hashtbl.t
 
+(* The actual e-graph data structure.
+
+   Aside from the typical elements (i.e. our hash-consing of e-nodes
+   and our union-find for canonicalization), we also have various
+   tables that are keeping track of the relationship between an ID
+   and its position (label) in the CFG representation.
+
+   This gets a bit more complex when we want to perform optimizations
+   related to code motion (e.g. LICM, CSE, hoisting, sinking), so that's
+   what all the extra hash tables are for.
+
+   See the [Prov], [Extractor_core], and [Extractor_cfg] modules for
+   examples of how this information gets used.
+
+   Regarding the [intv] mapping, this information is based on the
+   intervals analysis performed on the function (part of [input]),
+   but this information is not stable across all program points for
+   a given ID and must be updated depending on the current position
+   of the [Builder].
+*)
 type t = {
-  input   : Input.t;
-  classes : Uf.t;
-  node    : enode Vec.t;
-  memo    : (enode, id) Hashtbl.t;
-  lmoved  : Id.Set.t Label.Table.t;
-  imoved  : Label.Set.t Id.Table.t;
-  imoved2 : Label.t Id.Table.t;
-  licm    : Id.Hash_set.t;
-  id2lbl  : Label.t Id.Table.t;
-  lbl2id  : id Label.Table.t;
-  typs    : Type.t Id.Table.t;
-  intv    : Bv_interval.t Id.Table.t;
-  fuel    : int;
-  rules   : rules;
+  input   : Input.t;                  (* Analyses about the function. *)
+  classes : Uf.t;                     (* The union-find for all e-classes. *)
+  node    : enode Vec.t;              (* All e-nodes, indexed by ID. *)
+  memo    : (enode, id) Hashtbl.t;    (* The hash-cons for optimized terms. *)
+  lmoved  : Id.Set.t Label.Table.t;   (* Set of IDs that were moved to a given label. *)
+  imoved  : Label.Set.t Id.Table.t;   (* Set of labels that were moved for a given ID. *)
+  imoved2 : Label.t Id.Table.t;       (* The label a given ID was moved to. *)
+  licm    : Id.Hash_set.t;            (* IDs that were moved via LICM. *)
+  id2lbl  : Label.t Id.Table.t;       (* Maps unmoved IDs to labels. *)
+  lbl2id  : id Label.Table.t;         (* Maps labels to IDs. *)
+  typs    : Type.t Id.Table.t;        (* Maps IDs to types. *)
+  intv    : Bv_interval.t Id.Table.t; (* Maps IDs to BV intervals (not stable). *)
+  fuel    : int;                      (* Maximum rewrite depth. *)
+  rules   : rules;                    (* The table of rewrite rules. *)
 }
 
 type egraph = t
