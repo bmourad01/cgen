@@ -364,13 +364,6 @@ module Insns = struct
       let+ () = unify_arg ta a (ti :> Type.t) in
       (tf :> Type.basic)
 
-  let ref_expected_word_size t w =
-    let* fn = getfn and* blk = getblk and* l = getins in
-    M.failf  "Expected return type %a for 'ref' instruction %a \
-              in block %a in function $%s, got %a"
-      Type.pp (w :> Type.t) Label.pp l Label.pp (Blk.label blk)
-      (Func.name fn) Type.pp (t :> Type.t) ()
-
   let ref_expected_compound t a =
     let* fn = getfn and* blk = getblk and* l = getins in
     M.failf "Expected compound type for arg %a in 'ref' instruction \
