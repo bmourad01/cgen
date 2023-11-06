@@ -24,7 +24,15 @@ module Make(K : Patricia_tree_intf.Key) = struct
   module Key = struct
     type t = {key : key} [@@unboxed]
 
-    let branching_size = Int.(ctz @@ ceil_pow2 size)
+    (* Currently `Base.Int64.popcount` and `Base.Int.ceil_pow2` are
+       implemented by hand instead of calling out to C stubs, so the
+       OCaml compiler has a chance to do some constant folding assuming
+       that the user provided `K.size` as a known constant. *)
+    let ctz x =
+      let x = Int.(to_int64 (lnot x land pred x)) in
+      Int64.popcount x
+
+    let branching_size = ctz @@ Int.ceil_pow2 size
     let payload_size = Int.(size - branching_size)
     let branching_mask = ((one lsl branching_size) - one) lsl payload_size
     let payload_mask = (one lsl payload_size) - one
