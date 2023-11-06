@@ -203,11 +203,11 @@ and search ~d t n =
   let pending = Stack.create () in
   (* Match a node. *)
   let rec cls env p id = match p, node t id with
-    | V x, N _ -> var env x id
+    | V x, (N _ | U _) -> var env x id
     | P (x, xs), N (y, ys) when Enode.equal_op x y ->
       children ~init:env xs ys
     | P _, N _ -> raise Mismatch
-    | _, U {pre; post} ->
+    | P _, U {pre; post} ->
       (* Explore the rewritten term first. In some cases, constant
          folding will run much faster if we keep rewriting it. If
          there's a match then we can enqueue the "original" term with
