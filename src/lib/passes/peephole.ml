@@ -282,6 +282,19 @@ module Rules = struct
         O.guard @@ not @@ I.contains_value i Bv.zero
     end
 
+  let is_rotate_const x y env =
+    Option.is_some begin
+      let* xi = Subst.find env x >>= Subst.const in
+      let* yi = Subst.find env y >>= Subst.const in
+      match xi, yi with
+      | `int (xi, xt), `int (yi, yt) when Type.equal_imm xt yt ->
+        let xi = Bv.to_int64 xi in
+        let yi = Bv.to_int64 yi in
+        let sz = Int.to_int64 @@ Type.sizeof_imm xt in
+        Option.some_if Int64.(xi = sz - yi) ()
+      | _ -> None
+    end
+
   let x = var "x"
   let y = var "y"
   let z = var "z"
@@ -305,6 +318,7 @@ module Rules = struct
   let urem_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y" ~rem:true
   let identity_same_type_x = identity_same_type "x"
   let cannot_be_zero_x = cannot_be_zero "x"
+  let is_rotate_const_y_z = is_rotate_const "y" "z"
 
   (* Sets of related rules. *)
   module Groups = struct
@@ -860,6 +874,104 @@ module Rules = struct
       ror `i16 x (i16 0) => x;
       ror `i32 x (i32 0l) => x;
       ror `i64 x (i64 0L) => x;
+    ]
+
+    (* (x << y) | (x >> z) =
+       (x >> z) | (x << y) =
+       (x << y) + (x >> z) =
+       (x >> z) + (x << y) = rol x y
+
+       when y and z are known consts and z = size - y
+    *)
+    let recognize_rol_const = [
+      (or_ `i8 (lsl_ `i8 x y) (lsr_ `i8 x z) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i16 (lsl_ `i16 x y) (lsr_ `i16 x z) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i32 (lsl_ `i32 x y) (lsr_ `i32 x z) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i64 (lsl_ `i64 x y) (lsr_ `i64 x z) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i8 (lsr_ `i8 x z) (lsl_ `i8 x y) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i16 (lsr_ `i16 x z) (lsl_ `i16 x y) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i32 (lsr_ `i32 x z) (lsl_ `i32 x y) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i64 (lsr_ `i64 x z) (lsl_ `i64 x y) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
+      (add `i8 (lsl_ `i8 x y) (lsr_ `i8 x z) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
+      (add `i16 (lsl_ `i16 x y) (lsr_ `i16 x z) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
+      (add `i32 (lsl_ `i32 x y) (lsr_ `i32 x z) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
+      (add `i64 (lsl_ `i64 x y) (lsr_ `i64 x z) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
+      (add `i8 (lsr_ `i8 x z) (lsl_ `i8 x y) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
+      (add `i16 (lsr_ `i16 x z) (lsl_ `i16 x y) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
+      (add `i32 (lsr_ `i32 x z) (lsl_ `i32 x y) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
+      (add `i64 (lsr_ `i64 x z) (lsl_ `i64 x y) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
+    ]
+
+    (* (x >> y) | (x << z) =
+       (x << z) | (x >> y) =
+       (x >> y) + (x << z) =
+       (x << z) + (x >> y) = ror x y
+
+       when y and z are known consts and z = size - y
+    *)
+    let recognize_ror_const = [
+      (or_ `i8 (lsr_ `i8 x y) (lsl_ `i8 x z) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i16 (lsr_ `i16 x y) (lsl_ `i16 x z) =>? ror`i16 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i32 (lsr_ `i32 x y) (lsl_ `i32 x z) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i64 (lsr_ `i64 x y) (lsl_ `i64 x z) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i8 (lsl_ `i8 x z) (lsr_ `i8 x y) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i16 (lsl_ `i16 x z) (lsr_ `i16 x y) =>? ror `i16 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i32 (lsl_ `i32 x z) (lsr_ `i32 x y) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i64 (lsl_ `i64 x z) (lsr_ `i64 x y) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+      (add `i8 (lsr_ `i8 x y) (lsl_ `i8 x z) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
+      (add `i16 (lsr_ `i16 x y) (lsl_ `i16 x z) =>? ror`i16 x y) ~if_:is_rotate_const_y_z;
+      (add `i32 (lsr_ `i32 x y) (lsl_ `i32 x z) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
+      (add `i64 (lsr_ `i64 x y) (lsl_ `i64 x z) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+      (add `i8 (lsl_ `i8 x z) (lsr_ `i8 x y) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
+      (add `i16 (lsl_ `i16 x z) (lsr_ `i16 x y) =>? ror `i16 x y) ~if_:is_rotate_const_y_z;
+      (add `i32 (lsl_ `i32 x z) (lsr_ `i32 x y) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
+      (add `i64 (lsl_ `i64 x z) (lsr_ `i64 x y) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+    ]
+
+    (* (x << y) | (x >> (size - y)) =
+       (x >> (size - y)) | (x << y) =
+       (x << y) + (x >> (size - y)) =
+       (x >> (size - y)) + (x << y) = rol x y *)
+    let recognize_rol = [
+      or_ `i8 (lsl_ `i8 x y) (lsr_ `i8 x (sub `i8 (i8 8) y)) => rol `i8 x y;
+      or_ `i16 (lsl_ `i16 x y) (lsr_ `i16 x (sub `i16 (i8 16) y)) => rol `i16 x y;
+      or_ `i32 (lsl_ `i32 x y) (lsr_ `i32 x (sub `i32 (i32 32l) y)) => rol `i32 x y;
+      or_ `i64 (lsl_ `i64 x y) (lsr_ `i64 x (sub `i64 (i64 64L) y)) => rol `i64 x y;
+      or_ `i8 (lsr_ `i8 x (sub `i8 (i8 8) y)) (lsl_ `i8 x y) => rol `i8 x y;
+      or_ `i16 (lsr_ `i16 x (sub `i16 (i8 16) y)) (lsl_ `i16 x y) => rol `i16 x y;
+      or_ `i32 (lsr_ `i32 x (sub `i32 (i32 32l) y)) (lsl_ `i32 x y) => rol `i32 x y;
+      or_ `i64 (lsr_ `i64 x (sub `i64 (i64 64L) y)) (lsl_ `i64 x y) => rol `i64 x y;
+      add `i8 (lsl_ `i8 x y) (lsr_ `i8 x (sub `i8 (i8 8) y)) => rol `i8 x y;
+      add `i16 (lsl_ `i16 x y) (lsr_ `i16 x (sub `i16 (i8 16) y)) => rol `i16 x y;
+      add `i32 (lsl_ `i32 x y) (lsr_ `i32 x (sub `i32 (i32 32l) y)) => rol `i32 x y;
+      add `i64 (lsl_ `i64 x y) (lsr_ `i64 x (sub `i64 (i64 64L) y)) => rol `i64 x y;
+      add `i8 (lsr_ `i8 x (sub `i8 (i8 8) y)) (lsl_ `i8 x y) => rol `i8 x y;
+      add `i16 (lsr_ `i16 x (sub `i16 (i8 16) y)) (lsl_ `i16 x y) => rol `i16 x y;
+      add `i32 (lsr_ `i32 x (sub `i32 (i32 32l) y)) (lsl_ `i32 x y) => rol `i32 x y;
+      add `i64 (lsr_ `i64 x (sub `i64 (i64 64L) y)) (lsl_ `i64 x y) => rol `i64 x y;
+    ]
+
+    (* (x >> y) | (x << (size - y)) =
+       (x << (size - y)) | (x >> y) =
+       (x >> y) + (x << (size - y)) =
+       (x << (size - y)) + (x >> y) = ror x y *)
+    let recognize_ror = [
+      or_ `i8 (lsr_ `i8 x y) (lsl_ `i8 x (sub `i8 (i8 8) y)) => ror `i8 x y;
+      or_ `i16 (lsr_ `i16 x y) (lsl_ `i16 x (sub `i16 (i8 16) y)) => ror `i16 x y;
+      or_ `i32 (lsr_ `i32 x y) (lsl_ `i32 x (sub `i32 (i32 32l) y)) => ror `i32 x y;
+      or_ `i64 (lsr_ `i64 x y) (lsl_ `i64 x (sub `i64 (i64 64L) y)) => ror `i64 x y;
+      or_ `i8 (lsl_ `i8 x (sub `i8 (i8 8) y)) (lsr_ `i8 x y) => ror `i8 x y;
+      or_ `i16 (lsl_ `i16 x (sub `i16 (i8 16) y)) (lsr_ `i16 x y) => ror `i16 x y;
+      or_ `i32 (lsl_ `i32 x (sub `i32 (i32 32l) y)) (lsr_ `i32 x y) => ror `i32 x y;
+      or_ `i64 (lsl_ `i64 x (sub `i64 (i64 64L) y)) (lsr_ `i64 x y) => ror `i64 x y;
+      add `i8 (lsr_ `i8 x y) (lsl_ `i8 x (sub `i8 (i8 8) y)) => ror `i8 x y;
+      add `i16 (lsr_ `i16 x y) (lsl_ `i16 x (sub `i16 (i8 16) y)) => ror `i16 x y;
+      add `i32 (lsr_ `i32 x y) (lsl_ `i32 x (sub `i32 (i32 32l) y)) => ror `i32 x y;
+      add `i64 (lsr_ `i64 x y) (lsl_ `i64 x (sub `i64 (i64 64L) y)) => ror `i64 x y;
+      add `i8 (lsl_ `i8 x (sub `i8 (i8 8) y)) (lsr_ `i8 x y) => ror `i8 x y;
+      add `i16 (lsl_ `i16 x (sub `i16 (i8 16) y)) (lsr_ `i16 x y) => ror `i16 x y;
+      add `i32 (lsl_ `i32 x (sub `i32 (i32 32l) y)) (lsr_ `i32 x y) => ror `i32 x y;
+      add `i64 (lsl_ `i64 x (sub `i64 (i64 64L) y)) (lsr_ `i64 x y) => ror `i64 x y;
     ]
 
     (* x ^ 0 = x *)
@@ -1598,6 +1710,10 @@ module Rules = struct
       lsr_zero @
       rol_zero @
       ror_zero @
+      recognize_rol_const @
+      recognize_ror_const @
+      recognize_rol @
+      recognize_ror @
       xor_zero @
       xor_ones @
       xor_self @
