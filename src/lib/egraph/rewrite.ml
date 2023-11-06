@@ -201,19 +201,22 @@ and search ~d t n =
   let matches = Vec.create () in
   (* Pending IDs from union nodes. *)
   let pending = Stack.create () in
-  (* Match a node. *)
-  let rec cls env p id = match p, node t id with
-    | V x, (N _ | U _) -> var env x id
-    | P (x, xs), N (y, ys) when Enode.equal_op x y ->
+  (* Match an e-class. *)
+  let rec cls env p id = match p with
+    | P (x, xs) -> pat env x xs id
+    | V x -> var env x id
+  (* Match a node with a concrete pattern. *)
+  and pat env x xs id = match node t id with
+    | N (y, ys) when Enode.equal_op x y ->
       children ~init:env xs ys
-    | P _, N _ -> raise Mismatch
-    | P _, U {pre; post} ->
+    | N _ -> raise Mismatch
+    | U {pre; post} ->
       (* Explore the rewritten term first. In some cases, constant
          folding will run much faster if we keep rewriting it. If
          there's a match then we can enqueue the "original" term with
          the current state of the search for further exploration. *)
-      Stack.push pending (env, pre, p);
-      cls env p post
+      Stack.push pending (env, x, xs, pre);
+      pat env x xs post
   (* Match all the children of an e-node. *)
   and children ?(init = empty_subst) ps cs = match List.zip ps cs with
     | Ok l -> List.fold l ~init ~f:(fun env (p, id) -> cls env p id)
@@ -249,7 +252,7 @@ and search ~d t n =
         (try apply f @@ children ps cs with Mismatch -> ());
         (* Then match any pending unioned nodes. *)
         while not @@ Stack.is_empty pending do
-          let env, id, p = Stack.pop_exn pending in
-          try apply f @@ cls env p id with Mismatch -> ()
+          let env, x, xs, id = Stack.pop_exn pending in
+          try apply f @@ pat env x xs id with Mismatch -> ()
         done));
     matches
