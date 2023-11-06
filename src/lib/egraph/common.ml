@@ -129,6 +129,10 @@ let interval t id = Hashtbl.find t.intv id
 let typeof_var t x =
   Typecheck.Env.typeof_var t.input.fn x t.input.tenv |> Or_error.ok
 
+let typeof_typ t n = match Typecheck.Env.typeof_typ n t.input.tenv with
+  | Ok t -> Some (t :> Type.t)
+  | Error _ -> None
+
 let word t =
   (Target.word @@ Typecheck.Env.target t.input.tenv :> Type.t)
 
