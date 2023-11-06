@@ -10,24 +10,54 @@ type subst = Subst.t
 
 let empty_subst : subst = String.Map.empty
 
+(* Allow rules to call an OCaml function that performs some action
+   based on the current substitution. *)
 type 'a callback = subst -> 'a
 
+(* A pattern is either:
+
+   [V x]: a variable [x] which represents a substitution for a
+   unique term.
+
+   [P (o, ps)]: an e-node with an operator [o] and children [ps].
+*)
 type pattern =
   | V of string
   | P of Enode.op * pattern list
 [@@deriving compare, equal, hash, sexp]
 
+(* An action to be taken when a pattern has been successfully
+   matched.
+
+   [Static p]: the term is always rewritten to [p].
+
+   [Cond (p, k)]: the rerm is rewrtitten to [p] if [k] is
+   satisfied.
+
+   [Dyn f]: if [f] returns [Some p], then the term is rewritten
+   to [p].
+*)
 type formula =
   | Static of pattern
   | Cond of pattern * bool callback
   | Dyn of pattern option callback
 
+(* A rule consists of a pattern [pre] that a node must successfully
+   match with. Matching with [pre] produces a substitution, which
+   is then applied to [post] to yield a rewritten term. *)
 type rule = {
   pre  : pattern;
   post : formula;
 }
 
-type rules = (Enode.op, (pattern list * formula) list) Hashtbl.t
+(* The children of a pattern to be matched against, and a
+   post-condition. *)
+type action = pattern list * formula
+
+(* Map top-level operators to their actions. This helps to
+   cut down the search space as we look to apply rules to
+   a given node. *)
+type rules = (Enode.op, action list) Hashtbl.t
 
 (* The actual e-graph data structure.
 
