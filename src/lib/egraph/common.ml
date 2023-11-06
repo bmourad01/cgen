@@ -26,6 +26,14 @@ type pattern =
   | P of Enode.op * pattern list
 [@@deriving compare, equal, hash, sexp]
 
+let rec pp_pattern ppf = function
+  | V x -> Format.fprintf ppf "%s" x
+  | P (o, []) -> Format.fprintf ppf "%a" Enode.pp_op o
+  | P (o, ps) ->
+    let pp_sep ppf () = Format.fprintf ppf " " in
+    Format.fprintf ppf "(%a %a)" Enode.pp_op o
+      (Format.pp_print_list ~pp_sep pp_pattern) ps
+
 (* An action to be taken when a pattern has been successfully
    matched.
 
