@@ -47,6 +47,34 @@ module Rules = struct
         not I.(contains_value i Bv.one || contains_value i Bv.zero)
     end
 
+  (* `x` is (signed) greater than 1 *)
+  let is_sgt_one x env =
+    Option.value ~default:false begin
+      let* s = Subst.find env x in
+      match Subst.const s with
+      | Some `int (i, ty) ->
+        let m = Bv.modulus @@ Type.sizeof_imm ty in
+        Some (Bv.signed_compare i Bv.one m > 0)
+      | _ ->
+        let+ i = Subst.interval s in
+        let m = Bv.modulus @@ I.size i in
+        Bv.signed_compare (I.signed_min i) Bv.one m > 0
+    end
+
+  (* `x` is (signed) less than 0 *)
+  let is_slt_zero x env =
+    Option.value ~default:false begin
+      let* s = Subst.find env x in
+      match Subst.const s with
+      | Some `int (i, ty) ->
+        let m = Bv.modulus @@ Type.sizeof_imm ty in
+        Some (Bv.signed_compare i Bv.zero m < 0)
+      | _ ->
+        let+ i = Subst.interval s in
+        let m = Bv.modulus @@ I.size i in
+        Bv.signed_compare (I.signed_max i) Bv.zero m < 0
+    end
+
   let has_type x ty env =
     Subst.find env x |>
     Option.bind ~f:Subst.typeof |> function
@@ -304,6 +332,8 @@ module Rules = struct
   let is_not_const_y = is_not_const "y"
   let is_neg_const_y = is_neg_const "y"
   let is_not_bool_y = is_not_bool "y"
+  let is_sgt_one_y = is_sgt_one "y"
+  let is_slt_zero_y = is_slt_zero "y"
   let has_type_x = has_type "x"
   let lsr_asr_bitwidth_y_z = lsr_asr_bitwidth "y" "z"
   let mul_imm_pow2_y = mul_imm_pow2 x "y"
@@ -1010,24 +1040,12 @@ module Rules = struct
       xor `i64 (not_ `i64 x) x => i64 0xffff_ffff_ffff_ffffL;
     ]
 
-    (* (x ^ y) ^ y = (y ^ x) ^ y = y ^ (x ^ y) = y ^ (y ^ x) = x  *)
+    (* (x ^ y) ^ y = x *)
     let double_xor = [
       xor `i8 (xor `i8 x y) y => x;
       xor `i16 (xor `i16 x y) y => x;
       xor `i32 (xor `i32 x y) y => x;
       xor `i64 (xor `i64 x y) y => x;
-      xor `i8 (xor `i8 y x) y => x;
-      xor `i16 (xor `i16 y x) y => x;
-      xor `i32 (xor `i32 y x) y => x;
-      xor `i64 (xor `i64 y x) y => x;
-      xor `i8 y (xor `i8 x y) => x;
-      xor `i16 y (xor `i16 x y) => x;
-      xor `i32 y (xor `i32 x y) => x;
-      xor `i64 y (xor `i64 x y) => x;
-      xor `i8 y (xor `i8 y x) => x;
-      xor `i16 y (xor `i16 y x) => x;
-      xor `i32 y (xor `i32 y x) => x;
-      xor `i64 y (xor `i64 y x) => x;
     ]
 
     (* (x >>> y) >> z = x >> z when z >= y and z is bitwidth - 1 *)
@@ -1102,7 +1120,7 @@ module Rules = struct
       slt `i64 x x => bool false;
     ]
 
-    (* flag (x == y) ^ 1 => flag (x != y) *)
+    (* flag (x == y) ^ 1 = flag (x != y) *)
     let xor_flag_eq_one = [
       xor `i8 (flag `i8 (eq `i8 x y)) (i8 1) => flag `i8 (ne `i8 x y);
       xor `i16 (flag `i16 (eq `i16 x y)) (i16 1) => flag `i16 (ne `i16 x y);
@@ -1110,7 +1128,7 @@ module Rules = struct
       xor `i64 (flag `i64 (eq `i64 x y)) (i64 1L) => flag `i64 (ne `i64 x y);
     ]
 
-    (* flag (x != y) ^ 1 => x == y *)
+    (* flag (x != y) ^ 1 = flag (x == y) *)
     let xor_flag_ne_one = [
       xor `i8 (flag `i8 (ne `i8 x y)) (i8 1) => flag `i8 (eq `i8 x y);
       xor `i16 (flag `i16 (ne `i16 x y)) (i16 1) => flag `i16 (eq `i16 x y);
@@ -1118,7 +1136,7 @@ module Rules = struct
       xor `i64 (flag `i64 (ne `i64 x y)) (i64 1L) => flag `i64 (eq `i64 x y);
     ]
 
-    (* flag (x >= y) ^ 1 => x < y *)
+    (* flag (x >= y) ^ 1 = flag (x < y) *)
     let xor_flag_ge_one = [
       xor `i8 (flag `i8 (ge `i8 x y)) (i8 1) => flag `i8 (lt `i8 x y);
       xor `i16 (flag `i16 (ge `i16 x y)) (i16 1) => flag `i16 (lt `i16 x y);
@@ -1130,7 +1148,7 @@ module Rules = struct
       xor `i64 (flag `i64 (sge `i64 x y)) (i64 1L) => flag `i64 (slt `i64 x y);
     ]
 
-    (* flag (x > y) ^ 1 => x <= y *)
+    (* flag (x > y) ^ 1 = flag (x <= y) *)
     let xor_flag_gt_one = [
       xor `i8 (flag `i8 (gt `i8 x y)) (i8 1) => flag `i8 (le `i8 x y);
       xor `i16 (flag `i16 (gt `i16 x y)) (i16 1) => flag `i16 (le `i16 x y);
@@ -1142,7 +1160,7 @@ module Rules = struct
       xor `i64 (flag `i64 (sgt `i64 x y)) (i64 1L) => flag `i64 (sle `i64 x y);
     ]
 
-    (* flag (x <= y) ^ 1 => x > y *)
+    (* flag (x <= y) ^ 1 = flag (x > y) *)
     let xor_flag_le_one = [
       xor `i8 (flag `i8 (le `i8 x y)) (i8 1) => flag `i8 (gt `i8 x y);
       xor `i16 (flag `i16 (le `i16 x y)) (i16 1) => flag `i16 (gt `i16 x y);
@@ -1154,7 +1172,7 @@ module Rules = struct
       xor `i64 (flag `i64 (sle `i64 x y)) (i64 1L) => flag `i64 (sgt `i64 x y);
     ]
 
-    (* flag (x < y) ^ 1 => x >= y *)
+    (* flag (x < y) ^ 1 = flag (x >= y) *)
     let xor_flag_lt_one = [
       xor `i8 (flag `i8 (lt `i8 x y)) (i8 1) => flag `i8 (ge `i8 x y);
       xor `i16 (flag `i16 (lt `i16 x y)) (i16 1) => flag `i16 (ge `i16 x y);
@@ -1370,12 +1388,12 @@ module Rules = struct
       sle `i64 (flag `i64 x) (i64 1L) => bool true;
     ]
 
-    (* signed flag x <= 0 = true *)
+    (* signed flag x <= 0 = flag x == 0 *)
     let flag_sle_zero = [
-      sle `i8 (flag `i8 x) (i8 0) => bool true;
-      sle `i16 (flag `i16 x) (i16 0) => bool true;
-      sle `i32 (flag `i32 x) (i32 0l) => bool true;
-      sle `i64 (flag `i64 x) (i64 0L) => bool true;
+      sle `i8 (flag `i8 x) (i8 0) => eq `i8 (flag `i8 x) (i8 0);
+      sle `i16 (flag `i16 x) (i16 0) => eq `i16 (flag `i16 x) (i16 0);
+      sle `i32 (flag `i32 x) (i32 0l) => eq `i32 (flag `i32 x) (i32 0l);
+      sle `i64 (flag `i64 x) (i64 0L) => eq `i64 (flag `i64 x) (i64 0L);
     ]
 
     (* unsigned flag x < 1 = flag x == 0 *)
@@ -1474,48 +1492,192 @@ module Rules = struct
       sgt `i64 (flag `i64 x) (i64 1L) => bool false;
     ]
 
-    (* flag `cmp` y = false when y not bool *)
-    let flag_cmp_false = [
+    (* (flag x == y) = (y == flag x) = false when y is not 0 or 1 *)
+    let flag_eq_not_bool = [
       (eq `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
       (eq `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
       (eq `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
       (eq `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (ne `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (ne `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (ne `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (ne `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (lt `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (lt `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (lt `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (lt `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (slt `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (slt `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (slt `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (slt `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (le `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (le `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (le `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (le `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sle `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sle `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sle `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sle `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (eq `i8 y (flag `i8 x) =>? bool false) ~if_:is_not_bool_y;
+      (eq `i16 y (flag `i16 x) =>? bool false) ~if_:is_not_bool_y;
+      (eq `i32 y (flag `i32 x) =>? bool false) ~if_:is_not_bool_y;
+      (eq `i64 y (flag `i64 x) =>? bool false) ~if_:is_not_bool_y;
+    ]
+
+    (* (flag x != y) = (y != flag x) = true when y is not 0 or 1 *)
+    let flag_ne_not_bool = [
+      (ne `i8 (flag `i8 x) y =>? bool true) ~if_:is_not_bool_y;
+      (ne `i16 (flag `i16 x) y =>? bool true) ~if_:is_not_bool_y;
+      (ne `i32 (flag `i32 x) y =>? bool true) ~if_:is_not_bool_y;
+      (ne `i64 (flag `i64 x) y =>? bool true) ~if_:is_not_bool_y;
+      (ne `i8 y (flag `i8 x) =>? bool true) ~if_:is_not_bool_y;
+      (ne `i16 y (flag `i16 x) =>? bool true) ~if_:is_not_bool_y;
+      (ne `i32 y (flag `i32 x) =>? bool true) ~if_:is_not_bool_y;
+      (ne `i64 y (flag `i64 x) =>? bool true) ~if_:is_not_bool_y;
+    ]
+
+    (* (flag x < y) = true
+       (y < flag x) = false
+
+       when y is not 0 or 1
+    *)
+    let flag_ult_not_bool = [
+      (lt `i8 (flag `i8 x) y =>? bool true) ~if_:is_not_bool_y;
+      (lt `i16 (flag `i16 x) y =>? bool true) ~if_:is_not_bool_y;
+      (lt `i32 (flag `i32 x) y =>? bool true) ~if_:is_not_bool_y;
+      (lt `i64 (flag `i64 x) y =>? bool true) ~if_:is_not_bool_y;
+      (lt `i8 y (flag `i8 x) =>? bool false) ~if_:is_not_bool_y;
+      (lt `i16 y (flag `i16 x) =>? bool false) ~if_:is_not_bool_y;
+      (lt `i32 y (flag `i32 x) =>? bool false) ~if_:is_not_bool_y;
+      (lt `i64 y (flag `i64 x) =>? bool false) ~if_:is_not_bool_y;
+    ]
+
+    (* (signed flag x < y) = true
+       (signed y < flag x) = false
+
+       when signed y > 1
+       opposite when signed y < 0
+    *)
+    let flag_slt_not_bool = [
+      (slt `i8 (flag `i8 x) y =>? bool true) ~if_:is_sgt_one_y;
+      (slt `i16 (flag `i16 x) y =>? bool true) ~if_:is_sgt_one_y;
+      (slt `i32 (flag `i32 x) y =>? bool true) ~if_:is_sgt_one_y;
+      (slt `i64 (flag `i64 x) y =>? bool true) ~if_:is_sgt_one_y;
+      (slt `i8 y (flag `i8 x) =>? bool false) ~if_:is_sgt_one_y;
+      (slt `i16 y (flag `i16 x) =>? bool false) ~if_:is_sgt_one_y;
+      (slt `i32 y (flag `i32 x) =>? bool false) ~if_:is_sgt_one_y;
+      (slt `i64 y (flag `i64 x) =>? bool false) ~if_:is_sgt_one_y;
+      (slt `i8 (flag `i8 x) y =>? bool false) ~if_:is_slt_zero_y;
+      (slt `i16 (flag `i16 x) y =>? bool false) ~if_:is_slt_zero_y;
+      (slt `i32 (flag `i32 x) y =>? bool false) ~if_:is_slt_zero_y;
+      (slt `i64 (flag `i64 x) y =>? bool false) ~if_:is_slt_zero_y;
+      (slt `i8 y (flag `i8 x) =>? bool true) ~if_:is_slt_zero_y;
+      (slt `i16 y (flag `i16 x) =>? bool true) ~if_:is_slt_zero_y;
+      (slt `i32 y (flag `i32 x) =>? bool true) ~if_:is_slt_zero_y;
+      (slt `i64 y (flag `i64 x) =>? bool true) ~if_:is_slt_zero_y;
+    ]
+
+    (* (flag x <= y) = true
+       (y <= flag x) = false
+
+       when y is not 0 or 1
+    *)
+    let flag_ule_not_bool = [
+      (le `i8 (flag `i8 x) y =>? bool true) ~if_:is_not_bool_y;
+      (le `i16 (flag `i16 x) y =>? bool true) ~if_:is_not_bool_y;
+      (le `i32 (flag `i32 x) y =>? bool true) ~if_:is_not_bool_y;
+      (le `i64 (flag `i64 x) y =>? bool true) ~if_:is_not_bool_y;
+      (le `i8 y (flag `i8 x) =>? bool false) ~if_:is_not_bool_y;
+      (le `i16 y (flag `i16 x) =>? bool false) ~if_:is_not_bool_y;
+      (le `i32 y (flag `i32 x) =>? bool false) ~if_:is_not_bool_y;
+      (le `i64 y (flag `i64 x) =>? bool false) ~if_:is_not_bool_y;
+    ]
+
+    (* (signed flag x <= y) = true
+       (signed y <= flag x) = false
+
+       when signed y > 1
+       opposite when signed y < 0
+    *)
+    let flag_sle_not_bool = [
+      (sle `i8 (flag `i8 x) y =>? bool true) ~if_:is_sgt_one_y;
+      (sle `i16 (flag `i16 x) y =>? bool true) ~if_:is_sgt_one_y;
+      (sle `i32 (flag `i32 x) y =>? bool true) ~if_:is_sgt_one_y;
+      (sle `i64 (flag `i64 x) y =>? bool true) ~if_:is_sgt_one_y;
+      (sle `i8 x (flag `i8 x) =>? bool false) ~if_:is_sgt_one_y;
+      (sle `i16 x (flag `i16 x) =>? bool false) ~if_:is_sgt_one_y;
+      (sle `i32 x (flag `i32 x) =>? bool false) ~if_:is_sgt_one_y;
+      (sle `i64 x (flag `i64 x) =>? bool false) ~if_:is_sgt_one_y;
+      (sle `i8 (flag `i8 x) y =>? bool false) ~if_:is_slt_zero_y;
+      (sle `i16 (flag `i16 x) y =>? bool false) ~if_:is_slt_zero_y;
+      (sle `i32 (flag `i32 x) y =>? bool false) ~if_:is_slt_zero_y;
+      (sle `i64 (flag `i64 x) y =>? bool false) ~if_:is_slt_zero_y;
+      (sle `i8 x (flag `i8 x) =>? bool true) ~if_:is_slt_zero_y;
+      (sle `i16 x (flag `i16 x) =>? bool true) ~if_:is_slt_zero_y;
+      (sle `i32 x (flag `i32 x) =>? bool true) ~if_:is_slt_zero_y;
+      (sle `i64 x (flag `i64 x) =>? bool true) ~if_:is_slt_zero_y;
+    ]
+
+    (* (flag x > y) = false
+       (y > flag x) = true
+
+       when y is not 0 or 1
+    *)
+    let flag_ugt_not_bool = [
       (gt `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
       (gt `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
       (gt `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
       (gt `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sgt `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sgt `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sgt `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sgt `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (gt `i8 y (flag `i8 x) =>? bool true) ~if_:is_not_bool_y;
+      (gt `i16 y (flag `i16 x) =>? bool true) ~if_:is_not_bool_y;
+      (gt `i32 y (flag `i32 x) =>? bool true) ~if_:is_not_bool_y;
+      (gt `i64 y (flag `i64 x) =>? bool true) ~if_:is_not_bool_y;
+    ]
+
+    (* (signed flag x > y) = false
+       (signed y > flag x) = true
+
+       when signed y > 1
+       opposite when signed y < 0
+    *)
+    let flag_sgt_not_bool = [
+      (sgt `i8 (flag `i8 x) y =>? bool false) ~if_:is_sgt_one_y;
+      (sgt `i16 (flag `i16 x) y =>? bool false) ~if_:is_sgt_one_y;
+      (sgt `i32 (flag `i32 x) y =>? bool false) ~if_:is_sgt_one_y;
+      (sgt `i64 (flag `i64 x) y =>? bool false) ~if_:is_sgt_one_y;
+      (sgt `i8 y (flag `i8 x) =>? bool true) ~if_:is_sgt_one_y;
+      (sgt `i16 y (flag `i16 x) =>? bool true) ~if_:is_sgt_one_y;
+      (sgt `i32 y (flag `i32 x) =>? bool true) ~if_:is_sgt_one_y;
+      (sgt `i64 y (flag `i64 x) =>? bool true) ~if_:is_sgt_one_y;
+      (sgt `i8 (flag `i8 x) y =>? bool true) ~if_:is_slt_zero_y;
+      (sgt `i16 (flag `i16 x) y =>? bool true) ~if_:is_slt_zero_y;
+      (sgt `i32 (flag `i32 x) y =>? bool true) ~if_:is_slt_zero_y;
+      (sgt `i64 (flag `i64 x) y =>? bool true) ~if_:is_slt_zero_y;
+      (sgt `i8 y (flag `i8 x) =>? bool false) ~if_:is_slt_zero_y;
+      (sgt `i16 y (flag `i16 x) =>? bool false) ~if_:is_slt_zero_y;
+      (sgt `i32 y (flag `i32 x) =>? bool false) ~if_:is_slt_zero_y;
+      (sgt `i64 y (flag `i64 x) =>? bool false) ~if_:is_slt_zero_y;
+    ]
+
+    (* (flag x >= y) = false
+       (y >= flag x) = true
+
+       when y is not 0 or 1
+    *)
+    let flag_uge_not_bool = [
       (ge `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
       (ge `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
       (ge `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
       (ge `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sge `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sge `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sge `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (sge `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
+      (ge `i8 y (flag `i8 x) =>? bool true) ~if_:is_not_bool_y;
+      (ge `i16 y (flag `i16 x) =>? bool true) ~if_:is_not_bool_y;
+      (ge `i32 y (flag `i32 x) =>? bool true) ~if_:is_not_bool_y;
+      (ge `i64 y (flag `i64 x) =>? bool true) ~if_:is_not_bool_y;
+    ]
+
+    (* (signed flag x >= y) = false
+       (signed y >= flag x) = true
+
+       when signed y > 1
+       opposite when signed y < 0
+    *)
+    let flag_sge_not_bool = [
+      (sge `i8 (flag `i8 x) y =>? bool false) ~if_:is_sgt_one_y;
+      (sge `i16 (flag `i16 x) y =>? bool false) ~if_:is_sgt_one_y;
+      (sge `i32 (flag `i32 x) y =>? bool false) ~if_:is_sgt_one_y;
+      (sge `i64 (flag `i64 x) y =>? bool false) ~if_:is_sgt_one_y;
+      (sge `i8 y (flag `i8 x) =>? bool true) ~if_:is_sgt_one_y;
+      (sge `i16 y (flag `i16 x) =>? bool true) ~if_:is_sgt_one_y;
+      (sge `i32 y (flag `i32 x) =>? bool true) ~if_:is_sgt_one_y;
+      (sge `i64 y (flag `i64 x) =>? bool true) ~if_:is_sgt_one_y;
+      (sge `i8 (flag `i8 x) y =>? bool true) ~if_:is_slt_zero_y;
+      (sge `i16 (flag `i16 x) y =>? bool true) ~if_:is_slt_zero_y;
+      (sge `i32 (flag `i32 x) y =>? bool true) ~if_:is_slt_zero_y;
+      (sge `i64 (flag `i64 x) y =>? bool true) ~if_:is_slt_zero_y;
+      (sge `i8 y (flag `i8 x) =>? bool false) ~if_:is_slt_zero_y;
+      (sge `i16 y (flag `i16 x) =>? bool false) ~if_:is_slt_zero_y;
+      (sge `i32 y (flag `i32 x) =>? bool false) ~if_:is_slt_zero_y;
+      (sge `i64 y (flag `i64 x) =>? bool false) ~if_:is_slt_zero_y;
     ]
 
     (* extend t1 (flag t2 x) = flag t1 x *)
@@ -1642,7 +1804,7 @@ module Rules = struct
       sel `i16 x (i16 1) (i16 0) => flag `i16 x;
       sel `i32 x (i32 1l) (i32 0l) => flag `i32 x;
       sel `i64 x (i64 1L) (i64 0L) => flag `i64 x;
-      sel `i8 x (i8 0)  (i8 1) => xor `i8 (flag `i8 x) (i8 1);
+      sel `i8 x (i8 0) (i8 1) => xor `i8 (flag `i8 x) (i8 1);
       sel `i16 x (i16 0) (i16 1) => xor `i16 (flag `i16 x) (i16 1);
       sel `i32 x (i32 0l) (i32 1l) => xor `i32 (flag `i32 x) (i32 1l);
       sel `i64 x (i64 0L) (i64 1L) => xor `i64 (flag `i64 x) (i64 1L);
@@ -1770,7 +1932,16 @@ module Rules = struct
       flag_sgt_zero @
       flag_ugt_one @
       flag_sgt_one @
-      flag_cmp_false @
+      flag_eq_not_bool @
+      flag_ne_not_bool @
+      flag_ult_not_bool @
+      flag_slt_not_bool @
+      flag_ule_not_bool @
+      flag_sle_not_bool @
+      flag_ugt_not_bool @
+      flag_sgt_not_bool @
+      flag_uge_not_bool @
+      flag_sge_not_bool @
       extend_flag @
       trunc_flag @
       extend_i8 @
@@ -1781,7 +1952,8 @@ module Rules = struct
       br_const @
       sel_const @
       sel_bool @
-      prop_copy
+      prop_copy @
+      []
   end
 
   let rules = Egraph.create_table Groups.all
