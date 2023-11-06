@@ -639,8 +639,7 @@ let logand t1 t2 =
   let m = Bv.modulus size in
   if is_empty t1 || is_empty t2
   then create_empty ~size
-  else
-    match (single_of t1, single_of t2) with
+  else match (single_of t1, single_of t2) with
     | Some v1, Some v2 ->
       create_single ~value:Bv.(v1 land v2 mod m) ~size
     | _ ->
@@ -653,8 +652,7 @@ let logor t1 t2 =
   let m = Bv.modulus size in
   if is_empty t1 || is_empty t2
   then create_empty ~size
-  else
-    match (single_of t1, single_of t2) with
+  else match (single_of t1, single_of t2) with
     | Some v1, Some v2 -> create_single ~value:Bv.(v1 lor v2 mod m) ~size
     | _ ->
       create_non_empty ~hi:Bv.zero ~size
@@ -666,13 +664,12 @@ let logxor t1 t2 =
   let m = Bv.modulus size in
   if is_empty t1 || is_empty t2
   then create_empty ~size
-  else
-    match (single_of t1, single_of t2) with
+  else match (single_of t1, single_of t2) with
     | Some v1, Some v2 ->
       create_single ~value:Bv.(v1 lxor v2 mod m) ~size
     | None, Some v when Bv.(v = max_unsigned_value size) -> lnot t1
     | Some v, None when Bv.(v = max_unsigned_value size) -> lnot t2
-    | _ -> create_full ~size
+    | _ -> create_full ~size (* XXX: this could be more precise *)
 
 let logical_shift_left t1 t2 =
   assert (t1.size = t2.size);
