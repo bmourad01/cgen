@@ -163,8 +163,6 @@ let infer_ty t : enode -> Type.t option = function
     | Ovar x -> typeof_var t x
     | Ovastart _ -> None
 
-exception Mismatch
-
 (* This is the entry point to the insert/rewrite loop, to be called
    from the algorithm in `Builder` (i.e. in depth-first dominator tree
    order).
@@ -198,37 +196,33 @@ and optimize ?iv ?ty ~d t n id =
     Vec.fold_until ~init:id ~finish:Fn.id ~f:(step t)
 
 and search ~d t n =
-  let m = Vec.create () in
-  let u = Stack.create () in
+  let exception Mismatch in
+  (* IDs of rewritten terms. *)
+  let matches = Vec.create () in
+  (* Pending IDs from union nodes. *)
+  let pending = Stack.create () in
   (* Match a node. *)
-  let rec go env p id n = match p, (n : enode) with
+  let rec cls env p id = match p, node t id with
     | V x, N _ -> var env x id
     | P (x, xs), N (y, ys) when Enode.equal_op x y ->
       children ~init:env xs ys
     | P _, N _ -> raise Mismatch
     | _, U {pre; post} ->
-      (* Explore the rewritten term first. In some cases, constant folding
-         will run much faster if we keep rewriting it. If there's a match
-         then we can enqueue the "original" term with the current state of
-         the search for further exploration. *)
-      try
-        let env' = cls env post p in
-        Stack.push u (env, pre, p);
-        env'
-      with Mismatch -> cls env pre p
+      (* Explore the rewritten term first. In some cases, constant
+         folding will run much faster if we keep rewriting it. If
+         there's a match then we can enqueue the "original" term with
+         the current state of the search for further exploration. *)
+      Stack.push pending (env, pre, p);
+      cls env p post
   (* Match all the children of an e-node. *)
   and children ?(init = empty_subst) ps cs = match List.zip ps cs with
-    | Ok l -> List.fold l ~init ~f:(fun env (p, c) -> cls env c p)
+    | Ok l -> List.fold l ~init ~f:(fun env (p, id) -> cls env p id)
     | Unequal_lengths -> raise Mismatch
   (* Produce a substitution for the variable. *)
   and var env x id = Map.update env x ~f:(function
       | Some i when i.id = id -> i
       | Some _ -> raise Mismatch
-      | None -> subst_info t id)
-  (* Match with an e-class ID. *)
-  and cls env id = function
-    | P _ as p -> go env p id @@ node t id
-    | V x -> var env x id in
+      | None -> subst_info t id) in
   (* Insert a rewritten term based on the substitution. *)
   let rec rewrite ~d env = function
     | P (o, ps) ->
@@ -238,26 +232,24 @@ and search ~d t n =
       | None -> raise Mismatch
       | Some i -> i.Subst.id in
   (* Apply a post-condition to the substitution. *)
-  let apply f env = Vec.push m @@ match f with
+  let apply f env = Vec.push matches @@ match f with
     | Static p -> rewrite ~d env p
     | Cond (p, k) when k env -> rewrite ~d env p
     | Cond _ -> raise Mismatch
     | Dyn f -> match f env with
       | Some p -> rewrite ~d env p
       | None -> raise Mismatch in
-  let run f g = try apply f @@ g () with
-    | Mismatch -> () in
-  (* Now match based on the top-level constructor. *)
+  (* Start by matching the top-level constructor. *)
   match n with
   | U _ -> assert false
   | N (o, cs) ->
     Hashtbl.find t.rules o |>
     Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
         (* Match the children of this node first. *)
-        run f (fun () -> children ps cs);
+        (try apply f @@ children ps cs with Mismatch -> ());
         (* Then match any pending unioned nodes. *)
-        while not @@ Stack.is_empty u do
-          let env, id, p = Stack.pop_exn u in
-          run f (fun () -> cls env id p)
+        while not @@ Stack.is_empty pending do
+          let env, id, p = Stack.pop_exn pending in
+          try apply f @@ cls env p id with Mismatch -> ()
         done));
-    m
+    matches
