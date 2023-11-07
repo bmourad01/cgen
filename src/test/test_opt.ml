@@ -894,7 +894,7 @@ let test_sinking _ =
    }"
 
 (* Extend %x to 64 bits and truncate back to 32 bits. *)
-let trunc_nop_1 _ =
+let test_trunc_nop_1 _ =
   "module foo
 
    export function w $foo(w %x) {
@@ -912,7 +912,7 @@ let trunc_nop_1 _ =
    }"
 
 (* Truncate %x to 32 bits when it already has that type. *)
-let trunc_nop_2 _ =
+let test_trunc_nop_2 _ =
   "module foo
 
    export function w $foo(w %x) {
@@ -930,7 +930,7 @@ let trunc_nop_2 _ =
 
 (* The computation of `add.w %x, 1_w` in @body3 should be
    hoisted all the way to @start. *)
-let licm_level_3 _ =
+let test_licm_level_3 _ =
   "module foo
 
    export function w $foo(w %x) {
@@ -999,7 +999,7 @@ let licm_level_3 _ =
 
 (* It is safe to divide by self in @notzero, which should
    yield the result 1. *)
-let division_by_self _ =
+let test_division_by_self _ =
   "module foo
 
    export function w $foo(w %x) {
@@ -1023,6 +1023,123 @@ let division_by_self _ =
      ret %x
    @0:
      ret 0x1_w
+   }"
+
+(* The initial store to %y should be forwarded to the load
+   from %y immediately after. Also, the `urem` is rewritten
+   to an `and`. *)
+let test_store_to_load_1 _ =
+  "module foo
+
+   export function $foo() {
+     %x = slot 16, align 16
+   @start:
+     %y = add.l %x, 8_l
+     %m = urem.l %y, 16_l
+     %mw = itrunc.w %m
+     st.w %mw, %y
+     %n = ld.w %y
+     st.w %n, $a
+     ret
+   }"
+  =>
+  "module foo
+
+   export function $foo() {
+     %x = slot 16, align 16
+   @0:
+     %2 = add.l %x, 0x8_l ; @9
+     %1 = and.l %2, 0xf_l ; @8
+     %0 = itrunc.w %1 ; @7
+     st.w %0, %2 ; @3
+     st.w %0, $a ; @1
+     ret
+   }"
+
+(* The last store to %a in @start can be forwarded to the
+   load in @yes. *)
+let test_store_to_load_2 _ =
+  "module foo
+
+   function w $foo(l %a, l %b, w %x) {
+   @start:
+     %y = ld.w %a
+     st.w %x, %a
+     %z = add.w %y, 1_w
+     st.w %z, %a
+     %c = eq.w %y, 0_w
+     br %c, @yes, @no
+   @yes:
+     %y = ld.w %a
+     %d = zext.l %y
+     %w = ld.w %d
+     jmp @done
+   @no:
+     %w = ld.w %b
+     jmp @done
+   @done:
+     ret %w
+   }"
+  =>
+  "module foo
+
+   function w $foo(l %a, l %b, w %x) {
+   @7:
+     %y.1 = ld.w %a ; @12
+     st.w %x, %a ; @11
+     %0 = add.w %y.1, 0x1_w ; @13
+     st.w %0, %a ; @9
+     %1 = eq.w %y.1, 0x0_w ; @14
+     br %1, @3, @1
+   @3:
+     %2 = zext.l %0 ; @15
+     %w.1 = ld.w %2 ; @4
+     jmp @0(%w.1)
+   @1:
+     %w.2 = ld.w %b ; @2
+     jmp @0(%w.2)
+   @0(%w.3):
+     ret %w.3
+   }"
+
+(* Recognize a rotate left by a constant (via `or`). *)
+let test_rol_const_or _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %w = lsl.w %x, 5_w
+     %y = lsr.w %x, 27_w
+     %z = or.w %w, %y
+     ret %z
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %0 = rol.w %x, 0x5_w ; @4
+     ret %0
+   }"
+
+(* Recognize a rotate left by a constant (via `add`). *)
+let test_rol_const_add _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %w = lsl.w %x, 5_w
+     %y = lsr.w %x, 27_w
+     %z = add.w %w, %y
+     ret %z
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %0 = rol.w %x, 0x5_w ; @4
+     ret %0
    }"
 
 let suite = "Test optimizations" >::: [
@@ -1060,10 +1177,14 @@ let suite = "Test optimizations" >::: [
     "Conditional propagation 1" >:: test_cond_prop_1;
     "Conditional propagation 2" >:: test_cond_prop_2;
     "Code sinking" >:: test_sinking;
-    "Truncate no-op 1" >:: trunc_nop_1;
-    "Truncate no-op 2" >:: trunc_nop_2;
-    "LICM (level 3)" >:: licm_level_3;
-    "Division by self" >:: division_by_self;
+    "Truncate no-op 1" >:: test_trunc_nop_1;
+    "Truncate no-op 2" >:: test_trunc_nop_2;
+    "LICM (level 3)" >:: test_licm_level_3;
+    "Division by self" >:: test_division_by_self;
+    "Store to load forwarding 1" >:: test_store_to_load_1;
+    "Store to load forwarding 2" >:: test_store_to_load_2;
+    "Test rotate left by constant and OR" >:: test_rol_const_or;
+    "Test rotate left by constant and addition" >:: test_rol_const_add;
   ]
 
 let () = run_test_tt_main suite
