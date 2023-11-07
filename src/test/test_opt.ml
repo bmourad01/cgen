@@ -1142,6 +1142,26 @@ let test_rol_const_add _ =
      ret %0
    }"
 
+let test_rle _ =
+  "module foo
+
+   export function w $foo(l %x) {
+   @start:
+      %a = ld.w %x
+      %b = ld.w %x
+      %c = add.w %a, %b
+      ret %c
+   }"
+  =>
+  "module foo
+
+   export function w $foo(l %x) {
+   @0:
+      %a.1 = ld.w %x ; @3
+      %0 = add.w %a.1, %a.1 ; @4
+      ret %0
+   }"
+
 let suite = "Test optimizations" >::: [
     "Multiply by 1" >:: test_mul_by_1;
     "Multiply by 2" >:: test_mul_by_2;
@@ -1185,6 +1205,7 @@ let suite = "Test optimizations" >::: [
     "Store to load forwarding 2" >:: test_store_to_load_2;
     "Test rotate left by constant and OR" >:: test_rol_const_or;
     "Test rotate left by constant and addition" >:: test_rol_const_add;
+    "Redundant load elimination" >:: test_rle;
   ]
 
 let () = run_test_tt_main suite

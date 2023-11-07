@@ -139,7 +139,13 @@ let alias env eg key l =
 
 let load env eg l x ty a =
   let a = operand env eg a in
-  let lst = Option.value env.lst ~default:l in
+  (* The last store needs to be updated, even for a load,
+     in order for redundant load elimination to work, since
+     the `mem` keys expect a concrete label for the last
+     store. *)
+  let lst = match env.lst with
+    | None -> env.lst <- Some l; l
+    | Some lst -> lst in
   let key = {lst; addr = a; ty} in
   match alias env eg key l with
   | Some v ->
