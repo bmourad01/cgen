@@ -26,7 +26,7 @@ let gamma = function
   | "c2" -> c2_layout
   | s -> failwithf "gamma: %s is undefined" s ()
 
-let sexp_of_layout l = Sexp.List (List.map l ~f:Type.sexp_of_datum)
+let _sexp_of_layout l = Sexp.List (List.map l ~f:Type.sexp_of_datum)
 
 let test_sizeof_compound (t : Type.compound) ~expected =
   let l = Type.layout_exn gamma t in
