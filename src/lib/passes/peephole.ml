@@ -958,52 +958,6 @@ module Rules = struct
       (add `i64 (lsl_ `i64 x z) (lsr_ `i64 x y) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
     ]
 
-    (* (x << y) | (x >> (size - y)) =
-       (x >> (size - y)) | (x << y) =
-       (x << y) + (x >> (size - y)) =
-       (x >> (size - y)) + (x << y) = rol x y *)
-    let recognize_rol = [
-      or_ `i8 (lsl_ `i8 x y) (lsr_ `i8 x (sub `i8 (i8 8) y)) => rol `i8 x y;
-      or_ `i16 (lsl_ `i16 x y) (lsr_ `i16 x (sub `i16 (i8 16) y)) => rol `i16 x y;
-      or_ `i32 (lsl_ `i32 x y) (lsr_ `i32 x (sub `i32 (i32 32l) y)) => rol `i32 x y;
-      or_ `i64 (lsl_ `i64 x y) (lsr_ `i64 x (sub `i64 (i64 64L) y)) => rol `i64 x y;
-      or_ `i8 (lsr_ `i8 x (sub `i8 (i8 8) y)) (lsl_ `i8 x y) => rol `i8 x y;
-      or_ `i16 (lsr_ `i16 x (sub `i16 (i8 16) y)) (lsl_ `i16 x y) => rol `i16 x y;
-      or_ `i32 (lsr_ `i32 x (sub `i32 (i32 32l) y)) (lsl_ `i32 x y) => rol `i32 x y;
-      or_ `i64 (lsr_ `i64 x (sub `i64 (i64 64L) y)) (lsl_ `i64 x y) => rol `i64 x y;
-      add `i8 (lsl_ `i8 x y) (lsr_ `i8 x (sub `i8 (i8 8) y)) => rol `i8 x y;
-      add `i16 (lsl_ `i16 x y) (lsr_ `i16 x (sub `i16 (i8 16) y)) => rol `i16 x y;
-      add `i32 (lsl_ `i32 x y) (lsr_ `i32 x (sub `i32 (i32 32l) y)) => rol `i32 x y;
-      add `i64 (lsl_ `i64 x y) (lsr_ `i64 x (sub `i64 (i64 64L) y)) => rol `i64 x y;
-      add `i8 (lsr_ `i8 x (sub `i8 (i8 8) y)) (lsl_ `i8 x y) => rol `i8 x y;
-      add `i16 (lsr_ `i16 x (sub `i16 (i8 16) y)) (lsl_ `i16 x y) => rol `i16 x y;
-      add `i32 (lsr_ `i32 x (sub `i32 (i32 32l) y)) (lsl_ `i32 x y) => rol `i32 x y;
-      add `i64 (lsr_ `i64 x (sub `i64 (i64 64L) y)) (lsl_ `i64 x y) => rol `i64 x y;
-    ]
-
-    (* (x >> y) | (x << (size - y)) =
-       (x << (size - y)) | (x >> y) =
-       (x >> y) + (x << (size - y)) =
-       (x << (size - y)) + (x >> y) = ror x y *)
-    let recognize_ror = [
-      or_ `i8 (lsr_ `i8 x y) (lsl_ `i8 x (sub `i8 (i8 8) y)) => ror `i8 x y;
-      or_ `i16 (lsr_ `i16 x y) (lsl_ `i16 x (sub `i16 (i8 16) y)) => ror `i16 x y;
-      or_ `i32 (lsr_ `i32 x y) (lsl_ `i32 x (sub `i32 (i32 32l) y)) => ror `i32 x y;
-      or_ `i64 (lsr_ `i64 x y) (lsl_ `i64 x (sub `i64 (i64 64L) y)) => ror `i64 x y;
-      or_ `i8 (lsl_ `i8 x (sub `i8 (i8 8) y)) (lsr_ `i8 x y) => ror `i8 x y;
-      or_ `i16 (lsl_ `i16 x (sub `i16 (i8 16) y)) (lsr_ `i16 x y) => ror `i16 x y;
-      or_ `i32 (lsl_ `i32 x (sub `i32 (i32 32l) y)) (lsr_ `i32 x y) => ror `i32 x y;
-      or_ `i64 (lsl_ `i64 x (sub `i64 (i64 64L) y)) (lsr_ `i64 x y) => ror `i64 x y;
-      add `i8 (lsr_ `i8 x y) (lsl_ `i8 x (sub `i8 (i8 8) y)) => ror `i8 x y;
-      add `i16 (lsr_ `i16 x y) (lsl_ `i16 x (sub `i16 (i8 16) y)) => ror `i16 x y;
-      add `i32 (lsr_ `i32 x y) (lsl_ `i32 x (sub `i32 (i32 32l) y)) => ror `i32 x y;
-      add `i64 (lsr_ `i64 x y) (lsl_ `i64 x (sub `i64 (i64 64L) y)) => ror `i64 x y;
-      add `i8 (lsl_ `i8 x (sub `i8 (i8 8) y)) (lsr_ `i8 x y) => ror `i8 x y;
-      add `i16 (lsl_ `i16 x (sub `i16 (i8 16) y)) (lsr_ `i16 x y) => ror `i16 x y;
-      add `i32 (lsl_ `i32 x (sub `i32 (i32 32l) y)) (lsr_ `i32 x y) => ror `i32 x y;
-      add `i64 (lsl_ `i64 x (sub `i64 (i64 64L) y)) (lsr_ `i64 x y) => ror `i64 x y;
-    ]
-
     (* x ^ 0 = x *)
     let xor_zero = [
       xor `i8 x (i8 0) => x;
@@ -1874,8 +1828,6 @@ module Rules = struct
       ror_zero @
       recognize_rol_const @
       recognize_ror_const @
-      recognize_rol @
-      recognize_ror @
       xor_zero @
       xor_ones @
       xor_self @
