@@ -282,38 +282,42 @@ let sext t ~size =
   end
 
 let trunc t ~size =
-  assert (t.size > size);
-  let module B = (val Bitvec.modular t.size) in
-  let default un lower_div upper_div =
-    let lower_div, upper_div =
-      let lz = clz lower_div t.size in
-      if t.size - lz > size then
-        let adj = B.(lower_div land pred (one lsl int Int.(size - 1))) in
-        B.(lower_div - adj), B.(upper_div - adj)
-      else lower_div, upper_div in
-    let w = t.size - clz upper_div t.size in
-    if w <= size then union (create ~lo:lower_div ~hi:upper_div ~size) un
-    else if w = size + 1 then
-      let upper_div = B.(upper_div land (lnot (one lsl int size))) in
-      if Bv.(upper_div < lower_div)
-      then union (create ~lo:lower_div ~hi:upper_div ~size) un
-      else create_full ~size
-    else create_full ~size in
-  if is_empty t then create_empty ~size
-  else if is_full t then create_full ~size
-  else if is_wrapped_hi t then
-    let lz = clz t.hi t.size in
-    if t.size - lz > size
-    || cto t.hi t.size = size
-    then create_full ~size
-    else
-      let un = create
-          ~lo:Bv.(max_unsigned_value size)
-          ~hi:(Bv.extract ~hi:(size - 1) ~lo:0 t.hi)
-          ~size in
-      let upper_div = Bv.max_unsigned_value t.size in
-      if Bv.(t.lo = upper_div) then un else default un t.lo upper_div
-  else default (create_empty ~size) t.lo t.hi
+  (* This semantics is relaxed. A truncate to the same size should
+     just be a no-op. *)
+  if t.size <> size then begin
+    assert (t.size > size);
+    let module B = (val Bitvec.modular t.size) in
+    let default un lower_div upper_div =
+      let lower_div, upper_div =
+        let lz = clz lower_div t.size in
+        if t.size - lz > size then
+          let adj = B.(lower_div land pred (one lsl int Int.(size - 1))) in
+          B.(lower_div - adj), B.(upper_div - adj)
+        else lower_div, upper_div in
+      let w = t.size - clz upper_div t.size in
+      if w <= size then union (create ~lo:lower_div ~hi:upper_div ~size) un
+      else if w = size + 1 then
+        let upper_div = B.(upper_div land (lnot (one lsl int size))) in
+        if Bv.(upper_div < lower_div)
+        then union (create ~lo:lower_div ~hi:upper_div ~size) un
+        else create_full ~size
+      else create_full ~size in
+    if is_empty t then create_empty ~size
+    else if is_full t then create_full ~size
+    else if is_wrapped_hi t then
+      let lz = clz t.hi t.size in
+      if t.size - lz > size
+      || cto t.hi t.size = size
+      then create_full ~size
+      else
+        let un = create
+            ~lo:Bv.(max_unsigned_value size)
+            ~hi:(Bv.extract ~hi:(size - 1) ~lo:0 t.hi)
+            ~size in
+        let upper_div = Bv.max_unsigned_value t.size in
+        if Bv.(t.lo = upper_div) then un else default un t.lo upper_div
+    else default (create_empty ~size) t.lo t.hi
+  end else t
 
 let add t1 t2 =
   assert (t1.size = t2.size);
