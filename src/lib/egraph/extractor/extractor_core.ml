@@ -116,13 +116,11 @@ let saturate t =
   while !unsat do
     unsat := false;
     (* Explore newer nodes first. *)
-    for i = Vec.length t.eg.node - 1 downto 0 do
-      node t.eg i |> cost t |>
-      Option.iter ~f:(fun ((x, _) as term) ->
-          find t.eg i |> Hashtbl.update t.table ~f:(function
-              | Some ((y, _) as prev) when Cost.(x >= y) -> prev
-              | Some _ | None -> unsat := true; term))
-    done
+    Vec.iteri_rev t.eg.node ~f:(fun i n ->
+        cost t n |> Option.iter ~f:(fun ((x, _) as term) ->
+            find t.eg i |> Hashtbl.update t.table ~f:(function
+                | Some ((y, _) as prev) when Cost.(x >= y) -> prev
+                | Some _ | None -> unsat := true; term)))
   done
 
 let init eg =

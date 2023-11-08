@@ -38,6 +38,8 @@ val fold : 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
 val fold_right : 'a t -> init:'b -> f:('a -> 'b -> 'b) -> 'b
 val iteri : 'a t -> f:(int -> 'a -> unit) -> unit
 val iter : 'a t -> f:('a -> unit) -> unit
+val iteri_rev : 'a t -> f:(int -> 'a -> unit) -> unit
+val iter_rev : 'a t -> f:('a -> unit) -> unit
 val findi : 'a t -> f:(int -> 'a -> bool) -> 'a option
 val find : 'a t -> f:('a -> bool) -> 'a option
 val find_mapi : 'a t -> f:(int -> 'a -> 'b option) -> 'b option

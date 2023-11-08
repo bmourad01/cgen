@@ -121,21 +121,29 @@ let fold_right =
     if i < 0 then acc else loop t (i - 1) (f (unsafe_get t i) acc) ~f in
   fun t ~init ~f -> (loop[@specialised]) t (t.length - 1) init ~f
 
-let iteri =
-  let rec loop t i ~f =
-    if i < t.length then begin
-      f i @@ unsafe_get t i;
-      loop t (i + 1) ~f
-    end in
-  fun t ~f -> (loop[@specialised]) t 0 ~f
+let iteri t ~f =
+  for i = 0 to t.length - 1 do
+    f i @@ unsafe_get t i
+  done
+[@@specialise]
 
-let iter =
-  let rec loop t i ~f =
-    if i < t.length then begin
-      f @@ unsafe_get t i;
-      loop t (i + 1) ~f
-    end in
-  fun t ~f -> (loop[@specialised]) t 0 ~f
+let iter t ~f =
+  for i = 0 to t.length - 1 do
+    f @@ unsafe_get t i
+  done
+[@@specialise]
+
+let iteri_rev t ~f =
+  for i = t.length - 1 downto 0 do
+    f i @@ unsafe_get t i
+  done
+[@@specialise]
+
+let iter_rev t ~f =
+  for i = t.length - 1 downto 0 do
+    f @@ unsafe_get t i
+  done
+[@@specialise]
 
 let findi =
   let rec loop t i ~f =

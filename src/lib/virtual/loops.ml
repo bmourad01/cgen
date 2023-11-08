@@ -127,13 +127,12 @@ let rec analyze_loop t cfg q n =
 let find_loop_blks t cfg dom =
   let q = Stack.create () in
   (* We need to traverse the loops in pseudo-postorder. *)
-  for n = Vec.length t.loops - 1 downto 0 do
-    (* Enqueue the predecessors that the loop header dominates. *)
-    dom_backedge (get t n).header cfg dom |>
-    Seq.iter ~f:(Stack.push q);
-    (* Analyze the loop. *)
-    analyze_loop t cfg q n
-  done
+  Vec.iteri_rev t.loops ~f:(fun n lp ->
+      (* Enqueue the predecessors that the loop header dominates. *)
+      dom_backedge lp.header cfg dom |>
+      Seq.iter ~f:(Stack.push q);
+      (* Analyze the loop. *)
+      analyze_loop t cfg q n)
 
 let set_level q d k =
   d.level <- k;
@@ -153,13 +152,11 @@ let rec assign_loop t q = match Stack.top q with
 
 let assign_levels t =
   let q = Stack.create () in
-  for n = 0 to Vec.length t.loops - 1 do
-    let d = get t n in
-    if d.level < 0 then begin
-      Stack.push q n;
-      assign_loop t q
-    end
-  done
+  Vec.iteri t.loops ~f:(fun n d ->
+      if d.level < 0 then begin
+        Stack.push q n;
+        assign_loop t q
+      end)
 
 let analyze fn =
   let t = init () in
