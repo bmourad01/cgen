@@ -89,10 +89,13 @@ module Rules = struct
       let* b = Subst.find env b >>= Subst.const in
       match a, b with
       | `int (a, ty), `int (b, ty') when Type.equal_imm ty ty' ->
-        let a = Bv.to_int64 a in
-        let b = Bv.to_int64 b in
+        let module B = (val bv ty) in
         let sz = Type.sizeof_imm ty - 1 in
-        O.guard Int64.(a >= 0L && a <= b && b = of_int sz)
+        O.guard begin
+          not (B.msb a) &&
+          Bv.(a <= b) &&
+          Bv.(b = B.int sz)
+        end
       | _ -> None
     end
 
@@ -139,22 +142,23 @@ module Rules = struct
   let div_rem_imm_non_pow2 ?(rem = false) x y env =
     Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
-      let n = Bv.to_int64 i in
-      let+ () = O.guard Int64.(
-          n <> -1L &&
-          n <> 0L &&
-          n <> 1L &&
-          (n land pred n) <> 0L
-        ) in
       let module B = (val bv ty) in
+      let+ () = O.guard begin
+          let open Bv in
+          let open B in
+          i <> pred zero &&
+          i <> zero &&
+          i <> one &&
+          (i land pred i) <> zero
+        end in
       let sz1 = Type.sizeof_imm ty - 1 in
       let s_mul, s_shr = Magic_div.signed i ty in
       let tb = (ty :> Type.basic) in
       let q1 = Op.(mulh ty x (int s_mul ty)) in
       let q2 =
-        if Int64.(n > 0L) && B.msb s_mul then
+        if not (B.msb i) && B.msb s_mul then
           Op.add tb q1 x
-        else if Int64.(n < 0L) && not (B.msb s_mul) then
+        else if B.msb i && not (B.msb s_mul) then
           Op.sub tb q1 x
         else q1 in
       let q3 = if s_shr = 0 then q2
@@ -218,14 +222,15 @@ module Rules = struct
   let udiv_urem_imm_non_pow2 ?(rem = false) x y env =
     Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
-      let n = Bv.to_int64 i in
-      let+ () = O.guard Int64.(
-          n <> -1L &&
-          n <> 0L &&
-          n <> 1L &&
-          (n land pred n) <> 0L
-        ) in
       let module B = (val bv ty) in
+      let+ () = O.guard begin
+          let open Bv in
+          let open B in
+          i <> pred zero &&
+          i <> zero &&
+          i <> one &&
+          (i land pred i) <> zero
+        end in
       let u_mul, u_add, u_shr = Magic_div.unsigned i ty in
       let tb = (ty :> Type.basic) in
       let q1 = Op.(umulh ty x (int u_mul ty)) in
@@ -249,16 +254,18 @@ module Rules = struct
   let mul_imm_non_pow2 x y env =
     Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
+      let module B = (val bv ty) in
+      let+ () = O.guard begin
+          let open Bv in
+          let open B in
+          i <> pred zero &&
+          i <> zero &&
+          i <> one &&
+          (i land pred i) <> zero
+        end in
+      let tb = (ty :> Type.basic) in
       let n = Bv.to_int64 i in
       let n' = Int64.pred n in
-      let+ () = O.guard Int64.(
-          n <> -1L &&
-          n <> 0L &&
-          n <> 1L &&
-          n land n' <> 0L
-        ) in
-      let module B = (val bv ty) in
-      let tb = (ty :> Type.basic) in
       let n1 = Int64.succ n in
       if Int64.(n1 land n = 0L) then
         if Int64.(n = 3L) then

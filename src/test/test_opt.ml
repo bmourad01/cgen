@@ -290,6 +290,26 @@ let test_sdiv_by_11 _ =
    }"
 
 (* More strength reduction. *)
+let test_sdiv_by_n5 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = div.w %x, 0xfffffffb_w
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %1 = mulh.w %x, 0xcccccccc_w ; @3
+     %2 = lsr.w %1, 0x1f_w ; @4
+     %0 = add.w %1, %2 ; @2
+     ret %0
+   }"
+
+(* More strength reduction. *)
 let test_udiv_by_8 _ =
   "module foo
 
@@ -1289,6 +1309,7 @@ let suite = "Test optimizations" >::: [
     "Unsigned remainder by -1" >:: test_urem_by_n1;
     "Signed divide by 4" >:: test_sdiv_by_4;
     "Signed divide by 11" >:: test_sdiv_by_11;
+    "Signed divide by -5" >:: test_sdiv_by_n5;
     "Unsigned divide by 8" >:: test_udiv_by_8;
     "Unsigned divide by 11" >:: test_udiv_by_11;
     "Signed remainder by 2" >:: test_srem_by_2;
