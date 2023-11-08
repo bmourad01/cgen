@@ -750,7 +750,7 @@ module Rules = struct
       rem `i64 x (i64 (-1L)) => i64 0L;
     ]
 
-    (* unsigned x / -1 = x == -1 *)
+    (* unsigned x / -1 = flag (x == -1) *)
     let udiv_neg_one = [
       udiv `i8 x (i8 (-1)) => flag `i8 (eq `i8 x (i8 (-1)));
       udiv `i16 x (i16 (-1)) => flag `i16 (eq `i16 x (i16 (-1)));
@@ -758,12 +758,12 @@ module Rules = struct
       udiv `i64 x (i64 (-1L)) => flag `i64 (eq `i64 x (i64 (-1L)));
     ]
 
-    (* unsigned x % -1 = x != -1 *)
+    (* unsigned x % -1 = (x != -1) ? x : 0 *)
     let urem_neg_one = [
-      urem `i8 x (i8 (-1)) => flag `i8 (ne `i8 x (i8 (-1)));
-      urem `i16 x (i16 (-1)) => flag `i16 (ne `i16 x (i16 (-1)));
-      urem `i32 x (i32 (-1l)) => flag `i32 (ne `i32 x (i32 (-1l)));
-      urem `i64 x (i64 (-1L)) => flag `i64 (ne `i64 x (i64 (-1L)));
+      urem `i8 x (i8 (-1)) => sel `i8 (ne `i8 x (i8 (-1))) x (i8 0);
+      urem `i16 x (i16 (-1)) => sel `i16 (ne `i16 x (i16 (-1))) x (i16 0);
+      urem `i32 x (i32 (-1l)) => sel `i32 (ne `i32 x (i32 (-1l))) x (i32 0l);
+      urem `i64 x (i64 (-1L)) => sel `i64 (ne `i64 x (i64 (-1L))) x (i64 0L);
     ]
 
     (* x % 1 = 0 *)
