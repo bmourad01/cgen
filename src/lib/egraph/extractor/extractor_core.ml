@@ -106,7 +106,7 @@ let cost t (n : enode) = match n with
         Cost.add k c) in
     Cost.incr k, n
   | U {pre; post} ->
-    (* Favor the rewritten term. *)
+    (* Break ties by favoring the rewritten term. *)
     let* pre, a = get t pre in
     let+ post, b = get t post in
     if Cost.(pre < post) then pre, a else post, b
