@@ -26,9 +26,29 @@ let pp_prov ppf = function
    out the edges of translating the CFG representation. *)
 type ext = E of prov * Enode.op * ext list
 
+module Cost = struct
+  include Int63
+
+  let depth_bits = 16
+  let depth_mask = pred (one lsl depth_bits)
+
+  let opc c = c lsr depth_bits
+  let depth c = c land depth_mask
+  let create o d = (o lsl depth_bits) lor (d land depth_mask)
+  let pure o = of_int o lsl depth_bits
+  let incr c = create (opc c) (succ @@ depth c)
+
+  let add x y =
+    let o = opc x + opc y in
+    let d = max (depth x) (depth y) in
+    create o d
+end
+
+type cost = Cost.t
+
 type t = {
   eg     : egraph;
-  table  : (int * enode) Id.Table.t;
+  table  : (cost * enode) Id.Table.t;
   memo   : ext Id.Table.t;
   impure : Id.Hash_set.t;
 }
@@ -46,11 +66,12 @@ let get t id = Hashtbl.find t.table @@ find t.eg id
 
 open O.Let
 
-let op_cost : Enode.op -> int = function
+let op_cost : Enode.op -> cost = function
   | Oint (i, t) ->
     (* In practice, a negative constant might need some work to
        compute. *)
-    Bool.to_int Bv.(msb i mod modulus (Type.sizeof_imm t))
+    let neg = Bv.(msb i mod modulus (Type.sizeof_imm t)) in
+    Cost.pure @@ Bool.to_int neg
   | Oaddr _
   | Obool _
   | Ocall0 _
@@ -69,26 +90,26 @@ let op_cost : Enode.op -> int = function
   | Otcall0
   | Otcall _
   | Ovaarg _
-  | Ovastart _ -> 0
-  | Obr | Ovar _ -> 2
-  | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> 3
-  | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> 90
-  | Obinop (`mul _) -> 42
-  | Obinop (`mulh _ | `umulh _) -> 11
-  | Obinop _ -> 4
-  | Osel _ -> 8
+  | Ovastart _ -> Cost.pure 0
+  | Obr | Ovar _ -> Cost.pure 2
+  | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> Cost.pure 3
+  | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> Cost.pure 90
+  | Obinop (`mul _) -> Cost.pure 42
+  | Obinop (`mulh _ | `umulh _) -> Cost.pure 11
+  | Obinop _ -> Cost.pure 4
+  | Osel _ -> Cost.pure 8
 
 let cost t (n : enode) = match n with
   | N (op, children) ->
-    let+ k = O.List.fold children ~init:0 ~f:(fun k id ->
+    let+ k = O.List.fold children ~init:(op_cost op) ~f:(fun k id ->
         let+ c, _ = get t id in
-        k + c) in
-    k + op_cost op, n
+        Cost.add k c) in
+    Cost.incr k, n
   | U {pre; post} ->
     (* Favor the rewritten term. *)
     let* pre, a = get t pre in
     let+ post, b = get t post in
-    if pre < post then pre, a else post, b
+    if Cost.(pre < post) then pre, a else post, b
 
 let saturate t =
   let unsat = ref true in
@@ -99,7 +120,7 @@ let saturate t =
       node t.eg i |> cost t |>
       Option.iter ~f:(fun ((x, _) as term) ->
           find t.eg i |> Hashtbl.update t.table ~f:(function
-              | Some ((y, _) as prev) when x >= y -> prev
+              | Some ((y, _) as prev) when Cost.(x >= y) -> prev
               | Some _ | None -> unsat := true; term))
     done
   done
