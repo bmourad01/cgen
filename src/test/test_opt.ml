@@ -173,6 +173,81 @@ let test_sdiv_by_1 _ =
      ret %x
    }"
 
+(* Signed division by -1 is negation. *)
+let test_sdiv_by_n1 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = div.w %x, 0xffffffff_w
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %0 = neg.w %x ; @2
+     ret %0
+   }"
+
+(* Unsigned division by -1 is a test for equality -1. *)
+let test_udiv_by_n1 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = udiv.w %x, 0xffffffff_w
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %1 = eq.w %x, 0xffffffff_w ; @3
+     %0 = flag.w %1 ; @2
+     ret %0
+   }"
+
+(* Signed remainder by -1 is 0. *)
+let test_srem_by_n1 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = rem.w %x, 0xffffffff_w
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     ret 0x0_w
+   }"
+
+(* Unsigned remainder by -1 is %x if %x is not equal to -1,
+   and 0 otherwise. *)
+let test_urem_by_n1 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = urem.w %x, 0xffffffff_w
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %1 = ne.w %x, 0xffffffff_w ; @3
+     %0 = sel.w %1, %x, 0x0_w ; @2
+     ret %0
+   }"
+
+
 (* More strength reduction. *)
 let test_sdiv_by_4 _ =
   "module foo
@@ -229,6 +304,24 @@ let test_udiv_by_8 _ =
    export function w $foo(w %x) {
    @0:
      %0 = lsr.w %x, 0x3_w ; @2
+     ret %0
+   }"
+
+(* More strength reduction. *)
+let test_udiv_by_11 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = udiv.w %x, 11_w
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %0 = umulh.w %x, 0x1745d175_w ; @2
      ret %0
    }"
 
@@ -295,6 +388,27 @@ let test_srem_by_8 _ =
      %2 = add.w %x, %3 ; @4
      %1 = and.w %2, 0x7_w ; @3
      %0 = sub.w %1, %3 ; @2
+     ret %0
+   }"
+
+(* More strength reduction. *)
+let test_urem_by_7 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = urem.w %x, 7_w
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %3 = umulh.w %x, 0x24924925_w ; @5
+     %2 = lsl.w %3, 0x3_w ; @4
+     %1 = sub.w %2, %3 ; @3
+     %0 = sub.w %x, %1 ; @2
      ret %0
    }"
 
@@ -1169,12 +1283,18 @@ let suite = "Test optimizations" >::: [
     "Multiply by 11" >:: test_mul_by_11;
     "Multiply by 26" >:: test_mul_by_26;
     "Signed divide by 1" >:: test_sdiv_by_1;
+    "Signed divide by -1" >:: test_sdiv_by_n1;
+    "Unsigned divide by -1" >:: test_udiv_by_n1;
+    "Signed remainder by -1" >:: test_srem_by_n1;
+    "Unsigned remainder by -1" >:: test_urem_by_n1;
     "Signed divide by 4" >:: test_sdiv_by_4;
     "Signed divide by 11" >:: test_sdiv_by_11;
     "Unsigned divide by 8" >:: test_udiv_by_8;
+    "Unsigned divide by 11" >:: test_udiv_by_11;
     "Signed remainder by 2" >:: test_srem_by_2;
     "Signed remainder by 7" >:: test_srem_by_7;
     "Signed remainder by 8" >:: test_srem_by_8;
+    "Unsigned remainder by 7" >:: test_urem_by_7;
     "Select arms are equal" >:: test_sel_same;
     "Select arms are booleans" >:: test_sel_flag;
     "Select arms are booleans (negated)" >:: test_sel_flag_neg;
