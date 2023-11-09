@@ -156,6 +156,25 @@ let test_mul_by_26 _ =
      ret %0
    }"
 
+(* More strength reduction. *)
+let test_mul_by_min_signed_plus_1 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = mul.w %x, 0x80000001_w
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %1 = lsl.w %x, 0x1f_w ; @3
+     %0 = add.w %1, %x ; @2
+     ret %0
+   }"
+
 (* Division by 1 is identity. *)
 let test_sdiv_by_1 _ =
   "module foo
@@ -1302,6 +1321,7 @@ let suite = "Test optimizations" >::: [
     "Multiply by 8" >:: test_mul_by_8;
     "Multiply by 11" >:: test_mul_by_11;
     "Multiply by 26" >:: test_mul_by_26;
+    "Multiply by int min + 1" >:: test_mul_by_min_signed_plus_1;
     "Signed divide by 1" >:: test_sdiv_by_1;
     "Signed divide by -1" >:: test_sdiv_by_n1;
     "Unsigned divide by -1" >:: test_udiv_by_n1;

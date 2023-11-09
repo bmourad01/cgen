@@ -13,6 +13,9 @@ module Rules = struct
 
   let bv t = Bv.modular @@ Type.sizeof_imm t
 
+  (* pre: x is nonzero *)
+  let ctz f x = f @@ Int64.ctz @@ Bv.to_int64 x
+
   let is_const x env =
     Subst.find env x |>
     Option.bind ~f:Subst.const |>
@@ -104,10 +107,14 @@ module Rules = struct
   let mul_imm_pow2 x y env =
     Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
-      let i = Bv.to_int64 i in
-      let+ () = O.guard Int64.(i <> 0L && (i land pred i) = 0L) in
       let module B = (val bv ty) in
-      Op.(lsl_ ty x (int B.(int (Int64.ctz i)) ty))
+      let+ () = O.guard begin
+          let open Bv in
+          i <> zero &&
+          B.(i land pred i) = zero
+        end in
+      let sh = ctz B.int i in
+      Op.(lsl_ ty x (int sh ty))
     | _ -> None
 
   (* For a signed division by a power of two `n` modulo `k` bits, rewrite to:
@@ -119,18 +126,18 @@ module Rules = struct
   let div_imm_pow2 x y env =
     Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
-      let i = Bv.to_int64 i in
-      let+ () = O.guard Int64.(
-          i <> 0L &&
-          i <> 1L &&
-          (i land pred i) = 0L
-        ) in
       let module B = (val bv ty) in
-      let n = B.(int Int64.(ctz i)) in
-      let i1 = B.(int64 Int64.(pred i)) in
+      let+ () = O.guard begin
+          let open Bv in
+          i <> zero &&
+          i <> one &&
+          B.(i land pred i) = zero
+        end in
+      let n = ctz B.int i in
+      let i1 = B.pred i in
       let s = B.(int (Type.sizeof_imm ty) - one) in
       let tb = (ty :> Type.basic) in
-      if Int64.(i > 2L) then
+      if Bv.(i > B.int 2) then
         let cmp = Op.(slt ty x (int B.zero ty)) in
         Op.(asr_ ty (sel tb cmp (add tb x (int i1 ty)) x) (int n ty))
       else
@@ -145,11 +152,10 @@ module Rules = struct
       let module B = (val bv ty) in
       let+ () = O.guard begin
           let open Bv in
-          let open B in
-          i <> pred zero &&
+          i <> B.pred zero &&
           i <> zero &&
           i <> one &&
-          (i land pred i) <> zero
+          B.(i land pred i) <> zero
         end in
       let sz1 = Type.sizeof_imm ty - 1 in
       let s_mul, s_shr = Magic_div.signed i ty in
@@ -178,20 +184,20 @@ module Rules = struct
   let rem_imm_pow2 x y env =
     Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
-      let i' = Bv.to_int64 i in
-      let+ () = O.guard Int64.(
-          i' <> 0L &&
-          i' <> 1L &&
-          (i' land pred i') = 0L
-        ) in
+      let module B = (val bv ty) in
+      let+ () = O.guard begin
+          let open Bv in
+          i <> zero &&
+          i <> one &&
+          B.(i land pred i) = zero
+        end in
       let module B = (val bv ty) in
       let tb = (ty :> Type.basic) in
       let ss = B.(int (Type.sizeof_imm ty) - one) in
-      let n = B.(int Int64.(ctz i')) in
+      let n = ctz B.int i in
       let su = B.(int (Type.sizeof_imm ty) - n) in
-      let i1 = B.(i - one) in
       let t = Op.(lsr_ ty (asr_ ty x (int ss ty)) (int su ty)) in
-      Op.(sub tb (and_ ty (add tb x t) (int i1 ty)) t)
+      Op.(sub tb (and_ ty (add tb x t) (int (B.pred i) ty)) t)
     | _ -> None
 
   (* Dynamically rewrite an unsigned division by a power of two into
@@ -199,10 +205,14 @@ module Rules = struct
   let udiv_imm_pow2 x y env =
     Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
-      let i = Bv.to_int64 i in
-      let+ () = O.guard Int64.(i <> 0L && (i land pred i) = 0L) in
       let module B = (val bv ty) in
-      Op.(lsr_ ty x (int B.(int (Int64.ctz i)) ty))
+      let+ () = O.guard begin
+          let open Bv in
+          i <> zero &&
+          B.(i land pred i) = zero
+        end in
+      let sh = ctz B.int i in
+      Op.(lsr_ ty x (int sh ty))
     | _ -> None
 
   (* Dynamically rewrite an unsigned remainder by a power of two into
@@ -210,11 +220,14 @@ module Rules = struct
   let urem_imm_pow2 x y env =
     Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
-      let i = Bv.to_int64 i in
-      let i' = Int64.pred i in
-      let+ () = O.guard Int64.(i <> 0L && (i land i') = 0L) in
       let module B = (val bv ty) in
-      Op.(and_ ty x (int B.(int64 i') ty))
+      let i' = B.pred i in
+      let+ () = O.guard begin
+          let open Bv in
+          i <> zero &&
+          B.(i land i') = zero
+        end in
+      Op.(and_ ty x (int i' ty))
     | _ -> None
 
   (* Turn an unsigned division/remainder by a constant non-power of two
@@ -225,11 +238,10 @@ module Rules = struct
       let module B = (val bv ty) in
       let+ () = O.guard begin
           let open Bv in
-          let open B in
-          i <> pred zero &&
+          i <> B.pred zero &&
           i <> zero &&
           i <> one &&
-          (i land pred i) <> zero
+          B.(i land pred i) <> zero
         end in
       let u_mul, u_add, u_shr = Magic_div.unsigned i ty in
       let tb = (ty :> Type.basic) in
@@ -255,52 +267,53 @@ module Rules = struct
     Subst.find env y >>= Subst.const >>= function
     | `int (i, ty) ->
       let module B = (val bv ty) in
-      let+ () = O.guard begin
+      let i' = B.pred i in
+      let* () = O.guard begin
           let open Bv in
-          let open B in
-          i <> pred zero &&
+          i <> B.pred i &&
           i <> zero &&
           i <> one &&
-          (i land pred i) <> zero
+          B.(i land i') <> zero
         end in
       let tb = (ty :> Type.basic) in
-      let n = Bv.to_int64 i in
-      let n' = Int64.pred n in
-      let n1 = Int64.succ n in
-      if Int64.(n1 land n = 0L) then
-        if Int64.(n = 3L) then
+      let i1 = B.succ i in
+      if Bv.(B.(i1 land i) = zero) then
+        if Bv.(i = B.int 3) then
           (* Special case when n is 3, we bias towards the lower
              power of two. Shift-and-add addressing modes are common
              on several architectures. *)
-          Op.(add tb (lsl_ ty x (int B.one ty)) x)
+          !!Op.(add tb (lsl_ ty x (int B.one ty)) x)
         else
           (* Next integer is a power of two, so shift up to it
              and then subtract x. *)
-          let sh = Int64.ctz n1 in
-          Op.(sub tb (lsl_ ty x (int B.(int sh) ty)) x)
-      else if Int64.(n' land pred n' = 0L) then
+          let sh = ctz B.int i1 in
+          !!Op.(sub tb (lsl_ ty x (int sh ty)) x)
+      else if Bv.(B.(i' land pred i') = zero) then
         (* Previous integer is a power of two, so shift up to
            it and add x. *)
-        let sh = Int64.ctz n' in
-        Op.(add tb (lsl_ ty x (int B.(int sh) ty)) x)
+        let sh = ctz B.int i' in
+        !!Op.(add tb (lsl_ ty x (int sh ty)) x)
       else
+        (* At this point, the MSB must be zero. *)
+        let+ () = O.guard @@ not @@ B.msb i in
         (* Check the next and previous power of two, and see which
            one is closer. We'll add or subtract the remaining factor
            from the shift, which can be recursively rewritten. If we
            end up doing this too many times then it will outweigh the
            cost of just using a `mul` instruction. *)
-        let z = Int64.floor_pow2 n in
-        let z' = Int64.ceil_pow2 n in
-        let d = Int64.(n - z) in
-        let d' = Int64.(z' - n) in
-        if Int64.(d <= d') then
-          let sh = Int64.ctz z in
-          Op.(add tb (lsl_ ty x (int B.(int sh) ty))
-                (mul tb x (int B.(int64 d) ty)))
+        let n = Bv.to_int64 i in
+        let z = B.int64 @@ Int64.floor_pow2 n in
+        let z' = B.int64 @@ Int64.ceil_pow2 n in
+        let d = B.(i - z) in
+        let d' = B.(z' - i) in
+        if Bv.(d <= d') then
+          let sh = ctz B.int z in
+          Op.(add tb (lsl_ ty x (int sh ty))
+                (mul tb x (int d ty)))
         else
-          let sh = Int64.ctz z' in
-          Op.(sub tb (lsl_ ty x (int B.(int sh) ty))
-                (mul tb x (int B.(int64 d') ty)))
+          let sh = ctz B.int z' in
+          Op.(sub tb (lsl_ ty x (int sh ty))
+                (mul tb x (int d' ty)))
     | _ -> None
 
   let identity_same_type x ty env =
@@ -323,10 +336,9 @@ module Rules = struct
       let* yi = Subst.find env y >>= Subst.const in
       match xi, yi with
       | `int (xi, xt), `int (yi, yt) when Type.equal_imm xt yt ->
-        let xi = Bv.to_int64 xi in
-        let yi = Bv.to_int64 yi in
-        let sz = Int.to_int64 @@ Type.sizeof_imm xt in
-        Option.some_if Int64.(xi = sz - yi) ()
+        let module B = (val bv xt) in
+        let sz = B.int @@ Type.sizeof_imm xt in
+        Option.some_if Bv.(xi = B.(sz - yi)) ()
       | _ -> None
     end
 
