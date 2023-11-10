@@ -15,7 +15,7 @@ type const = [
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_const ppf : const -> unit = function
   | `bool f -> Format.fprintf ppf "%a" Bool.pp f
@@ -29,7 +29,7 @@ let pp_const ppf : const -> unit = function
 type operand = [
   | const
   | `var of Var.t
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let var_of_operand = function
   | `var v -> Some v

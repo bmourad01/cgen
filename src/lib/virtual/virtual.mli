@@ -28,7 +28,7 @@ type const = [
   | `float  of Float32.t
   | `double of float
   | `sym    of string * int
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty-prints a constant value. *)
 val pp_const : Format.formatter -> const -> unit
@@ -37,7 +37,7 @@ val pp_const : Format.formatter -> const -> unit
 type operand = [
   | const
   | `var of Var.t
-] [@@deriving bin_io, compare, equal, sexp]
+] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** [var_of_operand a] returns [Some x] if [a] is a variable [x]. *)
 val var_of_operand : operand -> Var.t option

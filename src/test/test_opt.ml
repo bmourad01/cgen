@@ -1267,7 +1267,7 @@ let test_division_by_self _ =
      %0 = eq.w %x, 0x0_w ; @5
      br %0, @2, @0
    @2:
-     ret %x
+     ret 0x0_w
    @0:
      ret 0x1_w
    }"
@@ -1292,11 +1292,6 @@ let test_remainder_of_self _ =
 
    export function w $foo(w %x) {
    @3:
-     %0 = eq.w %x, 0x0_w ; @5
-     br %0, @2, @0
-   @2:
-     ret %x
-   @0:
      ret 0x0_w
    }"
 

@@ -1,21 +1,23 @@
 open Core
+open Graphlib.Std
 open Regular.Std
-open Monads.Std
 open Virtual
 
 module I = Bv_interval
 
-open Monad.Option.Let
+type cursor =
+  | Blk of Label.t
+  | Insn of Label.t
 
 type env = {
-  mutable cur : Label.t;
+  mutable cur : cursor;
   tenv        : Typecheck.env;
   intv        : Intervals.t;
   fn          : func;
 }
 
 let init tenv intv fn = {
-  cur = Label.pseudoentry;
+  cur = Blk Label.pseudoentry;
   tenv;
   intv;
   fn;
@@ -27,7 +29,11 @@ let typeof_var env x =
   | Ok ty -> ty
 
 let var env x =
-  let* s = Intervals.insn env.intv env.cur in
+  let s = match env.cur with
+    | Blk l -> Solution.get (Intervals.input env.intv) l
+    | Insn l ->
+      Intervals.insn env.intv l |>
+      Option.value ~default:Intervals.empty_state in
   Intervals.find_var s x
 
 let word env = Target.word @@ Typecheck.Env.target env.tenv
@@ -179,8 +185,9 @@ let map_ctrl env : ctrl -> ctrl = function
 let map_blk env b =
   let insns =
     Blk.insns b |> Seq.to_list |> List.map ~f:(fun i ->
-        env.cur <- Insn.label i;
+        env.cur <- Insn (Insn.label i);
         map_insn env i) in
+  if List.is_empty insns then env.cur <- Blk (Blk.label b);
   let ctrl = map_ctrl env @@ Blk.ctrl b in
   let args = Blk.args b |> Seq.to_list in
   let dict = Blk.dict b in
