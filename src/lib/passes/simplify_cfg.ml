@@ -342,12 +342,14 @@ module Contract = struct
         | `br (c, y, n) ->
           let y = dst y in
           let n = dst n in
-          if equal_dst y n then `jmp y else `br (c, y, n)
+          if equal_dst y n
+          then (changed := true; `jmp y)
+          else `br (c, y, n)
         | `sw (t, i, d, tbl) ->
           let d = loc d in
           let tbl = Ctrl.Table.map_exn tbl ~f:(fun i l -> i, loc l) in
           if sw_all_same d tbl
-          then `jmp (d :> dst)
+          then (changed := true; `jmp (d :> dst))
           else `sw (t, i, d, tbl))
 
   let run env =
@@ -393,12 +395,14 @@ module Merge_rets = struct
         | `br (c, y, n) ->
           let y = dst y in
           let n = dst n in
-          if equal_dst y n then `jmp y else `br (c, y, n)
+          if equal_dst y n
+          then (changed := true; `jmp y)
+          else `br (c, y, n)
         | `sw (t, i, d, tbl) ->
           let d = loc d in
           let tbl = Ctrl.Table.map_exn tbl ~f:(fun i l -> i, loc l) in
           if sw_all_same d tbl
-          then `jmp (d :> dst)
+          then (changed := true; `jmp (d :> dst))
           else `sw (t, i, d, tbl))
 
   let run env =
