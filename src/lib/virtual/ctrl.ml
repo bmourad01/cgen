@@ -60,10 +60,10 @@ let var_of_swindex = function
 
 type t = [
   | `hlt
-  | `jmp of dst
-  | `br  of Var.t * dst * dst
-  | `ret of operand option
-  | `sw  of Type.imm * swindex * local * table
+  | `jmp   of dst
+  | `br    of Var.t * dst * dst
+  | `ret   of operand option
+  | `sw    of Type.imm * swindex * local * table
   | `tcall of Type.basic option * global * operand list * operand list
 ] [@@deriving bin_io, compare, equal, sexp]
 
