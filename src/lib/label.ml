@@ -12,7 +12,10 @@ let pseudoentry = Int63.(zero - of_int 2)
 let pseudoexit = Int63.succ pseudoentry
 let is_pseudo l = Int63.(l = pseudoentry || l = pseudoexit)
 
-let pp ppf l = Format.fprintf ppf "@%Ld" @@ Int63.to_int64 l
+let pp ppf = function
+  | l when Int63.(l = pseudoentry) -> Format.fprintf ppf "@pseudoentry"
+  | l when Int63.(l = pseudoexit) -> Format.fprintf ppf "@pseudoexit"
+  | l -> Format.fprintf ppf "@%a" Int63.pp l
 
 include Regular.Make(struct
     include T
