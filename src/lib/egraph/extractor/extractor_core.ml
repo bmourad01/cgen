@@ -29,14 +29,20 @@ type ext = E of prov * Enode.op * ext list
 module Cost = struct
   include Int63
 
-  let depth_bits = 16
+  let depth_bits = 12
   let depth_mask = pred (one lsl depth_bits)
+  let opc_mask = lnot depth_mask
 
   let opc c = c lsr depth_bits
   let depth c = c land depth_mask
   let create o d = (o lsl depth_bits) lor (d land depth_mask)
   let pure o = of_int o lsl depth_bits
-  let incr c = create (opc c) (succ @@ depth c)
+
+  (* Make sure the increment doesn't wrap around. *)
+  let incr c =
+    let d = depth c in
+    (c land opc_mask) lor
+    (if d = depth_mask then d else succ d)
 
   let add x y =
     let o = opc x + opc y in
