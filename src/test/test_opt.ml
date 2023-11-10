@@ -1388,6 +1388,8 @@ let test_rol_const_add _ =
      ret %0
    }"
 
+(* The load `%b = ld.w %x` is redundant; the result %a
+   can be reused in the computation of %c. *)
 let test_rle _ =
   "module foo
 
@@ -1406,6 +1408,98 @@ let test_rle _ =
       %a.1 = ld.w %x ; @3
       %0 = add.w %a.1, %a.1 ; @4
       ret %0
+   }"
+
+(* An actually meaningful function that tests whether an
+   unsigned number is prime or not.
+
+   There's lots of uses of `urem` which should constrain the
+   scheduling of instructions (when it cannot be rewritten
+   to a cheaper set of ops).
+*)
+let test_prime _ =
+  "module foo
+
+   export function w $foo(w %n) {
+   @start:
+     %c = le.w %n, 1_w
+     br %c, @no, @twothree
+   @no:
+     ret 0_w
+   @twothree:
+     %c = le.w %n, 3_w
+     br %c, @yes, @divtwo
+   @yes:
+     ret 1_w
+   @divtwo:
+     %r = urem.w %n, 2_w
+     %c = eq.w %r, 0_w
+     br %c, @yes, @divthree
+   @divthree:
+     %r = urem.w %n, 3_w
+     %c = eq.w %r, 0_w
+     br %c, @yes, @main
+   @main:
+     %i = copy.w 5_w
+     jmp @loop
+   @loop:
+     %s = mul.w %i, %i
+     %c = le.w %s, %n
+     br %c, @divi, @yes
+   @divi:
+     %r = urem.w %n, %i
+     %c = eq.w %r, 0_w
+     br %c, @no, @divi2
+   @divi2:
+     %i2 = add.w %i, 2_w
+     %r = urem.w %n, %i2
+     %c = eq.w %r, 0_w
+     br %c, @no, @inc
+   @inc:
+     %i = add.w %i, 6_w
+     jmp @loop
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %n) {
+   @24:
+     %0 = le.w %n, 0x1_w ; @26
+     br %0, @4, @22
+   @4:
+     ret 0x0_w
+   @22:
+     %1 = le.w %n, 0x3_w ; @27
+     br %1, @11, @19
+   @11:
+     ret 0x1_w
+   @19:
+     %3 = and.w %n, 0x1_w ; @29
+     %2 = eq.w %3, 0x0_w ; @28
+     br %2, @11, @16
+   @16:
+     %8 = umulh.w %n, 0x55555556_w ; @34
+     %7 = lsl.w %8, 0x1_w ; @33
+     %6 = add.w %7, %8 ; @32
+     %5 = sub.w %n, %6 ; @31
+     %4 = eq.w %5, 0x0_w ; @30
+     br %4, @11, @1(0x5_w)
+   @1(%i.2):
+     %10 = mul.w %i.2, %i.2 ; @36
+     %9 = le.w %10, %n ; @35
+     br %9, @8, @11
+   @8:
+     %r.3 = urem.w %n, %i.2 ; @10
+     %11 = eq.w %r.3, 0x0_w ; @37
+     br %11, @4, @3
+   @3:
+     %12 = add.w %i.2, 0x2_w ; @38
+     %r.4 = urem.w %n, %12 ; @6
+     %13 = eq.w %r.4, 0x0_w ; @39
+     br %13, @4, @0
+   @0:
+     %14 = add.w %i.2, 0x6_w ; @40
+     jmp @1(%14)
    }"
 
 let suite = "Test optimizations" >::: [
@@ -1462,6 +1556,7 @@ let suite = "Test optimizations" >::: [
     "Test rotate left by constant and OR" >:: test_rol_const_or;
     "Test rotate left by constant and addition" >:: test_rol_const_add;
     "Redundant load elimination" >:: test_rle;
+    "Test prime numbers" >:: test_prime;
   ]
 
 let () = run_test_tt_main suite

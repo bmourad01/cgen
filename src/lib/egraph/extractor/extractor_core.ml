@@ -139,7 +139,7 @@ let init eg =
   saturate t;
   t
 
-let must_remain_fixed op args = match (op : Enode.op) with
+let rec must_remain_fixed op args = match (op : Enode.op) with
   | Obr
   | Ojmp
   | Oret
@@ -153,8 +153,7 @@ let must_remain_fixed op args = match (op : Enode.op) with
   | Ovaarg _
   | Ovastart _ ->
     (* Control-flow and other side-effecting instructions must
-       remain fixed. However, `Oset` can be moved as we only
-       generate this for operations that are known to be pure. *)
+       remain fixed. *)
     true
   | Obinop (`div #Type.imm | `udiv _ | `rem #Type.imm | `urem _) ->
     (* With division/remainder on integers where the RHS is a
@@ -164,6 +163,13 @@ let must_remain_fixed op args = match (op : Enode.op) with
     begin match args with
       | [_; E (_, Oint (i, _), [])] -> Bv.(i = zero)
       | _ -> true
+    end
+  | Oset _ ->
+    (* `Oset x` is a proxy for the actual operation, so we should
+       verify that it is pure *)
+    begin match args with
+      | [E (_, op, args)] -> must_remain_fixed op args
+      | _ -> assert false
     end
   | _ -> false
 
