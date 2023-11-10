@@ -46,12 +46,12 @@ let (=>) p expected =
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
     let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Sccp.run tenv) in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-    let*? m = Virtual.Module.map_funs_err m ~f:Passes.Simplify_cfg.run in
+    let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
     let m = Virtual.Module.map_funs m ~f:Passes.Tailcall.run in
     let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Peephole.run tenv) in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
     let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-    let*? m = Virtual.Module.map_funs_err m ~f:Passes.Simplify_cfg.run in
+    let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
     !!(Format.asprintf "%a" Virtual.Module.pp m)
   end |> function
@@ -849,7 +849,9 @@ let test_switch_case_prop _ =
 
    export function w $foo(w %x) {
    @start:
-     sw.w %x, @default [0x1_w -> @one, 0x2_w -> @two, 0x3_w -> @three]
+     sw.w %x, @default [0x1_w -> @one,
+                        0x2_w -> @two,
+                        0x3_w -> @three]
    @default:
      ret %x
    @one:
@@ -878,6 +880,37 @@ let test_switch_case_prop _ =
      ret 0x3_w
    @0:
      ret 0x4_w
+   }"
+
+(* This switch instruction re-uses the default label. When
+   we remove this redundant case we find that there are only
+   two paths, so it can be simplified to a `br`. *)
+let test_switch_simpl _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     sw.w %x, @default [0x1_w -> @a,
+                        0x2_w -> @default]
+   @a:
+     %y = add.w %x, 1_w
+     ret %y
+   @default:
+     %y = sub.w %x, 1_w
+     ret %y
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @4:
+     %1 = eq.w %x, 0x1_w ; @6
+     br %1, @2, @0
+   @2:
+     ret 0x2_w
+   @0:
+     %2 = sub.w %x, 0x1_w ; @7
+     ret %2
    }"
 
 (* Constant folding across blocks. We end up with a single
@@ -1564,6 +1597,7 @@ let suite = "Test optimizations" >::: [
     "Compare flag and NOP" >:: test_cmp_flag_nop;
     "CSE (hoist and merge)" >:: test_cse_hoist_and_merge;
     "Switch case propagation" >:: test_switch_case_prop;
+    "Switch simplification" >:: test_switch_simpl;
     "Muti-block fold" >:: test_multi_block_fold;
     "CSE (hoist and merge, with commute)" >:: test_cse_hoist_and_merge_with_commute;
     "Conditional propagation 1" >:: test_cond_prop_1;

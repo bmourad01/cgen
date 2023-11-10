@@ -10,130 +10,6 @@ module E = Monad.Result.Error
 open O.Let
 open O.Syntax
 
-(* Helpers for substituting block arguments. *)
-
-type subst = operand Var.Map.t
-
-let invalid ctx o =
-  let s = Format.asprintf "%a" pp_operand o in
-  failwithf "Invalid %s operand %s" ctx s ()
-
-let map_arg subst (o : operand) = match o with
-  | `var x -> Map.find subst x |> Option.value ~default:o
-  | _ -> o
-
-let map_local subst : local -> local = function
-  | `label (l, args) ->
-    `label (l, List.map args ~f:(map_arg subst))
-
-let map_global (subst : subst) (g : global) = match g with
-  | `addr _ | `sym _ -> g
-  | `var x -> match Map.find subst x with
-    | Some `int (i, _) -> `addr i
-    | Some (`sym _ as s) -> s
-    | Some (`var _ as x) -> x
-    | Some o -> invalid "global" o
-    | None -> g
-
-let map_dst subst (d : dst) = match d with
-  | #global as g ->
-    let g = map_global subst g in
-    (g :> dst)
-  | #local as l ->
-    let l = map_local subst l in
-    (l :> dst)
-
-let map_sel subst x t c l r =
-  let arg = map_arg subst in
-  match Map.find subst c with
-  | Some `bool true -> `uop (x, `copy t, arg l)
-  | Some `bool false -> `uop (x, `copy t, arg r)
-  | Some `var c -> `sel (x, t, c, arg l, arg r)
-  | Some o -> invalid "sel" o
-  | None -> `sel (x, t, c, arg l, arg r)
-
-let map_alist (subst : subst) (a : Insn.alist) = match a with
-  | `addr _ | `sym _ -> a
-  | `var x -> match Map.find subst x with
-    | Some (`var _ | `sym _ as a) -> a
-    | Some `int (i, _) -> `addr i
-    | Some o -> invalid "alist" o
-    | None -> a
-
-let map_op subst (op : Insn.op) =
-  let arg = map_arg subst in
-  match op with
-  | `bop (x, b, l, r) -> `bop (x, b, arg l, arg r)
-  | `uop (x, u, a) -> `uop (x, u, arg a)
-  | `sel (x, t, c, l, r) -> map_sel subst x t c l r
-  | `call (x, f, args, vargs) ->
-    let f = map_global subst f in
-    let args = List.map args ~f:arg in
-    let vargs = List.map vargs ~f:arg in
-    `call (x, f, args, vargs)
-  | `load (x, t, a) -> `load (x, t, arg a)
-  | `store (t, v, a) -> `store (t, arg v, arg a)
-  | `vastart a -> `vastart (map_alist subst a)
-  | `vaarg (x, t, a) -> `vaarg (x, t, map_alist subst a)
-
-let map_insn subst i =
-  Insn.with_op i @@ map_op subst @@ Insn.op i
-
-let map_tbl_entry subst i l = i, map_local subst l
-
-let map_br subst c y n =
-  let y = map_dst subst y in
-  let n = map_dst subst n in
-  match Map.find subst c with
-  | Some `bool true -> `jmp y
-  | Some `bool false -> `jmp n
-  | Some `var c -> `br (c, y, n)
-  | Some o -> invalid "br" o
-  | None -> `br (c, y, n)
-
-let map_sw subst t i d tbl =
-  let d = map_local subst d in
-  let tbl = Ctrl.Table.map_exn tbl ~f:(map_tbl_entry subst) in
-  match i with
-  | `sym _ -> `sw (t, i, d, tbl)
-  | `var x -> match Map.find subst x with
-    | Some (#Ctrl.swindex as i) -> `sw (t, i, d, tbl)
-    | Some `int (i, _) ->
-      let d = Ctrl.Table.find tbl i |> Option.value ~default:d in
-      `jmp (d :> dst)
-    | Some o -> invalid "sw" o
-    | None -> `sw (t, i, d, tbl)
-
-let map_ctrl subst : ctrl -> ctrl = function
-  | `hlt -> `hlt
-  | `jmp d -> `jmp (map_dst subst d)
-  | `br (c, y, n) -> map_br subst c y n
-  | `ret None as c -> c
-  | `ret (Some x) -> `ret (Some (map_arg subst x))
-  | `sw (t, i, d, tbl) -> map_sw subst t i d tbl
-  | `tcall (t, f, args, vargs) ->
-    let f = map_global subst f in
-    let args = List.map args ~f:(map_arg subst) in
-    let vargs = List.map vargs ~f:(map_arg subst) in
-    `tcall (t, f, args, vargs)
-
-let map_blk subst b =
-  let insns = Blk.insns b |> Seq.map ~f:(map_insn subst) in
-  Seq.to_list insns, map_ctrl subst (Blk.ctrl b)
-
-let extend subst b b' =
-  let* args = match Blk.ctrl b with
-    | `jmp (`label (_, args)) ->
-      !!(List.map args ~f:(map_arg subst))
-    | _ -> None in
-  Blk.args b' |> Seq.to_list |> List.zip args |> function
-  | Unequal_lengths -> None
-  | Ok l ->
-    List.fold l ~init:subst ~f:(fun subst (o, x) ->
-        Map.set subst ~key:x ~data:o) |> O.return
-
-(* Various state. *)
-
 type env = {
   blks        : blk Label.Table.t;
   doms        : Label.t tree;
@@ -178,8 +54,130 @@ let recompute_cfg env fn =
         Func.remove_blk_exn fn l
       end else fn)
 
-(* Merge blocks that are connected by only a single unconditional jump. *)
+(* Helpers for substituting block arguments. *)
+module Subst = struct
+  type t = operand Var.Map.t
 
+  let invalid ctx o =
+    let s = Format.asprintf "%a" pp_operand o in
+    failwithf "Invalid %s operand %s" ctx s ()
+
+  let map_arg subst (o : operand) = match o with
+    | `var x -> Map.find subst x |> Option.value ~default:o
+    | _ -> o
+
+  let map_local subst : local -> local = function
+    | `label (l, args) ->
+      `label (l, List.map args ~f:(map_arg subst))
+
+  let map_global (subst : t) (g : global) = match g with
+    | `addr _ | `sym _ -> g
+    | `var x -> match Map.find subst x with
+      | Some `int (i, _) -> `addr i
+      | Some (`sym _ as s) -> s
+      | Some (`var _ as x) -> x
+      | Some o -> invalid "global" o
+      | None -> g
+
+  let map_dst subst (d : dst) = match d with
+    | #global as g ->
+      let g = map_global subst g in
+      (g :> dst)
+    | #local as l ->
+      let l = map_local subst l in
+      (l :> dst)
+
+  let map_sel subst x t c l r =
+    let arg = map_arg subst in
+    match Map.find subst c with
+    | Some `bool true -> `uop (x, `copy t, arg l)
+    | Some `bool false -> `uop (x, `copy t, arg r)
+    | Some `var c -> `sel (x, t, c, arg l, arg r)
+    | Some o -> invalid "sel" o
+    | None -> `sel (x, t, c, arg l, arg r)
+
+  let map_alist (subst : t) (a : Insn.alist) = match a with
+    | `addr _ | `sym _ -> a
+    | `var x -> match Map.find subst x with
+      | Some (`var _ | `sym _ as a) -> a
+      | Some `int (i, _) -> `addr i
+      | Some o -> invalid "alist" o
+      | None -> a
+
+  let map_op subst (op : Insn.op) =
+    let arg = map_arg subst in
+    match op with
+    | `bop (x, b, l, r) -> `bop (x, b, arg l, arg r)
+    | `uop (x, u, a) -> `uop (x, u, arg a)
+    | `sel (x, t, c, l, r) -> map_sel subst x t c l r
+    | `call (x, f, args, vargs) ->
+      let f = map_global subst f in
+      let args = List.map args ~f:arg in
+      let vargs = List.map vargs ~f:arg in
+      `call (x, f, args, vargs)
+    | `load (x, t, a) -> `load (x, t, arg a)
+    | `store (t, v, a) -> `store (t, arg v, arg a)
+    | `vastart a -> `vastart (map_alist subst a)
+    | `vaarg (x, t, a) -> `vaarg (x, t, map_alist subst a)
+
+  let map_insn subst i =
+    Insn.with_op i @@ map_op subst @@ Insn.op i
+
+  let map_tbl_entry subst i l = i, map_local subst l
+
+  let map_br subst c y n =
+    let y = map_dst subst y in
+    let n = map_dst subst n in
+    match Map.find subst c with
+    | Some `bool true -> `jmp y
+    | Some `bool false -> `jmp n
+    | Some `var c -> `br (c, y, n)
+    | Some o -> invalid "br" o
+    | None -> `br (c, y, n)
+
+  let map_sw subst t i d tbl =
+    let d = map_local subst d in
+    let tbl = Ctrl.Table.map_exn tbl ~f:(map_tbl_entry subst) in
+    match i with
+    | `sym _ -> `sw (t, i, d, tbl)
+    | `var x -> match Map.find subst x with
+      | Some (#Ctrl.swindex as i) -> `sw (t, i, d, tbl)
+      | Some `int (i, _) ->
+        let d = Ctrl.Table.find tbl i |> Option.value ~default:d in
+        `jmp (d :> dst)
+      | Some o -> invalid "sw" o
+      | None -> `sw (t, i, d, tbl)
+
+  let map_ctrl subst : ctrl -> ctrl = function
+    | `hlt -> `hlt
+    | `jmp d -> `jmp (map_dst subst d)
+    | `br (c, y, n) -> map_br subst c y n
+    | `ret None as c -> c
+    | `ret (Some x) -> `ret (Some (map_arg subst x))
+    | `sw (t, i, d, tbl) -> map_sw subst t i d tbl
+    | `tcall (t, f, args, vargs) ->
+      let f = map_global subst f in
+      let args = List.map args ~f:(map_arg subst) in
+      let vargs = List.map vargs ~f:(map_arg subst) in
+      `tcall (t, f, args, vargs)
+
+  let map_blk subst b =
+    let insns = Blk.insns b |> Seq.map ~f:(map_insn subst) in
+    Seq.to_list insns, map_ctrl subst (Blk.ctrl b)
+
+  let extend subst b b' =
+    let* args = match Blk.ctrl b with
+      | `jmp (`label (_, args)) ->
+        !!(List.map args ~f:(map_arg subst))
+      | _ -> None in
+    Blk.args b' |> Seq.to_list |> List.zip args |> function
+    | Unequal_lengths -> None
+    | Ok l ->
+      List.fold l ~init:subst ~f:(fun subst (o, x) ->
+          Map.set subst ~key:x ~data:o) |> O.return
+end
+
+(* Merge blocks that are connected by only a single unconditional jump. *)
 module Merge_blks = struct
   let can_merge env l l' =
     Label.(l <> l') &&
@@ -191,7 +189,7 @@ module Merge_blks = struct
     Cfg.Node.succs l env.cfg |> Seq.to_list |> function
     | [l'] when can_merge env l l' ->
       let* b' = Hashtbl.find env.blks l' in
-      let+ subst = extend subst b b' in
+      let+ subst = Subst.extend subst b b' in
       subst, l', b'
     | _ -> None
 
@@ -212,7 +210,7 @@ module Merge_blks = struct
   and merge subst env l l' b b' =
     let insns', ctrl = if Map.is_empty subst
       then Seq.to_list (Blk.insns b'), Blk.ctrl b'
-      else map_blk subst b' in
+      else Subst.map_blk subst b' in
     let insns = Blk.insns b |> Seq.to_list in
     let b = Blk.create () ~ctrl ~label:l
         ~args:(Seq.to_list @@ Blk.args b)
@@ -235,7 +233,7 @@ module Merge_blks = struct
         Hashtbl.change env.blks l ~f:(O.map ~f:(fun b ->
             let dict = Blk.dict b in
             let args = Blk.args b |> Seq.to_list in
-            let insns, ctrl = map_blk subst b in
+            let insns, ctrl = Subst.map_blk subst b in
             Blk.create () ~dict ~args ~insns ~ctrl ~label:l));
       (* If we successfully merge for the block at this label,
          then we know it has only one child in the dominator
@@ -250,9 +248,22 @@ module Merge_blks = struct
     Hashtbl.length env.blks < orig_len
 end
 
+(* Remove the cases of the switch that have the same target and args
+   as the default case. *)
+let sw_hoist_default changed t i d tbl =
+  Ctrl.Table.enum tbl |> Seq.filter_map ~f:(fun ((_, l) as e) ->
+      Option.some_if (not @@ equal_local d l) e) |>
+  Seq.to_list |> function
+  | [] ->
+    changed := true;
+    `jmp (d :> dst)
+  | cs ->
+    let tbl' = Ctrl.Table.create_exn cs t in
+    if Ctrl.Table.length tbl' < Ctrl.Table.length tbl then changed := true;
+    `sw (t, i, d, tbl')
+
 (* Contract edges in the CFG when we find blocks with no instructions
    and a single unconditional jump. *)
-
 module Contract = struct
   type singles = dst Label.Tree.t
 
@@ -286,11 +297,11 @@ module Contract = struct
 
   (* Perform the substitutions on block arguments for the entire chain. *)
   let rec eval subst env = function
-    | Dest d -> !!(map_dst subst d)
+    | Dest d -> !!(Subst.map_dst subst d)
     | Next (l, l', x) ->
       let* b = Hashtbl.find env.blks l in
       let* b' = Hashtbl.find env.blks l' in
-      let* subst = extend subst b b' in
+      let* subst = Subst.extend subst b b' in
       eval subst env x
 
   let init_subst env l args =
@@ -327,12 +338,6 @@ module Contract = struct
     | Some x -> changed := true; x
     | None -> l
 
-  let sw_all_same d tbl =
-    Ctrl.Table.enum tbl |> Seq.map ~f:snd |>
-    Seq.fold_until ~init:d ~finish:(fun _ -> true)
-      ~f:(fun l l' -> if equal_local l l'
-           then Continue l' else Stop false)
-
   let contract_blk changed env (s : singles) b =
     let dst = map_dst changed env s in
     let loc = map_loc changed env s in
@@ -348,9 +353,7 @@ module Contract = struct
         | `sw (t, i, d, tbl) ->
           let d = loc d in
           let tbl = Ctrl.Table.map_exn tbl ~f:(fun i l -> i, loc l) in
-          if sw_all_same d tbl
-          then (changed := true; `jmp (d :> dst))
-          else `sw (t, i, d, tbl))
+          sw_hoist_default changed t i d tbl)
 
   let run env =
     let changed = ref false in
@@ -380,12 +383,6 @@ module Merge_rets = struct
     | Some x -> changed := true; x
     | None -> l
 
-  let sw_all_same d tbl =
-    Ctrl.Table.enum tbl |> Seq.map ~f:snd |>
-    Seq.fold_until ~init:d ~finish:(fun _ -> true)
-      ~f:(fun l l' -> if equal_local l l'
-           then Continue l' else Stop false)
-
   let map_blk changed tbl b =
     let dst = map_dst changed tbl in
     let loc = map_loc changed tbl in
@@ -401,9 +398,7 @@ module Merge_rets = struct
         | `sw (t, i, d, tbl) ->
           let d = loc d in
           let tbl = Ctrl.Table.map_exn tbl ~f:(fun i l -> i, loc l) in
-          if sw_all_same d tbl
-          then (changed := true; `jmp (d :> dst))
-          else `sw (t, i, d, tbl))
+          sw_hoist_default changed t i d tbl)
 
   let run env =
     let tbl = Label.Table.create () in
@@ -425,9 +420,28 @@ module Merge_rets = struct
     !changed
 end
 
-let try_ f = try Ok (f ()) with
-  | Failure msg ->
-    Monad.Result.Error.failf "In simplify_cfg: %s" msg ()
+open Context.Syntax
+
+(* Collapse a two-case switch (including default) into a conditional
+   branch. *)
+module Two_case_switch = struct
+  let go fn =
+    let+ bs = Func.blks fn |> Context.Seq.filter_map ~f:(fun b ->
+        match Blk.ctrl b with
+        | `sw (t, i, d, tbl) when Ctrl.Table.length tbl = 1 ->
+          let v, k = Seq.hd_exn @@ Ctrl.Table.enum tbl in
+          let* l = Context.Label.fresh in
+          let+ c = Context.Var.fresh in
+          let op = `bop (c, `eq (t :> Type.basic), (i :> operand), `int (v, t)) in
+          let cmp = Insn.create op ~label:l in
+          let b = Blk.append_insn b cmp in
+          Some (Blk.with_ctrl b @@ `br (c, (k :> dst), (d :> dst)))
+        | _ -> !!None) >>| Seq.to_list in
+    Func.update_blks fn bs
+end
+
+let try_ f = try f () with
+  | Failure msg -> Context.failf "In Simplify_cfg: %s" msg ()
 
 let run fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
@@ -440,6 +454,8 @@ let run fn =
         loop @@ recompute_cfg env @@ upd fn
       else if merged then upd fn
       else fn in
-    try_ @@ fun () -> loop fn
-  else E.failf "Expected SSA form for function %s"
+    try_ @@ fun () -> Two_case_switch.go @@ loop fn
+  else
+    Context.failf
+      "In Simplify_cfg: expected SSA form for function %s"
       (Func.name fn) ()

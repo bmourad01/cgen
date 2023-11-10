@@ -196,7 +196,7 @@ let map_blk env b =
 
 let try_ f = try Ok (f ()) with
   | Invalid_argument msg
-  | Failure msg -> Or_error.errorf "%s" msg
+  | Failure msg -> Or_error.errorf "In SCCP: %s" msg
 
 let run tenv fn = try_ @@ fun () ->
   let word = Target.word @@ Typecheck.Env.target tenv in

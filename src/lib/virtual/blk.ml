@@ -103,6 +103,10 @@ let append_insn ?(after = None) b d = {
   b with insns = append b.insns d Insn.has_label ~after;
 }
 
+let with_ctrl b c = {
+  b with ctrl = c;
+}
+
 let remove xs i f = Ftree.remove_if xs ~f:(Fn.flip f i)
 let remove_arg b x = {b with args = remove b.args x Var.equal}
 let remove_insn b l = {b with insns = remove b.insns l Insn.has_label}

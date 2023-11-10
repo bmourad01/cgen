@@ -574,6 +574,9 @@ module Ctrl : sig
     (** Returns the elements of the table. *)
     val enum : t -> (Bv.t * local) seq
 
+    (** Returns the number of cases in the table. *)
+    val length : t -> int
+
     (** Returns the immediate type for the index into the table. *)
     val typ : t -> Type.imm
 
@@ -807,6 +810,9 @@ module Blk : sig
       not inserted.
   *)
   val append_insn : ?after:Label.t option -> t -> insn -> t
+
+  (** Replaces the control-flow instruction in the block. *)
+  val with_ctrl : t -> ctrl -> t
 
   (** [remove_arg b x] removes an argument [x] from the block [b],
       if it exists. *)

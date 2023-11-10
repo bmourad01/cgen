@@ -15,6 +15,7 @@ module Table = struct
 
   let create l t = Or_error.try_with @@ fun () -> create_exn l t
   let enum t = Map.to_sequence t.tbl
+  let length t = Map.length t.tbl
   let find t v = Map.find t.tbl v
   let typ t = t.typ
 
