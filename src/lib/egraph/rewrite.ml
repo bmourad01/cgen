@@ -117,7 +117,7 @@ and search ~d t n =
   and pat env x xs id = match node t id with
     | N (y, ys) when Enode.equal_op x y ->
       children ~init:env xs ys
-    | N _ -> raise Mismatch
+    | N _ -> raise_notrace Mismatch
     | U {pre; post} ->
       (* Explore the rewritten term first. In some cases, constant
          folding will run much faster if we keep rewriting it. If
@@ -128,11 +128,11 @@ and search ~d t n =
   (* Match all the children of an e-node. *)
   and children ?(init = empty_subst) ps cs = match List.zip ps cs with
     | Ok l -> List.fold l ~init ~f:(fun env (p, id) -> cls env p id)
-    | Unequal_lengths -> raise Mismatch
+    | Unequal_lengths -> raise_notrace Mismatch
   (* Produce a substitution for the variable. *)
   and var env x id = Map.update env x ~f:(function
       | Some i when i.id = id -> i
-      | Some _ -> raise Mismatch
+      | Some _ -> raise_notrace Mismatch
       | None -> subst_info t id) in
   (* Insert a rewritten term based on the substitution. *)
   let rec rewrite ~d env = function
@@ -140,16 +140,16 @@ and search ~d t n =
       let cs = List.map ps ~f:(rewrite ~d env) in
       insert ~d t @@ N (o, cs)
     | V x -> match Map.find env x with
-      | None -> raise Mismatch
+      | None -> raise_notrace Mismatch
       | Some i -> i.Subst.id in
   (* Apply a post-condition to the substitution. *)
   let apply f env = Vec.push matches @@ match f with
     | Static p -> rewrite ~d env p
     | Cond (p, k) when k env -> rewrite ~d env p
-    | Cond _ -> raise Mismatch
+    | Cond _ -> raise_notrace Mismatch
     | Dyn f -> match f env with
       | Some p -> rewrite ~d env p
-      | None -> raise Mismatch in
+      | None -> raise_notrace Mismatch in
   (* Start by matching the top-level constructor. *)
   match n with
   | U _ -> assert false
