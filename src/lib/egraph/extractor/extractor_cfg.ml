@@ -348,7 +348,7 @@ module Hoisting = struct
         | `insn (_, b, _) -> Blk.label b
         | `blk _ -> assert false)
 
-  (* When we "move" duplicate nodes up to the LCA (least-common ancestor)
+  (* When we "move" duplicate nodes up to the LCA (lowest common ancestor)
      in the dominator tree, we might be introducing a partial redundancy.
      This means that, at the LCA, the node is not going to be used on all
      paths that are dominated by it, so we need to do a simple analysis to
