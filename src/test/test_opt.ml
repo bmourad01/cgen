@@ -1081,8 +1081,101 @@ let test_trunc_nop_2 _ =
      ret %x
    }"
 
-(* The computation of `add.w %x, 1_w` in @body3 should be
-   hoisted all the way to @start. *)
+(* The computation of `%y = add.w %x, 1_w` in @body should be
+   hoisted to @start. *)
+let test_licm_level_1 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %i = copy.w 0_w
+     %z = copy.w 0_w
+     jmp @loop
+   @loop:
+     %c = lt.w %i, 10_w
+     br %c, @body, @done
+   @body:
+     %y = add.w %x, 1_w
+     %z = add.w %z, %y
+     %i = add.w %i, 1_w
+     jmp @loop
+   @done:
+     ret %z
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @7:
+     %0 = add.w %x, 0x1_w ; @10
+     jmp @2(0x0_w, 0x0_w)
+   @2(%z.2, %i.2):
+     %1 = lt.w %i.2, 0xa_w ; @11
+     br %1, @1, @0
+   @1:
+     %3 = add.w %z.2, %0 ; @13
+     %2 = add.w %i.2, 0x1_w ; @12
+     jmp @2(%3, %2)
+   @0:
+     ret %z.2
+   }"
+
+(* The computation of `%y = add.w %x, 1_w` in @body2 should be
+   hoisted to @start. *)
+let test_licm_level_2 _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %i = copy.w 0_w
+     %z = copy.w 0_w
+     jmp @loop1
+   @loop1:
+     %c = lt.w %i, 10_w
+     br %c, @body1, @done
+   @body1:
+     %j = copy.w 0_w
+     jmp @loop2
+   @loop2:
+     %c = lt.w %j, 10_w
+     br %c, @body2, @done2
+   @body2:
+     %y = add.w %x, 1_w
+     %z = add.w %z, %y
+     %j = add.w %j, 1_w
+     jmp @loop2
+   @done2:
+     %i = add.w %i, 1_w
+     jmp @loop1
+   @done:
+     ret %z
+   }"
+  => 
+  "module foo
+
+   export function w $foo(w %x) {
+   @13:
+     %0 = add.w %x, 0x1_w ; @16
+     jmp @2(0x0_w, 0x0_w)
+   @2(%z.2, %i.2):
+     %1 = lt.w %i.2, 0xa_w ; @17
+     br %1, @5(%z.2, 0x0_w), @0
+   @5(%z.3, %j.2):
+     %2 = lt.w %j.2, 0xa_w ; @18
+     br %2, @4, @1
+   @4:
+     %4 = add.w %z.3, %0 ; @20
+     %3 = add.w %j.2, 0x1_w ; @19
+     jmp @5(%4, %3)
+   @1:
+     %5 = add.w %i.2, 0x1_w ; @21
+     jmp @2(%z.3, %5)
+   @0:
+     ret %z.2
+   }"
+
+(* The computation of `%y = add.w %x, 1_w` in @body3 should be
+   hoisted to @start. *)
 let test_licm_level_3 _ =
   "module foo
 
@@ -1360,6 +1453,8 @@ let suite = "Test optimizations" >::: [
     "Code sinking" >:: test_sinking;
     "Truncate no-op 1" >:: test_trunc_nop_1;
     "Truncate no-op 2" >:: test_trunc_nop_2;
+    "LICM (level 1)" >:: test_licm_level_1;
+    "LICM (level 2)" >:: test_licm_level_2;
     "LICM (level 3)" >:: test_licm_level_3;
     "Division by self" >:: test_division_by_self;
     "Store to load forwarding 1" >:: test_store_to_load_1;
