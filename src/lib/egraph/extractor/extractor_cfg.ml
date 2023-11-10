@@ -384,13 +384,12 @@ module Hoisting = struct
     | Some s ->
       (* Explore the newest nodes first. *)
       Set.to_sequence s ~order:`Decreasing |>
-      Context.Seq.iter ~f:(fun id ->
-          let id = Common.find t.eg id in
-          match extract t id with
+      Context.Seq.iter ~f:(fun id -> match extract t id with
           | None -> extract_fail l id
           | Some e ->
-            if Hash_set.mem t.impure id
-            || is_partial_redundancy t env l id then !!()
+            let cid = Common.find t.eg id in
+            if Hash_set.mem t.impure cid
+            || is_partial_redundancy t env l cid then !!()
             else pure t env scp e >>| ignore)
 end
 
