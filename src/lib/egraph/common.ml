@@ -88,20 +88,19 @@ type rules = (Enode.op, action list) Hashtbl.t
    of the [Builder].
 *)
 type t = {
-  input   : Input.t;                  (* Analyses about the function. *)
-  classes : Uf.t;                     (* The union-find for all e-classes. *)
-  node    : enode Vec.t;              (* All e-nodes, indexed by ID. *)
-  memo    : (enode, id) Hashtbl.t;    (* The hash-cons for optimized terms. *)
-  lmoved  : Id.Set.t Label.Table.t;   (* Set of IDs that were moved to a given label. *)
-  imoved  : Label.Set.t Id.Table.t;   (* Set of labels that were moved for a given ID. *)
-  imoved2 : Label.t Id.Table.t;       (* The label a given ID was moved to. *)
-  licm    : Id.Hash_set.t;            (* IDs that were moved via LICM. *)
-  id2lbl  : Label.t Id.Table.t;       (* Maps unmoved IDs to labels. *)
-  lbl2id  : id Label.Table.t;         (* Maps labels to IDs. *)
-  typs    : Type.t Id.Table.t;        (* Maps IDs to types. *)
-  intv    : Bv_interval.t Id.Table.t; (* Maps IDs to BV intervals (not stable). *)
-  fuel    : int;                      (* Maximum rewrite depth. *)
-  rules   : rules;                    (* The table of rewrite rules. *)
+  input   : Input.t;                (* Analyses about the function. *)
+  classes : Uf.t;                   (* The union-find for all e-classes. *)
+  node    : enode Vec.t;            (* All e-nodes, indexed by ID. *)
+  memo    : (enode, id) Hashtbl.t;  (* The hash-cons for optimized terms. *)
+  lmoved  : Id.Set.t Label.Table.t; (* Set of IDs that were moved to a given label. *)
+  imoved  : Label.Set.t Id.Table.t; (* Set of labels that were moved for a given ID. *)
+  imoved2 : Label.t Id.Table.t;     (* The label a given ID was moved to. *)
+  licm    : Id.Hash_set.t;          (* IDs that were moved via LICM. *)
+  id2lbl  : Label.t Id.Table.t;     (* Maps unmoved IDs to labels. *)
+  lbl2id  : id Label.Table.t;       (* Maps labels to IDs. *)
+  typs    : Type.t Id.Table.t;      (* Maps IDs to types. *)
+  fuel    : int;                    (* Maximum rewrite depth. *)
+  rules   : rules;                  (* The table of rewrite rules. *)
 }
 
 type egraph = t
@@ -124,7 +123,6 @@ let node t id = Vec.get_exn t.node id
 let dominates t = Tree.is_descendant_of t.input.cdom
 let const t id = Enode.const ~node:(node t) @@ node t id
 let typeof t id = Hashtbl.find t.typs id
-let interval t id = Hashtbl.find t.intv id
 
 let typeof_var t x =
   Typecheck.Env.typeof_var t.input.fn x t.input.tenv |> Or_error.ok
@@ -143,6 +141,3 @@ let wordsz t =
 
 let setty ?ty t id = Option.iter ty ~f:(fun ty ->
     Hashtbl.set t.typs ~key:id ~data:ty)
-
-let setiv ?iv t id = Option.iter iv ~f:(fun iv ->
-    Hashtbl.set t.intv ~key:id ~data:iv)

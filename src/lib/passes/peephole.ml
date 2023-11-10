@@ -29,53 +29,39 @@ module Rules = struct
   let is_neg_const x env =
     Option.is_some begin
       let* s = Subst.find env x in
-      match Subst.const s with
-      | Some `int (x, t) ->
+      Subst.const s >>= function
+      | `int (x, t) ->
         let module B = (val bv t) in
         O.guard @@ B.msb x
-      | _ ->
-        let* i = Subst.interval s in
-        let n = I.create_negative ~size:(I.size i) in
-        O.guard @@ I.contains n i
+      | _ -> None
     end
 
   (* `x` is not 0 or 1 *)
   let is_not_bool x env =
     Option.value ~default:false begin
-      let* s = Subst.find env x in
-      match Subst.const s with
-      | Some `int (i, _) -> !!Bv.(i <> one && i <> zero)
-      | _ ->
-        let+ i = Subst.interval s in
-        not I.(contains_value i Bv.one || contains_value i Bv.zero)
+      Subst.find env x >>= Subst.const >>= function
+      | `int (i, _) -> !!Bv.(i <> one && i <> zero)
+      | _ -> None
     end
 
   (* `x` is (signed) greater than 1 *)
   let is_sgt_one x env =
     Option.value ~default:false begin
-      let* s = Subst.find env x in
-      match Subst.const s with
-      | Some `int (i, ty) ->
+      Subst.find env x >>= Subst.const >>= function
+      | `int (i, ty) ->
         let m = Bv.modulus @@ Type.sizeof_imm ty in
-        Some (Bv.signed_compare i Bv.one m > 0)
-      | _ ->
-        let+ i = Subst.interval s in
-        let m = Bv.modulus @@ I.size i in
-        Bv.signed_compare (I.signed_min i) Bv.one m > 0
+        !!(Bv.signed_compare i Bv.one m > 0)
+      | _ -> None
     end
 
   (* `x` is (signed) less than 0 *)
   let is_slt_zero x env =
     Option.value ~default:false begin
-      let* s = Subst.find env x in
-      match Subst.const s with
-      | Some `int (i, ty) ->
+      Subst.find env x >>= Subst.const >>= function
+      | `int (i, ty) ->
         let m = Bv.modulus @@ Type.sizeof_imm ty in
-        Some (Bv.signed_compare i Bv.zero m < 0)
-      | _ ->
-        let+ i = Subst.interval s in
-        let m = Bv.modulus @@ I.size i in
-        Bv.signed_compare (I.signed_max i) Bv.zero m < 0
+        !!(Bv.signed_compare i Bv.zero m < 0)
+      | _ -> None
     end
 
   let has_type x ty env =
@@ -321,15 +307,6 @@ module Rules = struct
     let+ () = O.guard @@ Type.equal tx (ty :> Type.t) in
     var x
 
-  let cannot_be_zero x env = Option.is_some begin
-      let* s = Subst.find env x in
-      match Subst.const s with
-      | Some `int (i, _) -> O.guard @@ Bv.(i <> zero)
-      | _ ->
-        let* i = Subst.interval s in
-        O.guard @@ not @@ I.contains_value i Bv.zero
-    end
-
   let is_rotate_const x y env =
     Option.is_some begin
       let* xi = Subst.find env x >>= Subst.const in
@@ -366,7 +343,6 @@ module Rules = struct
   let udiv_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y"
   let urem_imm_non_pow2_y = udiv_urem_imm_non_pow2 x "y" ~rem:true
   let identity_same_type_x = identity_same_type "x"
-  let cannot_be_zero_x = cannot_be_zero "x"
   let is_rotate_const_y_z = is_rotate_const "y" "z"
 
   (* Sets of related rules. *)
@@ -727,30 +703,6 @@ module Rules = struct
       udiv `i16 x (i16 1) => x;
       udiv `i32 x (i32 1l) => x;
       udiv `i64 x (i64 1L) => x;
-    ]
-
-    (* x / x = 1 when x cannot be zero *)
-    let div_self = [
-      (div `i8 x x =>? i8 1) ~if_:cannot_be_zero_x;
-      (div `i16 x x =>? i16 1) ~if_:cannot_be_zero_x;
-      (div `i32 x x =>? i32 1l) ~if_:cannot_be_zero_x;
-      (div `i64 x x =>? i64 1L) ~if_:cannot_be_zero_x;
-      (udiv `i8 x x =>? i8 1) ~if_:cannot_be_zero_x;
-      (udiv `i16 x x =>? i16 1) ~if_:cannot_be_zero_x;
-      (udiv `i32 x x =>? i32 1l) ~if_:cannot_be_zero_x;
-      (udiv `i64 x x =>? i64 1L) ~if_:cannot_be_zero_x;
-    ]
-
-    (* x % x = 0 when x cannot be zero *)
-    let rem_self = [
-      (rem `i8 x x =>? i8 0) ~if_:cannot_be_zero_x;
-      (rem `i16 x x =>? i16 0) ~if_:cannot_be_zero_x;
-      (rem `i32 x x =>? i32 0l) ~if_:cannot_be_zero_x;
-      (rem `i64 x x =>? i64 0L) ~if_:cannot_be_zero_x;
-      (urem `i8 x x =>? i8 0) ~if_:cannot_be_zero_x;
-      (urem `i16 x x =>? i16 0) ~if_:cannot_be_zero_x;
-      (urem `i32 x x =>? i32 0l) ~if_:cannot_be_zero_x;
-      (urem `i64 x x =>? i64 0L) ~if_:cannot_be_zero_x;
     ]
 
     (* signed x / -1 = -x *)
@@ -1823,8 +1775,6 @@ module Rules = struct
       urem_const_pow2 @
       urem_const_non_pow2 @
       div_one @
-      div_self @
-      rem_self @
       sdiv_neg_one @
       srem_neg_one @
       udiv_neg_one @

@@ -41,36 +41,18 @@ let init () = {
   lst = None;
 }
 
-let cur_interval env eg x =
-  let open Monad.Option.Let in
-  let* s = Intervals.insn eg.input.intv env.cur in
-  Intervals.find_var s x
+let node ?ty ?l eg op args =
+  Rewrite.insert ?ty ?l ~d:eg.fuel eg @@ N (op, args)
 
-let node ?iv ?ty ?l eg op args =
-  Rewrite.insert ?iv ?ty ?l ~d:eg.fuel eg @@ N (op, args)
+let atom ?ty eg op = node ?ty eg op []
 
-let atom ?iv ?ty eg op = node ?iv ?ty eg op []
-
-let constant ?iv ?ty eg k =
-  Rewrite.insert ?iv ?ty ~d:eg.fuel eg @@ Enode.of_const k
+let constant ?ty eg k =
+  Rewrite.insert ?ty ~d:eg.fuel eg @@ Enode.of_const k
 
 let var env eg x =
-  let iv = cur_interval env eg x in
-  let ty = typeof_var eg x in
-  Hashtbl.find_and_call env.vars x
-    ~if_not_found:(fun _ ->
-        (* This var is either a block param, a function argument,
-           or a stack slot. *)
-        match Util.single_interval iv ty with
-        | Some k -> constant ?iv ?ty eg k
-        | None -> atom ?iv ?ty eg @@ Ovar x)
-    ~if_found:(fun id ->
-        (* This var was defined by an instruction. *)
-        match Util.single_interval iv ty with
-        | Some k -> constant ?iv ?ty eg k
-        | None ->
-          setiv ?iv eg id;
-          id)
+  Hashtbl.find_or_add env.vars x ~default:(fun () ->
+      let ty = typeof_var eg x in
+      atom ?ty eg @@ Ovar x)
 
 let typeof_const eg : const -> Type.t = function
   | `bool _ -> `flag
@@ -82,8 +64,7 @@ let typeof_const eg : const -> Type.t = function
 let operand env eg : operand -> id = function
   | #const as c ->
     let ty = typeof_const eg c in
-    let iv = Util.interval_of_const c ~wordsz:(wordsz eg) in
-    constant ~iv ~ty eg c
+    constant ~ty eg c
   | `var x -> var env eg x
 
 let operands env eg = List.map ~f:(operand env eg)
@@ -104,16 +85,9 @@ let table env eg tbl =
   Ctrl.Table.enum tbl |> Seq.map ~f:(fun (i, l) ->
       node eg (Otbl i) [local env eg l]) |> Seq.to_list
 
-let prov_interval ?x eg l =
-  let open Monad.Option.Let in
-  let* x = x in
-  let* s = Intervals.insn eg.input.intv l in
-  Intervals.find_var s x
-
 let prov ?x ?(f = Fn.const) env eg l op args =
   let ty = Option.bind x ~f:(typeof_var eg) in
-  let iv = prov_interval ?x eg l in
-  let id = node ?iv ?ty ~l eg op args in
+  let id = node ?ty ~l eg op args in
   Option.iter x ~f:(fun x ->
       match Hashtbl.add env.vars ~key:x ~data:id with
       | `Duplicate -> raise @@ Duplicate (x, l)

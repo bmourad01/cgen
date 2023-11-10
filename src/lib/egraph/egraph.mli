@@ -36,9 +36,6 @@ module Subst : sig
   (** The constant for the varialbe, if it is known. *)
   val const : info -> const option
 
-  (** The bitvector interval for the variable, if it is known. *)
-  val interval : info -> Bv_interval.t option
-
   (** The type of the variable, if it is known. *)
   val typeof : info -> Type.t option
 end

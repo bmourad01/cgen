@@ -44,6 +44,7 @@ let (=>) p expected =
     let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
     let*? tenv = Typecheck.run m ~target in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
+    let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Sccp.run tenv) in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Simplify_cfg.run in
     let m = Virtual.Module.map_funs m ~f:Passes.Tailcall.run in
@@ -1271,6 +1272,34 @@ let test_division_by_self _ =
      ret 0x1_w
    }"
 
+(* It is safe to take the remainder of self in @notzero,
+   which should yield the result 0. *)
+let test_remainder_of_self _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %c = eq.w %x, 0_w
+     br %c, @zero, @notzero
+   @zero:
+     ret %x
+   @notzero:
+     %y = rem.w %x, %x
+     ret %y
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @3:
+     %0 = eq.w %x, 0x0_w ; @5
+     br %0, @2, @0
+   @2:
+     ret %x
+   @0:
+     ret 0x0_w
+   }"
+
 (* The initial store to %y should be forwarded to the load
    from %y immediately after. Also, the `urem` is rewritten
    to an `and`. *)
@@ -1551,6 +1580,7 @@ let suite = "Test optimizations" >::: [
     "LICM (level 2)" >:: test_licm_level_2;
     "LICM (level 3)" >:: test_licm_level_3;
     "Division by self" >:: test_division_by_self;
+    "Remainder of self" >:: test_remainder_of_self;
     "Store to load forwarding 1" >:: test_store_to_load_1;
     "Store to load forwarding 2" >:: test_store_to_load_2;
     "Test rotate left by constant and OR" >:: test_rol_const_or;

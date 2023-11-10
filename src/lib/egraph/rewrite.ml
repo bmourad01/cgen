@@ -30,27 +30,13 @@ let new_node t n =
 
 (* If the node is already normalized then don't bother searching
    for matches. *)
-let subsume_const ?iv ?ty t n id =
-  let mkiv = Util.interval_of_const ~wordsz:(wordsz t) in
-  match Enode.const ~node:(node t) n with
-  | None ->
-    let+ c, u = match Enode.eval ~node:(node t) n with
-      | None ->
-        let+ k = Util.single_interval iv ty in
-        k, false
-      | Some k ->
-        setiv ~iv:(mkiv k) t id;
-        Some (k, true) in
-    let k = Enode.of_const c in
-    let oid = Hashtbl.find_or_add t.memo k
-        ~default:(fun () -> new_node t k) in
-    (* Don't union with the constant if it came strictly from
-       the intervals analysis. *)
-    if u then Uf.union t.classes id oid;
-    oid
-  | Some k ->
-    setiv ~iv:(mkiv k) t id;
-    Some id
+let subsume_const t n id =
+  let+ c = Enode.eval ~node:(node t) n in
+  let k = Enode.of_const c in
+  let oid = Hashtbl.find_or_add t.memo k
+      ~default:(fun () -> new_node t k) in
+  Uf.union t.classes id oid;
+  oid
 
 (* Represent the union of two e-classes with a "union" node. *)
 let union t id oid =
@@ -66,25 +52,22 @@ let step t id oid : (id, id) Continue_or_stop.t =
   if id <> oid then match node t oid with
     | n when Enode.is_const n ->
       Uf.union t.classes id oid;
-      Prov.merge t id oid;
       Stop oid
     | _ -> Continue (union t id oid)
   else Continue id
 
 (* Called when a duplicate node is inserted. *)
-let duplicate ?iv ?l t id =
+let duplicate ?l t id =
   Option.iter l ~f:(Prov.duplicate t id);
-  setiv ?iv t id;
   id
 
 let subst_info t id : Subst.info = {
   const = const t id;
-  intv = interval t id;
   typ = typeof t id;
   id;
 }
 
-let infer_ty t n = Util.infer_ty n
+let infer_ty t n = Enode.infer_ty n
     ~tid:(Hashtbl.find t.typs)
     ~tty:(typeof_typ t)
     ~tvar:(typeof_var t)
@@ -97,25 +80,23 @@ let infer_ty t n = Util.infer_ty n
    Note that we still continuously update the interval associated
    with the ID because it varies across program points.
 *)
-let rec insert ?iv ?ty ?l ~d t n =
+let rec insert ?ty ?l ~d t n =
   canon t n |> Hashtbl.find_and_call t.memo
-    ~if_found:(duplicate ?iv ?l t)
+    ~if_found:(duplicate ?l t)
     ~if_not_found:(fun k -> match commute t k with
-        | Some id -> duplicate ?iv ?l t id
+        | Some id -> duplicate ?l t id
         | None ->
           let id = new_node t n in
           let ty = match ty with
             | None -> infer_ty t n
             | Some _ -> ty in
           setty ?ty t id;
-          setiv ?iv t id;
           Option.iter l ~f:(fun l -> Prov.add t l id n);
-          let oid = optimize ?iv ?ty ~d t n id in
+          let oid = optimize ~d t n id in
           Hashtbl.set t.memo ~key:k ~data:oid;
           oid)
 
-and optimize ?iv ?ty ~d t n id =
-  match subsume_const ?iv ?ty t n id with
+and optimize ~d t n id = match subsume_const t n id with
   | Some id -> id
   | None when d < 0 -> id
   | None ->

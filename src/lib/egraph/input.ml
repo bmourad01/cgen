@@ -27,7 +27,6 @@ type t = {
   lst  : (Label.t, Label.t option) Solution.t;
   tenv : Typecheck.env;
   barg : Label.t Var.Table.t;
-  intv : Intervals.t;
 }
 
 module Pseudo = Label.Pseudo(struct
@@ -127,9 +126,4 @@ let init fn tenv =
   let df = Graphlib.dom_frontier (module Cfg) cfg dom in
   let cdom = cdoms fn tbl dom in
   let lst = Last_stores.analyze fn tbl cfg in
-  let word = Target.word @@ Typecheck.Env.target tenv in
-  let typeof x = match Typecheck.Env.typeof_var fn x tenv with
-    | Error err -> failwith @@ Error.to_string_hum err
-    | Ok t -> t in
-  let intv = Intervals.analyze fn ~word ~typeof in
-  {fn; loop; tbl; cfg; dom; pdom; cdom; df; lst; tenv; barg; intv}
+  {fn; loop; tbl; cfg; dom; pdom; cdom; df; lst; tenv; barg}

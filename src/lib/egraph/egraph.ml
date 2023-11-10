@@ -20,7 +20,6 @@ let init input fuel rules = {
   id2lbl = Id.Table.create ();
   lbl2id = Label.Table.create ();
   typs = Id.Table.create ();
-  intv = Id.Table.create ();
   fuel;
   rules;
 }
