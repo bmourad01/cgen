@@ -157,18 +157,13 @@ let undef env lst addr ty =
   Hashtbl.set env.mems ~key:{lst; addr; ty} ~data:Undef;
   env.lst <- Some lst
 
-let alist env eg : Insn.alist -> id = function
-  | `var x -> var env eg x
-  | `addr a -> atom eg @@ Oaddr a
-  | `sym (s, o) -> atom eg @@ Osym (s, o)
-
 let vaarg env eg l x ty a =
-  let a = alist env eg a in
+  let a = global env eg a in
   undef env l a ty;
   prov ~x env eg l (Ovaarg (x, ty)) [a]
 
 let vastart env eg l x =
-  let a = alist env eg x in
+  let a = global env eg x in
   let tgt = Typecheck.Env.target eg.input.tenv in
   let ty = (Target.word tgt :> Type.arg) in
   undef env l a ty;

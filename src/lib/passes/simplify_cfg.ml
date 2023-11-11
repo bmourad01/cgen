@@ -100,14 +100,6 @@ module Subst = struct
     | Some o -> invalid "sel" o
     | None -> `sel (x, t, c, arg l, arg r)
 
-  let map_alist (subst : t) (a : Insn.alist) = match a with
-    | `addr _ | `sym _ -> a
-    | `var x -> match Map.find subst x with
-      | Some (`var _ | `sym _ as a) -> a
-      | Some `int (i, _) -> `addr i
-      | Some o -> invalid "alist" o
-      | None -> a
-
   let map_op subst (op : Insn.op) =
     let arg = map_arg subst in
     match op with
@@ -121,8 +113,8 @@ module Subst = struct
       `call (x, f, args, vargs)
     | `load (x, t, a) -> `load (x, t, arg a)
     | `store (t, v, a) -> `store (t, arg v, arg a)
-    | `vastart a -> `vastart (map_alist subst a)
-    | `vaarg (x, t, a) -> `vaarg (x, t, map_alist subst a)
+    | `vastart a -> `vastart (map_global subst a)
+    | `vaarg (x, t, a) -> `vaarg (x, t, map_global subst a)
 
   let map_insn subst i =
     Insn.with_op i @@ map_op subst @@ Insn.op i

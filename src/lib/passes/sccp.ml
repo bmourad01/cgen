@@ -78,18 +78,6 @@ let map_sel env x t c l r =
     `uop (x, `copy t, r)
   | Some _ | None -> `sel (x, t, c, l, r)
 
-let map_alist env : Insn.alist -> Insn.alist = function
-  | `addr _ | `sym _ as a -> a
-  | `var x as a -> match var env x with
-    | None -> a
-    | Some i -> match I.single_of i with
-      | None -> a
-      | Some v -> match typeof_var env x with
-        | #Type.imm_base as t ->
-          if Type.equal_imm_base t @@ word env
-          then `addr v else a
-        | _ -> a
-
 let map_op env (op : Insn.op) = 
   let operand = map_operand env in
   match op with
@@ -104,8 +92,8 @@ let map_op env (op : Insn.op) =
     `call (x, f, args, vargs)
   | `load (x, t, a) -> `load (x, t, operand a)
   | `store (t, v, a) -> `store (t, operand v, operand a)
-  | `vastart a -> `vastart (map_alist env a)
-  | `vaarg (x, t, a) -> `vaarg (x, t, map_alist env a)
+  | `vastart a -> `vastart (map_global env a)
+  | `vaarg (x, t, a) -> `vaarg (x, t, map_global env a)
 
 (* Based on the intervals analysis, we can safely remove a div/rem
    whose RHS is known to never be zero. *)
