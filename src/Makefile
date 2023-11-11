@@ -13,7 +13,7 @@ uninstall:
 	dune uninstall
 
 test:
-	dune test
+	dune test --profile=release
 
 doc:
 	dune build @doc
