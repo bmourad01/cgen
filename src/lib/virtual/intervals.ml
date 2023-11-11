@@ -377,8 +377,19 @@ let interp_cmp ctx o x l r a b =
   | `o _
   | `uo _ -> I.boolean_full
 
+let div_rem_self l r b =
+  equal_operand l r && not (I.contains_value b Bv.zero)
+
 let interp_binop ctx o x l r a b = match (o : Insn.binop) with
-  | #Insn.arith_binop as o -> interp_arith_binop o a b
+  | #Insn.arith_binop as o ->
+    (* Special case for division by self. *)
+    begin match o with
+      | `div (#Type.imm as t) | `udiv t when div_rem_self l r b ->
+        I.create_single ~value:Bv.one ~size:(Type.sizeof_imm t)
+      | `rem (#Type.imm as t) | `urem t when div_rem_self l r b ->
+        I.create_single ~value:Bv.zero ~size:(Type.sizeof_imm t)
+      | _ -> interp_arith_binop o a b
+    end
   | #Insn.bitwise_binop as o -> interp_bitwise_binop o a b
   | #Insn.cmp as o -> interp_cmp ctx o x l r a b
 

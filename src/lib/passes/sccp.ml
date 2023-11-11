@@ -92,19 +92,9 @@ let map_alist env : Insn.alist -> Insn.alist = function
           then `addr v else a
         | _ -> a
 
-let cannot_be_zero env x = match var env x with
-  | Some i -> not @@ I.contains_value i Bv.zero
-  | None -> false
-
 let map_op env (op : Insn.op) = 
   let operand = map_operand env in
   match op with
-  | `bop (x, (`div (#Type.imm as t) | `udiv t), `var y, `var z)
-    when Var.(y = z) && cannot_be_zero env z ->
-    `uop (x, `copy (t :> Type.basic), `int (Bv.one, t))
-  | `bop (x, (`rem (#Type.imm as t) | `urem t), `var y, `var z)
-    when Var.(y = z) && cannot_be_zero env z ->
-    `uop (x, `copy (t :> Type.basic), `int (Bv.zero, t))
   | `bop (x, b, l, r) ->
     `bop (x, b, operand l, operand r)
   | `uop (x, u, a) -> `uop (x, u, operand a)
