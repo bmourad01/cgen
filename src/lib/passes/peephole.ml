@@ -965,12 +965,28 @@ module Rules = struct
       xor `i64 (not_ `i64 x) x => i64 0xffff_ffff_ffff_ffffL;
     ]
 
-    (* (x ^ y) ^ y = x *)
+    (* (x ^ y) ^ y =
+       (y ^ x) ^ y =
+       y ^ (x ^ y) =
+       y ^ (y ^ x) = x
+    *)
     let double_xor = [
       xor `i8 (xor `i8 x y) y => x;
       xor `i16 (xor `i16 x y) y => x;
       xor `i32 (xor `i32 x y) y => x;
       xor `i64 (xor `i64 x y) y => x;
+      xor `i8 (xor `i8 y x) y => x;
+      xor `i16 (xor `i16 y x) y => x;
+      xor `i32 (xor `i32 y x) y => x;
+      xor `i64 (xor `i64 y x) y => x;
+      xor `i8 y (xor `i8 x y) => x;
+      xor `i16 y (xor `i16 x y) => x;
+      xor `i32 y (xor `i32 x y) => x;
+      xor `i64 y (xor `i64 x y) => x;
+      xor `i8 y (xor `i8 y x) => x;
+      xor `i16 y (xor `i16 y x) => x;
+      xor `i32 y (xor `i32 y x) => x;
+      xor `i64 y (xor `i64 y x) => x;
     ]
 
     (* (x >>> y) >> z = x >> z when z >= y and z is bitwidth - 1 *)

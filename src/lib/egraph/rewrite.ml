@@ -107,8 +107,6 @@ and search ~d t n =
   let exception Mismatch in
   (* IDs of rewritten terms. *)
   let matches = Vec.create () in
-  (* Pending IDs from union nodes. *)
-  let pending = Stack.create () in
   (* Match an e-class. *)
   let rec cls env p id = match p with
     | P (x, xs) -> pat env x xs id
@@ -119,12 +117,11 @@ and search ~d t n =
       children ~init:env xs ys
     | N _ -> raise_notrace Mismatch
     | U {pre; post} ->
-      (* Explore the rewritten term first. In some cases, constant
-         folding will run much faster if we keep rewriting it. If
-         there's a match then we can enqueue the "original" term with
-         the current state of the search for further exploration. *)
-      Stack.push pending (env, x, xs, pre);
-      pat env x xs post
+      (* FIXME: if the `post` term matches then the `pre` term
+         will simply be ignored, and thus we might miss an
+         opportunity for a rewrite. *)
+      try pat env x xs post with
+      | Mismatch -> pat env x xs pre
   (* Match all the children of an e-node. *)
   and children ?(init = empty_subst) ps cs = match List.zip ps cs with
     | Ok l -> List.fold l ~init ~f:(fun env (p, id) -> cls env p id)
@@ -156,11 +153,5 @@ and search ~d t n =
   | N (o, cs) ->
     Hashtbl.find t.rules o |>
     Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
-        (* Match the children of this node first. *)
-        (try apply f @@ children ps cs with Mismatch -> ());
-        (* Then match any pending unioned nodes. *)
-        while not @@ Stack.is_empty pending do
-          let env, x, xs, id = Stack.pop_exn pending in
-          try apply f @@ pat env x xs id with Mismatch -> ()
-        done));
+        try apply f @@ children ps cs with Mismatch -> ()));
     matches

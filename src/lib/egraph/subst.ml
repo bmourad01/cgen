@@ -3,7 +3,7 @@ open Core
 type info = {
   const : Virtual.const option;
   typ   : Type.t option;
-  id    : Id.t
+  id    : Id.t;
 }
 
 type t = info String.Map.t
