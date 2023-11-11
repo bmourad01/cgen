@@ -1,5 +1,5 @@
-(* Uses the `Intervals` analysis to perform the classic
-   Sparse Conditional Constant Propagation (SCCP) pass. *)
+(** Uses the [Intervals] analysis to perform the classic
+    Sparse Conditional Constant Propagation (SCCP) pass. *)
 
 open Core
 open Virtual
