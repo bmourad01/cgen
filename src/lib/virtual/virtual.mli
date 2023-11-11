@@ -1123,11 +1123,13 @@ module Intervals : sig
   (** The analysis results. *)
   type t
 
-  (** The output state of an instruction. *)
-  val insn : t -> Label.t -> state option
+  (** [insn t l] returns the output state of the instruction [l], if it
+      exists. Otherwise, [empty_state] is returned. *)
+  val insn : t -> Label.t -> state
 
-  (** The input state for each basic block. *)
-  val input : t -> (Label.t, state) Solution.t
+  (** [input t l] returns the input state of the basic block [l], if it
+      exists. Otherwise, [empty_state] is returned. *)
+  val input : t -> Label.t -> state
 
   (** Performs the interval analysis.
 

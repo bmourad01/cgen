@@ -30,10 +30,8 @@ let typeof_var env x =
 
 let var env x =
   let s = match env.cur with
-    | Blk l -> Solution.get (Intervals.input env.intv) l
-    | Insn l ->
-      Intervals.insn env.intv l |>
-      Option.value ~default:Intervals.empty_state in
+    | Blk l -> Intervals.input env.intv l
+    | Insn l -> Intervals.insn env.intv l in
   Intervals.find_var s x
 
 let word env = Target.word @@ Typecheck.Env.target env.tenv
@@ -118,13 +116,11 @@ let mark_div_rem_nonzero env i = match Insn.op i with
       | `udiv _
       | `rem #Type.imm
       | `urem _ ->
-        let l = Insn.label i in
-        begin match Intervals.insn env.intv l with
+        let s = Intervals.insn env.intv @@ Insn.label i in
+        begin match Intervals.find_var s x with
+          | Some iv when Bv_interval.contains_value iv Bv.zero -> i
+          | Some _ -> Insn.with_tag i Tags.div_rem_nonzero ()
           | None -> i
-          | Some s -> match Intervals.find_var s x with
-            | None -> i
-            | Some iv when Bv_interval.contains_value iv Bv.zero -> i
-            | Some _ -> Insn.with_tag i Tags.div_rem_nonzero ()
         end
       | _ -> i
     end

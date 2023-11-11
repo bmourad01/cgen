@@ -587,8 +587,11 @@ type t = {
   input : (Label.t, state) Solution.t;
 }
 
-let insn t = Hashtbl.find t.insns
-let input t = t.input
+let insn t l =
+  Hashtbl.find t.insns l |>
+  Option.value ~default:empty_state
+
+let input t l = Solution.get t.input l
 
 let analyze ?steps fn ~word ~typeof =
   if Dict.mem (Func.dict fn) Tags.ssa then
