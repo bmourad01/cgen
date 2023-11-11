@@ -117,7 +117,8 @@
 %token <Type.imm> CLZ CTZ FLAG ITRUNC POPCNT SEXT ZEXT
 %token <Type.imm_base> IFBITS
 %token <Type.imm * Type.fp> SITOF UITOF
-%token <Type.basic> COPY SEL ACALL ATCALL
+%token <Type.basic> COPY SEL
+%token <Type.arg> ACALL ATCALL
 %token REF UNREF
 %token CALL TCALL
 %token <Type.basic> VAARG
@@ -249,9 +250,9 @@ typ_field:
   | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value n ~default:1) }
 
 func:
-  | l = option(linkage) FUNCTION return = option(type_basic) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
+  | l = option(linkage) FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
     { make_fn slots blks args l name return false }
-  | l = option(linkage) NORETURN FUNCTION return = option(type_basic) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
+  | l = option(linkage) NORETURN FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
     { make_fn slots blks args l name return true }
 
 func_args:

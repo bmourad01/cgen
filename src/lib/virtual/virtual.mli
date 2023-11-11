@@ -358,7 +358,7 @@ module Insn : sig
       Note that variadic calls require at least one non-variadic argument.
   *)
   type call = [
-    | `call of (Var.t * Type.basic) option * global * operand list * operand list
+    | `call of (Var.t * Type.arg) option * global * operand list * operand list
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the call. *)
@@ -639,7 +639,7 @@ module Ctrl : sig
     | `br    of Var.t * dst * dst
     | `ret   of operand option
     | `sw    of Type.imm * swindex * local * table
-    | `tcall of Type.basic option * global * operand list * operand list
+    | `tcall of Type.arg option * global * operand list * operand list
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the control-flow instruction. *)
@@ -874,7 +874,7 @@ module Func : sig
   (** Tags for various information about the function. *)
   module Tag : sig
     (** The return type of the function. *)
-    val return : Type.basic Dict.tag
+    val return : Type.arg Dict.tag
 
     (** Indicates whether the function is variadic or not. *)
     val variadic : unit Dict.tag
@@ -934,7 +934,7 @@ module Func : sig
   val args : ?rev:bool -> t -> (Var.t * Type.arg) seq
 
   (** Returns the return type of the function, if it exists. *)
-  val return : t -> Type.basic option
+  val return : t -> Type.arg option
 
   (** Returns [true] if the function is variadic. *)
   val variadic : t -> bool

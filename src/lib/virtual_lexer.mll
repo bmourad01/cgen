@@ -161,9 +161,11 @@ rule token = parse
   | "ref" { REF }
   | "unref" { UNREF }
   | "sel" '.' (basic as t) { SEL (basic_of_char t) }
-  | "call" '.' (basic as t) { ACALL (basic_of_char t) }
+  | "call" '.' (basic as t) { ACALL (basic_of_char t :> Type.arg) }
+  | "call" ':' (ident as id) { ACALL (`name id) }
   | "call" { CALL }
-  | "tcall" '.' (basic as t) { ATCALL (basic_of_char t) }
+  | "tcall" '.' (basic as t) { ATCALL (basic_of_char t :> Type.arg) }
+  | "tcall" ':' (ident as id) { ATCALL (`name id) }
   | "tcall" { TCALL }
   | "vaarg" '.' (basic as t) { VAARG (basic_of_char t) }
   | "vastart" { VASTART }

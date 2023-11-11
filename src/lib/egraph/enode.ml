@@ -17,7 +17,7 @@ type op =
   | Obool     of bool
   | Obr
   | Ocall0    of Label.t
-  | Ocall     of Var.t * Type.basic
+  | Ocall     of Var.t * Type.arg
   | Ocallargs
   | Odouble   of float
   | Ojmp
@@ -33,7 +33,7 @@ type op =
   | Osym      of string * int
   | Otbl      of Bv.t
   | Otcall0
-  | Otcall    of Type.basic
+  | Otcall    of Type.arg
   | Ounop     of Insn.unop
   | Ovaarg    of Var.t * Type.basic
   | Ovar      of Var.t
@@ -131,7 +131,8 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
     | Obool _ -> Some `flag
     | Obr -> None
     | Ocall0 _ -> None
-    | Ocall (_, t) -> Some (t :> Type.t)
+    | Ocall (_, (#Type.basic as t)) -> Some (t :> Type.t)
+    | Ocall (_, `name n) -> tty n
     | Ocallargs -> None
     | Odouble _ -> Some `f64
     | Ojmp -> None
@@ -147,7 +148,8 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
     | Osym _ -> Some word
     | Otbl _ -> None
     | Otcall0 -> None
-    | Otcall _ -> None
+    | Otcall (#Type.basic as t) -> Some (t :> Type.t)
+    | Otcall (`name n) -> tty n
     | Ounop u -> infer_ty_unop ~tty ~word u
     | Ovaarg (_, t) -> Some (t :> Type.t)
     | Ovar x -> tvar x
@@ -242,8 +244,10 @@ let pp_op ppf = function
     Format.fprintf ppf "br"
   | Ocall0 _ ->
     Format.fprintf ppf "call"
-  | Ocall (_, t) ->
+  | Ocall (_, (#Type.basic as t)) ->
     Format.fprintf ppf "call.%a" Type.pp_basic t
+  | Ocall (_, `name n) ->
+    Format.fprintf ppf "call:%s" n
   | Ocallargs ->
     Format.fprintf ppf "callargs"
   | Odouble d ->
@@ -278,8 +282,10 @@ let pp_op ppf = function
     Format.fprintf ppf "(tbl %a)" Bv.pp i
   | Otcall0 ->
     Format.fprintf ppf "tcall"
-  | Otcall t ->
+  | Otcall (#Type.basic as t) ->
     Format.fprintf ppf "tcall.%a" Type.pp_basic t
+  | Otcall `name n ->
+    Format.fprintf ppf "tcall:%s" n
   | Ounop u ->
     Format.fprintf ppf "%a" Insn.pp_unop u
   | Ovaarg (_, t) ->

@@ -172,6 +172,12 @@ let typeof_arg fn env : operand -> Type.t t = function
   | #const as c -> typeof_const c
   | `var v -> M.lift_err @@ Env.typeof_var fn v env
 
+let typeof_type_arg env : Type.arg -> Type.t t = function
+  | #Type.basic as t -> !!(t :> Type.t)
+  | `name n ->
+    let*? t = Env.typeof_typ n env in
+    !!(t :> Type.t)
+
 (* Checking individual instructions of a block. *)
 
 module Insns = struct
@@ -585,7 +591,8 @@ module Insns = struct
         let t = Some (t :> Type.arg) in
         check_call env t args vargs g in
       let* fn = getfn in
-      M.lift_err @@ Env.add_var fn v (t :> Type.t) env
+      let* t = typeof_type_arg env t in
+      M.lift_err @@ Env.add_var fn v t env
     | `call (None, g, args, vargs) ->
       let+ () = check_call env None args vargs g in
       env
@@ -712,9 +719,9 @@ module Ctrls = struct
     check_dst blks f
 
   let ctrl_ret_none =
-    let* fn = getfn in
+    let* env = getenv and* fn = getfn in
     match Func.return fn with
-    | Some t -> unify_fail_void_ret (t :> Type.t)
+    | Some t -> typeof_type_arg env t >>= unify_fail_void_ret
     | None -> !!()
 
   let ctrl_ret_some r =
@@ -723,7 +730,7 @@ module Ctrls = struct
     match tr, Func.return fn with
     | t, None -> unify_fail_void_ret t
     | #Type.t as r, Some t ->
-      let t' = (t :> Type.t) in
+      let* t' = typeof_type_arg env t in
       if Type.(r = t') then !!()
       else unify_fail_ret r t'
 

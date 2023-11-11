@@ -300,14 +300,14 @@ let pp_arg ppf : arg -> unit = function
   | `name s -> Format.fprintf ppf ":%s" s
 
 type proto = [
-  | `proto of basic option * arg list * bool
+  | `proto of arg option * arg list * bool
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_proto ppf : proto -> unit = function
   | `proto (ret, args, variadic) ->
     let pp_sep ppf () = Format.fprintf ppf ", " in
     let pp_args = Format.pp_print_list ~pp_sep pp_arg in
-    Option.iter ret ~f:(Format.fprintf ppf "%a " pp_basic);
+    Option.iter ret ~f:(Format.fprintf ppf "%a " pp_arg);
     Format.fprintf ppf "(%a" pp_args args;
     match variadic, args with
     | false, _ -> Format.fprintf ppf ")"

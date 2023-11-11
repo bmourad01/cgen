@@ -54,8 +54,8 @@ module Tag = struct
   let return = Dict.register
       ~uuid:"20f25c5c-72e8-4115-9cb5-81ebdc895f19"
       "fn-return" (module struct
-      type t = Type.basic [@@deriving bin_io, compare, equal, sexp]
-      let pp = Type.pp_basic
+      type t = Type.arg [@@deriving bin_io, compare, equal, sexp]
+      let pp = Type.pp_arg
     end)
 
   let variadic = Dict.register
@@ -198,7 +198,7 @@ let pp ppf fn =
     Format.fprintf ppf "%a " Linkage.pp lnk;
   if noreturn fn then Format.fprintf ppf "noreturn ";
   Format.fprintf ppf "function ";
-  Option.iter (return fn) ~f:(Format.fprintf ppf "%a " Type.pp_basic);
+  Option.iter (return fn) ~f:(Format.fprintf ppf "%a " Type.pp_arg);
   Format.fprintf ppf "$%s(%a) {@;" fn.name pp_args fn;
   if not @@ Ftree.is_empty fn.slots then begin
     let sep ppf = Format.fprintf ppf "@;  " in

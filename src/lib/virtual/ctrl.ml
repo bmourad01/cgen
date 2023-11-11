@@ -64,12 +64,14 @@ type t = [
   | `br    of Var.t * dst * dst
   | `ret   of operand option
   | `sw    of Type.imm * swindex * local * table
-  | `tcall of Type.basic option * global * operand list * operand list
+  | `tcall of Type.arg option * global * operand list * operand list
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_tcall_res ppf = function
   | None -> Format.fprintf ppf "tcall "
-  | Some t ->
+  | Some `name n ->
+    Format.fprintf ppf "tcall:%s " n
+  | Some (#Type.basic as t) ->
     Format.fprintf ppf "tcall.%a " Type.pp_basic t
 
 let pp_tcall ppf c =

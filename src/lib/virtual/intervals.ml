@@ -465,8 +465,10 @@ let interp_basic ctx s : Insn.basic -> state = function
   | `uop (x, o, a) -> interp_basic_unop ctx s x o a
   | `sel (x, _, k, y, n) -> interp_basic_sel ctx s x k y n
 
-let make_top s x t =
-  update s x @@ I.create_full ~size:(Type.sizeof_basic t)
+let make_top s x = function
+  | #Type.basic as t ->
+    update s x @@ I.create_full ~size:(Type.sizeof_basic t)
+  | `name _ -> s
 
 let interp_call _ s : Insn.call -> state = function
   | `call (Some (x, t), _, _, _) -> make_top s x t
