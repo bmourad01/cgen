@@ -13,7 +13,7 @@ exception Duplicate of Var.t * Label.t
 type mem = {
   lst  : Label.t;
   addr : id;
-  ty   : Type.basic;
+  ty   : Type.arg;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 type st =
@@ -99,10 +99,13 @@ let set x id eg = node eg (Oset x) [id]
 let store env eg l ty v a =
   let v = operand env eg v in
   let a = operand env eg a in
-  let key = {lst = l; addr = a; ty} in
-  Hashtbl.set env.mems ~key ~data:(Value (v, l));
-  prov env eg l (Ostore (ty, l)) [v; a];
-  env.lst <- Some l
+  let key = {lst = l; addr = a; ty = (ty :> Type.arg)} in
+  match ty with
+  | `name _ -> assert false
+  | #Type.basic as ty ->
+    Hashtbl.set env.mems ~key ~data:(Value (v, l));
+    prov env eg l (Ostore (ty, l)) [v; a];
+    env.lst <- Some l
 
 let alias env eg key l =
   Hashtbl.find env.mems key |>
@@ -120,7 +123,7 @@ let load env eg l x ty a =
   let lst = match env.lst with
     | None -> env.lst <- Some l; l
     | Some lst -> lst in
-  let key = {lst; addr = a; ty} in
+  let key = {lst; addr = a; ty = (ty :> Type.arg)} in
   match alias env eg key l with
   | Some v ->
     prov ~x env eg l (Ounop (`copy ty)) [v] ~f:(set x)
@@ -167,7 +170,7 @@ let vaarg env eg l x ty a =
 let vastart env eg l x =
   let a = alist env eg x in
   let tgt = Typecheck.Env.target eg.input.tenv in
-  let ty = (Target.word tgt :> Type.basic) in
+  let ty = (Target.word tgt :> Type.arg) in
   undef env l a ty;
   prov env eg l (Ovastart l) [a]
 

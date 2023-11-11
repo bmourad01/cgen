@@ -256,21 +256,12 @@ let pp_mem ppf : mem -> unit = function
     Format.fprintf ppf "st.%a %a, %a"
       Type.pp_basic t pp_operand v pp_operand a
 
-type alist = [
-  | `var  of Var.t
-  | `addr of Bv.t
-  | `sym  of string * int
-] [@@deriving bin_io, compare, equal, sexp]
+type alist = global [@@deriving bin_io, compare, equal, sexp]
 
-let pp_alist ppf : alist -> unit = function
-  | `var x -> Format.fprintf ppf "%a" Var.pp x
-  | `addr a -> Format.fprintf ppf "%a" Bv.pp a
-  | `sym (s, 0) -> Format.fprintf ppf "$%s" s
-  | `sym (s, o) when o > 0 -> Format.fprintf ppf "$%s+%d" s o
-  | `sym (s, o) -> Format.fprintf ppf "$%s-%d" s (lnot o + 1)
+let pp_alist = pp_global
 
 type variadic = [
-  | `vaarg   of Var.t * Type.basic * alist
+  | `vaarg   of Var.t * Type.arg * alist
   | `vastart of alist
 ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -280,9 +271,12 @@ let free_vars_of_variadic : variadic -> Var.Set.t = function
   | _ -> Var.Set.empty
 
 let pp_variadic ppf : variadic -> unit = function
-  | `vaarg (x, t, y) ->
+  | `vaarg (x, (#Type.basic as t), y) ->
     Format.fprintf ppf "%a = vaarg.%a %a"
       Var.pp x Type.pp_basic t pp_alist y
+  | `vaarg (x, `name n, y) ->
+    Format.fprintf ppf "%a = vaarg:%s %a"
+      Var.pp x n pp_alist y
   | `vastart x ->
     Format.fprintf ppf "vastart %a" pp_alist x
 

@@ -389,11 +389,7 @@ module Insn : sig
   val pp_mem : Format.formatter -> mem -> unit
 
   (** Variadic argument list pointer. *)
-  type alist = [
-    | `var  of Var.t
-    | `addr of Bv.t
-    | `sym  of string * int
-  ] [@@deriving bin_io, compare, equal, sexp]
+  type alist = global [@@deriving bin_io, compare, equal, sexp]
 
   val pp_alist : Format.formatter -> alist -> unit
 
@@ -407,7 +403,7 @@ module Insn : sig
   *)
   type variadic = [
     | `vastart of alist
-    | `vaarg   of Var.t * Type.basic * alist
+    | `vaarg   of Var.t * Type.arg * alist
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the variadic argument

@@ -35,7 +35,7 @@ type op =
   | Otcall0
   | Otcall    of Type.arg
   | Ounop     of Insn.unop
-  | Ovaarg    of Var.t * Type.basic
+  | Ovaarg    of Var.t * Type.arg
   | Ovar      of Var.t
   | Ovastart  of Label.t
 [@@deriving compare, equal, hash, sexp]
@@ -151,7 +151,8 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
     | Otcall (#Type.basic as t) -> Some (t :> Type.t)
     | Otcall (`name n) -> tty n
     | Ounop u -> infer_ty_unop ~tty ~word u
-    | Ovaarg (_, t) -> Some (t :> Type.t)
+    | Ovaarg (_, (#Type.basic as t)) -> Some (t :> Type.t)
+    | Ovaarg (_, `name n) -> tty n
     | Ovar x -> tvar x
     | Ovastart _ -> None
 
@@ -288,8 +289,10 @@ let pp_op ppf = function
     Format.fprintf ppf "tcall:%s" n
   | Ounop u ->
     Format.fprintf ppf "%a" Insn.pp_unop u
-  | Ovaarg (_, t) ->
+  | Ovaarg (_, (#Type.basic as t)) ->
     Format.fprintf ppf "vaarg.%a" Type.pp_basic t
+  | Ovaarg (_, `name n) ->
+    Format.fprintf ppf "vaarg:%s" n
   | Ovar x ->
     Format.fprintf ppf "%a" Var.pp x
   | Ovastart _ ->

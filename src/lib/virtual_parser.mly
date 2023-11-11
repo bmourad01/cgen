@@ -121,7 +121,7 @@
 %token <Type.arg> ACALL ATCALL
 %token REF UNREF
 %token CALL TCALL
-%token <Type.basic> VAARG
+%token <Type.arg> VAARG
 %token VASTART
 %token HLT
 %token JMP

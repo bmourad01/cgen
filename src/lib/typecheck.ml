@@ -621,7 +621,8 @@ module Insns = struct
         | `var y -> Env.typeof_var fn y env
         | `addr _ | `sym _ -> Ok (word :> Type.t) in
       let* () = variadic_check_list_ty y ty word in
-      M.lift_err @@ Env.add_var fn x (t :> Type.t) env
+      let* t = typeof_type_arg env t in
+      M.lift_err @@ Env.add_var fn x t env
     | `vastart v ->
       let*? t = match v with
         | `var v -> Env.typeof_var fn v env
