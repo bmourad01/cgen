@@ -36,23 +36,27 @@ let update_fn env fn =
 
 let not_pseudo = Fn.non Label.is_pseudo
 
-let is_disjoint env l =
+let is_disjoint env cfg l =
   not_pseudo l &&
   Label.(l <> env.start) &&
-  Cfg.Node.preds l env.cfg |>
+  Cfg.Node.preds l cfg |>
   Seq.filter ~f:not_pseudo |>
   Seq.is_empty
 
+(* Refresh the edges in the CFG and remove any blocks that
+   are disjoint. *)
 let recompute_cfg env fn =
-  env.cfg <- Cfg.create fn;
-  Cfg.nodes env.cfg |> Seq.fold ~init:fn ~f:(fun fn l ->
-      if is_disjoint env l then begin
-        (* This block has no more references, so we can
-           safely delete it. *)
-        env.cfg <- Cfg.Node.remove l env.cfg;
-        Hashtbl.remove env.blks l;
-        Func.remove_blk_exn fn l
-      end else fn)
+  let g = Cfg.create fn in
+  let fn, g' =
+    Graphlib.reverse_postorder_traverse (module Cfg) g |>
+    Seq.fold ~init:(fn, g) ~f:(fun ((fn, g) as acc) l ->
+        if is_disjoint env g l then
+          let g' = Cfg.Node.remove l g in
+          Hashtbl.remove env.blks l;
+          Func.remove_blk_exn fn l, g'
+        else acc) in
+  env.cfg <- g';
+  fn
 
 (* Helpers for substituting block arguments. *)
 module Subst = struct
