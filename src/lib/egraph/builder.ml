@@ -42,12 +42,12 @@ let init () = {
 }
 
 let node ?ty ?l eg op args =
-  Rewrite.insert ?ty ?l ~d:eg.fuel eg @@ N (op, args)
+  Rewrite.insert ?ty ?l ~d:eg.depth_limit eg @@ N (op, args)
 
 let atom ?ty eg op = node ?ty eg op []
 
 let constant ?ty eg k =
-  Rewrite.insert ?ty ~d:eg.fuel eg @@ Enode.of_const k
+  Rewrite.insert ?ty ~d:eg.depth_limit eg @@ Enode.of_const k
 
 let var env eg x =
   Hashtbl.find_or_add env.vars x ~default:(fun () ->

@@ -88,19 +88,20 @@ type rules = (Enode.op, action list) Hashtbl.t
    of the [Builder].
 *)
 type t = {
-  input   : Input.t;                (* Analyses about the function. *)
-  classes : Uf.t;                   (* The union-find for all e-classes. *)
-  node    : enode Vec.t;            (* All e-nodes, indexed by ID. *)
-  memo    : (enode, id) Hashtbl.t;  (* The hash-cons for optimized terms. *)
-  lmoved  : Id.Set.t Label.Table.t; (* Set of IDs that were moved to a given label. *)
-  imoved  : Label.Set.t Id.Table.t; (* Set of labels that were moved for a given ID. *)
-  imoved2 : Label.t Id.Table.t;     (* The label a given ID was moved to. *)
-  licm    : Id.Hash_set.t;          (* IDs that were moved via LICM. *)
-  id2lbl  : Label.t Id.Table.t;     (* Maps unmoved IDs to labels. *)
-  lbl2id  : id Label.Table.t;       (* Maps labels to IDs. *)
-  typs    : Type.t Id.Table.t;      (* Maps IDs to types. *)
-  fuel    : int;                    (* Maximum rewrite depth. *)
-  rules   : rules;                  (* The table of rewrite rules. *)
+  input       : Input.t;                (* Analyses about the function. *)
+  classes     : Uf.t;                   (* The union-find for all e-classes. *)
+  node        : enode Vec.t;            (* All e-nodes, indexed by ID. *)
+  memo        : (enode, id) Hashtbl.t;  (* The hash-cons for optimized terms. *)
+  lmoved      : Id.Set.t Label.Table.t; (* Set of IDs that were moved to a given label. *)
+  imoved      : Label.Set.t Id.Table.t; (* Set of labels that were moved for a given ID. *)
+  imoved2     : Label.t Id.Table.t;     (* The label a given ID was moved to. *)
+  licm        : Id.Hash_set.t;          (* IDs that were moved via LICM. *)
+  id2lbl      : Label.t Id.Table.t;     (* Maps unmoved IDs to labels. *)
+  lbl2id      : id Label.Table.t;       (* Maps labels to IDs. *)
+  typs        : Type.t Id.Table.t;      (* Maps IDs to types. *)
+  depth_limit : int;                    (* Maximum rewrite depth. *)
+  match_limit : int;                    (* Maximum rewrites per term. *)
+  rules       : rules;                  (* The table of rewrite rules. *)
 }
 
 type egraph = t

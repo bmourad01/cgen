@@ -104,33 +104,30 @@ and optimize ~d t n id = match subsume_const t n id with
     Vec.fold_until ~init:id ~finish:Fn.id ~f:(step t)
 
 and search ~d t n =
+  let exception Full in
   let exception Mismatch in
   (* IDs of rewritten terms. *)
-  let matches = Vec.create () in
-  (* Match an e-class. *)
+  let matches = Vec.create ~capacity:t.match_limit () in
+  (* Produce all possible substitutions for an e-class. *)
   let rec cls env p id = match p with
     | P (x, xs) -> pat env x xs id
     | V x -> var env x id
-  (* Match a node with a concrete pattern. *)
+  (* Match a node with a concrete pattern. Note that with union
+     nodes we bias our ordering towards the newer `post` term. *)
   and pat env x xs id = match node t id with
-    | N (y, ys) when Enode.equal_op x y ->
-      children ~init:env xs ys
-    | N _ -> raise_notrace Mismatch
-    | U {pre; post} ->
-      (* FIXME: if the `post` term matches then the `pre` term
-         will simply be ignored, and thus we might miss an
-         opportunity for a rewrite. *)
-      try pat env x xs post with
-      | Mismatch -> pat env x xs pre
+    | U {pre; post} -> List.bind [post; pre] ~f:(pat env x xs)
+    | N (y, ys) when Enode.equal_op x y -> children ~env xs ys
+    | N _ -> []
   (* Match all the children of an e-node. *)
-  and children ?(init = empty_subst) ps cs = match List.zip ps cs with
-    | Ok l -> List.fold l ~init ~f:(fun env (p, id) -> cls env p id)
-    | Unequal_lengths -> raise_notrace Mismatch
+  and children ?(env = empty_subst) ps cs = match List.zip ps cs with
+    | Ok l -> List.fold l ~init:[env] ~f:(fun es (p, id) ->
+        List.bind es ~f:(fun env -> cls env p id))
+    | Unequal_lengths -> []
   (* Produce a substitution for the variable. *)
-  and var env x id = Map.update env x ~f:(function
-      | Some i when i.id = id -> i
-      | Some _ -> raise_notrace Mismatch
-      | None -> subst_info t id) in
+  and var env x id = match Map.find env x with
+    | None -> [Map.set env ~key:x ~data:(subst_info t id)]
+    | Some i when i.id = id -> [env]
+    | Some _ -> [] in
   (* Insert a rewritten term based on the substitution. *)
   let rec rewrite ~d env = function
     | P (o, ps) ->
@@ -140,18 +137,27 @@ and search ~d t n =
       | None -> raise_notrace Mismatch
       | Some i -> i.Subst.id in
   (* Apply a post-condition to the substitution. *)
-  let apply f env = Vec.push matches @@ match f with
-    | Static p -> rewrite ~d env p
-    | Cond (p, k) when k env -> rewrite ~d env p
-    | Cond _ -> raise_notrace Mismatch
-    | Dyn f -> match f env with
-      | Some p -> rewrite ~d env p
-      | None -> raise_notrace Mismatch in
+  let apply f env =
+    (* The running time can get seriously out of hand if we're
+       matching over a large expression, so we cap the number
+       of matches that will be considered. *)
+    if Vec.length matches < t.match_limit
+    then try Vec.push matches @@ match f with
+      | Static p -> rewrite ~d env p
+      | Cond (p, k) when k env -> rewrite ~d env p
+      | Cond _ -> raise_notrace Mismatch
+      | Dyn f -> match f env with
+        | Some p -> rewrite ~d env p
+        | None -> raise_notrace Mismatch
+      with Mismatch -> ()
+    else raise_notrace Full in
   (* Start by matching the top-level constructor. *)
   match n with
   | U _ -> assert false
   | N (o, cs) ->
-    Hashtbl.find t.rules o |>
-    Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
-        try apply f @@ children ps cs with Mismatch -> ()));
-    matches
+    try
+      Hashtbl.find t.rules o |>
+      Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
+          children ps cs |> List.iter ~f:(apply f)));
+      matches
+    with Full -> matches

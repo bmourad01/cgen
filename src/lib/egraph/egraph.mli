@@ -66,13 +66,25 @@ val create_table : rule list -> rules
 
     [tenv] is the typing environment of the module that [fn] belongs to.
 
-    [fuel] is the maximum rewrite depth. This is to limit state explosion
-    since rewrites are themselves recursively rewritten. Note that if
-    [fuel < 0], then no rewrite rules will be applied.
+    [depth_limit] is the maximum rewrite depth. This is to limit state
+    explosion since rewrites are themselves recursively rewritten. Note
+    that if [depth_limit < 0], then no rewrite rules will be applied.
+
+    [match_limit] is the maximum number of matches/rewrites allowed per
+    term. This is to limit state explosion since all versions of all
+    classes of terms are considered for rewrites. Higher values for
+    this parameter may significantly increase running time. Note that
+    if [match_limit <= 0] then no rewrite rules will be applied.
 
     [fn] is expected to be in SSA form.
 *)
-val run : ?fuel:int -> func -> Typecheck.env -> rules -> func Context.t
+val run :
+  ?depth_limit:int ->
+  ?match_limit:int ->
+  func ->
+  Typecheck.env ->
+  rules ->
+  func Context.t
 
 module Rule : sig
   type t = rule

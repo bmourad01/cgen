@@ -8,7 +8,7 @@ module Subst = Subst
 
 type rule = Rule.t
 
-let init input fuel rules = {
+let init input depth_limit match_limit rules = {
   input;
   classes = Uf.create ();
   memo = Hashtbl.create (module Enode);
@@ -20,7 +20,8 @@ let init input fuel rules = {
   id2lbl = Id.Table.create ();
   lbl2id = Label.Table.create ();
   typs = Id.Table.create ();
-  fuel;
+  depth_limit;
+  match_limit;
   rules;
 }
 
@@ -31,11 +32,11 @@ let check_ssa fn =
     Input.E.failf "Expected SSA form for function %s"
       (Func.name fn) ()
 
-let run ?(fuel = 5) fn tenv rules =
+let run ?(depth_limit = 5) ?(match_limit = 5) fn tenv rules =
   let open Context.Syntax in
   let*? () = check_ssa fn in
   let*? input = Input.init fn tenv in
-  let t = init input fuel rules in
+  let t = init input depth_limit match_limit rules in
   let*? () = Builder.run t in
   let ex = Extractor.init t in
   Extractor.cfg ex
