@@ -106,28 +106,41 @@ and optimize ~d t n id = match subsume_const t n id with
 and search ~d t n =
   let exception Full in
   let exception Mismatch in
+  (* Pending unioned nodes. *)
+  let pending = Stack.create () in
   (* IDs of rewritten terms. *)
   let matches = Vec.create ~capacity:t.match_limit () in
-  (* Produce all possible substitutions for an e-class. *)
-  let rec cls env p id = match p with
-    | P (x, xs) -> pat env x xs id
-    | V x -> var env x id
-  (* Match a node with a concrete pattern. Note that with union
-     nodes we bias our ordering towards the newer `post` term. *)
-  and pat env x xs id = match node t id with
-    | U {pre; post} -> List.bind [post; pre] ~f:(pat env x xs)
-    | N (y, ys) when Enode.equal_op x y -> children ~env xs ys
-    | N _ -> []
+  (* Produce a substitution for an e-class. *)
+  let rec cls env p id k = match p with
+    | P (x, xs) -> pat env x xs id k
+    | V x -> var env x id k
+  (* Match a node with a concrete pattern. *)
+  and pat env x xs id k = match node t id with
+    | N (y, ys) when Enode.equal_op x y -> children ~env xs ys k
+    | N _ -> raise_notrace Mismatch
+    | U {pre; post} ->
+      (* Bias towards the newer `post` term, but save the
+         current continuation for the older `pre` term so
+         we can try matching it later. *)
+      Stack.push pending (env, x, xs, pre, k);
+      pat env x xs post k
   (* Match all the children of an e-node. *)
-  and children ?(env = empty_subst) ps cs = match List.zip ps cs with
-    | Ok l -> List.fold l ~init:[env] ~f:(fun es (p, id) ->
-        List.bind es ~f:(fun env -> cls env p id))
-    | Unequal_lengths -> []
+  and children ?(env = empty_subst) ps cs k = match List.zip ps cs with
+    | Unequal_lengths -> raise_notrace Mismatch
+    | Ok l -> child env k l
+  (* Match each child, providing a continuation for
+     matching on the remaining children. *)
+  and child env k = function
+    | [] -> k env
+    | [p, id] -> cls env p id k
+    | (p, id) :: xs ->
+      cls env p id @@ fun env ->
+      child env k xs
   (* Produce a substitution for the variable. *)
-  and var env x id = match Map.find env x with
-    | None -> [Map.set env ~key:x ~data:(subst_info t id)]
-    | Some i when i.id = id -> [env]
-    | Some _ -> [] in
+  and var env x id k = k @@ Map.update env x ~f:(function
+      | None -> subst_info t id
+      | Some i when i.id = id -> i
+      | Some _ -> raise_notrace Mismatch) in
   (* Insert a rewritten term based on the substitution. *)
   let rec rewrite ~d env = function
     | P (o, ps) ->
@@ -142,14 +155,13 @@ and search ~d t n =
        matching over a large expression, so we cap the number
        of matches that will be considered. *)
     if Vec.length matches < t.match_limit
-    then try Vec.push matches @@ match f with
+    then Vec.push matches @@ match f with
       | Static p -> rewrite ~d env p
       | Cond (p, k) when k env -> rewrite ~d env p
       | Cond _ -> raise_notrace Mismatch
       | Dyn f -> match f env with
         | Some p -> rewrite ~d env p
         | None -> raise_notrace Mismatch
-      with Mismatch -> ()
     else raise_notrace Full in
   (* Start by matching the top-level constructor. *)
   match n with
@@ -158,6 +170,12 @@ and search ~d t n =
     try
       Hashtbl.find t.rules o |>
       Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
-          children ps cs |> List.iter ~f:(apply f)));
+          (* Try matching with the children of the top-level node. *)
+          (try apply f @@ children ps cs Fn.id with Mismatch -> ());
+          (* Now process any pending unioned nodes. *)
+          while not @@ Stack.is_empty pending do
+            let env, x, xs, id, k = Stack.pop_exn pending in
+            (try apply f @@ pat env x xs id k with Mismatch -> ())
+          done));
       matches
     with Full -> matches
