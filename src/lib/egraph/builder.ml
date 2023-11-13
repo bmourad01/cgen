@@ -231,11 +231,18 @@ let ctrl env eg l : ctrl -> unit = function
       callargs env eg vargs;
     ]
 
-let step env eg l = match Hashtbl.find eg.input.tbl l with
+(* Try to preserve the last store from the parent block,
+   which should enable some inter-block redundant load
+   elimination. *)
+let setlst env eg l lst = env.lst <- match lst with
+    | None -> Solution.get eg.input.lst l
+    | Some _ -> lst
+
+let step env eg l lst = match Hashtbl.find eg.input.tbl l with
   | None when Label.is_pseudo l -> ()
   | None | Some `insn _ -> raise @@ Missing l
   | Some `blk b ->
-    env.lst <- Solution.get eg.input.lst l;
+    setlst env eg l lst;
     Blk.insns b |> Seq.iter ~f:(fun i ->
         let l = Insn.label i in
         env.cur <- l;
@@ -251,10 +258,10 @@ let try_ f = try Ok (f ()) with
 
 let run eg = try_ @@ fun () ->
   let env = init () in
-  let q = Stack.singleton Label.pseudoentry in
+  let q = Stack.singleton (Label.pseudoentry, None) in
   while not @@ Stack.is_empty q do
-    let l = Stack.pop_exn q in
-    step env eg l;
+    let l, lst = Stack.pop_exn q in
+    step env eg l lst;
     Tree.children eg.input.dom l |>
-    Seq.iter ~f:(Stack.push q);
+    Seq.iter ~f:(fun l -> Stack.push q (l, env.lst));
   done

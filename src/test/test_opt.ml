@@ -1559,6 +1559,64 @@ let test_prime _ =
      jmp @1(%14)
    }"
 
+(* An implementation of the `strcmp` function from the
+   C standard library.
+
+   We mainly have some opportunities for redundant load
+   elimination from @next to @diff, as well as merging
+   @next with @check1.
+*)
+let test_strcmp _ =
+  "module foo
+
+   export function w $foo(l %s1, l %s2) {
+   @start:
+     jmp @next
+   @next:
+     %c1 = ld.b %s1
+     %c2 = ld.b %s2
+     jmp @check1
+   @check1:
+     %nz = ne.b %c1, 0_b
+     br %nz, @check2, @diff
+   @check2:
+     %eq = eq.b %c1, %c2
+     br %eq, @inc, @diff
+   @inc:
+     %s1 = add.l %s1, 1_l
+     %s2 = add.l %s2, 1_l
+     jmp @next
+   @diff:
+     %c1 = ld.b %s1
+     %c2 = ld.b %s2
+     %d = sub.b %c1, %c2
+     %r = sext.w %d
+     ret %r
+   }"
+  =>
+  "module foo
+
+   export function w $foo(l %s1, l %s2) {
+   @15:
+     jmp @6(%s2, %s1)
+   @6(%s2.1, %s1.1):
+     %c1.1 = ld.b %s1.1 ; @14
+     %c2.1 = ld.b %s2.1 ; @13
+     %0 = ne.b %c1.1, 0x0_b ; @16
+     br %0, @9, @0
+   @9:
+     %1 = eq.b %c1.1, %c2.1 ; @17
+     br %1, @5, @0
+   @5:
+     %2 = add.l %s1.1, 0x1_l ; @18
+     %3 = add.l %s2.1, 0x1_l ; @19
+     jmp @6(%3, %2)
+   @0:
+     %5 = sub.b %c1.1, %c2.1 ; @21
+     %4 = sext.w %5 ; @20
+     ret %4
+   }"
+
 let suite = "Test optimizations" >::: [
     "Multiply by 1" >:: test_mul_by_1;
     "Multiply by 2" >:: test_mul_by_2;
@@ -1616,6 +1674,7 @@ let suite = "Test optimizations" >::: [
     "Test rotate left by constant and addition" >:: test_rol_const_add;
     "Redundant load elimination" >:: test_rle;
     "Test prime numbers" >:: test_prime;
+    "Test strcmp" >:: test_strcmp;
   ]
 
 let () = run_test_tt_main suite
