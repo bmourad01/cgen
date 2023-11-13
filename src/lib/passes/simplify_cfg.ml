@@ -223,22 +223,20 @@ module Merge_blks = struct
   let run env =
     let orig_len = Hashtbl.length env.blks in
     let q = Stack.singleton (Label.pseudoentry, Var.Map.empty) in
-    while not @@ Stack.is_empty q do
-      let l, subst = Stack.pop_exn q in
-      if not @@ Map.is_empty subst then
-        Hashtbl.change env.blks l ~f:(O.map ~f:(fun b ->
-            let dict = Blk.dict b in
-            let args = Blk.args b |> Seq.to_list in
-            let insns, ctrl = Subst.map_blk subst b in
-            Blk.create () ~dict ~args ~insns ~ctrl ~label:l));
-      (* If we successfully merge for the block at this label,
-         then we know it has only one child in the dominator
-         tree, so we can just skip forward to the child that
-         we merged with. *)
-      let subst, l = try_merge subst env l in
-      Tree.children env.doms l |>
-      Seq.iter ~f:(fun l -> Stack.push q (l, subst))
-    done;
+    Stack.until_empty q (fun (l, subst) ->
+        if not @@ Map.is_empty subst then
+          Hashtbl.change env.blks l ~f:(O.map ~f:(fun b ->
+              let dict = Blk.dict b in
+              let args = Blk.args b |> Seq.to_list in
+              let insns, ctrl = Subst.map_blk subst b in
+              Blk.create () ~dict ~args ~insns ~ctrl ~label:l));
+        (* If we successfully merge for the block at this label,
+           then we know it has only one child in the dominator
+           tree, so we can just skip forward to the child that
+           we merged with. *)
+        let subst, l = try_merge subst env l in
+        Tree.children env.doms l |>
+        Seq.iter ~f:(fun l -> Stack.push q (l, subst)));
     (* We're only ever removing blocks, so this is the only
        condition where something would've changed. *)
     Hashtbl.length env.blks < orig_len

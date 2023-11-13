@@ -116,13 +116,10 @@ let find_next t n l = match Hashtbl.find t.blks l with
     d.parent <- Some n;
     d.header
 
-let rec analyze_loop t cfg q n =
-  Stack.pop q |> Option.iter ~f:(fun l ->
-      find_next t n l |> Option.iter ~f:(fun c ->
-          (* We discovered this block as being part of the current
-             loop, so enqueue its predecessors for analysis. *)
-          Cfg.Node.preds c cfg |> Seq.iter ~f:(Stack.push q));
-      analyze_loop t cfg q n)
+let analyze_loop t cfg q n =
+  Stack.until_empty q @@ fun l -> match find_next t n l with
+  | Some c -> Cfg.Node.preds c cfg |> Seq.iter ~f:(Stack.push q)
+  | None -> ()
 
 let find_loop_blks t cfg dom =
   let q = Stack.create () in

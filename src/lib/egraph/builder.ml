@@ -259,9 +259,7 @@ let try_ f = try Ok (f ()) with
 let run eg = try_ @@ fun () ->
   let env = init () in
   let q = Stack.singleton (Label.pseudoentry, env.lst) in
-  while not @@ Stack.is_empty q do
-    let l, lst = Stack.pop_exn q in
-    step env eg l lst;
-    Tree.children eg.input.dom l |>
-    Seq.iter ~f:(fun l -> Stack.push q (l, env.lst));
-  done
+  Stack.until_empty q @@ fun (l, lst) ->
+  step env eg l lst;
+  Tree.children eg.input.dom l |>
+  Seq.iter ~f:(fun l -> Stack.push q (l, env.lst))

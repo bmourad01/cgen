@@ -266,11 +266,9 @@ end = struct
 
   let go env =
     let q = Stack.singleton @@ Visit Label.pseudoentry in
-    while not @@ Stack.is_empty q do
-      match Stack.pop_exn q with
-      | Visit l -> visit q env l
-      | Pop b -> pop_defs env b
-    done
+    Stack.until_empty q @@ function
+    | Visit l -> visit q env l
+    | Pop b -> pop_defs env b
 end
 
 let try_ fn f = try f () with

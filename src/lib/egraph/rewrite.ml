@@ -100,7 +100,6 @@ and optimize ~d t n id = match subsume_const t n id with
     Vec.fold_until ~init:id ~finish:Fn.id ~f:(step t)
 
 and search ~d t n =
-  let exception Full in
   let exception Mismatch in
   (* Pending unioned nodes. *)
   let pending = Stack.create () in
@@ -145,33 +144,32 @@ and search ~d t n =
     | V x -> match Map.find env x with
       | None -> raise_notrace Mismatch
       | Some i -> i.Subst.id in
-  (* Apply a post-condition to the substitution. *)
-  let apply f env =
+  (* Apply the action `a` to the substitution produced by `f`. *)
+  let apply full a ~f =
     (* The running time can get seriously out of hand if we're
        matching over a large expression, so we cap the number
        of matches that will be considered. *)
-    if Vec.length matches < t.match_limit
-    then Vec.push matches @@ match f with
-      | Static p -> rewrite ~d env p
-      | Cond (p, k) when k env -> rewrite ~d env p
-      | Cond _ -> raise_notrace Mismatch
-      | Dyn f -> match f env with
-        | Some p -> rewrite ~d env p
-        | None -> raise_notrace Mismatch
-    else raise_notrace Full in
+    if Vec.length matches >= t.match_limit
+    then full.return ()
+    else try
+        Vec.push matches @@ let env = f () in match a with
+        | Static p -> rewrite ~d env p
+        | Cond (p, k) when k env -> rewrite ~d env p
+        | Cond _ -> raise_notrace Mismatch
+        | Dyn f -> match f env with
+          | Some p -> rewrite ~d env p
+          | None -> raise_notrace Mismatch
+      with Mismatch -> () in
   (* Start by matching the top-level constructor. *)
   match n with
   | U _ -> assert false
   | N (o, cs) ->
-    try
-      Hashtbl.find t.rules o |>
-      Option.iter ~f:(List.iter ~f:(fun (ps, f) ->
-          (* Try matching with the children of the top-level node. *)
-          (try apply f @@ children ps cs Fn.id with Mismatch -> ());
-          (* Now process any pending unioned nodes. *)
-          while not @@ Stack.is_empty pending do
-            let env, x, xs, id, k = Stack.pop_exn pending in
-            (try apply f @@ pat env x xs id k with Mismatch -> ())
-          done));
-      matches
-    with Full -> matches
+    with_return (fun full ->
+        Hashtbl.find t.rules o |>
+        Option.iter ~f:(List.iter ~f:(fun (ps, a) ->
+            (* Try matching with the children of the top-level node. *)
+            apply full a ~f:(fun () -> children ps cs Fn.id);
+            (* Now process any pending unioned nodes. *)
+            Stack.until_empty pending @@ fun (env, x, xs, id, k) ->
+            apply full a ~f:(fun () -> pat env x xs id k))));
+    matches
