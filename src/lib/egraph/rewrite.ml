@@ -74,12 +74,8 @@ let infer_ty t n = Enode.infer_ty n
     ~word:(word t)
 
 (* This is the entry point to the insert/rewrite loop, to be called
-   from the algorithm in `Builder` (i.e. in depth-first dominator tree
-   order).
-
-   Note that we still continuously update the interval associated
-   with the ID because it varies across program points.
-*)
+   from the algorithm in `Builder` (i.e. in depth-first dominator
+   tree order). *)
 let rec insert ?ty ?l ~d t n =
   canon t n |> Hashtbl.find_and_call t.memo
     ~if_found:(duplicate ?l t)
