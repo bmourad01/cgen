@@ -258,7 +258,7 @@ let try_ f = try Ok (f ()) with
 
 let run eg = try_ @@ fun () ->
   let env = init () in
-  let q = Stack.singleton (Label.pseudoentry, None) in
+  let q = Stack.singleton (Label.pseudoentry, env.lst) in
   while not @@ Stack.is_empty q do
     let l, lst = Stack.pop_exn q in
     step env eg l lst;

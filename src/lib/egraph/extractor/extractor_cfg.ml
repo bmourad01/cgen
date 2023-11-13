@@ -12,9 +12,9 @@ open Context.Syntax
    because it is scoped to the current line in the dominator
    tree. This way, we can duplicate code when we find a partial
    redundancy. *)
-type scp = (Var.t * Label.t) Id.Tree.t
+type scope = (Var.t * Label.t) Id.Tree.t
 
-let empty_scp : scp = Id.Tree.empty
+let empty_scope : scope = Id.Tree.empty
 
 type env = {
   insn        : Insn.op Label.Table.t;
@@ -22,6 +22,7 @@ type env = {
   news        : Label.t Id.Tree.t Label.Table.t;
   closure     : Label.Set.t Label.Table.t;
   mutable cur : Label.t;
+  mutable scp : scope;
 }
 
 let init () = {
@@ -30,6 +31,7 @@ let init () = {
   news = Label.Table.create();
   closure = Label.Table.create ();
   cur = Label.pseudoentry;
+  scp = empty_scope;
 }
 
 let extract_fail l id =
@@ -74,13 +76,13 @@ let find_var t l = match Hashtbl.find t.eg.input.tbl l with
   | Some `insn (_, _, Some x) -> !!(x, l)
   | Some _ | None -> no_var l
 
-let new_var env scp canon real =
-  match Id.Tree.find !scp canon with
+let new_var env canon real =
+  match Id.Tree.find env.scp canon with
   | Some p -> !!p
   | None ->
     let* x = Context.Var.fresh in
     let+ l = Context.Label.fresh in
-    scp := Id.Tree.set !scp ~key:canon ~data:(x, l);
+    env.scp <- Id.Tree.set env.scp ~key:canon ~data:(x, l);
     Hashtbl.update env.news env.cur ~f:(function
         | None -> Id.Tree.singleton real l
         | Some m -> match Id.Tree.add m ~key:real ~data:l with
@@ -88,11 +90,11 @@ let new_var env scp canon real =
           | `Ok m -> m);
     x, l
 
-let insn t env scp a f =
+let insn t env a f =
   let* x, l = match a with
     | Label l -> find_var t l
     | Id {canon; real} ->
-      new_var env scp canon real in
+      new_var env canon real in
   let+ op = f x in
   upd env.insn l op;
   `var x
@@ -111,9 +113,9 @@ let sel e x ty c y n = match c with
   | `bool false -> !!(`uop (x, `copy ty, n))
   | _ -> invalid_pure e
 
-let rec pure t env scp e : operand Context.t =
-  let pure = pure t env scp in
-  let insn = insn t env scp in
+let rec pure t env e : operand Context.t =
+  let pure = pure t env in
+  let insn = insn t env in
   match e with
   (* Only canonical forms are accepted. *)
   | E (a, Obinop b, [l; r]) -> insn a @@ fun x ->
@@ -163,41 +165,41 @@ let rec pure t env scp e : operand Context.t =
   | E (_, Ovar _, _)
   | E (_, Ovastart _, _) -> invalid_pure e
 
-and callargs t env scp = function
+and callargs t env = function
   | E (_, Ocallargs, args) ->
-    Context.List.map args ~f:(pure t env scp)
+    Context.List.map args ~f:(pure t env)
   | e -> invalid_callargs e
 
-and global t env scp e : global Context.t = match e with
+and global t env e : global Context.t = match e with
   | E (_, Oaddr a, []) -> !!(`addr a)
   | E (_, Oaddr _, _) -> invalid_global e
   | E (_, Osym (s, o), []) -> !!(`sym (s, o))
   | E (_, Osym _, _) -> invalid_global e
-  | _ -> pure t env scp e >>= function
+  | _ -> pure t env e >>= function
     | `var x -> !!(`var x)
     | `int (i, _) -> !!(`addr i)
     | _ -> invalid_global e
 
-let local t env scp l args =
-  let+ args = Context.List.map args ~f:(pure t env scp) in
+let local t env l args =
+  let+ args = Context.List.map args ~f:(pure t env) in
   l, args
 
-let dst t env scp : ext -> dst Context.t = function
+let dst t env : ext -> dst Context.t = function
   | E (_, Olocal l, args) ->
-    let+ l, args = local t env scp l args in
+    let+ l, args = local t env l args in
     `label (l, args)
   | e ->
-    let+ g = global t env scp e in
+    let+ g = global t env e in
     (g :> dst)
 
-let table_elt t env scp : ext -> (Bv.t * local) Context.t = function
+let table_elt t env : ext -> (Bv.t * local) Context.t = function
   | E (_, Otbl i, [E (_, Olocal l, args)]) ->
-    let+ l, args = local t env scp l args in
+    let+ l, args = local t env l args in
     i, `label (l, args)
   | e -> invalid_tbl e
 
-let table t env scp tbl ty =
-  let* tbl = Context.List.map tbl ~f:(table_elt t env scp) in
+let table t env tbl ty =
+  let* tbl = Context.List.map tbl ~f:(table_elt t env) in
   let*? x = Ctrl.Table.create tbl ty in
   !!x
 
@@ -213,9 +215,9 @@ let br l e c y n = match c with
   | `var c -> !!(`br (c, y, n))
   | _ -> invalid l e
 
-let sw_default t env scp l = function
+let sw_default t env l = function
   | E (_, Olocal l', args) ->
-    let+ l, args = local t env scp l' args in
+    let+ l, args = local t env l' args in
     `label (l, args)
   | d -> invalid l d
 
@@ -234,9 +236,9 @@ let vastart l e = function
   | `int (a, _) -> !!(`vastart (`addr a))
   | _ -> invalid l e
 
-let exp t env scp l e =
-  let pure = pure t env scp in
-  let dst = dst t env scp in
+let exp t env l e =
+  let pure = pure t env in
+  let dst = dst t env in
   let insn = insn' env l in
   let ctrl = ctrl env l in
   match e with
@@ -247,14 +249,14 @@ let exp t env scp l e =
     let* n = dst n in
     br l e c y n
   | E (_, Ocall0 _, [f; args; vargs]) -> insn @@ fun () ->
-    let* f = global t env scp f in
-    let* args = callargs t env scp args in
-    let+ vargs = callargs t env scp vargs in
+    let* f = global t env f in
+    let* args = callargs t env args in
+    let+ vargs = callargs t env vargs in
     `call (None, f, args, vargs)
   | E (_, Ocall (x, ty), [f; args; vargs]) -> insn @@ fun () ->
-    let* f = global t env scp f in
-    let* args = callargs t env scp args in
-    let+ vargs = callargs t env scp vargs in
+    let* f = global t env f in
+    let* args = callargs t env args in
+    let+ vargs = callargs t env vargs in
     `call (Some (x, ty), f, args, vargs)
   | E (_, Oload (x, t), [y]) -> insn @@ fun () ->
     let+ y = pure y in
@@ -272,18 +274,18 @@ let exp t env scp l e =
     `store (t, v, x)
   | E (_, Osw ty, i :: d :: tbl) -> ctrl @@ fun () ->
     let* i = pure i in
-    let* d = sw_default t env scp l d in
-    let* tbl = table t env scp tbl ty in
+    let* d = sw_default t env l d in
+    let* tbl = table t env tbl ty in
     sw l e ty i d tbl
   | E (_, Otcall0, [f; args; vargs]) -> ctrl @@ fun () ->
-    let* f = global t env scp f in
-    let* args = callargs t env scp args in
-    let+ vargs = callargs t env scp vargs in
+    let* f = global t env f in
+    let* args = callargs t env args in
+    let+ vargs = callargs t env vargs in
     `tcall (None, f, args, vargs)
   | E (_, Otcall ty, [f; args; vargs]) -> ctrl @@ fun () ->
-    let* f = global t env scp f in
-    let* args = callargs t env scp args in
-    let+ vargs = callargs t env scp vargs in
+    let* f = global t env f in
+    let* args = callargs t env args in
+    let+ vargs = callargs t env vargs in
     `tcall (Some ty, f, args, vargs)
   | E (_, Ovaarg (x, t), [a]) -> insn @@ fun () ->
     let* a = pure a in
@@ -378,7 +380,7 @@ module Hoisting = struct
 
   (* If any nodes got moved up to this label, then we should check
      to see if it is eligible for this code motion optimization. *)
-  let process_moved_nodes t env scp l =
+  let process_moved_nodes t env l =
     match Hashtbl.find t.eg.lmoved l with
     | None -> !!()
     | Some s ->
@@ -390,26 +392,26 @@ module Hoisting = struct
             let cid = Common.find t.eg id in
             if Hash_set.mem t.impure cid
             || is_partial_redundancy t env l cid then !!()
-            else pure t env scp e >>| ignore)
+            else pure t env e >>| ignore)
 end
 
-let reify t env scp l =
-  let* () = Hoisting.process_moved_nodes t env scp l in
+let reify t env l =
+  let* () = Hoisting.process_moved_nodes t env l in
   extract_label t l >>= function
-  | Some e -> exp t env scp l e
+  | Some e -> exp t env l e
   | None -> !!()
 
 let collect t l =
   let env = init () in
-  let q = Stack.singleton (l, empty_scp) in
+  let q = Stack.singleton (l, env.scp) in
   let rec loop () = match Stack.pop q with
     | None -> !!env
     | Some (l, scp) ->
       env.cur <- l;
-      let scp = ref scp in
-      let* () = reify t env scp l in
+      env.scp <- scp;
+      let* () = reify t env l in
       Tree.children t.eg.input.cdom l |>
-      Seq.iter ~f:(fun l -> Stack.push q (l, !scp));
+      Seq.iter ~f:(fun l -> Stack.push q (l, env.scp));
       loop () in
   loop ()
 
