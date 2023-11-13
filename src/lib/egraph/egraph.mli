@@ -61,8 +61,9 @@ type rules
 *)
 val create_table : rule list -> rules
 
-(** [run fn tenv rules ?fuel] constructs an e-graph from a function [fn]
-    and applies the [rules] eagerly to produce a transformed function.
+(** [run fn tenv rules ?depth_limit ?match_limit] constructs an e-graph
+    from a function [fn] and applies the [rules] eagerly to produce a
+    transformed function.
 
     [tenv] is the typing environment of the module that [fn] belongs to.
 
