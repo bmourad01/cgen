@@ -1566,7 +1566,7 @@ let test_prime _ =
    elimination from @next to @diff, as well as merging
    @next with @check1.
 *)
-let test_strcmp _ =
+let test_strcmp_rle _ =
   "module foo
 
    export function w $foo(l %s1, l %s2) {
@@ -1614,6 +1614,59 @@ let test_strcmp _ =
    @0:
      %5 = sub.b %c1.1, %c2.1 ; @21
      %4 = sext.w %5 ; @20
+     ret %4
+   }"
+
+(* Same as above, except we manually remove the redundant loads
+   in the example. The purpose of this test is to ensure that
+   SCCP is working correctly when propagating the constraints on
+   %c1 and %c2 to @diff. *)
+let test_strcmp_non_rle _ =
+  "module foo
+
+   export function w $foo(l %s1, l %s2) {
+   @start:
+     jmp @next
+   @next:
+     %c1 = ld.b %s1
+     %c2 = ld.b %s2
+     jmp @check1
+   @check1:
+     %nz = ne.b %c1, 0_b
+     br %nz, @check2, @diff
+   @check2:
+     %eq = eq.b %c1, %c2
+     br %eq, @inc, @diff
+   @inc:
+     %s1 = add.l %s1, 1_l
+     %s2 = add.l %s2, 1_l
+     jmp @next
+   @diff:
+     %d = sub.b %c1, %c2
+     %r = sext.w %d
+     ret %r
+   }"
+  =>
+  "module foo
+
+   export function w $foo(l %s1, l %s2) {
+   @13:
+     jmp @4(%s2, %s1)
+   @4(%s2.1, %s1.1):
+     %c1.1 = ld.b %s1.1 ; @12
+     %c2.1 = ld.b %s2.1 ; @11
+     %0 = ne.b %c1.1, 0x0_b ; @14
+     br %0, @7, @0
+   @7:
+     %1 = eq.b %c1.1, %c2.1 ; @15
+     br %1, @3, @0
+   @3:
+     %2 = add.l %s1.1, 0x1_l ; @16
+     %3 = add.l %s2.1, 0x1_l ; @17
+     jmp @4(%3, %2)
+   @0:
+     %5 = sub.b %c1.1, %c2.1 ; @19
+     %4 = sext.w %5 ; @18
      ret %4
    }"
 
@@ -1674,7 +1727,8 @@ let suite = "Test optimizations" >::: [
     "Test rotate left by constant and addition" >:: test_rol_const_add;
     "Redundant load elimination" >:: test_rle;
     "Test prime numbers" >:: test_prime;
-    "Test strcmp" >:: test_strcmp;
+    "Test strcmp RLE" >:: test_strcmp_rle;
+    "Test strcmp non-RLE" >:: test_strcmp_non_rle;
   ]
 
 let () = run_test_tt_main suite

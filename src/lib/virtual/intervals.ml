@@ -192,8 +192,8 @@ module Cmp = struct
     | `var y ->
       let i = Lazy.force i in
       Hashtbl.update ctx.cond x ~f:(function
-          | Some s -> Var.Map.set s ~key:y ~data:i
-          | None -> Var.Map.singleton y i)
+          | None -> Var.Map.singleton y i
+          | Some s -> update s y i)
     | _ -> ()
 
   (* Allow the empty interval to be created. *)
@@ -202,6 +202,20 @@ module Cmp = struct
     else I.create ~lo ~hi ~size
 
   let mkint = I.create_non_empty
+
+  (* NB: the fact that we return the empty interval when either
+     `a` or `b` is not a known constant is an overapproximation. *)
+  let eq size a b =
+    (* a == b: empty if b is not single, b otherwise *)
+    lazy (if I.is_single b then b else I.create_empty ~size),
+    (* b == a: empty if a is not single, a otherwise *)
+    lazy (if I.is_single a then a else I.create_empty ~size)
+
+  let ne _ a b =
+    (* a != b: inverse(b) *)
+    lazy (I.inverse b),
+    (* b != a: inverse(a) *)
+    lazy (I.inverse a)
 
   let lt size a b =
     (* a < b: a \in [0, umin(b)) *)
@@ -330,11 +344,11 @@ let interp_cmp ctx o x l r a b =
   | `sge _ when eq -> I.boolean_true
   | `eq (#Type.imm as t) ->
     do_cmp ctx t x l r a b
-      ~cond:(fun _ a b -> lazy b, lazy a)
+      ~cond:Cmp.eq
       ~cmp:Cmp.bool_eq
   | `ne (#Type.imm as t) ->
     do_cmp ctx t x l r a b
-      ~cond:(fun _ a b -> lazy (I.inverse b), lazy (I.inverse a))
+      ~cond:Cmp.ne
       ~cmp:Cmp.bool_ne
   | `lt (#Type.imm as t) ->
     do_cmp ctx t x l r a b
@@ -514,8 +528,9 @@ let interp_blk ctx s b =
     narrow ctx n c I.boolean_false;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
+            let i' = I.inverse i in
             narrow ctx y x i;
-            narrow ctx n x @@ I.inverse i));
+            narrow ctx n x i'));
     let s = assign_blk_args ctx s y yargs in
     assign_blk_args ctx s n nargs
   | `br (c, `label (y, yargs), _) ->
@@ -561,7 +576,7 @@ let step ctx i l _ s =
       else s in
   (* Narrowing for constraints. *)
   match Hashtbl.find ctx.narrow l with
-  | Some s' -> meet_state s' s
+  | Some s' -> meet_state s s'
   | None -> s
 
 let init_state ctx fn =
