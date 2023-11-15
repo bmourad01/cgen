@@ -67,6 +67,8 @@ let is_empty t = Bv.(t.lo = t.hi && t.lo = min_unsigned_value) [@@inline]
 let is_full t = Bv.(t.lo = t.hi && t.lo = max_unsigned_value t.size) [@@inline]
 let is_wrapped t = Bv.(t.lo > t.hi && t.hi <> zero) [@@inline]
 let is_wrapped_hi t = Bv.(t.lo > t.hi) [@@inline]
+let is_single t = Bv.(t.hi = succ t.lo mod modulus t.size) [@@inline]
+let is_single_missing t = Bv.(t.lo = succ t.hi mod modulus t.size) [@@inline]
 
 let is_sign_wrapped t =
   let m = Bv.modulus t.size in
@@ -75,13 +77,8 @@ let is_sign_wrapped t =
 let is_sign_wrapped_hi t =
   Bv.(signed_compare t.lo t.hi @@ modulus t.size) > 0
 
-let single_of t =
-  Option.some_if Bv.(t.hi = succ t.lo mod modulus t.size) t.lo
-
-let single_missing_of t =
-  Option.some_if Bv.(t.lo = succ t.hi mod modulus t.size) t.hi
-
-let is_single t = Option.is_some (single_of t) [@@inline]
+let single_of t = Option.some_if (is_single t) t.lo
+let single_missing_of t = Option.some_if Bv.(is_single_missing t) t.hi
 
 let is_strictly_smaller_than t1 t2 =
   assert (t1.size = t2.size);
