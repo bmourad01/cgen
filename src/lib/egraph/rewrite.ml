@@ -137,9 +137,9 @@ and search ~d t n =
       | Some i when i.id = id -> i
       | Some _ -> raise_notrace Mismatch) in
   (* Insert a rewritten term based on the substitution. *)
-  let rec rewrite ~d env = function
+  let rec rewrite env = function
     | P (o, ps) ->
-      let cs = List.map ps ~f:(rewrite ~d env) in
+      let cs = List.map ps ~f:(rewrite env) in
       insert ~d t @@ N (o, cs)
     | V x -> match Map.find env x with
       | None -> raise_notrace Mismatch
@@ -153,11 +153,11 @@ and search ~d t n =
     then full.return ()
     else try
         Vec.push matches @@ let env = f () in match a with
-        | Static p -> rewrite ~d env p
-        | Cond (p, k) when k env -> rewrite ~d env p
+        | Static p -> rewrite env p
+        | Cond (p, k) when k env -> rewrite env p
         | Cond _ -> raise_notrace Mismatch
         | Dyn f -> match f env with
-          | Some p -> rewrite ~d env p
+          | Some p -> rewrite env p
           | None -> raise_notrace Mismatch
       with Mismatch -> () in
   (* Start by matching the top-level constructor. *)
