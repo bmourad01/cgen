@@ -28,16 +28,6 @@ let new_node t n =
   assert (id = Vec.length t.node - 1);
   id
 
-(* If the node is already normalized then don't bother searching
-   for matches. *)
-let subsume_const t n id =
-  let+ c = Enode.eval ~node:(node t) n in
-  let k = Enode.of_const c in
-  let oid = Hashtbl.find_or_add t.memo k
-      ~default:(fun () -> new_node t k) in
-  Uf.union t.classes id oid;
-  oid
-
 (* Represent the union of two e-classes with a "union" node. *)
 let union t id oid =
   let u = new_node t @@ U {pre = id; post = oid} in
@@ -83,10 +73,17 @@ let rec insert ?ty ?l ~d t n =
           Hashtbl.set t.memo ~key:k ~data:oid;
           oid)
 
-and optimize ~d t n id = match subsume_const t n id with
-  | Some id -> id
-  | None when d < 0 -> id
-  | None -> search ~d:(d - 1) t n id
+(* If the term normalizes to a constant then we don't need to waste
+   time searching for matches. *)
+and optimize ~d t n id = match Enode.eval ~node:(node t) n with
+  | None when d > 0 -> search ~d:(d - 1) t n id
+  | None -> id
+  | Some c ->
+    let k = Enode.of_const c in
+    let oid = Hashtbl.find_or_add t.memo k
+        ~default:(fun () -> new_node t k) in
+    Uf.union t.classes oid id;
+    oid
 
 and search ~d t n id =
   let exception Mismatch in

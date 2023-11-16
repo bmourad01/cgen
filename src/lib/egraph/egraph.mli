@@ -69,7 +69,7 @@ val create_table : rule list -> rules
 
     [depth_limit] is the maximum rewrite depth. This is to limit state
     explosion since rewrites are themselves recursively rewritten. Note
-    that if [depth_limit < 0], then no rewrite rules will be applied.
+    that if [depth_limit <= 0], then no rewrite rules will be applied.
 
     [match_limit] is the maximum number of matches/rewrites allowed per
     term. This is to limit state explosion since all versions of all

@@ -32,7 +32,7 @@ let check_ssa fn =
     Input.E.failf "Expected SSA form for function %s"
       (Func.name fn) ()
 
-let run ?(depth_limit = 5) ?(match_limit = 20) fn tenv rules =
+let run ?(depth_limit = 6) ?(match_limit = 20) fn tenv rules =
   let open Context.Syntax in
   let*? () = check_ssa fn in
   let*? input = Input.init fn tenv in
