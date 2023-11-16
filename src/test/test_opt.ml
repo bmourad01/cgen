@@ -1727,6 +1727,47 @@ let test_strcmp_non_rle _ =
      ret %4
    }"
 
+let test_reassoc_add _ =
+  "module foo
+
+   export function w $foo(w %x, w %y, w %z) {
+   @start:
+     %q = add.w %z, 1_w
+     %r = add.w %y, %q
+     %r = add.w %x, %r
+     ret %r
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x, w %y, w %z) {
+   @0:
+     %2 = add.w %z, 0x1_w ; @6
+     %1 = add.w %x, %y ; @5
+     %0 = add.w %1, %2 ; @4
+     ret %0
+   }"
+
+let test_reassoc_add_const _ =
+  "module foo
+
+   export function w $foo(w %x, w %y) {
+   @start:
+     %q = add.w %x, 1_w
+     %r = add.w %y, 2_w
+     %r = add.w %r, %q
+     ret %r
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x, w %y) {
+   @0:
+     %1 = add.w %x, 0x3_w ; @5
+     %0 = add.w %y, %1 ; @4
+     ret %0
+   }"
+
 let suite = "Test optimizations" >::: [
     "Multiply by 1" >:: test_mul_by_1;
     "Multiply by 2" >:: test_mul_by_2;
@@ -1789,6 +1830,8 @@ let suite = "Test optimizations" >::: [
     "Test prime numbers" >:: test_prime;
     "Test strcmp RLE" >:: test_strcmp_rle;
     "Test strcmp non-RLE" >:: test_strcmp_non_rle;
+    "Test reassoc add" >:: test_reassoc_add;
+    "Test reassoc add const" >:: test_reassoc_add_const;
   ]
 
 let () = run_test_tt_main suite
