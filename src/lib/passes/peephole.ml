@@ -584,6 +584,25 @@ module Rules = struct
       add `i64 (i64 1L) (not_ `i64 x) => neg `i64 x;
     ]
 
+    (* ~(x + -1) =
+       ~(-1 + x) =
+       ~(x - 1) = -x
+    *)
+    let dec_not = [
+      not_ `i8 (add `i8 x (i8 (-1))) => neg `i8 x;
+      not_ `i16 (add `i16 x (i16 (-1))) => neg `i16 x;
+      not_ `i32 (add `i32 x (i32 (-1l))) => neg `i32 x;
+      not_ `i64 (add `i64 x (i64 (-1L))) => neg `i64 x;
+      not_ `i8 (add `i8 (i8 (-1)) x) => neg `i8 x;
+      not_ `i16 (add `i16 (i16 (-1)) x) => neg `i16 x;
+      not_ `i32 (add `i32 (i32 (-1l)) x) => neg `i32 x;
+      not_ `i64 (add `i64 (i64 (-1L)) x) => neg `i64 x;
+      not_ `i8 (sub `i8 x (i8 1)) => neg `i8 x;
+      not_ `i16 (sub `i16 x (i16 1)) => neg `i16 x;
+      not_ `i32 (sub `i32 x (i32 1l)) => neg `i32 x;
+      not_ `i64 (sub `i64 x (i64 1L)) => neg `i64 x;
+    ]
+
     (* -x * -y = x * y *)
     let mul_negs = [
       mul `i8 (neg `i8 x) (neg `i8 y) => mul `i8 x y;
@@ -1807,6 +1826,7 @@ module Rules = struct
       double_neg @
       double_not @
       inc_not @
+      dec_not @
       mul_negs @
       sub_self @
       mul_zero @

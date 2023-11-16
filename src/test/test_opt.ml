@@ -659,6 +659,63 @@ let test_neg_from_add_not_rev _ =
      ret %0
    }"
 
+(* Recognize two's complement negation. *)
+let test_neg_from_not_add _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = add.w %x, 0xffffffff_w
+     %x = not.w %x
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %0 = neg.w %x ; @3
+     ret %0
+   }"
+
+(* Same as above, but tests commutativity too. *)
+let test_neg_from_not_add_rev _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = add.w 0xffffffff_w, %x
+     %x = not.w %x
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %0 = neg.w %x ; @3
+     ret %0
+   }"
+
+(* Recognize two's complement negation. *)
+let test_neg_from_not_sub _ =
+  "module foo
+
+   export function w $foo(w %x) {
+   @start:
+     %x = sub.w %x, 1_w
+     %x = not.w %x
+     ret %x
+   }"
+  =>
+  "module foo
+
+   export function w $foo(w %x) {
+   @0:
+     %0 = neg.w %x ; @3
+     ret %0
+   }"
+
 (* Add of a negate should be turned into a sub. *)
 let test_sub_from_add_neg _ =
   "module foo
@@ -1699,6 +1756,9 @@ let suite = "Test optimizations" >::: [
     "CSE (simple addition)" >:: test_cse_add_simple;
     "Negation from add and NOT" >:: test_neg_from_add_not;
     "Negation from add and NOT (reversed)" >:: test_neg_from_add_not_rev;
+    "Negation from NOT and add" >:: test_neg_from_not_add;
+    "Negation from NOT and add (reversed)" >:: test_neg_from_not_add_rev;
+    "Negation from NOT and sub" >:: test_neg_from_not_sub;
     "Subtraction from add of neg" >:: test_sub_from_add_neg;
     "Subtraction from add of neg (reversed)" >:: test_sub_from_add_neg_rev;
     "Addition from sub of neg" >:: test_add_from_sub_neg;
