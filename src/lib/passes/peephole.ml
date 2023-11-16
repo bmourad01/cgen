@@ -21,6 +21,12 @@ module Rules = struct
     Option.bind ~f:Subst.const |>
     Option.is_some
 
+  let is_const2 x y env =
+    Option.is_some begin
+      let* _ = Subst.find env x >>= Subst.const in
+      Subst.find env y >>= Subst.const
+    end
+
   let is_not_const x env =
     Subst.find env x |>
     Option.bind ~f:Subst.const |>
@@ -326,6 +332,7 @@ module Rules = struct
 
   let is_const_x = is_const "x"
   let is_const_y = is_const "y"
+  let is_const_x_z = is_const2 "x" "z"
   let is_not_const_y = is_not_const "y"
   let is_neg_const_y = is_neg_const "y"
   let is_not_bool_y = is_not_bool "y"
@@ -474,26 +481,53 @@ module Rules = struct
        an equivalent but shallower form.
     *)
     let reassoc = [
-      (add `i8 w (add `i8 x (add `i8 y z))) =>! (add `i8 (add `i8 w x) (add `i8 y z));
-      (add `i16 w (add `i16 x (add `i16 y z))) =>! (add `i16 (add `i16 w x) (add `i16 y z));
-      (add `i32 w (add `i32 x (add `i32 y z))) =>! (add `i32 (add `i32 w x) (add `i32 y z));
-      (add `i64 w (add `i64 x (add `i64 y z))) =>! (add `i64 (add `i64 w x) (add `i64 y z));
-      (mul `i8 w (mul `i8 x (mul `i8 y z))) =>! (mul `i8 (mul `i8 w x) (mul `i8 y z));
-      (mul `i16 w (mul `i16 x (mul `i16 y z))) =>! (mul `i16 (mul `i16 w x) (mul `i16 y z));
-      (mul `i32 w (mul `i32 x (mul `i32 y z))) =>! (mul `i32 (mul `i32 w x) (mul `i32 y z));
-      (mul `i64 w (mul `i64 x (mul `i64 y z))) =>! (mul `i64 (mul `i64 w x) (mul `i64 y z));
-      (and_ `i8 w (and_ `i8 x (and_ `i8 y z))) =>! (and_ `i8 (and_ `i8 w x) (and_ `i8 y z));
-      (and_ `i16 w (and_ `i16 x (and_ `i16 y z))) =>! (and_ `i16 (and_ `i16 w x) (and_ `i16 y z));
-      (and_ `i32 w (and_ `i32 x (and_ `i32 y z))) =>! (and_ `i32 (and_ `i32 w x) (and_ `i32 y z));
-      (and_ `i64 w (and_ `i64 x (and_ `i64 y z))) =>! (and_ `i64 (and_ `i64 w x) (and_ `i64 y z));
-      (or_ `i8 w (or_ `i8 x (or_ `i8 y z))) =>! (or_ `i8 (or_ `i8 w x) (or_ `i8 y z));
-      (or_ `i16 w (or_ `i16 x (or_ `i16 y z))) =>! (or_ `i16 (or_ `i16 w x) (or_ `i16 y z));
-      (or_ `i32 w (or_ `i32 x (or_ `i32 y z))) =>! (or_ `i32 (or_ `i32 w x) (or_ `i32 y z));
-      (or_ `i64 w (or_ `i64 x (or_ `i64 y z))) =>! (or_ `i64 (or_ `i64 w x) (or_ `i64 y z));
-      (xor `i8 w (xor `i8 x (xor `i8 y z))) =>! (xor `i8 (xor `i8 w x) (xor `i8 y z));
-      (xor `i16 w (xor `i16 x (xor `i16 y z))) =>! (xor `i16 (xor `i16 w x) (xor `i16 y z));
-      (xor `i32 w (xor `i32 x (xor `i32 y z))) =>! (xor `i32 (xor `i32 w x) (xor `i32 y z));
-      (xor `i64 w (xor `i64 x (xor `i64 y z))) =>! (xor `i64 (xor `i64 w x) (xor `i64 y z));
+      add `i8 w (add `i8 x (add `i8 y z)) =>! add `i8 (add `i8 w x) (add `i8 y z);
+      add `i16 w (add `i16 x (add `i16 y z)) =>! add `i16 (add `i16 w x) (add `i16 y z);
+      add `i32 w (add `i32 x (add `i32 y z)) =>! add `i32 (add `i32 w x) (add `i32 y z);
+      add `i64 w (add `i64 x (add `i64 y z)) =>! add `i64 (add `i64 w x) (add `i64 y z);
+      mul `i8 w (mul `i8 x (mul `i8 y z)) =>! mul `i8 (mul `i8 w x) (mul `i8 y z);
+      mul `i16 w (mul `i16 x (mul `i16 y z)) =>! mul `i16 (mul `i16 w x) (mul `i16 y z);
+      mul `i32 w (mul `i32 x (mul `i32 y z)) =>! mul `i32 (mul `i32 w x) (mul `i32 y z);
+      mul `i64 w (mul `i64 x (mul `i64 y z)) =>! mul `i64 (mul `i64 w x) (mul `i64 y z);
+      and_ `i8 w (and_ `i8 x (and_ `i8 y z)) =>! and_ `i8 (and_ `i8 w x) (and_ `i8 y z);
+      and_ `i16 w (and_ `i16 x (and_ `i16 y z)) =>! and_ `i16 (and_ `i16 w x) (and_ `i16 y z);
+      and_ `i32 w (and_ `i32 x (and_ `i32 y z)) =>! and_ `i32 (and_ `i32 w x) (and_ `i32 y z);
+      and_ `i64 w (and_ `i64 x (and_ `i64 y z)) =>! and_ `i64 (and_ `i64 w x) (and_ `i64 y z);
+      or_ `i8 w (or_ `i8 x (or_ `i8 y z)) =>! or_ `i8 (or_ `i8 w x) (or_ `i8 y z);
+      or_ `i16 w (or_ `i16 x (or_ `i16 y z)) =>! or_ `i16 (or_ `i16 w x) (or_ `i16 y z);
+      or_ `i32 w (or_ `i32 x (or_ `i32 y z)) =>! or_ `i32 (or_ `i32 w x) (or_ `i32 y z);
+      or_ `i64 w (or_ `i64 x (or_ `i64 y z)) =>! or_ `i64 (or_ `i64 w x) (or_ `i64 y z);
+      xor `i8 w (xor `i8 x (xor `i8 y z)) =>! xor `i8 (xor `i8 w x) (xor `i8 y z);
+      xor `i16 w (xor `i16 x (xor `i16 y z)) =>! xor `i16 (xor `i16 w x) (xor `i16 y z);
+      xor `i32 w (xor `i32 x (xor `i32 y z)) =>! xor `i32 (xor `i32 w x) (xor `i32 y z);
+      xor `i64 w (xor `i64 x (xor `i64 y z)) =>! xor `i64 (xor `i64 w x) (xor `i64 y z);
+    ]
+
+    (* (op (op w x) (op y z)) = (op (op w y) (op x z))
+
+       when op is associative and commutative, and x and z are constants
+    *)
+    let reassoc_comm_const = [
+      (add `i8 (add `i8 w x) (add `i8 y z) =>? add `i8 (add `i8 w y) (add `i8 x z)) ~if_:is_const_x_z;
+      (add `i16 (add `i16 w x) (add `i16 y z) =>? add `i16 (add `i16 w y) (add `i16 x z)) ~if_:is_const_x_z;
+      (add `i32 (add `i32 w x) (add `i32 y z) =>? add `i32 (add `i32 w y) (add `i32 x z)) ~if_:is_const_x_z;
+      (add `i64 (add `i64 w x) (add `i64 y z) =>? add `i64 (add `i64 w y) (add `i64 x z)) ~if_:is_const_x_z;
+      (mul `i8 (mul `i8 w x) (mul `i8 y z) =>? mul `i8 (mul `i8 w y) (mul `i8 x z)) ~if_:is_const_x_z;
+      (mul `i16 (mul `i16 w x) (mul `i16 y z) =>? mul `i16 (mul `i16 w y) (mul `i16 x z)) ~if_:is_const_x_z;
+      (mul `i32 (mul `i32 w x) (mul `i32 y z) =>? mul `i32 (mul `i32 w y) (mul `i32 x z)) ~if_:is_const_x_z;
+      (mul `i64 (mul `i64 w x) (mul `i64 y z) =>? mul `i64 (mul `i64 w y) (mul `i64 x z)) ~if_:is_const_x_z;
+      (and_ `i8 (and_ `i8 w x) (and_ `i8 y z) =>? and_ `i8 (and_ `i8 w y) (and_ `i8 x z)) ~if_:is_const_x_z;
+      (and_ `i16 (and_ `i16 w x) (and_ `i16 y z) =>? and_ `i16 (and_ `i16 w y) (and_ `i16 x z)) ~if_:is_const_x_z;
+      (and_ `i32 (and_ `i32 w x) (and_ `i32 y z) =>? and_ `i32 (and_ `i32 w y) (and_ `i32 x z)) ~if_:is_const_x_z;
+      (and_ `i64 (and_ `i64 w x) (and_ `i64 y z) =>? and_ `i64 (and_ `i64 w y) (and_ `i64 x z)) ~if_:is_const_x_z;
+      (or_ `i8 (or_ `i8 w x) (or_ `i8 y z) =>? or_ `i8 (or_ `i8 w y) (or_ `i8 x z)) ~if_:is_const_x_z;
+      (or_ `i16 (or_ `i16 w x) (or_ `i16 y z) =>? or_ `i16 (or_ `i16 w y) (or_ `i16 x z)) ~if_:is_const_x_z;
+      (or_ `i32 (or_ `i32 w x) (or_ `i32 y z) =>? or_ `i32 (or_ `i32 w y) (or_ `i32 x z)) ~if_:is_const_x_z;
+      (or_ `i64 (or_ `i64 w x) (or_ `i64 y z) =>? or_ `i64 (or_ `i64 w y) (or_ `i64 x z)) ~if_:is_const_x_z;
+      (xor `i8 (xor `i8 w x) (xor `i8 y z) =>? xor `i8 (xor `i8 w y) (xor `i8 x z)) ~if_:is_const_x_z;
+      (xor `i16 (xor `i16 w x) (xor `i16 y z) =>? xor `i16 (xor `i16 w y) (xor `i16 x z)) ~if_:is_const_x_z;
+      (xor `i32 (xor `i32 w x) (xor `i32 y z) =>? xor `i32 (xor `i32 w y) (xor `i32 x z)) ~if_:is_const_x_z;
+      (xor `i64 (xor `i64 w x) (xor `i64 y z) =>? xor `i64 (xor `i64 w y) (xor `i64 x z)) ~if_:is_const_x_z;
     ]
 
     (* x + (-y) = x - y when y is a constant *)
@@ -1816,6 +1850,7 @@ module Rules = struct
       commute_consts @
       assoc_consts @
       reassoc @
+      reassoc_comm_const @
       add_neg_const @
       sub_neg_const @
       add_neg @
