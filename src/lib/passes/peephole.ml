@@ -474,26 +474,26 @@ module Rules = struct
        an equivalent but shallower form.
     *)
     let reassoc = [
-      (add `i8 w (add `i8 x (add `i8 y z))) => (add `i8 (add `i8 w x) (add `i8 y z));
-      (add `i16 w (add `i16 x (add `i16 y z))) => (add `i16 (add `i16 w x) (add `i16 y z));
-      (add `i32 w (add `i32 x (add `i32 y z))) => (add `i32 (add `i32 w x) (add `i32 y z));
-      (add `i64 w (add `i64 x (add `i64 y z))) => (add `i64 (add `i64 w x) (add `i64 y z));
-      (mul `i8 w (mul `i8 x (mul `i8 y z))) => (mul `i8 (mul `i8 w x) (mul `i8 y z));
-      (mul `i16 w (mul `i16 x (mul `i16 y z))) => (mul `i16 (mul `i16 w x) (mul `i16 y z));
-      (mul `i32 w (mul `i32 x (mul `i32 y z))) => (mul `i32 (mul `i32 w x) (mul `i32 y z));
-      (mul `i64 w (mul `i64 x (mul `i64 y z))) => (mul `i64 (mul `i64 w x) (mul `i64 y z));
-      (and_ `i8 w (and_ `i8 x (and_ `i8 y z))) => (and_ `i8 (and_ `i8 w x) (and_ `i8 y z));
-      (and_ `i16 w (and_ `i16 x (and_ `i16 y z))) => (and_ `i16 (and_ `i16 w x) (and_ `i16 y z));
-      (and_ `i32 w (and_ `i32 x (and_ `i32 y z))) => (and_ `i32 (and_ `i32 w x) (and_ `i32 y z));
-      (and_ `i64 w (and_ `i64 x (and_ `i64 y z))) => (and_ `i64 (and_ `i64 w x) (and_ `i64 y z));
-      (or_ `i8 w (or_ `i8 x (or_ `i8 y z))) => (or_ `i8 (or_ `i8 w x) (or_ `i8 y z));
-      (or_ `i16 w (or_ `i16 x (or_ `i16 y z))) => (or_ `i16 (or_ `i16 w x) (or_ `i16 y z));
-      (or_ `i32 w (or_ `i32 x (or_ `i32 y z))) => (or_ `i32 (or_ `i32 w x) (or_ `i32 y z));
-      (or_ `i64 w (or_ `i64 x (or_ `i64 y z))) => (or_ `i64 (or_ `i64 w x) (or_ `i64 y z));
-      (xor `i8 w (xor `i8 x (xor `i8 y z))) => (xor `i8 (xor `i8 w x) (xor `i8 y z));
-      (xor `i16 w (xor `i16 x (xor `i16 y z))) => (xor `i16 (xor `i16 w x) (xor `i16 y z));
-      (xor `i32 w (xor `i32 x (xor `i32 y z))) => (xor `i32 (xor `i32 w x) (xor `i32 y z));
-      (xor `i64 w (xor `i64 x (xor `i64 y z))) => (xor `i64 (xor `i64 w x) (xor `i64 y z));
+      (add `i8 w (add `i8 x (add `i8 y z))) =>! (add `i8 (add `i8 w x) (add `i8 y z));
+      (add `i16 w (add `i16 x (add `i16 y z))) =>! (add `i16 (add `i16 w x) (add `i16 y z));
+      (add `i32 w (add `i32 x (add `i32 y z))) =>! (add `i32 (add `i32 w x) (add `i32 y z));
+      (add `i64 w (add `i64 x (add `i64 y z))) =>! (add `i64 (add `i64 w x) (add `i64 y z));
+      (mul `i8 w (mul `i8 x (mul `i8 y z))) =>! (mul `i8 (mul `i8 w x) (mul `i8 y z));
+      (mul `i16 w (mul `i16 x (mul `i16 y z))) =>! (mul `i16 (mul `i16 w x) (mul `i16 y z));
+      (mul `i32 w (mul `i32 x (mul `i32 y z))) =>! (mul `i32 (mul `i32 w x) (mul `i32 y z));
+      (mul `i64 w (mul `i64 x (mul `i64 y z))) =>! (mul `i64 (mul `i64 w x) (mul `i64 y z));
+      (and_ `i8 w (and_ `i8 x (and_ `i8 y z))) =>! (and_ `i8 (and_ `i8 w x) (and_ `i8 y z));
+      (and_ `i16 w (and_ `i16 x (and_ `i16 y z))) =>! (and_ `i16 (and_ `i16 w x) (and_ `i16 y z));
+      (and_ `i32 w (and_ `i32 x (and_ `i32 y z))) =>! (and_ `i32 (and_ `i32 w x) (and_ `i32 y z));
+      (and_ `i64 w (and_ `i64 x (and_ `i64 y z))) =>! (and_ `i64 (and_ `i64 w x) (and_ `i64 y z));
+      (or_ `i8 w (or_ `i8 x (or_ `i8 y z))) =>! (or_ `i8 (or_ `i8 w x) (or_ `i8 y z));
+      (or_ `i16 w (or_ `i16 x (or_ `i16 y z))) =>! (or_ `i16 (or_ `i16 w x) (or_ `i16 y z));
+      (or_ `i32 w (or_ `i32 x (or_ `i32 y z))) =>! (or_ `i32 (or_ `i32 w x) (or_ `i32 y z));
+      (or_ `i64 w (or_ `i64 x (or_ `i64 y z))) =>! (or_ `i64 (or_ `i64 w x) (or_ `i64 y z));
+      (xor `i8 w (xor `i8 x (xor `i8 y z))) =>! (xor `i8 (xor `i8 w x) (xor `i8 y z));
+      (xor `i16 w (xor `i16 x (xor `i16 y z))) =>! (xor `i16 (xor `i16 w x) (xor `i16 y z));
+      (xor `i32 w (xor `i32 x (xor `i32 y z))) =>! (xor `i32 (xor `i32 w x) (xor `i32 y z));
+      (xor `i64 w (xor `i64 x (xor `i64 y z))) =>! (xor `i64 (xor `i64 w x) (xor `i64 y z));
     ]
 
     (* x + (-y) = x - y when y is a constant *)
@@ -534,42 +534,42 @@ module Rules = struct
 
     (* x + 0 = x. *)
     let add_zero = [
-      add `i8 x  (i8 0) => x;
-      add `i16 x (i16 0) => x;
-      add `i32 x (i32 0l) => x;
-      add `i64 x (i64 0L) => x;
+      add `i8 x (i8 0) =>! x;
+      add `i16 x (i16 0) =>! x;
+      add `i32 x (i32 0l) =>! x;
+      add `i64 x (i64 0L) =>! x;
     ]
 
     (* x - 0 = x. *)
     let sub_zero = [
-      sub `i8 x  (i8 0) => x;
-      sub `i16 x (i16 0) => x;
-      sub `i32 x (i32 0l) => x;
-      sub `i64 x (i64 0L) => x;
+      sub `i8 x  (i8 0) =>! x;
+      sub `i16 x (i16 0) =>! x;
+      sub `i32 x (i32 0l) =>! x;
+      sub `i64 x (i64 0L) =>! x;
     ]
 
     (* 0 - x = -x *)
     let sub_zero_neg = [
-      sub `i8  (i8 0) x => neg `i8 x;
-      sub `i16 (i16 0) x => neg `i16 x;
-      sub `i32 (i32 0l) x => neg `i32 x;
-      sub `i64 (i64 0L) x => neg `i64 x;
+      sub `i8  (i8 0) x =>! neg `i8 x;
+      sub `i16 (i16 0) x =>! neg `i16 x;
+      sub `i32 (i32 0l) x =>! neg `i32 x;
+      sub `i64 (i64 0L) x =>! neg `i64 x;
     ]
 
     (* -(-x) = x *)
     let double_neg = [
-      neg `i8 (neg `i8 x) => x;
-      neg `i16 (neg `i16 x) => x;
-      neg `i32 (neg `i32 x) => x;
-      neg `i64 (neg `i64 x) => x;
+      neg `i8 (neg `i8 x) =>! x;
+      neg `i16 (neg `i16 x) =>! x;
+      neg `i32 (neg `i32 x) =>! x;
+      neg `i64 (neg `i64 x) =>! x;
     ]
 
     (* ~(~x) = x *)
     let double_not = [
-      not_ `i8 (not_ `i8 x) => x;
-      not_ `i16 (not_ `i16 x) => x;
-      not_ `i32 (not_ `i32 x) => x;
-      not_ `i64 (not_ `i64 x) => x;
+      not_ `i8 (not_ `i8 x) =>! x;
+      not_ `i16 (not_ `i16 x) =>! x;
+      not_ `i32 (not_ `i32 x) =>! x;
+      not_ `i64 (not_ `i64 x) =>! x;
     ]
 
     (* ~x + 1 = 1 + ~x = -x *)
@@ -613,42 +613,42 @@ module Rules = struct
 
     (* x - x = 0. *)
     let sub_self = [
-      sub `i8 x x =>  i8 0;
-      sub `i16 x x => i16 0;
-      sub `i32 x x => i32 0l;
-      sub `i64 x x => i64 0L;
+      sub `i8 x x =>! i8 0;
+      sub `i16 x x =>! i16 0;
+      sub `i32 x x =>! i32 0l;
+      sub `i64 x x =>! i64 0L;
     ]
 
     (* x * 0 = 0. *)
     let mul_zero = [
-      mul `i8 x  (i8 0) =>  i8 0;
-      mul `i16 x (i16 0) => i16 0;
-      mul `i32 x (i32 0l) => i32 0l;
-      mul `i64 x (i64 0L) => i64 0L;
-      mulh `i8 x  (i8 0) =>  i8 0;
-      mulh `i16 x (i16 0) => i16 0;
-      mulh `i32 x (i32 0l) => i32 0l;
-      mulh `i64 x (i64 0L) => i64 0L;
-      umulh `i8 x  (i8 0) =>  i8 0;
-      umulh `i16 x (i16 0) => i16 0;
-      umulh `i32 x (i32 0l) => i32 0l;
-      umulh `i64 x (i64 0L) => i64 0L;
+      mul `i8 x  (i8 0) =>! i8 0;
+      mul `i16 x (i16 0) =>! i16 0;
+      mul `i32 x (i32 0l) =>! i32 0l;
+      mul `i64 x (i64 0L) =>! i64 0L;
+      mulh `i8 x  (i8 0) =>! i8 0;
+      mulh `i16 x (i16 0) =>! i16 0;
+      mulh `i32 x (i32 0l) =>! i32 0l;
+      mulh `i64 x (i64 0L) =>! i64 0L;
+      umulh `i8 x  (i8 0) =>! i8 0;
+      umulh `i16 x (i16 0) =>! i16 0;
+      umulh `i32 x (i32 0l) =>! i32 0l;
+      umulh `i64 x (i64 0L) =>! i64 0L;
     ]
 
     (* x * 1 = x *)
     let mul_one = [
-      mul `i8 x  (i8 1) => x;
-      mul `i16 x (i16 1) => x;
-      mul `i32 x (i32 1l) => x;
-      mul `i64 x (i64 1L) => x;
-      mulh `i8 x  (i8 1) => x;
-      mulh `i16 x (i16 1) => x;
-      mulh `i32 x (i32 1l) => x;
-      mulh `i64 x (i64 1L) => x;
-      umulh `i8 x  (i8 1) => x;
-      umulh `i16 x (i16 1) => x;
-      umulh `i32 x (i32 1l) => x;
-      umulh `i64 x (i64 1L) => x;
+      mul `i8 x  (i8 1) =>! x;
+      mul `i16 x (i16 1) =>! x;
+      mul `i32 x (i32 1l) =>! x;
+      mul `i64 x (i64 1L) =>! x;
+      mulh `i8 x  (i8 1) =>! x;
+      mulh `i16 x (i16 1) =>! x;
+      mulh `i32 x (i32 1l) =>! x;
+      mulh `i64 x (i64 1L) =>! x;
+      umulh `i8 x  (i8 1) =>! x;
+      umulh `i16 x (i16 1) =>! x;
+      umulh `i32 x (i32 1l) =>! x;
+      umulh `i64 x (i64 1L) =>! x;
     ]
 
     (* x * -1 = -x *)
@@ -745,14 +745,14 @@ module Rules = struct
 
     (* x / 1 = x *)
     let div_one = [
-      div `i8  x (i8 1) => x;
-      div `i16 x (i16 1) => x;
-      div `i32 x (i32 1l) => x;
-      div `i64 x (i64 1L) => x;
-      udiv `i8 x (i8 1) => x;
-      udiv `i16 x (i16 1) => x;
-      udiv `i32 x (i32 1l) => x;
-      udiv `i64 x (i64 1L) => x;
+      div `i8  x (i8 1) =>! x;
+      div `i16 x (i16 1) =>! x;
+      div `i32 x (i32 1l) =>! x;
+      div `i64 x (i64 1L) =>! x;
+      udiv `i8 x (i8 1) =>! x;
+      udiv `i16 x (i16 1) =>! x;
+      udiv `i32 x (i32 1l) =>! x;
+      udiv `i64 x (i64 1L) =>! x;
     ]
 
     (* signed x / -1 = -x *)
@@ -765,10 +765,10 @@ module Rules = struct
 
     (* signed x % -1 = 0 *)
     let srem_neg_one = [
-      rem `i8 x (i8 (-1)) => i8 0;
-      rem `i16 x (i16 (-1)) => i16 0;
-      rem `i32 x (i32 (-1l)) => i32 0l;
-      rem `i64 x (i64 (-1L)) => i64 0L;
+      rem `i8 x (i8 (-1)) =>! i8 0;
+      rem `i16 x (i16 (-1)) =>! i16 0;
+      rem `i32 x (i32 (-1l)) =>! i32 0l;
+      rem `i64 x (i64 (-1L)) =>! i64 0L;
     ]
 
     (* unsigned x / -1 = flag (x == -1) *)
@@ -789,74 +789,74 @@ module Rules = struct
 
     (* x % 1 = 0 *)
     let rem_one = [
-      rem `i8 x (i8 1) => i8 0;
-      rem `i16 x (i16 1) => i16 0;
-      rem `i32 x (i32 1l) => i32 0l;
-      rem `i64 x (i64 1L) => i64 0L;
-      urem `i8 x (i8 1) => i8 0;
-      urem `i16 x (i16 1) => i16 0;
-      urem `i32 x (i32 1l) => i32 0l;
-      urem `i64 x (i64 1L) => i64 0L;
+      rem `i8 x (i8 1) =>! i8 0;
+      rem `i16 x (i16 1) =>! i16 0;
+      rem `i32 x (i32 1l) =>! i32 0l;
+      rem `i64 x (i64 1L) =>! i64 0L;
+      urem `i8 x (i8 1) =>! i8 0;
+      urem `i16 x (i16 1) =>! i16 0;
+      urem `i32 x (i32 1l) =>! i32 0l;
+      urem `i64 x (i64 1L) =>! i64 0L;
     ]
 
     (* x & 0 = 0 *)
     let and_zero = [
-      and_ `i8 x (i8 0) => i8 0;
-      and_ `i16 x (i16 0) => i16 0;
-      and_ `i32 x (i32 0l) => i32 0l;
-      and_ `i64 x (i64 0L) => i64 0L;
+      and_ `i8 x (i8 0) =>! i8 0;
+      and_ `i16 x (i16 0) =>! i16 0;
+      and_ `i32 x (i32 0l) =>! i32 0l;
+      and_ `i64 x (i64 0L) =>! i64 0L;
     ]
 
     (* x & 0xff... = x *)
     let and_ones = [
-      and_ `i8 x  (i8 0xff) => x;
-      and_ `i16 x (i16 0xffff) => x;
-      and_ `i32 x (i32 0xffff_ffffl) => x;
-      and_ `i64 x (i64 0xffff_ffff_ffff_ffffL) => x;
+      and_ `i8 x  (i8 0xff) =>! x;
+      and_ `i16 x (i16 0xffff) =>! x;
+      and_ `i32 x (i32 0xffff_ffffl) =>! x;
+      and_ `i64 x (i64 0xffff_ffff_ffff_ffffL) =>! x;
     ]
 
     (* x & x = x *)
     let and_self = [
-      and_ `i8 x x => x;
-      and_ `i16 x x => x;
-      and_ `i32 x x => x;
-      and_ `i64 x x => x;
+      and_ `i8 x x =>! x;
+      and_ `i16 x x =>! x;
+      and_ `i32 x x =>! x;
+      and_ `i64 x x =>! x;
     ]
 
     (* x | 0 = x *)
     let or_zero = [
-      or_ `i8 x (i8 0) => x;
-      or_ `i16 x (i16 0) => x;
-      or_ `i32 x (i32 0l) => x;
-      or_ `i64 x (i64 0L) => x;
+      or_ `i8 x (i8 0) =>! x;
+      or_ `i16 x (i16 0) =>! x;
+      or_ `i32 x (i32 0l) =>! x;
+      or_ `i64 x (i64 0L) =>! x;
     ]
 
     (* x | 0xff... = 0xff... *)
     let or_ones = [
-      or_ `i8 x (i8 0xff) => i8 0xff;
-      or_ `i16 x (i16 0xffff) => i16 0xffff;
-      or_ `i32 x (i32 0xffff_ffffl) => i32 0xffff_ffffl;
-      or_ `i64 x (i64 0xffff_ffff_ffff_ffffL) => i64 0xffff_ffff_ffff_ffffL;
+      or_ `i8 x (i8 0xff) =>! i8 0xff;
+      or_ `i16 x (i16 0xffff) =>! i16 0xffff;
+      or_ `i32 x (i32 0xffff_ffffl) =>! i32 0xffff_ffffl;
+      or_ `i64 x (i64 0xffff_ffff_ffff_ffffL) =>! i64 0xffff_ffff_ffff_ffffL;
     ]
 
     (* x | x = x *)
     let or_self = [
-      or_ `i8 x x => x;
-      or_ `i16 x x => x;
-      or_ `i32 x x => x;
-      or_ `i64 x x => x;
+      or_ `i8 x x =>! x;
+      or_ `i16 x x =>! x;
+      or_ `i32 x x =>! x;
+      or_ `i64 x x =>! x;
     ]
 
     (* x | ~x = ~x | x = 0xff... *)
     let or_not_self = [
-      or_ `i8 x (not_ `i8 x) => i8 0xff;
-      or_ `i16 x (not_ `i16 x) => i16 0xffff;
-      or_ `i32 x (not_ `i32 x) => i32 0xffff_ffffl;
-      or_ `i64 x (not_ `i64 x) => i64 0xffff_ffff_ffff_ffffL;
-      or_ `i8 (not_ `i8 x) x => i8 0xff;
-      or_ `i16 (not_ `i16 x) x => i16 0xffff;
-      or_ `i32 (not_ `i32 x) x => i32 0xffff_ffffl;
-      or_ `i64 (not_ `i64 x) x => i64 0xffff_ffff_ffff_ffffL;
+      or_ `i8 x (not_ `i8 x) =>! i8 0xff;
+      or_ `i16 x (not_ `i16 x) =>! i16 0xffff;
+      or_ `i32 x (not_ `i32 x) =>! i32 0xffff_ffffl;
+      or_ `i64 x (not_ `i64 x) =>! i64 0xffff_ffff_ffff_ffffL;
+      or_ `i8 (not_ `i8 x) x =>! i8 0xff;
+      or_ `i16 (not_ `i16 x) x =>! i16 0xffff;
+      or_ `i32 (not_ `i32 x) x =>! i32 0xffff_ffffl;
+      or_ `i64 (not_ `i64 x) x =>! i64 0xffff_ffff_ffff_ffffL;
     ]
 
     (* ~(x | y) = ~x & ~y *)
@@ -889,42 +889,42 @@ module Rules = struct
 
     (* x >>> 0 = x *)
     let asr_zero = [
-      asr_ `i8 x (i8 0) => x;
-      asr_ `i16 x (i16 0) => x;
-      asr_ `i32 x (i32 0l) => x;
-      asr_ `i64 x (i64 0L) => x;
+      asr_ `i8 x (i8 0) =>! x;
+      asr_ `i16 x (i16 0) =>! x;
+      asr_ `i32 x (i32 0l) =>! x;
+      asr_ `i64 x (i64 0L) =>! x;
     ]
 
     (* x << 0 = x *)
     let lsl_zero = [
-      lsl_ `i8 x (i8 0) => x;
-      lsl_ `i16 x (i16 0) => x;
-      lsl_ `i32 x (i32 0l) => x;
-      lsl_ `i64 x (i64 0L) => x;
+      lsl_ `i8 x (i8 0) =>! x;
+      lsl_ `i16 x (i16 0) =>! x;
+      lsl_ `i32 x (i32 0l) =>! x;
+      lsl_ `i64 x (i64 0L) =>! x;
     ]
 
     (* x >> 0 = x *)
     let lsr_zero = [
-      lsr_ `i8 x (i8 0) => x;
-      lsr_ `i16 x (i16 0) => x;
-      lsr_ `i32 x (i32 0l) => x;
-      lsr_ `i64 x (i64 0L) => x;
+      lsr_ `i8 x (i8 0) =>! x;
+      lsr_ `i16 x (i16 0) =>! x;
+      lsr_ `i32 x (i32 0l) =>! x;
+      lsr_ `i64 x (i64 0L) =>! x;
     ]
 
     (* rol x 0 = x *)
     let rol_zero = [
-      rol `i8 x (i8 0) => x;
-      rol `i16 x (i16 0) => x;
-      rol `i32 x (i32 0l) => x;
-      rol `i64 x (i64 0L) => x;
+      rol `i8 x (i8 0) =>! x;
+      rol `i16 x (i16 0) =>! x;
+      rol `i32 x (i32 0l) =>! x;
+      rol `i64 x (i64 0L) =>! x;
     ]
 
     (* ror x 0 = x *)
     let ror_zero = [
-      ror `i8 x (i8 0) => x;
-      ror `i16 x (i16 0) => x;
-      ror `i32 x (i32 0l) => x;
-      ror `i64 x (i64 0L) => x;
+      ror `i8 x (i8 0) =>! x;
+      ror `i16 x (i16 0) =>! x;
+      ror `i32 x (i32 0l) =>! x;
+      ror `i64 x (i64 0L) =>! x;
     ]
 
     (* (x << y) | (x >> z) =
@@ -981,10 +981,10 @@ module Rules = struct
 
     (* x ^ 0 = x *)
     let xor_zero = [
-      xor `i8 x (i8 0) => x;
-      xor `i16 x (i16 0) => x;
-      xor `i32 x (i32 0l) => x;
-      xor `i64 x (i64 0L) => x;
+      xor `i8 x (i8 0) =>! x;
+      xor `i16 x (i16 0) =>! x;
+      xor `i32 x (i32 0l) =>! x;
+      xor `i64 x (i64 0L) =>! x;
     ]
 
     (* x ^ 0xff... = ~x *)
@@ -997,22 +997,22 @@ module Rules = struct
 
     (* x ^ x = 0 *)
     let xor_self = [
-      xor `i8 x x => i8 0;
-      xor `i16 x x => i16 0;
-      xor `i32 x x => i32 0l;
-      xor `i64 x x => i64 0L;
+      xor `i8 x x =>! i8 0;
+      xor `i16 x x =>! i16 0;
+      xor `i32 x x =>! i32 0l;
+      xor `i64 x x =>! i64 0L;
     ]
 
     (* x ^ ~x = ~x ^ x = 0xff... *)
     let xor_not_self = [
-      xor `i8 x (not_ `i8 x) => i8 0xff;
-      xor `i16 x (not_ `i16 x) => i16 0xffff;
-      xor `i32 x (not_ `i32 x) => i32 0xffff_ffffl;
-      xor `i64 x (not_ `i64 x) => i64 0xffff_ffff_ffff_ffffL;
-      xor `i8 (not_ `i8 x) x => i8 0xff;
-      xor `i16 (not_ `i16 x) x => i16 0xffff;
-      xor `i32 (not_ `i32 x) x => i32 0xffff_ffffl;
-      xor `i64 (not_ `i64 x) x => i64 0xffff_ffff_ffff_ffffL;
+      xor `i8 x (not_ `i8 x) =>! i8 0xff;
+      xor `i16 x (not_ `i16 x) =>! i16 0xffff;
+      xor `i32 x (not_ `i32 x) =>! i32 0xffff_ffffl;
+      xor `i64 x (not_ `i64 x) =>! i64 0xffff_ffff_ffff_ffffL;
+      xor `i8 (not_ `i8 x) x =>! i8 0xff;
+      xor `i16 (not_ `i16 x) x =>! i16 0xffff;
+      xor `i32 (not_ `i32 x) x =>! i32 0xffff_ffffl;
+      xor `i64 (not_ `i64 x) x =>! i64 0xffff_ffff_ffff_ffffL;
     ]
 
     (* (x ^ y) ^ y =
@@ -1021,22 +1021,22 @@ module Rules = struct
        y ^ (y ^ x) = x
     *)
     let double_xor = [
-      xor `i8 (xor `i8 x y) y => x;
-      xor `i16 (xor `i16 x y) y => x;
-      xor `i32 (xor `i32 x y) y => x;
-      xor `i64 (xor `i64 x y) y => x;
-      xor `i8 (xor `i8 y x) y => x;
-      xor `i16 (xor `i16 y x) y => x;
-      xor `i32 (xor `i32 y x) y => x;
-      xor `i64 (xor `i64 y x) y => x;
-      xor `i8 y (xor `i8 x y) => x;
-      xor `i16 y (xor `i16 x y) => x;
-      xor `i32 y (xor `i32 x y) => x;
-      xor `i64 y (xor `i64 x y) => x;
-      xor `i8 y (xor `i8 y x) => x;
-      xor `i16 y (xor `i16 y x) => x;
-      xor `i32 y (xor `i32 y x) => x;
-      xor `i64 y (xor `i64 y x) => x;
+      xor `i8 (xor `i8 x y) y =>! x;
+      xor `i16 (xor `i16 x y) y =>! x;
+      xor `i32 (xor `i32 x y) y =>! x;
+      xor `i64 (xor `i64 x y) y =>! x;
+      xor `i8 (xor `i8 y x) y =>! x;
+      xor `i16 (xor `i16 y x) y =>! x;
+      xor `i32 (xor `i32 y x) y =>! x;
+      xor `i64 (xor `i64 y x) y =>! x;
+      xor `i8 y (xor `i8 x y) =>! x;
+      xor `i16 y (xor `i16 x y) =>! x;
+      xor `i32 y (xor `i32 x y) =>! x;
+      xor `i64 y (xor `i64 x y) =>! x;
+      xor `i8 y (xor `i8 y x) =>! x;
+      xor `i16 y (xor `i16 y x) =>! x;
+      xor `i32 y (xor `i32 y x) =>! x;
+      xor `i64 y (xor `i64 y x) =>! x;
     ]
 
     (* (x >>> y) >> z = x >> z when z >= y and z is bitwidth - 1 *)
@@ -1049,66 +1049,66 @@ module Rules = struct
 
     (* x == x = true *)
     let eq_self = [
-      eq `i8 x x => bool true;
-      eq `i16 x x => bool true;
-      eq `i32 x x => bool true;
-      eq `i64 x x => bool true;
+      eq `i8 x x =>! bool true;
+      eq `i16 x x =>! bool true;
+      eq `i32 x x =>! bool true;
+      eq `i64 x x =>! bool true;
     ]
 
     (* x != x = false *)
     let ne_self = [
-      ne `i8 x x => bool false;
-      ne `i16 x x => bool false;
-      ne `i32 x x => bool false;
-      ne `i64 x x => bool false;
+      ne `i8 x x =>! bool false;
+      ne `i16 x x =>! bool false;
+      ne `i32 x x =>! bool false;
+      ne `i64 x x =>! bool false;
     ]
 
     (* x >= x = true *)
     let ge_self = [
-      ge `i8 x x => bool true;
-      ge `i16 x x => bool true;
-      ge `i32 x x => bool true;
-      ge `i64 x x => bool true;
-      sge `i8 x x => bool true;
-      sge `i16 x x => bool true;
-      sge `i32 x x => bool true;
-      sge `i64 x x => bool true;
+      ge `i8 x x =>! bool true;
+      ge `i16 x x =>! bool true;
+      ge `i32 x x =>! bool true;
+      ge `i64 x x =>! bool true;
+      sge `i8 x x =>! bool true;
+      sge `i16 x x =>! bool true;
+      sge `i32 x x =>! bool true;
+      sge `i64 x x =>! bool true;
     ]
 
     (* x > x = false *)
     let gt_self = [
-      gt `i8 x x => bool false;
-      gt `i16 x x => bool false;
-      gt `i32 x x => bool false;
-      gt `i64 x x => bool false;
-      sgt `i8 x x => bool false;
-      sgt `i16 x x => bool false;
-      sgt `i32 x x => bool false;
-      sgt `i64 x x => bool false;
+      gt `i8 x x =>! bool false;
+      gt `i16 x x =>! bool false;
+      gt `i32 x x =>! bool false;
+      gt `i64 x x =>! bool false;
+      sgt `i8 x x =>! bool false;
+      sgt `i16 x x =>! bool false;
+      sgt `i32 x x =>! bool false;
+      sgt `i64 x x =>! bool false;
     ]
 
     (* x <= x = true *)
     let le_self = [
-      le `i8 x x => bool true;
-      le `i16 x x => bool true;
-      le `i32 x x => bool true;
-      le `i64 x x => bool true;
-      sle `i8 x x => bool true;
-      sle `i16 x x => bool true;
-      sle `i32 x x => bool true;
-      sle `i64 x x => bool true;
+      le `i8 x x =>! bool true;
+      le `i16 x x =>! bool true;
+      le `i32 x x =>! bool true;
+      le `i64 x x =>! bool true;
+      sle `i8 x x =>! bool true;
+      sle `i16 x x =>! bool true;
+      sle `i32 x x =>! bool true;
+      sle `i64 x x =>! bool true;
     ]
 
     (* x < x = false *)
     let lt_self = [
-      lt `i8 x x => bool false;
-      lt `i16 x x => bool false;
-      lt `i32 x x => bool false;
-      lt `i64 x x => bool false;
-      slt `i8 x x => bool false;
-      slt `i16 x x => bool false;
-      slt `i32 x x => bool false;
-      slt `i64 x x => bool false;
+      lt `i8 x x =>! bool false;
+      lt `i16 x x =>! bool false;
+      lt `i32 x x =>! bool false;
+      lt `i64 x x =>! bool false;
+      slt `i8 x x =>! bool false;
+      slt `i16 x x =>! bool false;
+      slt `i32 x x =>! bool false;
+      slt `i64 x x =>! bool false;
     ]
 
     (* flag (x == y) ^ 1 = flag (x != y) *)
@@ -1177,18 +1177,18 @@ module Rules = struct
 
     (* unsigned x < 0 = false *)
     let ult_zero = [
-      lt `i8 x (i8 0) => bool false;
-      lt `i16 x (i16 0) => bool false;
-      lt `i32 x (i32 0l) => bool false;
-      lt `i64 x (i64 0L) => bool false;
+      lt `i8 x (i8 0) =>! bool false;
+      lt `i16 x (i16 0) =>! bool false;
+      lt `i32 x (i32 0l) =>! bool false;
+      lt `i64 x (i64 0L) =>! bool false;
     ]
 
     (* unsigned x >= 0 = true *)
     let uge_zero = [
-      ge `i8 x (i8 0) => bool true;
-      ge `i16 x (i16 0) => bool true;
-      ge `i32 x (i32 0l) => bool true;
-      ge `i64 x (i64 0L) => bool true;
+      ge `i8 x (i8 0) =>! bool true;
+      ge `i16 x (i16 0) =>! bool true;
+      ge `i32 x (i32 0l) =>! bool true;
+      ge `i64 x (i64 0L) =>! bool true;
     ]
 
     (* unsigned x <= 0 = x == 0 *)
@@ -1225,34 +1225,34 @@ module Rules = struct
 
     (* unsigned x <= 0xff... = true *)
     let ule_ones = [
-      le `i8 x (i8 0xff) => bool true;
-      le `i16 x (i16 0xffff) => bool true;
-      le `i32 x (i32 0xffff_ffffl) => bool true;
-      le `i64 x (i64 0xffff_ffff_ffff_ffffL) => bool true;
+      le `i8 x (i8 0xff) =>! bool true;
+      le `i16 x (i16 0xffff) =>! bool true;
+      le `i32 x (i32 0xffff_ffffl) =>! bool true;
+      le `i64 x (i64 0xffff_ffff_ffff_ffffL) =>! bool true;
     ]
 
     (* unsigned x > 0xff... = false *)
     let ugt_ones = [
-      gt `i8 x (i8 0xff) => bool false;
-      gt `i16 x (i16 0xffff) => bool false;
-      gt `i32 x (i32 0xffff_ffffl) => bool false;
-      gt `i64 x (i64 0xffff_ffff_ffff_ffffL) => bool false;
+      gt `i8 x (i8 0xff) =>! bool false;
+      gt `i16 x (i16 0xffff) =>! bool false;
+      gt `i32 x (i32 0xffff_ffffl) =>! bool false;
+      gt `i64 x (i64 0xffff_ffff_ffff_ffffL) =>! bool false;
     ]
 
     (* signed x < 0x80... = false *)
     let slt_min = [
-      slt `i8 x (i8 0x80) => bool false;
-      slt `i16 x (i16 0x8000) => bool false;
-      slt `i32 x (i32 0x8000_0000l) => bool false;
-      slt `i64 x (i64 0x8000_0000_0000_0000L) => bool false;
+      slt `i8 x (i8 0x80) =>! bool false;
+      slt `i16 x (i16 0x8000) =>! bool false;
+      slt `i32 x (i32 0x8000_0000l) =>! bool false;
+      slt `i64 x (i64 0x8000_0000_0000_0000L) =>! bool false;
     ]
 
     (* signed x >= 0x80... = true *)
     let sge_min = [
-      sge `i8 x (i8 0x80) => bool true;
-      sge `i16 x (i16 0x8000) => bool true;
-      sge `i32 x (i32 0x8000_0000l) => bool true;
-      sge `i64 x (i64 0x8000_0000_0000_0000L) => bool true;
+      sge `i8 x (i8 0x80) =>! bool true;
+      sge `i16 x (i16 0x8000) =>! bool true;
+      sge `i32 x (i32 0x8000_0000l) =>! bool true;
+      sge `i64 x (i64 0x8000_0000_0000_0000L) =>! bool true;
     ]
 
     (* signed x <= 0x80... = x == 0x80... *)
@@ -1273,18 +1273,18 @@ module Rules = struct
 
     (* signed x > 0x7f... = false *)
     let sgt_max = [
-      sgt `i8 x (i8 0x7f) => bool false;
-      sgt `i16 x (i16 0x7fff) => bool false;
-      sgt `i32 x (i32 0x7fff_ffffl) => bool false;
-      sgt `i64 x (i64 0x7fff_ffff_ffff_ffffL) => bool false;
+      sgt `i8 x (i8 0x7f) =>! bool false;
+      sgt `i16 x (i16 0x7fff) =>! bool false;
+      sgt `i32 x (i32 0x7fff_ffffl) =>! bool false;
+      sgt `i64 x (i64 0x7fff_ffff_ffff_ffffL) =>! bool false;
     ]
 
     (* signed x <= 0x7f... = true *)
     let sle_max = [
-      sle `i8 x (i8 0x7f) => bool true;
-      sle `i16 x (i16 0x7fff) => bool true;
-      sle `i32 x (i32 0x7fff_ffffl) => bool true;
-      sle `i64 x (i64 0x7fff_ffff_ffff_ffffL) => bool true;
+      sle `i8 x (i8 0x7f) =>! bool true;
+      sle `i16 x (i16 0x7fff) =>! bool true;
+      sle `i32 x (i32 0x7fff_ffffl) =>! bool true;
+      sle `i64 x (i64 0x7fff_ffff_ffff_ffffL) =>! bool true;
     ]
 
     (* signed x >= 0x7f... = x == 0x7f... *)
@@ -1305,30 +1305,30 @@ module Rules = struct
 
     (* signed (zext x) < 0 = false when x has a smaller type *)
     let slt_zero_zext = [
-      (slt `i16 (zext `i16 x) (i16 0) =>? bool false) ~if_:(has_type_x `i8);
-      (slt `i32 (zext `i32 x) (i32 0l) =>? bool false) ~if_:(has_type_x `i8);
-      (slt `i32 (zext `i32 x) (i32 0l) =>? bool false) ~if_:(has_type_x `i16);
-      (slt `i64 (zext `i64 x) (i64 0L) =>? bool false) ~if_:(has_type_x `i8);
-      (slt `i64 (zext `i64 x) (i64 0L) =>? bool false) ~if_:(has_type_x `i16);
-      (slt `i64 (zext `i64 x) (i64 0L) =>? bool false) ~if_:(has_type_x `i32);
+      (slt `i16 (zext `i16 x) (i16 0) =>?! bool false) ~if_:(has_type_x `i8);
+      (slt `i32 (zext `i32 x) (i32 0l) =>?! bool false) ~if_:(has_type_x `i8);
+      (slt `i32 (zext `i32 x) (i32 0l) =>?! bool false) ~if_:(has_type_x `i16);
+      (slt `i64 (zext `i64 x) (i64 0L) =>?! bool false) ~if_:(has_type_x `i8);
+      (slt `i64 (zext `i64 x) (i64 0L) =>?! bool false) ~if_:(has_type_x `i16);
+      (slt `i64 (zext `i64 x) (i64 0L) =>?! bool false) ~if_:(has_type_x `i32);
     ]
 
     (* signed (zext x) >= 0 = true when x has a smaller type *)
     let sge_zero_zext = [
-      (sge `i16 (zext `i16 x) (i16 0) =>? bool true) ~if_:(has_type_x `i8);
-      (sge `i32 (zext `i32 x) (i32 0l) =>? bool true) ~if_:(has_type_x `i8);
-      (sge `i32 (zext `i32 x) (i32 0l) =>? bool true) ~if_:(has_type_x `i16);
-      (sge `i64 (zext `i64 x) (i64 0L) =>? bool true) ~if_:(has_type_x `i8);
-      (sge `i64 (zext `i64 x) (i64 0L) =>? bool true) ~if_:(has_type_x `i16);
-      (sge `i64 (zext `i64 x) (i64 0L) =>? bool true) ~if_:(has_type_x `i32);
+      (sge `i16 (zext `i16 x) (i16 0) =>?! bool true) ~if_:(has_type_x `i8);
+      (sge `i32 (zext `i32 x) (i32 0l) =>?! bool true) ~if_:(has_type_x `i8);
+      (sge `i32 (zext `i32 x) (i32 0l) =>?! bool true) ~if_:(has_type_x `i16);
+      (sge `i64 (zext `i64 x) (i64 0L) =>?! bool true) ~if_:(has_type_x `i8);
+      (sge `i64 (zext `i64 x) (i64 0L) =>?! bool true) ~if_:(has_type_x `i16);
+      (sge `i64 (zext `i64 x) (i64 0L) =>?! bool true) ~if_:(has_type_x `i32);
     ]
 
     (* flag x == 1 = x *)
     let flag_eq_one = [
-      eq `i8 (flag `i8 x) (i8 1) => x;
-      eq `i16 (flag `i16 x) (i16 1) => x;
-      eq `i32 (flag `i32 x) (i32 1l) => x;
-      eq `i64 (flag `i64 x) (i64 1L) => x;
+      eq `i8 (flag `i8 x) (i8 1) =>! x;
+      eq `i16 (flag `i16 x) (i16 1) =>! x;
+      eq `i32 (flag `i32 x) (i32 1l) =>! x;
+      eq `i64 (flag `i64 x) (i64 1L) =>! x;
     ]
 
     (* flag x == 0 = (flag x ^ 1) == 1 *)
@@ -1349,10 +1349,10 @@ module Rules = struct
 
     (* flag x != 0 = x *)
     let flag_ne_zero = [
-      ne `i8 (flag `i8 x) (i8 0) => x;
-      ne `i16 (flag `i16 x) (i16 0) => x;
-      ne `i32 (flag `i32 x) (i32 0l) => x;
-      ne `i64 (flag `i64 x) (i64 0L) => x;
+      ne `i8 (flag `i8 x) (i8 0) =>! x;
+      ne `i16 (flag `i16 x) (i16 0) =>! x;
+      ne `i32 (flag `i32 x) (i32 0l) =>! x;
+      ne `i64 (flag `i64 x) (i64 0L) =>! x;
     ]
 
     (* unsigned flag x <= 0 = flag x == 0 *)
@@ -1365,18 +1365,18 @@ module Rules = struct
 
     (* unsigned flag x <= 1 = true *)
     let flag_ule_one = [
-      le `i8 (flag `i8 x) (i8 1) => bool true;
-      le `i16 (flag `i16 x) (i16 1) => bool true;
-      le `i32 (flag `i32 x) (i32 1l) => bool true;
-      le `i64 (flag `i64 x) (i64 1L) => bool true;
+      le `i8 (flag `i8 x) (i8 1) =>! bool true;
+      le `i16 (flag `i16 x) (i16 1) =>! bool true;
+      le `i32 (flag `i32 x) (i32 1l) =>! bool true;
+      le `i64 (flag `i64 x) (i64 1L) =>! bool true;
     ]
 
     (* signed flag x <= 1 = true *)
     let flag_sle_one = [
-      sle `i8 (flag `i8 x) (i8 1) => bool true;
-      sle `i16 (flag `i16 x) (i16 1) => bool true;
-      sle `i32 (flag `i32 x) (i32 1l) => bool true;
-      sle `i64 (flag `i64 x) (i64 1L) => bool true;
+      sle `i8 (flag `i8 x) (i8 1) =>! bool true;
+      sle `i16 (flag `i16 x) (i16 1) =>! bool true;
+      sle `i32 (flag `i32 x) (i32 1l) =>! bool true;
+      sle `i64 (flag `i64 x) (i64 1L) =>! bool true;
     ]
 
     (* signed flag x <= 0 = flag x == 0 *)
@@ -1405,34 +1405,34 @@ module Rules = struct
 
     (* unsigned flag x < 0 = false *)
     let flag_ult_zero = [
-      lt `i8 (flag `i8 x) (i8 0) => bool false;
-      lt `i16 (flag `i16 x) (i16 0) => bool false;
-      lt `i32 (flag `i32 x) (i32 0l) => bool false;
-      lt `i64 (flag `i64 x) (i64 0L) => bool false;
+      lt `i8 (flag `i8 x) (i8 0) =>! bool false;
+      lt `i16 (flag `i16 x) (i16 0) =>! bool false;
+      lt `i32 (flag `i32 x) (i32 0l) =>! bool false;
+      lt `i64 (flag `i64 x) (i64 0L) =>! bool false;
     ]
 
     (* signed flag x < 0 = false *)
     let flag_slt_zero = [
-      slt `i8 (flag `i8 x) (i8 0) => bool false;
-      slt `i16 (flag `i16 x) (i16 0) => bool false;
-      slt `i32 (flag `i32 x) (i32 0l) => bool false;
-      slt `i64 (flag `i64 x) (i64 0L) => bool false;
+      slt `i8 (flag `i8 x) (i8 0) =>! bool false;
+      slt `i16 (flag `i16 x) (i16 0) =>! bool false;
+      slt `i32 (flag `i32 x) (i32 0l) =>! bool false;
+      slt `i64 (flag `i64 x) (i64 0L) =>! bool false;
     ]
 
     (* unsigned flag x >= 0 = true *)
     let flag_uge_zero = [
-      ge `i8 (flag `i8 x) (i8 0) => bool true;
-      ge `i16 (flag `i16 x) (i16 0) => bool true;
-      ge `i32 (flag `i32 x) (i32 0l) => bool true;
-      ge `i64 (flag `i64 x) (i64 0L) => bool true;
+      ge `i8 (flag `i8 x) (i8 0) =>! bool true;
+      ge `i16 (flag `i16 x) (i16 0) =>! bool true;
+      ge `i32 (flag `i32 x) (i32 0l) =>! bool true;
+      ge `i64 (flag `i64 x) (i64 0L) =>! bool true;
     ]
 
     (* signed flag >= 0 = true *)
     let flag_sge_zero = [
-      sge `i8 (flag `i8 x) (i8 0) => bool true;
-      sge `i16 (flag `i16 x) (i16 0) => bool true;
-      sge `i32 (flag `i32 x) (i32 0l) => bool true;
-      sge `i64 (flag `i64 x) (i64 0L) => bool true;
+      sge `i8 (flag `i8 x) (i8 0) =>! bool true;
+      sge `i16 (flag `i16 x) (i16 0) =>! bool true;
+      sge `i32 (flag `i32 x) (i32 0l) =>! bool true;
+      sge `i64 (flag `i64 x) (i64 0L) =>! bool true;
     ]
 
     (* unsigned flag x >= 1 = flag x == 1 *)
@@ -1469,42 +1469,42 @@ module Rules = struct
 
     (* unsigned flag x > 1 = false *)
     let flag_ugt_one = [
-      gt `i8 (flag `i8 x) (i8 1) => bool false;
-      gt `i16 (flag `i16 x) (i16 1) => bool false;
-      gt `i32 (flag `i32 x) (i32 1l) => bool false;
-      gt `i64 (flag `i64 x) (i64 1L) => bool false;
+      gt `i8 (flag `i8 x) (i8 1) =>! bool false;
+      gt `i16 (flag `i16 x) (i16 1) =>! bool false;
+      gt `i32 (flag `i32 x) (i32 1l) =>! bool false;
+      gt `i64 (flag `i64 x) (i64 1L) =>! bool false;
     ]
 
     (* signed flag x > 1 = false *)
     let flag_sgt_one = [
-      sgt `i8 (flag `i8 x) (i8 1) => bool false;
-      sgt `i16 (flag `i16 x) (i16 1) => bool false;
-      sgt `i32 (flag `i32 x) (i32 1l) => bool false;
-      sgt `i64 (flag `i64 x) (i64 1L) => bool false;
+      sgt `i8 (flag `i8 x) (i8 1) =>! bool false;
+      sgt `i16 (flag `i16 x) (i16 1) =>! bool false;
+      sgt `i32 (flag `i32 x) (i32 1l) =>! bool false;
+      sgt `i64 (flag `i64 x) (i64 1L) =>! bool false;
     ]
 
     (* (flag x == y) = (y == flag x) = false when y is not 0 or 1 *)
     let flag_eq_not_bool = [
-      (eq `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (eq `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (eq `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (eq `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (eq `i8 y (flag `i8 x) =>? bool false) ~if_:is_not_bool_y;
-      (eq `i16 y (flag `i16 x) =>? bool false) ~if_:is_not_bool_y;
-      (eq `i32 y (flag `i32 x) =>? bool false) ~if_:is_not_bool_y;
-      (eq `i64 y (flag `i64 x) =>? bool false) ~if_:is_not_bool_y;
+      (eq `i8 (flag `i8 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (eq `i16 (flag `i16 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (eq `i32 (flag `i32 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (eq `i64 (flag `i64 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (eq `i8 y (flag `i8 x) =>?! bool false) ~if_:is_not_bool_y;
+      (eq `i16 y (flag `i16 x) =>?! bool false) ~if_:is_not_bool_y;
+      (eq `i32 y (flag `i32 x) =>?! bool false) ~if_:is_not_bool_y;
+      (eq `i64 y (flag `i64 x) =>?! bool false) ~if_:is_not_bool_y;
     ]
 
     (* (flag x != y) = (y != flag x) = true when y is not 0 or 1 *)
     let flag_ne_not_bool = [
-      (ne `i8 (flag `i8 x) y =>? bool true) ~if_:is_not_bool_y;
-      (ne `i16 (flag `i16 x) y =>? bool true) ~if_:is_not_bool_y;
-      (ne `i32 (flag `i32 x) y =>? bool true) ~if_:is_not_bool_y;
-      (ne `i64 (flag `i64 x) y =>? bool true) ~if_:is_not_bool_y;
-      (ne `i8 y (flag `i8 x) =>? bool true) ~if_:is_not_bool_y;
-      (ne `i16 y (flag `i16 x) =>? bool true) ~if_:is_not_bool_y;
-      (ne `i32 y (flag `i32 x) =>? bool true) ~if_:is_not_bool_y;
-      (ne `i64 y (flag `i64 x) =>? bool true) ~if_:is_not_bool_y;
+      (ne `i8 (flag `i8 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (ne `i16 (flag `i16 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (ne `i32 (flag `i32 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (ne `i64 (flag `i64 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (ne `i8 y (flag `i8 x) =>?! bool true) ~if_:is_not_bool_y;
+      (ne `i16 y (flag `i16 x) =>?! bool true) ~if_:is_not_bool_y;
+      (ne `i32 y (flag `i32 x) =>?! bool true) ~if_:is_not_bool_y;
+      (ne `i64 y (flag `i64 x) =>?! bool true) ~if_:is_not_bool_y;
     ]
 
     (* (flag x < y) = true
@@ -1513,14 +1513,14 @@ module Rules = struct
        when y is not 0 or 1
     *)
     let flag_ult_not_bool = [
-      (lt `i8 (flag `i8 x) y =>? bool true) ~if_:is_not_bool_y;
-      (lt `i16 (flag `i16 x) y =>? bool true) ~if_:is_not_bool_y;
-      (lt `i32 (flag `i32 x) y =>? bool true) ~if_:is_not_bool_y;
-      (lt `i64 (flag `i64 x) y =>? bool true) ~if_:is_not_bool_y;
-      (lt `i8 y (flag `i8 x) =>? bool false) ~if_:is_not_bool_y;
-      (lt `i16 y (flag `i16 x) =>? bool false) ~if_:is_not_bool_y;
-      (lt `i32 y (flag `i32 x) =>? bool false) ~if_:is_not_bool_y;
-      (lt `i64 y (flag `i64 x) =>? bool false) ~if_:is_not_bool_y;
+      (lt `i8 (flag `i8 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (lt `i16 (flag `i16 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (lt `i32 (flag `i32 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (lt `i64 (flag `i64 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (lt `i8 y (flag `i8 x) =>?! bool false) ~if_:is_not_bool_y;
+      (lt `i16 y (flag `i16 x) =>?! bool false) ~if_:is_not_bool_y;
+      (lt `i32 y (flag `i32 x) =>?! bool false) ~if_:is_not_bool_y;
+      (lt `i64 y (flag `i64 x) =>?! bool false) ~if_:is_not_bool_y;
     ]
 
     (* (signed flag x < y) = true
@@ -1530,22 +1530,22 @@ module Rules = struct
        opposite when signed y < 0
     *)
     let flag_slt_not_bool = [
-      (slt `i8 (flag `i8 x) y =>? bool true) ~if_:is_sgt_one_y;
-      (slt `i16 (flag `i16 x) y =>? bool true) ~if_:is_sgt_one_y;
-      (slt `i32 (flag `i32 x) y =>? bool true) ~if_:is_sgt_one_y;
-      (slt `i64 (flag `i64 x) y =>? bool true) ~if_:is_sgt_one_y;
-      (slt `i8 y (flag `i8 x) =>? bool false) ~if_:is_sgt_one_y;
-      (slt `i16 y (flag `i16 x) =>? bool false) ~if_:is_sgt_one_y;
-      (slt `i32 y (flag `i32 x) =>? bool false) ~if_:is_sgt_one_y;
-      (slt `i64 y (flag `i64 x) =>? bool false) ~if_:is_sgt_one_y;
-      (slt `i8 (flag `i8 x) y =>? bool false) ~if_:is_slt_zero_y;
-      (slt `i16 (flag `i16 x) y =>? bool false) ~if_:is_slt_zero_y;
-      (slt `i32 (flag `i32 x) y =>? bool false) ~if_:is_slt_zero_y;
-      (slt `i64 (flag `i64 x) y =>? bool false) ~if_:is_slt_zero_y;
-      (slt `i8 y (flag `i8 x) =>? bool true) ~if_:is_slt_zero_y;
-      (slt `i16 y (flag `i16 x) =>? bool true) ~if_:is_slt_zero_y;
-      (slt `i32 y (flag `i32 x) =>? bool true) ~if_:is_slt_zero_y;
-      (slt `i64 y (flag `i64 x) =>? bool true) ~if_:is_slt_zero_y;
+      (slt `i8 (flag `i8 x) y =>?! bool true) ~if_:is_sgt_one_y;
+      (slt `i16 (flag `i16 x) y =>?! bool true) ~if_:is_sgt_one_y;
+      (slt `i32 (flag `i32 x) y =>?! bool true) ~if_:is_sgt_one_y;
+      (slt `i64 (flag `i64 x) y =>?! bool true) ~if_:is_sgt_one_y;
+      (slt `i8 y (flag `i8 x) =>?! bool false) ~if_:is_sgt_one_y;
+      (slt `i16 y (flag `i16 x) =>?! bool false) ~if_:is_sgt_one_y;
+      (slt `i32 y (flag `i32 x) =>?! bool false) ~if_:is_sgt_one_y;
+      (slt `i64 y (flag `i64 x) =>?! bool false) ~if_:is_sgt_one_y;
+      (slt `i8 (flag `i8 x) y =>?! bool false) ~if_:is_slt_zero_y;
+      (slt `i16 (flag `i16 x) y =>?! bool false) ~if_:is_slt_zero_y;
+      (slt `i32 (flag `i32 x) y =>?! bool false) ~if_:is_slt_zero_y;
+      (slt `i64 (flag `i64 x) y =>?! bool false) ~if_:is_slt_zero_y;
+      (slt `i8 y (flag `i8 x) =>?! bool true) ~if_:is_slt_zero_y;
+      (slt `i16 y (flag `i16 x) =>?! bool true) ~if_:is_slt_zero_y;
+      (slt `i32 y (flag `i32 x) =>?! bool true) ~if_:is_slt_zero_y;
+      (slt `i64 y (flag `i64 x) =>?! bool true) ~if_:is_slt_zero_y;
     ]
 
     (* (flag x <= y) = true
@@ -1554,14 +1554,14 @@ module Rules = struct
        when y is not 0 or 1
     *)
     let flag_ule_not_bool = [
-      (le `i8 (flag `i8 x) y =>? bool true) ~if_:is_not_bool_y;
-      (le `i16 (flag `i16 x) y =>? bool true) ~if_:is_not_bool_y;
-      (le `i32 (flag `i32 x) y =>? bool true) ~if_:is_not_bool_y;
-      (le `i64 (flag `i64 x) y =>? bool true) ~if_:is_not_bool_y;
-      (le `i8 y (flag `i8 x) =>? bool false) ~if_:is_not_bool_y;
-      (le `i16 y (flag `i16 x) =>? bool false) ~if_:is_not_bool_y;
-      (le `i32 y (flag `i32 x) =>? bool false) ~if_:is_not_bool_y;
-      (le `i64 y (flag `i64 x) =>? bool false) ~if_:is_not_bool_y;
+      (le `i8 (flag `i8 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (le `i16 (flag `i16 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (le `i32 (flag `i32 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (le `i64 (flag `i64 x) y =>?! bool true) ~if_:is_not_bool_y;
+      (le `i8 y (flag `i8 x) =>?! bool false) ~if_:is_not_bool_y;
+      (le `i16 y (flag `i16 x) =>?! bool false) ~if_:is_not_bool_y;
+      (le `i32 y (flag `i32 x) =>?! bool false) ~if_:is_not_bool_y;
+      (le `i64 y (flag `i64 x) =>?! bool false) ~if_:is_not_bool_y;
     ]
 
     (* (signed flag x <= y) = true
@@ -1571,22 +1571,22 @@ module Rules = struct
        opposite when signed y < 0
     *)
     let flag_sle_not_bool = [
-      (sle `i8 (flag `i8 x) y =>? bool true) ~if_:is_sgt_one_y;
-      (sle `i16 (flag `i16 x) y =>? bool true) ~if_:is_sgt_one_y;
-      (sle `i32 (flag `i32 x) y =>? bool true) ~if_:is_sgt_one_y;
-      (sle `i64 (flag `i64 x) y =>? bool true) ~if_:is_sgt_one_y;
-      (sle `i8 x (flag `i8 x) =>? bool false) ~if_:is_sgt_one_y;
-      (sle `i16 x (flag `i16 x) =>? bool false) ~if_:is_sgt_one_y;
-      (sle `i32 x (flag `i32 x) =>? bool false) ~if_:is_sgt_one_y;
-      (sle `i64 x (flag `i64 x) =>? bool false) ~if_:is_sgt_one_y;
-      (sle `i8 (flag `i8 x) y =>? bool false) ~if_:is_slt_zero_y;
-      (sle `i16 (flag `i16 x) y =>? bool false) ~if_:is_slt_zero_y;
-      (sle `i32 (flag `i32 x) y =>? bool false) ~if_:is_slt_zero_y;
-      (sle `i64 (flag `i64 x) y =>? bool false) ~if_:is_slt_zero_y;
-      (sle `i8 x (flag `i8 x) =>? bool true) ~if_:is_slt_zero_y;
-      (sle `i16 x (flag `i16 x) =>? bool true) ~if_:is_slt_zero_y;
-      (sle `i32 x (flag `i32 x) =>? bool true) ~if_:is_slt_zero_y;
-      (sle `i64 x (flag `i64 x) =>? bool true) ~if_:is_slt_zero_y;
+      (sle `i8 (flag `i8 x) y =>?! bool true) ~if_:is_sgt_one_y;
+      (sle `i16 (flag `i16 x) y =>?! bool true) ~if_:is_sgt_one_y;
+      (sle `i32 (flag `i32 x) y =>?! bool true) ~if_:is_sgt_one_y;
+      (sle `i64 (flag `i64 x) y =>?! bool true) ~if_:is_sgt_one_y;
+      (sle `i8 x (flag `i8 x) =>?! bool false) ~if_:is_sgt_one_y;
+      (sle `i16 x (flag `i16 x) =>?! bool false) ~if_:is_sgt_one_y;
+      (sle `i32 x (flag `i32 x) =>?! bool false) ~if_:is_sgt_one_y;
+      (sle `i64 x (flag `i64 x) =>?! bool false) ~if_:is_sgt_one_y;
+      (sle `i8 (flag `i8 x) y =>?! bool false) ~if_:is_slt_zero_y;
+      (sle `i16 (flag `i16 x) y =>?! bool false) ~if_:is_slt_zero_y;
+      (sle `i32 (flag `i32 x) y =>?! bool false) ~if_:is_slt_zero_y;
+      (sle `i64 (flag `i64 x) y =>?! bool false) ~if_:is_slt_zero_y;
+      (sle `i8 x (flag `i8 x) =>?! bool true) ~if_:is_slt_zero_y;
+      (sle `i16 x (flag `i16 x) =>?! bool true) ~if_:is_slt_zero_y;
+      (sle `i32 x (flag `i32 x) =>?! bool true) ~if_:is_slt_zero_y;
+      (sle `i64 x (flag `i64 x) =>?! bool true) ~if_:is_slt_zero_y;
     ]
 
     (* (flag x > y) = false
@@ -1595,14 +1595,14 @@ module Rules = struct
        when y is not 0 or 1
     *)
     let flag_ugt_not_bool = [
-      (gt `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (gt `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (gt `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (gt `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (gt `i8 y (flag `i8 x) =>? bool true) ~if_:is_not_bool_y;
-      (gt `i16 y (flag `i16 x) =>? bool true) ~if_:is_not_bool_y;
-      (gt `i32 y (flag `i32 x) =>? bool true) ~if_:is_not_bool_y;
-      (gt `i64 y (flag `i64 x) =>? bool true) ~if_:is_not_bool_y;
+      (gt `i8 (flag `i8 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (gt `i16 (flag `i16 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (gt `i32 (flag `i32 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (gt `i64 (flag `i64 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (gt `i8 y (flag `i8 x) =>?! bool true) ~if_:is_not_bool_y;
+      (gt `i16 y (flag `i16 x) =>?! bool true) ~if_:is_not_bool_y;
+      (gt `i32 y (flag `i32 x) =>?! bool true) ~if_:is_not_bool_y;
+      (gt `i64 y (flag `i64 x) =>?! bool true) ~if_:is_not_bool_y;
     ]
 
     (* (signed flag x > y) = false
@@ -1612,22 +1612,22 @@ module Rules = struct
        opposite when signed y < 0
     *)
     let flag_sgt_not_bool = [
-      (sgt `i8 (flag `i8 x) y =>? bool false) ~if_:is_sgt_one_y;
-      (sgt `i16 (flag `i16 x) y =>? bool false) ~if_:is_sgt_one_y;
-      (sgt `i32 (flag `i32 x) y =>? bool false) ~if_:is_sgt_one_y;
-      (sgt `i64 (flag `i64 x) y =>? bool false) ~if_:is_sgt_one_y;
-      (sgt `i8 y (flag `i8 x) =>? bool true) ~if_:is_sgt_one_y;
-      (sgt `i16 y (flag `i16 x) =>? bool true) ~if_:is_sgt_one_y;
-      (sgt `i32 y (flag `i32 x) =>? bool true) ~if_:is_sgt_one_y;
-      (sgt `i64 y (flag `i64 x) =>? bool true) ~if_:is_sgt_one_y;
-      (sgt `i8 (flag `i8 x) y =>? bool true) ~if_:is_slt_zero_y;
-      (sgt `i16 (flag `i16 x) y =>? bool true) ~if_:is_slt_zero_y;
-      (sgt `i32 (flag `i32 x) y =>? bool true) ~if_:is_slt_zero_y;
-      (sgt `i64 (flag `i64 x) y =>? bool true) ~if_:is_slt_zero_y;
-      (sgt `i8 y (flag `i8 x) =>? bool false) ~if_:is_slt_zero_y;
-      (sgt `i16 y (flag `i16 x) =>? bool false) ~if_:is_slt_zero_y;
-      (sgt `i32 y (flag `i32 x) =>? bool false) ~if_:is_slt_zero_y;
-      (sgt `i64 y (flag `i64 x) =>? bool false) ~if_:is_slt_zero_y;
+      (sgt `i8 (flag `i8 x) y =>?! bool false) ~if_:is_sgt_one_y;
+      (sgt `i16 (flag `i16 x) y =>?! bool false) ~if_:is_sgt_one_y;
+      (sgt `i32 (flag `i32 x) y =>?! bool false) ~if_:is_sgt_one_y;
+      (sgt `i64 (flag `i64 x) y =>?! bool false) ~if_:is_sgt_one_y;
+      (sgt `i8 y (flag `i8 x) =>?! bool true) ~if_:is_sgt_one_y;
+      (sgt `i16 y (flag `i16 x) =>?! bool true) ~if_:is_sgt_one_y;
+      (sgt `i32 y (flag `i32 x) =>?! bool true) ~if_:is_sgt_one_y;
+      (sgt `i64 y (flag `i64 x) =>?! bool true) ~if_:is_sgt_one_y;
+      (sgt `i8 (flag `i8 x) y =>?! bool true) ~if_:is_slt_zero_y;
+      (sgt `i16 (flag `i16 x) y =>?! bool true) ~if_:is_slt_zero_y;
+      (sgt `i32 (flag `i32 x) y =>?! bool true) ~if_:is_slt_zero_y;
+      (sgt `i64 (flag `i64 x) y =>?! bool true) ~if_:is_slt_zero_y;
+      (sgt `i8 y (flag `i8 x) =>?! bool false) ~if_:is_slt_zero_y;
+      (sgt `i16 y (flag `i16 x) =>?! bool false) ~if_:is_slt_zero_y;
+      (sgt `i32 y (flag `i32 x) =>?! bool false) ~if_:is_slt_zero_y;
+      (sgt `i64 y (flag `i64 x) =>?! bool false) ~if_:is_slt_zero_y;
     ]
 
     (* (flag x >= y) = false
@@ -1636,14 +1636,14 @@ module Rules = struct
        when y is not 0 or 1
     *)
     let flag_uge_not_bool = [
-      (ge `i8 (flag `i8 x) y =>? bool false) ~if_:is_not_bool_y;
-      (ge `i16 (flag `i16 x) y =>? bool false) ~if_:is_not_bool_y;
-      (ge `i32 (flag `i32 x) y =>? bool false) ~if_:is_not_bool_y;
-      (ge `i64 (flag `i64 x) y =>? bool false) ~if_:is_not_bool_y;
-      (ge `i8 y (flag `i8 x) =>? bool true) ~if_:is_not_bool_y;
-      (ge `i16 y (flag `i16 x) =>? bool true) ~if_:is_not_bool_y;
-      (ge `i32 y (flag `i32 x) =>? bool true) ~if_:is_not_bool_y;
-      (ge `i64 y (flag `i64 x) =>? bool true) ~if_:is_not_bool_y;
+      (ge `i8 (flag `i8 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (ge `i16 (flag `i16 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (ge `i32 (flag `i32 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (ge `i64 (flag `i64 x) y =>?! bool false) ~if_:is_not_bool_y;
+      (ge `i8 y (flag `i8 x) =>?! bool true) ~if_:is_not_bool_y;
+      (ge `i16 y (flag `i16 x) =>?! bool true) ~if_:is_not_bool_y;
+      (ge `i32 y (flag `i32 x) =>?! bool true) ~if_:is_not_bool_y;
+      (ge `i64 y (flag `i64 x) =>?! bool true) ~if_:is_not_bool_y;
     ]
 
     (* (signed flag x >= y) = false
@@ -1653,22 +1653,22 @@ module Rules = struct
        opposite when signed y < 0
     *)
     let flag_sge_not_bool = [
-      (sge `i8 (flag `i8 x) y =>? bool false) ~if_:is_sgt_one_y;
-      (sge `i16 (flag `i16 x) y =>? bool false) ~if_:is_sgt_one_y;
-      (sge `i32 (flag `i32 x) y =>? bool false) ~if_:is_sgt_one_y;
-      (sge `i64 (flag `i64 x) y =>? bool false) ~if_:is_sgt_one_y;
-      (sge `i8 y (flag `i8 x) =>? bool true) ~if_:is_sgt_one_y;
-      (sge `i16 y (flag `i16 x) =>? bool true) ~if_:is_sgt_one_y;
-      (sge `i32 y (flag `i32 x) =>? bool true) ~if_:is_sgt_one_y;
-      (sge `i64 y (flag `i64 x) =>? bool true) ~if_:is_sgt_one_y;
-      (sge `i8 (flag `i8 x) y =>? bool true) ~if_:is_slt_zero_y;
-      (sge `i16 (flag `i16 x) y =>? bool true) ~if_:is_slt_zero_y;
-      (sge `i32 (flag `i32 x) y =>? bool true) ~if_:is_slt_zero_y;
-      (sge `i64 (flag `i64 x) y =>? bool true) ~if_:is_slt_zero_y;
-      (sge `i8 y (flag `i8 x) =>? bool false) ~if_:is_slt_zero_y;
-      (sge `i16 y (flag `i16 x) =>? bool false) ~if_:is_slt_zero_y;
-      (sge `i32 y (flag `i32 x) =>? bool false) ~if_:is_slt_zero_y;
-      (sge `i64 y (flag `i64 x) =>? bool false) ~if_:is_slt_zero_y;
+      (sge `i8 (flag `i8 x) y =>?! bool false) ~if_:is_sgt_one_y;
+      (sge `i16 (flag `i16 x) y =>?! bool false) ~if_:is_sgt_one_y;
+      (sge `i32 (flag `i32 x) y =>?! bool false) ~if_:is_sgt_one_y;
+      (sge `i64 (flag `i64 x) y =>?! bool false) ~if_:is_sgt_one_y;
+      (sge `i8 y (flag `i8 x) =>?! bool true) ~if_:is_sgt_one_y;
+      (sge `i16 y (flag `i16 x) =>?! bool true) ~if_:is_sgt_one_y;
+      (sge `i32 y (flag `i32 x) =>?! bool true) ~if_:is_sgt_one_y;
+      (sge `i64 y (flag `i64 x) =>?! bool true) ~if_:is_sgt_one_y;
+      (sge `i8 (flag `i8 x) y =>?! bool true) ~if_:is_slt_zero_y;
+      (sge `i16 (flag `i16 x) y =>?! bool true) ~if_:is_slt_zero_y;
+      (sge `i32 (flag `i32 x) y =>?! bool true) ~if_:is_slt_zero_y;
+      (sge `i64 (flag `i64 x) y =>?! bool true) ~if_:is_slt_zero_y;
+      (sge `i8 y (flag `i8 x) =>?! bool false) ~if_:is_slt_zero_y;
+      (sge `i16 y (flag `i16 x) =>?! bool false) ~if_:is_slt_zero_y;
+      (sge `i32 y (flag `i32 x) =>?! bool false) ~if_:is_slt_zero_y;
+      (sge `i64 y (flag `i64 x) =>?! bool false) ~if_:is_slt_zero_y;
     ]
 
     (* extend t1 (flag t2 x) = flag t1 x *)
@@ -1699,8 +1699,8 @@ module Rules = struct
 
     (* extend i8 x = x *)
     let extend_i8 = [
-      sext `i8 x => x;
-      zext `i8 x => x;
+      sext `i8 x =>! x;
+      zext `i8 x =>! x;
     ]
 
     (* extend (extend x) = extend x *)
@@ -1721,37 +1721,37 @@ module Rules = struct
 
     (* extend x to original type = x *)
     let extend_nop = [
-      sext `i16 x =>* identity_same_type_x `i16;
-      zext `i16 x =>* identity_same_type_x `i16;
-      sext `i32 x =>* identity_same_type_x `i32;
-      zext `i32 x =>* identity_same_type_x `i32;
-      sext `i64 x =>* identity_same_type_x `i64;
-      zext `i64 x =>* identity_same_type_x `i64;
+      sext `i16 x =>*! identity_same_type_x `i16;
+      zext `i16 x =>*! identity_same_type_x `i16;
+      sext `i32 x =>*! identity_same_type_x `i32;
+      zext `i32 x =>*! identity_same_type_x `i32;
+      sext `i64 x =>*! identity_same_type_x `i64;
+      zext `i64 x =>*! identity_same_type_x `i64;
     ]
 
     (* itrunc x to original type = x *)
     let itrunc_nop = [
-      itrunc `i8 x =>* identity_same_type_x `i8;
-      itrunc `i16 x =>* identity_same_type_x `i16;
-      itrunc `i32 x =>* identity_same_type_x `i32;
-      itrunc `i64 x => x;
+      itrunc `i8 x =>*! identity_same_type_x `i8;
+      itrunc `i16 x =>*! identity_same_type_x `i16;
+      itrunc `i32 x =>*! identity_same_type_x `i32;
+      itrunc `i64 x =>! x;
     ]
 
     (* itrunc (sext/zext x) to original type = x; these are the cases
        not covered by the general case above. *)
     let itrunc_extend_nop = [
-      itrunc `i8 (sext `i16 x) =>* identity_same_type_x `i8;
-      itrunc `i8 (zext `i16 x) =>* identity_same_type_x `i8;
-      itrunc `i8 (sext `i32 x) =>* identity_same_type_x `i8;
-      itrunc `i8 (zext `i32 x) =>* identity_same_type_x `i8;
-      itrunc `i8 (sext `i64 x) =>* identity_same_type_x `i8;
-      itrunc `i8 (zext `i64 x) =>* identity_same_type_x `i8;
-      itrunc `i16 (sext `i32 x) =>* identity_same_type_x `i16;
-      itrunc `i16 (zext `i32 x) =>* identity_same_type_x `i16;
-      itrunc `i16 (sext `i64 x) =>* identity_same_type_x `i16;
-      itrunc `i16 (zext `i64 x) =>* identity_same_type_x `i16;
-      itrunc `i32 (sext `i64 x) =>* identity_same_type_x `i32;
-      itrunc `i32 (zext `i64 x) =>* identity_same_type_x `i32;
+      itrunc `i8 (sext `i16 x) =>*! identity_same_type_x `i8;
+      itrunc `i8 (zext `i16 x) =>*! identity_same_type_x `i8;
+      itrunc `i8 (sext `i32 x) =>*! identity_same_type_x `i8;
+      itrunc `i8 (zext `i32 x) =>*! identity_same_type_x `i8;
+      itrunc `i8 (sext `i64 x) =>*! identity_same_type_x `i8;
+      itrunc `i8 (zext `i64 x) =>*! identity_same_type_x `i8;
+      itrunc `i16 (sext `i32 x) =>*! identity_same_type_x `i16;
+      itrunc `i16 (zext `i32 x) =>*! identity_same_type_x `i16;
+      itrunc `i16 (sext `i64 x) =>*! identity_same_type_x `i16;
+      itrunc `i16 (zext `i64 x) =>*! identity_same_type_x `i16;
+      itrunc `i32 (sext `i64 x) =>*! identity_same_type_x `i32;
+      itrunc `i32 (zext `i64 x) =>*! identity_same_type_x `i32;
     ]
 
     (* br true, x, y = jmp x
@@ -1769,24 +1769,24 @@ module Rules = struct
        x ? y : y = y
     *)
     let sel_const = [
-      sel `i8 (bool true) x y => x;
-      sel `i16 (bool true) x y => x;
-      sel `i32 (bool true) x y => x;
-      sel `i64 (bool true) x y => x;
-      sel `f32 (bool true) x y => x;
-      sel `f64 (bool true) x y => x;
-      sel `i8 (bool false) x y => y;
-      sel `i16 (bool false) x y => y;
-      sel `i32 (bool false) x y => y;
-      sel `i64 (bool false) x y => y;
-      sel `f32 (bool false) x y => y;
-      sel `f64 (bool false) x y => y;
-      sel `i8 x y y => y;
-      sel `i16 x y y => y;
-      sel `i32 x y y => y;
-      sel `i64 x y y => y;
-      sel `f32 x y y => y;
-      sel `f64 x y y => y;
+      sel `i8 (bool true) x y =>! x;
+      sel `i16 (bool true) x y =>! x;
+      sel `i32 (bool true) x y =>! x;
+      sel `i64 (bool true) x y =>! x;
+      sel `f32 (bool true) x y =>! x;
+      sel `f64 (bool true) x y =>! x;
+      sel `i8 (bool false) x y =>! y;
+      sel `i16 (bool false) x y =>! y;
+      sel `i32 (bool false) x y =>! y;
+      sel `i64 (bool false) x y =>! y;
+      sel `f32 (bool false) x y =>! y;
+      sel `f64 (bool false) x y =>! y;
+      sel `i8 x y y =>! y;
+      sel `i16 x y y =>! y;
+      sel `i32 x y y =>! y;
+      sel `i64 x y y =>! y;
+      sel `f32 x y y =>! y;
+      sel `f64 x y y =>! y;
     ]
 
     (* Specialize `sel` to `flag` when the arms are 0 or 1 *)
@@ -1803,12 +1803,12 @@ module Rules = struct
 
     (* Copy propagation. *)
     let prop_copy = [
-      copy `i8 x => x;
-      copy `i16 x => x;
-      copy `i32 x => x;
-      copy `i64 x => x;
-      copy `f32 x => x;
-      copy `f64 x => x;
+      copy `i8 x =>! x;
+      copy `i16 x =>! x;
+      copy `i32 x =>! x;
+      copy `i64 x =>! x;
+      copy `f32 x =>! x;
+      copy `f64 x =>! x;
     ]
 
     (* All rules. *)

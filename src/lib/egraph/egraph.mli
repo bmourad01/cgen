@@ -97,13 +97,25 @@ module Rule : sig
       matching [pre] shall be rewritten to [post]. *)
   val (=>) : pattern -> pattern -> t
 
+  (** Same as [=>], but the rewritten term subsumes all other
+      equivalent terms. *)
+  val (=>!) : pattern -> pattern -> t
+
   (** [(pre =>? post) ~if_] is similar to [pre => post], but the
       rule is applied conditionally according to [if_]. *)
   val (=>?) : pattern -> pattern -> if_:(bool callback) -> t
 
+  (** Same as [=>?], but the rewritten term subsumes all other
+      equivalent terms. *)
+  val (=>?!) : pattern -> pattern -> if_:(bool callback) -> t
+
   (** [pre =>* gen] allows a post-condition to be generated
       dynamically according to [gen]. *)
   val (=>*) : pattern -> pattern option callback -> t
+
+  (** Same as [=>*], but the rewritten term subsumes all other
+      equivalent terms. *)
+  val (=>*!) : pattern -> pattern option callback -> t
 
   (** Helpers for constructing patterns. *)
   module Op : sig

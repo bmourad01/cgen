@@ -5,9 +5,12 @@ type t = rule
 let var x = V x
 let exp o = P (o, [])
 let (&) o q = P (o, q)
-let (=>) pre post = {pre; post = Static post}
-let (=>?) pre post ~if_ = {pre; post = Cond (post, if_)}
-let (=>*) pre gen = {pre; post = Dyn gen}
+let (=>) pre post = {pre; post = Static post; subsume = false}
+let (=>?) pre post ~if_ = {pre; post = Cond (post, if_); subsume = false}
+let (=>*) pre gen = {pre; post = Dyn gen; subsume = false}
+let (=>!) pre post = {pre; post = Static post; subsume = true}
+let (=>?!) pre post ~if_ = {pre; post = Cond (post, if_); subsume = true}
+let (=>*!) pre gen = {pre; post = Dyn gen; subsume = true}
 
 module Op = struct
   let bop b l r = Obinop b & [l; r]

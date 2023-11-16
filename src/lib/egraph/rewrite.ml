@@ -48,12 +48,12 @@ let union t id oid =
   u
 
 (* Stop iterating when we find that we've optimized to a constant. *)
-let step t id oid : (id, id) Continue_or_stop.t =
-  if id <> oid then match node t oid with
-    | n when Enode.is_const n ->
-      Uf.union t.classes id oid;
+let step t id (oid, subsume) : (id, id) Continue_or_stop.t =
+  if id <> oid then
+    if subsume || Enode.is_const (node t id) then begin
+      Uf.union t.classes oid id;
       Stop oid
-    | _ -> Continue (union t id oid)
+    end else Continue (union t id oid)
   else Continue id
 
 (* Called when a duplicate node is inserted. *)
@@ -145,20 +145,25 @@ and search ~d t n =
       | None -> raise_notrace Mismatch
       | Some i -> i.Subst.id in
   (* Apply the action `a` to the substitution produced by `f`. *)
-  let apply full a ~f =
+  let apply full a subsume ~f =
     (* The running time can get seriously out of hand if we're
        matching over a large expression, so we cap the number
        of matches that will be considered. *)
     if Vec.length matches >= t.match_limit
     then full.return ()
     else try
-        Vec.push matches @@ let env = f () in match a with
-        | Static p -> rewrite env p
-        | Cond (p, k) when k env -> rewrite env p
-        | Cond _ -> raise_notrace Mismatch
-        | Dyn f -> match f env with
-          | Some p -> rewrite env p
-          | None -> raise_notrace Mismatch
+        let env = f () in
+        let id = match a with
+          | Static p -> rewrite env p
+          | Cond (p, k) when k env -> rewrite env p
+          | Cond _ -> raise_notrace Mismatch
+          | Dyn f -> match f env with
+            | Some p -> rewrite env p
+            | None -> raise_notrace Mismatch in
+        Vec.push matches (id, subsume);
+        (* If the new term is subsuming then any future matches
+           will be ignored anyway, so stop the search. *)
+        if subsume then full.return ()
       with Mismatch -> () in
   (* Start by matching the top-level constructor. *)
   match n with
@@ -166,10 +171,10 @@ and search ~d t n =
   | N (o, cs) ->
     with_return (fun full ->
         Hashtbl.find t.rules o |>
-        Option.iter ~f:(List.iter ~f:(fun (ps, a) ->
+        Option.iter ~f:(List.iter ~f:(fun (ps, a, subsume) ->
             (* Try matching with the children of the top-level node. *)
-            apply full a ~f:(fun () -> children ps cs Fn.id);
+            apply full a subsume ~f:(fun () -> children ps cs Fn.id);
             (* Now process any pending unioned nodes. *)
             Stack.until_empty pending @@ fun (env, x, xs, id, k) ->
-            apply full a ~f:(fun () -> pat env x xs id k))));
+            apply full a subsume ~f:(fun () -> pat env x xs id k))));
     matches

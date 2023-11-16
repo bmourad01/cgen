@@ -52,15 +52,21 @@ type formula =
 
 (* A rule consists of a pattern [pre] that a node must successfully
    match with. Matching with [pre] produces a substitution, which
-   is then applied to [post] to yield a rewritten term. *)
+   is then applied to [post] to yield a rewritten term.
+
+   [subsume] indicates that the rewritten term is already optimal
+   and no further rewrites should be applied.
+*)
 type rule = {
-  pre  : pattern;
-  post : formula;
+  pre     : pattern;
+  post    : formula;
+  subsume : bool;
 }
 
 (* The children of a pattern to be matched against, and a
-   post-condition. *)
-type action = pattern list * formula
+   post-condition, as well as a flag marking the rewritten
+   term as subsuming. *)
+type action = pattern list * formula * bool
 
 (* Map top-level operators to their actions. This helps to
    cut down the search space as we look to apply rules to
@@ -111,7 +117,7 @@ let create_table rules =
       type t = Enode.op [@@deriving compare, hash, sexp]
     end) in
   List.iter rules ~f:(fun r -> match r.pre with
-      | P (o, ps) -> Hashtbl.add_multi t ~key:o ~data:(ps, r.post)
+      | P (o, ps) -> Hashtbl.add_multi t ~key:o ~data:(ps, r.post, r.subsume)
       | V x ->
         (* Such rules are not really useful for anything and definitely
            will create soundness issues. *)
