@@ -86,12 +86,6 @@ type rules = (Enode.op, action list) Hashtbl.t
 
    See the [Prov], [Extractor_core], and [Extractor_cfg] modules for
    examples of how this information gets used.
-
-   Regarding the [intv] mapping, this information is based on the
-   intervals analysis performed on the function (part of [input]),
-   but this information is not stable across all program points for
-   a given ID and must be updated depending on the current position
-   of the [Builder].
 *)
 type t = {
   input       : Input.t;                (* Analyses about the function. *)
