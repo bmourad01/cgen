@@ -47,15 +47,6 @@ let union t id oid =
   Prov.merge t id u;
   u
 
-(* Stop iterating when we find that we've optimized to a constant. *)
-let step t id (oid, subsume) : (id, id) Continue_or_stop.t =
-  if id <> oid then
-    if subsume || Enode.is_const (node t id) then begin
-      Uf.union t.classes oid id;
-      Stop oid
-    end else Continue (union t id oid)
-  else Continue id
-
 (* Called when a duplicate node is inserted. *)
 let duplicate ?l t id =
   Option.iter l ~f:(Prov.duplicate t id);
@@ -95,16 +86,16 @@ let rec insert ?ty ?l ~d t n =
 and optimize ~d t n id = match subsume_const t n id with
   | Some id -> id
   | None when d < 0 -> id
-  | None ->
-    search ~d:(d - 1) t n |>
-    Vec.fold_until ~init:id ~finish:Fn.id ~f:(step t)
+  | None -> search ~d:(d - 1) t n id
 
-and search ~d t n =
+and search ~d t n id =
   let exception Mismatch in
   (* Pending unioned nodes. *)
   let pending = Stack.create () in
-  (* IDs of rewritten terms. *)
-  let matches = Vec.create ~capacity:t.match_limit () in
+  (* Number of rewritten terms. *)
+  let matches = ref 0 in
+  (* The final ID of the term. *)
+  let id = ref id in
   (* Produce a substitution for an e-class. *)
   let rec cls env p id k = match p with
     | P (x, xs) -> pat env x xs id k
@@ -144,26 +135,37 @@ and search ~d t n =
     | V x -> match Map.find env x with
       | None -> raise_notrace Mismatch
       | Some i -> i.Subst.id in
+  (* Update the final ID. *)
+  let update full subsume oid =
+    incr matches;
+    match !id = oid with
+    | false when subsume || Enode.is_const (node t oid) ->
+      (* We've transformed to a constant, or an otherwise optimal
+         term, so we can end the search here. Note that we don't
+         insert a union node in this case, but we still record the
+         equivalence via union-find. All future rewrites w.r.t
+         this e-class will refer only to this new term. *)
+      Uf.union t.classes oid !id;
+      id := oid;
+      full.return ()
+    | false -> id := union t !id oid
+    | true -> () in
   (* Apply the action `a` to the substitution produced by `f`. *)
   let apply full a subsume ~f =
     (* The running time can get seriously out of hand if we're
        matching over a large expression, so we cap the number
        of matches that will be considered. *)
-    if Vec.length matches >= t.match_limit
+    if !matches >= t.match_limit
     then full.return ()
     else try
         let env = f () in
-        let id = match a with
-          | Static p -> rewrite env p
-          | Cond (p, k) when k env -> rewrite env p
-          | Cond _ -> raise_notrace Mismatch
-          | Dyn f -> match f env with
-            | Some p -> rewrite env p
-            | None -> raise_notrace Mismatch in
-        Vec.push matches (id, subsume);
-        (* If the new term is subsuming then any future matches
-           will be ignored anyway, so stop the search. *)
-        if subsume then full.return ()
+        update full subsume @@ match a with
+        | Static p -> rewrite env p
+        | Cond (p, k) when k env -> rewrite env p
+        | Cond _ -> raise_notrace Mismatch
+        | Dyn f -> match f env with
+          | Some p -> rewrite env p
+          | None -> raise_notrace Mismatch
       with Mismatch -> () in
   (* Start by matching the top-level constructor. *)
   match n with
@@ -177,4 +179,4 @@ and search ~d t n =
             (* Now process any pending unioned nodes. *)
             Stack.until_empty pending @@ fun (env, x, xs, id, k) ->
             apply full a subsume ~f:(fun () -> pat env x xs id k))));
-    matches
+    !id
