@@ -132,16 +132,28 @@ let map_br env c y n =
 
 let map_sw env t i d tbl =
   let d = map_local env d in
-  let tbl = Ctrl.Table.map_exn tbl ~f:(map_tbl_entry env) in
+  let default_tbl = lazy (Ctrl.Table.map_exn tbl ~f:(map_tbl_entry env)) in
   match i with
-  | `sym _ -> `sw (t, i, d, tbl)
+  | `sym _ -> `sw (t, i, d, Lazy.force default_tbl)
   | `var x -> match var env x with
-    | None -> `sw (t, i, d, tbl)
-    | Some iv -> match I.single_of iv with
-      | None -> `sw (t, i, d, tbl)
-      | Some v ->
-        let d = Ctrl.Table.find tbl v |> Option.value ~default:d in
-        `jmp (d :> dst)
+    | None -> `sw (t, i, d, Lazy.force default_tbl)
+    | Some iv ->
+      (* Filter out cases of the switch that will never be true. *)
+      Ctrl.Table.enum tbl |>
+      Seq.filter_map ~f:(fun (i, l) ->
+          if I.contains_value iv i
+          then Some (i, map_local env l)
+          else None) |> Seq.to_list |> function
+      | [] -> `jmp (d :> dst)
+      | lst ->
+        (* See if the index is a constant and collapse the switch
+           into a single jump if this is the case. *)
+        let tbl = Ctrl.Table.create_exn lst t in
+        match I.single_of iv with
+        | None -> `sw (t, i, d, tbl)
+        | Some v ->
+          let d = Ctrl.Table.find tbl v |> Option.value ~default:d in
+          `jmp (d :> dst)
 
 let map_ctrl env : ctrl -> ctrl = function
   | `hlt -> `hlt
