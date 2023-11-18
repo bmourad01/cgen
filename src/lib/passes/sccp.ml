@@ -145,14 +145,15 @@ let map_sw env t i d tbl =
           then Some (i, map_local env l)
           else None) |> Seq.to_list |> function
       | [] -> `jmp (d :> dst)
-      | lst ->
-        (* See if the index is a constant and collapse the switch
-           into a single jump if this is the case. *)
-        let tbl = Ctrl.Table.create_exn lst t in
-        match I.single_of iv with
-        | None -> `sw (t, i, d, tbl)
+      | lst -> match I.single_of iv with
+        | None -> `sw (t, i, d, Ctrl.Table.create_exn lst t)
         | Some v ->
-          let d = Ctrl.Table.find tbl v |> Option.value ~default:d in
+          (* The index is a known constant, so collapse the
+             switch into a jump. *)
+          let d =
+            Option.value ~default:d @@
+            List.find_map lst ~f:(fun (u, l) ->
+                Option.some_if Bv.(u = v) l) in
           `jmp (d :> dst)
 
 let map_ctrl env : ctrl -> ctrl = function
