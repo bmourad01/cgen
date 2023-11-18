@@ -253,7 +253,9 @@ let sw_hoist_default changed t i d tbl =
     `jmp (d :> dst)
   | cs ->
     let tbl' = Ctrl.Table.create_exn cs t in
-    if Ctrl.Table.length tbl' < Ctrl.Table.length tbl then changed := true;
+    let len' = Ctrl.Table.length tbl' in
+    let len = Ctrl.Table.length tbl in
+    if len' < len then changed := true;
     `sw (t, i, d, tbl')
 
 (* Contract edges in the CFG when we find blocks with no instructions
