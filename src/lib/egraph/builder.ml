@@ -10,13 +10,29 @@ module E = Monad.Result.Error
 exception Missing of Label.t
 exception Duplicate of Var.t * Label.t
 
+(* A key identifying a store to memory.
+
+   [label]: the instruction that performed the access.
+
+   [addr]: the ID of the value representing the address.
+
+   [ty]: the type of value that was stored.
+*)
 type mem = {
-  lst  : Label.t;
-  addr : id;
-  ty   : Type.arg;
+  label : Label.t;
+  addr  : id;
+  ty    : Type.arg;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
-type st =
+(* A value stored to memory.
+
+   [Undef]: the value is undefined, but exists at the
+   memory address.
+
+   [Value (id, l)]: the value is defined by [id], and
+   was stored (at least) by the instruction [l].
+*)
+type store =
   | Undef
   | Value of id * Label.t
 
@@ -28,17 +44,17 @@ module Mem = Regular.Make(struct
   end)
 
 type env = {
-  vars        : id Var.Table.t;
-  mems        : st Mem.Table.t;
-  mutable cur : Label.t;
-  mutable lst : Label.t option;
+  vars        : id Var.Table.t;    (* Remember the IDs for each SSA variable. *)
+  mems        : store Mem.Table.t; (* Remember each memory access. *)
+  mutable cur : Label.t;           (* Current instruction. *)
+  mutable mem : Label.t option;    (* Most recent memory access. *)
 }
 
 let init () = {
   vars = Var.Table.create ();
   mems = Mem.Table.create ();
   cur = Label.pseudoentry;
-  lst = None;
+  mem = None;
 }
 
 let node ?ty ?l eg op args =
@@ -99,13 +115,17 @@ let set x id eg = node eg (Oset x) [id]
 let store env eg l ty v a =
   let v = operand env eg v in
   let a = operand env eg a in
-  let key = {lst = l; addr = a; ty = (ty :> Type.arg)} in
+  let key = {
+    label = l;
+    addr = a;
+    ty = (ty :> Type.arg)
+  } in
   match ty with
   | `name _ -> assert false
   | #Type.basic as ty ->
     Hashtbl.set env.mems ~key ~data:(Value (v, l));
     prov env eg l (Ostore (ty, l)) [v; a];
-    env.lst <- Some l
+    env.mem <- Some l
 
 let alias env eg key l =
   Hashtbl.find env.mems key |>
@@ -116,14 +136,17 @@ let alias env eg key l =
 
 let load env eg l x ty a =
   let a = operand env eg a in
-  (* The last store needs to be updated, even for a load,
-     in order for redundant load elimination to work, since
-     the `mem` keys expect a concrete label for the last
-     store. *)
-  let lst = match env.lst with
-    | None -> env.lst <- Some l; l
-    | Some lst -> lst in
-  let key = {lst; addr = a; ty = (ty :> Type.arg)} in
+  (* The last memory access needs to be updated, even for a
+     load, in order for redundant load elimination to work,
+     since the `mem` keys expect a concrete label. *)
+  let mem = match env.mem with
+    | None -> env.mem <- Some l; l
+    | Some l -> l in
+  let key = {
+    label = mem;
+    addr = a;
+    ty = (ty :> Type.arg)
+  } in
   match alias env eg key l with
   | Some v ->
     prov ~x env eg l (Ounop (`copy ty)) [v] ~f:(set x)
@@ -143,7 +166,7 @@ let callargs env eg args =
    can do any arbitrary effects to memory. *)
 let call env eg l x f args vargs =
   let op, x = callop x l in
-  env.lst <- Some l;
+  env.mem <- Some l;
   prov ?x env eg l op [
     global env eg f;
     callargs env eg args;
@@ -153,9 +176,13 @@ let call env eg l x f args vargs =
 (* Certain instructions such as variadic helpers have ABI-dependent
    or otherwise underspecified behaviors, which are not useful for
    removing redundant loads anyway. *)
-let undef env lst addr ty =
-  Hashtbl.set env.mems ~key:{lst; addr; ty} ~data:Undef;
-  env.lst <- Some lst
+let undef env l addr ty =
+  Hashtbl.set env.mems ~key:{
+    label = l;
+    addr;
+    ty;
+  } ~data:Undef;
+  env.mem <- Some l
 
 let vaarg env eg l x ty a =
   let a = global env eg a in
@@ -231,18 +258,22 @@ let ctrl env eg l : ctrl -> unit = function
       callargs env eg vargs;
     ]
 
-(* Try to preserve the last store from the parent block,
-   which should enable some inter-block redundant load
-   elimination. *)
-let setlst env eg l lst = env.lst <- match lst with
+(* Try to preserve the last memory access from the parent
+   block, which should enable some inter-block redundant
+   load elimination.
+
+   If it doesn't exist, then fall back to the solution from
+   our last stores analysis.
+*)
+let setmem env eg l m = env.mem <- match m with
     | None -> Solution.get eg.input.lst l
-    | Some _ -> lst
+    | Some _ -> m
 
 let step env eg l lst = match Hashtbl.find eg.input.tbl l with
   | None when Label.is_pseudo l -> ()
   | None | Some `insn _ -> raise @@ Missing l
   | Some `blk b ->
-    setlst env eg l lst;
+    setmem env eg l lst;
     Blk.insns b |> Seq.iter ~f:(fun i ->
         let l = Insn.label i in
         env.cur <- l;
@@ -258,8 +289,8 @@ let try_ f = try Ok (f ()) with
 
 let run eg = try_ @@ fun () ->
   let env = init () in
-  let q = Stack.singleton (Label.pseudoentry, env.lst) in
+  let q = Stack.singleton (Label.pseudoentry, env.mem) in
   Stack.until_empty q @@ fun (l, lst) ->
   step env eg l lst;
   Tree.children eg.input.dom l |>
-  Seq.iter ~f:(fun l -> Stack.push q (l, env.lst))
+  Seq.iter ~f:(fun l -> Stack.push q (l, env.mem))
