@@ -169,11 +169,11 @@ let map_ctrl env : ctrl -> ctrl = function
     `tcall (t, f, args, vargs)
 
 let map_blk env b =
-  let insns =
-    Blk.insns b |> Seq.to_list |> List.map ~f:(fun i ->
-        env.cur <- Insn (Insn.label i);
-        map_insn env i) in
-  if List.is_empty insns then env.cur <- Blk (Blk.label b);
+  let insns = Blk.insns b |> Seq.map ~f:(fun i ->
+      env.cur <- Insn (Insn.label i);
+      map_insn env i) |> Seq.to_list in
+  if List.is_empty insns then
+    env.cur <- Blk (Blk.label b);
   let ctrl = map_ctrl env @@ Blk.ctrl b in
   let args = Blk.args b |> Seq.to_list in
   let dict = Blk.dict b in
