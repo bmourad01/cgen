@@ -47,7 +47,8 @@ let create
     ~name
     ~elts
     () =
-  Or_error.try_with @@ create_exn ~name ~elts ~dict
+  try Ok (create_exn () ~name ~elts ~dict) with
+  | Invalid_argument msg -> Or_error.error_string msg
 
 let name d = d.name
 let elts ?(rev = false) d = Ftree.enum d.elts ~rev

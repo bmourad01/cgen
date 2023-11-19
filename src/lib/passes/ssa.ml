@@ -276,6 +276,8 @@ let try_ fn f = try f () with
     Or_error.errorf
       "SSA: missing block %a in function $%s"
       Label.pps l (Func.name fn)
+  | Invalid_argument msg ->
+    Or_error.errorf "SSA: %s" msg
 
 let run fn = try_ fn @@ fun () ->
   if Dict.mem (Func.dict fn) Tags.ssa then
@@ -286,5 +288,5 @@ let run fn = try_ fn @@ fun () ->
     Rename.go env;
     let fn =
       Hashtbl.data env.blks |>
-      Func.update_blks fn in
+      Func.update_blks_exn fn in
     Or_error.return @@ Func.with_tag fn Tags.ssa ()

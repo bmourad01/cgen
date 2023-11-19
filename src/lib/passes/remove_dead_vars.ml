@@ -105,11 +105,13 @@ let rec run' fn =
           ~args:(Seq.to_list args) ~dict:(Blk.dict b)
       else None) |> Seq.to_list |> function
   | [] -> remove_unused_slots fn live
-  | blks -> run' @@ Func.update_blks fn blks
+  | blks -> run' @@ Func.update_blks_exn fn blks
 
 let run fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
-    Ok (run' fn)
+    try Ok (run' fn) with
+    | Invalid_argument msg ->
+      E.failf "In Remove_dead_vars: %s" msg ()
   else
-    E.failf "Expected SSA form for function %s"
+    E.failf "In Remove_dead_vars: expected SSA form for function %s"
       (Func.name fn) ()

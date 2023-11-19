@@ -15,4 +15,4 @@ let reachable fn = with_return @@ fun {return} ->
 let run fn =
   Func.blks fn |> Seq.map ~f:Blk.label |>
   Seq.filter ~f:(Fn.non @@ Set.mem @@ reachable fn) |>
-  Seq.fold ~init:fn ~f:Func.remove_blk_exn
+  Seq.to_list |> Func.remove_blks_exn fn

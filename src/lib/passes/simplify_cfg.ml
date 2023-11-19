@@ -433,10 +433,11 @@ module Two_case_switch = struct
           let b = Blk.append_insn b cmp in
           Some (Blk.with_ctrl b @@ `br (c, (k :> dst), (d :> dst)))
         | _ -> !!None) >>| Seq.to_list in
-    Func.update_blks fn bs
+    Func.update_blks_exn fn bs
 end
 
 let try_ f = try f () with
+  | Invalid_argument msg
   | Failure msg -> Context.failf "In Simplify_cfg: %s" msg ()
 
 let run fn =

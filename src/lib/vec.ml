@@ -93,7 +93,8 @@ let set_exn t i x =
   if i >= 0 && i < t.length then unsafe_set t i x
   else invalid_argf "set_exn: index %d out of bounds [0,%d)" i t.length ()
 
-let set t i x = Or_error.try_with @@ fun () -> set_exn t i x
+let set t i x = try Ok (set_exn t i x) with
+  | Invalid_argument msg -> Or_error.error_string msg
 
 let fold_until =
   let open Container.Continue_or_stop in

@@ -260,9 +260,14 @@ module Layout = struct
 end
 
 let layout_exn = Layout.create
-let layout g c = Or_error.try_with @@ fun () -> layout_exn g c
+
+let layout g c = try Ok (layout_exn g c) with
+  | Invalid_argument msg -> Or_error.error_string msg
+
 let layouts_of_types_exn = Layout.of_types
-let layouts_of_types ts = Or_error.try_with @@ fun () -> layouts_of_types_exn ts
+
+let layouts_of_types ts = try Ok (layouts_of_types_exn ts) with
+  | Invalid_argument msg -> Or_error.error_string msg
 
 let pp_compound ppf : compound -> unit = function
   | `compound (_, align, fields) ->

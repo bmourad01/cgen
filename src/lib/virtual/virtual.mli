@@ -995,15 +995,25 @@ module Func : sig
   (** Same as [remove_blk_exn], but returns an error upon failure. *)
   val remove_blk : t -> Label.t -> t Or_error.t
 
+  (** Same as [remove_blk_exn], but removes multiple blocks.
+
+      @raise Invalid_argument if one of the labels is the entry block.
+  *)
+  val remove_blks_exn : t -> Label.t list -> t
+
+  (** Same as [remove_blks_exn], but returns an error if one of the labels
+      is the entry block. *)
+  val remove_blks : t -> Label.t list -> t Or_error.t
+
   (** [prepend_arg ?before fn x t] adds the argument [x] of type [t] to [fn].
       If [before = Some y], then [x] is added to the left of [y]. Otherwise,
       [x] is added as the new first argument. *)
-  val prepend_arg : ?before:Var.t -> t -> Var.t -> Type.arg -> t
+  val prepend_arg : ?before:Var.t option -> t -> Var.t -> Type.arg -> t
 
   (** [append_arg ?after fn x t] adds the argument [x] of type [t] to [fn].
       If [after = Some y], then [x] is added to the right of [y]. Otherwise,
       [x] is added as the new final argument. *)
-  val append_arg : ?after:Var.t -> t -> Var.t -> Type.arg -> t
+  val append_arg : ?after:Var.t option -> t -> Var.t -> Type.arg -> t
 
   (** [remove_arg fn x] removes the argument [x] from [fn], if it exists. *)
   val remove_arg : t -> Var.t -> t
@@ -1021,7 +1031,7 @@ module Func : sig
   (** Returns the previous block (before the given label) if it exists. *)
   val prev_blk : t -> Label.t -> blk option
 
-  (** [update_blk fn b] returns [fn] with block [b] updated, if it exists. *)
+  (** [update_blk_exn fn b] returns [fn] with block [b] updated, if it exists. *)
   val update_blk : t -> blk -> t
 
   (** Same as [update_blk], but for a list of blocks for updating in batches,
@@ -1029,7 +1039,11 @@ module Func : sig
 
       @raise Invalid_argument if the list of blocks contains duplicate labels.
   *)
-  val update_blks : t -> blk list -> t
+  val update_blks_exn : t -> blk list -> t
+
+  (** Same as [update_blks_exn], but returns an error if there is a duplicate
+      block label. *)
+  val update_blks : t -> blk list -> t Or_error.t
 
   include Regular.S with type t := t
 end

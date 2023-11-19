@@ -8,25 +8,33 @@ module Table = struct
     typ : Type.imm;
   } [@@deriving bin_io, compare, equal, sexp]
 
-  let create_exn l t = try {
-    tbl = Map.of_alist_exn (module Bv) l;
-    typ = t;
-  } with exn -> invalid_argf "%s" (Exn.to_string exn) ()
+  let create_exn l t = match Map.of_alist (module Bv) l with
+    | `Ok tbl -> {tbl; typ = t}
+    | `Duplicate_key v ->
+      invalid_argf
+        "Cannot create switch table with duplicate index: %s_%s"
+        (Bv.to_string v) (Format.asprintf "%a" Type.pp_imm t) ()
 
-  let create l t = Or_error.try_with @@ fun () -> create_exn l t
+  let create l t = try Ok (create_exn l t) with
+    | Invalid_argument msg -> Or_error.error_string msg
+
   let enum t = Map.to_sequence t.tbl
   let length t = Map.length t.tbl
   let find t v = Map.find t.tbl v
   let typ t = t.typ
 
-  let map_exn t ~f = try
-      Map.to_sequence t.tbl |>
-      Seq.map ~f:(fun (v, l) -> f v l) |>
-      Map.of_sequence_exn (module Bv) |>
-      fun tbl -> {t with tbl}
-    with exn -> invalid_argf "%s" (Exn.to_string exn) ()
+  let map_exn t ~f =
+    Map.to_sequence t.tbl |>
+    Seq.map ~f:(fun (v, l) -> f v l) |>
+    Map.of_sequence (module Bv) |> function
+    | `Ok tbl -> {t with tbl}
+    | `Duplicate_key v ->
+      invalid_argf
+        "Cannot map switch table with duplicate index: %s_%s"
+        (Bv.to_string v) (Format.asprintf "%a" Type.pp_imm t.typ) ()
 
-  let map t ~f = Or_error.try_with @@ fun () -> map_exn t ~f
+  let map t ~f = try Ok (map_exn t ~f) with
+    | Invalid_argument msg -> Or_error.error_string msg
 
   let free_vars t =
     Map.fold t.tbl ~init:Var.Set.empty ~f:(fun ~key:_ ~data s ->

@@ -21,8 +21,8 @@ module Slot = struct
         Var.pps x align ();
     {var = x; size; align}
 
-  let create x ~size ~align =
-    Or_error.try_with @@ fun () -> create_exn x ~size ~align
+  let create x ~size ~align = try Ok (create_exn x ~size ~align) with
+    | Invalid_argument msg -> Or_error.error_string msg
 
   let var t = t.var
   let size t = t.size
@@ -93,9 +93,8 @@ let create
     ~name
     ~blks
     ~args
-    () =
-  Or_error.try_with @@
-  create_exn ~name ~blks ~args ~slots ~dict
+    () = try Ok (create_exn () ~name ~blks ~args ~slots ~dict) with
+  | Invalid_argument msg -> Or_error.error_string msg
 
 let name fn = fn.name
 let slots ?(rev = false) fn = Ftree.enum fn.slots ~rev
@@ -154,6 +153,17 @@ let remove_blk_exn fn l =
   then invalid_argf "Cannot remove entry block of function $%s" fn.name ()
   else {fn with blks = Ftree.remove_if fn.blks ~f:(Fn.flip Blk.has_label l)}
 
+let remove_blks_exn fn = function
+  | [] -> fn
+  | [l] -> remove_blk_exn fn l
+  | ls ->
+    let s = Label.Set.of_list ls in
+    if Set.mem s @@ entry fn then
+      invalid_argf "Cannot remove entry block of function $%s" fn.name ()
+    else
+      let f = Fn.non @@ Fn.compose (Set.mem s) Blk.label in
+      {fn with blks = Ftree.filter fn.blks ~f}
+
 let remove_slot fn x = {
   fn with slots = Ftree.remove_if fn.slots ~f:(Fn.flip Slot.is_var x);
 }  
@@ -170,7 +180,12 @@ let append_arg ?after fn x t = {
 
 let remove_arg fn x = {fn with args = Ftree.remove fn.args x is_arg}
 
-let remove_blk fn l = Or_error.try_with @@ fun () -> remove_blk_exn fn l
+let remove_blk fn l = try Ok (remove_blk_exn fn l) with
+  | Invalid_argument msg -> Or_error.error_string msg
+
+let remove_blks fn ls = try Ok (remove_blks_exn fn ls) with
+  | Invalid_argument msg -> Or_error.error_string msg
+
 let has_blk fn l = Ftree.exists fn.blks ~f:(Fn.flip Blk.has_label l)
 let find_blk fn l = Ftree.find fn.blks ~f:(Fn.flip Blk.has_label l)
 let next_blk fn l = Ftree.next fn.blks ~f:(Fn.flip Blk.has_label l)
@@ -181,7 +196,7 @@ let update_blk fn b =
     fn with blks = Ftree.update_if fn.blks b ~f:(Fn.flip Blk.has_label l);
   }
 
-let update_blks fn = function
+let update_blks_exn fn = function
   | [] -> fn
   | bs ->
     let m = List.fold bs ~init:Label.Tree.empty ~f:(fun m b ->
@@ -192,6 +207,9 @@ let update_blks fn = function
       fn with blks = Ftree.map fn.blks ~f:(fun b ->
         Blk.label b |> Label.Tree.find m |> Option.value ~default:b);
     }
+
+let update_blks fn bs = try Ok (update_blks_exn fn bs) with
+  | Invalid_argument msg -> Or_error.error_string msg
 
 let pp_arg ppf (v, t) = Format.fprintf ppf "%a %a" Type.pp_arg t Var.pp v
 
