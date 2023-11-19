@@ -150,8 +150,9 @@ and search ~d t n id =
   (* Apply the action `a` to the substitution produced by `f`. *)
   let apply full a subsume ~f =
     (* The running time can get seriously out of hand if we're
-       matching over a large expression, so we cap the number
-       of matches that will be considered. *)
+       matching over an expression with a long chain of union
+       nodes. To mitigate this, we cap the number of matches
+       that will be considered. *)
     if !matches >= t.match_limit
     then full.return ()
     else try
