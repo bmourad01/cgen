@@ -9,6 +9,27 @@ type 'a ftree = 'a Ftree.t [@@deriving bin_io, sexp]
 let compare_ftree compare t1 t2 = Ftree.compare t1 t2 ~compare
 let equal_ftree equal t1 t2 = Ftree.equal t1 t2 ~equal
 
+module Ftree = struct
+  include Ftree
+
+  let index_of xs f i =
+    Ftree.findi xs ~f:(fun _ x -> f x i) |> Option.map ~f:fst
+
+  let prepend ?(before = None) xs x f = match before with
+    | None -> Ftree.cons xs x
+    | Some i -> index_of xs f i |> function
+      | Some i -> Ftree.insert xs x i
+      | None -> xs
+
+  let append ?(after = None) xs x f = match after with
+    | None -> Ftree.snoc xs x
+    | Some i -> index_of xs f i |> function
+      | Some i -> Ftree.insert xs x (i + 1)
+      | None -> xs
+
+  let remove xs i f = Ftree.remove_if xs ~f:(Fn.flip f i)
+end
+
 type const = [
   | `bool   of bool
   | `int    of Bv.t * Type.imm

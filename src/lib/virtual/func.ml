@@ -158,6 +158,18 @@ let remove_slot fn x = {
   fn with slots = Ftree.remove_if fn.slots ~f:(Fn.flip Slot.is_var x);
 }  
 
+let is_arg (x, _) y = Var.(x = y)
+
+let prepend_arg ?before fn x t = {
+  fn with args = Ftree.prepend ?before fn.args (x, t) is_arg;
+}
+
+let append_arg ?after fn x t = {
+  fn with args = Ftree.append ?after fn.args (x, t) is_arg;
+}
+
+let remove_arg fn x = {fn with args = Ftree.remove fn.args x is_arg}
+
 let remove_blk fn l = Or_error.try_with @@ fun () -> remove_blk_exn fn l
 let has_blk fn l = Ftree.exists fn.blks ~f:(Fn.flip Blk.has_label l)
 let find_blk fn l = Ftree.find fn.blks ~f:(Fn.flip Blk.has_label l)

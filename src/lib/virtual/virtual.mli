@@ -995,6 +995,19 @@ module Func : sig
   (** Same as [remove_blk_exn], but returns an error upon failure. *)
   val remove_blk : t -> Label.t -> t Or_error.t
 
+  (** [prepend_arg ?before fn x t] adds the argument [x] of type [t] to [fn].
+      If [before = Some y], then [x] is added to the left of [y]. Otherwise,
+      [x] is added as the new first argument. *)
+  val prepend_arg : ?before:Var.t -> t -> Var.t -> Type.arg -> t
+
+  (** [append_arg ?after fn x t] adds the argument [x] of type [t] to [fn].
+      If [after = Some y], then [x] is added to the right of [y]. Otherwise,
+      [x] is added as the new final argument. *)
+  val append_arg : ?after:Var.t -> t -> Var.t -> Type.arg -> t
+
+  (** [remove_arg fn x] removes the argument [x] from [fn], if it exists. *)
+  val remove_arg : t -> Var.t -> t
+
   (** Returns [true] if the function has a block associated with the given
       label. *)
   val has_blk : t -> Label.t -> bool

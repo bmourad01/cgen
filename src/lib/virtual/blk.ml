@@ -72,44 +72,28 @@ let map_ctrl b ~f = {
   b with ctrl = f b.ctrl;
 }
 
-let index_of xs f i =
-  Ftree.findi xs ~f:(fun _ x -> f x i) |> Option.map ~f:fst
-
-let prepend ?(before = None) xs x f = match before with
-  | None -> Ftree.cons xs x
-  | Some i -> index_of xs f i |> function
-    | Some i -> Ftree.insert xs x i
-    | None -> xs
-
-let append ?(after = None) xs x f = match after with
-  | None -> Ftree.snoc xs x
-  | Some i -> index_of xs f i |> function
-    | Some i -> Ftree.insert xs x (i + 1)
-    | None -> xs
-
-let prepend_arg ?(before = None) b a = {
-  b with args = prepend b.args a Var.equal ~before;
+let prepend_arg ?before b a = {
+  b with args = Ftree.prepend ?before b.args a Var.equal;
 }
 
-let append_arg ?(after = None) b a = {
-  b with args = append b.args a Var.equal ~after;
+let append_arg ?after b a = {
+  b with args = Ftree.append ?after b.args a Var.equal;
 }
 
-let prepend_insn ?(before = None) b d = {
-  b with insns = prepend b.insns d Insn.has_label ~before;
+let prepend_insn ?before b d = {
+  b with insns = Ftree.prepend ?before b.insns d Insn.has_label;
 }
 
-let append_insn ?(after = None) b d = {
-  b with insns = append b.insns d Insn.has_label ~after;
+let append_insn ?after b d = {
+  b with insns = Ftree.append ?after b.insns d Insn.has_label;
 }
 
 let with_ctrl b c = {
   b with ctrl = c;
 }
 
-let remove xs i f = Ftree.remove_if xs ~f:(Fn.flip f i)
-let remove_arg b x = {b with args = remove b.args x Var.equal}
-let remove_insn b l = {b with insns = remove b.insns l Insn.has_label}
+let remove_arg b x = {b with args = Ftree.remove b.args x Var.equal}
+let remove_insn b l = {b with insns = Ftree.remove b.insns l Insn.has_label}
 
 let has_arg b x = Ftree.exists b.args ~f:(Var.equal x)
 let has_lhs b x = Ftree.exists b.insns ~f:(fun i -> Insn.(has_lhs i) x)
