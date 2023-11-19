@@ -133,9 +133,7 @@ and search ~d t n id =
       | None -> raise_notrace Mismatch
       | Some i -> i.Subst.id in
   (* Update the final ID. *)
-  let update full subsume oid =
-    incr matches;
-    match !id = oid with
+  let update full subsume oid = match !id = oid with
     | false when subsume || Enode.is_const (node t oid) ->
       (* We've transformed to a constant, or an otherwise optimal
          term, so we can end the search here. Note that we don't
@@ -143,9 +141,12 @@ and search ~d t n id =
          equivalence via union-find. All future rewrites w.r.t
          this e-class will refer only to this new term. *)
       Uf.union t.classes oid !id;
+      incr matches;
       id := oid;
       full.return ()
-    | false -> id := union t !id oid
+    | false ->
+      incr matches;
+      id := union t !id oid
     | true -> () in
   (* Apply the action `a` to the substitution produced by `f`. *)
   let apply full a subsume ~f =
