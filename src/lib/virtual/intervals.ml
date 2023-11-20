@@ -38,12 +38,12 @@ let find_var = Map.find
 let enum_state s = Map.to_sequence s
 
 type ctx = {
-  insns  : state Label.Table.t;
-  narrow : state Label.Table.t;
-  cond   : state Var.Table.t;
-  blks   : Blk.t Label.Tree.t;
-  word   : Type.imm_base;
-  typeof : Var.t -> Type.t;
+  insns  : state Label.Table.t; (* Out states for each instruction. *)
+  narrow : state Label.Table.t; (* Incoming state constraints for each block. *)
+  cond   : state Var.Table.t;   (* State implied by each condition variable. *)
+  blks   : Blk.t Label.Tree.t;  (* Labels to blocks. *)
+  word   : Type.imm_base;       (* Word size. *)
+  typeof : Var.t -> Type.t;     (* Typing of variables. *)
 }
 
 let create_ctx ~blks ~word ~typeof = {
