@@ -42,7 +42,9 @@ module Var = struct
     let* s = M.get () in
     let id = s.nextvar in
     let+ () = M.put {s with nextvar = Int63.succ id} in
-    Var.temp (Obj.magic id : Var.id)
+    let x = Var_internal.temp id in
+    (* XXX: this is ugly, but works *)
+    (Obj.magic x : var)
 end
 
 type label = Label.t

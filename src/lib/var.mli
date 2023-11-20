@@ -2,10 +2,6 @@
 
 open Regular.Std
 
-(** An identifier for temporary variables. This is for internal
-    use only and should not be directly constructed by a user. *)
-type id
-
 (** A program variable. *)
 type t
 
@@ -38,12 +34,5 @@ val same : t -> t -> bool
 (** [create name ?index] creates a named variable, with an optional
     [index] (by default, it is [0]). *)
 val create : ?index:int -> string -> t
-
-(** Creates a temporary variable.
-
-    This is not meant to be called by a user, and is for internal use
-    only. For generating fresh temporaries, use [Context.Var.fresh].
-*)
-val temp : ?index:int -> id -> t
 
 include Regular.S with type t := t

@@ -1,16 +1,7 @@
 open Core
 open Regular.Std
 
-type id = Int63.t [@@deriving bin_io, compare, equal, hash, sexp]
-
-module T = struct
-  type t =
-    | Temp of id * int
-    | Name of string * int
-  [@@deriving bin_io, compare, equal, hash, sexp]
-end
-
-include T
+include Var_internal
 
 let is_temp x = match x with
   | Temp _ -> true
@@ -48,7 +39,6 @@ let mangle = function
   | s -> "_" ^ s
 
 let create ?(index = 0) name = Name (mangle name, index)
-let temp ?(index = 0) id = Temp (id, index)
 
 let pp ppf x = match x with
   | Temp (id, 0) -> Format.fprintf ppf "%%%a" Int63.pp id
@@ -57,7 +47,7 @@ let pp ppf x = match x with
   | Name (n, index) -> Format.fprintf ppf "%%%s.%u" n index
 
 include Regular.Make(struct
-    include T
+    include Var_internal
     let pp = pp
     let version = "0.1"
     let hash = hash
