@@ -4,7 +4,6 @@ open Common
 
 module O = Monad.Option
 
-open O.Let
 open O.Syntax
 
 (* Canonicalize the node according to union-find. *)
