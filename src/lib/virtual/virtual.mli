@@ -1006,13 +1006,23 @@ module Func : sig
   val remove_blks : t -> Label.t list -> t Or_error.t
 
   (** [prepend_arg ?before fn x t] adds the argument [x] of type [t] to [fn].
-      If [before = Some y], then [x] is added to the left of [y]. Otherwise,
-      [x] is added as the new first argument. *)
+
+      If [before] is [None], then [x] is inserted at the beginning of the
+      argument list.
+
+      If [before] is [Some y], then [x] will appear directly before the
+      argument [y]. If [y] doesn't exist, then [x] is not inserted.
+  *)
   val prepend_arg : ?before:Var.t option -> t -> Var.t -> Type.arg -> t
 
   (** [append_arg ?after fn x t] adds the argument [x] of type [t] to [fn].
-      If [after = Some y], then [x] is added to the right of [y]. Otherwise,
-      [x] is added as the new final argument. *)
+
+      If [after] is [None], then [x] is inserted at the end of the
+      argument list.
+
+      If [after] is [Some y], then [x] will appear directly after the
+      argument [y]. If [y] doesn't exist, then [x] is not inserted.
+  *)
   val append_arg : ?after:Var.t option -> t -> Var.t -> Type.arg -> t
 
   (** [remove_arg fn x] removes the argument [x] from [fn], if it exists. *)
