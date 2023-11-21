@@ -91,6 +91,7 @@ type t = {
   input       : Input.t;                (* Analyses about the function. *)
   classes     : Uf.t;                   (* The union-find for all e-classes. *)
   node        : enode Vec.t;            (* All e-nodes, indexed by ID. *)
+  typs        : Type.t Uopt.t Vec.t;    (* The type of each node. *)
   memo        : (enode, id) Hashtbl.t;  (* The hash-cons for optimized terms. *)
   lmoved      : Id.Set.t Label.Table.t; (* Set of IDs that were moved to a given label. *)
   imoved      : Label.Set.t Id.Table.t; (* Set of labels that were moved for a given ID. *)
@@ -98,7 +99,6 @@ type t = {
   licm        : Id.Hash_set.t;          (* IDs that were moved via LICM. *)
   id2lbl      : Label.t Id.Table.t;     (* Maps unmoved IDs to labels. *)
   lbl2id      : id Label.Table.t;       (* Maps labels to IDs. *)
-  typs        : Type.t Id.Table.t;      (* Maps IDs to types. *)
   depth_limit : int;                    (* Maximum rewrite depth. *)
   match_limit : int;                    (* Maximum rewrites per term. *)
   rules       : rules;                  (* The table of rewrite rules. *)
@@ -123,7 +123,7 @@ let find t id = Uf.find t.classes id
 let node t id = Vec.get_exn t.node id
 let dominates t = Tree.is_descendant_of t.input.cdom
 let const t id = Enode.const ~node:(node t) @@ node t id
-let typeof t id = Hashtbl.find t.typs id
+let typeof t id = Vec.get_exn t.typs id |> Uopt.to_option
 
 let typeof_var t x =
   Typecheck.Env.typeof_var t.input.fn x t.input.tenv |> Or_error.ok
@@ -139,6 +139,3 @@ let wordsz t =
   Type.sizeof_imm_base @@
   Target.word @@
   Typecheck.Env.target t.input.tenv
-
-let setty ?ty t id = Option.iter ty ~f:(fun ty ->
-    Hashtbl.set t.typs ~key:id ~data:ty)

@@ -20,6 +20,7 @@
    bitvec-sexp
    core
    core_kernel.pairing_heap
+   core_kernel.uopt
    graphlib
    monads
    regular

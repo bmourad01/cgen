@@ -21,15 +21,27 @@ let canon t : enode -> enode = function
 *)
 let commute t n = Enode.commute n >>= Hashtbl.find t.memo
 
-let new_node t n =
+let new_node ?ty t n =
   let id = Uf.fresh t.classes in
   Vec.push t.node n;
+  Vec.push t.typs @@ Uopt.of_option ty;
   assert (id = Vec.length t.node - 1);
+  assert (id = Vec.length t.typs - 1);
   id
 
+exception Type_error of Type.t option * Type.t option
+
+(* Ensure that the term for `id` has type `ty`. *)
+let check_union_type ?ty t id = match ty, typeof t id with
+  | Some a, Some b when Type.(a = b) -> ()
+  | Some _, (Some _ as ty') -> raise @@ Type_error (ty, ty')
+  | None, (Some _ as ty) -> raise @@ Type_error (None, ty)
+  | Some _, None -> raise @@ Type_error (ty, None)
+  | None, None -> ()
+
 (* Represent the union of two e-classes with a "union" node. *)
-let union t id oid =
-  let u = new_node t @@ U {pre = id; post = oid} in
+let union ?ty t id oid =
+  let u = new_node ?ty t @@ U {pre = id; post = oid} in
   Uf.union t.classes id oid;
   Uf.union t.classes id u;
   Prov.merge t id oid;
@@ -48,7 +60,7 @@ let subst_info t id : Subst.info = {
 }
 
 let infer_ty t n = Enode.infer_ty n
-    ~tid:(Hashtbl.find t.typs)
+    ~tid:(typeof t)
     ~tty:(typeof_typ t)
     ~tvar:(typeof_var t)
     ~word:(word t)
@@ -62,29 +74,34 @@ let rec insert ?ty ?l ~d t n =
     ~if_not_found:(fun k -> match commute t k with
         | Some id -> duplicate ?l t id
         | None ->
-          let id = new_node t n in
           let ty = match ty with
             | None -> infer_ty t n
             | Some _ -> ty in
-          setty ?ty t id;
+          let id = new_node ?ty t n in
           Option.iter l ~f:(fun l -> Prov.add t l id n);
-          let oid = optimize ~d t n id in
+          let oid = optimize ?ty ~d t n id in
           Hashtbl.set t.memo ~key:k ~data:oid;
           oid)
 
 (* If the term normalizes to a constant then we don't need to waste
    time searching for matches. *)
-and optimize ~d t n id = match Enode.eval ~node:(node t) n with
-  | None when d > 0 -> search ~d:(d - 1) t n id
+and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
+  | None when d > 0 -> search ?ty ~d:(d - 1) t n id
   | None -> id
   | Some c ->
     let k = Enode.of_const c in
-    let oid = Hashtbl.find_or_add t.memo k
-        ~default:(fun () -> new_node t k) in
+    let oid = match Hashtbl.find t.memo k with
+      | None ->
+        let oid = new_node ?ty t k in
+        Hashtbl.set t.memo ~key:k ~data:oid;
+        oid
+      | Some oid ->
+        check_union_type ?ty t oid;
+        oid in
     Uf.union t.classes oid id;
     oid
 
-and search ~d t n id =
+and search ?ty ~d t n id =
   let exception Mismatch in
   (* Pending unioned nodes. *)
   let pending = Stack.create () in
@@ -132,7 +149,9 @@ and search ~d t n id =
       | None -> raise_notrace Mismatch
       | Some i -> i.Subst.id in
   (* Update the final ID. *)
-  let update full subsume oid = match !id = oid with
+  let update full subsume oid =
+    check_union_type ?ty t oid;
+    match !id = oid with
     | false when subsume || Enode.is_const (node t oid) ->
       (* We've transformed to a constant, or an otherwise optimal
          term, so we can end the search here. Note that we don't
@@ -145,7 +164,7 @@ and search ~d t n id =
       full.return ()
     | false ->
       incr matches;
-      id := union t !id oid
+      id := union ?ty t !id oid
     | true -> () in
   (* Apply the action `a` to the substitution produced by `f`. *)
   let apply full a subsume ~f =

@@ -13,13 +13,13 @@ let init input depth_limit match_limit rules = {
   classes = Uf.create ();
   memo = Hashtbl.create (module Enode);
   node = Vec.create ();
+  typs = Vec.create ();
   lmoved = Label.Table.create ();
   imoved = Id.Table.create ();
   imoved2 = Id.Table.create ();
   licm = Id.Hash_set.create ();
   id2lbl = Id.Table.create ();
   lbl2id = Label.Table.create ();
-  typs = Id.Table.create ();
   depth_limit;
   match_limit;
   rules;
