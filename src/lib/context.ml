@@ -60,9 +60,48 @@ module Label = struct
 end
 
 module Virtual = struct
-  let insn ?(dict = Dict.empty) d =
+  let insn ?(dict = Dict.empty) op =
     let+ label = Label.fresh in
-    Virtual.Insn.create d ~label ~dict
+    Virtual.Insn.create op ~label ~dict
+
+  let binop ?(dict = Dict.empty) b l r =
+    let* var = Var.fresh in
+    let+ i = insn (`bop (var, b, l, r)) ~dict in
+    var, i
+
+  let unop ?(dict = Dict.empty) u a =
+    let* var = Var.fresh in
+    let+ i = insn (`uop (var, u, a)) ~dict in
+    var, i
+
+  let sel ?(dict = Dict.empty) t c y n =
+    let* var = Var.fresh in
+    let+ i = insn (`sel (var, t, c, y, n)) ~dict in
+    var, i
+
+  let call0 ?(dict = Dict.empty) f args vargs =
+    insn (`call (None, f, args, vargs)) ~dict
+
+  let call ?(dict = Dict.empty) t f args vargs =
+    let* var = Var.fresh in
+    let+ i = insn (`call (Some (var, t), f, args, vargs)) ~dict in
+    var, i
+
+  let load ?(dict = Dict.empty) t a =
+    let* var = Var.fresh in
+    let+ i = insn (`load (var, t, a)) ~dict in
+    var, i
+
+  let store ?(dict = Dict.empty) t v a =
+    insn (`store (t, v, a)) ~dict
+
+  let vaarg ?(dict = Dict.empty) t a =
+    let* var = Var.fresh in
+    let+ i = insn (`vaarg (var, t, a)) ~dict in
+    var, i
+
+  let vastart ?(dict = Dict.empty) a =
+    insn (`vastart a) ~dict
 
   let blk ?(dict = Dict.empty) ?(args = []) ?(insns = []) ~ctrl () =
     let+ label = Label.fresh in

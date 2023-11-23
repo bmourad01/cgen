@@ -55,6 +55,85 @@ module Virtual : sig
   (** [insn d ?dict] returns a data instruction [d] with a fresh label. *)
   val insn : ?dict:Dict.t -> Virtual.Insn.op -> Virtual.insn t
 
+  (** [binop b l r ?dict] constructs a [`bop] instruction with a fresh
+      label and variable containing the destination. *)
+  val binop :
+    ?dict:Dict.t ->
+    Virtual.Insn.binop ->
+    Virtual.operand ->
+    Virtual.operand ->
+    (var * Virtual.insn) t
+
+  (** [unop o a ?dict] constructs a [`uop] instruction with a fresh label
+      and variable containing the destination. *)
+  val unop :
+    ?dict:Dict.t ->
+    Virtual.Insn.unop ->
+    Virtual.operand ->
+    (var * Virtual.insn) t 
+
+  (** [sel t c y n ?dict] constructs a [`sel] instruction with a fresh
+      label and variable containing the destination. *)
+  val sel :
+    ?dict:Dict.t ->
+    Type.basic ->
+    var ->
+    Virtual.operand ->
+    Virtual.operand ->
+    (var * Virtual.insn) t
+
+  (** [call0 f args vargs ?dict] constructs a void [`call] instruction
+      with
+      a fresh label and variable containing the destination. *)
+  val call0 :
+    ?dict:Dict.t ->
+    Virtual.global ->
+    Virtual.operand list ->
+    Virtual.operand list ->
+    Virtual.insn t
+
+  (** [call t f args vargs ?dict] constructs a [`call] instruction with a
+      fresh label and variable containing the destination. *)
+  val call :
+    ?dict:Dict.t ->
+    Type.arg ->
+    Virtual.global ->
+    Virtual.operand list ->
+    Virtual.operand list ->
+    (var * Virtual.insn) t 
+
+  (** [load t a ?dict] constructs a [`load] instruction with a fresh label
+      and variable containing the destination. *)
+  val load :
+    ?dict:Dict.t ->
+    Type.basic ->
+    Virtual.operand ->
+    (var * Virtual.insn) t 
+
+  (** [store t v a ?dict] constructs a [`store] instruction with a fresh label
+      and variable containing the destination. *)
+  val store :
+    ?dict:Dict.t ->
+    Type.basic ->
+    Virtual.operand ->
+    Virtual.operand ->
+    Virtual.insn t 
+
+  (** [vaarg t a ?dict] constructs a [`vaarg] instruction with a fresh label
+      and variable containing the destination. *)
+  val vaarg :
+    ?dict:Dict.t ->
+    Type.arg ->
+    Virtual.Insn.alist ->
+    (var * Virtual.insn) t 
+
+  (** [vastart a ?dict] constructs a [`vastart] instruction with a fresh
+      label and variable containing the destination. *)
+  val vastart :
+    ?dict:Dict.t ->
+    Virtual.Insn.alist ->
+    Virtual.insn t 
+
   (** [blk ?dict ?args ?insns ~ctrl ()] returns a block with [dict],
       [args], [insns], and [ctrl], while generating a fresh label for
       the block. *)
