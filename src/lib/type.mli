@@ -189,18 +189,6 @@ val pp_compound : Format.formatter -> compound -> unit
 (** Pretty-prints a compound type as a declaration. *)
 val pp_compound_decl : Format.formatter -> compound -> unit
 
-(** Special types that are not meant to be user-defined.
-
-    [`flag] is the type of a condition flag. It is used for
-    typing comparisons and conditional jumps.
-*)
-type special = [
-  | `flag
-] [@@deriving bin_io, compare, equal, hash, sexp]
-
-(** Pretty-prints a special type. *)
-val pp_special : Format.formatter -> special -> unit
-
 (** A type that is allowed to be used as a function argument.
 
     Note that return types also fall into this category.
@@ -222,11 +210,14 @@ type proto = [
 (** Pretty prints a function prototype. *)
 val pp_proto : Format.formatter -> proto -> unit
 
-(** A type. *)
+(** A type.
+
+    [`flag] is the type of a boolean value.
+*)
 type t = [
   | basic
   | compound
-  | special
+  | `flag
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 include Regular.S with type t := t

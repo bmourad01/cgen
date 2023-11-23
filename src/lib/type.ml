@@ -295,13 +295,6 @@ let layouts_of_types_exn = Layout.of_types
 let layouts_of_types ts = try Ok (layouts_of_types_exn ts) with
   | Invalid_argument msg -> Or_error.error_string msg
 
-type special = [
-  | `flag
-] [@@deriving bin_io, compare, equal, hash, sexp]
-
-let pp_special ppf : special -> unit = function
-  | `flag -> Format.fprintf ppf "f"
-
 type arg = [
   | basic
   | `name of string
@@ -330,7 +323,7 @@ module T = struct
   type t = [
     | basic
     | compound
-    | special
+    | `flag
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 end
 
@@ -339,7 +332,7 @@ include T
 let pp ppf : t -> unit = function
   | #basic    as b -> Format.fprintf ppf "%a" pp_basic b
   | #compound as c -> Format.fprintf ppf "%a" pp_compound c
-  | #special  as s -> Format.fprintf ppf "%a" pp_special s
+  | `flag          -> Format.fprintf ppf "flag"
 
 include Regular.Make(struct
     include T
