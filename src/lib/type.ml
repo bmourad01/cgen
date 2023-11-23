@@ -84,6 +84,31 @@ let compound_align : compound -> int option = function
   | `compound (_, a, _) -> a
   | `opaque (_, a, _) -> Some a
 
+let pp_compound ppf : compound -> unit = function
+  | `compound (_, align, fields) ->
+    let pp_sep ppf () = Format.fprintf ppf ",@;" in
+    Option.iter align ~f:(Format.fprintf ppf "align %d ");
+    if List.is_empty fields then
+      Format.fprintf ppf "{}"
+    else
+      Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
+        (Format.pp_print_list ~pp_sep pp_field) fields
+  | `opaque (_, align, n) ->
+    Format.fprintf ppf "align %d {%d}" align n
+
+let pp_compound_decl ppf : compound -> unit = function
+  | `compound (name, align, fields) ->
+    let pp_sep ppf () = Format.fprintf ppf ",@;" in
+    Format.fprintf ppf "type :%s = " name;
+    Option.iter align ~f:(Format.fprintf ppf "align %d ");
+    if List.is_empty fields then
+      Format.fprintf ppf "{}"
+    else
+      Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
+        (Format.pp_print_list ~pp_sep pp_field) fields
+  | `opaque (name, align, n) ->
+    Format.fprintf ppf "type :%s = align %d {%d}" name align n
+
 type datum = [
   | basic
   | `pad    of int
@@ -122,8 +147,8 @@ let pp_layout ppf l =
   Format.fprintf ppf "%d(%a)" l.align Data.pp l.data
 
 let sizeof_layout l = Array.fold l.data ~init:0 ~f:(fun sz -> function
-    | #basic as b -> sz + sizeof_basic b
-    | `pad n | `opaque n -> sz + n * 8)
+    | #basic as b -> sz + (sizeof_basic b / 8)
+    | `pad n | `opaque n -> sz + n)
 
 module Layout = struct
   type t = layout
@@ -131,6 +156,7 @@ module Layout = struct
   let sizeof = sizeof_layout
   let align l = l.align
   let data l = Array.to_sequence l.data
+  let is_empty l = Array.is_empty l.data
 
   (* pre: `align` is a positive power of 2 *)
   let padding size align =
@@ -166,7 +192,7 @@ module Layout = struct
     | `opaque (_, align, n) ->
       {align; data = Array.of_list @@ padded [`opaque n] @@ padding n align}
     | `compound (_, Some n, []) -> {align = n; data = [|`pad n|]}
-    | `compound (_, None, []) -> {align = 1; data = [|`pad 1|]}
+    | `compound (_, None, []) -> {align = 0; data = [||]}
     | `compound (name, align, fields) ->
       let data, align, size =
         let init = [], Option.value align ~default:1, 0 in
@@ -188,7 +214,7 @@ module Layout = struct
                 | {align; data} as l ->
                   let data = Array.to_list data in
                   let data = List.init c ~f:(fun _ -> data) |> List.concat in
-                  data, align, (sizeof l / 8) * c in
+                  data, align, sizeof l * c in
             let align = max align falign in
             let pad = padding size align in
             let data = List.rev_append fdata @@ padded data pad in
@@ -268,25 +294,6 @@ let layouts_of_types_exn = Layout.of_types
 
 let layouts_of_types ts = try Ok (layouts_of_types_exn ts) with
   | Invalid_argument msg -> Or_error.error_string msg
-
-let pp_compound ppf : compound -> unit = function
-  | `compound (_, align, fields) ->
-    let pp_sep ppf () = Format.fprintf ppf ",@;" in
-    Option.iter align ~f:(Format.fprintf ppf "align %d ");
-    Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
-      (Format.pp_print_list ~pp_sep pp_field) fields
-  | `opaque (_, align, n) ->
-    Format.fprintf ppf "align %d {%d}" align n
-
-let pp_compound_decl ppf : compound -> unit = function
-  | `compound (name, align, fields) ->
-    let pp_sep ppf () = Format.fprintf ppf ",@;" in
-    Format.fprintf ppf "type :%s = " name;
-    Option.iter align ~f:(Format.fprintf ppf "align %d ");
-    Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
-      (Format.pp_print_list ~pp_sep pp_field) fields
-  | `opaque (name, align, n) ->
-    Format.fprintf ppf "type :%s = align %d {%d}" name align n
 
 type special = [
   | `flag

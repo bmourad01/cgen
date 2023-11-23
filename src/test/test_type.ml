@@ -39,12 +39,12 @@ let test_sizeof_compound (t : Type.compound) ~expected =
   assert_bool layout_msg @@ Type.equal_layout l l_expected;
   let s = Type.sizeof_layout l in
   let size_msg = Format.asprintf
-      "expected size %d in bits for type %a, got %d"
+      "expected size %d in bytes for type %a, got %d"
       expected Type.pp_compound t s in
   assert_bool size_msg (s = expected)
 
-let test_c1 _ = test_sizeof_compound c1 ~expected:160
-let test_c2 _ = test_sizeof_compound c2 ~expected:224
+let test_c1 _ = test_sizeof_compound c1 ~expected:20
+let test_c2 _ = test_sizeof_compound c2 ~expected:28
 
 let suite = "Test types" >::: [
     "Test sizeof compound 1" >:: test_c1;

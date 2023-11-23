@@ -229,7 +229,7 @@ data_elt:
   | Z n = NUM { `zero n }
 
 typ:
-  | TYPE name = TYPENAME EQUALS LBRACE fields = separated_nonempty_list(COMMA, typ_field) RBRACE
+  | TYPE name = TYPENAME EQUALS LBRACE fields = separated_list(COMMA, typ_field) RBRACE
     { `compound (name, None, fields) }
   | TYPE name = TYPENAME EQUALS align = align LBRACE t = typ_fields_or_opaque RBRACE
     {
@@ -243,7 +243,7 @@ align:
 
 typ_fields_or_opaque:
   | n = NUM { `opaque n }
-  | fs = separated_nonempty_list(COMMA, typ_field) { `fields fs }
+  | fs = separated_list(COMMA, typ_field) { `fields fs }
 
 typ_field:
   | b = type_basic n = option(NUM) { `elt (b, Core.Option.value n ~default:1) }

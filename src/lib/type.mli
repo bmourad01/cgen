@@ -120,7 +120,7 @@ val pp_datum : Format.formatter -> datum -> unit
 (** The layout of a compound data type. *)
 type layout [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** Returns the size of the layout in bits. *)
+(** Returns the size of the layout in bytes. *)
 val sizeof_layout : layout -> int
 
 (** Pretty-prints a layout. *)
@@ -129,14 +129,27 @@ val pp_layout : Format.formatter -> layout -> unit
 module Layout : sig
   type t = layout
 
-  (** Returns the size of the layout in bits. *)
+  (** Returns the size of the layout in bytes. *)
   val sizeof : t -> int
 
-  (** Returns the alignment of the data. *)
+  (** Returns the alignment of the data in bytes.
+
+      If the result is [0], then it is implied that the layout
+      contains no data.
+
+      In all other cases, the result is a non-negative power of
+      two.
+  *)
   val align : t -> int
 
   (** Returns the exact structure of the data. *)
   val data : t -> datum seq
+
+  (** Returns [true] if the layout contains no data.
+
+      This implies that the alignment is [0].
+  *)
+  val is_empty : t -> bool
 
   include Regular.S with type t := t
 end
