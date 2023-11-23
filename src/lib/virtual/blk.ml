@@ -88,6 +88,26 @@ let append_insn ?after b d = {
   b with insns = Ftree.append ?after b.insns d Insn.has_label;
 }
 
+let prepend_insns ?(before = None) b = function
+  | [] -> b
+  | ds ->
+    let _, insns =
+      List.fold_right ds ~init:(before, b.insns)
+        ~f:(fun d (before, insns) ->
+            Some (Insn.label d),
+            Ftree.prepend ~before insns d Insn.has_label) in
+    {b with insns}
+
+let append_insns ?(after = None) b = function
+  | [] -> b
+  | ds ->
+    let _, insns =
+      List.fold ds ~init:(after, b.insns)
+        ~f:(fun (after, insns) d ->
+            Some (Insn.label d),
+            Ftree.append ~after insns d Insn.has_label) in
+    {b with insns}
+
 let with_ctrl b c = {
   b with ctrl = c;
 }

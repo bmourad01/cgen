@@ -807,6 +807,20 @@ module Blk : sig
   *)
   val append_insn : ?after:Label.t option -> t -> insn -> t
 
+  (** Similar to [prepend_insn], but for a list of instructions.
+
+      Note that the instructions are prepended to [before] starting
+      with the last instruction.
+  *)
+  val prepend_insns : ?before:Label.t option -> t -> insn list -> t
+
+  (** Similar to [append_insn], but for a list of instructions.
+
+      Note that the instructions are appended to [after] starting
+      with the first instruction.
+  *)
+  val append_insns : ?after:Label.t option -> t -> insn list -> t
+
   (** Replaces the control-flow instruction in the block. *)
   val with_ctrl : t -> ctrl -> t
 
