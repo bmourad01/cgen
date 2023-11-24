@@ -134,6 +134,27 @@ module Virtual : sig
     Virtual.Insn.alist ->
     Virtual.insn t 
 
+  (** [blit ~src ~dst word size] copies [size] bytes from the address
+      in [src] to the address in [dst] in a series of loads and stores,
+      where [word] is the size of a pointer.
+
+      It is assumed that either [src] and [dst] do not overlap, or that
+      they point to the same address (i.e. they overlap perfectly).
+
+      If [size < 0], then the blit is done backwards in memory.
+  *)
+  val blit : src:var -> dst:var -> Type.imm_base -> int -> Virtual.insn list t
+
+  (** [ldm word src size] performs the minimum number of loads from [src]
+      to cover [size] bytes, where [word] is the size of a pointer.
+
+      If [size < 0], then the loads are done backwards in memory.
+
+      It is identical to [blit ~src ~dst:src size], except no stores to
+      [dst] are performed.
+  *)
+  val ldm : Type.imm_base -> var -> int -> Virtual.insn list t
+
   (** [blk ?dict ?args ?insns ~ctrl ()] returns a block with [dict],
       [args], [insns], and [ctrl], while generating a fresh label for
       the block. *)

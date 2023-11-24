@@ -103,6 +103,53 @@ module Virtual = struct
   let vastart ?(dict = Dict.empty) a =
     insn (`vastart a) ~dict
 
+  let blits32 = [
+    `i32, 4;
+    `i16, 2;
+    `i8,  1;
+  ]
+
+  let blits64 = (`i64, 8) :: blits32
+
+  let blit_aux ?(ignore_dst = false) word src dst size =
+    let fwd = size >= 0 in
+    let wi = (word :> Type.imm) in
+    let wb = (word :> Type.basic) in
+    let wordsz = Type.sizeof_imm_base word in
+    let md = Bv.modulus wordsz in
+    let rec aux ty is sz off n = if sz >= n then
+        let off = off - (if fwd then n else 0) in
+        let o = `int (Bv.(int off mod md), wi) in
+        (* Copy from src. *)
+        let* a1, ai1 = binop (`add wb) (`var src) o in
+        let* l, ld = load ty (`var a1) in
+        (* Store to dst. *)
+        let* sts = if not ignore_dst then
+            let* a2, ai2 = binop (`add wb) (`var dst) o in
+            let+ st = store ty (`var l) (`var a2) in
+            [st; ai2]
+          else !![] in
+        (* Accumulate insns in reverse order. *)
+        let is = sts @ (ld :: ai1 :: is) in
+        let off = off + (if fwd then 0 else n) in
+        aux ty is (sz - n) off n
+      else !!(is, sz, off) in
+    let+ blit, _, _ =
+      let sz = Int.abs size in
+      let off = if fwd then sz else 0 in
+      let blits = match word with
+        | `i32 -> blits32
+        | `i64 -> blits64 in
+      M.List.fold blits ~init:([], sz, off)
+        ~f:(fun ((is, sz, off) as acc) (ty, by) ->
+            if sz <= 0 then !!acc
+            else aux ty is sz off by) in
+    List.rev blit
+  [@@specialise]
+
+  let blit ~src ~dst word size = blit_aux word src dst size
+  let ldm word src size = blit_aux word src src size ~ignore_dst:true
+
   let blk ?(dict = Dict.empty) ?(args = []) ?(insns = []) ~ctrl () =
     let+ label = Label.fresh in
     Virtual.Blk.create ~dict ~args ~insns ~ctrl ~label ()

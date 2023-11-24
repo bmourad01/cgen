@@ -68,42 +68,6 @@ let classify_layout lt =
     else Kmem in
   {size; align; cls}
 
-(* Prioritize larger loads. *)
-let blits = [
-  `i64, 8;
-  `i32, 4;
-  `i16, 2;
-  `i8,  1;
-]
-
-let blit_struct ?(store = true) src dst size =
-  let fwd = size >= 0 in
-  let rec aux ty is sz off n = if sz >= n then
-      let off = off - (if fwd then n else 0) in
-      let o = `int (Bv.M64.int off, `i64) in
-      (* Copy from src. *)
-      let* a1, ai1 = Context.Virtual.binop (`add `i64) (`var src) o in
-      let* l, ld = Context.Virtual.load ty (`var a1) in
-      (* Store to dst. *)
-      let* sts = if store then
-          let* a2, ai2 = Context.Virtual.binop (`add `i64) (`var dst) o in
-          let+ st = Context.Virtual.store ty (`var l) (`var a2) in
-          [st; ai2]
-        else !![] in
-      (* Accumulate insns in reverse order. *)
-      let is = sts @ (ld :: ai1 :: is) in
-      let off = off + (if fwd then 0 else n) in
-      aux ty is (sz - n) off n
-    else !!(is, sz, off) in
-  let+ blit, _, _ =
-    let sz = Int.abs size in
-    let off = if fwd then sz else 0 in
-    Context.List.fold blits ~init:([], sz, off)
-      ~f:(fun ((is, sz, off) as acc) (ty, by) ->
-          if sz <= 0 then !!acc
-          else aux ty is sz off by) in
-  List.rev blit
-
 let selret tenv fn = match Func.return fn with
   | None | Some #Type.basic -> !!fn
   | Some `name n ->
@@ -150,7 +114,7 @@ let selret tenv fn = match Func.return fn with
             match Blk.ctrl b with
             | `ret Some `var x ->
               let* src, srci = Context.Virtual.unop `ref (`var x) in
-              let+ blit = blit_struct src dst k.size in
+              let+ blit = Context.Virtual.blit ~src ~dst `i64 k.size in
               let b = Blk.append_insns b (srci :: blit) in
               let b = Blk.with_ctrl b @@ `ret (Some (`var dst)) in
               Some b
@@ -229,8 +193,8 @@ let selcall tenv fn =
                         !![]
                     end
                   | Kmem ->
-                    let+ blit = blit_struct ~store:false src src k.size in
-                    List.iter blit ~f:(fun i ->
+                    let+ ldm = Context.Virtual.ldm `i64 src k.size in
+                    List.iter ldm ~f:(fun i ->
                         newins label i;
                         match Insn.op i with
                         | `load (x, _, _) -> Vec.push mems @@ `var x
