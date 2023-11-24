@@ -4,6 +4,19 @@ open Virtual
 
 open Context.Syntax
 
+let typeof_var tenv fn x =
+  Context.lift_err @@ Typecheck.Env.typeof_var fn x tenv
+
+let word tenv = (Target.word (Typecheck.Env.target tenv) :> Type.t)
+
+let typeof_operand tenv fn : operand -> Type.t Context.t = function
+  | `int (_, t) -> !!(t :> Type.t)
+  | `bool _ -> !!`flag
+  | `float _ -> !!`f32
+  | `double _ -> !!`f64
+  | `sym _ -> !!(word tenv)
+  | `var x -> typeof_var tenv fn x
+
 (* RDI, RSI, RDX, RCX, R8, R9 *)
 let num_int_args = 6
 
@@ -68,6 +81,7 @@ let classify_layout lt =
     else Kmem in
   {size; align; cls}
 
+(* Lower the return instructions. *)
 let selret tenv fn = match Func.return fn with
   | None | Some #Type.basic -> !!fn
   | Some `name n ->
@@ -123,38 +137,41 @@ let selret tenv fn = match Func.return fn with
       Func.update_blks fn @@
       Seq.to_list blks
 
-let typeof_var tenv fn x =
-  Context.lift_err @@ Typecheck.Env.typeof_var fn x tenv
-
-let word tenv = (Target.word (Typecheck.Env.target tenv) :> Type.t)
-
-let typeof_operand tenv fn : operand -> Type.t Context.t = function
-  | `int (_, t) -> !!(t :> Type.t)
-  | `bool _ -> !!`flag
-  | `float _ -> !!`f32
-  | `double _ -> !!`f64
-  | `sym _ -> !!(word tenv)
-  | `var x -> typeof_var tenv fn x
-
+(* Lower the call instructions. *)
 let selcall tenv fn =
+  let slots = Vec.create () in
   let* blks = Func.blks fn |> Context.Seq.map ~f:(fun b ->
-      let ninsns = Label.Table.create () in
-      let newins l i = Hashtbl.add_multi ninsns ~key:l ~data:i in
+      (* Instructions to prepend and append for each call. *)
+      let pinsns = Label.Table.create () in
+      let ainsns = Label.Table.create () in
+      let newpins l i = Hashtbl.add_multi pinsns ~key:l ~data:i in
+      let newains l i = Hashtbl.add_multi ainsns ~key:l ~data:i in
       let+ insns = Blk.insns b |> Context.Seq.map ~f:(fun i ->
           match Insn.op i with
           | `call (ret, f, args, vargs) ->
             let label = Insn.label i in
-            let nint = ref @@ match ret with
-              | Some (_, `name _) -> num_int_args - 1
+            let* kret = match ret with
+              | Some (x, `name n) ->
+                let*? lt = Typecheck.Env.layout n tenv in
+                !!(Some (x, n, classify_layout lt))
+              | Some _ | None -> !!None in
+            (* Keep track of how many GPR and SSE registers are
+               available. *)
+            let nint = ref @@ match kret with
+              | Some (_, _, {cls = Kmem; _}) -> num_int_args - 1
               | _ -> num_int_args in
             let nsse = ref num_sse_args in
+            (* Decrement the corresponding register count and see
+               if we need to pass the argument in memory. *)
             let decreg = function
               | Rint | Rnone when !nint <= 0 -> false
               | Rint | Rnone -> decr nint; true
               | Rsse when !nsse <= 0 -> false
               | Rsse -> decr nsse; true in
             let mems = Vec.create () in
-            let+ args' = Context.List.map (args @ vargs) ~f:(fun a ->
+            (* Organize the arguments as being either in registers
+               or memory. *)
+            let* args' = Context.List.map (args @ vargs) ~f:(fun a ->
                 typeof_operand tenv fn a >>= function
                 | #Type.imm when !nint <= 0 -> Vec.push mems a; !![]
                 | #Type.imm when !nsse <= 0 -> Vec.push mems a; !![]
@@ -166,18 +183,29 @@ let selcall tenv fn =
                   let*? lt = Typecheck.Env.layout name tenv in
                   let k = classify_layout lt in
                   let* src, srci = Context.Virtual.unop `ref a in
-                  newins label srci;
+                  newpins label srci;
                   match k.cls with
+                  | Kreg (r, _) when k.size = 8 ->
+                    (* One register. *)
+                    let* l, li = Context.Virtual.load `i64 (`var src) in
+                    newpins label li;
+                    begin match decreg r with
+                      | true -> !![`var l]
+                      | false ->
+                        Vec.push mems @@ `var l;
+                        !![]
+                    end
                   | Kreg (r1, r2) ->
+                    (* Two registers. *)
                     let ok1 = decreg r1 in
                     let ok2 = decreg r2 in
                     let o = `int (Bv.M64.int 8, `i64) in
                     let* o, oi = Context.Virtual.binop (`add `i64) (`var src) o in
                     let* l1, li1 = Context.Virtual.load `i64 (`var src) in
                     let* l2, li2 = Context.Virtual.load `i64 (`var o) in
-                    newins label oi;
-                    newins label li1;
-                    newins label li2;
+                    newpins label oi;
+                    newpins label li1;
+                    newpins label li2;
                     begin match ok1, ok2 with
                       | true, true ->
                         !![`var l1; `var l2]
@@ -195,24 +223,52 @@ let selcall tenv fn =
                   | Kmem ->
                     let+ ldm = Context.Virtual.ldm `i64 src k.size in
                     List.iter ldm ~f:(fun i ->
-                        newins label i;
+                        newpins label i;
                         match Insn.op i with
                         | `load (x, _, _) -> Vec.push mems @@ `var x
                         | _ -> ());
                     []) in
+            let args' = List.concat args' in
+            (* If we're returning a struct, then insert the implicit
+               first parameter and create a new stack slot for it, if
+               it is returned in memory. *)
+            let+ args', ret = match kret with
+              | None -> !!(args', ret)
+              | Some (x, n, k) -> match k.cls with
+                | Kreg _  ->
+                  (* We need access to specific registers, so we will delay
+                     this step until instruction selection. *)
+                  !!(args', ret)
+                | Kmem ->
+                  let* y = Context.Var.fresh in
+                  let* z = Context.Var.fresh in
+                  let+ l = Context.Label.fresh in
+                  let i = Insn.create ~label:l @@ `uop (x, `unref n, `var z) in
+                  Vec.push slots (y, k.size, k.align);
+                  newains label i;
+                  (`var y :: args'), Some (z, `i64) in
             (* XXX: this is a big hack and leaks our abstraction too much,
                but I'm not sure what else can be done. Maybe it's OK as long
-               as this is well-documented.  *)
-            Insn.with_op i @@ `call (ret, f, List.concat args', Vec.to_list mems)
+               as this is well-documented. *)
+            Insn.with_op i @@ `call (ret, f, args', Vec.to_list mems)
           | _ -> !!i) in
-      let b =
-        Blk.with_insns b @@
-        Seq.to_list insns in
-      Hashtbl.fold ninsns ~init:b ~f:(fun ~key:l ~data:is b ->
-          Blk.prepend_insns ~before:(Some l) b @@ List.rev is)) in
-  Context.lift_err @@
-  Func.update_blks fn @@
-  Seq.to_list blks
+      let b = Blk.with_insns b @@ Seq.to_list insns in
+      (* Insert needed instructions before and after each call. *)
+      let b = Hashtbl.fold pinsns ~init:b ~f:(fun ~key:l ~data:is b ->
+          Blk.prepend_insns ~before:(Some l) b @@ List.rev is) in
+      let b = Hashtbl.fold ainsns ~init:b ~f:(fun ~key:l ~data:is b ->
+          Blk.append_insns ~after:(Some l) b @@ List.rev is) in
+      b) in
+  (* Update the blocks. *)
+  let* fn =
+    Context.lift_err @@
+    Func.update_blks fn @@
+    Seq.to_list blks in
+  (* Insert the new stack slots. *)
+  Vec.to_sequence_mutable slots |>
+  Context.Seq.fold ~init:fn ~f:(fun fn (x, size, align) ->
+      let*? s = Func.Slot.create x ~size ~align in
+      !!(Func.insert_slot fn s))
 
 let run tenv m =
   !!m
