@@ -824,6 +824,9 @@ module Blk : sig
   (** Replaces the control-flow instruction in the block. *)
   val with_ctrl : t -> ctrl -> t
 
+  (** Replaces the instructions of the block. *)
+  val with_insns : t -> insn list -> t
+
   (** [remove_arg b x] removes an argument [x] from the block [b],
       if it exists. *)
   val remove_arg : t -> Var.t -> t

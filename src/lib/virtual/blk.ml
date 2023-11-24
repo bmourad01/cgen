@@ -112,6 +112,10 @@ let with_ctrl b c = {
   b with ctrl = c;
 }
 
+let with_insns b is = {
+  b with insns = Ftree.of_list is;
+}
+
 let remove_arg b x = {b with args = Ftree.remove b.args x Var.equal}
 let remove_insn b l = {b with insns = Ftree.remove b.insns l Insn.has_label}
 
