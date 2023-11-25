@@ -186,13 +186,13 @@ module Layout = struct
       when n < 1 || (n land (n - 1)) <> 0 ->
       invalid_argf "Invalid alignment %d for type :%s, \
                     must be positive power of 2" n s ()
-    | `opaque (s, _, n) when n < 0 ->
-      invalid_argf "Invalid number of bytes %d for opaque type :%s" n s ()
-    | `opaque (_, align, 0) -> {align; data = [|`pad align|]}
+    | `opaque (s, _, n) when n < 1 ->
+      invalid_argf "Invalid number of bytes %d for opaque \
+                    type :%s, must be greater than 0" n s ()
     | `opaque (_, align, n) ->
       {align; data = Array.of_list @@ padded [`opaque n] @@ padding n align}
-    | `compound (_, Some n, []) -> {align = n; data = [|`pad n|]}
-    | `compound (_, None, []) -> {align = 0; data = [||]}
+    | `compound (_, Some n, []) -> {align = n; data = [||]}
+    | `compound (_, None, []) -> {align = 1; data = [||]}
     | `compound (name, align, fields) ->
       let data, align, size =
         let init = [], Option.value align ~default:1, 0 in
@@ -205,6 +205,9 @@ module Layout = struct
                 let s = sizeof_basic t / 8 in
                 let d = List.init c ~f:(fun _ -> (t :> datum)) in
                 d, s, s * c
+              | `name (s, _) when String.(s = name) ->
+                invalid_argf "Type :%s is incomplete, it cannot \
+                              contain itself as a field" name ()
               | `name (s, c) -> match gamma s with
                 | exception exn ->
                   invalid_argf "Invalid argument :%s for gamma: %s"
@@ -215,8 +218,8 @@ module Layout = struct
                   let data = Array.to_list data in
                   let data = List.init c ~f:(fun _ -> data) |> List.concat in
                   data, align, sizeof l * c in
+            let pad = padding size falign in
             let align = max align falign in
-            let pad = padding size align in
             let data = List.rev_append fdata @@ padded data pad in
             data, align, size + pad + fsize) in
       {align; data = finalize data align size}

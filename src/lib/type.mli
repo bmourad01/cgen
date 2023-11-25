@@ -89,9 +89,9 @@ val pp_field : Format.formatter -> field -> unit
 
     An [`opaque (name, align, n)] data type requires an [align]ment.
     It is intended to describe [n] bytes of opaque data whose internal
-    structure is unspecified.
+    structure is unspecified. Note that [n <= 0] is illegal.
 
-    Note that an alignment [n] must be a positive power of 2.
+    Note that an alignment must be a positive power of 2.
 *)
 type compound = [
   | `compound of string * int option * field list
