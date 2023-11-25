@@ -118,9 +118,9 @@
 %token <Type.imm_base> IFBITS
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL
-%token <Type.arg> ACALL ATCALL
+%token <Type.arg> ACALL
 %token REF UNREF
-%token CALL TCALL
+%token CALL
 %token <Type.arg> VAARG
 %token VASTART
 %token HLT
@@ -338,20 +338,6 @@ ctrl:
       match Virtual.Ctrl.Table.create tbl t with
       | Error err -> M.lift @@ Context.fail err
       | Ok tbl -> !!(`sw (t, i, d, tbl))
-    }
-  | t = ATCALL f = global LPAREN args = call_args RPAREN
-    {
-      let+ f = f and+ args = args in
-      let args, vargs = Core.List.partition_map args ~f:(function
-        | `arg a -> First a | `varg a -> Second a) in
-      `tcall (Some t, f, args, vargs)
-    }
-  | TCALL f = global LPAREN args = call_args RPAREN
-    {
-      let+ f = f and+ args = args in
-      let args, vargs = Core.List.partition_map args ~f:(function
-        | `arg a -> First a | `varg a -> Second a) in
-      `tcall (None, f, args, vargs)
     }
 
 ctrl_index:

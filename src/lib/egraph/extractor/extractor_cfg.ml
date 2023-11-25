@@ -158,8 +158,6 @@ let rec pure t env e : operand Context.t =
   | E (_, Osw _, _)
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
-  | E (_, Otcall0, _)
-  | E (_, Otcall _, _)
   | E (_, Ounop _, _)
   | E (_, Ovaarg _, _)
   | E (_, Ovar _, _)
@@ -277,16 +275,6 @@ let exp t env l e =
     let* d = sw_default t env l d in
     let* tbl = table t env tbl ty in
     sw l e ty i d tbl
-  | E (_, Otcall0, [f; args; vargs]) -> ctrl @@ fun () ->
-    let* f = global t env f in
-    let* args = callargs t env args in
-    let+ vargs = callargs t env vargs in
-    `tcall (None, f, args, vargs)
-  | E (_, Otcall ty, [f; args; vargs]) -> ctrl @@ fun () ->
-    let* f = global t env f in
-    let* args = callargs t env args in
-    let+ vargs = callargs t env vargs in
-    `tcall (Some ty, f, args, vargs)
   | E (_, Ovaarg (x, t), [a]) -> insn @@ fun () ->
     let* a = pure a in
     vaarg l e x t a
@@ -314,8 +302,6 @@ let exp t env l e =
   | E (_, Osw _, _)
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
-  | E (_, Otcall0, _)
-  | E (_, Otcall _, _)
   | E (_, Ounop _, _)
   | E (_, Ovaarg _, _)
   | E (_, Ovar _, _)

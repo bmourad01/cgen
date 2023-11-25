@@ -46,7 +46,6 @@ let map_ctrl unused (c : ctrl) =
     let d, cd = loc d in
     let tbl, ct = map_tbl unused tbl in
     `sw (t, i, d, tbl), (cd || ct)
-  | `tcall _ -> c, false
 
 let collect_unused_args live blks =
   Seq.fold blks ~init:Label.Tree.empty ~f:(fun acc b ->

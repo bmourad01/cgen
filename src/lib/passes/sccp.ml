@@ -163,11 +163,6 @@ let map_ctrl env : ctrl -> ctrl = function
   | `ret None as c -> c
   | `ret Some x -> `ret (Some (map_operand env x))
   | `sw (t, i, d, tbl) -> map_sw env t i d tbl
-  | `tcall (t, f, args, vargs) ->
-    let f = map_global env f in
-    let args = List.map args ~f:(map_operand env) in 
-    let vargs = List.map vargs ~f:(map_operand env) in
-    `tcall (t, f, args, vargs)
 
 let map_blk env b =
   let insns = Blk.insns b |> Seq.map ~f:(fun i ->

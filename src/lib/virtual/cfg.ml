@@ -47,7 +47,6 @@ let accum g b : Ctrl.t -> G.t = function
     Map.fold_right t.tbl ~init
       ~f:(fun ~key:v ~data:(`label (l, _)) g ->
           insert_sw b l x v g)
-  | `tcall _ -> g
 
 let create fn =
   Func.blks fn |> Seq.fold ~init:G.empty ~f:(fun g b ->

@@ -248,15 +248,6 @@ let ctrl env eg l : ctrl -> unit = function
     ]
   | `sw (ty, i, d, tbl) ->
     sw env eg l ty i d tbl
-  | `tcall (t, f, args, vargs) ->
-    let o : Enode.op = match t with
-      | Some t -> Otcall t
-      | None -> Otcall0 in
-    prov env eg l o [
-      global env eg f;
-      callargs env eg args;
-      callargs env eg vargs;
-    ]
 
 (* Try to preserve the last memory access from the parent
    block, which should enable some inter-block redundant

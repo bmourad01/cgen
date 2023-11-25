@@ -4,6 +4,34 @@ open Virtual
 
 open Context.Syntax
 
+(* New instructions for a block. *)
+type new_insns = {
+  prepend : insn list Label.Table.t; (* Prepend to label. *)
+  append  : insn list Label.Table.t; (* Append to label. *)
+}
+
+let init_new_insns () = {
+  prepend = Label.Table.create ();
+  append  = Label.Table.create ();
+}
+
+let clear_new_insns is =
+  Hashtbl.clear is.prepend;
+  Hashtbl.clear is.append
+
+let prepend is l i =
+  Hashtbl.add_multi is.prepend ~key:l ~data:i
+
+let append is l i =
+  Hashtbl.add_multi is.append ~key:l ~data:i
+
+let update_blk_insns is b =
+  let b = Hashtbl.fold is.prepend ~init:b ~f:(fun ~key:l ~data:is b ->
+      Blk.prepend_insns ~before:(Some l) b @@ List.rev is) in
+  let b = Hashtbl.fold is.append ~init:b ~f:(fun ~key:l ~data:is b ->
+      Blk.append_insns ~after:(Some l) b @@ List.rev is) in
+  b
+
 let typeof_var tenv fn x =
   Context.lift_err @@ Typecheck.Env.typeof_var fn x tenv
 
@@ -28,6 +56,10 @@ type reg =
   | Rint
   | Rsse
 [@@deriving equal]
+
+let reg_type = function
+  | Rnone | Rint -> `i64
+  | Rsse -> `f64
 
 (* Integer registers have precedence. *)
 let merge_reg this that = match this with
@@ -89,28 +121,30 @@ let selret tenv fn = match Func.return fn with
     let k = classify_layout lt in
     let dict = Func.dict fn in
     match k.cls with
-    | Kreg (Rnone, Rnone) when k.size = 0 ->
+    | Kreg _ when k.size = 0 ->
       let dict = Dict.remove dict Func.Tag.return in
-      Func.with_dict fn dict |>
-      Func.map_blks ~f:(Blk.map_ctrl ~f:(function
-          | `ret _ -> `ret None
-          | c -> c)) |> Context.return
-    | Kreg (_, Rnone) when k.size = 8 ->
-      let dict = Dict.set dict Func.Tag.return `i64 in
+      let fn =
+        Func.with_dict fn dict |>
+        Func.map_blks ~f:(Blk.map_ctrl ~f:(function
+            | `ret _ -> `ret None
+            | c -> c)) in
+      !!fn
+    | Kreg (r, _) when k.size = 8 ->
+      let rty = reg_type r in
+      let dict = Dict.set dict Func.Tag.return rty in
       let fn = Func.with_dict fn dict in
       let* blks =
         Func.blks fn |> Context.Seq.filter_map ~f:(fun b ->
             match Blk.ctrl b with
             | `ret Some `var x ->
               let* r, ri = Context.Virtual.unop `ref (`var x) in
-              let+ l, ld = Context.Virtual.load `i64 (`var r) in
+              let+ l, ld = Context.Virtual.load rty (`var r) in
               let b = Blk.append_insns b [ri; ld] in
               let b = Blk.with_ctrl b @@ `ret (Some (`var l)) in
               Some b
             | _ -> !!None) in
-      Context.lift_err @@
-      Func.update_blks fn @@
-      Seq.to_list blks
+      let*? fn = Func.update_blks fn @@ Seq.to_list blks in
+      !!fn
     | Kreg _ ->
       (* If we're returning two registers, then we
          need to delay this step until instruction
@@ -123,152 +157,167 @@ let selret tenv fn = match Func.return fn with
       let fn = Func.with_dict fn dict in
       let* dst = Context.Var.fresh in
       let fn = Func.prepend_arg fn dst `i64 in
-      let* blks =
-        Func.blks fn |> Context.Seq.filter_map ~f:(fun b ->
-            match Blk.ctrl b with
-            | `ret Some `var x ->
-              let* src, srci = Context.Virtual.unop `ref (`var x) in
-              let+ blit = Context.Virtual.blit ~src ~dst `i64 k.size in
-              let b = Blk.append_insns b (srci :: blit) in
-              let b = Blk.with_ctrl b @@ `ret (Some (`var dst)) in
-              Some b
-            | _ -> !!None) in
-      Context.lift_err @@
-      Func.update_blks fn @@
-      Seq.to_list blks
+      let* blks = Func.blks fn |> Context.Seq.filter_map ~f:(fun b ->
+          match Blk.ctrl b with
+          | `ret Some `var x ->
+            let* src, srci = Context.Virtual.unop `ref (`var x) in
+            let+ blit = Context.Virtual.blit ~src ~dst `i64 k.size in
+            let b = Blk.append_insns b (srci :: blit) in
+            let b = Blk.with_ctrl b @@ `ret (Some (`var dst)) in
+            Some b
+          | _ -> !!None) in
+      let*? fn = Func.update_blks fn @@ Seq.to_list blks in
+      !!fn
 
-(* Lower the call instructions. *)
-let selcall tenv fn =
-  let slots = Vec.create () in
-  let* blks = Func.blks fn |> Context.Seq.map ~f:(fun b ->
-      (* Instructions to prepend and append for each call. *)
-      let pinsns = Label.Table.create () in
-      let ainsns = Label.Table.create () in
-      let newpins l i = Hashtbl.add_multi pinsns ~key:l ~data:i in
-      let newains l i = Hashtbl.add_multi ainsns ~key:l ~data:i in
-      let+ insns = Blk.insns b |> Context.Seq.map ~f:(fun i ->
-          match Insn.op i with
-          | `call (ret, f, args, vargs) ->
-            let label = Insn.label i in
-            let* kret = match ret with
-              | Some (x, `name n) ->
-                let*? lt = Typecheck.Env.layout n tenv in
-                !!(Some (x, n, classify_layout lt))
-              | Some _ | None -> !!None in
-            (* Keep track of how many GPR and SSE registers are
-               available. *)
-            let nint = ref @@ match kret with
-              | Some (_, _, {cls = Kmem; _}) -> num_int_args - 1
-              | _ -> num_int_args in
-            let nsse = ref num_sse_args in
-            (* Decrement the corresponding register count and see
-               if we need to pass the argument in memory. *)
-            let decreg = function
-              | Rint | Rnone when !nint <= 0 -> false
-              | Rint | Rnone -> decr nint; true
-              | Rsse when !nsse <= 0 -> false
-              | Rsse -> decr nsse; true in
-            let mems = Vec.create () in
-            (* Organize the arguments as being either in registers
-               or memory. *)
-            let* args' = Context.List.map (args @ vargs) ~f:(fun a ->
-                typeof_operand tenv fn a >>= function
-                | #Type.imm when !nint <= 0 -> Vec.push mems a; !![]
-                | #Type.imm when !nsse <= 0 -> Vec.push mems a; !![]
-                | #Type.imm -> decr nint; !![a]
-                | #Type.fp -> decr nsse; !![a]
-                | `flag -> assert false
-                | `compound (name, _, _)
-                | `opaque (name, _, _) ->
-                  let*? lt = Typecheck.Env.layout name tenv in
-                  let k = classify_layout lt in
-                  let* src, srci = Context.Virtual.unop `ref a in
-                  newpins label srci;
-                  match k.cls with
-                  | Kreg (r, _) when k.size = 8 ->
-                    (* One register. *)
-                    let* l, li = Context.Virtual.load `i64 (`var src) in
-                    newpins label li;
-                    begin match decreg r with
-                      | true -> !![`var l]
-                      | false ->
-                        Vec.push mems @@ `var l;
-                        !![]
-                    end
-                  | Kreg (r1, r2) ->
-                    (* Two registers. *)
-                    let ok1 = decreg r1 in
-                    let ok2 = decreg r2 in
-                    let o = `int (Bv.M64.int 8, `i64) in
-                    let* o, oi = Context.Virtual.binop (`add `i64) (`var src) o in
-                    let* l1, li1 = Context.Virtual.load `i64 (`var src) in
-                    let* l2, li2 = Context.Virtual.load `i64 (`var o) in
-                    newpins label oi;
-                    newpins label li1;
-                    newpins label li2;
-                    begin match ok1, ok2 with
-                      | true, true ->
-                        !![`var l1; `var l2]
-                      | true, false ->
-                        Vec.push mems @@ `var l2;
-                        !![`var l1]
-                      | false, true ->
-                        Vec.push mems @@ `var l1;
-                        !![`var l2]
-                      | false, false ->
-                        Vec.push mems @@ `var l1;
-                        Vec.push mems @@ `var l2;
-                        !![]
-                    end
-                  | Kmem ->
-                    let+ ldm = Context.Virtual.ldm `i64 src k.size in
-                    List.iter ldm ~f:(fun i ->
-                        newpins label i;
-                        match Insn.op i with
-                        | `load (x, _, _) -> Vec.push mems @@ `var x
-                        | _ -> ());
-                    []) in
-            let args' = List.concat args' in
-            (* If we're returning a struct, then insert the implicit
-               first parameter and create a new stack slot for it, if
-               it is returned in memory. *)
-            let+ args', ret = match kret with
-              | None -> !!(args', ret)
-              | Some (x, n, k) -> match k.cls with
-                | Kreg _  ->
-                  (* We need access to specific registers, so we will delay
-                     this step until instruction selection. *)
-                  !!(args', ret)
-                | Kmem ->
-                  let* y = Context.Var.fresh in
-                  let* z = Context.Var.fresh in
-                  let+ l = Context.Label.fresh in
-                  let i = Insn.create ~label:l @@ `uop (x, `unref n, `var z) in
-                  Vec.push slots (y, k.size, k.align);
-                  newains label i;
-                  (`var y :: args'), Some (z, `i64) in
-            (* XXX: this is a big hack and leaks our abstraction too much,
-               but I'm not sure what else can be done. Maybe it's OK as long
-               as this is well-documented. *)
-            Insn.with_op i @@ `call (ret, f, args', Vec.to_list mems)
-          | _ -> !!i) in
-      let b = Blk.with_insns b @@ Seq.to_list insns in
-      (* Insert needed instructions before and after each call. *)
-      let b = Hashtbl.fold pinsns ~init:b ~f:(fun ~key:l ~data:is b ->
-          Blk.prepend_insns ~before:(Some l) b @@ List.rev is) in
-      let b = Hashtbl.fold ainsns ~init:b ~f:(fun ~key:l ~data:is b ->
-          Blk.append_insns ~after:(Some l) b @@ List.rev is) in
-      b) in
-  (* Update the blocks. *)
-  let* fn =
-    Context.lift_err @@
-    Func.update_blks fn @@
-    Seq.to_list blks in
-  (* Insert the new stack slots. *)
-  Vec.to_sequence_mutable slots |>
-  Context.Seq.fold ~init:fn ~f:(fun fn (x, size, align) ->
-      let*? s = Func.Slot.create x ~size ~align in
-      !!(Func.insert_slot fn s))
+module Calls = struct
+  type env = {
+    fn    : func;
+    tenv  : Typecheck.env;
+    nins  : new_insns;
+    slots : (Var.t * int * int) Vec.t;
+  }
 
-let run tenv m =
-  !!m
+  let init_env fn tenv = {
+    fn;
+    tenv;
+    nins = init_new_insns ();
+    slots = Vec.create ();
+  }
+
+  (* A struct is classified as being passed in a single register. *)
+  let onereg_arg ~decreg env mems label src r =
+    let* l, li = Context.Virtual.load `i64 (`var src) in
+    prepend env.nins label li;
+    match decreg r with
+    | false -> Vec.push mems @@ `var l; !![]
+    | true -> !![`var l]
+
+  (* A struct is classified as being passed in two registers. *)
+  let tworeg_arg ~decreg env mems label src r1 r2 =
+    let ok1 = decreg r1 in
+    let ok2 = decreg r2 in
+    let o = `int (Bv.M64.int 8, `i64) in
+    let* o, oi = Context.Virtual.binop (`add `i64) (`var src) o in
+    let* l1, li1 = Context.Virtual.load `i64 (`var src) in
+    let* l2, li2 = Context.Virtual.load `i64 (`var o) in
+    prepend env.nins label oi;
+    prepend env.nins label li1;
+    prepend env.nins label li2;
+    match ok1, ok2 with
+    | true,  true  -> !![`var l1; `var l2]
+    | true,  false -> Vec.push mems @@ `var l2; !![`var l1]
+    | false, true  -> Vec.push mems @@ `var l1; !![`var l2]
+    | false, false ->
+      Vec.push mems @@ `var l1;
+      Vec.push mems @@ `var l2;
+      !![]
+
+  (* A struct is classified as being passed in memory. *)
+  let mem_arg env mems label src size =
+    let+ ldm = Context.Virtual.ldm `i64 src size in
+    List.iter ldm ~f:(fun i ->
+        prepend env.nins label i;
+        match Insn.op i with
+        | `load (x, _, _) -> Vec.push mems @@ `var x
+        | _ -> ());
+    []
+
+  let callret env label args ret kret = match kret with
+    | None -> !!(args, ret)
+    | Some (x, n, k) -> match k.cls with
+      | Kreg _  ->
+        (* We need access to specific registers, so we will delay
+           this step until instruction selection. *)
+        !!(args, ret)
+      | Kmem ->
+        let* y = Context.Var.fresh in
+        let* z = Context.Var.fresh in
+        let+ l = Context.Label.fresh in
+        let i = Insn.create ~label:l @@ `uop (x, `unref n, `var z) in
+        Vec.push env.slots (y, k.size, k.align);
+        append env.nins label i;
+        (`var y :: args), Some (z, `i64)
+
+  let callins env label ret args vargs =
+    let* kret = match ret with
+      | Some (x, `name n) ->
+        let*? lt = Typecheck.Env.layout n env.tenv in
+        !!(Some (x, n, classify_layout lt))
+      | Some _ | None -> !!None in
+    (* Keep track of how many GPR and SSE registers are
+       available. *)
+    let nint = ref @@ match kret with
+      | Some (_, _, {cls = Kmem; _}) -> num_int_args - 1
+      | _ -> num_int_args in
+    let nsse = ref num_sse_args in
+    (* Decrement the corresponding register count and see
+       if we need to pass the argument in memory. *)
+    let decreg = function
+      | Rint | Rnone when !nint <= 0 -> false
+      | Rint | Rnone -> decr nint; true
+      | Rsse when !nsse <= 0 -> false
+      | Rsse -> decr nsse; true in
+    let mems = Vec.create () in
+    (* Organize the arguments as being either in registers
+       or memory. *)
+    let* args' = Context.List.map (args @ vargs) ~f:(fun a ->
+        typeof_operand env.tenv env.fn a >>= function
+        | #Type.imm when !nint <= 0 -> Vec.push mems a; !![]
+        | #Type.imm when !nsse <= 0 -> Vec.push mems a; !![]
+        | #Type.imm -> decr nint; !![a]
+        | #Type.fp -> decr nsse; !![a]
+        | `flag -> assert false
+        | `compound (name, _, _) | `opaque (name, _, _) ->
+          let*? lt = Typecheck.Env.layout name env.tenv in
+          let k = classify_layout lt in
+          let* src, srci = Context.Virtual.unop `ref a in
+          prepend env.nins label srci;
+          match k.cls with
+          | Kreg (r, _) when k.size = 8 ->
+            onereg_arg ~decreg env mems label src r
+          | Kreg (r1, r2) ->
+            tworeg_arg ~decreg env mems label src r1 r2
+          | Kmem ->
+            mem_arg env mems label src k.size) in
+    let args' = List.concat args' in
+    (* If we're returning a struct, then insert the implicit
+       first parameter and create a new stack slot for it, if
+       it is returned in memory. *)
+    let+ args', ret = callret env label args' ret kret in
+    args', ret, Vec.to_list mems
+
+  (* Lower the call instructions. *)
+  let selcall tenv fn =
+    let env = init_env fn tenv in
+    let* blks = Func.blks fn |> Context.Seq.map ~f:(fun b ->
+        let+ insns = Blk.insns b |> Context.Seq.map ~f:(fun i ->
+            match Insn.op i with
+            | `call (ret, f, args, vargs) ->
+              let label = Insn.label i in
+              let+ args', ret, mems = callins env label ret args vargs in
+              (* We can't have tail calls that require stack space for
+                 their parameters. *)
+              let i =
+                if List.is_empty mems then i
+                else Insn.(with_tag i Tag.non_tail ()) in
+              (* XXX: this is a big hack and leaks our abstraction too
+                 much, but I'm not sure what else can be done. Maybe it's
+                 OK as long as this is well-documented. *)
+              Insn.with_op i @@ `call (ret, f, args', mems)
+            | _ -> !!i) in
+        let b = Blk.with_insns b @@ Seq.to_list insns in
+        let b = update_blk_insns env.nins b in
+        clear_new_insns env.nins;
+        b) in
+    let*? fn = Func.update_blks fn @@ Seq.to_list blks in
+    (* Insert the new stack slots. *)
+    Vec.to_sequence_mutable env.slots |>
+    Context.Seq.fold ~init:fn ~f:(fun fn (x, size, align) ->
+        let*? s = Func.Slot.create x ~size ~align in
+        !!(Func.insert_slot fn s))
+end
+
+let run tenv fn =
+  let* fn = selret tenv fn in
+  let* fn = Calls.selcall tenv fn in
+  !!fn

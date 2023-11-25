@@ -151,11 +151,6 @@ module Subst = struct
     | `ret None as c -> c
     | `ret (Some x) -> `ret (Some (map_arg subst x))
     | `sw (t, i, d, tbl) -> map_sw subst t i d tbl
-    | `tcall (t, f, args, vargs) ->
-      let f = map_global subst f in
-      let args = List.map args ~f:(map_arg subst) in
-      let vargs = List.map vargs ~f:(map_arg subst) in
-      `tcall (t, f, args, vargs)
 
   let map_blk subst b =
     let insns = Blk.insns b |> Seq.map ~f:(map_insn subst) in
@@ -338,7 +333,7 @@ module Contract = struct
     let dst = map_dst changed env s in
     let loc = map_loc changed env s in
     Blk.map_ctrl b ~f:(function
-        | `hlt | `ret _ | `tcall _ as x -> x
+        | (`hlt | `ret _) as x -> x
         | `jmp d -> `jmp (dst d)
         | `br (c, y, n) ->
           let y = dst y in
@@ -383,7 +378,7 @@ module Merge_rets = struct
     let dst = map_dst changed tbl in
     let loc = map_loc changed tbl in
     Blk.map_ctrl b ~f:(function
-        | `hlt | `ret _ | `tcall _ as x -> x
+        | (`hlt | `ret _) as x -> x
         | `jmp d -> `jmp (dst d)
         | `br (c, y, n) ->
           let y = dst y in

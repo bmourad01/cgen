@@ -131,7 +131,6 @@ end = struct
     | `br (c, t, f) -> `br (c, dst t, dst f)
     | `ret _ -> c
     | `sw (t, i, d, tbl) -> `sw (t, i, loc d, argify_tbl inc tbl)
-    | `tcall _ -> c
 
   let insert_ctrl_args st =
     Hashtbl.iteri st.outs ~f:(fun ~key:l ~data:inc ->
@@ -231,11 +230,6 @@ end = struct
     | `br (c, t, f) -> `br (var c, dst t, dst f)
     | `ret r -> `ret (Option.map r ~f:opnd)
     | `sw (t, i, d, tbl) -> `sw (t, swindex env i, loc d, map_tbl env tbl)
-    | `tcall (t, f, args, vargs) ->
-      let f = map_global env f in
-      let args = List.map args ~f:opnd in
-      let vargs = List.map vargs ~f:opnd in
-      `tcall (t, f, args, vargs)
 
   let pop_defs env b =
     let pop x = Var.base x |> Hashtbl.change env.stk ~f:(function
