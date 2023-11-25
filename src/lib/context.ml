@@ -117,7 +117,8 @@ module Virtual = struct
     let wb = (word :> Type.basic) in
     let wordsz = Type.sizeof_imm_base word in
     let md = Bv.modulus wordsz in
-    let rec aux ty is sz off n = if sz >= n then
+    let rec consume ty is sz off n =
+      if sz >= n then
         let off = off - (if fwd then n else 0) in
         let o = `int (Bv.(int off mod md), wi) in
         (* Copy from src. *)
@@ -132,7 +133,7 @@ module Virtual = struct
         (* Accumulate insns in reverse order. *)
         let is = sts @ (ld :: ai1 :: is) in
         let off = off + (if fwd then 0 else n) in
-        aux ty is (sz - n) off n
+        consume ty is (sz - n) off n
       else !!(is, sz, off) in
     let+ blit, _, _ =
       let sz = Int.abs size in
@@ -143,7 +144,7 @@ module Virtual = struct
       M.List.fold blits ~init:([], sz, off)
         ~f:(fun ((is, sz, off) as acc) (ty, by) ->
             if sz <= 0 then !!acc
-            else aux ty is sz off by) in
+            else consume ty is sz off by) in
     List.rev blit
   [@@specialise]
 
