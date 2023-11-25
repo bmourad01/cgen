@@ -160,8 +160,7 @@ module Layout = struct
 
   (* pre: `align` is a positive power of 2 *)
   let padding size align =
-    let a = align - 1 in
-    ((size + a) land lnot a) - size
+    ((size + align - 1) land -align) - size
 
   (* pre: the list is accumulated in reverse *)
   let padded data = function
