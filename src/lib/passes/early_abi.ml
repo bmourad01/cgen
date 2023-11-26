@@ -174,6 +174,7 @@ module Calls = struct
     fn    : func;
     tenv  : Typecheck.env;
     nins  : new_insns;
+    mems  : operand Vec.t;
     slots : (Var.t * int * int) Vec.t;
   }
 
@@ -181,19 +182,20 @@ module Calls = struct
     fn;
     tenv;
     nins = init_new_insns ();
+    mems = Vec.create ();
     slots = Vec.create ();
   }
 
   (* A struct is classified as being passed in a single register. *)
-  let onereg_arg ~decreg env mems label src r =
+  let onereg_arg ~decreg env label src r =
     let* l, li = Context.Virtual.load `i64 (`var src) in
     prepend env.nins label li;
     match decreg r with
-    | false -> Vec.push mems @@ `var l; !![]
+    | false -> Vec.push env.mems @@ `var l; !![]
     | true -> !![`var l]
 
   (* A struct is classified as being passed in two registers. *)
-  let tworeg_arg ~decreg env mems label src r1 r2 =
+  let tworeg_arg ~decreg env label src r1 r2 =
     let ok1 = decreg r1 in
     let ok2 = decreg r2 in
     let o = `int (Bv.M64.int 8, `i64) in
@@ -204,24 +206,31 @@ module Calls = struct
     prepend env.nins label li1;
     prepend env.nins label li2;
     match ok1, ok2 with
-    | true,  true  -> !![`var l1; `var l2]
-    | true,  false -> Vec.push mems @@ `var l2; !![`var l1]
-    | false, true  -> Vec.push mems @@ `var l1; !![`var l2]
+    | true, true ->
+      !![`var l1; `var l2]
+    | true, false ->
+      Vec.push env.mems @@ `var l2;
+      !![`var l1]
+    | false, true  ->
+      Vec.push env.mems @@ `var l1;
+      !![`var l2]
     | false, false ->
-      Vec.push mems @@ `var l1;
-      Vec.push mems @@ `var l2;
+      Vec.push env.mems @@ `var l1;
+      Vec.push env.mems @@ `var l2;
       !![]
 
   (* A struct is classified as being passed in memory. *)
-  let mem_arg env mems label src size =
+  let mem_arg env label src size =
     let+ ldm = Context.Virtual.ldm `i64 src size in
     List.iter ldm ~f:(fun i ->
         prepend env.nins label i;
         match Insn.op i with
-        | `load (x, _, _) -> Vec.push mems @@ `var x
+        | `load (x, _, _) ->
+          Vec.push env.mems @@ `var x
         | _ -> ());
     []
 
+  (* Figure out how to compute the return value. *)
   let callret env label args ret kret = match kret with
     | None -> !!(args, ret)
     | Some (x, n, k) -> match k.cls with
@@ -238,6 +247,28 @@ module Calls = struct
         append env.nins label i;
         (`var y :: args), Some (z, `i64)
 
+  (* Classify an argument to a call. *)
+  let argclass ~decreg env label nint nsse a =
+    typeof_operand env.tenv env.fn a >>= function
+    | #Type.imm when !nint <= 0 -> Vec.push env.mems a; !![]
+    | #Type.imm when !nsse <= 0 -> Vec.push env.mems a; !![]
+    | #Type.imm -> decr nint; !![a]
+    | #Type.fp -> decr nsse; !![a]
+    | `flag -> assert false
+    | `compound (name, _, _) | `opaque (name, _, _) ->
+      let*? lt = Typecheck.Env.layout name env.tenv in
+      let k = classify_layout lt in
+      let* src, srci = Context.Virtual.unop `ref a in
+      prepend env.nins label srci;
+      match k.cls with
+      | Kreg (r, _) when k.size = 8 ->
+        onereg_arg ~decreg env label src r
+      | Kreg (r1, r2) ->
+        tworeg_arg ~decreg env label src r1 r2
+      | Kmem ->
+        mem_arg env label src k.size
+
+  (* Process a single call instruction. *)
   let callins env label ret args vargs =
     let* kret = match ret with
       | Some (x, `name n) ->
@@ -257,34 +288,18 @@ module Calls = struct
       | Rint | Rnone -> decr nint; true
       | Rsse when !nsse <= 0 -> false
       | Rsse -> decr nsse; true in
-    let mems = Vec.create () in
     (* Organize the arguments as being either in registers
        or memory. *)
-    let* args' = Context.List.map (args @ vargs) ~f:(fun a ->
-        typeof_operand env.tenv env.fn a >>= function
-        | #Type.imm when !nint <= 0 -> Vec.push mems a; !![]
-        | #Type.imm when !nsse <= 0 -> Vec.push mems a; !![]
-        | #Type.imm -> decr nint; !![a]
-        | #Type.fp -> decr nsse; !![a]
-        | `flag -> assert false
-        | `compound (name, _, _) | `opaque (name, _, _) ->
-          let*? lt = Typecheck.Env.layout name env.tenv in
-          let k = classify_layout lt in
-          let* src, srci = Context.Virtual.unop `ref a in
-          prepend env.nins label srci;
-          match k.cls with
-          | Kreg (r, _) when k.size = 8 ->
-            onereg_arg ~decreg env mems label src r
-          | Kreg (r1, r2) ->
-            tworeg_arg ~decreg env mems label src r1 r2
-          | Kmem ->
-            mem_arg env mems label src k.size) in
+    let* args' = Context.List.map (args @ vargs)
+        ~f:(argclass ~decreg env label nint nsse) in
     let args' = List.concat args' in
     (* If we're returning a struct, then insert the implicit
        first parameter and create a new stack slot for it, if
        it is returned in memory. *)
     let+ args', ret = callret env label args' ret kret in
-    args', ret, Vec.to_list mems
+    let mems = Vec.to_list env.mems in
+    Vec.clear env.mems;
+    args', ret, mems
 
   (* Lower the call instructions. *)
   let selcall tenv fn =
