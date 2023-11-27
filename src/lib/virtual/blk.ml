@@ -73,40 +73,28 @@ let map_ctrl b ~f = {
 }
 
 let prepend_arg ?before b a = {
-  b with args = Ftree.prepend ?before b.args a Var.equal;
+  b with args = Ftree.cons' ?before b.args a Var.equal;
 }
 
 let append_arg ?after b a = {
-  b with args = Ftree.append ?after b.args a Var.equal;
+  b with args = Ftree.snoc' ?after b.args a Var.equal;
 }
 
 let prepend_insn ?before b d = {
-  b with insns = Ftree.prepend ?before b.insns d Insn.has_label;
+  b with insns = Ftree.cons' ?before b.insns d Insn.has_label;
 }
 
 let append_insn ?after b d = {
-  b with insns = Ftree.append ?after b.insns d Insn.has_label;
+  b with insns = Ftree.snoc' ?after b.insns d Insn.has_label;
 }
 
-let prepend_insns ?(before = None) b = function
-  | [] -> b
-  | ds ->
-    let _, insns =
-      List.fold_right ds ~init:(before, b.insns)
-        ~f:(fun d (before, insns) ->
-            Some (Insn.label d),
-            Ftree.prepend ~before insns d Insn.has_label) in
-    {b with insns}
+let prepend_insns ?before b ds = {
+  b with insns = Ftree.multi_cons' ?before b.insns ds Insn.has_label;
+}
 
-let append_insns ?(after = None) b = function
-  | [] -> b
-  | ds ->
-    let _, insns =
-      List.fold ds ~init:(after, b.insns)
-        ~f:(fun (after, insns) d ->
-            Some (Insn.label d),
-            Ftree.append ~after insns d Insn.has_label) in
-    {b with insns}
+let append_insns ?after b ds = {
+  b with insns = Ftree.multi_snoc' ?after b.insns ds Insn.has_label;
+}
 
 let with_ctrl b c = {
   b with ctrl = c;

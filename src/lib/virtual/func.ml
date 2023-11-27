@@ -171,11 +171,11 @@ let remove_slot fn x = {
 let is_arg (x, _) y = Var.(x = y)
 
 let prepend_arg ?before fn x t = {
-  fn with args = Ftree.prepend ?before fn.args (x, t) is_arg;
+  fn with args = Ftree.cons' ?before fn.args (x, t) is_arg;
 }
 
 let append_arg ?after fn x t = {
-  fn with args = Ftree.append ?after fn.args (x, t) is_arg;
+  fn with args = Ftree.snoc' ?after fn.args (x, t) is_arg;
 }
 
 let remove_arg fn x = {fn with args = Ftree.remove fn.args x is_arg}
