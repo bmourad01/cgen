@@ -73,27 +73,27 @@ let map_ctrl b ~f = {
 }
 
 let prepend_arg ?before b a = {
-  b with args = Ftree.cons' ?before b.args a Var.equal;
+  b with args = Ftree.icons ?before b.args a Var.equal;
 }
 
 let append_arg ?after b a = {
-  b with args = Ftree.snoc' ?after b.args a Var.equal;
+  b with args = Ftree.isnoc ?after b.args a Var.equal;
 }
 
 let prepend_insn ?before b d = {
-  b with insns = Ftree.cons' ?before b.insns d Insn.has_label;
+  b with insns = Ftree.icons ?before b.insns d Insn.has_label;
 }
 
 let append_insn ?after b d = {
-  b with insns = Ftree.snoc' ?after b.insns d Insn.has_label;
+  b with insns = Ftree.isnoc ?after b.insns d Insn.has_label;
 }
 
 let prepend_insns ?before b ds = {
-  b with insns = Ftree.multi_cons' ?before b.insns ds Insn.has_label;
+  b with insns = Ftree.icons_multi ?before b.insns ds Insn.has_label;
 }
 
 let append_insns ?after b ds = {
-  b with insns = Ftree.multi_snoc' ?after b.insns ds Insn.has_label;
+  b with insns = Ftree.isnoc_multi ?after b.insns ds Insn.has_label;
 }
 
 let with_ctrl b c = {
@@ -104,8 +104,13 @@ let with_insns b is = {
   b with insns = Ftree.of_list is;
 }
 
-let remove_arg b x = {b with args = Ftree.remove b.args x Var.equal}
-let remove_insn b l = {b with insns = Ftree.remove b.insns l Insn.has_label}
+let remove_arg b x = {
+  b with args = Ftree.remove_if b.args ~f:(Var.equal x);
+}
+
+let remove_insn b l = {
+  b with insns = Ftree.remove_if b.insns ~f:(Fn.flip Insn.has_label l);
+}
 
 let has_arg b x = Ftree.exists b.args ~f:(Var.equal x)
 let has_lhs b x = Ftree.exists b.insns ~f:(fun i -> Insn.(has_lhs i) x)

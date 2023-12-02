@@ -767,7 +767,7 @@ module Blk : sig
       If [before] is [Some x], then [a] will appear directly before the
       argument [x]. If [x] doesn't exist, then [a] is not inserted.
   *)
-  val prepend_arg : ?before:Var.t option -> t -> Var.t -> t
+  val prepend_arg : ?before:Var.t -> t -> Var.t -> t
 
   (** [append_arg b a ?after] appends the argument [a] to the block [b].
 
@@ -777,7 +777,7 @@ module Blk : sig
       If [after] is [Some x], then [a] will appear directly after the
       argument [x]. If [x] doesn't exist, then [a] is not inserted.
   *)
-  val append_arg : ?after:Var.t option -> t -> Var.t -> t
+  val append_arg : ?after:Var.t -> t -> Var.t -> t
 
   (** [prepend_insn b d ?before] prepends the data instruction [d] to
       the block [b].
@@ -789,7 +789,7 @@ module Blk : sig
       data instruction at label [l]. If [l] doesn't exist, then [d] is
       not inserted.
   *)
-  val prepend_insn : ?before:Label.t option -> t -> insn -> t
+  val prepend_insn : ?before:Label.t -> t -> insn -> t
 
   (** [append_insn b d ?after] appends the data instruction [d] to
       the block [b].
@@ -801,21 +801,21 @@ module Blk : sig
       data instruction at label [l]. If [l] doesn't exist, then [d] is
       not inserted.
   *)
-  val append_insn : ?after:Label.t option -> t -> insn -> t
+  val append_insn : ?after:Label.t -> t -> insn -> t
 
   (** Similar to [prepend_insn], but for a list of instructions.
 
       Note that the instructions are prepended to [before] starting
       with the last instruction.
   *)
-  val prepend_insns : ?before:Label.t option -> t -> insn list -> t
+  val prepend_insns : ?before:Label.t -> t -> insn list -> t
 
   (** Similar to [append_insn], but for a list of instructions.
 
       Note that the instructions are appended to [after] starting
       with the first instruction.
   *)
-  val append_insns : ?after:Label.t option -> t -> insn list -> t
+  val append_insns : ?after:Label.t -> t -> insn list -> t
 
   (** Replaces the control-flow instruction in the block. *)
   val with_ctrl : t -> ctrl -> t
@@ -1026,7 +1026,7 @@ module Func : sig
       If [before] is [Some y], then [x] will appear directly before the
       argument [y]. If [y] doesn't exist, then [x] is not inserted.
   *)
-  val prepend_arg : ?before:Var.t option -> t -> Var.t -> Type.arg -> t
+  val prepend_arg : ?before:Var.t -> t -> Var.t -> Type.arg -> t
 
   (** [append_arg ?after fn x t] adds the argument [x] of type [t] to [fn].
 
@@ -1036,7 +1036,7 @@ module Func : sig
       If [after] is [Some y], then [x] will appear directly after the
       argument [y]. If [y] doesn't exist, then [x] is not inserted.
   *)
-  val append_arg : ?after:Var.t option -> t -> Var.t -> Type.arg -> t
+  val append_arg : ?after:Var.t -> t -> Var.t -> Type.arg -> t
 
   (** [remove_arg fn x] removes the argument [x] from [fn], if it exists. *)
   val remove_arg : t -> Var.t -> t

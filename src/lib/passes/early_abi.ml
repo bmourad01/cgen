@@ -27,9 +27,9 @@ let append is l i =
 
 let update_blk_insns is b =
   let b = Hashtbl.fold is.prepend ~init:b ~f:(fun ~key:l ~data:is b ->
-      Blk.prepend_insns ~before:(Some l) b @@ List.rev is) in
+      Blk.prepend_insns ~before:l b @@ List.rev is) in
   let b = Hashtbl.fold is.append ~init:b ~f:(fun ~key:l ~data:is b ->
-      Blk.append_insns ~after:(Some l) b @@ List.rev is) in
+      Blk.append_insns ~after:l b @@ List.rev is) in
   b
 
 let typeof_var tenv fn x =

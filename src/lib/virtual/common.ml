@@ -9,53 +9,6 @@ type 'a ftree = 'a Ftree.t [@@deriving bin_io, sexp]
 let compare_ftree compare t1 t2 = Ftree.compare t1 t2 ~compare
 let equal_ftree equal t1 t2 = Ftree.equal t1 t2 ~equal
 
-module Ftree = struct
-  include Ftree
-
-  let index_of xs f i =
-    Ftree.findi xs ~f:(fun _ x -> f x i) |> Option.map ~f:fst
-
-  (* Insert an element before a specific element of the tree. *)
-  let cons' ?(before = None) xs x f = match before with
-    | None -> Ftree.cons xs x
-    | Some i -> match index_of xs f i with
-      | Some i -> Ftree.insert xs x i
-      | None -> xs
-
-  (* Same as above, but for a list of elements. *)
-  let multi_cons' ?(before = None) xs ys f = match ys with
-    | [] -> xs
-    | [y] -> cons' ~before xs y f
-    | _ -> match before with
-      | None -> append (of_list ys) xs
-      | Some i -> match index_of xs f i with
-        | None -> xs
-        | Some i ->
-          let xs, xs' = split_at_exn xs i in
-          append xs @@ append (of_list ys) xs'
-
-  (* Insert an element after a specific element of the tree. *)
-  let snoc' ?(after = None) xs x f = match after with
-    | None -> Ftree.snoc xs x
-    | Some i -> match index_of xs f i with
-      | Some i -> Ftree.insert xs x (i + 1)
-      | None -> xs
-
-  (* Same as above, but for a list of elements. *)
-  let multi_snoc' ?(after = None) xs ys f = match ys with
-    | [] -> xs
-    | [y] -> snoc' ~after xs y f
-    | _ -> match after with
-      | None -> append xs @@ of_list ys
-      | Some i -> match index_of xs f i with
-        | None -> xs
-        | Some i ->
-          let xs, xs' = split_at_exn xs (i + 1) in
-          append xs @@ append (of_list ys) xs'
-
-  let remove xs i f = Ftree.remove_if xs ~f:(Fn.flip f i)
-end
-
 type const = [
   | `bool   of bool
   | `int    of Bv.t * Type.imm

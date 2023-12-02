@@ -1012,6 +1012,43 @@ let rec next_aux s ~f = match Seq.next s with
 let next t ~f = next_aux ~f @@ to_sequence t [@@specialise]
 let prev t ~f = next_aux ~f @@ to_sequence_rev t [@@specialise]
 
+let iindex t f i =
+  findi t ~f:(fun _ x -> f x i) |> Option.map ~f:fst
+
+let icons ?before t x f = match before with
+  | None -> cons t x
+  | Some i -> match iindex t f i with
+    | Some i -> insert t x i
+    | None -> t
+
+let isnoc ?after t x f = match after with
+  | None -> snoc t x
+  | Some i -> match iindex t f i with
+    | Some i -> insert t x (i + 1)
+    | None -> t
+
+let icons_multi ?before t xs f = match xs with
+  | [] -> t
+  | [x] -> icons ?before t x f
+  | _ -> match before with
+    | None -> append (of_list xs) t
+    | Some i -> match iindex t f i with
+      | None -> t
+      | Some i ->
+        let t, t' = split_at_exn t i in
+        append t @@ append (of_list xs) t'
+
+let isnoc_multi ?after t xs f = match xs with
+  | [] -> t
+  | [x] -> isnoc ?after t x f
+  | _ -> match after with
+    | None -> append t @@ of_list xs
+    | Some i -> match iindex t f i with
+      | None -> t
+      | Some i ->
+        let t, t' = split_at_exn t (i + 1) in
+        append t @@ append (of_list xs) t'
+
 let pp ppx sep ppf t =
   let i = ref 0 in
   let last = length t - 1 in

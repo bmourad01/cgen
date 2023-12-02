@@ -171,14 +171,16 @@ let remove_slot fn x = {
 let is_arg (x, _) y = Var.(x = y)
 
 let prepend_arg ?before fn x t = {
-  fn with args = Ftree.cons' ?before fn.args (x, t) is_arg;
+  fn with args = Ftree.icons ?before fn.args (x, t) is_arg;
 }
 
 let append_arg ?after fn x t = {
-  fn with args = Ftree.snoc' ?after fn.args (x, t) is_arg;
+  fn with args = Ftree.isnoc ?after fn.args (x, t) is_arg;
 }
 
-let remove_arg fn x = {fn with args = Ftree.remove fn.args x is_arg}
+let remove_arg fn x = {
+  fn with args = Ftree.remove_if fn.args ~f:(Fn.flip is_arg x);
+}
 
 let remove_blk fn l = try Ok (remove_blk_exn fn l) with
   | Invalid_argument msg -> Or_error.error_string msg
