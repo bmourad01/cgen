@@ -94,9 +94,9 @@ val pp_dst : Format.formatter -> dst -> unit
 
 (** Data-flow-effectful instruction. *)
 module Insn : sig
-  module type Base = Insn_intf.Base
+  module type S = Insn_intf.S
 
-  include Base
+  include S
     with type operand := operand
      and type var := Var.t
      and type var_comparator := Var.comparator_witness
@@ -249,12 +249,6 @@ module Insn : sig
   (** [has_lhs d x] returns [true] if the instruction [d] assigns the
       variable [x]. *)
   val op_has_lhs : op -> Var.t -> bool
-
-  (** Tags for various information about the instruction. *)
-  module Tag : sig
-    (** Do not attempt to transform this call into a tail call. *)
-    val non_tail : unit Dict.tag
-  end
 end
 
 type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
@@ -310,48 +304,6 @@ end
 
 (** Control-flow-effectful instructions. *)
 module Ctrl : sig
-  (** A switch table. *)
-  module Table : sig
-    type t [@@deriving bin_io, compare, equal, sexp]
-
-    (** Creates a switch table from an association list.
-
-        @raise Invalid_argument if the list has duplicate keys.
-    *)
-    val create_exn : (Bv.t * local) list -> Type.imm -> t
-
-    (** Same as [create_exn], but returns an error upon failure. *)
-    val create : (Bv.t * local) list -> Type.imm -> t Or_error.t
-
-    (** Returns the elements of the table. *)
-    val enum : t -> (Bv.t * local) seq
-
-    (** Returns the number of cases in the table. *)
-    val length : t -> int
-
-    (** Returns the immediate type for the index into the table. *)
-    val typ : t -> Type.imm
-
-    (** [find t v] searches the table [t] for the label associated
-        with the constant [v]. *)
-    val find : t -> Bv.t -> local option
-
-    (** [map_exn t ~f] applies [f] to each element of [t].
-
-        @raise Invalid_argument if [f] produces a duplicate key.
-    *)
-    val map_exn : t -> f:(Bv.t -> local -> Bv.t * local) -> t
-
-    (** Returns the set of free variables in the table. *)
-    val free_vars : t -> Var.Set.t
-
-    (** Same as [map_exn], but returns [Error _] if [f] produces a
-        duplicate key. *)
-    val map : t -> f:(Bv.t -> local -> Bv.t * local) -> t Or_error.t
-  end
-
-  type table = Table.t [@@deriving bin_io, compare, equal, sexp]
-
   (** A valid index into the switch table.
 
       The [`sym (s, offset)] constructor is included because it is
@@ -364,37 +316,14 @@ module Ctrl : sig
     | `sym of string * int
   ] [@@deriving bin_io, compare, equal, sexp]
 
-  (** A control-flow instruction.
+  module type S = Ctrl_intf.S
 
-      [`hlt] terminates execution of the program. This is typically used
-      to mark certain program locations as unreachable.
-
-      [`jmp dst] is an unconditional jump to the destination [dst].
-
-      [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
-      is non-zero. Otherwise, the destination is [no].
-
-      [`ret x] returns from a function. If the function returns a value,
-      then [x] holds the value (and must not be [None]).
-
-      [`sw (typ, index, default, table)] implements a jump table.
-      For a variable [index] of type [typ], it will find the associated
-      label of [index] in [table] and jump to it, if it exists. If not,
-      then the destination of the jump is [default].
-  *)
-  type t = [
-    | `hlt
-    | `jmp   of dst
-    | `br    of Var.t * dst * dst
-    | `ret   of operand option
-    | `sw    of Type.imm * swindex * local * table
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the set of free variables in the control-flow instruction. *)
-  val free_vars : t -> Var.Set.t
-
-  (** Pretty-prints a control-flow instruction. *)
-  val pp : Format.formatter -> t -> unit
+  include S
+    with type dst := dst
+     and type local := local
+     and type global := global
+     and type swindex := swindex
+     and type operand := operand
 end
 
 type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
@@ -852,3 +781,130 @@ module Module : sig
 end
 
 type module_ = Module.t
+
+(** The Virtual IR, lowered to conform to a specific ABI. *)
+module Abi : sig
+  (** A variable can now include a hardcoded register [`reg r]. *)
+  type var = [
+    | `var of Var.t
+    | `reg of string
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
+
+  (** Pretty-prints a variable. *)
+  val pp_var : Format.formatter -> var -> unit
+
+  type var_comparator
+
+  type operand = [
+    | const
+    | var
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
+
+  val pp_operand : Format.formatter -> operand -> unit
+
+  (** [var_of_operand a] returns [Some x] if [a] is a variable [x]. *)
+  val var_of_operand : operand -> var option
+
+  type global = [
+    | `addr of Bv.t
+    | `sym  of string * int
+    | `var  of var
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  (** [var_of_global g] returns [Some x] if [g] is a variable [x]. *)
+  val var_of_global : global -> var option
+
+  (** Pretty-prints the global destination. *)
+  val pp_global : Format.formatter -> global -> unit
+
+  module Insn : sig
+    include Insn.S
+      with type operand := operand
+       and type var := var
+       and type var_comparator := var_comparator
+
+    (** A call instruction.
+
+        [`call (xs, f, args)] calls the function [f] with [args], returning
+        zero or more results in [xs].
+    *)
+    type call = [
+      | `call of var list * global * operand list
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** A data operation. *)
+    type op = [
+      | basic
+      | call
+      | mem
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** Returns the set of free variables in the data operation. *)
+    val free_vars_of_op : op -> (var, var_comparator) Set.t
+
+    (** Pretty-prints a data operation. *)
+    val pp_op : Format.formatter -> op -> unit
+
+    (** A labeled data operation. *)
+    type t [@@deriving bin_io, compare, equal, sexp]
+
+    (** Creates a labeled instruction. *)
+    val create : ?dict:Dict.t -> op -> label:Label.t -> t
+
+    (** The label of the instruction. *)
+    val label : t -> Label.t
+
+    (** The operation itself. *)
+    val op : t -> op
+
+    (** Replaces the operation *)
+    val with_op : t -> op -> t
+
+    (** Returns the dictionary of the instruction. *)
+    val dict : t -> Dict.t
+
+    (** Replaces the dictionary of the instruction. *)
+    val with_dict : t -> Dict.t -> t
+
+    (** [with_tag i t v] binds [v] to tag [t] in the dictionary of [i]. *)
+    val with_tag : t -> 'a Dict.tag -> 'a -> t
+
+    (** Returns [true] if the instruction has a given label. *)
+    val has_label : t -> Label.t -> bool
+
+    (** Same as [free_vars_of_op (op i)]. *)
+    val free_vars : t -> (var, var_comparator) Set.t
+
+    (** Returns [true] for instructions that have side effects. *)
+    val is_effectful_op : op -> bool
+
+    (** Returns [true] for instructions that can store to memory. *)
+    val can_store_op : op -> bool
+
+    (** Returns [true] for instructions that can load from memory. *)
+    val can_load_op : op -> bool
+
+    (** Same as [is_effectful_op (op i)]. *)
+    val is_effectful : t -> bool
+
+    (** Same as [can_store_op (op i)]. *)
+    val can_store : t -> bool
+
+    (** Same as [can_load_op (op i)]. *)
+    val can_load : t -> bool
+
+    (** Transforms the underlying operation. *)
+    val map : t -> f:(op -> op) -> t
+
+    (** Same as [pp_op]. *)
+    val pp : Format.formatter -> t -> unit
+
+    (** Tags for various information about the instruction. *)
+    module Tag : sig
+      (** Do not attempt to transform this call into a tail call. *)
+      val non_tail : unit Dict.tag
+    end
+  end
+
+  type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
+end

@@ -27,3 +27,5 @@ module Intervals = Intervals
 module Loops = Loops
 module Data = Data_
 module Module = Module
+
+module Abi = Abi

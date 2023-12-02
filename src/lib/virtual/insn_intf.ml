@@ -1,7 +1,7 @@
 open Core
 
 (** The base set of operations in an instruction. *)
-module type Base = sig 
+module type S = sig
   type operand
   type var
   type var_comparator
@@ -243,7 +243,7 @@ module type Base = sig
   *)
   type basic = [
     | `bop of var * binop * operand * operand
-    | `uop of var * unop  * operand
+    | `uop of var * unop * operand
     | `sel of var * Type.basic * var * operand * operand
   ] [@@deriving bin_io, compare, equal, sexp]
 

@@ -1,7 +1,7 @@
 open Core
 open Common
 
-module type Base = Insn_intf.Base
+module type S = Insn_intf.S
 
 type arith_binop = [
   | `add   of Type.basic
@@ -200,7 +200,7 @@ type call = [
 
 let free_vars_of_call : call -> Var.Set.t = function
   | `call (_, f, args, vargs) ->
-    let f = var_of_global f |> Option.to_list |> Var.Set.of_list in
+    let f = var_of_global f |> var_set_of_option in
     let args = List.filter_map args ~f:var_of_operand |> Var.Set.of_list in
     let vargs = List.filter_map vargs ~f:var_of_operand |> Var.Set.of_list in
     Var.Set.union_list [f; args; vargs]
@@ -241,8 +241,7 @@ type mem = [
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_mem : mem -> Var.Set.t = function
-  | `load  (_, _, a) ->
-    var_of_operand a |> Option.to_list |> Var.Set.of_list
+  | `load  (_, _, a) -> var_of_operand a |> var_set_of_option
   | `store (_, v, a) ->
     List.filter_map [v; a] ~f:var_of_operand |> Var.Set.of_list
 
@@ -333,12 +332,6 @@ let pp_op ppf : op -> unit = function
   | #mem      as m -> pp_mem      ppf m
   | #variadic as v -> pp_variadic ppf v
   | #compound as c -> pp_compound ppf c
-
-module Tag = struct
-  let non_tail = Dict.register
-      ~uuid:"3d94ecfb-36c4-4218-abc7-96c2200b4e04"
-      "non-tail" (module Unit)
-end
 
 type t = {
   label : Label.t;

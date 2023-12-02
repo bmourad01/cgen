@@ -310,11 +310,11 @@ module Calls = struct
             | `call (ret, f, args, vargs) ->
               let label = Insn.label i in
               let+ args', ret, mems = callins env label ret args vargs in
-              (* We can't have tail calls that require stack space for
-                 their parameters. *)
-              let i =
-                if List.is_empty mems then i
-                else Insn.(with_tag i Tag.non_tail ()) in
+              (* (\* We can't have tail calls that require stack space for *)
+              (*    their parameters. *\) *)
+              (* let i = *)
+              (*   if List.is_empty mems then i *)
+              (*   else Insn.(with_tag i Tag.non_tail ()) in *)
               (* XXX: this is a big hack and leaks our abstraction too
                  much, but I'm not sure what else can be done. Maybe it's
                  OK as long as this is well-documented. *)
