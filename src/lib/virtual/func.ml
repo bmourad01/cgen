@@ -2,6 +2,8 @@ open Core
 open Regular.Std
 open Common
 
+module type S = Func_intf.S
+
 module Slot = struct
   type t = {
     var   : Var.t;

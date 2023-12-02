@@ -673,212 +673,26 @@ type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A basic block. *)
 module Blk : sig
-  type t [@@deriving bin_io, compare, equal, sexp]
+  module type S = Blk_intf.S
 
-  (** Creates a basic block. *)
-  val create :
-    ?dict:Dict.t ->
-    ?args:Var.t list ->
-    ?insns:insn list ->
-    label:Label.t ->
-    ctrl:ctrl ->
-    unit ->
-    t
-
-  (** Returns the label of the basic block. *)
-  val label : t -> Label.t
-
-  (** Returns the arguments of the basic block. *)
-  val args : ?rev:bool -> t -> Var.t seq
-
-  (** Returns the sequence of data instructions. *)
-  val insns : ?rev:bool -> t -> insn seq
-
-  (** Returns the control-flow instruction (also called the terminator)
-      of the block. *)
-  val ctrl : t -> ctrl
-
-  (** Returns the dictionary of the block. *)
-  val dict : t -> Dict.t
-
-  (** Replaces the dictionary of the block. *)
-  val with_dict : t -> Dict.t -> t
-
-  (** [with_tag b t v] binds [v] to tag [t] in the dictionary of [b]. *)
-  val with_tag : t -> 'a Dict.tag -> 'a -> t
-
-  (** [has_label b l] returns [true] if block [b] has label [l]. *)
-  val has_label : t -> Label.t -> bool
-
-  (** Returns a mapping from instruction labels to instructions.
-
-      @raise Invalid_argument if there are duplicate labels
-  *)
-  val map_of_insns : t -> insn Label.Tree.t
-
-  (** Returns the live-out mappings for each instruction and the set
-      of free variables in the block. *)
-  val liveness : t -> Var.Set.t Label.Tree.t * Var.Set.t
-
-  (** Equivalent to [snd (liveness blk)]. *)
-  val free_vars : t -> Var.Set.t
-
-  (** [uses_var b x] returns [true] if the variable [x] appears in the
-      free variables of [b].
-
-      Equivalent to [Set.mem (free_vars b) x].
-  *)
-  val uses_var : t -> Var.t -> bool
-
-  (** [defines_var b x] returns [true] if the variable [x] is defined
-      in the block [b]. *)
-  val defines_var : t -> Var.t -> bool
-
-  (** Returns [true] if the block has a data instruction associated with
-      the label. *)
-  val has_insn : t -> Label.t -> bool
-
-  (** Finds the data instruction with the associated label. *)
-  val find_insn : t -> Label.t -> insn option
-
-  (** Returns the next data instruction (after the given label) if it
-      exists. *)
-  val next_insn : t -> Label.t -> insn option
-
-  (** Returns the previous data instruction (before the given label) if it
-      exists. *)
-  val prev_insn : t -> Label.t -> insn option
-
-  (** Applies [f] to each argument of the block. *)
-  val map_args : t -> f:(Var.t -> Var.t) -> t
-
-  (** [map_insns b ~f] returns [b] with each data instruction applied
-      to [f]. *)
-  val map_insns : t -> f:(Label.t -> Insn.op -> Insn.op) -> t
-
-  (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
-  val map_ctrl : t -> f:(ctrl -> ctrl) -> t
-
-  (** [prepend_arg b a ?before] prepends the argument [a] to the block
-
-      If [before] is [None], then [a] is inserted at the beginning of
-      the argument list.
-
-      If [before] is [Some x], then [a] will appear directly before the
-      argument [x]. If [x] doesn't exist, then [a] is not inserted.
-  *)
-  val prepend_arg : ?before:Var.t -> t -> Var.t -> t
-
-  (** [append_arg b a ?after] appends the argument [a] to the block [b].
-
-      If [after] is [None], then [a] is inserted at the end of the
-      argument list.
-
-      If [after] is [Some x], then [a] will appear directly after the
-      argument [x]. If [x] doesn't exist, then [a] is not inserted.
-  *)
-  val append_arg : ?after:Var.t -> t -> Var.t -> t
-
-  (** [prepend_insn b d ?before] prepends the data instruction [d] to
-      the block [b].
-
-      If [before] is [None], then [d] is inserted at the beginning of
-      the data instructions.
-
-      If [before] is [Some l], then [d] will appear directly before the
-      data instruction at label [l]. If [l] doesn't exist, then [d] is
-      not inserted.
-  *)
-  val prepend_insn : ?before:Label.t -> t -> insn -> t
-
-  (** [append_insn b d ?after] appends the data instruction [d] to
-      the block [b].
-
-      If [after] is [None], then [d] is inserted at the end of the
-      data instructions.
-
-      If [after] is [Some l], then [d] will appear directly after the
-      data instruction at label [l]. If [l] doesn't exist, then [d] is
-      not inserted.
-  *)
-  val append_insn : ?after:Label.t -> t -> insn -> t
-
-  (** Similar to [prepend_insn], but for a list of instructions.
-
-      Note that the instructions are prepended to [before] starting
-      with the last instruction.
-  *)
-  val prepend_insns : ?before:Label.t -> t -> insn list -> t
-
-  (** Similar to [append_insn], but for a list of instructions.
-
-      Note that the instructions are appended to [after] starting
-      with the first instruction.
-  *)
-  val append_insns : ?after:Label.t -> t -> insn list -> t
-
-  (** Replaces the control-flow instruction in the block. *)
-  val with_ctrl : t -> ctrl -> t
-
-  (** Replaces the instructions of the block. *)
-  val with_insns : t -> insn list -> t
-
-  (** [remove_arg b x] removes an argument [x] from the block [b],
-      if it exists. *)
-  val remove_arg : t -> Var.t -> t
-
-  (** [remove_insn b l] removes a data instruction with label [l] from
-      the block [b], if it exists. *)
-  val remove_insn : t -> Label.t -> t
-
-  (** [has_arg b x] returns true if [b] has an argument [x]. *)
-  val has_arg : t -> Var.t -> bool
-
-  (** [has_lhs b x] returns [true] if a data instruction in [b] defines
-      [x]. *)
-  val has_lhs : t -> Var.t -> bool
-
-  include Regular.S with type t := t
+  include S
+    with type op := Insn.op
+     and type insn := insn
+     and type ctrl := ctrl
+     and type var := Var.t
+     and type var_comparator := Var.comparator_witness
 end
 
 type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A function. *)
 module Func : sig
-  (** A stack slot. *)
-  module Slot : sig
-    type t [@@deriving bin_io, compare, equal, sexp]
+  module type S = Func_intf.S
 
-    (** [create_exn x ~size ~align] creates a slot for variable [x] with
-        [size] and [align].
-
-        @raise Invalid_argument if [size < 1], [align < 1], or [align] is
-        not a power of two.
-    *)
-    val create_exn : Var.t -> size:int -> align:int -> t
-
-    (** Same as [create_exn], but returns an error instead of raising. *)
-    val create : Var.t -> size:int -> align:int -> t Or_error.t
-
-    (** The variable associated with the slot. *)
-    val var : t -> Var.t
-
-    (** The size of the slot in bytes. *)
-    val size : t -> int
-
-    (** The alignment of the slot in bytes. *)
-    val align : t -> int
-
-    (** [is_var s x] returns [true] if slot [s] is associated with the
-        variable [x]. *)
-    val is_var : t -> Var.t -> bool
-
-    val pp : Format.formatter -> t -> unit
-  end
-
-  type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
-
-  val pp_slot : Format.formatter -> slot -> unit
+  include S
+    with type blk := blk
+     and type var := Var.t
+     and type argt := Type.arg
 
   (** Tags for various information about the function. *)
   module Tag : sig
@@ -896,52 +710,6 @@ module Func : sig
     val linkage : Linkage.t Dict.tag
   end
 
-  type t [@@deriving bin_io, compare, equal, sexp]
-
-  (** Creates a function.
-
-      It is assumed that [blks] is ordered such that the entry block is
-      the first element.
-
-      The entry block must have no incoming control-flow edges (this is
-      enforced in [Typecheck]).
-
-      @raise Invalid_argument if [blks] is empty.
-  *)
-  val create_exn :
-    ?dict:Dict.t ->
-    ?slots:slot list ->
-    name:string ->
-    blks:blk list ->
-    args:(Var.t * Type.arg) list ->
-    unit ->
-    t
-
-  (** Same as [create_exn], but returns an error upon failure. *)
-  val create :
-    ?dict:Dict.t ->
-    ?slots:slot list ->
-    name:string ->
-    blks:blk list ->
-    args:(Var.t * Type.arg) list ->
-    unit ->
-    t Or_error.t
-
-  (** Returns the name of the function. *)
-  val name : t -> string
-
-  (** Returns the slots of the function. *)
-  val slots : ?rev:bool -> t -> slot seq
-
-  (** Returns the basic blocks of the function. *)
-  val blks : ?rev:bool -> t -> blk seq
-
-  (** Returns the label of the entry block. *)
-  val entry : t -> Label.t
-
-  (** Returns the arguments of the function, along with their types. *)
-  val args : ?rev:bool -> t -> (Var.t * Type.arg) seq
-
   (** Returns the return type of the function, if it exists. *)
   val return : t -> Type.arg option
 
@@ -958,117 +726,8 @@ module Func : sig
   *)
   val linkage : t -> Linkage.t
 
-  (** Returns the dictionary of the function. *)
-  val dict : t -> Dict.t
-
-  (** Replaces the dictionary of the function. *)
-  val with_dict : t -> Dict.t -> t
-
-  (** [with_tag fn t v] binds [v] to tag [t] in the dictionary of [fn]. *)
-  val with_tag : t -> 'a Dict.tag -> 'a -> t
-
-  (** Returns [true] if the function has the associated name. *)
-  val has_name : t -> string -> bool
-
   (** Returns the function prototype. *)
   val typeof : t -> Type.proto
-
-  (** Returns a mapping from block labels to blocks.
-
-      @raise Invalid_argument if there are duplicate labels
-  *)
-  val map_of_blks : t -> blk Label.Tree.t
-
-  (** [map_blks fn ~f] returns [fn] with each basic block applied to [f].
-
-      Note that [f] is allowed to change the label of the entry block.
-      This change is reflected in the updated function.
-  *)
-  val map_blks : t -> f:(blk -> blk) -> t
-
-  (** Same as [map_blks], but handles the case where [f] may fail. *)
-  val map_blks_err : t -> f:(blk -> blk Or_error.t) -> t Or_error.t
-
-  (** Appends a block to the end of the function. *)
-  val insert_blk : t -> blk -> t
-
-  (** Appends a slot to the function. *)
-  val insert_slot : t -> slot -> t
-
-  (** Removes a slot from the function. *)
-  val remove_slot : t -> Var.t -> t
-
-  (** [remove_blk_exn fn l] removes the block with label [l] from function
-      [f].
-
-      @raise Invalid_argument if [l] is the label of the entry block.
-  *)
-  val remove_blk_exn : t -> Label.t -> t
-
-  (** Same as [remove_blk_exn], but returns an error upon failure. *)
-  val remove_blk : t -> Label.t -> t Or_error.t
-
-  (** Same as [remove_blk_exn], but removes multiple blocks.
-
-      @raise Invalid_argument if one of the labels is the entry block.
-  *)
-  val remove_blks_exn : t -> Label.t list -> t
-
-  (** Same as [remove_blks_exn], but returns an error if one of the labels
-      is the entry block. *)
-  val remove_blks : t -> Label.t list -> t Or_error.t
-
-  (** [prepend_arg ?before fn x t] adds the argument [x] of type [t] to [fn].
-
-      If [before] is [None], then [x] is inserted at the beginning of the
-      argument list.
-
-      If [before] is [Some y], then [x] will appear directly before the
-      argument [y]. If [y] doesn't exist, then [x] is not inserted.
-  *)
-  val prepend_arg : ?before:Var.t -> t -> Var.t -> Type.arg -> t
-
-  (** [append_arg ?after fn x t] adds the argument [x] of type [t] to [fn].
-
-      If [after] is [None], then [x] is inserted at the end of the
-      argument list.
-
-      If [after] is [Some y], then [x] will appear directly after the
-      argument [y]. If [y] doesn't exist, then [x] is not inserted.
-  *)
-  val append_arg : ?after:Var.t -> t -> Var.t -> Type.arg -> t
-
-  (** [remove_arg fn x] removes the argument [x] from [fn], if it exists. *)
-  val remove_arg : t -> Var.t -> t
-
-  (** Returns [true] if the function has a block associated with the given
-      label. *)
-  val has_blk : t -> Label.t -> bool
-
-  (** Finds the block with the associated label, if it exists. *)
-  val find_blk : t -> Label.t -> blk option
-
-  (** Returns the next block (after the given label) if it exists. *)
-  val next_blk : t -> Label.t -> blk option
-
-  (** Returns the previous block (before the given label) if it exists. *)
-  val prev_blk : t -> Label.t -> blk option
-
-  (** [update_blk_exn fn b] returns [fn] with block [b] updated, if it exists. *)
-  val update_blk : t -> blk -> t
-
-  (** Same as [update_blk], but for a list of blocks for updating in batches,
-      which should be more efficient.
-
-      @raise Invalid_argument if the list of blocks contains duplicate labels.
-  *)
-  val update_blks_exn : t -> blk list -> t
-
-  (** Same as [update_blks_exn], but returns an error if there is a duplicate
-      block label. *)
-  val update_blks : t -> blk list -> t Or_error.t
-
-  include Regular.S with type t := t
 end
 
 type func = Func.t [@@deriving bin_io, compare, equal, sexp]
