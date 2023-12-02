@@ -431,7 +431,7 @@ let interp_cast o a = match (o : Insn.cast) with
   | `sext t ->
     I.sext a ~size:(Type.sizeof_imm t)
 
-let interp_copy ctx o a = match (o : Insn.copy) with
+let interp_copy o a = match (o : Insn.copy) with
   | `copy _ -> a
 
 let interp_compound ctx s = function
@@ -440,11 +440,11 @@ let interp_compound ctx s = function
     update s x i
   | `unref _ -> s
 
-let interp_unop ctx o a = match (o : Insn.unop) with
+let interp_unop o a = match (o : Insn.unop) with
   | #Insn.arith_unop as o -> interp_arith_unop o a
   | #Insn.bitwise_unop as o -> interp_bitwise_unop o a
   | #Insn.cast as o -> interp_cast o a
-  | #Insn.copy as o -> interp_copy ctx o a
+  | #Insn.copy as o -> interp_copy o a
 
 let try1 s x ~f =
   Option.value_map x ~default:s ~f
@@ -461,7 +461,7 @@ let interp_basic_binop ctx s x o l r =
 
 let interp_basic_unop ctx s x o a =
   interp_operand ctx s a |> try1 s ~f:(fun a ->
-      interp_unop ctx o a |> update s x)
+      interp_unop o a |> update s x)
 
 let interp_basic_sel ctx s x k y n =
   interp_operand ctx s (`var k) |> try1 s ~f:(fun c ->

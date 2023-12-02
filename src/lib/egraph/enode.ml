@@ -96,7 +96,7 @@ let infer_ty_binop : Virtual.Insn.binop -> Type.t option = function
   | `xor t -> Some (t :> Type.t)
   | #Virtual.Insn.cmp -> Some `flag
 
-let infer_ty_unop ~tty ~word : Virtual.Insn.unop -> Type.t option = function
+let infer_ty_unop : Virtual.Insn.unop -> Type.t option = function
   | `neg t
   | `copy t -> Some (t :> Type.t)
   | `clz t
@@ -146,7 +146,7 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
     | Osw _ -> None
     | Osym _ -> Some word
     | Otbl _ -> None
-    | Ounop u -> infer_ty_unop ~tty ~word u
+    | Ounop u -> infer_ty_unop u
     | Ounref s -> tty s
     | Ovaarg (_, (#Type.basic as t)) -> Some (t :> Type.t)
     | Ovaarg (_, `name n) -> tty n
