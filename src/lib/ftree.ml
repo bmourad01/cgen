@@ -108,6 +108,7 @@ module Generic = struct
     | Nil -> monoid.zero
     | Single x -> measure_node x
     | Deep (v, _, _, _) -> v
+  [@@specialise]
 
   let measure_t ~monoid ~measure = function
     | Nil -> monoid.zero
