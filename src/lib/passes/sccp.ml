@@ -94,6 +94,8 @@ let map_op env (op : Insn.op) =
   | `store (t, v, a) -> `store (t, operand v, operand a)
   | `vastart a -> `vastart (map_global env a)
   | `vaarg (x, t, a) -> `vaarg (x, t, map_global env a)
+  | `ref (x, a) -> `ref (x, operand a)
+  | `unref (x, s, a) -> `unref (x, s, operand a)
 
 (* Based on the intervals analysis, we can safely remove a div/rem
    whose RHS is known to never be zero. *)

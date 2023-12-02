@@ -87,12 +87,14 @@ let op_cost : Enode.op -> cost = function
   | Ojmp
   | Oload _
   | Olocal _
+  | Oref
   | Oret
   | Osingle _
   | Osym _
   | Oset _
   | Ostore _
   | Otbl _
+  | Ounref _
   | Ovaarg _
   | Ovastart _ -> Cost.pure 0
   | Obr | Ovar _ -> Cost.pure 2

@@ -432,14 +432,18 @@ let interp_cast o a = match (o : Insn.cast) with
     I.sext a ~size:(Type.sizeof_imm t)
 
 let interp_copy ctx o a = match (o : Insn.copy) with
-  | `copy _ -> Some a
-  | `ref -> Some (I.create_full ~size:(Type.sizeof_imm_base ctx.word))
-  | `unref _ -> None
+  | `copy _ -> a
+
+let interp_compound ctx s = function
+  | `ref (x, _) ->
+    let i = I.create_full ~size:(Type.sizeof_imm_base ctx.word) in
+    update s x i
+  | `unref _ -> s
 
 let interp_unop ctx o a = match (o : Insn.unop) with
-  | #Insn.arith_unop as o -> Some (interp_arith_unop o a)
-  | #Insn.bitwise_unop as o -> Some (interp_bitwise_unop o a)
-  | #Insn.cast as o -> Some (interp_cast o a)
+  | #Insn.arith_unop as o -> interp_arith_unop o a
+  | #Insn.bitwise_unop as o -> interp_bitwise_unop o a
+  | #Insn.cast as o -> interp_cast o a
   | #Insn.copy as o -> interp_copy ctx o a
 
 let try1 s x ~f =
@@ -457,7 +461,7 @@ let interp_basic_binop ctx s x o l r =
 
 let interp_basic_unop ctx s x o a =
   interp_operand ctx s a |> try1 s ~f:(fun a ->
-      interp_unop ctx o a |> try1 s ~f:(update s x))
+      interp_unop ctx o a |> update s x)
 
 let interp_basic_sel ctx s x k y n =
   interp_operand ctx s (`var k) |> try1 s ~f:(fun c ->
@@ -502,7 +506,8 @@ let interp_insn ctx s i =
     | #Insn.basic as b -> interp_basic ctx s b
     | #Insn.call as c -> interp_call ctx s c
     | #Insn.mem as m -> interp_mem ctx s m
-    | #Insn.variadic as v -> interp_variadic ctx s v in
+    | #Insn.variadic as v -> interp_variadic ctx s v
+    | #Insn.compound as c -> interp_compound ctx s c in
   Hashtbl.set ctx.insns ~key:(Insn.label i) ~data:s;
   s
 

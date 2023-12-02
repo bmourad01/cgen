@@ -419,6 +419,16 @@ insn:
       let+ v = v and+ a = a in
       `store (t, v, a)
     }
+  | x = var EQUALS REF a = operand
+    {
+      let+ x = x and+ a = a in
+      `ref (x, a)
+    }
+  | x = var EQUALS UNREF s = TYPENAME a = operand
+    {
+      let+ x = x and+ a = a in
+      `unref (x, s, a)
+    }
 
 call_args:
   | a = option(operand)
@@ -509,8 +519,6 @@ insn_cast:
 
 insn_copy:
   | t = COPY { `copy t }
-  | REF { `ref }
-  | UNREF s = TYPENAME { `unref s }
 
 dst:
   | g = global { let+ g = g in (g :> Virtual.dst) }

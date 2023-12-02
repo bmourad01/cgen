@@ -127,6 +127,9 @@ let rec pure t env e : operand Context.t =
   | E (_, Odouble d, []) -> !!(`double d)
   | E (_, Oint (i, t), []) -> !!(`int (i, t))
   | E (_, Oload (x, _), _) -> !!(`var x)
+  | E (a, Oref, [y]) -> insn a @@ fun x ->
+    let+ y = pure y in
+    `ref (x, y)
   | E (a, Osel ty, [c; y; n]) -> insn a @@ fun x ->
     let* c = pure c in
     let* y = pure y in
@@ -137,6 +140,9 @@ let rec pure t env e : operand Context.t =
   | E (a, Ounop u, [y]) -> insn a @@ fun x ->
     let+ y = pure y in
     `uop (x, u, y)
+  | E (a, Ounref s, [y]) -> insn a @@ fun x ->
+    let+ y = pure y in
+    `unref (x, s, y)
   | E (_, Ovaarg (x, _), [_]) -> !!(`var x)
   | E (_, Ovar x, []) -> !!(`var x)
   (* The rest are rejected. *)
@@ -151,6 +157,7 @@ let rec pure t env e : operand Context.t =
   | E (_, Oint _, _)
   | E (_, Olocal _, _)
   | E (_, Oret, _)
+  | E (_, Oref, _)
   | E (_, Osel _, _)
   | E (_, Oset _, _)
   | E (_, Osingle _, _)
@@ -159,6 +166,7 @@ let rec pure t env e : operand Context.t =
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
   | E (_, Ounop _, _)
+  | E (_, Ounref _, _)
   | E (_, Ovaarg _, _)
   | E (_, Ovar _, _)
   | E (_, Ovastart _, _) -> invalid_pure e
@@ -295,6 +303,7 @@ let exp t env l e =
   | E (_, Oload _, _)
   | E (_, Olocal _, _)
   | E (_, Oret, _)
+  | E (_, Oref, _)
   | E (_, Osel _, _)
   | E (_, Oset _, _)
   | E (_, Osingle _, _)
@@ -303,6 +312,7 @@ let exp t env l e =
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
   | E (_, Ounop _, _)
+  | E (_, Ounref _, _)
   | E (_, Ovaarg _, _)
   | E (_, Ovar _, _)
   | E (_, Ovastart _, _) -> invalid l e

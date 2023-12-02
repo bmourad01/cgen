@@ -103,6 +103,16 @@ module Virtual = struct
   let vastart ?(dict = Dict.empty) a =
     insn (`vastart a) ~dict
 
+  let ref ?(dict = Dict.empty) a =
+    let* var = Var.fresh in
+    let+ i = insn (`ref (var, a)) ~dict in
+    var, i
+
+  let unref ?(dict = Dict.empty) s a =
+    let* var = Var.fresh in
+    let+ i = insn (`unref (var, s, a)) ~dict in
+    var, i
+
   let blits32 = [
     `i32, 4;
     `i16, 2;

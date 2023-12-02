@@ -198,14 +198,45 @@ end = struct
     let args = List.map ~f:opnd in
     let rename = new_name env in
     match (op : Insn.op) with
-    | `call (r, f, a, va) -> `call (acall env r, glo f, args a, args va)
-    | `vaarg (x, t, y) -> `vaarg (rename x, t, map_global env y)
+    | `call (r, f, a, va) ->
+      let f = glo f in
+      let a = args a in
+      let va = args va in
+      let r = acall env r in
+      `call (r, f, a, va)
+    | `vaarg (x, t, y) ->
+      let y = map_global env y in
+      let x = rename x in
+      `vaarg (x, t, y)
     | `vastart x -> `vastart (map_global env x)
-    | `bop (x, b, l, r) -> `bop (rename x, b, opnd l, opnd r)
-    | `uop (x, u, a) -> `uop (rename x, u, opnd a)
-    | `sel (x, t, c, l, r) -> `sel (rename x, t, var c, opnd l, opnd r)
-    | `load (x, t, a) -> `load (rename x, t, opnd a)
+    | `bop (x, b, l, r) ->
+      let l = opnd l in
+      let r = opnd r in
+      let x = rename x in
+      `bop (x, b, l, r)
+    | `uop (x, u, a) ->
+      let a = opnd a in
+      let x = rename x in
+      `uop (x, u, a)
+    | `sel (x, t, c, l, r) ->
+      let c = var c in
+      let l = opnd l in
+      let r = opnd r in
+      let x = rename x in
+      `sel (x, t, c, l, r)
+    | `load (x, t, a) ->
+      let a = opnd a in
+      let x = rename x in
+      `load (x, t, a)
     | `store (t, v, a) -> `store (t, opnd v, opnd a)
+    | `ref (x, a) ->
+      let a = opnd a in
+      let x = rename x in
+      `ref (x, a)
+    | `unref (x, s, a) ->
+      let a = opnd a in
+      let x = rename x in
+      `unref (x, s, a)
 
   let rename_insns env b =
     Blk.insns b |> Seq.map ~f:(fun i ->

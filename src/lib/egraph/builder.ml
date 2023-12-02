@@ -222,6 +222,14 @@ let insn env eg l : Insn.op -> unit = function
     vaarg env eg l x ty a
   | `vastart x ->
     vastart env eg l x
+  | `ref (x, a) ->
+    prov ~x env eg l Oref [
+      operand env eg a;
+    ] ~f:(set x)
+  | `unref (x, s, a) ->
+    prov ~x env eg l (Ounref s) [
+      operand env eg a;
+    ] ~f:(set x)
 
 let sw env eg l ty i d tbl =
   let i = operand env eg (i :> operand) in

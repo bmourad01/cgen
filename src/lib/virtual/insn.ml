@@ -1,6 +1,8 @@
 open Core
 open Common
 
+module type Base = Insn_intf.Base
+
 type arith_binop = [
   | `add   of Type.basic
   | `div   of Type.basic
@@ -141,14 +143,10 @@ let pp_cast ppf : cast -> unit = function
 
 type copy = [
   | `copy  of Type.basic
-  | `ref
-  | `unref of string
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_copy ppf : copy -> unit = function
-  | `copy  t -> Format.fprintf ppf "copy.%a"   Type.pp_basic    t
-  | `ref     -> Format.fprintf ppf "ref"
-  | `unref s -> Format.fprintf ppf "unref :%s" s
+  | `copy t -> Format.fprintf ppf "copy.%a" Type.pp_basic t
 
 type binop = [
   | arith_binop
@@ -280,17 +278,37 @@ let pp_variadic ppf : variadic -> unit = function
   | `vastart x ->
     Format.fprintf ppf "vastart %a" pp_alist x
 
+type compound = [
+  | `ref of Var.t * operand
+  | `unref of Var.t * string * operand
+] [@@deriving bin_io, compare, equal, sexp]
+
+let free_vars_of_compound : compound -> Var.Set.t = function
+  | `ref (_, a) | `unref (_, _, a) ->
+    var_of_operand a |> Option.to_list |> Var.Set.of_list
+
+let pp_compound ppf : compound -> unit = function
+  | `ref (x, c) ->
+    Format.fprintf ppf "%a = ref %a"
+      Var.pp x pp_operand c
+  | `unref (x, s, r) ->
+    Format.fprintf ppf "%a = unref :%s %a"
+      Var.pp x s pp_operand r
+
 type op = [
   | basic
   | call
   | mem
   | variadic
+  | compound
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let lhs_of_op : op -> Var.t option = function
   | `bop     (x, _, _, _)
   | `uop     (x, _, _)
   | `sel     (x, _, _, _, _)
+  | `ref     (x, _)
+  | `unref   (x, _, _)
   | `call    (Some (x, _), _, _, _)
   | `load    (x, _, _)
   | `vaarg   (x, _, _) -> Some x
@@ -307,12 +325,14 @@ let free_vars_of_op : op -> Var.Set.t = function
   | #call     as c -> free_vars_of_call c
   | #mem      as m -> free_vars_of_mem m
   | #variadic as v -> free_vars_of_variadic v
+  | #compound as c -> free_vars_of_compound c
 
 let pp_op ppf : op -> unit = function
   | #basic    as b -> pp_basic    ppf b
   | #call     as c -> pp_call     ppf c
   | #mem      as m -> pp_mem      ppf m
   | #variadic as v -> pp_variadic ppf v
+  | #compound as c -> pp_compound ppf c
 
 module Tag = struct
   let non_tail = Dict.register

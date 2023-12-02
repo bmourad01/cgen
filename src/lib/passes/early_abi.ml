@@ -137,7 +137,7 @@ let selret tenv fn = match Func.return fn with
         Func.blks fn |> Context.Seq.filter_map ~f:(fun b ->
             match Blk.ctrl b with
             | `ret Some `var x ->
-              let* r, ri = Context.Virtual.unop `ref (`var x) in
+              let* r, ri = Context.Virtual.ref (`var x) in
               let+ l, ld = Context.Virtual.load rty (`var r) in
               let b = Blk.append_insns b [ri; ld] in
               let b = Blk.with_ctrl b @@ `ret (Some (`var l)) in
@@ -160,7 +160,7 @@ let selret tenv fn = match Func.return fn with
       let* blks = Func.blks fn |> Context.Seq.filter_map ~f:(fun b ->
           match Blk.ctrl b with
           | `ret Some `var x ->
-            let* src, srci = Context.Virtual.unop `ref (`var x) in
+            let* src, srci = Context.Virtual.ref (`var x) in
             let+ blit = Context.Virtual.blit ~src ~dst `i64 k.size in
             let b = Blk.append_insns b (srci :: blit) in
             let b = Blk.with_ctrl b @@ `ret (Some (`var dst)) in
@@ -242,7 +242,7 @@ module Calls = struct
         let* y = Context.Var.fresh in
         let* z = Context.Var.fresh in
         let+ l = Context.Label.fresh in
-        let i = Insn.create ~label:l @@ `uop (x, `unref n, `var z) in
+        let i = Insn.create ~label:l @@ `unref (x, n, `var z) in
         Vec.push env.slots (y, k.size, k.align);
         append env.nins label i;
         (`var y :: args), Some (z, `i64)
@@ -258,7 +258,7 @@ module Calls = struct
     | `compound (name, _, _) | `opaque (name, _, _) ->
       let*? lt = Typecheck.Env.layout name env.tenv in
       let k = classify_layout lt in
-      let* src, srci = Context.Virtual.unop `ref a in
+      let* src, srci = Context.Virtual.ref a in
       prepend env.nins label srci;
       match k.cls with
       | Kreg (r, _) when k.size = 8 ->

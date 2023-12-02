@@ -390,18 +390,24 @@ module Insns = struct
         | #Type.basic as b, t when Type.equal_basic b t -> !!(t :> Type.t)
         | _ -> unify_fail_arg (t :> Type.t) a ta
       end
-    | `ref ->
-      let* w = target >>| Target.word in
-      begin match ta with
-        | #Type.compound -> !!(w :> Type.t)
-        | _ -> ref_expected_compound ta a
-      end
-    | `unref s ->
-      let* env = getenv in
-      let*? t = Env.typeof_typ s env in
-      let w = Target.word @@ Env.target env in
-      if Type.equal ta (w :> Type.t) then !!(t :> Type.t)
-      else unref_expected_word_size ta w
+
+  let op_compound env c =
+    let* fn = getfn in
+    let* word = target >>| Target.word in
+    let* x, t = match c with
+      | `ref (x, a) ->
+        let* ta = typeof_arg fn env a in
+        begin match ta with
+          | #Type.compound -> !!(x, (word :> Type.t))
+          | _ -> ref_expected_compound ta a
+        end
+      | `unref (x, s, a) ->
+        let* ta = typeof_arg fn env a in
+        let*? t = Env.typeof_typ s env in
+        if Type.equal ta (word :> Type.t)
+        then !!(x, (t :> Type.t))
+        else unref_expected_word_size ta word in
+    M.lift_err @@ Env.add_var fn x t env
 
   let op_binop env v b al ar =
     let* fn = getfn in
@@ -635,6 +641,7 @@ module Insns = struct
     | #Insn.call     as c -> op_call     env c
     | #Insn.mem      as m -> op_mem      env m
     | #Insn.variadic as v -> op_variadic env v
+    | #Insn.compound as c -> op_compound env c
 
   let go seen =
     let* init = getenv and* blk = getblk in

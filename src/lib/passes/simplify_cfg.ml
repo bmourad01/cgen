@@ -115,6 +115,8 @@ module Subst = struct
     | `store (t, v, a) -> `store (t, arg v, arg a)
     | `vastart a -> `vastart (map_global subst a)
     | `vaarg (x, t, a) -> `vaarg (x, t, map_global subst a)
+    | `ref (x, a) -> `ref (x, arg a)
+    | `unref (x, s, a) -> `unref (x, s, arg a)
 
   let map_insn subst i =
     Insn.with_op i @@ map_op subst @@ Insn.op i
