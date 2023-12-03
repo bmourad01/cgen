@@ -17,13 +17,13 @@ module type S = sig
         @raise Invalid_argument if [size < 1], [align < 1], or [align] is
         not a power of two.
     *)
-    val create_exn : var -> size:int -> align:int -> t
+    val create_exn : Var.t -> size:int -> align:int -> t
 
     (** Same as [create_exn], but returns an error instead of raising. *)
-    val create : var -> size:int -> align:int -> t Or_error.t
+    val create : Var.t -> size:int -> align:int -> t Or_error.t
 
     (** The variable associated with the slot. *)
-    val var : t -> var
+    val var : t -> Var.t
 
     (** The size of the slot in bytes. *)
     val size : t -> int
@@ -33,7 +33,7 @@ module type S = sig
 
     (** [is_var s x] returns [true] if slot [s] is associated with the
         variable [x]. *)
-    val is_var : t -> var -> bool
+    val is_var : t -> Var.t -> bool
 
     val pp : Format.formatter -> t -> unit
   end
@@ -117,8 +117,8 @@ module type S = sig
   (** Appends a slot to the function. *)
   val insert_slot : t -> slot -> t
 
-  (** Removes a slot from the function. *)
-  val remove_slot : t -> var -> t
+  (** Removes a slot from the function that corresponds to the given var. *)
+  val remove_slot : t -> Var.t -> t
 
   (** [remove_blk_exn fn l] removes the block with label [l] from function
       [f].

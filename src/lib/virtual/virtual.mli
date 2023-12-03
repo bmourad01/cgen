@@ -993,7 +993,7 @@ module Abi : sig
         [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
         is non-zero. Otherwise, the destination is [no].
 
-        [`ret xs] returns a list of values from a function.
+        [`ret xs] returns a list of register names from a function.
 
         [`sw (typ, index, default, table)] implements a jump table.
         For a variable [index] of type [typ], it will find the associated
@@ -1004,7 +1004,7 @@ module Abi : sig
       | `hlt
       | `jmp of dst
       | `br  of var * dst * dst
-      | `ret of operand list
+      | `ret of string list
       | `sw  of Type.imm * swindex * local * table
     ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -1016,4 +1016,31 @@ module Abi : sig
   end
 
   type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
+
+  module Blk : sig
+    include Blk.S
+      with type op := Insn.op
+       and type insn := insn
+       and type ctrl := ctrl
+       and type var := var
+       and type var_comparator := var_comparator
+  end
+
+  type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
+
+  module Func : sig
+    include Func.S
+      with type blk := blk
+       and type var := var
+       and type argt := Type.basic
+
+    (** Returns the linkage of the function (using [Func.Tag.linkage]).
+
+        If no value was given for it in the [dict], then the result defaults
+        to [Linkage.default_export].
+    *)
+    val linkage : t -> Linkage.t
+  end
+
+  type func = Func.t [@@deriving bin_io, compare, equal, sexp]
 end

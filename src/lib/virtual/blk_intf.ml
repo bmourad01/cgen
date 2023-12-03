@@ -166,7 +166,7 @@ module type S = sig
   val remove_insn : t -> Label.t -> t
 
   (** [has_arg b x] returns true if [b] has an argument [x]. *)
-  val has_arg : t -> var -> bool
+  val has_arg : t -> Var.t -> bool
 
   (** [has_lhs b x] returns [true] if a data instruction in [b] defines
       [x]. *)

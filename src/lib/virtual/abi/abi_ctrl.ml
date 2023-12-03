@@ -70,7 +70,7 @@ type t = [
   | `hlt
   | `jmp of dst
   | `br  of var * dst * dst
-  | `ret of operand list
+  | `ret of string list
   | `sw  of Type.imm * swindex * local * table
 ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -85,9 +85,7 @@ let free_vars : t -> (var, var_comparator) Set.t = function
     ]
   | `ret xs ->
     let init = Set.empty (module Var_comparator) in
-    List.fold xs ~init ~f:(fun s -> function
-        | #var as v -> Set.add s v
-        | _ -> s)
+    List.fold xs ~init ~f:(fun s r -> Set.add s @@ `reg r)
   | `sw (_, x, d, tbl) ->
     Set.union_list (module Var_comparator) [
       var_set_of_option @@ var_of_swindex x;
@@ -106,7 +104,7 @@ let pp ppf : t -> unit = function
   | `ret xs ->
     let pp_sep ppf () = Format.fprintf ppf ", " in
     Format.fprintf ppf "ret %a"
-      (Format.pp_print_list ~pp_sep pp_operand) xs
+      (Format.pp_print_list ~pp_sep String.pp) xs
   | `sw (t, x, ld, tbl) ->
     Format.fprintf ppf "sw.%a %a, %a [@[<v 0>%a@]]"
       Type.pp_imm t pp_swindex x pp_local ld Table.pp tbl
