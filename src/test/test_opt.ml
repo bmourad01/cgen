@@ -906,9 +906,9 @@ let test_switch_case_prop _ =
 
    export function w $foo(w %x) {
    @start:
-     sw.w %x, @default [0x1_w -> @one,
-                        0x2_w -> @two,
-                        0x3_w -> @three]
+     switch.w %x, @default [0x1_w -> @one,
+                            0x2_w -> @two,
+                            0x3_w -> @three]
    @default:
      ret %x
    @one:
@@ -926,9 +926,9 @@ let test_switch_case_prop _ =
 
    export function w $foo(w %x) {
    @7:
-     sw.w %x, @6 [0x1_w -> @4,
-                  0x2_w -> @2,
-                  0x3_w -> @0]
+     switch.w %x, @6 [0x1_w -> @4,
+                      0x2_w -> @2,
+                      0x3_w -> @0]
    @6:
      ret %x
    @4:
@@ -947,8 +947,8 @@ let test_switch_simpl _ =
 
    export function w $foo(w %x) {
    @start:
-     sw.w %x, @default [0x1_w -> @a,
-                        0x2_w -> @default]
+     switch.w %x, @default [0x1_w -> @a,
+                            0x2_w -> @default]
    @a:
      %y = add.w %x, 1_w
      ret %y

@@ -103,5 +103,5 @@ let pp ppf : t -> unit = function
   | `ret None ->
     Format.fprintf ppf "ret"
   | `sw (t, x, ld, tbl) ->
-    Format.fprintf ppf "sw.%a %a, %a [@[<v 0>%a@]]"
+    Format.fprintf ppf "switch.%a %a, %a [@[<v 0>%a@]]"
       Type.pp_imm t pp_swindex x pp_local ld Table.pp tbl

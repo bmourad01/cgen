@@ -93,6 +93,9 @@ rule token = parse
   | '=' { EQUALS }
   | "->" { ARROW }
   | "..." { ELIPSIS }
+  | "sb" { SB }
+  | "sh" { SH }
+  | "sw" { SW }
   | 'w' { W }
   | 'l' { L }
   | 'b' { B }
@@ -161,7 +164,10 @@ rule token = parse
   | "ref" { REF }
   | "unref" { UNREF }
   | "sel" '.' (basic as t) { SEL (basic_of_char t) }
-  | "call" '.' (basic as t) { ACALL (basic_of_char t :> Type.arg) }
+  | "call" '.' (basic as t) { ACALL (basic_of_char t :> Type.ret) }
+  | "call" '.' "sb" { ACALL `si8 }
+  | "call" '.' "sh" { ACALL `si16 }
+  | "call" '.' "sw" { ACALL `si32 }
   | "call" ':' (ident as id) { ACALL (`name id) }
   | "call" { CALL }
   | "vaarg" '.' (basic as t) { VAARG (basic_of_char t :> Type.arg) }
@@ -171,7 +177,7 @@ rule token = parse
   | "jmp" { JMP }
   | "br" { BR }
   | "ret" { RET }
-  | "sw" '.' (imm as t) { SW (imm_of_char t) }
+  | "switch" '.' (imm as t) { SWITCH (imm_of_char t) }
   | "function" { FUNCTION }
   | "data" { DATA }
   | "export" { EXPORT }

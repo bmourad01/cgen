@@ -48,7 +48,7 @@ let pp_basic ppf : basic -> unit = function
       pp_var x Type.pp_basic t pp_var c pp_operand l pp_operand r
 
 type call = [
-  | `call of var list * global * operand list
+  | `call of string list * global * operand list
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_call : call -> (var, var_comparator) Set.t = function
@@ -65,7 +65,7 @@ let pp_call_args ppf args =
 
 let pp_call_rets ppf rets =
   let pp_sep ppf () = Format.fprintf ppf ", " in
-  Format.pp_print_list ~pp_sep pp_var ppf rets
+  Format.pp_print_list ~pp_sep String.pp ppf rets
 
 let pp_call ppf : call -> unit = function
   | `call ([], f, args) ->

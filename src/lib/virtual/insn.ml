@@ -195,7 +195,7 @@ let pp_basic ppf : basic -> unit = function
       Var.pp x Type.pp_basic t Var.pp c pp_operand l pp_operand r
 
 type call = [
-  | `call of (Var.t * Type.arg) option * global * operand list * operand list
+  | `call of (Var.t * Type.ret) option * global * operand list * operand list
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_call : call -> Var.Set.t = function
@@ -222,8 +222,8 @@ let pp_call_res ppf = function
   | None -> Format.fprintf ppf "call "
   | Some (x, `name n) ->
     Format.fprintf ppf "%a = call:%s " Var.pp x n
-  | Some (x, (#Type.basic as t)) ->
-    Format.fprintf ppf "%a = call.%a " Var.pp x Type.pp_basic t
+  | Some (x, ((#Type.basic | `si8 | `si16 | `si32) as t)) ->
+    Format.fprintf ppf "%a = call.%a " Var.pp x Type.pp_ret t
 
 let pp_call ppf c =
   let res, dst, args, vargs = match c with

@@ -486,6 +486,9 @@ let interp_basic ctx s : Insn.basic -> state = function
 let make_top s x = function
   | #Type.basic as t ->
     update s x @@ I.create_full ~size:(Type.sizeof_basic t)
+  | `si8 -> update s x @@ I.create_full ~size:8
+  | `si16 -> update s x @@ I.create_full ~size:16
+  | `si32 -> update s x @@ I.create_full ~size:32
   | `name _ -> s
 
 let interp_call _ s : Insn.call -> state = function

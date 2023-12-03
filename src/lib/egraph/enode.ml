@@ -17,7 +17,7 @@ type op =
   | Obool     of bool
   | Obr
   | Ocall0    of Label.t
-  | Ocall     of Var.t * Type.arg
+  | Ocall     of Var.t * Type.ret
   | Ocallargs
   | Odouble   of float
   | Ojmp
@@ -129,8 +129,11 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
     | Obool _ -> Some `flag
     | Obr -> None
     | Ocall0 _ -> None
-    | Ocall (_, (#Type.basic as t)) -> Some (t :> Type.t)
     | Ocall (_, `name n) -> tty n
+    | Ocall (_, (#Type.basic as t)) -> Some (t :> Type.t)
+    | Ocall (_, `si8) -> Some `i8
+    | Ocall (_, `si16) -> Some `i16
+    | Ocall (_, `si32) -> Some `i32
     | Ocallargs -> None
     | Odouble _ -> Some `f64
     | Ojmp -> None
@@ -242,8 +245,8 @@ let pp_op ppf = function
     Format.fprintf ppf "br"
   | Ocall0 _ ->
     Format.fprintf ppf "call"
-  | Ocall (_, (#Type.basic as t)) ->
-    Format.fprintf ppf "call.%a" Type.pp_basic t
+  | Ocall (_, ((#Type.basic | `si8 | `si16 | `si32) as t)) ->
+    Format.fprintf ppf "call.%a" Type.pp_ret t
   | Ocall (_, `name n) ->
     Format.fprintf ppf "call:%s" n
   | Ocallargs ->

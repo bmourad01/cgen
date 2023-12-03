@@ -1,4 +1,4 @@
-module Early_abi = Early_abi
+module Lower_abi = Lower_abi
 module Peephole = Peephole
 module Remove_dead_vars = Remove_dead_vars
 module Remove_disjoint_blks = Remove_disjoint_blks

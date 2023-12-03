@@ -111,7 +111,7 @@ module Insn : sig
       Note that variadic calls require at least one non-variadic argument.
   *)
   type call = [
-    | `call of (Var.t * Type.arg) option * global * operand list * operand list
+    | `call of (Var.t * Type.ret) option * global * operand list * operand list
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the call. *)
@@ -411,8 +411,10 @@ module Func : sig
 
   (** Tags for various information about the function. *)
   module Tag : sig
-    (** The return type of the function. *)
-    val return : Type.arg Dict.tag
+    (** The return type of the function, paired with a flag
+        indicating whether the result should be interpreted
+        as signed. *)
+    val return : Type.ret Dict.tag
 
     (** Indicates whether the function is variadic or not. *)
     val variadic : unit Dict.tag
@@ -426,7 +428,7 @@ module Func : sig
   end
 
   (** Returns the return type of the function, if it exists. *)
-  val return : t -> Type.arg option
+  val return : t -> Type.ret option
 
   (** Returns [true] if the function is variadic. *)
   val variadic : t -> bool
@@ -883,10 +885,10 @@ module Abi : sig
     (** A call instruction.
 
         [`call (xs, f, args)] calls the function [f] with [args], returning
-        zero or more results in [xs].
+        zero or more results in registers [xs].
     *)
     type call = [
-      | `call of var list * global * operand list
+      | `call of string list * global * operand list
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** A data operation. *)

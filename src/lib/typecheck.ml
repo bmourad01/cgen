@@ -178,6 +178,15 @@ let typeof_type_arg env : Type.arg -> Type.t t = function
     let*? t = Env.typeof_typ n env in
     !!(t :> Type.t)
 
+let typeof_type_ret env : Type.ret -> Type.t t = function
+  | #Type.basic as t -> !!(t :> Type.t)
+  | `si8 -> !!`i8
+  | `si16 -> !!`i16
+  | `si32 -> !!`i32
+  | `name n ->
+    let*? t = Env.typeof_typ n env in
+    !!(t :> Type.t)
+
 (* Checking individual instructions of a block. *)
 
 module Insns = struct
@@ -480,13 +489,13 @@ module Insns = struct
     let* fn = getfn and* blk = getblk and* l = getins in
     M.failf "Failed to unify return types %a and <void> for call \
              at %a to function $%s in block %a of function $%s"
-      Type.pp_arg t Label.pp l s Label.pp (Blk.label blk) (Func.name fn) ()
+      Type.pp_ret t Label.pp l s Label.pp (Blk.label blk) (Func.name fn) ()
 
   let unify_fail_call_ret t1 t2 s =
     let* fn = getfn and* blk = getblk and* l = getins in
     M.failf "Failed to unify return types %a and %a for call at %a \
              to function $%s in block %a of function $%s"
-      Type.pp_arg t1 Type.pp_arg t2 Label.pp l s Label.pp
+      Type.pp_ret t1 Type.pp_ret t2 Label.pp l s Label.pp
       (Blk.label blk) (Func.name fn) ()
 
   let non_variadic_call s =
@@ -543,10 +552,10 @@ module Insns = struct
     | _ -> expect_ptr_size_var v t "call"
 
   let check_call_sym_ret t ret s = match t, ret with
-    | None, Some t -> unify_fail_void_call (t :> Type.arg) s
+    | None, Some t -> unify_fail_void_call (t :> Type.ret) s
     | Some t, None -> unify_fail_void_call t s
-    | Some t1, Some t2 when Type.equal_arg t1 (t2 :> Type.arg) -> !!()
-    | Some t1, Some t2 -> unify_fail_call_ret t1 (t2 :> Type.arg) s
+    | Some t1, Some t2 when Type.equal_ret t1 (t2 :> Type.ret) -> !!()
+    | Some t1, Some t2 -> unify_fail_call_ret t1 (t2 :> Type.ret) s
     | None, None -> !!()
 
   let check_call_sym_variadic s vargs variadic =
@@ -594,10 +603,10 @@ module Insns = struct
   let op_call env : Insn.call -> env t = function
     | `call (Some (v, t), g, args, vargs) ->
       let* () =
-        let t = Some (t :> Type.arg) in
+        let t = Some (t :> Type.ret) in
         check_call env t args vargs g in
       let* fn = getfn in
-      let* t = typeof_type_arg env t in
+      let* t = typeof_type_ret env t in
       M.lift_err @@ Env.add_var fn v t env
     | `call (None, g, args, vargs) ->
       let+ () = check_call env None args vargs g in
@@ -729,7 +738,7 @@ module Ctrls = struct
   let ctrl_ret_none =
     let* env = getenv and* fn = getfn in
     match Func.return fn with
-    | Some t -> typeof_type_arg env t >>= unify_fail_void_ret
+    | Some t -> typeof_type_ret env t >>= unify_fail_void_ret
     | None -> !!()
 
   let ctrl_ret_some r =
@@ -738,7 +747,7 @@ module Ctrls = struct
     match tr, Func.return fn with
     | t, None -> unify_fail_void_ret t
     | #Type.t as r, Some t ->
-      let* t' = typeof_type_arg env t in
+      let* t' = typeof_type_ret env t in
       if Type.(r = t') then !!()
       else unify_fail_ret r t'
 
@@ -772,34 +781,6 @@ module Ctrls = struct
           check_dst blks (l :> dst))
     else sw_unify_fail t' tv
 
-  let unify_fail_void_tcall t f =
-    let* fn = getfn and* blk = getblk in
-    M.failf "Failed to unify return types %a and <void> for \
-             tail call to %s in block %a of function $%s"
-      Type.pp_arg t (Format.asprintf "%a" pp_global f)
-      Label.pp (Blk.label blk) (Func.name fn) ()
-
-  let unify_fail_tcall_ret t1 t2 f =
-    let* fn = getfn and* blk = getblk in
-    M.failf "Failed to unify return types %a and %a for \
-             tail call to %a in block %a of function $%s"
-      Type.pp_arg t1 Type.pp_arg t2 pp_global f
-      Label.pp (Blk.label blk) (Func.name fn) ()
-
-  let ctrl_tcall t f args vargs =
-    let* env = getenv in
-    let t = Option.map t ~f:(fun t -> (t :> Type.arg)) in
-    let* tf = getfn >>| Func.typeof in
-    let* () = match tf, t with
-      | `proto (Some rt, _, _), Some t ->
-        let ta = (rt :> Type.arg) in
-        if Type.equal_arg ta t then !!()
-        else unify_fail_tcall_ret ta t f
-      | `proto (Some t, _, _), None ->
-        unify_fail_void_tcall (t :> Type.arg) f
-      | `proto (None, _, _), (None | Some _) -> !!() in
-    Insns.check_call env t args vargs f
-
   let go blks c =
     (* A bit of a hack, but it's a convention that the control
        instruction's label is represented by the block it
@@ -807,14 +788,13 @@ module Ctrls = struct
     let* () = M.update @@ fun ctx -> match ctx.blk with
       | Some b -> {ctx with ins = Some (Blk.label b)}
       | None -> assert false in
-    match c with
+    match (c : ctrl) with
     | `hlt -> !!()
     | `jmp d -> check_dst blks d
     | `br (c, t, f) -> ctrl_br blks c t f
     | `ret None -> ctrl_ret_none
     | `ret (Some r) -> ctrl_ret_some r
     | `sw (t, v, d, tbl) -> ctrl_sw blks t v d tbl
-    | `tcall (t, f, args, vargs) -> ctrl_tcall t f args vargs
 end
 
 (* Checking function definitions. *)

@@ -189,10 +189,7 @@ val pp_compound : Format.formatter -> compound -> unit
 (** Pretty-prints a compound type as a declaration. *)
 val pp_compound_decl : Format.formatter -> compound -> unit
 
-(** A type that is allowed to be used as a function argument.
-
-    Note that return types also fall into this category.
-*)
+(** A type that is allowed to be used as a function argument. *)
 type arg = [
   | basic
   | `name of string
@@ -202,9 +199,34 @@ type arg = [
     for function arguments. *)
 val pp_arg : Format.formatter -> arg -> unit
 
+(** A type that is allowed to be used for returning values from
+    a function call. *)
+type ret = [
+  | arg
+  | `si8
+  | `si16
+  | `si32
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+(** Returns [true] if both return types are compatible.
+
+    This is defined by the following relation:
+
+    [`i8 ~ `si8]
+    [`i16 ~ `si16]
+    [`i32 ~ `si32]
+
+    The remainder of the relation is denoted by [equal_ret].
+*)
+val same_ret : ret -> ret -> bool
+
+(** Pretty prints an argument type in the syntax that is allowed
+    for function returns. *)
+val pp_ret : Format.formatter -> ret -> unit
+
 (** A function prototype. *)
 type proto = [
-  | `proto of arg option * arg list * bool
+  | `proto of ret option * arg list * bool
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty prints a function prototype. *)

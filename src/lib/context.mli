@@ -95,7 +95,7 @@ module Virtual : sig
       fresh label and variable containing the destination. *)
   val call :
     ?dict:Dict.t ->
-    Type.arg ->
+    Type.ret ->
     Virtual.global ->
     Virtual.operand list ->
     Virtual.operand list ->
@@ -189,6 +189,65 @@ module Virtual : sig
       Virtual.module_ ->
       f:(Virtual.func -> Virtual.func t) ->
       Virtual.module_ t
+  end
+
+  (** Same as the above helpers, but for the ABI variant of Virtual IR. *)
+  module Abi : sig
+    val insn : ?dict:Dict.t -> Virtual.Abi.Insn.op -> Virtual.Abi.insn t
+
+    val binop :
+      ?dict:Dict.t ->
+      Virtual.Abi.Insn.binop ->
+      Virtual.Abi.operand ->
+      Virtual.Abi.operand ->
+      (var * Virtual.Abi.insn) t
+
+    val unop :
+      ?dict:Dict.t ->
+      Virtual.Abi.Insn.unop ->
+      Virtual.Abi.operand ->
+      (var * Virtual.Abi.insn) t
+
+    val sel :
+      ?dict:Dict.t ->
+      Type.basic ->
+      Virtual.Abi.var ->
+      Virtual.Abi.operand ->
+      Virtual.Abi.operand ->
+      (var * Virtual.Abi.insn) t
+
+    val call :
+      ?dict:Dict.t ->
+      string list ->
+      Virtual.Abi.global ->
+      Virtual.Abi.operand list ->
+      Virtual.Abi.insn t
+
+    val load :
+      ?dict:Dict.t ->
+      Type.basic ->
+      Virtual.Abi.operand ->
+      (var * Virtual.Abi.insn) t
+
+    val store :
+      ?dict:Dict.t ->
+      Type.basic ->
+      Virtual.Abi.operand ->
+      Virtual.Abi.operand ->
+      Virtual.Abi.insn t
+
+    val blit :
+      src:Virtual.Abi.var ->
+      dst:Virtual.Abi.var ->
+      Type.imm_base ->
+      int ->
+      Virtual.Abi.insn list t
+
+    val ldm :
+      Type.imm_base ->
+      Virtual.Abi.var ->
+      int ->
+      Virtual.Abi.insn list t
   end
 end
 

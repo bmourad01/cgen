@@ -58,7 +58,8 @@ let liveness b =
     | `store _ ->
       Set.empty (module Var_comparator)
     | `call (xs, _, _) ->
-      Set.of_list (module Var_comparator) xs in
+      Set.of_list (module Var_comparator) @@
+      List.map xs ~f:(fun x -> `reg x) in
   let init = Label.Tree.empty, Abi_ctrl.free_vars b.ctrl in
   Ftree.fold_right b.insns ~init ~f:(fun i (out, inc) ->
       Label.Tree.set out ~key:i.label ~data:inc,
@@ -129,7 +130,9 @@ let has_lhs b y = Ftree.exists b.insns ~f:(fun i ->
     | `sel (x, _, _, _, _)
     | `load (x, _, _) -> equal_var x y
     | `store _ -> false
-    | `call (xs, _, _) -> List.exists xs ~f:(equal_var y))
+    | `call (xs, _, _) -> match y with
+      | `var _ -> false
+      | `reg y -> List.exists xs ~f:(String.equal y))
 
 let defines_var b (x : var) = match x with
   | `var v -> has_arg b v || has_lhs b x

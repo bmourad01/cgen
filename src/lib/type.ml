@@ -306,15 +306,38 @@ let pp_arg ppf : arg -> unit = function
   | #basic as b -> Format.fprintf ppf "%a" pp_basic b
   | `name s -> Format.fprintf ppf ":%s" s
 
+type ret = [
+  | arg
+  | `si8
+  | `si16
+  | `si32
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+let pp_ret ppf = function
+  | #arg as a -> Format.fprintf ppf "%a" pp_arg a
+  | `si8 -> Format.fprintf ppf "sb"
+  | `si16 -> Format.fprintf ppf "sh"
+  | `si32 -> Format.fprintf ppf "sw"
+
+let same_ret (a : ret) (b : ret) = match a, b with
+  | `i8, `si8 | `si8, `i8 -> true
+  | `i16, `si16 | `si16, `i16 -> true
+  | `i32, `si32 | `si32, `i32 -> true
+  | _ -> equal_ret a b
+
+let is_ret_signed : ret -> bool = function
+  | `si8 | `si16 | `si32 -> true
+  | _ -> false
+
 type proto = [
-  | `proto of arg option * arg list * bool
+  | `proto of ret option * arg list * bool
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_proto ppf : proto -> unit = function
   | `proto (ret, args, variadic) ->
     let pp_sep ppf () = Format.fprintf ppf ", " in
     let pp_args = Format.pp_print_list ~pp_sep pp_arg in
-    Option.iter ret ~f:(Format.fprintf ppf "%a " pp_arg);
+    Option.iter ret ~f:(Format.fprintf ppf "%a " pp_ret);
     Format.fprintf ppf "(%a" pp_args args;
     match variadic, args with
     | false, _ -> Format.fprintf ppf ")"

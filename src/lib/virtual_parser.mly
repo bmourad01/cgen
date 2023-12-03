@@ -105,7 +105,7 @@
 %token EQUALS
 %token ARROW
 %token ELIPSIS
-%token W L B H S D Z
+%token SB SH SW W L B H S D Z
 %token <Type.basic> ADD DIV MUL REM SUB NEG
 %token <Type.imm> MULH UMULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token SLOT
@@ -118,7 +118,7 @@
 %token <Type.imm_base> IFBITS
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL
-%token <Type.arg> ACALL
+%token <Type.ret> ACALL
 %token REF UNREF
 %token CALL
 %token <Type.arg> VAARG
@@ -127,7 +127,7 @@
 %token JMP
 %token BR
 %token RET
-%token <Type.imm> SW
+%token <Type.imm> SWITCH
 %token <string> MODULE
 %token FUNCTION
 %token DATA
@@ -159,6 +159,7 @@
 %type <((Var.t * Type.arg) list * bool) m> func_args
 %type <Type.basic> type_basic
 %type <Type.arg> type_arg
+%type <Type.ret> type_ret
 %type <Linkage.t> linkage
 %type <string> section
 %type <Virtual.Func.slot m> slot
@@ -250,9 +251,9 @@ typ_field:
   | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value n ~default:1) }
 
 func:
-  | l = option(linkage) FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
+  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
     { make_fn slots blks args l name return false }
-  | l = option(linkage) NORETURN FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
+  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
     { make_fn slots blks args l name return true }
 
 func_args:
@@ -275,6 +276,12 @@ type_basic:
 type_arg:
   | b = type_basic { (b :> Type.arg) }
   | n = TYPENAME { `name n }
+
+type_ret:
+  | a = type_arg { (a :> Type.ret) }
+  | SB { `si8 }
+  | SH { `si16 }
+  | SW { `si32 }
 
 linkage:
   | section = option(section) EXPORT { Linkage.create () ~section ~export:true }
@@ -326,7 +333,7 @@ ctrl:
       | None -> !!(`ret None)
       | Some a -> let+ a = a in `ret (Some a)
     }
-  | t = SW i = ctrl_index COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
+  | t = SWITCH i = ctrl_index COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
     {
       let* i = i and* d = def and* tbl = unwrap_list tbl in
       let* tbl = M.List.map tbl ~f:(fun ((i, t'), l) ->
