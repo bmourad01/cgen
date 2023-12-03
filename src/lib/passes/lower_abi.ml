@@ -1,3 +1,5 @@
+(* Lower a function according to the System V ABI (AMD64). *)
+
 open Core
 open Regular.Std
 open Virtual
@@ -95,13 +97,45 @@ let classify_layout lt =
   {size; align; cls}
 
 type env = {
-  fn   : func;
-  tenv : Typecheck.env;
-  rets : (Abi.insn list * Abi.ctrl) Label.Table.t;
+  fn           : func;
+  tenv         : Typecheck.env;
+  rets         : (Abi.insn list * Abi.ctrl) Label.Table.t;
+  refs         : Var.t Var.Table.t;
+  slots        : Abi.Func.slot Vec.t;
+  mutable rmem : Var.t option;
 }
+
+let init_env tenv fn = {
+  fn;
+  tenv;
+  rets = Label.Table.create ();
+  refs = Var.Table.create ();
+  slots = Vec.create ();
+  rmem = None;
+}
+
+let make_rmem env = match env.rmem with
+  | Some dst -> !!dst
+  | None ->
+    let+ dst = Context.Var.fresh in
+    env.rmem <- Some dst;
+    dst
 
 let oper (o : operand) = (o :> Abi.operand)
 
+let find_ref env x = match Hashtbl.find env.refs x with
+  | Some y -> !!y
+  | None ->
+    Context.failf "Missing ref for var %a in function $%s"
+      Var.pp x (Func.name env.fn) ()
+
+let expect_ret_var env l : operand -> Var.t Context.t = function
+  | `var x -> !!x
+  | x ->
+    Context.failf
+      "Expected var for return operand in block %a of \
+       function $%s, got %a"
+      Label.pp l (Func.name env.fn) pp_operand x ()
 
 let selret env =
   let go f =
@@ -117,24 +151,74 @@ let selret env =
   match Func.return env.fn with
   | None -> !!()
   | Some (#Type.imm as t) -> go @@ fun key x ->
+    (* Return in the first integer register. *)
     let reg = int_rets.(0) in
     let u = match t with
       | `i8 | `i16 | `i32 -> `zext `i64
       | `i64 -> `copy `i64 in
-    let cpy = `uop (`reg reg, u, oper x) in
-    let+ r = Context.Virtual.Abi.insn cpy in
+    let+ r = Context.Virtual.Abi.insn @@ `uop (`reg reg, u, oper x) in
     Hashtbl.set env.rets ~key ~data:([r], `ret [reg])
   | Some (`si8 | `si16 | `si32) -> go @@ fun key x ->
+    (* Return in the first integer register, with a sign extension. *)
     let reg = int_rets.(0) in
-    let cpy = `uop (`reg reg, `sext `i64, oper x) in
-    let+ r = Context.Virtual.Abi.insn cpy in
+    let+ r = Context.Virtual.Abi.insn @@ `uop (`reg reg, `sext `i64, oper x) in
     Hashtbl.set env.rets ~key ~data:([r], `ret [reg])
   | Some (#Type.fp as t) -> go @@ fun key x ->
+    (* Return in the first floating point register. *)
     let reg = sse_rets.(0) in
-    let cpy = `uop (`reg reg, `copy t, oper x) in
-    let+ r = Context.Virtual.Abi.insn cpy in
+    let+ r = Context.Virtual.Abi.insn @@ `uop (`reg reg, `copy t, oper x) in
     Hashtbl.set env.rets ~key ~data:([r], `ret [reg])
-  | Some `name _n ->
-    !!()
+  | Some `name n ->
+    let*? lt = Typecheck.Env.layout n env.tenv in
+    let k = classify_layout lt in
+    match k.cls with
+    | Kreg _ when k.size = 0 -> go @@ fun key _ ->
+      (* Struct is empty, so we return nothing. *)
+      !!(Hashtbl.set env.rets ~key ~data:([], `ret []))
+    | Kreg (r, _) when k.size = 8 -> go @@ fun key x ->
+      (* Struct is returned in a single register. *)
+      let* x = expect_ret_var env key x in
+      let* x = find_ref env x in
+      let t = reg_type r in
+      let reg = match t with
+        | `i64 -> int_rets.(0)
+        | `f64 -> sse_rets.(0) in
+      let+ r = Context.Virtual.Abi.insn @@ `load (`reg reg, t, `var x) in
+      Hashtbl.set env.rets ~key ~data:([r], `ret [reg])
+    | Kreg (r1, r2) -> go @@ fun key x ->
+      (* Struct is returned in two registers of varying classes. *)
+      let* x = expect_ret_var env key x in
+      let* x = find_ref env x in
+      let t1 = reg_type r1 in
+      let t2 = reg_type r2 in
+      let ni = ref 0 in
+      let ns = ref 0 in
+      let reg1 = match t1 with
+        | `i64 -> incr ni; int_rets.(0)
+        | `f64 -> incr ns; sse_rets.(0) in
+      let reg2 = match t2 with
+        | `i64 -> int_rets.(!ni)
+        | `f64 -> sse_rets.(!ns) in
+      let* ld1 = Context.Virtual.Abi.insn @@ `load (`reg reg1, `i64, `var x) in
+      let o = `int (Bv.M64.int 8, `i64) in
+      let* a, add = Context.Virtual.Abi.binop (`add `i64) (`var x) o in
+      let+ ld2 = Context.Virtual.Abi.insn @@ `load (`reg reg2, `i64, `var a) in
+      Hashtbl.set env.rets ~key ~data:([ld1; add; ld2], `ret [reg1; reg2])
+    | Kmem -> go @@ fun key x ->
+      (* Struct is blitted to a pointer held by by the implicit
+         first argument of the function. This pointer becomes the
+         return value. *)
+      let* x = expect_ret_var env key x in
+      let* src = find_ref env x in
+      let* dst = make_rmem env in
+      let* blit = Context.Virtual.Abi.blit
+          `i64 k.size ~src:(`var src) ~dst:(`var dst) in
+      let reg = int_rets.(0) in
+      let cpy = `uop (`reg reg, `copy `i64, `var dst) in
+      let+ r = Context.Virtual.Abi.insn cpy in
+      Hashtbl.set env.rets ~key ~data:(blit @ [r], `ret [reg])
 
-let run _tenv _fn = failwith "unimplemented"
+let run tenv fn =
+  let env = init_env tenv fn in
+  let* () = selret env in
+  failwith "unimplemented"
