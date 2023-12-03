@@ -304,6 +304,13 @@ end
 
 (** Control-flow-effectful instructions. *)
 module Ctrl : sig
+  module type S = Ctrl_intf.S
+
+  include S
+    with type var := Var.t
+     and type var_comparator := Var.comparator_witness
+     and type local := local
+
   (** A valid index into the switch table.
 
       The [`sym (s, offset)] constructor is included because it is
@@ -316,14 +323,37 @@ module Ctrl : sig
     | `sym of string * int
   ] [@@deriving bin_io, compare, equal, sexp]
 
-  module type S = Ctrl_intf.S
+  (** A control-flow instruction.
 
-  include S
-    with type dst := dst
-     and type local := local
-     and type global := global
-     and type swindex := swindex
-     and type operand := operand
+      [`hlt] terminates execution of the program. This is typically used
+      to mark certain program locations as unreachable.
+
+      [`jmp dst] is an unconditional jump to the destination [dst].
+
+      [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
+      is non-zero. Otherwise, the destination is [no].
+
+      [`ret x] returns from a function. If the function returns a value,
+      then [x] holds the value (and must not be [None]).
+
+      [`sw (typ, index, default, table)] implements a jump table.
+      For a variable [index] of type [typ], it will find the associated
+      label of [index] in [table] and jump to it, if it exists. If not,
+      then the destination of the jump is [default].
+  *)
+  type t = [
+    | `hlt
+    | `jmp of dst
+    | `br  of Var.t * dst * dst
+    | `ret of operand option
+    | `sw  of Type.imm * swindex * local * table
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  (** Returns the set of free variables in the control-flow instruction. *)
+  val free_vars : t -> Var.Set.t
+
+  (** Pretty-prints a control-flow instruction. *)
+  val pp : Format.formatter -> t -> unit
 end
 
 type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
@@ -817,6 +847,33 @@ module Abi : sig
   (** Pretty-prints the global destination. *)
   val pp_global : Format.formatter -> global -> unit
 
+  (** Intra-function destination.
+
+      [`label (l, args)] is the label [l] of a block in the current
+      function, with a list of operands [args].
+  *)
+  type local = [
+    | `label of Label.t * operand list
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  (** Returns the free variables in the local destination. *)
+  val free_vars_of_local : local -> (var, var_comparator) Set.t
+
+  (** Pretty-prints the local destination. *)
+  val pp_local : Format.formatter -> local -> unit
+
+  (** The destination for a control flow transfer. *)
+  type dst = [
+    | global
+    | local
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  (** Returns the free variables in the destination. *)
+  val free_vars_of_dst : dst -> (var, var_comparator) Set.t
+
+  (** Pretty-prints a control-flow destination. *)
+  val pp_dst : Format.formatter -> dst -> unit
+
   module Insn : sig
     include Insn.S
       with type operand := operand
@@ -907,4 +964,56 @@ module Abi : sig
   end
 
   type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
+
+  module Ctrl : sig
+    include Ctrl.S
+      with type var := var
+       and type var_comparator := var_comparator
+       and type local := local
+
+    (** A valid index into the switch table.
+
+        The [`sym (s, offset)] constructor is included because it is
+        technically legal to use a symbol as an index into the table.
+        A constant propagation pass could resolve the index to some
+        symbol, although this is rarely a case.
+    *)
+    type swindex = [
+      | `var of var
+      | `sym of string * int
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** A control-flow instruction.
+
+        [`hlt] terminates execution of the program. This is typically used
+        to mark certain program locations as unreachable.
+
+        [`jmp dst] is an unconditional jump to the destination [dst].
+
+        [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
+        is non-zero. Otherwise, the destination is [no].
+
+        [`ret xs] returns a list of values from a function.
+
+        [`sw (typ, index, default, table)] implements a jump table.
+        For a variable [index] of type [typ], it will find the associated
+        label of [index] in [table] and jump to it, if it exists. If not,
+        then the destination of the jump is [default].
+    *)
+    type t = [
+      | `hlt
+      | `jmp of dst
+      | `br  of var * dst * dst
+      | `ret of operand list
+      | `sw  of Type.imm * swindex * local * table
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** Returns the set of free variables in the control-flow instruction. *)
+    val free_vars : t -> (var, var_comparator) Set.t
+
+    (** Pretty-prints a control-flow instruction. *)
+    val pp : Format.formatter -> t -> unit
+  end
+
+  type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 end

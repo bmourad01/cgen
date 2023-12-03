@@ -52,3 +52,35 @@ let pp_global ppf : global -> unit = function
   | `sym (s, o) when o > 0 -> Format.fprintf ppf "$%s+%d" s o
   | `sym (s, o) -> Format.fprintf ppf "$%s-%d" s (lnot o + 1)
   | `var v -> Format.fprintf ppf "%a" pp_var v
+
+type local = [
+  | `label of Label.t * operand list
+] [@@deriving bin_io, compare, equal, sexp]
+
+let free_vars_of_local : local -> (var, var_comparator) Set.t = function
+  | `label (_, args) ->
+    let init = Set.empty (module Var_comparator) in
+    List.fold args ~init ~f:(fun s -> function
+        | #var as v -> Set.add s v
+        | _ -> s)
+
+let pp_local ppf : local -> unit = function
+  | `label (l, []) -> Format.fprintf ppf "%a" Label.pp l
+  | `label (l, args) ->
+    let pp_sep ppf () = Format.fprintf ppf ", " in
+    Format.fprintf ppf "%a(%a)"
+      Label.pp l (Format.pp_print_list ~pp_sep pp_operand) args
+
+type dst = [
+  | global
+  | local
+] [@@deriving bin_io, compare, equal, sexp]
+
+let free_vars_of_dst : dst -> (var, var_comparator) Set.t = function
+  | `var x -> Set.singleton (module Var_comparator) x
+  | #local as l -> free_vars_of_local l
+  | _ -> Set.empty (module Var_comparator)
+
+let pp_dst ppf : dst -> unit = function
+  | #global as g -> Format.fprintf ppf "%a" pp_global g
+  | #local  as l -> Format.fprintf ppf "%a" pp_local l

@@ -12,7 +12,7 @@ module type S = sig
   (** Creates a basic block. *)
   val create :
     ?dict:Dict.t ->
-    ?args:var list ->
+    ?args:Var.t list ->
     ?insns:insn list ->
     label:Label.t ->
     ctrl:ctrl ->
@@ -23,7 +23,7 @@ module type S = sig
   val label : t -> Label.t
 
   (** Returns the arguments of the basic block. *)
-  val args : ?rev:bool -> t -> var seq
+  val args : ?rev:bool -> t -> Var.t seq
 
   (** Returns the sequence of data instructions. *)
   val insns : ?rev:bool -> t -> insn seq
@@ -84,7 +84,7 @@ module type S = sig
   val prev_insn : t -> Label.t -> insn option
 
   (** Applies [f] to each argument of the block. *)
-  val map_args : t -> f:(var -> var) -> t
+  val map_args : t -> f:(Var.t -> Var.t) -> t
 
   (** [map_insns b ~f] returns [b] with each data instruction applied
       to [f]. *)
@@ -101,7 +101,7 @@ module type S = sig
       If [before] is [Some x], then [a] will appear directly before the
       argument [x]. If [x] doesn't exist, then [a] is not inserted.
   *)
-  val prepend_arg : ?before:var -> t -> var -> t
+  val prepend_arg : ?before:Var.t -> t -> Var.t -> t
 
   (** [append_arg b a ?after] appends the argument [a] to the block [b].
 
@@ -111,7 +111,7 @@ module type S = sig
       If [after] is [Some x], then [a] will appear directly after the
       argument [x]. If [x] doesn't exist, then [a] is not inserted.
   *)
-  val append_arg : ?after:var -> t -> var -> t
+  val append_arg : ?after:Var.t -> t -> Var.t -> t
 
   (** [prepend_insn b d ?before] prepends the data instruction [d] to
       the block [b].
@@ -159,7 +159,7 @@ module type S = sig
 
   (** [remove_arg b x] removes an argument [x] from the block [b],
       if it exists. *)
-  val remove_arg : t -> var -> t
+  val remove_arg : t -> Var.t -> t
 
   (** [remove_insn b l] removes a data instruction with label [l] from
       the block [b], if it exists. *)
