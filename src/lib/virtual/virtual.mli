@@ -94,9 +94,7 @@ val pp_dst : Format.formatter -> dst -> unit
 
 (** Data-flow-effectful instruction. *)
 module Insn : sig
-  module type S = Insn_intf.S
-
-  include S
+  include Insn_intf.S
     with type operand := operand
      and type var := Var.t
      and type var_comparator := Var.comparator_witness
@@ -304,9 +302,7 @@ end
 
 (** Control-flow-effectful instructions. *)
 module Ctrl : sig
-  module type S = Ctrl_intf.S
-
-  include S
+  include Ctrl_intf.S
     with type var := Var.t
      and type var_comparator := Var.comparator_witness
      and type local := local
@@ -388,9 +384,7 @@ type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A basic block. *)
 module Blk : sig
-  module type S = Blk_intf.S
-
-  include S
+  include Blk_intf.S
     with type op := Insn.op
      and type insn := insn
      and type ctrl := ctrl
@@ -402,9 +396,7 @@ type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A function. *)
 module Func : sig
-  module type S = Func_intf.S
-
-  include S
+  include Func_intf.S
     with type blk := blk
      and type var := Var.t
      and type argt := Type.arg
@@ -877,7 +869,7 @@ module Abi : sig
   val pp_dst : Format.formatter -> dst -> unit
 
   module Insn : sig
-    include Insn.S
+    include Insn_intf.S
       with type operand := operand
        and type var := var
        and type var_comparator := var_comparator
@@ -968,7 +960,7 @@ module Abi : sig
   type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
 
   module Ctrl : sig
-    include Ctrl.S
+    include Ctrl_intf.S
       with type var := var
        and type var_comparator := var_comparator
        and type local := local
@@ -1020,7 +1012,7 @@ module Abi : sig
   type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
   module Blk : sig
-    include Blk.S
+    include Blk_intf.S
       with type op := Insn.op
        and type insn := insn
        and type ctrl := ctrl
@@ -1031,7 +1023,7 @@ module Abi : sig
   type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
   module Func : sig
-    include Func.S
+    include Func_intf.S
       with type blk := blk
        and type var := var
        and type argt := Type.basic

@@ -2,8 +2,6 @@ open Core
 open Regular.Std
 open Common
 
-module type S = Blk_intf.S
-
 module T = struct
   type t = {
     label : Label.t;

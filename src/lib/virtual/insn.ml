@@ -1,8 +1,6 @@
 open Core
 open Common
 
-module type S = Insn_intf.S
-
 type arith_binop = [
   | `add   of Type.basic
   | `div   of Type.basic

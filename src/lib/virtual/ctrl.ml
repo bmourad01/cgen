@@ -2,8 +2,6 @@ open Core
 open Regular.Std
 open Common
 
-module type S = Ctrl_intf.S
-
 module Table = struct
   type t = {
     tbl : local Map.M(Bv).t;
