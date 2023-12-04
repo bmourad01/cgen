@@ -80,9 +80,9 @@ let insn (acc, changed, alive) i = match Insn.lhs i with
 
 let remove_unused_slots fn live =
   let ins = Live.ins live @@ Func.entry fn in
-  Func.slots fn |> Seq.fold ~init:fn ~f:(fun fn s ->
-      let x = Func.Slot.var s in
-      if Set.mem ins x then fn else Func.remove_slot fn x)
+  Func.slots fn |> Seq.map ~f:Slot.var |>
+  Seq.filter ~f:(Fn.non @@ Set.mem ins) |>
+  Seq.fold ~init:fn ~f:Func.remove_slot
 
 let rec run' fn =
   let live = Live.compute fn in

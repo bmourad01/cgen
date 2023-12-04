@@ -83,7 +83,7 @@ module Licm = struct
     Func.args t.input.fn |> Seq.exists ~f:(fun (y, _) -> Var.(x = y))
 
   let is_slot t x =
-    Func.slots t.input.fn |> Seq.exists ~f:(Fn.flip Func.Slot.is_var x)
+    Func.slots t.input.fn |> Seq.exists ~f:(Fn.flip Slot.is_var x)
 
   let is_arg_or_slot t x = is_arg t x || is_slot t x
 

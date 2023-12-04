@@ -394,12 +394,46 @@ end
 
 type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
+(** A stack slot. *)
+module Slot : sig
+  type t [@@deriving bin_io, compare, equal, sexp]
+
+  (** [create_exn x ~size ~align] creates a slot for variable [x] with
+      [size] and [align].
+
+      @raise Invalid_argument if [size < 1], [align < 1], or [align] is
+      not a power of two.
+  *)
+  val create_exn : Var.t -> size:int -> align:int -> t
+
+  (** Same as [create_exn], but returns an error instead of raising. *)
+  val create : Var.t -> size:int -> align:int -> t Or_error.t
+
+  (** The variable associated with the slot. *)
+  val var : t -> Var.t
+
+  (** The size of the slot in bytes. *)
+  val size : t -> int
+
+  (** The alignment of the slot in bytes. *)
+  val align : t -> int
+
+  (** [is_var s x] returns [true] if slot [s] is associated with the
+      variable [x]. *)
+  val is_var : t -> Var.t -> bool
+
+  val pp : Format.formatter -> t -> unit
+end
+
+type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
+
 (** A function. *)
 module Func : sig
   include Func_intf.S
     with type blk := blk
      and type var := Var.t
      and type argt := Type.arg
+     and type slot := slot
 
   (** Tags for various information about the function. *)
   module Tag : sig
@@ -1027,6 +1061,7 @@ module Abi : sig
       with type blk := blk
        and type var := var
        and type argt := Type.basic
+       and type slot := slot
 
     (** Returns the linkage of the function (using [Func.Tag.linkage]).
 

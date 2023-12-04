@@ -162,7 +162,7 @@
 %type <Type.ret> type_ret
 %type <Linkage.t> linkage
 %type <string> section
-%type <Virtual.Func.slot m> slot
+%type <Virtual.slot m> slot
 %type <Virtual.blk m> blk
 %type <Var.t m> blk_arg
 %type <Virtual.Ctrl.t m> ctrl
@@ -294,7 +294,7 @@ slot:
   | x = var EQUALS SLOT size = NUM COMMA ALIGN align = NUM
     {
       let* x = x in
-      match Virtual.Func.Slot.create x ~size ~align with
+      match Virtual.Slot.create x ~size ~align with
       | Error e -> M.lift @@ Context.fail e
       | Ok s -> !!s
     }

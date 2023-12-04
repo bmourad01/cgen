@@ -862,8 +862,8 @@ module Funcs = struct
     let t = (Target.word (Env.target env) :> Type.t) in
     let* env, _ =
       let init = env, Var.Set.empty in
-      Func.slots fn |> M.Seq.fold ~init ~f:(fun (env, seen) s ->
-          let x = Func.Slot.var s in
+      Func.slots fn |> Seq.map ~f:Slot.var |>
+      M.Seq.fold ~init ~f:(fun (env, seen) x ->
           if Set.mem seen x then
             M.failf "Duplicate slot %a in function $%s"
               Var.pp x (Func.name fn) ()

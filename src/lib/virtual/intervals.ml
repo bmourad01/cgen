@@ -600,7 +600,7 @@ let init_state ctx fn =
   let init =
     Func.slots fn |> Seq.fold ~init ~f:(fun s x ->
         let data = I.create_full ~size:(Type.sizeof_imm_base ctx.word) in
-        Map.set s ~key:(Func.Slot.var x) ~data) in
+        Map.set s ~key:(Slot.var x) ~data) in
   Solution.create Label.(Map.singleton pseudoentry init) empty_state
 
 let transfer ctx l s = match Label.Tree.find ctx.blks l with

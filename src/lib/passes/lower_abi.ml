@@ -101,7 +101,7 @@ type env = {
   tenv         : Typecheck.env;
   rets         : (Abi.insn list * Abi.ctrl) Label.Table.t;
   refs         : Var.t Var.Table.t;
-  slots        : Abi.Func.slot Vec.t;
+  slots        : slot Vec.t;
   mutable rmem : Var.t option;
 }
 

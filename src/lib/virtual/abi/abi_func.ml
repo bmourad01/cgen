@@ -2,16 +2,10 @@ open Core
 open Regular.Std
 open Abi_common
 
-module Slot = Func.Slot
-
-type slot = Func.slot [@@deriving bin_io, compare, equal, sexp]
-
-let pp_slot = Func.pp_slot
-
 module T = struct
   type t = {
     name  : string;
-    slots : slot ftree;
+    slots : Slot.t ftree;
     blks  : Abi_blk.t ftree;
     args  : (var * Type.basic) ftree;
     dict  : Dict.t;
@@ -171,7 +165,7 @@ let pp ppf fn =
   Format.fprintf ppf "$%s(%a) {@;" fn.name pp_args fn;
   if not @@ Ftree.is_empty fn.slots then begin
     let sep ppf = Format.fprintf ppf "@;  " in
-    Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp pp_slot sep) fn.slots
+    Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp Slot.pp sep) fn.slots
   end;
   let sep ppf = Format.fprintf ppf "@;" in
   Format.fprintf ppf "@[<v 0>%a@]@;}"(Ftree.pp Abi_blk.pp sep) fn.blks

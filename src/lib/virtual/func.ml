@@ -2,46 +2,10 @@ open Core
 open Regular.Std
 open Common
 
-module Slot = struct
-  type t = {
-    var   : Var.t;
-    size  : int;
-    align : int;
-  } [@@deriving bin_io, compare, equal, sexp]
-
-  let create_exn x ~size ~align =
-    if size < 1 then
-      invalid_argf "Slot size for %a must be greater than 0, got %d"
-        Var.pps x size ();
-    if align < 1 then
-      invalid_argf "Slot alignment for %a must be greater than 0, got %d"
-        Var.pps x align ();
-    if (align land (align - 1)) <> 0 then
-      invalid_argf "Slot alignment for %a must be a power of 2, got %d"
-        Var.pps x align ();
-    {var = x; size; align}
-
-  let create x ~size ~align = try Ok (create_exn x ~size ~align) with
-    | Invalid_argument msg -> Or_error.error_string msg
-
-  let var t = t.var
-  let size t = t.size
-  let align t = t.align
-  let is_var t x = Var.(t.var = x)
-
-  let pp ppf t =
-    Format.fprintf ppf "%a = slot %d, align %d"
-      Var.pp t.var t.size t.align
-end
-
-type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
-
-let pp_slot = Slot.pp
-
 module T = struct
   type t = {
     name  : string;
-    slots : slot ftree;
+    slots : Slot.t ftree;
     blks  : Blk.t ftree;
     args  : (Var.t * Type.arg) ftree;
     dict  : Dict.t;
@@ -234,7 +198,7 @@ let pp ppf fn =
   Format.fprintf ppf "$%s(%a) {@;" fn.name pp_args fn;
   if not @@ Ftree.is_empty fn.slots then begin
     let sep ppf = Format.fprintf ppf "@;  " in
-    Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp pp_slot sep) fn.slots
+    Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp Slot.pp sep) fn.slots
   end;
   let sep ppf = Format.fprintf ppf "@;" in
   Format.fprintf ppf "@[<v 0>%a@]@;}"(Ftree.pp Blk.pp sep) fn.blks
