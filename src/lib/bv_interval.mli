@@ -33,7 +33,12 @@ val boolean_empty : t
 
 (** Creates an interval of [size] bits with a lower-bound [lo]
     and an upper bound [hi]. Note that the upper bound is
-    exclusive. *)
+    exclusive.
+
+    @raise Invalid_argument if the interval is empty ([lo = hi])
+    and [lo] is not either the maximum unsigned value for [size]
+    or zero.
+*)
 val create : lo:Bv.t -> hi:Bv.t -> size:int -> t
 
 (** Similar to [create], but if [lo = hi] then falls back to
@@ -80,7 +85,10 @@ val single_missing_of : t -> Bv.t option
 val is_single : t -> bool
 
 (** [is_strictly_smaller_than t1 t2] returns [true] if [t1] is strictly
-    smaller than [t2]. *)
+    smaller than [t2].
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val is_strictly_smaller_than : t -> t -> bool
 
 (** [is_larger_than t v] if the possible range of values in [t] is larger
@@ -125,10 +133,16 @@ val subtract : t -> Bv.t -> t
 *)
 type preferred_range = Smallest | Unsigned | Signed
 
-(** Returns the greatest lower bound. *)
+(** Returns the greatest lower bound.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val intersect : ?range:preferred_range -> t -> t -> t
 
-(** Returns the least upper bound. *)
+(** Returns the least upper bound.
+
+    @raise Invalid_argument if [size t1 <> size t2].
+*)
 val union : ?range:preferred_range -> t -> t -> t
 
 (** Inverts the interval. *)
@@ -137,40 +151,76 @@ val inverse : t -> t
 (** [difference t1 t2] is equivalent to [intersect t1 (inverse t2)]. *)
 val difference : t -> t -> t
 
-(** Zero-extend to a given [size]. *)
+(** Zero-extend to a given [size].
+
+    @raise Invalid_argument if [size t >= size].
+*)
 val zext : t -> size:int -> t
 
-(** Sign-extend to a given [size]. *)
+(** Sign-extend to a given [size].
+
+    @raise Invalid_argument if [size t >= size].
+*)
 val sext : t -> size:int -> t
 
-(** Truncate to a given [size]. *)
+(** Truncate to a given [size].
+
+    @raise Invalid_argument if [size t < size].
+*)
 val trunc : t -> size:int -> t
 
-(** Addition. *)
+(** Addition.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val add : t -> t -> t
 
-(** Subtraction. *)
+(** Subtraction.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val sub : t -> t -> t
 
-(** Multiplication. *)
+(** Multiplication.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val mul : t -> t -> t
 
-(** Signed max. *)
+(** Signed max.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val smax : t -> t -> t
 
-(** Unsigned max. *)
+(** Unsigned max.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val umax : t -> t -> t
 
-(** Signed min. *)
+(** Signed min.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val smin : t -> t -> t
 
-(** Unsigned min. *)
+(** Unsigned min.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val umin : t -> t -> t
 
-(** Unsigned division. *)
+(** Unsigned division.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val udiv : t -> t -> t
 
-(** Signed division. *)
+(** Signed division.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val sdiv : t -> t -> t
 
 (** Absolute value.
@@ -181,10 +231,16 @@ val sdiv : t -> t -> t
 *)
 val abs : ?int_min_is_poison:bool -> t -> t
 
-(** Unsigned remainder. *)
+(** Unsigned remainder.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val urem : t -> t -> t
 
-(** Signed remainder. *)
+(** Signed remainder.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val srem : t -> t -> t
 
 (** Logical NOT. *)
@@ -193,42 +249,75 @@ val lnot : t -> t
 (** Negation. *)
 val neg : t -> t
 
-(** Logical AND. *)
+(** Logical AND.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val logand : t -> t -> t
 
-(** Logical OR. *)
+(** Logical OR.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val logor : t -> t -> t
 
-(** Logical XOR. *)
+(** Logical XOR.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val logxor : t -> t -> t
 
-(** Logical shift left. *)
+(** Logical shift left.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val logical_shift_left : t -> t -> t
 
-(** Logical shift right. *)
+(** Logical shift right.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val logical_shift_right : t -> t -> t
 
-(** Arithmetic shift right. *)
+(** Arithmetic shift right.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val arithmetic_shift_right : t -> t -> t
 
-(** Extract from bits in the range [\[lo,hi\]] *)
+(** Extract from bits in the range [\[lo,hi\]].
+
+    @raise Invalid_argument if [lo < 0] or [hi >= size t].
+*)
 val extract : t -> hi:int -> lo:int -> t
 
 (** Concatenates two intervals. *)
 val concat : t -> t -> t
 
 (** [umulh t1 t2] extends [t1] and [t2] to double the amount of bits,
-    multiplies them, and returns the range of the upper half. *)
+    multiplies them, and returns the range of the upper half.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val umulh : t -> t -> t
 
 (** Same as [umulh], but interprets the result in terms of the signedness
-    of both arguments. *)
+    of both arguments.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val mulh : t -> t -> t
 
-(** Rotate left. *)
+(** Rotate left.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val rotate_left : t -> t -> t
 
-(** Rotate right. *)
+(** Rotate right.
+
+    @raise Invalid_argument if [size t1 <> size t2]
+*)
 val rotate_right : t -> t -> t
 
 (** Pretty printing. *)
