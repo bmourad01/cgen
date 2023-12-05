@@ -1,10 +1,15 @@
 open Core
+open Regular.Std
 
-type t = {
-  var   : Var.t;
-  size  : int;
-  align : int;
-} [@@deriving bin_io, compare, equal, sexp]
+module T = struct
+  type t = {
+    var   : Var.t;
+    size  : int;
+    align : int;
+  } [@@deriving bin_io, compare, equal, hash, sexp]
+end
+
+include T
 
 let create_exn x ~size ~align =
   if size < 1 then
@@ -29,3 +34,10 @@ let is_var t x = Var.(t.var = x)
 let pp ppf t =
   Format.fprintf ppf "%a = slot %d, align %d"
     Var.pp t.var t.size t.align
+
+include Regular.Make(struct
+    include T
+    let module_name = Some "Cgen.Virtual.Slot"
+    let version = "0.1"
+    let pp = pp
+  end)

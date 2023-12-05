@@ -396,7 +396,7 @@ type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A stack slot. *)
 module Slot : sig
-  type t [@@deriving bin_io, compare, equal, sexp]
+  type t [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** [create_exn x ~size ~align] creates a slot for variable [x] with
       [size] and [align].
@@ -422,7 +422,7 @@ module Slot : sig
       variable [x]. *)
   val is_var : t -> Var.t -> bool
 
-  val pp : Format.formatter -> t -> unit
+  include Regular.S with type t := t
 end
 
 type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
