@@ -61,15 +61,21 @@ external (>)  : t -> t -> bool = "cgen_float32_gt" [@@noalloc]
 external (<=) : t -> t -> bool = "cgen_float32_le" [@@noalloc]
 external (<)  : t -> t -> bool = "cgen_float32_lt" [@@noalloc]
 
-let compare x y = if x = y then 0 else if x < y then -1 else 1
+external compare : t -> t -> int = "cgen_float32_compare" [@@noalloc]
 
 let sexp_of_t x = Sexp.Atom (to_string x)
 
-let hash x = Float.hash @@ to_float x
-let hash_fold_t st x =  Float.hash_fold_t st @@ to_float x
+external hash : t -> int = "cgen_float32_hash" [@@noalloc]
 
 let t_of_sexp = function
   | Sexp.Atom s -> of_string s
   | x ->
     let exn = Failure "Float32.t_of_sexp: atom needed" in
     raise @@ Sexplib.Conv.Of_sexp_error (exn, x)
+
+include Hashable.Make_plain_and_derive_hash_fold_t(struct
+    type nonrec t = t
+    let sexp_of_t = sexp_of_t
+    let compare = compare
+    let hash = hash
+  end)
