@@ -3,7 +3,7 @@
     This is here because the OCaml compiler only supports double-precision
     floating point numbers. We rely on the C behavior of [float] types on
     the native machine, and we implement the minimal subset of operations
-    to support those seen in [Virtual.Insn.Data].
+    to support those seen in the Virtual IR.
 *)
 
 open Core
