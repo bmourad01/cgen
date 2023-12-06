@@ -149,7 +149,7 @@ let binop_single o a b =
 
 let binop_double o a b =
   let open Float in
-  match o with
+  match (o : Insn.binop) with
   | `add `f64 -> Some (`double (a + b))
   | `div `f64 -> Some (`double (a / b))
   | `mul `f64 -> Some (`double (a * b))
