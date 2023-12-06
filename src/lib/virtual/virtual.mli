@@ -624,7 +624,10 @@ module Loops : sig
   (** [analyze fn] performs the loop analysis of [fn]. *)
   val analyze : func -> t
 
-  (** [get t x] returns the data for loop [x]. *)
+  (** [get t x] returns the data for loop [x].
+
+      @raise Invalid_argument is [x] does not exist in the function.
+  *)
   val get : t -> loop -> data
 
   (** [blk t l] returns the innermost loop for the block

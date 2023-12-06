@@ -38,16 +38,24 @@ let create_data l = {
 }
 
 type t = {
+  name  : string;
   loops : data Vec.t;
   blks  : loop Label.Table.t;
 }
 
-let init () = {
+let init fn = {
+  name = Func.name fn;
   loops = Vec.create ();
   blks = Label.Table.create ();
 }
 
-let get t n = Vec.get_exn t.loops n
+let get t n = match Vec.get t.loops n with
+  | Some d -> d
+  | None ->
+    invalid_argf
+      "Loop %d does not exist in function $%s"
+      n t.name ()
+
 let blk t l = Hashtbl.find t.blks l
 let mem t l = Hashtbl.mem t.blks l
 
@@ -156,7 +164,7 @@ let assign_levels t =
       end)
 
 let analyze fn =
-  let t = init () in
+  let t = init fn in
   let cfg = Cfg.create fn in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   find_headers t cfg dom;
