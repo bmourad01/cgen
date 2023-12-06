@@ -106,8 +106,8 @@ and search ?ty ~d t n id =
   let exception Mismatch in
   (* Pending unioned nodes. *)
   let pending = Stack.create () in
-  (* Number of rewritten terms. *)
-  let matches = ref 0 in
+  (* Remaining number of terms we are able to rewrite. *)
+  let budget = ref t.match_limit in
   (* The final ID of the term. *)
   let id = ref id in
   (* Produce a substitution for an e-class. *)
@@ -161,23 +161,20 @@ and search ?ty ~d t n id =
          insert a union node in this case, but we still record the
          equivalence via union-find. All future rewrites w.r.t
          this e-class will refer only to this new term. *)
-      Uf.union t.classes oid !id;
-      incr matches;
-      id := oid;
-      full.return ()
+      full.return begin
+        Uf.union t.classes oid !id;
+        id := oid
+      end
     | false ->
-      incr matches;
+      decr budget;
       id := union ?ty t !id oid
     | true -> () in
   (* Apply the action `a` to the substitution produced by `f`. *)
   let apply full a subsume ~f =
-    (* The running time can get seriously out of hand if we're
-       matching over an expression with a long chain of union
-       nodes. To mitigate this, we cap the number of matches
-       that will be considered. *)
-    if !matches >= t.match_limit
-    then full.return ()
-    else try
+    (* Cap the number of new terms that can be inserted. For large
+       chains of union nodes this helps to keep the running time
+       from exploding. *)
+    if !budget > 0 then try
         let env = f () in
         update full subsume @@ match a with
         | Static p -> rewrite env p
@@ -186,7 +183,8 @@ and search ?ty ~d t n id =
         | Dyn f -> match f env with
           | Some p -> rewrite env p
           | None -> raise_notrace Mismatch
-      with Mismatch -> () in
+      with Mismatch -> ()
+    else full.return () in
   (* Start by matching the top-level constructor. *)
   match n with
   | U _ -> assert false
