@@ -16,18 +16,22 @@ type 'a callback = subst -> 'a
 
 (* A pattern is either:
 
+   [W]: a wildcard
+
    [V x]: a variable [x] which represents a substitution for a
    unique term.
 
    [P (o, ps)]: an e-node with an operator [o] and children [ps].
 *)
 type pattern =
+  | W
   | V of string
   | P of Enode.op * pattern list
 [@@deriving compare, equal, hash, sexp]
 
 let rec pp_pattern ppf = function
-  | V x -> Format.fprintf ppf "%s" x
+  | W -> Format.fprintf ppf "_"
+  | V x -> Format.fprintf ppf "?%s" x
   | P (o, []) -> Format.fprintf ppf "%a" Enode.pp_op o
   | P (o, ps) ->
     let pp_sep ppf () = Format.fprintf ppf " " in
@@ -112,9 +116,9 @@ let create_table rules =
     end) in
   List.iter rules ~f:(fun r -> match r.pre with
       | P (o, ps) -> Hashtbl.add_multi t ~key:o ~data:(ps, r.post, r.subsume)
+      | W ->
+        invalid_arg "Cannot create a rule with a wildcard at the top-level"
       | V x ->
-        (* Such rules are not really useful for anything and definitely
-           will create soundness issues. *)
         invalid_argf "Cannot create a rule with a variable \
                       %s at the top-level" x ());
   t

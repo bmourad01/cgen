@@ -57,7 +57,7 @@ type rules
 (** Creates a table from a list of rules.
 
     @raise Invalid_argument if there is a rule where the precondition is
-    simply a variable.
+    simply a variable or a wildcard.
 *)
 val create_table : rule list -> rules
 
@@ -89,6 +89,9 @@ val run :
 
 module Rule : sig
   type t = rule
+
+  (** [wild] is the wildcard pattern. *)
+  val wild : pattern
 
   (** [var x] constructs a substitution for variable [x]. *)
   val var : string -> pattern
@@ -133,6 +136,8 @@ module Rule : sig
     val single : Float32.t -> pattern
     val sym : string -> int -> pattern
     val uop : Insn.unop -> pattern -> pattern
+    val ref : pattern -> pattern
+    val unref : pattern -> pattern
     val add : Type.basic -> pattern -> pattern -> pattern
     val div : Type.basic -> pattern -> pattern -> pattern
     val mul : Type.basic -> pattern -> pattern -> pattern

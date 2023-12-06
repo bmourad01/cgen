@@ -1,16 +1,6 @@
 open Core
 open Virtual
 
-(* Notes:
-
-   - Some ops are just auxilliary to certain other ops.
-
-   - Loads, stores, and calls are marked with either a unique
-     variable or a label, in order to prevent them from being
-     erroneously hash-consed as equal to some other similarly
-     structured node. The reason for this is that these can't
-     be safely re-ordered (since they are effectful).
-*)
 type op =
   | Oaddr     of Bv.t
   | Obinop    of Insn.binop
@@ -34,7 +24,8 @@ type op =
   | Osym      of string * int
   | Otbl      of Bv.t
   | Ounop     of Insn.unop
-  | Ounref    of string
+  | Ounref
+  | Otype     of string
   | Ovaarg    of Var.t * Type.arg
   | Ovar      of Var.t
   | Ovastart  of Label.t
@@ -116,14 +107,14 @@ let infer_ty_unop : Virtual.Insn.unop -> Type.t option = function
   | `sitof (_, t)
   | `uitof (_, t) -> Some (t :> Type.t)
 
-let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
+let infer_ty ~tid ~tty ~tvar ~word ~node : t -> Type.t option = function
   | U {pre; post} ->
     let tpre = tid pre in
     let tpost = tid post in
     Option.merge tpre tpost ~f:(fun x y ->
         assert (Type.equal x y);
         x)
-  | N (o, _) -> match o with
+  | N (o, cs) -> match o with
     | Oaddr _ -> Some word
     | Obinop b -> infer_ty_binop b
     | Obool _ -> Some `flag
@@ -150,7 +141,12 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
     | Osym _ -> Some word
     | Otbl _ -> None
     | Ounop u -> infer_ty_unop u
-    | Ounref s -> tty s
+    | Ounref ->
+      List.hd cs |> Option.bind ~f:(fun s ->
+          match node s with
+          | N (Otype s, []) -> tty s
+          | _ -> None)
+    | Otype _ -> None
     | Ovaarg (_, (#Type.basic as t)) -> Some (t :> Type.t)
     | Ovaarg (_, `name n) -> tty n
     | Ovar x -> tvar x
@@ -201,7 +197,8 @@ module Eval = struct
     | Ounop o, [Some `double a] ->
       (unop_double o a :> const option)
     | Ounop `flag t, [Some `bool b] -> Some (`int (Bv.bool b, t))
-    | Ounref _, _ -> None
+    | Ounref, _ -> None
+    | Otype _, _ -> None
     | Ounop _, _ -> None
     | Ovaarg _, _ -> None
     | Ovar _, _ -> None
@@ -285,8 +282,10 @@ let pp_op ppf = function
     Format.fprintf ppf "(tbl %a)" Bv.pp i
   | Ounop u ->
     Format.fprintf ppf "%a" Insn.pp_unop u
-  | Ounref s ->
-    Format.fprintf ppf "unref :%s" s
+  | Ounref ->
+    Format.fprintf ppf "unref"
+  | Otype s ->
+    Format.fprintf ppf ":%s" s
   | Ovaarg (_, (#Type.basic as t)) ->
     Format.fprintf ppf "vaarg.%a" Type.pp_basic t
   | Ovaarg (_, `name n) ->
