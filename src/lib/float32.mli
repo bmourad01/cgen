@@ -128,7 +128,11 @@ val of_string : string -> t
 val equal : t -> t -> bool
 
 (** [compare x y] returns [0] if [x = y], a negative number if [x < y],
-    and a positive number otherwise. *)
+    and a positive number if [x > y].
+
+    Like [Float.compare], the NaN case is treated as equal to itself
+    and less than any other value, which ensures a total ordering.
+*)
 val compare : t -> t -> int
 
 val (=) : t -> t -> bool
