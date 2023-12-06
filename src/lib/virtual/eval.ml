@@ -125,36 +125,44 @@ let binop_int o a b = match (o : Insn.binop) with
   | `slt t -> Some (`bool (Bv.signed_compare a b (imod t) <  0))
   | _ -> None
 
-let binop_single o a b = match (o : Insn.binop) with
-  | `add `f32 -> Some (`float Float32.(a + b))
-  | `div `f32 -> Some (`float Float32.(a / b))
-  | `mul `f32 -> Some (`float Float32.(a * b))
-  | `rem `f32 -> Some (`float Float32.(rem a b))
-  | `sub `f32 -> Some (`float Float32.(a - b))
-  | `eq  `f32 -> Some (`bool  Float32.(a = b))
-  | `ge  `f32 -> Some (`bool  Float32.(a >= b))
-  | `gt  `f32 -> Some (`bool  Float32.(a > b))
-  | `le  `f32 -> Some (`bool  Float32.(a <= b))
-  | `lt  `f32 -> Some (`bool  Float32.(a < b))
-  | `ne  `f32 -> Some (`bool  Float32.(a <> b))
-  | `o   `f32 -> Some (`bool  Float32.(is_ordered a b))
-  | `uo  `f32 -> Some (`bool  Float32.(is_unordered a b))
+(* NaN will compare not equal, not greater than, and not less than
+   every value, including itself. *)
+let cmp_nan k n a b = not (n a) && not (n b) && k a b
+
+let binop_single o a b =
+  let open Float32 in
+  match (o : Insn.binop) with
+  | `add `f32 -> Some (`float (a + b))
+  | `div `f32 -> Some (`float (a / b))
+  | `mul `f32 -> Some (`float (a * b))
+  | `rem `f32 -> Some (`float (rem a b))
+  | `sub `f32 -> Some (`float (a - b))
+  | `eq  `f32 -> Some (`bool (cmp_nan (=)  is_nan a b))
+  | `ge  `f32 -> Some (`bool (cmp_nan (>=) is_nan a b))
+  | `gt  `f32 -> Some (`bool (cmp_nan (>)  is_nan a b))
+  | `le  `f32 -> Some (`bool (cmp_nan (<=) is_nan a b))
+  | `lt  `f32 -> Some (`bool (cmp_nan (<)  is_nan a b))
+  | `ne  `f32 -> Some (`bool (not @@ cmp_nan (=) is_nan a b))
+  | `o   `f32 -> Some (`bool (is_ordered a b))
+  | `uo  `f32 -> Some (`bool (is_unordered a b))
   | _ -> None
 
-let binop_double o a b = match o with
-  | `add `f64 -> Some (`double Float.(a + b))
-  | `div `f64 -> Some (`double Float.(a / b))
-  | `mul `f64 -> Some (`double Float.(a * b))
-  | `rem `f64 -> Some (`double Float.(a % b))
-  | `sub `f64 -> Some (`double Float.(a - b))
-  | `eq  `f64 -> Some (`bool   Float.(a = b))
-  | `ge  `f64 -> Some (`bool   Float.(a >= b))
-  | `gt  `f64 -> Some (`bool   Float.(a > b))
-  | `le  `f64 -> Some (`bool   Float.(a <= b))
-  | `lt  `f64 -> Some (`bool   Float.(a < b))
-  | `ne  `f64 -> Some (`bool   Float.(a <> b))
-  | `o   `f64 -> Some (`bool   (float_ordered a b))
-  | `uo  `f64 -> Some (`bool   (float_unordered a b))
+let binop_double o a b =
+  let open Float in
+  match o with
+  | `add `f64 -> Some (`double (a + b))
+  | `div `f64 -> Some (`double (a / b))
+  | `mul `f64 -> Some (`double (a * b))
+  | `rem `f64 -> Some (`double (a % b))
+  | `sub `f64 -> Some (`double (a - b))
+  | `eq  `f64 -> Some (`bool (cmp_nan (=)  is_nan a b))
+  | `ge  `f64 -> Some (`bool (cmp_nan (>=) is_nan a b))
+  | `gt  `f64 -> Some (`bool (cmp_nan (>)  is_nan a b))
+  | `le  `f64 -> Some (`bool (cmp_nan (<=) is_nan a b))
+  | `lt  `f64 -> Some (`bool (cmp_nan (<)  is_nan a b))
+  | `ne  `f64 -> Some (`bool (not @@ cmp_nan (=) is_nan a b))
+  | `o   `f64 -> Some (`bool (float_ordered a b))
+  | `uo  `f64 -> Some (`bool (float_unordered a b))
   | _ -> None
 
 let unop_int o a ty = match (o : Insn.unop) with
