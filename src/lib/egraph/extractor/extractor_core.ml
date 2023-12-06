@@ -26,7 +26,21 @@ let pp_prov ppf = function
    out the edges of translating the CFG representation. *)
 type ext = E of prov * Enode.op * ext list
 
-module Cost = struct
+(* Let the bottom N bits of the cost be the depth of a given
+   term, and the remaining upper bits are the actual cost
+   of the operation(s).
+
+   This should favor shallower terms, which in practice lead
+   to more favorable register pressure.
+*)
+module Cost : sig
+  type t = private Int63.t
+  val (<) : t -> t -> bool
+  val (>=) : t -> t -> bool
+  val pure : int -> t
+  val incr : t -> t
+  val add : t -> t -> t
+end = struct
   include Int63
 
   let depth_bits = 12
