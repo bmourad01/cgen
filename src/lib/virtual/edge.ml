@@ -20,14 +20,18 @@ let pp ppf : t -> unit = function
     Format.fprintf ppf "%a" Var.pp x
   | `false_ x ->
     Format.fprintf ppf "~%a" Var.pp x
+  | `switch (_, [], false) ->
+    Format.fprintf ppf "never"
+  | `switch (x, [v], false) ->
+    Format.fprintf ppf "%a = %a" Ctrl.pp_swindex x Bv.pp v
+  | `default x | `switch (x, [], true) ->
+    Format.fprintf ppf "%a = default" Ctrl.pp_swindex x
   | `switch (x, vs, def) ->
-    let pp_sep ppf () = Format.fprintf ppf ". " in
-    Format.fprintf ppf "%a = {%a"
+    let pp_sep ppf () = Format.fprintf ppf ", " in
+    Format.fprintf ppf "%a in {%a"
       Ctrl.pp_swindex x (Format.pp_print_list ~pp_sep Bv.pp) vs;
-    if def then Format.fprintf ppf ", default}"
-    else Format.fprintf ppf "}"
-  | `default x ->
-    Format.fprintf ppf "default(%a)" Ctrl.pp_swindex x
+    if def then Format.fprintf ppf ", default";
+    Format.fprintf ppf "}"
 
 include Regular.Make(struct
     include T

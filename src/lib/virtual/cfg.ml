@@ -29,6 +29,9 @@ let insert_sw b l x v g = match G.Node.edge b l g with
       G.Edge.(insert (create b l @@ `switch (x, v :: vs, def)) g)
     | _ -> g
 
+let accum_sw ~key ~data b x g = match data with
+  | `label (l, _) -> insert_sw b l x key g
+
 let accum g b : Ctrl.t -> G.t = function
   | `hlt -> g
   | `jmp (`label (l, _)) -> G.Edge.(insert (create b l `always) g)
@@ -44,9 +47,7 @@ let accum g b : Ctrl.t -> G.t = function
   | `ret _ -> g
   | `sw (_, x, `label (d, _), t) ->
     let init = G.Edge.(insert (create b d @@ `default x) g) in
-    Map.fold_right t.tbl ~init
-      ~f:(fun ~key:v ~data:(`label (l, _)) g ->
-          insert_sw b l x v g)
+    Map.fold_right t.tbl ~init ~f:(accum_sw b x)
 
 let create fn =
   Func.blks fn |> Seq.fold ~init:G.empty ~f:(fun g b ->
