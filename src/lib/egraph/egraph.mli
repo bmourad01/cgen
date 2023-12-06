@@ -88,6 +88,21 @@ val run :
   func Context.t
 
 module Rule : sig
+  (** A rewrite rule.
+
+      The general structure of a rule is two-fold:
+
+      1. A pre-condition matches a pattern against an existing term,
+      creating a series of substitutions for variables that are mentioned.
+
+      2. A post-condition that is applied given that the pre-condition
+      successfully matches with a term, optionally making use of the
+      substitutions that were constructed in the pre-condition. If the
+      post-condition contains unbound variables, or contains wildcards,
+      then it will not produce a rewritten term. Note that this does not
+      result in a run-time error; the rewriting engine merely skips this
+      rule during the search procedure.
+  *)
   type t = rule
 
   (** [wild] is the wildcard pattern. *)
