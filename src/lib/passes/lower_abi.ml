@@ -184,12 +184,11 @@ let new_slot env size align =
   Vec.push env.slots s;
   !!x
 
-let find_ref env x k = match Hashtbl.find env.refs x with
-  | Some y -> !!y
+let find_ref env x = match Hashtbl.find env.refs x with
+  | Some y -> y
   | None ->
-    let+ y = new_slot env k.size k.align in
-    Hashtbl.set env.refs ~key:x ~data:y;
-    y
+    failwithf "%a has no ref in function $%s"
+      Var.pps x (Func.name env.fn) ()
 
 let o8 = `int (Bv.M64.int 8, `i64)
 
@@ -327,36 +326,45 @@ module Refs = struct
       Vec.push env.slots s
     end
 
+  let make_ref env i b x y = match Hashtbl.find env.refs y with
+    | Some z -> !!(Hashtbl.set env.canon_ref ~key:x ~data:z)
+    | None -> typeof_var env y >>= function
+      | `compound (s, _, _) | `opaque (s, _, _) ->
+        fresh_ref env s x y
+      | t ->
+        Context.failf
+          "Expected compound type for instruction %a \
+           in block %a of function $%s, got %a"
+          Insn.pp i Label.pp (Blk.label b)
+          (Func.name env.fn) Type.pp t ()
+
+  let make_unref env x s a =
+    if not @@ Hashtbl.mem env.refs x then
+      let*? lt = Typecheck.Env.layout s env.tenv in
+      let k = classify_layout lt in
+      let* y = new_slot env k.size k.align in
+      let* src, srci = match a with
+        | `var x -> !!(x, [])
+        | _ ->
+          let+ x, i = Cv.Abi.unop (`copy `i64) (oper a) in
+          x, [i] in
+      let+ blit = Cv.Abi.blit ~src:(`var src) ~dst:(`var y) `i64 k.size in
+      Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
+      Hashtbl.set env.refs ~key:x ~data:y
+    else !!()
+
   (* Change `ref`s of structs to stack slots. *)
   let canonicalize env = iter_blks env ~f:(fun b ->
+      let* () =
+        Blk.args b |> Context.Seq.iter ~f:(fun x ->
+            typeof_var env x >>| function
+            | #Type.compound ->
+              Hashtbl.set env.refs ~key:x ~data:x
+            | _ -> ()) in
       Blk.insns b |> Context.Seq.iter ~f:(fun i ->
           match Insn.op i with
-          | `ref (x, `var y) ->
-            begin match Hashtbl.find env.refs y with
-              | Some z -> !!(Hashtbl.set env.canon_ref ~key:x ~data:z)
-              | None -> typeof_var env y >>= function
-                | `compound (s, _, _) | `opaque (s, _, _) ->
-                  fresh_ref env s x y
-                | t ->
-                  Context.failf
-                    "Expected compound type for instruction %a \
-                     in block %a of function $%s, got %a"
-                    Insn.pp i Label.pp (Blk.label b)
-                    (Func.name env.fn) Type.pp t ()
-            end
-          | `unref (x, _, _) when Hashtbl.mem env.refs x -> !!()
-          | `unref (x, s, a) ->
-            let*? lt = Typecheck.Env.layout s env.tenv in
-            let k = classify_layout lt in
-            let* y = new_slot env k.size k.align in
-            let* src, srci = match a with
-              | `var x -> !!(x, [])
-              | _ ->
-                let+ x, i = Cv.Abi.unop (`copy `i64) (oper a) in
-                x, [i] in
-            let+ blit = Cv.Abi.blit ~src:(`var src) ~dst:(`var y) `i64 k.size in
-            Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
-            Hashtbl.set env.refs ~key:x ~data:y
+          | `ref (x, `var y) -> make_ref env i b x y
+          | `unref (x, s, a) -> make_unref env x s a
           | _ -> !!()))
 end
 
@@ -393,7 +401,7 @@ module Rets = struct
   (* Struct is returned in a single register. *)
   let onereg_ret env r k key x =
     let* x = expect_ret_var env key x in
-    let* x = find_ref env x k in
+    let x = find_ref env x in
     let t = reg_type r in
     let reg = match t with
       | `i64 -> int_rets.(0)
@@ -404,7 +412,7 @@ module Rets = struct
   (* Struct is returned in two registers of varying classes. *)
   let tworeg_ret env r1 r2 k key x =
     let* x = expect_ret_var env key x in
-    let* x = find_ref env x k in
+    let x = find_ref env x in
     let t1 = reg_type r1 and t2 = reg_type r2 in
     let ni = ref 0 and ns = ref 0 in
     let reg1 = match t1 with
@@ -426,7 +434,7 @@ module Rets = struct
      return value. *)
   let memory_ret env k key x =
     let* x = expect_ret_var env key x in
-    let* src = find_ref env x k in
+    let src = find_ref env x in
     let dst = match env.rmem with
       | None -> assert false
       | Some dst -> dst in
@@ -539,7 +547,7 @@ module Calls = struct
 
   (* Fits in one register. *)
   let call_ret_onereg env x r lk k =
-    let* x = find_ref env x lk in
+    let x = find_ref env x in
     let t = reg_type r in
     let reg = match t with
       | `i64 -> int_rets.(0)
@@ -550,7 +558,7 @@ module Calls = struct
 
   (* Fits in two registers. *)
   let call_ret_tworeg env x r1 r2 lk k =
-    let* x = find_ref env x lk in
+    let x = find_ref env x in
     let t1 = reg_type r1 and t2 = reg_type r2 in
     let reg1, reg2 = match t1, t2 with
       | `i64, `i64 -> int_rets.(0), int_rets.(1)
@@ -621,7 +629,7 @@ module Calls = struct
       let*? lt = Typecheck.Env.layout s env.tenv in
       let* x = expect_arg_var env key a in
       let lk = classify_layout lt in
-      let* src = find_ref env x lk in
+      let src = find_ref env x in
       match lk.cls with
       | Kreg _ when lk.size = 0 -> !!k
       | Kreg (r, _) when lk.size = 8 -> onereg_arg ~dec env k r src
@@ -670,9 +678,12 @@ module Calls = struct
 end
 
 module Lower = struct
-  let map_var env x = match Hashtbl.find env.canon_ref x with
+  let map_var env x =
+    match Hashtbl.find env.canon_ref x with
     | Some y -> y
-    | None -> x
+    | None -> match Hashtbl.find env.refs x with
+      | Some y -> y
+      | None -> x
 
   let map_operand env : operand -> Abi.operand = function
     | `var x -> `var (map_var env x)
