@@ -129,10 +129,15 @@ let empty_call = {
 
 let (@!) t l = Ftree.(append t @@ of_list l)
 
+type param = {
+  pty  : Type.basic;
+  pvar : Var.t;
+  pins : Abi.insn list;
+}
+
 type env = {
   fn           : func;               (* The original function. *)
   blks         : blk Label.Tree.t;   (* Map of basic blocks. *)
-  cfg          : Cfg.t;              (* Control-flow graph. *)
   doms         : Label.t tree;       (* Dominator tree. *)
   tenv         : Typecheck.env;      (* Typing environment. *)
   rets         : ret Label.Table.t;  (* Lowered `ret` instructions. *)
@@ -140,19 +145,25 @@ type env = {
   refs         : Var.t Var.Table.t;  (* `unref` to `ref` *)
   canon_ref    : Var.t Var.Table.t;  (* Canonicalize `ref`s. *)
   slots        : slot Vec.t;         (* New stack slots. *)
+  params       : param Vec.t;        (* Function parameters. *)
   mutable rmem : Var.t option;       (* Return value blitted to memory. *)
 }
 
 let init_env tenv fn =
-  let blks = Func.map_of_blks fn in
   let cfg = Cfg.create fn in
-  let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
-  let rets = Label.Table.create () in
-  let calls = Label.Table.create () in
-  let refs = Var.Table.create () in
-  let canon_ref = Var.Table.create () in
-  let slots = Vec.create () in
-  {fn; blks; cfg; doms; tenv; rets; calls; refs; canon_ref; slots; rmem = None}
+  let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in {
+    fn;
+    blks = Func.map_of_blks fn;
+    doms;
+    tenv;
+    rets = Label.Table.create ();
+    calls = Label.Table.create ();
+    refs = Var.Table.create ();
+    canon_ref = Var.Table.create ();
+    slots = Vec.create ();
+    params = Vec.create ();
+    rmem = None;
+  }
 
 (* Iterate over the dominator tree. *)
 let iter_blks env ~f =
@@ -204,9 +215,64 @@ let typeof_operand env : operand -> Type.t Context.t = function
   | `sym _ -> !!(word env)
   | `var x -> typeof_var env x
 
+module Params = struct
+  let lower env =
+    Func.args env.fn |>
+    Context.Seq.iter ~f:(fun (x, t) -> match t with
+        | #Type.basic as t ->
+          (* Basic argument, nothing needs to be done here. *)
+          let p = {pty = t; pvar = x; pins = []} in
+          !!(Vec.push env.params p)
+        | `name s ->
+          let*? lt = Typecheck.Env.layout s env.tenv in
+          let k = classify_layout lt in
+          match k.cls with
+          | Kreg _ when k.size = 0 -> !!()
+          | Kreg (r, _) when k.size = 8 ->
+            (* Pass in a single register, so we can reuse `x`. *)
+            let t = reg_type r in
+            let* y = new_slot env k.size k.align in
+            let+ st = Cv.Abi.store t (`var x) (`var y) in
+            let p = {pty = t; pvar = x; pins = [st]} in
+            Hashtbl.set env.refs ~key:x ~data:y;
+            Vec.push env.params p
+          | Kreg (r1, r2) ->
+            (* Insert fresh parameters for the two-reg argument. *)
+            let t1 = reg_type r1 and t2 = reg_type r2 in
+            let* y = new_slot env k.size k.align in
+            let* x1 = Context.Var.fresh in
+            let* x2 = Context.Var.fresh in
+            let* o, oi = Cv.Abi.binop (`add `i64) (`var y) o8 in
+            let* st1 = Cv.Abi.store t1 (`var x1) (`var y) in
+            let+ st2 = Cv.Abi.store t2 (`var x2) (`var o) in
+            let p1 = {pty = t1; pvar = x1; pins = [st1]} in
+            let p2 = {pty = t2; pvar = x2; pins = [oi; st2]} in
+            Hashtbl.set env.refs ~key:x ~data:y;
+            Vec.push env.params p1;
+            Vec.push env.params p2;
+          | Kmem ->
+            (* Blit the structure to a stack slot. *)
+            let* y = new_slot env k.size k.align in
+            Hashtbl.set env.refs ~key:x ~data:y;
+            Seq.init (k.size / 8) ~f:(fun i -> Bv.M64.int (i * 8)) |>
+            Context.Seq.iter ~f:(fun ofs ->
+                let* x = Context.Var.fresh in
+                let+ pins =
+                  if Bv.(ofs = zero) then
+                    let+ st = Cv.Abi.store `i64 (`var x) (`var y) in
+                    [st]
+                  else
+                    let ofs = `int (ofs, `i64) in
+                    let* o, oi = Cv.Abi.binop (`add `i64) (`var y) ofs in
+                    let+ st = Cv.Abi.store `i64 (`var x) (`var o) in
+                    [oi; st] in
+                let p = {pty = `i64; pvar = x; pins} in
+                Vec.push env.params p))
+end
+
 module Refs = struct
   (* Change `ref`s of structs to stack slots. *)
-  let go env = iter_blks env ~f:(fun b ->
+  let canonicalize env = iter_blks env ~f:(fun b ->
       Blk.insns b |> Context.Seq.iter ~f:(fun i ->
           match Insn.op i with
           | `ref (x, `var y) ->
@@ -482,7 +548,8 @@ end
 let run tenv fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let env = init_env tenv fn in
-    let* () = Refs.go env in
+    let* () = Params.lower env in
+    let* () = Refs.canonicalize env in
     let* () = Rets.lower env in
     let* () = Calls.lower env in
     failwith "unimplemented"
