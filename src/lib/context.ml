@@ -132,16 +132,26 @@ module Virtual = struct
         let off = off - (if fwd then n else 0) in
         let o = `int (Bv.(int off mod md), wi) in
         (* Copy from src. *)
-        let* a1, ai1 = binop (`add wb) (`var src) o in
-        let* l, ld = load ty (`var a1) in
+        let* a1, ai1 =
+          if off = 0 then
+            !!(`var src, [])
+          else
+            let+ a1, ai1 = binop (`add wb) (`var src) o in
+            `var a1, [ai1] in
+        let* l, ld = load ty a1 in
         (* Store to dst. *)
         let* sts = if not ignore_dst then
-            let* a2, ai2 = binop (`add wb) (`var dst) o in
-            let+ st = store ty (`var l) (`var a2) in
-            [st; ai2]
+            let* a2, ai2 =
+              if off = 0 then
+                !!(`var dst, [])
+              else
+                let+ a2, ai2 = binop (`add wb) (`var dst) o in
+                `var a2, [ai2] in
+            let+ st = store ty (`var l) a2 in
+            st :: ai2
           else !![] in
         (* Accumulate insns in reverse order. *)
-        let is = sts @ (ld :: ai1 :: is) in
+        let is = sts @ (ld :: ai1) @ is in
         let off = off + (if fwd then 0 else n) in
         consume ty is (sz - n) off n
       else !!(is, sz, off) in
@@ -235,16 +245,26 @@ module Virtual = struct
           let off = off - (if fwd then n else 0) in
           let o = `int (Bv.(int off mod md), wi) in
           (* Copy from src. *)
-          let* a1, ai1 = binop (`add wb) (oper src) o in
-          let* l, ld = load ty (`var a1) in
+          let* a1, ai1 =
+            if off = 0 then
+              !!(src, [])
+            else
+              let+ a1, ai1 = binop (`add wb) (oper src) o in
+              `var a1, [ai1] in
+          let* l, ld = load ty (oper a1) in
           (* Store to dst. *)
           let* sts = if not ignore_dst then
-              let* a2, ai2 = binop (`add wb) (oper dst) o in
-              let+ st = store ty (`var l) (`var a2) in
-              [st; ai2]
+              let* a2, ai2 =
+                if off = 0 then
+                  !!(dst, [])
+                else
+                  let+ a2, ai2 = binop (`add wb) (oper dst) o in
+                  `var a2, [ai2] in
+              let+ st = store ty (`var l) (oper a2) in
+              st :: ai2
             else !![] in
           (* Accumulate insns in reverse order. *)
-          let is = sts @ (ld :: ai1 :: is) in
+          let is = sts @ (ld :: ai1) @ is in
           let off = off + (if fwd then 0 else n) in
           consume ty is (sz - n) off n
         else !!(is, sz, off) in
