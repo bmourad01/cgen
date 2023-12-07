@@ -109,14 +109,12 @@ let empty_ret = {
   retr = [];
 }
 
-type callarg = Type.basic * Abi.operand
-
 type call = {
   callai : Abi.insn Ftree.t;    (* Set up the arguments before the call. *)
-  callar : callarg Ftree.t;     (* Passing register arguments. *)
+  callar : string Ftree.t;      (* Passing register arguments. *)
   callam : Abi.operand Ftree.t; (* Passing memory arguments. *)
   callri : Abi.insn Ftree.t;    (* Copy the return value after the call. *)
-  callrs : string list;         (* Registers holding the return value. *)
+  callrr : string list;         (* Registers holding the return value. *)
 }
 
 let empty_call = {
@@ -124,7 +122,7 @@ let empty_call = {
   callar = Ftree.empty;
   callam = Ftree.empty;
   callri = Ftree.empty;
-  callrs = [];
+  callrr = [];
 }
 
 let (@!) t l = Ftree.(append t @@ of_list l)
@@ -212,7 +210,7 @@ module Params = struct
   let init_regs env =
     let ni = ref num_int_args and ns = ref num_sse_args in
     let+ () = match Func.return env.fn with
-      | Some #Type.basic | Some (`si8 | `si16 | `si32) | None -> !!()
+      | Some (#Type.basic | `si8 | `si16 | `si32) | None -> !!()
       | Some `name n ->
         let*? lt = Typecheck.Env.layout n env.tenv in
         match classify_layout lt with
@@ -455,11 +453,17 @@ module Calls = struct
   (* A compound argument to a call passed in a single register. *)
   let onereg_arg ~dec env k r src =
     let t = reg_type r in
-    let+ l, li = Cv.Abi.load `i64 (`var src) in
-    let callai = Ftree.snoc k.callai li in
-    let callar, callam = match dec r with
-      | true -> Ftree.snoc k.callar (t, `var l), k.callam
-      | false -> k.callar, Ftree.snoc k.callam (`var l) in
+    let* l, li = Cv.Abi.load t (`var src) in
+    let+ callai, callar, callam = match dec r with
+      | Some r ->
+        let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy t, `var l) in
+        k.callai @! [li; i],
+        Ftree.snoc k.callar r,
+        k.callam
+      | None ->
+        let callai = Ftree.snoc k.callai li in
+        let callam = Ftree.snoc k.callam (`var l) in
+        !!(callai, k.callar, callam) in
     {k with callai; callar; callam}
 
   (* A compound argument to a call passed in two registers. *)
@@ -469,21 +473,28 @@ module Calls = struct
     let ok2 = dec r2 in
     let* o, oi = Cv.Abi.binop (`add `i64) (`var src) o8 in
     let* l1, li1 = Cv.Abi.load `i64 (`var src) in
-    let+ l2, li2 = Cv.Abi.load `i64 (`var o) in
-    let callai = k.callai @! [oi; li1; li2] in
-    let callar, callam = match ok1, ok2 with
-      | true, true ->
-        k.callar @! [t1, `var l1; t2, `var l2],
+    let* l2, li2 = Cv.Abi.load `i64 (`var o) in
+    let+ callai, callar, callam = match ok1, ok2 with
+      | Some r1, Some r2 ->
+        let* i1 = Cv.Abi.insn @@ `uop (`reg r1, `copy t1, `var l1) in
+        let+ i2 = Cv.Abi.insn @@ `uop (`reg r2, `copy t2, `var l2) in
+        k.callai @! [oi; li1; li2; i1; i2],
+        k.callar @! [r1; r2],
         k.callam
-      | true, false ->
-        Ftree.snoc k.callar (t1, `var l1),
+      | Some r1, None ->
+        let+ i1 = Cv.Abi.insn @@ `uop (`reg r1, `copy t1, `var l1) in
+        k.callai @! [oi; li1; li2; i1],
+        Ftree.snoc k.callar r1,
         Ftree.snoc k.callam (`var l2)
-      | false, true ->
-        Ftree.snoc k.callar (t2, `var l2),
+      | None, Some r2 ->
+        let+ i2 = Cv.Abi.insn @@ `uop (`reg r2, `copy t2, `var l2) in
+        k.callai @! [oi; li1; li2; i2],
+        Ftree.snoc k.callar r2,
         Ftree.snoc k.callam (`var l1)
-      | false, false ->
-        k.callar,
-        k.callam @! [`var l1; `var l2] in
+      | None, None ->
+        let callai = k.callai @! [oi; li1; li2] in
+        let callam = k.callam @! [`var l1; `var l2] in
+        !!(callai, k.callar, callam) in
     {k with callai; callar; callam}
 
   (* A compound argument to a call passed in memory. *)
@@ -509,7 +520,7 @@ module Calls = struct
       | `name _ -> assert false in
     let+ i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
     let callri = Ftree.snoc k.callri i in
-    {k with callri; callrs = [r]}
+    {k with callri; callrr = [r]}
 
   (* Fits in one register. *)
   let call_ret_onereg env x r lk k =
@@ -520,7 +531,7 @@ module Calls = struct
       | `f64 -> sse_rets.(0) in
     let+ st = Cv.Abi.store t (`reg reg) (`var x) in
     let callri = Ftree.snoc k.callri st in
-    {k with callri; callrs = [reg]}
+    {k with callri; callrr = [reg]}
 
   (* Fits in two registers. *)
   let call_ret_tworeg env x r1 r2 lk k =
@@ -535,15 +546,18 @@ module Calls = struct
     let* st1 = Cv.Abi.store t1 (`reg reg1) (`var x) in
     let+ st2 = Cv.Abi.store t2 (`reg reg2) (`var o) in
     let callri = k.callri @! [oi; st1; st2] in
-    {k with callri; callrs = [reg1; reg2]}
+    {k with callri; callrr = [reg1; reg2]}
 
   (* Passed as a reference to memory. We need to allocate
      a new stack slot for this one. *)
   let call_ret_memory env x lk k =
-    let+ y = new_slot env lk.size lk.align in
-    let callar = Ftree.cons k.callar (`i64, `var y) in
+    let r = int_args.(0) in
+    let* y = new_slot env lk.size lk.align in
+    let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy `i64, `var y) in
+    let callai = Ftree.snoc k.callai i in
+    let callar = Ftree.cons k.callar r in
     Hashtbl.set env.refs ~key:x ~data:y;
-    {k with callar; callrs = [int_rets.(0)]}
+    {k with callai; callar; callrr = [int_rets.(0)]}
 
   (* Handle the compound type return value of a call.  *)
   let lower_call_ret env kret k = match kret with
@@ -574,12 +588,18 @@ module Calls = struct
       !!{k with callam = Ftree.snoc k.callam (oper a)}
     | #Type.imm as m ->
       (* Use an integer register. *)
-      let arg = (m :> Type.basic), oper a in
-      decr ni; !!{k with callar = Ftree.snoc k.callar arg}
+      let r = int_args.(num_int_args - !ni) in
+      let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy m, oper a) in
+      let callai = Ftree.snoc k.callai i in
+      let callar = Ftree.snoc k.callar r in
+      decr ni; {k with callai; callar}
     | #Type.fp as f ->
       (* Use an SSE register. *)
-      let arg = (f :> Type.basic), oper a in
-      decr ns; !!{k with callar = Ftree.snoc k.callar arg}
+      let r = sse_args.(num_sse_args - !ns) in
+      let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy f, oper a) in
+      let callai = Ftree.snoc k.callai i in
+      let callar = Ftree.snoc k.callar r in
+      decr ns; {k with callai; callar}
     | `flag -> assert false
     | `compound (s, _, _) | `opaque (s, _, _) ->
       (* Figure out what class this type is. *)
@@ -614,10 +634,16 @@ module Calls = struct
             let ns = ref num_sse_args in
             (* Decrement the counter based on the arg class. *)
             let dec = function
-              | Rint | Rnone when !ni < 1 -> false
-              | Rint | Rnone -> decr ni; true
-              | Rsse when !ns < 1 -> false
-              | Rsse -> decr ns; true in
+              | Rint | Rnone when !ni < 1 -> None
+              | Rsse when !ns < 1 -> None
+              | Rint | Rnone ->
+                let r = int_args.(num_int_args - !ni) in
+                decr ni;
+                Some r
+              | Rsse ->
+                let r = sse_args.(num_sse_args - !ns) in
+                decr ns;
+                Some r in
             (* Process each argument. *)
             let acls = classify_call_arg ~dec ~ni ~ns env key in
             let* k = Context.List.fold args ~init:empty_call ~f:acls in
