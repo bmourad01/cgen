@@ -134,17 +134,18 @@ type param = {
 }
 
 type env = {
-  fn           : func;               (* The original function. *)
-  blks         : blk Label.Tree.t;   (* Map of basic blocks. *)
-  doms         : Label.t tree;       (* Dominator tree. *)
-  tenv         : Typecheck.env;      (* Typing environment. *)
-  rets         : ret Label.Table.t;  (* Lowered `ret` instructions. *)
-  calls        : call Label.Table.t; (* Lowered `call` instructions. *)
-  refs         : Var.t Var.Table.t;  (* `unref` to `ref` *)
-  canon_ref    : Var.t Var.Table.t;  (* Canonicalize `ref`s. *)
-  slots        : slot Vec.t;         (* New stack slots. *)
-  params       : param Vec.t;        (* Function parameters. *)
-  mutable rmem : Var.t option;       (* Return value blitted to memory. *)
+  fn           : func;                      (* The original function. *)
+  blks         : blk Label.Tree.t;          (* Map of basic blocks. *)
+  doms         : Label.t tree;              (* Dominator tree. *)
+  tenv         : Typecheck.env;             (* Typing environment. *)
+  rets         : ret Label.Table.t;         (* Lowered `ret` instructions. *)
+  calls        : call Label.Table.t;        (* Lowered `call` instructions. *)
+  refs         : Var.t Var.Table.t;         (* Canonicalization of `ref`s *)
+  unrefs       : Abi.insn list Var.Table.t; (* `unref` to store. *)
+  canon_ref    : Var.t Var.Table.t;         (* Canonicalize `ref`s. *)
+  slots        : slot Vec.t;                (* New stack slots. *)
+  params       : param Vec.t;               (* Function parameters. *)
+  mutable rmem : Var.t option;              (* Return value blitted to memory. *)
 }
 
 let init_env tenv fn =
@@ -157,6 +158,7 @@ let init_env tenv fn =
     rets = Label.Table.create ();
     calls = Label.Table.create ();
     refs = Var.Table.create ();
+    unrefs = Var.Table.create ();
     canon_ref = Var.Table.create ();
     slots = Vec.create ();
     params = Vec.create ();
@@ -342,6 +344,19 @@ module Refs = struct
                     Insn.pp i Label.pp (Blk.label b)
                     (Func.name env.fn) Type.pp t ()
             end
+          | `unref (x, _, _) when Hashtbl.mem env.refs x -> !!()
+          | `unref (x, s, a) ->
+            let*? lt = Typecheck.Env.layout s env.tenv in
+            let k = classify_layout lt in
+            let* y = new_slot env k.size k.align in
+            let* src, srci = match a with
+              | `var x -> !!(x, [])
+              | _ ->
+                let+ x, i = Cv.Abi.unop (`copy `i64) (oper a) in
+                x, [i] in
+            let+ blit = Cv.Abi.blit ~src:(`var src) ~dst:(`var y) `i64 k.size in
+            Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
+            Hashtbl.set env.refs ~key:x ~data:y
           | _ -> !!()))
 end
 
@@ -699,13 +714,19 @@ module Lower = struct
     let c = `call (k.callrr, map_global env f, rargs @ margs) in
     pre @ (Abi.Insn.create ~label:l c :: post)
 
+  let map_compound env (c : Insn.compound) = match c with
+    | `ref _ -> []
+    | `unref (x, _, _) ->
+      Hashtbl.find env.unrefs x |>
+      Option.value ~default:[]
+
   let map_insn env i =
     let l = Insn.label i in
     let ins = Abi.Insn.create ~label:l in
     match Insn.op i with
     | #Insn.basic as b -> [ins (map_basic env b :> Abi.Insn.op)]
     | #Insn.mem as m -> [ins (map_mem env m :> Abi.Insn.op)]
-    | #Insn.compound -> []
+    | #Insn.compound as c -> map_compound env c
     | #Insn.variadic -> failwith "unimplemented"
     | `call (_, f, _, _) -> map_call env l f
 
