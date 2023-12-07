@@ -654,6 +654,115 @@ module Calls = struct
           | _ -> !!()))
 end
 
+module Lower = struct
+  let map_var env x = match Hashtbl.find env.canon_ref x with
+    | Some y -> y
+    | None -> x
+
+  let map_operand env : operand -> Abi.operand = function
+    | `var x -> `var (map_var env x)
+    | o -> oper o
+
+  let map_local env : local -> Abi.local = function
+    | `label (l, args) ->
+      `label (l, List.map args ~f:(map_operand env))
+
+  let map_global env : global -> Abi.global = function
+    | `var x -> `var (`var (map_var env x))
+    | (`addr _ | `sym _) as g -> g
+
+  let map_dst env : dst -> Abi.dst = function
+    | #local as l -> (map_local env l :> Abi.dst)
+    | #global as g -> (map_global env g :> Abi.dst)
+
+  let map_basic env (b : Insn.basic) : Abi.Insn.basic =
+    let op = map_operand env in
+    match b with
+    | `bop (x, b, l, r) -> `bop (`var x, b, op l, op r)
+    | `uop (x, u, a) -> `uop (`var x, u, op a)
+    | `sel (x, t, c, l, r) -> `sel (`var x, t, `var c, op l, op r)
+
+  let map_mem env (m : Insn.mem) : Abi.Insn.mem =
+    let op = map_operand env in
+    match m with
+    | `load (x, t, a) -> `load (`var x, t, op a)
+    | `store (t, v, a) -> `store (t, op v, op a)
+
+  let map_call env l f =
+    let k = Hashtbl.find_exn env.calls l in
+    let pre = Ftree.to_list k.callai in
+    let rargs =
+      Ftree.to_list k.callar |>
+      List.map ~f:(fun r -> `reg r) in
+    let margs = Ftree.to_list k.callam in
+    let post = Ftree.to_list k.callri in
+    let c = `call (k.callrr, map_global env f, rargs @ margs) in
+    pre @ (Abi.Insn.create ~label:l c :: post)
+
+  let map_insn env i =
+    let l = Insn.label i in
+    let ins = Abi.Insn.create ~label:l in
+    match Insn.op i with
+    | #Insn.basic as b -> [ins (map_basic env b :> Abi.Insn.op)]
+    | #Insn.mem as m -> [ins (map_mem env m :> Abi.Insn.op)]
+    | #Insn.compound -> []
+    | #Insn.variadic -> failwith "unimplemented"
+    | `call (_, f, _, _) -> map_call env l f
+
+  let map_ctrl env l (c : ctrl) : Abi.insn list * Abi.ctrl =
+    let dst = map_dst env in
+    let loc = map_local env in
+    match c with
+    | `hlt -> [], `hlt
+    | `jmp d -> [], `jmp (dst d)
+    | `br (c, y, n) -> [], `br (`var (map_var env c), dst y, dst n)
+    | `sw (t, i, d, tbl) ->
+      let i = match i with
+        | `var x -> `var (`var (map_var env x))
+        | `sym s -> `sym s in
+      let d = loc d in
+      let tbl =
+        Ctrl.Table.enum tbl |>
+        Seq.map ~f:(fun (v, l) -> v, loc l) |>
+        Seq.to_list |> fun l ->
+        Abi.Ctrl.Table.create_exn l t in
+      [], `sw(t, i, d, tbl)
+    | `ret None -> [], `ret []
+    | `ret Some _ ->
+      let r = Hashtbl.find_exn env.rets l in
+      r.reti, `ret r.retr
+
+  let map_blks env =
+    let entry = Func.entry env.fn in
+    Func.blks env.fn |> Seq.map ~f:(fun b ->
+        let l = Blk.label b in
+        let pins =
+          if Label.(l = entry) then
+            Vec.to_sequence_mutable env.params |>
+            Seq.map ~f:(fun p -> p.pins) |>
+            Seq.to_list |> List.concat
+          else [] in
+        let ins =
+          Blk.insns b |> Seq.map ~f:(map_insn env) |>
+          Seq.to_list |> List.concat in
+        let cins, ctrl = map_ctrl env l @@ Blk.ctrl b in
+        let args = Blk.args b |> Seq.to_list in
+        Abi.Blk.create () ~args ~ctrl
+          ~label:l ~insns:(pins @ ins @ cins)) |>
+    Seq.to_list
+
+  let lower env =
+    let slots = Func.slots env.fn |> Seq.to_list in
+    let slots = slots @ Vec.to_list env.slots in
+    let args =
+      Vec.to_sequence_mutable env.params |>
+      Seq.map ~f:(fun p -> p.pvar, p.pty) |>
+      Seq.to_list in
+    let blks = map_blks env in
+    Abi.Func.create () ~slots ~args ~blks
+      ~name:(Func.name env.fn)
+end
+
 let run tenv fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let env = init_env tenv fn in
@@ -661,7 +770,8 @@ let run tenv fn =
     let* () = Refs.canonicalize env in
     let* () = Rets.lower env in
     let* () = Calls.lower env in
-    failwith "unimplemented"
+    let*? fn = Lower.lower env in
+    !!fn
   else
     Context.failf
       "In Lower_abi: expected SSA form for function $%s"

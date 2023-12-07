@@ -103,8 +103,9 @@ let pp ppf : t -> unit = function
     Format.fprintf ppf "ret"
   | `ret xs ->
     let pp_sep ppf () = Format.fprintf ppf ", " in
+    let pp_ret ppf s = Format.fprintf ppf "%s" s in
     Format.fprintf ppf "ret %a"
-      (Format.pp_print_list ~pp_sep String.pp) xs
+      (Format.pp_print_list ~pp_sep pp_ret) xs
   | `sw (t, x, ld, tbl) ->
     Format.fprintf ppf "switch.%a %a, %a [@[<v 0>%a@]]"
       Type.pp_imm t pp_swindex x pp_local ld Table.pp tbl

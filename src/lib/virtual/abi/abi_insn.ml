@@ -65,7 +65,8 @@ let pp_call_args ppf args =
 
 let pp_call_rets ppf rets =
   let pp_sep ppf () = Format.fprintf ppf ", " in
-  Format.pp_print_list ~pp_sep String.pp ppf rets
+  let pp_ret ppf s = Format.fprintf ppf "%s" s in
+  Format.pp_print_list ~pp_sep pp_ret ppf rets
 
 let pp_call ppf : call -> unit = function
   | `call ([], f, args) ->
