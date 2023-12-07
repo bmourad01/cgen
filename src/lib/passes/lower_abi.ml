@@ -669,6 +669,14 @@ module Calls = struct
             let acls = classify_call_arg ~dec ~ni ~ns env key in
             let* k = Context.List.fold args ~init:empty_call ~f:acls in
             let* k = Context.List.fold vargs ~init:k ~f:acls in
+            (* If this is a variadic call, then RAX must hold the number
+               of SSE registers that were used to pass parameters. *)
+            let* k = match vargs with
+              | [] -> !!k
+              | _ ->
+                let n = `int (Bv.M8.int (num_sse_args - !ns), `i8) in
+                let+ i = Cv.Abi.insn @@ `uop (`reg "RAX", `copy `i8, n) in
+                {k with callai = Ftree.snoc k.callai i} in
             (* Process the return value. *)
             let+ k = lower_call_ret env kret k in
             Hashtbl.set env.calls ~key ~data:k
