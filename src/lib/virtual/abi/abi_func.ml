@@ -162,7 +162,7 @@ let pp ppf fn =
   || Linkage.section lnk |> Option.is_some then
     Format.fprintf ppf "%a " Linkage.pp lnk;
   Format.fprintf ppf "function ";
-  Format.fprintf ppf "$%s(%a) {@;" fn.name pp_args fn;
+  Format.fprintf ppf "$%s(%a) {@." fn.name pp_args fn;
   if not @@ Ftree.is_empty fn.slots then begin
     let sep ppf = Format.fprintf ppf "@;  " in
     Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp Slot.pp sep) fn.slots
