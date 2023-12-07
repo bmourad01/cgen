@@ -217,10 +217,16 @@ module Params = struct
         let*? lt = Typecheck.Env.layout n env.tenv in
         match classify_layout lt with
         | {cls = Kmem; _} ->
-          let+ x = Context.Var.fresh in
+          let r = int_args.(0) in
+          let* x = Context.Var.fresh in
+          let+ i = Cv.Abi.insn @@ `uop (`var x, `copy `i64, `reg r) in
+          let p = {pty = `i64; pvar = `reg r; pins = [i]} in
+          Vec.push env.params p;
           env.rmem <- Some x;
           decr ni
         | _ -> !!() in
+    (* Try to allocate the parameter to a register. If we've run out,
+       then it is implicitly passed in memory. *)
     function
     | #Type.imm when !ni < 1 -> None
     | #Type.fp when !ns < 1 -> None
@@ -231,6 +237,8 @@ module Params = struct
       let r = sse_args.(num_sse_args - !ns) in
       decr ns; Some r
 
+  (* Lower the parameters of the function and copy their contents
+     to SSA variables or stack slots. *)
   let lower env =
     let* reg = init_regs env in
     Func.args env.fn |>
