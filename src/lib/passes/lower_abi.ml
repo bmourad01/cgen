@@ -791,7 +791,9 @@ module Lower = struct
       Seq.map ~f:(fun p -> p.pvar, p.pty) |>
       Seq.to_list in
     let blks = map_blks env in
-    Abi.Func.create () ~slots ~args ~blks
+    let lnk = Func.linkage env.fn in
+    let dict = Dict.(set empty Func.Tag.linkage lnk) in
+    Abi.Func.create () ~dict ~slots ~args ~blks
       ~name:(Func.name env.fn)
 end
 
