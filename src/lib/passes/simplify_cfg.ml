@@ -451,5 +451,5 @@ let run fn =
     try_ @@ fun () -> Two_case_switch.go @@ loop fn
   else
     Context.failf
-      "In Simplify_cfg: expected SSA form for function %s"
+      "In Simplify_cfg: expected SSA form for function $%s"
       (Func.name fn) ()
