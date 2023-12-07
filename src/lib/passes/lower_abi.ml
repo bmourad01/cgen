@@ -237,84 +237,96 @@ module Params = struct
       let r = sse_args.(num_sse_args - !ns) in
       decr ns; Some r
 
+  let basic_param ~reg env t x =
+    let+ pvar, pins = match reg t with
+      | None -> !!(`var x, [])
+      | Some r ->
+        let+ i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
+        `reg r, [i] in
+    Vec.push env.params @@ {pty = t; pvar; pins}
+
+  (* Pass in a single register, so we can reuse `x`. *)
+  let onereg_param ~reg env t x y r =
+    let t = reg_type r in
+    let+ pvar, pins = match reg t with
+      | None ->
+        let+ st = Cv.Abi.store t (`var x) (`var y) in
+        `var x, [st]
+      | Some r ->
+        let* i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
+        let+ st = Cv.Abi.store t (`var x) (`var y) in
+        `reg r, [i; st] in
+    Vec.push env.params @@ {pty = t; pvar; pins}
+
+  (* Insert fresh parameters for the two-reg argument. *)
+  let tworeg_param ~reg env t x y r1 r2 =
+    let t1 = reg_type r1 and t2 = reg_type r2 in
+    let* x1 = Context.Var.fresh in
+    let* x2 = Context.Var.fresh in
+    let* o, oi = Cv.Abi.binop (`add `i64) (`var y) o8 in
+    let* st1 = Cv.Abi.store t1 (`var x1) (`var y) in
+    let* st2 = Cv.Abi.store t1 (`var x1) (`var o) in
+    let* pvar1, pins1 = match reg t1 with
+      | None -> !!(`var x1, [st1])
+      | Some r ->
+        let+ i = Cv.Abi.insn @@ `uop (`var x1, `copy t1, `reg r) in
+        `reg r, [i; st1] in
+    let+ pvar2, pins2 = match reg t2 with
+      | None -> !!(`var x2, [oi; st2])
+      | Some r ->
+        let+ i = Cv.Abi.insn @@ `uop (`var x2, `copy t1, `reg r) in
+        `reg r, [i; oi; st2] in
+    let p1 = {pty = t1; pvar = pvar1; pins = pins1} in
+    let p2 = {pty = t2; pvar = pvar2; pins = pins2} in
+    Vec.push env.params p1;
+    Vec.push env.params p2
+
+  (* Blit the structure to a stack slot. *)
+  let memory_param env t x y size =
+    Seq.init (size / 8) ~f:(fun i -> Bv.M64.int (i * 8)) |>
+    Context.Seq.iter ~f:(fun ofs ->
+        let* x = Context.Var.fresh in
+        let+ pins =
+          if Bv.(ofs = zero) then
+            let+ st = Cv.Abi.store `i64 (`var x) (`var y) in
+            [st]
+          else
+            let ofs = `int (ofs, `i64) in
+            let* o, oi = Cv.Abi.binop (`add `i64) (`var y) ofs in
+            let+ st = Cv.Abi.store `i64 (`var x) (`var o) in
+            [oi; st] in
+        let p = {pty = `i64; pvar = `var x; pins} in
+        Vec.push env.params p)
+
   (* Lower the parameters of the function and copy their contents
      to SSA variables or stack slots. *)
   let lower env =
     let* reg = init_regs env in
     Func.args env.fn |>
     Context.Seq.iter ~f:(fun (x, t) -> match t with
-        | #Type.basic as t ->
-          (* Basic argument. *)
-          let+ pvar, pins = match reg t with
-            | None -> !!(`var x, [])
-            | Some r ->
-              let+ i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
-              `reg r, [i] in
-          Vec.push env.params @@ {pty = t; pvar; pins}
+        | #Type.basic as t -> basic_param ~reg env t x
         | `name s ->
           let*? lt = Typecheck.Env.layout s env.tenv in
           let k = classify_layout lt in
+          let* y = new_slot env k.size k.align in
+          Hashtbl.set env.refs ~key:x ~data:y;
           match k.cls with
           | Kreg _ when k.size = 0 -> !!()
-          | Kreg (r, _) when k.size = 8 ->
-            (* Pass in a single register, so we can reuse `x`. *)
-            let t = reg_type r in
-            let* y = new_slot env k.size k.align in
-            let+ pvar, pins = match reg t with
-              | None ->
-                let+ st = Cv.Abi.store t (`var x) (`var y) in
-                `var x, [st]
-              | Some r ->
-                let* i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
-                let+ st = Cv.Abi.store t (`var x) (`var y) in
-                `reg r, [i; st] in
-            Hashtbl.set env.refs ~key:x ~data:y;
-            Vec.push env.params @@ {pty = t; pvar; pins}
-          | Kreg (r1, r2) ->
-            (* Insert fresh parameters for the two-reg argument. *)
-            let t1 = reg_type r1 and t2 = reg_type r2 in
-            let* y = new_slot env k.size k.align in
-            let* x1 = Context.Var.fresh in
-            let* x2 = Context.Var.fresh in
-            let* o, oi = Cv.Abi.binop (`add `i64) (`var y) o8 in
-            let* st1 = Cv.Abi.store t1 (`var x1) (`var y) in
-            let* st2 = Cv.Abi.store t1 (`var x1) (`var o) in
-            let* pvar1, pins1 = match reg t1 with
-              | None -> !!(`var x1, [st1])
-              | Some r ->
-                let+ i = Cv.Abi.insn @@ `uop (`var x1, `copy t1, `reg r) in
-                `reg r, [i; st1] in
-            let+ pvar2, pins2 = match reg t2 with
-              | None -> !!(`var x2, [oi; st2])
-              | Some r ->
-                let+ i = Cv.Abi.insn @@ `uop (`var x2, `copy t1, `reg r) in
-                `reg r, [i; oi; st2] in
-            let p1 = {pty = t1; pvar = pvar1; pins = pins1} in
-            let p2 = {pty = t2; pvar = pvar2; pins = pins2} in
-            Hashtbl.set env.refs ~key:x ~data:y;
-            Vec.push env.params p1;
-            Vec.push env.params p2;
-          | Kmem ->
-            (* Blit the structure to a stack slot. *)
-            let* y = new_slot env k.size k.align in
-            Hashtbl.set env.refs ~key:x ~data:y;
-            Seq.init (k.size / 8) ~f:(fun i -> Bv.M64.int (i * 8)) |>
-            Context.Seq.iter ~f:(fun ofs ->
-                let* x = Context.Var.fresh in
-                let+ pins =
-                  if Bv.(ofs = zero) then
-                    let+ st = Cv.Abi.store `i64 (`var x) (`var y) in
-                    [st]
-                  else
-                    let ofs = `int (ofs, `i64) in
-                    let* o, oi = Cv.Abi.binop (`add `i64) (`var y) ofs in
-                    let+ st = Cv.Abi.store `i64 (`var x) (`var o) in
-                    [oi; st] in
-                let p = {pty = `i64; pvar = `var x; pins} in
-                Vec.push env.params p))
+          | Kreg (r, _) when k.size = 8 -> onereg_param ~reg env t x y r
+          | Kreg (r1, r2) -> tworeg_param ~reg env t x y r1 r2
+          | Kmem -> memory_param env t x y k.size)
 end
 
 module Refs = struct
+  let fresh_ref env s x y =
+    let*? lt = Typecheck.Env.layout s env.tenv in
+    let k = classify_layout lt in
+    let*? s = Slot.create x ~size:k.size ~align:k.align in
+    Context.return begin
+      Hashtbl.set env.refs ~key:y ~data:x;
+      Vec.push env.slots s
+    end
+
   (* Change `ref`s of structs to stack slots. *)
   let canonicalize env = iter_blks env ~f:(fun b ->
       Blk.insns b |> Context.Seq.iter ~f:(fun i ->
@@ -324,16 +336,11 @@ module Refs = struct
               | Some z -> !!(Hashtbl.set env.canon_ref ~key:x ~data:z)
               | None -> typeof_var env y >>= function
                 | `compound (s, _, _) | `opaque (s, _, _) ->
-                  let*? lt = Typecheck.Env.layout s env.tenv in
-                  let k = classify_layout lt in
-                  let*? s = Slot.create x ~size:k.size ~align:k.align in
-                  Hashtbl.set env.refs ~key:y ~data:x;
-                  Vec.push env.slots s;
-                  !!()
+                  fresh_ref env s x y
                 | t ->
                   Context.failf
-                    "Expected compound type for instruction %a in \
-                     block %a of function $%s, got %a"
+                    "Expected compound type for instruction %a \
+                     in block %a of function $%s, got %a"
                     Insn.pp i Label.pp (Blk.label b)
                     (Func.name env.fn) Type.pp t ()
             end
@@ -349,37 +356,89 @@ module Rets = struct
          of function $%s, got %a" Label.pp l
         (Func.name env.fn) pp_operand x ()
 
+  (* Return in the first integer register. *)
+  let intret env t key x =
+    let reg = int_rets.(0) in
+    let u = match t with
+      | `i8 | `i16 | `i32 -> `zext `i64
+      | `i64 -> `copy `i64 in
+    let+ r = Cv.Abi.insn @@ `uop (`reg reg, u, oper x) in
+    Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
+
+  (* Return in the first integer register, with a sign extension. *)
+  let intret_signed env key x =
+    let reg = int_rets.(0) in
+    let+ r = Cv.Abi.insn @@ `uop (`reg reg, `sext `i64, oper x) in
+    Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
+
+  (* Return in the first SSE register. *)
+  let sseret env t key x =
+    let reg = sse_rets.(0) in
+    let+ r = Cv.Abi.insn @@ `uop (`reg reg, `copy t, oper x) in
+    Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
+
+  (* Struct is returned in a single register. *)
+  let onereg_ret env r k key x =
+    let* x = expect_ret_var env key x in
+    let* x = find_ref env x k in
+    let t = reg_type r in
+    let reg = match t with
+      | `i64 -> int_rets.(0)
+      | `f64 -> sse_rets.(0) in
+    let+ r = Cv.Abi.insn @@ `load (`reg reg, t, `var x) in
+    Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
+
+  (* Struct is returned in two registers of varying classes. *)
+  let tworeg_ret env r1 r2 k key x =
+    let* x = expect_ret_var env key x in
+    let* x = find_ref env x k in
+    let t1 = reg_type r1 and t2 = reg_type r2 in
+    let ni = ref 0 and ns = ref 0 in
+    let reg1 = match t1 with
+      | `i64 -> incr ni; int_rets.(0)
+      | `f64 -> incr ns; sse_rets.(0) in
+    let reg2 = match t2 with
+      | `i64 -> int_rets.(!ni)
+      | `f64 -> sse_rets.(!ns) in
+    let* ld1 = Cv.Abi.insn @@ `load (`reg reg1, `i64, `var x) in
+    let* a, add = Cv.Abi.binop (`add `i64) (`var x) o8 in
+    let+ ld2 = Cv.Abi.insn @@ `load (`reg reg2, `i64, `var a) in
+    Hashtbl.set env.rets ~key ~data:{
+      reti = [ld1; add; ld2];
+      retr = [reg1; reg2]
+    }
+
+  (* Struct is blitted to a pointer held by by the implicit
+     first argument of the function. This pointer becomes the
+     return value. *)
+  let memory_ret env k key x =
+    let* x = expect_ret_var env key x in
+    let* src = find_ref env x k in
+    let dst = match env.rmem with
+      | None -> assert false
+      | Some dst -> dst in
+    let* blit = Cv.Abi.blit `i64 k.size ~src:(`var src) ~dst:(`var dst) in
+    let reg = int_rets.(0) in
+    let+ r = Cv.Abi.insn @@ `uop (`reg reg, `copy `i64, `var dst) in
+    Hashtbl.set env.rets ~key ~data:{
+      reti = blit @ [r];
+      retr = [reg]
+    }
+
   (* Lower the `ret` instructions. *)
   let lower env =
-    let go f = iter_blks env ~f:(fun b ->
-        let key = Blk.label b in
-        match Blk.ctrl b with
-        | `ret Some x -> f key x
+    let go f = iter_blks env ~f:(fun b -> match Blk.ctrl b with
+        | `ret Some x -> f (Blk.label b) x
         | `ret None ->
           Context.failf
             "Expected return value in block %a of function $%s"
-            Label.pp key (Func.name env.fn) ()
+            Label.pp (Blk.label b) (Func.name env.fn) ()
         | _ -> !!()) in
     match Func.return env.fn with
     | None -> !!()
-    | Some (#Type.imm as t) -> go @@ fun key x ->
-      (* Return in the first integer register. *)
-      let reg = int_rets.(0) in
-      let u = match t with
-        | `i8 | `i16 | `i32 -> `zext `i64
-        | `i64 -> `copy `i64 in
-      let+ r = Cv.Abi.insn @@ `uop (`reg reg, u, oper x) in
-      Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
-    | Some (`si8 | `si16 | `si32) -> go @@ fun key x ->
-      (* Return in the first integer register, with a sign extension. *)
-      let reg = int_rets.(0) in
-      let+ r = Cv.Abi.insn @@ `uop (`reg reg, `sext `i64, oper x) in
-      Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
-    | Some (#Type.fp as t) -> go @@ fun key x ->
-      (* Return in the first floating point register. *)
-      let reg = sse_rets.(0) in
-      let+ r = Cv.Abi.insn @@ `uop (`reg reg, `copy t, oper x) in
-      Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
+    | Some (#Type.imm as t) -> go @@ intret env t
+    | Some (`si8 | `si16 | `si32) -> go @@ intret_signed env
+    | Some (#Type.fp as t) -> go @@ sseret env t
     | Some `name n ->
       let*? lt = Typecheck.Env.layout n env.tenv in
       let k = classify_layout lt in
@@ -387,51 +446,9 @@ module Rets = struct
       | Kreg _ when k.size = 0 -> go @@ fun key _ ->
         (* Struct is empty, so we return nothing. *)
         !!(Hashtbl.set env.rets ~key ~data:empty_ret)
-      | Kreg (r, _) when k.size = 8 -> go @@ fun key x ->
-        (* Struct is returned in a single register. *)
-        let* x = expect_ret_var env key x in
-        let* x = find_ref env x k in
-        let t = reg_type r in
-        let reg = match t with
-          | `i64 -> int_rets.(0)
-          | `f64 -> sse_rets.(0) in
-        let+ r = Cv.Abi.insn @@ `load (`reg reg, t, `var x) in
-        Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
-      | Kreg (r1, r2) -> go @@ fun key x ->
-        (* Struct is returned in two registers of varying classes. *)
-        let* x = expect_ret_var env key x in
-        let* x = find_ref env x k in
-        let t1 = reg_type r1 and t2 = reg_type r2 in
-        let ni = ref 0 and ns = ref 0 in
-        let reg1 = match t1 with
-          | `i64 -> incr ni; int_rets.(0)
-          | `f64 -> incr ns; sse_rets.(0) in
-        let reg2 = match t2 with
-          | `i64 -> int_rets.(!ni)
-          | `f64 -> sse_rets.(!ns) in
-        let* ld1 = Cv.Abi.insn @@ `load (`reg reg1, `i64, `var x) in
-        let* a, add = Cv.Abi.binop (`add `i64) (`var x) o8 in
-        let+ ld2 = Cv.Abi.insn @@ `load (`reg reg2, `i64, `var a) in
-        Hashtbl.set env.rets ~key ~data:{
-          reti = [ld1; add; ld2];
-          retr = [reg1; reg2]
-        }
-      | Kmem -> go @@ fun key x ->
-        (* Struct is blitted to a pointer held by by the implicit
-           first argument of the function. This pointer becomes the
-           return value. *)
-        let* x = expect_ret_var env key x in
-        let* src = find_ref env x k in
-        let dst = match env.rmem with
-          | None -> assert false
-          | Some dst -> dst in
-        let* blit = Cv.Abi.blit `i64 k.size ~src:(`var src) ~dst:(`var dst) in
-        let reg = int_rets.(0) in
-        let+ r = Cv.Abi.insn @@ `uop (`reg reg, `copy `i64, `var dst) in
-        Hashtbl.set env.rets ~key ~data:{
-          reti = blit @ [r];
-          retr = [reg]
-        }
+      | Kreg (r, _) when k.size = 8 -> go @@ onereg_ret env r k
+      | Kreg (r1, r2) -> go @@ tworeg_ret env r1 r2 k
+      | Kmem -> go @@ memory_ret env k
 end
 
 module Calls = struct
