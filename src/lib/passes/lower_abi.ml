@@ -499,42 +499,61 @@ module Calls = struct
           ai, am) in
     {k with callai; callam}
 
+  let call_ret_basic x t k =
+    let r, t = match (t : Type.ret) with
+      | #Type.fp as f -> sse_rets.(0), f
+      | #Type.imm as m -> int_rets.(0), m
+      | `si8 -> int_rets.(0), `i8
+      | `si16 -> int_rets.(0), `i16
+      | `si32 -> int_rets.(0), `i32
+      | `name _ -> assert false in
+    let+ i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
+    let callri = Ftree.snoc k.callri i in
+    {k with callri; callrs = [r]}
+
+  (* Fits in one register. *)
+  let call_ret_onereg env x r lk k =
+    let* x = find_ref env x lk in
+    let t = reg_type r in
+    let reg = match t with
+      | `i64 -> int_rets.(0)
+      | `f64 -> sse_rets.(0) in
+    let+ st = Cv.Abi.store t (`reg reg) (`var x) in
+    let callri = Ftree.snoc k.callri st in
+    {k with callri; callrs = [reg]}
+
+  (* Fits in two registers. *)
+  let call_ret_tworeg env x r1 r2 lk k =
+    let* x = find_ref env x lk in
+    let t1 = reg_type r1 and t2 = reg_type r2 in
+    let reg1, reg2 = match t1, t2 with
+      | `i64, `i64 -> int_rets.(0), int_rets.(1)
+      | `i64, `f64 -> int_rets.(0), sse_rets.(0)
+      | `f64, `i64 -> sse_rets.(0), int_rets.(0)
+      | `f64, `f64 -> sse_rets.(0), sse_rets.(1) in
+    let* o, oi = Cv.Abi.binop (`add `i64) (`var x) o8 in
+    let* st1 = Cv.Abi.store t1 (`reg reg1) (`var x) in
+    let+ st2 = Cv.Abi.store t2 (`reg reg2) (`var o) in
+    let callri = k.callri @! [oi; st1; st2] in
+    {k with callri; callrs = [reg1; reg2]}
+
+  (* Passed as a reference to memory. We need to allocate
+     a new stack slot for this one. *)
+  let call_ret_memory env x lk k =
+    let+ y = new_slot env lk.size lk.align in
+    let callar = Ftree.cons k.callar (`i64, `var y) in
+    Hashtbl.set env.refs ~key:x ~data:y;
+    {k with callar; callrs = [int_rets.(0)]}
+
   (* Handle the compound type return value of a call.  *)
-  let lower_call_ret_compound env kret k = match kret with
-    | None -> !!k
-    | Some (x, lk) -> match lk.cls with
+  let lower_call_ret env kret k = match kret with
+    | `none -> !!k
+    | `basic (x, t) -> call_ret_basic x t k
+    | `compound (x, lk) -> match lk.cls with
       | Kreg _ when lk.size = 0 -> !!k
-      | Kreg (r, _) when lk.size = 8 ->
-        (* Fits in one register. *)
-        let* x = find_ref env x lk in
-        let t = reg_type r in
-        let reg = match t with
-          | `i64 -> int_rets.(0)
-          | `f64 -> sse_rets.(0) in
-        let+ st = Cv.Abi.store t (`reg reg) (`var x) in
-        let callri = Ftree.snoc k.callri st in
-        {k with callri; callrs = [reg]}
-      | Kreg (r1, r2) ->
-        (* Fits in two registers. *)
-        let* x = find_ref env x lk in
-        let t1 = reg_type r1 and t2 = reg_type r2 in
-        let reg1, reg2 = match t1, t2 with
-          | `i64, `i64 -> int_rets.(0), int_rets.(1)
-          | `i64, `f64 -> int_rets.(0), sse_rets.(0)
-          | `f64, `i64 -> sse_rets.(0), int_rets.(0)
-          | `f64, `f64 -> sse_rets.(0), sse_rets.(1) in
-        let* o, oi = Cv.Abi.binop (`add `i64) (`var x) o8 in
-        let* st1 = Cv.Abi.store t1 (`reg reg1) (`var x) in
-        let+ st2 = Cv.Abi.store t2 (`reg reg2) (`var o) in
-        let callri = k.callri @! [oi; st1; st2] in
-        {k with callri; callrs = [reg1; reg2]}
-      | Kmem ->
-        (* Passed as a reference to memory. We need to allocate
-           a new stack slot for this one. *)
-        let+ y = new_slot env lk.size lk.align in
-        let callar = Ftree.cons k.callar (`i64, `var y) in
-        Hashtbl.set env.refs ~key:x ~data:y;
-        {k with callar; callrs = [int_rets.(0)]}
+      | Kreg (r, _) when lk.size = 8 -> call_ret_onereg env x r lk k
+      | Kreg (r1, r2) -> call_ret_tworeg env x r1 r2 lk k
+      | Kmem -> call_ret_memory env x lk k
 
   let expect_arg_var env l : operand -> Var.t Context.t = function
     | `var x -> !!x
@@ -584,13 +603,14 @@ module Calls = struct
             let* kret = match ret with
               | Some (x, `name n) ->
                 let*? lt = Typecheck.Env.layout n env.tenv in
-                !!(Some (x, classify_layout lt))
-              | Some _ | None -> !!None in
+                !!(`compound (x, classify_layout lt))
+              | Some (x, t) -> !!(`basic (x, t))
+              | None -> !!`none in
             (* Counters for the number of integer and SSE registers
                remaining, before arguments are passed in memory. *)
             let ni = ref @@ match kret with
-              | Some (_, {cls = Kmem; _}) -> num_int_args - 1
-              | Some _ | None -> num_int_args in
+              | `compound (_, {cls = Kmem; _}) -> num_int_args - 1
+              | _ -> num_int_args in
             let ns = ref num_sse_args in
             (* Decrement the counter based on the arg class. *)
             let dec = function
@@ -603,7 +623,7 @@ module Calls = struct
             let* k = Context.List.fold args ~init:empty_call ~f:acls in
             let* k = Context.List.fold vargs ~init:k ~f:acls in
             (* Process the return value. *)
-            let+ k = lower_call_ret_compound env kret k in
+            let+ k = lower_call_ret env kret k in
             Hashtbl.set env.calls ~key ~data:k
           | _ -> !!()))
 end
