@@ -109,9 +109,11 @@ let empty_ret = {
   retr = [];
 }
 
+type callarg = Type.basic * Abi.operand
+
 type call = {
   callai : Abi.insn Ftree.t;    (* Set up the arguments before the call. *)
-  callar : Abi.operand Ftree.t; (* Passing register arguments. *)
+  callar : callarg Ftree.t;     (* Passing register arguments. *)
   callam : Abi.operand Ftree.t; (* Passing memory arguments. *)
   callri : Abi.insn Ftree.t;    (* Copy the return value after the call. *)
   callrs : string list;         (* Registers holding the return value. *)
@@ -136,6 +138,7 @@ type env = {
   rets         : ret Label.Table.t;  (* Lowered `ret` instructions. *)
   calls        : call Label.Table.t; (* Lowered `call` instructions. *)
   refs         : Var.t Var.Table.t;  (* `unref` to `ref` *)
+  canon_ref    : Var.t Var.Table.t;  (* Canonicalize `ref`s. *)
   slots        : slot Vec.t;         (* New stack slots. *)
   mutable rmem : Var.t option;       (* Return value blitted to memory. *)
 }
@@ -147,8 +150,9 @@ let init_env tenv fn =
   let rets = Label.Table.create () in
   let calls = Label.Table.create () in
   let refs = Var.Table.create () in
+  let canon_ref = Var.Table.create () in
   let slots = Vec.create () in
-  {fn; blks; cfg; doms; tenv; rets; calls; refs; slots; rmem = None}
+  {fn; blks; cfg; doms; tenv; rets; calls; refs; canon_ref; slots; rmem = None}
 
 (* Iterate over the dominator tree. *)
 let iter_blks env ~f =
@@ -176,28 +180,55 @@ let make_rmem env = match env.rmem with
     env.rmem <- Some dst;
     dst
 
-let find_ref env x = match Hashtbl.find env.refs x with
+let find_ref env x k = match Hashtbl.find env.refs x with
   | Some y -> !!y
   | None ->
-    Context.failf "Missing ref for var %a in function $%s"
-      Var.pp x (Func.name env.fn) ()
+    let+ y = new_slot env k.size k.align in
+    Hashtbl.set env.refs ~key:x ~data:y;
+    y
 
 let o8 = `int (Bv.M64.int 8, `i64)
 
 let oper (o : operand) = (o :> Abi.operand)
 
-let typeof_var tenv fn x =
-  Context.lift_err @@ Typecheck.Env.typeof_var fn x tenv
+let typeof_var env x =
+  Context.lift_err @@ Typecheck.Env.typeof_var env.fn x env.tenv
 
-let word tenv = (Target.word (Typecheck.Env.target tenv) :> Type.t)
+let word env = (Target.word (Typecheck.Env.target env.tenv) :> Type.t)
 
-let typeof_operand tenv fn : operand -> Type.t Context.t = function
+let typeof_operand env : operand -> Type.t Context.t = function
   | `int (_, t) -> !!(t :> Type.t)
   | `bool _ -> !!`flag
   | `float _ -> !!`f32
   | `double _ -> !!`f64
-  | `sym _ -> !!(word tenv)
-  | `var x -> typeof_var tenv fn x
+  | `sym _ -> !!(word env)
+  | `var x -> typeof_var env x
+
+module Refs = struct
+  (* Change `ref`s of structs to stack slots. *)
+  let go env = iter_blks env ~f:(fun b ->
+      Blk.insns b |> Context.Seq.iter ~f:(fun i ->
+          match Insn.op i with
+          | `ref (x, `var y) ->
+            begin match Hashtbl.find env.refs y with
+              | Some z -> !!(Hashtbl.set env.canon_ref ~key:x ~data:z)
+              | None -> typeof_var env y >>= function
+                | `compound (s, _, _) | `opaque (s, _, _) ->
+                  let*? lt = Typecheck.Env.layout s env.tenv in
+                  let k = classify_layout lt in
+                  let*? s = Slot.create x ~size:k.size ~align:k.align in
+                  Hashtbl.set env.refs ~key:y ~data:x;
+                  Vec.push env.slots s;
+                  !!()
+                | t ->
+                  Context.failf
+                    "Expected compound type for instruction %a in \
+                     block %a of function $%s, got %a"
+                    Insn.pp i Label.pp (Blk.label b)
+                    (Func.name env.fn) Type.pp t ()
+            end
+          | _ -> !!()))
+end
 
 module Rets = struct
   let expect_ret_var env l : operand -> Var.t Context.t = function
@@ -249,7 +280,7 @@ module Rets = struct
       | Kreg (r, _) when k.size = 8 -> go @@ fun key x ->
         (* Struct is returned in a single register. *)
         let* x = expect_ret_var env key x in
-        let* x = find_ref env x in
+        let* x = find_ref env x k in
         let t = reg_type r in
         let reg = match t with
           | `i64 -> int_rets.(0)
@@ -259,7 +290,7 @@ module Rets = struct
       | Kreg (r1, r2) -> go @@ fun key x ->
         (* Struct is returned in two registers of varying classes. *)
         let* x = expect_ret_var env key x in
-        let* x = find_ref env x in
+        let* x = find_ref env x k in
         let t1 = reg_type r1 and t2 = reg_type r2 in
         let ni = ref 0 and ns = ref 0 in
         let reg1 = match t1 with
@@ -280,7 +311,7 @@ module Rets = struct
            first argument of the function. This pointer becomes the
            return value. *)
         let* x = expect_ret_var env key x in
-        let* src = find_ref env x in
+        let* src = find_ref env x k in
         let* dst = make_rmem env in
         let* blit = Cv.Abi.blit `i64 k.size ~src:(`var src) ~dst:(`var dst) in
         let reg = int_rets.(0) in
@@ -294,15 +325,17 @@ end
 module Calls = struct
   (* A compound argument to a call passed in a single register. *)
   let onereg_arg ~dec env k r src =
+    let t = reg_type r in
     let+ l, li = Cv.Abi.load `i64 (`var src) in
     let callai = Ftree.snoc k.callai li in
     let callar, callam = match dec r with
-      | true -> Ftree.snoc k.callar (`var l), k.callam
+      | true -> Ftree.snoc k.callar (t, `var l), k.callam
       | false -> k.callar, Ftree.snoc k.callam (`var l) in
     {k with callai; callar; callam}
 
   (* A compound argument to a call passed in two registers. *)
   let tworeg_arg ~dec env k r1 r2 src =
+    let t1 = reg_type r1 and t2 = reg_type r2 in
     let ok1 = dec r1 in
     let ok2 = dec r2 in
     let* o, oi = Cv.Abi.binop (`add `i64) (`var src) o8 in
@@ -311,13 +344,13 @@ module Calls = struct
     let callai = k.callai @! [oi; li1; li2] in
     let callar, callam = match ok1, ok2 with
       | true, true ->
-        k.callar @! [`var l1; `var l2],
+        k.callar @! [t1, `var l1; t2, `var l2],
         k.callam
       | true, false ->
-        Ftree.snoc k.callar (`var l1),
+        Ftree.snoc k.callar (t1, `var l1),
         Ftree.snoc k.callam (`var l2)
       | false, true ->
-        Ftree.snoc k.callar (`var l2),
+        Ftree.snoc k.callar (t2, `var l2),
         Ftree.snoc k.callam (`var l1)
       | false, false ->
         k.callar,
@@ -344,7 +377,7 @@ module Calls = struct
       | Kreg _ when lk.size = 0 -> !!k
       | Kreg (r, _) when lk.size = 8 ->
         (* Fits in one register. *)
-        let* x = find_ref env x in
+        let* x = find_ref env x lk in
         let t = reg_type r in
         let reg = match t with
           | `i64 -> int_rets.(0)
@@ -354,7 +387,7 @@ module Calls = struct
         {k with callri; callrs = [reg]}
       | Kreg (r1, r2) ->
         (* Fits in two registers. *)
-        let* x = find_ref env x in
+        let* x = find_ref env x lk in
         let t1 = reg_type r1 and t2 = reg_type r2 in
         let reg1, reg2 = match t1, t2 with
           | `i64, `i64 -> int_rets.(0), int_rets.(1)
@@ -370,7 +403,7 @@ module Calls = struct
         (* Passed as a reference to memory. We need to allocate
            a new stack slot for this one. *)
         let+ y = new_slot env lk.size lk.align in
-        let callar = Ftree.cons k.callar (`var y) in
+        let callar = Ftree.cons k.callar (`i64, `var y) in
         Hashtbl.set env.refs ~key:x ~data:y;
         {k with callar; callrs = [int_rets.(0)]}
 
@@ -384,30 +417,33 @@ module Calls = struct
 
   (* Figure out how we should pass the argument `a` at the call site. *)
   let classify_call_arg ~dec ~ni ~ns env key k a =
-    typeof_operand env.tenv env.fn a >>= function
+    typeof_operand env a >>= function
     | #Type.imm when !ni < 1 ->
       (* Ran out of integer registers. *)
       !!{k with callam = Ftree.snoc k.callam (oper a)}
     | #Type.fp when !ns < 1 ->
       (* Ran out of SSE registers. *)
       !!{k with callam = Ftree.snoc k.callam (oper a)}
-    | #Type.imm ->
+    | #Type.imm as m ->
       (* Use an integer register. *)
-      decr ni; !!{k with callar = Ftree.snoc k.callar (oper a)}
-    | #Type.fp ->
+      let arg = (m :> Type.basic), oper a in
+      decr ni; !!{k with callar = Ftree.snoc k.callar arg}
+    | #Type.fp as f ->
       (* Use an SSE register. *)
-      decr ns; !!{k with callar = Ftree.snoc k.callar (oper a)}
+      let arg = (f :> Type.basic), oper a in
+      decr ns; !!{k with callar = Ftree.snoc k.callar arg}
     | `flag -> assert false
     | `compound (s, _, _) | `opaque (s, _, _) ->
       (* Figure out what class this type is. *)
       let*? lt = Typecheck.Env.layout s env.tenv in
       let* x = expect_arg_var env key a in
-      let* src = find_ref env x in
-      match classify_layout lt with
-      | {cls = Kreg _; size = 0; _} -> !!k
-      | {cls = Kreg (r, _); size = 8; _} -> onereg_arg ~dec env k r src
-      | {cls = Kreg (r1, r2); _} -> tworeg_arg ~dec env k r1 r2 src
-      | {cls = Kmem; size; _} -> memory_arg env k size @@ `var src
+      let lk = classify_layout lt in
+      let* src = find_ref env x lk in
+      match lk.cls with
+      | Kreg _ when lk.size = 0 -> !!k
+      | Kreg (r, _) when lk.size = 8 -> onereg_arg ~dec env k r src
+      | Kreg (r1, r2) -> tworeg_arg ~dec env k r1 r2 src
+      | Kmem -> memory_arg env k lk.size (`var src)
 
   (* Lower the `call` instructions. *)
   let lower env = iter_blks env ~f:(fun b ->
@@ -444,7 +480,14 @@ module Calls = struct
 end
 
 let run tenv fn =
-  let env = init_env tenv fn in
-  let* () = Rets.lower env in
-  let* () = Calls.lower env in
-  failwith "unimplemented"
+  if Dict.mem (Func.dict fn) Tags.ssa then
+    let env = init_env tenv fn in
+    let* () = Refs.go env in
+    let* () = Rets.lower env in
+    let* () = Calls.lower env in
+    failwith "unimplemented"
+  else
+    Context.failf
+      "In Lower_abi: expected SSA form for function $%s"
+      (Func.name fn) ()
+
