@@ -1,5 +1,3 @@
-(* Lower a function according to the System V ABI (AMD64). *)
-
 open Core
 open Regular.Std
 open Graphlib.Std
@@ -677,44 +675,46 @@ module Calls = struct
           | _ -> !!()))
 end
 
-module Lower = struct
-  let map_var env x =
+(* Actually produce a Virtual ABI function from the work done in
+   the above passes. *)
+module Translate = struct
+  let transl_var env x =
     match Hashtbl.find env.canon_ref x with
     | Some y -> y
     | None -> match Hashtbl.find env.refs x with
       | Some y -> y
       | None -> x
 
-  let map_operand env : operand -> Abi.operand = function
-    | `var x -> `var (map_var env x)
+  let transl_operand env : operand -> Abi.operand = function
+    | `var x -> `var (transl_var env x)
     | o -> oper o
 
-  let map_local env : local -> Abi.local = function
+  let transl_local env : local -> Abi.local = function
     | `label (l, args) ->
-      `label (l, List.map args ~f:(map_operand env))
+      `label (l, List.map args ~f:(transl_operand env))
 
-  let map_global env : global -> Abi.global = function
-    | `var x -> `var (`var (map_var env x))
+  let transl_global env : global -> Abi.global = function
+    | `var x -> `var (`var (transl_var env x))
     | (`addr _ | `sym _) as g -> g
 
-  let map_dst env : dst -> Abi.dst = function
-    | #local as l -> (map_local env l :> Abi.dst)
-    | #global as g -> (map_global env g :> Abi.dst)
+  let transl_dst env : dst -> Abi.dst = function
+    | #local as l -> (transl_local env l :> Abi.dst)
+    | #global as g -> (transl_global env g :> Abi.dst)
 
-  let map_basic env (b : Insn.basic) : Abi.Insn.basic =
-    let op = map_operand env in
+  let transl_basic env (b : Insn.basic) : Abi.Insn.basic =
+    let op = transl_operand env in
     match b with
     | `bop (x, b, l, r) -> `bop (`var x, b, op l, op r)
     | `uop (x, u, a) -> `uop (`var x, u, op a)
     | `sel (x, t, c, l, r) -> `sel (`var x, t, `var c, op l, op r)
 
-  let map_mem env (m : Insn.mem) : Abi.Insn.mem =
-    let op = map_operand env in
+  let transl_mem env (m : Insn.mem) : Abi.Insn.mem =
+    let op = transl_operand env in
     match m with
     | `load (x, t, a) -> `load (`var x, t, op a)
     | `store (t, v, a) -> `store (t, op v, op a)
 
-  let map_call env l f =
+  let transl_call env l f =
     let k = Hashtbl.find_exn env.calls l in
     let pre = Ftree.to_list k.callai in
     let rargs =
@@ -722,75 +722,81 @@ module Lower = struct
       List.map ~f:(fun r -> `reg r) in
     let margs = Ftree.to_list k.callam in
     let post = Ftree.to_list k.callri in
-    let c = `call (k.callrr, map_global env f, rargs @ margs) in
+    let c = `call (k.callrr, transl_global env f, rargs @ margs) in
     pre @ (Abi.Insn.create ~label:l c :: post)
 
-  let map_compound env (c : Insn.compound) = match c with
+  let transl_compound env (c : Insn.compound) = match c with
     | `ref _ -> []
     | `unref (x, _, _) ->
       Hashtbl.find env.unrefs x |>
       Option.value ~default:[]
 
-  let map_insn env i =
+  let transl_insn env i =
     let l = Insn.label i in
     let ins = Abi.Insn.create ~label:l in
     match Insn.op i with
-    | #Insn.basic as b -> [ins (map_basic env b :> Abi.Insn.op)]
-    | #Insn.mem as m -> [ins (map_mem env m :> Abi.Insn.op)]
-    | #Insn.compound as c -> map_compound env c
+    | #Insn.basic as b -> [ins (transl_basic env b :> Abi.Insn.op)]
+    | #Insn.mem as m -> [ins (transl_mem env m :> Abi.Insn.op)]
+    | #Insn.compound as c -> transl_compound env c
     | #Insn.variadic -> failwith "unimplemented"
-    | `call (_, f, _, _) -> map_call env l f
+    | `call (_, f, _, _) -> transl_call env l f
 
-  let map_ctrl env l (c : ctrl) : Abi.insn list * Abi.ctrl =
-    let dst = map_dst env in
-    let loc = map_local env in
+  let transl_swindex env = function
+    | `var x -> `var (`var (transl_var env x))
+    | `sym s -> `sym s
+
+  let transl_tbl env tbl t =
+    Ctrl.Table.enum tbl |>
+    Seq.map ~f:(fun (v, l) -> v, transl_local env l) |>
+    Seq.to_list |> fun tbl ->
+    Abi.Ctrl.Table.create_exn tbl t 
+
+  let transl_sw env t i d tbl =
+    `sw (t, transl_swindex env i, transl_local env d, transl_tbl env tbl t)
+
+  let transl_ret env l =
+    let r = Hashtbl.find_exn env.rets l in
+    r.reti, `ret r.retr
+
+  let transl_ctrl env l (c : ctrl) : Abi.insn list * Abi.ctrl =
+    let dst = transl_dst env in
     match c with
     | `hlt -> [], `hlt
     | `jmp d -> [], `jmp (dst d)
-    | `br (c, y, n) -> [], `br (`var (map_var env c), dst y, dst n)
-    | `sw (t, i, d, tbl) ->
-      let i = match i with
-        | `var x -> `var (`var (map_var env x))
-        | `sym s -> `sym s in
-      let d = loc d in
-      let tbl =
-        Ctrl.Table.enum tbl |>
-        Seq.map ~f:(fun (v, l) -> v, loc l) |>
-        Seq.to_list |> fun l ->
-        Abi.Ctrl.Table.create_exn l t in
-      [], `sw(t, i, d, tbl)
+    | `br (c, y, n) -> [], `br (`var (transl_var env c), dst y, dst n)
+    | `sw (t, i, d, tbl) -> [], transl_sw env t i d tbl
     | `ret None -> [], `ret []
-    | `ret Some _ ->
-      let r = Hashtbl.find_exn env.rets l in
-      r.reti, `ret r.retr
+    | `ret Some _ -> transl_ret env l
 
-  let map_blks env =
+  let transl_blks env =
+    let acc = Vec.create () in
+    let push i = Vec.push acc i in
     let entry = Func.entry env.fn in
-    Func.blks env.fn |> Seq.map ~f:(fun b ->
+    Func.blks env.fn |> Seq.to_list |> List.map ~f:(fun b ->
         let l = Blk.label b in
-        let pins =
-          if Label.(l = entry) then
-            Vec.to_sequence_mutable env.params |>
-            Seq.map ~f:(fun p -> p.pins) |>
-            Seq.to_list |> List.concat
-          else [] in
-        let ins =
-          Blk.insns b |> Seq.map ~f:(map_insn env) |>
-          Seq.to_list |> List.concat in
-        let cins, ctrl = map_ctrl env l @@ Blk.ctrl b in
+        (* Entry block copies the parameters. *)
+        if Label.(l = entry) then
+          Vec.iter env.params ~f:(fun p ->
+              List.iter p.pins ~f:push);
+        (* Translate each instruction. *)
+        Blk.insns b |> Seq.map ~f:(transl_insn env) |>
+        Seq.iter ~f:(List.iter ~f:push);
+        (* Translate control flow. *)
+        let cins, ctrl = transl_ctrl env l @@ Blk.ctrl b in
         let args = Blk.args b |> Seq.to_list in
-        Abi.Blk.create () ~args ~ctrl
-          ~label:l ~insns:(pins @ ins @ cins)) |>
-    Seq.to_list
+        List.iter cins ~f:push;
+        let insns = Vec.to_list acc in
+        Vec.clear acc;
+        Abi.Blk.create () ~args ~ctrl ~insns ~label:l)
 
-  let lower env =
+  let go env =
     let slots = Func.slots env.fn |> Seq.to_list in
     let slots = slots @ Vec.to_list env.slots in
     let args =
       Vec.to_sequence_mutable env.params |>
       Seq.map ~f:(fun p -> p.pvar, p.pty) |>
       Seq.to_list in
-    let blks = map_blks env in
+    let blks = transl_blks env in
     let lnk = Func.linkage env.fn in
     let dict = Dict.(set empty Func.Tag.linkage lnk) in
     Abi.Func.create () ~dict ~slots ~args ~blks
@@ -804,7 +810,7 @@ let run tenv fn =
     let* () = Refs.canonicalize env in
     let* () = Rets.lower env in
     let* () = Calls.lower env in
-    let*? fn = Lower.lower env in
+    let*? fn = Translate.go env in
     !!fn
   else
     Context.failf
