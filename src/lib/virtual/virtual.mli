@@ -914,11 +914,10 @@ module Abi : sig
     (** A call instruction.
 
         [`call (xs, f, args)] calls the function [f] with [args], returning
-        zero or more results in registers [xs]. Each argument to the call
-        is annotated with its type.
+        zero or more results in registers [xs].
     *)
     type call = [
-      | `call of string list * global * (Type.basic * operand) list
+      | `call of string list * global * operand list
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** A data operation. *)

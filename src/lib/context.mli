@@ -220,7 +220,7 @@ module Virtual : sig
       ?dict:Dict.t ->
       string list ->
       Virtual.Abi.global ->
-      (Type.basic * Virtual.Abi.operand) list ->
+      Virtual.Abi.operand list ->
       Virtual.Abi.insn t
 
     val load :
