@@ -289,17 +289,6 @@ let try_ f = try Ok (f ()) with
   | Duplicate (x, l) ->
     E.failf "%s: duplicate definition of var %a at instruction %a"
       error_prefix Var.pp x Label.pp l ()
-  | Rewrite.Type_error (Some a, Some b) ->
-    E.failf "%s: type mismatch on rewrite (expected %a, got %a)"
-      error_prefix Type.pp a Type.pp b ()
-  | Rewrite.Type_error (None, Some b) ->
-    E.failf "%s: type mismatch on rewrite (expected nothing, got %a)"
-      error_prefix Type.pp b ()
-  | Rewrite.Type_error (Some a, None) ->
-    E.failf "%s: type mismatch on rewrite (expected %a, got nothing)"
-      error_prefix Type.pp a ()
-  | Rewrite.Type_error (None, None) ->
-    assert false (* impossible *)
 
 let run eg = try_ @@ fun () ->
   let env = init () in

@@ -29,15 +29,9 @@ let new_node ?ty t n =
   assert (id = Vec.length t.typs - 1);
   id
 
-exception Type_error of Type.t option * Type.t option
-
 (* Ensure that the term for `id` has type `ty`. *)
-let check_union_type ?ty t id = match ty, typeof t id with
-  | Some a, Some b when Type.(a = b) -> ()
-  | Some _, (Some _ as ty') -> raise @@ Type_error (ty, ty')
-  | None, (Some _ as ty) -> raise @@ Type_error (None, ty)
-  | Some _, None -> raise @@ Type_error (ty, None)
-  | None, None -> ()
+let check_union_type ?ty t id =
+  Option.equal Type.equal ty @@ typeof t id
 
 (* Represent the union of two e-classes with a "union" node. *)
 let union ?ty t id oid =
@@ -97,7 +91,7 @@ and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
         Hashtbl.set t.memo ~key:k ~data:oid;
         oid
       | Some oid ->
-        check_union_type ?ty t oid;
+        assert (check_union_type ?ty t oid);
         oid in
     Uf.union t.classes oid id;
     oid
@@ -153,22 +147,21 @@ and search ?ty ~d t n id =
       | Some i -> i.Subst.id in
   (* Update the final ID. *)
   let update full subsume oid =
-    check_union_type ?ty t oid;
-    match !id = oid with
-    | false when subsume || Enode.is_const (node t oid) ->
-      (* We've transformed to a constant, or an otherwise optimal
-         term, so we can end the search here. Note that we don't
-         insert a union node in this case, but we still record the
-         equivalence via union-find. All future rewrites w.r.t
-         this e-class will refer only to this new term. *)
-      full.return begin
-        Uf.union t.classes oid !id;
-        id := oid
-      end
-    | false ->
-      decr budget;
-      id := union ?ty t !id oid
-    | true -> () in
+    if check_union_type ?ty t oid then match !id = oid with
+      | false when subsume || Enode.is_const (node t oid) ->
+        (* We've transformed to a constant, or an otherwise optimal
+           term, so we can end the search here. Note that we don't
+           insert a union node in this case, but we still record the
+           equivalence via union-find. All future rewrites w.r.t
+           this e-class will refer only to this new term. *)
+        full.return begin
+          Uf.union t.classes oid !id;
+          id := oid
+        end
+      | false ->
+        decr budget;
+        id := union ?ty t !id oid
+      | true -> () in
   (* Apply the action `a` to the substitution produced by `f`. *)
   let apply full a subsume ~f =
     (* Cap the number of new terms that can be inserted. For large

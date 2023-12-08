@@ -153,7 +153,8 @@ module Insn : sig
 
       [`unref (x, s, r)]: reinterpret a reference [r] as a compound type
       [s] and store it in [x]. This is indented mainly for passing a
-      compound type as an argument to a function.
+      compound type as an argument to a function, but it can also be used
+      to cast between compound types.
   *)
   type compound = [
     | `ref of Var.t * operand

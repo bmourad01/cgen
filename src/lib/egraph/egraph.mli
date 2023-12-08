@@ -97,11 +97,16 @@ module Rule : sig
 
       2. A post-condition that is applied given that the pre-condition
       successfully matches with a term, optionally making use of the
-      substitutions that were constructed in the pre-condition. If the
-      post-condition contains unbound variables, or contains wildcards,
-      then it will not produce a rewritten term. Note that this does not
-      result in a run-time error; the rewriting engine merely skips this
-      rule during the search procedure.
+      substitutions that were constructed in the pre-condition.
+
+      Furthermore, the post-condition will not produce a rewritten term if:
+
+      1. It contains unbound variables.
+      2. It contains wildcards.
+      3. The new term does not have the same type as the original.
+
+      Note that such rewrite failures do not result in a run-time error;
+      the rewriting engine merely skips this rule during the search procedure.
   *)
   type t = rule
 
