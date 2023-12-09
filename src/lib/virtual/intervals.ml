@@ -44,15 +44,17 @@ type ctx = {
   blks   : Blk.t Label.Tree.t;  (* Labels to blocks. *)
   word   : Type.imm_base;       (* Word size. *)
   typeof : Var.t -> Type.t;     (* Typing of variables. *)
+  ccmplx : int;                 (* Cyclomatic complexity. *)
 }
 
-let create_ctx ~blks ~word ~typeof = {
+let create_ctx m ~blks ~word ~typeof = {
   insns = Label.Table.create ();
   narrow = Label.Table.create ();
   cond = Var.Table.create ();
   blks;
   word;
   typeof;
+  ccmplx = m;
 }
 
 let narrow ctx l x i = Hashtbl.update ctx.narrow l ~f:(function
@@ -575,8 +577,8 @@ let step ctx i l _ s =
   let s = match Label.Tree.find ctx.blks l with
     | None -> s
     | Some b ->
-      (* This could be improved, but it's a start. *)
-      if i > 10 then
+      (* XXX: too conservative. *)
+      if i > ctx.ccmplx then
         Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
             match sizeof x ctx with
             | Some size -> Map.set s ~key:x ~data:(I.create_full ~size)
@@ -618,11 +620,17 @@ let insn t l =
 
 let input t l = Solution.get t.input l
 
+let cyclomatic_complexity cfg =
+  Cfg.number_of_edges cfg -
+  Cfg.number_of_nodes cfg +
+  2
+
 let analyze ?steps fn ~word ~typeof =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
-    let ctx = create_ctx ~blks ~word ~typeof in
+    let m = cyclomatic_complexity cfg in
+    let ctx = create_ctx m ~blks ~word ~typeof in
     let input = Graphlib.fixpoint (module Cfg) cfg ?steps
         ~step:(step ctx)
         ~init:(init_state ctx fn)
