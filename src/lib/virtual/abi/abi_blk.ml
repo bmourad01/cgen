@@ -55,7 +55,7 @@ let liveness b =
     | `sel (x, _, _, _, _)
     | `load (x, _, _) ->
       Set.singleton (module Var_comparator) x
-    | `store _ ->
+    | `store _ | `storev _ ->
       Set.empty (module Var_comparator)
     | `call (xs, _, _) ->
       Set.of_list (module Var_comparator) @@
@@ -129,7 +129,7 @@ let has_lhs b y = Ftree.exists b.insns ~f:(fun i ->
     | `uop (x, _, _)
     | `sel (x, _, _, _, _)
     | `load (x, _, _) -> equal_var x y
-    | `store _ -> false
+    | `store _ | `storev _ -> false
     | `call (xs, _, _) -> match y with
       | `var _ -> false
       | `reg y -> List.exists xs ~f:(String.equal y))

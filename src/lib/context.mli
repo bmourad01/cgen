@@ -236,6 +236,13 @@ module Virtual : sig
       Virtual.Abi.operand ->
       Virtual.Abi.insn t
 
+    (** [storev ?dict v a] stores vector register [v] at address [a]. *)
+    val storev :
+      ?dict:Dict.t ->
+      string ->
+      Virtual.Abi.operand ->
+      Virtual.Abi.insn t
+
     val blit :
       src:Virtual.Abi.var ->
       dst:Virtual.Abi.var ->

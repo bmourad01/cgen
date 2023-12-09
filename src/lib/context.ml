@@ -224,6 +224,9 @@ module Virtual = struct
     let store ?(dict = Dict.empty) t v a =
       insn (`store (t, v, a)) ~dict
 
+    let storev ?(dict = Dict.empty) v a =
+      insn (`storev (v, a)) ~dict
+
     let blits32 = [
       `i32, 4;
       `i16, 2;

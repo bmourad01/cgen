@@ -921,11 +921,29 @@ module Abi : sig
       | `call of string list * global * operand list
     ] [@@deriving bin_io, compare, equal, sexp]
 
+    val free_vars_of_call : call -> (var, var_comparator) Set.t
+
+    val pp_call : Format.formatter -> call -> unit
+
+    (** A memory instruction, primarily for supporting targets with
+        vector registers.
+
+        [`storev (v, a)]: store the vector register [v] at address [a].
+    *)
+    type memv = [
+      | `storev of string * operand
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    val free_vars_of_memv : memv -> (var, var_comparator) Set.t
+
+    val pp_memv : Format.formatter -> memv -> unit
+
     (** A data operation. *)
     type op = [
       | basic
       | call
       | mem
+      | memv
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the data operation. *)
