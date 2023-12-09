@@ -320,6 +320,23 @@ val rotate_left : t -> t -> t
 *)
 val rotate_right : t -> t -> t
 
+(** Count leading zeros.
+
+    if [zero_is_poison] is [true] and the interval contains zero, then
+    the resulting range ignores the zero value. By default, it is [true].
+*)
+val clz : ?zero_is_poison:bool -> t -> t
+
+(** Count trailing zeros.
+
+    if [zero_is_poison] is [true] and the interval contains zero, then
+    the resulting range ignores the zero value. By default, it is [true].
+*)
+val ctz : ?zero_is_poison:bool -> t -> t
+
+(** Population count. *)
+val popcnt : t -> t
+
 (** Pretty printing. *)
 val pp : Format.formatter -> t -> unit
 

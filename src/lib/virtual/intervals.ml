@@ -383,7 +383,9 @@ let interp_arith_unop o a = match (o : Insn.arith_unop) with
   | `neg _ -> I.neg a
 
 let interp_bitwise_unop o a = match (o : Insn.bitwise_unop) with
-  | `clz t | `ctz t | `popcnt t -> I.create_full ~size:(Type.sizeof_imm t)
+  | `clz _ -> I.clz a
+  | `ctz _ -> I.ctz a
+  | `popcnt _ -> I.popcnt a
   | `not_ _ -> I.lnot a
 
 let interp_cast o a = match (o : Insn.cast) with

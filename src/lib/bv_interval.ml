@@ -12,7 +12,7 @@ let setbit x n m =
   Bv.(x lor (one lsl (int n mod m) mod m) mod m)
 [@@inline]
 
-let clz x n =
+let bv_clz x n =
   let x = Bv.to_bigint x in
   let rec aux i =
     if i < 0 then n
@@ -20,13 +20,33 @@ let clz x n =
     else aux (i - 1) in
   aux (n - 1)
 
-let cto x n =
+let bv_ctz x n =
+  let x = Bv.to_bigint x in
+  let rec aux i =
+    if i >= n then n
+    else if Z.testbit x i then i + 1
+    else aux (i + 1) in
+  aux 0
+
+let bv_clo x n =
+  let x = Bv.to_bigint x in
+  let rec aux i =
+    if i < 0 then n
+    else if not (Z.testbit x i) then n - i - 1
+    else aux (i - 1) in
+  aux (n - 1)
+
+let bv_cto x n =
   let x = Bv.to_bigint x in
   let rec aux i =
     if i >= n then n
     else if not (Z.testbit x i) then i
     else aux (i + 1) in
   aux 0
+
+let bv_popcnt x =
+  let x = Bv.to_bigint x in
+  Z.popcount x
 
 let create_empty ~size =
   let lo = Bv.min_unsigned_value in
@@ -318,12 +338,12 @@ let trunc t ~size =
     let module B = (val Bitvec.modular t.size) in
     let default un lower_div upper_div =
       let lower_div, upper_div =
-        let lz = clz lower_div t.size in
+        let lz = bv_clz lower_div t.size in
         if t.size - lz > size then
           let adj = B.(lower_div land pred (one lsl int Int.(size - 1))) in
           B.(lower_div - adj), B.(upper_div - adj)
         else lower_div, upper_div in
-      let w = t.size - clz upper_div t.size in
+      let w = t.size - bv_clz upper_div t.size in
       if w <= size then union (create ~lo:lower_div ~hi:upper_div ~size) un
       else if w = size + 1 then
         let upper_div = B.(upper_div land (lnot (one lsl int size))) in
@@ -334,9 +354,9 @@ let trunc t ~size =
     if is_empty t then create_empty ~size
     else if is_full t then create_full ~size
     else if is_wrapped_hi t then
-      let lz = clz t.hi t.size in
+      let lz = bv_clz t.hi t.size in
       if t.size - lz > size
-      || cto t.hi t.size = size
+      || bv_cto t.hi t.size = size
       then create_full ~size
       else
         let un = create
@@ -743,7 +763,7 @@ let logical_shift_left t1 t2 =
       let max1 = unsigned_max t1 in
       let max2 = unsigned_max t2 in
       if Bv.(max2 = zero) then t1
-      else if Bv.(max2 > int (clz max1 size) mod m) then
+      else if Bv.(max2 > int (bv_clz max1 size) mod m) then
         create_full ~size
       else
         let min1 = unsigned_min t1 in
@@ -860,6 +880,117 @@ let rotate_right t1 t2 =
     let size = t1.size in
     let sh = create_single ~value:Bv.(int size mod modulus size) ~size in
     logor (logical_shift_right t1 t2) (logical_shift_left t1 (sub sh t2))
+
+let clz ?(zero_is_poison = true) t =
+  if is_empty t then t
+  else
+    let module B = (val Bv.modular t.size) in
+    if zero_is_poison && contains_value t Bv.zero then
+      let ph0 = Bv.(B.pred t.hi = zero) in
+      if Bv.(t.lo = zero) then
+        if ph0 then
+          create_empty ~size:t.size
+        else
+          let lo = B.(int (bv_clz (pred t.hi) t.size)) in
+          let hi = B.(int (Int.succ @@ bv_clz (succ t.lo) t.size)) in
+          create ~lo ~hi ~size:t.size
+      else if ph0 then
+        let hi = B.int (bv_clz t.lo t.size + 1) in
+        create ~lo:Bv.zero ~hi ~size:t.size
+      else create ~lo:Bv.zero ~hi:(B.int t.size) ~size:t.size
+    else
+      let umax = unsigned_max t in
+      let umin = unsigned_min t in
+      let lo = B.int (bv_clz umax t.size) in
+      let hi = B.int (bv_clz umin t.size + 1) in
+      create_non_empty ~lo ~hi ~size:t.size
+
+let ctz_range lo hi size =
+  if is_wrapped @@ create ~lo ~hi ~size then
+    invalid_argf "ctz_range: [%s, %s):%d is wrapped"
+      (Bv.to_string lo) (Bv.to_string hi) size ()
+  else if Bv.(lo = hi) then
+    invalid_arg "ctz_range: `lo` and `hi` cannot be equal"
+  else
+    let module B = (val Bv.modular size) in
+    if Bv.(B.succ lo = hi) then
+      let value = B.int (bv_ctz lo size) in
+      create_single ~value ~size
+    else if Bv.(lo = zero) then
+      create ~lo:Bv.zero ~hi:(B.int (size + 1)) ~size
+    else
+      let len = bv_clz B.(lo lxor succ hi) size in
+      let hi = B.int (max (size - len - 1) (bv_ctz lo size) + 1) in
+      create ~size ~lo:Bv.zero ~hi
+
+let ctz ?(zero_is_poison = true) t =
+  if is_empty t then t
+  else
+    let module B = (val Bv.modular t.size) in
+    if zero_is_poison && contains_value t Bv.zero then
+      let h1 = Bv.(t.hi = one) in
+      if Bv.(t.lo = zero) then
+        if h1 then create_empty ~size:t.size
+        else ctz_range Bv.one t.hi t.size
+      else if h1 then ctz_range t.lo Bv.zero t.size
+      else
+        let x = ctz_range t.lo Bv.zero t.size in
+        let y = ctz_range Bv.one t.hi t.size in
+        union x y
+    else if is_full t then
+      create_non_empty
+        ~lo:Bv.zero
+        ~hi:(B.int (t.size + 1))
+        ~size:t.size
+    else if not @@ is_wrapped t then
+      ctz_range t.lo t.hi t.size
+    else
+      let x = ctz_range t.lo Bv.zero t.size in
+      let y = ctz_range Bv.zero t.hi t.size in
+      union x y
+
+let popcnt_range lo hi size =
+  if is_wrapped @@ create ~lo ~hi ~size then
+    invalid_argf "popcnt_range: [%s, %s):%d is wrapped"
+      (Bv.to_string lo) (Bv.to_string hi) size ()
+  else if Bv.(lo = hi) then
+    invalid_arg "popcnt_range: `lo` and `hi` cannot be equal"
+  else
+    let module B = (val Bv.modular size) in
+    if Bv.(B.succ lo = hi) then
+      let value = B.int (bv_popcnt lo) in
+      create_single ~value ~size
+    else
+      let ph = B.pred hi in
+      let len = bv_clz B.(lo lxor ph) size in
+      let lhi =
+        if len = 0 then Bv.zero
+        else Bv.extract ~hi:(size - 1) ~lo:(size - len) lo in
+      let cnt = bv_popcnt lhi in
+      let bmin = cnt + if bv_ctz lo size < size - len then 1 else 0 in
+      let bmax =
+        cnt + (size - len) -
+        if bv_cto ph size < size - len then 1 else 0 in
+      create ~size ~lo:(B.int bmin) ~hi:(B.int (bmax + 1))
+
+let popcnt t =
+  if is_empty t then t
+  else
+    let module B = (val Bv.modular t.size) in
+    if is_full t then
+      create_non_empty
+        ~lo:Bv.zero
+        ~hi:(B.int (t.size + 1))
+        ~size:t.size
+    else if not @@ is_wrapped t then
+      popcnt_range t.lo t.hi t.size
+    else
+      let x = create
+          ~lo:(B.int (bv_clo t.lo t.size))
+          ~hi:(B.int (t.size + 1))
+          ~size:t.size in
+      let y = popcnt_range Bv.zero t.hi t.size in
+      union x y
 
 module Infix = struct
   let (+)    t1 t2 = add t1 t2 [@@inline]
