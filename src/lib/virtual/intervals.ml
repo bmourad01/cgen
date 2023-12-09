@@ -198,130 +198,100 @@ module Cmp = struct
           | Some s -> update s y i)
     | _ -> ()
 
-  (* Allow the empty interval to be created. *)
-  let mkint_empty ~lo ~hi ~size =
-    if Bv.(lo = hi) then I.create_empty ~size
-    else I.create ~lo ~hi ~size
+  type k =
+    | EQ | NE
+    | LT | SLT
+    | LE | SLE
+    | GT | SGT
+    | GE | SGE
 
-  let mkint = I.create_non_empty
+  let allowed_icmp_region size i k =
+    if I.is_empty i then i
+    else match k with
+      | EQ -> i
+      | NE ->
+        if I.is_single i
+        then I.create ~lo:(I.upper i) ~hi:(I.lower i) ~size
+        else I.create_full ~size
+      | LT ->
+        let m = I.unsigned_max i in
+        if Bv.(m = zero) then I.create_empty ~size
+        else I.create ~lo:Bv.zero ~hi:m ~size
+      | SLT ->
+        let m = I.signed_max i in
+        let ms = Bv.min_signed_value size in
+        if Bv.(m = ms) then I.create_empty ~size
+        else I.create ~lo:ms ~hi:m ~size
+      | LE ->
+        I.create_non_empty ~size
+          ~lo:Bv.zero
+          ~hi:Bv.(succ (I.unsigned_max i) mod modulus size)
+      | SLE ->
+        I.create_non_empty ~size
+          ~lo:(Bv.min_signed_value size)
+          ~hi:Bv.(succ (I.signed_max i) mod modulus size)
+      | GT ->
+        let m = I.unsigned_min i in
+        let ms = Bv.max_unsigned_value size in
+        if Bv.(m = ms) then I.create_empty ~size
+        else I.create ~size
+            ~lo:Bv.(succ m mod modulus size)
+            ~hi:Bv.zero
+      | SGT ->
+        let m = I.signed_min i in
+        let ms = Bv.max_signed_value size in
+        if Bv.(m = ms) then I.create_empty ~size
+        else I.create ~size
+            ~lo:Bv.(succ m mod modulus size)
+            ~hi:ms
+      | GE ->
+        I.create_non_empty ~size
+          ~lo:(I.unsigned_min i)
+          ~hi:Bv.zero
+      | SGE ->
+        I.create_non_empty ~size
+          ~lo:(I.signed_min i)
+          ~hi:(Bv.min_signed_value size)
 
-  (* NB: the fact that we return the empty interval when either
-     `a` or `b` is not a known constant is an overapproximation. *)
   let eq size a b =
-    (* a == b: empty if b is not single, b otherwise *)
-    lazy (if I.is_single b then b else I.create_empty ~size),
-    (* b == a: empty if a is not single, a otherwise *)
-    lazy (if I.is_single a then a else I.create_empty ~size)
+    lazy (I.inverse @@ allowed_icmp_region size b NE),
+    lazy (I.inverse @@ allowed_icmp_region size a NE)
 
-  let ne _ a b =
-    (* a != b: inverse(b) *)
-    lazy (I.inverse b),
-    (* b != a: inverse(a) *)
-    lazy (I.inverse a)
+  let ne size a b =
+    lazy (I.inverse @@ allowed_icmp_region size b EQ),
+    lazy (I.inverse @@ allowed_icmp_region size a EQ)
 
   let lt size a b =
-    (* a < b: a \in [0, umin(b)) *)
-    let il = lazy begin mkint_empty ~size
-        ~lo:Bv.zero
-        ~hi:(I.unsigned_min b)
-    end in
-    (* b > a: b \in [umax(a) + 1, 0) *)
-    let ir = lazy begin mkint_empty ~size
-        ~lo:Bv.(succ (I.unsigned_max a) mod modulus size)
-        ~hi:Bv.zero
-    end in
-    il, ir
+    lazy (I.inverse @@ allowed_icmp_region size b GE),
+    lazy (I.inverse @@ allowed_icmp_region size a LE)
 
   let le size a b =
-    (* a <= b: a \in [0, umin(b) + 1) *)
-    let il = lazy begin mkint ~size
-        ~lo:Bv.zero
-        ~hi:Bv.(succ (I.unsigned_min b) mod modulus size)
-    end in
-    (* b >= a: b \in [umax(a), 0) *)
-    let ir = lazy begin mkint ~size
-        ~lo:(I.unsigned_max a)
-        ~hi:Bv.zero
-    end in
-    il, ir
+    lazy (I.inverse @@ allowed_icmp_region size b GT),
+    lazy (I.inverse @@ allowed_icmp_region size a LT)
 
   let gt size a b =
-    (* a > b: a \in [umax(b) + 1, 0) *)
-    let il = lazy begin mkint_empty ~size
-        ~lo:Bv.(succ (I.unsigned_max b) mod modulus size)
-        ~hi:Bv.zero
-    end in
-    (* b < a: b \in [0, umin(a)) *)
-    let ir = lazy begin mkint_empty ~size
-        ~lo:Bv.zero
-        ~hi:(I.unsigned_min a)
-    end in
-    il, ir
+    lazy (I.inverse @@ allowed_icmp_region size b LE),
+    lazy (I.inverse @@ allowed_icmp_region size a GE)
 
   let ge size a b =
-    (* a >= b: a \in [umax(b), 0) *)
-    let il = lazy begin mkint ~size
-        ~lo:(I.unsigned_max b)
-        ~hi:Bv.zero
-    end in
-    (* b <= a: b \in [0, umin(a) + 1) *)
-    let ir = lazy begin mkint ~size
-        ~lo:Bv.zero
-        ~hi:Bv.(succ (I.unsigned_min a) mod modulus size)
-    end in
-    il, ir
+    lazy (I.inverse @@ allowed_icmp_region size b LT),
+    lazy (I.inverse @@ allowed_icmp_region size a GT)
 
   let slt size a b =
-    (* a <$ b: a \in [0x80..., smin(b)) *)
-    let il = lazy begin mkint_empty ~size
-        ~lo:(Bv.min_signed_value size)
-        ~hi:(I.signed_min b)
-    end in
-    (* b >$ a: b \in [smax(a) + 1, 0x80...) *)
-    let ir = lazy begin mkint_empty ~size
-        ~lo:Bv.(succ (I.signed_max a) mod modulus size)
-        ~hi:(Bv.min_signed_value size)
-    end in
-    il, ir
+    lazy (I.inverse @@ allowed_icmp_region size b SGE),
+    lazy (I.inverse @@ allowed_icmp_region size a SLE)
 
   let sle size a b =
-    (* a <=$ b: a \in [0x80..., smin(b) + 1) *)
-    let il = lazy begin mkint ~size
-        ~lo:(Bv.min_signed_value size)
-        ~hi:Bv.(succ (I.signed_min b) mod modulus size)
-    end in
-    (* b >=$ a: b \in [smax(a), 0x80...) *)
-    let ir = lazy begin mkint ~size
-        ~lo:(I.signed_max a)
-        ~hi:(Bv.min_signed_value size)
-    end in
-    il, ir
+    lazy (I.inverse @@ allowed_icmp_region size b SGT),
+    lazy (I.inverse @@ allowed_icmp_region size a SLT)
 
   let sgt size a b =
-    (* a >$ b: a \in [smax(b) + 1, 0x80...) *)
-    let il = lazy begin mkint_empty ~size
-        ~lo:Bv.(succ (I.signed_max b) mod modulus size)
-        ~hi:(Bv.min_signed_value size)
-    end in
-    (* b <$ a: b \in [0x80..., smin(a)) *)
-    let ir = lazy begin mkint_empty ~size
-        ~lo:(Bv.min_signed_value size)
-        ~hi:(I.signed_min a)
-    end in
-    il, ir
+    lazy (I.inverse @@ allowed_icmp_region size b SLE),
+    lazy (I.inverse @@ allowed_icmp_region size a SGE)
 
   let sge size a b =
-    (* a >=$ b: a \in [smax(b), 0x80...) *)
-    let il = lazy begin mkint ~size
-        ~lo:(I.signed_max b)
-        ~hi:(Bv.min_signed_value size)
-    end in
-    (* b <=$ a: b \in [0x80..., smin(a) + 1) *)
-    let ir = lazy begin mkint ~size
-        ~lo:(Bv.min_signed_value size)
-        ~hi:Bv.(succ (I.signed_min a) mod modulus size)
-    end in
-    il, ir
+    lazy (I.inverse @@ allowed_icmp_region size b SLT),
+    lazy (I.inverse @@ allowed_icmp_region size a SGT)
 end
 
 let do_cmp ctx t x l r a b ~cond ~cmp =
