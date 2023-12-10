@@ -133,26 +133,33 @@ type param = {
   pins : Abi.insn list;
 }
 
+(* Register save area for variadic functions.
+
+   Bytes [0, 48) contains the integer registers.
+   Bytes [48, 176) contains the SSE registers.
+*)
 type regsave = {
   rsslot : Var.t;
   rsint  : Abi.blk;
   rssse  : Abi.blk;
 }
 
+let rsave_sse_ofs = 48
+
 type env = {
-  fn           : func;                      (* The original function. *)
-  blks         : blk Label.Tree.t;          (* Map of basic blocks. *)
-  doms         : Label.t tree;              (* Dominator tree. *)
-  tenv         : Typecheck.env;             (* Typing environment. *)
-  rets         : ret Label.Table.t;         (* Lowered `ret` instructions. *)
-  calls        : call Label.Table.t;        (* Lowered `call` instructions. *)
-  refs         : Var.t Var.Table.t;         (* Canonicalization of `ref`s *)
-  unrefs       : Abi.insn list Var.Table.t; (* `unref` to store. *)
-  canon_ref    : Var.t Var.Table.t;         (* Canonicalize `ref`s. *)
-  slots        : slot Vec.t;                (* New stack slots. *)
-  params       : param Vec.t;               (* Function parameters. *)
-  mutable rsva : regsave option;            (* Register save area. *)
-  mutable rmem : Var.t option;              (* Return value blitted to memory. *)
+  fn            : func;                      (* The original function. *)
+  blks          : blk Label.Tree.t;          (* Map of basic blocks. *)
+  doms          : Label.t tree;              (* Dominator tree. *)
+  tenv          : Typecheck.env;             (* Typing environment. *)
+  rets          : ret Label.Table.t;         (* Lowered `ret` instructions. *)
+  calls         : call Label.Table.t;        (* Lowered `call` instructions. *)
+  refs          : Var.t Var.Table.t;         (* Canonicalization of `ref`s *)
+  unrefs        : Abi.insn list Var.Table.t; (* `unref` to store. *)
+  canon_ref     : Var.t Var.Table.t;         (* Canonicalize `ref`s. *)
+  slots         : slot Vec.t;                (* New stack slots. *)
+  params        : param Vec.t;               (* Function parameters. *)
+  mutable rsave : regsave option;            (* Register save area. *)
+  mutable rmem  : Var.t option;              (* Return value blitted to memory. *)
 }
 
 let init_env tenv fn =
@@ -169,7 +176,7 @@ let init_env tenv fn =
     canon_ref = Var.Table.create ();
     slots = Vec.create ();
     params = Vec.create ();
-    rsva = None;
+    rsave = None;
     rmem = None;
   }
 
@@ -290,15 +297,15 @@ module Params = struct
 
   (* Blit the structure to a stack slot. *)
   let memory_param env t x y size =
-    Seq.init (size / 8) ~f:(fun i -> Bv.M64.int (i * 8)) |>
-    Context.Seq.iter ~f:(fun ofs ->
+    Seq.init (size / 8) ~f:(fun i -> i * 8) |>
+    Context.Seq.iter ~f:(fun o ->
         let* x = Context.Var.fresh in
         let+ pins =
-          if Bv.(ofs = zero) then
+          if o = 0 then
             let+ st = Cv.Abi.store `i64 (`var x) (`var y) in
             [st]
           else
-            let ofs = `int (ofs, `i64) in
+            let ofs = `int (Bv.M64.int o, `i64) in
             let* o, oi = Cv.Abi.binop (`add `i64) (`var y) ofs in
             let+ st = Cv.Abi.store `i64 (`var x) (`var o) in
             [oi; st] in
@@ -325,14 +332,14 @@ module Params = struct
     let* label = Context.Label.fresh in
     let* save =
       Array.to_list int_args |>
-      List.mapi ~f:(fun i r -> Bv.M64.int (i * 8), r) |>
+      List.mapi ~f:(fun i r -> i * 8, r) |>
       Context.List.map ~f:(fun (o, r) ->
-          if Bv.(o = zero) then
+          if o = 0 then
             let+ st = Cv.Abi.store `i64 (`reg r) (`var s) in
             [st]
           else
-            let* o, oi =
-              Cv.Abi.binop (`add `i64) (`var s) (`int (o, `i64)) in
+            let ofs = `int (Bv.M64.int o, `i64) in
+            let* o, oi = Cv.Abi.binop (`add `i64) (`var s) ofs in
             let+ st = Cv.Abi.store `i64 (`reg r) (`var o) in
             [oi; st]) in
     let zero = `int (Bv.zero, `i8) in
@@ -346,7 +353,8 @@ module Params = struct
   let register_save_sse env label s =
     let+ save =
       Array.to_list sse_args |>
-      List.mapi ~f:(fun i r -> Bv.M64.int (i * 16 + 48), r) |>
+      List.mapi ~f:(fun i r ->
+          Bv.M64.int (i * 16 + rsave_sse_ofs), r) |>
       Context.List.map ~f:(fun (o, r) ->
           let* o, oi = Cv.Abi.binop (`add `i64) (`var s) (`int (o, `i64)) in
           let+ st = Cv.Abi.storev r (`var s) in
@@ -360,7 +368,7 @@ module Params = struct
       let* sse = Context.Label.fresh in
       let* rsint = register_save_int env sse rsslot in
       let+ rssse = register_save_sse env sse rsslot in
-      env.rsva <- Some {rsslot; rsint; rssse}
+      env.rsave <- Some {rsslot; rsint; rssse}
     else !!()
 
   (* Lower the parameters of the function and copy their contents
@@ -421,7 +429,8 @@ module Refs = struct
       Hashtbl.set env.refs ~key:x ~data:y
     else !!()
 
-  (* Change `ref`s of structs to stack slots. *)
+  (* Turn struct refs into a minimal number of stack slots, such that
+     the result of each `ref` and `unref` instruction is accounted for. *)
   let canonicalize env = iter_blks env ~f:(fun b ->
       let* () =
         Blk.args b |> Context.Seq.iter ~f:(fun x ->
@@ -868,7 +877,7 @@ module Translate = struct
       Seq.map ~f:(fun p -> p.pvar, p.pty) |>
       Seq.to_list in
     let blks = transl_blks env in
-    let blks = match env.rsva with
+    let blks = match env.rsave with
       | Some r -> r.rsint :: r.rssse :: blks
       | None -> blks in
     let lnk = Func.linkage env.fn in

@@ -44,17 +44,17 @@ type ctx = {
   blks   : Blk.t Label.Tree.t;  (* Labels to blocks. *)
   word   : Type.imm_base;       (* Word size. *)
   typeof : Var.t -> Type.t;     (* Typing of variables. *)
-  ccmplx : int;                 (* Cyclomatic complexity. *)
+  cycloc : int;                 (* Cyclomatic complexity. *)
 }
 
-let create_ctx m ~blks ~word ~typeof = {
+let create_ctx cycloc ~blks ~word ~typeof = {
   insns = Label.Table.create ();
   narrow = Label.Table.create ();
   cond = Var.Table.create ();
   blks;
   word;
   typeof;
-  ccmplx = m;
+  cycloc;
 }
 
 let narrow ctx l x i = Hashtbl.update ctx.narrow l ~f:(function
@@ -544,13 +544,18 @@ let interp_blk ctx s b =
     assign_blk_args ctx s d args
   | _ -> s
 
-let step ctx i l _ s =
+let step ctx visits l _pre post =
+  (* TODO: do we need the previous state for anything? *)
+  let s = post in
   (* Widening for block args. *)
   let s = match Label.Tree.find ctx.blks l with
     | None -> s
     | Some b ->
-      (* XXX: too conservative. *)
-      if i > ctx.ccmplx then
+      (* XXX: there are some soundness issues when we merge loop-variant
+         block params that contain the empty interval. This is a band-aid
+         fix that loses us some precision (although we need smarter
+         widening heuristics anyway). *)
+      if visits > ctx.cycloc then
         Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
             match sizeof x ctx with
             | Some size -> Map.set s ~key:x ~data:(I.create_full ~size)
@@ -592,17 +597,26 @@ let insn t l =
 
 let input t l = Solution.get t.input l
 
+(* Cyclomatic complexity is the number of linearly independent
+   paths in a CFG, denoted by the formula:
+
+   M = E - N + 2P
+
+   where E is the number of edges, N is the number of nodes,
+   and P is the number of connected components. For our purposes,
+   P is always 1.
+*)
 let cyclomatic_complexity cfg =
-  Cfg.number_of_edges cfg -
-  Cfg.number_of_nodes cfg +
-  2
+  let e = Cfg.number_of_edges cfg in
+  let n = Cfg.number_of_nodes cfg in
+  e - n + 2
 
 let analyze ?steps fn ~word ~typeof =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
-    let m = cyclomatic_complexity cfg in
-    let ctx = create_ctx m ~blks ~word ~typeof in
+    let cycloc = cyclomatic_complexity cfg in
+    let ctx = create_ctx cycloc ~blks ~word ~typeof in
     let input = Graphlib.fixpoint (module Cfg) cfg ?steps
         ~step:(step ctx)
         ~init:(init_state ctx fn)
