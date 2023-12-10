@@ -162,20 +162,21 @@ type regsave = {
 let rsave_sse_ofs = 48
 
 type env = {
-  fn            : func;                      (* The original function. *)
-  blks          : blk Label.Tree.t;          (* Map of basic blocks. *)
-  doms          : Label.t tree;              (* Dominator tree. *)
-  tenv          : Typecheck.env;             (* Typing environment. *)
-  rets          : ret Label.Table.t;         (* Lowered `ret` instructions. *)
-  calls         : call Label.Table.t;        (* Lowered `call` instructions. *)
-  refs          : Var.t Var.Table.t;         (* Canonicalization of `ref`s *)
-  unrefs        : Abi.insn list Var.Table.t; (* `unref` to store. *)
-  canon_ref     : Var.t Var.Table.t;         (* Canonicalize `ref`s. *)
-  slots         : slot Vec.t;                (* New stack slots. *)
-  params        : param Vec.t;               (* Function parameters. *)
-  layout        : acls String.Table.t;       (* Cached struct layouts. *)
-  mutable rsave : regsave option;            (* Register save area. *)
-  mutable rmem  : Var.t option;              (* Return value blitted to memory. *)
+  fn            : func;                        (* The original function. *)
+  blks          : blk Label.Tree.t;            (* Map of basic blocks. *)
+  doms          : Label.t tree;                (* Dominator tree. *)
+  tenv          : Typecheck.env;               (* Typing environment. *)
+  rets          : ret Label.Table.t;           (* Lowered `ret` instructions. *)
+  calls         : call Label.Table.t;          (* Lowered `call` instructions. *)
+  refs          : Var.t Var.Table.t;           (* Canonicalization of `ref`s *)
+  unrefs        : Abi.insn list Var.Table.t;   (* `unref` to store. *)
+  canon_ref     : Var.t Var.Table.t;           (* Canonicalize `ref`s. *)
+  slots         : slot Vec.t;                  (* New stack slots. *)
+  params        : param Vec.t;                 (* Function parameters. *)
+  layout        : acls String.Table.t;         (* Cached struct layouts. *)
+  vastart       : Abi.insn list Label.Table.t; (* Lowered `vastart` instructions. *)
+  mutable rsave : regsave option;              (* Register save area. *)
+  mutable rmem  : Var.t option;                (* Return value blitted to memory. *)
 }
 
 let init_env tenv fn =
@@ -193,6 +194,7 @@ let init_env tenv fn =
     slots = Vec.create ();
     params = Vec.create ();
     layout = String.Table.create ();
+    vastart = Label.Table.create ();
     rsave = None;
     rmem = None;
   }
@@ -230,7 +232,9 @@ let layout_cls env s = match Hashtbl.find env.layout s with
     Hashtbl.set env.layout ~key:s ~data:k;
     !!k
 
+let o4 = `int (Bv.M64.int 4, `i64)
 let o8 = `int (Bv.M64.int 8, `i64)
+let o16 = `int (Bv.M64.int 16, `i64)
 
 let oper (o : operand) = (o :> Abi.operand)
 
@@ -755,6 +759,68 @@ module Calls = struct
           | _ -> !!()))
 end
 
+module Vastart = struct
+  let ap_oper : global -> Abi.operand = function
+    | `addr a -> `int (a, `i64)
+    | `sym _ as s -> s
+    | `var _ as v -> v
+
+  (* Initialize the `va_list` structure, which is defined as follows:
+
+     typedef struct {
+       unsigned int gp_offset;
+       unsigned_int fp_offset;
+       void *overflow_arg_area;
+       void *reg_save_area;
+     } va_list[1];
+
+     where
+
+     `gp_offset` and `fp_offset` are the offsets into the register
+     save area for the next available integer and SSE registers,
+     respectively
+
+     `overflow_arg_area` is a pointer to the next available parameter
+     that was passed on the stack
+
+     `reg_save_area` is the start of the register save area
+  *)
+  let lower env = match env.rsave with
+    | None -> !!()
+    | Some rs -> iter_blks env ~f:(fun b ->
+        Blk.insns b |> Context.Seq.iter ~f:(fun i ->
+            match Insn.op i with
+            | `vastart ap ->
+              let ap = ap_oper ap in
+              (* Compute `gp_offset` and `fp_offset`. *)
+              let gp, fp =
+                Vec.fold env.params ~init:(0, 48) ~f:(fun (gp, fp) p ->
+                    match p.pvar, p.pty with
+                    | `reg _, #Type.imm -> gp + 8, fp
+                    | `reg _, #Type.fp -> gp, fp + 16
+                    | `var _, _ -> gp, fp) in
+              (* Initialize `gp_offset`. *)
+              let gp = `int (Bv.M32.int gp, `i32) in
+              let* gpi = Cv.Abi.store `i32 gp ap in
+              (* Initialize `fp_offset`. *)
+              let fp = `int (Bv.M32.int fp, `i32) in
+              let* o, oi1 = Cv.Abi.binop (`add `i64) ap o4 in
+              let* fpi = Cv.Abi.store `i32 fp (`var o) in
+              (* Initialize `overflow_arg_area`.
+                 XXX: what if we want to omit frame pointers? *)
+              let* r, ri = Cv.Abi.binop (`add `i64) (`reg "RBP") o16 in
+              let* o, oi2 = Cv.Abi.binop (`add `i64) ap o8 in
+              let* ofi = Cv.Abi.store `i64 (`var r) (`var o) in
+              (* Initialize `reg_save_area`. *)
+              let* o, oi3 = Cv.Abi.binop (`add `i64) ap o16 in
+              let+ rs = Cv.Abi.store `i64 (`var rs.rsslot) (`var o) in
+              (* Store the result. *)
+              let key = Insn.label i in
+              let data = [gpi; oi1; fpi; ri; oi2; ofi; oi3; rs] in
+              Hashtbl.set env.vastart ~key ~data
+            | _ -> !!()))
+end
+
 (* Actually produce a Virtual ABI function from the work done in
    the above passes. *)
 module Translate = struct
@@ -818,7 +884,8 @@ module Translate = struct
     | #Insn.basic as b -> [ins (transl_basic env b :> Abi.Insn.op)]
     | #Insn.mem as m -> [ins (transl_mem env m :> Abi.Insn.op)]
     | #Insn.compound as c -> transl_compound env c
-    | #Insn.variadic -> failwith "unimplemented"
+    | `vastart _ -> Hashtbl.find_exn env.vastart l
+    | `vaarg _ -> failwith "unimplemented"
     | `call (_, f, _, _) -> transl_call env l f
 
   let transl_swindex env = function
@@ -893,6 +960,7 @@ let run tenv fn =
     let* () = Refs.canonicalize env in
     let* () = Rets.lower env in
     let* () = Calls.lower env in
+    let* () = Vastart.lower env in
     let*? fn = Translate.go env in
     !!fn
   else
