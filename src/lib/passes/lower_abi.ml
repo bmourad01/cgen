@@ -56,7 +56,8 @@ type reg =
 [@@deriving equal]
 
 let reg_type = function
-  | Rnone | Rint -> `i64
+  | Rnone -> assert false
+  | Rint -> `i64
   | Rsse -> `f64
 
 (* Integer registers have precedence. *)
@@ -722,8 +723,9 @@ module Calls = struct
             let qi = int_arg_queue () in
             let qs = sse_arg_queue () in
             let reg = function
-              | Rint | Rnone -> Stack.pop qi
-              | Rsse -> Stack.pop qs in
+              | Rint -> Stack.pop qi
+              | Rsse -> Stack.pop qs
+              | Rnone -> assert false in
             (* See if we're returning a compound type. *)
             let* kret = match ret with
               | Some (x, `name n) ->
