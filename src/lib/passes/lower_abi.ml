@@ -173,6 +173,7 @@ type env = {
   canon_ref     : Var.t Var.Table.t;         (* Canonicalize `ref`s. *)
   slots         : slot Vec.t;                (* New stack slots. *)
   params        : param Vec.t;               (* Function parameters. *)
+  layout        : acls String.Table.t;       (* Cached struct layouts. *)
   mutable rsave : regsave option;            (* Register save area. *)
   mutable rmem  : Var.t option;              (* Return value blitted to memory. *)
 }
@@ -191,6 +192,7 @@ let init_env tenv fn =
     canon_ref = Var.Table.create ();
     slots = Vec.create ();
     params = Vec.create ();
+    layout = String.Table.create ();
     rsave = None;
     rmem = None;
   }
@@ -220,6 +222,14 @@ let find_ref env x = match Hashtbl.find env.refs x with
     failwithf "%a has no ref in function $%s"
       Var.pps x (Func.name env.fn) ()
 
+let layout_cls env s = match Hashtbl.find env.layout s with
+  | Some k -> !!k
+  | None ->
+    let*? lt = Typecheck.Env.layout s env.tenv in
+    let k = classify_layout lt in
+    Hashtbl.set env.layout ~key:s ~data:k;
+    !!k
+
 let o8 = `int (Bv.M64.int 8, `i64)
 
 let oper (o : operand) = (o :> Abi.operand)
@@ -243,9 +253,7 @@ module Params = struct
     let qs = sse_arg_queue () in
     let+ () = match Func.return env.fn with
       | Some (#Type.basic | `si8 | `si16 | `si32) | None -> !!()
-      | Some `name n ->
-        let*? lt = Typecheck.Env.layout n env.tenv in
-        match classify_layout lt with
+      | Some `name n -> layout_cls env n >>= function
         | {cls = Kmem; _} ->
           let r = int_args.(0) in
           let* x = Context.Var.fresh in
@@ -390,8 +398,7 @@ module Params = struct
       Context.Seq.iter ~f:(fun (x, t) -> match t with
           | #Type.basic as t -> basic_param ~reg env t x
           | `name s ->
-            let*? lt = Typecheck.Env.layout s env.tenv in
-            let k = classify_layout lt in
+            let* k = layout_cls env s in
             let* y = new_slot env k.size k.align in
             Hashtbl.set env.refs ~key:x ~data:y;
             match k.cls with
@@ -403,20 +410,15 @@ module Params = struct
 end
 
 module Refs = struct
-  let fresh_ref env s x y =
-    let*? lt = Typecheck.Env.layout s env.tenv in
-    let k = classify_layout lt in
-    let*? s = Slot.create x ~size:k.size ~align:k.align in
-    Context.return begin
-      Hashtbl.set env.refs ~key:y ~data:x;
-      Vec.push env.slots s
-    end
-
   let make_ref env i b x y = match Hashtbl.find env.refs y with
     | Some z -> !!(Hashtbl.set env.canon_ref ~key:x ~data:z)
     | None -> typeof_var env y >>= function
       | `compound (s, _, _) | `opaque (s, _, _) ->
-        fresh_ref env s x y
+        let* k = layout_cls env s in
+        let*? s = Slot.create x ~size:k.size ~align:k.align in
+        Hashtbl.set env.refs ~key:y ~data:x;
+        Vec.push env.slots s;
+        !!()
       | t ->
         Context.failf
           "Expected compound type for instruction %a \
@@ -426,8 +428,7 @@ module Refs = struct
 
   let make_unref env x s a =
     if not @@ Hashtbl.mem env.refs x then
-      let*? lt = Typecheck.Env.layout s env.tenv in
-      let k = classify_layout lt in
+      let* k = layout_cls env s in
       let* y = new_slot env k.size k.align in
       let* src, srci = match a with
         | `var x -> !!(x, [])
@@ -543,8 +544,7 @@ module Rets = struct
     | Some (`si8 | `si16 | `si32) -> go @@ intret_signed env
     | Some (#Type.fp as t) -> go @@ sseret env t
     | Some `name n ->
-      let*? lt = Typecheck.Env.layout n env.tenv in
-      let k = classify_layout lt in
+      let* k = layout_cls env n in
       match k.cls with
       | Kreg _ when k.size = 0 -> go @@ fun key _ ->
         (* Struct is empty, so we return nothing. *)
@@ -704,9 +704,8 @@ module Calls = struct
     | `flag -> assert false
     | `compound (s, _, _) | `opaque (s, _, _) ->
       (* Figure out what class this type is. *)
-      let*? lt = Typecheck.Env.layout s env.tenv in
+      let* lk = layout_cls env s in
       let* x = expect_arg_var env key a in
-      let lk = classify_layout lt in
       let src = find_ref env x in
       match lk.cls with
       | Kreg _ when lk.size = 0 -> !!k
@@ -729,9 +728,8 @@ module Calls = struct
             (* See if we're returning a compound type. *)
             let* kret = match ret with
               | Some (x, `name n) ->
-                let*? lt = Typecheck.Env.layout n env.tenv in
-                let lk = classify_layout lt in
                 (* Check for implicit first parameter. *)
+                let* lk = layout_cls env n in
                 begin match lk.cls with
                   | Kmem -> ignore (Stack.pop_exn qi)
                   | _ -> ()
