@@ -19,6 +19,13 @@ let int_args = [|
   "R9";
 |]
 
+let int_arg_queue () =
+  let q = Stack.create () in
+  for i = num_int_args - 1 downto 0 do
+    Stack.push q int_args.(i)
+  done;
+  q
+
 let int_rets = [|
   "RAX";
   "RDX";
@@ -29,6 +36,13 @@ let num_sse_args = 8
 
 let sse_args =
   Array.init num_sse_args ~f:(Format.sprintf "XMM%d")
+
+let sse_arg_queue () =
+  let q = Stack.create () in
+  for i = num_sse_args - 1 downto 0 do
+    Stack.push q sse_args.(i)
+  done;
+  q
 
 let sse_rets = [|
   "XMM0";
@@ -224,7 +238,8 @@ let typeof_operand env : operand -> Type.t Context.t = function
 
 module Params = struct
   let init_regs env =
-    let ni = ref num_int_args and ns = ref num_sse_args in
+    let qi = int_arg_queue () in
+    let qs = sse_arg_queue () in
     let+ () = match Func.return env.fn with
       | Some (#Type.basic | `si8 | `si16 | `si32) | None -> !!()
       | Some `name n ->
@@ -237,19 +252,13 @@ module Params = struct
           let p = {pty = `i64; pvar = `reg r; pins = [i]} in
           Vec.push env.params p;
           env.rmem <- Some x;
-          decr ni
+          ignore (Stack.pop_exn qi)
         | _ -> !!() in
     (* Try to allocate the parameter to a register. If we've run out,
        then it is implicitly passed in memory. *)
     function
-    | #Type.imm when !ni < 1 -> None
-    | #Type.fp when !ns < 1 -> None
-    | #Type.imm ->
-      let r = int_args.(num_int_args - !ni) in
-      decr ni; Some r
-    | #Type.fp ->
-      let r = sse_args.(num_sse_args - !ns) in
-      decr ns; Some r
+    | #Type.imm -> Stack.pop qi
+    | #Type.fp -> Stack.pop qs
 
   let basic_param ~reg env t x =
     let+ pvar, pins = match reg t with
@@ -488,13 +497,11 @@ module Rets = struct
     let* x = expect_ret_var env key x in
     let x = find_ref env x in
     let t1 = reg_type r1 and t2 = reg_type r2 in
-    let ni = ref 0 and ns = ref 0 in
-    let reg1 = match t1 with
-      | `i64 -> incr ni; int_rets.(0)
-      | `f64 -> incr ns; sse_rets.(0) in
-    let reg2 = match t2 with
-      | `i64 -> int_rets.(!ni)
-      | `f64 -> sse_rets.(!ns) in
+    let reg1, reg2 = match t1, t2 with
+      | `i64, `i64 -> int_rets.(0), int_rets.(1)
+      | `i64, `f64 -> int_rets.(0), sse_rets.(0)
+      | `f64, `f64 -> sse_rets.(0), sse_rets.(1)
+      | `f64, `i64 -> sse_rets.(0), int_rets.(0) in
     let* ld1 = Cv.Abi.insn @@ `load (`reg reg1, `i64, `var x) in
     let* a, add = Cv.Abi.binop (`add `i64) (`var x) o8 in
     let+ ld2 = Cv.Abi.insn @@ `load (`reg reg2, `i64, `var a) in
@@ -548,10 +555,10 @@ end
 
 module Calls = struct
   (* A compound argument to a call passed in a single register. *)
-  let onereg_arg ~dec env k r src =
+  let onereg_arg ~reg env k r src =
     let t = reg_type r in
     let* l, li = Cv.Abi.load t (`var src) in
-    let+ callai, callar, callam = match dec r with
+    let+ callai, callar, callam = match reg r with
       | Some r ->
         let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy t, `var l) in
         k.callai @>* [li; i],
@@ -564,10 +571,10 @@ module Calls = struct
     {k with callai; callar; callam}
 
   (* A compound argument to a call passed in two registers. *)
-  let tworeg_arg ~dec env k r1 r2 src =
+  let tworeg_arg ~reg env k r1 r2 src =
     let t1 = reg_type r1 and t2 = reg_type r2 in
-    let ok1 = dec r1 in
-    let ok2 = dec r2 in
+    let ok1 = reg r1 in
+    let ok2 = reg r2 in
     let* o, oi = Cv.Abi.binop (`add `i64) (`var src) o8 in
     let* l1, li1 = Cv.Abi.load `i64 (`var src) in
     let* l2, li2 = Cv.Abi.load `i64 (`var o) in
@@ -671,28 +678,28 @@ module Calls = struct
         (Func.name env.fn) pp_operand x ()
 
   (* Figure out how we should pass the argument `a` at the call site. *)
-  let classify_call_arg ~dec ~ni ~ns env key k a =
+  let classify_call_arg ~reg env key k a =
     typeof_operand env a >>= function
-    | #Type.imm when !ni < 1 ->
-      (* Ran out of integer registers. *)
-      !!{k with callam = k.callam @> oper a}
-    | #Type.fp when !ns < 1 ->
-      (* Ran out of SSE registers. *)
-      !!{k with callam = k.callam @> oper a}
     | #Type.imm as m ->
       (* Use an integer register. *)
-      let r = int_args.(num_int_args - !ni) in
-      let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy m, oper a) in
-      let callai = k.callai @> i in
-      let callar = k.callar @> r in
-      decr ni; {k with callai; callar}
+      begin match reg Rint with
+        | None -> !!{k with callam = k.callam @> oper a}
+        | Some r ->
+          let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy m, oper a) in
+          let callai = k.callai @> i in
+          let callar = k.callar @> r in
+          {k with callai; callar}
+      end
     | #Type.fp as f ->
       (* Use an SSE register. *)
-      let r = sse_args.(num_sse_args - !ns) in
-      let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy f, oper a) in
-      let callai = k.callai @> i in
-      let callar = k.callar @> r in
-      decr ns; {k with callai; callar}
+      begin match reg Rsse with
+        | None -> !!{k with callam = k.callam @> oper a}
+        | Some r ->
+          let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy f, oper a) in
+          let callai = k.callai @> i in
+          let callar = k.callar @> r in
+          {k with callai; callar}
+      end
     | `flag -> assert false
     | `compound (s, _, _) | `opaque (s, _, _) ->
       (* Figure out what class this type is. *)
@@ -702,8 +709,8 @@ module Calls = struct
       let src = find_ref env x in
       match lk.cls with
       | Kreg _ when lk.size = 0 -> !!k
-      | Kreg (r, _) when lk.size = 8 -> onereg_arg ~dec env k r src
-      | Kreg (r1, r2) -> tworeg_arg ~dec env k r1 r2 src
+      | Kreg (r, _) when lk.size = 8 -> onereg_arg ~reg env k r src
+      | Kreg (r1, r2) -> tworeg_arg ~reg env k r1 r2 src
       | Kmem -> memory_arg env k lk.size (`var src)
 
   (* Lower the `call` instructions. *)
@@ -712,33 +719,26 @@ module Calls = struct
           match Insn.op i with
           | `call (ret, _, args, vargs) ->
             let key = Insn.label i in
+            let qi = int_arg_queue () in
+            let qs = sse_arg_queue () in
+            let reg = function
+              | Rint | Rnone -> Stack.pop qi
+              | Rsse -> Stack.pop qs in
             (* See if we're returning a compound type. *)
             let* kret = match ret with
               | Some (x, `name n) ->
                 let*? lt = Typecheck.Env.layout n env.tenv in
-                !!(`compound (x, classify_layout lt))
+                let lk = classify_layout lt in
+                (* Check for implicit first parameter. *)
+                begin match lk.cls with
+                  | Kmem -> ignore (Stack.pop_exn qi)
+                  | _ -> ()
+                end;
+                !!(`compound (x, lk))
               | Some (x, t) -> !!(`basic (x, t))
               | None -> !!`none in
-            (* Counters for the number of integer and SSE registers
-               remaining, before arguments are passed in memory. *)
-            let ni = ref @@ match kret with
-              | `compound (_, {cls = Kmem; _}) -> num_int_args - 1
-              | _ -> num_int_args in
-            let ns = ref num_sse_args in
-            (* Decrement the counter based on the arg class. *)
-            let dec = function
-              | Rint | Rnone when !ni < 1 -> None
-              | Rsse when !ns < 1 -> None
-              | Rint | Rnone ->
-                let r = int_args.(num_int_args - !ni) in
-                decr ni;
-                Some r
-              | Rsse ->
-                let r = sse_args.(num_sse_args - !ns) in
-                decr ns;
-                Some r in
             (* Process each argument. *)
-            let acls = classify_call_arg ~dec ~ni ~ns env key in
+            let acls = classify_call_arg ~reg env key in
             let* k = Context.List.fold args ~init:empty_call ~f:acls in
             let* k = Context.List.fold vargs ~init:k ~f:acls in
             (* If this is a variadic call, then RAX must hold the number
@@ -746,7 +746,7 @@ module Calls = struct
             let* k = match vargs with
               | [] -> !!k
               | _ ->
-                let n = `int (Bv.M8.int (num_sse_args - !ns), `i8) in
+                let n = `int (Bv.M8.int (num_sse_args - Stack.length qs), `i8) in
                 let+ i = Cv.Abi.insn @@ `uop (`reg "RAX", `copy `i8, n) in
                 {k with callai = k.callai @> i} in
             (* Process the return value. *)
