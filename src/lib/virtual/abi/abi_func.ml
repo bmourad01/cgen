@@ -47,6 +47,7 @@ let args ?(rev = false) fn = Ftree.enum fn.args ~rev
 let dict fn = fn.dict
 let with_dict fn dict = {fn with dict}
 let with_tag fn tag x = {fn with dict = Dict.set fn.dict tag x}
+let variadic fn = Dict.mem fn.dict Func.Tag.variadic
 
 let linkage fn = match Dict.find fn.dict Func.Tag.linkage with
   | None -> Linkage.default_export
@@ -154,7 +155,11 @@ let pp_arg ppf (v, t) =
 
 let pp_args ppf fn =
   let sep ppf = Format.fprintf ppf ", " in
-  Format.fprintf ppf "%a" (Ftree.pp pp_arg sep) fn.args
+  Format.fprintf ppf "%a" (Ftree.pp pp_arg sep) fn.args;
+  match Ftree.is_empty fn.args, variadic fn with
+  | _,    false -> ()
+  | true, true  -> Format.fprintf ppf "..."
+  | _,    true  -> Format.fprintf ppf ", ..."
 
 let pp ppf fn =
   let lnk = linkage fn in

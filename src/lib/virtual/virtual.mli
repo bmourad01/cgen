@@ -1085,6 +1085,10 @@ module Abi : sig
        and type argt := Type.basic
        and type slot := slot
 
+    (** Returns [true] if the function takes a variable number of
+        arguments (using [Func.Tag.variadic]). *)
+    val variadic : t -> bool
+
     (** Returns the linkage of the function (using [Func.Tag.linkage]).
 
         If no value was given for it in the [dict], then the result defaults

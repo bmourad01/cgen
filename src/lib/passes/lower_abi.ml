@@ -936,6 +936,14 @@ module Translate = struct
         Vec.clear acc;
         Abi.Blk.create () ~args ~ctrl ~insns ~label:l)
 
+  let make_dict env =
+    let lnk = Func.linkage env.fn in
+    let dict = Dict.singleton Func.Tag.linkage lnk in
+    let dict = if Func.variadic env.fn
+      then Dict.set dict Func.Tag.variadic ()
+      else dict in
+    dict
+
   let go env =
     let slots = Func.slots env.fn |> Seq.to_list in
     let slots = slots @ Vec.to_list env.slots in
@@ -947,10 +955,9 @@ module Translate = struct
     let blks = match env.rsave with
       | Some r -> r.rsint :: r.rssse :: blks
       | None -> blks in
-    let lnk = Func.linkage env.fn in
-    let dict = Dict.(set empty Func.Tag.linkage lnk) in
-    Abi.Func.create () ~dict ~slots ~args ~blks
+    Abi.Func.create () ~slots ~args ~blks
       ~name:(Func.name env.fn)
+      ~dict:(make_dict env)
 end
 
 let run tenv fn =
