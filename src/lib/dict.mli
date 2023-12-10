@@ -64,6 +64,9 @@ val is_empty : t -> bool
     the previous value if it exists. *)
 val set : t -> 'a tag -> 'a -> t
 
+(** Equivalent to [set empty t v]. *)
+val singleton : 'a tag -> 'a -> t
+
 (** [remove d t] removes the binding for tag [t] in [d]. *)
 val remove : t -> 'a tag -> t
 

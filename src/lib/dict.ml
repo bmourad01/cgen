@@ -117,6 +117,7 @@ type t = Univ_map.t
 let empty = Univ_map.empty
 let is_empty = Univ_map.is_empty
 let set d {key} x = Univ_map.set d ~key ~data:x
+let singleton {key} x = Univ_map.set empty ~key ~data:x
 let remove d {key} = Univ_map.remove d key
 let mem d {key} = Univ_map.mem d key
 let find d {key} = Univ_map.find d key
