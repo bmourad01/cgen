@@ -161,6 +161,11 @@ type regsave = {
 
 let rsave_sse_ofs = 48
 
+type vaarg = {
+  vablks : Abi.blk list; (* `va_arg` logic, in topological order. *)
+  vacont : Label.t;      (* Continuation block. *)
+} [@@warning "-69"]
+
 type env = {
   fn            : func;                        (* The original function. *)
   blks          : blk Label.Tree.t;            (* Map of basic blocks. *)
@@ -175,6 +180,7 @@ type env = {
   params        : param Vec.t;                 (* Function parameters. *)
   layout        : acls String.Table.t;         (* Cached struct layouts. *)
   vastart       : Abi.insn list Label.Table.t; (* Lowered `vastart` instructions. *)
+  vaarg         : vaarg Label.Table.t;         (* Lowered `vaarg` instructions. *)
   mutable rsave : regsave option;              (* Register save area. *)
   mutable rmem  : Var.t option;                (* Return value blitted to memory. *)
 }
@@ -195,6 +201,7 @@ let init_env tenv fn =
     params = Vec.create ();
     layout = String.Table.create ();
     vastart = Label.Table.create ();
+    vaarg = Label.Table.create ();
     rsave = None;
     rmem = None;
   }
@@ -224,7 +231,7 @@ let find_ref env x = match Hashtbl.find env.refs x with
     failwithf "%a has no ref in function $%s"
       Var.pps x (Func.name env.fn) ()
 
-let layout_cls env s = match Hashtbl.find env.layout s with
+let type_cls env s = match Hashtbl.find env.layout s with
   | Some k -> !!k
   | None ->
     let*? lt = Typecheck.Env.layout s env.tenv in
@@ -257,7 +264,7 @@ module Params = struct
     let qs = sse_arg_queue () in
     let+ () = match Func.return env.fn with
       | Some (#Type.basic | `si8 | `si16 | `si32) | None -> !!()
-      | Some `name n -> layout_cls env n >>= function
+      | Some `name n -> type_cls env n >>= function
         | {cls = Kmem; _} ->
           let r = int_args.(0) in
           let* x = Context.Var.fresh in
@@ -402,7 +409,7 @@ module Params = struct
       Context.Seq.iter ~f:(fun (x, t) -> match t with
           | #Type.basic as t -> basic_param ~reg env t x
           | `name s ->
-            let* k = layout_cls env s in
+            let* k = type_cls env s in
             let* y = new_slot env k.size k.align in
             Hashtbl.set env.refs ~key:x ~data:y;
             match k.cls with
@@ -418,7 +425,7 @@ module Refs = struct
     | Some z -> !!(Hashtbl.set env.canon_ref ~key:x ~data:z)
     | None -> typeof_var env y >>= function
       | `compound (s, _, _) | `opaque (s, _, _) ->
-        let* k = layout_cls env s in
+        let* k = type_cls env s in
         let*? s = Slot.create x ~size:k.size ~align:k.align in
         Hashtbl.set env.refs ~key:y ~data:x;
         Vec.push env.slots s;
@@ -436,7 +443,7 @@ module Refs = struct
 
   let make_unref env x s a =
     if not @@ Hashtbl.mem env.refs x then
-      let* k = layout_cls env s in
+      let* k = type_cls env s in
       let* y = new_slot env k.size k.align in
       let* src, srci = match a with
         | `var x -> !!(x, [])
@@ -465,7 +472,7 @@ module Refs = struct
           | `unref (x, s, a) -> make_unref env x s a
           | `vaarg (x, `name s, _)
           | `call (Some (x, `name s), _, _, _) ->
-            let* k = layout_cls env s in
+            let* k = type_cls env s in
             if k.size > 0 then
               let+ y = new_slot env k.size k.align in
               Hashtbl.set env.refs ~key:x ~data:y
@@ -561,7 +568,7 @@ module Rets = struct
     | Some (`si8 | `si16 | `si32) -> go @@ intret_signed env
     | Some (#Type.fp as t) -> go @@ sseret env t
     | Some `name n ->
-      let* k = layout_cls env n in
+      let* k = type_cls env n in
       match k.cls with
       | Kreg _ when k.size = 0 -> go @@ fun key _ ->
         (* Struct is empty, so we return nothing. *)
@@ -721,7 +728,7 @@ module Calls = struct
     | `flag -> assert false
     | `compound (s, _, _) | `opaque (s, _, _) ->
       (* Figure out what class this type is. *)
-      let* lk = layout_cls env s in
+      let* lk = type_cls env s in
       let* x = expect_arg_var env key a in
       let src = find_ref env x in
       match lk.cls with
@@ -746,7 +753,7 @@ module Calls = struct
             let* kret = match ret with
               | Some (x, `name n) ->
                 (* Check for implicit first parameter. *)
-                let* lk = layout_cls env n in
+                let* lk = type_cls env n in
                 begin match lk.cls with
                   | Kmem -> ignore (Stack.pop_exn qi)
                   | _ -> ()
@@ -832,6 +839,170 @@ module Vastart = struct
               let data = [gpi; oi1; fpi; ri; oi2; ofi; oi3; rs] in
               Hashtbl.set env.vastart ~key ~data
             | _ -> !!()))
+end
+
+module Vaarg = struct
+  (* Rough sketch of the logic behind `vaarg` for a given type `t`:
+
+     @bcmp:
+       %a = add.l %ap, ofs ; Load gp or fp offset.
+       %o = ld.w %a        ;
+       %c = lt.w %o, limit ; Check to see if we've exhausted the
+       br %c, @breg, @bstk ; register save area.
+     @breg:
+       %a = add.l %ap, 16  ; Load `reg_save_area`.
+       %l = ld.l %a        ;
+       %r = add.l %l, %o   ; Pointer to the next register.
+       %n = add.w %o, inc  ; Increment the offset.
+       %a = add.l %ap, ofs ; Update the offset in %ap.
+       st.w %n, %a         ;
+       jmp @bjoin(%r)
+     @bstk:
+       %a = add.l %ap, 8   ; Load `overflow_arg_area`; this is
+       %l = ld.l %a        ; the next arg on the stack.
+       %n = add.l %l, 8    ; Increment by 8.
+       st.l %n, %a         ; Update the pointer.
+       jmp @bjoin(%l)
+     @bjoin(%p):
+       %x = ld.t %p        ; Return the fetched type.
+       jmp @cont           ; Resume execution.
+  *)
+  let onereg ?(po = 0) ?lcmp env x t ap ofs limit inc cont =
+    let* lcmp = match lcmp with
+      | None -> Context.Label.fresh
+      | Some l -> !!l in
+    let* lreg = Context.Label.fresh in
+    let* lstk = Context.Label.fresh in
+    let* ljoin = Context.Label.fresh in
+    (* Check the offset in the va_list to see if we should
+       access the register save area or the overflow save
+       area. *)
+    let* o, oi =
+      if ofs = 0 then
+        let+ o, oi = Cv.Abi.load `i32 ap in
+        o, [oi]
+      else
+        let o = `int (Bv.M64.int ofs, `i64) in
+        let* a, ai = Cv.Abi.binop (`add `i64) ap o in
+        let+ o, oi = Cv.Abi.load `i32 (`var a) in
+        o, [ai; oi] in
+    let lm = `int (Bv.M32.int limit, `i32) in
+    let* c, ci = Cv.Abi.binop (`lt `i32) (`var o) lm in
+    let locreg = `label (lreg, []) in
+    let locstk = `label (lstk, []) in
+    let b0 =
+      Abi.Blk.create ()
+        ~label:lcmp
+        ~insns:(oi @ [ci])
+        ~ctrl:(`br (`var c, locreg, locstk)) in
+    (* Access the register save area and increment the reg
+       offset. *)
+    let* a, ai = Cv.Abi.binop (`add `i64) ap o16 in
+    let* l, li = Cv.Abi.load `i64 (`var a) in
+    let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var o) in
+    let kin = `int (Bv.M32.int inc, `i32) in
+    let* n, ni = Cv.Abi.binop (`add `i32) (`var o) kin in
+    let* st =
+      if ofs = 0 then
+        let+ st = Cv.Abi.store `i32 (`var n) ap in
+        [st]
+      else
+        let o = `int (Bv.M64.int ofs, `i64) in
+        let* a, ai = Cv.Abi.binop (`add `i64) ap o in
+        let+ st = Cv.Abi.store `i32 (`var n) (`var a) in
+        [ai; st] in
+    let breg =
+      Abi.Blk.create ()
+        ~label:lreg
+        ~insns:([ai; li; ri; ni] @ st)
+        ~ctrl:(`jmp (`label (ljoin, [`var r]))) in
+    (* Access the overflow arg area and increment it. *)
+    let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
+    let* l, li = Cv.Abi.load `i64 (`var a) in
+    let* n, ni = Cv.Abi.binop (`add `i64) (`var l) o8 in
+    let* st = Cv.Abi.store `i64 (`var n) (`var a) in
+    let bstk =
+      Abi.Blk.create ()
+        ~label:lstk
+        ~insns:[ai; li; ni; st]
+        ~ctrl:(`jmp (`label (ljoin, [`var l]))) in
+    (* Join the results. *)
+    let* p = Context.Var.fresh in
+    let* po, pi =
+      if po = 0 then
+        !!(p, [])
+      else
+        (* Offset for tworeg. *)
+        let o = `int (Bv.M64.int po, `i64) in
+        let+ p, pi = Cv.Abi.binop (`add `i64) (`var p) o in
+        p, [pi] in
+    (* Check if this is a struct; if so we need to blit it
+       to the appropriate stack slot. *)
+    let* res = match Hashtbl.find env.refs x with
+      | None ->
+        let+ li = Cv.Abi.insn @@ `load (`var x, t, `var po) in
+        [li]
+      | Some y ->
+        let* l, li = Cv.Abi.load t (`var po) in
+        let+ st = Cv.Abi.store t (`var l) (`var y) in
+        [li; st] in
+    let bjoin =
+      Abi.Blk.create ()
+        ~label:ljoin
+        ~args:[p]
+        ~insns:(pi @ res)
+        ~ctrl:(`jmp (`label (cont, []))) in
+    !![b0; breg; bstk; bjoin]
+
+  let rcls ?(po = 0) ?lcmp env x ap cont r = match reg_type r with
+    | `i64 -> onereg ?lcmp env x `i64 ap 0 48 8 cont ~po
+    | `f64 -> onereg ?lcmp env x `f64 ap 4 176 16 cont ~po
+
+  let select env x t ap cont = match (t : Type.arg) with
+    | #Type.imm as m -> onereg env x m ap 0 48 8 cont
+    | #Type.fp as f -> onereg env x f ap 4 176 16 cont
+    | `name s ->
+      let* k = type_cls env s in
+      match k.cls with
+      | Kreg _ when k.size = 0 -> !![]
+      | Kreg (r, _) when k.size = 8 ->
+        assert (Hashtbl.mem env.refs x);
+        rcls env x ap cont r
+      | Kreg (r1, r2) ->
+        (* Two registers are needed. To keep things simple we will just
+           perform two one-register fetches in sequence. *)
+        let* lcmp = Context.Label.fresh in
+        let* bs1 = rcls env x ap lcmp r1 in
+        let+ bs2 = rcls env x ap cont r2 ~lcmp ~po:8 in
+        bs1 @ bs2
+      | Kmem ->
+        (* The struct is passed in nemory, so we simply blit from
+           the `overflow_arg_area` to the corresponding stack slot. *)
+        let y = find_ref env x in
+        let sz = `int (Bv.M64.int k.size, `i64) in
+        let* label = Context.Label.fresh in
+        let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
+        let* l, li = Cv.Abi.load `i64 (`var a) in
+        let* n, ni = Cv.Abi.binop (`add `i64) (`var l) sz in
+        let* st = Cv.Abi.store `i64 (`var n) (`var a) in
+        let+ blit = Cv.Abi.blit `i64 k.size
+            ~src:(`var l) ~dst:(`var y) in
+        List.return @@ Abi.Blk.create () ~label
+           ~insns:([ai; li; ni; st] @ blit)
+           ~ctrl:(`jmp (`label (cont, [])))
+
+  let lower env = iter_blks env ~f:(fun b ->
+      Blk.insns b |> Context.Seq.iter ~f:(fun i ->
+          match Insn.op i with
+          | `vaarg (x, t, ap) ->
+            let ap = Vastart.ap_oper ap in
+            let* vacont = Context.Label.fresh in
+            let+ vablks = select env x t ap vacont in
+            if not @@ List.is_empty vablks then
+              Hashtbl.set env.vaarg
+                ~key:(Insn.label i)
+                ~data:{vablks; vacont}
+          | _ -> !!()))
 end
 
 (* Actually produce a Virtual ABI function from the work done in
@@ -981,6 +1152,7 @@ let run tenv fn =
     let* () = Rets.lower env in
     let* () = Calls.lower env in
     let* () = Vastart.lower env in
+    let* () = Vaarg.lower env in
     let*? fn = Translate.go env in
     !!fn
   else
