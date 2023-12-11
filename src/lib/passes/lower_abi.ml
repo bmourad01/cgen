@@ -430,6 +430,10 @@ module Refs = struct
           Insn.pp i Label.pp (Blk.label b)
           (Func.name env.fn) Type.pp t ()
 
+  let ref_oper = function
+    | #operand as o -> oper o
+    | `addr a -> `int (a, `i64)
+
   let make_unref env x s a =
     if not @@ Hashtbl.mem env.refs x then
       let* k = layout_cls env s in
@@ -437,15 +441,17 @@ module Refs = struct
       let* src, srci = match a with
         | `var x -> !!(x, [])
         | _ ->
-          let+ x, i = Cv.Abi.unop (`copy `i64) (oper a) in
+          let+ x, i = Cv.Abi.unop (`copy `i64) (ref_oper a) in
           x, [i] in
       let+ blit = Cv.Abi.blit ~src:(`var src) ~dst:(`var y) `i64 k.size in
       Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
       Hashtbl.set env.refs ~key:x ~data:y
     else !!()
 
-  (* Turn struct refs into a minimal number of stack slots, such that
-     the result of each `ref` and `unref` instruction is accounted for. *)
+  (* Turn struct refs into a minimal number of stack slots, such
+     that the result of each `ref` and `unref` instruction is
+     accounted for, as well as any `call` or `vaarg` instruction
+     that may return a struct. *)
   let canonicalize env = iter_blks env ~f:(fun b ->
       let* () =
         Blk.args b |> Context.Seq.iter ~f:(fun x ->
@@ -457,6 +463,13 @@ module Refs = struct
           match Insn.op i with
           | `ref (x, `var y) -> make_ref env i b x y
           | `unref (x, s, a) -> make_unref env x s a
+          | `vaarg (x, `name s, _)
+          | `call (Some (x, `name s), _, _, _) ->
+            let* k = layout_cls env s in
+            if k.size > 0 then
+              let+ y = new_slot env k.size k.align in
+              Hashtbl.set env.refs ~key:x ~data:y
+            else !!()
           | _ -> !!()))
 end
 
