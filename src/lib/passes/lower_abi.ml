@@ -988,8 +988,8 @@ module Vaarg = struct
         let+ blit = Cv.Abi.blit `i64 k.size
             ~src:(`var l) ~dst:(`var y) in
         List.return @@ Abi.Blk.create () ~label
-           ~insns:([ai; li; ni; st] @ blit)
-           ~ctrl:(`jmp (`label (cont, [])))
+          ~insns:([ai; li; ni; st] @ blit)
+          ~ctrl:(`jmp (`label (cont, [])))
 
   let lower env = iter_blks env ~f:(fun b ->
       Blk.insns b |> Context.Seq.iter ~f:(fun i ->
@@ -1069,7 +1069,7 @@ module Translate = struct
     | #Insn.mem as m -> [ins (transl_mem env m :> Abi.Insn.op)]
     | #Insn.compound as c -> transl_compound env c
     | `vastart _ -> Hashtbl.find_exn env.vastart l
-    | `vaarg _ -> failwith "unimplemented"
+    | `vaarg _ -> assert false
     | `call (_, f, _, _) -> transl_call env l f
 
   let transl_swindex env = function
@@ -1099,26 +1099,54 @@ module Translate = struct
     | `ret None -> [], `ret []
     | `ret Some _ -> transl_ret env l
 
+  (* We're done translating this block, either because we translated
+     all the remaining instructions or we had to split it in the
+     `vaarg` case. *)
+  let commit_blk env ivec args ctrl label =
+    let cins, ctrl = transl_ctrl env label ctrl in
+    List.iter cins ~f:(Vec.push ivec);
+    let insns = Vec.to_list ivec in
+    Vec.clear ivec;
+    Abi.Blk.create () ~args ~insns ~ctrl ~label
+
+  (* Translate a single block, which may be split into multiple blocks. *)
+  let rec transl_blk env ivec args ctrl label acc = function
+    | i :: rest ->
+      begin match Insn.op i with
+        | `vaarg _ ->
+          begin match Hashtbl.find env.vaarg @@ Insn.label i with
+            | None -> transl_blk env ivec args ctrl label acc rest
+            | Some v ->
+              (* Jump to the start of the `vaarg` logic. *)
+              let start = Abi.Blk.label @@ List.hd_exn v.vablks in
+              let ctrl' = `jmp (`label (start, [])) in
+              let b = commit_blk env ivec args ctrl' label in
+              (* Resume with the provided continuation. *)
+              let acc = List.fold (b :: v.vablks) ~init:acc ~f:Ftree.snoc in
+              transl_blk env ivec [] ctrl v.vacont acc rest
+          end
+        | _ ->
+          (* No splitting needed. *)
+          transl_insn env i |> List.iter ~f:(Vec.push ivec);
+          transl_blk env ivec args ctrl label acc rest
+      end
+    | [] ->
+      commit_blk env ivec args ctrl label |>
+      Ftree.snoc acc |> Ftree.to_list
+
   let transl_blks env =
-    let acc = Vec.create () in
-    let push i = Vec.push acc i in
+    let ivec = Vec.create () in
     let entry = Func.entry env.fn in
-    Func.blks env.fn |> Seq.to_list |> List.map ~f:(fun b ->
+    Func.blks env.fn |> Seq.to_list |> List.bind ~f:(fun b ->
         let l = Blk.label b in
         (* Entry block copies the parameters. *)
         if Label.(l = entry) then
           Vec.iter env.params ~f:(fun p ->
-              List.iter p.pins ~f:push);
-        (* Translate each instruction. *)
-        Blk.insns b |> Seq.map ~f:(transl_insn env) |>
-        Seq.iter ~f:(List.iter ~f:push);
-        (* Translate control flow. *)
-        let cins, ctrl = transl_ctrl env l @@ Blk.ctrl b in
+              List.iter p.pins ~f:(Vec.push ivec));
         let args = Blk.args b |> Seq.to_list in
-        List.iter cins ~f:push;
-        let insns = Vec.to_list acc in
-        Vec.clear acc;
-        Abi.Blk.create () ~args ~ctrl ~insns ~label:l)
+        let ctrl = Blk.ctrl b in
+        transl_blk env ivec args ctrl l Ftree.empty @@
+        Seq.to_list @@ Blk.insns b)
 
   let make_dict env =
     let lnk = Func.linkage env.fn in
