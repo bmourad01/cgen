@@ -208,6 +208,10 @@ type ret = [
   | `si32
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+(** Returns [true] if the return type is interpreted as a signed
+    integer. *)
+val is_ret_signed : ret -> bool
+
 (** Returns [true] if both return types are compatible.
 
     This is defined by the following relation:

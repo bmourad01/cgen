@@ -282,7 +282,7 @@ module Params = struct
     Vec.push env.params @@ {pty = t; pvar; pins}
 
   (* Pass in a single register, so we can reuse `x`. *)
-  let onereg_param ~reg env t x y r =
+  let onereg_param ~reg env x y r =
     let t = reg_type r in
     let+ pvar, pins = match reg t with
       | None ->
@@ -295,7 +295,7 @@ module Params = struct
     Vec.push env.params @@ {pty = t; pvar; pins}
 
   (* Insert fresh parameters for the two-reg argument. *)
-  let tworeg_param ~reg env t x y r1 r2 =
+  let tworeg_param ~reg env y r1 r2 =
     let t1 = reg_type r1 and t2 = reg_type r2 in
     let* x1 = Context.Var.fresh in
     let* x2 = Context.Var.fresh in
@@ -318,7 +318,7 @@ module Params = struct
     Vec.push env.params p2
 
   (* Blit the structure to a stack slot. *)
-  let memory_param env t x y size =
+  let memory_param env y size =
     Seq.init (size / 8) ~f:(fun i -> i * 8) |>
     Context.Seq.iter ~f:(fun o ->
         let* x = Context.Var.fresh in
@@ -379,7 +379,7 @@ module Params = struct
           Bv.M64.int (i * 16 + rsave_sse_ofs), r) |>
       Context.List.map ~f:(fun (o, r) ->
           let* o, oi = Cv.Abi.binop (`add `i64) (`var s) (`int (o, `i64)) in
-          let+ st = Cv.Abi.storev r (`var s) in
+          let+ st = Cv.Abi.storev r (`var o) in
           [oi; st]) in
     let entry = `label (Func.entry env.fn, []) in
     Abi.Blk.create () ~label ~insns:(List.concat save) ~ctrl:(`jmp entry)
@@ -407,9 +407,9 @@ module Params = struct
             Hashtbl.set env.refs ~key:x ~data:y;
             match k.cls with
             | Kreg _ when k.size = 0 -> !!()
-            | Kreg (r, _) when k.size = 8 -> onereg_param ~reg env t x y r
-            | Kreg (r1, r2) -> tworeg_param ~reg env t x y r1 r2
-            | Kmem -> memory_param env t x y k.size) in
+            | Kreg (r, _) when k.size = 8 -> onereg_param ~reg env x y r
+            | Kreg (r1, r2) -> tworeg_param ~reg env y r1 r2
+            | Kmem -> memory_param env y k.size) in
     compute_register_save_area env
 end
 
@@ -501,7 +501,7 @@ module Rets = struct
     Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
 
   (* Struct is returned in a single register. *)
-  let onereg_ret env r k key x =
+  let onereg_ret env r key x =
     let* x = expect_ret_var env key x in
     let x = find_ref env x in
     let t = reg_type r in
@@ -512,7 +512,7 @@ module Rets = struct
     Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
 
   (* Struct is returned in two registers of varying classes. *)
-  let tworeg_ret env r1 r2 k key x =
+  let tworeg_ret env r1 r2 key x =
     let* x = expect_ret_var env key x in
     let x = find_ref env x in
     let t1 = reg_type r1 and t2 = reg_type r2 in
@@ -566,14 +566,14 @@ module Rets = struct
       | Kreg _ when k.size = 0 -> go @@ fun key _ ->
         (* Struct is empty, so we return nothing. *)
         !!(Hashtbl.set env.rets ~key ~data:empty_ret)
-      | Kreg (r, _) when k.size = 8 -> go @@ onereg_ret env r k
-      | Kreg (r1, r2) -> go @@ tworeg_ret env r1 r2 k
+      | Kreg (r, _) when k.size = 8 -> go @@ onereg_ret env r
+      | Kreg (r1, r2) -> go @@ tworeg_ret env r1 r2
       | Kmem -> go @@ memory_ret env k
 end
 
 module Calls = struct
   (* A compound argument to a call passed in a single register. *)
-  let onereg_arg ~reg env k r src =
+  let onereg_arg ~reg k r src =
     let t = reg_type r in
     let* l, li = Cv.Abi.load t (`var src) in
     let+ callai, callar, callam = match reg r with
@@ -589,7 +589,7 @@ module Calls = struct
     {k with callai; callar; callam}
 
   (* A compound argument to a call passed in two registers. *)
-  let tworeg_arg ~reg env k r1 r2 src =
+  let tworeg_arg ~reg k r1 r2 src =
     let t1 = reg_type r1 and t2 = reg_type r2 in
     let ok1 = reg r1 in
     let ok2 = reg r2 in
@@ -620,7 +620,7 @@ module Calls = struct
     {k with callai; callar; callam}
 
   (* A compound argument to a call passed in memory. *)
-  let memory_arg env k size src =
+  let memory_arg k size src =
     let+ ldm = Cv.Abi.ldm `i64 src size in
     let callai, callam =
       List.fold ldm ~init:(k.callai, k.callam) ~f:(fun (ai, am) i ->
@@ -642,7 +642,7 @@ module Calls = struct
     {k with callri = k.callri @> i; callrr = [r]}
 
   (* Fits in one register. *)
-  let call_ret_onereg env x r lk k =
+  let call_ret_onereg env x r k =
     let x = find_ref env x in
     let t = reg_type r in
     let reg = match t with
@@ -652,7 +652,7 @@ module Calls = struct
     {k with callri = k.callri @> st; callrr = [reg]}
 
   (* Fits in two registers. *)
-  let call_ret_tworeg env x r1 r2 lk k =
+  let call_ret_tworeg env x r1 r2 k =
     let x = find_ref env x in
     let t1 = reg_type r1 and t2 = reg_type r2 in
     let reg1, reg2 = match t1, t2 with
@@ -683,8 +683,8 @@ module Calls = struct
     | `basic (x, t) -> call_ret_basic x t k
     | `compound (x, lk) -> match lk.cls with
       | Kreg _ when lk.size = 0 -> !!k
-      | Kreg (r, _) when lk.size = 8 -> call_ret_onereg env x r lk k
-      | Kreg (r1, r2) -> call_ret_tworeg env x r1 r2 lk k
+      | Kreg (r, _) when lk.size = 8 -> call_ret_onereg env x r k
+      | Kreg (r1, r2) -> call_ret_tworeg env x r1 r2 k
       | Kmem -> call_ret_memory env x lk k
 
   let expect_arg_var env l : operand -> Var.t Context.t = function
@@ -726,9 +726,9 @@ module Calls = struct
       let src = find_ref env x in
       match lk.cls with
       | Kreg _ when lk.size = 0 -> !!k
-      | Kreg (r, _) when lk.size = 8 -> onereg_arg ~reg env k r src
-      | Kreg (r1, r2) -> tworeg_arg ~reg env k r1 r2 src
-      | Kmem -> memory_arg env k lk.size (`var src)
+      | Kreg (r, _) when lk.size = 8 -> onereg_arg ~reg k r src
+      | Kreg (r1, r2) -> tworeg_arg ~reg k r1 r2 src
+      | Kmem -> memory_arg k lk.size (`var src)
 
   (* Lower the `call` instructions. *)
   let lower env = iter_blks env ~f:(fun b ->

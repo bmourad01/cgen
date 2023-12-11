@@ -100,7 +100,7 @@ let is_sign_wrapped_hi t =
   Bv.(signed_compare t.lo t.hi @@ modulus t.size) > 0
 
 let single_of t = Option.some_if (is_single t) t.lo
-let single_missing_of t = Option.some_if Bv.(is_single_missing t) t.hi
+let single_missing_of t = Option.some_if (is_single_missing t) t.hi
 
 let is_strictly_smaller_than t1 t2 =
   if t1.size <> t2.size then
