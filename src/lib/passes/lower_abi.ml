@@ -1179,7 +1179,9 @@ module Vaarg = struct
     | `name s ->
       let* k = type_cls env s in
       match k.cls with
-      | Kreg _ when k.size = 0 -> !![]
+      | Kreg _ when k.size = 0 ->
+        (* Should be handled by `check_empty`. *)
+        assert false
       | Kreg (r, _) when k.size = 8 ->
         assert (Hashtbl.mem env.refs x);
         begin match reg_type r with
@@ -1207,17 +1209,26 @@ module Vaarg = struct
           ~insns:([ai; li; ni; st] @ blit)
           ~ctrl:(`jmp (`label (cont, [])))
 
+  let check_empty env = function
+    | #Type.basic -> !!false
+    | `name s ->
+      let+ k = type_cls env s in
+      k.size = 0
+
   let lower env = iter_blks env ~f:(fun b ->
       Blk.insns b |> Context.Seq.iter ~f:(fun i ->
           match Insn.op i with
           | `vaarg (x, t, ap) ->
-            let ap = Vastart.ap_oper ap in
-            let* vacont = Context.Label.fresh in
-            let+ vablks = fetch env x t ap vacont in
-            if not @@ List.is_empty vablks then
-              Hashtbl.set env.vaarg
-                ~key:(Insn.label i)
-                ~data:{vablks; vacont}
+            begin check_empty env t >>= function
+              | true -> !!()
+              | false ->
+                let ap = Vastart.ap_oper ap in
+                let* vacont = Context.Label.fresh in
+                let+ vablks = fetch env x t ap vacont in
+                Hashtbl.set env.vaarg
+                  ~key:(Insn.label i)
+                  ~data:{vablks; vacont}
+            end
           | _ -> !!()))
 end
 
