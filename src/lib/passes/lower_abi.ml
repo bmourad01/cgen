@@ -937,20 +937,18 @@ module Vaarg = struct
        %x = ld.t %p            ; Return the fetched type.
        jmp @cont               ; Resume execution.
 
-     This can work for fetching one register, or two registers of
-     the same class.
+     This can work for fetching `num` registers from the `va_list`,
+     assuming that they all belong to the same class denoted by
+     type `t`.
   *)
-  let reg_same ?(num = `one) env x t ap cont =
+  let fetch_reg ?(num = 1) env x t ap cont =
     let* lcmp = Context.Label.fresh in
     let* lreg = Context.Label.fresh in
     let* lstk = Context.Label.fresh in
     let* ljoin = Context.Label.fresh in
     let ofs, limit, inc = match t with
-      | #Type.imm -> 0, 48, 8
-      | #Type.fp -> 4, 176, 16 in
-    let inc = match num with
-      | `one -> inc
-      | `two -> inc * 2 in
+      | #Type.imm -> 0, 48, 8 * num
+      | #Type.fp -> 4, 176, 16 * num in
     (* Check the offset in the va_list to see if we should
        access the register save area or the overflow save
        area. *)
@@ -992,10 +990,7 @@ module Vaarg = struct
     (* Access the overflow arg area and increment it. *)
     let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
     let* l, li = Cv.Abi.load `i64 (`var a) in
-    let sinc = match num with
-      | `one -> i64 8
-      | `two -> i64 16 in
-    let* n, ni = Cv.Abi.binop (`add `i64) (`var l) sinc in
+    let* n, ni = Cv.Abi.binop (`add `i64) (`var l) (i64 (num * 8)) in
     let* st = Cv.Abi.store `i64 (`var n) (`var a) in
     let bstk =
       Abi.Blk.create ()
@@ -1007,14 +1002,10 @@ module Vaarg = struct
     (* Check if this is a struct; if so we need to blit it
        to the appropriate stack slot. *)
     let* res = match Hashtbl.find env.refs x with
+      | Some y -> Cv.Abi.blit `i64 (8 * num) ~src:(`var p) ~dst:(`var y)
       | None ->
         let+ li = Cv.Abi.insn @@ `load (`var x, t, `var p) in
-        [li]
-      | Some y ->
-        let size = match num with
-          | `one -> 8
-          | `two -> 16 in
-        Cv.Abi.blit `i64 size ~src:(`var p) ~dst:(`var y) in
+        [li] in
     let bjoin =
       Abi.Blk.create ()
         ~label:ljoin
@@ -1024,6 +1015,7 @@ module Vaarg = struct
     !![bcmp; breg; bstk; bjoin]
 
   let make_cmp label t ap yes no =
+    (* Fetch the offset into the register save area. *)
     let* o, a, oi, limit, inc = match t with
       | `i64 ->
         let+ o, oi = Cv.Abi.load `i32 ap in
@@ -1032,15 +1024,19 @@ module Vaarg = struct
         let* a, ai = Cv.Abi.binop (`add `i64) ap o4 in
         let+ o, oi = Cv.Abi.load `i32 (`var a) in
         o, `var a, [ai; oi], 176, 16 in
+    (* Check if there is enough room. *)
     let+ c, ci = Cv.Abi.binop (`le `i32) (`var o) (i32 (limit - inc)) in
+    let locyes = `label (yes, []) in
+    let locno = `label (no, []) in
     let b = Abi.Blk.create () ~label
         ~insns:(oi @ [ci])
-        ~ctrl:(`br (`var c, `label (yes, []), `label (no, []))) in
+        ~ctrl:(`br (`var c, locyes, locno)) in
     b, o, a, inc
 
   (* Fetches two register classes at once, assuming that they are
      different. *)
-  let tworeg_mixed env x t1 t2 ap cont =
+  let fetch_two_reg env x t1 t2 ap cont =
+    assert Poly.(t1 <> t2);
     let* lcmp1 = Context.Label.fresh in
     let* lcmp2 = Context.Label.fresh in
     let* lreg = Context.Label.fresh in
@@ -1079,13 +1075,11 @@ module Vaarg = struct
     let* p1 = Context.Var.fresh in
     let* p2 = Context.Var.fresh in
     let y = find_ref env x in
-    let t1b = (t1 :> Type.basic) in
-    let t2b = (t2 :> Type.basic) in
-    let* l, li1 = Cv.Abi.load t1b (`var p1) in
-    let* st1 = Cv.Abi.store t1b (`var l) (`var y) in
-    let* l, li2 = Cv.Abi.load t2b (`var p2) in
+    let* l, li1 = Cv.Abi.load `i64 (`var p1) in
+    let* st1 = Cv.Abi.store `i64 (`var l) (`var y) in
+    let* l, li2 = Cv.Abi.load `i64 (`var p2) in
     let* a, ai = Cv.Abi.binop (`add `i64) (`var y) o8 in
-    let+ st2 = Cv.Abi.store t2b (`var l) (`var a) in
+    let+ st2 = Cv.Abi.store `i64 (`var l) (`var a) in
     let bjoin =
       Abi.Blk.create ()
         ~label:ljoin
@@ -1095,8 +1089,8 @@ module Vaarg = struct
     [bcmp1; bcmp2; breg; bstk; bjoin]
 
   let fetch env x t ap cont = match (t : Type.arg) with
-    | #Type.imm as m -> reg_same env x m ap cont
-    | #Type.fp as f -> reg_same env x f ap cont
+    | #Type.imm as m -> fetch_reg env x m ap cont
+    | #Type.fp as f -> fetch_reg env x f ap cont
     | `name s ->
       let* k = type_cls env s in
       match k.cls with
@@ -1106,15 +1100,15 @@ module Vaarg = struct
       | Kreg (r, _) when k.size = 8 ->
         assert (Hashtbl.mem env.refs x);
         begin match reg_type r with
-          | `i64 -> reg_same env x `i64 ap cont
-          | `f64 -> reg_same env x `f64 ap cont
+          | `i64 -> fetch_reg env x `i64 ap cont
+          | `f64 -> fetch_reg env x `f64 ap cont
         end
       | Kreg (r1, r2) ->
         assert (Hashtbl.mem env.refs x);
         begin match reg_type r1, reg_type r2 with
-          | `i64, `i64 -> reg_same ~num:`two env x `i64 ap cont
-          | `f64, `f64 -> reg_same ~num:`two env x `f64 ap cont
-          | t1, t2 -> tworeg_mixed env x t1 t2 ap cont
+          | `i64, `i64 -> fetch_reg ~num:2 env x `i64 ap cont
+          | `f64, `f64 -> fetch_reg ~num:2 env x `f64 ap cont
+          | t1, t2 -> fetch_two_reg env x t1 t2 ap cont
         end
       | Kmem ->
         (* The struct is passed in nemory, so we simply blit from
@@ -1350,4 +1344,3 @@ let run tenv fn =
     Context.failf
       "In Lower_abi: expected SSA form for function $%s"
       (Func.name fn) ()
-
