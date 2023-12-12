@@ -917,14 +917,17 @@ module Vaarg = struct
      @bstk:
        %a = add.l %ap, 8       ; Load `overflow_arg_area`; this is
        %l = ld.l %a            ; the next arg on the stack.
-       %n = add.l %l, 8        ; Increment by 8.
+       %n = add.l %l, sinc     ; Increment the pointer.
        st.l %n, %a             ; Update the pointer.
        jmp @bjoin(%l)
      @bjoin(%p):
        %x = ld.t %p            ; Return the fetched type.
        jmp @cont               ; Resume execution.
+
+     This can work for fetching one register, or two registers of
+     the same class.
   *)
-  let onereg env x t ap cont =
+  let reg_same ?(num = `one) env x t ap cont =
     let* lcmp = Context.Label.fresh in
     let* lreg = Context.Label.fresh in
     let* lstk = Context.Label.fresh in
@@ -932,6 +935,9 @@ module Vaarg = struct
     let ofs, limit, inc = match t with
       | #Type.imm -> 0, 48, 8
       | #Type.fp -> 4, 176, 16 in
+    let inc = match num with
+      | `one -> inc
+      | `two -> inc * 2 in
     (* Check the offset in the va_list to see if we should
        access the register save area or the overflow save
        area. *)
@@ -973,7 +979,10 @@ module Vaarg = struct
     (* Access the overflow arg area and increment it. *)
     let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
     let* l, li = Cv.Abi.load `i64 (`var a) in
-    let* n, ni = Cv.Abi.binop (`add `i64) (`var l) o8 in
+    let sinc = match num with
+      | `one -> i64 8
+      | `two -> i64 16 in
+    let* n, ni = Cv.Abi.binop (`add `i64) (`var l) sinc in
     let* st = Cv.Abi.store `i64 (`var n) (`var a) in
     let bstk =
       Abi.Blk.create ()
@@ -989,9 +998,10 @@ module Vaarg = struct
         let+ li = Cv.Abi.insn @@ `load (`var x, t, `var p) in
         [li]
       | Some y ->
-        let* l, li = Cv.Abi.load t (`var p) in
-        let+ st = Cv.Abi.store t (`var l) (`var y) in
-        [li; st] in
+        let size = match num with
+          | `one -> 8
+          | `two -> 16 in
+        Cv.Abi.blit `i64 size ~src:(`var p) ~dst:(`var y) in
     let bjoin =
       Abi.Blk.create ()
         ~label:ljoin
@@ -999,73 +1009,6 @@ module Vaarg = struct
         ~insns:res
         ~ctrl:(`jmp (`label (cont, []))) in
     !![bcmp; breg; bstk; bjoin]
-
-  (* Fecthed two register classes at once, assuming that they are
-     the same. *)
-  let tworeg_same env x t ap cont =
-    let* lcmp = Context.Label.fresh in
-    let* lreg = Context.Label.fresh in
-    let* lstk = Context.Label.fresh in
-    let* ljoin = Context.Label.fresh in
-    let ofs, limit, inc = match t with
-      | #Type.imm -> 0, 48, 16
-      | #Type.fp -> 4, 176, 32 in
-    (* Check if `fp_offset` can support at least two registers. *)
-    let* o, oi =
-      if ofs = 0 then
-        let+ o, oi = Cv.Abi.load `i32 ap in
-        o, [oi]
-      else
-        let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 ofs) in
-        let+ o, oi = Cv.Abi.load `i32 (`var a) in
-        o, [ai; oi] in
-    let* c, ci = Cv.Abi.binop (`le `i32) (`var o) (i32 (limit - inc)) in
-    let locreg = `label (lreg, []) in
-    let locstk = `label (lstk, []) in
-    let bcmp =
-      Abi.Blk.create ()
-        ~label:lcmp
-        ~insns:(oi @ [ci])
-        ~ctrl:(`br (`var c, locreg, locstk)) in
-    (* Access the register save area and increment. *)
-    let* a, ai = Cv.Abi.binop (`add `i64) ap o16 in
-    let* l, li = Cv.Abi.load `i64 (`var a) in
-    let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var o) in
-    let* n, ni = Cv.Abi.binop (`add `i32) (`var o) (i32 inc) in
-    let* st =
-      if ofs = 0 then
-        let+ st = Cv.Abi.store `i32 (`var n) ap in
-        [st]
-      else
-        let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 ofs) in
-        let+ st = Cv.Abi.store `i32 (`var n) (`var a) in
-        [ai; st] in
-    let breg =
-      Abi.Blk.create ()
-        ~label:lreg
-        ~insns:([ai; li; ri; ni] @ st)
-        ~ctrl:(`jmp (`label (ljoin, [`var r]))) in
-    (* Access the overflow arg area and increment *)
-    let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
-    let* l, li = Cv.Abi.load `i64 (`var a) in
-    let* n, ni = Cv.Abi.binop (`add `i64) (`var l) o16 in
-    let* st = Cv.Abi.store `i64 (`var n) (`var a) in
-    let bstk =
-      Abi.Blk.create ()
-        ~label:lstk
-        ~insns:[ai; li; ni; st]
-        ~ctrl:(`jmp (`label (ljoin, [`var l]))) in
-    (* Join the results. *)
-    let* p = Context.Var.fresh in
-    let y = find_ref env x in
-    let+ blit = Cv.Abi.blit `i64 16 ~src:(`var p) ~dst:(`var y) in
-    let bjoin =
-      Abi.Blk.create ()
-        ~label:ljoin
-        ~args:[p]
-        ~insns:blit
-        ~ctrl:(`jmp (`label (cont, []))) in
-    [bcmp; breg; bstk; bjoin]
 
   let make_cmp label t ap yes no =
     let* o, a, oi, limit, inc = match t with
@@ -1139,8 +1082,8 @@ module Vaarg = struct
     [bcmp1; bcmp2; breg; bstk; bjoin]
 
   let fetch env x t ap cont = match (t : Type.arg) with
-    | #Type.imm as m -> onereg env x m ap cont
-    | #Type.fp as f -> onereg env x f ap cont
+    | #Type.imm as m -> reg_same env x m ap cont
+    | #Type.fp as f -> reg_same env x f ap cont
     | `name s ->
       let* k = type_cls env s in
       match k.cls with
@@ -1150,13 +1093,14 @@ module Vaarg = struct
       | Kreg (r, _) when k.size = 8 ->
         assert (Hashtbl.mem env.refs x);
         begin match reg_type r with
-          | `i64 -> onereg env x `i64 ap cont
-          | `f64 -> onereg env x `f64 ap cont
+          | `i64 -> reg_same env x `i64 ap cont
+          | `f64 -> reg_same env x `f64 ap cont
         end
       | Kreg (r1, r2) ->
+        assert (Hashtbl.mem env.refs x);
         begin match reg_type r1, reg_type r2 with
-          | `i64, `i64 -> tworeg_same env x `i64 ap cont
-          | `f64, `f64 -> tworeg_same env x `f64 ap cont
+          | `i64, `i64 -> reg_same ~num:`two env x `i64 ap cont
+          | `f64, `f64 -> reg_same ~num:`two env x `f64 ap cont
           | t1, t2 -> tworeg_mixed env x t1 t2 ap cont
         end
       | Kmem ->
