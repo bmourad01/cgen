@@ -239,9 +239,15 @@ let type_cls env s = match Hashtbl.find env.layout s with
     Hashtbl.set env.layout ~key:s ~data:k;
     !!k
 
+(* Common offsets. *)
 let o4 = `int (Bv.M64.int 4, `i64)
 let o8 = `int (Bv.M64.int 8, `i64)
 let o16 = `int (Bv.M64.int 16, `i64)
+
+(* Helpers for constructing constants. *)
+let i8 i = `int (Bv.M8.int i, `i8)
+let i32 i = `int (Bv.M32.int i, `i32)
+let i64 i = `int (Bv.M64.int i, `i64)
 
 let oper (o : operand) = (o :> Abi.operand)
 
@@ -259,6 +265,43 @@ let typeof_operand env : operand -> Type.t Context.t = function
   | `var x -> typeof_var env x
 
 module Params = struct
+  (* Allocate a single register as a parameter or
+     pass it on the stack. *)
+  let alloc_onereg qi qs = function
+    | #Type.imm -> Stack.pop qi
+    | #Type.fp -> Stack.pop qs
+
+  (* Allocate two registers as a parameter. Both
+     must be available, or the argument is passed
+     on the stack. *)
+  let alloc_tworeg qi qs t1 t2 = match t1, t2 with
+    | #Type.imm, #Type.imm ->
+      if Stack.length qi >= 2 then
+        let r1 = Stack.pop_exn qi in
+        let r2 = Stack.pop_exn qi in
+        Some (r1, r2)
+      else None
+    | #Type.fp, #Type.fp ->
+      if Stack.length qs >= 2 then
+        let r1 = Stack.pop_exn qs in
+        let r2 = Stack.pop_exn qs in
+        Some (r1, r2)
+      else None
+    | #Type.imm, #Type.fp ->
+      if Stack.length qi >= 1
+      && Stack.length qs >= 1 then
+        let r1 = Stack.pop_exn qi in
+        let r2 = Stack.pop_exn qs in
+        Some (r1, r2)
+      else None
+    | #Type.fp, #Type.imm ->
+      if Stack.length qs >= 1
+      && Stack.length qi >= 1 then
+        let r1 = Stack.pop_exn qs in
+        let r2 = Stack.pop_exn qi in
+        Some (r1, r2)
+      else None
+
   let init_regs env =
     let qi = int_arg_queue () in
     let qs = sse_arg_queue () in
@@ -274,11 +317,8 @@ module Params = struct
           env.rmem <- Some x;
           ignore (Stack.pop_exn qi)
         | _ -> !!() in
-    (* Try to allocate the parameter to a register. If we've run out,
-       then it is implicitly passed in memory. *)
-    function
-    | #Type.imm -> Stack.pop qi
-    | #Type.fp -> Stack.pop qs
+    alloc_onereg qi qs,
+    alloc_tworeg qi qs
 
   let basic_param ~reg env t x =
     let+ pvar, pins = match reg t with
@@ -302,25 +342,24 @@ module Params = struct
     Vec.push env.params @@ {pty = t; pvar; pins}
 
   (* Insert fresh parameters for the two-reg argument. *)
-  let tworeg_param ~reg env y r1 r2 =
+  let tworeg_param ~reg2 env y r1 r2 =
     let t1 = reg_type r1 and t2 = reg_type r2 in
     let* x1 = Context.Var.fresh in
     let* x2 = Context.Var.fresh in
     let* o, oi = Cv.Abi.binop (`add `i64) (`var y) o8 in
     let* st1 = Cv.Abi.store t1 (`var x1) (`var y) in
-    let* st2 = Cv.Abi.store t1 (`var x1) (`var o) in
-    let* pvar1, pins1 = match reg t1 with
-      | None -> !!(`var x1, [st1])
-      | Some r ->
-        let+ i = Cv.Abi.insn @@ `uop (`var x1, `copy t1, `reg r) in
-        `reg r, [i; st1] in
-    let+ pvar2, pins2 = match reg t2 with
-      | None -> !!(`var x2, [oi; st2])
-      | Some r ->
-        let+ i = Cv.Abi.insn @@ `uop (`var x2, `copy t1, `reg r) in
-        `reg r, [i; oi; st2] in
-    let p1 = {pty = t1; pvar = pvar1; pins = pins1} in
-    let p2 = {pty = t2; pvar = pvar2; pins = pins2} in
+    let* st2 = Cv.Abi.store t1 (`var x2) (`var o) in
+    let+ p1, p2 = match reg2 t1 t2 with
+      | None ->
+        let p1 = {pty = t1; pvar = `var x1; pins = [st1]} in
+        let p2 = {pty = t2; pvar = `var x2; pins = [oi; st2]} in
+        !!(p1, p2)
+      | Some (r1, r2) ->
+        let* i1 = Cv.Abi.insn @@ `uop (`var x1, `copy t1, `reg r1) in
+        let+ i2 = Cv.Abi.insn @@ `uop (`var x2, `copy t2, `reg r2) in
+        let p1 = {pty = t1; pvar = `reg r1; pins = [i1; st1]} in
+        let p2 = {pty = t2; pvar = `reg r2; pins = [i2; oi; st2]} in
+        p1, p2 in
     Vec.push env.params p1;
     Vec.push env.params p2
 
@@ -334,8 +373,7 @@ module Params = struct
             let+ st = Cv.Abi.store `i64 (`var x) (`var y) in
             [st]
           else
-            let ofs = `int (Bv.M64.int o, `i64) in
-            let* o, oi = Cv.Abi.binop (`add `i64) (`var y) ofs in
+            let* o, oi = Cv.Abi.binop (`add `i64) (`var y) (i64 o) in
             let+ st = Cv.Abi.store `i64 (`var x) (`var o) in
             [oi; st] in
         let p = {pty = `i64; pvar = `var x; pins} in
@@ -367,8 +405,7 @@ module Params = struct
             let+ st = Cv.Abi.store `i64 (`reg r) (`var s) in
             [st]
           else
-            let ofs = `int (Bv.M64.int o, `i64) in
-            let* o, oi = Cv.Abi.binop (`add `i64) (`var s) ofs in
+            let* o, oi = Cv.Abi.binop (`add `i64) (`var s) (i64 o) in
             let+ st = Cv.Abi.store `i64 (`reg r) (`var o) in
             [oi; st]) in
     let zero = `int (Bv.zero, `i8) in
@@ -382,10 +419,9 @@ module Params = struct
   let register_save_sse env label s =
     let+ save =
       Array.to_list sse_args |>
-      List.mapi ~f:(fun i r ->
-          Bv.M64.int (i * 16 + rsave_sse_ofs), r) |>
+      List.mapi ~f:(fun i r -> i64 (i * 16 + rsave_sse_ofs), r) |>
       Context.List.map ~f:(fun (o, r) ->
-          let* o, oi = Cv.Abi.binop (`add `i64) (`var s) (`int (o, `i64)) in
+          let* o, oi = Cv.Abi.binop (`add `i64) (`var s) o in
           let+ st = Cv.Abi.storev r (`var o) in
           [oi; st]) in
     let entry = `label (Func.entry env.fn, []) in
@@ -403,7 +439,7 @@ module Params = struct
   (* Lower the parameters of the function and copy their contents
      to SSA variables or stack slots. *)
   let lower env =
-    let* reg = init_regs env in
+    let* reg, reg2 = init_regs env in
     let* () =
       Func.args env.fn |>
       Context.Seq.iter ~f:(fun (x, t) -> match t with
@@ -415,7 +451,7 @@ module Params = struct
             match k.cls with
             | Kreg _ when k.size = 0 -> !!()
             | Kreg (r, _) when k.size = 8 -> onereg_param ~reg env x y r
-            | Kreg (r1, r2) -> tworeg_param ~reg env y r1 r2
+            | Kreg (r1, r2) -> tworeg_param ~reg2 env y r1 r2
             | Kmem -> memory_param env y k.size) in
     compute_register_save_area env
 end
@@ -596,32 +632,21 @@ module Calls = struct
     {k with callai; callar; callam}
 
   (* A compound argument to a call passed in two registers. *)
-  let tworeg_arg ~reg k r1 r2 src =
+  let tworeg_arg ~reg2 k r1 r2 src =
     let t1 = reg_type r1 and t2 = reg_type r2 in
-    let ok1 = reg r1 in
-    let ok2 = reg r2 in
+    let regs = reg2 r1 r2 in
     let* o, oi = Cv.Abi.binop (`add `i64) (`var src) o8 in
     let* l1, li1 = Cv.Abi.load `i64 (`var src) in
     let* l2, li2 = Cv.Abi.load `i64 (`var o) in
-    let+ callai, callar, callam = match ok1, ok2 with
-      | Some r1, Some r2 ->
+    let+ callai, callar, callam = match regs with
+      | Some (r1, r2) ->
         let* i1 = Cv.Abi.insn @@ `uop (`reg r1, `copy t1, `var l1) in
         let+ i2 = Cv.Abi.insn @@ `uop (`reg r2, `copy t2, `var l2) in
-        k.callai @>* [oi; li1; li2; i1; i2],
+        k.callai @>* [li1; oi; li2; i1; i2],
         k.callar @>* [r1; r2],
         k.callam
-      | Some r1, None ->
-        let+ i1 = Cv.Abi.insn @@ `uop (`reg r1, `copy t1, `var l1) in
-        k.callai @>* [oi; li1; li2; i1],
-        k.callar @> r1,
-        k.callam @> `var l2
-      | None, Some r2 ->
-        let+ i2 = Cv.Abi.insn @@ `uop (`reg r2, `copy t2, `var l2) in
-        k.callai @>* [oi; li1; li2; i2],
-        k.callar @> r2,
-        k.callam @> `var l1
-      | None, None ->
-        !!(k.callai @>* [oi; li1; li2],
+      | None ->
+        !!(k.callai @>* [li1; oi; li2],
            k.callar,
            k.callam @>* [`var l1; `var l2]) in
     {k with callai; callar; callam}
@@ -703,7 +728,7 @@ module Calls = struct
         (Func.name env.fn) pp_operand x ()
 
   (* Figure out how we should pass the argument `a` at the call site. *)
-  let classify_call_arg ~reg env key k a =
+  let classify_call_arg ~reg ~reg2 env key k a =
     typeof_operand env a >>= function
     | #Type.imm as m ->
       (* Use an integer register. *)
@@ -734,8 +759,44 @@ module Calls = struct
       match lk.cls with
       | Kreg _ when lk.size = 0 -> !!k
       | Kreg (r, _) when lk.size = 8 -> onereg_arg ~reg k r src
-      | Kreg (r1, r2) -> tworeg_arg ~reg k r1 r2 src
+      | Kreg (r1, r2) -> tworeg_arg ~reg2 k r1 r2 src
       | Kmem -> memory_arg k lk.size (`var src)
+
+  (* See `Param.alloc_onereg`. *)
+  let alloc_onereg qs qi = function
+    | Rint -> Stack.pop qi
+    | Rsse -> Stack.pop qs
+    | Rnone -> assert false
+
+  (* See `Param.alloc_tworeg`. *)
+  let alloc_tworeg qi qs r1 r2 = match r1, r2 with
+    | Rint, Rint ->
+      if Stack.length qi >= 2 then
+        let r1 = Stack.pop_exn qi in
+        let r2 = Stack.pop_exn qi in
+        Some (r1, r2)
+      else None
+    | Rsse, Rsse ->
+      if Stack.length qs >= 2 then
+        let r1 = Stack.pop_exn qs in
+        let r2 = Stack.pop_exn qs in
+        Some (r1, r2)
+      else None
+    | Rint, Rsse ->
+      if Stack.length qi >= 1
+      && Stack.length qs >= 1 then
+        let r1 = Stack.pop_exn qi in
+        let r2 = Stack.pop_exn qs in
+        Some (r1, r2)
+      else None
+    | Rsse, Rint ->
+      if Stack.length qs >= 1
+      && Stack.length qi >= 1 then
+        let r1 = Stack.pop_exn qs in
+        let r2 = Stack.pop_exn qi in
+        Some (r1, r2)
+      else None
+    | Rnone, _ | _, Rnone -> assert false
 
   (* Lower the `call` instructions. *)
   let lower env = iter_blks env ~f:(fun b ->
@@ -745,10 +806,8 @@ module Calls = struct
             let key = Insn.label i in
             let qi = int_arg_queue () in
             let qs = sse_arg_queue () in
-            let reg = function
-              | Rint -> Stack.pop qi
-              | Rsse -> Stack.pop qs
-              | Rnone -> assert false in
+            let reg = alloc_onereg qi qs in
+            let reg2 = alloc_tworeg qi qs in
             (* See if we're returning a compound type. *)
             let* kret = match ret with
               | Some (x, `name n) ->
@@ -762,7 +821,7 @@ module Calls = struct
               | Some (x, t) -> !!(`basic (x, t))
               | None -> !!`none in
             (* Process each argument. *)
-            let acls = classify_call_arg ~reg env key in
+            let acls = classify_call_arg ~reg ~reg2 env key in
             let* k = Context.List.fold args ~init:empty_call ~f:acls in
             let* k = Context.List.fold vargs ~init:k ~f:acls in
             (* If this is a variadic call, then RAX must hold the number
@@ -770,8 +829,8 @@ module Calls = struct
             let* k = match vargs with
               | [] -> !!k
               | _ ->
-                let n = `int (Bv.M8.int (num_sse_args - Stack.length qs), `i8) in
-                let+ i = Cv.Abi.insn @@ `uop (`reg "RAX", `copy `i8, n) in
+                let n = num_sse_args - Stack.length qs in
+                let+ i = Cv.Abi.insn @@ `uop (`reg "RAX", `copy `i8, i8 n) in
                 {k with callai = k.callai @> i} in
             (* Process the return value. *)
             let+ k = lower_call_ret env kret k in
@@ -820,12 +879,10 @@ module Vastart = struct
                     | `reg _, #Type.fp -> gp, fp + 16
                     | `var _, _ -> gp, fp) in
               (* Initialize `gp_offset`. *)
-              let gp = `int (Bv.M32.int gp, `i32) in
-              let* gpi = Cv.Abi.store `i32 gp ap in
+              let* gpi = Cv.Abi.store `i32 (i32 gp) ap in
               (* Initialize `fp_offset`. *)
-              let fp = `int (Bv.M32.int fp, `i32) in
               let* o, oi1 = Cv.Abi.binop (`add `i64) ap o4 in
-              let* fpi = Cv.Abi.store `i32 fp (`var o) in
+              let* fpi = Cv.Abi.store `i32 (i32 fp) (`var o) in
               (* Initialize `overflow_arg_area`.
                  XXX: what if we want to omit frame pointers? *)
               let* r, ri = Cv.Abi.binop (`add `i64) (`reg "RBP") o16 in
@@ -845,35 +902,36 @@ module Vaarg = struct
   (* Rough sketch of the logic behind `vaarg` for a given type `t`:
 
      @bcmp:
-       %a = add.l %ap, ofs ; Load gp or fp offset.
-       %o = ld.w %a        ;
-       %c = lt.w %o, limit ; Check to see if we've exhausted the
-       br %c, @breg, @bstk ; register save area.
+       %a = add.l %ap, ofs     ; Load gp or fp offset.
+       %o = ld.w %a            ;
+       %c = le.w %o, limit-inc ; Check to see if we've exhausted the
+       br %c, @breg, @bstk     ; register save area.
      @breg:
-       %a = add.l %ap, 16  ; Load `reg_save_area`.
-       %l = ld.l %a        ;
-       %r = add.l %l, %o   ; Pointer to the next register.
-       %n = add.w %o, inc  ; Increment the offset.
-       %a = add.l %ap, ofs ; Update the offset in %ap.
-       st.w %n, %a         ;
+       %a = add.l %ap, 16      ; Load `reg_save_area`.
+       %l = ld.l %a            ;
+       %r = add.l %l, %o       ; Pointer to the next register.
+       %n = add.w %o, inc      ; Increment the offset.
+       %a = add.l %ap, ofs     ; Update the offset in %ap.
+       st.w %n, %a             ;
        jmp @bjoin(%r)
      @bstk:
-       %a = add.l %ap, 8   ; Load `overflow_arg_area`; this is
-       %l = ld.l %a        ; the next arg on the stack.
-       %n = add.l %l, 8    ; Increment by 8.
-       st.l %n, %a         ; Update the pointer.
+       %a = add.l %ap, 8       ; Load `overflow_arg_area`; this is
+       %l = ld.l %a            ; the next arg on the stack.
+       %n = add.l %l, 8        ; Increment by 8.
+       st.l %n, %a             ; Update the pointer.
        jmp @bjoin(%l)
      @bjoin(%p):
-       %x = ld.t %p        ; Return the fetched type.
-       jmp @cont           ; Resume execution.
+       %x = ld.t %p            ; Return the fetched type.
+       jmp @cont               ; Resume execution.
   *)
-  let onereg ?(po = 0) ?lcmp env x t ap ofs limit inc cont =
-    let* lcmp = match lcmp with
-      | None -> Context.Label.fresh
-      | Some l -> !!l in
+  let onereg env x t ap cont =
+    let* lcmp = Context.Label.fresh in
     let* lreg = Context.Label.fresh in
     let* lstk = Context.Label.fresh in
     let* ljoin = Context.Label.fresh in
+    let ofs, limit, inc = match t with
+      | #Type.imm -> 0, 48, 8
+      | #Type.fp -> 4, 176, 16 in
     (* Check the offset in the va_list to see if we should
        access the register save area or the overflow save
        area. *)
@@ -882,15 +940,13 @@ module Vaarg = struct
         let+ o, oi = Cv.Abi.load `i32 ap in
         o, [oi]
       else
-        let o = `int (Bv.M64.int ofs, `i64) in
-        let* a, ai = Cv.Abi.binop (`add `i64) ap o in
+        let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 ofs) in
         let+ o, oi = Cv.Abi.load `i32 (`var a) in
         o, [ai; oi] in
-    let lm = `int (Bv.M32.int limit, `i32) in
-    let* c, ci = Cv.Abi.binop (`lt `i32) (`var o) lm in
+    let* c, ci = Cv.Abi.binop (`le `i32) (`var o) (i32 (limit - inc)) in
     let locreg = `label (lreg, []) in
     let locstk = `label (lstk, []) in
-    let b0 =
+    let bcmp =
       Abi.Blk.create ()
         ~label:lcmp
         ~insns:(oi @ [ci])
@@ -900,15 +956,13 @@ module Vaarg = struct
     let* a, ai = Cv.Abi.binop (`add `i64) ap o16 in
     let* l, li = Cv.Abi.load `i64 (`var a) in
     let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var o) in
-    let kin = `int (Bv.M32.int inc, `i32) in
-    let* n, ni = Cv.Abi.binop (`add `i32) (`var o) kin in
+    let* n, ni = Cv.Abi.binop (`add `i32) (`var o) (i32 inc) in
     let* st =
       if ofs = 0 then
         let+ st = Cv.Abi.store `i32 (`var n) ap in
         [st]
       else
-        let o = `int (Bv.M64.int ofs, `i64) in
-        let* a, ai = Cv.Abi.binop (`add `i64) ap o in
+        let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 ofs) in
         let+ st = Cv.Abi.store `i32 (`var n) (`var a) in
         [ai; st] in
     let breg =
@@ -928,62 +982,224 @@ module Vaarg = struct
         ~ctrl:(`jmp (`label (ljoin, [`var l]))) in
     (* Join the results. *)
     let* p = Context.Var.fresh in
-    let* po, pi =
-      if po = 0 then
-        !!(p, [])
-      else
-        (* Offset for tworeg. *)
-        let o = `int (Bv.M64.int po, `i64) in
-        let+ p, pi = Cv.Abi.binop (`add `i64) (`var p) o in
-        p, [pi] in
     (* Check if this is a struct; if so we need to blit it
        to the appropriate stack slot. *)
     let* res = match Hashtbl.find env.refs x with
       | None ->
-        let+ li = Cv.Abi.insn @@ `load (`var x, t, `var po) in
+        let+ li = Cv.Abi.insn @@ `load (`var x, t, `var p) in
         [li]
       | Some y ->
-        let* l, li = Cv.Abi.load t (`var po) in
+        let* l, li = Cv.Abi.load t (`var p) in
         let+ st = Cv.Abi.store t (`var l) (`var y) in
         [li; st] in
     let bjoin =
       Abi.Blk.create ()
         ~label:ljoin
         ~args:[p]
-        ~insns:(pi @ res)
+        ~insns:res
         ~ctrl:(`jmp (`label (cont, []))) in
-    !![b0; breg; bstk; bjoin]
+    !![bcmp; breg; bstk; bjoin]
 
-  let rcls ?(po = 0) ?lcmp env x ap cont r = match reg_type r with
-    | `i64 -> onereg ?lcmp env x `i64 ap 0 48 8 cont ~po
-    | `f64 -> onereg ?lcmp env x `f64 ap 4 176 16 cont ~po
+  (* Similar to `onereg`, but checks two integer registers at
+     the same time. *)
+  let tworeg_int env x ap cont =
+    let* lcmp = Context.Label.fresh in
+    let* lreg = Context.Label.fresh in
+    let* lstk = Context.Label.fresh in
+    let* ljoin = Context.Label.fresh in
+    (* Check if `gp_offset` can support at least two registers. *)
+    let* o, oi = Cv.Abi.load `i32 ap in
+    let* c, ci = Cv.Abi.binop (`le `i32) (`var o) (i32 (48 - 16)) in
+    let locreg = `label (lreg, []) in
+    let locstk = `label (lstk, []) in
+    let bcmp =
+      Abi.Blk.create ()
+        ~label:lcmp
+        ~insns:[oi; ci]
+        ~ctrl:(`br (`var c, locreg, locstk)) in
+    (* Access the register save area and increment. *)
+    let* a, ai = Cv.Abi.binop (`add `i64) ap o16 in
+    let* l, li = Cv.Abi.load `i64 (`var a) in
+    let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var o) in
+    let* n, ni = Cv.Abi.binop (`add `i32) (`var o) (i32 16) in
+    let* st = Cv.Abi.store `i32 (`var n) ap in
+    let breg =
+      Abi.Blk.create ()
+        ~label:lreg
+        ~insns:[ai; li; ri; ni; st]
+        ~ctrl:(`jmp (`label (ljoin, [`var r]))) in
+    (* Access the overflow arg area and increment *)
+    let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
+    let* l, li = Cv.Abi.load `i64 (`var a) in
+    let* n, ni = Cv.Abi.binop (`add `i64) (`var l) o16 in
+    let* st = Cv.Abi.store `i64 (`var n) (`var a) in
+    let bstk =
+      Abi.Blk.create ()
+        ~label:lstk
+        ~insns:[ai; li; ni; st]
+        ~ctrl:(`jmp (`label (ljoin, [`var l]))) in
+    (* Join the results. *)
+    let* p = Context.Var.fresh in
+    let y = find_ref env x in
+    let+ blit = Cv.Abi.blit `i64 16 ~src:(`var p) ~dst:(`var y) in
+    let bjoin =
+      Abi.Blk.create ()
+        ~label:ljoin
+        ~args:[p]
+        ~insns:blit
+        ~ctrl:(`jmp (`label (cont, []))) in
+    [bcmp; breg; bstk; bjoin]
 
-  let select env x t ap cont = match (t : Type.arg) with
-    | #Type.imm as m -> onereg env x m ap 0 48 8 cont
-    | #Type.fp as f -> onereg env x f ap 4 176 16 cont
+  (* Similar to `onereg`, but checks two SSE registers at
+     the same time. *)
+  let tworeg_sse env x ap cont =
+    let* lcmp = Context.Label.fresh in
+    let* lreg = Context.Label.fresh in
+    let* lstk = Context.Label.fresh in
+    let* ljoin = Context.Label.fresh in
+    (* Check if `fp_offset` can support at least two registers. *)
+    let* a, ai = Cv.Abi.binop (`add `i64) ap o4 in
+    let* o, oi = Cv.Abi.load `i32 (`var a) in
+    let* c, ci = Cv.Abi.binop (`le `i32) (`var o) (i32 (176 - 32)) in
+    let locreg = `label (lreg, []) in
+    let locstk = `label (lstk, []) in
+    let bcmp =
+      Abi.Blk.create ()
+        ~label:lcmp
+        ~insns:[oi; ai; ci]
+        ~ctrl:(`br (`var c, locreg, locstk)) in
+    (* Access the register save area and increment. *)
+    let* a, ai1 = Cv.Abi.binop (`add `i64) ap o16 in
+    let* l, li = Cv.Abi.load `i64 (`var a) in
+    let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var o) in
+    let* n, ni = Cv.Abi.binop (`add `i32) (`var o) (i32 32) in
+    let* a, ai2 = Cv.Abi.binop (`add `i64) ap o4 in
+    let* st = Cv.Abi.store `i32 (`var n) (`var a) in
+    let breg =
+      Abi.Blk.create ()
+        ~label:lreg
+        ~insns:[ai1; li; ri; ni; ai2; st]
+        ~ctrl:(`jmp (`label (ljoin, [`var r]))) in
+    (* Access the overflow arg area and increment *)
+    let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
+    let* l, li = Cv.Abi.load `i64 (`var a) in
+    let* n, ni = Cv.Abi.binop (`add `i64) (`var l) o16 in
+    let* st = Cv.Abi.store `i64 (`var n) (`var a) in
+    let bstk =
+      Abi.Blk.create ()
+        ~label:lstk
+        ~insns:[ai; li; ni; st]
+        ~ctrl:(`jmp (`label (ljoin, [`var l]))) in
+    (* Join the results. *)
+    let* p = Context.Var.fresh in
+    let y = find_ref env x in
+    let+ blit = Cv.Abi.blit `i64 16 ~src:(`var p) ~dst:(`var y) in
+    let bjoin =
+      Abi.Blk.create ()
+        ~label:ljoin
+        ~args:[p]
+        ~insns:blit
+        ~ctrl:(`jmp (`label (cont, []))) in
+    [bcmp; breg; bstk; bjoin]
+
+  let make_cmp label t ap yes no =
+    let* o, a, oi, limit, inc = match t with
+      | `i64 ->
+        let+ o, oi = Cv.Abi.load `i32 ap in
+        o, ap, [oi], 48, 8
+      | `f64 ->
+        let* a, ai = Cv.Abi.binop (`add `i64) ap o4 in
+        let+ o, oi = Cv.Abi.load `i32 (`var a) in
+        o, `var a, [ai; oi], 176, 16 in
+    let+ c, ci = Cv.Abi.binop (`le `i32) (`var o) (i32 (limit - inc)) in
+    let b = Abi.Blk.create () ~label
+        ~insns:(oi @ [ci])
+        ~ctrl:(`br (`var c, `label (yes, []), `label (no, []))) in
+    b, o, a, inc
+
+  (* Fetches two register classes at once, assuming that they are
+     different. *)
+  let tworeg_mixed env x t1 t2 ap cont =
+    let* lcmp1 = Context.Label.fresh in
+    let* lcmp2 = Context.Label.fresh in
+    let* lreg = Context.Label.fresh in
+    let* lstk = Context.Label.fresh in
+    let* ljoin = Context.Label.fresh in
+    (* Check if both registers can be fetched from the register
+       save area. *)
+    let* bcmp1, o1, a1, inc1 = make_cmp lcmp1 t1 ap lcmp2 lstk in
+    let* bcmp2, o2, a2, inc2 = make_cmp lcmp2 t2 ap lreg lstk in
+    (* Access the register save area and increment. *)
+    let* a, ai = Cv.Abi.binop (`add `i64) ap o16 in
+    let* l, li = Cv.Abi.load `i64 (`var a) in
+    let* r1, ri1 = Cv.Abi.binop (`add `i64) (`var l) (`var o1) in
+    let* r2, ri2 = Cv.Abi.binop (`add `i64) (`var l) (`var o2) in
+    let* n1, ni1 = Cv.Abi.binop (`add `i32) (`var o1) (i64 inc1) in
+    let* n2, ni2 = Cv.Abi.binop (`add `i32) (`var o2) (i64 inc2) in
+    let* st1 = Cv.Abi.store `i32 (`var n1) a1 in
+    let* st2 = Cv.Abi.store `i32 (`var n2) a2 in
+    let breg =
+      Abi.Blk.create ()
+        ~label:lreg
+        ~insns:[ai; li; ri1; ri2; ni1; ni2; st1; st2]
+        ~ctrl:(`jmp (`label (ljoin, [`var r1; `var r2]))) in
+    (* Access the overflow arg area and increment *)
+    let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
+    let* l1, li1 = Cv.Abi.load `i64 (`var a) in
+    let* l2, li2 = Cv.Abi.binop (`add `i64) (`var l1) o8 in
+    let* n, ni = Cv.Abi.binop (`add `i64) (`var l1) o16 in
+    let* st = Cv.Abi.store `i64 (`var n) (`var a) in
+    let bstk =
+      Abi.Blk.create ()
+        ~label:lstk
+        ~insns:[ai; li1; li2; ni; st]
+        ~ctrl:(`jmp (`label (ljoin, [`var l1; `var l2]))) in
+    (* Join the results. *)
+    let* p1 = Context.Var.fresh in
+    let* p2 = Context.Var.fresh in
+    let y = find_ref env x in
+    let t1b = (t1 :> Type.basic) in
+    let t2b = (t2 :> Type.basic) in
+    let* l, li1 = Cv.Abi.load t1b (`var p1) in
+    let* st1 = Cv.Abi.store t1b (`var l) (`var y) in
+    let* l, li2 = Cv.Abi.load t2b (`var p2) in
+    let* a, ai = Cv.Abi.binop (`add `i64) (`var y) o8 in
+    let+ st2 = Cv.Abi.store t2b (`var l) (`var a) in
+    let bjoin =
+      Abi.Blk.create ()
+        ~label:ljoin
+        ~args:[p1; p2]
+        ~insns:[li1; st1; li2; ai; st2]
+        ~ctrl:(`jmp (`label (cont, []))) in
+    [bcmp1; bcmp2; breg; bstk; bjoin]
+
+  let fetch env x t ap cont = match (t : Type.arg) with
+    | #Type.imm as m -> onereg env x m ap cont
+    | #Type.fp as f -> onereg env x f ap cont
     | `name s ->
       let* k = type_cls env s in
       match k.cls with
       | Kreg _ when k.size = 0 -> !![]
       | Kreg (r, _) when k.size = 8 ->
         assert (Hashtbl.mem env.refs x);
-        rcls env x ap cont r
+        begin match reg_type r with
+          | `i64 -> onereg env x `i64 ap cont
+          | `f64 -> onereg env x `f64 ap cont
+        end
       | Kreg (r1, r2) ->
-        (* Two registers are needed. To keep things simple we will just
-           perform two one-register fetches in sequence. *)
-        let* lcmp = Context.Label.fresh in
-        let* bs1 = rcls env x ap lcmp r1 in
-        let+ bs2 = rcls env x ap cont r2 ~lcmp ~po:8 in
-        bs1 @ bs2
+        begin match reg_type r1, reg_type r2 with
+          | `i64, `i64 -> tworeg_int env x ap cont
+          | `f64, `f64 -> tworeg_sse env x ap cont
+          | t1, t2 -> tworeg_mixed env x t1 t2 ap cont
+        end
       | Kmem ->
         (* The struct is passed in nemory, so we simply blit from
            the `overflow_arg_area` to the corresponding stack slot. *)
         let y = find_ref env x in
-        let sz = `int (Bv.M64.int k.size, `i64) in
         let* label = Context.Label.fresh in
         let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
         let* l, li = Cv.Abi.load `i64 (`var a) in
-        let* n, ni = Cv.Abi.binop (`add `i64) (`var l) sz in
+        let* n, ni = Cv.Abi.binop (`add `i64) (`var l) (i64 k.size) in
         let* st = Cv.Abi.store `i64 (`var n) (`var a) in
         let+ blit = Cv.Abi.blit `i64 k.size
             ~src:(`var l) ~dst:(`var y) in
@@ -997,7 +1213,7 @@ module Vaarg = struct
           | `vaarg (x, t, ap) ->
             let ap = Vastart.ap_oper ap in
             let* vacont = Context.Label.fresh in
-            let+ vablks = select env x t ap vacont in
+            let+ vablks = fetch env x t ap vacont in
             if not @@ List.is_empty vablks then
               Hashtbl.set env.vaarg
                 ~key:(Insn.label i)
@@ -1099,26 +1315,25 @@ module Translate = struct
   let transl_sw env t i d tbl =
     `sw (t, transl_swindex env i, transl_local env d, transl_tbl env tbl t)
 
-  let transl_ret env ivec l =
+  let transl_ret env l =
     let r = Hashtbl.find_exn env.rets l in
-    List.iter r.reti ~f:(Vec.push ivec);
-    `ret r.retr
+    r.reti, `ret r.retr
 
-  let transl_ctrl env ivec l (c : ctrl) : Abi.ctrl =
+  let transl_ctrl env l (c : ctrl) : Abi.insn list * Abi.ctrl =
     let dst = transl_dst env in
     match c with
-    | `hlt -> `hlt
-    | `jmp d -> `jmp (dst d)
-    | `br (c, y, n) -> `br (`var (transl_var env c), dst y, dst n)
-    | `sw (t, i, d, tbl) -> transl_sw env t i d tbl
-    | `ret None -> `ret []
-    | `ret Some _ -> transl_ret env ivec l
+    | `hlt -> [], `hlt
+    | `jmp d -> [], `jmp (dst d)
+    | `br (c, y, n) -> [], `br (`var (transl_var env c), dst y, dst n)
+    | `sw (t, i, d, tbl) -> [], transl_sw env t i d tbl
+    | `ret None -> [], `ret []
+    | `ret Some _ -> transl_ret env l
 
   (* We're done translating this block, either because we translated
      all the remaining instructions or we had to split it in the
      `vaarg` case. *)
-  let commit_blk env ivec args ctrl label =
-    let ctrl = transl_ctrl env ivec label ctrl in
+  let commit_blk ivec args (cins, ctrl) label =
+    List.iter cins ~f:(Vec.push ivec);
     let insns = Vec.to_list ivec in
     Vec.clear ivec;
     Abi.Blk.create () ~args ~insns ~ctrl ~label
@@ -1133,8 +1348,8 @@ module Translate = struct
             | Some v ->
               (* Jump to the start of the `vaarg` logic. *)
               let start = Abi.Blk.label @@ List.hd_exn v.vablks in
-              let ctrl' = `jmp (`label (start, [])) in
-              let b = commit_blk env ivec args ctrl' label in
+              let ctrl' = [], `jmp (`label (start, [])) in
+              let b = commit_blk ivec args ctrl' label in
               (* Resume with the provided continuation. *)
               let init = Ftree.snoc acc b in
               let acc = List.fold v.vablks ~init ~f:Ftree.snoc in
@@ -1146,7 +1361,7 @@ module Translate = struct
           transl_blk env ivec args ctrl label acc rest
       end
     | [] ->
-      commit_blk env ivec args ctrl label |>
+      commit_blk ivec args ctrl label |>
       Ftree.snoc acc |> Ftree.to_list
 
   let transl_blks env =
@@ -1159,7 +1374,7 @@ module Translate = struct
           Vec.iter env.params ~f:(fun p ->
               List.iter p.pins ~f:(Vec.push ivec));
         let args = Blk.args b |> Seq.to_list in
-        let ctrl = Blk.ctrl b in
+        let ctrl = transl_ctrl env l @@ Blk.ctrl b in
         transl_blk env ivec args ctrl l Ftree.empty @@
         Seq.to_list @@ Blk.insns b)
 
