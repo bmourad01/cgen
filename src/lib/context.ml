@@ -129,7 +129,7 @@ module Virtual = struct
     let md = Bv.modulus wordsz in
     let rec consume ty is sz off n =
       if sz >= n then
-        let off = off - (if fwd then n else 0) in
+        let off = off - (if fwd then 0 else n) in
         let o = `int (Bv.(int off mod md), wi) in
         (* Copy from src. *)
         let* a1, ai1 =
@@ -152,12 +152,12 @@ module Virtual = struct
           else !![] in
         (* Accumulate insns in reverse order. *)
         let is = sts @ (ld :: ai1) @ is in
-        let off = off + (if fwd then 0 else n) in
+        let off = off + (if fwd then n else 0) in
         consume ty is (sz - n) off n
       else !!(is, sz, off) in
     let+ blit, _, _ =
       let sz = Int.abs size in
-      let off = if fwd then sz else 0 in
+      let off = if fwd then 0 else sz in
       let blits = match word with
         | `i32 -> blits32
         | `i64 -> blits64 in
@@ -245,7 +245,7 @@ module Virtual = struct
       let md = Bv.modulus wordsz in
       let rec consume ty is sz off n =
         if sz >= n then
-          let off = off - (if fwd then n else 0) in
+          let off = off - (if fwd then 0 else n) in
           let o = `int (Bv.(int off mod md), wi) in
           (* Copy from src. *)
           let* a1, ai1 =
@@ -268,12 +268,12 @@ module Virtual = struct
             else !![] in
           (* Accumulate insns in reverse order. *)
           let is = sts @ (ld :: ai1) @ is in
-          let off = off + (if fwd then 0 else n) in
+          let off = off + (if fwd then n else 0) in
           consume ty is (sz - n) off n
         else !!(is, sz, off) in
       let+ blit, _, _ =
         let sz = Int.abs size in
-        let off = if fwd then sz else 0 in
+        let off = if fwd then 0 else sz in
         let blits = match word with
           | `i32 -> blits32
           | `i64 -> blits64 in
