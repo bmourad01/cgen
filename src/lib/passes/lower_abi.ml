@@ -164,7 +164,7 @@ let rsave_sse_ofs = 48
 type vaarg = {
   vablks : Abi.blk list; (* `va_arg` logic, in topological order. *)
   vacont : Label.t;      (* Continuation block. *)
-} [@@warning "-69"]
+}
 
 type env = {
   fn            : func;                        (* The original function. *)
