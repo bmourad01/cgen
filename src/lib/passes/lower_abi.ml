@@ -1000,85 +1000,50 @@ module Vaarg = struct
         ~ctrl:(`jmp (`label (cont, []))) in
     !![bcmp; breg; bstk; bjoin]
 
-  (* Similar to `onereg`, but checks two integer registers at
-     the same time. *)
-  let tworeg_int env x ap cont =
+  (* Fecthed two register classes at once, assuming that they are
+     the same. *)
+  let tworeg_same env x t ap cont =
     let* lcmp = Context.Label.fresh in
     let* lreg = Context.Label.fresh in
     let* lstk = Context.Label.fresh in
     let* ljoin = Context.Label.fresh in
-    (* Check if `gp_offset` can support at least two registers. *)
-    let* o, oi = Cv.Abi.load `i32 ap in
-    let* c, ci = Cv.Abi.binop (`le `i32) (`var o) (i32 (48 - 16)) in
+    let ofs, limit, inc = match t with
+      | #Type.imm -> 0, 48, 16
+      | #Type.fp -> 4, 176, 32 in
+    (* Check if `fp_offset` can support at least two registers. *)
+    let* o, oi =
+      if ofs = 0 then
+        let+ o, oi = Cv.Abi.load `i32 ap in
+        o, [oi]
+      else
+        let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 ofs) in
+        let+ o, oi = Cv.Abi.load `i32 (`var a) in
+        o, [ai; oi] in
+    let* c, ci = Cv.Abi.binop (`le `i32) (`var o) (i32 (limit - inc)) in
     let locreg = `label (lreg, []) in
     let locstk = `label (lstk, []) in
     let bcmp =
       Abi.Blk.create ()
         ~label:lcmp
-        ~insns:[oi; ci]
+        ~insns:(oi @ [ci])
         ~ctrl:(`br (`var c, locreg, locstk)) in
     (* Access the register save area and increment. *)
     let* a, ai = Cv.Abi.binop (`add `i64) ap o16 in
     let* l, li = Cv.Abi.load `i64 (`var a) in
     let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var o) in
-    let* n, ni = Cv.Abi.binop (`add `i32) (`var o) (i32 16) in
-    let* st = Cv.Abi.store `i32 (`var n) ap in
+    let* n, ni = Cv.Abi.binop (`add `i32) (`var o) (i32 inc) in
+    let* st =
+      if ofs = 0 then
+        let+ st = Cv.Abi.store `i32 (`var n) ap in
+        [st]
+      else
+        let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 ofs) in
+        let+ st = Cv.Abi.store `i32 (`var n) (`var a) in
+        [ai; st] in
     let breg =
       Abi.Blk.create ()
         ~label:lreg
-        ~insns:[ai; li; ri; ni; st]
-        ~ctrl:(`jmp (`label (ljoin, [`var r]))) in
-    (* Access the overflow arg area and increment *)
-    let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
-    let* l, li = Cv.Abi.load `i64 (`var a) in
-    let* n, ni = Cv.Abi.binop (`add `i64) (`var l) o16 in
-    let* st = Cv.Abi.store `i64 (`var n) (`var a) in
-    let bstk =
-      Abi.Blk.create ()
-        ~label:lstk
-        ~insns:[ai; li; ni; st]
-        ~ctrl:(`jmp (`label (ljoin, [`var l]))) in
-    (* Join the results. *)
-    let* p = Context.Var.fresh in
-    let y = find_ref env x in
-    let+ blit = Cv.Abi.blit `i64 16 ~src:(`var p) ~dst:(`var y) in
-    let bjoin =
-      Abi.Blk.create ()
-        ~label:ljoin
-        ~args:[p]
-        ~insns:blit
-        ~ctrl:(`jmp (`label (cont, []))) in
-    [bcmp; breg; bstk; bjoin]
-
-  (* Similar to `onereg`, but checks two SSE registers at
-     the same time. *)
-  let tworeg_sse env x ap cont =
-    let* lcmp = Context.Label.fresh in
-    let* lreg = Context.Label.fresh in
-    let* lstk = Context.Label.fresh in
-    let* ljoin = Context.Label.fresh in
-    (* Check if `fp_offset` can support at least two registers. *)
-    let* a, ai = Cv.Abi.binop (`add `i64) ap o4 in
-    let* o, oi = Cv.Abi.load `i32 (`var a) in
-    let* c, ci = Cv.Abi.binop (`le `i32) (`var o) (i32 (176 - 32)) in
-    let locreg = `label (lreg, []) in
-    let locstk = `label (lstk, []) in
-    let bcmp =
-      Abi.Blk.create ()
-        ~label:lcmp
-        ~insns:[oi; ai; ci]
-        ~ctrl:(`br (`var c, locreg, locstk)) in
-    (* Access the register save area and increment. *)
-    let* a, ai1 = Cv.Abi.binop (`add `i64) ap o16 in
-    let* l, li = Cv.Abi.load `i64 (`var a) in
-    let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var o) in
-    let* n, ni = Cv.Abi.binop (`add `i32) (`var o) (i32 32) in
-    let* a, ai2 = Cv.Abi.binop (`add `i64) ap o4 in
-    let* st = Cv.Abi.store `i32 (`var n) (`var a) in
-    let breg =
-      Abi.Blk.create ()
-        ~label:lreg
-        ~insns:[ai1; li; ri; ni; ai2; st]
+        ~insns:([ai; li; ri; ni] @ st)
         ~ctrl:(`jmp (`label (ljoin, [`var r]))) in
     (* Access the overflow arg area and increment *)
     let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
@@ -1190,8 +1155,8 @@ module Vaarg = struct
         end
       | Kreg (r1, r2) ->
         begin match reg_type r1, reg_type r2 with
-          | `i64, `i64 -> tworeg_int env x ap cont
-          | `f64, `f64 -> tworeg_sse env x ap cont
+          | `i64, `i64 -> tworeg_same env x `i64 ap cont
+          | `f64, `f64 -> tworeg_same env x `f64 ap cont
           | t1, t2 -> tworeg_mixed env x t1 t2 ap cont
         end
       | Kmem ->
