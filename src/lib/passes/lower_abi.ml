@@ -477,18 +477,31 @@ module Refs = struct
     | #operand as o -> oper o
     | `addr a -> `int (a, `i64)
 
+  (* An `unref` of an existing slot eliminates the need for
+     us to create a new slot for it. *)
+  let is_slot env = function
+    | `var x ->
+      Func.slots env.fn |>
+      Seq.exists ~f:(Fn.flip Slot.is_var x) |>
+      Fn.flip Option.some_if x
+    | _ -> None
+
   let make_unref env x s a =
     if not @@ Hashtbl.mem env.refs x then
-      let* k = type_cls env s in
-      let* y = new_slot env k.size k.align in
-      let* src, srci = match a with
-        | `var x -> !!(x, [])
-        | _ ->
-          let+ x, i = Cv.Abi.unop (`copy `i64) (ref_oper a) in
-          x, [i] in
-      let+ blit = Cv.Abi.blit ~src:(`var src) ~dst:(`var y) `i64 k.size in
-      Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
-      Hashtbl.set env.refs ~key:x ~data:y
+      let+ y = match is_slot env a with
+        | Some y -> !!y
+        | None ->
+          let* k = type_cls env s in
+          let* y = new_slot env k.size k.align in
+          let* src, srci = match a with
+            | `var x -> !!(x, [])
+            | _ ->
+              let+ x, i = Cv.Abi.unop (`copy `i64) (ref_oper a) in
+              x, [i] in
+          let+ blit = Cv.Abi.blit ~src:(`var src) ~dst:(`var y) `i64 k.size in
+          Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
+          y in
+      Hashtbl.set env.refs ~key:x ~data:y;
     else !!()
 
   (* Turn struct refs into a minimal number of stack slots, such
