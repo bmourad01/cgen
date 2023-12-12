@@ -1,6 +1,6 @@
 open Core
 
-type t [@@deriving bin_io]
+type t
 
 external of_float : float -> t = "cgen_float32_of_float"
 external to_float : t -> float = "cgen_float_of_float32"
@@ -72,6 +72,32 @@ let t_of_sexp = function
   | x ->
     let exn = Failure "Float32.t_of_sexp: atom needed" in
     raise @@ Sexplib.Conv.Of_sexp_error (exn, x)
+
+let bin_size_t x = Bin_prot.Size.bin_size_int32 @@ bits x
+let bin_write_t buf ~pos x = bin_write_int32 buf ~pos @@ bits x
+let bin_read_t buf ~pos_ref = of_bits @@ bin_read_int32 buf ~pos_ref
+
+let __bin_read_t__ _buf ~pos_ref _vint =
+  Bin_prot.Common.raise_variant_wrong_type "Cgen.Float32.t" !pos_ref
+
+let bin_shape_t =
+  Bin_prot.Shape.(basetype (Uuid.of_string "float32") [])
+
+let bin_writer_t = Bin_prot.Type_class.{
+    size = bin_size_t;
+    write = bin_write_t;
+  }
+
+let bin_reader_t = Bin_prot.Type_class.{
+    read = bin_read_t;
+    vtag_read = __bin_read_t__;
+  }
+
+let bin_t = Bin_prot.Type_class.{
+    shape = bin_shape_t;
+    writer = bin_writer_t;
+    reader = bin_reader_t;
+  }
 
 include Hashable.Make_plain_and_derive_hash_fold_t(struct
     type nonrec t = t
