@@ -1044,33 +1044,47 @@ module Translate = struct
     | `load (x, t, a) -> `load (`var x, t, op a)
     | `store (t, v, a) -> `store (t, op v, op a)
 
-  let transl_call env l f =
+  let transl_call env ivec l f =
     let k = Hashtbl.find_exn env.calls l in
-    let pre = Ftree.to_list k.callai in
+    (* Instructions before the call. *)
+    Ftree.iter k.callai ~f:(Vec.push ivec);
+    (* Register and memory arguments. *)
     let rargs =
       Ftree.to_list k.callar |>
       List.map ~f:(fun r -> `reg r) in
     let margs = Ftree.to_list k.callam in
-    let post = Ftree.to_list k.callri in
+    (* The call itself. *)
     let c = `call (k.callrr, transl_global env f, rargs @ margs) in
-    pre @ (Abi.Insn.create ~label:l c :: post)
+    Vec.push ivec @@ Abi.Insn.create ~label:l c;
+    (* Instructions after the call. *)
+    Ftree.iter k.callri ~f:(Vec.push ivec)
 
-  let transl_compound env (c : Insn.compound) = match c with
-    | `ref _ -> []
+  let transl_compound env ivec (c : Insn.compound) = match c with
+    | `ref _ -> ()
     | `unref (x, _, _) ->
       Hashtbl.find env.unrefs x |>
-      Option.value ~default:[]
+      Option.iter ~f:(List.iter ~f:(Vec.push ivec))
 
-  let transl_insn env i =
+  let transl_insn env ivec i =
     let l = Insn.label i in
     let ins = Abi.Insn.create ~label:l in
     match Insn.op i with
-    | #Insn.basic as b -> [ins (transl_basic env b :> Abi.Insn.op)]
-    | #Insn.mem as m -> [ins (transl_mem env m :> Abi.Insn.op)]
-    | #Insn.compound as c -> transl_compound env c
-    | `vastart _ -> Hashtbl.find_exn env.vastart l
-    | `vaarg _ -> assert false
-    | `call (_, f, _, _) -> transl_call env l f
+    | #Insn.basic as b ->
+      Vec.push ivec @@
+      ins (transl_basic env b :> Abi.Insn.op)
+    | #Insn.mem as m ->
+      Vec.push ivec @@
+      ins (transl_mem env m :> Abi.Insn.op)
+    | #Insn.compound as c ->
+      transl_compound env ivec c
+    | `vastart _ ->
+      Hashtbl.find_exn env.vastart l |>
+      List.iter ~f:(Vec.push ivec)
+    | `call (_, f, _, _) ->
+      transl_call env ivec l f
+    | `vaarg _ ->
+      (* Should be handled in `transl_blk`. *)
+      assert false
 
   let transl_swindex env = function
     | `var x -> `var (`var (transl_var env x))
@@ -1085,26 +1099,26 @@ module Translate = struct
   let transl_sw env t i d tbl =
     `sw (t, transl_swindex env i, transl_local env d, transl_tbl env tbl t)
 
-  let transl_ret env l =
+  let transl_ret env ivec l =
     let r = Hashtbl.find_exn env.rets l in
-    r.reti, `ret r.retr
+    List.iter r.reti ~f:(Vec.push ivec);
+    `ret r.retr
 
-  let transl_ctrl env l (c : ctrl) : Abi.insn list * Abi.ctrl =
+  let transl_ctrl env ivec l (c : ctrl) : Abi.ctrl =
     let dst = transl_dst env in
     match c with
-    | `hlt -> [], `hlt
-    | `jmp d -> [], `jmp (dst d)
-    | `br (c, y, n) -> [], `br (`var (transl_var env c), dst y, dst n)
-    | `sw (t, i, d, tbl) -> [], transl_sw env t i d tbl
-    | `ret None -> [], `ret []
-    | `ret Some _ -> transl_ret env l
+    | `hlt -> `hlt
+    | `jmp d -> `jmp (dst d)
+    | `br (c, y, n) -> `br (`var (transl_var env c), dst y, dst n)
+    | `sw (t, i, d, tbl) -> transl_sw env t i d tbl
+    | `ret None -> `ret []
+    | `ret Some _ -> transl_ret env ivec l
 
   (* We're done translating this block, either because we translated
      all the remaining instructions or we had to split it in the
      `vaarg` case. *)
   let commit_blk env ivec args ctrl label =
-    let cins, ctrl = transl_ctrl env label ctrl in
-    List.iter cins ~f:(Vec.push ivec);
+    let ctrl = transl_ctrl env ivec label ctrl in
     let insns = Vec.to_list ivec in
     Vec.clear ivec;
     Abi.Blk.create () ~args ~insns ~ctrl ~label
@@ -1122,12 +1136,13 @@ module Translate = struct
               let ctrl' = `jmp (`label (start, [])) in
               let b = commit_blk env ivec args ctrl' label in
               (* Resume with the provided continuation. *)
-              let acc = List.fold (b :: v.vablks) ~init:acc ~f:Ftree.snoc in
+              let init = Ftree.snoc acc b in
+              let acc = List.fold v.vablks ~init ~f:Ftree.snoc in
               transl_blk env ivec [] ctrl v.vacont acc rest
           end
         | _ ->
           (* No splitting needed. *)
-          transl_insn env i |> List.iter ~f:(Vec.push ivec);
+          transl_insn env ivec i;
           transl_blk env ivec args ctrl label acc rest
       end
     | [] ->
