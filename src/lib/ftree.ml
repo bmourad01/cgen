@@ -17,18 +17,18 @@ module Generic = struct
     | Two of 'm * 'a * 'a
     | Three of 'm * 'a * 'a * 'a
     | Four of 'm * 'a * 'a * 'a * 'a
-  [@@deriving bin_io, sexp]
+  [@@deriving bin_io]
 
   type ('a, 'm) node =
     | Node2 of 'm * 'a * 'a
     | Node3 of 'm * 'a * 'a * 'a
-  [@@deriving bin_io, sexp]
+  [@@deriving bin_io]
 
   type ('a, 'm) t =
     | Nil
     | Single of 'a
     | Deep of 'm * ('a, 'm) digit * (('a, 'm) node, 'm) t * ('a, 'm) digit
-  [@@deriving bin_io, sexp]
+  [@@deriving bin_io]
 
   let empty = Nil
   let singleton a = Single a
@@ -901,7 +901,7 @@ end
 let monoid = {zero = 0; combine = (+)}
 let measure _ = 1
 
-type 'a t = ('a, int) Generic.t [@@deriving bin_io, sexp]
+type 'a t = ('a, int) Generic.t [@@deriving bin_io]
 
 let compare = Generic.compare
 let equal = Generic.equal
@@ -1057,3 +1057,6 @@ let pp ppx sep ppf t =
       Format.fprintf ppf "%a" ppx x;
       if !i < last then sep ppf;
       incr i)
+
+let t_of_sexp f s = of_list @@ List.t_of_sexp f s
+let sexp_of_t f t = List.sexp_of_t f @@ to_list t
