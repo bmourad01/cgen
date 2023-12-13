@@ -30,6 +30,8 @@ module Test_target = struct
       ~sp
 end
 
+let pp_sep ppf () = Format.fprintf ppf "@.@."
+
 let comp filename =
   let open Context.Syntax in
   let* target = Context.target in
@@ -42,13 +44,22 @@ let comp filename =
   let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
-  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Peephole.run tenv) in
+  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Egraph_opt.run tenv) in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
   let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   Format.printf "=================================================\n%!";
   Format.printf "%a\n%!" Virtual.Module.pp m;
+  Format.printf "=================================================\n%!";
+  let*? tenv =
+    Virtual.Module.funs m |>
+    Seq.to_list |> Typecheck.update_fns tenv in
+  let* fns =
+    Virtual.Module.funs m |> Seq.to_list |>
+    Context.List.map ~f:(Passes.Lower_abi.run tenv) in
+  Format.printf "@[<v 0>%a@]\n%!"
+    (Format.pp_print_list ~pp_sep Virtual.Abi.Func.pp) fns;
   !!()
 
 let () =
