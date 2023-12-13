@@ -1,0 +1,71 @@
+open Core
+open Monads.Std
+open Regular.Std
+open Graphlib.Std
+open Virtual
+
+module O = Monad.Option
+
+type env = {
+  blks        : blk Label.Table.t;
+  doms        : Label.t tree;
+  start       : Label.t;
+  mutable cfg : Cfg.t;
+}
+
+let init fn =
+  let cfg = Cfg.create fn in
+  let start = Func.entry fn in
+  let blks = Label.Table.create () in
+  let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
+  Func.blks fn |> Seq.iter ~f:(fun b ->
+      Hashtbl.set blks ~key:(Blk.label b) ~data:b);
+  {blks; doms; start; cfg}
+
+let update_fn env fn =
+  Func.blks fn |> Seq.fold ~init:fn ~f:(fun fn b ->
+      let l = Blk.label b in
+      if Hashtbl.mem env.blks l then fn
+      else Func.remove_blk_exn fn l) |>
+  Func.map_blks ~f:(fun b ->
+      Hashtbl.find_exn env.blks @@ Blk.label b)
+
+let not_pseudo = Fn.non Label.is_pseudo
+
+let is_disjoint env cfg l =
+  not_pseudo l &&
+  Label.(l <> env.start) &&
+  Cfg.Node.preds l cfg |>
+  Seq.filter ~f:not_pseudo |>
+  Seq.is_empty
+
+(* Refresh the edges in the CFG and remove any blocks that
+   are disjoint. *)
+let recompute_cfg env fn =
+  let g = Cfg.create fn in
+  let fn, g' =
+    Graphlib.reverse_postorder_traverse (module Cfg) g |>
+    Seq.fold ~init:(fn, g) ~f:(fun ((fn, g) as acc) l ->
+        if is_disjoint env g l then
+          let g' = Cfg.Node.remove l g in
+          Hashtbl.remove env.blks l;
+          Func.remove_blk_exn fn l, g'
+        else acc) in
+  env.cfg <- g';
+  fn
+
+(* Remove the cases of the switch that have the same target and args
+   as the default case. *)
+let sw_hoist_default changed t i d tbl =
+  Ctrl.Table.enum tbl |> Seq.filter_map ~f:(fun ((_, l) as e) ->
+      Option.some_if (not @@ equal_local d l) e) |>
+  Seq.to_list |> function
+  | [] ->
+    changed := true;
+    `jmp (d :> dst)
+  | cs ->
+    let tbl' = Ctrl.Table.create_exn cs t in
+    let len' = Ctrl.Table.length tbl' in
+    let len = Ctrl.Table.length tbl in
+    if len' < len then changed := true;
+    `sw (t, i, d, tbl')
