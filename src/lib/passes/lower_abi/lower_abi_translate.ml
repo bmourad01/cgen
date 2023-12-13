@@ -119,29 +119,24 @@ let commit_blk ivec args (cins, ctrl) label =
 
 (* Translate a single block, which may be split into multiple blocks. *)
 let rec transl_blk env ivec args ctrl label acc = function
-  | i :: rest ->
-    begin match Insn.op i with
-      | `vaarg _ ->
-        begin match Hashtbl.find env.vaarg @@ Insn.label i with
-          | None -> transl_blk env ivec args ctrl label acc rest
-          | Some v ->
-            (* Jump to the start of the `vaarg` logic. *)
-            let start = Abi.Blk.label @@ List.hd_exn v.vablks in
-            let ctrl' = [], `jmp (`label (start, [])) in
-            let b = commit_blk ivec args ctrl' label in
-            (* Resume with the provided continuation. *)
-            let init = Ftree.snoc acc b in
-            let acc = List.fold v.vablks ~init ~f:Ftree.snoc in
-            transl_blk env ivec [] ctrl v.vacont acc rest
-        end
-      | _ ->
-        (* No splitting needed. *)
-        transl_insn env ivec i;
-        transl_blk env ivec args ctrl label acc rest
-    end
-  | [] ->
-    commit_blk ivec args ctrl label |>
-    Ftree.snoc acc |> Ftree.to_list
+  | [] -> Ftree.to_list (acc @> commit_blk ivec args ctrl label)
+  | i :: rest -> match Insn.op i with
+    | `vaarg _ ->
+      begin match Hashtbl.find env.vaarg @@ Insn.label i with
+        | None -> transl_blk env ivec args ctrl label acc rest
+        | Some v ->
+          (* Jump to the start of the `vaarg` logic. *)
+          let start = Abi.Blk.label @@ List.hd_exn v.vablks in
+          let ctrl' = [], `jmp (`label (start, [])) in
+          let b = commit_blk ivec args ctrl' label in
+          (* Resume with the provided continuation. *)
+          let acc = acc @>* (b :: v.vablks) in
+          transl_blk env ivec [] ctrl v.vacont acc rest
+      end
+    | _ ->
+      (* No splitting needed. *)
+      transl_insn env ivec i;
+      transl_blk env ivec args ctrl label acc rest
 
 let transl_blks env =
   let ivec = Vec.create () in

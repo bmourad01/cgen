@@ -57,7 +57,7 @@ let lower env = match env.rsave with
             let* o, oi3 = Cv.Abi.binop (`add `i64) ap o16 in
             let+ rs = Cv.Abi.store `i64 (`var rs.rsslot) (`var o) in
             (* Store the result. *)
-            let key = Insn.label i in
-            let data = [gpi; oi1; fpi; ri; oi2; ofi; oi3; rs] in
-            Hashtbl.set env.vastart ~key ~data
+            Hashtbl.set env.vastart ~key:(Insn.label i) ~data:[
+              gpi; oi1; fpi; ri; oi2; ofi; oi3; rs;
+            ]
           | _ -> !!()))

@@ -49,7 +49,7 @@ let make_unref env x s a =
         let+ blit = Cv.Abi.blit ~src:(`var src) ~dst:(`var y) `i64 k.size in
         Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
         y in
-    Hashtbl.set env.refs ~key:x ~data:y;
+    Hashtbl.set env.refs ~key:x ~data:y
   else !!()
 
 (* Turn struct refs into a minimal number of stack slots, such

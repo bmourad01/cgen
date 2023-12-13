@@ -49,6 +49,8 @@ let init_regs env =
     | Some (#Type.basic | `si8 | `si16 | `si32) | None -> !!()
     | Some `name n -> type_cls env n >>= function
       | {cls = Kmem; _} ->
+        (* Return value is blitted to a memory address, which is
+           implicity passed as the first integer register. *)
         let r = int_args.(0) in
         let* x = Context.Var.fresh in
         let+ i = Cv.Abi.insn @@ `uop (`var x, `copy `i64, `reg r) in
@@ -135,44 +137,54 @@ let needs_register_save env =
           | `vastart _ -> true
           | _ -> false))
 
-let register_save_int env sse s =
+let register_save_int env params sse s =
   let* label = Context.Label.fresh in
   let* save =
-    Array.to_list int_args |>
-    List.mapi ~f:(fun i r -> i * 8, r) |>
-    Context.List.map ~f:(fun (o, r) ->
+    Array.to_sequence_mutable int_args |>
+    Seq.mapi ~f:(fun i r -> i * 8, r) |>
+    Seq.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
+    Context.Seq.fold ~init:Ftree.empty ~f:(fun acc (o, r) ->
         if o = 0 then
           let+ st = Cv.Abi.store `i64 (`reg r) (`var s) in
-          [st]
+          acc @> st
         else
           let* o, oi = Cv.Abi.binop (`add `i64) (`var s) (i64 o) in
           let+ st = Cv.Abi.store `i64 (`reg r) (`var o) in
-          [oi; st]) in
+          acc @>* [oi; st]) in
   let zero = `int (Bv.zero, `i8) in
   let+ z, zi = Cv.Abi.binop (`eq `i8) (`reg "RAX") zero in
   let entry = `label (Func.entry env.fn, []) in
   let sse = `label (sse, []) in
   Abi.Blk.create () ~label
-    ~insns:(List.concat save @ [zi])
+    ~insns:(Ftree.to_list (save @> zi))
     ~ctrl:(`br (`var z, entry, sse))
 
-let register_save_sse env label s =
+let rsave_sse_ofs = 48
+
+let register_save_sse env params label s =
   let+ save =
-    Array.to_list sse_args |>
-    List.mapi ~f:(fun i r -> i64 (i * 16 + rsave_sse_ofs), r) |>
-    Context.List.map ~f:(fun (o, r) ->
+    Array.to_sequence_mutable sse_args |>
+    Seq.mapi ~f:(fun i r -> i64 (i * 16 + rsave_sse_ofs), r) |>
+    Seq.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
+    Context.Seq.fold ~init:Ftree.empty ~f:(fun acc (o, r) ->
         let* o, oi = Cv.Abi.binop (`add `i64) (`var s) o in
         let+ st = Cv.Abi.storev r (`var o) in
-        [oi; st]) in
+        acc @>* [oi; st]) in
   let entry = `label (Func.entry env.fn, []) in
-  Abi.Blk.create () ~label ~insns:(List.concat save) ~ctrl:(`jmp entry)
+  Abi.Blk.create () ~label
+    ~insns:(Ftree.to_list save)
+    ~ctrl:(`jmp entry)
 
 let compute_register_save_area env =
   if needs_register_save env then
+    let params = Vec.fold env.params ~init:String.Set.empty
+        ~f:(fun acc p -> match p.pvar with
+            | `reg r -> Set.add acc r
+            | `var _ -> acc) in
     let* rsslot = new_slot env 176 16 in
     let* sse = Context.Label.fresh in
-    let* rsint = register_save_int env sse rsslot in
-    let+ rssse = register_save_sse env sse rsslot in
+    let* rsint = register_save_int env params sse rsslot in
+    let+ rssse = register_save_sse env params sse rsslot in
     env.rsave <- Some {rsslot; rsint; rssse}
   else !!()
 
