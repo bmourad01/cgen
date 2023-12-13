@@ -52,18 +52,18 @@ end
 type table = Table.t [@@deriving bin_io, compare, equal, sexp]
 
 type swindex = [
-  | `var of var
+  | var
   | `sym of string * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let pp_swindex ppf = function
-  | `var x -> Format.fprintf ppf "%a" pp_var x
+  | #var as x -> Format.fprintf ppf "%a" pp_var x
   | `sym (s, 0) -> Format.fprintf ppf "$%s" s
   | `sym (s, n) when n > 0 -> Format.fprintf ppf "$%s+0x%x" s n
   | `sym (s, n) -> Format.fprintf ppf "$%s-0x%x" s (lnot n + 1)
 
 let var_of_swindex = function
-  | `var x -> Some x
+  | #var as x -> Some x
   | `sym _ -> None
 
 type t = [

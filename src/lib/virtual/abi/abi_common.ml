@@ -42,21 +42,21 @@ let var_set_of_option x =
   Option.to_list x |> Set.of_list (module Var_comparator)
 
 type global = [
+  | var
   | `addr of Bv.t
   | `sym  of string * int
-  | `var  of var
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let var_of_global : global -> var option = function
-  | `var x -> Some x
   | `addr _ | `sym _ -> None
+  | #var as x -> Some x
 
 let pp_global ppf : global -> unit = function
   | `addr a -> Format.fprintf ppf "%a" Bv.pp a
   | `sym (s, 0) -> Format.fprintf ppf "$%s" s
   | `sym (s, o) when o > 0 -> Format.fprintf ppf "$%s+%d" s o
   | `sym (s, o) -> Format.fprintf ppf "$%s-%d" s (lnot o + 1)
-  | `var v -> Format.fprintf ppf "%a" pp_var v
+  | #var as v -> Format.fprintf ppf "%a" pp_var v
 
 type local = [
   | `label of Label.t * operand list
@@ -82,7 +82,7 @@ type dst = [
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_dst : dst -> (var, var_comparator) Set.t = function
-  | `var x -> Set.singleton (module Var_comparator) x
+  | #var as x -> Set.singleton (module Var_comparator) x
   | #local as l -> free_vars_of_local l
   | _ -> Set.empty (module Var_comparator)
 

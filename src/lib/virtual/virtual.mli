@@ -868,9 +868,9 @@ module Abi : sig
   val var_of_operand : operand -> var option
 
   type global = [
+    | var
     | `addr of Bv.t
     | `sym  of string * int
-    | `var  of var
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** [var_of_global g] returns [Some x] if [g] is a variable [x]. *)
@@ -1029,7 +1029,7 @@ module Abi : sig
         symbol, although this is rarely a case.
     *)
     type swindex = [
-      | `var of var
+      | var
       | `sym of string * int
     ] [@@deriving bin_io, compare, equal, sexp]
 

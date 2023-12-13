@@ -19,7 +19,7 @@ let transl_local env : local -> Abi.local = function
     `label (l, List.map args ~f:(transl_operand env))
 
 let transl_global env : global -> Abi.global = function
-  | `var x -> `var (`var (transl_var env x))
+  | `var x -> `var (transl_var env x)
   | (`addr _ | `sym _) as g -> g
 
 let transl_dst env : dst -> Abi.dst = function
@@ -82,7 +82,7 @@ let transl_insn env ivec i =
     assert false
 
 let transl_swindex env = function
-  | `var x -> `var (`var (transl_var env x))
+  | `var x -> `var (transl_var env x)
   | `sym s -> `sym s
 
 let transl_tbl env tbl t =
