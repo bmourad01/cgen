@@ -320,6 +320,9 @@ let is_rotate_const x y env =
     | `int (xi, xt), `int (yi, yt) when Type.equal_imm xt yt ->
       let module B = (val bv xt) in
       let sz = B.int @@ Type.sizeof_imm xt in
+      (* Ignore if one of the shift values is greater than or
+         equal to the width of the type. *)
+      let* () = O.guard Bv.(xi < sz && yi < sz) in
       Option.some_if Bv.(xi = B.(sz - yi)) ()
     | _ -> None
   end
