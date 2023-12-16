@@ -25,3 +25,15 @@ include M
 let reject err = Error err
 let run x s = x.run s ~reject ~accept:(fun x s -> Ok (x, s))
 let eval x s = x.run s ~reject ~accept:(fun x _ -> Ok x)
+
+module type Machine = Context_machine.Machine
+
+let register_machine = Context_machine.register
+
+let machine =
+  let* t = target in
+  match Context_machine.get t with
+  | Some m -> !!m
+  | None ->
+    failf "Machine for target %a is not registered"
+      Target.pp t ()

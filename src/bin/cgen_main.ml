@@ -2,34 +2,6 @@ open Core
 open Regular.Std
 open Cgen
 
-module Test_target = struct
-  let r0 = Target.Reg.r64 "r0"
-  let r1 = Target.Reg.r64 "r1"
-  let r2 = Target.Reg.r64 "r2"
-  let r3 = Target.Reg.r64 "r3"
-
-  let d0 = Target.Reg.r64 "d0"
-  let d1 = Target.Reg.r64 "d1"
-  let d2 = Target.Reg.r64 "d2"
-  let d3 = Target.Reg.r64 "d3"
-
-  let sp = Target.Reg.r64 "sp"
-
-  let cf = Target.Reg.r1 "cf"
-  let sf = Target.Reg.r1 "sf"
-  let zf = Target.Reg.r1 "zf"
-  let vf = Target.Reg.r1 "vf"
-
-  let t = Target.create ()
-      ~name:"test"
-      ~word:`i64
-      ~little:true
-      ~flag:[cf; sf; zf; vf]
-      ~fp:[d0; d1; d2; d3]
-      ~gpr:[r0; r1; r2; r3]
-      ~sp
-end
-
 let pp_sep ppf () = Format.fprintf ppf "@.@."
 
 let comp filename =
@@ -64,6 +36,6 @@ let comp filename =
 
 let () =
   let args = Sys.get_argv () in
-  Context.init Test_target.t |>
+  Context.init Machine.X86.Amd64_sysv.target |>
   Context.run (comp args.(1)) |>
   Or_error.iter_error ~f:(Format.eprintf "%a\n%!" Error.pp)

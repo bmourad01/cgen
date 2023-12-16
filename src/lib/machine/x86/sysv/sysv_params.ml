@@ -1,7 +1,7 @@
 open Core
 open Regular.Std
 open Virtual
-open Lower_abi_common
+open Sysv_common
 
 open Context.Syntax
 

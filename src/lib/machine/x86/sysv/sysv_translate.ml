@@ -1,7 +1,7 @@
 open Core
 open Regular.Std
 open Virtual
-open Lower_abi_common
+open Sysv_common
 
 let transl_var env x =
   match Hashtbl.find env.canon_ref x with

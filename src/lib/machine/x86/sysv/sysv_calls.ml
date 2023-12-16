@@ -1,6 +1,6 @@
 open Core
 open Virtual
-open Lower_abi_common
+open Sysv_common
 
 open Context.Syntax
 

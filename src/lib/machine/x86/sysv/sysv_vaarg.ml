@@ -26,7 +26,7 @@
 
 open Core
 open Virtual
-open Lower_abi_common
+open Sysv_common
 
 open Context.Syntax
 
@@ -206,7 +206,7 @@ let lower env = iter_blks env ~f:(fun b ->
           begin check_empty env t >>= function
             | true -> !!()
             | false ->
-              let ap = Lower_abi_vastart.ap_oper ap in
+              let ap = Sysv_vastart.ap_oper ap in
               let* vacont = Context.Label.fresh in
               let+ vablks = fetch env x t ap vacont in
               Hashtbl.set env.vaarg

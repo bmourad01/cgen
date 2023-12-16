@@ -34,8 +34,23 @@ val failf : ('a, Format.formatter, unit, unit -> 'b t) format4 -> 'a
 *)
 val lift_err : 'a Or_error.t -> 'a t
 
-(** Returns the target machine. *)
+(** Returns the current target descriptor. *)
 val target : Target.t t
+
+(** The target-specific implementation needed for the compilation pipeline. *)
+module type Machine = sig
+  (** Lowers the ABI-specific details of a function for a given target. *)
+  val lower_abi : Typecheck.env -> Virtual.func -> Virtual.Abi.func t
+end
+
+(** Registers a machine for a given target.
+
+    @raise Invalid_argument if the target is already registered.
+*)
+val register_machine : Target.t -> (module Machine) -> unit
+
+(** Returns the target machine implementation. *)
+val machine : (module Machine) t
 
 type var = Var.t
 

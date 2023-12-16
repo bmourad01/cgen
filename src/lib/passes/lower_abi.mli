@@ -5,6 +5,4 @@
     The function is assumed to be in SSA form.
 *)
 
-open Virtual
-
-val run : Typecheck.env -> func -> Abi.func Context.t
+val run : Typecheck.env -> Virtual.func -> Virtual.Abi.func Context.t
