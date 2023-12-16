@@ -29,10 +29,7 @@ type t = {
   barg : Label.t Var.Table.t;
 }
 
-module Pseudo = Label.Pseudo(struct
-    include G
-    let e = ()
-  end)
+module Pseudo = Label.Pseudo(G)
 
 let create_tbl fn =
   let tbl = Label.Table.create () in

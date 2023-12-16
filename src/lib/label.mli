@@ -30,13 +30,9 @@ include Regular.S with type t := t
 module Tree : Patricia_tree_intf.S with type key := t
 
 (** The signature for graphs with labels as nodes. *)
-module type Graph = sig
-  include Graph with type node = t
-
-  (** [e] is the default edge label, specifically for edges that
-      connect nodes with [pseudoentry] and [pseudoexit]. *)
-  val e : Edge.label
-end
+module type Graph = Graph
+  with type node = t
+   and type Edge.label = unit
 
 (** An interface for connecting entry and exit nodes of the graph
     with [pseudoentry] and [pseudoexit], respectively. *)

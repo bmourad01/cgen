@@ -355,34 +355,6 @@ end
 
 type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
-(** A control-flow edge. *)
-module Edge : sig
-  (** The kinds of edges that may occur:
-
-      [`always]: unconditional jump.
-
-      [`true_ x]: taken if [x] is non-zero.
-
-      [`false_ x]: taken if [x] is zero.
-
-      [`switch_ (x, vs, def)]: taken if [x \in vs]. If [def] is [true], then
-      the edge also applies to the default case.
-
-      [`default x]: taken if [x] doesn't match any entry in the switch table.
-  *)
-  type t = [
-    | `always
-    | `true_ of Var.t
-    | `false_ of Var.t
-    | `switch of Ctrl.swindex * Bv.t list * bool
-    | `default of Ctrl.swindex
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  include Regular.S with type t := t
-end
-
-type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
-
 (** A basic block. *)
 module Blk : sig
   include Blk_intf.S
@@ -481,7 +453,7 @@ module Cfg : sig
   include Graph
     with type node = Label.t
      and type Node.label = Label.t
-     and type Edge.label = edge
+     and type Edge.label = unit
 
   (** Creates the control-flow graph.
 

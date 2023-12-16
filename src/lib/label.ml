@@ -30,19 +30,18 @@ module Tree = Patricia_tree.Make(struct
     let to_int = to_int_trunc
   end)
 
-module type Graph = sig
-  include Graph with type node = t
-  val e : Edge.label
-end
+module type Graph = Graph
+  with type node = t
+   and type Edge.label = unit
 
 module Pseudo(G : Graph) = struct
   let connect_with_entry n =
     if n = pseudoentry then Fn.id
-    else G.Edge.(insert (create pseudoentry n G.e))
+    else G.Edge.(insert (create pseudoentry n ()))
 
   let connect_with_exit n =
     if n = pseudoexit then Fn.id
-    else G.Edge.(insert (create n pseudoexit G.e))
+    else G.Edge.(insert (create n pseudoexit ()))
 
   let if_unreachable ~from connect g n =
     match G.Node.degree ~dir:from n g with
