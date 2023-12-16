@@ -38,10 +38,8 @@ val lift_err : 'a Or_error.t -> 'a t
 val target : Target.t t
 
 (** The target-specific implementation needed for the compilation pipeline. *)
-module type Machine = sig
-  (** Lowers the ABI-specific details of a function for a given target. *)
-  val lower_abi : Typecheck.env -> Virtual.func -> Virtual.Abi.func t
-end
+module type Machine = Machine_intf.S
+  with type 'a context := 'a t
 
 (** Registers a machine for a given target.
 
@@ -66,6 +64,7 @@ module Label : sig
   val fresh : label t
 end
 
+(** Helpers for generating [Virtual] terms. *)
 module Virtual : sig
   (** [insn d ?dict] returns a data instruction [d] with a fresh label. *)
   val insn : ?dict:Dict.t -> Virtual.Insn.op -> Virtual.insn t

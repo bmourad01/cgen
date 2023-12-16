@@ -1,14 +1,11 @@
 open Core
-open Context_state
 
-module type Machine = sig
-  val lower_abi : Typecheck.env -> Virtual.func -> Virtual.Abi.func t
-end
+module type S = Machine_intf.S
+  with type 'a context := 'a Context_state.t
 
-let targets : (Target.t, (module Machine)) Hashtbl.t =
-  Hashtbl.create (module Target)
+let targets = Hashtbl.create (module Target)
 
-let register t ((module M : Machine) as m) =
+let register t ((module M : S) as m) =
   match Hashtbl.add targets ~key:t ~data:m with
   | `Ok -> ()
   | `Duplicate ->
