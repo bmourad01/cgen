@@ -19,7 +19,12 @@ let little t = t.little
 
 include Regular.Make(struct
     include T
-    let pp ppf t = Format.fprintf ppf "%s" t.name
+
+    let pp ppf t =
+      Format.fprintf ppf "%s:%d:%s"
+        t.name (Type.sizeof_imm_base t.word)
+        (if t.little then "le" else "be")
+
     let version = "0.1"
     let hash = hash
     let module_name = Some "Cgen.Target"
