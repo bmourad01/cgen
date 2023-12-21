@@ -70,12 +70,12 @@ type rule = {
 (* The children of a pattern to be matched against, and a
    post-condition, as well as a flag marking the rewritten
    term as subsuming. *)
-type action = pattern list * formula * bool
+type toplevel = pattern list * formula * bool
 
 (* Map top-level operators to their actions. This helps to
    cut down the search space as we look to apply rules to
    a given node. *)
-type rules = (Enode.op, action list) Hashtbl.t
+type rules = (Enode.op, toplevel list) Hashtbl.t
 
 (* The actual e-graph data structure.
 
