@@ -24,7 +24,7 @@ let rec lca t a b =
 
 let move t old l id =
   let s = Label.Set.of_list old in
-  Hashtbl.remove t.id2lbl id;
+  Hashtbl.remove t.isrc id;
   Hashtbl.update t.imoved id ~f:(function
       | Some s' -> Set.union s s'
       | None -> s);
@@ -34,7 +34,7 @@ let move t old l id =
       | Some s -> Set.add s id)
 
 (* Update when we union two nodes together. *)
-let merge ({id2lbl = p; _} as t) a b =
+let merge ({isrc = p; _} as t) a b =
   if a <> b then match Hashtbl.(find p a, find p b) with
     | None, None -> ()
     | None, Some pb -> Hashtbl.set p ~key:a ~data:pb
@@ -57,20 +57,20 @@ let check_moved t id a =
   Hashtbl.change t.imoved id ~f:(function
       | Some s -> Some (Set.add s a)
       | None ->
-        Hashtbl.set t.id2lbl ~key:id ~data:a;
+        Hashtbl.set t.isrc ~key:id ~data:a;
         None)
 
 (* We've matched on a value that we already hash-consed, so
    figure out which label it should correspond to. *)
-let duplicate t id a = match Hashtbl.find t.id2lbl id with
+let duplicate t id a = match Hashtbl.find t.isrc id with
   | None -> check_moved t id a
   | Some b when Label.(b = a) -> ()
   | Some b when dominates t ~parent:b a -> ()
   | Some b when dominates t ~parent:a b ->
-    Hashtbl.set t.id2lbl ~key:id ~data:a
+    Hashtbl.set t.isrc ~key:id ~data:a
   | Some b ->
     let c = lca t a b in
-    Hashtbl.remove t.id2lbl id;
+    Hashtbl.remove t.isrc id;
     move t [a; b] c @@ find t id
 
 module Licm = struct
@@ -91,7 +91,7 @@ module Licm = struct
     not (Loops.equal_loop a b) &&
     Loops.is_child_of t.input.loop a b
 
-  let id2lbl t id = match Hashtbl.find t.id2lbl id with
+  let id2label t id = match Hashtbl.find t.isrc id with
     | None -> Hashtbl.find t.idest id
     | Some _ as l -> l
 
@@ -112,7 +112,7 @@ module Licm = struct
        is variant w.r.t. the current loop. *)
     and child ~lp t id =
       let n = node t id in
-      match id2lbl t id with
+      match id2label t id with
       | Some l -> is_variant ~lp t l n
       | None -> match n with
         | N (Ovar x, []) ->
@@ -151,7 +151,7 @@ module Licm = struct
 
   let licm t l n lp id =
     if Variance.children ~lp t n
-    then Hashtbl.set t.id2lbl ~key:id ~data:l
+    then Hashtbl.set t.isrc ~key:id ~data:l
     else licm' t l n lp id
 end
 
@@ -173,9 +173,9 @@ let is_effectful t n i =
    if we can do LICM (loop-invariant code motion). *)
 let add t l id n = match Hashtbl.find t.input.tbl l with
   | None -> assert false
-  | Some `blk _ -> Hashtbl.set t.id2lbl ~key:id ~data:l
+  | Some `blk _ -> Hashtbl.set t.isrc ~key:id ~data:l
   | Some `insn (i, _, _) when is_effectful t n i ->
-    Hashtbl.set t.id2lbl ~key:id ~data:l
+    Hashtbl.set t.isrc ~key:id ~data:l
   | Some `insn _ -> match Licm.find_loop t l with
-    | None -> Hashtbl.set t.id2lbl ~key:id ~data:l
+    | None -> Hashtbl.set t.isrc ~key:id ~data:l
     | Some lp -> Licm.licm t l n lp id

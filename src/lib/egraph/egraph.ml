@@ -18,8 +18,8 @@ let init input depth_limit match_limit rules = {
   imoved = Id.Table.create ();
   idest = Id.Table.create ();
   licm = Id.Hash_set.create ();
-  id2lbl = Id.Table.create ();
-  lbl2id = Label.Table.create ();
+  isrc = Id.Table.create ();
+  lval = Label.Table.create ();
   depth_limit;
   match_limit;
   rules;

@@ -108,7 +108,7 @@ let prov ?x ?(f = Fn.const) env eg l op args =
       match Hashtbl.add env.vars ~key:x ~data:id with
       | `Duplicate -> raise @@ Duplicate (x, l)
       | `Ok -> ());
-  Hashtbl.set eg.lbl2id ~key:l ~data:(f id eg)
+  Hashtbl.set eg.lval ~key:l ~data:(f id eg)
 
 let set x id eg = node eg (Oset x) [id]
 

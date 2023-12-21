@@ -57,7 +57,7 @@ let invalid_tbl e =
 let no_var l =
   Context.failf "No variable is bound for label %a" Label.pp l ()
 
-let extract_label t l = match Hashtbl.find t.eg.lbl2id l with
+let extract_label t l = match Hashtbl.find t.eg.lval l with
   | None -> !!None
   | Some id -> match extract t id with
     | None -> extract_fail l @@ Common.find t.eg id
