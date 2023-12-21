@@ -28,7 +28,7 @@ let move t old l id =
   Hashtbl.update t.imoved id ~f:(function
       | Some s' -> Set.union s s'
       | None -> s);
-  Hashtbl.set t.imoved2 ~key:id ~data:l;
+  Hashtbl.set t.idest ~key:id ~data:l;
   Hashtbl.update t.lmoved l ~f:(function
       | None -> Id.Set.singleton id
       | Some s -> Set.add s id)
@@ -92,7 +92,7 @@ module Licm = struct
     Loops.is_child_of t.input.loop a b
 
   let id2lbl t id = match Hashtbl.find t.id2lbl id with
-    | None -> Hashtbl.find t.imoved2 id
+    | None -> Hashtbl.find t.idest id
     | Some _ as l -> l
 
   module Variance = struct

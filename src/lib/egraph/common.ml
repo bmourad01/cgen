@@ -99,7 +99,7 @@ type t = {
   memo        : (enode, id) Hashtbl.t;  (* The hash-cons for optimized terms. *)
   lmoved      : Id.Set.t Label.Table.t; (* Set of IDs that were moved to a given label. *)
   imoved      : Label.Set.t Id.Table.t; (* Set of labels that were moved for a given ID. *)
-  imoved2     : Label.t Id.Table.t;     (* The label a given ID was moved to. *)
+  idest       : Label.t Id.Table.t;     (* The label a given ID was moved to. *)
   licm        : Id.Hash_set.t;          (* IDs that were moved via LICM. *)
   id2lbl      : Label.t Id.Table.t;     (* Maps unmoved IDs to labels. *)
   lbl2id      : id Label.Table.t;       (* Maps labels to IDs. *)
