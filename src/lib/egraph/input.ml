@@ -16,17 +16,17 @@ type resolved = [
 
 (* General information about the function we're translating. *)
 type t = {
-  fn   : func;
-  loop : loops;
-  tbl  : resolved Label.Table.t;
-  cfg  : Cfg.t;
-  dom  : Label.t tree;
-  pdom : Label.t tree;
-  cdom : Label.t tree;
-  df   : Label.t frontier;
-  lst  : (Label.t, Label.t option) Solution.t;
-  tenv : Typecheck.env;
-  barg : Label.t Var.Table.t;
+  fn   : func;                                 (* The function itself. *)
+  loop : loops;                                (* Loops analysis. *)
+  tbl  : resolved Label.Table.t;               (* Labels to blocks/insns. *)
+  cfg  : Cfg.t;                                (* The CFG. *)
+  dom  : Label.t tree;                         (* Dominator tree. *)
+  pdom : Label.t tree;                         (* Post-dominator tree. *)
+  cdom : Label.t tree;                         (* Instruction-level dominator tree. *)
+  df   : Label.t frontier;                     (* Dominance frontiers. *)
+  lst  : (Label.t, Label.t option) Solution.t; (* Last stores analysis. *)
+  tenv : Typecheck.env;                        (* Typing environment. *)
+  barg : Label.t Var.Table.t;                  (* Block args to block labels. *)
 }
 
 module Pseudo = Label.Pseudo(G)
