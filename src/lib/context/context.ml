@@ -26,8 +26,7 @@ let reject err = Error err
 let run x s = x.run s ~reject ~accept:(fun x s -> Ok (x, s))
 let eval x s = x.run s ~reject ~accept:(fun x _ -> Ok x)
 
-module type Machine = Machine_intf.S
-  with type 'a context := 'a t
+module type Machine = Context_machine.S
 
 let register_machine = Context_machine.register
 
