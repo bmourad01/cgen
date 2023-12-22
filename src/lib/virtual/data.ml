@@ -64,8 +64,7 @@ let with_tag d tag x = {d with dict = Dict.set d.dict tag x}
 let has_name d name = String.(name = d.name)
 let hash d = String.hash d.name
 
-let typeof d target =
-  let word = (Target.word target :> Type.basic) in
+let typeof d ~(word : Type.imm_base) =
   let name = Format.sprintf "%s_t" d.name in
   let fields = Ftree.fold_right d.elts ~init:[] ~f:(fun elt fields ->
       let t = match elt with
@@ -75,7 +74,7 @@ let typeof d target =
         | `double _   -> `elt (`f64, 1)
         | `string s   -> `elt (`i8, String.length s)
         | `zero n     -> `elt (`i8, n)
-        | `sym _      -> `elt (word, 1) in
+        | `sym _      -> `elt ((word :> Type.basic), 1) in
       t :: fields) in
   `compound (name, align d, fields)
 

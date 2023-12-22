@@ -710,8 +710,9 @@ module Data : sig
   (** Returns [true] if the struct has the associated name. *)
   val has_name : t -> string -> bool
 
-  (** Returns the corresponding compound type of the struct. *)
-  val typeof : t -> Target.t -> Type.compound
+  (** Returns the corresponding compound type of the struct, where
+      [word] is the target's pointer size. *)
+  val typeof : t -> word:Type.imm_base -> Type.compound
 
   (** Prepends an element to the beginning of the structure. *)
   val prepend_elt : t -> elt -> t
