@@ -7,16 +7,14 @@ module Cv = Context.Virtual
 
 open Context.Syntax
 
-(* RDI, RSI, RDX, RCX, R8, R9 *)
 let num_int_args = 6
-
 let int_args = [|
-  "RDI";
-  "RSI";
-  "RDX";
-  "RCX";
-  "R8";
-  "R9";
+  "rdi";
+  "rsi";
+  "rdx";
+  "rcx";
+  "r8";
+  "r9";
 |]
 
 let int_arg_queue () =
@@ -27,15 +25,12 @@ let int_arg_queue () =
   q
 
 let int_rets = [|
-  "RAX";
-  "RDX";
+  "rax";
+  "rdx";
 |]
 
-(* XMM0, XMM1, ..., XMM7 *)
 let num_sse_args = 8
-
-let sse_args =
-  Array.init num_sse_args ~f:(Format.sprintf "XMM%d")
+let sse_args = Array.init num_sse_args ~f:(Format.sprintf "xmm%d")
 
 let sse_arg_queue () =
   let q = Stack.create () in
@@ -45,8 +40,8 @@ let sse_arg_queue () =
   q
 
 let sse_rets = [|
-  "XMM0";
-  "XMM1";
+  "xmm0";
+  "xmm1";
 |]
 
 type reg =

@@ -50,7 +50,7 @@ let lower env = match env.rsave with
             let* fpi = Cv.Abi.store `i32 (i32 fp) (`var o) in
             (* Initialize `overflow_arg_area`.
                XXX: what if we want to omit frame pointers? *)
-            let* r, ri = Cv.Abi.binop (`add `i64) (`reg "RBP") o16 in
+            let* r, ri = Cv.Abi.binop (`add `i64) (`reg "rbp") o16 in
             let* o, oi2 = Cv.Abi.binop (`add `i64) ap o8 in
             let* ofi = Cv.Abi.store `i64 (`var r) (`var o) in
             (* Initialize `reg_save_area`. *)
