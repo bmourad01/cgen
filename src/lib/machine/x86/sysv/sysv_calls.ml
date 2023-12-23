@@ -151,14 +151,14 @@ let classify_call_arg ~reg ~reg2 env key k a =
     | Kreg (r1, r2) -> tworeg_arg ~reg2 k r1 r2 src
     | Kmem -> memory_arg k lk.size (`var src)
 
-(* See `Param.alloc_onereg`. *)
-let alloc_onereg qs qi = function
+(* See `Sysv_params.alloc_onereg`. *)
+let alloc_onereg ~qi ~qs = function
   | Rint -> Stack.pop qi
   | Rsse -> Stack.pop qs
   | Rnone -> assert false
 
-(* See `Param.alloc_tworeg`. *)
-let alloc_tworeg qi qs r1 r2 = match r1, r2 with
+(* See `Sysv_params.alloc_tworeg`. *)
+let alloc_tworeg ~qi ~qs r1 r2 = match r1, r2 with
   | Rint, Rint ->
     if Stack.length qi >= 2 then
       let r1 = Stack.pop_exn qi in
@@ -195,8 +195,8 @@ let lower env = iter_blks env ~f:(fun b ->
           let key = Insn.label i in
           let qi = int_arg_queue () in
           let qs = sse_arg_queue () in
-          let reg = alloc_onereg qi qs in
-          let reg2 = alloc_tworeg qi qs in
+          let reg = alloc_onereg ~qi ~qs in
+          let reg2 = alloc_tworeg ~qi ~qs in
           (* See if we're returning a compound type. *)
           let* kret = match ret with
             | Some (x, `name n) ->

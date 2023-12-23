@@ -7,14 +7,14 @@ open Context.Syntax
 
 (* Allocate a single register as a parameter or
    pass it on the stack. *)
-let alloc_onereg qi qs = function
+let alloc_onereg ~qi ~qs = function
   | #Type.imm -> Stack.pop qi
   | #Type.fp -> Stack.pop qs
 
 (* Allocate two registers as a parameter. Both
    must be available, or the argument is passed
    on the stack. *)
-let alloc_tworeg qi qs t1 t2 = match t1, t2 with
+let alloc_tworeg ~qi ~qs t1 t2 = match t1, t2 with
   | #Type.imm, #Type.imm ->
     if Stack.length qi >= 2 then
       let r1 = Stack.pop_exn qi in
@@ -51,16 +51,15 @@ let init_regs env =
       | {cls = Kmem; _} ->
         (* Return value is blitted to a memory address, which is
            implicity passed as the first integer register. *)
-        let r = int_args.(0) in
+        let r = Stack.pop_exn qi in
         let* x = Context.Var.fresh in
         let+ i = Cv.Abi.insn @@ `uop (`var x, `copy `i64, `reg r) in
         let p = {pty = `i64; pvar = `reg r; pins = [i]} in
         Vec.push env.params p;
-        env.rmem <- Some x;
-        ignore (Stack.pop_exn qi)
+        env.rmem <- Some x
       | _ -> !!() in
-  alloc_onereg qi qs,
-  alloc_tworeg qi qs
+  alloc_onereg ~qi ~qs,
+  alloc_tworeg ~qi ~qs
 
 let basic_param ~reg env t x =
   let+ pvar, pins = match reg t with
