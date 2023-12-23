@@ -459,7 +459,7 @@ module Insns = struct
     let* fn = getfn in
     let* tv = typeof_arg fn env v in
     let* ta = typeof_arg fn env a in
-    let* () = unify_arg tv a (t :> Type.t) in
+    let* () = unify_arg tv v (t :> Type.t) in
     let+ () = unify_arg ta a (word :> Type.t) in
     env
 
