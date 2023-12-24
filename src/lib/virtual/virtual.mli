@@ -524,50 +524,6 @@ end
 
 type live = Live.t
 
-(** Abstract interpretation over intervals. *)
-module Intervals : sig
-  (** Mapping of variables to intervals. *)
-  type state [@@deriving equal, sexp]
-
-  (** The empty mapping. *)
-  val empty_state : state
-
-  (** Finds the interval associated with a variable, if it exists. *)
-  val find_var : state -> Var.t -> Bv_interval.t option
-
-  (** Enumerates the mapping. *)
-  val enum_state : state -> (Var.t * Bv_interval.t) seq
-
-  (** The analysis results. *)
-  type t
-
-  (** [insn t l] returns the output state of the instruction [l], if it
-      exists. Otherwise, [empty_state] is returned. *)
-  val insn : t -> Label.t -> state
-
-  (** [input t l] returns the input state of the basic block [l], if it
-      exists. Otherwise, [empty_state] is returned. *)
-  val input : t -> Label.t -> state
-
-  (** Performs the interval analysis.
-
-      [word] is the pointer size for the target.
-
-      [typeof] is the typing relation for variables.
-
-      [steps] is an upper bound on the number of iterations before
-      a fixed point can be reached.
-
-      @raise Invalid_argument if the function is not in SSA form.
-  *)
-  val analyze :
-    ?steps:int ->
-    func ->
-    word:Type.imm_base ->
-    typeof:(Var.t -> Type.t) ->
-    t
-end
-
 (** Loop analysis of a function. *)
 module Loops : sig
   (** The identifier of a loop. *)

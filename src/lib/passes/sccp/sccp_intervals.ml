@@ -14,7 +14,7 @@
 open Core
 open Regular.Std
 open Graphlib.Std
-open Common
+open Virtual
 
 module I = Bv_interval
 
@@ -57,9 +57,22 @@ let create_ctx cycloc ~blks ~word ~typeof = {
   cycloc;
 }
 
+(* XXX: should we be merging in the empty interval? Ideally,
+   our analysis should say something about a possible execution
+   of the function, but the empty interval indicates that a
+   variable cannot contain any value.
+
+   I'm not sure that this carries the same meaning as "undefined",
+   and in the case of propagating branch constraints, it will
+   surely lead to an underapproximation. Remember that the goal
+   of abstract interpretation is to produce sound approximations,
+   and so overapproximating should be seen as a better option.
+*)
 let narrow ctx l x i = Hashtbl.update ctx.narrow l ~f:(function
     | None -> Var.Map.singleton x i
     | Some s -> update s x i)
+
+external float_to_bits : float -> int64 = "cgen_bits_of_float"
 
 let interp_const ctx : const -> I.t = function
   | `bool b -> I.boolean b
@@ -68,7 +81,7 @@ let interp_const ctx : const -> I.t = function
     let value = Bv.M32.int32 @@ Float32.bits f in
     I.create_single ~value ~size:32
   | `double d ->
-    let value = Bv.M64.int64 @@ Eval.float_to_bits d in
+    let value = Bv.M64.int64 @@ float_to_bits d in
     I.create_single ~value ~size:64
   | `sym _ -> I.create_full ~size:(Type.sizeof_imm_base ctx.word)
 

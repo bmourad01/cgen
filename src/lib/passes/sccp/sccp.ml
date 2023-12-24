@@ -3,6 +3,7 @@ open Regular.Std
 open Virtual
 
 module I = Bv_interval
+module Intervals = Sccp_intervals
 
 type cursor =
   | Blk of Label.t

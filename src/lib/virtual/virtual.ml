@@ -23,7 +23,6 @@ module Slot = Slot
 module Func = Func
 module Cfg = Cfg
 module Live = Live
-module Intervals = Intervals
 module Loops = Loops
 module Data = Data_
 module Module = Module
