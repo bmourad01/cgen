@@ -1,0 +1,7 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %x = div.w %x, 0xfffffffb_w
+  ret %x
+}

@@ -1,0 +1,9 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %w = lsl.w %x, 5_w
+  %y = lsr.w %x, 27_w
+  %z = or.w %w, %y
+  ret %z
+}

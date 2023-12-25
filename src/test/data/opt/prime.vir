@@ -1,0 +1,41 @@
+module foo
+
+export function w $foo(w %n) {
+@start:
+  %c = le.w %n, 1_w
+  br %c, @no, @twothree
+@no:
+  ret 0_w
+@twothree:
+  %c = le.w %n, 3_w
+  br %c, @yes, @divtwo
+@yes:
+  ret 1_w
+@divtwo:
+  %r = urem.w %n, 2_w
+  %c = eq.w %r, 0_w
+  br %c, @yes, @divthree
+@divthree:
+  %r = urem.w %n, 3_w
+  %c = eq.w %r, 0_w
+  br %c, @yes, @main
+@main:
+  %i = copy.w 5_w
+  jmp @loop
+@loop:
+  %s = mul.w %i, %i
+  %c = le.w %s, %n
+  br %c, @divi, @yes
+@divi:
+  %r = urem.w %n, %i
+  %c = eq.w %r, 0_w
+  br %c, @no, @divi2
+@divi2:
+  %i2 = add.w %i, 2_w
+  %r = urem.w %n, %i2
+  %c = eq.w %r, 0_w
+  br %c, @no, @inc
+@inc:
+  %i = add.w %i, 6_w
+  jmp @loop
+}

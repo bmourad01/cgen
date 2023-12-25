@@ -1,0 +1,17 @@
+module foo
+
+export function w $foo(w %x, w %y) {
+@start:
+  %a = add.w %x, 1_w
+  %d = mul.w %a, 2_w
+  %c = slt.w %x, 0_w
+  br %c, @neg, @pos
+@neg:
+  %b = add.w %d, %y
+  jmp @done
+@pos:
+  %b = copy.w %y
+  jmp @done
+@done:
+  ret %b
+}

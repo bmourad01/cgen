@@ -1,0 +1,7 @@
+module foo
+
+export function w $foo(w %x) {
+@0:
+  %0 = lsr.w %x, 0x3_w ; @2
+  ret %0
+}

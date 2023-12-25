@@ -1,0 +1,8 @@
+module foo
+
+export function w $foo(w %x) {
+@0:
+  %1 = ne.w %x, 0x1_w ; @4
+  %0 = flag.w %1 ; @3
+  ret %0
+}

@@ -1,0 +1,8 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %x = add.w %x, 0xffffffff_w
+  %x = not.w %x
+  ret %x
+}

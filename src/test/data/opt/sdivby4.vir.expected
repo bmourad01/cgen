@@ -1,0 +1,10 @@
+module foo
+
+export function w $foo(w %x) {
+@0:
+  %2 = slt.w %x, 0x0_w ; @4
+  %3 = add.w %x, 0x3_w ; @5
+  %1 = sel.w %2, %3, %x ; @3
+  %0 = asr.w %1, 0x2_w ; @2
+  ret %0
+}

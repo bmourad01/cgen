@@ -1,0 +1,7 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %z = itrunc.w %x
+  ret %z
+}

@@ -1,0 +1,9 @@
+module foo
+
+export function w $foo(l %x) {
+@start:
+   %a = ld.w %x
+   %b = ld.w %x
+   %c = add.w %a, %b
+   ret %c
+}

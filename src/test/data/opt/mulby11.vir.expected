@@ -1,0 +1,10 @@
+module foo
+
+export function w $foo(w %x) {
+@0:
+  %1 = lsl.w %x, 0x3_w ; @3
+  %3 = lsl.w %x, 0x1_w ; @5
+  %2 = add.w %3, %x ; @4
+  %0 = add.w %1, %2 ; @2
+  ret %0
+}

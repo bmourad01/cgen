@@ -4,4 +4,5 @@
    test_opt
    test_type)
  (libraries ounit2 cgen)
- (ocamlopt_flags -O2))
+ (ocamlopt_flags -O2)
+ (deps (glob_files_rec data/*)))

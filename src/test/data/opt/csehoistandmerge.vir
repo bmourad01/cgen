@@ -1,0 +1,17 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %c = sge.w %x, 0_w
+  br %c, @pos, @neg
+@pos:
+  %a = div.w %x, 4_w
+  %r = add.w %a, 1_w
+  jmp @end
+@neg:
+  %a = div.w %x, 4_w
+  %r = add.w %a, 1_w
+  jmp @end
+@end:
+  ret %r
+}

@@ -1,0 +1,21 @@
+module foo
+
+function w $foo(l %a, l %b, w %x) {
+@start:
+  %y = ld.w %a
+  st.w %x, %a
+  %z = add.w %y, 1_w
+  st.w %z, %a
+  %c = eq.w %y, 0_w
+  br %c, @yes, @no
+@yes:
+  %y = ld.w %a
+  %d = zext.l %y
+  %w = ld.w %d
+  jmp @done
+@no:
+  %w = ld.w %b
+  jmp @done
+@done:
+  ret %w
+}

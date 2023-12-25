@@ -1,0 +1,19 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  switch.w %x, @default [0x1_w -> @one,
+                         0x2_w -> @two,
+                         0x3_w -> @three]
+@default:
+  ret %x
+@one:
+  %x = add.w %x, 1_w
+  ret %x
+@two:
+  %x = add.w %x, 1_w
+  ret %x
+@three:
+  %x = add.w %x, 1_w
+  ret %x
+}

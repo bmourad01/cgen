@@ -1,0 +1,13 @@
+module foo
+
+export function $foo() {
+  %x = slot 16, align 16
+@start:
+  %y = add.l %x, 8_l
+  %m = urem.l %y, 16_l
+  %mw = itrunc.w %m
+  st.w %mw, %y
+  %n = ld.w %y
+  st.w %n, $a
+  ret
+}
