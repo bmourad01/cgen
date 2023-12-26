@@ -4,8 +4,9 @@ open Core
 open Virtual
 open Sccp_intervals_common
 
-(* Constrain `y` to `i` in relation to the condition `x`. *)
-let add_constraint ctx x y i = match (y : operand) with
+(* Constrain `y` to `i` in relation to the condition `x`,
+   overwriting the previous constraint if it is present. *)
+let set_constraint ctx x y i = match (y : operand) with
   | `var y ->
     let i = Lazy.force i in
     Hashtbl.update ctx.cond x ~f:(function

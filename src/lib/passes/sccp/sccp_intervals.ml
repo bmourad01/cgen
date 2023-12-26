@@ -22,20 +22,17 @@ let find_var = find_var
 module Interp = Sccp_intervals_interp
 
 let step ctx visits l _pre post =
-  (* TODO: do we need the previous state for anything? *)
+  (* XXX: do we need the previous state for anything? *)
   let s = post in
   (* Widening for block args. *)
   let s = match Label.Tree.find ctx.blks l with
     | None -> s
     | Some b ->
-      (* XXX: there are some soundness issues when we merge loop-variant
-         block params that contain the empty interval. This is a band-aid
-         fix that loses us some precision (although we need smarter
-         widening heuristics anyway). *)
-      if visits > ctx.cycloc then
+      (* XXX: we need a better widening heuristic for back edges. *)
+      if visits > ctx.cycloc * 10 then
         Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
             match sizeof x ctx with
-            | Some size -> Map.set s ~key:x ~data:(I.create_full ~size)
+            | Some size -> update s x @@ I.create_full ~size
             | None -> s)
       else s in
   (* Narrowing for constraints. *)
@@ -51,12 +48,12 @@ let init_state ctx fn =
         | `name _ -> None) |>
     Seq.fold ~init:empty_state ~f:(fun s x ->
         match sizeof x ctx with
-        | Some size -> Map.set s ~key:x ~data:(I.create_full ~size)
+        | Some size -> update s x @@ I.create_full ~size
         | None -> s) in
   let init =
     Func.slots fn |> Seq.fold ~init ~f:(fun s x ->
-        let data = I.create_full ~size:(Type.sizeof_imm_base ctx.word) in
-        Map.set s ~key:(Slot.var x) ~data) in
+        let size = Type.sizeof_imm_base ctx.word in
+        update s (Slot.var x) @@ I.create_full ~size) in
   Solution.create Label.(Map.singleton pseudoentry init) empty_state
 
 let transfer ctx l s = match Label.Tree.find ctx.blks l with

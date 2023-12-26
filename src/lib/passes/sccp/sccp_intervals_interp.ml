@@ -56,10 +56,11 @@ let interp_bitwise_binop o a b = match (o : Insn.bitwise_binop) with
 module Cmp_bool = Sccp_intervals_cmp_bool
 module Cmp_constr = Sccp_intervals_cmp_constr
 
+(* pre: If `l` and `r` are variables, then they are distinct. *)
 let do_cmp ctx t x l r a b ~constr ~cmp =
   let il, ir = constr (Type.sizeof_imm t) a b in
-  Cmp_constr.add_constraint ctx x l il;
-  Cmp_constr.add_constraint ctx x r ir;
+  Cmp_constr.set_constraint ctx x l il;
+  Cmp_constr.set_constraint ctx x r ir;
   cmp a b
 
 let interp_cmp ctx o x l r a b =
@@ -227,12 +228,12 @@ let make_top s x = function
   | `si32 -> update s x @@ I.create_full ~size:32
   | `name _ -> s
 
-let interp_call _ s : Insn.call -> state = function
+let interp_call _ctx s : Insn.call -> state = function
   | `call (Some (x, t), _, _, _) -> make_top s x t
   | `call (None, _, _, _) -> s
 
 (* TODO: maybe model memory? *)
-let interp_mem _ s : Insn.mem -> state = function
+let interp_mem _ctx s : Insn.mem -> state = function
   | `load (x, t, _) -> make_top s x t
   | `store _ -> s
 
@@ -258,14 +259,41 @@ let assign_blk_args ctx s l args =
     match List.zip args args' with
     | Unequal_lengths -> s
     | Ok xs -> List.fold xs ~init:s ~f:(fun s (o, x) ->
-        interp_operand ctx s o |> try1 s ~f:(update s x))
+        interp_operand ctx s o |> try1 s ~f:(update_union s x))
 
-(* Our transfer function. *)
-let interp_blk ctx s b =
-  let s =
-    Blk.insns b |>
-    Seq.fold ~init:s ~f:(interp_insn ctx) in
-  match Blk.ctrl b with
+(* The empty and full intervals don't carry any interesting
+   information about a possible branch condition, and may
+   lead to unsound approximations when propagated. *)
+module Narrow_branch = struct
+  let has_info i = not I.(is_full i || is_empty i)
+
+  let default s x i = match Map.find s x with
+    | None -> I.create_full ~size:(I.size i)
+    | Some i -> i
+
+  let both ctx s y n x i =
+    if has_info i then
+      let i' = I.inverse i in
+      narrow ctx y x i;
+      narrow ctx n x i'
+    else
+      let i = default s x i in
+      narrow ctx y x i;
+      narrow ctx n x i
+
+  let yes ctx s y x i =
+    narrow ctx y x @@
+    if has_info i then i
+    else default s x i
+
+  let no ctx s n x i =
+    narrow ctx n x @@
+    if has_info i
+    then I.inverse i
+    else default s x i
+end
+
+let interp_ctrl ctx s = function
   | `jmp `label (l, args) ->
     assign_blk_args ctx s l args
   | `br (c, `label (y, yargs), `label (n, nargs)) ->
@@ -273,22 +301,20 @@ let interp_blk ctx s b =
     narrow ctx n c I.boolean_false;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
-            let i' = I.inverse i in
-            narrow ctx y x i;
-            narrow ctx n x i'));
+            Narrow_branch.both ctx s y n x i));
     let s = assign_blk_args ctx s y yargs in
     assign_blk_args ctx s n nargs
   | `br (c, `label (y, yargs), _) ->
     narrow ctx y c I.boolean_true;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
-            narrow ctx y x i));
+            Narrow_branch.yes ctx s y x i));
     assign_blk_args ctx s y yargs
   | `br (c, _, `label (n, nargs)) ->
     narrow ctx n c I.boolean_false;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Map.iteri s' ~f:(fun ~key:x ~data:i ->
-            narrow ctx n x @@ I.inverse i));
+            Narrow_branch.no ctx s n x i));
     assign_blk_args ctx s n nargs
   | `sw (t, `var x, `label (d, args), tbl) ->
     let size = Type.sizeof_imm t in
@@ -304,3 +330,9 @@ let interp_blk ctx s b =
           assign_blk_args ctx s l args) in
     assign_blk_args ctx s d args
   | _ -> s
+
+(* Our transfer function. *)
+let interp_blk ctx s b =
+  Blk.insns b |>
+  Seq.fold ~init:s ~f:(interp_insn ctx) |>
+  Fn.flip (interp_ctrl ctx) (Blk.ctrl b)
