@@ -1,6 +1,6 @@
 module foo
 
-export function w $foo(l %s1, l %s2) {
+export function sw $foo(l %s1, l %s2) {
 @start:
   jmp @next
 @next:
