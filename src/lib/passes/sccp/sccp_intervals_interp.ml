@@ -58,7 +58,10 @@ module Cmp_constr = Sccp_intervals_cmp_constr
 
 (* pre: If `l` and `r` are variables, then they are distinct. *)
 let do_cmp ctx t x l r a b ~constr ~cmp =
-  let il, ir = constr (Type.sizeof_imm t) a b in
+  let sz = Type.sizeof_imm t in
+  assert (I.size a = sz);
+  assert (I.size b = sz);
+  let il, ir = constr a b in
   Cmp_constr.set_constraint ctx x l il;
   Cmp_constr.set_constraint ctx x r ir;
   cmp a b

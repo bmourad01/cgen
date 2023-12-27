@@ -992,6 +992,63 @@ let popcnt t =
       let y = popcnt_range Bv.zero t.hi t.size in
       union x y
 
+type predicate =
+  | EQ | NE
+  | LT | SLT
+  | LE | SLE
+  | GT | SGT
+  | GE | SGE
+
+let allowed_icmp_region i p =
+  if is_empty i then i
+  else
+    let size = i.size in
+    match p with
+    | EQ -> i
+    | NE ->
+      if is_single i
+      then create ~lo:i.hi ~hi:i.lo ~size
+      else create_full ~size
+    | LT ->
+      let m = unsigned_max i in
+      if Bv.(m = zero) then create_empty ~size
+      else create ~lo:Bv.zero ~hi:m ~size
+    | SLT ->
+      let m = signed_max i in
+      let ms = Bv.min_signed_value size in
+      if Bv.(m = ms) then create_empty ~size
+      else create ~lo:ms ~hi:m ~size
+    | LE ->
+      create_non_empty ~size
+        ~lo:Bv.zero
+        ~hi:Bv.(succ (unsigned_max i) mod modulus size)
+    | SLE ->
+      create_non_empty ~size
+        ~lo:(Bv.min_signed_value size)
+        ~hi:Bv.(succ (signed_max i) mod modulus size)
+    | GT ->
+      let m = unsigned_min i in
+      let ms = Bv.max_unsigned_value size in
+      if Bv.(m = ms) then create_empty ~size
+      else create ~size
+          ~lo:Bv.(succ m mod modulus size)
+          ~hi:Bv.zero
+    | SGT ->
+      let m = signed_min i in
+      let ms = Bv.max_signed_value size in
+      if Bv.(m = ms) then create_empty ~size
+      else create ~size
+          ~lo:Bv.(succ m mod modulus size)
+          ~hi:ms
+    | GE ->
+      create_non_empty ~size
+        ~lo:(unsigned_min i)
+        ~hi:Bv.zero
+    | SGE ->
+      create_non_empty ~size
+        ~lo:(signed_min i)
+        ~hi:(Bv.min_signed_value size)
+
 module Infix = struct
   let (+)    t1 t2 = add t1 t2 [@@inline]
   let (-)    t1 t2 = sub t1 t2 [@@inline]

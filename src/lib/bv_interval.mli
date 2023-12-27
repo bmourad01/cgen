@@ -337,6 +337,18 @@ val ctz : ?zero_is_poison:bool -> t -> t
 (** Population count. *)
 val popcnt : t -> t
 
+(** A comparison predicate. *)
+type predicate =
+  | EQ | NE
+  | LT | SLT
+  | LE | SLE
+  | GT | SGT
+  | GE | SGE
+
+(** [allowed_icmp_region t p] produces the smallest range [t'] such that
+    it contains all values that may satisfy [p] in [t]. *)
+val allowed_icmp_region : t -> predicate -> t
+
 (** Pretty printing. *)
 val pp : Format.formatter -> t -> unit
 
