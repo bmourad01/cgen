@@ -352,6 +352,9 @@ val allowed_icmp_region : t -> predicate -> t
 (** Pretty printing. *)
 val pp : Format.formatter -> t -> unit
 
+(** Pretty prints to a string. *)
+val to_string : t -> string
+
 module Infix : sig
   (** Infix of [add]. *)
   val (+) : t -> t -> t

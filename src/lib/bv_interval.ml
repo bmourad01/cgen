@@ -172,6 +172,8 @@ let pp ppf t =
       Format.fprintf ppf "[%a, %a):%d"
         Bv.pp t.lo Bv.pp t.hi t.size
 
+let to_string t = Format.asprintf "%a" pp t
+
 let contains_value t v =
   if Bv.(t.lo = t.hi) then is_full t
   else if is_wrapped_hi t then Bv.(t.lo <= v || v < t.hi)
