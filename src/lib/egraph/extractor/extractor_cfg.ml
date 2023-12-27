@@ -340,7 +340,7 @@ module Hoisting = struct
           Seq.fold ~init:(to_set @@ descendants t l) ~f:(++) in
         Hashtbl.set env.closure ~key:l ~data:c;
         c in
-    if self then Set.add c l else c
+    if self then Set.add c l else Set.remove c l
 
   let moved_blks t id =
     Hashtbl.find_exn t.eg.imoved id |> Label.Set.map ~f:(fun l ->
