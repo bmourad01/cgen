@@ -41,13 +41,14 @@ val target : Target.t t
 module type Machine = Machine_intf.S
   with type 'a context := 'a t
 
-(** Registers a machine for a given target.
+(** [register_machine t m] registers the machine implementation [m] for
+    target descriptor [t].
 
-    @raise Invalid_argument if the target is already registered.
+    @raise Invalid_argument if [t] is already registered with a machine.
 *)
 val register_machine : Target.t -> (module Machine) -> unit
 
-(** Returns the target machine implementation. *)
+(** Returns the target machine implementation for the current context. *)
 val machine : (module Machine) t
 
 type var = Var.t
