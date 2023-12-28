@@ -1,5 +1,5 @@
 open Core
-open Context_state
+open Context_common
 
 let init = Int63.(succ (Obj.magic Label.pseudoexit : t))
 

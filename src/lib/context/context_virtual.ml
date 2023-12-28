@@ -2,7 +2,7 @@ open Core
 
 module Var = Context_var
 module Label = Context_label
-module M = Context_state.M
+module M = Context_common.M
 
 open M.Syntax
 

@@ -1,5 +1,5 @@
 open Core
-open Context_state
+open Context_common
 
 let fresh =
   let* s = M.get () in

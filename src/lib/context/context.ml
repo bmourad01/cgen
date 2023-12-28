@@ -1,6 +1,6 @@
 open Core
 
-include Context_state
+include Context_common
 
 type var = Var.t
 type label = Label.t

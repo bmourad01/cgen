@@ -1,7 +1,7 @@
 open Core
 
 module type S = Machine_intf.S
-  with type 'a context := 'a Context_state.t
+  with type 'a context := 'a Context_common.t
 
 let targets = Hashtbl.create (module Target)
 
