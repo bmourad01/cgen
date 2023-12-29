@@ -82,6 +82,7 @@ rule token = parse
   | '%' (integer as id) '.' (integer as i) { TEMPI (id, int_of_string i) }
   | "module" space+ (ident as id) { MODULE id }
   | "align" { ALIGN }
+  | "const" { CONST () }
   | "type" { TYPE }
   | '{' { LBRACE }
   | '}' { RBRACE }

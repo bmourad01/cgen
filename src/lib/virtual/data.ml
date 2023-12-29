@@ -31,6 +31,10 @@ module Tag = struct
   let linkage = Dict.register
       ~uuid:"c3c1ad03-b3d7-42b5-8529-b21b7d04173b"
       "data-linkage" (module Linkage)
+
+  let const = Dict.register
+      ~uuid:"41f13eba-baa9-44c4-96cc-4729aaf1eb55"
+      "data-const" (module Unit)
 end
 
 let create_exn
@@ -58,6 +62,7 @@ let linkage d = match Dict.find d.dict Tag.linkage with
   | Some l -> l
 
 let align d = Dict.find d.dict Tag.align
+let const d = Dict.mem d.dict Tag.const
 let dict d = d.dict
 let with_dict d dict = {d with dict}
 let with_tag d tag x = {d with dict = Dict.set d.dict tag x}
@@ -96,6 +101,7 @@ let pp ppf d =
   if Linkage.export lnk
   || Linkage.section lnk |> Option.is_some then
     Format.fprintf ppf "%a " Linkage.pp lnk;
+  if const d then Format.fprintf ppf "const ";
   Format.fprintf ppf "data $%s = " d.name;
   Option.iter (align d) ~f:(Format.fprintf ppf "align %d ");
   Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"

@@ -613,6 +613,9 @@ module Data : sig
 
     (** The linkage of the struct. *)
     val linkage : Linkage.t Dict.tag
+
+    (** Indicates that the struct is read-only. *)
+    val const : unit Dict.tag
   end
 
   type t [@@deriving bin_io, compare, equal, sexp]
@@ -653,6 +656,9 @@ module Data : sig
 
   (** Returns the desired alignment, if any. *)
   val align : t -> int option
+
+  (** Returns [true] if the struct is read-only. *)
+  val const : t -> bool
 
   (** Returns the dictionary of the struct. *)
   val dict : t -> Dict.t

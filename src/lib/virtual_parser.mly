@@ -94,6 +94,7 @@
 %token <string> LABEL
 %token COLON
 %token ALIGN
+%token <unit> CONST
 %token TYPE
 %token LBRACE
 %token RBRACE
@@ -209,7 +210,7 @@ module_elt:
   | d = data { let+ d = d in `data d }
 
 data:
-  | l = option(linkage) DATA name = SYM EQUALS align = option(align) LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
+  | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS ALIGN align = option(align) LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
     {
       let module Tag = Virtual.Data.Tag in
       let dict = Dict.empty in
@@ -218,6 +219,9 @@ data:
         | None -> dict in
       let dict = match align with
         | Some align -> Dict.set dict Tag.align align
+        | None -> dict in
+      let dict = match c with
+        | Some k -> Dict.set dict Tag.const k
         | None -> dict in
       match Virtual.Data.create () ~name ~elts ~dict with
       | Error err -> M.lift @@ Context.fail err
