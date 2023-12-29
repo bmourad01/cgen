@@ -1,16 +1,14 @@
  %{
     open Monads.Std
 
-    type elt = [
-      | `func of Virtual.func
-      | `typ  of Type.compound
-      | `data of Virtual.data
-    ]
+    type elt =
+      | Func of Virtual.func
+      | Typ  of Type.compound
+      | Data of Virtual.data
 
-    type call_arg = [
-      | `arg  of Virtual.operand
-      | `varg of Virtual.operand
-    ]
+    type call_arg =
+      | Arg  of Virtual.operand
+      | Varg of Virtual.operand
 
     module Env = struct
       (* Since we allow a nicer surface syntax over the internal
@@ -197,17 +195,17 @@ module_:
           let init = [], [], [] in
           M.List.fold_right elts ~init ~f:(fun x (funs, typs, data) ->
               reset >>= fun () -> x >>| function
-              | `func f -> f :: funs, typs, data
-              | `typ  t -> funs, t :: typs, data
-              | `data d -> funs, typs, d :: data) in
+              | Func f -> f :: funs, typs, data
+              | Typ  t -> funs, t :: typs, data
+              | Data d -> funs, typs, d :: data) in
         Virtual.Module.create ~funs ~typs ~data ~name ()
       end Env.empty |> Context.map ~f:fst
     }
 
 module_elt:
-  | f = func { let+ f = f in `func f }
-  | t = typ { !!(`typ t) }
-  | d = data { let+ d = d in `data d }
+  | f = func { let+ f = f in Func f }
+  | t = typ { !!(Typ t) }
+  | d = data { let+ d = d in Data d }
 
 data:
   | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS ALIGN align = option(align) LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
@@ -379,15 +377,19 @@ insn:
   | x = var EQUALS t = ACALL f = global LPAREN args = call_args RPAREN
     {
       let+ x = x and+ f = f and+ args = args in
-      let args, vargs = Core.List.partition_map args ~f:(function
-        | `arg a -> First a | `varg a -> Second a) in
+      let args, vargs =
+        Core.List.partition_map args ~f:(function
+            | Arg a -> First a
+            | Varg a -> Second a) in
       `call (Some (x, t), f, args, vargs)
     }
   | CALL f = global LPAREN args = call_args RPAREN
     {
       let+ f = f and+ args = args in
-      let args, vargs = Core.List.partition_map args ~f:(function
-        | `arg a -> First a | `varg a -> Second a) in
+      let args, vargs =
+        Core.List.partition_map args ~f:(function
+            | Arg a -> First a
+            | Varg a -> Second a) in
       `call (None, f, args, vargs)
     }
   | x = var EQUALS t = VAARG y = var
@@ -446,17 +448,17 @@ call_args:
     {
       match a with
       | None -> !![]
-      | Some a -> let+ a = a in [`arg a]
+      | Some a -> let+ a = a in [Arg a]
     }
   | a = operand COMMA rest = call_args
     {
       let+ a = a and+ rest = rest in
-      `arg a :: rest
+      Arg a :: rest
     }
   | a = operand COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, operand)
     {
       let+ a = a and+ vargs = unwrap_list vargs in
-      `arg a :: Core.List.map vargs ~f:(fun a -> `varg a)
+      Arg a :: Core.List.map vargs ~f:(fun a -> Varg a)
     }
 
 insn_binop:
