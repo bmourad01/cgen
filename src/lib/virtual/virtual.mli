@@ -848,6 +848,10 @@ module Abi : sig
 
         [`call (xs, f, args)] calls the function [f] with [args], returning
         zero or more results in registers [xs].
+
+        If an argument [a = `reg r`] in [args], then this argument is
+        interpreted as being passed in register [r]. All other arguments are
+        assumed to be passed in memory according to the target ABI.
     *)
     type call = [
       | `call of string list * global * operand list
@@ -1010,6 +1014,13 @@ module Abi : sig
 
   type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
+  (** An ABI-lowered function.
+
+      Note that an argument [a] in the [args] of a function may include
+      a [`reg r], indicating that [a] is passed in register [r]. All
+      other arguments are assumed to be passed in memory according to
+      the target ABI.
+  *)
   module Func : sig
     include Func_intf.S
       with type blk := blk
