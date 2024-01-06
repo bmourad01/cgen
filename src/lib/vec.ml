@@ -12,11 +12,12 @@ type 'a t = {
 let default_capacity = 7
 let growth_factor = 2
 
-let create ?(capacity = default_capacity) () = {
-  data = Oa.create ~len:(max capacity 1);
-  length = 0;
-  capacity;
-}
+let create ?(capacity = default_capacity) () =
+  let len = max capacity 1 in {
+    data = Oa.create ~len;
+    length = 0;
+    capacity = len;
+  }
 
 let length t = t.length
 let is_empty t = t.length = 0
@@ -45,13 +46,17 @@ let append t1 t2 =
     t1.length <- new_length;
   end
 
-let grow t =
-  let new_capacity = t.capacity * growth_factor in
-  let dst = Oa.create ~len:new_capacity in
+let grow_to t n =
+  let dst = Oa.create ~len:n in
   Oa.unsafe_blit ~src:t.data ~src_pos:0 ~dst ~dst_pos:0 ~len:t.length;
   t.data <- dst;
-  t.capacity <- new_capacity
+  t.capacity <- n
 
+let ensure_capacity t n =
+  if t.capacity < n then
+    grow_to t @@ Int.(ceil_pow2 @@ max 1 n)
+
+let grow t = grow_to t (t.capacity * growth_factor)
 let unsafe_get t i = Oa.unsafe_get_some_assuming_some t.data i [@@inline]
 let unsafe_set t i x = Oa.unsafe_set_some t.data i x [@@inline]
 

@@ -28,7 +28,6 @@
   sm
   tags
   var_internal
-  vec
   virtual_lexer
   virtual_parser)
  (foreign_stubs
