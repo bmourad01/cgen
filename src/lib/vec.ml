@@ -65,6 +65,7 @@ let pop_exn t =
   let i = t.length - 1 in
   if i >= 0 then
     let x = unsafe_get t i in
+    (* Clear the element to prevent a memory leak. *)
     Oa.unsafe_set_none t.data i;
     t.length <- i;
     x
@@ -232,6 +233,10 @@ let filteri_inplace t ~f =
       if !j < i then unsafe_set t !j x;
       incr j
     end
+  done;
+  (* Clear the filtered elements to prevent a memory leak. *)
+  for i = !j to t.length - 1 do
+    Oa.unsafe_set_none t.data i
   done;
   t.length <- !j
 [@@specialise]
