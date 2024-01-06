@@ -9,30 +9,28 @@
 (library
  (name cgen)
  (public_name cgen)
- (preprocess (pps ppx_bin_prot
-                  ppx_compare
-                  ppx_hash
-                  ppx_sexp_conv))
+ (preprocess
+  (pps ppx_bin_prot ppx_compare ppx_hash ppx_sexp_conv))
  (libraries
-   bitvec
-   bitvec-binprot
-   bitvec-order
-   bitvec-sexp
-   core
-   core_kernel.pairing_heap
-   core_kernel.uopt
-   graphlib
-   monads
-   regular
-   zarith)
+  bitvec
+  bitvec-binprot
+  bitvec-order
+  bitvec-sexp
+  core
+  core_kernel.pairing_heap
+  core_kernel.uopt
+  graphlib
+  monads
+  regular
+  zarith)
  (private_modules
-   ftree
-   sm
-   tags
-   var_internal
-   vec
-   virtual_lexer
-   virtual_parser)
+  ftree
+  sm
+  tags
+  var_internal
+  vec
+  virtual_lexer
+  virtual_parser)
  (foreign_stubs
   (language c)
   (names float_stubs))
