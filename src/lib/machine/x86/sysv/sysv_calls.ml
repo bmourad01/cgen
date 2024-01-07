@@ -24,7 +24,7 @@ let onereg_arg ~reg k r src =
 let tworeg_arg ~reg2 k r1 r2 src =
   let t1 = reg_type r1 and t2 = reg_type r2 in
   let regs = reg2 r1 r2 in
-  let* o, oi = Cv.Abi.binop (`add `i64) (`var src) o8 in
+  let* o, oi = Cv.Abi.binop (`add `i64) (`var src) (i64 8) in
   let* l1, li1 = Cv.Abi.load `i64 (`var src) in
   let* l2, li2 = Cv.Abi.load `i64 (`var o) in
   let+ callai, callar, callam = match regs with
@@ -81,7 +81,7 @@ let call_ret_tworeg env x r1 r2 k =
     | `i64, `f64 -> int_rets.(0), sse_rets.(0)
     | `f64, `i64 -> sse_rets.(0), int_rets.(0)
     | `f64, `f64 -> sse_rets.(0), sse_rets.(1) in
-  let* o, oi = Cv.Abi.binop (`add `i64) (`var x) o8 in
+  let* o, oi = Cv.Abi.binop (`add `i64) (`var x) (i64 8) in
   let* st1 = Cv.Abi.store t1 (`reg reg1) (`var x) in
   let+ st2 = Cv.Abi.store t2 (`reg reg2) (`var o) in
   let callri = k.callri @>* [oi; st1; st2] in

@@ -52,7 +52,7 @@ let tworeg_ret env r1 r2 key x =
     | `f64, `f64 -> sse_rets.(0), sse_rets.(1)
     | `f64, `i64 -> sse_rets.(0), int_rets.(0) in
   let* ld1 = Cv.Abi.insn @@ `load (`reg reg1, `i64, `var x) in
-  let* a, add = Cv.Abi.binop (`add `i64) (`var x) o8 in
+  let* a, add = Cv.Abi.binop (`add `i64) (`var x) (i64 8) in
   let+ ld2 = Cv.Abi.insn @@ `load (`reg reg2, `i64, `var a) in
   Hashtbl.set env.rets ~key ~data:{
     reti = [ld1; add; ld2];

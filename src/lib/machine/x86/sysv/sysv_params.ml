@@ -87,7 +87,7 @@ let tworeg_param ~reg2 env y r1 r2 =
   let t1 = reg_type r1 and t2 = reg_type r2 in
   let* x1 = Context.Var.fresh in
   let* x2 = Context.Var.fresh in
-  let* o, oi = Cv.Abi.binop (`add `i64) (`var y) o8 in
+  let* o, oi = Cv.Abi.binop (`add `i64) (`var y) (i64 8) in
   let* st1 = Cv.Abi.store t1 (`var x1) (`var y) in
   let* st2 = Cv.Abi.store t1 (`var x2) (`var o) in
   let+ p1, p2 = match reg2 t1 t2 with

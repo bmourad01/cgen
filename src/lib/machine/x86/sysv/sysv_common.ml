@@ -232,12 +232,6 @@ let type_cls env s = match Hashtbl.find env.layout s with
     Hashtbl.set env.layout ~key:s ~data:k;
     !!k
 
-(* Common offsets. *)
-let o4 = `int (Bv.M64.int 4, `i64)
-let o8 = `int (Bv.M64.int 8, `i64)
-let o16 = `int (Bv.M64.int 16, `i64)
-
-(* Helpers for constructing constants. *)
 let i8 i = `int (Bv.M8.int i, `i8)
 let i32 i = `int (Bv.M32.int i, `i32)
 let i64 i = `int (Bv.M64.int i, `i64)

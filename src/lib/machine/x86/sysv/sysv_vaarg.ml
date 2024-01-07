@@ -38,7 +38,7 @@ let make_cmp ?(num = 1) label t ap yes no =
       let+ o, oi = Cv.Abi.load `i32 ap in
       o, ap, [oi], 48, 8 * num
     | #Type.fp ->
-      let* a, ai = Cv.Abi.binop (`add `i64) ap o4 in
+      let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 4) in
       let+ o, oi = Cv.Abi.load `i32 (`var a) in
       o, `var a, [ai; oi], 176, 16 * num in
   (* Check if there is enough room. *)
@@ -59,7 +59,7 @@ let fetch_reg ?(num = 1) env x t ap cont =
   let* bcmp, o, a1, inc = make_cmp ~num lcmp t ap lreg lstk in
   (* Access the register save area and increment the reg
      offset. *)
-  let* a, ai = Cv.Abi.binop (`add `i64) ap o16 in
+  let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 16) in
   let* l, li = Cv.Abi.load `i64 (`var a) in
   let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var o) in
   let* n, ni = Cv.Abi.binop (`add `i32) (`var o) (i32 inc) in
@@ -70,7 +70,7 @@ let fetch_reg ?(num = 1) env x t ap cont =
       ~insns:[ai; li; ri; ni; st]
       ~ctrl:(`jmp (`label (ljoin, [`var r]))) in
   (* Access the overflow arg area and increment it. *)
-  let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
+  let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 8) in
   let* l, li = Cv.Abi.load `i64 (`var a) in
   let* n, ni = Cv.Abi.binop (`add `i64) (`var l) (i64 (num * 8)) in
   let* st = Cv.Abi.store `i64 (`var n) (`var a) in
@@ -115,7 +115,7 @@ let fetch_two_reg env x t1 t2 ap cont =
   let* bcmp1, o1, a1, inc1 = make_cmp lcmp1 t1 ap lcmp2 lstk in
   let* bcmp2, o2, a2, inc2 = make_cmp lcmp2 t2 ap lreg lstk in
   (* Access the register save area and increment. *)
-  let* a, ai = Cv.Abi.binop (`add `i64) ap o16 in
+  let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 16) in
   let* l, li = Cv.Abi.load `i64 (`var a) in
   let* r1, ri1 = Cv.Abi.binop (`add `i64) (`var l) (`var o1) in
   let* r2, ri2 = Cv.Abi.binop (`add `i64) (`var l) (`var o2) in
@@ -129,10 +129,10 @@ let fetch_two_reg env x t1 t2 ap cont =
       ~insns:[ai; li; ri1; ri2; ni1; ni2; st1; st2]
       ~ctrl:(`jmp (`label (ljoin, [`var r1; `var r2]))) in
   (* Access the overflow arg area and increment *)
-  let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
+  let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 8) in
   let* l1, li1 = Cv.Abi.load `i64 (`var a) in
-  let* l2, li2 = Cv.Abi.binop (`add `i64) (`var l1) o8 in
-  let* n, ni = Cv.Abi.binop (`add `i64) (`var l1) o16 in
+  let* l2, li2 = Cv.Abi.binop (`add `i64) (`var l1) (i64 8) in
+  let* n, ni = Cv.Abi.binop (`add `i64) (`var l1) (i64 16) in
   let* st = Cv.Abi.store `i64 (`var n) (`var a) in
   let bstk =
     Abi.Blk.create ()
@@ -146,7 +146,7 @@ let fetch_two_reg env x t1 t2 ap cont =
   let* l, li1 = Cv.Abi.load `i64 (`var p1) in
   let* st1 = Cv.Abi.store `i64 (`var l) (`var y) in
   let* l, li2 = Cv.Abi.load `i64 (`var p2) in
-  let* a, ai = Cv.Abi.binop (`add `i64) (`var y) o8 in
+  let* a, ai = Cv.Abi.binop (`add `i64) (`var y) (i64 8) in
   let+ st2 = Cv.Abi.store `i64 (`var l) (`var a) in
   let bjoin =
     Abi.Blk.create ()
@@ -183,7 +183,7 @@ let fetch env x t ap cont = match (t : Type.arg) with
          the `overflow_arg_area` to the corresponding stack slot. *)
       let y = find_ref env x in
       let* label = Context.Label.fresh in
-      let* a, ai = Cv.Abi.binop (`add `i64) ap o8 in
+      let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 8) in
       let* l, li = Cv.Abi.load `i64 (`var a) in
       let* n, ni = Cv.Abi.binop (`add `i64) (`var l) (i64 k.size) in
       let* st = Cv.Abi.store `i64 (`var n) (`var a) in
