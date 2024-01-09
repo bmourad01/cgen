@@ -81,7 +81,6 @@ let rec pp_ext ppf = function
     Format.fprintf ppf "(%a %a %a)" pp_prov p Enode.pp_op op
       (Format.pp_print_list ~pp_sep pp_ext) args
 
-let has t id = Hashtbl.mem t.table @@ find t.eg id
 let get t id = Hashtbl.find t.table @@ find t.eg id
 
 open O.Let
@@ -119,6 +118,7 @@ let op_cost : Enode.op -> cost = function
   | Osel _ -> Cost.pure 8
 
 let cost t (n : enode) = match n with
+  | N (op, []) -> Some (op_cost op, n)
   | N (op, children) ->
     let+ k = O.List.fold children ~init:(op_cost op) ~f:(fun k id ->
         let+ c, _ = get t id in
