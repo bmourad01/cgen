@@ -1,5 +1,7 @@
 (* Union-find: the greatest data structure since sliced bread. *)
 
+module Id = Egraph_id
+
 type t = Id.t Vec.t
 
 let create () = Vec.create ()

@@ -4,7 +4,7 @@
 open Core
 open Regular.Std
 open Graphlib.Std
-open Common
+open Egraph_common
 open Virtual
 
 (* Lowest common ancestor in the dominator tree. Note that this

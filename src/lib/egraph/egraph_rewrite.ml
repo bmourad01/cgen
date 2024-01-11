@@ -1,7 +1,10 @@
 open Core
 open Monads.Std
-open Common
+open Egraph_common
 
+module Subst = Egraph_subst
+module Sched = Egraph_sched
+module Uf = Egraph_uf
 module O = Monad.Option
 
 open O.Syntax
@@ -38,13 +41,13 @@ let union ?ty t id oid =
   let u = new_node ?ty t @@ U {pre = id; post = oid} in
   Uf.union t.classes id oid;
   Uf.union t.classes id u;
-  Prov.merge t id oid;
-  Prov.merge t id u;
+  Sched.merge t id oid;
+  Sched.merge t id u;
   u
 
 (* Called when a duplicate node is inserted. *)
 let duplicate ?l t id =
-  Option.iter l ~f:(Prov.duplicate t id);
+  Option.iter l ~f:(Sched.duplicate t id);
   id
 
 let subst_info t id : Subst.info = {
@@ -73,7 +76,7 @@ let rec insert ?ty ?l ~d t n =
             | None -> infer_ty t n
             | Some _ -> ty in
           let id = new_node ?ty t n in
-          Option.iter l ~f:(fun l -> Prov.add t l id n);
+          Option.iter l ~f:(fun l -> Sched.add t l id n);
           let oid = optimize ?ty ~d t n id in
           Hashtbl.set t.memo ~key:k ~data:oid;
           oid)

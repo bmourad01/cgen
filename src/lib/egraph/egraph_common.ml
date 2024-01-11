@@ -1,12 +1,14 @@
 open Core
 open Graphlib.Std
 
-module Id = Id
-module Enode = Enode
+module Id = Egraph_id
+module Enode = Egraph_node
+module Input = Egraph_input
+module Uf = Egraph_uf
 
 type id = Id.t [@@deriving bin_io, compare, equal, hash, sexp]
 type enode = Enode.t
-type subst = Subst.t
+type subst = Egraph_subst.t
 
 let empty_subst : subst = String.Map.empty
 

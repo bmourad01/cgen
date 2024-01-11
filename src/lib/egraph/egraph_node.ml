@@ -1,6 +1,8 @@
 open Core
 open Virtual
 
+module Id = Egraph_id
+
 type op =
   | Oaddr     of Bv.t
   | Obinop    of Insn.binop

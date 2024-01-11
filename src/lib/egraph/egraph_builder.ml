@@ -3,8 +3,9 @@ open Regular.Std
 open Graphlib.Std
 open Monads.Std
 open Virtual
-open Common
+open Egraph_common
 
+module Rewrite = Egraph_rewrite
 module E = Monad.Result.Error
 
 exception Missing of Label.t
@@ -101,7 +102,9 @@ let table env eg tbl =
   Ctrl.Table.enum tbl |> Seq.map ~f:(fun (i, l) ->
       node eg (Otbl i) [local env eg l]) |> Seq.to_list
 
-let prov ?x ?(f = Fn.const) env eg l op args =
+(* The name `sched` indicates that the enode will manage its scheduling
+   in the resulting CFG, after we perform rewrites. *)
+let sched ?x ?(f = Fn.const) env eg l op args =
   let ty = Option.bind x ~f:(typeof_var eg) in
   let id = node ?ty ~l eg op args in
   Option.iter x ~f:(fun x ->
@@ -124,7 +127,7 @@ let store env eg l ty v a =
   | `name _ -> assert false
   | #Type.basic as ty ->
     Hashtbl.set env.mems ~key ~data:(Value (v, l));
-    prov env eg l (Ostore (ty, l)) [v; a];
+    sched env eg l (Ostore (ty, l)) [v; a];
     env.mem <- Some l
 
 let alias env eg key l =
@@ -149,9 +152,9 @@ let load env eg l x ty a =
   } in
   match alias env eg key l with
   | Some v ->
-    prov ~x env eg l (Ounop (`copy ty)) [v] ~f:(set x)
+    sched ~x env eg l (Ounop (`copy ty)) [v] ~f:(set x)
   | None ->
-    prov ~x env eg l (Oload (x, ty)) [a] ~f:(fun id _ ->
+    sched ~x env eg l (Oload (x, ty)) [a] ~f:(fun id _ ->
         Hashtbl.set env.mems ~key ~data:(Value (id, l));
         id)
 
@@ -167,7 +170,7 @@ let callargs env eg args =
 let call env eg l x f args vargs =
   let op, x = callop x l in
   env.mem <- Some l;
-  prov ?x env eg l op [
+  sched ?x env eg l op [
     global env eg f;
     callargs env eg args;
     callargs env eg vargs;
@@ -187,27 +190,27 @@ let undef env l addr ty =
 let vaarg env eg l x ty a =
   let a = global env eg a in
   undef env l a ty;
-  prov ~x env eg l (Ovaarg (x, ty)) [a]
+  sched ~x env eg l (Ovaarg (x, ty)) [a]
 
 let vastart env eg l x =
   let a = global env eg x in
   let tgt = Typecheck.Env.target eg.input.tenv in
   let ty = (Target.word tgt :> Type.arg) in
   undef env l a ty;
-  prov env eg l (Ovastart l) [a]
+  sched env eg l (Ovastart l) [a]
 
 let insn env eg l : Insn.op -> unit = function
   | `bop (x, o, a, b) ->
-    prov ~x env eg l (Obinop o) [
+    sched ~x env eg l (Obinop o) [
       operand env eg a;
       operand env eg b;
     ] ~f:(set x)
   | `uop (x, o, a) ->
-    prov ~x env eg l (Ounop o) [
+    sched ~x env eg l (Ounop o) [
       operand env eg a;
     ] ~f:(set x)
   | `sel (x, ty, c, y, n) ->
-    prov ~x env eg l (Osel ty) [
+    sched ~x env eg l (Osel ty) [
       var env eg c;
       operand env eg y;
       operand env eg n;
@@ -223,11 +226,11 @@ let insn env eg l : Insn.op -> unit = function
   | `vastart x ->
     vastart env eg l x
   | `ref (x, a) ->
-    prov ~x env eg l Oref [
+    sched ~x env eg l Oref [
       operand env eg a;
     ] ~f:(set x)
   | `unref (x, s, a) ->
-    prov ~x env eg l Ounref [
+    sched ~x env eg l Ounref [
       atom eg (Otype s);
       operand env eg a;
     ] ~f:(set x)
@@ -236,23 +239,23 @@ let sw env eg l ty i d tbl =
   let i = operand env eg (i :> operand) in
   let d = local env eg d in
   let tbl = table env eg tbl in
-  prov env eg l (Osw ty) (i :: d :: tbl)
+  sched env eg l (Osw ty) (i :: d :: tbl)
 
 let ctrl env eg l : ctrl -> unit = function
   | `hlt -> ()
   | `jmp d ->
-    prov env eg l Ojmp [
+    sched env eg l Ojmp [
       dst env eg d;
     ]
   | `br (c, y, n) ->
-    prov env eg l Obr [
+    sched env eg l Obr [
       var env eg c;
       dst env eg y;
       dst env eg n;
     ]
   | `ret None -> ()
   | `ret (Some r) ->
-    prov env eg l Oret [
+    sched env eg l Oret [
       operand env eg r;
     ]
   | `sw (ty, i, d, tbl) ->

@@ -6,6 +6,9 @@ open Regular.Std
 open Graphlib.Std
 open Virtual
 
+module Common = Egraph_common
+module Id = Egraph_id
+
 open Context.Syntax
 
 (* Maps IDs to generated temporaries. We use a persistent map

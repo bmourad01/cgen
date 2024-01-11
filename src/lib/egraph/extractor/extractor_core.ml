@@ -1,5 +1,5 @@
 open Core
-open Common
+open Egraph_common
 open Monads.Std
 open Virtual
 

@@ -1,4 +1,4 @@
-open Common
+open Egraph_common
 
 type t = rule
 

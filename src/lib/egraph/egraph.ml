@@ -1,10 +1,11 @@
 open Core
 open Virtual
 
-include Common
+include Egraph_common
 
-module Rule = Rule
-module Subst = Subst
+module Rule = Egraph_rule
+module Subst = Egraph_subst
+module Builder = Egraph_builder
 
 type rule = Rule.t
 

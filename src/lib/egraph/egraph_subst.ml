@@ -1,5 +1,7 @@
 open Core
 
+module Id = Egraph_id
+
 type info = {
   const : Virtual.const option;
   typ   : Type.t option;
