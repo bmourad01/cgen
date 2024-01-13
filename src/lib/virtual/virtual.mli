@@ -374,7 +374,7 @@ module Slot : sig
   (** [create_exn x ~size ~align] creates a slot for variable [x] with
       [size] and [align].
 
-      @raise Invalid_argument if [size < 1], [align < 1], or [align] is
+      @raise Invalid_argument if [size < 0], [align < 1], or [align] is
       not a power of two.
   *)
   val create_exn : Var.t -> size:int -> align:int -> t

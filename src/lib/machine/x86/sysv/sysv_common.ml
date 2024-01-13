@@ -82,8 +82,9 @@ let classify_layout lt =
   let cls =
     (* Try to pack the struct into two registers. If it is
        larger than 16 bytes or contains unaligned fields
-       then it will be passed on the stack. *)
-    if size <= 16 then
+       then it will be passed on the stack. Note that an
+       empty struct is also passed in memory. *)
+    if size > 0 && size <= 16 then
       Type.Layout.data lt |> Seq.fold_until
         ~init:(Rnone, Rnone, 0)
         ~finish:(fun (r1, r2, _) -> Kreg (r1, r2))

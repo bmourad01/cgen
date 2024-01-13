@@ -70,8 +70,6 @@ let canonicalize env = iter_blks env ~f:(fun b ->
         | `vaarg (x, `name s, _)
         | `call (Some (x, `name s), _, _, _) ->
           let* k = type_cls env s in
-          if k.size > 0 then
-            let+ y = new_slot env k.size k.align in
-            Hashtbl.set env.refs ~key:x ~data:y
-          else !!()
+          let+ y = new_slot env k.size k.align in
+          Hashtbl.set env.refs ~key:x ~data:y
         | _ -> !!()))

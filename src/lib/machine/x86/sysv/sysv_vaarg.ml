@@ -162,9 +162,7 @@ let fetch env x t ap cont = match (t : Type.arg) with
   | `name s ->
     let* k = type_cls env s in
     match k.cls with
-    | Kreg _ when k.size = 0 ->
-      (* Should be handled by `check_empty`. *)
-      assert false
+    | Kreg _ when k.size = 0 -> assert false
     | Kreg (r, _) when k.size = 8 ->
       assert (Hashtbl.mem env.refs x);
       begin match reg_type r with
@@ -178,6 +176,20 @@ let fetch env x t ap cont = match (t : Type.arg) with
         | `f64, `f64 -> fetch_reg ~num:2 env x `f64 ap cont
         | t1, t2 -> fetch_two_reg env x t1 t2 ap cont
       end
+    | Kmem when k.size = 0 ->
+      (* Even though this structure is empty, it was specified with
+         an alignment higher than 8, so we need to make sure the
+         `overflow_arg_area` pointer stays aligned. *)
+      assert (k.align > 8);
+      let* label = Context.Label.fresh in
+      let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 8) in
+      let* l, li = Cv.Abi.load `i64 (`var a) in
+      let* p, pi = Cv.Abi.binop (`and_ `i64) (`var l) (i64 (k.align - 1)) in
+      let* n, ni = Cv.Abi.binop (`add `i64) (`var l) (`var p) in
+      let+ st = Cv.Abi.store `i64 (`var n) (`var a) in
+      List.return @@ Abi.Blk.create () ~label
+        ~insns:[ai; li; pi; ni; st]
+        ~ctrl:(`jmp (`label (cont, [])))
     | Kmem ->
       (* The struct is passed in memory, so we simply blit from
          the `overflow_arg_area` to the corresponding stack slot. *)
@@ -185,19 +197,24 @@ let fetch env x t ap cont = match (t : Type.arg) with
       let* label = Context.Label.fresh in
       let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 8) in
       let* l, li = Cv.Abi.load `i64 (`var a) in
+      let* l, li = if k.align > 8 then
+          let* p, li2 = Cv.Abi.binop (`and_ `i64) (`var l) (i64 (k.align - 1)) in
+          let+ l, li3 = Cv.Abi.binop (`add `i64) (`var l) (`var p) in
+          l, [li; li2; li3]
+        else !!(l, [li]) in
       let* n, ni = Cv.Abi.binop (`add `i64) (`var l) (i64 k.size) in
       let* st = Cv.Abi.store `i64 (`var n) (`var a) in
       let+ blit = Cv.Abi.blit `i64 k.size
           ~src:(`var l) ~dst:(`var y) in
       List.return @@ Abi.Blk.create () ~label
-        ~insns:([ai; li; ni; st] @ blit)
+        ~insns:((ai :: li) @ (ni :: st :: blit))
         ~ctrl:(`jmp (`label (cont, [])))
 
 let check_empty env = function
   | #Type.basic -> !!false
-  | `name s ->
-    let+ k = type_cls env s in
-    k.size = 0
+  | `name n ->
+    let+ k = type_cls env n in
+    k.size = 0 && k.align = 8
 
 let lower env = iter_blks env ~f:(fun b ->
     Blk.insns b |> Context.Seq.iter ~f:(fun i ->

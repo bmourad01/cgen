@@ -63,18 +63,18 @@ let tworeg_ret env r1 r2 key x =
    first argument of the function. This pointer becomes the
    return value. *)
 let memory_ret env k key x =
-  let* x = expect_ret_var env key x in
-  let src = find_ref env x in
-  let dst = match env.rmem with
-    | None -> assert false
-    | Some dst -> dst in
-  let* blit = Cv.Abi.blit `i64 k.size ~src:(`var src) ~dst:(`var dst) in
-  let reg = int_rets.(0) in
-  let+ r = Cv.Abi.insn @@ `uop (`reg reg, `copy `i64, `var dst) in
-  Hashtbl.set env.rets ~key ~data:{
-    reti = blit @ [r];
-    retr = [reg]
-  }
+  let+ data = if k.size > 0 then
+      let* x = expect_ret_var env key x in
+      let src = find_ref env x in
+      let dst = match env.rmem with
+        | None -> assert false
+        | Some dst -> dst in
+      let* blit = Cv.Abi.blit `i64 k.size ~src:(`var src) ~dst:(`var dst) in
+      let reg = int_rets.(0) in
+      let+ r = Cv.Abi.insn @@ `uop (`reg reg, `copy `i64, `var dst) in
+      {reti = blit @ [r]; retr = [reg]}
+    else !!empty_ret in
+  Hashtbl.set env.rets ~key ~data
 
 (* Lower the `ret` instructions. *)
 let lower env =
@@ -93,9 +93,7 @@ let lower env =
   | Some `name n ->
     let* k = type_cls env n in
     match k.cls with
-    | Kreg _ when k.size = 0 -> go @@ fun key _ ->
-      (* Struct is empty, so we return nothing. *)
-      !!(Hashtbl.set env.rets ~key ~data:empty_ret)
+    | Kreg _ when k.size = 0 -> assert false
     | Kreg (r, _) when k.size = 8 -> go @@ onereg_ret env r
     | Kreg (r1, r2) -> go @@ tworeg_ret env r1 r2
     | Kmem -> go @@ memory_ret env k

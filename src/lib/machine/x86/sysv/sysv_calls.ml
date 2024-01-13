@@ -42,14 +42,20 @@ let tworeg_arg ~reg2 k r1 r2 src =
 
 (* A compound argument to a call passed in memory. *)
 let memory_arg k size src =
-  let+ ldm = Cv.Abi.ldm `i64 src size in
-  let callai, callam =
-    List.fold ldm ~init:(k.callai, k.callam) ~f:(fun (ai, am) i ->
-        let am = match Abi.Insn.op i with
-          | `load (x, _, _) -> am @> (x :> Abi.operand)
-          | _ -> am in
-        ai @> i, am) in
-  {k with callai; callam}
+  if size > 0 then
+    let+ ldm = Cv.Abi.ldm `i64 src size in
+    let callai, callam =
+      List.fold ldm ~init:(k.callai, k.callam) ~f:(fun (ai, am) i ->
+          let am = match Abi.Insn.op i with
+            | `load (x, _, _) -> am @> (x :> Abi.operand)
+            | _ -> am in
+          ai @> i, am) in
+    {k with callai; callam}
+  else
+    (* Technically we're not passing the contents, but since it's
+       empty the contents are junk anyway. This only needs to be
+       here for alignment. *)
+    !!{k with callam = k.callam @> (src :> Abi.operand)}
 
 let call_ret_basic x t k =
   let r, t = match (t : Type.ret) with
@@ -103,9 +109,10 @@ let lower_call_ret env kret k = match kret with
   | `none -> !!k
   | `basic (x, t) -> call_ret_basic x t k
   | `compound (x, lk) -> match lk.cls with
-    | Kreg _ when lk.size = 0 -> !!k
+    | Kreg _ when lk.size = 0 -> assert false
     | Kreg (r, _) when lk.size = 8 -> call_ret_onereg env x r k
     | Kreg (r1, r2) -> call_ret_tworeg env x r1 r2 k
+    | Kmem when lk.size = 0 -> !!k
     | Kmem -> call_ret_memory env x lk k
 
 let expect_arg_var env l : operand -> Var.t Context.t = function
@@ -146,7 +153,7 @@ let classify_call_arg ~reg ~reg2 env key k a =
     let* x = expect_arg_var env key a in
     let src = find_ref env x in
     match lk.cls with
-    | Kreg _ when lk.size = 0 -> !!k
+    | Kreg _ when lk.size = 0 -> assert false
     | Kreg (r, _) when lk.size = 8 -> onereg_arg ~reg k r src
     | Kreg (r1, r2) -> tworeg_arg ~reg2 k r1 r2 src
     | Kmem -> memory_arg k lk.size (`var src)
@@ -203,7 +210,7 @@ let lower env = iter_blks env ~f:(fun b ->
               (* Check for implicit first parameter. *)
               let* lk = type_cls env n in
               begin match lk.cls with
-                | Kmem -> ignore (Stack.pop_exn qi)
+                | Kmem when lk.size > 0 -> ignore (Stack.pop_exn qi)
                 | _ -> ()
               end;
               !!(`compound (x, lk))

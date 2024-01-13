@@ -48,7 +48,7 @@ let init_regs env =
   let+ () = match Func.return env.fn with
     | Some (#Type.basic | `si8 | `si16 | `si32) | None -> !!()
     | Some `name n -> type_cls env n >>= function
-      | {cls = Kmem; _} ->
+      | {cls = Kmem; size; _} when size > 0 ->
         (* Return value is blitted to a memory address, which is
            implicity passed as the first integer register. *)
         let r = Stack.pop_exn qi in
@@ -105,12 +105,16 @@ let tworeg_param ~reg2 env y r1 r2 =
   Vec.push env.params p2
 
 (* Blit the structure to a stack slot. *)
-let memory_param env y size =
-  Seq.init (size / 8) ~f:(fun i -> i * 8) |>
+let memory_param env y size align =
+  let size' = if size = 0 then align else size in
+  Seq.init (size' / 8) ~f:(fun i -> i * 8) |>
   Context.Seq.iter ~f:(fun o ->
       let* x = Context.Var.fresh in
       let+ pins =
-        if o = 0 then
+        if size = 0 then
+          (* The empty structure contains garbage. *)
+          !![]
+        else if o = 0 then
           let+ st = Cv.Abi.store `i64 (`var x) (`var y) in
           [st]
         else
@@ -197,11 +201,13 @@ let lower env =
         | #Type.basic as t -> basic_param ~reg env t x
         | `name s ->
           let* k = type_cls env s in
-          let* y = new_slot env k.size k.align in
+          let* y = if k.size > 0
+              then new_slot env k.size k.align
+              else !!x in
           Hashtbl.set env.refs ~key:x ~data:y;
           match k.cls with
-          | Kreg _ when k.size = 0 -> !!()
+          | Kreg _ when k.size = 0 -> assert false
           | Kreg (r, _) when k.size = 8 -> onereg_param ~reg env x y r
           | Kreg (r1, r2) -> tworeg_param ~reg2 env y r1 r2
-          | Kmem -> memory_param env y k.size) in
+          | Kmem -> memory_param env y k.size k.align) in
   compute_register_save_area env

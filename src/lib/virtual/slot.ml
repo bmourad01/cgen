@@ -12,8 +12,8 @@ end
 include T
 
 let create_exn x ~size ~align =
-  if size < 1 then
-    invalid_argf "Slot size for %a must be greater than 0, got %d"
+  if size < 0 then
+    invalid_argf "Slot size for %a must be non-negative, got %d"
       Var.pps x size ();
   if align < 1 then
     invalid_argf "Slot alignment for %a must be greater than 0, got %d"
