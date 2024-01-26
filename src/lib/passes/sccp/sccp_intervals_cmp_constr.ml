@@ -14,42 +14,34 @@ let set_constraint ctx x y i = match (y : operand) with
         | Some s -> update s y i)
   | _ -> ()
 
-let eq a b =
-  lazy I.(inverse @@ allowed_icmp_region b NE),
-  lazy I.(inverse @@ allowed_icmp_region a NE)
+(* If the interval we're comparing against isn't singular,
+   then we could underapproximate the value we're comparing.
 
-let ne a b =
-  lazy I.(inverse @@ allowed_icmp_region b EQ),
-  lazy I.(inverse @@ allowed_icmp_region a EQ)
+   Say we have `%c = lt.w %a, %b`, where %a has the interval
+   [0, 10):32 and %b has the interval [5, 20):32.
 
-let lt a b =
-  lazy I.(inverse @@ allowed_icmp_region b GE),
-  lazy I.(inverse @@ allowed_icmp_region a LE)
+   Since %a and %b, intersect, we can't simply constrain %a to
+   be [0, 5):32, because it is possible that %a could be in the
+   interval [5, 10):32, which could satisfy the condition in a
+   possible run of the program. If, on the other hand, %b was
+   the single constant 5, then this would be a sound approximation.
 
-let le a b =
-  lazy I.(inverse @@ allowed_icmp_region b GT),
-  lazy I.(inverse @@ allowed_icmp_region a LT)
+   The solution should be to leave %a untouched, which we use
+   the full interval for (this constraint is discarded later).
+*)
+let cmp p i = lazy begin
+  if I.is_single i
+  then I.satisfying_icmp_region i p
+  else I.create_full ~size:(I.size i)
+end
 
-let gt a b =
-  lazy I.(inverse @@ allowed_icmp_region b LE),
-  lazy I.(inverse @@ allowed_icmp_region a GE)
-
-let ge a b =
-  lazy I.(inverse @@ allowed_icmp_region b LT),
-  lazy I.(inverse @@ allowed_icmp_region a GT)
-
-let slt a b =
-  lazy I.(inverse @@ allowed_icmp_region b SGE),
-  lazy I.(inverse @@ allowed_icmp_region a SLE)
-
-let sle a b =
-  lazy I.(inverse @@ allowed_icmp_region b SGT),
-  lazy I.(inverse @@ allowed_icmp_region a SLT)
-
-let sgt a b =
-  lazy I.(inverse @@ allowed_icmp_region b SLE),
-  lazy I.(inverse @@ allowed_icmp_region a SGE)
-
-let sge a b =
-  lazy I.(inverse @@ allowed_icmp_region b SLT),
-  lazy I.(inverse @@ allowed_icmp_region a SGT)
+let eq  a b = cmp EQ  b, cmp EQ  a
+let ne  a b = cmp NE  b, cmp NE  a
+let lt  a b = cmp LT  b, cmp GT  a
+let le  a b = cmp LE  b, cmp GE  a
+let gt  a b = cmp GT  b, cmp LT  a
+let ge  a b = cmp GE  b, cmp LE  a
+let slt a b = cmp SLT b, cmp SGT a
+let sle a b = cmp SLE b, cmp SGE a
+let sgt a b = cmp SGT b, cmp SLT a
+let sge a b = cmp SGE b, cmp SLE a
