@@ -1001,6 +1001,18 @@ type predicate =
   | GT | SGT
   | GE | SGE
 
+let inverse_predicate = function
+  | EQ -> NE
+  | NE -> EQ
+  | LT -> GE
+  | GE -> LT
+  | LE -> GT
+  | GT -> LE
+  | SLT -> SGE
+  | SGE -> SLT
+  | SLE -> SGT
+  | SGT -> SLE
+
 let allowed_icmp_region i p =
   if is_empty i then i
   else

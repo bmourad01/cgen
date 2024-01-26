@@ -345,6 +345,9 @@ type predicate =
   | GT | SGT
   | GE | SGE
 
+(** Inverts the predicate to cover the complement range. *)
+val inverse_predicate : predicate -> predicate
+
 (** [allowed_icmp_region t p] produces the smallest range [t'] such that
     it contains all values that may satisfy [p] in [t]. *)
 val allowed_icmp_region : t -> predicate -> t
