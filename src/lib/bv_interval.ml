@@ -1063,6 +1063,9 @@ let allowed_icmp_region i p =
         ~lo:(signed_min i)
         ~hi:(Bv.min_signed_value size)
 
+let satisfying_icmp_region i p =
+  inverse @@ allowed_icmp_region i @@ inverse_predicate p
+
 module Infix = struct
   let (+)    t1 t2 = add t1 t2 [@@inline]
   let (-)    t1 t2 = sub t1 t2 [@@inline]

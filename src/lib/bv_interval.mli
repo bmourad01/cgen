@@ -352,6 +352,9 @@ val inverse_predicate : predicate -> predicate
     it contains all values that may satisfy [p] in [t]. *)
 val allowed_icmp_region : t -> predicate -> t
 
+(** Equivalent to [inverse (allowed_icmp_region i (inverse_predicate p))]. *)
+val satisfying_icmp_region : t -> predicate -> t
+
 (** Pretty printing. *)
 val pp : Format.formatter -> t -> unit
 
