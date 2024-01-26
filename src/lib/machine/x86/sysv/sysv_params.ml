@@ -202,8 +202,8 @@ let lower env =
         | `name s ->
           let* k = type_cls env s in
           let* y = if k.size > 0
-              then new_slot env k.size k.align
-              else !!x in
+            then new_slot env k.size k.align
+            else !!x in
           Hashtbl.set env.refs ~key:x ~data:y;
           match k.cls with
           | Kreg _ when k.size = 0 -> assert false
