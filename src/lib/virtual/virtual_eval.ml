@@ -93,6 +93,11 @@ let sext t a ta =
     Bv.(((((ones mod m) lsl sh) mod m) lor a) mod m)
   else a
 
+let shift_fits t s =
+  let sz = Type.sizeof_imm t in
+  let m = Bv.modulus sz in
+  Bv.(s < int sz mod m)
+
 let binop_int o a b = match (o : Insn.binop) with
   | `add (#Type.imm as t) -> Some (`int (Bv.((a + b) mod imod t), t))
   | `div (#Type.imm as t) when Bv.(b <> zero) ->
@@ -109,11 +114,11 @@ let binop_int o a b = match (o : Insn.binop) with
     Some (`int (Bv.((rem a b) mod imod t), t))
   | `and_ t -> Some (`int (Bv.((a land b) mod imod t), t))
   | `or_  t -> Some (`int (Bv.((a lor  b) mod imod t), t))
-  | `asr_ t -> Some (`int (Bv.((a asr  b) mod imod t), t))
-  | `lsl_ t -> Some (`int (Bv.((a lsl  b) mod imod t), t))
-  | `lsr_ t -> Some (`int (Bv.((a lsr  b) mod imod t), t))
-  | `rol t  -> Some (`int (rol t a b, t))
-  | `ror t  -> Some (`int (ror t a b, t))
+  | `asr_ t when shift_fits t b -> Some (`int (Bv.((a asr  b) mod imod t), t))
+  | `lsl_ t when shift_fits t b -> Some (`int (Bv.((a lsl  b) mod imod t), t))
+  | `lsr_ t when shift_fits t b -> Some (`int (Bv.((a lsr  b) mod imod t), t))
+  | `rol t  when shift_fits t b -> Some (`int (rol t a b, t))
+  | `ror t  when shift_fits t b -> Some (`int (ror t a b, t))
   | `xor t  -> Some (`int (Bv.((a lxor b) mod imod t), t))
   | `eq #Type.imm -> Some (`bool Bv.(a =  b))
   | `ge #Type.imm -> Some (`bool Bv.(a >= b))
