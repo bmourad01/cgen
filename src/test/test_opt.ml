@@ -102,6 +102,7 @@ let suite = "Test optimizations" >::: [
     "Test reassoc add left" >:: test "reassocaddleft";
     "Test reassoc add const" >:: test "reassocaddconst";
     "Sum an array of words" >:: test "sumarray";
+    "Constant select" >:: test "constsel";
   ]
 
 let () = run_test_tt_main suite

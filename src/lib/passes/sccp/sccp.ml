@@ -71,7 +71,7 @@ let map_dst env : dst -> dst = function
 let map_sel env x t c l r =
   let l = map_operand env l in
   let r = map_operand env r in
-  match var env x with
+  match var env c with
   | Some i when I.(equal i boolean_true) ->
     `uop (x, `copy t, l)
   | Some i when I.(equal i boolean_false) ->
