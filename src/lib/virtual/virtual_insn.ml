@@ -1,5 +1,5 @@
 open Core
-open Common
+open Virtual_common
 
 type arith_binop = [
   | `add   of Type.basic

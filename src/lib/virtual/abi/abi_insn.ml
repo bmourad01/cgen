@@ -1,6 +1,8 @@
 open Core
 open Abi_common
 
+module Insn = Virtual_insn
+
 type arith_binop = Insn.arith_binop [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type arith_unop = Insn.arith_unop [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type bitwise_binop = Insn.bitwise_binop [@@deriving bin_io, compare, equal, hash, sexp_poly]

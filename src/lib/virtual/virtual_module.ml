@@ -1,14 +1,15 @@
-module Data_ = Data
-
 open Core
 open Regular.Std
-open Common
+open Virtual_common
+
+module Func = Virtual_func
+module Data = Virtual_data
 
 module T = struct
   type t = {
     name : string;
     typs : Type.compound ftree;
-    data : Data_.t ftree;
+    data : Data.t ftree;
     funs : Func.t ftree;
     dict : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
@@ -60,7 +61,7 @@ let remove_type m name = {
 }
 
 let remove_data m name = {
-  m with data = Ftree.remove_if m.data ~f:(Fn.flip Data_.has_name name);
+  m with data = Ftree.remove_if m.data ~f:(Fn.flip Data.has_name name);
 }
 
 let remove_fn m name = {
@@ -115,7 +116,7 @@ let pp ppf m =
   | true, false, true ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Data_.pp sep) m.data
+      (Ftree.pp Data.pp sep) m.data
   | false, true, true ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@]" m.name
@@ -124,7 +125,7 @@ let pp ppf m =
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Data_.pp sep) m.data
+      (Ftree.pp Data.pp sep) m.data
       (Ftree.pp Func.pp sep) m.funs
   | false, true, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
@@ -137,14 +138,14 @@ let pp ppf m =
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
       (Ftree.pp Type.pp_compound_decl sep) m.typs
-      (Ftree.pp Data_.pp sep) m.data
+      (Ftree.pp Data.pp sep) m.data
   | false, false, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
       (Ftree.pp Type.pp_compound_decl sep) m.typs
-      (Ftree.pp Data_.pp sep) m.data
+      (Ftree.pp Data.pp sep) m.data
       (Ftree.pp Func.pp sep) m.funs
 
 include Regular.Make(struct

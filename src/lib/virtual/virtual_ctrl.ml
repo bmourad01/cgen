@@ -1,6 +1,6 @@
 open Core
 open Regular.Std
-open Common
+open Virtual_common
 
 module Table = struct
   type t = {

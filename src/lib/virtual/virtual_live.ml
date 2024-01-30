@@ -2,6 +2,11 @@ open Core
 open Graphlib.Std
 open Regular.Std
 
+module Insn = Virtual_insn
+module Blk = Virtual_blk
+module Func = Virtual_func
+module Cfg = Virtual_cfg
+
 type tran = {
   defs  : Var.Set.t;
   uses  : Var.Set.t;

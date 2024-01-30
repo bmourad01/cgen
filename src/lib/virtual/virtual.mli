@@ -94,7 +94,7 @@ val pp_dst : Format.formatter -> dst -> unit
 
 (** Data-flow-effectful instruction. *)
 module Insn : sig
-  include Insn_intf.S
+  include Virtual_insn_intf.S
     with type operand := operand
      and type var := Var.t
      and type var_comparator := Var.comparator_witness
@@ -303,7 +303,7 @@ end
 
 (** Control-flow-effectful instructions. *)
 module Ctrl : sig
-  include Ctrl_intf.S
+  include Virtual_ctrl_intf.S
     with type var := Var.t
      and type var_comparator := Var.comparator_witness
      and type local := local
@@ -357,7 +357,7 @@ type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A basic block. *)
 module Blk : sig
-  include Blk_intf.S
+  include Virtual_blk_intf.S
     with type op := Insn.op
      and type insn := insn
      and type ctrl := ctrl
@@ -402,7 +402,7 @@ type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A function. *)
 module Func : sig
-  include Func_intf.S
+  include Virtual_func_intf.S
     with type blk := blk
      and type var := Var.t
      and type argt := Type.arg
@@ -839,7 +839,7 @@ module Abi : sig
   val pp_dst : Format.formatter -> dst -> unit
 
   module Insn : sig
-    include Insn_intf.S
+    include Virtual_insn_intf.S
       with type operand := operand
        and type var := var
        and type var_comparator := var_comparator
@@ -952,7 +952,7 @@ module Abi : sig
   type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
 
   module Ctrl : sig
-    include Ctrl_intf.S
+    include Virtual_ctrl_intf.S
       with type var := var
        and type var_comparator := var_comparator
        and type local := local
@@ -1004,7 +1004,7 @@ module Abi : sig
   type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
   module Blk : sig
-    include Blk_intf.S
+    include Virtual_blk_intf.S
       with type op := Insn.op
        and type insn := insn
        and type ctrl := ctrl
@@ -1022,7 +1022,7 @@ module Abi : sig
       the target ABI.
   *)
   module Func : sig
-    include Func_intf.S
+    include Virtual_func_intf.S
       with type blk := blk
        and type var := var
        and type argt := Type.basic

@@ -1,5 +1,7 @@
 open Core
 
+module Insn = Virtual_insn
+
 let int8  i = Bv.(int   i mod Bv.m8)
 let int16 i = Bv.(int   i mod Bv.m16)
 let int32 i = Bv.(int32 i mod Bv.m32)

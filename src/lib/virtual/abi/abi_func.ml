@@ -2,6 +2,9 @@ open Core
 open Regular.Std
 open Abi_common
 
+module Slot = Virtual_slot
+module Func = Virtual_func
+
 module T = struct
   type t = {
     name  : string;

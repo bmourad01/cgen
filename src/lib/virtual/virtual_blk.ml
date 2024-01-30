@@ -1,6 +1,9 @@
 open Core
 open Regular.Std
-open Common
+open Virtual_common
+
+module Insn = Virtual_insn
+module Ctrl = Virtual_ctrl
 
 module T = struct
   type t = {

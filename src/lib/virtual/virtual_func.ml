@@ -1,6 +1,9 @@
 open Core
 open Regular.Std
-open Common
+open Virtual_common
+
+module Blk = Virtual_blk
+module Slot = Virtual_slot
 
 module T = struct
   type t = {

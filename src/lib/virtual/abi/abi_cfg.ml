@@ -1,6 +1,8 @@
 open Core
 open Regular.Std
 
+module Cfg = Virtual_cfg
+
 let create fn =
   Abi_func.blks fn |> Seq.fold ~init:Cfg.G.empty ~f:(fun g b ->
       let l = Abi_blk.label b and c = Abi_blk.ctrl b in

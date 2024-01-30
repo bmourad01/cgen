@@ -3,6 +3,8 @@ open Regular.Std
 open Graphlib.Std
 open Monads.Std
 
+module Func = Virtual_func
+module Cfg = Virtual_cfg
 module O = Monad.Option
 
 open O.Let

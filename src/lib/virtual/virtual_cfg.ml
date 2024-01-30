@@ -2,6 +2,9 @@ open Core
 open Graphlib.Std
 open Regular.Std
 
+module Blk = Virtual_blk
+module Ctrl = Virtual_ctrl
+module Func = Virtual_func
 module G = Graphlib.Make(Label)(Unit)
 module Pseudo = Label.Pseudo(G)
 

@@ -1,5 +1,5 @@
 open Core
-open Common
+open Virtual_common
 
 type 'a ftree = 'a Ftree.t [@@deriving bin_io, sexp]
 
