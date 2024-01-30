@@ -5,19 +5,19 @@ open Virtual
 module I = Bv_interval
 module Intervals = Sccp_intervals
 
-type cursor =
-  | Blk of Label.t
-  | Insn of Label.t
+type cursor = Blk | Insn
 
 type env = {
   mutable cur : cursor;
+  mutable pos : Label.t;
   tenv        : Typecheck.env;
   intv        : Intervals.t;
   fn          : func;
 }
 
 let init tenv intv fn = {
-  cur = Blk Label.pseudoentry;
+  cur = Blk;
+  pos = Label.pseudoentry;
   tenv;
   intv;
   fn;
@@ -30,8 +30,8 @@ let typeof_var env x =
 
 let var env x =
   let s = match env.cur with
-    | Blk l -> Intervals.input env.intv l
-    | Insn l -> Intervals.insn env.intv l in
+    | Blk -> Intervals.input env.intv env.pos
+    | Insn -> Intervals.insn env.intv env.pos in
   Intervals.find_var s x
 
 let word env = Target.word @@ Typecheck.Env.target env.tenv
@@ -168,10 +168,13 @@ let map_ctrl env : ctrl -> ctrl = function
 
 let map_blk env b =
   let insns = Blk.insns b |> Seq.map ~f:(fun i ->
-      env.cur <- Insn (Insn.label i);
+      env.cur <- Insn;
+      env.pos <- Insn.label i;
       map_insn env i) |> Seq.to_list in
-  if List.is_empty insns then
-    env.cur <- Blk (Blk.label b);
+  if List.is_empty insns then begin
+    env.cur <- Blk;
+    env.pos <- Blk.label b
+  end;
   let ctrl = map_ctrl env @@ Blk.ctrl b in
   let args = Blk.args b |> Seq.to_list in
   let dict = Blk.dict b in
