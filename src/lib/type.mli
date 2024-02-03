@@ -145,10 +145,7 @@ module Layout : sig
   (** Returns the exact structure of the data. *)
   val data : t -> datum seq
 
-  (** Returns [true] if the layout contains no data.
-
-      This implies that the alignment is [0].
-  *)
+  (** Returns [true] if the layout contains no data. *)
   val is_empty : t -> bool
 
   include Regular.S with type t := t
@@ -228,7 +225,13 @@ val same_ret : ret -> ret -> bool
     for function returns. *)
 val pp_ret : Format.formatter -> ret -> unit
 
-(** A function prototype. *)
+(** A function prototype.
+
+    [`proto (ret, args, variadic)] denotes a function prototype
+    with an optional [ret]urn type, a list of argument types
+    [args], and a flag indicating whether the function is
+    [variadic].
+*)
 type proto = [
   | `proto of ret option * arg list * bool
 ] [@@deriving bin_io, compare, equal, hash, sexp]
