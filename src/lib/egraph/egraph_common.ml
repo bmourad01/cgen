@@ -90,8 +90,8 @@ type rules = (Enode.op, toplevel list) Hashtbl.t
    related to code motion (e.g. LICM, CSE, hoisting, sinking), so that's
    what all the extra hash tables are for.
 
-   See the [Prov], [Extractor_core], and [Extractor_cfg] modules for
-   examples of how this information gets used.
+   See the [Egraph_sched], [Extractor_core], and [Extractor_cfg] modules
+   for examples of how this information gets used.
 *)
 type t = {
   input       : Input.t;                (* Analyses about the function. *)
