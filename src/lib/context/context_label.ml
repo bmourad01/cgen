@@ -3,8 +3,8 @@ open Context_common
 
 let init = Int63.(succ (Obj.magic Label.pseudoexit : t))
 
-let fresh =
-  let* s = M.get () in
-  let l = s.nextlabel in
-  let+ () = M.put {s with nextlabel = Int63.succ l} in
-  (Obj.magic l : Label.t)
+let fresh = M.{
+    run = fun ~reject:_ ~accept s ->
+      let l = (Obj.magic s.nextlabel : Label.t) in
+      accept l {s with nextlabel = Int63.succ s.nextlabel}
+  }
