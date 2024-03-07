@@ -1,16 +1,16 @@
 module foo
 
 export function w $foo(w %x) {
-@7:
-  switch.w %x, @6 [0x1_w -> @4,
-                   0x2_w -> @2,
-                   0x3_w -> @0]
-@6:
-  ret %x
-@4:
-  ret 0x2_w
-@2:
-  ret 0x3_w
 @0:
+  switch.w %x, @1 [0x1_w -> @2,
+                   0x2_w -> @3,
+                   0x3_w -> @4]
+@1:
+  ret %x
+@2:
+  ret 0x2_w
+@3:
+  ret 0x3_w
+@4:
   ret 0x4_w
 }

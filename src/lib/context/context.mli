@@ -37,6 +37,25 @@ val lift_err : 'a Or_error.t -> 'a t
 (** Returns the current target descriptor. *)
 val target : Target.t t
 
+(** Local state that can be used during an analysis or transformation pass
+    within the compilation context, without use of monad transformers.
+
+    This state is not persistent between runs of compilation context.
+*)
+module Local : sig
+  (** [set k v] sets the value associated with key [k] to [v]. *)
+  val set : 'a Dict.tag -> 'a -> unit t
+
+  (** [get k ~default] returns the value associated with [k] if it exists,
+      and [default] otherwise. *)
+  val get : 'a Dict.tag -> default:'a -> 'a t
+
+  (** [erase k] removes [k] from the local state. This can be useful to
+      reset the state for re-runs or to discard state that is isolated to
+      a particular analysis or transformation. *)
+  val erase : 'a Dict.tag -> unit t
+end
+
 (** The target-specific implementation needed for the compilation pipeline. *)
 module type Machine = Machine_intf.S
   with type 'a context := 'a t

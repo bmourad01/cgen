@@ -1,7 +1,7 @@
 module foo
 
 export function w $foo(w %x) {
-@7:
+@0:
   %3 = slt.w %x, 0x0_w ; @12
   %4 = add.w %x, 0x3_w ; @13
   %2 = sel.w %3, %4, %x ; @11

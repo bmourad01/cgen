@@ -6,7 +6,7 @@ export function $foo() {
   %2 = add.l %x, 0x8_l ; @9
   %1 = and.l %2, 0xf_l ; @8
   %0 = itrunc.w %1 ; @7
-  st.w %0, %2 ; @3
-  st.w %0, $a ; @1
+  st.w %0, %2 ; @4
+  st.w %0, $a ; @6
   ret
 }

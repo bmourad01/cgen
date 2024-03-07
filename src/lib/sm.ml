@@ -61,6 +61,15 @@ module Make(M : S) = struct
 
     let (>>?) x f = lift_err x >>= f
     let (let*?) x f = x >>? f
+
+    let (and+) x y = {
+      run = fun ~reject ~accept s ->
+        x.run s ~reject ~accept:(fun x s ->
+            y.run s ~reject ~accept:(fun y s ->
+                accept (x, y) s))
+    } [@@inline]
+
+    let (and*) = (and+)
   end
 
   let get () = {
@@ -78,4 +87,18 @@ module Make(M : S) = struct
   let update f = {
     run = fun ~reject:_ ~accept s -> accept () (f s)
   } [@@inline]
+
+  module List = struct
+    include List
+
+    (* The derived List.map in the Monads library will accumulate (and
+       unwrap the monadic terms) in reverse order, which is not what we
+       want for generating fresh labels. *)
+    let map l ~f =
+      List.fold l ~init:[] ~f:(fun acc x ->
+          f x >>| Base.Fn.flip Base.List.cons acc) >>|
+      Base.List.rev
+
+    let all = map ~f:Base.Fn.id
+  end
 end

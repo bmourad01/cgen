@@ -1,6 +1,4 @@
  %{
-    open Monads.Std
-
     type elt =
       | Func of Virtual.func
       | Typ  of Type.compound
@@ -20,53 +18,56 @@
       type t = {
         labels : Label.t Core.String.Map.t;
         temps : Var.t Core.String.Map.t;
-      }
+      } [@@deriving bin_io, compare, sexp]
 
       let empty = {
         labels = Core.String.Map.empty;
         temps = Core.String.Map.empty;
       }
+
+      (* Not needed. *)
+      let pp _ppf _t = ()
     end
 
-    module M = Monad.State.Make(Env)(Context)
+    let tag = Dict.register
+        ~uuid:"98ff53de-6779-494c-81d6-1d3dd6f71e5e"
+        "virtual-parser-env" (module Env)
 
-    type 'a m = 'a Monad.State.T1(Env)(Context).t
-    
-    open M.Syntax
-    open M.Let
+    open Context.Syntax
+
+    let setenv v = Context.Local.set tag v
+    let curenv = Context.Local.get tag ~default:Env.empty
 
     (* Each time parse a new function, reset the context, since
        labels do not have scope outside of a function body. *)
-    let reset = M.put Env.empty
+    let reset = setenv Env.empty
     
     let label_of_name name =
-      let* env = M.get () in
+      let* env = curenv in
       match Core.Map.find env.labels name with
       | Some l -> !!l
       | None ->
-         let* l = M.lift @@ Context.Label.fresh in
+         let* l = Context.Label.fresh in
          let labels = Core.Map.set env.labels ~key:name ~data:l in
-         let+ () = M.put {env with labels} in
+         let+ () = setenv {env with labels} in
          l
 
     let temp_of_name ?index name =
-      let* env = M.get () in
+      let* env = curenv in
       let+ v = match Core.Map.find env.temps name with
         | Some v -> !!v
         | None ->
-          let* v = M.lift @@ Context.Var.fresh in
+          let* v = Context.Var.fresh in
           let temps = Core.Map.set env.temps ~key:name ~data:v in
-          let+ () = M.put {env with temps} in
+          let+ () = setenv {env with temps} in
           v in
       match index with
       | Some i -> Var.with_index v i
       | None -> v
 
-    let unwrap_list = M.List.map ~f:(fun x -> x >>| Core.Fn.id)
-
     let make_fn slots blks args l name return noreturn =
-      let* slots = unwrap_list slots in
-      let* blks = unwrap_list blks in
+      let* slots = Context.List.all slots in
+      let* blks = Context.List.all blks in
       let* args, variadic = match args with
         | None -> !!([], false)
         | Some a -> a in
@@ -80,7 +81,7 @@
         | None -> dict in
       let dict = Dict.set dict Tag.linkage linkage in
       match Virtual.Func.create () ~name ~blks ~args ~slots ~dict with
-      | Error err -> M.lift @@ Context.fail err
+      | Error err -> Context.fail err
       | Ok fn -> !!fn
  %}
 
@@ -147,28 +148,28 @@
 %start module_
 
 %type <Virtual.module_ Context.t> module_
-%type <elt m> module_elt
-%type <Virtual.data m> data
+%type <elt Context.t> module_elt
+%type <Virtual.data Context.t> data
 %type <Virtual.Data.elt> data_elt
 %type <Type.compound> typ
 %type <int> align
 %type <[`opaque of int | `fields of Type.field list]> typ_fields_or_opaque
 %type <Type.field> typ_field
-%type <Virtual.func m> func
-%type <((Var.t * Type.arg) list * bool) m> func_args
+%type <Virtual.func Context.t> func
+%type <((Var.t * Type.arg) list * bool) Context.t> func_args
 %type <Type.basic> type_basic
 %type <Type.arg> type_arg
 %type <Type.ret> type_ret
 %type <Linkage.t> linkage
 %type <string> section
-%type <Virtual.slot m> slot
-%type <Virtual.blk m> blk
-%type <Var.t m> blk_arg
-%type <Virtual.Ctrl.t m> ctrl
-%type <Virtual.Ctrl.swindex m> ctrl_index
-%type <((Bv.t * Type.imm) * Virtual.local) m> ctrl_table_entry
-%type <Virtual.Insn.op m> insn
-%type <call_arg list m> call_args
+%type <Virtual.slot Context.t> slot
+%type <Virtual.blk Context.t> blk
+%type <Var.t Context.t> blk_arg
+%type <Virtual.Ctrl.t Context.t> ctrl
+%type <Virtual.Ctrl.swindex Context.t> ctrl_index
+%type <((Bv.t * Type.imm) * Virtual.local) Context.t> ctrl_table_entry
+%type <Virtual.Insn.op Context.t> insn
+%type <call_arg list Context.t> call_args
 %type <Virtual.Insn.binop> insn_binop
 %type <Virtual.Insn.unop> insn_unop
 %type <Virtual.Insn.arith_binop> insn_arith_binop
@@ -178,28 +179,32 @@
 %type <Virtual.Insn.bitwise_unop> insn_bitwise_unop
 %type <Virtual.Insn.cast> insn_cast
 %type <Virtual.Insn.copy> insn_copy
-%type <Virtual.dst m> dst
-%type <Virtual.local m> local
-%type <Virtual.global m> global
-%type <Virtual.operand m> operand
+%type <Virtual.dst Context.t> dst
+%type <Virtual.local Context.t> local
+%type <Virtual.global Context.t> global
+%type <Virtual.operand Context.t> operand
 %type <Virtual.const> const
-%type <Var.t m> var
+%type <Var.t Context.t> var
 
 %%
 
 module_:
   | name = MODULE elts = list(module_elt) EOF
     {
-      M.run begin
-        let+ funs, typs, data =
-          let init = [], [], [] in
-          M.List.fold_right elts ~init ~f:(fun x (funs, typs, data) ->
-              reset >>= fun () -> x >>| function
-              | Func f -> f :: funs, typs, data
-              | Typ  t -> funs, t :: typs, data
-              | Data d -> funs, typs, d :: data) in
-        Virtual.Module.create ~funs ~typs ~data ~name ()
-      end Env.empty |> Context.map ~f:fst
+      let* funs, typs, data =
+        let init = [], [], [] in
+        Context.List.fold elts ~init ~f:(fun (funs, typs, data) x ->
+            reset >>= fun () -> x >>| function
+            | Func f -> f :: funs, typs, data
+            | Typ  t -> funs, t :: typs, data
+            | Data d -> funs, typs, d :: data) in
+      (* Our state is local to the parser, so we should avoid a
+         potential memory leak. *)
+      let+ () = Context.Local.erase tag in
+      Virtual.Module.create () ~name
+        ~funs:(List.rev funs)
+        ~typs:(List.rev typs)
+        ~data:(List.rev data)
     }
 
 module_elt:
@@ -222,7 +227,7 @@ data:
         | Some k -> Dict.set dict Tag.const k
         | None -> dict in
       match Virtual.Data.create () ~name ~elts ~dict with
-      | Error err -> M.lift @@ Context.fail err
+      | Error err -> Context.fail err
       | Ok d -> !!d
     }
 
@@ -297,7 +302,7 @@ slot:
     {
       let* x = x in
       match Virtual.Slot.create x ~size ~align with
-      | Error e -> M.lift @@ Context.fail e
+      | Error e -> Context.fail e
       | Ok s -> !!s
     }
 
@@ -305,17 +310,17 @@ blk:
   | ln = LABEL COLON insns = list(insn) ctrl = ctrl
     {
       let* l = label_of_name ln
-      and* insns = unwrap_list insns
+      and* insns = Context.List.all insns
       and* ctrl = ctrl in
-      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~insns ~ctrl
+      Context.Virtual.blk' () ~label:(Some l) ~insns ~ctrl
     }
   | ln = LABEL LPAREN args = separated_nonempty_list(COMMA, blk_arg) RPAREN COLON insns = list(insn) ctrl = ctrl
     {
       let* l = label_of_name ln
-      and* args = unwrap_list args
-      and* insns = unwrap_list insns
+      and* args = Context.List.all args
+      and* insns = Context.List.all insns
       and* ctrl = ctrl in
-      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~args ~insns ~ctrl
+      Context.Virtual.blk' () ~label:(Some l) ~args ~insns ~ctrl
     }
 
 blk_arg:
@@ -337,15 +342,15 @@ ctrl:
     }
   | t = SWITCH i = ctrl_index COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
     {
-      let* i = i and* d = def and* tbl = unwrap_list tbl in
-      let* tbl = M.List.map tbl ~f:(fun ((i, t'), l) ->
+      let* i = i and* d = def and* tbl = Context.List.all tbl in
+      let* tbl = Context.List.map tbl ~f:(fun ((i, t'), l) ->
           if not @@ Type.equal_imm t t' then
-            M.lift @@ Context.failf
+            Context.failf
               "Invalid switch value %a_%a, expected size %a"
               Bv.pp i Type.pp_imm t' Type.pp_imm t ()
           else !!(i, l)) in
       match Virtual.Ctrl.Table.create tbl t with
-      | Error err -> M.lift @@ Context.fail err
+      | Error err -> Context.fail err
       | Ok tbl -> !!(`sw (t, i, d, tbl))
     }
 
@@ -457,7 +462,7 @@ call_args:
     }
   | a = operand COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, operand)
     {
-      let+ a = a and+ vargs = unwrap_list vargs in
+      let+ a = a and+ vargs = Context.List.all vargs in
       Arg a :: Core.List.map vargs ~f:(fun a -> Varg a)
     }
 
@@ -545,7 +550,7 @@ local:
     }
   | l = LABEL LPAREN args = separated_nonempty_list(COMMA, operand) RPAREN
     {
-      let+ args = unwrap_list args and+ l = label_of_name l in
+      let+ args = Context.List.all args and+ l = label_of_name l in
       `label (l, args)
     }
 

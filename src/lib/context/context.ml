@@ -7,6 +7,7 @@ type label = Label.t
 
 module Var = Context_var
 module Label = Context_label
+module Local = Context_local
 
 module Virtual = struct
   include Context_virtual
@@ -22,9 +23,18 @@ let init target = {
 
 include M
 
+let init_ctx s = {
+  state = s;
+  local = Dict.empty;
+}
+
 let reject err = Error err
-let run x s = x.run s ~reject ~accept:(fun x s -> Ok (x, s))
-let eval x s = x.run s ~reject ~accept:(fun x _ -> Ok x)
+
+let run x s =
+  x.run (init_ctx s) ~reject ~accept:(fun x s -> Ok (x, s.state))
+
+let eval x s =
+  x.run (init_ctx s) ~reject ~accept:(fun x _ -> Ok x)
 
 module type Machine = Context_machine.S
 

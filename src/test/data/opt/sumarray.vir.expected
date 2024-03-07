@@ -1,19 +1,19 @@
 module foo
 
 export function sw $foo(l %arr, w %num) {
-@10:
-  jmp @2(0x0_w, 0x0_w)
-@2(%s.2, %i.2):
+@0:
+  jmp @1(0x0_w, 0x0_w)
+@1(%s.2, %i.2):
   %0 = lt.w %i.2, %num ; @13
-  br %0, @1, @0
-@1:
+  br %0, @4, @5
+@4:
   %3 = zext.l %i.2 ; @16
   %2 = lsl.l %3, 0x2_l ; @15
   %1 = add.l %2, %arr ; @14
-  %w.1 = ld.w %1 ; @5
-  %5 = add.w %w.1, %s.2 ; @18
-  %4 = add.w %i.2, 0x1_w ; @17
-  jmp @2(%5, %4)
-@0:
+  %w.1 = ld.w %1 ; @10
+  %4 = add.w %w.1, %s.2 ; @17
+  %5 = add.w %i.2, 0x1_w ; @18
+  jmp @1(%4, %5)
+@5:
   ret %s.2
 }

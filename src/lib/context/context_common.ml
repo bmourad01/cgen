@@ -24,8 +24,13 @@ module State = struct
     end)
 end
 
+type ctx = {
+  state : state;
+  local : Dict.t;
+}
+
 module M = Sm.Make(struct
-    type nonrec state = state
+    type state = ctx
     let error_prefix = "Context error"
   end)
 
@@ -33,4 +38,4 @@ include M.Syntax
 
 type 'a t = 'a M.m
 
-let target = M.gets @@ fun s -> s.target
+let target = M.gets @@ fun s -> s.state.target

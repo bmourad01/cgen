@@ -1,12 +1,12 @@
 module foo
 
 export function w $foo(w %x) {
-@4:
+@0:
   %1 = eq.w %x, 0x1_w ; @6
-  br %1, @2, @0
+  br %1, @2, @1
 @2:
   ret 0x2_w
-@0:
+@1:
   %2 = sub.w %x, 0x1_w ; @7
   ret %2
 }
