@@ -16,7 +16,7 @@ export function sw $foo(l %s1, l %s2) {
   %4 = add.l %s2.1, 0x1_l ; @18
   jmp @1(%4, %5)
 @6:
-  %2 = sub.b %c1.1, %c2.1 ; @16
-  %1 = sext.w %2 ; @15
-  ret %1
+  %1 = sub.b %c1.1, %c2.1 ; @15
+  %2 = sext.w %1 ; @16
+  ret %2
 }

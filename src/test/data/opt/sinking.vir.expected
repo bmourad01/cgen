@@ -5,10 +5,10 @@ export function w $foo(w %x, w %y) {
   %0 = slt.w %x, 0x0_w ; @9
   br %0, @1, @6(%y)
 @1:
-  %3 = add.w %x, 0x1_w ; @12
-  %2 = lsl.w %3, 0x1_w ; @11
-  %1 = add.w %2, %y ; @10
-  jmp @6(%1)
+  %1 = add.w %x, 0x1_w ; @10
+  %2 = lsl.w %1, 0x1_w ; @11
+  %3 = add.w %2, %y ; @12
+  jmp @6(%3)
 @6(%b.1):
   ret %b.1
 }

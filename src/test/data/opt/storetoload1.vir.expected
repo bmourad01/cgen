@@ -3,10 +3,10 @@ module foo
 export function $foo() {
   %x = slot 16, align 16
 @0:
-  %2 = add.l %x, 0x8_l ; @9
-  %1 = and.l %2, 0xf_l ; @8
-  %0 = itrunc.w %1 ; @7
-  st.w %0, %2 ; @4
-  st.w %0, $a ; @6
+  %0 = add.l %x, 0x8_l ; @7
+  %1 = and.l %0, 0xf_l ; @8
+  %2 = itrunc.w %1 ; @9
+  st.w %2, %0 ; @4
+  st.w %2, $a ; @6
   ret
 }

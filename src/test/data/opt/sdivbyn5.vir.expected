@@ -2,8 +2,8 @@ module foo
 
 export function w $foo(w %x) {
 @0:
-  %1 = mulh.w %x, 0xcccccccc_w ; @3
-  %2 = lsr.w %1, 0x1f_w ; @4
-  %0 = add.w %1, %2 ; @2
-  ret %0
+  %0 = mulh.w %x, 0xcccccccc_w ; @2
+  %1 = lsr.w %0, 0x1f_w ; @3
+  %2 = add.w %0, %1 ; @4
+  ret %2
 }

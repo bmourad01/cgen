@@ -121,31 +121,36 @@ let rec pure t env e : operand Context.t =
   let insn = insn t env in
   match e with
   (* Only canonical forms are accepted. *)
-  | E (a, Obinop b, [l; r]) -> insn a @@ fun x ->
+  | E (a, Obinop b, [l; r]) ->
     let* l = pure l in
-    let+ r = pure r in
-    `bop (x, b, l, r)
+    let* r = pure r in
+    insn a @@ fun x ->
+    !!(`bop (x, b, l, r))
   | E (_, Obool b, []) -> !!(`bool b)
   | E (_, Ocall (x, _), _) -> !!(`var x)
   | E (_, Odouble d, []) -> !!(`double d)
   | E (_, Oint (i, t), []) -> !!(`int (i, t))
   | E (_, Oload (x, _), _) -> !!(`var x)
-  | E (a, Oref, [y]) -> insn a @@ fun x ->
-    let+ y = pure y in
-    `ref (x, y)
-  | E (a, Osel ty, [c; y; n]) -> insn a @@ fun x ->
+  | E (a, Oref, [y]) ->
+    let* y = pure y in
+    insn a @@ fun x ->
+    !!(`ref (x, y))
+  | E (a, Osel ty, [c; y; n]) ->
     let* c = pure c in
     let* y = pure y in
     let* n = pure n in
+    insn a @@ fun x ->
     sel e x ty c y n
   | E (_, Osingle s, []) -> !!(`float s)
   | E (_, Osym (s, n), []) -> !!(`sym (s, n))
-  | E (a, Ounop u, [y]) -> insn a @@ fun x ->
-    let+ y = pure y in
-    `uop (x, u, y)
-  | E (a, Ounref, [E (_, Otype s, []); y]) -> insn a @@ fun x ->
-    let+ y = pure y in
-    `unref (x, s, y)
+  | E (a, Ounop u, [y]) ->
+    let* y = pure y in
+    insn a @@ fun x ->
+    !!(`uop (x, u, y))
+  | E (a, Ounref, [E (_, Otype s, []); y]) ->
+    let* y = pure y in
+    insn a @@ fun x ->
+    !!(`unref (x, s, y))
   | E (_, Ovaarg (x, _), [_]) -> !!(`var x)
   | E (_, Ovar x, []) -> !!(`var x)
   (* The rest are rejected. *)
@@ -175,12 +180,12 @@ let rec pure t env e : operand Context.t =
   | E (_, Ovar _, _)
   | E (_, Ovastart _, _) -> invalid_pure e
 
-and callargs t env = function
+let callargs t env = function
   | E (_, Ocallargs, args) ->
     Context.List.map args ~f:(pure t env)
   | e -> invalid_callargs e
 
-and global t env e : global Context.t = match e with
+let global t env e : global Context.t = match e with
   | E (_, Oaddr a, []) -> !!(`addr a)
   | E (_, Oaddr _, _) -> invalid_global e
   | E (_, Osym (s, o), []) -> !!(`sym (s, o))
@@ -253,45 +258,55 @@ let exp t env l e =
   let ctrl = ctrl env l in
   match e with
   (* Only canonical forms are accepted. *)
-  | E (_, Obr, [c; y; n]) -> ctrl @@ fun () ->
+  | E (_, Obr, [c; y; n]) ->
     let* c = pure c in
     let* y = dst y in
     let* n = dst n in
+    ctrl @@ fun () ->
     br l e c y n
-  | E (_, Ocall0 _, [f; args; vargs]) -> insn @@ fun () ->
+  | E (_, Ocall0 _, [f; args; vargs]) ->
     let* f = global t env f in
     let* args = callargs t env args in
-    let+ vargs = callargs t env vargs in
-    `call (None, f, args, vargs)
-  | E (_, Ocall (x, ty), [f; args; vargs]) -> insn @@ fun () ->
+    let* vargs = callargs t env vargs in
+    insn @@ fun () ->
+    !!(`call (None, f, args, vargs))
+  | E (_, Ocall (x, ty), [f; args; vargs]) ->
     let* f = global t env f in
     let* args = callargs t env args in
-    let+ vargs = callargs t env vargs in
-    `call (Some (x, ty), f, args, vargs)
-  | E (_, Oload (x, t), [y]) -> insn @@ fun () ->
-    let+ y = pure y in
-    `load (x, t, y)
-  | E (_, Ojmp, [d]) -> ctrl @@ fun () ->
-    let+ d = dst d in
-    `jmp d
-  | E (_, Oret, [x]) -> ctrl @@ fun () ->
-    let+ x = pure x in
-    `ret (Some x)
+    let* vargs = callargs t env vargs in
+    insn @@ fun () ->
+    !!(`call (Some (x, ty), f, args, vargs))
+  | E (_, Oload (x, t), [y]) ->
+    let* y = pure y in
+    insn @@ fun () ->
+    !!(`load (x, t, y))
+  | E (_, Ojmp, [d]) ->
+    let* d = dst d in
+    ctrl @@ fun () ->
+    !!(`jmp d)
+  | E (_, Oret, [x]) ->
+    let* x = pure x in
+    ctrl @@ fun () ->
+    !!(`ret (Some x))
   | E (_, Oset _, [y]) -> pure y >>| ignore
-  | E (_, Ostore (t, _), [v; x]) -> insn @@ fun () ->
+  | E (_, Ostore (t, _), [v; x]) ->
     let* v = pure v in
-    let+ x = pure x in
-    `store (t, v, x)
-  | E (_, Osw ty, i :: d :: tbl) -> ctrl @@ fun () ->
+    let* x = pure x in
+    insn @@ fun () ->
+    !!(`store (t, v, x))
+  | E (_, Osw ty, i :: d :: tbl) ->
     let* i = pure i in
     let* d = sw_default t env l d in
     let* tbl = table t env tbl ty in
+    ctrl @@ fun () ->
     sw l e ty i d tbl
-  | E (_, Ovaarg (x, t), [a]) -> insn @@ fun () ->
+  | E (_, Ovaarg (x, t), [a]) ->
     let* a = pure a in
+    insn @@ fun () ->
     vaarg l e x t a
-  | E (_, Ovastart _, [a]) -> insn @@ fun () ->
+  | E (_, Ovastart _, [a]) ->
     let* a = pure a in
+    insn @@ fun () ->
     vastart l e a
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)

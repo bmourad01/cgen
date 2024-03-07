@@ -7,10 +7,10 @@ export function sw $foo(l %arr, w %num) {
   %0 = lt.w %i.2, %num ; @13
   br %0, @4, @5
 @4:
-  %3 = zext.l %i.2 ; @16
-  %2 = lsl.l %3, 0x2_l ; @15
-  %1 = add.l %2, %arr ; @14
-  %w.1 = ld.w %1 ; @10
+  %1 = zext.l %i.2 ; @14
+  %2 = lsl.l %1, 0x2_l ; @15
+  %3 = add.l %2, %arr ; @16
+  %w.1 = ld.w %3 ; @10
   %4 = add.w %w.1, %s.2 ; @17
   %5 = add.w %i.2, 0x1_w ; @18
   jmp @1(%4, %5)

@@ -2,10 +2,10 @@ module foo
 
 export function w $foo(w %x) {
 @0:
-  %4 = asr.w %x, 0x1f_w ; @6
-  %3 = lsr.w %4, 0x1d_w ; @5
-  %2 = add.w %x, %3 ; @4
-  %1 = and.w %2, 0x7_w ; @3
-  %0 = sub.w %1, %3 ; @2
-  ret %0
+  %0 = asr.w %x, 0x1f_w ; @2
+  %1 = lsr.w %0, 0x1d_w ; @3
+  %2 = add.w %x, %1 ; @4
+  %3 = and.w %2, 0x7_w ; @5
+  %4 = sub.w %3, %1 ; @6
+  ret %4
 }
