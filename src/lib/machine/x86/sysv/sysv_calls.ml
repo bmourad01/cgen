@@ -225,8 +225,8 @@ let lower env = iter_blks env ~f:(fun b ->
           let* k = match vargs with
             | [] -> !!k
             | _ ->
-              let n = num_sse_args - Stack.length qs in
-              let+ i = Cv.Abi.insn @@ `uop (`reg "rax", `copy `i8, i8 n) in
+              let n = Array.length sse_args - Stack.length qs in
+              let+ i = Cv.Abi.insn @@ `uop (`reg (reg_str `rax), `copy `i8, i8 n) in
               {k with callai = k.callai @> i} in
           (* Process the return value. *)
           let+ k = lower_call_ret env kret k in

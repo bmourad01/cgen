@@ -7,42 +7,51 @@ module Cv = Context.Virtual
 
 open Context.Syntax
 
-let num_int_args = 6
-let int_args = [|
-  "rdi";
-  "rsi";
-  "rdx";
-  "rcx";
-  "r8";
-  "r9";
-|]
+let reg_str = Format.asprintf "%a" X86_amd64_common.Reg.pp
+
+let int_args = Array.map ~f:reg_str [|
+    `rdi;
+    `rsi;
+    `rdx;
+    `rcx;
+    `r8;
+    `r9;
+  |]
 
 let int_arg_queue () =
   let q = Stack.create () in
-  for i = num_int_args - 1 downto 0 do
+  for i = Array.length int_args - 1 downto 0 do
     Stack.push q int_args.(i)
   done;
   q
 
-let int_rets = [|
-  "rax";
-  "rdx";
-|]
+let int_rets = Array.map ~f:reg_str [|
+    `rax;
+    `rdx;
+  |]
 
-let num_sse_args = 8
-let sse_args = Array.init num_sse_args ~f:(Format.sprintf "xmm%d")
+let sse_args = Array.map ~f:reg_str [|
+    `xmm0;
+    `xmm1;
+    `xmm2;
+    `xmm3;
+    `xmm4;
+    `xmm5;
+    `xmm6;
+    `xmm7;
+  |]
 
 let sse_arg_queue () =
   let q = Stack.create () in
-  for i = num_sse_args - 1 downto 0 do
+  for i = Array.length sse_args - 1 downto 0 do
     Stack.push q sse_args.(i)
   done;
   q
 
-let sse_rets = [|
-  "xmm0";
-  "xmm1";
-|]
+let sse_rets = Array.map ~f:reg_str [|
+    `xmm0;
+    `xmm1;
+  |]
 
 type reg =
   | Rnone

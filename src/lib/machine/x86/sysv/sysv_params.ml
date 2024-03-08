@@ -155,7 +155,7 @@ let register_save_int env params sse s =
           let+ st = Cv.Abi.store `i64 (`reg r) (`var o) in
           acc @>* [oi; st]) in
   let zero = `int (Bv.zero, `i8) in
-  let+ z, zi = Cv.Abi.binop (`eq `i8) (`reg "rax") zero in
+  let+ z, zi = Cv.Abi.binop (`eq `i8) (`reg (reg_str `rax)) zero in
   let entry = `label (Func.entry env.fn, []) in
   let sse = `label (sse, []) in
   Abi.Blk.create () ~label
