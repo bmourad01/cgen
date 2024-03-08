@@ -97,38 +97,43 @@ let pp_mem ppf : mem -> unit = function
     Format.fprintf ppf "st.%a %a, %a"
       Type.pp_basic t pp_operand v pp_operand a
 
-type memv = [
+type extra = [
   | `storev of string * operand
+  | `stkargs of var
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_memv : memv -> (var, var_comparator) Set.t = function
+let free_vars_of_extra : extra -> (var, var_comparator) Set.t = function
   | `storev (v, a) ->
     List.filter_map [a] ~f:var_of_operand |>
     List.cons (`reg v) |>
     Set.of_list (module Var_comparator)
+  | `stkargs _ ->
+    Set.empty (module Var_comparator)
 
-let pp_memv ppf : memv -> unit = function
+let pp_extra ppf : extra -> unit = function
   | `storev (v, a) ->
     Format.fprintf ppf "st.v %s, %a" v pp_operand a
+  | `stkargs x ->
+    Format.fprintf ppf "%a = stkargs" pp_var x
 
 type op = [
   | basic
   | call
   | mem
-  | memv
+  | extra
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_op : op -> (var, var_comparator) Set.t = function
   | #basic as b -> free_vars_of_basic b
   | #call  as c -> free_vars_of_call c
   | #mem   as m -> free_vars_of_mem m
-  | #memv  as m -> free_vars_of_memv m
+  | #extra as e -> free_vars_of_extra e
 
 let pp_op ppf : op -> unit = function
   | #basic as b -> pp_basic ppf b
   | #call  as c -> pp_call  ppf c
   | #mem   as m -> pp_mem   ppf m
-  | #memv  as m -> pp_memv  ppf m
+  | #extra as e -> pp_extra ppf e
 
 type t = {
   label : Label.t;

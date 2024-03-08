@@ -861,25 +861,29 @@ module Abi : sig
 
     val pp_call : Format.formatter -> call -> unit
 
-    (** A memory instruction, primarily for supporting targets with
-        vector registers.
+    (** Miscellaneous, ABI-specific instructions.
 
         [`storev (v, a)]: store the vector register [v] at address [a].
+
+        [`stkargs x]: returns a pointer to the beginning of the memory region
+        containing the arguments passed on the stack, and stores the result in
+        [x]. This is particularly useful for implementing variadic arguments.
     *)
-    type memv = [
+    type extra = [
       | `storev of string * operand
+      | `stkargs of var
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    val free_vars_of_memv : memv -> (var, var_comparator) Set.t
+    val free_vars_of_extra : extra -> (var, var_comparator) Set.t
 
-    val pp_memv : Format.formatter -> memv -> unit
+    val pp_extra : Format.formatter -> extra -> unit
 
     (** A data operation. *)
     type op = [
       | basic
       | call
       | mem
-      | memv
+      | extra
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the data operation. *)

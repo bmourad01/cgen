@@ -277,6 +277,9 @@ module Virtual : sig
       Virtual.Abi.operand ->
       Virtual.Abi.insn t
 
+    (** [stkargs ?dict ()] gets the beginning of the stack arguments region. *)
+    val stkargs : ?dict:Dict.t -> unit -> (var * Virtual.Abi.insn) t
+
     val blit :
       src:Virtual.Abi.var ->
       dst:Virtual.Abi.var ->

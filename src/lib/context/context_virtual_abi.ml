@@ -39,6 +39,11 @@ let store ?(dict = Dict.empty) t v a =
 let storev ?(dict = Dict.empty) v a =
   insn (`storev (v, a)) ~dict
 
+let stkargs ?(dict = Dict.empty) () =
+  let* var = Var.fresh in
+  let+ i = insn (`stkargs (`var var)) ~dict in
+  var, i
+
 let opvar (v : Virtual.Abi.var) = (v :> Virtual.Abi.operand)
 
 let blit_aux ?(ignore_dst = false) word src dst size =
