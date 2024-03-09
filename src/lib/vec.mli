@@ -189,6 +189,14 @@ val filteri_inplace : 'a t -> f:(int -> 'a -> bool) -> unit
 (** Same as [filter], but mutates the array inplace. *)
 val filter_inplace : 'a t -> f:('a -> bool) -> unit
 
+(** Returns [true] if there exists an element that satisfies [f]. Note that
+    if the array is empty, then the result is [false]. *)
+val exists : 'a t -> f:('a -> bool) -> bool
+
+(** Returns [true] if all elements in the array satisfy [f]. Note that if
+    the array is empty, then the result is [true]. *)
+val for_all : 'a t -> f:('a -> bool) -> bool
+
 (** Removes all duplicate elements in the array that are adjacent to each
     other, according to [compare].
 

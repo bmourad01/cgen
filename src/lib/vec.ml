@@ -249,6 +249,24 @@ let filteri_inplace t ~f =
 let filter_inplace t ~f = filteri_inplace t ~f:(fun _ x -> f x)
 [@@specialise]
 
+let exists t ~f =
+  let exception Found in try
+    for i = 0 to t.length - 1 do
+      if f @@ unsafe_get t i then
+        raise_notrace Found
+    done;
+    false
+  with Found -> true
+
+let for_all t ~f =
+  let exception Failed in try
+    for i = 0 to t.length - 1 do
+      if not @@ f @@ unsafe_get t i then
+        raise_notrace Failed
+    done;
+    true
+  with Failed -> false
+
 let remove_consecutive_duplicates t ~compare =
   let prev = ref None in
   filter_inplace t ~f:(fun x -> match !prev with
