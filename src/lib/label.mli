@@ -6,11 +6,12 @@
     be referred to by name.
 *)
 
+open Core
 open Graphlib.Std
 open Regular.Std
 
 (** A program label. *)
-type t
+type t = private Int63.t
 
 (** The pseudo-entry label. Primarily useful for computing the
     dominator tree of a graph .*)
