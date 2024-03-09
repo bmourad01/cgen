@@ -37,28 +37,35 @@ let init () = {
   scp = empty_scope;
 }
 
+let error_prefix = "In Extractor_cfg"
+
 let extract_fail l id =
-  Context.failf "Couldn't extract term for label %a (id %a)"
-    Label.pp l Id.pp id ()
+  Context.failf "%s: couldn't extract term for label %a (id %a)"
+    error_prefix Label.pp l Id.pp id ()
 
 let invalid l e =
-  Context.failf "Invalid term %a for label %a"
-    pp_ext e Label.pp l ()
+  Context.failf "%s: invalid term %a for label %a"
+    error_prefix pp_ext e Label.pp l ()
 
 let invalid_pure e =
-  Context.failf "Invalid pure term %a" pp_ext e ()
+  Context.failf "%s: invalid pure term %a"
+    error_prefix pp_ext e ()
 
 let invalid_callargs e =
-  Context.failf "Invalid callargs term %a" pp_ext e ()
+  Context.failf "%s: nvalid callargs term %a"
+    error_prefix pp_ext e ()
 
 let invalid_global e =
-  Context.failf "Invalid global term %a" pp_ext e ()
+  Context.failf "%s: invalid global term %a"
+    error_prefix pp_ext e ()
 
 let invalid_tbl e =
-  Context.failf "Invalid table term %a" pp_ext e ()
+  Context.failf "%s: invalid table term %a"
+    error_prefix pp_ext e ()
 
 let no_var l =
-  Context.failf "No variable is bound for label %a" Label.pp l ()
+  Context.failf "%s: no variable is bound for label %a"
+    error_prefix Label.pp l ()
 
 let extract_label t l = match Hashtbl.find t.eg.lval l with
   | None -> !!None
