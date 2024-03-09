@@ -424,16 +424,29 @@ let reify t env l =
   | Some e -> exp t env l e
   | None -> !!()
 
+let step_insn t env i =
+  let l = Insn.label i in
+  env.cur <- l;
+  reify t env l
+
+let step t env l = match Hashtbl.find t.eg.input.tbl l with
+  | None when Label.is_pseudo l -> !!()
+  | None | Some `insn _ ->
+    Context.failf "%s: missing block %a" error_prefix Label.pp l ()
+  | Some `blk b ->
+    let* () = Blk.insns b |> Context.Seq.iter ~f:(step_insn t env) in
+    env.cur <- l;
+    reify t env l
+
 let collect t l =
   let env = init () in
   let q = Stack.singleton (l, env.scp) in
   let rec loop () = match Stack.pop q with
     | None -> !!env
     | Some (l, scp) ->
-      env.cur <- l;
       env.scp <- scp;
-      let* () = reify t env l in
-      Tree.children t.eg.input.cdom l |>
+      let* () = step t env l in
+      Tree.children t.eg.input.dom l |>
       Seq.iter ~f:(fun l -> Stack.push q (l, env.scp));
       loop () in
   loop ()
