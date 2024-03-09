@@ -418,17 +418,21 @@ module Hoisting = struct
             else pure t env e >>| ignore)
 end
 
+(* Determine the placement of the instruction and then extract its rewritten
+   contents. *)
 let reify t env l =
   let* () = Hoisting.process_moved_nodes t env l in
   extract_label t l >>= function
   | Some e -> exp t env l e
   | None -> !!()
 
+(* Rewrite a single instruction. *)
 let step_insn t env i =
   let l = Insn.label i in
   env.cur <- l;
   reify t env l
 
+(* Step through a single basic block and rewrite its contents accordingly. *)
 let step t env l = match Hashtbl.find t.eg.input.tbl l with
   | None when Label.is_pseudo l -> !!()
   | None | Some `insn _ ->
@@ -438,6 +442,8 @@ let step t env l = match Hashtbl.find t.eg.input.tbl l with
     env.cur <- l;
     reify t env l
 
+(* Collect all of the rewritten instructions in a traversal of the
+   dominator tree, starting at label `l`. *)
 let collect t l =
   let env = init () in
   let q = Stack.singleton (l, env.scp) in
@@ -451,9 +457,13 @@ let collect t l =
       loop () in
   loop ()
 
+(* Find the rewritten instruction at label `l`. *)
 let find_insn env l =
   Hashtbl.find env.insn l |> Option.map ~f:(Insn.create ~label:l)
 
+(* Find any new instructions to be prepended directly before label `l`.
+   Note that the ordering is, by default, from oldest to newest ID, but
+   this can be reversed for an efficient `rev_append` as seen below. *)
 let find_news ?(rev = false) env l =
   let order = if rev then `Decreasing_key else `Increasing_key in
   let seq = Id.Tree.to_sequence ~order in
