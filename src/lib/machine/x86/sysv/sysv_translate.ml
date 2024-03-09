@@ -44,12 +44,9 @@ let transl_call env ivec l f =
   (* Instructions before the call. *)
   Ftree.iter k.callai ~f:(Vec.push ivec);
   (* Register and memory arguments. *)
-  let rargs =
-    Ftree.to_list k.callar |>
-    List.map ~f:(fun r -> `reg r) in
-  let margs = Ftree.to_list k.callam in
+  let args = Ftree.to_list k.callar in
   (* The call itself. *)
-  let c = `call (k.callrr, transl_global env f, rargs @ margs) in
+  let c = `call (k.callrr, transl_global env f, args) in
   Vec.push ivec @@ Abi.Insn.create ~label:l c;
   (* Instructions after the call. *)
   Ftree.iter k.callri ~f:(Vec.push ivec)

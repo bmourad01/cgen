@@ -128,17 +128,15 @@ let empty_ret = {
 }
 
 type call = {
-  callai : Abi.insn Ftree.t;    (* Set up the arguments before the call. *)
-  callar : string Ftree.t;      (* Passing register arguments. *)
-  callam : Abi.operand Ftree.t; (* Passing memory arguments. *)
-  callri : Abi.insn Ftree.t;    (* Copy the return value after the call. *)
-  callrr : string list;         (* Registers holding the return value. *)
+  callai : Abi.insn Ftree.t;         (* Set up the arguments before the call. *)
+  callar : Abi.Insn.callarg Ftree.t; (* Passing arguments. *)
+  callri : Abi.insn Ftree.t;         (* Copy the return value after the call. *)
+  callrr : string list;              (* Registers holding the return value. *)
 }
 
 let empty_call = {
   callai = Ftree.empty;
   callar = Ftree.empty;
-  callam = Ftree.empty;
   callri = Ftree.empty;
   callrr = [];
 }
@@ -149,7 +147,7 @@ let (<@) x t = Ftree.cons t x
 
 type param = {
   pty  : Type.basic;
-  pvar : Abi.var;
+  pvar : Abi.Func.arg;
   pins : Abi.insn list;
 }
 

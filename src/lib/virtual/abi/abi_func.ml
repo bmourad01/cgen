@@ -5,12 +5,21 @@ open Abi_common
 module Slot = Virtual_slot
 module Func = Virtual_func
 
+type arg = [
+  | `reg of string
+  | `stk of Var.t * int
+] [@@deriving bin_io, compare, equal, sexp]
+
+let pp_arg ppf : arg -> unit = function
+  | `reg r -> Format.fprintf ppf "%s" r
+  | `stk (x, o) -> Format.fprintf ppf "%a/%d" Var.pp x o
+
 module T = struct
   type t = {
     name  : string;
     slots : Slot.t ftree;
     blks  : Abi_blk.t ftree;
-    args  : (var * Type.basic) ftree;
+    args  : (arg * Type.basic) ftree;
     dict  : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
 end
@@ -108,7 +117,7 @@ let remove_slot fn x = {
   fn with slots = Ftree.remove_if fn.slots ~f:(Fn.flip Slot.is_var x);
 }
 
-let is_arg (x, _) y = equal_var x y
+let is_arg (x, _) y = equal_arg x y
 
 let prepend_arg ?before fn x t = {
   fn with args = Ftree.icons ?before fn.args (x, t) is_arg;
@@ -153,12 +162,12 @@ let update_blks_exn fn = function
 let update_blks fn bs = try Ok (update_blks_exn fn bs) with
   | Invalid_argument msg -> Or_error.error_string msg
 
-let pp_arg ppf (v, t) =
-  Format.fprintf ppf "%a %a" Type.pp_basic t pp_var v
+let pp_arg_ty ppf (v, t) =
+  Format.fprintf ppf "%a %a" Type.pp_basic t pp_arg v
 
 let pp_args ppf fn =
   let sep ppf = Format.fprintf ppf ", " in
-  Format.fprintf ppf "%a" (Ftree.pp pp_arg sep) fn.args;
+  Format.fprintf ppf "%a" (Ftree.pp pp_arg_ty sep) fn.args;
   match Ftree.is_empty fn.args, variadic fn with
   | _,    false -> ()
   | true, true  -> Format.fprintf ppf "..."

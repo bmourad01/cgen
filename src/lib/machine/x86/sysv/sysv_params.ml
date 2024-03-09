@@ -61,21 +61,32 @@ let init_regs env =
   alloc_onereg ~qi ~qs,
   alloc_tworeg ~qi ~qs
 
-let basic_param ~reg env t x =
+(* pre: `al` is a power of 2 *)
+let onext ofs sz al =
+  let o = (!ofs + al - 1) land -al in
+  ofs := o + sz;
+  o
+
+let basic_param ~ofs ~reg env t x =
   let+ pvar, pins = match reg t with
-    | None -> !!(`var x, [])
+    | None ->
+      let sz = Type.sizeof_basic t / 8 in
+      let o = onext ofs sz sz in
+      !!(`stk (x, o), [])
     | Some r ->
       let+ i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
       `reg r, [i] in
   Vec.push env.params @@ {pty = t; pvar; pins}
 
 (* Pass in a single register, so we can reuse `x`. *)
-let onereg_param ~reg env x y r =
+let onereg_param ~ofs ~reg env x y r =
   let t = reg_type r in
   let+ pvar, pins = match reg t with
     | None ->
+      let sz = Type.sizeof_basic t / 8 in
+      let o = onext ofs sz sz in
       let+ st = Cv.Abi.store t (`var x) (`var y) in
-      `var x, [st]
+      `stk (x, o), [st]
     | Some r ->
       let* i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
       let+ st = Cv.Abi.store t (`var x) (`var y) in
@@ -83,7 +94,7 @@ let onereg_param ~reg env x y r =
   Vec.push env.params @@ {pty = t; pvar; pins}
 
 (* Insert fresh parameters for the two-reg argument. *)
-let tworeg_param ~reg2 env y r1 r2 =
+let tworeg_param ~ofs ~reg2 env y r1 r2 =
   let t1 = reg_type r1 and t2 = reg_type r2 in
   let* x1 = Context.Var.fresh in
   let* x2 = Context.Var.fresh in
@@ -92,8 +103,12 @@ let tworeg_param ~reg2 env y r1 r2 =
   let* st2 = Cv.Abi.store t1 (`var x2) (`var o) in
   let+ p1, p2 = match reg2 t1 t2 with
     | None ->
-      let p1 = {pty = t1; pvar = `var x1; pins = [st1]} in
-      let p2 = {pty = t2; pvar = `var x2; pins = [oi; st2]} in
+      let sz1 = Type.sizeof_basic t1 / 8 in
+      let sz2 = Type.sizeof_basic t2 / 8 in
+      let o1 = onext ofs sz1 sz1 in
+      let o2 = onext ofs sz2 sz2 in
+      let p1 = {pty = t1; pvar = `stk (x1, o1); pins = [st1]} in
+      let p2 = {pty = t2; pvar = `stk (x2, o2); pins = [oi; st2]} in
       !!(p1, p2)
     | Some (r1, r2) ->
       let* i1 = Cv.Abi.insn @@ `uop (`var x1, `copy t1, `reg r1) in
@@ -105,7 +120,8 @@ let tworeg_param ~reg2 env y r1 r2 =
   Vec.push env.params p2
 
 (* Blit the structure to a stack slot. *)
-let memory_param env y size align =
+let memory_param ~ofs env y size align =
+  let so = onext ofs size align in
   let size' = if size = 0 then align else size in
   Seq.init (size' / 8) ~f:(fun i -> i * 8) |>
   Context.Seq.iter ~f:(fun o ->
@@ -121,7 +137,7 @@ let memory_param env y size align =
           let* o, oi = Cv.Abi.binop (`add `i64) (`var y) (i64 o) in
           let+ st = Cv.Abi.store `i64 (`var x) (`var o) in
           [oi; st] in
-      let p = {pty = `i64; pvar = `var x; pins} in
+      let p = {pty = `i64; pvar = `stk (x, so + o); pins} in
       Vec.push env.params p)
 
 (* Quoting from the System V document, section 3.5.7:
@@ -183,7 +199,7 @@ let compute_register_save_area env =
     let params = Vec.fold env.params ~init:String.Set.empty
         ~f:(fun acc p -> match p.pvar with
             | `reg r -> Set.add acc r
-            | `var _ -> acc) in
+            | `stk _ -> acc) in
     let* rsslot = new_slot env 176 16 in
     let* sse = Context.Label.fresh in
     let* rsint = register_save_int env params sse rsslot in
@@ -194,11 +210,12 @@ let compute_register_save_area env =
 (* Lower the parameters of the function and copy their contents
    to SSA variables or stack slots. *)
 let lower env =
+  let ofs = ref 0 in
   let* reg, reg2 = init_regs env in
   let* () =
     Func.args env.fn |>
     Context.Seq.iter ~f:(fun (x, t) -> match t with
-        | #Type.basic as t -> basic_param ~reg env t x
+        | #Type.basic as t -> basic_param ~ofs ~reg env t x
         | `name s ->
           let* k = type_cls env s in
           let* y = if k.size > 0
@@ -207,7 +224,7 @@ let lower env =
           Hashtbl.set env.refs ~key:x ~data:y;
           match k.cls with
           | Kreg _ when k.size = 0 -> assert false
-          | Kreg (r, _) when k.size = 8 -> onereg_param ~reg env x y r
-          | Kreg (r1, r2) -> tworeg_param ~reg2 env y r1 r2
-          | Kmem -> memory_param env y k.size k.align) in
+          | Kreg (r, _) when k.size = 8 -> onereg_param ~ofs ~reg env x y r
+          | Kreg (r1, r2) -> tworeg_param ~ofs ~reg2 env y r1 r2
+          | Kmem -> memory_param ~ofs env y k.size k.align) in
   compute_register_save_area env

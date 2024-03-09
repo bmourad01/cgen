@@ -254,7 +254,7 @@ module Virtual : sig
       ?dict:Dict.t ->
       string list ->
       Virtual.Abi.global ->
-      Virtual.Abi.operand list ->
+      Virtual.Abi.Insn.callarg list ->
       Virtual.Abi.insn t
 
     val load :

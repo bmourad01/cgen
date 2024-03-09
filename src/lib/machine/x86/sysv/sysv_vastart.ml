@@ -42,7 +42,7 @@ let lower env = match env.rsave with
                   match p.pvar, p.pty with
                   | `reg _, #Type.imm -> gp + 8, fp
                   | `reg _, #Type.fp -> gp, fp + 16
-                  | `var _, _ -> gp, fp) in
+                  | `stk _, _ -> gp, fp) in
             (* Initialize `gp_offset`. *)
             let* gpi = Cv.Abi.store `i32 (i32 gp) ap in
             (* Initialize `fp_offset`. *)

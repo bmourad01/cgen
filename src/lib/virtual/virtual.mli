@@ -405,6 +405,7 @@ module Func : sig
   include Virtual_func_intf.S
     with type blk := blk
      and type var := Var.t
+     and type arg := Var.t
      and type argt := Type.arg
      and type slot := slot
 
@@ -844,17 +845,28 @@ module Abi : sig
        and type var := var
        and type var_comparator := var_comparator
 
+    (** An argument to a call instruction.
+
+        [`reg r]: the argument is passed in a register [r].
+
+        [`stk (s, o)]: the argument [s] is passed at stack offset [o].
+    *)
+    type callarg = [
+      | `reg of string
+      | `stk of operand * int
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    val free_vars_of_callarg : callarg -> (var, var_comparator) Set.t
+
+    val pp_callarg : Format.formatter -> callarg -> unit
+
     (** A call instruction.
 
         [`call (xs, f, args)] calls the function [f] with [args], returning
         zero or more results in registers [xs].
-
-        If an argument [a = `reg r`] in [args], then this argument is
-        interpreted as being passed in register [r]. All other arguments are
-        assumed to be passed in memory according to the target ABI.
     *)
     type call = [
-      | `call of string list * global * operand list
+      | `call of string list * global * callarg list
     ] [@@deriving bin_io, compare, equal, sexp]
 
     val free_vars_of_call : call -> (var, var_comparator) Set.t
@@ -1026,9 +1038,23 @@ module Abi : sig
       the target ABI.
   *)
   module Func : sig
+    (** An argument to the function.
+
+        [`reg r]: the argument is passed in register [r].
+
+        [`stk (x, o)]: the argument [x] is passed at stack offset [o].
+    *)
+    type arg = [
+      | `reg of string
+      | `stk of Var.t * int
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    val pp_arg : Format.formatter -> arg -> unit
+
     include Virtual_func_intf.S
       with type blk := blk
        and type var := var
+       and type arg := arg
        and type argt := Type.basic
        and type slot := slot
 

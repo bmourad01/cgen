@@ -49,21 +49,35 @@ let pp_basic ppf : basic -> unit = function
     Format.fprintf ppf "%a = sel.%a %a, %a, %a"
       pp_var x Type.pp_basic t pp_var c pp_operand l pp_operand r
 
+type callarg = [
+  | `reg of string
+  | `stk of operand * int
+] [@@deriving bin_io, compare, equal, sexp]
+
+let free_vars_of_callarg : callarg -> (var, var_comparator) Set.t = function
+  | `reg _ as r -> Set.singleton (module Var_comparator) r
+  | `stk (#var as v, _) -> Set.singleton (module Var_comparator) v
+  | `stk _ -> Set.empty (module Var_comparator)
+
+let pp_callarg ppf : callarg -> unit = function
+  | `reg r -> Format.fprintf ppf "%s" r
+  | `stk (s, o) -> Format.fprintf ppf "%a/%d" pp_operand s o
+
 type call = [
-  | `call of string list * global * operand list
+  | `call of string list * global * callarg list
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_call : call -> (var, var_comparator) Set.t = function
   | `call (_, f, args) ->
     let f = var_of_global f |> var_set_of_option in
     let args =
-      List.filter_map args ~f:var_of_operand |>
-      Set.of_list (module Var_comparator) in
+      List.map args ~f:free_vars_of_callarg |>
+      Set.union_list (module Var_comparator) in
     Set.union f args
 
 let pp_call_args ppf args =
   let pp_sep ppf () = Format.fprintf ppf ", " in
-  Format.pp_print_list ~pp_sep pp_operand ppf args
+  Format.pp_print_list ~pp_sep pp_callarg ppf args
 
 let pp_call_rets ppf rets =
   let pp_sep ppf () = Format.fprintf ppf ", " in

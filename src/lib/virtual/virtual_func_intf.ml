@@ -5,6 +5,7 @@ module type S = sig
   type t [@@deriving bin_io, compare, equal, sexp]
   type blk
   type var
+  type arg
   type argt
   type slot
 
@@ -20,7 +21,7 @@ module type S = sig
     ?slots:slot list ->
     name:string ->
     blks:blk list ->
-    args:(var * argt) list ->
+    args:(arg * argt) list ->
     unit ->
     t
 
@@ -30,7 +31,7 @@ module type S = sig
     ?slots:slot list ->
     name:string ->
     blks:blk list ->
-    args:(var * argt) list ->
+    args:(arg * argt) list ->
     unit ->
     t Or_error.t
 
@@ -47,7 +48,7 @@ module type S = sig
   val entry : t -> Label.t
 
   (** Returns the arguments of the function, along with their types. *)
-  val args : ?rev:bool -> t -> (var * argt) seq
+  val args : ?rev:bool -> t -> (arg * argt) seq
 
   (** Returns the dictionary of the function. *)
   val dict : t -> Dict.t
@@ -114,7 +115,7 @@ module type S = sig
       If [before] is [Some y], then [x] will appear directly before the
       argument [y]. If [y] doesn't exist, then [x] is not inserted.
   *)
-  val prepend_arg : ?before:var -> t -> var -> argt -> t
+  val prepend_arg : ?before:arg -> t -> arg -> argt -> t
 
   (** [append_arg ?after fn x t] adds the argument [x] of type [t] to [fn].
 
@@ -124,10 +125,10 @@ module type S = sig
       If [after] is [Some y], then [x] will appear directly after the
       argument [y]. If [y] doesn't exist, then [x] is not inserted.
   *)
-  val append_arg : ?after:var -> t -> var -> argt -> t
+  val append_arg : ?after:arg -> t -> arg -> argt -> t
 
   (** [remove_arg fn x] removes the argument [x] from [fn], if it exists. *)
-  val remove_arg : t -> var -> t
+  val remove_arg : t -> arg -> t
 
   (** Returns [true] if the function has a block associated with the given
       label. *)
