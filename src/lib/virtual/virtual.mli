@@ -1036,6 +1036,9 @@ module Abi : sig
       a [`reg r], indicating that [a] is passed in register [r]. All
       other arguments are assumed to be passed in memory according to
       the target ABI.
+
+      As a special case, [{prepend,append,remove}_arg] will use [same_arg]
+      to test for equality.
   *)
   module Func : sig
     (** An argument to the function.
@@ -1048,6 +1051,10 @@ module Abi : sig
       | `reg of string
       | `stk of Var.t * int
     ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** [same_arg x y] returns [true] if [x] and [y] refer to the same
+        register or variable; e.g. stack offsets are ignored. *)
+    val same_arg : arg -> arg -> bool
 
     val pp_arg : Format.formatter -> arg -> unit
 

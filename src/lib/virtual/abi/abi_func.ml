@@ -10,6 +10,11 @@ type arg = [
   | `stk of Var.t * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
+let same_arg x y = match x, y with
+  | `reg rx, `reg ry -> String.(rx = ry)
+  | `stk (x, _), `stk (y, _) -> Var.(x = y)
+  | _ -> false
+
 let pp_arg ppf : arg -> unit = function
   | `reg r -> Format.fprintf ppf "%s" r
   | `stk (x, o) -> Format.fprintf ppf "%a/%d" Var.pp x o
@@ -117,7 +122,7 @@ let remove_slot fn x = {
   fn with slots = Ftree.remove_if fn.slots ~f:(Fn.flip Slot.is_var x);
 }
 
-let is_arg (x, _) y = equal_arg x y
+let is_arg (x, _) y = same_arg x y
 
 let prepend_arg ?before fn x t = {
   fn with args = Ftree.icons ?before fn.args (x, t) is_arg;
