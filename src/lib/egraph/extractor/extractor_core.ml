@@ -189,6 +189,7 @@ let prov t cid id op args =
     Hash_set.add t.impure cid;
     match Hashtbl.find t.eg.isrc cid with
     | Some l -> Label l
+    | None when id = cid -> Id {canon = cid; real = id}
     | None -> match Hashtbl.find t.eg.isrc id with
       | None -> Id {canon = cid; real = id}
       | Some l -> Label l

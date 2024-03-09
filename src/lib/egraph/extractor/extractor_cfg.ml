@@ -373,7 +373,9 @@ module Hoisting = struct
   let find_moved t id cid =
     match Hashtbl.find t.eg.imoved id with
     | Some s -> s
-    | None -> match Hashtbl.find t.eg.imoved cid with
+    | None ->
+      assert (id <> cid);
+      match Hashtbl.find t.eg.imoved cid with
       | Some s -> s
       | None -> assert false
 
