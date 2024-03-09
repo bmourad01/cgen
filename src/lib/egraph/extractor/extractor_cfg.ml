@@ -367,8 +367,18 @@ module Hoisting = struct
         c in
     if self then Set.add c l else Set.remove c l
 
-  let moved_blks t id =
-    Hashtbl.find_exn t.eg.imoved id |> Label.Set.map ~f:(fun l ->
+  (* Try the real ID first before moving on to the canonical ID. This could
+     happen if we rescheduled a newer term before we unioned it with an older
+     term. *)
+  let find_moved t id cid =
+    match Hashtbl.find t.eg.imoved id with
+    | Some s -> s
+    | None -> match Hashtbl.find t.eg.imoved cid with
+      | Some s -> s
+      | None -> assert false
+
+  let moved_blks t id cid =
+    find_moved t id cid |> Label.Set.map ~f:(fun l ->
         match Hashtbl.find_exn t.eg.input.tbl l with
         | `insn (_, b, _) -> Blk.label b
         | `blk _ -> assert false)
@@ -378,12 +388,13 @@ module Hoisting = struct
      This means that, at the LCA, the node is not going to be used on all
      paths that are dominated by it, so we need to do a simple analysis to
      see if this is the case. *)
-  let is_partial_redundancy t env l id =
-    (* Ignore the results of LICM. *)
+  let is_partial_redundancy t env l id cid =
+    (* Ignore the results of LICM. Note that we do not use the canonical ID
+       here, since we do our analysis before rewriting. *)
     not (Hash_set.mem t.eg.licm id) && begin
       (* Get the blocks associated with the labels that were
          "moved" for this node. *)
-      let bs = moved_blks t id in
+      let bs = moved_blks t id cid in
       (* If one of these blocks post-dominates the block that we're
          moving to, then it is safe to allow the move to happen,
          since we are inevitably going to compute it. *)
@@ -414,7 +425,7 @@ module Hoisting = struct
           | Some e ->
             let cid = Common.find t.eg id in
             if Hash_set.mem t.impure cid
-            || is_partial_redundancy t env l cid then !!()
+            || is_partial_redundancy t env l id cid then !!()
             else pure t env e >>| ignore)
 end
 
