@@ -17,8 +17,8 @@ let comp filename =
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
   let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Egraph_opt.run tenv) in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   Format.printf "=================================================\n%!";
