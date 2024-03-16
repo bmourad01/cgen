@@ -7,3 +7,4 @@ open Core
 open Virtual
 
 val run : func -> func Or_error.t
+val run_abi : Abi.func -> Abi.func Or_error.t

@@ -4,6 +4,8 @@ open Cgen
 
 let pp_sep ppf () = Format.fprintf ppf "@.@."
 
+let err f = Fn.compose Context.lift_err f
+
 let comp filename =
   let open Context.Syntax in
   let* target = Context.target in
@@ -30,6 +32,7 @@ let comp filename =
   let* fns =
     Virtual.Module.funs m |> Seq.to_list |>
     Context.List.map ~f:(Passes.Lower_abi.run tenv) in
+  let* fns = Context.List.map fns ~f:(err Passes.Remove_dead_vars.run_abi) in
   Format.printf "@[<v 0>%a@]\n%!"
     (Format.pp_print_list ~pp_sep Virtual.Abi.Func.pp) fns;
   !!()
