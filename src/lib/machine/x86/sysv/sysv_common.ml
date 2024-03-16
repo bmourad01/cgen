@@ -118,8 +118,8 @@ let classify_layout lt =
   {size; align; cls}
 
 type ret = {
-  reti : Abi.insn list; (* Copy the data to be returned. *)
-  retr : string list;   (* Registers to return in. *)
+  reti : Abi.insn list;           (* Copy the data to be returned. *)
+  retr : (string * operand) list; (* Registers to return in. *)
 }
 
 let empty_ret = {
@@ -128,10 +128,10 @@ let empty_ret = {
 }
 
 type call = {
-  callai : Abi.insn Ftree.t;         (* Set up the arguments before the call. *)
-  callar : Abi.Insn.callarg Ftree.t; (* Passing arguments. *)
-  callri : Abi.insn Ftree.t;         (* Copy the return value after the call. *)
-  callrr : string list;              (* Registers holding the return value. *)
+  callai : Abi.insn Ftree.t;                   (* Set up the arguments before the call. *)
+  callar : Abi.Insn.callarg Ftree.t;           (* Passing arguments. *)
+  callri : Abi.insn Ftree.t;                   (* Copy the return value after the call. *)
+  callrr : (Var.t * Type.basic * string) list; (* Registers holding the return value. *)
 }
 
 let empty_call = {
@@ -243,8 +243,6 @@ let type_cls env s = match Hashtbl.find env.layout s with
 let i8 i = `int (Bv.M8.int i, `i8)
 let i32 i = `int (Bv.M32.int i, `i32)
 let i64 i = `int (Bv.M64.int i, `i64)
-
-let oper (o : operand) = (o :> Abi.operand)
 
 let typeof_var env x =
   Context.lift_err @@ Typecheck.Env.typeof_var env.fn x env.tenv

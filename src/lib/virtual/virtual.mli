@@ -94,10 +94,7 @@ val pp_dst : Format.formatter -> dst -> unit
 
 (** Data-flow-effectful instruction. *)
 module Insn : sig
-  include Virtual_insn_intf.S
-    with type operand := operand
-     and type var := Var.t
-     and type var_comparator := Var.comparator_witness
+  include Virtual_insn_intf.S with type operand := operand
 
   (** A call instruction.
 
@@ -302,56 +299,11 @@ module Eval : sig
 end
 
 (** Control-flow-effectful instructions. *)
-module Ctrl : sig
-  include Virtual_ctrl_intf.S
-    with type var := Var.t
-     and type var_comparator := Var.comparator_witness
-     and type local := local
-
-  (** A valid index into the switch table.
-
-      The [`sym (s, offset)] constructor is included because it is
-      technically legal to use a symbol as an index into the table.
-      A constant propagation pass could resolve the index to some
-      symbol, although this is rarely a case.
-  *)
-  type swindex = [
-    | `var of Var.t
-    | `sym of string * int
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** A control-flow instruction.
-
-      [`hlt] terminates execution of the program. This is typically used
-      to mark certain program locations as unreachable.
-
-      [`jmp dst] is an unconditional jump to the destination [dst].
-
-      [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
-      is non-zero. Otherwise, the destination is [no].
-
-      [`ret x] returns from a function. If the function returns a value,
-      then [x] holds the value (and must not be [None]).
-
-      [`sw (typ, index, default, table)] implements a jump table.
-      For a variable [index] of type [typ], it will find the associated
-      label of [index] in [table] and jump to it, if it exists. If not,
-      then the destination of the jump is [default].
-  *)
-  type t = [
-    | `hlt
-    | `jmp of dst
-    | `br  of Var.t * dst * dst
-    | `ret of operand option
-    | `sw  of Type.imm * swindex * local * table
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the set of free variables in the control-flow instruction. *)
-  val free_vars : t -> Var.Set.t
-
-  (** Pretty-prints a control-flow instruction. *)
-  val pp : Format.formatter -> t -> unit
-end
+module Ctrl : Virtual_ctrl_intf.S
+  with type operand := operand
+   and type local := local
+   and type dst := dst
+   and type ret := operand option
 
 type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
@@ -361,8 +313,6 @@ module Blk : sig
     with type op := Insn.op
      and type insn := insn
      and type ctrl := ctrl
-     and type var := Var.t
-     and type var_comparator := Var.comparator_witness
 end
 
 type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
@@ -404,7 +354,6 @@ type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
 module Func : sig
   include Virtual_func_intf.S
     with type blk := blk
-     and type var := Var.t
      and type arg := Var.t
      and type argt := Type.arg
      and type slot := slot
@@ -779,71 +728,8 @@ type module_ = Module.t
 
 (** The Virtual IR, lowered to conform to a specific ABI. *)
 module Abi : sig
-  (** A variable can now include a hardcoded register [`reg r]. *)
-  type var = [
-    | `var of Var.t
-    | `reg of string
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints a variable. *)
-  val pp_var : Format.formatter -> var -> unit
-
-  type var_comparator
-
-  type operand = [
-    | const
-    | var
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  val pp_operand : Format.formatter -> operand -> unit
-
-  (** [var_of_operand a] returns [Some x] if [a] is a variable [x]. *)
-  val var_of_operand : operand -> var option
-
-  type global = [
-    | var
-    | `addr of Bv.t
-    | `sym  of string * int
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** [var_of_global g] returns [Some x] if [g] is a variable [x]. *)
-  val var_of_global : global -> var option
-
-  (** Pretty-prints the global destination. *)
-  val pp_global : Format.formatter -> global -> unit
-
-  (** Intra-function destination.
-
-      [`label (l, args)] is the label [l] of a block in the current
-      function, with a list of operands [args].
-  *)
-  type local = [
-    | `label of Label.t * operand list
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the free variables in the local destination. *)
-  val free_vars_of_local : local -> (var, var_comparator) Set.t
-
-  (** Pretty-prints the local destination. *)
-  val pp_local : Format.formatter -> local -> unit
-
-  (** The destination for a control flow transfer. *)
-  type dst = [
-    | global
-    | local
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the free variables in the destination. *)
-  val free_vars_of_dst : dst -> (var, var_comparator) Set.t
-
-  (** Pretty-prints a control-flow destination. *)
-  val pp_dst : Format.formatter -> dst -> unit
-
   module Insn : sig
-    include Virtual_insn_intf.S
-      with type operand := operand
-       and type var := var
-       and type var_comparator := var_comparator
+    include Virtual_insn_intf.S with type operand := operand
 
     (** An argument to a call instruction.
 
@@ -852,41 +738,50 @@ module Abi : sig
         [`stk (s, o)]: the argument [s] is passed at stack offset [o].
     *)
     type callarg = [
-      | `reg of string
+      | `reg of operand * string
       | `stk of operand * int
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    val free_vars_of_callarg : callarg -> (var, var_comparator) Set.t
+    val free_vars_of_callarg : callarg -> Var.Set.t
 
     val pp_callarg : Format.formatter -> callarg -> unit
 
     (** A call instruction.
 
         [`call (xs, f, args)] calls the function [f] with [args], returning
-        zero or more results in registers [xs].
+        zero or more results in [xs]. Each [x \in xs] is a tuple [(x, t, r)],
+        where [x] has type [t] and is bound to the register [r] that is returned
+        from the call.
     *)
     type call = [
-      | `call of string list * global * callarg list
+      | `call of (Var.t * Type.basic * string) list * global * callarg list
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    val free_vars_of_call : call -> (var, var_comparator) Set.t
+    val free_vars_of_call : call -> Var.Set.t
 
     val pp_call : Format.formatter -> call -> unit
 
-    (** Miscellaneous, ABI-specific instructions.
+    (** Miscellaneous, ABI-specific instructions. Use with caution.
 
-        [`storev (v, a)]: store the vector register [v] at address [a].
+        [`loadreg (x, t, r)]: load the register [r] into the variable [x], with
+        type [t].
+
+        [`storereg (r, a)]: store the register [v] at address [a].
+
+        [`setreg (r, a)]: load the value [a] into the register [r].
 
         [`stkargs x]: returns a pointer to the beginning of the memory region
         containing the arguments passed on the stack, and stores the result in
         [x]. This is particularly useful for implementing variadic arguments.
     *)
     type extra = [
-      | `storev of string * operand
-      | `stkargs of var
+      | `loadreg of Var.t * Type.basic * string
+      | `storereg of string * operand
+      | `setreg of string * operand
+      | `stkargs of Var.t
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    val free_vars_of_extra : extra -> (var, var_comparator) Set.t
+    val free_vars_of_extra : extra -> Var.Set.t
 
     val pp_extra : Format.formatter -> extra -> unit
 
@@ -899,7 +794,7 @@ module Abi : sig
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the data operation. *)
-    val free_vars_of_op : op -> (var, var_comparator) Set.t
+    val free_vars_of_op : op -> Var.Set.t
 
     (** Pretty-prints a data operation. *)
     val pp_op : Format.formatter -> op -> unit
@@ -932,7 +827,7 @@ module Abi : sig
     val has_label : t -> Label.t -> bool
 
     (** Same as [free_vars_of_op (op i)]. *)
-    val free_vars : t -> (var, var_comparator) Set.t
+    val free_vars : t -> Var.Set.t
 
     (** Returns [true] for instructions that have side effects. *)
     val is_effectful_op : op -> bool
@@ -967,55 +862,11 @@ module Abi : sig
 
   type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
 
-  module Ctrl : sig
-    include Virtual_ctrl_intf.S
-      with type var := var
-       and type var_comparator := var_comparator
-       and type local := local
-
-    (** A valid index into the switch table.
-
-        The [`sym (s, offset)] constructor is included because it is
-        technically legal to use a symbol as an index into the table.
-        A constant propagation pass could resolve the index to some
-        symbol, although this is rarely a case.
-    *)
-    type swindex = [
-      | var
-      | `sym of string * int
-    ] [@@deriving bin_io, compare, equal, sexp]
-
-    (** A control-flow instruction.
-
-        [`hlt] terminates execution of the program. This is typically used
-        to mark certain program locations as unreachable.
-
-        [`jmp dst] is an unconditional jump to the destination [dst].
-
-        [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
-        is non-zero. Otherwise, the destination is [no].
-
-        [`ret xs] returns a list of register names from a function.
-
-        [`sw (typ, index, default, table)] implements a jump table.
-        For a variable [index] of type [typ], it will find the associated
-        label of [index] in [table] and jump to it, if it exists. If not,
-        then the destination of the jump is [default].
-    *)
-    type t = [
-      | `hlt
-      | `jmp of dst
-      | `br  of var * dst * dst
-      | `ret of string list
-      | `sw  of Type.imm * swindex * local * table
-    ] [@@deriving bin_io, compare, equal, sexp]
-
-    (** Returns the set of free variables in the control-flow instruction. *)
-    val free_vars : t -> (var, var_comparator) Set.t
-
-    (** Pretty-prints a control-flow instruction. *)
-    val pp : Format.formatter -> t -> unit
-  end
+  module Ctrl : Virtual_ctrl_intf.S
+    with type operand := operand
+     and type local := local
+     and type dst := dst
+     and type ret := (string * operand) list
 
   type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
@@ -1024,8 +875,6 @@ module Abi : sig
       with type op := Insn.op
        and type insn := insn
        and type ctrl := ctrl
-       and type var := var
-       and type var_comparator := var_comparator
   end
 
   type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
@@ -1043,12 +892,12 @@ module Abi : sig
   module Func : sig
     (** An argument to the function.
 
-        [`reg r]: the argument is passed in register [r].
+        [`reg (x, r)]: the argument [x] is passed in register [r].
 
         [`stk (x, o)]: the argument [x] is passed at stack offset [o].
     *)
     type arg = [
-      | `reg of string
+      | `reg of Var.t * string
       | `stk of Var.t * int
     ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -1060,7 +909,6 @@ module Abi : sig
 
     include Virtual_func_intf.S
       with type blk := blk
-       and type var := var
        and type arg := arg
        and type argt := Type.basic
        and type slot := slot

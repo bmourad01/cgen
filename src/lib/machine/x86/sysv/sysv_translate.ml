@@ -10,33 +10,33 @@ let transl_var env x =
     | Some y -> y
     | None -> x
 
-let transl_operand env : operand -> Abi.operand = function
+let transl_operand env : operand -> operand = function
   | `var x -> `var (transl_var env x)
-  | o -> oper o
+  | o -> o
 
-let transl_local env : local -> Abi.local = function
+let transl_local env : local -> local = function
   | `label (l, args) ->
     `label (l, List.map args ~f:(transl_operand env))
 
-let transl_global env : global -> Abi.global = function
+let transl_global env : global -> global = function
   | `var x -> `var (transl_var env x)
   | (`addr _ | `sym _) as g -> g
 
-let transl_dst env : dst -> Abi.dst = function
-  | #local as l -> (transl_local env l :> Abi.dst)
-  | #global as g -> (transl_global env g :> Abi.dst)
+let transl_dst env : dst -> dst = function
+  | #local as l -> (transl_local env l :> dst)
+  | #global as g -> (transl_global env g :> dst)
 
 let transl_basic env (b : Insn.basic) : Abi.Insn.basic =
   let op = transl_operand env in
   match b with
-  | `bop (x, b, l, r) -> `bop (`var x, b, op l, op r)
-  | `uop (x, u, a) -> `uop (`var x, u, op a)
-  | `sel (x, t, c, l, r) -> `sel (`var x, t, `var c, op l, op r)
+  | `bop (x, b, l, r) -> `bop (x, b, op l, op r)
+  | `uop (x, u, a) -> `uop (x, u, op a)
+  | `sel (x, t, c, l, r) -> `sel (x, t, c, op l, op r)
 
 let transl_mem env (m : Insn.mem) : Abi.Insn.mem =
   let op = transl_operand env in
   match m with
-  | `load (x, t, a) -> `load (`var x, t, op a)
+  | `load (x, t, a) -> `load (x, t, op a)
   | `store (t, v, a) -> `store (t, op v, op a)
 
 let transl_call env ivec l f =
@@ -100,7 +100,7 @@ let transl_ctrl env l (c : ctrl) : Abi.insn list * Abi.ctrl =
   match c with
   | `hlt -> [], `hlt
   | `jmp d -> [], `jmp (dst d)
-  | `br (c, y, n) -> [], `br (`var (transl_var env c), dst y, dst n)
+  | `br (c, y, n) -> [], `br (transl_var env c, dst y, dst n)
   | `sw (t, i, d, tbl) -> [], transl_sw env t i d tbl
   | `ret None -> [], `ret []
   | `ret Some _ -> transl_ret env l

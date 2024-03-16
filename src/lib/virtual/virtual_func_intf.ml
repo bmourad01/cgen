@@ -4,7 +4,6 @@ open Regular.Std
 module type S = sig
   type t [@@deriving bin_io, compare, equal, sexp]
   type blk
-  type var
   type arg
   type argt
   type slot

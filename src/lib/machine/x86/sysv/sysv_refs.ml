@@ -22,7 +22,7 @@ let make_ref env i b x y = match Hashtbl.find env.refs y with
         (Func.name env.fn) Type.pp t ()
 
 let ref_oper = function
-  | #operand as o -> oper o
+  | #operand as o -> o
   | `addr a -> `int (a, `i64)
 
 (* An `unref` of an existing slot eliminates the need for
@@ -46,7 +46,7 @@ let make_unref env x s a =
           | _ ->
             let+ x, i = Cv.Abi.unop (`copy `i64) (ref_oper a) in
             x, [i] in
-        let+ blit = Cv.Abi.blit ~src:(`var src) ~dst:(`var y) `i64 k.size in
+        let+ blit = Cv.Abi.blit ~src ~dst:y `i64 k.size in
         Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
         y in
     Hashtbl.set env.refs ~key:x ~data:y

@@ -1,5 +1,5 @@
 open Core
-open Abi_common
+open Virtual_common
 
 module Insn = Virtual_insn
 
@@ -12,6 +12,8 @@ type cast = Insn.cast [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type copy = Insn.copy [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type binop = Insn.binop [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type unop = Insn.unop [@@deriving bin_io, compare, equal, hash, sexp_poly]
+type basic = Insn.basic [@@deriving bin_io, compare, equal, sexp_poly]
+type mem = Insn.mem [@@deriving bin_io, compare, equal, sexp_poly]
 
 let pp_arith_binop = Insn.pp_arith_binop
 let pp_arith_unop = Insn.pp_arith_unop
@@ -22,57 +24,34 @@ let pp_cast = Insn.pp_cast
 let pp_copy = Insn.pp_copy
 let pp_binop = Insn.pp_binop
 let pp_unop = Insn.pp_unop
+let pp_basic = Insn.pp_basic
+let pp_mem = Insn.pp_mem
 
-type basic = [
-  | `bop of var * binop * operand * operand
-  | `uop of var * unop * operand
-  | `sel of var * Type.basic * var * operand * operand
-] [@@deriving bin_io, compare, equal, sexp]
-
-let free_vars_of_basic : basic -> (var, var_comparator) Set.t = function
-  | `bop (_, _, l, r) ->
-    List.filter_map [l; r] ~f:var_of_operand |>
-    Set.of_list (module Var_comparator)
-  | `uop (_, _, a) -> var_set_of_option @@ var_of_operand a
-  | `sel (_, _, c, l, r) ->
-    List.filter_map [l; r] ~f:var_of_operand |>
-    List.cons c |> Set.of_list (module Var_comparator)
-
-let pp_basic ppf : basic -> unit = function
-  | `bop (x, b, l, r) ->
-    Format.fprintf ppf "%a = %a %a, %a"
-      pp_var x pp_binop b pp_operand l pp_operand r
-  | `uop (x, u, a) ->
-    Format.fprintf ppf "%a = %a %a"
-      pp_var x pp_unop u pp_operand a
-  | `sel (x, t, c, l, r) ->
-    Format.fprintf ppf "%a = sel.%a %a, %a, %a"
-      pp_var x Type.pp_basic t pp_var c pp_operand l pp_operand r
+let free_vars_of_basic = Insn.free_vars_of_basic
+let free_vars_of_mem = Insn.free_vars_of_mem
 
 type callarg = [
-  | `reg of string
+  | `reg of operand * string
   | `stk of operand * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_callarg : callarg -> (var, var_comparator) Set.t = function
-  | `reg _ as r -> Set.singleton (module Var_comparator) r
-  | `stk (#var as v, _) -> Set.singleton (module Var_comparator) v
-  | `stk _ -> Set.empty (module Var_comparator)
+let free_vars_of_callarg : callarg -> Var.Set.t = function
+  | `reg (o, _) | `stk (o, _) -> var_of_operand o |> var_set_of_option
 
 let pp_callarg ppf : callarg -> unit = function
-  | `reg r -> Format.fprintf ppf "%s" r
-  | `stk (s, o) -> Format.fprintf ppf "%a/%d" pp_operand s o
+  | `reg (o, r) -> Format.fprintf ppf "%a/%s" pp_operand o r
+  | `stk (o, s) -> Format.fprintf ppf "%a/+%d" pp_operand o s
 
 type call = [
-  | `call of string list * global * callarg list
+  | `call of (Var.t * Type.basic * string) list * global * callarg list
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_call : call -> (var, var_comparator) Set.t = function
+let free_vars_of_call : call -> Var.Set.t = function
   | `call (_, f, args) ->
     let f = var_of_global f |> var_set_of_option in
     let args =
       List.map args ~f:free_vars_of_callarg |>
-      Set.union_list (module Var_comparator) in
+      Var.Set.union_list in
     Set.union f args
 
 let pp_call_args ppf args =
@@ -81,7 +60,8 @@ let pp_call_args ppf args =
 
 let pp_call_rets ppf rets =
   let pp_sep ppf () = Format.fprintf ppf ", " in
-  let pp_ret ppf s = Format.fprintf ppf "%s" s in
+  let pp_ret ppf (x, t, s) =
+    Format.fprintf ppf "%a/%a/%s" Var.pp x Type.pp_basic t s in
   Format.pp_print_list ~pp_sep pp_ret ppf rets
 
 let pp_call ppf : call -> unit = function
@@ -92,43 +72,28 @@ let pp_call ppf : call -> unit = function
     Format.fprintf ppf "%a = call %a(%a)"
       pp_call_rets xs pp_global f pp_call_args args
 
-type mem = [
-  | `load  of var * Type.basic * operand
-  | `store of Type.basic * operand * operand
-] [@@deriving bin_io, compare, equal, sexp]
-
-let free_vars_of_mem : mem -> (var, var_comparator) Set.t = function
-  | `load  (_, _, a) -> var_of_operand a |> var_set_of_option
-  | `store (_, v, a) ->
-    List.filter_map [v; a] ~f:var_of_operand |>
-    Set.of_list (module Var_comparator)
-
-let pp_mem ppf : mem -> unit = function
-  | `load (x, t, a) ->
-    Format.fprintf ppf "%a = ld.%a %a"
-      pp_var x Type.pp_basic t pp_operand a
-  | `store (t, v, a) ->
-    Format.fprintf ppf "st.%a %a, %a"
-      Type.pp_basic t pp_operand v pp_operand a
-
 type extra = [
-  | `storev of string * operand
-  | `stkargs of var
+  | `loadreg of Var.t * Type.basic * string
+  | `storereg of string * operand
+  | `setreg of string * operand
+  | `stkargs of Var.t
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_extra : extra -> (var, var_comparator) Set.t = function
-  | `storev (v, a) ->
-    List.filter_map [a] ~f:var_of_operand |>
-    List.cons (`reg v) |>
-    Set.of_list (module Var_comparator)
-  | `stkargs _ ->
-    Set.empty (module Var_comparator)
+let free_vars_of_extra : extra -> Var.Set.t = function
+  | `loadreg _ -> Var.Set.empty
+  | `storereg (_, a) | `setreg (_, a) ->
+    List.filter_map [a] ~f:var_of_operand |> Var.Set.of_list
+  | `stkargs x -> Var.Set.singleton x
 
 let pp_extra ppf : extra -> unit = function
-  | `storev (v, a) ->
-    Format.fprintf ppf "st.v %s, %a" v pp_operand a
+  | `loadreg (x, t, r) ->
+    Format.fprintf ppf "%a = rld.%a %s" Var.pp x Type.pp_basic t r
+  | `storereg (r, a) ->
+    Format.fprintf ppf "st.r %s, %a" r pp_operand a
+  | `setreg (r, a) ->
+    Format.fprintf ppf "%s = %a" r pp_operand a
   | `stkargs x ->
-    Format.fprintf ppf "%a = stkargs" pp_var x
+    Format.fprintf ppf "%a = stkargs" Var.pp x
 
 type op = [
   | basic
@@ -137,7 +102,7 @@ type op = [
   | extra
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_op : op -> (var, var_comparator) Set.t = function
+let free_vars_of_op : op -> Var.Set.t = function
   | #basic as b -> free_vars_of_basic b
   | #call  as c -> free_vars_of_call c
   | #mem   as m -> free_vars_of_mem m
@@ -167,11 +132,11 @@ let with_dict i dict = {i with dict}
 let with_tag i tag x = {i with dict = Dict.set i.dict tag x}
 
 let is_effectful_op : op -> bool = function
-  | #call | `store _ | `storev _ -> true
+  | #call | `store _ | `storereg _ -> true
   | _ -> false
 
 let can_store_op : op -> bool = function
-  | #call | `store _ | `storev _ -> true
+  | #call | `store _ | `storereg _ -> true
   | _ -> false
 
 let can_load_op : op -> bool = function

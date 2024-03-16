@@ -4,7 +4,7 @@ open Sysv_common
 
 open Context.Syntax
 
-let ap_oper : global -> Abi.operand = function
+let ap_oper : global -> operand = function
   | `addr a -> `int (a, `i64)
   | `sym _ as s -> s
   | `var _ as v -> v

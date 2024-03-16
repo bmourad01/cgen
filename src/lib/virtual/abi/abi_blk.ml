@@ -1,6 +1,6 @@
 open Core
 open Regular.Std
-open Abi_common
+open Virtual_common
 
 (* Note that block args still only refer to SSA variables. *)
 module T = struct
@@ -54,13 +54,10 @@ let liveness b =
     | `uop (x, _, _)
     | `sel (x, _, _, _, _)
     | `load (x, _, _)
-    | `stkargs x ->
-      Set.singleton (module Var_comparator) x
-    | `store _ | `storev _ ->
-      Set.empty (module Var_comparator)
-    | `call (xs, _, _) ->
-      Set.of_list (module Var_comparator) @@
-      List.map xs ~f:(fun x -> `reg x) in
+    | `loadreg (x, _, _)
+    | `stkargs x -> Var.Set.singleton x
+    | `store _ | `storereg _ | `setreg _ -> Var.Set.empty
+    | `call (xs, _, _) -> Var.Set.of_list @@ List.map xs ~f:fst3 in
   let init = Label.Tree.empty, Abi_ctrl.free_vars b.ctrl in
   Ftree.fold_right b.insns ~init ~f:(fun i (out, inc) ->
       Label.Tree.set out ~key:i.label ~data:inc,
@@ -130,16 +127,12 @@ let has_lhs b y = Ftree.exists b.insns ~f:(fun i ->
     | `uop (x, _, _)
     | `sel (x, _, _, _, _)
     | `load (x, _, _)
-    | `stkargs x -> equal_var x y
-    | `store _ | `storev _ -> false
-    | `call (xs, _, _) -> match y with
-      | `var _ -> false
-      | `reg y -> List.exists xs ~f:(String.equal y))
+    | `loadreg (x, _, _)
+    | `stkargs x -> Var.equal x y
+    | `store _ | `storereg _ | `setreg _ -> false
+    | `call (xs, _, _) -> List.exists xs ~f:(fun (x, _ , _) -> Var.equal x y))
 
-let defines_var b (x : var) = match x with
-  | `var v -> has_arg b v || has_lhs b x
-  | `reg _ -> has_lhs b x
-
+let defines_var b x = has_arg b x || has_lhs b x
 let has_insn b l = Ftree.exists b.insns ~f:(Fn.flip Abi_insn.has_label l)
 let find_insn b l = Ftree.find b.insns ~f:(Fn.flip Abi_insn.has_label l)
 let next_insn b l = Ftree.next b.insns ~f:(Fn.flip Abi_insn.has_label l)

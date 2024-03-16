@@ -52,9 +52,8 @@ let init_regs env =
         (* Return value is blitted to a memory address, which is
            implicity passed as the first integer register. *)
         let r = Stack.pop_exn qi in
-        let* x = Context.Var.fresh in
-        let+ i = Cv.Abi.insn @@ `uop (`var x, `copy `i64, `reg r) in
-        let p = {pty = `i64; pvar = `reg r; pins = [i]} in
+        let+ x = Context.Var.fresh in
+        let p = {pty = `i64; pvar = `reg (x, r); pins = []} in
         Vec.push env.params p;
         env.rmem <- Some x
       | _ -> !!() in
@@ -68,15 +67,13 @@ let onext ofs sz al =
   o
 
 let basic_param ~ofs ~reg env t x =
-  let+ pvar, pins = match reg t with
+  let pvar = match reg t with
+    | Some r -> `reg (x, r)
     | None ->
       let sz = Type.sizeof_basic t / 8 in
       let o = onext ofs sz sz in
-      !!(`stk (x, o), [])
-    | Some r ->
-      let+ i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
-      `reg r, [i] in
-  Vec.push env.params @@ {pty = t; pvar; pins}
+      `stk (x, o) in
+  Vec.push env.params @@ {pty = t; pvar; pins = []}
 
 (* Pass in a single register, so we can reuse `x`. *)
 let onereg_param ~ofs ~reg env x y r =
@@ -88,9 +85,8 @@ let onereg_param ~ofs ~reg env x y r =
       let+ st = Cv.Abi.store t (`var x) (`var y) in
       `stk (x, o), [st]
     | Some r ->
-      let* i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
       let+ st = Cv.Abi.store t (`var x) (`var y) in
-      `reg r, [i; st] in
+      `reg (x, r), [st] in
   Vec.push env.params @@ {pty = t; pvar; pins}
 
 (* Insert fresh parameters for the two-reg argument. *)
@@ -100,8 +96,8 @@ let tworeg_param ~ofs ~reg2 env y r1 r2 =
   let* x2 = Context.Var.fresh in
   let* o, oi = Cv.Abi.binop (`add `i64) (`var y) (i64 8) in
   let* st1 = Cv.Abi.store t1 (`var x1) (`var y) in
-  let* st2 = Cv.Abi.store t1 (`var x2) (`var o) in
-  let+ p1, p2 = match reg2 t1 t2 with
+  let+ st2 = Cv.Abi.store t1 (`var x2) (`var o) in
+  let p1, p2 = match reg2 t1 t2 with
     | None ->
       let sz1 = Type.sizeof_basic t1 / 8 in
       let sz2 = Type.sizeof_basic t2 / 8 in
@@ -109,12 +105,10 @@ let tworeg_param ~ofs ~reg2 env y r1 r2 =
       let o2 = onext ofs sz2 sz2 in
       let p1 = {pty = t1; pvar = `stk (x1, o1); pins = [st1]} in
       let p2 = {pty = t2; pvar = `stk (x2, o2); pins = [oi; st2]} in
-      !!(p1, p2)
+      p1, p2
     | Some (r1, r2) ->
-      let* i1 = Cv.Abi.insn @@ `uop (`var x1, `copy t1, `reg r1) in
-      let+ i2 = Cv.Abi.insn @@ `uop (`var x2, `copy t2, `reg r2) in
-      let p1 = {pty = t1; pvar = `reg r1; pins = [i1; st1]} in
-      let p2 = {pty = t2; pvar = `reg r2; pins = [i2; oi; st2]} in
+      let p1 = {pty = t1; pvar = `reg (x1, r1); pins = [st1]} in
+      let p2 = {pty = t2; pvar = `reg (x2, r2); pins = [oi; st2]} in
       p1, p2 in
   Vec.push env.params p1;
   Vec.push env.params p2
@@ -164,19 +158,20 @@ let register_save_int env params sse s =
     Seq.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
     Context.Seq.fold ~init:Ftree.empty ~f:(fun acc (o, r) ->
         if o = 0 then
-          let+ st = Cv.Abi.store `i64 (`reg r) (`var s) in
+          let+ st = Cv.Abi.storereg r (`var s) in
           acc @> st
         else
           let* o, oi = Cv.Abi.binop (`add `i64) (`var s) (i64 o) in
-          let+ st = Cv.Abi.store `i64 (`reg r) (`var o) in
+          let+ st = Cv.Abi.storereg r (`var o) in
           acc @>* [oi; st]) in
   let zero = `int (Bv.zero, `i8) in
-  let+ z, zi = Cv.Abi.binop (`eq `i8) (`reg (reg_str `rax)) zero in
+  let* r, ri = Cv.Abi.loadreg `i8 (reg_str `rax) in
+  let+ z, zi = Cv.Abi.binop (`eq `i8) (`var r) zero in
   let entry = `label (Func.entry env.fn, []) in
   let sse = `label (sse, []) in
   Abi.Blk.create () ~label
-    ~insns:(Ftree.to_list (save @> zi))
-    ~ctrl:(`br (`var z, entry, sse))
+    ~insns:(Ftree.to_list (save @>* [ri; zi]))
+    ~ctrl:(`br (z, entry, sse))
 
 let rsave_sse_ofs = 48
 
@@ -187,7 +182,7 @@ let register_save_sse env params label s =
     Seq.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
     Context.Seq.fold ~init:Ftree.empty ~f:(fun acc (o, r) ->
         let* o, oi = Cv.Abi.binop (`add `i64) (`var s) o in
-        let+ st = Cv.Abi.storev r (`var o) in
+        let+ st = Cv.Abi.storereg r (`var o) in
         acc @>* [oi; st]) in
   let entry = `label (Func.entry env.fn, []) in
   Abi.Blk.create () ~label
@@ -198,7 +193,7 @@ let compute_register_save_area env =
   if needs_register_save env then
     let params = Vec.fold env.params ~init:String.Set.empty
         ~f:(fun acc p -> match p.pvar with
-            | `reg r -> Set.add acc r
+            | `reg (_, r) -> Set.add acc r
             | `stk _ -> acc) in
     let* rsslot = new_slot env 176 16 in
     let* sse = Context.Label.fresh in
@@ -215,7 +210,8 @@ let lower env =
   let* () =
     Func.args env.fn |>
     Context.Seq.iter ~f:(fun (x, t) -> match t with
-        | #Type.basic as t -> basic_param ~ofs ~reg env t x
+        | #Type.basic as t ->
+          !!(basic_param ~ofs ~reg env t x)
         | `name s ->
           let* k = type_cls env s in
           let* y = if k.size > 0

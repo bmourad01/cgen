@@ -6,8 +6,6 @@ module type S = sig
   type op
   type insn
   type ctrl
-  type var
-  type var_comparator
 
   (** Creates a basic block. *)
   val create :
@@ -52,21 +50,21 @@ module type S = sig
 
   (** Returns the live-out mappings for each instruction and the set
       of free variables in the block. *)
-  val liveness : t -> (var, var_comparator) Set.t Label.Tree.t * (var, var_comparator) Set.t
+  val liveness : t -> Var.Set.t Label.Tree.t * Var.Set.t
 
   (** Equivalent to [snd (liveness blk)]. *)
-  val free_vars : t -> (var, var_comparator) Set.t
+  val free_vars : t -> Var.Set.t
 
   (** [uses_var b x] returns [true] if the variable [x] appears in the
       free variables of [b].
 
       Equivalent to [Set.mem (free_vars b) x].
   *)
-  val uses_var : t -> var -> bool
+  val uses_var : t -> Var.t -> bool
 
   (** [defines_var b x] returns [true] if the variable [x] is defined
       in the block [b]. *)
-  val defines_var : t -> var -> bool
+  val defines_var : t -> Var.t -> bool
 
   (** Returns [true] if the block has a data instruction associated with
       the label. *)
@@ -170,7 +168,7 @@ module type S = sig
 
   (** [has_lhs b x] returns [true] if a data instruction in [b] defines
       [x]. *)
-  val has_lhs : t -> var -> bool
+  val has_lhs : t -> Var.t -> bool
 
   include Regular.S with type t := t
 end

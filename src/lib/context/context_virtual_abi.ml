@@ -12,39 +12,49 @@ let insn ?(dict = Dict.empty) op =
 
 let binop ?(dict = Dict.empty) b l r =
   let* var = Var.fresh in
-  let+ i = insn (`bop (`var var, b, l, r)) ~dict in
+  let+ i = insn (`bop (var, b, l, r)) ~dict in
   var, i
 
 let unop ?(dict = Dict.empty) u a =
   let* var = Var.fresh in
-  let+ i = insn (`uop (`var var, u, a)) ~dict in
+  let+ i = insn (`uop (var, u, a)) ~dict in
   var, i
 
 let sel ?(dict = Dict.empty) t c y n =
   let* var = Var.fresh in
-  let+ i = insn (`sel (`var var, t, c, y, n)) ~dict in
+  let+ i = insn (`sel (var, t, c, y, n)) ~dict in
   var, i
 
 let call ?(dict = Dict.empty) rs f args =
-  insn (`call (rs, f, args)) ~dict
+  let* xs = M.List.map rs ~f:(fun (t, r) ->
+      let+ x = Var.fresh in
+      x, t, r) in
+  let+ i = insn (`call (xs, f, args)) ~dict in
+  xs, i
 
 let load ?(dict = Dict.empty) t a =
   let* var = Var.fresh in
-  let+ i = insn (`load (`var var, t, a)) ~dict in
+  let+ i = insn (`load (var, t, a)) ~dict in
   var, i
 
 let store ?(dict = Dict.empty) t v a =
   insn (`store (t, v, a)) ~dict
 
-let storev ?(dict = Dict.empty) v a =
-  insn (`storev (v, a)) ~dict
+let loadreg ?(dict = Dict.empty) t r =
+  let* var = Var.fresh in
+  let+ i = insn (`loadreg (var, t, r)) ~dict in
+  var, i
+
+let storereg ?(dict = Dict.empty) r a =
+  insn (`storereg (r, a)) ~dict
+
+let setreg ?(dict = Dict.empty) r a =
+  insn (`setreg (r, a)) ~dict
 
 let stkargs ?(dict = Dict.empty) () =
   let* var = Var.fresh in
-  let+ i = insn (`stkargs (`var var)) ~dict in
+  let+ i = insn (`stkargs var) ~dict in
   var, i
-
-let opvar (v : Virtual.Abi.var) = (v :> Virtual.Abi.operand)
 
 let blit_aux ?(ignore_dst = false) word src dst size =
   let fwd = size >= 0 in
@@ -61,18 +71,18 @@ let blit_aux ?(ignore_dst = false) word src dst size =
         if off = 0 then
           !!(src, [])
         else
-          let+ a1, ai1 = binop (`add wb) (opvar src) o in
-          `var a1, [ai1] in
-      let* l, ld = load ty (opvar a1) in
+          let+ a1, ai1 = binop (`add wb) (`var src) o in
+          a1, [ai1] in
+      let* l, ld = load ty (`var a1) in
       (* Store to dst. *)
       let* sts = if not ignore_dst then
           let* a2, ai2 =
             if off = 0 then
               !!(dst, [])
             else
-              let+ a2, ai2 = binop (`add wb) (opvar dst) o in
-              `var a2, [ai2] in
-          let+ st = store ty (`var l) (opvar a2) in
+              let+ a2, ai2 = binop (`add wb) (`var dst) o in
+              a2, [ai2] in
+          let+ st = store ty (`var l) (`var a2) in
           st :: ai2
         else !![] in
       (* Accumulate insns in reverse order. *)

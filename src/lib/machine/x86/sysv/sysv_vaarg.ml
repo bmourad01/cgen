@@ -47,7 +47,7 @@ let make_cmp ?(num = 1) label t ap yes no =
   let locno = `label (no, []) in
   let b = Abi.Blk.create () ~label
       ~insns:(oi @ [ci])
-      ~ctrl:(`br (`var c, locyes, locno)) in
+      ~ctrl:(`br (c, locyes, locno)) in
   b, o, a, inc
 
 (* Fetch `num` registers of type `t`. *)
@@ -84,9 +84,9 @@ let fetch_reg ?(num = 1) env x t ap cont =
   (* Check if this is a struct; if so we need to blit it
      to the appropriate stack slot. *)
   let* res = match Hashtbl.find env.refs x with
-    | Some y -> Cv.Abi.blit `i64 (8 * num) ~src:(`var p) ~dst:(`var y)
+    | Some y -> Cv.Abi.blit `i64 (8 * num) ~src:p ~dst:y
     | None ->
-      let+ li = Cv.Abi.insn @@ `load (`var x, t, `var p) in
+      let+ li = Cv.Abi.insn @@ `load (x, t, `var p) in
       [li] in
   let bjoin =
     Abi.Blk.create ()
@@ -204,8 +204,7 @@ let fetch env x t ap cont = match (t : Type.arg) with
         else !!(l, [li]) in
       let* n, ni = Cv.Abi.binop (`add `i64) (`var l) (i64 k.size) in
       let* st = Cv.Abi.store `i64 (`var n) (`var a) in
-      let+ blit = Cv.Abi.blit `i64 k.size
-          ~src:(`var l) ~dst:(`var y) in
+      let+ blit = Cv.Abi.blit `i64 k.size ~src:l ~dst:y in
       List.return @@ Abi.Blk.create () ~label
         ~insns:((ai :: li) @ (ni :: st :: blit))
         ~ctrl:(`jmp (`label (cont, [])))

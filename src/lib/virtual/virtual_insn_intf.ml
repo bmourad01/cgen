@@ -3,8 +3,6 @@ open Core
 (** The base set of operations in an instruction. *)
 module type S = sig
   type operand
-  type var
-  type var_comparator
 
   (** Arithmetic binary operations.
 
@@ -242,13 +240,13 @@ module type S = sig
       type [t].
   *)
   type basic = [
-    | `bop of var * binop * operand * operand
-    | `uop of var * unop * operand
-    | `sel of var * Type.basic * var * operand * operand
+    | `bop of Var.t * binop * operand * operand
+    | `uop of Var.t * unop * operand
+    | `sel of Var.t * Type.basic * Var.t * operand * operand
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the basic instruction. *)
-  val free_vars_of_basic : basic -> (var, var_comparator) Set.t
+  val free_vars_of_basic : basic -> Var.Set.t
 
   (** Pretty-prints a basic instruction. *)
   val pp_basic : Format.formatter -> basic -> unit
@@ -261,12 +259,12 @@ module type S = sig
       [`store (t, v, a)]: store a value [v] of type [t] to address [a].
   *)
   type mem = [
-    | `load  of var * Type.basic * operand
+    | `load  of Var.t * Type.basic * operand
     | `store of Type.basic * operand * operand
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the memory operation. *)
-  val free_vars_of_mem : mem -> (var, var_comparator) Set.t
+  val free_vars_of_mem : mem -> Var.Set.t
 
   (** Pretty-prints a memory operation. *)
   val pp_mem : Format.formatter -> mem -> unit

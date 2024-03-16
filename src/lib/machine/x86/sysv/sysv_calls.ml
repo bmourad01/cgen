@@ -9,17 +9,15 @@ let onext = Sysv_params.onext
 (* A compound argument to a call passed in a single register. *)
 let onereg_arg ~ofs ~reg k r src =
   let t = reg_type r in
-  let* l, li = Cv.Abi.load t (`var src) in
-  let+ callai, callar = match reg r with
+  let+ l, li = Cv.Abi.load t (`var src) in
+  let callar = match reg r with
     | Some r ->
-      let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy t, `var l) in
-      k.callai @>* [li; i],
-      k.callar @> `reg r
+      k.callar @> `reg (`var l, r)
     | None ->
       let sz = Type.sizeof_basic t / 8 in
       let o = onext ofs sz sz in
-      !!(k.callai @> li, k.callar @> `stk (`var l, o)) in
-  {k with callai; callar}
+      k.callar @> `stk (`var l, o) in
+  {k with callai = k.callai @> li; callar}
 
 (* A compound argument to a call passed in two registers. *)
 let tworeg_arg ~ofs ~reg2 k r1 r2 src =
@@ -27,13 +25,10 @@ let tworeg_arg ~ofs ~reg2 k r1 r2 src =
   let regs = reg2 r1 r2 in
   let* o, oi = Cv.Abi.binop (`add `i64) (`var src) (i64 8) in
   let* l1, li1 = Cv.Abi.load `i64 (`var src) in
-  let* l2, li2 = Cv.Abi.load `i64 (`var o) in
-  let+ callai, callar = match regs with
+  let+ l2, li2 = Cv.Abi.load `i64 (`var o) in
+  let callar = match regs with
     | Some (r1, r2) ->
-      let* i1 = Cv.Abi.insn @@ `uop (`reg r1, `copy t1, `var l1) in
-      let+ i2 = Cv.Abi.insn @@ `uop (`reg r2, `copy t2, `var l2) in
-      k.callai @>* [li1; oi; li2; i1; i2],
-      k.callar @>* [`reg r1; `reg r2]
+      k.callar @>* [`reg (`var l1, r1); `reg (`var l2, r2)]
     | None ->
       let sz1 = Type.sizeof_basic t1 / 8 in
       let sz2 = Type.sizeof_basic t2 / 8 in
@@ -41,9 +36,8 @@ let tworeg_arg ~ofs ~reg2 k r1 r2 src =
       let o2 = onext ofs sz2 sz2 in
       let a1 = `stk (`var l1, o1) in
       let a2 = `stk (`var l2, o2) in
-      !!(k.callai @>* [li1; oi; li2],
-         k.callar @>* [a1; a2]) in
-  {k with callai; callar}
+      k.callar @>* [a1; a2] in
+  {k with callai = k.callai @>* [li1; oi; li2]; callar}
 
 (* A compound argument to a call passed in memory. *)
 let memory_arg ~ofs k size align src =
@@ -54,7 +48,7 @@ let memory_arg ~ofs k size align src =
       List.fold ldm ~init:(k.callai, k.callar, 0) ~f:(fun (ai, ar, o) i ->
           let am, o' = match Abi.Insn.op i with
             | `load (x, t, _) ->
-              ar @> `stk ((x :> Abi.operand), so + o),
+              ar @> `stk (`var x, so + o),
               o + Type.sizeof_basic t / 8
             | _ -> ar, o in
           ai @> i, am, o') in
@@ -63,7 +57,7 @@ let memory_arg ~ofs k size align src =
     (* Technically we're not passing the contents, but since it's
        empty the contents are junk anyway. This only needs to be
        here for alignment. *)
-    !!{k with callar = k.callar @> `stk ((src :> Abi.operand), so)}
+    !!{k with callar = k.callar @> `stk (`var src, so)}
 
 let call_ret_basic x t k =
   let r, t = match (t : Type.ret) with
@@ -73,8 +67,7 @@ let call_ret_basic x t k =
     | `si16 -> int_rets.(0), `i16
     | `si32 -> int_rets.(0), `i32
     | `name _ -> assert false in
-  let+ i = Cv.Abi.insn @@ `uop (`var x, `copy t, `reg r) in
-  {k with callri = k.callri @> i; callrr = [r]}
+  {k with callrr = [x, t, r]}
 
 (* Fits in one register. *)
 let call_ret_onereg env x r k =
@@ -83,8 +76,9 @@ let call_ret_onereg env x r k =
   let reg = match t with
     | `i64 -> int_rets.(0)
     | `f64 -> sse_rets.(0) in
-  let+ st = Cv.Abi.store t (`reg reg) (`var x) in
-  {k with callri = k.callri @> st; callrr = [reg]}
+  let* y = Context.Var.fresh in
+  let+ st = Cv.Abi.store `i64 (`var y) (`var x) in
+  {k with callri = k.callri @> st; callrr = [y, `i64, reg]}
 
 (* Fits in two registers. *)
 let call_ret_tworeg env x r1 r2 k =
@@ -96,26 +90,27 @@ let call_ret_tworeg env x r1 r2 k =
     | `f64, `i64 -> sse_rets.(0), int_rets.(0)
     | `f64, `f64 -> sse_rets.(0), sse_rets.(1) in
   let* o, oi = Cv.Abi.binop (`add `i64) (`var x) (i64 8) in
-  let* st1 = Cv.Abi.store t1 (`reg reg1) (`var x) in
-  let+ st2 = Cv.Abi.store t2 (`reg reg2) (`var o) in
+  let* y1 = Context.Var.fresh in
+  let* st1 = Cv.Abi.store `i64 (`var y1) (`var x) in
+  let* y2 = Context.Var.fresh in
+  let+ st2 = Cv.Abi.store `i64 (`var y2) (`var o) in
   let callri = k.callri @>* [oi; st1; st2] in
-  {k with callri; callrr = [reg1; reg2]}
+  {k with callri; callrr = [y1, t1, reg1; y2, t2, reg2]}
 
 (* Passed as a reference to memory. We need to allocate
    a new stack slot for this one. *)
 let call_ret_memory env x lk k =
-  let r = int_args.(0) in
-  let* y = new_slot env lk.size lk.align in
-  let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy `i64, `var y) in
-  let callai = k.callai @> i in
-  let callar = `reg r <@ k.callar in
+  let+ y = new_slot env lk.size lk.align in
+  let callar = `reg (`var y, int_args.(0)) <@ k.callar in
   Hashtbl.set env.refs ~key:x ~data:y;
-  {k with callai; callar; callrr = [int_rets.(0)]}
+  (* `x` is now a dummy return value, future references will
+     be directed to `y`. *)
+  {k with callar; callrr = [x, `i64, int_rets.(0)]}
 
 (* Handle the compound type return value of a call.  *)
 let lower_call_ret env kret k = match kret with
   | `none -> !!k
-  | `basic (x, t) -> call_ret_basic x t k
+  | `basic (x, t) -> !!(call_ret_basic x t k)
   | `compound (x, lk) -> match lk.cls with
     | Kreg _ when lk.size = 0 -> assert false
     | Kreg (r, _) when lk.size = 8 -> call_ret_onereg env x r k
@@ -136,29 +131,23 @@ let classify_call_arg ~ofs ~reg ~reg2 env key k a =
   typeof_operand env a >>= function
   | #Type.imm as m ->
     (* Use an integer register. *)
-    begin match reg Rint with
+    Context.return begin match reg Rint with
       | None ->
         let sz = Type.sizeof_imm m / 8 in
         let o = onext ofs sz sz in
-        !!{k with callar = k.callar @> `stk (oper a, o)}
+        {k with callar = k.callar @> `stk (a, o)}
       | Some r ->
-        let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy m, oper a) in
-        let callai = k.callai @> i in
-        let callar = k.callar @> `reg r in
-        {k with callai; callar}
+        {k with callar = k.callar @> `reg (a, r)}
     end
   | #Type.fp as f ->
     (* Use an SSE register. *)
-    begin match reg Rsse with
+    Context.return begin match reg Rsse with
       | None ->
         let sz = Type.sizeof_fp f / 8 in
         let o = onext ofs sz sz in
-        !!{k with callar = k.callar @> `stk (oper a, o)}
+        {k with callar = k.callar @> `stk (a, o)}
       | Some r ->
-        let+ i = Cv.Abi.insn @@ `uop (`reg r, `copy f, oper a) in
-        let callai = k.callai @> i in
-        let callar = k.callar @> `reg r in
-        {k with callai; callar}
+        {k with callar = k.callar @> `reg (a, r)}
     end
   | `flag -> assert false
   | `compound (s, _, _) | `opaque (s, _, _) ->
@@ -170,7 +159,7 @@ let classify_call_arg ~ofs ~reg ~reg2 env key k a =
     | Kreg _ when lk.size = 0 -> assert false
     | Kreg (r, _) when lk.size = 8 -> onereg_arg ~ofs ~reg k r src
     | Kreg (r1, r2) -> tworeg_arg ~ofs ~reg2 k r1 r2 src
-    | Kmem -> memory_arg ~ofs k lk.size lk.align (`var src)
+    | Kmem -> memory_arg ~ofs k lk.size lk.align src
 
 (* See `Sysv_params.alloc_onereg`. *)
 let alloc_onereg ~qi ~qs = function
@@ -241,7 +230,7 @@ let lower env = iter_blks env ~f:(fun b ->
             | [] -> !!k
             | _ ->
               let n = Array.length sse_args - Stack.length qs in
-              let+ i = Cv.Abi.insn @@ `uop (`reg (reg_str `rax), `copy `i8, i8 n) in
+              let+ i = Cv.Abi.setreg (reg_str `rax) (i8 n) in
               {k with callai = k.callai @> i} in
           (* Process the return value. *)
           let+ k = lower_call_ret env kret k in

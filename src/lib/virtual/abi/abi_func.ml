@@ -1,23 +1,23 @@
 open Core
 open Regular.Std
-open Abi_common
+open Virtual_common
 
 module Slot = Virtual_slot
 module Func = Virtual_func
 
 type arg = [
-  | `reg of string
+  | `reg of Var.t * string
   | `stk of Var.t * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let same_arg x y = match x, y with
-  | `reg rx, `reg ry -> String.(rx = ry)
+  | `reg (x, _), `reg (y, _) -> Var.(x = y)
   | `stk (x, _), `stk (y, _) -> Var.(x = y)
   | _ -> false
 
 let pp_arg ppf : arg -> unit = function
-  | `reg r -> Format.fprintf ppf "%s" r
-  | `stk (x, o) -> Format.fprintf ppf "%a/%d" Var.pp x o
+  | `reg (x, r) -> Format.fprintf ppf "%a/%s" Var.pp x r
+  | `stk (x, s) -> Format.fprintf ppf "%a/+%d" Var.pp x s
 
 module T = struct
   type t = {

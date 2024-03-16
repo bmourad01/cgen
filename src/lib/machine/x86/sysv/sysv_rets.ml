@@ -13,22 +13,26 @@ let expect_ret_var env l : operand -> Var.t Context.t = function
       (Func.name env.fn) pp_operand x ()
 
 (* Return in the first integer register. *)
-let intret env t key x =
-  let reg = int_rets.(0) in
-  let+ r = Cv.Abi.insn @@ `uop (`reg reg, `copy t, oper x) in
-  Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
+let intret env key x =
+  Context.return @@ Hashtbl.set env.rets ~key ~data:{
+    reti = [];
+    retr = [int_rets.(0), x];
+  }
 
 (* Return in the first integer register, with a sign extension. *)
 let intret_signed env key x =
-  let reg = int_rets.(0) in
-  let+ r = Cv.Abi.insn @@ `uop (`reg reg, `sext `i64, oper x) in
-  Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
+  let+ r, ri = Cv.Abi.unop (`sext `i64) x in
+  Hashtbl.set env.rets ~key ~data:{
+    reti = [ri];
+    retr = [int_rets.(0), `var r];
+  }
 
 (* Return in the first SSE register. *)
-let sseret env t key x =
-  let reg = sse_rets.(0) in
-  let+ r = Cv.Abi.insn @@ `uop (`reg reg, `copy t, oper x) in
-  Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
+let sseret env key x =
+  Context.return @@ Hashtbl.set env.rets ~key ~data:{
+    reti = [];
+    retr = [sse_rets.(0), x];
+  }
 
 (* Struct is returned in a single register. *)
 let onereg_ret env r key x =
@@ -38,8 +42,11 @@ let onereg_ret env r key x =
   let reg = match t with
     | `i64 -> int_rets.(0)
     | `f64 -> sse_rets.(0) in
-  let+ r = Cv.Abi.insn @@ `load (`reg reg, t, `var x) in
-  Hashtbl.set env.rets ~key ~data:{reti = [r]; retr = [reg]}
+  let+ r, ri = Cv.Abi.load t (`var x) in
+  Hashtbl.set env.rets ~key ~data:{
+    reti = [ri];
+    retr = [reg, `var r];
+  }
 
 (* Struct is returned in two registers of varying classes. *)
 let tworeg_ret env r1 r2 key x =
@@ -51,12 +58,15 @@ let tworeg_ret env r1 r2 key x =
     | `i64, `f64 -> int_rets.(0), sse_rets.(0)
     | `f64, `f64 -> sse_rets.(0), sse_rets.(1)
     | `f64, `i64 -> sse_rets.(0), int_rets.(0) in
-  let* ld1 = Cv.Abi.insn @@ `load (`reg reg1, `i64, `var x) in
+  let* ld1, ldi1 = Cv.Abi.load t1 (`var x) in
   let* a, add = Cv.Abi.binop (`add `i64) (`var x) (i64 8) in
-  let+ ld2 = Cv.Abi.insn @@ `load (`reg reg2, `i64, `var a) in
+  let+ ld2, ldi2 = Cv.Abi.load t2 (`var a) in
   Hashtbl.set env.rets ~key ~data:{
-    reti = [ld1; add; ld2];
-    retr = [reg1; reg2]
+    reti = [ldi1; add; ldi2];
+    retr = [
+      reg1, `var ld1;
+      reg2, `var ld2;
+    ];
   }
 
 (* Struct is blitted to a pointer held by by the implicit
@@ -69,10 +79,8 @@ let memory_ret env k key x =
       let dst = match env.rmem with
         | None -> assert false
         | Some dst -> dst in
-      let* blit = Cv.Abi.blit `i64 k.size ~src:(`var src) ~dst:(`var dst) in
-      let reg = int_rets.(0) in
-      let+ r = Cv.Abi.insn @@ `uop (`reg reg, `copy `i64, `var dst) in
-      {reti = blit @ [r]; retr = [reg]}
+      let+ blit = Cv.Abi.blit `i64 k.size ~src ~dst in
+      {reti = blit; retr = [int_rets.(0), `var dst]}
     else !!empty_ret in
   Hashtbl.set env.rets ~key ~data
 
@@ -87,9 +95,9 @@ let lower env =
       | _ -> !!()) in
   match Func.return env.fn with
   | None -> !!()
-  | Some (#Type.imm as t) -> go @@ intret env t
+  | Some #Type.imm -> go @@ intret env
   | Some (`si8 | `si16 | `si32) -> go @@ intret_signed env
-  | Some (#Type.fp as t) -> go @@ sseret env t
+  | Some #Type.fp -> go @@ sseret env
   | Some `name n ->
     let* k = type_cls env n in
     match k.cls with

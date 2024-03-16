@@ -232,64 +232,78 @@ module Virtual : sig
     val binop :
       ?dict:Dict.t ->
       Virtual.Abi.Insn.binop ->
-      Virtual.Abi.operand ->
-      Virtual.Abi.operand ->
+      Virtual.operand ->
+      Virtual.operand ->
       (var * Virtual.Abi.insn) t
 
     val unop :
       ?dict:Dict.t ->
       Virtual.Abi.Insn.unop ->
-      Virtual.Abi.operand ->
+      Virtual.operand ->
       (var * Virtual.Abi.insn) t
 
     val sel :
       ?dict:Dict.t ->
       Type.basic ->
-      Virtual.Abi.var ->
-      Virtual.Abi.operand ->
-      Virtual.Abi.operand ->
+      var ->
+      Virtual.operand ->
+      Virtual.operand ->
       (var * Virtual.Abi.insn) t
 
     val call :
       ?dict:Dict.t ->
-      string list ->
-      Virtual.Abi.global ->
+      (Type.basic * string) list ->
+      Virtual.global ->
       Virtual.Abi.Insn.callarg list ->
-      Virtual.Abi.insn t
+      ((var * Type.basic * string) list * Virtual.Abi.insn) t
 
     val load :
       ?dict:Dict.t ->
       Type.basic ->
-      Virtual.Abi.operand ->
+      Virtual.operand ->
       (var * Virtual.Abi.insn) t
 
     val store :
       ?dict:Dict.t ->
       Type.basic ->
-      Virtual.Abi.operand ->
-      Virtual.Abi.operand ->
+      Virtual.operand ->
+      Virtual.operand ->
       Virtual.Abi.insn t
 
-    (** [storev ?dict v a] stores vector register [v] at address [a]. *)
-    val storev :
+    (** [loadreg ?dict t r] fetches register [r] with type [t]. *)
+    val loadreg :
+      ?dict:Dict.t ->
+      Type.basic ->
+      string ->
+      (var * Virtual.Abi.insn) t
+
+    (** [storereg ?dict v a] stores register [r] at address [a]. *)
+    val storereg :
       ?dict:Dict.t ->
       string ->
-      Virtual.Abi.operand ->
+      Virtual.operand ->
+      Virtual.Abi.insn t
+
+    (** [setreg ?dict v a] loads register [r] with value [a]. *)
+    val setreg :
+      ?dict:Dict.t ->
+      string ->
+      Virtual.operand ->
       Virtual.Abi.insn t
 
     (** [stkargs ?dict ()] gets the beginning of the stack arguments region. *)
     val stkargs : ?dict:Dict.t -> unit -> (var * Virtual.Abi.insn) t
 
     val blit :
-      src:Virtual.Abi.var ->
-      dst:Virtual.Abi.var ->
+      src:var ->
+      dst:var ->
       Type.imm_base ->
       int ->
       Virtual.Abi.insn list t
 
     val ldm :
       Type.imm_base ->
-      Virtual.Abi.var ->
+      var ->
       int ->
       Virtual.Abi.insn list t
   end

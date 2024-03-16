@@ -1,5 +1,3 @@
-include Abi_common
-
 type insn = Abi_insn.t [@@deriving bin_io, compare, equal, sexp]
 type ctrl = Abi_ctrl.t [@@deriving bin_io, compare, equal, sexp]
 type blk = Abi_blk.t [@@deriving bin_io, compare, equal, sexp]
