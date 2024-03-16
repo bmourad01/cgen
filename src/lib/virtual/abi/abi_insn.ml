@@ -155,3 +155,13 @@ module Tag = struct
       ~uuid:"3d94ecfb-36c4-4218-abc7-96c2200b4e04"
       "non-tail" (module Unit)
 end
+
+let def i = match i.op with
+  | `bop (x, _, _, _)
+  | `uop (x, _, _)
+  | `sel (x, _, _, _, _)
+  | `load (x, _, _)
+  | `loadreg (x, _, _)
+  | `stkargs x -> Var.Set.singleton x
+  | `store _ | `storereg _ | `setreg _ -> Var.Set.empty
+  | `call (xs, _, _) -> Var.Set.of_list @@ List.map xs ~f:fst3

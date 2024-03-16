@@ -49,19 +49,10 @@ let map_of_insns b =
 
 let liveness b =
   let (++) = Set.union and (--) = Set.diff in
-  let def i = match Abi_insn.op i with
-    | `bop (x, _, _, _)
-    | `uop (x, _, _)
-    | `sel (x, _, _, _, _)
-    | `load (x, _, _)
-    | `loadreg (x, _, _)
-    | `stkargs x -> Var.Set.singleton x
-    | `store _ | `storereg _ | `setreg _ -> Var.Set.empty
-    | `call (xs, _, _) -> Var.Set.of_list @@ List.map xs ~f:fst3 in
   let init = Label.Tree.empty, Abi_ctrl.free_vars b.ctrl in
   Ftree.fold_right b.insns ~init ~f:(fun i (out, inc) ->
       Label.Tree.set out ~key:i.label ~data:inc,
-      inc -- def i ++ Abi_insn.free_vars i)
+      inc -- Abi_insn.def i ++ Abi_insn.free_vars i)
 
 let free_vars b = snd @@ liveness b
 let uses_var b x = Set.mem (free_vars b) x
@@ -121,16 +112,8 @@ let remove_insn b l = {
 
 let has_arg b x = Ftree.exists b.args ~f:(Var.equal x)
 
-let has_lhs b y = Ftree.exists b.insns ~f:(fun i ->
-    match Abi_insn.op i with
-    | `bop (x, _, _, _)
-    | `uop (x, _, _)
-    | `sel (x, _, _, _, _)
-    | `load (x, _, _)
-    | `loadreg (x, _, _)
-    | `stkargs x -> Var.equal x y
-    | `store _ | `storereg _ | `setreg _ -> false
-    | `call (xs, _, _) -> List.exists xs ~f:(fun (x, _ , _) -> Var.equal x y))
+let has_lhs b y = Ftree.exists b.insns
+    ~f:(fun i -> Set.mem (Abi_insn.def i) y)
 
 let defines_var b x = has_arg b x || has_lhs b x
 let has_insn b l = Ftree.exists b.insns ~f:(Fn.flip Abi_insn.has_label l)

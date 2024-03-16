@@ -26,6 +26,7 @@
  (private_modules
   ftree
   last_stores
+  live_intf
   sm
   tags
   var_internal
