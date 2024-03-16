@@ -62,4 +62,12 @@ module Reg = struct
 
   let pp ppf r =
     Format.fprintf ppf "%a" Sexp.pp (sexp_of_t r)
+
+  let of_string s =
+    try Some (t_of_sexp @@ Atom s)
+    with _ -> None
+
+  let of_string_exn s = match of_string s with
+    | None -> invalid_argf "%s is not a valid AMD64 register" s ()
+    | Some r -> r
 end
