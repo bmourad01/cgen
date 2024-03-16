@@ -161,6 +161,7 @@ let rec must_remain_fixed op args = match (op : Enode.op) with
   | Ocall _
   | Oload _
   | Ostore _
+  | Ounref
   | Ovaarg _
   | Ovastart _ ->
     (* Control-flow and other side-effecting instructions must
