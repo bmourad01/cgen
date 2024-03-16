@@ -16,17 +16,17 @@ type resolved = [
 
 (* General information about the function we're translating. *)
 type t = {
-  fn   : func;                                 (* The function itself. *)
-  loop : loops;                                (* Loops analysis. *)
-  tbl  : resolved Label.Table.t;               (* Labels to blocks/insns. *)
-  cfg  : Cfg.t;                                (* The CFG. *)
-  dom  : Label.t tree;                         (* Dominator tree. *)
-  pdom : Label.t tree;                         (* Post-dominator tree. *)
-  cdom : Label.t tree;                         (* Instruction-level dominator tree. *)
-  df   : Label.t frontier;                     (* Dominance frontiers. *)
-  lst  : (Label.t, Label.t option) Solution.t; (* Last stores analysis. *)
-  tenv : Typecheck.env;                        (* Typing environment. *)
-  barg : Label.t Var.Table.t;                  (* Block args to block labels. *)
+  fn   : func;                   (* The function itself. *)
+  loop : loops;                  (* Loops analysis. *)
+  tbl  : resolved Label.Table.t; (* Labels to blocks/insns. *)
+  cfg  : Cfg.t;                  (* The CFG. *)
+  dom  : Label.t tree;           (* Dominator tree. *)
+  pdom : Label.t tree;           (* Post-dominator tree. *)
+  cdom : Label.t tree;           (* Instruction-level dominator tree. *)
+  df   : Label.t frontier;       (* Dominance frontiers. *)
+  lst  : Last_stores.t;          (* Last stores analysis. *)
+  tenv : Typecheck.env;          (* Typing environment. *)
+  barg : Label.t Var.Table.t;    (* Block args to block labels. *)
 }
 
 module Pseudo = Label.Pseudo(G)
@@ -83,37 +83,6 @@ let cdoms fn tbl dom =
   let g = fst @@ aux (G.Node.insert entry G.empty) entry in
   Graphlib.dominators (module G) (Pseudo.add g) Label.pseudoentry  
 
-module Last_stores = struct
-  type state = Label.t option [@@deriving equal]
-
-  let first_insn tbl l = match Hashtbl.find_exn tbl l with
-    | `insn _ -> assert false
-    | `blk b -> match Seq.hd @@ Blk.insns b with
-      | Some i -> Insn.label i
-      | None -> l
-
-  let init fn =
-    Solution.create Label.(Map.singleton (Func.entry fn) None) None
-
-  let transfer tbl l init = match Hashtbl.find_exn tbl l with
-    | `insn _ -> assert false
-    | `blk b -> Blk.insns b |> Seq.fold ~init ~f:(fun s i ->
-        if Insn.can_store i then Some (Insn.label i) else s)
-
-  let step tbl _ l = Option.merge ~f:(fun a b ->
-      if Label.(a = b) then a else first_insn tbl l)
-
-  let analyze fn tbl cfg =
-    Graphlib.fixpoint (module Cfg)
-      ~init:(init fn)
-      ~step:(step tbl)
-      ~equal:equal_state
-      ~merge:Fn.const
-      ~f:(transfer tbl) @@
-    Cfg.Node.remove Label.pseudoentry @@
-    Cfg.Node.remove Label.pseudoexit cfg
-end
-
 let init fn tenv =
   let+ tbl, barg = create_tbl fn in
   let loop = Loops.analyze fn in
@@ -122,5 +91,12 @@ let init fn tenv =
   let pdom = Graphlib.dominators (module Cfg) cfg Label.pseudoexit ~rev:true in
   let df = Graphlib.dom_frontier (module Cfg) cfg dom in
   let cdom = cdoms fn tbl dom in
-  let lst = Last_stores.analyze fn tbl cfg in
+  let module Lst = Last_stores.Make(struct
+      module Insn = Insn
+      module Blk = Blk
+      module Func = Func
+      module Cfg = Cfg
+      let resolve = Hashtbl.find_exn tbl
+    end) in
+  let lst = Lst.analyze fn cfg in
   {fn; loop; tbl; cfg; dom; pdom; cdom; df; lst; tenv; barg}

@@ -25,6 +25,7 @@
   zarith)
  (private_modules
   ftree
+  last_stores
   sm
   tags
   var_internal
