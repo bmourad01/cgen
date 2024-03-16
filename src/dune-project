@@ -1,4 +1,4 @@
-(lang dune 3.7)
+(lang dune 3.14)
 (name cgen)
 (version 0.1)
 (using menhir 2.1)
