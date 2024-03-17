@@ -26,10 +26,13 @@ let is_const2 x y env =
     Subst.find env y >>= Subst.const
   end
 
-let is_not_const x env =
-  Subst.find env x |>
-  Option.bind ~f:Subst.const |>
-  Option.is_none
+let is_not_const x env = match Subst.find env x with
+  | Some s -> Option.is_none @@ Subst.const s
+  | None ->
+    (* We don't know if it's const or not, because we don't have
+       a substitution for it. It would be unsafe to answer in the
+       affirmative in this case. *)
+    false
 
 let is_neg_const x env =
   Option.is_some begin
