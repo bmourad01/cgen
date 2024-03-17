@@ -323,6 +323,10 @@ module Slot : sig
   (** [create_exn x ~size ~align] creates a slot for variable [x] with
       [size] and [align].
 
+      The [size] and [align]ment are the minimum such values for any
+      given slot, and they may be increased according to the needs of
+      the target ABI.
+
       @raise Invalid_argument if [size < 0], [align < 1], or [align] is
       not a power of two.
   *)

@@ -186,7 +186,22 @@ type env = {
   mutable rmem  : Var.t option;                (* Return value blitted to memory. *)
 }
 
+(* For simplicity, let's make sure each existing stack slot is aligned
+   by at least an eight-byte boundary, and that their sizes are divisible
+   by eight as well. *)
+let align_slots fn =
+  let ss = Func.slots fn |> Seq.to_list in
+  let fn = List.fold ss ~init:fn ~f:(fun fn s ->
+      Func.remove_slot fn @@ Slot.var s) in
+  List.map ss ~f:(fun s ->
+      let x = Slot.var s in
+      let align = max 8 @@ Slot.align s in
+      let size = (Slot.size s + 8 - 1) land -8 in
+      Virtual.Slot.create_exn x ~size ~align) |>
+  List.fold ~init:fn ~f:Virtual.Func.insert_slot
+
 let init_env tenv fn =
+  let fn = align_slots fn in
   let cfg = Cfg.create fn in
   let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in {
     fn;
