@@ -242,9 +242,14 @@ let udiv_urem_imm_non_pow2 ?(rem = false) x y env =
     let q1 = Op.(umulh ty x (int u_mul ty)) in
     let qf =
       if u_add then
+        let sh = B.int (u_shr - 1) in
         Op.(lsr_ ty
-              (add tb (lsr_ ty (sub tb x q1) (int B.one ty)) q1)
-              (int B.(int Int.(u_shr - 1)) ty))
+              (add tb
+                 (lsr_ ty
+                    (sub tb x q1)
+                    (int B.one ty))
+                 q1)
+              (int sh ty))
       else if u_shr > 0 then
         Op.(lsr_ ty q1 (int B.(int u_shr) ty))
       else q1 in
@@ -302,11 +307,13 @@ let mul_imm_non_pow2 x y env =
       let d' = B.(z' - i) in
       if Bv.(d <= d') then
         let sh = ctz B.int z in
-        Op.(add tb (lsl_ ty x (int sh ty))
+        Op.(add tb
+              (lsl_ ty x (int sh ty))
               (mul tb x (int d ty)))
       else
         let sh = ctz B.int z' in
-        Op.(sub tb (lsl_ ty x (int sh ty))
+        Op.(sub tb
+              (lsl_ ty x (int sh ty))
               (mul tb x (int d' ty)))
   | _ -> None
 
