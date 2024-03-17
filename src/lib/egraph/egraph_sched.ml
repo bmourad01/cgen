@@ -74,7 +74,7 @@ let duplicate t id a = match Hashtbl.find t.isrc id with
     move t [a; b] c @@ find t id
 
 module Licm = struct
-  let find_loop t l = match Hashtbl.find t.input.tbl l with
+  let find_loop t l = match Resolver.resolve t.input.reso l with
     | Some (`blk b | `insn (_, b, _)) ->
       Loops.blk t.input.loop @@ Blk.label b
     | None -> assert false
@@ -121,7 +121,7 @@ module Licm = struct
           not (is_arg_or_slot t x) &&
           (* If this is a block argument, then find out if it belongs to
              a loop. *)
-          Hashtbl.find t.input.barg x |>
+          Resolver.blk_arg t.input.reso x |>
           Option.value_map ~default:true ~f:(fun l -> match find_loop t l with
               | Some lp' when is_child_loop t lp lp' -> false
               | Some _ | None -> true)
@@ -171,7 +171,7 @@ let is_effectful t n i =
 
 (* Track the provenance between the node and the label, but first see
    if we can do LICM (loop-invariant code motion). *)
-let add t l id n = match Hashtbl.find t.input.tbl l with
+let add t l id n = match Resolver.resolve t.input.reso l with
   | None -> assert false
   | Some `blk _ -> Hashtbl.set t.isrc ~key:id ~data:l
   | Some `insn (i, _, _) when is_effectful t n i ->

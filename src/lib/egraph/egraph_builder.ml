@@ -271,7 +271,7 @@ let setmem env eg l m = env.mem <- match m with
     | None -> Solution.get eg.input.lst l
     | Some _ -> m
 
-let step env eg l lst = match Hashtbl.find eg.input.tbl l with
+let step env eg l lst = match Resolver.resolve eg.input.reso l with
   | None when Label.is_pseudo l -> ()
   | None | Some `insn _ -> raise @@ Missing l
   | Some `blk b ->

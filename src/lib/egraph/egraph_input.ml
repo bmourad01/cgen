@@ -9,52 +9,21 @@ module G = Graphlib.Make(Label)(Unit)
 
 open E.Let
 
-type resolved = [
-  | `blk  of blk
-  | `insn of insn * blk * Var.t option
-]
-
 (* General information about the function we're translating. *)
 type t = {
-  fn   : func;                   (* The function itself. *)
-  loop : loops;                  (* Loops analysis. *)
-  tbl  : resolved Label.Table.t; (* Labels to blocks/insns. *)
-  cfg  : Cfg.t;                  (* The CFG. *)
-  dom  : Label.t tree;           (* Dominator tree. *)
-  pdom : Label.t tree;           (* Post-dominator tree. *)
-  cdom : Label.t tree;           (* Instruction-level dominator tree. *)
-  df   : Label.t frontier;       (* Dominance frontiers. *)
-  lst  : Last_stores.t;          (* Last stores analysis. *)
-  tenv : Typecheck.env;          (* Typing environment. *)
-  barg : Label.t Var.Table.t;    (* Block args to block labels. *)
+  fn   : func;             (* The function itself. *)
+  loop : loops;            (* Loops analysis. *)
+  reso : resolver;         (* Labels to blocks/insns. *)
+  cfg  : Cfg.t;            (* The CFG. *)
+  dom  : Label.t tree;     (* Dominator tree. *)
+  pdom : Label.t tree;     (* Post-dominator tree. *)
+  cdom : Label.t tree;     (* Instruction-level dominator tree. *)
+  df   : Label.t frontier; (* Dominance frontiers. *)
+  lst  : Last_stores.t;    (* Last stores analysis. *)
+  tenv : Typecheck.env;    (* Typing environment. *)
 }
 
 module Pseudo = Label.Pseudo(G)
-
-let create_tbl fn =
-  let tbl = Label.Table.create () in
-  let barg = Var.Table.create () in
-  let+ () = Func.blks fn |> E.Seq.iter ~f:(fun b ->
-      let label = Blk.label b in
-      let* () = match Hashtbl.add tbl ~key:label ~data:(`blk b) with
-        | `Ok -> Ok ()
-        | `Duplicate ->
-          E.failf "Duplicate label for block %a" Label.pp label () in
-      let* () = Blk.args b |> E.Seq.iter ~f:(fun x ->
-          match Hashtbl.add barg ~key:x ~data:label with
-          | `Ok -> Ok ()
-          | `Duplicate ->
-            E.failf "Duplicate label for block argument %a in block %a"
-              Var.pp x Label.pp label ()) in
-      Blk.insns b |> E.Seq.iter ~f:(fun i ->
-          let key = Insn.label i in
-          let data = `insn (i, b, Insn.lhs i) in
-          match Hashtbl.add tbl ~key ~data with
-          | `Ok -> Ok ()
-          | `Duplicate ->
-            E.failf "Duplicate label for instruction %a in block %a"
-              Label.pp key Label.pp label ())) in
-  tbl, barg
 
 (* The "regular" dominator tree from the CFG is not fine-grained enough
    to work with our strategy for maintaining provenance in the e-graph.
@@ -62,13 +31,13 @@ let create_tbl fn =
    The tree should also include labels of instructions when considering
    the data-flow of the function.
 *)
-let cdoms fn tbl dom =
+let cdoms fn reso dom =
   let accum b g l =
     Blk.insns ~rev:true b |> Seq.fold ~init:(g, l) ~f:(fun (g, l) i ->
         let next = Insn.label i in
         let e = G.Edge.create next l () in
         G.Edge.insert e g, next) in 
-  let rec aux g l = match Hashtbl.find tbl l with
+  let rec aux g l = match Resolver.resolve reso l with
     | None when Label.is_pseudo l -> g, l
     | None | Some (`insn _) -> assert false
     | Some (`blk b) ->
@@ -84,19 +53,19 @@ let cdoms fn tbl dom =
   Graphlib.dominators (module G) (Pseudo.add g) Label.pseudoentry  
 
 let init fn tenv =
-  let+ tbl, barg = create_tbl fn in
+  let+ reso = Resolver.create fn in
   let loop = Loops.analyze fn in
   let cfg = Cfg.create fn in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   let pdom = Graphlib.dominators (module Cfg) cfg Label.pseudoexit ~rev:true in
   let df = Graphlib.dom_frontier (module Cfg) cfg dom in
-  let cdom = cdoms fn tbl dom in
+  let cdom = cdoms fn reso dom in
   let module Lst = Last_stores.Make(struct
       module Insn = Insn
       module Blk = Blk
       module Func = Func
       module Cfg = Cfg
-      let resolve = Hashtbl.find_exn tbl
+      let resolve l = Option.value_exn (Resolver.resolve reso l)
     end) in
   let lst = Lst.analyze fn cfg in
-  {fn; loop; tbl; cfg; dom; pdom; cdom; df; lst; tenv; barg}
+  {fn; loop; reso; cfg; dom; pdom; cdom; df; lst; tenv}

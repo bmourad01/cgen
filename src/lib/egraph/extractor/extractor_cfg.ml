@@ -52,7 +52,7 @@ let invalid_pure e =
     error_prefix pp_ext e ()
 
 let invalid_callargs e =
-  Context.failf "%s: nvalid callargs term %a"
+  Context.failf "%s: invalid callargs term %a"
     error_prefix pp_ext e ()
 
 let invalid_global e =
@@ -82,7 +82,7 @@ let extract_label t l = match Hashtbl.find t.eg.lval l with
 
 let upd t x y = Hashtbl.update t x ~f:(Option.value ~default:y)
 
-let find_var t l = match Hashtbl.find t.eg.input.tbl l with
+let find_var t l = match Resolver.resolve t.eg.input.reso l with
   | Some `insn (_, _, Some x) -> !!(x, l)
   | Some _ | None -> no_var l
 
@@ -379,9 +379,9 @@ module Hoisting = struct
 
   let moved_blks t id cid =
     find_moved t id cid |> Label.Set.map ~f:(fun l ->
-        match Hashtbl.find_exn t.eg.input.tbl l with
-        | `insn (_, b, _) -> Blk.label b
-        | `blk _ -> assert false)
+        match Resolver.resolve t.eg.input.reso l with
+        | Some `insn (_, b, _) -> Blk.label b
+        | Some `blk _ | None -> assert false)
 
   (* When we "move" duplicate nodes up to the LCA (lowest common ancestor)
      in the dominator tree, we might be introducing a partial redundancy.
@@ -444,7 +444,7 @@ let step_insn t env i =
   reify t env l
 
 (* Step through a single basic block and rewrite its contents accordingly. *)
-let step t env l = match Hashtbl.find t.eg.input.tbl l with
+let step t env l = match Resolver.resolve t.eg.input.reso l with
   | None when Label.is_pseudo l -> !!()
   | None | Some `insn _ ->
     Context.failf "%s: missing block %a" error_prefix Label.pp l ()

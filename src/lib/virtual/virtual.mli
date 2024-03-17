@@ -426,6 +426,20 @@ module Live : Live_intf.S with type func := func
 
 type live = Live.t
 
+(** Helpers for computing usage sites of variables. *)
+module Use : Use_intf.S with type func := func
+
+type use = Use.t
+
+(** Helpers for resolving labels to instructions/blocks. *)
+module Resolver : Resolver_intf.S
+  with type lhs := Var.t option
+   and type insn := insn
+   and type blk := blk
+   and type func := func
+
+type resolver = Resolver.t
+
 (** Loop analysis of a function. *)
 module Loops : sig
   (** The identifier of a loop. *)
@@ -889,4 +903,16 @@ module Abi : sig
   module Live : Live_intf.S with type func := func
 
   type live = Live.t
+
+  module Use : Use_intf.S with type func := func
+
+  type use = Use.t
+
+  module Resolver : Resolver_intf.S
+    with type lhs := Var.Set.t
+     and type insn := insn
+     and type blk := blk
+     and type func := func
+
+  type resolver = Resolver.t
 end

@@ -3,6 +3,29 @@ open Graphlib.Std
 open Regular.Std
 open Live_intf
 
+type tran = {
+  defs  : Var.Set.t;
+  uses  : Var.Set.t;
+  insns : Var.Set.t Label.Tree.t;
+}
+
+let empty_tran = {
+  defs  = Var.Set.empty;
+  uses  = Var.Set.empty;
+  insns = Label.Tree.empty;
+}
+
+let pp_vars ppf vars =
+  Format.pp_print_list
+    ~pp_sep:Format.pp_print_space
+    Var.pp ppf (Set.to_list vars)
+
+let pp_transfer ppf {uses; defs; _} =
+  Format.fprintf ppf "(%a) / (%a)" pp_vars uses pp_vars defs
+
+let (++) = Set.union and (--) = Set.diff
+let apply {defs; uses; _} vars = vars -- defs ++ uses
+
 module type L = sig
   module Insn : sig
     type t
