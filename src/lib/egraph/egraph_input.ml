@@ -65,7 +65,9 @@ let init fn tenv =
       module Blk = Blk
       module Func = Func
       module Cfg = Cfg
-      let resolve l = Option.value_exn (Resolver.resolve reso l)
+      let resolve l = match Resolver.resolve reso l with
+        | Some `insn _ | None -> assert false
+        | Some `blk b -> b
     end) in
   let lst = Lst.analyze fn cfg in
   {fn; loop; reso; cfg; dom; pdom; cdom; df; lst; tenv}

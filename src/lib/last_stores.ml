@@ -4,7 +4,7 @@ open Core
 open Regular.Std
 open Graphlib.Std
 
-module type S = sig
+module type L = sig
   module Insn : sig
     type t
     val label : t -> Label.t
@@ -23,27 +23,24 @@ module type S = sig
 
   module Cfg : Label.Graph
 
-  val resolve : Label.t -> [ `blk of Blk.t | `insn of Insn.t * Blk.t * Var.t option]
+  val resolve : Label.t -> Blk.t
 end
 
 type state = Label.t option [@@deriving equal]
 type t = (Label.t, state) Solution.t
 
-module Make(M : S) = struct
+module Make(M : L) = struct
   open M
 
-  let first_insn l = match resolve l with
-    | `insn _ -> assert false
-    | `blk b -> match Seq.hd @@ Blk.insns b with
-      | Some i -> Insn.label i
-      | None -> l
+  let first_insn l = match Seq.hd @@ Blk.insns @@ resolve l with
+    | Some i -> Insn.label i
+    | None -> l
 
   let init fn =
-    Solution.create Label.(Map.singleton (Func.entry fn) None) None
+    Solution.create (Label.Map.singleton (Func.entry fn) None) None
 
-  let transfer l init = match resolve l with
-    | `insn _ -> assert false
-    | `blk b -> Blk.insns b |> Seq.fold ~init ~f:(fun s i ->
+  let transfer l init =
+    resolve l |> Blk.insns |> Seq.fold ~init ~f:(fun s i ->
         if Insn.can_store i then Some (Insn.label i) else s)
 
   let step _ l = Option.merge ~f:(fun a b ->
