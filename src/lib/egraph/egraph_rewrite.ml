@@ -61,7 +61,6 @@ let infer_ty t n = Enode.infer_ty n
     ~tty:(typeof_typ t)
     ~tvar:(typeof_var t)
     ~word:(word t)
-    ~node:(node t)
 
 (* This is the entry point to the insert/rewrite loop, to be called
    from the algorithm in `Builder` (i.e. in depth-first dominator
@@ -111,7 +110,6 @@ and search ?ty ~d t n id =
   let rec cls env p id k = match p with
     | P (x, xs) -> pat env x xs id k
     | V x -> var env x id k
-    | W -> k env
   (* Match a node with a concrete pattern. *)
   and pat env x xs id k = match node t id with
     | N (y, ys) when Enode.equal_op x y -> children ~env xs ys k
@@ -144,7 +142,6 @@ and search ?ty ~d t n id =
     | P (o, ps) ->
       let cs = List.map ps ~f:(rewrite env) in
       insert ~d t @@ N (o, cs)
-    | W -> raise_notrace Mismatch
     | V x -> match Map.find env x with
       | None -> raise_notrace Mismatch
       | Some i -> i.Subst.id in

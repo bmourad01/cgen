@@ -2,7 +2,6 @@ open Egraph_common
 
 type t = rule
 
-let wild = W
 let var x = V x
 let exp o = P (o, [])
 let (&) o q = P (o, q)
@@ -28,8 +27,6 @@ module Op = struct
   let single s = exp (Osingle s)
   let sym s o = exp (Osym (s, o))
   let uop u x = Ounop u & [x]
-  let ref x = Oref & [x]
-  let unref x = Ounref & [wild; x]
 
   let add     t = bop (`add t)
   let div     t = bop (`div t)

@@ -154,7 +154,7 @@ let rec pure t env e : operand Context.t =
     let* y = pure y in
     insn a @@ fun x ->
     !!(`uop (x, u, y))
-  | E (a, Ounref, [E (_, Otype s, []); y]) ->
+  | E (a, Ounref s, [y]) ->
     let* y = pure y in
     insn a @@ fun x ->
     !!(`unref (x, s, y))
@@ -181,8 +181,7 @@ let rec pure t env e : operand Context.t =
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
   | E (_, Ounop _, _)
-  | E (_, Ounref, _)
-  | E (_, Otype _, _)
+  | E (_, Ounref _, _)
   | E (_, Ovaarg _, _)
   | E (_, Ovar _, _)
   | E (_, Ovastart _, _) -> invalid_pure e
@@ -338,8 +337,7 @@ let exp t env l e =
   | E (_, Osym _, _)
   | E (_, Otbl _, _)
   | E (_, Ounop _, _)
-  | E (_, Ounref, _)
-  | E (_, Otype _, _)
+  | E (_, Ounref _, _)
   | E (_, Ovaarg _, _)
   | E (_, Ovar _, _)
   | E (_, Ovastart _, _) -> invalid l e

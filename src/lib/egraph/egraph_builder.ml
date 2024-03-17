@@ -230,8 +230,7 @@ let insn env eg l : Insn.op -> unit = function
       operand env eg a;
     ] ~f:(set x)
   | `unref (x, s, a) ->
-    sched ~x env eg l Ounref [
-      atom eg (Otype s);
+    sched ~x env eg l (Ounref s) [
       operand env eg a;
     ] ~f:(set x)
 

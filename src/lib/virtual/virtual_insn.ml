@@ -359,7 +359,7 @@ let can_store_op : op -> bool = function
   | _ -> false
 
 let can_load_op : op -> bool = function
-  | `load _ | `vaarg _ -> true
+  | `load _ | `unref _ | `vaarg _ -> true
   | _ -> false
 
 let is_effectful t = is_effectful_op t.op

@@ -1548,12 +1548,6 @@ module Groups = struct
     copy `f64 x =>! x;
   ]
 
-  (* Canonicalize chains of refs and unrefs. *)
-  let ref_unref = [
-    ref (unref x) =>! x;
-    unref (ref x) =>! x;
-  ]
-
   (* All rules. *)
   let all =
     commute_consts @
@@ -1686,7 +1680,6 @@ module Groups = struct
     sel_const @
     sel_bool @
     prop_copy @
-    ref_unref @
     []
 end
 
