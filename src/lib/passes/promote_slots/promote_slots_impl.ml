@@ -166,16 +166,16 @@ module Make(M : L) = struct
     | Some `insn _ -> assert false
     | Some `blk b ->
       Blk.insns b |>
+      Seq.filter ~f:(Fn.compose (Set.mem u) Insn.label) |>
       Context.Seq.fold ~init:subst ~f:(fun subst i ->
           let l = Insn.label i in
           match Insn.store i with
-          | Some (v, _, _) when Set.mem u l ->
+          | Some (v, _, _) ->
             replace_store env subst x l v t
-          | Some _ -> !!subst
           | None -> match Insn.load i with
-            | Some (y, t') when Set.mem u l ->
+            | Some (y, t') ->
               replace_load env subst b x l y t t'
-            | Some _ | None -> !!subst)
+            | None -> assert false)
 
   let replace env x t =
     let rec loop u q = match Stack.pop q with
