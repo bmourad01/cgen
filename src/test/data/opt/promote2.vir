@@ -1,0 +1,27 @@
+module foo
+
+; GCD algorithm
+export function w $foo(w %a, w %b) {
+  %t = slot 4, align 4
+  %x = slot 4, align 4
+  %y = slot 4, align 4
+@0:
+  st.w %a, %x
+  st.w %b, %y
+  jmp @1
+@1:
+  %by = ld.w %y
+  %c = eq.w %by, 0x0_w
+  br %c.1, @4, @5
+@5:
+  st.w %by.1, %t
+  %ax = ld.w %x
+  %ax = rem.w %ax, %by
+  st.w %ax, %y
+  %by = ld.w %t
+  st.w %by, %x
+  jmp @1
+@4:
+  %r = ld.w %x
+  ret %r
+}

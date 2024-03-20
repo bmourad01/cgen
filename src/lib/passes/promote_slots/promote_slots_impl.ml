@@ -1,9 +1,11 @@
 open Core
+open Monads.Std
 open Regular.Std
-open Graphlib.Std
 open Virtual
 
-open Context.Syntax
+module E = Monad.Result.Error
+
+open E.Let
 
 module type L = sig
   type lhs
@@ -11,7 +13,6 @@ module type L = sig
   module Insn : sig
     type op
     type t
-    val label : t -> Label.t
     val store : t -> (operand * Var.t * Type.basic) option
     val load : t -> (Var.t * Type.basic) option
     val fibits : Var.t -> Type.fp -> operand -> op
@@ -21,22 +22,17 @@ module type L = sig
 
   module Blk : sig
     type t
-    val label : t -> Label.t
-    val insns : ?rev:bool -> t -> Insn.t seq
     val map_insns : t -> f:(Label.t -> Insn.op -> Insn.op) -> t
   end
 
   module Func : sig
     type t
     val name : t -> string
+    val dict : t -> Dict.t
+    val with_dict : t -> Dict.t -> t
     val slots : ?rev:bool -> t -> slot seq
     val remove_slot : t -> Var.t -> t
     val map_blks : t -> f:(Blk.t -> Blk.t) -> t
-  end
-
-  module Cfg : sig
-    include Label.Graph
-    val create : Func.t -> t
   end
 
   module Use : Use_intf.S with type func := Func.t
@@ -55,18 +51,14 @@ module Make(M : L) = struct
     fn   : Func.t;
     use  : Use.t;
     reso : Resolver.t;
-    cfg  : Cfg.t;
-    dom  : Label.t tree;
     ops  : Insn.op Label.Table.t;
   }
 
   let init fn =
-    let*? reso = Resolver.create fn in
+    let+ reso = Resolver.create fn in
     let use = Use.compute fn in
-    let cfg = Cfg.create fn in
-    let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
     let ops = Label.Table.create () in
-    !!{fn; use; reso; cfg; dom; ops}
+    {fn; use; reso; ops}
 
   module Qualify = struct
     (* The qualification of the slot.
@@ -125,12 +117,13 @@ module Make(M : L) = struct
 
   let collect env =
     Func.slots env.fn |>
-    Context.Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
+    E.Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
         match Qualify.go env s with
-        | Bad -> !!acc
-        | Write (_, t) -> !!(Var.Map.set acc ~key:(Slot.var s) ~data:t)
+        | Bad -> Ok acc
+        | Write (_, t) ->
+          Ok (Var.Map.set acc ~key:(Slot.var s) ~data:t)
         | Read _ ->
-          Context.failf
+          E.failf
             "In Promote_slots: slot %a in function $%s is read but never stored to"
             Var.pp (Slot.var s) (Func.name env.fn) ())
 
@@ -139,65 +132,38 @@ module Make(M : L) = struct
         Func.remove_slot fn key)
 
   (* Replace a store with a copy to a fresh variable. *)
-  let replace_store env subst x l v t =
-    let+ y = Context.Var.fresh in
-    let k = Insn.copy y t v in
-    Hashtbl.set env.ops ~key:l ~data:k;
-    Map.set subst ~key:x ~data:y
+  let replace_store env x l v t =
+    Hashtbl.set env.ops ~key:l ~data:(Insn.copy x t v)
 
   (* Replace a load with a copy/cast. *)
-  let replace_load env subst b x l y t t' = match Map.find subst x with
-    | None ->
-      (* This would be a violation the SSA property. *)
-      Context.failf
-        "In Promote_slots: slot %a in function $%s is read at \
-         instruction %a in block %a before it is stored to"
-        Var.pp x (Func.name env.fn) Label.pp l Label.pp (Blk.label b) ()
-    | Some x ->
-      let k = match t', t with
-        | #Type.imm_base as imm, #Type.fp -> Insn.ifbits y imm (`var x)
-        | #Type.fp as fp, #Type.imm_base -> Insn.fibits y fp (`var x)
-        | _ -> Insn.copy y t' (`var x) in
-      Hashtbl.set env.ops ~key:l ~data:k;
-      !!subst
+  let replace_load env x l y t t' =
+    let k = match t', t with
+      | #Type.imm_base as imm, #Type.fp -> Insn.ifbits y imm (`var x)
+      | #Type.fp as fp, #Type.imm_base -> Insn.fibits y fp (`var x)
+      | _ -> Insn.copy y t' (`var x) in
+    Hashtbl.set env.ops ~key:l ~data:k
 
-  let step env u x t subst l = match Resolver.resolve env.reso l with
-    | None -> !!subst
-    | Some `insn _ -> assert false
-    | Some `blk b ->
-      Blk.insns b |>
-      Seq.filter ~f:(Fn.compose (Set.mem u) Insn.label) |>
-      Context.Seq.fold ~init:subst ~f:(fun subst i ->
-          let l = Insn.label i in
-          match Insn.store i with
-          | Some (v, _, _) ->
-            replace_store env subst x l v t
-          | None -> match Insn.load i with
-            | Some (y, t') ->
-              replace_load env subst b x l y t t'
-            | None -> assert false)
-
-  let replace env x t =
-    let rec loop u q = match Stack.pop q with
-      | None -> !!()
-      | Some (l, subst) ->
-        let* subst = step env u x t subst l in
-        Tree.children env.dom l |>
-        Seq.iter ~f:(fun l -> Stack.push q (l, subst));
-        loop u q in
-    loop
-      (Use.find env.use x)
-      (Stack.singleton (Label.pseudoentry, Var.Map.empty))
+  let replace env = Map.iteri ~f:(fun ~key:x ~data:t ->
+      Use.find env.use x |> Set.iter ~f:(fun l ->
+          match Resolver.resolve env.reso l with
+          | None | Some `blk _ -> assert false
+          | Some `insn (i, _, _) -> match Insn.store i with
+            | Some (v, _, _) -> replace_store env x l v t
+            | None -> match Insn.load i with
+              | Some (y, t') -> replace_load env x l y t t'
+              | None -> assert false))
 
   let run fn =
     let* env = init fn in
-    let* xs = collect env in
-    let fn = remove fn xs in
-    let+ () =
-      Map.to_sequence xs |>
-      Context.Seq.iter ~f:(fun (x, t) -> replace env x t) in
-    Func.map_blks fn ~f:(fun b ->
-        Blk.map_insns b ~f:(fun l default ->
-            Hashtbl.find env.ops l |>
-            Option.value ~default))
+    let+ xs = collect env in
+    if not @@ Map.is_empty xs then
+      let fn = remove fn xs in
+      replace env xs;
+      (* SSA form needs to be recomputed. *)
+      let dict = Dict.remove (Func.dict fn) Tags.ssa in
+      Func.with_dict fn dict |> Func.map_blks ~f:(fun b ->
+          Blk.map_insns b ~f:(fun l default ->
+              Hashtbl.find env.ops l |>
+              Option.value ~default))
+    else fn
 end

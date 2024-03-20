@@ -2,6 +2,6 @@ module foo
 
 export function w $foo(w %x) {
 @0:
-  %2 = add.w %x, %x ; @6
-  ret %2
+  %0 = add.w %x, %x ; @6
+  ret %0
 }

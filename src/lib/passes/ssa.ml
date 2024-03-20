@@ -159,12 +159,13 @@ module Rename : sig
   val go : env -> unit
 end = struct
   let new_name env x =
+    let key = Var.base x in
     let default = 1 in
     let n = ref default in
     let upd x = n := x + 1; !n in
-    Hashtbl.update env.nums x ~f:(Option.value_map ~default ~f:upd);
+    Hashtbl.update env.nums key ~f:(Option.value_map ~default ~f:upd);
     let y = Var.with_index x !n in
-    Hashtbl.add_multi env.stk ~key:x ~data:y;
+    Hashtbl.add_multi env.stk ~key ~data:y;
     y
 
   let rename_args env b =

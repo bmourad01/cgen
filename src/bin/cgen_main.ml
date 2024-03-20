@@ -14,7 +14,7 @@ let comp filename =
   let*? tenv = Typecheck.run m ~target in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
   Format.printf "%a\n%!" Virtual.Module.pp m;
-  let* m = Context.Virtual.Module.map_funs m ~f:Passes.Promote_slots.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Promote_slots.run in
   let*? tenv =
     Virtual.Module.funs m |>
     Seq.to_list |> Typecheck.update_fns tenv in
