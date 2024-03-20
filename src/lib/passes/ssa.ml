@@ -296,7 +296,7 @@ end = struct
     | Pop b -> pop_defs env b
 end
 
-let try_ fn f = try f () with
+let try_ fn f = try Ok (f ()) with
   | Missing_blk l ->
     Or_error.errorf
       "SSA: missing block %a in function $%s"
@@ -305,8 +305,8 @@ let try_ fn f = try f () with
     Or_error.errorf "SSA: %s" msg
 
 let run fn = try_ fn @@ fun () ->
-  if Dict.mem (Func.dict fn) Tags.ssa then
-    Ok fn
+  if Dict.mem (Func.dict fn) Tags.ssa
+  then fn
   else
     let env = init fn in
     Phi.go env;
@@ -314,4 +314,4 @@ let run fn = try_ fn @@ fun () ->
     let fn =
       Hashtbl.data env.blks |>
       Func.update_blks_exn fn in
-    Or_error.return @@ Func.with_tag fn Tags.ssa ()
+    Func.with_tag fn Tags.ssa ()
