@@ -110,6 +110,7 @@ let suite = "Test optimizations" >::: [
     "Constant select" >:: test "constsel";
     "Slot promotion 1" >:: test "promote1";
     "Slot promotion 2 (GCD)" >:: test "promote2";
+    "Slot promotion 2 (GCD, partial)" >:: test "promote2-partial";
   ]
 
 let () = run_test_tt_main suite

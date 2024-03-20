@@ -1,0 +1,23 @@
+module foo
+
+; GCD algorithm, but only partially with stack slots
+export function w $foo(w %a, w %b) {
+  %t = slot 4, align 4
+  %y = slot 4, align 4
+@start:
+  %x = copy.w %a
+  st.w %b, %y
+  jmp @loop
+@loop:
+  %by = ld.w %y
+  %c = eq.w %by, 0_w
+  br %c, @done, @body
+@body:
+  st.w %by, %t
+  %ax = rem.w %x, %by
+  st.w %ax, %y
+  %x = ld.w %t
+  jmp @loop
+@done:
+  ret %x
+}
