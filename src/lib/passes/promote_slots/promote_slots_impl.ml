@@ -117,15 +117,16 @@ module Make(M : L) = struct
 
   let collect env =
     Func.slots env.fn |>
-    E.Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
+    Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
         match Qualify.go env s with
-        | Bad -> Ok acc
+        | Bad -> acc
         | Write (_, t) ->
-          Ok (Var.Map.set acc ~key:(Slot.var s) ~data:t)
+          Var.Map.set acc ~key:(Slot.var s) ~data:t
         | Read _ ->
-          E.failf
-            "In Promote_slots: slot %a in function $%s is read but never stored to"
-            Var.pp (Slot.var s) (Func.name env.fn) ())
+          (* In this case, we read from the slot but never stored anything
+             to it. It's undefined behavior, but it's also what the programmer
+             intended, so we should cancel this promotion. *)
+          acc)
 
   let remove fn =
     Var.Map.fold ~init:fn ~f:(fun ~key ~data:_ fn ->
@@ -154,8 +155,8 @@ module Make(M : L) = struct
               | None -> assert false))
 
   let run fn =
-    let* env = init fn in
-    let+ xs = collect env in
+    let+ env = init fn in
+    let xs = collect env in
     if not @@ Map.is_empty xs then
       let fn = remove fn xs in
       replace env xs;
