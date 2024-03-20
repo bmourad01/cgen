@@ -1,5 +1,6 @@
 module Egraph_opt = Egraph_opt
 module Lower_abi = Lower_abi
+module Promote_slots = Promote_slots
 module Remove_dead_vars = Remove_dead_vars
 module Remove_disjoint_blks = Remove_disjoint_blks
 module Sccp = Sccp

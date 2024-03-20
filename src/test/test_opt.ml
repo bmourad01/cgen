@@ -1,4 +1,5 @@
 open Core
+open Regular.Std
 open OUnit2
 open Cgen
 
@@ -19,6 +20,10 @@ let test name _ =
     let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
     let*? tenv = Typecheck.run m ~target in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
+    let* m = Context.Virtual.Module.map_funs m ~f:Passes.Promote_slots.run in
+    let*? tenv =
+      Virtual.Module.funs m |>
+      Seq.to_list |> Typecheck.update_fns tenv in
     let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Sccp.run tenv) in
     let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
@@ -103,6 +108,7 @@ let suite = "Test optimizations" >::: [
     "Test reassoc add const" >:: test "reassocaddconst";
     "Sum an array of words" >:: test "sumarray";
     "Constant select" >:: test "constsel";
+    "Slot promotion 1" >:: test "promote1";
   ]
 
 let () = run_test_tt_main suite
