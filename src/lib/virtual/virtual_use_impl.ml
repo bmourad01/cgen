@@ -36,8 +36,8 @@ module Make(M : L) : S with type func := M.Func.t = struct
   type t = Label.Set.t Var.Map.t
 
   let find t x = match Var.Map.find t x with
-    | Some uses -> Set.to_sequence uses
-    | None -> Seq.empty
+    | None -> Label.Set.empty
+    | Some uses -> uses
 
   let add_use l u x = Var.Map.update u x ~f:(function
       | None -> Label.Set.singleton l

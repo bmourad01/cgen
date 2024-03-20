@@ -1,5 +1,3 @@
-open Regular.Std
-
 module type S = sig
   type t
   type func
@@ -9,7 +7,7 @@ module type S = sig
       If a label resolves to a block, then the use site is the
       control-flow instruction of the corresponding block.
   *)
-  val find : t -> Var.t -> Label.t seq
+  val find : t -> Var.t -> Label.Set.t
 
   (** Computes the usage sites for a function.
 

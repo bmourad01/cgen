@@ -115,7 +115,7 @@ module Make(M : L) = struct
     let go env s =
       let x = Slot.var s in
       Use.find env.use x |>
-      Seq.fold_until ~init:Bad ~finish:Fn.id ~f:(fun acc u ->
+      Set.fold_until ~init:Bad ~finish:Fn.id ~f:(fun acc u ->
           match Resolver.resolve env.reso u with
           | Some `blk _ | None -> Stop Bad
           | Some `insn (i, _, _) -> match infer acc x i with
@@ -185,8 +185,9 @@ module Make(M : L) = struct
         Tree.children env.dom l |>
         Seq.iter ~f:(fun l -> Stack.push q (l, subst));
         loop u q in
-    let u = Use.find env.use x |> Label.Set.of_sequence in
-    loop u @@ Stack.singleton (Label.pseudoentry, Var.Map.empty)
+    loop
+      (Use.find env.use x)
+      (Stack.singleton (Label.pseudoentry, Var.Map.empty))
 
   let run fn =
     let* env = init fn in
