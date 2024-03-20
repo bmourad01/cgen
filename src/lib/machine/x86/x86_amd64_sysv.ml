@@ -1,7 +1,7 @@
 open X86_common
 open X86_amd64_common
 
-let target = Target.create () ~name:"amd64-sysv" ~word ~little
+let target = Target.declare () ~name:"amd64-sysv" ~word ~little
 
 module Machine = struct
   module Reg = Reg

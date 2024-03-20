@@ -4,15 +4,22 @@ open Regular.Std
 
 type t
 
-(** Creates a target descriptor.
+(** Enumerates all of the declared targets. *)
+val enum_targets : unit -> t seq
 
-    [name]: the name of the target.
+(** Declares a target descriptor.
+
+    [name]: the name of the target. This is used to
+    uniquely identify the target.
 
     [word]: the type for the word size of the target.
 
     [little]: if [true], the target is little-endian.
+
+    @raise Failure if a target with [name] was already
+    declared.
 *)
-val create :
+val declare :
   name:string ->
   word:Type.imm_base ->
   little:bool ->
