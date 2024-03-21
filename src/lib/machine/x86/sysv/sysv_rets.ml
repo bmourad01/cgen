@@ -75,12 +75,17 @@ let tworeg_ret env r1 r2 key x =
 let memory_ret env k key x =
   let+ data = if k.size > 0 then
       let* x = expect_ret_var env key x in
-      let src = find_ref env x in
       let dst = match env.rmem with
         | None -> assert false
         | Some dst -> dst in
-      let+ blit = Cv.Abi.blit `i64 k.size ~src ~dst in
-      {reti = blit; retr = [int_rets.(0), `var dst]}
+      let retr = [int_rets.(0), `var dst] in
+      (* In the case of `unref` we should've already blitted
+         to `dst` (see Sysv_refs). *)
+      let+ reti = if not @@ Hashtbl.mem env.unrefs x then
+          let src = find_ref env x in
+          Cv.Abi.blit `i64 k.size ~src ~dst
+        else !![] in
+      {reti; retr}
     else !!empty_ret in
   Hashtbl.set env.rets ~key ~data
 
