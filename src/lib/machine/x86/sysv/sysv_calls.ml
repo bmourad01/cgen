@@ -14,14 +14,12 @@ let onereg_arg ~ofs ~reg k r src =
     | Some r ->
       k.callar @> `reg (`var l, r)
     | None ->
-      let sz = Type.sizeof_basic t / 8 in
-      let o = onext ofs sz sz in
+      let o = onext ofs 8 8 in
       k.callar @> `stk (`var l, o) in
   {k with callai = k.callai @> li; callar}
 
 (* A compound argument to a call passed in two registers. *)
 let tworeg_arg ~ofs ~reg2 k r1 r2 src =
-  let t1 = reg_type r1 and t2 = reg_type r2 in
   let regs = reg2 r1 r2 in
   let* o, oi = Cv.Abi.binop (`add `i64) (`var src) (i64 8) in
   let* l1, li1 = Cv.Abi.load `i64 (`var src) in
@@ -30,10 +28,8 @@ let tworeg_arg ~ofs ~reg2 k r1 r2 src =
     | Some (r1, r2) ->
       k.callar @>* [`reg (`var l1, r1); `reg (`var l2, r2)]
     | None ->
-      let sz1 = Type.sizeof_basic t1 / 8 in
-      let sz2 = Type.sizeof_basic t2 / 8 in
-      let o1 = onext ofs sz1 sz1 in
-      let o2 = onext ofs sz2 sz2 in
+      let o1 = onext ofs 8 8 in
+      let o2 = onext ofs 8 8 in
       let a1 = `stk (`var l1, o1) in
       let a2 = `stk (`var l2, o2) in
       k.callar @>* [a1; a2] in
@@ -129,25 +125,17 @@ let expect_arg_var env l : operand -> Var.t Context.t = function
 (* Figure out how we should pass the argument `a` at the call site. *)
 let classify_call_arg ~ofs ~reg ~reg2 env key k a =
   typeof_operand env a >>= function
-  | #Type.imm as m ->
+  | #Type.imm ->
     (* Use an integer register. *)
     Context.return begin match reg Rint with
-      | None ->
-        let sz = Type.sizeof_imm m / 8 in
-        let o = onext ofs sz sz in
-        {k with callar = k.callar @> `stk (a, o)}
-      | Some r ->
-        {k with callar = k.callar @> `reg (a, r)}
+      | None -> {k with callar = k.callar @> `stk (a, onext ofs 8 8)}
+      | Some r -> {k with callar = k.callar @> `reg (a, r)}
     end
-  | #Type.fp as f ->
+  | #Type.fp ->
     (* Use an SSE register. *)
     Context.return begin match reg Rsse with
-      | None ->
-        let sz = Type.sizeof_fp f / 8 in
-        let o = onext ofs sz sz in
-        {k with callar = k.callar @> `stk (a, o)}
-      | Some r ->
-        {k with callar = k.callar @> `reg (a, r)}
+      | None -> {k with callar = k.callar @> `stk (a, onext ofs 8 8)}
+      | Some r -> {k with callar = k.callar @> `reg (a, r)}
     end
   | `flag -> assert false
   | `compound (s, _, _) | `opaque (s, _, _) ->

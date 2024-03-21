@@ -60,7 +60,10 @@ let init_regs env =
   alloc_onereg ~qi ~qs,
   alloc_tworeg ~qi ~qs
 
-(* pre: `al` is a power of 2 *)
+(* pre: `al` is a power of 2
+
+   Note that for all basic types, `sz` and `al` are 8.
+*)
 let onext ofs sz al =
   let o = (!ofs + al - 1) land -al in
   ofs := o + sz;
@@ -70,8 +73,7 @@ let basic_param ~ofs ~reg env t x =
   let pvar = match reg t with
     | Some r -> `reg (x, r)
     | None ->
-      let sz = Type.sizeof_basic t / 8 in
-      let o = onext ofs sz sz in
+      let o = onext ofs 8 8 in
       `stk (x, o) in
   Vec.push env.params @@ {pty = t; pvar; pins = []}
 
@@ -80,8 +82,7 @@ let onereg_param ~ofs ~reg env x y r =
   let t = reg_type r in
   let+ pvar, pins = match reg t with
     | None ->
-      let sz = Type.sizeof_basic t / 8 in
-      let o = onext ofs sz sz in
+      let o = onext ofs 8 8 in
       let+ st = Cv.Abi.store t (`var x) (`var y) in
       `stk (x, o), [st]
     | Some r ->
@@ -99,10 +100,8 @@ let tworeg_param ~ofs ~reg2 env y r1 r2 =
   let+ st2 = Cv.Abi.store t1 (`var x2) (`var o) in
   let p1, p2 = match reg2 t1 t2 with
     | None ->
-      let sz1 = Type.sizeof_basic t1 / 8 in
-      let sz2 = Type.sizeof_basic t2 / 8 in
-      let o1 = onext ofs sz1 sz1 in
-      let o2 = onext ofs sz2 sz2 in
+      let o1 = onext ofs 8 8 in
+      let o2 = onext ofs 8 8 in
       let p1 = {pty = t1; pvar = `stk (x1, o1); pins = [st1]} in
       let p2 = {pty = t2; pvar = `stk (x2, o2); pins = [oi; st2]} in
       p1, p2
