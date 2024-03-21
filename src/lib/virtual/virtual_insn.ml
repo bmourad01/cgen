@@ -234,8 +234,8 @@ let pp_call ppf c =
     (pp_call_vargs args) vargs
 
 type mem = [
-  | `load  of Var.t * Type.basic * operand
-  | `store of Type.basic * operand * operand
+  | `load  of Var.t * Type.arg * operand
+  | `store of Type.arg * operand * operand
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_mem : mem -> Var.Set.t = function
@@ -244,10 +244,16 @@ let free_vars_of_mem : mem -> Var.Set.t = function
     List.filter_map [v; a] ~f:var_of_operand |> Var.Set.of_list
 
 let pp_mem ppf : mem -> unit = function
-  | `load (x, t, a) ->
+  | `load (x, `name n, a) ->
+    Format.fprintf ppf "%a = ld:%s %a"
+      Var.pp x n pp_operand a
+  | `load (x, (#Type.basic as t), a) ->
     Format.fprintf ppf "%a = ld.%a %a"
       Var.pp x Type.pp_basic t pp_operand a
-  | `store (t, v, a) ->
+  | `store (`name n, v, a) ->
+    Format.fprintf ppf "st:%s %a, %a"
+      n pp_operand v pp_operand a
+  | `store ((#Type.basic as t), v, a) ->
     Format.fprintf ppf "st.%a %a, %a"
       Type.pp_basic t pp_operand v pp_operand a
 
@@ -275,37 +281,17 @@ let pp_variadic ppf : variadic -> unit = function
   | `vastart x ->
     Format.fprintf ppf "vastart %a" pp_alist x
 
-type compound = [
-  | `ref of Var.t * operand
-  | `unref of Var.t * string * operand
-] [@@deriving bin_io, compare, equal, sexp]
-
-let free_vars_of_compound : compound -> Var.Set.t = function
-  | `ref (_, a) | `unref (_, _, a) ->
-    var_of_operand a |> Option.to_list |> Var.Set.of_list
-
-let pp_compound ppf : compound -> unit = function
-  | `ref (x, c) ->
-    Format.fprintf ppf "%a = ref %a"
-      Var.pp x pp_operand c
-  | `unref (x, s, r) ->
-    Format.fprintf ppf "%a = unref :%s %a"
-      Var.pp x s pp_operand r
-
 type op = [
   | basic
   | call
   | mem
   | variadic
-  | compound
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let lhs_of_op : op -> Var.t option = function
   | `bop     (x, _, _, _)
   | `uop     (x, _, _)
   | `sel     (x, _, _, _, _)
-  | `ref     (x, _)
-  | `unref   (x, _, _)
   | `call    (Some (x, _), _, _, _)
   | `load    (x, _, _)
   | `vaarg   (x, _, _) -> Some x
@@ -322,14 +308,12 @@ let free_vars_of_op : op -> Var.Set.t = function
   | #call     as c -> free_vars_of_call c
   | #mem      as m -> free_vars_of_mem m
   | #variadic as v -> free_vars_of_variadic v
-  | #compound as c -> free_vars_of_compound c
 
 let pp_op ppf : op -> unit = function
   | #basic    as b -> pp_basic    ppf b
   | #call     as c -> pp_call     ppf c
   | #mem      as m -> pp_mem      ppf m
   | #variadic as v -> pp_variadic ppf v
-  | #compound as c -> pp_compound ppf c
 
 type t = {
   label : Label.t;
@@ -359,7 +343,7 @@ let can_store_op : op -> bool = function
   | _ -> false
 
 let can_load_op : op -> bool = function
-  | `load _ | `unref _ | `vaarg _ -> true
+  | `load _ | `vaarg _ -> true
   | _ -> false
 
 let is_effectful t = is_effectful_op t.op

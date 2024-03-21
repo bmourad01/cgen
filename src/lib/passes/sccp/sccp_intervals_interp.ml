@@ -174,12 +174,6 @@ let interp_cast o a = match (o : Insn.cast) with
 let interp_copy o a = match (o : Insn.copy) with
   | `copy _ -> a
 
-let interp_compound ctx s = function
-  | `ref (x, _) ->
-    let i = I.create_full ~size:(Type.sizeof_imm_base ctx.word) in
-    update s x i
-  | `unref _ -> s
-
 let interp_unop o a = match (o : Insn.unop) with
   | #Insn.arith_unop as o -> interp_arith_unop o a
   | #Insn.bitwise_unop as o -> interp_bitwise_unop o a
@@ -237,8 +231,8 @@ let interp_call _ctx s : Insn.call -> state = function
 
 (* TODO: maybe model memory? *)
 let interp_mem _ctx s : Insn.mem -> state = function
-  | `load (x, t, _) -> make_top s x t
-  | `store _ -> s
+  | `load (x, (#Type.basic as t), _) -> make_top s x t
+  | `load _ | `store _ -> s
 
 let interp_variadic _ s : Insn.variadic -> state = function
   | `vaarg (x, t, _) -> make_top s x t
@@ -249,8 +243,7 @@ let interp_insn ctx s i =
     | #Insn.basic as b -> interp_basic ctx s b
     | #Insn.call as c -> interp_call ctx s c
     | #Insn.mem as m -> interp_mem ctx s m
-    | #Insn.variadic as v -> interp_variadic ctx s v
-    | #Insn.compound as c -> interp_compound ctx s c in
+    | #Insn.variadic as v -> interp_variadic ctx s v in
   Hashtbl.set ctx.insns ~key:(Insn.label i) ~data:s;
   s
 

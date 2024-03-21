@@ -95,6 +95,24 @@ val pp_dst : Format.formatter -> dst -> unit
 module Insn : sig
   include Virtual_insn_intf.S with type operand := operand
 
+  (** Memory operations.
+
+      [`load (x, t, a)]: load a value of type [t] from address [a] and
+      assign the result to [x].
+
+      [`store (t, v, a)]: store a value [v] of type [t] to address [a].
+  *)
+  type mem = [
+    | `load  of Var.t * Type.arg * operand
+    | `store of Type.arg * operand * operand
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  (** Returns the set of free variables in the memory operation. *)
+  val free_vars_of_mem : mem -> Var.Set.t
+
+  (** Pretty-prints a memory operation. *)
+  val pp_mem : Format.formatter -> mem -> unit
+
   (** A call instruction.
 
       [`call (a, f, args, vargs)]: call to [f] with arguments [args] and
@@ -142,34 +160,12 @@ module Insn : sig
   (** Pretty-prints a variadic argument instruction. *)
   val pp_variadic : Format.formatter -> variadic -> unit
 
-  (** A helper instruction for working with compound types.
-
-      [`ref (x, c)]: copy a reference to a compound type [c] and store
-      it in [x].
-
-      [`unref (x, s, r)]: reinterpret a reference [r] as a compound type
-      [s] and store it in [x]. This is indented mainly for passing a
-      compound type as an argument to a function, but it can also be used
-      to cast between compound types.
-  *)
-  type compound = [
-    | `ref of Var.t * operand
-    | `unref of Var.t * string * operand
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the set of free variables in the compound type instruction. *)
-  val free_vars_of_compound : compound -> Var.Set.t
-
-  (** Pretty-prints a compound type instruction. *)
-  val pp_compound : Format.formatter -> compound -> unit
-
   (** A data operation. *)
   type op = [
     | basic
     | call
     | mem
     | variadic
-    | compound
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the data operation. *)
@@ -696,6 +692,24 @@ type module_ = Module.t
 module Abi : sig
   module Insn : sig
     include Virtual_insn_intf.S with type operand := operand
+
+    (** Memory operations.
+
+        [`load (x, t, a)]: load a value of type [t] from address [a] and
+        assign the result to [x].
+
+        [`store (t, v, a)]: store a value [v] of type [t] to address [a].
+    *)
+    type mem = [
+      | `load  of Var.t * Type.basic * operand
+      | `store of Type.basic * operand * operand
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** Returns the set of free variables in the memory operation. *)
+    val free_vars_of_mem : mem -> Var.Set.t
+
+    (** Pretty-prints a memory operation. *)
+    val pp_mem : Format.formatter -> mem -> unit
 
     (** An argument to a call instruction.
 

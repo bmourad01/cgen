@@ -380,44 +380,12 @@ module Insns = struct
       let+ () = unify_arg ta a (ti :> Type.t) in
       (tf :> Type.basic)
 
-  let ref_expected_compound t a =
-    let* fn = getfn and* blk = getblk and* l = getins in
-    M.failf "Expected compound type for arg %a in 'ref' instruction \
-             %a in block %a in function $%s, got %a"
-      pp_operand a Label.pp l Label.pp (Blk.label blk)
-      (Func.name fn) Type.pp (t :> Type.t) ()
-
-  let unref_expected_word_size t w =
-    let* fn = getfn and* blk = getblk and* l = getins in
-    M.failf "Expected type %a for 'unref' instruction %a in block %a \
-             in function $%s, got %a"
-      Type.pp (w :> Type.t) Label.pp l Label.pp (Blk.label blk)
-      (Func.name fn) Type.pp (t :> Type.t) ()
-
   let op_copy ta a : Insn.copy -> Type.t t = function
     | `copy t ->
       begin match ta, t with
         | #Type.basic as b, t when Type.equal_basic b t -> !!(t :> Type.t)
         | _ -> unify_fail_arg (t :> Type.t) a ta
       end
-
-  let op_compound env c =
-    let* fn = getfn in
-    let* word = target >>| Target.word in
-    let* x, t = match c with
-      | `ref (x, a) ->
-        let* ta = typeof_arg fn env a in
-        begin match ta with
-          | #Type.compound -> !!(x, (word :> Type.t))
-          | _ -> ref_expected_compound ta a
-        end
-      | `unref (x, s, a) ->
-        let* ta = typeof_arg fn env a in
-        let*? t = Env.typeof_typ s env in
-        if Type.equal ta (word :> Type.t)
-        then !!(x, (t :> Type.t))
-        else unref_expected_word_size ta word in
-    M.lift_err @@ Env.add_var fn x t env
 
   let op_binop env v b al ar =
     let* fn = getfn in
@@ -450,12 +418,14 @@ module Insns = struct
     M.lift_err @@ Env.add_var fn v (t :> Type.t) env
 
   let op_mem_load env word x t a =
+    let* t = typeof_type_arg env t in
     let* fn = getfn in
     let* ta = typeof_arg fn env a in
     let* () = unify_arg ta a (word :> Type.t) in
     M.lift_err @@ Env.add_var fn x (t :> Type.t) env
 
   let op_mem_store env word t v a =
+    let* t = typeof_type_arg env t in
     let* fn = getfn in
     let* tv = typeof_arg fn env v in
     let* ta = typeof_arg fn env a in
@@ -651,7 +621,6 @@ module Insns = struct
     | #Insn.call     as c -> op_call     env c
     | #Insn.mem      as m -> op_mem      env m
     | #Insn.variadic as v -> op_variadic env v
-    | #Insn.compound as c -> op_compound env c
 
   let go seen =
     let* init = getenv and* blk = getblk in

@@ -106,8 +106,6 @@ let op_cost : Enode.op -> cost = function
   | Oset _
   | Ostore _
   | Otbl _
-  | Oref
-  | Ounref _
   | Ovaarg _
   | Ovastart _ -> Cost.pure 0
   | Obr | Ovar _ -> Cost.pure 2
@@ -162,7 +160,6 @@ let rec must_remain_fixed op args = match (op : Enode.op) with
   | Ocall _
   | Oload _
   | Ostore _
-  | Ounref _
   | Ovaarg _
   | Ovastart _ ->
     (* Control-flow and other side-effecting instructions must

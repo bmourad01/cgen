@@ -109,7 +109,8 @@
 %token <Type.basic> ADD DIV MUL REM SUB NEG
 %token <Type.imm> MULH UMULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token SLOT
-%token <Type.basic> LOAD STORE EQ GE GT LE LT NE
+%token <Type.arg> LOAD STORE
+%token <Type.basic> EQ GE GT LE LT NE
 %token <Type.imm> SGE SGT SLE SLT
 %token <Type.fp> O UO
 %token <Type.fp * Type.imm> FTOSI FTOUI
@@ -119,7 +120,6 @@
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL
 %token <Type.ret> ACALL
-%token REF UNREF
 %token CALL
 %token <Type.arg> VAARG
 %token VASTART
@@ -436,16 +436,6 @@ insn:
     {
       let+ v = v and+ a = a in
       `store (t, v, a)
-    }
-  | x = var EQUALS REF a = operand
-    {
-      let+ x = x and+ a = a in
-      `ref (x, a)
-    }
-  | x = var EQUALS UNREF s = TYPENAME a = operand
-    {
-      let+ x = x and+ a = a in
-      `unref (x, s, a)
     }
 
 call_args:

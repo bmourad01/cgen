@@ -230,14 +230,6 @@ end = struct
       let x = rename x in
       `load (x, t, a)
     | `store (t, v, a) -> `store (t, opnd v, opnd a)
-    | `ref (x, a) ->
-      let a = opnd a in
-      let x = rename x in
-      `ref (x, a)
-    | `unref (x, s, a) ->
-      let a = opnd a in
-      let x = rename x in
-      `unref (x, s, a)
 
   let rename_insns env b =
     Blk.insns b |> Seq.map ~f:(fun i ->

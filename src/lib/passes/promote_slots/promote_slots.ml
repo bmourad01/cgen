@@ -2,11 +2,11 @@ open Virtual
 open Promote_slots_impl
 
 let store op i = match op i with
-  | `store (t, v, `var a) -> Some (v, a, t)
+  | `store ((#Type.basic as t), v, `var a) -> Some (v, a, t)
   | _ -> None
 
 let load op i = match op i with
-  | `load (x, t, _) -> Some (x, t)
+  | `load (x, (#Type.basic as t), _) -> Some (x, t)
   | _ -> None
 
 let fibits x f a = `uop (x, `fibits f, a)

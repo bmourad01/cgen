@@ -118,17 +118,10 @@ let set x id eg = node eg (Oset x) [id]
 let store env eg l ty v a =
   let v = operand env eg v in
   let a = operand env eg a in
-  let key = {
-    label = l;
-    addr = a;
-    ty = (ty :> Type.arg)
-  } in
-  match ty with
-  | `name _ -> assert false
-  | #Type.basic as ty ->
-    Hashtbl.set env.mems ~key ~data:(Value (v, l));
-    sched env eg l (Ostore (ty, l)) [v; a];
-    env.mem <- Some l
+  let key = {label = l; addr = a; ty} in
+  Hashtbl.set env.mems ~key ~data:(Value (v, l));
+  sched env eg l (Ostore (ty, l)) [v; a];
+  env.mem <- Some l
 
 let alias env eg key l =
   Hashtbl.find env.mems key |>
@@ -145,15 +138,11 @@ let load env eg l x ty a =
   let mem = match env.mem with
     | None -> env.mem <- Some l; l
     | Some l -> l in
-  let key = {
-    label = mem;
-    addr = a;
-    ty = (ty :> Type.arg)
-  } in
-  match alias env eg key l with
-  | Some v ->
+  let key = {label = mem; addr = a; ty} in
+  match alias env eg key l, ty with
+  | Some v, (#Type.basic as ty) ->
     sched ~x env eg l (Ounop (`copy ty)) [v] ~f:(set x)
-  | None ->
+  | (Some _ | None), _ ->
     sched ~x env eg l (Oload (x, ty)) [a] ~f:(fun id _ ->
         Hashtbl.set env.mems ~key ~data:(Value (id, l));
         id)
@@ -225,14 +214,6 @@ let insn env eg l : Insn.op -> unit = function
     vaarg env eg l x ty a
   | `vastart x ->
     vastart env eg l x
-  | `ref (x, a) ->
-    sched ~x env eg l Oref [
-      operand env eg a;
-    ] ~f:(set x)
-  | `unref (x, s, a) ->
-    sched ~x env eg l (Ounref s) [
-      operand env eg a;
-    ] ~f:(set x)
 
 let sw env eg l ty i d tbl =
   let i = operand env eg (i :> operand) in

@@ -3,12 +3,9 @@ open Regular.Std
 open Virtual
 open Sysv_common
 
-let transl_var env x =
-  match Hashtbl.find env.canon_ref x with
+let transl_var env x = match Hashtbl.find env.refs x with
   | Some y -> y
-  | None -> match Hashtbl.find env.refs x with
-    | Some y -> y
-    | None -> x
+  | None -> x
 
 let transl_operand env : operand -> operand = function
   | `var x -> `var (transl_var env x)
@@ -33,11 +30,20 @@ let transl_basic env (b : Insn.basic) : Abi.Insn.basic =
   | `uop (x, u, a) -> `uop (x, u, op a)
   | `sel (x, t, c, l, r) -> `sel (x, t, c, op l, op r)
 
-let transl_mem env (m : Insn.mem) : Abi.Insn.mem =
+let transl_mem env ivec l (m : Insn.mem) =
   let op = transl_operand env in
+  let ins = Abi.Insn.create ~label:l in
   match m with
-  | `load (x, t, a) -> `load (x, t, op a)
-  | `store (t, v, a) -> `store (t, op v, op a)
+  | `load (x, (#Type.basic as t), a) ->
+    Vec.push ivec @@ ins @@ `load (x, t, op a)
+  | `store ((#Type.basic as t), v, a) ->
+    Vec.push ivec @@ ins @@ `store (t, op v, op a)
+  | `load (x, `name _, _) ->
+    Hashtbl.find env.unrefs x |>
+    Option.iter ~f:(List.iter ~f:(Vec.push ivec))
+  | `store (`name _, _, _) ->
+    Hashtbl.find env.blits l |>
+    Option.iter ~f:(List.iter ~f:(Vec.push ivec))
 
 let transl_call env ivec l f =
   let k = Hashtbl.find_exn env.calls l in
@@ -51,12 +57,6 @@ let transl_call env ivec l f =
   (* Instructions after the call. *)
   Ftree.iter k.callri ~f:(Vec.push ivec)
 
-let transl_compound env ivec (c : Insn.compound) = match c with
-  | `ref _ -> ()
-  | `unref (x, _, _) ->
-    Hashtbl.find env.unrefs x |>
-    Option.iter ~f:(List.iter ~f:(Vec.push ivec))
-
 let transl_insn env ivec i =
   let l = Insn.label i in
   let ins = Abi.Insn.create ~label:l in
@@ -64,11 +64,7 @@ let transl_insn env ivec i =
   | #Insn.basic as b ->
     Vec.push ivec @@
     ins (transl_basic env b :> Abi.Insn.op)
-  | #Insn.mem as m ->
-    Vec.push ivec @@
-    ins (transl_mem env m :> Abi.Insn.op)
-  | #Insn.compound as c ->
-    transl_compound env ivec c
+  | #Insn.mem as m -> transl_mem env ivec l m
   | `vastart _ ->
     Hashtbl.find_exn env.vastart l |>
     List.iter ~f:(Vec.push ivec)

@@ -127,8 +127,10 @@ rule token = parse
   | "popcnt" '.' (imm as t) { POPCNT (imm_of_char t) }
   | "not" '.' (imm as t) { NOT (imm_of_char t) }
   | "slot" { SLOT }
-  | "ld" '.' (basic as t) { LOAD (basic_of_char t) }
-  | "st" '.' (basic as t) { STORE (basic_of_char t) }
+  | "ld" '.' (basic as t) { LOAD (basic_of_char t :> Type.arg) }
+  | "ld" ':' (ident as id) { LOAD (`name id) }
+  | "st" '.' (basic as t) { STORE (basic_of_char t :> Type.arg) }
+  | "st" ':' (ident as id) { STORE (`name id) }
   | "eq" '.' (basic as t) { EQ (basic_of_char t) }
   | "ge" '.' (basic as t) { GE (basic_of_char t) }
   | "gt" '.' (basic as t) { GT (basic_of_char t) }
@@ -162,8 +164,6 @@ rule token = parse
   }
   | "zext" '.' (imm as t) { ZEXT (imm_of_char t) }
   | "copy" '.' (basic as t) { COPY (basic_of_char t) }
-  | "ref" { REF }
-  | "unref" { UNREF }
   | "sel" '.' (basic as t) { SEL (basic_of_char t) }
   | "call" '.' (basic as t) { ACALL (basic_of_char t :> Type.ret) }
   | "call" '.' "sb" { ACALL `si8 }

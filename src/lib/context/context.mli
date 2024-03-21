@@ -139,14 +139,14 @@ module Virtual : sig
       and variable containing the destination. *)
   val load :
     ?dict:Dict.t ->
-    Type.basic ->
+    Type.arg ->
     Virtual.operand ->
     (var * Virtual.insn) t 
 
   (** [store t v a ?dict] constructs a [`store] instruction with a fresh label. *)
   val store :
     ?dict:Dict.t ->
-    Type.basic ->
+    Type.arg ->
     Virtual.operand ->
     Virtual.operand ->
     Virtual.insn t 
@@ -164,14 +164,6 @@ module Virtual : sig
     ?dict:Dict.t ->
     Virtual.Insn.alist ->
     Virtual.insn t 
-
-  (** [ref a ?dict] constructs a [`ref] instruction with a fresh label and a
-      variable containing the destination. *)
-  val ref : ?dict:Dict.t -> Virtual.operand -> (var * Virtual.insn) t
-
-  (** [unref s a ?dict] constructs an [`unref] instruction for type [s] with
-      a fresh label and a variable containing the destination. *)
-  val unref : ?dict:Dict.t -> string -> Virtual.operand -> (var * Virtual.insn) t
 
   (** [blit ~src ~dst word size] copies [size] bytes from the address
       in [src] to the address in [dst] in a series of loads and stores,

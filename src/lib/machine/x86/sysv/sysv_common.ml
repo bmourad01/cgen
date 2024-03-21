@@ -174,9 +174,9 @@ type env = {
   tenv          : Typecheck.env;               (* Typing environment. *)
   rets          : ret Label.Table.t;           (* Lowered `ret` instructions. *)
   calls         : call Label.Table.t;          (* Lowered `call` instructions. *)
-  refs          : Var.t Var.Table.t;           (* Compound var to its slot. *)
+  refs          : Var.t Var.Table.t;           (* Struct var to its slot. *)
   unrefs        : Abi.insn list Var.Table.t;   (* `unref` to blit. *)
-  canon_ref     : Var.t Var.Table.t;           (* Canonicalize compound slots. *)
+  blits         : Abi.insn list Label.Table.t; (* Stores of structs. *)
   slots         : slot Vec.t;                  (* New stack slots. *)
   params        : param Vec.t;                 (* Function parameters. *)
   layout        : acls String.Table.t;         (* Cached struct layouts. *)
@@ -212,7 +212,7 @@ let init_env tenv fn =
     calls = Label.Table.create ();
     refs = Var.Table.create ();
     unrefs = Var.Table.create ();
-    canon_ref = Var.Table.create ();
+    blits = Label.Table.create ();
     slots = Vec.create ();
     params = Vec.create ();
     layout = String.Table.create ();

@@ -13,7 +13,8 @@ type copy = Insn.copy [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type binop = Insn.binop [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type unop = Insn.unop [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type basic = Insn.basic [@@deriving bin_io, compare, equal, sexp_poly]
-type mem = Insn.mem [@@deriving bin_io, compare, equal, sexp_poly]
+
+let free_vars_of_basic = Insn.free_vars_of_basic
 
 let pp_arith_binop = Insn.pp_arith_binop
 let pp_arith_unop = Insn.pp_arith_unop
@@ -25,10 +26,24 @@ let pp_copy = Insn.pp_copy
 let pp_binop = Insn.pp_binop
 let pp_unop = Insn.pp_unop
 let pp_basic = Insn.pp_basic
-let pp_mem = Insn.pp_mem
 
-let free_vars_of_basic = Insn.free_vars_of_basic
-let free_vars_of_mem = Insn.free_vars_of_mem
+type mem = [
+  | `load  of Var.t * Type.basic * operand
+  | `store of Type.basic * operand * operand
+] [@@deriving bin_io, compare, equal, sexp]
+
+let free_vars_of_mem : mem -> Var.Set.t = function
+  | `load  (_, _, a) -> var_of_operand a |> var_set_of_option
+  | `store (_, v, a) ->
+    List.filter_map [v; a] ~f:var_of_operand |> Var.Set.of_list
+
+let pp_mem ppf : mem -> unit = function
+  | `load (x, t, a) ->
+    Format.fprintf ppf "%a = ld.%a %a"
+      Var.pp x Type.pp_basic t pp_operand a
+  | `store (t, v, a) ->
+    Format.fprintf ppf "st.%a %a, %a"
+      Type.pp_basic t pp_operand v pp_operand a
 
 type callarg = [
   | `reg of operand * string

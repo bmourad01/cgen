@@ -250,22 +250,4 @@ module type S = sig
 
   (** Pretty-prints a basic instruction. *)
   val pp_basic : Format.formatter -> basic -> unit
-
-  (** Memory operations.
-
-      [`load (x, t, a)]: load a value of type [t] from address [a] and
-      assign the result to [x].
-
-      [`store (t, v, a)]: store a value [v] of type [t] to address [a].
-  *)
-  type mem = [
-    | `load  of Var.t * Type.basic * operand
-    | `store of Type.basic * operand * operand
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the set of free variables in the memory operation. *)
-  val free_vars_of_mem : mem -> Var.Set.t
-
-  (** Pretty-prints a memory operation. *)
-  val pp_mem : Format.formatter -> mem -> unit
 end

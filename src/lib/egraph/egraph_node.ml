@@ -14,19 +14,17 @@ type op =
   | Odouble   of float
   | Ojmp
   | Oint      of Bv.t * Type.imm
-  | Oload     of Var.t * Type.basic
+  | Oload     of Var.t * Type.arg
   | Olocal    of Label.t
-  | Oref
   | Oret
   | Osel      of Type.basic
   | Oset      of Var.t
   | Osingle   of Float32.t
-  | Ostore    of Type.basic * Label.t
+  | Ostore    of Type.arg * Label.t
   | Osw       of Type.imm
   | Osym      of string * int
   | Otbl      of Bv.t
   | Ounop     of Insn.unop
-  | Ounref    of string
   | Ovaarg    of Var.t * Type.arg
   | Ovar      of Var.t
   | Ovastart  of Label.t
@@ -130,10 +128,10 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
     | Odouble _ -> Some `f64
     | Ojmp -> None
     | Oint (_, t) -> Some (t :> Type.t)
-    | Oload (_, t) -> Some (t :> Type.t)
+    | Oload (_, (#Type.basic as t)) -> Some (t :> Type.t)
+    | Oload (_, `name s) -> tty s
     | Olocal _ -> None
     | Oret -> None
-    | Oref -> Some word
     | Osel t -> Some (t :> Type.t)
     | Oset _ -> None
     | Osingle _ -> Some `f32
@@ -142,7 +140,6 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
     | Osym _ -> Some word
     | Otbl _ -> None
     | Ounop u -> infer_ty_unop u
-    | Ounref s -> tty s
     | Ovaarg (_, (#Type.basic as t)) -> Some (t :> Type.t)
     | Ovaarg (_, `name n) -> tty n
     | Ovar x -> tvar x
@@ -174,7 +171,6 @@ module Eval = struct
     | Oload _, _ -> None
     | Olocal _, _ -> None
     | Oret, _ -> None
-    | Oref, _ -> None
     | Oset _, _ -> None
     | Osel _, [Some `bool true;  t; _] -> t
     | Osel _, [Some `bool false; _; f] -> f
@@ -193,7 +189,6 @@ module Eval = struct
     | Ounop o, [Some `double a] ->
       (unop_double o a :> const option)
     | Ounop `flag t, [Some `bool b] -> Some (`int (Bv.bool b, t))
-    | Ounref _, _ -> None
     | Ounop _, _ -> None
     | Ovaarg _, _ -> None
     | Ovar _, _ -> None
@@ -249,22 +244,24 @@ let pp_op ppf = function
     Format.fprintf ppf "jmp"
   | Oint (i, t) ->
     Format.fprintf ppf "%a_%a" Bv.pp i Type.pp_imm t
-  | Oload (x, t) ->
+  | Oload (x, (#Type.basic as t)) ->
     Format.fprintf ppf "ld.%a:%a" Type.pp_basic t Var.pp x
+  | Oload (x, `name n) ->
+    Format.fprintf ppf "ld:%s:%a" n Var.pp x
   | Olocal l ->
     Format.fprintf ppf "%a" Label.pp l
   | Oret ->
     Format.fprintf ppf "ret"
-  | Oref ->
-    Format.fprintf ppf "ref"
   | Osel t ->
     Format.fprintf ppf "sel.%a" Type.pp_basic t
   | Oset x ->
     Format.fprintf ppf "set:%a" Var.pp x
   | Osingle s ->
     Format.fprintf ppf "%s_s" @@ Float32.to_string s
-  | Ostore (t, _) ->
+  | Ostore ((#Type.basic as t), _) ->
     Format.fprintf ppf "st.%a" Type.pp_basic t
+  | Ostore (`name n, _) ->
+    Format.fprintf ppf "st:%s" n
   | Osw t ->
     Format.fprintf ppf "sw.%a" Type.pp_imm t
   | Osym (s, 0) ->
@@ -277,8 +274,6 @@ let pp_op ppf = function
     Format.fprintf ppf "tbl:%a" Bv.pp i
   | Ounop u ->
     Format.fprintf ppf "%a" Insn.pp_unop u
-  | Ounref s ->
-    Format.fprintf ppf "unref:%s" s
   | Ovaarg (_, (#Type.basic as t)) ->
     Format.fprintf ppf "vaarg.%a" Type.pp_basic t
   | Ovaarg (_, `name n) ->
