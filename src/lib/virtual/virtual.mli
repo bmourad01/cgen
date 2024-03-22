@@ -95,23 +95,9 @@ val pp_dst : Format.formatter -> dst -> unit
 module Insn : sig
   include Virtual_insn_intf.S with type operand := operand
 
-  (** Memory operations.
-
-      [`load (x, t, a)]: load a value of type [t] from address [a] and
-      assign the result to [x].
-
-      [`store (t, v, a)]: store a value [v] of type [t] to address [a].
-  *)
-  type mem = [
-    | `load  of Var.t * Type.arg * operand
-    | `store of Type.arg * operand * operand
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the set of free variables in the memory operation. *)
-  val free_vars_of_mem : mem -> Var.Set.t
-
-  (** Pretty-prints a memory operation. *)
-  val pp_mem : Format.formatter -> mem -> unit
+  include Virtual_insn_intf.Mem
+    with type operand := operand
+     and type ty := Type.arg
 
   (** A call instruction.
 
@@ -693,23 +679,9 @@ module Abi : sig
   module Insn : sig
     include Virtual_insn_intf.S with type operand := operand
 
-    (** Memory operations.
-
-        [`load (x, t, a)]: load a value of type [t] from address [a] and
-        assign the result to [x].
-
-        [`store (t, v, a)]: store a value [v] of type [t] to address [a].
-    *)
-    type mem = [
-      | `load  of Var.t * Type.basic * operand
-      | `store of Type.basic * operand * operand
-    ] [@@deriving bin_io, compare, equal, sexp]
-
-    (** Returns the set of free variables in the memory operation. *)
-    val free_vars_of_mem : mem -> Var.Set.t
-
-    (** Pretty-prints a memory operation. *)
-    val pp_mem : Format.formatter -> mem -> unit
+    include Virtual_insn_intf.Mem
+      with type operand := operand
+       and type ty := Type.basic
 
     (** An argument to a call instruction.
 
