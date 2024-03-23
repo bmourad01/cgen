@@ -66,10 +66,10 @@ module Make(M : L) = struct
        `Bad`: the slot's usage is either unknown or is inconsistent with
        promotion.
 
-       `Size n`: the slot is known to have been read at size `n`.
+       `Read n`: the slot is known to have been read at size `n`.
 
-       `Tsize (n, t)`: the slot is known to have been read at size `n`,
-       stored at size `n` and type `t`, or both.
+       `Write (n, t)`: the slot is known to have been written with size
+       `n` and type `t`, and possibly read at size `n`.
     *)
     type t =
       | Bad
