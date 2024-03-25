@@ -3,6 +3,7 @@ module Lower_abi = Lower_abi
 module Promote_slots = Promote_slots
 module Remove_dead_vars = Remove_dead_vars
 module Remove_disjoint_blks = Remove_disjoint_blks
+module Resolve_constant_blk_args = Resolve_constant_blk_args
 module Sccp = Sccp
 module Simplify_cfg = Simplify_cfg
 module Ssa = Ssa

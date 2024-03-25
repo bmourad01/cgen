@@ -31,6 +31,7 @@ let test name _ =
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
     let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
     let*? tenv = retype tenv m in
+    let m = Virtual.Module.map_funs m ~f:Passes.Resolve_constant_blk_args.run in
     let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Egraph_opt.run tenv) in
     let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
@@ -117,6 +118,7 @@ let suite = "Test optimizations" >::: [
     "Slot promotion 2 (GCD, partial)" >:: test "promote2-partial";
     "Tail recursion elimination 1 (factorial)" >:: test "tailrec1";
     "Tail recursion elimination 2 (fibonacci)" >:: test "tailrec2";
+    "Constant phi" >:: test "constphi";
   ]
 
 let () = run_test_tt_main suite

@@ -25,6 +25,7 @@ let comp filename =
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
   let*? tenv = retype tenv m in
+  let m = Virtual.Module.map_funs m ~f:Passes.Resolve_constant_blk_args.run in
   let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Egraph_opt.run tenv) in
   let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
