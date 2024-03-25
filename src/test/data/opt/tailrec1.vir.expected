@@ -1,0 +1,15 @@
+module foo
+
+export function w $foo(w %acc, w %n) {
+@7:
+  jmp @0(%acc, %n)
+@0(%0, %1):
+  %2 = sle.w %1, 0x0_w ; @8
+  br %2, @1, @2
+@1:
+  ret %0
+@2:
+  %3 = mul.w %0, %1 ; @9
+  %4 = sub.w %1, 0x1_w ; @10
+  jmp @0(%3, %4)
+}

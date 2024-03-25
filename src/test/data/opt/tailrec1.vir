@@ -1,0 +1,14 @@
+module foo
+
+export function w $foo(w %acc, w %n) {
+@start:
+  %c = sle.w %n, 0_w
+  br %c, @zero, @notzero
+@zero:
+  ret %acc
+@notzero:
+  %acc = mul.w %acc, %n
+  %n = sub.w %n, 1_w
+  %res = call.w $foo(%acc, %n)
+  ret %res
+}
