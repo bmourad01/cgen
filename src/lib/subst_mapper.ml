@@ -1,12 +1,11 @@
-(* Helpers for substituting block arguments. *)
+(* This is fairly common enough to be shared by many passes. *)
 
 open Core
 open Regular.Std
+open Monads.Std
 open Virtual
-open Simplify_cfg_common
 
-open O.Let
-open O.Syntax
+module O = Monad.Option
 
 type t = operand Var.Map.t
 
@@ -19,6 +18,7 @@ let map_arg subst (o : operand) = match o with
   | _ -> o
 
 let map_local subst : local -> local = function
+  | `label (_, []) as l -> l
   | `label (l, args) ->
     `label (l, List.map args ~f:(map_arg subst))
 
@@ -104,10 +104,11 @@ let map_blk subst b =
   let insns = Blk.insns b |> Seq.map ~f:(map_insn subst) in
   Seq.to_list insns, map_ctrl subst (Blk.ctrl b)
 
-let extend subst b b' =
+let blk_extend subst b b' =
+  let open O.Let in
   let* args = match Blk.ctrl b with
     | `jmp (`label (_, args)) ->
-      !!(List.map args ~f:(map_arg subst))
+      Some (List.map args ~f:(map_arg subst))
     | _ -> None in
   Blk.args b' |> Seq.to_list |> List.zip args |> function
   | Unequal_lengths -> None

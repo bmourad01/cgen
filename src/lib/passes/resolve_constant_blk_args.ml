@@ -94,88 +94,9 @@ let analyze fn =
      since this is a forward-flow analysis. *)
   filter_many @@ Solution.get soln Label.pseudoexit
 
-let map_operand s (o : operand) : operand = match o with
-  | `var x ->
-    begin match Map.find s x with
-      | None -> o
-      | Some o -> o
-    end
-  | _ -> o
-
-let map_local s (l : local) : local = match l with
-  | `label (l, args) -> `label (l, List.map args ~f:(map_operand s))
-
-let map_global s (g : global) : global = match g with
-  | `var x ->
-    begin match Map.find s x with
-      | None -> g
-      | Some `var x -> `var x
-      | Some `int (a, _) -> `addr a
-      | Some (`sym _ as s) -> s
-      | Some _ -> assert false
-    end
-  | _ -> g
-
-let map_dst s (d : dst) : dst = match d with
-  | #local as l -> (map_local s l :> dst)
-  | #global as g -> (map_global s g :> dst)
-
-let map_sel s x t c l r =
-  let c = match Map.find s c with
-    | None -> c
-    | Some `var c -> c
-    | Some _ -> assert false in
-  `sel (x, t, c, map_operand s l, map_operand s r)
-
-let map_call s x f args vargs =
-  let args = List.map args ~f:(map_operand s) in
-  let vargs = List.map vargs ~f:(map_operand s) in
-  `call (x, map_global s f, args, vargs)
-
-let map_br s c y n =
-  let c = match Map.find s c with
-    | None -> c
-    | Some `var c -> c
-    | Some _ -> assert false in
-  `br (c, map_dst s y, map_dst s n)
-
-let map_sw s t i d tbl =
-  let d = map_local s d in
-  let tbl = Ctrl.Table.map_exn tbl ~f:(fun i l -> i, map_local s l) in
-  match i with
-  | `sym _ -> `sw (t, i, d, tbl)
-  | `var x -> match Map.find s x with
-    | None -> `sw (t, i, d, tbl)
-    | Some (`var _ | `sym _ as i) -> `sw (t, i, d, tbl)
-    | Some `int (i, _) ->
-      let d =
-        Ctrl.Table.find tbl i |>
-        Option.value ~default:d in
-      `jmp (d :> dst)
-    | Some  _ -> assert false
-
 let run fn =
   let s = analyze fn in
-  if not @@ Map.is_empty s then
-    let dst = map_dst s in
-    let glo = map_global s in
-    let oper = map_operand s in
-    Func.map_blks fn ~f:(fun b ->
-        Blk.map_insns b ~f:(fun _ -> function
-            | `bop (x, b, l, r) -> `bop (x, b, oper l, oper r)
-            | `uop (x, u, a) -> `uop (x, u, oper a)
-            | `sel (x, t, c, l, r) -> map_sel s x t c l r
-            | `call (x, f, args, vargs) -> map_call s x f args vargs
-            | `load (x, t, a) -> `load (x, t, oper a)
-            | `store (t, v, a) -> `store (t, oper v, oper a)
-            | `vastart a -> `vastart (glo a)
-            | `vaarg (x, t, a) -> `vaarg (x, t, glo a)) |>
-        Blk.map_ctrl ~f:(function
-            | `hlt -> `hlt
-            | `ret None as r -> r
-            | `ret Some x -> `ret (Some (oper x))
-            | `jmp d -> `jmp (dst d)
-            | `br (c, y, n) -> map_br s c y n
-            | `sw (t, i, d, tbl) -> map_sw s t i d tbl))
-
+  if not @@ Map.is_empty s then Func.map_blks fn ~f:(fun b ->
+      let is, k = Subst_mapper.map_blk s b in
+      Blk.(with_ctrl (with_insns b is) k))
   else fn

@@ -6,8 +6,6 @@ open Regular.Std
 open Virtual
 open Simplify_cfg_common
 
-module Subst = Simplify_cfg_subst
-
 open O.Let
 open O.Syntax
 
@@ -43,11 +41,11 @@ let chase ?(local_only = false) (s : singles) l =
 
 (* Perform the substitutions on block arguments for the entire chain. *)
 let rec eval subst env = function
-  | Dest d -> !!(Subst.map_dst subst d)
+  | Dest d -> !!(Subst_mapper.map_dst subst d)
   | Next (l, l', x) ->
     let* b = Hashtbl.find env.blks l in
     let* b' = Hashtbl.find env.blks l' in
-    let* subst = Subst.extend subst b b' in
+    let* subst = Subst_mapper.blk_extend subst b b' in
     eval subst env x
 
 let init_subst env l args =

@@ -29,6 +29,7 @@
   live_intf
   resolver_intf
   sm
+  subst_mapper
   tags
   var_internal
   virtual_lexer

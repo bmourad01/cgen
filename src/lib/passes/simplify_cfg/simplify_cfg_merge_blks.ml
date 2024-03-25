@@ -6,8 +6,6 @@ open Graphlib.Std
 open Virtual
 open Simplify_cfg_common
 
-module Subst = Simplify_cfg_subst
-
 open O.Let
 
 let can_merge env l l' =
@@ -20,7 +18,7 @@ let candidate subst env b l =
   Cfg.Node.succs l env.cfg |> Seq.to_list |> function
   | [l'] when can_merge env l l' ->
     let* b' = Hashtbl.find env.blks l' in
-    let+ subst = Subst.extend subst b b' in
+    let+ subst = Subst_mapper.blk_extend subst b b' in
     subst, l', b'
   | _ -> None
 
@@ -41,7 +39,7 @@ let rec try_merge ?child subst env l =
 and merge subst env l l' b b' =
   let insns', ctrl = if Map.is_empty subst
     then Seq.to_list (Blk.insns b'), Blk.ctrl b'
-    else Subst.map_blk subst b' in
+    else Subst_mapper.map_blk subst b' in
   let insns = Blk.insns b |> Seq.to_list in
   let b = Blk.create () ~ctrl ~label:l
       ~args:(Seq.to_list @@ Blk.args b)
@@ -63,7 +61,7 @@ let run env =
         Hashtbl.change env.blks l ~f:(O.map ~f:(fun b ->
             let dict = Blk.dict b in
             let args = Blk.args b |> Seq.to_list in
-            let insns, ctrl = Subst.map_blk subst b in
+            let insns, ctrl = Subst_mapper.map_blk subst b in
             Blk.create () ~dict ~args ~insns ~ctrl ~label:l));
       (* If we successfully merge for the block at this label,
          then we know it has only one child in the dominator

@@ -4,8 +4,6 @@ open Core
 open Regular.Std
 open Virtual
 
-module Subst = Simplify_cfg_subst
-
 open Context.Syntax
 
 let collect_calls fn =
@@ -32,7 +30,7 @@ let fresh_args fn =
         y :: l, Map.set m ~key:x ~data:(`var y))
 
 let subst_args subst b =
-  let insns, ctrl = Subst.map_blk subst b in
+  let insns, ctrl = Subst_mapper.map_blk subst b in
   insns |> Blk.with_insns b |> Fn.flip Blk.with_ctrl ctrl
 
 let redir_entry e calls b = match Label.Tree.find calls @@ Blk.label b with
