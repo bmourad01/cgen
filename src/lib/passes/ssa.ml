@@ -289,12 +289,52 @@ end = struct
     | Pop b -> pop_defs env b
 end
 
+module Check : sig
+  val go : env -> func -> unit
+end = struct
+  let fail fn = failwithf "$%s violates SSA invariants" (Func.name fn) ()
+
+  let check_dom ?(k = Fn.id) env fn b b' =
+    let l = Blk.label b in
+    let l' = Blk.label b' in
+    if Label.(l = l') then k ()
+    else if not (Tree.is_descendant_of env.dom ~parent:l l')
+    then fail fn
+
+  (* The resolver should handle multiple definitions, as well as uses
+     with no definitions. *)
+  let go env fn = match Resolver.create fn with
+    | Error err -> failwith @@ Error.to_string_hum err
+    | Ok r -> Func.blks fn |> Seq.iter ~f:(fun b ->
+        (* Check that the use of each variable is dominated by
+           its definition. We don't need to check the function
+           arguments or slots because their scope is fixed. *)
+        Blk.args b |> Seq.iter ~f:(fun x ->
+            Resolver.uses r x |> List.iter ~f:(function
+                | `insn (_, b', _) | `blk b' ->
+                  check_dom env fn b b'));
+        Blk.insns b |> Seq.iter ~f:(fun i ->
+            Insn.lhs i |> Option.iter ~f:(fun x ->
+                Resolver.uses r x |> List.iter ~f:(function
+                    | `blk b' -> check_dom env fn b b'
+                    | `insn (i', b', _) ->
+                      check_dom env fn b b' ~k:(fun () ->
+                          (* Check that `i` is defined before `i'`. *)
+                          let l = Insn.label i in
+                          let l' = Insn.label i' in
+                          Blk.insns b' |> Seq.fold_until
+                            ~init:() ~finish:Fn.id ~f:(fun () x ->
+                                if Insn.has_label x l then Stop ()
+                                else if Insn.has_label x l' then fail fn
+                                else Continue ()))))))
+end
+
 let try_ fn f = try Ok (f ()) with
   | Missing_blk l ->
     Or_error.errorf
       "SSA: missing block %a in function $%s"
       Label.pps l (Func.name fn)
-  | Invalid_argument msg ->
+  | Invalid_argument msg | Failure msg ->
     Or_error.errorf "SSA: %s" msg
 
 let run fn = try_ fn @@ fun () ->
@@ -307,4 +347,5 @@ let run fn = try_ fn @@ fun () ->
     let fn =
       Hashtbl.data env.blks |>
       Func.update_blks_exn fn in
+    Check.go env fn;
     Func.with_tag fn Tags.ssa ()

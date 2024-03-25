@@ -77,6 +77,13 @@ module Make(M : L) : S
   let duplicate_def = E.failf "Duplicate definition for var %a" Var.pp
   let duplicate_label = E.failf "Duplicate label %a" Label.pp
 
+  let verify_uses use def = try
+      Hashtbl.iter_keys use ~f:(fun x ->
+          if not @@ Hashtbl.mem def x then
+            failwithf "Variable %a is used but not defined" Var.pps x ());
+      !!()
+    with Failure msg -> E.fail @@ Error.of_string msg
+
   let create fn =
     let lbl = Label.Table.create () in
     let use = Var.Table.create () in
@@ -86,7 +93,7 @@ module Make(M : L) : S
     let* () = Func.slots fn |> E.Seq.iter ~f:(fun s ->
         let x = Virtual_slot.var s in
         insert def x `slot ~err:(duplicate_def x)) in
-    let+ () = Func.blks fn |> E.Seq.iter ~f:(fun b ->
+    let* () = Func.blks fn |> E.Seq.iter ~f:(fun b ->
         let label = Blk.label b in
         let blk = `blk b in
         let* () = insert lbl label blk ~err:(duplicate_label label) in
@@ -103,5 +110,6 @@ module Make(M : L) : S
                 Hashtbl.add_multi use ~key ~data)) in
         Blk.ctrl b |> Ctrl.free_vars |> Set.iter ~f:(fun key ->
             Hashtbl.add_multi use ~key ~data:blk)) in
+    let+ () = verify_uses use def in
     {lbl; use; def}
 end
