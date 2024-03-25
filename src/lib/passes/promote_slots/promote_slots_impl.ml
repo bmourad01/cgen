@@ -13,6 +13,7 @@ module type L = sig
   module Insn : sig
     type op
     type t
+    val label : t -> Label.t
     val store : t -> (operand * Var.t * Type.basic) option
     val load : t -> (Var.t * Type.basic) option
     val fibits : Var.t -> Type.fp -> operand -> op
@@ -35,8 +36,6 @@ module type L = sig
     val map_blks : t -> f:(Blk.t -> Blk.t) -> t
   end
 
-  module Use : Use_intf.S with type func := Func.t
-
   module Resolver : Resolver_intf.S
     with type lhs := lhs
      and type insn := Insn.t
@@ -49,16 +48,14 @@ module Make(M : L) = struct
 
   type env = {
     fn   : Func.t;
-    use  : Use.t;
     reso : Resolver.t;
     ops  : Insn.op Label.Table.t;
   }
 
   let init fn =
     let+ reso = Resolver.create fn in
-    let use = Use.compute fn in
     let ops = Label.Table.create () in
-    {fn; use; reso; ops}
+    {fn; reso; ops}
 
   module Qualify = struct
     (* The qualification of the slot.
@@ -106,11 +103,10 @@ module Make(M : L) = struct
 
     let go env s =
       let x = Slot.var s in
-      Use.find env.use x |>
-      Set.fold_until ~init:Bad ~finish:Fn.id ~f:(fun acc u ->
-          match Resolver.resolve env.reso u with
-          | Some `blk _ | None -> Stop Bad
-          | Some `insn (i, _, _) -> match infer acc x i with
+      Resolver.uses env.reso x |>
+      List.fold_until ~init:Bad ~finish:Fn.id ~f:(fun acc -> function
+          |`blk _ -> Stop Bad
+          | `insn (i, _, _) -> match infer acc x i with
             | (Read _ | Write _) as acc -> Continue acc
             | Bad -> Stop Bad)
   end
@@ -145,10 +141,11 @@ module Make(M : L) = struct
     Hashtbl.set env.ops ~key:l ~data:k
 
   let replace env = Map.iteri ~f:(fun ~key:x ~data:t ->
-      Use.find env.use x |> Set.iter ~f:(fun l ->
-          match Resolver.resolve env.reso l with
-          | None | Some `blk _ -> assert false
-          | Some `insn (i, _, _) -> match Insn.store i with
+      Resolver.uses env.reso x |> List.iter ~f:(function
+          | `blk _ -> assert false
+          | `insn (i, _, _) ->
+            let l = Insn.label i in
+            match Insn.store i with
             | Some (v, _, _) -> replace_store env x l v t
             | None -> match Insn.load i with
               | Some (y, t') -> replace_load env x l y t t'

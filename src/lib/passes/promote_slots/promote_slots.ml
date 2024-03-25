@@ -26,7 +26,6 @@ module V = Make(struct
     module Blk = Blk
     module Func = Func
     module Cfg = Cfg
-    module Use = Use
     module Resolver = Resolver
   end)
 

@@ -30,7 +30,6 @@
   resolver_intf
   sm
   tags
-  use_intf
   var_internal
   virtual_lexer
   virtual_parser)

@@ -4,7 +4,6 @@ type blk = Abi_blk.t [@@deriving bin_io, compare, equal, sexp]
 type func = Abi_func.t [@@deriving bin_io, compare, equal, sexp]
 type cfg = Abi_cfg.t
 type live = Abi_live.t
-type use = Abi_use.t
 type resolver = Abi_resolver.t
 
 module Insn = Abi_insn
@@ -13,5 +12,4 @@ module Blk = Abi_blk
 module Func = Abi_func
 module Cfg = Abi_cfg
 module Live = Abi_live
-module Use = Abi_use
 module Resolver = Abi_resolver

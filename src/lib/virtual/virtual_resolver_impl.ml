@@ -6,25 +6,37 @@ open Resolver_intf
 module E = Monad.Result.Error
 
 open E.Let
+open E.Syntax
 
 module type L = sig
   type lhs
+
+  val vars_of_lhs : lhs -> Var.t list
 
   module Insn : sig
     type t
     val label : t -> Label.t
     val lhs : t -> lhs
+    val free_vars : t -> Var.Set.t
+  end
+
+  module Ctrl : sig
+    type t
+    val free_vars : t -> Var.Set.t
   end
 
   module Blk : sig
     type t
     val label : t -> Label.t
+    val ctrl : t -> Ctrl.t
     val args : ?rev:bool -> t -> Var.t seq
     val insns : ?rev:bool -> t -> Insn.t seq
   end
 
   module Func : sig
     type t
+    val args : ?rev:bool -> t -> Var.t seq
+    val slots : ?rev:bool -> t -> Virtual_slot.t seq
     val blks : ?rev:bool -> t -> Blk.t seq
   end
 end
@@ -41,36 +53,55 @@ module Make(M : L) : S
     | `insn of Insn.t * Blk.t * lhs
   ]
 
+  type def = [
+    | resolved
+    | `slot
+    | `arg
+    | `blkarg of Blk.t
+  ]
+
   type t = {
-    tbl  : resolved Label.Table.t;
-    barg : Label.t Var.Table.t;
+    lbl : resolved Label.Table.t;
+    use : resolved list Var.Table.t;
+    def : def Var.Table.t;
   }
 
-  let resolve t = Hashtbl.find t.tbl
-  let blk_arg t = Hashtbl.find t.barg
+  let resolve t = Hashtbl.find t.lbl
+  let def t = Hashtbl.find t.def
+  let uses t x = Hashtbl.find t.use x |> Option.value ~default:[]
+
+  let insert t x y ~err = match Hashtbl.add t ~key:x ~data:y with
+    | `Duplicate -> err ()
+    | `Ok -> !!()
+
+  let duplicate_def = E.failf "Duplicate definition for var %a" Var.pp
+  let duplicate_label = E.failf "Duplicate label %a" Label.pp
 
   let create fn =
-    let tbl = Label.Table.create () in
-    let barg = Var.Table.create () in
+    let lbl = Label.Table.create () in
+    let use = Var.Table.create () in
+    let def = Var.Table.create () in
+    let* () = Func.args fn |> E.Seq.iter ~f:(fun a ->
+        insert def a `arg ~err:(duplicate_def a)) in
+    let* () = Func.slots fn |> E.Seq.iter ~f:(fun s ->
+        let x = Virtual_slot.var s in
+        insert def x `slot ~err:(duplicate_def x)) in
     let+ () = Func.blks fn |> E.Seq.iter ~f:(fun b ->
         let label = Blk.label b in
-        let* () = match Hashtbl.add tbl ~key:label ~data:(`blk b) with
-          | `Ok -> Ok ()
-          | `Duplicate ->
-            E.failf "Duplicate label for block %a" Label.pp label () in
+        let blk = `blk b in
+        let* () = insert lbl label blk ~err:(duplicate_label label) in
         let* () = Blk.args b |> E.Seq.iter ~f:(fun x ->
-            match Hashtbl.add barg ~key:x ~data:label with
-            | `Ok -> Ok ()
-            | `Duplicate ->
-              E.failf "Duplicate label for block argument %a in block %a"
-                Var.pp x Label.pp label ()) in
-        Blk.insns b |> E.Seq.iter ~f:(fun i ->
+            insert def x (`blkarg b) ~err:(duplicate_def x)) in
+        let+ () = Blk.insns b |> E.Seq.iter ~f:(fun i ->
             let key = Insn.label i in
-            let data = `insn (i, b, Insn.lhs i) in
-            match Hashtbl.add tbl ~key ~data with
-            | `Ok -> Ok ()
-            | `Duplicate ->
-              E.failf "Duplicate label for instruction %a in block %a"
-                Label.pp key Label.pp label ())) in
-    {tbl; barg}
+            let lhs = Insn.lhs i in
+            let data = `insn (i, b, lhs) in
+            let* () = insert lbl key data ~err:(duplicate_label key) in
+            let+ () = vars_of_lhs lhs |> E.List.iter ~f:(fun x ->
+                insert def x data ~err:(duplicate_def x)) in
+            Insn.free_vars i |> Set.iter ~f:(fun key ->
+                Hashtbl.add_multi use ~key ~data)) in
+        Blk.ctrl b |> Ctrl.free_vars |> Set.iter ~f:(fun key ->
+            Hashtbl.add_multi use ~key ~data:blk)) in
+    {lbl; use; def}
 end

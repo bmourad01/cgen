@@ -121,10 +121,14 @@ module Licm = struct
           not (is_arg_or_slot t x) &&
           (* If this is a block argument, then find out if it belongs to
              a loop. *)
-          Resolver.blk_arg t.input.reso x |>
-          Option.value_map ~default:true ~f:(fun l -> match find_loop t l with
-              | Some lp' when is_child_loop t lp lp' -> false
-              | Some _ | None -> true)
+          begin match Resolver.def t.input.reso x with
+            | Some `blkarg b ->
+              begin match find_loop t @@ Blk.label b with
+                | Some lp' when is_child_loop t lp lp' -> false
+                | Some _ | None -> true
+              end
+            | Some _ | None -> true
+          end
         | _ ->
           (* At this point, anything that is not a constant is suspect. *)
           not @@ Enode.is_const n
