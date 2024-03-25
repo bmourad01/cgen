@@ -103,6 +103,7 @@ let suite = "Test optimizations" >::: [
     "Test rotate left by constant and OR" >:: test "rolconstor";
     "Test rotate left by constant and addition" >:: test "rolconstadd";
     "Redundant load elimination" >:: test "rle";
+    "Redundant load elimination (partial redundancy)" >:: test "rle-partial";
     "Test prime numbers" >:: test "prime";
     "Test strcmp RLE" >:: test "strcmprle";
     "Test strcmp non-RLE" >:: test "strcmpnonrle";
