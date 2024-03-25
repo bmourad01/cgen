@@ -8,6 +8,7 @@ open Egraph_common
 module Rewrite = Egraph_rewrite
 module E = Monad.Result.Error
 
+exception Notype of Var.t
 exception Missing of Label.t
 exception Duplicate of Var.t * Label.t
 
@@ -66,10 +67,10 @@ let atom ?ty eg op = node ?ty eg op []
 let constant ?ty eg k =
   Rewrite.insert ?ty ~d:eg.depth_limit eg @@ Enode.of_const k
 
-let var env eg x =
-  Hashtbl.find_or_add env.vars x ~default:(fun () ->
-      let ty = typeof_var eg x in
-      atom ?ty eg @@ Ovar x)
+let var env eg x = Hashtbl.find_or_add env.vars x
+    ~default:(fun () -> match typeof_var eg x with
+        | Some ty -> atom ~ty eg @@ Ovar x
+        | None -> raise @@ Notype x)
 
 let typeof_const eg : const -> Type.t = function
   | `bool _ -> `flag
@@ -272,6 +273,9 @@ let try_ f = try Ok (f ()) with
   | Duplicate (x, l) ->
     E.failf "%s: duplicate definition of var %a at instruction %a"
       error_prefix Var.pp x Label.pp l ()
+  | Notype x ->
+    E.failf "%s: missing type of var %a"
+      error_prefix Var.pp x ()
 
 let run eg = try_ @@ fun () ->
   let env = init () in

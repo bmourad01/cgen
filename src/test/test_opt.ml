@@ -8,6 +8,10 @@ let fmt = String.filter ~f:(function
     | '\r' | '\n' | '\t' | ' ' -> false
     | _ -> true)
 
+let retype tenv m =
+  Virtual.Module.funs m |>
+  Seq.to_list |> Typecheck.update_fns tenv
+
 let test name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = filename ^ ".expected" in
@@ -21,13 +25,12 @@ let test name _ =
     let*? tenv = Typecheck.run m ~target in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Promote_slots.run in
-    let*? tenv =
-      Virtual.Module.funs m |>
-      Seq.to_list |> Typecheck.update_fns tenv in
+    let*? tenv = retype tenv m in
     let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Sccp.run tenv) in
     let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
     let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
+    let*? tenv = retype tenv m in
     let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Egraph_opt.run tenv) in
     let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
@@ -112,6 +115,7 @@ let suite = "Test optimizations" >::: [
     "Slot promotion 2 (GCD)" >:: test "promote2";
     "Slot promotion 2 (GCD, partial)" >:: test "promote2-partial";
     "Tail recursion elimination 1 (factorial)" >:: test "tailrec1";
+    "Tail recursion elimination 2 (fibonacci)" >:: test "tailrec2";
   ]
 
 let () = run_test_tt_main suite

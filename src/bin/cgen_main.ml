@@ -6,6 +6,10 @@ let pp_sep ppf () = Format.fprintf ppf "@.@."
 
 let err f = Fn.compose Context.lift_err f
 
+let retype tenv m =
+  Virtual.Module.funs m |>
+  Seq.to_list |> Typecheck.update_fns tenv
+
 let comp filename =
   let open Context.Syntax in
   let* target = Context.target in
@@ -15,17 +19,17 @@ let comp filename =
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
   Format.printf "%a\n%!" Virtual.Module.pp m;
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Promote_slots.run in
-  let*? tenv =
-    Virtual.Module.funs m |>
-    Seq.to_list |> Typecheck.update_fns tenv in
+  let*? tenv = retype tenv m in
   let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Sccp.run tenv) in
   let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
+  let*? tenv = retype tenv m in
   let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Egraph_opt.run tenv) in
   let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
+  let*? tenv = retype tenv m in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
   Format.printf "=================================================\n%!";
   Format.printf "%a\n%!" Virtual.Module.pp m;
