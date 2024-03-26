@@ -1,0 +1,38 @@
+module foo
+
+export function w $foo(w %n) {
+  %count = slot 4, align 4
+  %x = slot 4, align 4
+@start:
+  st.w 0_w, %count 
+  st.w %n, %x
+  jmp @header
+@header:
+  %a = ld.w %x
+  %c = gt.w %a, 1_w
+  br %c, @body, @done
+@body:
+  %a = ld.w %x
+  %r = urem.w %a, 2_w
+  %c = eq.w %r, 0_w
+  br %c, @eqz, @neqz
+@eqz:
+  %a = ld.w %x
+  %d = udiv.w %a, 2_w
+  st.w %d, %x
+  jmp @inc
+@neqz:
+  %a = ld.w %x
+  %m = mul.w %a, 3_w
+  %m = add.w %m, 1_w
+  st.w %m, %x
+  jmp @inc
+@inc:
+  %k = ld.w %count
+  %k = add.w %k, 1_w
+  st.w %k, %count
+  jmp @header
+@done:
+  %k = ld.w %count
+  ret %k
+}

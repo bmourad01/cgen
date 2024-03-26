@@ -2,7 +2,6 @@
    representation. *)
 
 open Core
-open Regular.Std
 open Graphlib.Std
 open Egraph_common
 open Virtual
@@ -74,18 +73,12 @@ let duplicate t id a = match Hashtbl.find t.isrc id with
     move t [a; b] c @@ find t id
 
 module Licm = struct
+  let find_blk_loop t l = Loops.blk t.input.loop l
+
   let find_loop t l = match Resolver.resolve t.input.reso l with
     | Some (`blk b | `insn (_, b, _)) ->
-      Loops.blk t.input.loop @@ Blk.label b
+      find_blk_loop t @@ Blk.label b
     | None -> assert false
-
-  let is_arg t x =
-    Func.args t.input.fn |> Seq.exists ~f:(fun (y, _) -> Var.(x = y))
-
-  let is_slot t x =
-    Func.slots t.input.fn |> Seq.exists ~f:(Fn.flip Slot.is_var x)
-
-  let is_arg_or_slot t x = is_arg t x || is_slot t x
 
   let is_child_loop t a b =
     not (Loops.equal_loop a b) &&
@@ -96,42 +89,83 @@ module Licm = struct
     | Some _ as l -> l
 
   module Variance = struct
+    (* Almost the same as `child`, but ignores the special cases
+       thereof. *)
     let rec is_variant ~lp t l n = match find_loop t l with
       | Some lp' when is_child_loop t lp lp' -> false
       | Some _ -> children ~lp t n
       | None -> false
 
+    (* Same as below, but we examine just the children of `n`. *)
     and children ~lp t n = match (n : enode) with
       | N (_, cs) -> List.exists cs ~f:(child ~lp t)
       | U {pre; post} ->
+        (* XXX: do we want to default to the canonical ID here?
+           We have to answer the question of whether the term
+           could have been (soundly) rewritten such that it
+           becomes invariant with respect to `lp`.
+
+           Note that we ignore the case of rewriting to a constant,
+           as they are marked as "subsuming" the previous term
+           instead of being part of a tree of union nodes.
+        *)
         let id = find t pre in
         assert (id = find t post);
         children ~lp t @@ node t id
 
-    (* If the child node has a known label, then recursively ask if it
-       is variant w.r.t. the current loop. *)
-    and child ~lp t id =
-      let n = node t id in
-      match id2label t id with
-      | Some l -> is_variant ~lp t l n
-      | None -> match n with
-        | N (Ovar x, []) ->
-          (* Arguments and stack slots have scope for the entire
-             function. *)
-          not (is_arg_or_slot t x) &&
-          (* If this is a block argument, then find out if it belongs to
-             a loop. *)
-          begin match Resolver.def t.input.reso x with
-            | Some `blkarg b ->
-              begin match find_loop t @@ Blk.label b with
-                | Some lp' when is_child_loop t lp lp' -> false
-                | Some _ | None -> true
-              end
-            | Some _ | None -> true
-          end
-        | _ ->
-          (* At this point, anything that is not a constant is suspect. *)
-          not @@ Enode.is_const n
+    (* Generic entry point for determining of a node ID is variant
+       w.r.t the loop `lp`.
+
+       This has a lot of comments in an effort to convince myself
+       that this is correct.
+    *)
+    and child ~lp t id = match node t id with
+      | N (Ovar x, []) ->
+        (* The node is a "free" variable, so it's restricted to a
+           few scenarios, mainly related to whether it's an induction
+           variable of the current loop or not. *)
+        begin match Resolver.def t.input.reso x with
+          | Some (`slot | `arg) ->
+            (* Arguments and stack slots have scope for the entire
+               function. *)
+            false
+          | Some `blkarg b ->
+            (* It's block argument, so find out if it belongs to a
+               loop. *)
+            begin match find_blk_loop t @@ Blk.label b with
+              | Some lp' when is_child_loop t lp lp' ->
+                (* The loop it belongs to is nested inside of the
+                   current one. *)
+                false
+              | Some lp' when Loops.equal_loop lp lp' ->
+                (* It's defined by a block within the current loop. *)
+                true
+              | Some _ ->
+                (* It's defined in a loop, but not a child of the
+                   current one. *)
+                false
+              | None ->
+                (* It's not defined inside of any loop, so it's
+                   invariant. *)
+                false
+            end
+          | Some _ ->
+            (* It's defined by some instruction that we can't move. *)
+            true
+          | None -> assert false
+        end
+      | n when Enode.is_const n ->
+        (* If it's a constant then it is definitely invariant. *)
+        false
+      | n -> match id2label t id with
+        | Some l ->
+          (* Ask if where the node lives is variant with respect to
+             the current loop. *)
+          is_variant ~lp t l n
+        | None ->
+          (* We don't know where this node was defined or moved to,
+             so we will play it safe and consider it variant. *)
+          true
   end
 
   let header t lp = Loops.(header @@ get t.input.loop lp)
@@ -146,7 +180,7 @@ module Licm = struct
   let rec licm' t l n lp id =
     match Tree.parent t.input.dom @@ header t lp with
     | None -> assert false
-    | Some l' -> match find_loop t l' with
+    | Some l' -> match find_blk_loop t l' with
       | None -> licm_move t l l' id
       | Some lp' ->
         if Variance.children ~lp:lp' t n
