@@ -290,20 +290,20 @@ end = struct
 end
 
 module Check : sig
-  val go : env -> func -> unit
+  val go : Label.t tree -> func -> unit
 end = struct
   let fail fn = failwithf "$%s violates SSA invariants" (Func.name fn) ()
 
-  let check_dom ?(k = Fn.id) env fn b b' =
+  let check_dom ?(k = Fn.id) dom fn b b' =
     let l = Blk.label b in
     let l' = Blk.label b' in
     if Label.(l = l') then k ()
-    else if not (Tree.is_descendant_of env.dom ~parent:l l')
+    else if not (Tree.is_descendant_of dom ~parent:l l')
     then fail fn
 
   (* The resolver should handle multiple definitions, as well as uses
      with no definitions. *)
-  let go env fn = match Resolver.create fn with
+  let go dom fn = match Resolver.create fn with
     | Error err -> failwith @@ Error.to_string_hum err
     | Ok r -> Func.blks fn |> Seq.iter ~f:(fun b ->
         (* Check that the use of each variable is dominated by
@@ -312,13 +312,13 @@ end = struct
         Blk.args b |> Seq.iter ~f:(fun x ->
             Resolver.uses r x |> List.iter ~f:(function
                 | `insn (_, b', _) | `blk b' ->
-                  check_dom env fn b b'));
+                  check_dom dom fn b b'));
         Blk.insns b |> Seq.iter ~f:(fun i ->
             Insn.lhs i |> Option.iter ~f:(fun x ->
                 Resolver.uses r x |> List.iter ~f:(function
-                    | `blk b' -> check_dom env fn b b'
+                    | `blk b' -> check_dom dom fn b b'
                     | `insn (i', b', _) ->
-                      check_dom env fn b b' ~k:(fun () ->
+                      check_dom dom fn b b' ~k:(fun () ->
                           (* Check that `i` is defined before `i'`. *)
                           let l = Insn.label i in
                           let l' = Insn.label i' in
@@ -347,5 +347,10 @@ let run fn = try_ fn @@ fun () ->
     let fn =
       Hashtbl.data env.blks |>
       Func.update_blks_exn fn in
-    Check.go env fn;
+    Check.go env.dom fn;
     Func.with_tag fn Tags.ssa ()
+
+let check fn = try_ fn @@ fun () ->
+  let cfg = Cfg.create fn in
+  let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
+  Check.go dom fn
