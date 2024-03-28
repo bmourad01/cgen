@@ -106,6 +106,14 @@ module Rule : sig
 
       Note that such rewrite failures do not result in a run-time error;
       the rewriting engine merely skips this rule during the search procedure.
+
+      Another aspect of rewrite rules is {i subsumption}, denoted by the [!]
+      suffix. For such rules, if the rewrite is successful then the rewritten
+      term is presumed to be optimal for the associated e-class, and its other
+      equivalent forms will not be considered during future rewrites. This is
+      useful for performance concerns: users can tell the rewriting engine that
+      it should not waste time searching for more rewrite opportunities if the
+      optimal form has already been discovered.
   *)
   type t = rule
 
