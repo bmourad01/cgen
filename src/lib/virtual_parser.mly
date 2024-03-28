@@ -152,7 +152,7 @@
 %token NORETURN
 %token <string> STRING
 %token <Bv.t * Type.imm> INT
-%token <int> NUM
+%token <Bv.t> NUM
 %token <float> DOUBLE
 %token <Float32.t> SINGLE
 %token <bool> BOOL
@@ -230,7 +230,7 @@ module_elt:
 data:
   | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS ALIGN align = NUM LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
     {
-      make_data l (Some align) c name elts
+      make_data l (Some (Bv.to_int align)) c name elts
     }
   | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
     {
@@ -240,25 +240,26 @@ data:
 data_elt:
   | c = const { (c :> Virtual.Data.elt) }
   | B s = STRING { `string s }
-  | Z n = NUM { `zero n }
+  | Z n = NUM { `zero (Bv.to_int n) }
 
 typ:
   | TYPE name = TYPENAME EQUALS LBRACE fields = separated_list(COMMA, typ_field) RBRACE
     { `compound (name, None, fields) }
   | TYPE name = TYPENAME EQUALS ALIGN align = NUM LBRACE t = typ_fields_or_opaque RBRACE
     {
+      let align = Bv.to_int align in
       match t with
       | `opaque n -> `opaque (name, align, n)
       | `fields f -> `compound (name, Some align, f)
     }
 
 typ_fields_or_opaque:
-  | n = NUM { `opaque n }
+  | n = NUM { `opaque (Bv.to_int n) }
   | fs = separated_list(COMMA, typ_field) { `fields fs }
 
 typ_field:
-  | b = type_basic n = option(NUM) { `elt (b, Core.Option.value n ~default:1) }
-  | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value n ~default:1) }
+  | b = type_basic n = option(NUM) { `elt (b, Core.Option.value_map n ~default:1 ~f:Bv.to_int) }
+  | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value_map n ~default:1 ~f:Bv.to_int) }
 
 func:
   | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
@@ -304,6 +305,8 @@ slot:
   | x = var EQUALS SLOT size = NUM COMMA ALIGN align = NUM
     {
       let* x = x in
+      let size = Bv.to_int size in
+      let align = Bv.to_int align in
       match Virtual.Slot.create x ~size ~align with
       | Error e -> Context.fail e
       | Ok s -> !!s
@@ -360,8 +363,8 @@ ctrl:
 ctrl_index:
   | x = var { let+ x = x in `var x }
   | s = SYM { !!(`sym (s, 0)) }
-  | s = SYM PLUS i = NUM { !!(`sym (s, i)) }
-  | s = SYM MINUS i = NUM { !!(`sym (s, -i)) }
+  | s = SYM PLUS i = NUM { !!(`sym (s, Bv.to_int i)) }
+  | s = SYM MINUS i = NUM { !!(`sym (s, -(Bv.to_int i))) }
 
 ctrl_table_entry:
   | i = INT ARROW l = local { let+ l = l in i, l }
@@ -405,10 +408,10 @@ insn:
       let+ x = x and+ y = y in
       `vaarg (x, t, `var y)
     }
-  | x = var EQUALS t = VAARG y = INT
+  | x = var EQUALS t = VAARG y = NUM
     {
       let+ x = x in
-      `vaarg (x, t, `addr (fst y))
+      `vaarg (x, t, `addr y)
     }
   | x = var EQUALS t = VAARG y = SYM
     {
@@ -418,18 +421,18 @@ insn:
   | x = var EQUALS t = VAARG y = SYM PLUS i = NUM
     {
       let+ x = x in
-      `vaarg (x, t, `sym (y, i))
+      `vaarg (x, t, `sym (y, Bv.to_int i))
     }
   | x = var EQUALS t = VAARG y = SYM MINUS i = NUM
     {
       let+ x = x in
-      `vaarg (x, t, `sym (y, -i))
+      `vaarg (x, t, `sym (y, -(Bv.to_int i)))
     }
   | VASTART x = var { let+ x = x in `vastart (`var x) }
-  | VASTART x = INT { !!(`vastart (`addr (fst x))) }
+  | VASTART x = NUM { !!(`vastart (`addr x)) }
   | VASTART x = SYM { !!(`vastart (`sym (x, 0))) }
-  | VASTART x = SYM PLUS i = NUM { !!(`vastart (`sym (x, i))) }
-  | VASTART x = SYM MINUS i = NUM { !!(`vastart (`sym (x, -i))) }
+  | VASTART x = SYM PLUS i = NUM { !!(`vastart (`sym (x, Bv.to_int i))) }
+  | VASTART x = SYM MINUS i = NUM { !!(`vastart (`sym (x, -(Bv.to_int i)))) }
   | x = var EQUALS t = LOAD a = operand
     {
       let+ x = x and+ a = a in
@@ -548,10 +551,10 @@ local:
     }
 
 global:
-  | i = INT { !!(`addr (fst i)) }
+  | i = NUM { !!(`addr i) }
   | s = SYM { !!(`sym (s, 0)) }
-  | s = SYM PLUS i = NUM { !!(`sym (s, i)) }
-  | s = SYM MINUS i = NUM { !!(`sym (s, -i)) }
+  | s = SYM PLUS i = NUM { !!(`sym (s, Bv.to_int i)) }
+  | s = SYM MINUS i = NUM { !!(`sym (s, -(Bv.to_int i))) }
   | x = var { let+ x = x in `var x }
 
 operand:
@@ -564,8 +567,8 @@ const:
   | s = SINGLE { `float s }
   | d = DOUBLE { `double d }
   | s = SYM { `sym (s, 0) }
-  | s = SYM PLUS i = NUM { `sym (s, i) }
-  | s = SYM MINUS i = NUM { `sym (s, -i) }
+  | s = SYM PLUS i = NUM { `sym (s, Bv.to_int i) }
+  | s = SYM MINUS i = NUM { `sym (s, -(Bv.to_int i)) }
 
 var:
   | x = VAR { !!Var.(with_index (create (fst x)) (snd x)) }

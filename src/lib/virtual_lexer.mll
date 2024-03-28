@@ -51,7 +51,6 @@ let ninteger = '-' integer
 let hinteger = "0x" ['0'-'9' 'a'-'f' 'A'-'F']+
 let ointeger = "0o" ['0'-'7']+
 let binteger = "0b" ['0'-'1']+
-let ints = (integer | hinteger | ointeger | binteger)
 let posints = (integer | hinteger | ointeger | binteger)
 let exp = ('E' | 'e') (integer | ninteger)
 let inf = ("INF" | "inf" | "INFINITY" | "infinity")
@@ -190,12 +189,15 @@ rule token = parse
     STRING (Buffer.contents string_buff)
   }
   | eof { EOF }
-  | (ints as i) '_' (imm as t) {
+  | (posints as i) '_' (imm as t) {
     let i = Z.of_string i in
     let t = imm_of_char t in
     INT (Bv.bigint_unsafe i, t)
   }
-  | posints as i { NUM (int_of_string i) }
+  | posints as i {
+    let i = Z.of_string i in
+    NUM (Bv.bigint_unsafe i)
+  }
   | (flt as f) "_d" { DOUBLE (Float.of_string f) }
   | (flt as f) "_s" { SINGLE (Float32.of_string f) }
   | "true" { BOOL true }
