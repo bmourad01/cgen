@@ -57,7 +57,7 @@ type rules
 (** Creates a table from a list of rules.
 
     @raise Invalid_argument if there is a rule where the precondition is
-    simply a variable or a wildcard.
+    a variable at the top-level.
 *)
 val create_table : rule list -> rules
 
@@ -102,8 +102,7 @@ module Rule : sig
       Furthermore, the post-condition will not produce a rewritten term if:
 
       1. It contains unbound variables.
-      2. It contains wildcards.
-      3. The new term does not have the same type as the original.
+      2. The new term does not have the same type as the original.
 
       Note that such rewrite failures do not result in a run-time error;
       the rewriting engine merely skips this rule during the search procedure.
