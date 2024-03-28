@@ -65,6 +65,22 @@
       | Some i -> Var.with_index v i
       | None -> v
 
+    let make_data l align c name elts =
+      let module Tag = Virtual.Data.Tag in
+      let dict = Dict.empty in
+      let dict = match l with
+        | Some linkage -> Dict.set dict Tag.linkage linkage
+        | None -> dict in
+      let dict = match align with
+        | Some align -> Dict.set dict Tag.align align
+        | None -> dict in
+      let dict = match c with
+        | Some k -> Dict.set dict Tag.const k
+        | None -> dict in
+      match Virtual.Data.create () ~name ~elts ~dict with
+      | Error err -> Context.fail err
+      | Ok d -> !!d
+
     let make_fn slots blks args l name return noreturn =
       let* slots = Context.List.all slots in
       let* blks = Context.List.all blks in
@@ -152,7 +168,6 @@
 %type <Virtual.data Context.t> data
 %type <Virtual.Data.elt> data_elt
 %type <Type.compound> typ
-%type <int> align
 %type <[`opaque of int | `fields of Type.field list]> typ_fields_or_opaque
 %type <Type.field> typ_field
 %type <Virtual.func Context.t> func
@@ -213,22 +228,13 @@ module_elt:
   | d = data { let+ d = d in Data d }
 
 data:
-  | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS ALIGN align = option(align) LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
+  | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS ALIGN align = NUM LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
     {
-      let module Tag = Virtual.Data.Tag in
-      let dict = Dict.empty in
-      let dict = match l with
-        | Some linkage -> Dict.(set empty Tag.linkage linkage)
-        | None -> dict in
-      let dict = match align with
-        | Some align -> Dict.set dict Tag.align align
-        | None -> dict in
-      let dict = match c with
-        | Some k -> Dict.set dict Tag.const k
-        | None -> dict in
-      match Virtual.Data.create () ~name ~elts ~dict with
-      | Error err -> Context.fail err
-      | Ok d -> !!d
+      make_data l (Some align) c name elts
+    }
+  | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
+    {
+      make_data l None c name elts
     }
 
 data_elt:
@@ -239,15 +245,12 @@ data_elt:
 typ:
   | TYPE name = TYPENAME EQUALS LBRACE fields = separated_list(COMMA, typ_field) RBRACE
     { `compound (name, None, fields) }
-  | TYPE name = TYPENAME EQUALS align = align LBRACE t = typ_fields_or_opaque RBRACE
+  | TYPE name = TYPENAME EQUALS ALIGN align = NUM LBRACE t = typ_fields_or_opaque RBRACE
     {
       match t with
       | `opaque n -> `opaque (name, align, n)
       | `fields f -> `compound (name, Some align, f)
     }
-
-align:
-  | ALIGN n = NUM { n }
 
 typ_fields_or_opaque:
   | n = NUM { `opaque n }
