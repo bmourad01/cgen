@@ -1,11 +1,5 @@
 open Core
-
-module type S = sig
-  type t
-
-  val from_string : string -> t Context.t
-  val from_file : string -> t Context.t
-end
+open Parse_intf
 
 let file_pos ?filename lexbuf =
   let open Lexing in
