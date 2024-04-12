@@ -797,6 +797,9 @@ module Abi : sig
     (** Transforms the underlying operation. *)
     val map : t -> f:(op -> op) -> t
 
+    (** Returns the set of defined variables of the instruction. *)
+    val def : t -> Var.Set.t
+
     (** Same as [pp_op]. *)
     val pp : Format.formatter -> t -> unit
 

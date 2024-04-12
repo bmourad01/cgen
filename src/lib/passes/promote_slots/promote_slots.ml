@@ -29,6 +29,22 @@ module V = Make(struct
     module Resolver = Resolver
   end)
 
+module A = Make(struct
+    type lhs = Var.Set.t
+    module Insn = struct
+      include Abi.Insn
+      let store = store op
+      let load = load op
+      let fibits = fibits
+      let ifbits = ifbits
+      let copy = copy
+    end
+    module Blk = Abi.Blk
+    module Func = Abi.Func
+    module Cfg = Abi.Cfg
+    module Resolver = Abi.Resolver
+  end)
+
 open E.Syntax
 
 let run fn =
@@ -38,3 +54,11 @@ let run fn =
     E.failf
       "In Promote_slots: expected SSA form for function $%s"
       (Func.name fn) ()
+
+let run_abi fn =
+  if Dict.mem (Abi.Func.dict fn) Tags.ssa then
+    A.run fn >>= Ssa.run_abi
+  else
+    E.failf
+      "In Promote_slots (ABI): expected SSA form for function $%s"
+      (Abi.Func.name fn) ()
