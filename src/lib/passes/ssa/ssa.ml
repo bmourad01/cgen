@@ -12,6 +12,20 @@ let argify_dst ~inc : dst -> dst = function
   | #local as l -> (argify_local ~inc l :> dst)
   | d -> d
 
+let argify_tbl ~inc m tbl =
+  m tbl ~f:(fun v l -> v, argify_local ~inc l)
+
+let argify_ctrl ~inc m c =
+  let loc = argify_local ~inc in
+  let dst = argify_dst ~inc in
+  match c with
+  | `hlt -> c
+  | `jmp d -> `jmp (dst d)
+  | `br (c, t, f) -> `br (c, dst t, dst f)
+  | `ret _ -> c
+  | `sw (t, i, d, tbl) ->
+    `sw (t, i, loc d, argify_tbl ~inc m tbl)
+
 let rename_operand ~stk : operand -> operand = function
   | `var x -> `var (stk x)
   | o -> o
@@ -32,6 +46,20 @@ let swindex ~stk = function
   | `var x -> `var (stk x)
   | `sym _ as s -> s
 
+let rename_tbl ~stk m tbl =
+  m tbl ~f:(fun v l -> v, rename_local ~stk l)
+
+let rename_ctrl ~stk r m c =
+  let dst = rename_dst ~stk in
+  let loc = rename_local ~stk in
+  match c with
+  | `hlt -> `hlt
+  | `jmp d -> `jmp (dst d)
+  | `br (c, t, f) -> `br (stk c, dst t, dst f)
+  | `ret a -> `ret (r a)
+  | `sw (t, i, d, tbl) ->
+    `sw (t, swindex ~stk i, loc d, rename_tbl ~stk m tbl)
+
 module V = Make(struct
     type lhs = Var.t option
 
@@ -47,18 +75,7 @@ module V = Make(struct
     module Live = Live
     module Resolver = Resolver
 
-    let argify_tbl ~inc =
-      Ctrl.Table.map_exn ~f:(fun v l -> v, argify_local ~inc l)
-
-    let argify_ctrl ~inc c =
-      let loc = argify_local ~inc in
-      let dst = argify_dst ~inc in
-      match c with
-      | `hlt -> c
-      | `jmp d -> `jmp (dst d)
-      | `br (c, t, f) -> `br (c, dst t, dst f)
-      | `ret _ -> c
-      | `sw (t, i, d, tbl) -> `sw (t, i, loc d, argify_tbl ~inc tbl)
+    let argify_ctrl = argify_ctrl Ctrl.Table.map_exn
 
     let acall ~rename =
       Option.map ~f:(fun (x, t) -> rename x, t)
@@ -102,19 +119,9 @@ module V = Make(struct
       | `store (t, v, a) ->
         `store (t, opnd v, opnd a)
 
-    let rename_tbl ~stk =
-      Ctrl.Table.map_exn ~f:(fun v l -> v, rename_local ~stk l)
-
-    let rename_ctrl ~stk c =
-      let dst = rename_dst ~stk in
-      let loc = rename_local ~stk in
-      let opnd = rename_operand ~stk in
-      match c with
-      | `hlt -> `hlt
-      | `jmp d -> `jmp (dst d)
-      | `br (c, t, f) -> `br (stk c, dst t, dst f)
-      | `ret r -> `ret (Option.map r ~f:opnd)
-      | `sw (t, i, d, tbl) -> `sw (t, swindex ~stk i, loc d, rename_tbl ~stk tbl)
+    let rename_ctrl ~stk = rename_ctrl ~stk
+        (Option.map ~f:(rename_operand ~stk))
+        Ctrl.Table.map_exn
   end)
 
 module A = Make(struct
@@ -132,18 +139,7 @@ module A = Make(struct
     module Live = Abi.Live
     module Resolver = Abi.Resolver
 
-    let argify_tbl ~inc =
-      Ctrl.Table.map_exn ~f:(fun v l -> v, argify_local ~inc l)
-
-    let argify_ctrl ~inc c =
-      let loc = argify_local ~inc in
-      let dst = argify_dst ~inc in
-      match c with
-      | `hlt -> c
-      | `jmp d -> `jmp (dst d)
-      | `br (c, t, f) -> `br (c, dst t, dst f)
-      | `ret _ -> c
-      | `sw (t, i, d, tbl) -> `sw (t, i, loc d, argify_tbl ~inc tbl)
+    let argify_ctrl = argify_ctrl Ctrl.Table.map_exn
 
     let acall ~rename =
       List.map ~f:(fun (x, t, r) -> rename x, t, r)
@@ -190,20 +186,9 @@ module A = Make(struct
       | `stkargs x ->
         `stkargs (rename x)
 
-    let rename_tbl ~stk =
-      Ctrl.Table.map_exn ~f:(fun v l -> v, rename_local ~stk l)
-
-    let rename_ctrl ~stk (c : Ctrl.t) : Ctrl.t =
-      let dst = rename_dst ~stk in
-      let loc = rename_local ~stk in
-      let opnd = rename_operand ~stk in
-      match c with
-      | `hlt -> `hlt
-      | `jmp d -> `jmp (dst d)
-      | `br (c, t, f) -> `br (stk c, dst t, dst f)
-      | `ret rs ->
-        `ret (List.map rs ~f:(fun (r, a) -> r, opnd a))
-      | `sw (t, i, d, tbl) -> `sw (t, swindex ~stk i, loc d, rename_tbl ~stk tbl)
+    let rename_ctrl ~stk = rename_ctrl ~stk
+        (List.map ~f:(fun (r, a) -> r, rename_operand ~stk a))
+        Ctrl.Table.map_exn
   end)
 
 let run = V.run
