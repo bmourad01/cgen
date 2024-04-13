@@ -59,8 +59,9 @@ let max_of_imm : Type.imm -> Bv.t = function
 let check_max i t =
   let m = max_of_imm t in
   if Bv.(i > m) then
-    M.failf "Integer %a does not fit in type %a"
-      Bv.pp i Type.pp_imm t ()
+    M.failf "Integer %a does not fit in type %a \
+             (maximum value is %a)"
+      Bv.pp i Type.pp_imm t Bv.pp m ()
   else !!(t :> Type.t)
 
 let typeof_const : const -> Type.t t = function
