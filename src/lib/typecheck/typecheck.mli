@@ -34,9 +34,9 @@ module Env : sig
       result of [Var.base] is used to look up the variable in
       the environment.
 
-      This is because the environment itself is needed by the
-      SSA transformation (for computing the types of block
-      arguments). Afterwards, the environment may be reused.
+      This is to ensure compatibility of the environment before
+      and after SSA renaming of variables, thus avoiding the
+      need to run the type-checking algorithm again.
   *)
   val typeof_var : func -> Var.t -> t -> Type.t Or_error.t
 
