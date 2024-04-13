@@ -62,9 +62,9 @@ let infer_ty t n = Enode.infer_ty n
     ~tvar:(typeof_var t)
     ~word:(word t)
 
-(* This is the entry point to the insert/rewrite loop, to be called
-   from the algorithm in `Builder` (i.e. in depth-first dominator
-   tree order). *)
+(* This is the entry point to the insert/rewrite loop, to
+   be called from the algorithm in `Egraph_builder` (i.e.
+   in depth-first dominator tree order). *)
 let rec insert ?ty ?l ~d t n =
   canon t n |> Hashtbl.find_and_call t.memo
     ~if_found:(duplicate ?l t)

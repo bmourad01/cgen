@@ -41,7 +41,7 @@ type store =
 module Mem = Regular.Make(struct
     type t = mem [@@deriving bin_io, compare, equal, hash, sexp]
     let pp ppf t = Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_t t
-    let module_name = Some "Cgen.Egraph.Builder.Mem"
+    let module_name = Some "Cgen.Egraph_builder.Mem"
     let version = "0.1"
   end)
 
@@ -264,7 +264,7 @@ let step env eg l lst = match Resolver.resolve eg.input.reso l with
         insn env eg l (Insn.op i));
     ctrl env eg l @@ Blk.ctrl b
 
-let error_prefix = "In Egraph.Builder"
+let error_prefix = "In Egraph_builder"
 
 let try_ f = try Ok (f ()) with
   | Missing l ->
