@@ -317,7 +317,7 @@ let of_list l =
   List.iteri l ~f:(Oa.unsafe_set_some data);
   {data; length; capacity = length}
 
-(* This is taken from the Array module in Jane Street's Base library. *)
+(* This is taken from the Array module in Jane Street's `Base` library. *)
 
 module Sort = struct
   let get = Oa.get_some_exn
@@ -437,8 +437,8 @@ module Sort = struct
           intro_sort arr ~max_depth ~compare ~left:l ~right:r;
         intro_sort arr ~max_depth ~compare ~left:(r + 1) ~right
 
-    let log10_of_3 = Caml.log10 3.
-    let log3 x = Caml.log10 x /. log10_of_3
+    let log10_of_3 = Float.log10 3.
+    let log3 x = Float.log10 x /. log10_of_3
 
     let sort arr ~compare ~left ~right =
       let len = right - left + 1 in
