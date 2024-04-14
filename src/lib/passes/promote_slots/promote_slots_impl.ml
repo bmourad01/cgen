@@ -104,11 +104,12 @@ module Make(M : L) = struct
     let go env s =
       let x = Slot.var s in
       Resolver.uses env.reso x |>
-      List.fold_until ~init:Bad ~finish:Fn.id ~f:(fun acc -> function
-          |`blk _ -> Stop Bad
-          | `insn (i, _, _) -> match infer acc x i with
-            | (Read _ | Write _) as acc -> Continue acc
-            | Bad -> Stop Bad)
+      List.fold_until ~init:Bad ~finish:Fn.id
+        ~f:(fun acc -> function
+            |`blk _ -> Stop Bad
+            | `insn (i, _, _) -> match infer acc x i with
+              | (Read _ | Write _) as acc -> Continue acc
+              | Bad -> Stop Bad)
   end
 
   let collect env =
@@ -116,16 +117,15 @@ module Make(M : L) = struct
     Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
         match Qualify.go env s with
         | Bad -> acc
-        | Write (_, t) ->
-          Var.Map.set acc ~key:(Slot.var s) ~data:t
+        | Write (_, t) -> Map.set acc ~key:(Slot.var s) ~data:t
         | Read _ ->
           (* In this case, we read from the slot but never stored anything
              to it. It's undefined behavior, but it's also what the programmer
              intended, so we should cancel this promotion. *)
           acc)
 
-  let remove fn =
-    Var.Map.fold ~init:fn ~f:(fun ~key ~data:_ fn ->
+  let remove_slots fn =
+    Map.fold ~init:fn ~f:(fun ~key ~data:_ fn ->
         Func.remove_slot fn key)
 
   (* Replace a store with a copy to a fresh variable. *)
@@ -155,7 +155,7 @@ module Make(M : L) = struct
     let+ env = init fn in
     let xs = collect env in
     if not @@ Map.is_empty xs then
-      let fn = remove fn xs in
+      let fn = remove_slots fn xs in
       replace env xs;
       (* SSA form needs to be recomputed. *)
       let dict = Dict.remove (Func.dict fn) Tags.ssa in
