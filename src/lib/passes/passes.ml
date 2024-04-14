@@ -1,3 +1,4 @@
+module Abi_loadopt = Abi_loadopt
 module Egraph_opt = Egraph_opt
 module Lower_abi = Lower_abi
 module Promote_slots = Promote_slots

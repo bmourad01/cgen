@@ -33,14 +33,15 @@ module Pseudo = Label.Pseudo(G)
 *)
 let cdoms fn reso dom =
   let accum b g l =
-    Blk.insns ~rev:true b |> Seq.fold ~init:(g, l) ~f:(fun (g, l) i ->
+    Blk.insns ~rev:true b |>
+    Seq.fold ~init:(g, l) ~f:(fun (g, l) i ->
         let next = Insn.label i in
         let e = G.Edge.create next l () in
         G.Edge.insert e g, next) in 
   let rec aux g l = match Resolver.resolve reso l with
     | None when Label.is_pseudo l -> g, l
-    | None | Some (`insn _) -> assert false
-    | Some (`blk b) ->
+    | None | Some `insn _ -> assert false
+    | Some `blk b ->
       let g, first = accum b g l in
       children g l, first
   and children g l =
@@ -50,16 +51,9 @@ let cdoms fn reso dom =
         G.Edge.insert e g) in
   let entry = Func.entry fn in
   let g = fst @@ aux (G.Node.insert entry G.empty) entry in
-  Graphlib.dominators (module G) (Pseudo.add g) Label.pseudoentry  
+  Graphlib.dominators (module G) (Pseudo.add g) Label.pseudoentry
 
-let init fn tenv =
-  let+ reso = Resolver.create fn in
-  let loop = Loops.analyze fn in
-  let cfg = Cfg.create fn in
-  let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
-  let pdom = Graphlib.dominators (module Cfg) cfg Label.pseudoexit ~rev:true in
-  let df = Graphlib.dom_frontier (module Cfg) cfg dom in
-  let cdom = cdoms fn reso dom in
+let init_last_stores fn cfg reso =
   let module Lst = Last_stores.Make(struct
       module Insn = Insn
       module Blk = Blk
@@ -69,5 +63,15 @@ let init fn tenv =
         | Some `insn _ | None -> assert false
         | Some `blk b -> b
     end) in
-  let lst = Lst.analyze fn cfg in
+  Lst.analyze fn cfg
+
+let init fn tenv =
+  let+ reso = Resolver.create fn in
+  let loop = Loops.analyze fn in
+  let cfg = Cfg.create fn in
+  let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
+  let pdom = Graphlib.dominators (module Cfg) cfg Label.pseudoexit ~rev:true in
+  let df = Graphlib.dom_frontier (module Cfg) cfg dom in
+  let cdom = cdoms fn reso dom in
+  let lst = init_last_stores fn cfg reso in
   {fn; loop; reso; cfg; dom; pdom; cdom; df; lst; tenv}

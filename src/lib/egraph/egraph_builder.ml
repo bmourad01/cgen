@@ -170,11 +170,7 @@ let call env eg l x f args vargs =
    or otherwise underspecified behaviors, which are not useful for
    removing redundant loads anyway. *)
 let undef env l addr ty =
-  Hashtbl.set env.mems ~key:{
-    label = l;
-    addr;
-    ty;
-  } ~data:Undef;
+  Hashtbl.set env.mems ~key:{label = l; addr; ty} ~data:Undef;
   env.mem <- Some l
 
 let vaarg env eg l x ty a =
