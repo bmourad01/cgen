@@ -1,4 +1,5 @@
 open Core
+open Regular.Std
 open Virtual
 
 let unify_fail t t' v fn = Or_error.errorf
@@ -37,6 +38,9 @@ let add_data d env =
    the user accepts the risk. *)
 let typeof_data name env = Map.find env.denv name
 
+let datanames env =
+  Map.to_sequence env.denv |> Seq.map ~f:fst
+
 let add_fn fn env =
   let name = Func.name fn in
   match Map.add env.fenv ~key:name ~data:(Func.typeof fn) with
@@ -47,6 +51,9 @@ let add_fn fn env =
    it is external (i.e. it is linked with our program a posteriori),
    and that the user accepts the risk. *)
 let typeof_fn name env = Map.find env.fenv name
+
+let funcnames env =
+  Map.to_sequence env.fenv |> Seq.map ~f:fst
 
 let check_typ_align t name = match Type.compound_align t with
   | Some n when n < 1 || (n land (n - 1)) <> 0 ->
@@ -64,6 +71,9 @@ let add_typ t env =
 let typeof_typ name env = match Map.find env.tenv name with
   | None -> Or_error.errorf "Undefined type %s" name
   | Some t -> Ok t
+
+let typenames env =
+  Map.to_sequence env.tenv |> Seq.map ~f:fst
 
 let typeof_var fn v env =
   let fname = Func.name fn in

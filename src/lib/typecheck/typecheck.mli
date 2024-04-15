@@ -2,6 +2,7 @@
     environment. *)
 
 open Core
+open Regular.Std
 open Virtual
 
 (** The typing environment. *)
@@ -19,6 +20,9 @@ module Env : sig
   *)
   val typeof_data : string -> t -> Type.compound option
 
+  (** Returns the defined data symbols in the module. *)
+  val datanames : t -> string seq
+
   (** The prototype associated with a function symbol.
 
       Note that references to function symbols not defined
@@ -27,8 +31,14 @@ module Env : sig
   *)
   val typeof_fn : string -> t -> Type.proto option
 
+  (** Returns the defined function symbols in the module. *)
+  val funcnames : t -> string seq
+
   (** The compound type associated with a type name. *)
   val typeof_typ : string -> t -> Type.compound Or_error.t
+
+  (** Returns the defined type names in the module. *)
+  val typenames : t -> string seq
 
   (** The type of a variable in a given function. Note that the
       result of [Var.base] is used to look up the variable in
