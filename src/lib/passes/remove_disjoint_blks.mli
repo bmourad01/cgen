@@ -4,3 +4,4 @@
 open Virtual
 
 val run : func -> func
+val run_abi : Abi.func -> Abi.func

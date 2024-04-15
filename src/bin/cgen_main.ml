@@ -43,6 +43,7 @@ let comp filename =
     Context.List.map ~f:(Passes.Lower_abi.run tenv) in
   let* fns = Context.List.map fns ~f:(err Passes.Promote_slots.run_abi) in
   let* fns = Context.List.map fns ~f:(err Passes.Abi_loadopt.run) in
+  let fns = List.map fns ~f:Passes.Remove_disjoint_blks.run_abi in
   let* fns = Context.List.map fns ~f:(err Passes.Remove_dead_vars.run_abi) in
   Format.printf "@[<v 0>%a@]\n%!"
     (Format.pp_print_list ~pp_sep Virtual.Abi.Func.pp) fns;
