@@ -166,23 +166,25 @@ let call env eg l x f args vargs =
     callargs env eg vargs;
   ]
 
+let basics = [|`i8; `i16; `i32; `i64; `f32; `f64|]
+
 (* Certain instructions such as variadic helpers have ABI-dependent
    or otherwise underspecified behaviors, which are not useful for
    removing redundant loads anyway. *)
-let undef env l addr ty =
-  Hashtbl.set env.mems ~key:{label = l; addr; ty} ~data:Undef;
+let undef env eg l addr =
+  let go ty = Hashtbl.set env.mems ~key:{label = l; addr; ty} ~data:Undef in
+  Array.iter basics ~f:go;
+  Seq.iter ~f:go @@ typenames eg;
   env.mem <- Some l
 
 let vaarg env eg l x ty a =
   let a = global env eg a in
-  undef env l a ty;
+  undef env eg l a;
   sched ~x env eg l (Ovaarg (x, ty)) [a]
 
 let vastart env eg l x =
   let a = global env eg x in
-  let tgt = Typecheck.Env.target eg.input.tenv in
-  let ty = (Target.word tgt :> Type.arg) in
-  undef env l a ty;
+  undef env eg l a;
   sched env eg l (Ovastart l) [a]
 
 let insn env eg l : Insn.op -> unit = function

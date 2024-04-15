@@ -1,4 +1,5 @@
 open Core
+open Regular.Std
 open Graphlib.Std
 
 module Id = Egraph_id
@@ -139,3 +140,7 @@ let wordsz t =
   Type.sizeof_imm_base @@
   Target.word @@
   Typecheck.Env.target t.input.tenv
+
+let typenames t =
+  Typecheck.Env.typenames t.input.tenv |>
+  Seq.map ~f:(fun s -> `name s)
