@@ -6,8 +6,8 @@ module E = Monad.Result.Error
 module Slot = Virtual.Slot
 
 let (@/) i s = not @@ Set.mem s i
-let (--) = Var.Set.remove
-let (++) = Var.Set.union
+let (--) = Set.remove
+let (++) = Set.union
 let noti s i _ = i @/ s
 
 type unused = Int.Set.t Label.Tree.t
