@@ -112,10 +112,14 @@ let run fn =
     | Invalid_argument msg ->
       E.failf "In Remove_dead_vars: %s" msg ()
   else
-    E.failf "In Remove_dead_vars: expected SSA form for function %s"
+    E.failf "In Remove_dead_vars: expected SSA form for function $%s"
       (Func.name fn) ()
 
-(* Assume that the `Lower_abi` pass respects the SSA invariants. *)
-let run_abi fn = try Ok (A.run fn) with
-  | Invalid_argument msg ->
-    E.failf "In Remove_dead_vars (ABI): %s" msg ()
+let run_abi fn =
+  if Dict.mem (Abi.Func.dict fn) Tags.ssa then
+    try Ok (A.run fn) with
+    | Invalid_argument msg ->
+      E.failf "In Remove_dead_vars (ABI): %s" msg ()
+  else
+    E.failf "In Remove_dead_vars (ABI): expected SSA form for function $%s"
+      (Abi.Func.name fn) ()
