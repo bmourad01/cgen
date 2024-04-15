@@ -87,6 +87,9 @@ module Make(M : S) = struct
     Set.mem alive x ||
     Insn.check_div_rem i
 
+  (* Note that we don't always kill defined variables here. If the
+     function is in SSA form then keeping in them in the alive set
+     shouldn't affect the results. *)
   let insn (acc, changed, alive) i = match Insn.lhs i with
     | Some x when not @@ keep i x alive -> acc, true, alive
     | Some x -> i :: acc, changed, alive -- x ++ Insn.free_vars i
