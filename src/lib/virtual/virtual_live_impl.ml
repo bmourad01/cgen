@@ -91,9 +91,8 @@ module Make(M : L) : S with type func := M.Func.t = struct
     Blk.insns b |> Seq.fold ~init:Var.Set.empty
       ~f:(fun acc i -> acc ++ Insn.lhs i)
 
-  let update l trans ~f = Label.Tree.update trans l ~f:(function
-      | None -> f empty_tran
-      | Some had -> f had)
+  let update l trans ~f = Label.Tree.update_with trans l
+      ~has:f ~nil:(fun () -> f empty_tran)
 
   let block_transitions g fn =
     let blks = Func.map_of_blks fn in

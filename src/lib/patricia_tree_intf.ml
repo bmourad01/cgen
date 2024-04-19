@@ -101,6 +101,11 @@ module type S = sig
       entry if it is present. *)
   val set : 'a t -> key:key -> data:'a -> 'a t
 
+  (** Adds the key-value pair to the tree. If [key] is already
+      present, then [data] is appended to the existing list
+      associated with [key]. *)
+  val add_multi : 'a list t -> key:key -> data:'a -> 'a list t
+
   (** Adds the key-value pair to the tree.
 
       @raise Duplicate if the key is already present.

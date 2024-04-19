@@ -48,11 +48,8 @@ end = struct
   let update_incoming env l x outs =
     Cfg.Node.preds l env.cfg |> Seq.iter ~f:(fun l' ->
         Hashtbl.update outs l' ~f:(function
-            | None -> Label.Tree.singleton l [x]
-            | Some inc ->
-              Label.Tree.update_with inc l
-                ~has:(List.cons x)
-                ~nil:(fun () -> [x])))
+            | Some inc -> Label.Tree.add_multi inc ~key:l ~data:x
+            | None -> Label.Tree.singleton l [x]))
 
   let add_arg env st l x =
     Hashtbl.add_multi st.args ~key:l ~data:x;

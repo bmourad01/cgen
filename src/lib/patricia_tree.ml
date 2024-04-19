@@ -156,6 +156,15 @@ module Make(K : Patricia_tree_intf.Key) = struct
       | LB -> Bin (k', set l ~key ~data, r)
       | RB -> Bin (k', l, set r ~key ~data)
 
+  let rec add_multi t ~key ~data = match t with
+    | Nil -> Tip (key, [data])
+    | Tip (k', xs) when equal key k' -> Tip (key, data :: xs)
+    | Tip (k', _) -> join t k' (Tip (key, [data])) key
+    | Bin (k', l, r) -> match Key.compare k' key with
+      | NA -> join (Tip (key, [data])) key t (Key.payload k')
+      | LB -> Bin (k', add_multi l ~key ~data, r)
+      | RB -> Bin (k', l, add_multi r ~key ~data)
+
   let rec add_exn t ~key ~data = match t with
     | Nil -> Tip (key, data)
     | Tip (k', _) when equal key k' -> raise Duplicate
