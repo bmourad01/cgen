@@ -320,6 +320,15 @@ module Insn = struct
     | `MOVSSmr of 'a amode * 'a
   ] [@@deriving compare, equal, sexp]
 
+  type 'a movsx = [
+    | `MOVSXr16r8  of 'a * 'a
+    | `MOVSXr32r8  of 'a * 'a
+    | `MOVSXr16m8  of 'a * 'a amode
+    | `MOVSXr32m8  of 'a * 'a amode
+    | `MOVSXr32r16 of 'a * 'a
+    | `MOVSXr32m16 of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
   type 'a movzx = [
     | `MOVZXr16r8  of 'a * 'a
     | `MOVZXr32r8  of 'a * 'a
@@ -653,6 +662,7 @@ type 'a insn_base = [
   | 'a Insn.movd
   | 'a Insn.movsd
   | 'a Insn.movss
+  | 'a Insn.movsx
   | 'a Insn.movzx
   | 'a Insn.mul
   | 'a Insn.mulsd
