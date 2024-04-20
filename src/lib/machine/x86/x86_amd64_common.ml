@@ -149,6 +149,8 @@ module Insn = struct
     | `ANDm64si32 of 'a amode * int32
   ] [@@deriving compare, equal, sexp]
 
+  (* CMOVP and CMOVNP are used for unordered and ordered
+     floating point comparison, respectively. *)
   type 'a cmovcc = [
     | `CMOVArr64  of 'a * 'a (* ~CF & ~ZF *)
     | `CMOVArm64  of 'a * 'a amode
@@ -170,6 +172,10 @@ module Insn = struct
     | `CMOVLrm64  of 'a * 'a amode
     | `CMOVLErr64 of 'a * 'a (* ZF | SF<>OF *)
     | `CMOVLErm64 of 'a * 'a amode
+    | `CMOVPrr64  of 'a * 'a (* PF *)
+    | `CMOVPrm64  of 'a * 'a amode
+    | `CMOVNPrr64 of 'a * 'a (* ~PF *)
+    | `CMOVNPrm64 of 'a * 'a amode
   ] [@@deriving compare, equal, sexp]
 
   type 'a cmp = [
@@ -182,6 +188,26 @@ module Insn = struct
 
   type cqo = [
     | `CQO
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a cvtsi2sd = [
+    | `CVTSD2SIrr64 of 'a * 'a
+    | `CVTSD2SIrm64 of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a cvtsi2ss = [
+    | `CVTSS2SIrr64 of 'a * 'a
+    | `CVTSS2SIrm64 of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a cvtsd2si = [
+    | `CVTSD2SIr64r of 'a * 'a
+    | `CVTSD2SIr64m of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a cvtss2si = [
+    | `CVTSS2SIr64r of 'a * 'a
+    | `CVTSS2SIr64m of 'a * 'a amode
   ] [@@deriving compare, equal, sexp]
 
   type 'a dec = [
@@ -358,6 +384,10 @@ module Insn = struct
     | 'a cmovcc
     | 'a cmp
     | cqo
+    | 'a cvtsi2sd
+    | 'a cvtsi2ss
+    | 'a cvtsd2si
+    | 'a cvtss2si
     | 'a dec
     | 'a div
     | 'a idiv

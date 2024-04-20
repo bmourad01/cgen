@@ -41,6 +41,16 @@ module Insn = struct
     | `ADDm32si8 of 'a amode * int
   ] [@@deriving compare, equal, sexp]
 
+  type 'a addsd = [
+    | `ADDSDrr of 'a * 'a
+    | `ADDSDrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a addss = [
+    | `ADDSSrr of 'a * 'a
+    | `ADDSSrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
   type 'a and_ = [
     | `ANDri8    of 'a * int
     | `ANDri16   of 'a * int
@@ -73,6 +83,8 @@ module Insn = struct
     | `CDQ
   ] [@@deriving compare, equal, sexp]
 
+  (* CMOVP and CMOVNP are used for unordered and ordered
+     floating point comparison, respectively. *)
   type 'a cmovcc = [
     | `CMOVArr16  of 'a * 'a (* ~CF & ~ZF *)
     | `CMOVArr32  of 'a * 'a
@@ -114,6 +126,14 @@ module Insn = struct
     | `CMOVLErr32 of 'a * 'a
     | `CMOVLErm16 of 'a * 'a amode
     | `CMOVLErm32 of 'a * 'a amode
+    | `CMOVPrr16  of 'a * 'a (* PF *)
+    | `CMOVPrr32  of 'a * 'a
+    | `CMOVPrm16  of 'a * 'a amode
+    | `CMOVPrm32  of 'a * 'a amode
+    | `CMOVNPrr16 of 'a * 'a (* ~PF *)
+    | `CMOVNPrr32 of 'a * 'a
+    | `CMOVNPrm16 of 'a * 'a amode
+    | `CMOVNPrm32 of 'a * 'a amode
   ] [@@deriving compare, equal, sexp]
 
   type 'a cmp = [
@@ -138,6 +158,26 @@ module Insn = struct
     | `CWD
   ] [@@deriving compare, equal, sexp]
 
+  type 'a cvtsi2sd = [
+    | `CVTSD2SIrr32 of 'a * 'a
+    | `CVTSD2SIrm32 of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a cvtsi2ss = [
+    | `CVTSS2SIrr32 of 'a * 'a
+    | `CVTSS2SIrm32 of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a cvtsd2si = [
+    | `CVTSD2SIr32r of 'a * 'a
+    | `CVTSD2SIr32m of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a cvtss2si = [
+    | `CVTSS2SIr32r of 'a * 'a
+    | `CVTSS2SIr32m of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
   type 'a dec = [
     | `DECr8  of 'a
     | `DECr16 of 'a
@@ -154,6 +194,16 @@ module Insn = struct
     | `DIVm8  of 'a amode
     | `DIVm16 of 'a amode
     | `DIVm32 of 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a divsd = [
+    | `DIVSDrr of 'a * 'a
+    | `DIVSDrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a divss = [
+    | `DIVSSrr of 'a * 'a
+    | `DIVSSrm of 'a * 'a amode
   ] [@@deriving compare, equal, sexp]
 
   type 'a idiv = [
@@ -199,6 +249,8 @@ module Insn = struct
     | `INCm32 of 'a amode
   ] [@@deriving compare, equal, sexp]
 
+  (* JP and JNP are used for unordered and ordered
+     floating point comparison, respectively. *)
   type 'a jcc = [
     | `JA  of Label.t (* ~CF & ~ZF *)
     | `JAE of Label.t (* ~CF *)
@@ -210,6 +262,8 @@ module Insn = struct
     | `JGE of Label.t (* SF=OF *)
     | `JL  of Label.t (* SF<>OF *)
     | `JLE of Label.t (* ZF | SF<>OF *)
+    | `JP  of Label.t (* PF *)
+    | `JNP of Label.t (* ~PF *)
   ] [@@deriving compare, equal, sexp]
 
   type 'a jmp = [
@@ -254,6 +308,18 @@ module Insn = struct
     | `MOVDmr of 'a amode * 'a
   ] [@@deriving compare, equal, sexp]
 
+  type 'a movsd = [
+    | `MOVSDrr of 'a * 'a
+    | `MOVSDrm of 'a * 'a amode
+    | `MOVSDmr of 'a amode * 'a
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a movss = [
+    | `MOVSSrr of 'a * 'a
+    | `MOVSSrm of 'a * 'a amode
+    | `MOVSSmr of 'a amode * 'a
+  ] [@@deriving compare, equal, sexp]
+
   type 'a movzx = [
     | `MOVZXr16r8  of 'a * 'a
     | `MOVZXr32r8  of 'a * 'a
@@ -270,6 +336,16 @@ module Insn = struct
     | `MULm8  of 'a amode
     | `MULm16 of 'a amode
     | `MULm32 of 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a mulsd = [
+    | `MULSDrr of 'a * 'a
+    | `MULSDrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a mulss = [
+    | `MULSSrr of 'a * 'a
+    | `MULSSrm of 'a * 'a amode
   ] [@@deriving compare, equal, sexp]
 
   type 'a neg = [
@@ -389,6 +465,8 @@ module Insn = struct
     | `SARm32i of 'a * int
   ] [@@deriving compare, equal, sexp]
 
+  (* SETP and SETNP are used for unordered and ordered
+     floating point comparison, respectively. *)
   type 'a setcc = [
     | `SETAr8  of 'a (* ~CF & ~ZF *)
     | `SETAm8  of 'a amode
@@ -410,6 +488,10 @@ module Insn = struct
     | `SETLm8  of 'a amode
     | `SETLEr8 of 'a (* ZF | SF<>OF *)
     | `SETLEm8 of 'a amode
+    | `SETPr8  of 'a (* PF *)
+    | `SETPm8  of 'a amode
+    | `SETNPr8 of 'a (* ~PF *)
+    | `SETNPm8 of 'a amode
   ] [@@deriving compare, equal, sexp]
 
   type 'a shl = [
@@ -464,6 +546,16 @@ module Insn = struct
     | `SUBm32si8 of 'a amode * int
   ] [@@deriving compare, equal, sexp]
 
+  type 'a subsd = [
+    | `SUBSDrr of 'a * 'a
+    | `SUBSDrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a subss = [
+    | `SUBSSrr of 'a * 'a
+    | `SUBSSrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
   type 'a test = [
     | `TESTri8  of 'a * int
     | `TESTri16 of 'a * int
@@ -489,6 +581,16 @@ module Insn = struct
     | `TZCNTrm32 of 'a * 'a amode
   ] [@@deriving compare, equal, sexp]
 
+  type 'a ucomisd = [
+    | `UCOMISDrr of 'a * 'a
+    | `UCOMISDrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a ucomiss = [
+    | `UCOMISSrr of 'a * 'a
+    | `UCOMISSrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
   type 'a xor = [
     | `XORri8    of 'a * int
     | `XORri16   of 'a * int
@@ -510,18 +612,36 @@ module Insn = struct
     | `XORm16si8 of 'a amode * int
     | `XORm32si8 of 'a amode * int
   ] [@@deriving compare, equal, sexp]
+
+  type 'a xorpd = [
+    | `XORPDrr of 'a * 'a
+    | `XORPDrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a xorps = [
+    | `XORPSrr of 'a * 'a
+    | `XORPSrm of 'a * 'a amode
+  ] [@@deriving compare, equal, sexp]
 end
 
 type 'a insn_base = [
   | 'a Insn.add
+  | 'a Insn.addsd
+  | 'a Insn.addss
   | 'a Insn.and_
   | 'a Insn.call
   | Insn.cdq
   | 'a Insn.cmovcc
   | 'a Insn.cmp
   | Insn.cwd
+  | 'a Insn.cvtsi2sd
+  | 'a Insn.cvtsi2ss
+  | 'a Insn.cvtsd2si
+  | 'a Insn.cvtss2si
   | 'a Insn.dec
   | 'a Insn.div
+  | 'a Insn.divsd
+  | 'a Insn.divss
   | 'a Insn.idiv
   | 'a Insn.imul
   | 'a Insn.inc
@@ -531,8 +651,12 @@ type 'a insn_base = [
   | 'a Insn.lzcnt
   | 'a Insn.mov
   | 'a Insn.movd
+  | 'a Insn.movsd
+  | 'a Insn.movss
   | 'a Insn.movzx
   | 'a Insn.mul
+  | 'a Insn.mulsd
+  | 'a Insn.mulss
   | 'a Insn.neg
   | 'a Insn.not_
   | 'a Insn.or_
@@ -547,7 +671,13 @@ type 'a insn_base = [
   | 'a Insn.shl
   | 'a Insn.shr
   | 'a Insn.sub
+  | 'a Insn.subsd
+  | 'a Insn.subss
   | 'a Insn.test
   | 'a Insn.tzcnt
+  | 'a Insn.ucomisd
+  | 'a Insn.ucomiss
   | 'a Insn.xor
+  | 'a Insn.xorpd
+  | 'a Insn.xorps
 ] [@@deriving compare, equal, sexp]
