@@ -7,15 +7,16 @@ type disp =
   | Dconst of int32
 [@@deriving compare, equal, sexp]
 
+(* Scale must be 1, 2, 4, or 8. *)
 type 'a amode =
-  | Adisp               of disp
-  | Abase               of 'a
-  | Abaseindex          of 'a * 'a
-  | Abasedisp           of 'a * disp
-  | Abaseindexdisp      of 'a * 'a * disp
-  | Abaseindexscale     of 'a * 'a * int
-  | Aindexscaledisp     of 'a * int * disp
-  | Abaseindexscaledisp of 'a * 'a * int * disp
+  | Ad    of disp                 (* Displacement *)
+  | Ab    of 'a                   (* Base *)
+  | Abi   of 'a * 'a              (* Base + index *)
+  | Abd   of 'a * disp            (* Base + displacement *)
+  | Abid  of 'a * 'a * disp       (* Base + index + displacement *)
+  | Abis  of 'a * 'a * int        (* Base + index * scale *)
+  | Aisd  of 'a * int * disp      (* Index * scale + displacement *)
+  | Abisd of 'a * 'a * int * disp (* Base + index * scale + displacement *)
 [@@deriving compare, equal, sexp]
 
 module Insn = struct
