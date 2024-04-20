@@ -19,6 +19,11 @@ module type S = sig
     val of_string : string -> t option
   end
 
+  (** A machine instruction. *)
+  module Insn : sig
+    type 'a t [@@deriving compare, equal, sexp]
+  end
+
   (** Lowers the ABI-specific details of a function for a given target. *)
   val lower_abi : Typecheck.env -> Virtual.func -> Virtual.Abi.func context
 end
