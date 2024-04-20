@@ -104,15 +104,22 @@ module Reg = struct
   type t = [
     | gpr
     | sse
+    | `rip
   ] [@@deriving compare, equal, sexp]
 
   let is_gpr = function
     | #gpr -> true
     | #sse -> false
+    | `rip -> false
 
   let is_sse = function
     | #gpr -> false
     | #sse -> true
+    | `rip -> false
+
+  let is_rip = function
+    | `rip -> true
+    | _ -> false
 
   let pp ppf r =
     Format.fprintf ppf "%a" Sexp.pp (sexp_of_t r)
