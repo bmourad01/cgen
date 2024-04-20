@@ -247,11 +247,21 @@ module Insn = struct
   ] [@@deriving compare, equal, sexp]
 
   type 'a mov = [
-    | `MOVri64 of 'a * int64
-    | `MOVmi64 of 'a amode * int64
     | `MOVrr64 of 'a * 'a
     | `MOVrm64 of 'a * 'a amode
     | `MOVmr64 of 'a amode * 'a
+  ] [@@deriving compare, equal, sexp]
+
+  type 'a movabs = [
+    | `MOVABSri   of 'a * int64
+    | `MOVABSr8o  of int64 (* AL is implied as the destination. *)
+    | `MOVABSr16o of int64 (* AX is implied as the destination. *)
+    | `MOVABSr32o of int64 (* EAX is implied as the destination. *)
+    | `MOVABSr64o of int64 (* RAX is implied as the destination. *)
+    | `MOVABSor8  of int64 (* AL is implied as the source. *)
+    | `MOVABSor16 of int64 (* AX is implied as the source. *)
+    | `MOVABSor32 of int64 (* EAX is implied as the source. *)
+    | `MOVABSor64 of int64 (* RAX is implied as the source. *)
   ] [@@deriving compare, equal, sexp]
 
   type 'a movq = [
@@ -395,6 +405,7 @@ module Insn = struct
     | 'a inc
     | 'a lzcnt
     | 'a mov
+    | 'a movabs
     | 'a movq
     | 'a movzx
     | 'a mul
