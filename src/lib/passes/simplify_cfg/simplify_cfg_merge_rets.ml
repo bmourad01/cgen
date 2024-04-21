@@ -1,63 +1,40 @@
-(* Identify blocks with no instructions and a single `ret`. If there are
-   duplicates, then an arbitrary block is chosen as the canonical element,
-   and the rest are redirected to this block. *)
+(* Merge all `ret` instructions to a single block. *)
 
 open Core
-open Regular.Std
 open Virtual
 open Simplify_cfg_common
 
-open O.Let
+open Context.Syntax
 
-let find_loc tbl : local -> local option = function
-  | `label (l, args) ->
-    let+ l' = Hashtbl.find tbl l in
-    `label (l', args)
+let map_blk tbl rb b = match Hashtbl.find tbl @@ Blk.label b with
+  | Some (Some a) ->
+    Blk.with_ctrl b @@ `jmp (`label (Blk.label rb, [a]))
+  | Some None ->
+    Blk.with_ctrl b @@ `jmp (`label (Blk.label rb, []))
+  | None -> b
 
-let find_dst tbl : dst -> dst option = function
-  | #local as l -> (find_loc tbl l :> dst option)
-  | #global -> None
+let commit env tbl rb fn =
+  let key = Blk.label rb in
+  Hashtbl.map_inplace env.blks ~f:(map_blk tbl rb);
+  Hashtbl.set env.blks ~key ~data:rb;
+  env.ret <- Some key;
+  recompute_cfg env @@
+  Fn.flip Func.insert_blk rb @@
+  update_fn env fn
 
-let map_dst changed tbl d = match find_dst tbl d with
-  | Some x -> changed := true; x
-  | None -> d
-
-let map_loc changed tbl l = match find_loc tbl l with
-  | Some x -> changed := true; x
-  | None -> l
-
-let map_blk changed tbl b =
-  let dst = map_dst changed tbl in
-  let loc = map_loc changed tbl in
-  Blk.map_ctrl b ~f:(function
-      | (`hlt | `ret _) as x -> x
-      | `jmp d -> `jmp (dst d)
-      | `br (c, y, n) ->
-        let y = dst y in
-        let n = dst n in
-        if equal_dst y n
-        then (changed := true; `jmp y)
-        else `br (c, y, n)
-      | `sw (t, i, d, tbl) ->
-        let d = loc d in
-        let tbl = Ctrl.Table.map_exn tbl ~f:(fun i l -> i, loc l) in
-        sw_hoist_default changed t i d tbl)
-
-let run env =
+let run env fn =
   let tbl = Label.Table.create () in
-  let canon = Hashtbl.create (module struct
-      type t = int * operand option [@@deriving compare, hash, sexp]
-    end) in
-  Hashtbl.iteri env.blks ~f:(fun ~key:l ~data:b ->
-      if Seq.is_empty @@ Blk.insns b
-      then match Blk.ctrl b with
-        | `ret a ->
-          let n = Seq.length @@ Blk.args b in
-          Hashtbl.update canon (n, a) ~f:(function
-              | Some l' -> Hashtbl.set tbl ~key:l ~data:l'; l'
-              | None -> l)
+  Hashtbl.iteri env.blks
+    ~f:(fun ~key:l ~data:b -> match Blk.ctrl b with
+        | `ret a -> Hashtbl.set tbl ~key:l ~data:a
         | _ -> ());
-  let changed = ref false in
-  if not @@ Hashtbl.is_empty tbl then
-    Hashtbl.map_inplace env.blks ~f:(map_blk changed tbl);
-  !changed
+  if Hashtbl.length tbl <= 1 then !!fn
+  else match snd @@ Hashtbl.choose_exn tbl with
+    | Some _ ->      
+      let* r = Context.Var.fresh in
+      let ctrl = `ret (Some (`var r)) in
+      let+ rb = Context.Virtual.blk ~args:[r] ~ctrl () in
+      commit env tbl rb fn
+    | None ->
+      let+ rb = Context.Virtual.blk ~ctrl:(`ret None) () in
+      commit env tbl rb fn

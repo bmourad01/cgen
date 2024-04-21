@@ -11,6 +11,7 @@ type env = {
   doms        : Label.t tree;
   start       : Label.t;
   mutable cfg : Cfg.t;
+  mutable ret : Label.t option;
 }
 
 let init fn =
@@ -20,7 +21,11 @@ let init fn =
   let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   Func.blks fn |> Seq.iter ~f:(fun b ->
       Hashtbl.set blks ~key:(Blk.label b) ~data:b);
-  {blks; doms; start; cfg}
+  {blks; doms; start; cfg; ret = None}
+
+let is_ret env l = match env.ret with
+  | Some l' -> Label.(l = l')
+  | None -> false
 
 let update_fn env fn =
   Func.blks fn |> Seq.fold ~init:fn ~f:(fun fn b ->

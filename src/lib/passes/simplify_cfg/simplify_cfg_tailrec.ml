@@ -3,10 +3,11 @@
 open Core
 open Regular.Std
 open Virtual
+open Simplify_cfg_common
 
 open Context.Syntax
 
-let collect_calls fn =
+let collect_calls env fn =
   let name = Func.name fn in
   Func.blks fn |> Seq.fold ~init:Label.Tree.empty ~f:(fun acc b ->
       match Seq.hd @@ Blk.insns ~rev:true b with
@@ -15,8 +16,17 @@ let collect_calls fn =
         | `call (r, `sym (f, 0), args, []) when String.(f = name) ->
           begin match r, Blk.ctrl b with
             | None, `ret Some _ | Some _, `ret None -> acc
+            (* The result of the function isn't used as the return value. *)
             | Some (x, _), `ret Some `var y when Var.(x <> y) -> acc
-            | Some _, `ret Some `var _ | None, `ret None ->
+            | Some (x, _), `jmp (`label (l, [`var y]))
+              when is_ret env l && Var.(x <> y) -> acc
+            (* Normal case. *)
+            | Some _, `ret Some `var _
+            | None, `ret None ->
+              Label.Tree.set acc ~key:(Blk.label b) ~data:(args, Insn.label i)
+            (* Accounting for the case where we merged all `ret`s. *)
+            | Some _, `jmp `label (l, [_])
+            | None, `jmp `label (l, []) when is_ret env l ->
               Label.Tree.set acc ~key:(Blk.label b) ~data:(args, Insn.label i)
             | _ -> acc
           end
@@ -48,9 +58,9 @@ let new_entry fn e =
 
 let unless fn b k = if b then !!fn else k ()
 
-let go fn =
+let go env fn =
   unless fn (Func.variadic fn) @@ fun () ->
-  let calls = collect_calls fn in
+  let calls = collect_calls env fn in
   unless fn (Label.Tree.is_empty calls) @@ fun () ->
   let* args, subst = fresh_args fn in
   let e = Func.entry fn in

@@ -17,15 +17,22 @@ open Context.Syntax
 let run fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let env = init fn in
-    let upd = update_fn env in
     let rec loop fn =
       let merged = Merge_blks.run env in
-      if Contract.run env
-      || Merge_rets.run env then
-        loop @@ recompute_cfg env @@ upd fn
-      else if merged then upd fn
+      if Contract.run env then
+        loop @@ recompute_cfg env @@ update_fn env fn
+      else if merged then update_fn env fn
       else fn in
-    try_ @@ fun () -> (Two_case_switch.go @@ loop fn) >>= Tailrec.go
+    try_ @@ fun () ->
+    (* This only needs to run once at the beginning, since it
+       affects downstream passes but itself is not affected
+       by any other changes we're doing. *)
+    let* fn = Merge_rets.run env fn in
+    (* Run the fixpoint loop. *)
+    let fn = loop fn in
+    (* The last two passes don't need to run in fixpoint, but
+       they benefit from the previous changes. *)
+    Two_case_switch.go fn >>= Tailrec.go env
   else
     Context.failf
       "In Simplify_cfg: expected SSA form for function $%s"

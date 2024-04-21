@@ -2,10 +2,8 @@ module foo
 
 export function w $foo(w %x) {
 @0:
-  %0 = eq.w %x, 0x0_w ; @5
-  br %0, @1, @2
-@1:
-  ret 0x0_w
-@2:
-  ret 0x1_w
+  %1 = eq.w %x, 0x0_w ; @6
+  br %1, @5(0x0_w), @5(0x1_w)
+@5(%0):
+  ret %0
 }
