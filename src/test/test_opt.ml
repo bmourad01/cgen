@@ -120,6 +120,7 @@ let suite = "Test optimizations" >::: [
     "Tail recursion elimination 2 (fibonacci)" >:: test "tailrec2";
     "Constant phi" >:: test "constphi";
     "Collatz (promotion)" >:: test "collatz";
+    "Ackermann" >:: test "ackermann";
   ]
 
 let () = run_test_tt_main suite
