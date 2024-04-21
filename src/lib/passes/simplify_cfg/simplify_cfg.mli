@@ -6,4 +6,4 @@
 
 open Virtual
 
-val run : func -> func Context.t
+val run : Typecheck.env -> func -> func Context.t

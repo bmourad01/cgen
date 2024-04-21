@@ -8,6 +8,7 @@ module O = Monad.Option
 
 type env = {
   blks        : blk Label.Table.t;
+  typs        : Type.t Var.Table.t;
   start       : Label.t;
   mutable cfg : Cfg.t;
   mutable dom : Label.t tree;
@@ -18,10 +19,11 @@ let init fn =
   let cfg = Cfg.create fn in
   let start = Func.entry fn in
   let blks = Label.Table.create () in
+  let typs = Var.Table.create () in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   Func.blks fn |> Seq.iter ~f:(fun b ->
       Hashtbl.set blks ~key:(Blk.label b) ~data:b);
-  {blks; start; cfg; dom; ret = None}
+  {blks; typs; start; cfg; dom; ret = None}
 
 let is_ret env l = match env.ret with
   | Some l' -> Label.(l = l')
