@@ -8,9 +8,9 @@ module O = Monad.Option
 
 type env = {
   blks        : blk Label.Table.t;
-  doms        : Label.t tree;
   start       : Label.t;
   mutable cfg : Cfg.t;
+  mutable dom : Label.t tree;
   mutable ret : Label.t option;
 }
 
@@ -18,10 +18,10 @@ let init fn =
   let cfg = Cfg.create fn in
   let start = Func.entry fn in
   let blks = Label.Table.create () in
-  let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
+  let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   Func.blks fn |> Seq.iter ~f:(fun b ->
       Hashtbl.set blks ~key:(Blk.label b) ~data:b);
-  {blks; doms; start; cfg; ret = None}
+  {blks; start; cfg; dom; ret = None}
 
 let is_ret env l = match env.ret with
   | Some l' -> Label.(l = l')
@@ -56,7 +56,10 @@ let recompute_cfg env fn =
           Hashtbl.remove env.blks l;
           Func.remove_blk_exn fn l, g'
         else acc) in
-  env.cfg <- g';
+  if not @@ phys_equal g g' then begin
+    env.dom <- Graphlib.dominators (module Cfg) g' Label.pseudoentry;
+    env.cfg <- g';
+  end;
   fn
 
 (* Remove the cases of the switch that have the same target and args
