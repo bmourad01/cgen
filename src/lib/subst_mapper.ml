@@ -2,10 +2,7 @@
 
 open Core
 open Regular.Std
-open Monads.Std
 open Virtual
-
-module O = Monad.Option
 
 type t = operand Var.Map.t
 
@@ -104,14 +101,17 @@ let map_blk subst b =
   let insns = Blk.insns b |> Seq.map ~f:(map_insn subst) in
   Seq.to_list insns, map_ctrl subst (Blk.ctrl b)
 
+(* TODO: should we enable more than just the `jmp` case? With
+   `br` and `switch` we can have different applications of the
+   substitution for the same destination. *)
+let map_blk_args subst b l = match Blk.ctrl b with
+  | `jmp `label (l', args) when Label.(l = l') ->
+    Some (List.map args ~f:(map_arg subst))
+  | _ -> None
+
 let blk_extend subst b b' =
-  let open O.Let in
-  let* args = match Blk.ctrl b with
-    | `jmp (`label (_, args)) ->
-      Some (List.map args ~f:(map_arg subst))
-    | _ -> None in
-  Blk.args b' |> Seq.to_list |> List.zip args |> function
-  | Unequal_lengths -> None
-  | Ok l ->
-    List.fold l ~init:subst ~f:(fun subst (o, x) ->
-        Map.set subst ~key:x ~data:o) |> O.return
+  Blk.label b' |> map_blk_args subst b |> Option.bind ~f:(fun args ->
+      Blk.args b' |> Seq.to_list |> List.zip args |> function
+      | Ok l -> Option.some @@ List.fold l ~init:subst
+          ~f:(fun subst (o, x) -> Map.set subst ~key:x ~data:o)
+      | Unequal_lengths -> None)
