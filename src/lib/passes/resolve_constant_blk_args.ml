@@ -95,8 +95,15 @@ let analyze fn =
   filter_many @@ Solution.get soln Label.pseudoexit
 
 let run fn =
-  let s = analyze fn in
-  if not @@ Map.is_empty s then Func.map_blks fn ~f:(fun b ->
-      let is, k = Subst_mapper.map_blk s b in
-      Blk.(with_ctrl (with_insns b is) k))
-  else fn
+  if Dict.mem (Func.dict fn) Tags.ssa then
+    let s = analyze fn in
+    let fn =
+      if not @@ Map.is_empty s then Func.map_blks fn ~f:(fun b ->
+          let is, k = Subst_mapper.map_blk s b in
+          Blk.(with_ctrl (with_insns b is) k))
+      else fn in
+    Ok fn
+  else
+    Or_error.errorf
+      "In Resolve_constant_blk_args: function $%s is not in SSA form"
+      (Func.name fn)
