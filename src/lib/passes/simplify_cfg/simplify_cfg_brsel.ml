@@ -26,7 +26,9 @@ let typeof tenv env fn x =
   | Ok t -> t
   | Error _ -> match Hashtbl.find env.typs x with
     | Some t -> t
-    | None -> assert false
+    | None ->
+      failwithf "variable %a in function $%s has no known type"
+        Var.pps x (Func.name fn) ()
 
 (* XXX: should `sel` support more than basic types? *)
 let basicty tenv env fn x =  match typeof tenv env fn x with
@@ -34,7 +36,7 @@ let basicty tenv env fn x =  match typeof tenv env fn x with
   | _ -> raise_notrace Non_basic
 
 let collect tenv env fn =
-  Hashtbl.fold env.blks ~init:[] ~f:(fun ~key:_ ~data:b acc ->
+  Hashtbl.fold env.blks ~init:[] ~f:(fun ~key ~data:b acc ->
       try match Blk.ctrl b with
         | `br (c, `label (l, xs), `label (l', xs')) when Label.(l = l') ->
           let b' = Hashtbl.find_exn env.blks l in
@@ -42,7 +44,13 @@ let collect tenv env fn =
             Blk.args b' |>
             Seq.map ~f:(basicty tenv env fn) |>
             Seq.to_list in
-          let args = List.map3_exn typs xs xs' ~f:Tuple3.create in
+          let args = match List.map3 typs xs xs' ~f:Tuple3.create with
+            | Ok args -> args
+            | Unequal_lengths ->
+              failwithf "in function $%s, block %a: incorrect arity in \
+                         block arguments for `%s`"
+                (Func.name fn) Label.pps key
+                (Format.asprintf "%a" Ctrl.pp (Blk.ctrl b)) () in
           (b, c, l, args) :: acc
         | _ -> acc
       with Non_basic -> acc)

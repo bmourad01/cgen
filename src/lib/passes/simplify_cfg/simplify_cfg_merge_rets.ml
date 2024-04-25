@@ -22,14 +22,16 @@ let commit env tbl rb fn =
   Fn.flip Func.insert_blk rb @@
   update_fn env fn
 
-let map_retty tenv = function
+let map_retty fn tenv = function
   | #Type.basic as t -> (t :> Type.t)
   | `si8 -> `i8
   | `si16 -> `i16
   | `si32 -> `i32
   | `name s -> match Typecheck.Env.typeof_typ s tenv with
-    | Error _ -> assert false
     | Ok t -> (t :> Type.t)
+    | Error err ->
+      failwithf "in function $%s: %s"
+        (Func.name fn) (Error.to_string_hum err) ()
 
 let run tenv env fn =
   let tbl = Label.Table.create () in
@@ -40,8 +42,9 @@ let run tenv env fn =
   if Hashtbl.length tbl <= 1 then !!fn
   else match Func.return fn with
     | Some ty ->
+      let data = map_retty fn tenv ty in
       let* r = Context.Var.fresh in
-      Hashtbl.set env.typs ~key:r ~data:(map_retty tenv ty);
+      Hashtbl.set env.typs ~key:r ~data;
       let ctrl = `ret (Some (`var r)) in
       let+ rb = Context.Virtual.blk ~args:[r] ~ctrl () in
       commit env tbl rb fn
