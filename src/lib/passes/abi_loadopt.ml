@@ -49,6 +49,11 @@ module Mem = Regular.Make(struct
     let version = "0.1"
   end)
 
+(* Bindings from variables to canonicalized operands. We use a
+   persistent map because the bindings are scoped according to
+   our traversal of the dominator tree. *)
+type scope = operand Var.Map.t
+
 type t = {
   memo         : (Op.t, operand) Hashtbl.t;
   reso         : Abi.resolver;
@@ -58,7 +63,7 @@ type t = {
   blks         : Abi.blk Label.Table.t;
   mems         : store Mem.Table.t;
   mutable mem  : Label.t option;
-  mutable vars : operand Var.Map.t;
+  mutable vars : scope;
 }
 
 let cdoms fn reso dom =
