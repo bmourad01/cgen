@@ -39,11 +39,4 @@ let eval x s =
 module type Machine = Context_machine.S
 
 let register_machine = Context_machine.register
-
-let machine =
-  let* t = target in
-  match Context_machine.get t with
-  | Some m -> !!m
-  | None ->
-    failf "Machine for target %a is not registered"
-      Target.pp t ()
+let machine = Context_machine.machine

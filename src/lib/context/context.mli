@@ -1,9 +1,4 @@
-(** The compilation context.
-
-    All elements of the compilation pipeline are expected to be
-    parameterized by this context. It contains various book keeping
-    and state.
-*)
+(** The compilation context. *)
 
 open Core
 open Monads.Std
@@ -12,7 +7,6 @@ open Regular.Std
 (** The state for the compilation context. *)
 module State : sig
   type t
-
   include Regular.S with type t := t
 end
 
@@ -42,22 +36,11 @@ val target : Target.t t
 
     This state is not persistent between runs of compilation context.
 *)
-module Local : sig
-  (** [set k v] sets the value associated with key [k] to [v]. *)
-  val set : 'a Dict.tag -> 'a -> unit t
-
-  (** [get k ~default] returns the value associated with [k] if it exists,
-      and [default] otherwise. *)
-  val get : 'a Dict.tag -> default:'a -> 'a t
-
-  (** [erase k] removes [k] from the local state. This can be useful to
-      reset the state for re-runs or to discard state that is isolated to
-      a particular analysis or transformation. *)
-  val erase : 'a Dict.tag -> unit t
-end
+module Local : Context_local_intf.S
+  with type 'a context := 'a t
 
 (** The target-specific implementation needed for the compilation pipeline. *)
-module type Machine = Machine_intf.S
+module type Machine = Context_machine_intf.S
   with type 'a context := 'a t
 
 (** [register_machine t m] registers the machine implementation [m] for
@@ -85,221 +68,10 @@ module Label : sig
 end
 
 (** Helpers for generating [Virtual] terms. *)
-module Virtual : sig
-  (** [insn d ?dict] returns a data instruction [d] with a fresh label. *)
-  val insn : ?dict:Dict.t -> Virtual.Insn.op -> Virtual.insn t
-
-  (** [binop b l r ?dict] constructs a [`bop] instruction with a fresh
-      label and variable containing the destination. *)
-  val binop :
-    ?dict:Dict.t ->
-    Virtual.Insn.binop ->
-    Virtual.operand ->
-    Virtual.operand ->
-    (var * Virtual.insn) t
-
-  (** [unop o a ?dict] constructs a [`uop] instruction with a fresh label
-      and variable containing the destination. *)
-  val unop :
-    ?dict:Dict.t ->
-    Virtual.Insn.unop ->
-    Virtual.operand ->
-    (var * Virtual.insn) t 
-
-  (** [sel t c y n ?dict] constructs a [`sel] instruction with a fresh
-      label and variable containing the destination. *)
-  val sel :
-    ?dict:Dict.t ->
-    Type.basic ->
-    var ->
-    Virtual.operand ->
-    Virtual.operand ->
-    (var * Virtual.insn) t
-
-  (** [call0 f args vargs ?dict] constructs a void [`call] instruction
-      with a fresh label. *)
-  val call0 :
-    ?dict:Dict.t ->
-    Virtual.global ->
-    Virtual.operand list ->
-    Virtual.operand list ->
-    Virtual.insn t
-
-  (** [call t f args vargs ?dict] constructs a [`call] instruction with a
-      fresh label and variable containing the destination. *)
-  val call :
-    ?dict:Dict.t ->
-    Type.ret ->
-    Virtual.global ->
-    Virtual.operand list ->
-    Virtual.operand list ->
-    (var * Virtual.insn) t 
-
-  (** [load t a ?dict] constructs a [`load] instruction with a fresh label
-      and variable containing the destination. *)
-  val load :
-    ?dict:Dict.t ->
-    Type.arg ->
-    Virtual.operand ->
-    (var * Virtual.insn) t 
-
-  (** [store t v a ?dict] constructs a [`store] instruction with a fresh label. *)
-  val store :
-    ?dict:Dict.t ->
-    Type.arg ->
-    Virtual.operand ->
-    Virtual.operand ->
-    Virtual.insn t 
-
-  (** [vaarg t a ?dict] constructs a [`vaarg] instruction with a fresh label
-      and variable containing the destination. *)
-  val vaarg :
-    ?dict:Dict.t ->
-    Type.arg ->
-    Virtual.Insn.alist ->
-    (var * Virtual.insn) t 
-
-  (** [vastart a ?dict] constructs a [`vastart] instruction with a fresh label. *)
-  val vastart :
-    ?dict:Dict.t ->
-    Virtual.Insn.alist ->
-    Virtual.insn t 
-
-  (** [blit ~src ~dst word size] copies [size] bytes from the address
-      in [src] to the address in [dst] in a series of loads and stores,
-      where [word] is the size of a pointer.
-
-      It is assumed that either [src] and [dst] do not overlap, or that
-      they point to the same address (i.e. they overlap perfectly).
-
-      If [size < 0], then the blit is done backwards in memory.
-  *)
-  val blit : src:var -> dst:var -> Type.imm_base -> int -> Virtual.insn list t
-
-  (** [ldm word src size] performs the minimum number of loads from [src]
-      to cover [size] bytes, where [word] is the size of a pointer.
-
-      If [size < 0], then the loads are done backwards in memory.
-
-      It is identical to [blit ~src ~dst:src size], except no stores to
-      [dst] are performed.
-  *)
-  val ldm : Type.imm_base -> var -> int -> Virtual.insn list t
-
-  (** [blk ?dict ?args ?insns ~ctrl ()] returns a block with [dict],
-      [args], [insns], and [ctrl], while generating a fresh label for
-      the block. *)
-  val blk :
-    ?dict:Dict.t ->
-    ?args:var list ->
-    ?insns:Virtual.insn list ->
-    ctrl:Virtual.ctrl ->
-    unit ->
-    Virtual.blk t
-
-  (** Same as [blk], but also generates fresh labels for the [insns].
-      Allows a pre-existing label for the block. *)
-  val blk' :
-    ?dict:Dict.t ->
-    ?label:label option ->
-    ?args:var list ->
-    ?insns:Virtual.Insn.op list ->
-    ctrl:Virtual.ctrl ->
-    unit ->
-    Virtual.blk t
-
-  module Module : sig
-    (** Same as [Virtual.Module.map_funs], but [f] is a context
-        computation. *)
-    val map_funs :
-      Virtual.module_ ->
-      f:(Virtual.func -> Virtual.func t) ->
-      Virtual.module_ t
-  end
-
-  (** Same as the above helpers, but for the ABI variant of Virtual IR. *)
-  module Abi : sig
-    val insn : ?dict:Dict.t -> Virtual.Abi.Insn.op -> Virtual.Abi.insn t
-
-    val binop :
-      ?dict:Dict.t ->
-      Virtual.Abi.Insn.binop ->
-      Virtual.operand ->
-      Virtual.operand ->
-      (var * Virtual.Abi.insn) t
-
-    val unop :
-      ?dict:Dict.t ->
-      Virtual.Abi.Insn.unop ->
-      Virtual.operand ->
-      (var * Virtual.Abi.insn) t
-
-    val sel :
-      ?dict:Dict.t ->
-      Type.basic ->
-      var ->
-      Virtual.operand ->
-      Virtual.operand ->
-      (var * Virtual.Abi.insn) t
-
-    val call :
-      ?dict:Dict.t ->
-      (Type.basic * string) list ->
-      Virtual.global ->
-      Virtual.Abi.Insn.callarg list ->
-      ((var * Type.basic * string) list * Virtual.Abi.insn) t
-
-    val load :
-      ?dict:Dict.t ->
-      Type.basic ->
-      Virtual.operand ->
-      (var * Virtual.Abi.insn) t
-
-    val store :
-      ?dict:Dict.t ->
-      Type.basic ->
-      Virtual.operand ->
-      Virtual.operand ->
-      Virtual.Abi.insn t
-
-    (** [loadreg ?dict t r] fetches register [r] with type [t]. *)
-    val loadreg :
-      ?dict:Dict.t ->
-      Type.basic ->
-      string ->
-      (var * Virtual.Abi.insn) t
-
-    (** [storereg ?dict v a] stores register [r] at address [a]. *)
-    val storereg :
-      ?dict:Dict.t ->
-      string ->
-      Virtual.operand ->
-      Virtual.Abi.insn t
-
-    (** [setreg ?dict v a] loads register [r] with value [a]. *)
-    val setreg :
-      ?dict:Dict.t ->
-      string ->
-      Virtual.operand ->
-      Virtual.Abi.insn t
-
-    (** [stkargs ?dict ()] gets the beginning of the stack arguments region. *)
-    val stkargs : ?dict:Dict.t -> unit -> (var * Virtual.Abi.insn) t
-
-    val blit :
-      src:var ->
-      dst:var ->
-      Type.imm_base ->
-      int ->
-      Virtual.Abi.insn list t
-
-    val ldm :
-      Type.imm_base ->
-      var ->
-      int ->
-      Virtual.Abi.insn list t
-  end
-end
+module Virtual : Context_virtual_intf.S
+  with type var := var
+   and type label := label
+   and type 'a context := 'a t
 
 (** Initializes the state. *)
 val init : Target.t -> state
@@ -325,4 +97,6 @@ module Syntax : sig
   val (let*?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
 end
 
-include Monad.S with type 'a t := 'a t and module Syntax := Syntax
+include Monad.S
+  with type 'a t := 'a t
+   and module Syntax := Syntax

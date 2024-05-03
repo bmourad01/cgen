@@ -8,17 +8,10 @@ type state = {
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 module State = struct
-  module T = struct
-    type t = state [@@deriving bin_io, compare, equal, hash, sexp]
-  end
-
-  include T
-
-  let pp ppf s = Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_state s
-
+  type t = state
   include Regular.Make(struct
-      include T
-      let pp = pp
+      type t = state [@@deriving bin_io, compare, equal, hash, sexp]
+      let pp ppf s = Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_state s
       let version = "0.1"
       let module_name = Some "Cgen.Context.State"
     end)
@@ -29,9 +22,11 @@ type ctx = {
   local : Dict.t;
 }
 
+let error_prefix = "Context error"
+
 module M = Sm.Make(struct
     type state = ctx
-    let error_prefix = "Context error"
+    let error_prefix = error_prefix
   end)
 
 include M.Syntax
