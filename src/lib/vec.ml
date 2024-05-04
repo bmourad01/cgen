@@ -36,10 +36,14 @@ let append t1 t2 =
     let l2 = t2.length in
     let new_length = l1 + l2 in
     let dst = if t1.capacity < new_length then
-        let dst = Oa.create ~len:new_length in
+        (* Try to ensure that future additions won't immediately
+           trigger a resizing of the backing array. Hopefully
+           this doesn't end up wasting too much memory. *)
+        let new_capacity = new_length * growth_factor in
+        let dst = Oa.create ~len:new_capacity in
         Oa.unsafe_blit ~src:t1.data ~src_pos:0 ~dst ~dst_pos:0 ~len:l1;
         t1.data <- dst;
-        t1.capacity <- new_length;
+        t1.capacity <- new_capacity;
         dst
       else t1.data in
     Oa.unsafe_blit ~src:t2.data ~src_pos:0 ~dst ~dst_pos:l1 ~len:l2;
