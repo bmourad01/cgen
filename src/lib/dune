@@ -24,6 +24,7 @@
   regular
   zarith)
  (private_modules
+  cdoms
   ftree
   last_stores
   live_intf

@@ -13,8 +13,6 @@ open Graphlib.Std
 open Virtual
 
 module E = Monad.Result.Error
-module G = Graphlib.Make(Label)(Unit)
-module Pseudo = Label.Pseudo(G)
 
 open E.Let
 
@@ -66,27 +64,16 @@ type t = {
   mutable vars : scope;
 }
 
-let cdoms fn reso dom =
-  let accum b g l =
-    Abi.Blk.insns ~rev:true b |>
-    Seq.fold ~init:(g, l) ~f:(fun (g, l) i ->
-        let next = Abi.Insn.label i in
-        let e = G.Edge.create next l () in
-        G.Edge.insert e g, next) in 
-  let rec aux g l = match Abi.Resolver.resolve reso l with
-    | None when Label.is_pseudo l -> g, l
-    | None | Some `insn _ -> assert false
-    | Some `blk b ->
-      let g, first = accum b g l in
-      children g l, first
-  and children g l =
-    Tree.children dom l |> Seq.fold ~init:g ~f:(fun g c ->
-        let g, first = aux g c in
-        let e = G.Edge.create l first () in
-        G.Edge.insert e g) in
-  let entry = Abi.Func.entry fn in
-  let g = fst @@ aux (G.Node.insert entry G.empty) entry in
-  Graphlib.dominators (module G) (Pseudo.add g) Label.pseudoentry
+let init_cdoms fn reso dom =
+  let module Cdom = Cdoms.Make(struct
+      type lhs = Var.Set.t
+      module Insn = Abi.Insn
+      module Blk = Abi.Blk
+      module Func = Abi.Func
+      module G = Abi.Cfg
+      let resolve = Abi.Resolver.resolve reso
+    end) in
+  Cdom.create fn dom
 
 let init_last_stores fn cfg reso =
   let module Lst = Last_stores.Make(struct
@@ -105,7 +92,7 @@ let init fn =
   let memo = Hashtbl.create (module Op) in
   let cfg = Abi.Cfg.create fn in
   let dom = Graphlib.dominators (module Abi.Cfg) cfg Label.pseudoentry in
-  let cdom = cdoms fn reso dom in
+  let cdom = init_cdoms fn reso dom in
   let lst = init_last_stores fn cfg reso in
   let blks = Label.Table.create () in
   let mems = Mem.Table.create () in
