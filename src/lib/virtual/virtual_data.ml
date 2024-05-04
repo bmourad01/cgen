@@ -72,15 +72,14 @@ let hash d = String.hash d.name
 let typeof d ~(word : Type.imm_base) =
   let name = Format.sprintf "%s_t" d.name in
   let fields = Ftree.fold_right d.elts ~init:[] ~f:(fun elt fields ->
-      let t = match elt with
-        | `bool _     -> `elt (`i8, 1)
-        | `int (_, t) -> `elt ((t :> Type.basic), 1)
-        | `float _    -> `elt (`f32, 1)
-        | `double _   -> `elt (`f64, 1)
-        | `string s   -> `elt (`i8, String.length s)
-        | `zero n     -> `elt (`i8, n)
-        | `sym _      -> `elt ((word :> Type.basic), 1) in
-      t :: fields) in
+      Fn.flip List.cons fields @@ match elt with
+      | `bool _     -> `elt (`i8, 1)
+      | `int (_, t) -> `elt ((t :> Type.basic), 1)
+      | `float _    -> `elt (`f32, 1)
+      | `double _   -> `elt (`f64, 1)
+      | `string s   -> `elt (`i8, String.length s)
+      | `zero n     -> `elt (`i8, n)
+      | `sym _      -> `elt ((word :> Type.basic), 1)) in
   `compound (name, align d, fields)
 
 let prepend_elt d e = {
