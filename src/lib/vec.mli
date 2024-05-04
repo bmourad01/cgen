@@ -25,7 +25,7 @@ val capacity : 'a t -> int
     elements. *)
 val ensure_capacity : 'a t -> int -> unit
 
-(** Returns a unique copy of the array. *)
+(** Returns a shallow copy of the array. *)
 val copy : 'a t -> 'a t
 
 (** Removes all elements from the array. *)
