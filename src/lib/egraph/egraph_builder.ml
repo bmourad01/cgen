@@ -70,7 +70,7 @@ let constant ?ty eg k =
 let var env eg x = Hashtbl.find_or_add env.vars x
     ~default:(fun () -> match typeof_var eg x with
         | Some ty -> atom ~ty eg @@ Ovar x
-        | None -> raise @@ Notype x)
+        | None -> raise_notrace @@ Notype x)
 
 let typeof_const eg : const -> Type.t = function
   | `bool _ -> `flag
@@ -110,7 +110,7 @@ let sched ?x ?(f = Fn.const) env eg l op args =
   let id = node ?ty ~l eg op args in
   Option.iter x ~f:(fun x ->
       match Hashtbl.add env.vars ~key:x ~data:id with
-      | `Duplicate -> raise @@ Duplicate (x, l)
+      | `Duplicate -> raise_notrace @@ Duplicate (x, l)
       | `Ok -> ());
   Hashtbl.set eg.lval ~key:l ~data:(f id eg)
 
@@ -253,7 +253,7 @@ let setmem env eg l m = env.mem <- match m with
 
 let step env eg l lst = match Resolver.resolve eg.input.reso l with
   | None when Label.is_pseudo l -> ()
-  | None | Some `insn _ -> raise @@ Missing l
+  | None | Some `insn _ -> raise_notrace @@ Missing l
   | Some `blk b ->
     setmem env eg l lst;
     Blk.insns b |> Seq.iter ~f:(fun i ->

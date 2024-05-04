@@ -89,7 +89,7 @@ exception Failed of Error.t
 
 let map_blks_err fn ~f = try
     let blks = Ftree.map fn.blks ~f:(fun b -> match f b with
-        | Error e -> raise @@ Failed e
+        | Error e -> raise_notrace @@ Failed e
         | Ok b' -> b') in
     Ok {fn with blks}
   with Failed e -> Error e

@@ -82,21 +82,21 @@ let map_funs m ~f = {
 
 let map_typs_err m ~f = try
     let typs = Ftree.map m.typs ~f:(fun t -> match f t with
-        | Error e -> raise @@ Failed e
+        | Error e -> raise_notrace @@ Failed e
         | Ok t -> t) in
     Ok {m with typs}
   with Failed err -> Error err
 
 let map_data_err m ~f = try
     let data = Ftree.map m.data ~f:(fun d -> match f d with
-        | Error e -> raise @@ Failed e
+        | Error e -> raise_notrace @@ Failed e
         | Ok d -> d) in
     Ok {m with data}
   with Failed err -> Error err
 
 let map_funs_err m ~f = try
     let funs = Ftree.map m.funs ~f:(fun fn -> match f fn with
-        | Error e -> raise @@ Failed e
+        | Error e -> raise_notrace @@ Failed e
         | Ok fn -> fn) in
     Ok {m with funs}
   with Failed err -> Error err

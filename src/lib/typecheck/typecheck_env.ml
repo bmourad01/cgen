@@ -96,7 +96,8 @@ let add_var fn v t env = try
     let venv = Map.update env.venv (Func.name fn) ~f:(function
         | None -> Var.Map.singleton v t
         | Some m -> Map.update m v ~f:(function
-            | Some t' when Type.(t <> t') -> raise @@ Unify_fail t'
+            | Some t' when Type.(t <> t') ->
+              raise_notrace @@ Unify_fail t'
             | Some _ -> t
             | None -> t)) in
     Ok {env with venv}

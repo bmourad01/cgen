@@ -13,7 +13,7 @@ end = struct
 
   let find_blk env l = match Hashtbl.find env.blks l with
     | None when Label.is_pseudo l -> None
-    | None -> raise @@ Missing_blk l
+    | None -> raise_notrace @@ Missing_blk l
     | Some _ as b -> b
 
   let new_name stk nums x =
