@@ -45,66 +45,82 @@ module Groups = struct
     (add `i16 x y =>? add `i16 y x) ~if_:is_const_x;
     (add `i32 x y =>? add `i32 y x) ~if_:is_const_x;
     (add `i64 x y =>? add `i64 y x) ~if_:is_const_x;
+
     (mul `i8 x y =>? mul `i8 y x) ~if_:is_const_x;
     (mul `i16 x y =>? mul `i16 y x) ~if_:is_const_x;
     (mul `i32 x y =>? mul `i32 y x) ~if_:is_const_x;
     (mul `i64 x y =>? mul `i64 y x) ~if_:is_const_x;
+
     (mulh `i8 x y =>? mulh `i8 y x) ~if_:is_const_x;
     (mulh `i16 x y =>? mulh `i16 y x) ~if_:is_const_x;
     (mulh `i32 x y =>? mulh `i32 y x) ~if_:is_const_x;
     (mulh `i64 x y =>? mulh `i64 y x) ~if_:is_const_x;
+
     (umulh `i8 x y =>? umulh `i8 y x) ~if_:is_const_x;
     (umulh `i16 x y =>? umulh `i16 y x) ~if_:is_const_x;
     (umulh `i32 x y =>? umulh `i32 y x) ~if_:is_const_x;
     (umulh `i64 x y =>? umulh `i64 y x) ~if_:is_const_x;
+
     (and_ `i8 x y =>? and_ `i8 y x) ~if_:is_const_x;
     (and_ `i16 x y =>? and_ `i16 y x) ~if_:is_const_x;
     (and_ `i32 x y =>? and_ `i32 y x) ~if_:is_const_x;
     (and_ `i64 x y =>? and_ `i64 y x) ~if_:is_const_x;
+
     (or_ `i8 x y =>? or_ `i8 y x) ~if_:is_const_x;
     (or_ `i16 x y =>? or_ `i16 y x) ~if_:is_const_x;
     (or_ `i32 x y =>? or_ `i32 y x) ~if_:is_const_x;
     (or_ `i64 x y =>? or_ `i64 y x) ~if_:is_const_x;
+
     (xor `i8 x y =>? xor `i8 y x) ~if_:is_const_x;
     (xor `i16 x y =>? xor `i16 y x) ~if_:is_const_x;
     (xor `i32 x y =>? xor `i32 y x) ~if_:is_const_x;
     (xor `i64 x y =>? xor `i64 y x) ~if_:is_const_x;
+
     (eq `i8 x y =>? eq `i8 y x) ~if_:is_const_x;
     (eq `i16 x y =>? eq `i16 y x) ~if_:is_const_x;
     (eq `i32 x y =>? eq `i32 y x) ~if_:is_const_x;
     (eq `i64 x y =>? eq `i64 y x) ~if_:is_const_x;
+
     (ne `i8 x y =>? ne `i8 y x) ~if_:is_const_x;
     (ne `i16 x y =>? ne `i16 y x) ~if_:is_const_x;
     (ne `i32 x y =>? ne `i32 y x) ~if_:is_const_x;
     (ne `i64 x y =>? ne `i64 y x) ~if_:is_const_x;
+
     (gt `i8 x y =>? lt `i8 y x) ~if_:is_const_x;
     (gt `i16 x y =>? lt `i16 y x) ~if_:is_const_x;
     (gt `i32 x y =>? lt `i32 y x) ~if_:is_const_x;
     (gt `i64 x y =>? lt `i64 y x) ~if_:is_const_x;
+
     (ge `i8 x y =>? le `i8 y x) ~if_:is_const_x;
     (ge `i16 x y =>? le `i16 y x) ~if_:is_const_x;
     (ge `i32 x y =>? le `i32 y x) ~if_:is_const_x;
     (ge `i64 x y =>? le `i64 y x) ~if_:is_const_x;
+
     (le `i8 x y =>? ge `i8 y x) ~if_:is_const_x;
     (le `i16 x y =>? ge `i16 y x) ~if_:is_const_x;
     (le `i32 x y =>? ge `i32 y x) ~if_:is_const_x;
     (le `i64 x y =>? ge `i64 y x) ~if_:is_const_x;
+
     (lt `i8 x y =>? gt `i8 y x) ~if_:is_const_x;
     (lt `i16 x y =>? gt `i16 y x) ~if_:is_const_x;
     (lt `i32 x y =>? gt `i32 y x) ~if_:is_const_x;
     (lt `i64 x y =>? gt `i64 y x) ~if_:is_const_x;
+
     (sgt `i8 x y =>? slt `i8 y x) ~if_:is_const_x;
     (sgt `i16 x y =>? slt `i16 y x) ~if_:is_const_x;
     (sgt `i32 x y =>? slt `i32 y x) ~if_:is_const_x;
     (sgt `i64 x y =>? slt `i64 y x) ~if_:is_const_x;
+
     (sge `i8 x y =>? sle `i8 y x) ~if_:is_const_x;
     (sge `i16 x y =>? sle `i16 y x) ~if_:is_const_x;
     (sge `i32 x y =>? sle `i32 y x) ~if_:is_const_x;
     (sge `i64 x y =>? sle `i64 y x) ~if_:is_const_x;
+
     (sle `i8 x y =>? sge `i8 y x) ~if_:is_const_x;
     (sle `i16 x y =>? sge `i16 y x) ~if_:is_const_x;
     (sle `i32 x y =>? sge `i32 y x) ~if_:is_const_x;
     (sle `i64 x y =>? sge `i64 y x) ~if_:is_const_x;
+
     (slt `i8 x y =>? sgt `i8 y x) ~if_:is_const_x;
     (slt `i16 x y =>? sgt `i16 y x) ~if_:is_const_x;
     (slt `i32 x y =>? sgt `i32 y x) ~if_:is_const_x;
@@ -117,38 +133,47 @@ module Groups = struct
     (add `i16 (add `i16 x y) z =>? add `i16 x (add `i16 z y)) ~if_:is_const_y;
     (add `i32 (add `i32 x y) z =>? add `i32 x (add `i32 z y)) ~if_:is_const_y;
     (add `i64 (add `i64 x y) z =>? add `i64 x (add `i64 z y)) ~if_:is_const_y;
+
     (mul `i8 (mul `i8 x y) z =>? mul `i8 x (mul `i8 z y)) ~if_:is_const_y;
     (mul `i16 (mul `i16 x y) z =>? mul `i16 x (mul `i16 z y)) ~if_:is_const_y;
     (mul `i32 (mul `i32 x y) z =>? mul `i32 x (mul `i32 z y)) ~if_:is_const_y;
     (mul `i64 (mul `i64 x y) z =>? mul `i64 x (mul `i64 z y)) ~if_:is_const_y;
+
     (and_ `i8 (and_ `i8 x y) z =>? and_ `i8 x (and_ `i8 z y)) ~if_:is_const_y;
     (and_ `i16 (and_ `i16 x y) z =>? and_ `i16 x (and_ `i16 z y)) ~if_:is_const_y;
     (and_ `i32 (and_ `i32 x y) z =>? and_ `i32 x (and_ `i32 z y)) ~if_:is_const_y;
     (and_ `i64 (and_ `i64 x y) z =>? and_ `i64 x (and_ `i64 z y)) ~if_:is_const_y;
+
     (or_ `i8 (or_ `i8 x y) z =>? or_ `i8 x (or_ `i8 z y)) ~if_:is_const_y;
     (or_ `i16 (or_ `i16 x y) z =>? or_ `i16 x (or_ `i16 z y)) ~if_:is_const_y;
     (or_ `i32 (or_ `i32 x y) z =>? or_ `i32 x (or_ `i32 z y)) ~if_:is_const_y;
     (or_ `i64 (or_ `i64 x y) z =>? or_ `i64 x (or_ `i64 z y)) ~if_:is_const_y;
+
     (xor `i8 (xor `i8 x y) z =>? xor `i8 x (xor `i8 z y)) ~if_:is_const_y;
     (xor `i16 (xor `i16 x y) z =>? xor `i16 x (xor `i16 z y)) ~if_:is_const_y;
     (xor `i32 (xor `i32 x y) z =>? xor `i32 x (xor `i32 z y)) ~if_:is_const_y;
     (xor `i64 (xor `i64 x y) z =>? xor `i64 x (xor `i64 z y)) ~if_:is_const_y;
+
     (sub `i8 (sub `i8 x y) z =>? sub `i8 x (add `i8 z y)) ~if_:is_const_y;
     (sub `i16 (sub `i16 x y) z =>? sub `i16 x (add `i16 z y)) ~if_:is_const_y;
     (sub `i32 (sub `i32 x y) z =>? sub `i32 x (add `i32 z y)) ~if_:is_const_y;
     (sub `i64 (sub `i64 x y) z =>? sub `i64 x (add `i64 z y)) ~if_:is_const_y;
+
     (sub `i8 (sub `i8 x y) z =>? sub `i8 (sub `i8 x z) y) ~if_:is_const_x;
     (sub `i16 (sub `i16 x y) z =>? sub `i16 (sub `i16 x z) y) ~if_:is_const_x;
     (sub `i32 (sub `i32 x y) z =>? sub `i32 (sub `i32 x z) y) ~if_:is_const_x;
     (sub `i64 (sub `i64 x y) z =>? sub `i64 (sub `i64 x z) y) ~if_:is_const_x;
+
     (sub `i8 (add `i8 x y) z =>? sub `i8 x (sub `i8 z y)) ~if_:is_const_y;
     (sub `i16 (add `i16 x y) z =>? sub `i16 x (sub `i16 z y)) ~if_:is_const_y;
     (sub `i32 (add `i32 x y) z =>? sub `i32 x (sub `i32 z y)) ~if_:is_const_y;
     (sub `i64 (add `i64 x y) z =>? sub `i64 x (sub `i64 z y)) ~if_:is_const_y;
+
     (add `i8 (sub `i8 x y) z =>? add `i8 x (sub `i8 z y)) ~if_:is_const_y;
     (add `i16 (sub `i16 x y) z =>? add `i16 x (sub `i16 z y)) ~if_:is_const_y;
     (add `i32 (sub `i32 x y) z =>? add `i32 x (sub `i32 z y)) ~if_:is_const_y;
     (add `i64 (sub `i64 x y) z =>? add `i64 x (sub `i64 z y)) ~if_:is_const_y;
+
     (add `i8 (sub `i8 x y) z =>? sub `i8 (add `i8 x z) y) ~if_:is_const_x;
     (add `i16 (sub `i16 x y) z =>? sub `i16 (add `i16 x z) y) ~if_:is_const_x;
     (add `i32 (sub `i32 x y) z =>? sub `i32 (add `i32 x z) y) ~if_:is_const_x;
@@ -164,46 +189,154 @@ module Groups = struct
      an equivalent but shallower form.
   *)
   let reassoc = [
+    (* Right-associative: *)
+
     add `i8 w (add `i8 x (add `i8 y z)) =>! add `i8 (add `i8 w x) (add `i8 y z);
     add `i16 w (add `i16 x (add `i16 y z)) =>! add `i16 (add `i16 w x) (add `i16 y z);
     add `i32 w (add `i32 x (add `i32 y z)) =>! add `i32 (add `i32 w x) (add `i32 y z);
     add `i64 w (add `i64 x (add `i64 y z)) =>! add `i64 (add `i64 w x) (add `i64 y z);
-    add `i8 (add `i8 (add `i8 w x) y) z =>! add `i8 (add `i8 w x) (add `i8 y z);
-    add `i16 (add `i16 (add `i16 w x) y) z =>! add `i16 (add `i16 w x) (add `i16 y z);
-    add `i32 (add `i32 (add `i32 w x) y) z =>! add `i32 (add `i32 w x) (add `i32 y z);
-    add `i64 (add `i64 (add `i64 w x) y) z =>! add `i64 (add `i64 w x) (add `i64 y z);
+
     mul `i8 w (mul `i8 x (mul `i8 y z)) =>! mul `i8 (mul `i8 w x) (mul `i8 y z);
     mul `i16 w (mul `i16 x (mul `i16 y z)) =>! mul `i16 (mul `i16 w x) (mul `i16 y z);
     mul `i32 w (mul `i32 x (mul `i32 y z)) =>! mul `i32 (mul `i32 w x) (mul `i32 y z);
     mul `i64 w (mul `i64 x (mul `i64 y z)) =>! mul `i64 (mul `i64 w x) (mul `i64 y z);
-    mul `i8 (mul `i8 (mul `i8 w x) y) z =>! mul `i8 (mul `i8 w x) (mul `i8 y z);
-    mul `i16 (mul `i16 (mul `i16 w x) y) z =>! mul `i16 (mul `i16 w x) (mul `i16 y z);
-    mul `i32 (mul `i32 (mul `i32 w x) y) z =>! mul `i32 (mul `i32 w x) (mul `i32 y z);
-    mul `i64 (mul `i64 (mul `i64 w x) y) z =>! mul `i64 (mul `i64 w x) (mul `i64 y z);
+
     and_ `i8 w (and_ `i8 x (and_ `i8 y z)) =>! and_ `i8 (and_ `i8 w x) (and_ `i8 y z);
     and_ `i16 w (and_ `i16 x (and_ `i16 y z)) =>! and_ `i16 (and_ `i16 w x) (and_ `i16 y z);
     and_ `i32 w (and_ `i32 x (and_ `i32 y z)) =>! and_ `i32 (and_ `i32 w x) (and_ `i32 y z);
     and_ `i64 w (and_ `i64 x (and_ `i64 y z)) =>! and_ `i64 (and_ `i64 w x) (and_ `i64 y z);
-    and_ `i8 (and_ `i8 (and_ `i8 w x) y) z =>! and_ `i8 (and_ `i8 w x) (and_ `i8 y z);
-    and_ `i16 (and_ `i16 (and_ `i16 w x) y) z =>! and_ `i16 (and_ `i16 w x) (and_ `i16 y z);
-    and_ `i32 (and_ `i32 (and_ `i32 w x) y) z =>! and_ `i32 (and_ `i32 w x) (and_ `i32 y z);
-    and_ `i64 (and_ `i64 (and_ `i64 w x) y) z =>! and_ `i64 (and_ `i64 w x) (and_ `i64 y z);
+
     or_ `i8 w (or_ `i8 x (or_ `i8 y z)) =>! or_ `i8 (or_ `i8 w x) (or_ `i8 y z);
     or_ `i16 w (or_ `i16 x (or_ `i16 y z)) =>! or_ `i16 (or_ `i16 w x) (or_ `i16 y z);
     or_ `i32 w (or_ `i32 x (or_ `i32 y z)) =>! or_ `i32 (or_ `i32 w x) (or_ `i32 y z);
     or_ `i64 w (or_ `i64 x (or_ `i64 y z)) =>! or_ `i64 (or_ `i64 w x) (or_ `i64 y z);
-    or_ `i8 (or_ `i8 (or_ `i8 w x) y) z =>! or_ `i8 (or_ `i8 w x) (or_ `i8 y z);
-    or_ `i16 (or_ `i16 (or_ `i16 w x) y) z =>! or_ `i16 (or_ `i16 w x) (or_ `i16 y z);
-    or_ `i32 (or_ `i32 (or_ `i32 w x) y) z =>! or_ `i32 (or_ `i32 w x) (or_ `i32 y z);
-    or_ `i64 (or_ `i64 (or_ `i64 w x) y) z =>! or_ `i64 (or_ `i64 w x) (or_ `i64 y z);
+
     xor `i8 w (xor `i8 x (xor `i8 y z)) =>! xor `i8 (xor `i8 w x) (xor `i8 y z);
     xor `i16 w (xor `i16 x (xor `i16 y z)) =>! xor `i16 (xor `i16 w x) (xor `i16 y z);
     xor `i32 w (xor `i32 x (xor `i32 y z)) =>! xor `i32 (xor `i32 w x) (xor `i32 y z);
     xor `i64 w (xor `i64 x (xor `i64 y z)) =>! xor `i64 (xor `i64 w x) (xor `i64 y z);
+
+    (* Left-associative: *)
+
+    add `i8 (add `i8 (add `i8 w x) y) z =>! add `i8 (add `i8 w x) (add `i8 y z);
+    add `i16 (add `i16 (add `i16 w x) y) z =>! add `i16 (add `i16 w x) (add `i16 y z);
+    add `i32 (add `i32 (add `i32 w x) y) z =>! add `i32 (add `i32 w x) (add `i32 y z);
+    add `i64 (add `i64 (add `i64 w x) y) z =>! add `i64 (add `i64 w x) (add `i64 y z);
+
+    mul `i8 (mul `i8 (mul `i8 w x) y) z =>! mul `i8 (mul `i8 w x) (mul `i8 y z);
+    mul `i16 (mul `i16 (mul `i16 w x) y) z =>! mul `i16 (mul `i16 w x) (mul `i16 y z);
+    mul `i32 (mul `i32 (mul `i32 w x) y) z =>! mul `i32 (mul `i32 w x) (mul `i32 y z);
+    mul `i64 (mul `i64 (mul `i64 w x) y) z =>! mul `i64 (mul `i64 w x) (mul `i64 y z);
+
+    and_ `i8 (and_ `i8 (and_ `i8 w x) y) z =>! and_ `i8 (and_ `i8 w x) (and_ `i8 y z);
+    and_ `i16 (and_ `i16 (and_ `i16 w x) y) z =>! and_ `i16 (and_ `i16 w x) (and_ `i16 y z);
+    and_ `i32 (and_ `i32 (and_ `i32 w x) y) z =>! and_ `i32 (and_ `i32 w x) (and_ `i32 y z);
+    and_ `i64 (and_ `i64 (and_ `i64 w x) y) z =>! and_ `i64 (and_ `i64 w x) (and_ `i64 y z);
+
+    or_ `i8 (or_ `i8 (or_ `i8 w x) y) z =>! or_ `i8 (or_ `i8 w x) (or_ `i8 y z);
+    or_ `i16 (or_ `i16 (or_ `i16 w x) y) z =>! or_ `i16 (or_ `i16 w x) (or_ `i16 y z);
+    or_ `i32 (or_ `i32 (or_ `i32 w x) y) z =>! or_ `i32 (or_ `i32 w x) (or_ `i32 y z);
+    or_ `i64 (or_ `i64 (or_ `i64 w x) y) z =>! or_ `i64 (or_ `i64 w x) (or_ `i64 y z);
+
     xor `i8 (xor `i8 (xor `i8 w x) y) z =>! xor `i8 (xor `i8 w x) (xor `i8 y z);
     xor `i16 (xor `i16 (xor `i16 w x) y) z =>! xor `i16 (xor `i16 w x) (xor `i16 y z);
     xor `i32 (xor `i32 (xor `i32 w x) y) z =>! xor `i32 (xor `i32 w x) (xor `i32 y z);
     xor `i64 (xor `i64 (xor `i64 w x) y) z =>! xor `i64 (xor `i64 w x) (xor `i64 y z);
+  ]
+
+  (* Special cases of the above rule set, for reassociating combinations
+     of integer addition and subtraction.
+
+     w - (x - (y - z)) = (w - x) + (y - z)
+     w - (x - (y + z)) = (w - x) + (y + z)
+     w - (x + (y - z)) = (w - x) - (y - z)
+     w - (x + (y + z)) = (w - z) - (y + z)
+     w + (x - (y - z)) = (w + x) - (y - z)
+     w + (x - (y + z)) = (w + x) - (y + z)
+     w + (x + (y - z)) = (w + x) + (y - z)
+
+     ((w - x) - y) - z = (w - x) - (y + z)
+     ((w - x) - y) + z = (w - x) - (y - z)
+     ((w - x) + y) - z = (w - x) + (y - z)
+     ((w - x) + y) + z = (w - x) + (y + z)
+     ((w + x) - y) - z = (w + x) - (y + z)
+     ((w + x) - y) + z = (w + x) - (y - z)
+     ((w + x) + y) - z = (w + x) + (y - z)
+  *)
+  let reassoc_add_sub = [
+    (* Right-associative: *)
+
+    sub `i8 w (sub `i8 x (sub `i8 y z)) =>! add `i8 (sub `i8 w x) (sub `i8 y z);
+    sub `i16 w (sub `i16 x (sub `i16 y z)) =>! add `i16 (sub `i16 w x) (sub `i16 y z);
+    sub `i32 w (sub `i32 x (sub `i32 y z)) =>! add `i32 (sub `i32 w x) (sub `i32 y z);
+    sub `i64 w (sub `i64 x (sub `i64 y z)) =>! add `i64 (sub `i64 w x) (sub `i64 y z);
+
+    sub `i8 w (sub `i8 x (add `i8 y z)) =>! add `i8 (sub `i8 w x) (add `i8 y z);
+    sub `i16 w (sub `i16 x (add `i16 y z)) =>! add `i16 (sub `i16 w x) (add `i16 y z);
+    sub `i32 w (sub `i32 x (add `i32 y z)) =>! add `i32 (sub `i32 w x) (add `i32 y z);
+    sub `i64 w (sub `i64 x (add `i64 y z)) =>! add `i64 (sub `i64 w x) (add `i64 y z);
+
+    sub `i8 w (add `i8 x (sub `i8 y z)) =>! sub `i8 (sub `i8 w x) (sub `i8 y z);
+    sub `i16 w (add `i16 x (sub `i16 y z)) =>! sub `i16 (sub `i16 w x) (sub `i16 y z);
+    sub `i32 w (add `i32 x (sub `i32 y z)) =>! sub `i32 (sub `i32 w x) (sub `i32 y z);
+    sub `i64 w (add `i64 x (sub `i64 y z)) =>! sub `i64 (sub `i64 w x) (sub `i64 y z);
+
+    sub `i8 w (add `i8 x (add `i8 y z)) =>! sub `i8 (sub `i8 w x) (add `i8 y z);
+    sub `i16 w (add `i16 x (add `i16 y z)) =>! sub `i16 (sub `i16 w x) (add `i16 y z);
+    sub `i32 w (add `i32 x (add `i32 y z)) =>! sub `i32 (sub `i32 w x) (add `i32 y z);
+    sub `i64 w (add `i64 x (add `i64 y z)) =>! sub `i64 (sub `i64 w x) (add `i64 y z);
+
+    add `i8 w (sub `i8 x (sub `i8 y z)) =>! sub `i8 (add `i8 w x) (sub `i8 y z);
+    add `i16 w (sub `i16 x (sub `i16 y z)) =>! sub `i16 (add `i16 w x) (sub `i16 y z);
+    add `i32 w (sub `i32 x (sub `i32 y z)) =>! sub `i32 (add `i32 w x) (sub `i32 y z);
+    add `i64 w (sub `i64 x (sub `i64 y z)) =>! sub `i64 (add `i64 w x) (sub `i64 y z);
+
+    add `i8 w (sub `i8 x (add `i8 y z)) =>! sub `i8 (add `i8 w x) (add `i8 y z);
+    add `i16 w (sub `i16 x (add `i16 y z)) =>! sub `i16 (add `i16 w x) (add `i16 y z);
+    add `i32 w (sub `i32 x (add `i32 y z)) =>! sub `i32 (add `i32 w x) (add `i32 y z);
+    add `i64 w (sub `i64 x (add `i64 y z)) =>! sub `i64 (add `i64 w x) (add `i64 y z);
+
+    add `i8 w (add `i8 x (sub `i8 y z)) =>! add `i8 (add `i8 w x) (sub `i8 y z);
+    add `i16 w (add `i16 x (sub `i16 y z)) =>! add `i16 (add `i16 w x) (sub `i16 y z);
+    add `i32 w (add `i32 x (sub `i32 y z)) =>! add `i32 (add `i32 w x) (sub `i32 y z);
+    add `i64 w (add `i64 x (sub `i64 y z)) =>! add `i64 (add `i64 w x) (sub `i64 y z);
+
+    (* Left-associative: *)
+
+    sub `i8 (sub `i8 (sub `i8 w x) y) z =>! sub `i8 (sub `i8 w x) (add `i8 y z);
+    sub `i16 (sub `i16 (sub `i16 w x) y) z =>! sub `i16 (sub `i16 w x) (add `i16 y z);
+    sub `i32 (sub `i32 (sub `i32 w x) y) z =>! sub `i32 (sub `i32 w x) (add `i32 y z);
+    sub `i64 (sub `i64 (sub `i64 w x) y) z =>! sub `i64 (sub `i64 w x) (add `i64 y z);
+
+    add `i8 (sub `i8 (sub `i8 w x) y) z =>! sub `i8 (sub `i8 w x) (sub `i8 y z);
+    add `i16 (sub `i16 (sub `i16 w x) y) z =>! sub `i16 (sub `i16 w x) (sub `i16 y z);
+    add `i32 (sub `i32 (sub `i32 w x) y) z =>! sub `i32 (sub `i32 w x) (sub `i32 y z);
+    add `i64 (sub `i64 (sub `i64 w x) y) z =>! sub `i64 (sub `i64 w x) (sub `i64 y z);
+
+    sub `i8 (add `i8 (sub `i8 w x) y) z =>! add `i8 (sub `i8 w x) (sub `i8 y z);
+    sub `i16 (add `i16 (sub `i16 w x) y) z =>! add `i16 (sub `i16 w x) (sub `i16 y z);
+    sub `i32 (add `i32 (sub `i32 w x) y) z =>! add `i32 (sub `i32 w x) (sub `i32 y z);
+    sub `i64 (add `i64 (sub `i64 w x) y) z =>! add `i64 (sub `i64 w x) (sub `i64 y z);
+
+    add `i8 (add `i8 (sub `i8 w x) y) z =>! add `i8 (sub `i8 w x) (add `i8 y z);
+    add `i16 (add `i16 (sub `i16 w x) y) z =>! add `i16 (sub `i16 w x) (add `i16 y z);
+    add `i32 (add `i32 (sub `i32 w x) y) z =>! add `i32 (sub `i32 w x) (add `i32 y z);
+    add `i64 (add `i64 (sub `i64 w x) y) z =>! add `i64 (sub `i64 w x) (add `i64 y z);
+
+    sub `i8 (sub `i8 (add `i8 w x) y) z =>! sub `i8 (add `i8 w x) (add `i8 y z);
+    sub `i16 (sub `i16 (add `i16 w x) y) z =>! sub `i16 (add `i16 w x) (add `i16 y z);
+    sub `i32 (sub `i32 (add `i32 w x) y) z =>! sub `i32 (add `i32 w x) (add `i32 y z);
+    sub `i64 (sub `i64 (add `i64 w x) y) z =>! sub `i64 (add `i64 w x) (add `i64 y z);
+
+    add `i8 (sub `i8 (add `i8 w x) y) z =>! sub `i8 (add `i8 w x) (sub `i8 y z);
+    add `i16 (sub `i16 (add `i16 w x) y) z =>! sub `i16 (add `i16 w x) (sub `i16 y z);
+    add `i32 (sub `i32 (add `i32 w x) y) z =>! sub `i32 (add `i32 w x) (sub `i32 y z);
+    add `i64 (sub `i64 (add `i64 w x) y) z =>! sub `i64 (add `i64 w x) (sub `i64 y z);
+
+    sub `i8 (add `i8 (add `i8 w x) y) z =>! add `i8 (add `i8 w x) (sub `i8 y z);
+    sub `i16 (add `i16 (add `i16 w x) y) z =>! add `i16 (add `i16 w x) (sub `i16 y z);
+    sub `i32 (add `i32 (add `i32 w x) y) z =>! add `i32 (add `i32 w x) (sub `i32 y z);
+    sub `i64 (add `i64 (add `i64 w x) y) z =>! add `i64 (add `i64 w x) (sub `i64 y z);
   ]
 
   (* (op (op w x) (op y z)) = (op (op w y) (op x z))
@@ -215,18 +348,22 @@ module Groups = struct
     (add `i16 (add `i16 w x) (add `i16 y z) =>? add `i16 (add `i16 w y) (add `i16 x z)) ~if_:is_const_x_z;
     (add `i32 (add `i32 w x) (add `i32 y z) =>? add `i32 (add `i32 w y) (add `i32 x z)) ~if_:is_const_x_z;
     (add `i64 (add `i64 w x) (add `i64 y z) =>? add `i64 (add `i64 w y) (add `i64 x z)) ~if_:is_const_x_z;
+
     (mul `i8 (mul `i8 w x) (mul `i8 y z) =>? mul `i8 (mul `i8 w y) (mul `i8 x z)) ~if_:is_const_x_z;
     (mul `i16 (mul `i16 w x) (mul `i16 y z) =>? mul `i16 (mul `i16 w y) (mul `i16 x z)) ~if_:is_const_x_z;
     (mul `i32 (mul `i32 w x) (mul `i32 y z) =>? mul `i32 (mul `i32 w y) (mul `i32 x z)) ~if_:is_const_x_z;
     (mul `i64 (mul `i64 w x) (mul `i64 y z) =>? mul `i64 (mul `i64 w y) (mul `i64 x z)) ~if_:is_const_x_z;
+
     (and_ `i8 (and_ `i8 w x) (and_ `i8 y z) =>? and_ `i8 (and_ `i8 w y) (and_ `i8 x z)) ~if_:is_const_x_z;
     (and_ `i16 (and_ `i16 w x) (and_ `i16 y z) =>? and_ `i16 (and_ `i16 w y) (and_ `i16 x z)) ~if_:is_const_x_z;
     (and_ `i32 (and_ `i32 w x) (and_ `i32 y z) =>? and_ `i32 (and_ `i32 w y) (and_ `i32 x z)) ~if_:is_const_x_z;
     (and_ `i64 (and_ `i64 w x) (and_ `i64 y z) =>? and_ `i64 (and_ `i64 w y) (and_ `i64 x z)) ~if_:is_const_x_z;
+
     (or_ `i8 (or_ `i8 w x) (or_ `i8 y z) =>? or_ `i8 (or_ `i8 w y) (or_ `i8 x z)) ~if_:is_const_x_z;
     (or_ `i16 (or_ `i16 w x) (or_ `i16 y z) =>? or_ `i16 (or_ `i16 w y) (or_ `i16 x z)) ~if_:is_const_x_z;
     (or_ `i32 (or_ `i32 w x) (or_ `i32 y z) =>? or_ `i32 (or_ `i32 w y) (or_ `i32 x z)) ~if_:is_const_x_z;
     (or_ `i64 (or_ `i64 w x) (or_ `i64 y z) =>? or_ `i64 (or_ `i64 w y) (or_ `i64 x z)) ~if_:is_const_x_z;
+
     (xor `i8 (xor `i8 w x) (xor `i8 y z) =>? xor `i8 (xor `i8 w y) (xor `i8 x z)) ~if_:is_const_x_z;
     (xor `i16 (xor `i16 w x) (xor `i16 y z) =>? xor `i16 (xor `i16 w y) (xor `i16 x z)) ~if_:is_const_x_z;
     (xor `i32 (xor `i32 w x) (xor `i32 y z) =>? xor `i32 (xor `i32 w y) (xor `i32 x z)) ~if_:is_const_x_z;
@@ -255,6 +392,7 @@ module Groups = struct
     (add `i16 x (neg `i16 y) =>? sub `i16 x y) ~if_:is_not_const_y;
     (add `i32 x (neg `i32 y) =>? sub `i32 x y) ~if_:is_not_const_y;
     (add `i64 x (neg `i64 y) =>? sub `i64 x y) ~if_:is_not_const_y;
+
     (add `i8 (neg `i8 y) x =>? sub `i8 x y) ~if_:is_not_const_y;
     (add `i16 (neg `i16 y) x =>? sub `i16 x y) ~if_:is_not_const_y;
     (add `i32 (neg `i32 y) x =>? sub `i32 x y) ~if_:is_not_const_y;
@@ -315,6 +453,7 @@ module Groups = struct
     add `i16 (not_ `i16 x) (i16 1) => neg `i16 x;
     add `i32 (not_ `i32 x) (i32 1l) => neg `i32 x;
     add `i64 (not_ `i64 x) (i64 1L) => neg `i64 x;
+
     add `i8 (i8 1) (not_ `i8 x) => neg `i8 x;
     add `i16 (i16 1) (not_ `i16 x) => neg `i16 x;
     add `i32 (i32 1l) (not_ `i32 x) => neg `i32 x;
@@ -330,10 +469,12 @@ module Groups = struct
     not_ `i16 (add `i16 x (i16 (-1))) => neg `i16 x;
     not_ `i32 (add `i32 x (i32 (-1l))) => neg `i32 x;
     not_ `i64 (add `i64 x (i64 (-1L))) => neg `i64 x;
+
     not_ `i8 (add `i8 (i8 (-1)) x) => neg `i8 x;
     not_ `i16 (add `i16 (i16 (-1)) x) => neg `i16 x;
     not_ `i32 (add `i32 (i32 (-1l)) x) => neg `i32 x;
     not_ `i64 (add `i64 (i64 (-1L)) x) => neg `i64 x;
+
     not_ `i8 (sub `i8 x (i8 1)) => neg `i8 x;
     not_ `i16 (sub `i16 x (i16 1)) => neg `i16 x;
     not_ `i32 (sub `i32 x (i32 1l)) => neg `i32 x;
@@ -362,10 +503,12 @@ module Groups = struct
     mul `i16 x (i16 0) =>! i16 0;
     mul `i32 x (i32 0l) =>! i32 0l;
     mul `i64 x (i64 0L) =>! i64 0L;
+
     mulh `i8 x  (i8 0) =>! i8 0;
     mulh `i16 x (i16 0) =>! i16 0;
     mulh `i32 x (i32 0l) =>! i32 0l;
     mulh `i64 x (i64 0L) =>! i64 0L;
+
     umulh `i8 x  (i8 0) =>! i8 0;
     umulh `i16 x (i16 0) =>! i16 0;
     umulh `i32 x (i32 0l) =>! i32 0l;
@@ -378,10 +521,12 @@ module Groups = struct
     mul `i16 x (i16 1) =>! x;
     mul `i32 x (i32 1l) =>! x;
     mul `i64 x (i64 1L) =>! x;
+
     mulh `i8 x  (i8 1) =>! x;
     mulh `i16 x (i16 1) =>! x;
     mulh `i32 x (i32 1l) =>! x;
     mulh `i64 x (i64 1L) =>! x;
+
     umulh `i8 x  (i8 1) =>! x;
     umulh `i16 x (i16 1) =>! x;
     umulh `i32 x (i32 1l) =>! x;
@@ -410,6 +555,7 @@ module Groups = struct
     mul `i16 x y =>* mul_imm_pow2_y;
     mul `i32 x y =>* mul_imm_pow2_y;
     mul `i64 x y =>* mul_imm_pow2_y;
+
     mul `i8 x y =>* mul_imm_non_pow2_y;
     mul `i16 x y =>* mul_imm_non_pow2_y;
     mul `i32 x y =>* mul_imm_non_pow2_y;
@@ -486,6 +632,7 @@ module Groups = struct
     div `i16 x (i16 1) =>! x;
     div `i32 x (i32 1l) =>! x;
     div `i64 x (i64 1L) =>! x;
+
     udiv `i8 x (i8 1) =>! x;
     udiv `i16 x (i16 1) =>! x;
     udiv `i32 x (i32 1l) =>! x;
@@ -530,6 +677,7 @@ module Groups = struct
     rem `i16 x (i16 1) =>! i16 0;
     rem `i32 x (i32 1l) =>! i32 0l;
     rem `i64 x (i64 1L) =>! i64 0L;
+
     urem `i8 x (i8 1) =>! i8 0;
     urem `i16 x (i16 1) =>! i16 0;
     urem `i32 x (i32 1l) =>! i32 0l;
@@ -590,6 +738,7 @@ module Groups = struct
     or_ `i16 x (not_ `i16 x) =>! i16 0xffff;
     or_ `i32 x (not_ `i32 x) =>! i32 0xffff_ffffl;
     or_ `i64 x (not_ `i64 x) =>! i64 0xffff_ffff_ffff_ffffL;
+
     or_ `i8 (not_ `i8 x) x =>! i8 0xff;
     or_ `i16 (not_ `i16 x) x =>! i16 0xffff;
     or_ `i32 (not_ `i32 x) x =>! i32 0xffff_ffffl;
@@ -618,6 +767,7 @@ module Groups = struct
     or_ `i16 (and_ `i16 x y) (not_ `i16 y) => or_ `i16 x (not_ `i16 y);
     or_ `i32 (and_ `i32 x y) (not_ `i32 y) => or_ `i32 x (not_ `i32 y);
     or_ `i64 (and_ `i64 x y) (not_ `i64 y) => or_ `i64 x (not_ `i64 y);
+
     or_ `i8 (not_ `i8 y) (and_ `i8 x y) => or_ `i8 x (not_ `i8 y);
     or_ `i16 (not_ `i16 y) (and_ `i16 x y) => or_ `i16 x (not_ `i16 y);
     or_ `i32 (not_ `i32 y) (and_ `i32 x y) => or_ `i32 x (not_ `i32 y);
@@ -676,14 +826,17 @@ module Groups = struct
     (or_ `i16 (lsl_ `i16 x y) (lsr_ `i16 x z) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
     (or_ `i32 (lsl_ `i32 x y) (lsr_ `i32 x z) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
     (or_ `i64 (lsl_ `i64 x y) (lsr_ `i64 x z) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
+
     (or_ `i8 (lsr_ `i8 x z) (lsl_ `i8 x y) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
     (or_ `i16 (lsr_ `i16 x z) (lsl_ `i16 x y) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
     (or_ `i32 (lsr_ `i32 x z) (lsl_ `i32 x y) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
     (or_ `i64 (lsr_ `i64 x z) (lsl_ `i64 x y) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
+
     (add `i8 (lsl_ `i8 x y) (lsr_ `i8 x z) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
     (add `i16 (lsl_ `i16 x y) (lsr_ `i16 x z) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
     (add `i32 (lsl_ `i32 x y) (lsr_ `i32 x z) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
     (add `i64 (lsl_ `i64 x y) (lsr_ `i64 x z) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
+
     (add `i8 (lsr_ `i8 x z) (lsl_ `i8 x y) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
     (add `i16 (lsr_ `i16 x z) (lsl_ `i16 x y) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
     (add `i32 (lsr_ `i32 x z) (lsl_ `i32 x y) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
@@ -702,14 +855,17 @@ module Groups = struct
     (or_ `i16 (lsr_ `i16 x y) (lsl_ `i16 x z) =>? ror`i16 x y) ~if_:is_rotate_const_y_z;
     (or_ `i32 (lsr_ `i32 x y) (lsl_ `i32 x z) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
     (or_ `i64 (lsr_ `i64 x y) (lsl_ `i64 x z) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+
     (or_ `i8 (lsl_ `i8 x z) (lsr_ `i8 x y) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
     (or_ `i16 (lsl_ `i16 x z) (lsr_ `i16 x y) =>? ror `i16 x y) ~if_:is_rotate_const_y_z;
     (or_ `i32 (lsl_ `i32 x z) (lsr_ `i32 x y) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
     (or_ `i64 (lsl_ `i64 x z) (lsr_ `i64 x y) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+
     (add `i8 (lsr_ `i8 x y) (lsl_ `i8 x z) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
     (add `i16 (lsr_ `i16 x y) (lsl_ `i16 x z) =>? ror`i16 x y) ~if_:is_rotate_const_y_z;
     (add `i32 (lsr_ `i32 x y) (lsl_ `i32 x z) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
     (add `i64 (lsr_ `i64 x y) (lsl_ `i64 x z) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+
     (add `i8 (lsl_ `i8 x z) (lsr_ `i8 x y) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
     (add `i16 (lsl_ `i16 x z) (lsr_ `i16 x y) =>? ror `i16 x y) ~if_:is_rotate_const_y_z;
     (add `i32 (lsl_ `i32 x z) (lsr_ `i32 x y) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
@@ -746,6 +902,7 @@ module Groups = struct
     xor `i16 x (not_ `i16 x) =>! i16 0xffff;
     xor `i32 x (not_ `i32 x) =>! i32 0xffff_ffffl;
     xor `i64 x (not_ `i64 x) =>! i64 0xffff_ffff_ffff_ffffL;
+
     xor `i8 (not_ `i8 x) x =>! i8 0xff;
     xor `i16 (not_ `i16 x) x =>! i16 0xffff;
     xor `i32 (not_ `i32 x) x =>! i32 0xffff_ffffl;
@@ -762,14 +919,17 @@ module Groups = struct
     xor `i16 (xor `i16 x y) y =>! x;
     xor `i32 (xor `i32 x y) y =>! x;
     xor `i64 (xor `i64 x y) y =>! x;
+
     xor `i8 (xor `i8 y x) y =>! x;
     xor `i16 (xor `i16 y x) y =>! x;
     xor `i32 (xor `i32 y x) y =>! x;
     xor `i64 (xor `i64 y x) y =>! x;
+
     xor `i8 y (xor `i8 x y) =>! x;
     xor `i16 y (xor `i16 x y) =>! x;
     xor `i32 y (xor `i32 x y) =>! x;
     xor `i64 y (xor `i64 x y) =>! x;
+
     xor `i8 y (xor `i8 y x) =>! x;
     xor `i16 y (xor `i16 y x) =>! x;
     xor `i32 y (xor `i32 y x) =>! x;
@@ -806,6 +966,7 @@ module Groups = struct
     ge `i16 x x =>! bool true;
     ge `i32 x x =>! bool true;
     ge `i64 x x =>! bool true;
+
     sge `i8 x x =>! bool true;
     sge `i16 x x =>! bool true;
     sge `i32 x x =>! bool true;
@@ -818,6 +979,7 @@ module Groups = struct
     gt `i16 x x =>! bool false;
     gt `i32 x x =>! bool false;
     gt `i64 x x =>! bool false;
+
     sgt `i8 x x =>! bool false;
     sgt `i16 x x =>! bool false;
     sgt `i32 x x =>! bool false;
@@ -830,6 +992,7 @@ module Groups = struct
     le `i16 x x =>! bool true;
     le `i32 x x =>! bool true;
     le `i64 x x =>! bool true;
+
     sle `i8 x x =>! bool true;
     sle `i16 x x =>! bool true;
     sle `i32 x x =>! bool true;
@@ -842,6 +1005,7 @@ module Groups = struct
     lt `i16 x x =>! bool false;
     lt `i32 x x =>! bool false;
     lt `i64 x x =>! bool false;
+
     slt `i8 x x =>! bool false;
     slt `i16 x x =>! bool false;
     slt `i32 x x =>! bool false;
@@ -870,6 +1034,7 @@ module Groups = struct
     xor `i16 (flag `i16 (ge `i16 x y)) (i16 1) => flag `i16 (lt `i16 x y);
     xor `i32 (flag `i32 (ge `i32 x y)) (i32 1l) => flag `i32 (lt `i32 x y);
     xor `i64 (flag `i64 (ge `i64 x y)) (i64 1L) => flag `i64 (lt `i64 x y);
+
     xor `i8 (flag `i8 (sge `i8 x y)) (i8 1) => flag `i8 (slt `i8 x y);
     xor `i16 (flag `i16 (sge `i16 x y)) (i16 1) => flag `i16 (slt `i16 x y);
     xor `i32 (flag `i32 (sge `i32 x y)) (i32 1l) => flag `i32 (slt `i32 x y);
@@ -882,6 +1047,7 @@ module Groups = struct
     xor `i16 (flag `i16 (gt `i16 x y)) (i16 1) => flag `i16 (le `i16 x y);
     xor `i32 (flag `i32 (gt `i32 x y)) (i32 1l) => flag `i32 (le `i32 x y);
     xor `i64 (flag `i64 (gt `i64 x y)) (i64 1L) => flag `i64 (le `i64 x y);
+
     xor `i8 (flag `i8 (sgt `i8 x y)) (i8 1) => flag `i8 (sle `i8 x y);
     xor `i16 (flag `i16 (sgt `i16 x y)) (i16 1) => flag `i16 (sle `i16 x y);
     xor `i32 (flag `i32 (sgt `i32 x y)) (i32 1l) => flag `i32 (sle `i32 x y);
@@ -894,6 +1060,7 @@ module Groups = struct
     xor `i16 (flag `i16 (le `i16 x y)) (i16 1) => flag `i16 (gt `i16 x y);
     xor `i32 (flag `i32 (le `i32 x y)) (i32 1l) => flag `i32 (gt `i32 x y);
     xor `i64 (flag `i64 (le `i64 x y)) (i64 1L) => flag `i64 (gt `i64 x y);
+
     xor `i8 (flag `i8 (sle `i8 x y)) (i8 1) => flag `i8 (sgt `i8 x y);
     xor `i16 (flag `i16 (sle `i16 x y)) (i16 1) => flag `i16 (sgt `i16 x y);
     xor `i32 (flag `i32 (sle `i32 x y)) (i32 1l) => flag `i32 (sgt `i32 x y);
@@ -906,6 +1073,7 @@ module Groups = struct
     xor `i16 (flag `i16 (lt `i16 x y)) (i16 1) => flag `i16 (ge `i16 x y);
     xor `i32 (flag `i32 (lt `i32 x y)) (i32 1l) => flag `i32 (ge `i32 x y);
     xor `i64 (flag `i64 (lt `i64 x y)) (i64 1L) => flag `i64 (ge `i64 x y);
+
     xor `i8 (flag `i8 (slt `i8 x y)) (i8 1) => flag `i8 (sge `i8 x y);
     xor `i16 (flag `i16 (slt `i16 x y)) (i16 1) => flag `i16 (sge `i16 x y);
     xor `i32 (flag `i32 (slt `i32 x y)) (i32 1l) => flag `i32 (sge `i32 x y);
@@ -1226,6 +1394,7 @@ module Groups = struct
     (eq `i16 (flag `i16 x) y =>?! bool false) ~if_:is_not_bool_y;
     (eq `i32 (flag `i32 x) y =>?! bool false) ~if_:is_not_bool_y;
     (eq `i64 (flag `i64 x) y =>?! bool false) ~if_:is_not_bool_y;
+
     (eq `i8 y (flag `i8 x) =>?! bool false) ~if_:is_not_bool_y;
     (eq `i16 y (flag `i16 x) =>?! bool false) ~if_:is_not_bool_y;
     (eq `i32 y (flag `i32 x) =>?! bool false) ~if_:is_not_bool_y;
@@ -1238,6 +1407,7 @@ module Groups = struct
     (ne `i16 (flag `i16 x) y =>?! bool true) ~if_:is_not_bool_y;
     (ne `i32 (flag `i32 x) y =>?! bool true) ~if_:is_not_bool_y;
     (ne `i64 (flag `i64 x) y =>?! bool true) ~if_:is_not_bool_y;
+
     (ne `i8 y (flag `i8 x) =>?! bool true) ~if_:is_not_bool_y;
     (ne `i16 y (flag `i16 x) =>?! bool true) ~if_:is_not_bool_y;
     (ne `i32 y (flag `i32 x) =>?! bool true) ~if_:is_not_bool_y;
@@ -1254,6 +1424,7 @@ module Groups = struct
     (lt `i16 (flag `i16 x) y =>?! bool true) ~if_:is_not_bool_y;
     (lt `i32 (flag `i32 x) y =>?! bool true) ~if_:is_not_bool_y;
     (lt `i64 (flag `i64 x) y =>?! bool true) ~if_:is_not_bool_y;
+
     (lt `i8 y (flag `i8 x) =>?! bool false) ~if_:is_not_bool_y;
     (lt `i16 y (flag `i16 x) =>?! bool false) ~if_:is_not_bool_y;
     (lt `i32 y (flag `i32 x) =>?! bool false) ~if_:is_not_bool_y;
@@ -1271,14 +1442,17 @@ module Groups = struct
     (slt `i16 (flag `i16 x) y =>?! bool true) ~if_:is_sgt_one_y;
     (slt `i32 (flag `i32 x) y =>?! bool true) ~if_:is_sgt_one_y;
     (slt `i64 (flag `i64 x) y =>?! bool true) ~if_:is_sgt_one_y;
+
     (slt `i8 y (flag `i8 x) =>?! bool false) ~if_:is_sgt_one_y;
     (slt `i16 y (flag `i16 x) =>?! bool false) ~if_:is_sgt_one_y;
     (slt `i32 y (flag `i32 x) =>?! bool false) ~if_:is_sgt_one_y;
     (slt `i64 y (flag `i64 x) =>?! bool false) ~if_:is_sgt_one_y;
+
     (slt `i8 (flag `i8 x) y =>?! bool false) ~if_:is_slt_zero_y;
     (slt `i16 (flag `i16 x) y =>?! bool false) ~if_:is_slt_zero_y;
     (slt `i32 (flag `i32 x) y =>?! bool false) ~if_:is_slt_zero_y;
     (slt `i64 (flag `i64 x) y =>?! bool false) ~if_:is_slt_zero_y;
+
     (slt `i8 y (flag `i8 x) =>?! bool true) ~if_:is_slt_zero_y;
     (slt `i16 y (flag `i16 x) =>?! bool true) ~if_:is_slt_zero_y;
     (slt `i32 y (flag `i32 x) =>?! bool true) ~if_:is_slt_zero_y;
@@ -1295,6 +1469,7 @@ module Groups = struct
     (le `i16 (flag `i16 x) y =>?! bool true) ~if_:is_not_bool_y;
     (le `i32 (flag `i32 x) y =>?! bool true) ~if_:is_not_bool_y;
     (le `i64 (flag `i64 x) y =>?! bool true) ~if_:is_not_bool_y;
+
     (le `i8 y (flag `i8 x) =>?! bool false) ~if_:is_not_bool_y;
     (le `i16 y (flag `i16 x) =>?! bool false) ~if_:is_not_bool_y;
     (le `i32 y (flag `i32 x) =>?! bool false) ~if_:is_not_bool_y;
@@ -1312,14 +1487,17 @@ module Groups = struct
     (sle `i16 (flag `i16 x) y =>?! bool true) ~if_:is_sgt_one_y;
     (sle `i32 (flag `i32 x) y =>?! bool true) ~if_:is_sgt_one_y;
     (sle `i64 (flag `i64 x) y =>?! bool true) ~if_:is_sgt_one_y;
+
     (sle `i8 x (flag `i8 x) =>?! bool false) ~if_:is_sgt_one_y;
     (sle `i16 x (flag `i16 x) =>?! bool false) ~if_:is_sgt_one_y;
     (sle `i32 x (flag `i32 x) =>?! bool false) ~if_:is_sgt_one_y;
     (sle `i64 x (flag `i64 x) =>?! bool false) ~if_:is_sgt_one_y;
+
     (sle `i8 (flag `i8 x) y =>?! bool false) ~if_:is_slt_zero_y;
     (sle `i16 (flag `i16 x) y =>?! bool false) ~if_:is_slt_zero_y;
     (sle `i32 (flag `i32 x) y =>?! bool false) ~if_:is_slt_zero_y;
     (sle `i64 (flag `i64 x) y =>?! bool false) ~if_:is_slt_zero_y;
+
     (sle `i8 x (flag `i8 x) =>?! bool true) ~if_:is_slt_zero_y;
     (sle `i16 x (flag `i16 x) =>?! bool true) ~if_:is_slt_zero_y;
     (sle `i32 x (flag `i32 x) =>?! bool true) ~if_:is_slt_zero_y;
@@ -1336,6 +1514,7 @@ module Groups = struct
     (gt `i16 (flag `i16 x) y =>?! bool false) ~if_:is_not_bool_y;
     (gt `i32 (flag `i32 x) y =>?! bool false) ~if_:is_not_bool_y;
     (gt `i64 (flag `i64 x) y =>?! bool false) ~if_:is_not_bool_y;
+
     (gt `i8 y (flag `i8 x) =>?! bool true) ~if_:is_not_bool_y;
     (gt `i16 y (flag `i16 x) =>?! bool true) ~if_:is_not_bool_y;
     (gt `i32 y (flag `i32 x) =>?! bool true) ~if_:is_not_bool_y;
@@ -1353,14 +1532,17 @@ module Groups = struct
     (sgt `i16 (flag `i16 x) y =>?! bool false) ~if_:is_sgt_one_y;
     (sgt `i32 (flag `i32 x) y =>?! bool false) ~if_:is_sgt_one_y;
     (sgt `i64 (flag `i64 x) y =>?! bool false) ~if_:is_sgt_one_y;
+
     (sgt `i8 y (flag `i8 x) =>?! bool true) ~if_:is_sgt_one_y;
     (sgt `i16 y (flag `i16 x) =>?! bool true) ~if_:is_sgt_one_y;
     (sgt `i32 y (flag `i32 x) =>?! bool true) ~if_:is_sgt_one_y;
     (sgt `i64 y (flag `i64 x) =>?! bool true) ~if_:is_sgt_one_y;
+
     (sgt `i8 (flag `i8 x) y =>?! bool true) ~if_:is_slt_zero_y;
     (sgt `i16 (flag `i16 x) y =>?! bool true) ~if_:is_slt_zero_y;
     (sgt `i32 (flag `i32 x) y =>?! bool true) ~if_:is_slt_zero_y;
     (sgt `i64 (flag `i64 x) y =>?! bool true) ~if_:is_slt_zero_y;
+
     (sgt `i8 y (flag `i8 x) =>?! bool false) ~if_:is_slt_zero_y;
     (sgt `i16 y (flag `i16 x) =>?! bool false) ~if_:is_slt_zero_y;
     (sgt `i32 y (flag `i32 x) =>?! bool false) ~if_:is_slt_zero_y;
@@ -1377,6 +1559,7 @@ module Groups = struct
     (ge `i16 (flag `i16 x) y =>?! bool false) ~if_:is_not_bool_y;
     (ge `i32 (flag `i32 x) y =>?! bool false) ~if_:is_not_bool_y;
     (ge `i64 (flag `i64 x) y =>?! bool false) ~if_:is_not_bool_y;
+
     (ge `i8 y (flag `i8 x) =>?! bool true) ~if_:is_not_bool_y;
     (ge `i16 y (flag `i16 x) =>?! bool true) ~if_:is_not_bool_y;
     (ge `i32 y (flag `i32 x) =>?! bool true) ~if_:is_not_bool_y;
@@ -1394,14 +1577,17 @@ module Groups = struct
     (sge `i16 (flag `i16 x) y =>?! bool false) ~if_:is_sgt_one_y;
     (sge `i32 (flag `i32 x) y =>?! bool false) ~if_:is_sgt_one_y;
     (sge `i64 (flag `i64 x) y =>?! bool false) ~if_:is_sgt_one_y;
+
     (sge `i8 y (flag `i8 x) =>?! bool true) ~if_:is_sgt_one_y;
     (sge `i16 y (flag `i16 x) =>?! bool true) ~if_:is_sgt_one_y;
     (sge `i32 y (flag `i32 x) =>?! bool true) ~if_:is_sgt_one_y;
     (sge `i64 y (flag `i64 x) =>?! bool true) ~if_:is_sgt_one_y;
+
     (sge `i8 (flag `i8 x) y =>?! bool true) ~if_:is_slt_zero_y;
     (sge `i16 (flag `i16 x) y =>?! bool true) ~if_:is_slt_zero_y;
     (sge `i32 (flag `i32 x) y =>?! bool true) ~if_:is_slt_zero_y;
     (sge `i64 (flag `i64 x) y =>?! bool true) ~if_:is_slt_zero_y;
+
     (sge `i8 y (flag `i8 x) =>?! bool false) ~if_:is_slt_zero_y;
     (sge `i16 y (flag `i16 x) =>?! bool false) ~if_:is_slt_zero_y;
     (sge `i32 y (flag `i32 x) =>?! bool false) ~if_:is_slt_zero_y;
@@ -1416,6 +1602,7 @@ module Groups = struct
     sext `i64 (flag `i8 x) => flag `i64 x;
     sext `i64 (flag `i16 x) => flag `i64 x;
     sext `i64 (flag `i32 x) => flag `i64 x;
+
     zext `i16 (flag `i8 x) => flag `i16 x;
     zext `i32 (flag `i8 x) => flag `i32 x;
     zext `i32 (flag `i16 x) => flag `i32 x;
@@ -1448,6 +1635,7 @@ module Groups = struct
     sext `i64 (sext `i16 x) => sext `i64 x;
     sext `i64 (sext `i32 x) => sext `i64 x;
     sext `i64 (sext `i64 x) => sext `i64 x;
+
     zext `i16 (zext `i16 x) => zext `i16 x;
     zext `i32 (zext `i16 x) => zext `i32 x;
     zext `i32 (zext `i32 x) => zext `i32 x;
@@ -1512,12 +1700,14 @@ module Groups = struct
     sel `i64 (bool true) x y =>! x;
     sel `f32 (bool true) x y =>! x;
     sel `f64 (bool true) x y =>! x;
+
     sel `i8 (bool false) x y =>! y;
     sel `i16 (bool false) x y =>! y;
     sel `i32 (bool false) x y =>! y;
     sel `i64 (bool false) x y =>! y;
     sel `f32 (bool false) x y =>! y;
     sel `f64 (bool false) x y =>! y;
+
     sel `i8 x y y =>! y;
     sel `i16 x y y =>! y;
     sel `i32 x y y =>! y;
@@ -1532,6 +1722,7 @@ module Groups = struct
     sel `i16 x (i16 1) (i16 0) => flag `i16 x;
     sel `i32 x (i32 1l) (i32 0l) => flag `i32 x;
     sel `i64 x (i64 1L) (i64 0L) => flag `i64 x;
+
     sel `i8 x (i8 0) (i8 1) => xor `i8 (flag `i8 x) (i8 1);
     sel `i16 x (i16 0) (i16 1) => xor `i16 (flag `i16 x) (i16 1);
     sel `i32 x (i32 0l) (i32 1l) => xor `i32 (flag `i32 x) (i32 1l);
@@ -1553,6 +1744,7 @@ module Groups = struct
     commute_consts @
     assoc_consts @
     reassoc @
+    reassoc_add_sub @
     reassoc_comm_const @
     add_neg_const @
     sub_neg_const @
