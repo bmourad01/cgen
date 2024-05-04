@@ -15,7 +15,7 @@ depends: [
   "bitvec-sexp"
   "core" {= "v0.15"}
   "core_kernel" {= "v0.15"}
-  "dune" {>= "3.14"}
+  "dune" {>= "3.15"}
   "graphlib"
   "menhir"
   "monads"
