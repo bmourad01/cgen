@@ -34,7 +34,6 @@ type ext = E of prov * Enode.op * ext list
 module Cost : sig
   type t = private Int63.t
   val (<) : t -> t -> bool
-  val (>=) : t -> t -> bool
   val pure : int -> t
   val incr : t -> t
   val add : t -> t -> t
@@ -110,25 +109,18 @@ let op_cost : Enode.op -> cost = function
   | Obinop _ -> Cost.pure 4
   | Osel _ -> Cost.pure 8
 
-(* Update the table with the "best" terms for each e-class. *)
+(* Fill the table with the "best" terms for each e-class. *)
 module Saturation : sig
-  val update : t -> bool ref -> id -> enode -> unit
+  val go : t -> unit
 end = struct
-  exception Incomplete
-
-  let get t id =
-    find t.eg id |> Hashtbl.find_and_call t.table
-      ~if_not_found:(fun _ -> raise_notrace Incomplete)
-      ~if_found:Fn.id
-
+  let get t id = find t.eg id |> Hashtbl.find_exn t.table
   let set t id ~f = find t.eg id |> Hashtbl.update t.table ~f
 
   let cost t (n : enode) = match n with
     | N (op, []) -> op_cost op, n
     | N (op, children) ->
-      let k = List.fold children ~init:(op_cost op) ~f:(fun k id ->
-          let c, _ = get t id in
-          Cost.add k c) in
+      let k = List.fold children ~init:(op_cost op)
+          ~f:(fun k id -> Cost.add k @@ fst @@ get t id) in
       Cost.incr k, n
     | U {pre; post} ->
       (* Break ties by favoring the rewritten term. *)
@@ -136,25 +128,18 @@ end = struct
       let post, b = get t post in
       if Cost.(pre < post) then pre, a else post, b
 
-  let update t unsat id n = match cost t n with
-    | exception Incomplete -> ()
-    | (x, _) as term -> set t id ~f:(function
-        | Some ((y, _) as prev) when Cost.(x >= y) -> prev
-        | Some _ | None -> unsat := true; term)
+  (* We're searching in a pseudo-topological order, so we shouldn't need
+     a fixpoint loop.
+
+     Note that because of this ordering, we can always eagerly break ties
+     by using the newer term.
+  *)
+  let go t = Vec.iteri t.eg.node ~f:(fun id n ->
+      let (x, _) as term = cost t n in
+      set t id ~f:(function
+          | Some ((y, _) as prev) when Cost.(y < x) -> prev
+          | Some _ | None -> term))
 end
-
-(* Saturate the table in a fixpoint loop. We want to break ties by
-   favoring newer/rewritten terms, so we explore them first.
-
-   NB: This might make the algorithm converge a bit slower (the ordering
-   is opposite of topological).
-*)
-let saturate t =
-  let unsat = ref true in
-  while !unsat do
-    unsat := false;
-    Vec.iteri_rev t.eg.node ~f:(Saturation.update t unsat)
-  done
 
 let init eg =
   let t = {
@@ -163,7 +148,7 @@ let init eg =
     memo = Id.Table.create ();
     impure = Id.Hash_set.create ();
   } in
-  saturate t;
+  Saturation.go t;
   t
 
 let rec must_remain_fixed op args = match (op : Enode.op) with
