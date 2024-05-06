@@ -38,6 +38,8 @@ let test name _ =
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
     let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Simplify_cfg.run tenv) in
     let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
+    let* () = Virtual.Module.funs m |> Context.Seq.iter ~f:(fun fn ->
+        Context.lift_err @@ Passes.Ssa.check fn) in
     !!(Format.asprintf "%a" Virtual.Module.pp m)
   end |> function
   | Error err ->
