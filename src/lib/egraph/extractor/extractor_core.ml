@@ -222,7 +222,7 @@ let rec extract t id =
     | N (op, cs) ->
       let+ cs = O.List.map cs ~f:(extract t) in
       let e = E (prov t cid id op cs, op, cs) in
-      Hashtbl.set t.memo ~key:id ~data:e;
+      Hashtbl.set t.memo ~key:cid ~data:e;
       e
     | U {pre; post} ->
       let id = find t.eg post in
