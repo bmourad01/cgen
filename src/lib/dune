@@ -26,6 +26,8 @@
  (private_modules
   cdoms
   ftree
+  hashmap
+  hashmap_intf
   last_stores
   live_intf
   resolver_intf
