@@ -23,6 +23,22 @@ module Op = struct
     | Sel of Type.basic * Var.t * operand * operand
   [@@deriving compare, equal, hash, sexp]
 
+  let commute = function
+    | Bop (b, l, r) ->
+      begin match b with
+        | `add _
+        | `mul _
+        | `mulh _
+        | `umulh _
+        | `and_ _
+        | `or_ _
+        | `xor _
+        | `eq _
+        | `ne _ -> Some (Bop (b, r, l))
+        | _ -> None
+      end
+    | _ -> None
+
   let of_insn = function
     | `bop (_, o, a, b) -> Bop (o, a, b)
     | `uop (_, o, a) -> Uop (o, a)
@@ -189,7 +205,9 @@ module Optimize = struct
   let insn t l : Abi.Insn.op -> Abi.Insn.op = function
     | `bop (x, o, a, b) ->
       let op = `bop (x, o, operand t a, operand t b) in
-      canonicalize t x @@ Op.of_insn op;
+      let k = Op.of_insn op in
+      canonicalize t x k;
+      Op.commute k |> Option.iter ~f:(canonicalize t x);
       op
     | `uop (x, o, a) ->
       let op = `uop (x, o, operand t a) in
