@@ -77,12 +77,15 @@ module Make(M : L) : S
   let duplicate_def = E.failf "Duplicate definition for var %a" Var.pp
   let duplicate_label = E.failf "Duplicate label %a" Label.pp
 
+  exception Bad_use of Var.t
+
   let verify_uses use def = try
       Hashtbl.iter_keys use ~f:(fun x ->
           if not @@ Hashtbl.mem def x then
-            failwithf "Variable %a is used but not defined" Var.pps x ());
+            raise_notrace @@ Bad_use x);
       !!()
-    with Failure msg -> E.fail @@ Error.of_string msg
+    with Bad_use x ->
+      E.failf "Variable %a is used but not defined" Var.pp x ()
 
   let create fn =
     let lbl = Label.Table.create () in
