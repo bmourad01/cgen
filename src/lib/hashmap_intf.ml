@@ -1,11 +1,24 @@
-(** An immutable hash map. *)
+(** An immutable hash map; for internal use only.
+
+    Question: why use this over a [Hashtbl]?
+
+    Answer: this data structure is persistent and immutable,
+    so passes and analyses that are sensitive to scoping (e.g.
+    dominator tree traversals), can share results more efficiently.
+
+    Question: why use this over a [Map]?
+
+    Answer: if your key type is expensive to compare, but cheaper
+    to hash, then this data structure may end up having better
+    performance characteristics overall.
+*)
 
 open Regular.Std
 
 module type S = sig
   (** The key into the map. *)
   type key
-  
+
   (** The map. *)
   type +'a t
 
