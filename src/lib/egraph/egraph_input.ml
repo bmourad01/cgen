@@ -1,4 +1,6 @@
+open Core
 open Monads.Std
+open Regular.Std
 open Graphlib.Std
 open Virtual
 
@@ -8,16 +10,17 @@ open E.Let
 
 (* General information about the function we're translating. *)
 type t = {
-  fn   : func;             (* The function itself. *)
-  loop : loops;            (* Loops analysis. *)
-  reso : resolver;         (* Labels to blocks/insns. *)
-  cfg  : Cfg.t;            (* The CFG. *)
-  dom  : Label.t tree;     (* Dominator tree. *)
-  pdom : Label.t tree;     (* Post-dominator tree. *)
-  cdom : Cdoms.t;          (* Instruction-level dominance relation. *)
-  df   : Label.t frontier; (* Dominance frontiers. *)
-  lst  : Last_stores.t;    (* Last stores analysis. *)
-  tenv : Typecheck.env;    (* Typing environment. *)
+  fn   : func;              (* The function itself. *)
+  loop : loops;             (* Loops analysis. *)
+  reso : resolver;          (* Labels to blocks/insns. *)
+  cfg  : Cfg.t;             (* The CFG. *)
+  dom  : Label.t tree;      (* Dominator tree. *)
+  domd : int Label.Table.t; (* Dominator tree depths. *)
+  pdom : Label.t tree;      (* Post-dominator tree. *)
+  cdom : Cdoms.t;           (* Instruction-level dominance relation. *)
+  df   : Label.t frontier;  (* Dominance frontiers. *)
+  lst  : Last_stores.t;     (* Last stores analysis. *)
+  tenv : Typecheck.env;     (* Typing environment. *)
 }
 
 let init_cdoms reso dom =
@@ -42,6 +45,15 @@ let init_last_stores fn cfg reso =
     end) in
   Lst.analyze fn cfg
 
+let dom_depths dom =
+  let t = Label.Table.create () in
+  let q = Stack.singleton (Label.pseudoentry, 0) in
+  Stack.until_empty q (fun (l, d) ->
+      Hashtbl.set t ~key:l ~data:d;
+      Tree.children dom l |> Seq.iter ~f:(fun l' ->
+          Stack.push q (l', d + 1)));
+  t
+
 let init fn tenv =
   let+ reso = Resolver.create fn in
   let loop = Loops.analyze fn in
@@ -51,4 +63,5 @@ let init fn tenv =
   let df = Graphlib.dom_frontier (module Cfg) cfg dom in
   let cdom = init_cdoms reso dom in
   let lst = init_last_stores fn cfg reso in
-  {fn; loop; reso; cfg; dom; pdom; cdom; df; lst; tenv}
+  let domd = dom_depths dom in
+  {fn; loop; reso; cfg; dom; domd; pdom; cdom; df; lst; tenv}

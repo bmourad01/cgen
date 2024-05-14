@@ -6,21 +6,36 @@ open Graphlib.Std
 open Egraph_common
 open Virtual
 
-(* Lowest common ancestor in the dominator tree. Note that this
-   should always be a block label. *)
-let rec lca' t a b =
-  let p = Tree.parent t.input.dom in
-  let ok = Tree.is_descendant_of t.input.dom in
-  match p a, p b with
-  | Some a', Some b' when Label.(a' = b') -> a'
-  | Some a', Some _  when ok ~parent:a' b -> a'
-  | Some _,  Some b' when ok ~parent:b' a -> b'
-  | Some a', Some b' when ok ~parent:a' b' -> a'
-  | Some a', Some b' when ok ~parent:b' a' -> b'
-  | Some a', Some b' -> lca' t a' b'
-  | None, _ | _, None ->
+(* Immediate dominator. *)
+let idom t l = match Tree.parent t.input.dom l with
+  | Some l' -> l'
+  | None ->
     (* The root is pseudoentry, which we should never reach. *)
     assert false
+
+(* Lowest common ancestor in the dominator tree. Note that this
+   should always be a block label. *)
+let lca' t a b =
+  let ra = ref a
+  and rb = ref b
+  and da = ref (Hashtbl.find_exn t.input.domd a)
+  and db = ref (Hashtbl.find_exn t.input.domd b) in
+  (* While `a` is deeper than `b`, go up the tree. *)
+  while !da > !db do
+    ra := idom t !ra;
+    decr da;
+  done;
+  (* While `b` is deeper than `a`, go up the tree. *)
+  while !db > !da do
+    rb := idom t !rb;
+    decr db;
+  done;
+  (* Find the common ancestor. *)
+  while Label.(!ra <> !rb) do
+    ra := idom t !ra;
+    rb := idom t !rb;
+  done;
+  !ra
 
 (* Resolve both labels to their corresponding blocks before we
    walk up the tree. *)
