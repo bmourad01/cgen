@@ -107,7 +107,7 @@ module Make(M : L) = struct
       List.fold_until ~init:Bad ~finish:Fn.id
         ~f:(fun acc -> function
             |`blk _ -> Stop Bad
-            | `insn (i, _, _) -> match infer acc x i with
+            | `insn (i, _, _, _) -> match infer acc x i with
               | (Read _ | Write _) as acc -> Continue acc
               | Bad -> Stop Bad)
   end
@@ -143,7 +143,7 @@ module Make(M : L) = struct
   let replace env = Map.iteri ~f:(fun ~key:x ~data:t ->
       Resolver.uses env.reso x |> List.iter ~f:(function
           | `blk _ -> assert false
-          | `insn (i, _, _) ->
+          | `insn (i, _, _, _) ->
             let l = Insn.label i in
             match Insn.store i with
             | Some (v, _, _) -> replace_store env x l v t

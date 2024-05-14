@@ -83,7 +83,7 @@ let extract_label t l = match Hashtbl.find t.eg.lval l with
 let upd t x y = Hashtbl.update t x ~f:(Option.value ~default:y)
 
 let find_var t l = match Resolver.resolve t.eg.input.reso l with
-  | Some `insn (_, _, Some x) -> !!(x, l)
+  | Some `insn (_, _, Some x, _) -> !!(x, l)
   | Some _ | None -> no_var l
 
 let new_var env canon real =
@@ -368,7 +368,7 @@ module Hoisting = struct
   let moved_blks t id cid =
     find_moved t id cid |> Label.Set.map ~f:(fun l ->
         match Resolver.resolve t.eg.input.reso l with
-        | Some `insn (_, b, _) -> Blk.label b
+        | Some `insn (_, b, _, _) -> Blk.label b
         | Some `blk _ | None -> assert false)
 
   (* When we "move" duplicate nodes up to the LCA (lowest common ancestor)

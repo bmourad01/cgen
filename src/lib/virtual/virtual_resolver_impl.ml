@@ -50,7 +50,7 @@ module Make(M : L) : S
 
   type resolved = [
     | `blk  of Blk.t
-    | `insn of Insn.t * Blk.t * lhs
+    | `insn of Insn.t * Blk.t * lhs * int
   ]
 
   type def = [
@@ -102,15 +102,16 @@ module Make(M : L) : S
         let* () = insert lbl label blk ~err:(duplicate_label label) in
         let* () = Blk.args b |> E.Seq.iter ~f:(fun x ->
             insert def x (`blkarg b) ~err:(duplicate_def x)) in
-        let+ () = Blk.insns b |> E.Seq.iter ~f:(fun i ->
+        let+ _ = Blk.insns b |> E.Seq.fold ~init:0 ~f:(fun ord i ->
             let key = Insn.label i in
             let lhs = Insn.lhs i in
-            let data = `insn (i, b, lhs) in
+            let data = `insn (i, b, lhs, ord) in
             let* () = insert lbl key data ~err:(duplicate_label key) in
             let+ () = vars_of_lhs lhs |> E.List.iter ~f:(fun x ->
                 insert def x data ~err:(duplicate_def x)) in
             Insn.free_vars i |> Set.iter ~f:(fun key ->
-                Hashtbl.add_multi use ~key ~data)) in
+                Hashtbl.add_multi use ~key ~data);
+            ord + 1) in
         Blk.ctrl b |> Ctrl.free_vars |> Set.iter ~f:(fun key ->
             Hashtbl.add_multi use ~key ~data:blk)) in
     let+ () = verify_uses use def in

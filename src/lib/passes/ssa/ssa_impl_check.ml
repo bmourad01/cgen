@@ -26,20 +26,14 @@ end = struct
     | Ok r -> Func.blks fn |> Seq.iter ~f:(fun b ->
         Blk.args b |> Seq.iter ~f:(fun x ->
             Resolver.uses r x |> List.iter ~f:(function
-                | `insn (_, b', _) | `blk b' ->
+                | `insn (_, b', _, _) | `blk b' ->
                   check_dom dom fn b b'));
-        Blk.insns b |> Seq.iter ~f:(fun i ->
+        Blk.insns b |> Seq.iteri ~f:(fun ord i ->
             Insn.lhs i |> List.iter ~f:(fun x ->
                 Resolver.uses r x |> List.iter ~f:(function
                     | `blk b' -> check_dom dom fn b b'
-                    | `insn (i', b', _) ->
+                    | `insn (_, b', _,  ord') ->
                       check_dom dom fn b b' ~k:(fun () ->
                           (* Check that `i` is defined before `i'`. *)
-                          let l = Insn.label i in
-                          let l' = Insn.label i' in
-                          Blk.insns b' |> Seq.fold_until
-                            ~init:() ~finish:Fn.id ~f:(fun () x ->
-                                if Insn.has_label x l then Stop ()
-                                else if Insn.has_label x l' then fail fn
-                                else Continue ()))))))
+                          if ord >= ord' then fail fn)))))
 end

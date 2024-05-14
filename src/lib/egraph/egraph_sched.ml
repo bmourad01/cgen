@@ -28,8 +28,8 @@ let lca t a b =
   let reso = Resolver.resolve t.input.reso in
   match reso a, reso b with
   | None, _ | _, None -> assert false
-  | Some (`insn (_, ba, _) | `blk ba),
-    Some (`insn (_, bb, _) | `blk bb) ->
+  | Some (`insn (_, ba, _, _) | `blk ba),
+    Some (`insn (_, bb, _, _) | `blk bb) ->
     lca' t (Blk.label ba) (Blk.label bb)
 
 let move t old l id =
@@ -87,7 +87,7 @@ module Licm = struct
   let find_blk_loop t l = Loops.blk t.input.loop l
 
   let find_loop t l = match Resolver.resolve t.input.reso l with
-    | Some (`blk b | `insn (_, b, _)) ->
+    | Some (`blk b | `insn (_, b, _, _)) ->
       find_blk_loop t @@ Blk.label b
     | None -> assert false
 
@@ -223,7 +223,7 @@ let is_effectful t n i =
 let add t l id n = match Resolver.resolve t.input.reso l with
   | None -> assert false
   | Some `blk _ -> Hashtbl.set t.isrc ~key:id ~data:l
-  | Some `insn (i, _, _) when is_effectful t n i ->
+  | Some `insn (i, _, _, _) when is_effectful t n i ->
     Hashtbl.set t.isrc ~key:id ~data:l
   | Some `insn _ -> match Licm.find_loop t l with
     | None -> Hashtbl.set t.isrc ~key:id ~data:l

@@ -21,7 +21,7 @@ module type L = sig
   end
 
   val is_descendant_of : t
-  val resolve : Label.t -> [`blk of Blk.t | `insn of Insn.t * Blk.t * lhs] option
+  val resolve : Label.t -> [`blk of Blk.t | `insn of Insn.t * Blk.t * lhs * int] option
 end
 
 module Make(M : L) : sig
@@ -34,22 +34,15 @@ end = struct
     | _, None -> Label.(b = pseudoexit)
     | Some `blk _, Some `blk _ ->
       Label.(a = b) || is_descendant_of ~parent:a b
-    | Some `insn (_, ba, _), Some `blk _ ->
+    | Some `insn (_, ba, _, _), Some `blk _ ->
       let a = Blk.label ba in
       Label.(a = b) || is_descendant_of ~parent:a b
-    | Some `blk _, Some `insn (_, bb, _) ->
+    | Some `blk _, Some `insn (_, bb, _, _) ->
       let b = Blk.label bb in
       Label.(a <> b) && is_descendant_of ~parent:a b
-    | Some `insn (ia, ba, _), Some `insn (ib, bb, _) ->
+    | Some `insn (_, ba, _, oa), Some `insn (_, bb, _, ob) ->
       let a = Blk.label ba in
       let b = Blk.label bb in
-      if Label.(a = b) then
-        let a = Insn.label ia in
-        let b = Insn.label ib in
-        Blk.insns ba |> Seq.fold_until
-          ~init:false ~finish:Fn.id ~f:(fun f x ->
-              if Insn.has_label x a then Stop true
-              else if Insn.has_label x b then Stop f
-              else Continue f)
+      if Label.(a = b) then oa < ob
       else is_descendant_of ~parent:a b
 end

@@ -8,7 +8,7 @@ module type S = sig
 
   type resolved = [
     | `blk  of blk
-    | `insn of insn * blk * lhs
+    | `insn of insn * blk * lhs * int
   ]
 
   type def = [
@@ -25,8 +25,10 @@ module type S = sig
 
       [`blk b]: the label resolved to block [b].
 
-      [`insn (i, b, lhs)]: the label resolved to instruction [i],
-      in block [b], defining [lhs].
+      [`insn (i, b, lhs, ord)]: the label resolved to instruction [i],
+      in block [b], defining [lhs]. [ord] is the relative ordering of
+      [i] in block [b] such that, given an [i'] and [ord'] also in [b],
+      [ord < ord'] implies that [i] appears before [i'].
   *)
   val resolve : t -> Label.t -> resolved option
 
@@ -34,8 +36,8 @@ module type S = sig
 
       [`blk b]: the variable was defined as a parameter of block [b].
 
-      [`insn (i, b, lhs)]: the variable was defined at instruction [i]
-      in block [b], and is a member of [lhs].
+      [`insn (i, b, lhs, ord)]: the variable was defined at instruction
+      [i] in block [b], and is a member of [lhs].
 
       [`slot]: the variable is a slot.
 
@@ -50,7 +52,7 @@ module type S = sig
       [`blk b]: the variable was used at the control-flow instruction
       of block [b].
 
-      [`insn (i, b, _)]: the variable was used at instruction [i] in
+      [`insn (i, b, _, _)]: the variable was used at instruction [i] in
       block [b].
   *)
   val uses : t -> Var.t -> resolved list
