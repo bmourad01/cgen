@@ -8,18 +8,29 @@ open Virtual
 
 (* Lowest common ancestor in the dominator tree. Note that this
    should always be a block label. *)
-let rec lca t a b =
-  let p = Tree.parent t.input.cdom in
+let rec lca' t a b =
+  let p = Tree.parent t.input.dom in
+  let ok = Tree.is_descendant_of t.input.dom in
   match p a, p b with
   | Some a', Some b' when Label.(a' = b') -> a'
-  | Some a', Some _  when dominates t ~parent:a' b -> a'
-  | Some _,  Some b' when dominates t ~parent:b' a -> b'
-  | Some a', Some b' when dominates t ~parent:a' b' -> a'
-  | Some a', Some b' when dominates t ~parent:b' a' -> b'
-  | Some a', Some b' -> lca t a' b'
+  | Some a', Some _  when ok ~parent:a' b -> a'
+  | Some _,  Some b' when ok ~parent:b' a -> b'
+  | Some a', Some b' when ok ~parent:a' b' -> a'
+  | Some a', Some b' when ok ~parent:b' a' -> b'
+  | Some a', Some b' -> lca' t a' b'
   | None, _ | _, None ->
     (* The root is pseudoentry, which we should never reach. *)
     assert false
+
+(* Resolve both labels to their corresponding blocks before we
+   walk up the tree. *)
+let lca t a b =
+  let reso = Resolver.resolve t.input.reso in
+  match reso a, reso b with
+  | None, _ | _, None -> assert false
+  | Some (`insn (_, ba, _) | `blk ba),
+    Some (`insn (_, bb, _) | `blk bb) ->
+    lca' t (Blk.label ba) (Blk.label bb)
 
 let move t old l id =
   let s = Label.Set.of_list old in

@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 
 module Id = Egraph_id
 module Enode = Egraph_node
@@ -122,7 +121,7 @@ let create_table rules =
 
 let find t id = Uf.find t.classes id
 let node t id = Vec.get_exn t.node id
-let dominates t = Tree.is_descendant_of t.input.cdom
+let dominates t = t.input.cdom
 let const t id = Enode.const ~node:(node t) @@ node t id
 let typeof t id = Vec.get_exn t.typs id |> Uopt.to_option
 

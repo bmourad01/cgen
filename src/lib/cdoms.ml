@@ -2,7 +2,8 @@
 
 open Core
 open Regular.Std
-open Graphlib.Std
+
+type t = parent:Label.t -> Label.t -> bool
 
 module type L = sig
   type lhs
@@ -10,47 +11,45 @@ module type L = sig
   module Insn : sig
     type t
     val label : t -> Label.t
+    val has_label : t -> Label.t -> bool
   end
 
   module Blk : sig
     type t
+    val label : t -> Label.t
     val insns : ?rev:bool -> t -> Insn.t seq
   end
 
-  module Func : sig
-    type t
-    val entry : t -> Label.t
-  end
-
-  module G : Label.Graph
-
+  val is_descendant_of : t
   val resolve : Label.t -> [`blk of Blk.t | `insn of Insn.t * Blk.t * lhs] option
 end
 
-module Make(M : L) = struct
+module Make(M : L) : sig
+  val dominates : t
+end = struct
   open M
 
-  module Pseudo = Label.Pseudo(G)
-
-  let create fn dom =
-    let accum b g l =
-      Blk.insns ~rev:true b |>
-      Seq.fold ~init:(g, l) ~f:(fun (g, l) i ->
-          let next = Insn.label i in
-          let e = G.Edge.create next l () in
-          G.Edge.insert e g, next) in 
-    let rec aux g l = match resolve l with
-      | None when Label.is_pseudo l -> g, l
-      | None | Some `insn _ -> assert false
-      | Some `blk b ->
-        let g, first = accum b g l in
-        children g l, first
-    and children g l =
-      Tree.children dom l |> Seq.fold ~init:g ~f:(fun g c ->
-          let g, first = aux g c in
-          let e = G.Edge.create l first () in
-          G.Edge.insert e g) in
-    let entry = Func.entry fn in
-    let g = fst @@ aux (G.Node.insert entry G.empty) entry in
-    Graphlib.dominators (module G) (Pseudo.add g) Label.pseudoentry
+  let dominates ~parent:a b = match resolve a, resolve b with
+    | None, _ -> Label.(a = pseudoentry)
+    | _, None -> Label.(b = pseudoexit)
+    | Some `blk _, Some `blk _ ->
+      Label.(a = b) || is_descendant_of ~parent:a b
+    | Some `insn (_, ba, _), Some `blk _ ->
+      let a = Blk.label ba in
+      Label.(a = b) || is_descendant_of ~parent:a b
+    | Some `blk _, Some `insn (_, bb, _) ->
+      let b = Blk.label bb in
+      Label.(a <> b) && is_descendant_of ~parent:a b
+    | Some `insn (ia, ba, _), Some `insn (ib, bb, _) ->
+      let a = Blk.label ba in
+      let b = Blk.label bb in
+      if Label.(a = b) then
+        let a = Insn.label ia in
+        let b = Insn.label ib in
+        Blk.insns ba |> Seq.fold_until
+          ~init:false ~finish:Fn.id ~f:(fun f x ->
+              if Insn.has_label x a then Stop true
+              else if Insn.has_label x b then Stop f
+              else Continue f)
+      else is_descendant_of ~parent:a b
 end

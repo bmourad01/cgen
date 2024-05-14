@@ -14,22 +14,21 @@ type t = {
   cfg  : Cfg.t;            (* The CFG. *)
   dom  : Label.t tree;     (* Dominator tree. *)
   pdom : Label.t tree;     (* Post-dominator tree. *)
-  cdom : Label.t tree;     (* Instruction-level dominator tree. *)
+  cdom : Cdoms.t;          (* Instruction-level dominance relation. *)
   df   : Label.t frontier; (* Dominance frontiers. *)
   lst  : Last_stores.t;    (* Last stores analysis. *)
   tenv : Typecheck.env;    (* Typing environment. *)
 }
 
-let init_cdoms fn reso dom =
+let init_cdoms reso dom =
   let module Cdom = Cdoms.Make(struct
       type lhs = Var.t option
       module Insn = Insn
       module Blk = Blk
-      module Func = Func
-      module G = Cfg
+      let is_descendant_of = Tree.is_descendant_of dom
       let resolve = Resolver.resolve reso
     end) in
-  Cdom.create fn dom
+  Cdom.dominates
 
 let init_last_stores fn cfg reso =
   let module Lst = Last_stores.Make(struct
@@ -50,6 +49,6 @@ let init fn tenv =
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   let pdom = Graphlib.dominators (module Cfg) cfg Label.pseudoexit ~rev:true in
   let df = Graphlib.dom_frontier (module Cfg) cfg dom in
-  let cdom = init_cdoms fn reso dom in
+  let cdom = init_cdoms reso dom in
   let lst = init_last_stores fn cfg reso in
   {fn; loop; reso; cfg; dom; pdom; cdom; df; lst; tenv}

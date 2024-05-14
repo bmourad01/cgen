@@ -73,7 +73,7 @@ type scope = operand Var.Map.t
 type t = {
   reso         : Abi.resolver;
   dom          : Label.t tree;
-  cdom         : Label.t tree;
+  cdom         : Cdoms.t;
   lst          : Last_stores.t;
   blks         : Abi.blk Label.Table.t;
   mems         : store Mem.Table.t;
@@ -82,16 +82,15 @@ type t = {
   mutable vars : scope;
 }
 
-let init_cdoms fn reso dom =
+let init_cdoms reso dom =
   let module Cdom = Cdoms.Make(struct
       type lhs = Var.Set.t
       module Insn = Abi.Insn
       module Blk = Abi.Blk
-      module Func = Abi.Func
-      module G = Abi.Cfg
+      let is_descendant_of = Tree.is_descendant_of dom
       let resolve = Abi.Resolver.resolve reso
     end) in
-  Cdom.create fn dom
+  Cdom.dominates
 
 let init_last_stores fn cfg reso =
   let module Lst = Last_stores.Make(struct
@@ -109,7 +108,7 @@ let init fn =
   let+ reso = Abi.Resolver.create fn in
   let cfg = Abi.Cfg.create fn in
   let dom = Graphlib.dominators (module Abi.Cfg) cfg Label.pseudoentry in
-  let cdom = init_cdoms fn reso dom in
+  let cdom = init_cdoms reso dom in
   let lst = init_last_stores fn cfg reso in
   let blks = Label.Table.create () in
   let mems = Mem.Table.create () in
@@ -169,7 +168,7 @@ module Optimize = struct
     Option.bind ~f:(function
         | Undef -> None
         | Value (v, parent) ->
-          Option.some_if (Tree.is_descendant_of t.cdom ~parent l) v)
+          Option.some_if (t.cdom ~parent l) v)
 
   let load t l x ty a =
     let a = operand t a in
