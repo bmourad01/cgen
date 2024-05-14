@@ -21,15 +21,16 @@ let find_var = find_var
 
 module Interp = Sccp_intervals_interp
 
-let step ctx visits l _pre post =
-  (* XXX: do we need the previous state for anything? *)
-  let s = post in
+let step ctx visits l _ s =
   (* Widening for block args. *)
   let s = match Label.Tree.find ctx.blks l with
     | None -> s
     | Some b ->
-      (* XXX: we need a better widening heuristic for back edges. *)
-      if visits > ctx.cycloc * 10 then
+      (* XXX: we need a better widening heuristic for back edges.
+         Allowing extra rounds of iteration only to return the most
+         general overapproximation seems like a waste (and indeed
+         this could noticably slow down compile times). *)
+      if visits > ctx.cycloc then
         Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
             match sizeof x ctx with
             | Some size -> update s x @@ I.create_full ~size
