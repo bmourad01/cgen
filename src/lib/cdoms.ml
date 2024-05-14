@@ -1,4 +1,4 @@
-(* Construct the instruction-level dominator tree. *)
+(* Construct the instruction-level dominance relation. *)
 
 open Core
 open Regular.Std
@@ -30,10 +30,10 @@ end = struct
   open M
 
   let dominates ~parent:a b = match resolve a, resolve b with
-    | None, _ -> Label.(a = pseudoentry)
-    | _, None -> Label.(b = pseudoexit)
+    | None, _ -> Label.(a <> b && a = pseudoentry)
+    | _, None -> Label.(a <> b && b = pseudoexit)
     | Some `blk _, Some `blk _ ->
-      Label.(a = b) || is_descendant_of ~parent:a b
+      Label.(a <> b) && is_descendant_of ~parent:a b
     | Some `insn (_, ba, _, _), Some `blk _ ->
       let a = Blk.label ba in
       Label.(a = b) || is_descendant_of ~parent:a b
