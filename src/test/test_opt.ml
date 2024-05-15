@@ -87,7 +87,10 @@ let suite = "Test optimizations" >::: [
     "Double XOR of flag" >:: test "doublexorflag";
     "Compare flag and negate" >:: test "cmpflagnegate";
     "Compare flag and NOP" >:: test "cmpflagnop";
+    "CSE (hoist)" >:: test "csehoist";
     "CSE (hoist and merge)" >:: test "csehoistandmerge";
+    "CSE (hoist and merge 2)" >:: test "csehoistandmerge2";
+    "CSE (hoist and merge 3)" >:: test "csehoistandmerge3";
     "Switch case propagation" >:: test "switchcaseprop";
     "Switch simplification" >:: test "switchsimpl";
     "Muti-block fold" >:: test "multiblockfold";
