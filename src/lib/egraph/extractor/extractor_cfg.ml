@@ -335,9 +335,9 @@ module Hoisting = struct
   let (++) = Lset.union
   let not_pseudo = Fn.non Label.is_pseudo
   let descendants t = Tree.descendants t.eg.input.dom
+  let ancestors t = Tree.ancestors t.eg.input.pdom
   let frontier t = Frontier.enum t.eg.input.df
   let to_set = Fn.compose Lset.of_sequence @@ Seq.filter ~f:not_pseudo
-  let post_dominated t l = Tree.is_ancestor_of t.eg.input.pdom ~child:l
 
   let rec closure ?(self = true) t env l =
     let c = match Hashtbl.find env.closure l with
@@ -391,7 +391,8 @@ module Hoisting = struct
          of this node beyond any benefit from hoisting it. In terms
          of native code generation, this means added register pressure,
          which may lead to increased spilling. *)
-      not (Set.exists bs ~f:(post_dominated t l)) && begin
+      let ans = to_set @@ ancestors t l in
+      not (Set.exists bs ~f:(Lset.mem ans)) && begin
         (* For each of these blocks, get its reflexive transitive
            closure in the dominator tree, and union them together. *)
         let a = Set.fold bs ~init:Lset.empty
