@@ -7,6 +7,7 @@ open Graphlib.Std
 open Virtual
 
 module Common = Egraph_common
+module Lset = Label.Tree_set
 module Id = Egraph_id
 
 open Context.Syntax
@@ -23,7 +24,7 @@ type env = {
   insn        : Insn.op Label.Table.t;
   ctrl        : ctrl Label.Table.t;
   news        : Label.t Id.Tree.t Label.Table.t;
-  closure     : Label.Set.t Label.Table.t;
+  closure     : Lset.t Label.Table.t;
   mutable cur : Label.t;
   mutable scp : scope;
 }
@@ -331,11 +332,11 @@ let exp t env l e =
   | E (_, Ovastart _, _) -> invalid l e
 
 module Hoisting = struct
-  let (++) = Set.union
+  let (++) = Lset.union
   let not_pseudo = Fn.non Label.is_pseudo
   let descendants t = Tree.descendants t.eg.input.dom
   let frontier t = Frontier.enum t.eg.input.df
-  let to_set = Fn.compose Label.Set.of_sequence @@ Seq.filter ~f:not_pseudo
+  let to_set = Fn.compose Lset.of_sequence @@ Seq.filter ~f:not_pseudo
   let post_dominated t l = Tree.is_ancestor_of t.eg.input.pdom ~child:l
 
   let rec closure ?(self = true) t env l =
@@ -351,7 +352,7 @@ module Hoisting = struct
           Seq.fold ~init:(to_set @@ descendants t l) ~f:(++) in
         Hashtbl.set env.closure ~key:l ~data:c;
         c in
-    if self then Set.add c l else Set.remove c l
+    if self then Lset.add c l else Lset.remove c l
 
   (* Try the real ID first before moving on to the canonical ID. This could
      happen if we rescheduled a newer term before we unioned it with an older
@@ -389,14 +390,14 @@ module Hoisting = struct
       not (Set.exists bs ~f:(post_dominated t l)) && begin
         (* For each of these blocks, get its reflexive transitive
            closure in the dominator tree, and union them together. *)
-        let a = Set.fold bs ~init:Label.Set.empty
+        let a = Set.fold bs ~init:Lset.empty
             ~f:(fun acc l -> acc ++ closure t env l) in
         (* Get the non-reflexive transitive closure of the block
            that we moved to. *)
         let b = closure t env l ~self:false in
         (* If these sets are not equal, then we have a partial
            redundancy, and thus need to duplicate code. *)
-        not @@ Label.Set.equal a b
+        not @@ Lset.equal a b
       end
     end
 

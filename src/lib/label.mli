@@ -30,6 +30,9 @@ include Regular.S with type t := t
     as a PATRICIA tree. *)
 module Tree : Patricia_tree_intf.S with type key := t
 
+(** Same as [Tree], but for sets of labels. *)
+module Tree_set : Patricia_tree_intf.Set with type key := t
+
 (** The signature for graphs with labels as nodes. *)
 module type Graph = Graph
   with type node = t

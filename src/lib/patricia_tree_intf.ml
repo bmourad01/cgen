@@ -174,3 +174,57 @@ module type S = sig
     'a t ->
     (key * 'a) seq  
 end
+
+(** The signature for sets. *)
+module type Set = sig
+  (** The key into the set. *)
+  type key
+
+  (** The set. *)
+  type t
+
+  val empty : t
+
+  (** Returns [true] if the tree is empty. *)
+  val is_empty : t -> bool
+
+  (** Returns [true] if the key is present. *)
+  val mem : t -> key -> bool
+
+  (** [singleton k] returns a singleton set for [k]. *)
+  val singleton : key -> t
+
+  (** Adds the key to the set if the key is not present. *)
+  val add : t -> key -> t
+
+  (** Removes the key from the set. *)
+  val remove : t -> key -> t
+
+  (** Combines two sets together. *)
+  val union : t -> t -> t
+
+  (** Returns [true] if the two sets are equal. *)
+  val equal : t -> t -> bool
+
+  (** Iterates the set according to [f]. *)
+  val iter : t -> f:(key -> unit) -> unit
+
+  (** Accumulates a result for each key in the set, in increasing order. *)
+  val fold : t -> init:'a -> f:('a -> key -> 'a) -> 'a
+
+  (** Accumulates a result for each key in the set, in decreasing order. *)
+  val fold_right : t -> init:'a -> f:(key -> 'a -> 'a) -> 'a
+
+  (** Returns the number of elements in the set. *)
+  val length : t -> int
+
+  (** Returns a list of all keys in the set, in increasing order. *)
+  val to_list : t -> key list
+
+  (** Returns a sequence of each key in the set according to [order]. By
+      default, it is [`Increasing_key]. *)
+  val to_sequence : ?order:[`Increasing_key | `Decreasing_key] -> t -> key seq
+
+  (** Returns a set from a sequence. *)
+  val of_sequence : key seq -> t
+end
