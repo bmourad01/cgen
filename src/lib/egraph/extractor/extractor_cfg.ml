@@ -386,7 +386,11 @@ module Hoisting = struct
       let bs = moved_blks t id cid in
       (* If one of these blocks post-dominates the block that we're
          moving to, then it is safe to allow the move to happen,
-         since we are inevitably going to compute it. *)
+         since we are inevitably going to compute it. However, this
+         choice has a drawback in that it may extend the live range
+         of this node beyond any benefit from hoisting it. In terms
+         of native code generation, this means added register pressure,
+         which may lead to increased spilling. *)
       not (Set.exists bs ~f:(post_dominated t l)) && begin
         (* For each of these blocks, get its reflexive transitive
            closure in the dominator tree, and union them together. *)
