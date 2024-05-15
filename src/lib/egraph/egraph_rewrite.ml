@@ -41,8 +41,7 @@ let union ?ty t id oid =
   let u = new_node ?ty t @@ U {pre = id; post = oid} in
   Uf.union t.classes id oid;
   Uf.union t.classes id u;
-  Sched.merge t id oid;
-  Sched.merge t id u;
+  Sched.merge t id oid u;
   u
 
 (* Called when a duplicate node is inserted. *)

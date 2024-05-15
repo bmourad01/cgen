@@ -1,5 +1,6 @@
 (* Track the provenance between e-class IDs and labels in the CFG
-   representation. *)
+   representation. This gets mainly used for the purpose of code
+   motion when we extract back to the CFG form. *)
 
 open Core
 open Graphlib.Std
@@ -47,9 +48,9 @@ let lca t a b =
     Some (`insn (_, bb, _, _) | `blk bb) ->
     lca' t (Blk.label ba) (Blk.label bb)
 
+(* Note that `id` must be the canonical e-class. *)
 let move t old l id =
   let s = Label.Set.of_list old in
-  Hashtbl.remove t.isrc id;
   Hashtbl.update t.imoved id ~f:(function
       | Some s' -> Set.union s s'
       | None -> s);
@@ -58,32 +59,56 @@ let move t old l id =
       | None -> Id.Set.singleton id
       | Some s -> Set.add s id)
 
-(* Update when we union two nodes together. *)
-let merge ({isrc = p; _} as t) a b =
-  if a <> b then match Hashtbl.(find p a, find p b) with
-    | None, None -> ()
-    | None, Some pb -> Hashtbl.set p ~key:a ~data:pb
-    | Some pa, None -> Hashtbl.set p ~key:b ~data:pa
-    | Some pa, Some pb when Label.(pa = pb) -> ()
-    | Some pa, Some pb when dominates t ~parent:pb pa ->
-      Hashtbl.set p ~key:a ~data:pb
-    | Some pa, Some pb when dominates t ~parent:pa pb ->
-      Hashtbl.set p ~key:b ~data:pa
-    | Some pa, Some pb ->
-      let pc = lca t pa pb in
-      let c = find t a in
-      Hashtbl.remove p a;
-      Hashtbl.remove p b;
-      assert (c = find t b);
-      move t [pa; pb] pc c
+(* Update when we union two nodes together. Should not be
+   called if both IDs are the same. *)
+let merge t a b u =
+  assert (a <> b);
+  (* Link the ID to the label, along with the union ID. *)
+  let link id l =
+    Hashtbl.set t.isrc ~key:id ~data:l;
+    Hashtbl.set t.isrc ~key:u ~data:l in
+  match Hashtbl.(find t.isrc a, find t.isrc b) with
+  | None, None -> ()
+  | None, Some pb -> link a pb
+  | Some pa, None -> link b pa
+  | Some pa, Some pb when Label.(pa = pb) -> ()
+  | Some pa, Some pb when dominates t ~parent:pb pa -> link a pb
+  | Some pa, Some pb when dominates t ~parent:pa pb -> link b pa
+  | Some pa, Some pb ->
+    let pc = lca t pa pb in
+    let c = find t a in
+    Hashtbl.remove t.isrc a;
+    Hashtbl.remove t.isrc b;
+    assert (c = find t b);
+    move t [pa; pb] pc c
+
+(* Remove `id` from the set of nodes that were moved
+   to `a`. Note that `id` must be the canonical e-class. *)
+let unmove t id a =
+  Hashtbl.change t.lmoved a
+    ~f:(Option.bind ~f:(fun s ->
+        let s' = Set.remove s id in
+        Option.some_if (not @@ Set.is_empty s') s'))
 
 let check_moved t id a =
-  let id = find t id in
-  Hashtbl.change t.imoved id ~f:(function
-      | Some s -> Some (Set.add s a)
-      | None ->
-        Hashtbl.set t.isrc ~key:id ~data:a;
-        None)
+  let cid = find t id in
+  match Hashtbl.find t.idest cid with
+  | None ->
+    (* This e-class wasn't moved, though it wasn't registered
+       to begin with (even though it was hash-consed). *)
+    Hashtbl.set t.isrc ~key:id ~data:a
+  | Some b when dominates t ~parent:b a ->
+    (* Was moved to an ancestor `b` that dominates `a`. *)
+    move t [a] b cid
+  | Some b when dominates t ~parent:a b ->
+    (* Move further up the tree to `a`. *)
+    unmove t cid b;
+    move t [b] a cid
+  | Some b ->
+    (* We have to move further up the tree. *)
+    let c = lca t a b in
+    unmove t cid b;
+    move t [a; b] c cid
 
 (* We've matched on a value that we already hash-consed, so
    figure out which label it should correspond to. *)
