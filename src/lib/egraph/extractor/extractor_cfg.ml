@@ -335,7 +335,6 @@ module Hoisting = struct
   let (++) = Lset.union
   let not_pseudo = Fn.non Label.is_pseudo
   let descendants t = Tree.descendants t.eg.input.dom
-  let ancestors t = Tree.ancestors t.eg.input.pdom
   let frontier t = Frontier.enum t.eg.input.df
   let to_set = Fn.compose Lset.of_sequence @@ Seq.filter ~f:not_pseudo
 
@@ -372,6 +371,11 @@ module Hoisting = struct
         | Some `insn (_, b, _, _) -> Blk.label b
         | Some `blk _ | None -> assert false)
 
+  let rec post_dominated t l bs =
+    match Tree.parent t.eg.input.pdom l with
+    | Some p -> Set.mem bs p || post_dominated t p bs
+    | None -> false
+
   (* When we "move" duplicate nodes up to the LCA (lowest common ancestor)
      in the dominator tree, we might be introducing a partial redundancy.
      This means that, at the LCA, the node is not going to be used on all
@@ -391,8 +395,7 @@ module Hoisting = struct
          of this node beyond any benefit from hoisting it. In terms
          of native code generation, this means added register pressure,
          which may lead to increased spilling. *)
-      let ans = to_set @@ ancestors t l in
-      not (Set.exists bs ~f:(Lset.mem ans)) && begin
+      not (post_dominated t l bs) && begin
         (* For each of these blocks, get its reflexive transitive
            closure in the dominator tree, and union them together. *)
         let a = Set.fold bs ~init:Lset.empty
@@ -407,7 +410,13 @@ module Hoisting = struct
     end
 
   (* If any nodes got moved up to this label, then we should check
-     to see if it is eligible for this code motion optimization. *)
+     to see if it is eligible for this code motion optimization.
+
+     Note that even if placing some nodes at this label would
+     introduce a partial redundancy, there may still exist entries
+     in the `lmoved` table that also map to these nodes, thus helping
+     to minimize duplication as we traverse down the dominator tree.
+  *)
   let process_moved_nodes t env l =
     match Hashtbl.find t.eg.lmoved l with
     | None -> !!()

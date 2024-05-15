@@ -77,43 +77,15 @@ let merge t a b u =
   | Some pa, Some pb ->
     let pc = lca t pa pb in
     let c = find t a in
+    assert (c = find t b);
+    assert (c = find t u);
     Hashtbl.remove t.isrc a;
     Hashtbl.remove t.isrc b;
-    assert (c = find t b);
     move t [pa; pb] pc c
-
-(* Remove `id` from the set of nodes that were moved
-   to `a`. Note that `id` must be the canonical e-class. *)
-let unmove t id a =
-  Hashtbl.change t.lmoved a
-    ~f:(Option.bind ~f:(fun s ->
-        let s' = Set.remove s id in
-        Option.some_if (not @@ Set.is_empty s') s'))
-
-let check_moved t id a =
-  let cid = find t id in
-  match Hashtbl.find t.idest cid with
-  | None ->
-    (* This e-class wasn't moved, though it wasn't registered
-       to begin with (even though it was hash-consed). *)
-    Hashtbl.set t.isrc ~key:id ~data:a
-  | Some b when dominates t ~parent:b a ->
-    (* Was moved to an ancestor `b` that dominates `a`. *)
-    move t [a] b cid
-  | Some b when dominates t ~parent:a b ->
-    (* Move further up the tree to `a`. *)
-    unmove t cid b;
-    move t [b] a cid
-  | Some b ->
-    (* We have to move further up the tree. *)
-    let c = lca t a b in
-    unmove t cid b;
-    move t [a; b] c cid
 
 (* We've matched on a value that we already hash-consed, so
    figure out which label it should correspond to. *)
 let duplicate t id a = match Hashtbl.find t.isrc id with
-  | None -> check_moved t id a
   | Some b when Label.(b = a) -> ()
   | Some b when dominates t ~parent:b a -> ()
   | Some b when dominates t ~parent:a b ->
@@ -122,6 +94,21 @@ let duplicate t id a = match Hashtbl.find t.isrc id with
     let c = lca t a b in
     Hashtbl.remove t.isrc id;
     move t [a; b] c @@ find t id
+  | None ->
+    (* Check if `id ` was moved up the tree. *)
+    let cid = find t id in
+    match Hashtbl.find t.idest cid with
+    | None ->
+      (* This e-class wasn't moved, though it wasn't registered
+         to begin with (even though it was hash-consed). *)
+      Hashtbl.set t.isrc ~key:id ~data:a
+    | Some b when dominates t ~parent:b a ->
+      (* Mark this e-class as being used at `a`. *)
+      Hashtbl.update t.imoved cid ~f:(function
+          | None -> Label.Set.singleton a
+          | Some s -> Set.add s a)
+    | Some b when dominates t ~parent:a b -> move t [b] a cid
+    | Some b -> move t [a; b] (lca t a b) cid
 
 module Licm = struct
   let find_blk_loop t l = Loops.blk t.input.loop l
