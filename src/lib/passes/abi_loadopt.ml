@@ -87,7 +87,9 @@ let init_cdoms reso dom =
       type lhs = Var.Set.t
       module Insn = Abi.Insn
       module Blk = Abi.Blk
-      let is_descendant_of = Tree.is_descendant_of dom
+      let rec is_descendant_of ~parent l = match Tree.parent dom l with
+        | Some p -> Label.(p = parent) || is_descendant_of ~parent p
+        | None -> false
       let resolve = Abi.Resolver.resolve reso
     end) in
   Cdom.dominates

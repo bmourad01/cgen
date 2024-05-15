@@ -28,7 +28,9 @@ let init_cdoms reso dom =
       type lhs = Var.t option
       module Insn = Insn
       module Blk = Blk
-      let is_descendant_of = Tree.is_descendant_of dom
+      let rec is_descendant_of ~parent l = match Tree.parent dom l with
+        | Some p -> Label.(p = parent) || is_descendant_of ~parent p
+        | None -> false
       let resolve = Resolver.resolve reso
     end) in
   Cdom.dominates
