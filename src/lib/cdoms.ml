@@ -1,27 +1,18 @@
 (* Construct the instruction-level dominance relation. *)
 
-open Core
-open Regular.Std
-
 type t = parent:Label.t -> Label.t -> bool
 
 module type L = sig
   type lhs
-
-  module Insn : sig
-    type t
-    val label : t -> Label.t
-    val has_label : t -> Label.t -> bool
-  end
+  type insn
 
   module Blk : sig
     type t
     val label : t -> Label.t
-    val insns : ?rev:bool -> t -> Insn.t seq
   end
 
   val is_descendant_of : t
-  val resolve : Label.t -> [`blk of Blk.t | `insn of Insn.t * Blk.t * lhs * int] option
+  val resolve : Label.t -> [`blk of Blk.t | `insn of insn * Blk.t * lhs * int] option
 end
 
 module Make(M : L) : sig
