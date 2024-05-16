@@ -203,6 +203,12 @@ module Optimize = struct
     canonicalize t x @@ Op.of_insn op;
     op
 
+  let call t l xs f args =
+    let f = global t f in
+    let args = callargs t args in
+    t.mem <- Some l;
+    `call (xs, f, args)
+
   let insn t l : Abi.Insn.op -> Abi.Insn.op = function
     | `bop (x, o, a, b) ->
       let op = `bop (x, o, operand t a, operand t b) in
@@ -215,8 +221,7 @@ module Optimize = struct
       canonicalize t x @@ Op.of_insn op;
       op
     | `sel (x, ty, c, y, n) -> sel t x ty c y n
-    | `call (xs, f, args) ->
-      `call (xs, global t f, callargs t args)
+    | `call (xs, f, args) -> call t l xs f args
     | `store (ty, v, a) -> store t l ty v a
     | `load (x, ty, a) -> load t l x ty a
     | `loadreg _ as lr -> lr
