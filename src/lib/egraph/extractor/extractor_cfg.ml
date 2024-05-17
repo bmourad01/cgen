@@ -68,26 +68,9 @@ let no_var l =
   Context.failf "%s: no variable is bound for label %a"
     error_prefix Label.pp l ()
 
-let extract_label t l = match Hashtbl.find t.eg.lval l with
-  | None -> !!None
-  | Some id -> match extract t id with
-    | None -> extract_fail l @@ Common.find t.eg id
-    | Some (E (Id {canon; _}, _, _)) when not @@ Hash_set.mem t.impure canon ->
-      (* There may be an opportunity to "sink" this instruction,
-         which is the dual of the "hoisting" optimization below.
-         Since this is a pure operation, we can wait until it is
-         actually needed by an effectful instruction or for
-         control-flow. *)
-      !!None
-    | Some _ as e -> !!e
-
 let upd t x y = Hashtbl.update t x ~f:(Option.value ~default:y)
 
-let find_var t l = match Resolver.resolve t.eg.input.reso l with
-  | Some `insn (_, _, Some x, _) -> !!(x, l)
-  | Some _ | None -> no_var l
-
-let new_var env canon real =
+let fresh env canon real =
   match Id.Tree.find env.scp canon with
   | Some p -> !!p
   | None ->
@@ -103,9 +86,10 @@ let new_var env canon real =
 
 let insn t env a f =
   let* x, l = match a with
-    | Label l -> find_var t l
-    | Id {canon; real} ->
-      new_var env canon real in
+    | Id {canon; real} -> fresh env canon real
+    | Label l -> match Resolver.resolve t.eg.input.reso l with
+      | Some `insn (_, _, Some x, _) -> !!(x, l)
+      | Some _ | None -> no_var l in
   let+ op = f x in
   upd env.insn l op;
   `var x
@@ -434,13 +418,21 @@ module Hoisting = struct
             else pure t env e >>| ignore)
 end
 
-(* Determine the placement of the instruction and then extract its rewritten
-   contents. *)
+(* Determine placement of instructions at this label. *)
 let reify t env l =
   let* () = Hoisting.process_moved_nodes t env l in
-  extract_label t l >>= function
-  | Some e -> exp t env l e
+  match Hashtbl.find t.eg.lval l with
   | None -> !!()
+  | Some id -> match extract t id with
+    | None -> extract_fail l @@ Common.find t.eg id
+    | Some (E (Id {canon; _}, _, _)) when not @@ Hash_set.mem t.impure canon ->
+      (* There may be an opportunity to "sink" this instruction,
+         which is the dual of the "hoisting" optimization below.
+         Since this is a pure operation, we can wait until it is
+         actually needed by an effectful instruction or for
+         control-flow. *)
+      !!()
+    | Some e -> exp t env l e
 
 (* Rewrite a single instruction. *)
 let step_insn t env i =
