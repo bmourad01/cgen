@@ -421,8 +421,10 @@ module Hoisting = struct
     match Hashtbl.find t.eg.lmoved l with
     | None -> !!()
     | Some s ->
-      (* Explore the newest nodes first. *)
+      (* Explore the newest nodes first, ignoring those that have
+         already been placed. *)
       Set.to_sequence s ~order:`Decreasing |>
+      Seq.filter ~f:(Fn.non @@ Id.Tree.mem env.scp) |>
       Context.Seq.iter ~f:(fun id -> match extract t id with
           | None -> extract_fail l id
           | Some e ->
