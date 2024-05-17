@@ -5,6 +5,8 @@ module Id = Egraph_id
 module Enode = Egraph_node
 module Input = Egraph_input
 module Uf = Egraph_uf
+module Lset = Label.Tree_set
+module Iset = Id.Tree_set
 
 type id = Id.t [@@deriving bin_io, compare, equal, hash, sexp]
 type enode = Enode.t
@@ -95,8 +97,8 @@ type t = {
   node        : enode Vec.t;            (* All e-nodes, indexed by ID. *)
   typs        : Type.t Uopt.t Vec.t;    (* The type of each node. *)
   memo        : (enode, id) Hashtbl.t;  (* The hash-cons for optimized terms. *)
-  lmoved      : Id.Set.t Label.Table.t; (* Set of IDs that were moved to a given label. *)
-  imoved      : Label.Set.t Id.Table.t; (* Set of labels that were moved for a given ID. *)
+  lmoved      : Iset.t Label.Table.t;   (* Set of IDs that were moved to a given label. *)
+  imoved      : Lset.t Id.Table.t;      (* Set of labels that were moved for a given ID. *)
   idest       : Label.t Id.Table.t;     (* The label a given ID was moved to. *)
   licm        : Id.Hash_set.t;          (* IDs that were moved via LICM. *)
   isrc        : Label.t Id.Table.t;     (* Maps unmoved IDs to labels before CSE. *)

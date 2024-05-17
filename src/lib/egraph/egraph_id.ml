@@ -13,3 +13,8 @@ module Tree = Patricia_tree.Make(struct
     include Int
     let size = Sys.int_size_in_bits
   end)
+
+module Tree_set = Patricia_tree.Make_set(struct
+    include Int
+    let size = Sys.int_size_in_bits
+  end)

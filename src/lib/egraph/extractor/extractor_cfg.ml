@@ -8,6 +8,7 @@ open Virtual
 
 module Common = Egraph_common
 module Lset = Label.Tree_set
+module Iset = Egraph_id.Tree_set
 module Id = Egraph_id
 
 open Context.Syntax
@@ -350,14 +351,14 @@ module Hoisting = struct
       | None -> assert false
 
   let moved_blks t id cid =
-    find_moved t id cid |> Label.Set.map ~f:(fun l ->
+    find_moved t id cid |> Lset.map ~f:(fun l ->
         match Resolver.resolve t.eg.input.reso l with
         | Some `insn (_, b, _, _) -> Blk.label b
         | Some `blk _ | None -> assert false)
 
   let rec post_dominated t l bs =
     match Tree.parent t.eg.input.pdom l with
-    | Some p -> Set.mem bs p || post_dominated t p bs
+    | Some p -> Lset.mem bs p || post_dominated t p bs
     | None -> false
 
   (* When we "move" duplicate nodes up to the LCA (lowest common ancestor)
@@ -382,7 +383,7 @@ module Hoisting = struct
       not (post_dominated t l bs) && begin
         (* For each of these blocks, get its reflexive transitive
            closure in the dominator tree, and union them together. *)
-        let a = Set.fold bs ~init:Lset.empty
+        let a = Lset.fold bs ~init:Lset.empty
             ~f:(fun acc l -> acc ++ closure t env l) in
         (* Get the non-reflexive transitive closure of the block
            that we moved to. *)
@@ -407,7 +408,7 @@ module Hoisting = struct
     | Some s ->
       (* Explore the newest nodes first, ignoring those that have
          already been placed. *)
-      Set.to_sequence s ~order:`Decreasing |>
+      Iset.to_sequence s ~order:`Decreasing |>
       Seq.filter ~f:(Fn.non @@ Id.Tree.mem env.scp) |>
       Context.Seq.iter ~f:(fun id -> match extract t id with
           | None -> extract_fail l id

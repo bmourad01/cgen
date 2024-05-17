@@ -385,19 +385,21 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
     | Bin (_, l, r) -> fold_right l ~f ~init:(fold_right r ~init ~f)
   [@@specialise]
 
+  let map t ~f = fold t ~init:empty ~f:(fun t x -> add t @@ f x)
   let length t = fold t ~init:0 ~f:(fun n _ -> Int.succ n)
   let to_list t = fold_right t ~f:List.cons ~init:[]
+  let of_list = List.fold ~init:empty ~f:add
 
-  let to_sequence ?(order = `Increasing_key) =
+  let to_sequence ?(order = `Increasing) =
     let open Seq.Generator in
     match order with
-    | `Increasing_key ->
+    | `Increasing ->
       let rec aux = function
         | Nil -> return ()
         | Tip k -> yield k
         | Bin (_, l, r) -> aux l >>= fun () -> aux r in
       fun t -> run @@ aux t
-    | `Decreasing_key ->
+    | `Decreasing ->
       let rec aux = function
         | Nil -> return ()
         | Tip k -> yield k

@@ -50,14 +50,13 @@ let lca t a b =
 
 (* Note that `id` must be the canonical e-class. *)
 let move t old l id =
-  let s = Label.Set.of_list old in
   Hashtbl.update t.imoved id ~f:(function
-      | Some s' -> Set.union s s'
-      | None -> s);
+      | Some s -> List.fold old ~init:s ~f:Lset.add
+      | None -> Lset.of_list old);
   Hashtbl.set t.idest ~key:id ~data:l;
   Hashtbl.update t.lmoved l ~f:(function
-      | None -> Id.Set.singleton id
-      | Some s -> Set.add s id)
+      | None -> Iset.singleton id
+      | Some s -> Iset.add s id)
 
 (* Update when we union two nodes together. Should not be
    called if both IDs are the same. *)
@@ -105,8 +104,8 @@ let duplicate t id a = match Hashtbl.find t.isrc id with
     | Some b when dominates t ~parent:b a ->
       (* Mark this e-class as being used at `a`. *)
       Hashtbl.update t.imoved cid ~f:(function
-          | None -> Label.Set.singleton a
-          | Some s -> Set.add s a)
+          | None -> Lset.singleton a
+          | Some s -> Lset.add s a)
     | Some b when dominates t ~parent:a b -> move t [b] a cid
     | Some b -> move t [a; b] (lca t a b) cid
 

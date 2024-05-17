@@ -215,15 +215,21 @@ module type Set = sig
   (** Accumulates a result for each key in the set, in decreasing order. *)
   val fold_right : t -> init:'a -> f:(key -> 'a -> 'a) -> 'a
 
+  (** Transforms the set according to [f]. *)
+  val map : t -> f:(key -> key) -> t
+
   (** Returns the number of elements in the set. *)
   val length : t -> int
 
   (** Returns a list of all keys in the set, in increasing order. *)
   val to_list : t -> key list
 
+  (** Constructs a set from a list of keys. *)
+  val of_list : key list -> t
+
   (** Returns a sequence of each key in the set according to [order]. By
       default, it is [`Increasing_key]. *)
-  val to_sequence : ?order:[`Increasing_key | `Decreasing_key] -> t -> key seq
+  val to_sequence : ?order:[`Increasing | `Decreasing] -> t -> key seq
 
   (** Returns a set from a sequence. *)
   val of_sequence : key seq -> t
