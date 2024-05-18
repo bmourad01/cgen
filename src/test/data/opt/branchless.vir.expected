@@ -1,0 +1,8 @@
+module foo
+
+export function w $foo(w %x, w %y, w %z) {
+@0:
+  %0 = ne.w %x, 0x0_w ; @13
+  %1 = sel.w %0, %y, %z ; @14
+  ret %1
+}

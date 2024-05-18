@@ -1,0 +1,24 @@
+module foo
+
+export function w $foo(w %x, w %y, w %z) {
+@start:
+  %c = ne.w %x, 0_w
+  br %c, @set1, @set2
+@set1:
+  %w = copy.w %y
+  jmp @next
+@set2:
+  %w = copy.w %z
+  jmp @next
+@next:
+  %c = ne.w %x, 0_w
+  br %c, @set3, @set4
+@set3:
+  %v = copy.w %w
+  jmp @done
+@set4:
+  %v = copy.w %w
+  jmp @done
+@done:
+  ret %v
+}

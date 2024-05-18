@@ -127,6 +127,7 @@ let suite = "Test optimizations" >::: [
     "Constant phi" >:: test "constphi";
     "Collatz (promotion)" >:: test "collatz";
     "Ackermann" >:: test "ackermann";
+    "Branchless" >:: test "branchless";
   ]
 
 let () = run_test_tt_main suite
