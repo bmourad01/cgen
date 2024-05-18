@@ -8,6 +8,16 @@ module E = Monad.Result.Error
 
 open E.Let
 
+module Operands = Set.Make(struct
+    type t = operand [@@deriving compare, sexp]
+  end)
+
+module Phis = Phi_values.Make(struct
+    type t = Operands.t [@@deriving equal]
+    let one = Operands.singleton
+    let join = Set.union
+  end)
+
 (* General information about the function we're translating. *)
 type t = {
   fn   : func;              (* The function itself. *)
@@ -21,6 +31,8 @@ type t = {
   df   : Label.t frontier;  (* Dominance frontiers. *)
   lst  : Last_stores.t;     (* Last stores analysis. *)
   tenv : Typecheck.env;     (* Typing environment. *)
+  phis : Phis.state;        (* Block argument value sets. *)
+  rpo  : Label.t -> int;    (* Reverse post-order number. *)
 }
 
 let init_cdoms reso dom =
@@ -56,6 +68,18 @@ let dom_depths dom =
           Stack.push q (l', d + 1)));
   t
 
+let init_rpo cfg =
+  let nums = Label.Table.create () in
+  Graphlib.reverse_postorder_traverse
+    ~start:Label.pseudoentry (module Cfg) cfg |>
+  Seq.iteri ~f:(fun i l -> Hashtbl.set nums ~key:l ~data:i);
+  Hashtbl.find_exn nums
+
+let resolve_blk reso l =
+  match Resolver.resolve reso l with
+  | Some `blk b -> Some b
+  | Some _ | None -> None
+
 let init fn tenv =
   let+ reso = Resolver.create fn in
   let loop = Loops.analyze fn in
@@ -66,4 +90,6 @@ let init fn tenv =
   let cdom = init_cdoms reso dom in
   let lst = init_last_stores fn cfg reso in
   let domd = dom_depths dom in
-  {fn; loop; reso; cfg; dom; domd; pdom; cdom; df; lst; tenv}
+  let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
+  let rpo = init_rpo cfg in
+  {fn; loop; reso; cfg; dom; domd; pdom; cdom; df; lst; tenv; phis; rpo}

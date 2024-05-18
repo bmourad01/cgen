@@ -1,6 +1,7 @@
-(** Runs a data-flow analysis to determine block arguments that are constant.
+(** Runs a data-flow analysis to determine block arguments
+    that are constant.
 
-    The function is assumed to be in SSA form.
+    The function must be in SSA form.
 *)
 
 open Core

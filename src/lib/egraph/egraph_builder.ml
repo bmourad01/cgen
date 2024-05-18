@@ -251,11 +251,40 @@ let setmem env eg l m = env.mem <- match m with
     | None -> Solution.get eg.input.lst l
     | Some _ -> m
 
-let step env eg l lst = match Resolver.resolve eg.input.reso l with
+exception Overapproximate_phi
+
+let approximate_phis env eg b =
+  Blk.args b |> Seq.iter ~f:(fun x ->
+      Map.find eg.input.phis x |> Option.iter
+        ~f:(fun vs -> try
+               (* Translate the values for `x` into terms
+                  that the e-graph knows about. *)
+               let vals =
+                 Set.fold vs ~init:Id.Set.empty
+                   ~f:(fun acc -> function
+                       | #const as c ->
+                         let ty = typeof_const eg c in
+                         Set.add acc @@ constant ~ty eg c
+                       | `var y ->
+                         Set.add acc @@ match Hashtbl.find env.vars y with
+                         | Some id -> id
+                         | None ->
+                           (* `y` likely comes from a back-edge in the CFG,
+                              which we wouldn't have visited at this point.
+                              In any case we can't do anything about it. *)
+                           raise_notrace Overapproximate_phi) in
+               if Set.length vals = 1 then
+                 let data = Set.min_elt_exn vals in
+                 Hashtbl.set env.vars ~key:x ~data
+             with Overapproximate_phi -> ()))
+
+let step env eg l lst =
+  match Resolver.resolve eg.input.reso l with
   | None when Label.is_pseudo l -> ()
   | None | Some `insn _ -> raise_notrace @@ Missing l
   | Some `blk b ->
     setmem env eg l lst;
+    approximate_phis env eg b;
     Blk.insns b |> Seq.iter ~f:(fun i ->
         let l = Insn.label i in
         env.cur <- l;
@@ -277,8 +306,10 @@ let try_ f = try Ok (f ()) with
 
 let run eg = try_ @@ fun () ->
   let env = init () in
+  let cmp a b = compare (eg.input.rpo b) (eg.input.rpo a) in
   let q = Stack.singleton (Label.pseudoentry, env.mem) in
   Stack.until_empty q @@ fun (l, lst) ->
   step env eg l lst;
   Tree.children eg.input.dom l |>
-  Seq.iter ~f:(fun l -> Stack.push q (l, env.mem))
+  Seq.to_list |> List.sort ~compare:cmp |>
+  List.iter ~f:(fun l -> Stack.push q (l, env.mem))
