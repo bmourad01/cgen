@@ -390,8 +390,8 @@ module Cfg : sig
   (** Creates the control-flow graph.
 
       Each node of the graph is the label of a basic block in the function,
-      and edges between basic blocks are labeled according to the type of
-      control-flow instruction that links them (see the [Edge] module).
+      and edges between basic blocks correspond to control-flow transfers
+      between them.
 
       Additionally, two pseudo-labels are added to the graph ([Label.pseudoentry]
       and [Label.pseudoexit]). These labels link with each "entry" and "exit"
