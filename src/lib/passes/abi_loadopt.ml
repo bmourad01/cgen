@@ -197,7 +197,7 @@ module Optimize = struct
     let n = operand t n in
     let op = match var t c with
       | `bool true -> `uop (x, `copy ty, y)
-      | `bool false -> `uop (x, `copy ty, y)
+      | `bool false -> `uop (x, `copy ty, n)
       | `var c -> `sel (x, ty, c, y, n)
       | _ -> assert false in
     canonicalize t x @@ Op.of_insn op;
