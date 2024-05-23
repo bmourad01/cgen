@@ -13,15 +13,16 @@ let not_pseudo = Fn.non Label.is_pseudo
 
 let blk_args =
   let* fn = getfn and* blk = getblk and* env = getenv in
-  let* env, _ =
-    let init = env, Var.Set.empty in
-    Blk.args blk |> M.Seq.fold ~init ~f:(fun (env, seen) x ->
-        if Set.mem seen x then
-          M.failf "Duplicate argument %a for block %a in function $%s"
-            Var.pp x Label.pp (Blk.label blk) (Func.name fn) ()
-        else
-          let*? _ = Env.typeof_var fn x env in
-          !!(env, Set.add seen x)) in
+  let* _ =
+    Blk.args blk |> M.Seq.fold ~init:Var.Set.empty
+      ~f:(fun seen x -> if Set.mem seen x then
+             M.failf "Duplicate argument %a for block %a in function $%s"
+               Var.pp x Label.pp (Blk.label blk) (Func.name fn) ()
+           else
+             (* NB: `x` should be present in the environment due to the order
+                in which we traverse the domtree (see `Ctrls.check_label_dst`) *)
+             let*? _ = Env.typeof_var fn x env in
+             !!(Set.add seen x)) in
   updenv env
 
 let rec check_blk doms rpo blks seen l =
