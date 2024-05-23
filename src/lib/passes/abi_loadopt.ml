@@ -94,24 +94,23 @@ let init_cdoms reso dom =
     end) in
   Cdom.dominates
 
-let init_last_stores fn cfg reso =
+let init_last_stores cfg reso =
   let module Lst = Last_stores.Make(struct
       module Insn = Abi.Insn
       module Blk = Abi.Blk
-      module Func = Abi.Func
       module Cfg = Abi.Cfg
       let resolve l = match Abi.Resolver.resolve reso l with
         | Some `insn _ | None -> assert false
         | Some `blk b -> b
     end) in
-  Lst.analyze fn cfg
+  Lst.analyze cfg
 
 let init fn =
   let+ reso = Abi.Resolver.create fn in
   let cfg = Abi.Cfg.create fn in
   let dom = Graphlib.dominators (module Abi.Cfg) cfg Label.pseudoentry in
   let cdom = init_cdoms reso dom in
-  let lst = init_last_stores fn cfg reso in
+  let lst = init_last_stores cfg reso in
   let blks = Label.Table.create () in
   let mems = Mem.Table.create () in
   let mem = None and memo = Hashcons.empty and vars = Var.Map.empty in

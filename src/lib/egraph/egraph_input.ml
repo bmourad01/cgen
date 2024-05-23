@@ -47,17 +47,16 @@ let init_cdoms reso dom =
     end) in
   Cdom.dominates
 
-let init_last_stores fn cfg reso =
+let init_last_stores cfg reso =
   let module Lst = Last_stores.Make(struct
       module Insn = Insn
       module Blk = Blk
-      module Func = Func
       module Cfg = Cfg
       let resolve l = match Resolver.resolve reso l with
         | Some `insn _ | None -> assert false
         | Some `blk b -> b
     end) in
-  Lst.analyze fn cfg
+  Lst.analyze cfg
 
 let dom_depths dom =
   let t = Label.Table.create () in
@@ -88,7 +87,7 @@ let init fn tenv =
   let pdom = Graphlib.dominators (module Cfg) cfg Label.pseudoexit ~rev:true in
   let df = Graphlib.dom_frontier (module Cfg) cfg dom in
   let cdom = init_cdoms reso dom in
-  let lst = init_last_stores fn cfg reso in
+  let lst = init_last_stores cfg reso in
   let domd = dom_depths dom in
   let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
   let rpo = init_rpo cfg in
