@@ -1,4 +1,11 @@
-(* Construct the instruction-level dominance relation. *)
+(* Construct the dominance relation for all labels.
+
+   Labels in the Virtual IR can either belong to basic blocks or
+   instructions, but the usual algorithm to compute the dominance
+   relation focuses on just the control-flow graph (edges between
+   blocks). We extend this with a finer granularity to include
+   instruction labels.
+*)
 
 type t = parent:Label.t -> Label.t -> bool
 

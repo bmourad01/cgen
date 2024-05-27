@@ -123,7 +123,7 @@ let create_table rules =
 
 let find t id = Uf.find t.classes id
 let node t id = Vec.get_exn t.node id
-let dominates t = t.input.cdom
+let dominates t = t.input.rdom
 let const t id = Enode.const ~node:(node t) @@ node t id
 let typeof t id = Vec.get_exn t.typs id |> Uopt.to_option
 

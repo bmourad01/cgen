@@ -73,7 +73,7 @@ type scope = operand Var.Map.t
 type t = {
   reso         : Abi.resolver;
   dom          : Label.t tree;
-  cdom         : Cdoms.t;
+  rdom         : Dominance.t;
   lst          : Last_stores.t;
   blks         : Abi.blk Label.Table.t;
   mems         : store Mem.Table.t;
@@ -82,8 +82,8 @@ type t = {
   mutable vars : scope;
 }
 
-let init_cdoms reso dom =
-  let module Cdom = Cdoms.Make(struct
+let init_dom_relation reso dom =
+  let module Dom = Dominance.Make(struct
       type lhs = Var.Set.t
       type insn = Abi.insn
       module Blk = Abi.Blk
@@ -92,7 +92,7 @@ let init_cdoms reso dom =
         | None -> false
       let resolve = Abi.Resolver.resolve reso
     end) in
-  Cdom.dominates
+  Dom.dominates
 
 let init_last_stores cfg reso =
   let module Lst = Last_stores.Make(struct
@@ -109,12 +109,12 @@ let init fn =
   let+ reso = Abi.Resolver.create fn in
   let cfg = Abi.Cfg.create fn in
   let dom = Graphlib.dominators (module Abi.Cfg) cfg Label.pseudoentry in
-  let cdom = init_cdoms reso dom in
+  let rdom = init_dom_relation reso dom in
   let lst = init_last_stores cfg reso in
   let blks = Label.Table.create () in
   let mems = Mem.Table.create () in
   let mem = None and memo = Hashcons.empty and vars = Var.Map.empty in
-  {reso; dom; cdom; lst; blks; mems; mem; memo; vars}
+  {reso; dom; rdom; lst; blks; mems; mem; memo; vars}
 
 module Optimize = struct
   let var t x = match Map.find t.vars x with
@@ -169,7 +169,7 @@ module Optimize = struct
     Option.bind ~f:(function
         | Undef -> None
         | Value (v, parent) ->
-          Option.some_if (t.cdom ~parent l) v)
+          Option.some_if (t.rdom ~parent l) v)
 
   let load t l x ty a =
     let a = operand t a in

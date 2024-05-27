@@ -27,7 +27,7 @@ type t = {
   dom  : Label.t tree;      (* Dominator tree. *)
   domd : int Label.Table.t; (* Dominator tree depths. *)
   pdom : Label.t tree;      (* Post-dominator tree. *)
-  cdom : Cdoms.t;           (* Instruction-level dominance relation. *)
+  rdom : Dominance.t;       (* Fine-grained dominance relation. *)
   df   : Label.t frontier;  (* Dominance frontiers. *)
   lst  : Last_stores.t;     (* Last stores analysis. *)
   tenv : Typecheck.env;     (* Typing environment. *)
@@ -35,8 +35,8 @@ type t = {
   rpo  : Label.t -> int;    (* Reverse post-order number. *)
 }
 
-let init_cdoms reso dom =
-  let module Cdom = Cdoms.Make(struct
+let init_dom_relation reso dom =
+  let module Dom = Dominance.Make(struct
       type lhs = Var.t option
       type insn = Insn.t
       module Blk = Blk
@@ -45,7 +45,7 @@ let init_cdoms reso dom =
         | None -> false
       let resolve = Resolver.resolve reso
     end) in
-  Cdom.dominates
+  Dom.dominates
 
 let init_last_stores cfg reso =
   let module Lst = Last_stores.Make(struct
@@ -86,9 +86,9 @@ let init fn tenv =
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   let pdom = Graphlib.dominators (module Cfg) cfg Label.pseudoexit ~rev:true in
   let df = Graphlib.dom_frontier (module Cfg) cfg dom in
-  let cdom = init_cdoms reso dom in
+  let rdom = init_dom_relation reso dom in
   let lst = init_last_stores cfg reso in
   let domd = dom_depths dom in
   let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
   let rpo = init_rpo cfg in
-  {fn; loop; reso; cfg; dom; domd; pdom; cdom; df; lst; tenv; phis; rpo}
+  {fn; loop; reso; cfg; dom; domd; pdom; rdom; df; lst; tenv; phis; rpo}

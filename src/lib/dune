@@ -24,7 +24,7 @@
   regular
   zarith)
  (private_modules
-  cdoms
+  dominance
   ftree
   hashmap
   hashmap_intf
