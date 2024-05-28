@@ -91,8 +91,8 @@ let new_loop t l =
   n
 
 let dom_backedge l cfg dom =
-  Cfg.Node.preds l cfg |>
-  Seq.filter ~f:(Tree.is_descendant_of dom ~parent:l)
+  Cfg.Node.preds l cfg |> Seq.filter ~f:(fun l' ->
+      Label.(l = l') || Tree.is_descendant_of dom ~parent:l l')
 
 let find_headers t cfg dom =
   Graphlib.reverse_postorder_traverse (module Cfg)
