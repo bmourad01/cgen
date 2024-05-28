@@ -110,16 +110,13 @@ let duplicate t id a = match Hashtbl.find t.isrc id with
     | Some b -> move t [a; b] (lca t a b) cid
 
 module Licm = struct
+  let is_child_loop t a b = Loops.is_child_of t.input.loop a b
   let find_blk_loop t l = Loops.blk t.input.loop l
 
   let find_loop t l = match Resolver.resolve t.input.reso l with
     | Some (`blk b | `insn (_, b, _, _)) ->
       find_blk_loop t @@ Blk.label b
     | None -> assert false
-
-  let is_child_loop t a b =
-    not (Loops.equal_loop a b) &&
-    Loops.is_child_of t.input.loop a b
 
   let id2label t id = match Hashtbl.find t.isrc id with
     | None -> Hashtbl.find t.idest id
@@ -129,6 +126,7 @@ module Licm = struct
     (* Almost the same as `child`, but ignores the special cases
        thereof. *)
     let rec is_variant ~lp t l n = match find_loop t l with
+      | Some lp' when Loops.equal_loop lp lp' -> true
       | Some lp' when is_child_loop t lp lp' -> false
       | Some _ -> children ~lp t n
       | None -> false
@@ -170,13 +168,13 @@ module Licm = struct
             (* It's block argument, so find out if it belongs to a
                loop. *)
             begin match find_blk_loop t @@ Blk.label b with
+              | Some lp' when Loops.equal_loop lp lp' ->
+                (* It's defined by a block within the current loop. *)
+                true
               | Some lp' when is_child_loop t lp lp' ->
                 (* The loop it belongs to is nested inside of the
                    current one. *)
                 false
-              | Some lp' when Loops.equal_loop lp lp' ->
-                (* It's defined by a block within the current loop. *)
-                true
               | Some _ ->
                 (* It's defined in a loop, but not a child of the
                    current one. *)
@@ -251,6 +249,7 @@ let add t l id n = match Resolver.resolve t.input.reso l with
   | Some `blk _ -> Hashtbl.set t.isrc ~key:id ~data:l
   | Some `insn (i, _, _, _) when is_effectful t n i ->
     Hashtbl.set t.isrc ~key:id ~data:l
-  | Some `insn _ -> match Licm.find_loop t l with
+  | Some `insn (_, b, _, _) ->
+    match Licm.find_blk_loop t @@ Blk.label b with
     | None -> Hashtbl.set t.isrc ~key:id ~data:l
     | Some lp -> Licm.licm t l n lp id
