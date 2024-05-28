@@ -92,20 +92,19 @@ type rules = (Enode.op, toplevel list) Hashtbl.t
    for examples of how this information gets used.
 *)
 type t = {
-  input       : Input.t;                (* Analyses about the function. *)
-  classes     : Uf.t;                   (* The union-find for all e-classes. *)
-  node        : enode Vec.t;            (* All e-nodes, indexed by ID. *)
-  typs        : Type.t Uopt.t Vec.t;    (* The type of each node. *)
-  memo        : (enode, id) Hashtbl.t;  (* The hash-cons for optimized terms. *)
-  lmoved      : Iset.t Label.Table.t;   (* Set of IDs that were moved to a given label. *)
-  imoved      : Lset.t Id.Table.t;      (* Set of labels that were moved for a given ID. *)
-  idest       : Label.t Id.Table.t;     (* The label a given ID was moved to. *)
-  licm        : Id.Hash_set.t;          (* IDs that were moved via LICM. *)
-  isrc        : Label.t Id.Table.t;     (* Maps unmoved IDs to labels before CSE. *)
-  lval        : id Label.Table.t;       (* Maps labels to IDs. *)
-  depth_limit : int;                    (* Maximum rewrite depth. *)
-  match_limit : int;                    (* Maximum rewrites per term. *)
-  rules       : rules;                  (* The table of rewrite rules. *)
+  input       : Input.t;               (* Analyses about the function. *)
+  classes     : Uf.t;                  (* The union-find for all e-classes. *)
+  node        : enode Vec.t;           (* All e-nodes, indexed by ID. *)
+  typs        : Type.t Uopt.t Vec.t;   (* The type of each node. *)
+  memo        : (enode, id) Hashtbl.t; (* The hash-cons for optimized terms. *)
+  lmoved      : Iset.t Label.Table.t;  (* Set of IDs that were moved to a given label. *)
+  imoved      : Lset.t Id.Table.t;     (* Set of labels that were moved for a given ID. *)
+  pinned      : Id.Hash_set.t;         (* IDs that should not be rescheduled. *)
+  ilbl        : Label.t Id.Table.t;    (* Maps IDs to labels. *)
+  lval        : id Label.Table.t;      (* Maps labels to IDs. *)
+  depth_limit : int;                   (* Maximum rewrite depth. *)
+  match_limit : int;                   (* Maximum rewrites per term. *)
+  rules       : rules;                 (* The table of rewrite rules. *)
 }
 
 type egraph = t

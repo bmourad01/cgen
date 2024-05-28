@@ -128,6 +128,8 @@ let suite = "Test optimizations" >::: [
     "Collatz (promotion)" >:: test "collatz";
     "Ackermann" >:: test "ackermann";
     "Branchless" >:: test "branchless";
+    "LICM (sinking)" >:: test "licmsink";
+    "LICM (sinking 2)" >:: test "licmsink2";
   ]
 
 let () = run_test_tt_main suite

@@ -367,9 +367,8 @@ module Hoisting = struct
      paths that are dominated by it, so we need to do a simple analysis to
      see if this is the case. *)
   let is_partial_redundancy t env l id cid =
-    (* Ignore the results of LICM. Note that we do not use the canonical ID
-       here, since we do our analysis before rewriting. *)
-    not (Hash_set.mem t.eg.licm id) && begin
+    (* If this node is deliberately placed here then allow it. *)
+    not (Hash_set.mem t.eg.pinned id) && begin
       (* Get the blocks associated with the labels that were
          "moved" for this node. *)
       let bs = moved_blks t id cid in

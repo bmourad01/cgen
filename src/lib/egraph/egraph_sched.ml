@@ -53,7 +53,7 @@ let move t old l id =
   Hashtbl.update t.imoved id ~f:(function
       | Some s -> List.fold old ~init:s ~f:Lset.add
       | None -> Lset.of_list old);
-  Hashtbl.set t.idest ~key:id ~data:l;
+  Hashtbl.set t.ilbl ~key:id ~data:l;
   Hashtbl.update t.lmoved l ~f:(function
       | None -> Iset.singleton id
       | Some s -> Iset.add s id)
@@ -64,9 +64,9 @@ let merge t a b u =
   assert (a <> b);
   (* Link the ID to the label, along with the union ID. *)
   let link id l =
-    Hashtbl.set t.isrc ~key:id ~data:l;
-    Hashtbl.set t.isrc ~key:u ~data:l in
-  match Hashtbl.(find t.isrc a, find t.isrc b) with
+    Hashtbl.set t.ilbl ~key:id ~data:l;
+    Hashtbl.set t.ilbl ~key:u ~data:l in
+  match Hashtbl.(find t.ilbl a, find t.ilbl b) with
   | None, None -> ()
   | None, Some pb -> link a pb
   | Some pa, None -> link b pa
@@ -78,36 +78,25 @@ let merge t a b u =
     let c = find t a in
     assert (c = find t b);
     assert (c = find t u);
-    Hashtbl.remove t.isrc a;
-    Hashtbl.remove t.isrc b;
+    Hashtbl.remove t.ilbl a;
+    Hashtbl.remove t.ilbl b;
     move t [pa; pb] pc c
 
 (* We've matched on a value that we already hash-consed, so
    figure out which label it should correspond to. *)
-let duplicate t id a = match Hashtbl.find t.isrc id with
+let duplicate t id a = match Hashtbl.find t.ilbl id with
   | Some b when Label.(b = a) -> ()
   | Some b when dominates t ~parent:b a -> ()
   | Some b when dominates t ~parent:a b ->
-    Hashtbl.set t.isrc ~key:id ~data:a
+    Hashtbl.set t.ilbl ~key:id ~data:a
   | Some b ->
     let c = lca t a b in
-    Hashtbl.remove t.isrc id;
+    Hashtbl.remove t.ilbl id;
     move t [a; b] c @@ find t id
   | None ->
-    (* Check if `id ` was moved up the tree. *)
-    let cid = find t id in
-    match Hashtbl.find t.idest cid with
-    | None ->
-      (* This e-class wasn't moved, though it wasn't registered
-         to begin with (even though it was hash-consed). *)
-      Hashtbl.set t.isrc ~key:id ~data:a
-    | Some b when dominates t ~parent:b a ->
-      (* Mark this e-class as being used at `a`. *)
-      Hashtbl.update t.imoved cid ~f:(function
-          | None -> Lset.singleton a
-          | Some s -> Lset.add s a)
-    | Some b when dominates t ~parent:a b -> move t [b] a cid
-    | Some b -> move t [a; b] (lca t a b) cid
+    (* This e-class wasn't moved, though it wasn't registered
+       to begin with (even though it was hash-consed). *)
+    Hashtbl.set t.ilbl ~key:id ~data:a
 
 module Licm = struct
   let is_child_loop t a b = Loops.is_child_of t.input.loop a b
@@ -117,10 +106,6 @@ module Licm = struct
     | Some (`blk b | `insn (_, b, _, _)) ->
       find_blk_loop t @@ Blk.label b
     | None -> assert false
-
-  let id2label t id = match Hashtbl.find t.isrc id with
-    | None -> Hashtbl.find t.idest id
-    | Some _ as l -> l
 
   module Variance = struct
     (* Almost the same as `child`, but ignores the special cases
@@ -192,7 +177,7 @@ module Licm = struct
       | n when Enode.is_const n ->
         (* If it's a constant then it is definitely invariant. *)
         false
-      | n -> match id2label t id with
+      | n -> match Hashtbl.find t.ilbl id with
         | Some l ->
           (* Ask if where the node lives is variant with respect to
              the current loop. *)
@@ -205,27 +190,58 @@ module Licm = struct
 
   let header t lp = Loops.(header @@ get t.input.loop lp)
 
-  let licm_move t l l' id =
-    Hash_set.add t.licm id;
+  let header_parent t lp =
+    header t lp |> Tree.parent t.input.dom |> Option.value_exn
+
+  let partition_uses t x =
+    Resolver.uses t.input.reso x |>
+    List.partition_map ~f:(function
+        | `blk b | `insn (_, b, _, _) ->
+          let l = Blk.label b in
+          match find_blk_loop t l with
+          | None -> First l
+          | Some lp -> Second lp)
+
+  let exists_in_loop t lp = List.exists ~f:(fun lp' -> is_child_loop t lp' lp)
+
+  let licm_move t l l' lp id lhs =
+    let l' = match lhs with
+      | None -> l'
+      | Some x -> match partition_uses t x with
+        | [], [] -> l'
+        | init :: xs, [] ->
+          (* Never used inside of a loop. *)
+          List.fold xs ~init ~f:(lca t)
+        | _, ys when exists_in_loop t lp ys ->
+          (* Pin at the current label if it's used in one of the
+             loops we just hoisted out of. *)
+          Hash_set.add t.pinned id;
+          l'
+        | xs, init :: ys ->
+          (* Otherwise, find the common ancestor. *)
+          Hash_set.add t.pinned id;
+          let init = header_parent t init in
+          List.fold ys ~init ~f:(fun acc lp ->
+              lca t acc @@ header_parent t lp) |> fun init ->
+          List.fold xs ~init ~f:(lca t) in
     move t [l] l' id
 
   (* We've determined that `n` is invariant with respect to `lp`, but
      if `lp` is nested in a parent loop `lp'`, then we should find out if
      `n` is also invariant with respect to `lp'`, and so on. *)
-  let rec licm' t l n lp id =
-    match Tree.parent t.input.dom @@ header t lp with
-    | None -> assert false
-    | Some l' -> match find_blk_loop t l' with
-      | None -> licm_move t l l' id
-      | Some lp' ->
-        if Variance.children ~lp:lp' t n
-        then licm_move t l l' id
-        else licm' t l n lp' id
+  let rec licm' t l n lp id lhs =
+    let l' = header_parent t lp in
+    match find_blk_loop t l' with
+    | None -> licm_move t l l' lp id lhs
+    | Some lp' ->
+      if Variance.children ~lp:lp' t n
+      then licm_move t l l' lp id lhs
+      else licm' t l n lp' id lhs
 
-  let licm t l n lp id =
+  let licm t l n lp id lhs =
     if Variance.children ~lp t n
-    then Hashtbl.set t.isrc ~key:id ~data:l
-    else licm' t l n lp id
+    then Hashtbl.set t.ilbl ~key:id ~data:l
+    else licm' t l n lp id lhs
 end
 
 (* Verify that a div/rem instruction may trap. *)
@@ -246,10 +262,10 @@ let is_effectful t n i =
    if we can do LICM (loop-invariant code motion). *)
 let add t l id n = match Resolver.resolve t.input.reso l with
   | None -> assert false
-  | Some `blk _ -> Hashtbl.set t.isrc ~key:id ~data:l
+  | Some `blk _ -> Hashtbl.set t.ilbl ~key:id ~data:l
   | Some `insn (i, _, _, _) when is_effectful t n i ->
-    Hashtbl.set t.isrc ~key:id ~data:l
-  | Some `insn (_, b, _, _) ->
+    Hashtbl.set t.ilbl ~key:id ~data:l
+  | Some `insn (_, b, lhs, _) ->
     match Licm.find_blk_loop t @@ Blk.label b with
-    | None -> Hashtbl.set t.isrc ~key:id ~data:l
-    | Some lp -> Licm.licm t l n lp id
+    | None -> Hashtbl.set t.ilbl ~key:id ~data:l
+    | Some lp -> Licm.licm t l n lp id lhs

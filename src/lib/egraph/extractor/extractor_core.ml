@@ -186,10 +186,10 @@ let rec must_remain_fixed op args = match (op : Enode.op) with
 let prov t cid id op args =
   if must_remain_fixed op args then begin
     Hash_set.add t.impure cid;
-    match Hashtbl.find t.eg.isrc cid with
+    match Hashtbl.find t.eg.ilbl cid with
     | Some l -> Label l
     | None when id = cid -> Id {canon = cid; real = id}
-    | None -> match Hashtbl.find t.eg.isrc id with
+    | None -> match Hashtbl.find t.eg.ilbl id with
       | None -> Id {canon = cid; real = id}
       | Some l -> Label l
   end else Id {canon = cid; real = id}
