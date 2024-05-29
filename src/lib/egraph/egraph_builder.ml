@@ -251,32 +251,30 @@ let setmem env eg l m = env.mem <- match m with
     | None -> Solution.get eg.input.lst l
     | Some _ -> m
 
-exception Overapproximate_phi
+let add_phi_value r env eg acc = function
+  | #const as c ->
+    let ty = typeof_const eg c in
+    Set.add acc @@ constant ~ty eg c
+  | `var y ->
+    Set.add acc @@ match Hashtbl.find env.vars y with
+    | Some id -> id
+    | None ->
+      (* `y` likely comes from a back-edge in the CFG,
+         which we wouldn't have visited at this point.
+         In any case we can't do anything about it. *)
+      r ()
 
 let approximate_phis env eg b =
   Blk.args b |> Seq.iter ~f:(fun x ->
       Map.find eg.input.phis x |> Option.iter
-        ~f:(fun vs -> try
-               (* Translate the values for `x` into terms
-                  that the e-graph knows about. *)
-               let vals =
-                 Set.fold vs ~init:Id.Set.empty
-                   ~f:(fun acc -> function
-                       | #const as c ->
-                         let ty = typeof_const eg c in
-                         Set.add acc @@ constant ~ty eg c
-                       | `var y ->
-                         Set.add acc @@ match Hashtbl.find env.vars y with
-                         | Some id -> id
-                         | None ->
-                           (* `y` likely comes from a back-edge in the CFG,
-                              which we wouldn't have visited at this point.
-                              In any case we can't do anything about it. *)
-                           raise_notrace Overapproximate_phi) in
-               if Set.length vals = 1 then
-                 let data = Set.min_elt_exn vals in
-                 Hashtbl.set env.vars ~key:x ~data
-             with Overapproximate_phi -> ()))
+        ~f:(fun vs -> with_return @@ fun {return} ->
+             (* Translate the values for `x` into terms
+                that the e-graph knows about. *)
+             let vals = Set.fold vs ~init:Id.Set.empty
+                 ~f:(add_phi_value return env eg) in
+             if Set.length vals = 1 then
+               let data = Set.min_elt_exn vals in
+               Hashtbl.set env.vars ~key:x ~data))
 
 let step env eg l lst =
   match Resolver.resolve eg.input.reso l with
