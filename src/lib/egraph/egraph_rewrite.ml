@@ -101,7 +101,7 @@ and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
   | None -> match n with
     | U _ -> assert false
     | N _ when d <= 0 -> id
-    | N (o, cs) -> with_return @@ fun full ->
+    | N (o, cs) -> with_return @@ fun {return} ->
       (* The updated ID of the term. *)
       let rid = ref id in
       (* Pending unioned nodes. *)
@@ -109,7 +109,7 @@ and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
       (* The e-matching routine. *)
       let children, pat = search t pending in
       (* Inserts a rewritten term based on a substitution. *)
-      let apply = rewrite ?ty ~d:(d - 1) t rid (ref t.match_limit) full in
+      let apply = rewrite ?ty ~d:(d - 1) t rid (ref t.match_limit) return in
       (* Start by matching the top-level constructor. *)
       Hashtbl.find t.rules o |> Option.iter ~f:(fun toplevels ->
           List.iter toplevels ~f:(fun (ps, a, subsume) ->
@@ -153,7 +153,7 @@ and search t pending =
   (* Return the entry points into the search. *)
   (fun ps cs -> children empty_subst ps cs Fn.id), pat
 
-and rewrite ?ty ~d t id budget full action subsume ~f =
+and rewrite ?ty ~d t id budget return action subsume ~f =
   (* Assemble the right-hand side of the rule. *)
   let rec go env = function
     | P (o, ps) ->
@@ -182,10 +182,10 @@ and rewrite ?ty ~d t id budget full action subsume ~f =
              equivalence via union-find. All future rewrites w.r.t
              this e-class will refer only to this new term. *)
           Uf.union t.classes !id oid;
-          full.return oid
+          return oid
         | false ->
           decr budget;
           id := union ?ty t !id oid
         | true -> () 
     with Mismatch -> ()
-  else full.return !id
+  else return !id
