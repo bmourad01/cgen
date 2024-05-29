@@ -58,45 +58,53 @@ let move t old l id =
       | None -> Iset.singleton id
       | Some s -> Iset.add s id)
 
+let mark_use t id a = Hashtbl.update t.imoved id ~f:(function
+    | None -> Lset.singleton a
+    | Some s -> Lset.add s a)
+
 (* Update when we union two nodes together. Should not be
    called if both IDs are the same. *)
 let merge t a b u =
   assert (a <> b);
+  let cid = find t a in
   (* Link the ID to the label, along with the union ID. *)
-  let link id l =
-    Hashtbl.set t.ilbl ~key:id ~data:l;
+  let link ?p l =
+    Option.iter p ~f:(mark_use t cid);
+    Hashtbl.set t.ilbl ~key:cid ~data:l;
     Hashtbl.set t.ilbl ~key:u ~data:l in
   match Hashtbl.(find t.ilbl a, find t.ilbl b) with
   | None, None -> ()
-  | None, Some pb -> link a pb
-  | Some pa, None -> link b pa
+  | None, Some pb -> link pb
+  | Some pa, None -> link pa
   | Some pa, Some pb when Label.(pa = pb) -> ()
-  | Some pa, Some pb when dominates t ~parent:pb pa -> link a pb
-  | Some pa, Some pb when dominates t ~parent:pa pb -> link b pa
+  | Some pa, Some pb when dominates t ~parent:pb pa -> link pb ~p:pa
+  | Some pa, Some pb when dominates t ~parent:pa pb -> link pa ~p:pb
   | Some pa, Some pb ->
     let pc = lca t pa pb in
-    let c = find t a in
-    assert (c = find t b);
-    assert (c = find t u);
+    assert (cid = find t b);
+    assert (cid = find t u);
     Hashtbl.remove t.ilbl a;
     Hashtbl.remove t.ilbl b;
-    move t [pa; pb] pc c
+    move t [pa; pb] pc cid
 
 (* We've matched on a value that we already hash-consed, so
    figure out which label it should correspond to. *)
-let duplicate t id a = match Hashtbl.find t.ilbl id with
+let duplicate t id a =
+  let cid = find t id in
+  match Hashtbl.find t.ilbl cid with
   | Some b when Label.(b = a) -> ()
-  | Some b when dominates t ~parent:b a -> ()
+  | Some b when dominates t ~parent:b a -> mark_use t cid a
   | Some b when dominates t ~parent:a b ->
+    mark_use t cid b;
     Hashtbl.set t.ilbl ~key:id ~data:a
   | Some b ->
     let c = lca t a b in
-    Hashtbl.remove t.ilbl id;
-    move t [a; b] c @@ find t id
+    Hashtbl.remove t.ilbl cid;
+    move t [a; b] c cid;
   | None ->
     (* This e-class wasn't moved, though it wasn't registered
        to begin with (even though it was hash-consed). *)
-    Hashtbl.set t.ilbl ~key:id ~data:a
+    Hashtbl.set t.ilbl ~key:cid ~data:a
 
 module Licm = struct
   let is_child_loop t a b = Loops.is_child_of t.input.loop a b
