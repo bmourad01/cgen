@@ -65,11 +65,6 @@ module Mem = Regular.Make(struct
     let version = "0.1"
   end)
 
-(* Bindings from variables to canonicalized operands. We use a
-   persistent map because the bindings are scoped according to
-   our traversal of the dominator tree. *)
-type scope = operand Var.Map.t
-
 type t = {
   reso         : Abi.resolver;
   dom          : Label.t tree;
@@ -77,9 +72,9 @@ type t = {
   lst          : Last_stores.t;
   blks         : Abi.blk Label.Table.t;
   mems         : store Mem.Table.t;
+  vars         : operand Var.Table.t;
   mutable mem  : Label.t option;
   mutable memo : operand Hashcons.t;
-  mutable vars : scope;
 }
 
 let init_dom_relation reso dom =
@@ -113,11 +108,12 @@ let init fn =
   let lst = init_last_stores cfg reso in
   let blks = Label.Table.create () in
   let mems = Mem.Table.create () in
-  let mem = None and memo = Hashcons.empty and vars = Var.Map.empty in
-  {reso; dom; rdom; lst; blks; mems; mem; memo; vars}
+  let vars = Var.Table.create () in
+  let mem = None and memo = Hashcons.empty in
+  {reso; dom; rdom; lst; blks; mems; mem; vars; memo}
 
 module Optimize = struct
-  let var t x = match Map.find t.vars x with
+  let var t x = match Hashtbl.find t.vars x with
     | None -> `var x
     | Some y -> y
 
@@ -150,10 +146,10 @@ module Optimize = struct
 
   let canonicalize t x op =
     t.memo <- Hashcons.update t.memo op ~f:(function
-        | Some y -> t.vars <- Map.set t.vars ~key:x ~data:y; y
+        | Some y -> Hashtbl.set t.vars ~key:x ~data:y; y
         | None -> match op with
           | Uop (`copy _, a) ->
-            t.vars <- Map.set t.vars ~key:x ~data:a; a
+            Hashtbl.set t.vars ~key:x ~data:a; a
           | _ -> `var x)
 
   let store t l ty v a =
@@ -265,13 +261,12 @@ module Optimize = struct
       | None -> Solution.get t.lst l
       | Some _ -> m
 
-  let step t l lst memo vars = match Abi.Resolver.resolve t.reso l with
+  let step t l lst memo = match Abi.Resolver.resolve t.reso l with
     | None when Label.is_pseudo l -> ()
     | None | Some `insn _ -> assert false
     | Some `blk b ->
       setmem t l lst;
       t.memo <- memo;
-      t.vars <- vars;
       let b = Abi.Blk.map_insns b ~f:(insn t) in
       let b = Abi.Blk.map_ctrl b ~f:(ctrl t) in
       Hashtbl.set t.blks ~key:l ~data:b
@@ -280,11 +275,11 @@ end
 let run fn =
   if Dict.mem (Abi.Func.dict fn) Tags.ssa then
     let+ t = init fn in
-    let q = Stack.singleton (Label.pseudoentry, t.mem, t.memo, t.vars) in
-    Stack.until_empty q (fun (l, lst, memo, vars) ->
-        Optimize.step t l lst memo vars;
+    let q = Stack.singleton (Label.pseudoentry, t.mem, t.memo) in
+    Stack.until_empty q (fun (l, lst, memo) ->
+        Optimize.step t l lst memo;
         Tree.children t.dom l |> Seq.iter ~f:(fun l ->
-            Stack.push q (l, t.mem, t.memo, t.vars)));
+            Stack.push q (l, t.mem, t.memo)));
     Abi.Func.map_blks fn ~f:(fun b ->
         Abi.Blk.label b |> Hashtbl.find t.blks |>
         Option.value ~default:b)
