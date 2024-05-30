@@ -98,7 +98,7 @@ let free_vars_of_extra : extra -> Var.Set.t = function
   | `loadreg _ -> Var.Set.empty
   | `storereg (_, a) | `setreg (_, a) ->
     List.filter_map [a] ~f:var_of_operand |> Var.Set.of_list
-  | `stkargs x -> Var.Set.singleton x
+  | `stkargs _ -> Var.Set.empty
 
 let pp_extra ppf : extra -> unit = function
   | `loadreg (x, t, r) ->
