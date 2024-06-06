@@ -156,5 +156,12 @@ module type S = sig
       block label. *)
   val update_blks : t -> blk list -> t Or_error.t
 
+  (** Same as [update_blks], but accepts a mapping from labels to blocks.
+
+      Note that this does not enforce that the keys of the map are the
+      same as the label of each corresponding block.
+  *)
+  val update_blks' : t -> blk Label.Tree.t -> t
+
   include Regular.S with type t := t
 end

@@ -1,6 +1,9 @@
 open Core
+open Monads.Std
 open Virtual
 open Remove_dead_vars_impl
+
+module E = Monad.Result.Error
 
 (* Even if the result of a div/rem may be unused, if the instruction has
    the potential to trap then removing it will change the semantics. *)
@@ -62,6 +65,7 @@ module V = Make(struct
     module Blk = Blk
     module Func = Func
     module Live = Live
+    module Cfg = Cfg
 
     let map_ctrl = map_ctrl Ctrl.Table.map_exn
   end)
@@ -102,6 +106,7 @@ module A = Make(struct
     module Blk = Blk
     module Func = Func
     module Live = Live
+    module Cfg = Cfg
 
     let map_ctrl = map_ctrl Ctrl.Table.map_exn
   end)

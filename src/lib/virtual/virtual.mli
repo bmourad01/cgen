@@ -404,7 +404,10 @@ end
 type cfg = Cfg.t
 
 (** Helpers for computing liveness of a function. *)
-module Live : Live_intf.S with type func := func
+module Live : Live_intf.S
+  with type func := func
+   and type blk := blk
+   and type cfg := cfg
 
 type live = Live.t
 
@@ -884,7 +887,10 @@ module Abi : sig
 
   type cfg = Cfg.t
 
-  module Live : Live_intf.S with type func := func
+  module Live : Live_intf.S
+    with type func := func
+     and type blk := blk
+     and type cfg := cfg
 
   type live = Live.t
 

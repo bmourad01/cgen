@@ -2,7 +2,9 @@ open Graphlib.Std
 
 module type S = sig
   type t
+  type blk
   type func
+  type cfg
 
   (** [compute fn ~keep] solves the data flow equations for liveness in
       the function [fn].
@@ -11,6 +13,9 @@ module type S = sig
       nodes of the function.
   *)
   val compute : ?keep:Var.Set.t -> func -> t
+
+  (** Same as [compute], but for an already computed CFG and block mapping. *)
+  val compute' : ?keep:Var.Set.t -> cfg -> blk Label.Tree.t -> t
 
   (** The set of live-in variables at the block assicated with the label. *)
   val ins : t -> Label.t -> Var.Set.t

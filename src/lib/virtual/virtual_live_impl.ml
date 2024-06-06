@@ -50,7 +50,10 @@ module type L = sig
   end
 end
 
-module Make(M : L) : S with type func := M.Func.t = struct
+module Make(M : L) : S
+  with type func := M.Func.t
+   and type blk := M.Blk.t
+   and type cfg := M.Cfg.t = struct
   open M
 
   type t = {
@@ -94,8 +97,7 @@ module Make(M : L) : S with type func := M.Func.t = struct
   let update l trans ~f = Label.Tree.update_with trans l
       ~has:f ~nil:(fun () -> f empty_tran)
 
-  let block_transitions g fn =
-    let blks = Func.map_of_blks fn in
+  let block_transitions g blks =
     Label.Tree.fold blks ~init:Label.Tree.empty ~f:(fun ~key ~data:b fs ->
         let insns, uses = Blk.liveness b in
         Label.Tree.add_exn fs ~key ~data:{
@@ -114,9 +116,8 @@ module Make(M : L) : S with type func := M.Func.t = struct
     let s = Label.(Map.singleton pseudoexit keep) in
     Solution.create s Var.Set.empty
 
-  let compute ?(keep = Var.Set.empty) fn =
-    let g = Cfg.create fn in
-    let blks = block_transitions g fn in {
+  let compute' ?(keep = Var.Set.empty) g blks =
+    let blks = block_transitions g blks in {
       blks;
       outs = Graphlib.fixpoint (module Cfg) g
           ~init:(init keep) ~rev:true
@@ -125,4 +126,9 @@ module Make(M : L) : S with type func := M.Func.t = struct
           ~equal:Var.Set.equal
           ~f:(transfer blks);
     }
+
+  let compute ?(keep = Var.Set.empty) fn =
+    let g = Cfg.create fn in
+    let blks = Func.map_of_blks fn in
+    compute' ~keep g blks
 end

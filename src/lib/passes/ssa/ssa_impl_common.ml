@@ -53,7 +53,10 @@ module type L = sig
     val create : Func.t -> t
   end
 
-  module Live : Live_intf.S with type func := Func.t
+  module Live : Live_intf.S
+    with type func := Func.t
+     and type blk := Blk.t
+     and type cfg := Cfg.t
 
   module Resolver : Resolver_intf.S
     with type lhs := lhs

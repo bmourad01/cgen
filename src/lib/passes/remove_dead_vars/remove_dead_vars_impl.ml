@@ -1,8 +1,6 @@
 open Core
 open Regular.Std
-open Monads.Std
 
-module E = Monad.Result.Error
 module Slot = Virtual.Slot
 
 let (@/) i s = not @@ Set.mem s i
@@ -54,7 +52,13 @@ module type S = sig
     val blks : ?rev:bool -> t -> Blk.t seq
     val slots : ?rev:bool -> t -> Slot.t seq
     val remove_slot : t -> Var.t -> t
-    val update_blks_exn : t -> Blk.t list -> t
+    val update_blks' : t -> Blk.t Label.Tree.t -> t
+    val map_of_blks : t -> Blk.t Label.Tree.t
+  end
+
+  module Cfg : sig
+    include Label.Graph
+    val create : Func.t -> t
   end
 
   module Live : sig
@@ -62,7 +66,7 @@ module type S = sig
     val ins : t -> Label.t -> Var.Set.t
     val outs : t -> Label.t -> Var.Set.t
     val uses : t -> Label.t -> Var.Set.t
-    val compute : ?keep:Var.Set.t -> Func.t -> t
+    val compute' : ?keep:Var.Set.t -> Cfg.t -> Blk.t Label.Tree.t -> t
   end
 
   val map_ctrl : unused -> Ctrl.t -> Ctrl.t * bool
@@ -72,15 +76,16 @@ module Make(M : S) = struct
   open M
 
   let collect_unused_args live blks : unused =
-    Seq.fold blks ~init:Label.Tree.empty ~f:(fun acc b ->
-        let l = Blk.label b in
-        let needed = Live.uses live l ++ Live.outs live l in
-        let args =
-          Blk.args b |> Seq.filter_mapi ~f:(fun i x ->
-              Option.some_if (x @/ needed) i) |>
-          Int.Set.of_sequence in
-        if Set.is_empty args then acc
-        else Label.Tree.set acc ~key:l ~data:args)
+    Label.Tree.fold blks ~init:Label.Tree.empty
+      ~f:(fun ~key:_ ~data:b acc ->
+          let l = Blk.label b in
+          let needed = Live.uses live l ++ Live.outs live l in
+          let args =
+            Blk.args b |> Seq.filter_mapi ~f:(fun i x ->
+                Option.some_if (x @/ needed) i) |>
+            Int.Set.of_sequence in
+          if Set.is_empty args then acc
+          else Label.Tree.set acc ~key:l ~data:args)
 
   let keep i x alive =
     Insn.is_effectful i ||
@@ -95,18 +100,18 @@ module Make(M : S) = struct
     | Some x -> i :: acc, changed, alive -- x ++ Insn.free_vars i
     | None -> i :: acc, changed, alive ++ Insn.free_vars i
 
-  let remove_unused_slots fn live =
+  let finalize fn blks live =
     let ins = Live.ins live @@ Func.entry fn in
     Func.slots fn |> Seq.map ~f:Slot.var |>
     Seq.filter ~f:(Fn.non @@ Set.mem ins) |>
-    Seq.fold ~init:fn ~f:Func.remove_slot
+    Seq.fold ~init:fn ~f:Func.remove_slot |>
+    Fn.flip Func.update_blks' blks
 
-  let rec run fn =
-    let live = Live.compute fn in
-    let blks = Func.blks fn in
+  let rec run fn blks cfg =
+    let live = Live.compute' cfg blks in
     let unused = collect_unused_args live blks in
-    Seq.filter_map blks ~f:(fun b ->
-        let label = Blk.label b in
+    Label.Tree.to_sequence blks |>
+    Seq.filter_map ~f:(fun (label, b) ->
         let ctrl, cc = map_ctrl unused @@ Blk.ctrl b in
         let args = Blk.args b in
         let args, ca = match Label.Tree.find unused label with
@@ -120,6 +125,14 @@ module Make(M : S) = struct
           Option.some @@ Blk.create () ~insns ~ctrl ~label
             ~args:(Seq.to_list args) ~dict:(Blk.dict b)
         else None) |> Seq.to_list |> function
-    | [] -> remove_unused_slots fn live
-    | blks -> run @@ Func.update_blks_exn fn blks
+    | [] -> finalize fn blks live
+    | bs ->
+      let blks = List.fold bs ~init:blks ~f:(fun acc b ->
+          Label.Tree.set acc ~key:(Blk.label b) ~data:b) in
+      run fn blks cfg
+
+  let run fn =
+    let cfg = Cfg.create fn in
+    let blks = Func.map_of_blks fn in
+    run fn blks cfg
 end
