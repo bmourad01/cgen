@@ -1,3 +1,11 @@
+(* This transformation attempts to detect suboptimal/naiive encodings
+   of short-circuiting AND/OR logic (see relevant examples in the
+   testsuite).
+
+   These sorts of cases are common in front-end generated code
+   (e.g. a possible C front-end).
+*)
+
 open Core
 open Monads.Std
 open Regular.Std
