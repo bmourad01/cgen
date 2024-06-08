@@ -9,21 +9,33 @@ module O = Monad.Option
 type env = {
   blks        : blk Label.Table.t;
   typs        : Type.t Var.Table.t;
+  flag        : Var.t Var.Table.t;
   start       : Label.t;
   mutable cfg : Cfg.t;
   mutable dom : Label.t tree;
   mutable ret : Label.t option;
 }
 
+let collect_flag fn =
+  let flag = Var.Table.create () in
+  Func.blks fn |> Seq.iter ~f:(fun b ->
+      Blk.insns b |> Seq.iter ~f:(fun i ->
+          match Insn.op i with
+          | `uop (x, `flag _, `var y) ->
+            Hashtbl.set flag ~key:x ~data:y;
+          | _ -> ()));
+  flag
+
 let init fn =
   let cfg = Cfg.create fn in
   let start = Func.entry fn in
   let blks = Label.Table.create () in
   let typs = Var.Table.create () in
+  let flag = collect_flag fn in
   let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
   Func.blks fn |> Seq.iter ~f:(fun b ->
       Hashtbl.set blks ~key:(Blk.label b) ~data:b);
-  {blks; typs; start; cfg; dom; ret = None}
+  {blks; typs; flag; start; cfg; dom; ret = None}
 
 let is_ret env l = match env.ret with
   | Some l' -> Label.(l = l')
