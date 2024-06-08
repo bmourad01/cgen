@@ -30,10 +30,12 @@ let is_ret env l = match env.ret with
   | None -> false
 
 let update_fn env fn =
-  Func.blks fn |> Seq.fold ~init:fn ~f:(fun fn b ->
+  Func.blks fn |>
+  Seq.fold ~init:[] ~f:(fun acc b ->
       let l = Blk.label b in
-      if Hashtbl.mem env.blks l then fn
-      else Func.remove_blk_exn fn l) |>
+      if Hashtbl.mem env.blks l then acc
+      else l :: acc) |>
+  Func.remove_blks_exn fn |>
   Func.map_blks ~f:(fun b ->
       Hashtbl.find_exn env.blks @@ Blk.label b)
 
@@ -58,10 +60,8 @@ let recompute_cfg env fn =
           Hashtbl.remove env.blks l;
           Func.remove_blk_exn fn l, g'
         else acc) in
-  if not @@ phys_equal g g' then begin
-    env.dom <- Graphlib.dominators (module Cfg) g' Label.pseudoentry;
-    env.cfg <- g';
-  end;
+  env.dom <- Graphlib.dominators (module Cfg) g' Label.pseudoentry;
+  env.cfg <- g';
   fn
 
 (* Remove the cases of the switch that have the same target and args

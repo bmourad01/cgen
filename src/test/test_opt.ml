@@ -130,6 +130,8 @@ let suite = "Test optimizations" >::: [
     "Branchless" >:: test "branchless";
     "LICM (sinking)" >:: test "licmsink";
     "LICM (sinking 2)" >:: test "licmsink2";
+    "Short-circuiting AND" >:: test "shortcircand";
+    "Short-circuiting OR" >:: test "shortcircor";
   ]
 
 let () = run_test_tt_main suite
