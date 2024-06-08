@@ -82,25 +82,27 @@ let map_loc changed env s l = match find_loc env s l with
   | Some x -> changed := true; x
   | None -> l
 
-let contract_blk changed env (s : singles) b =
-  let dst = map_dst changed env s in
-  let loc = map_loc changed env s in
-  Blk.map_ctrl b ~f:(function
-      | (`hlt | `ret _) as x -> x
-      | `jmp d -> `jmp (dst d)
-      | `br (c, y, n) ->
-        let y = dst y in
-        let n = dst n in
-        if equal_dst y n
-        then (changed := true; `jmp y)
-        else `br (c, y, n)
-      | `sw (t, i, d, tbl) ->
-        let d = loc d in
-        let tbl = Ctrl.Table.map_exn tbl ~f:(fun i l -> i, loc l) in
-        sw_hoist_default changed t i d tbl)
+let contract_blks changed env (s : singles) =
+  Hashtbl.map_inplace env.blks ~f:(fun b ->
+      let dst = map_dst changed env s in
+      let loc = map_loc changed env s in
+      Blk.map_ctrl b ~f:(function
+          | (`hlt | `ret _) as x -> x
+          | `jmp d -> `jmp (dst d)
+          | `br (c, y, n) ->
+            let y = dst y in
+            let n = dst n in
+            if equal_dst y n
+            then (changed := true; `jmp y)
+            else `br (c, y, n)
+          | `sw (t, i, d, tbl) ->
+            let d = loc d in
+            let tbl = Ctrl.Table.map_exn tbl ~f:(fun i l -> i, loc l) in
+            sw_hoist_default changed t i d tbl))
 
 let run env =
   let changed = ref false in
-  Hashtbl.map_inplace env.blks
-    ~f:(contract_blk changed env @@ singles env);
+  let s = singles env in
+  if not @@ Label.Tree.is_empty s then
+    contract_blks changed env s;
   !changed
