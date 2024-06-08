@@ -7,9 +7,11 @@ open Simplify_cfg_common
 module O = Monad.Option
 
 open O.Let
+open O.Syntax
 
 let is_empty = Fn.compose Seq.is_empty Blk.insns
 
+(* Look for a single integer comparison with zero. *)
 let cmp_ne b = match Seq.next @@ Blk.insns b with
   | Some (i, is) when Seq.is_empty is ->
     begin match Insn.op i with
@@ -31,14 +33,14 @@ let collect_cond_phi env =
         if is_empty b then match Blk.ctrl b with
           | `br (c, y, n) ->
             argidx b c |> Option.value_map ~default:acc ~f:(fun i ->
-                Label.Tree.set acc ~key ~data:(y, n, i))
+                Label.Tree.set acc ~key ~data:(y, n, i, false))
           | _ -> acc
         else match cmp_ne b with
           | None -> acc
           | Some (k, v) -> match Blk.ctrl b with
             | `br (c, y, n) when Var.(c = k) ->
               argidx b v |> Option.value_map ~default:acc ~f:(fun i ->
-                  Label.Tree.set acc ~key ~data:(y, n, i))
+                  Label.Tree.set acc ~key ~data:(y, n, i, true))
             | _ -> acc)
 
 let is_var env x = function
@@ -50,7 +52,7 @@ let is_var env x = function
 
 let brcond env cphi c = function
   | `label (l, args) ->
-    let* y, n, i = Label.Tree.find cphi l in
+    let* y, n, i, _ = Label.Tree.find cphi l in
     let* arg = List.nth args i in
     let+ () = O.guard @@ is_var env c arg in
     y, n
@@ -69,6 +71,16 @@ let redir changed env cphi =
           Option.value_map ~default:n ~f:(fun (_, n) ->
               changed := true; n) in
         Blk.with_ctrl b @@ `br (c, y', n')
+      | `jmp `label (l, args) ->
+        Option.value ~default:b begin
+          let* y, n, i, ne = Label.Tree.find cphi l in
+          let* () = O.guard ne in
+          let* x = List.nth args i >>= var_of_operand in
+          let+ c = Hashtbl.find env.flag x in
+          (* XXX: marking this as a change results in worse code.
+             I don't understand this fully yet. *)
+          Blk.with_ctrl b @@ `br (c, y, n)
+        end
       | _ -> b)
 
 let run env =

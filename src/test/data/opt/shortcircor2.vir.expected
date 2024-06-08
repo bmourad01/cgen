@@ -6,9 +6,7 @@ export function w $foo(l %a, l %i) {
   br %1, @14(0xffffffff_w), @2
 @2:
   %3 = slt.l %i, 0x0_l ; @17
-  %4 = flag.w %3 ; @18
-  %5 = ne.w %4, 0x0_w ; @19
-  br %5, @14(0xffffffff_w), @9
+  br %3, @14(0xffffffff_w), @9
 @9:
   %6 = lsl.l %i, 0x2_l ; @20
   %7 = add.l %a, %6 ; @21
