@@ -5,12 +5,12 @@ export function w $foo(l %a, l %i) {
   %1 = slt.l %i, 0x3_l ; @15
   br %1, @1, @14(0xffffffff_w)
 @1:
-  %6 = sge.l %i, 0x0_l ; @20
-  br %6, @8, @14(0xffffffff_w)
+  %5 = sge.l %i, 0x0_l ; @19
+  br %5, @8, @14(0xffffffff_w)
 @8:
-  %4 = lsl.l %i, 0x2_l ; @18
-  %5 = add.l %a, %4 ; @19
-  %v.1 = ld.w %5 ; @13
+  %3 = lsl.l %i, 0x2_l ; @17
+  %4 = add.l %a, %3 ; @18
+  %v.1 = ld.w %4 ; @13
   jmp @14(%v.1)
 @14(%0):
   ret %0

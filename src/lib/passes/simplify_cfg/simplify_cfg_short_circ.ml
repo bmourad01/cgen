@@ -58,38 +58,32 @@ let is_var env x = function
     Option.value_map ~default:false ~f:(Var.equal x)
   | _ -> false
 
-let brcond env cphi c = function
+let brcond env cphi c d ~f =
+  Option.value ~default:d @@ match d with
   | `label (l, args) ->
     let* y, n, i, _ = Label.Tree.find cphi l in
     let* arg = List.nth args i in
     let+ () = O.guard @@ is_var env c arg in
-    y, n
+    f y n
   | _ -> None
 
 let redir changed env cphi =
-  Hashtbl.map_inplace env.blks ~f:(fun b ->
-      match Blk.ctrl b with
-      | `br (c, y, n) ->
-        let y' =
-          brcond env cphi c y |>
-          Option.value_map ~default:y ~f:(fun (y, _) ->
-              changed := true; y) in
-        let n' =
-          brcond env cphi c n |>
-          Option.value_map ~default:n ~f:(fun (_, n) ->
-              changed := true; n) in
-        Blk.with_ctrl b @@ `br (c, y', n')
-      | `jmp `label (l, args) ->
-        Option.value ~default:b begin
-          let* y, n, i, ne = Label.Tree.find cphi l in
-          let* () = O.guard ne in
-          let* x = List.nth args i >>= var_of_operand in
-          let+ c = Hashtbl.find env.flag x in
-          (* XXX: marking this as a change results in worse code.
-             I don't understand this fully yet. *)
-          Blk.with_ctrl b @@ `br (c, y, n)
-        end
-      | _ -> b)
+  Hashtbl.mapi_inplace env.blks ~f:(fun ~key ~data:b ->
+      if Label.Tree.mem cphi key then b
+      else match Blk.ctrl b with
+        | `br (c, y, n) ->
+          let y' = brcond env cphi c y ~f:(fun y _ -> changed := true; y) in
+          let n' = brcond env cphi c n ~f:(fun _ n -> changed := true; n) in
+          Blk.with_ctrl b @@ `br (c, y', n')
+        | `jmp `label (l, args) as _jmp ->
+          Option.value ~default:b begin
+            let* y, n, i, ne = Label.Tree.find cphi l in
+            let* x = List.nth args i >>= var_of_operand in
+            let+ c = if ne then Hashtbl.find env.flag x else !!x in
+            changed := true;
+            Blk.with_ctrl b @@ `br (c, y, n)
+          end
+        | _ -> b)
 
 let run env =
   let changed = ref false in

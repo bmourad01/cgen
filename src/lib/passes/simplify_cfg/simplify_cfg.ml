@@ -9,6 +9,7 @@ module Merge_rets = Simplify_cfg_merge_rets
 module Two_case_switch = Simplify_cfg_two_case_switch
 module Tailrec = Simplify_cfg_tailrec
 module Short_circ = Simplify_cfg_short_circ
+module Duplicate_br = Simplify_cfg_duplicate_br
 
 let try_ f = try f () with
   | Invalid_argument msg
@@ -23,8 +24,9 @@ let run tenv fn =
       let* () = Brsel.run tenv env fn in
       if Merge_blks.run env
       || Contract.run env
-      || Short_circ.run env then
-        loop @@ recompute_cfg env @@ update_fn env fn
+      || Short_circ.run env
+      || Duplicate_br.run env
+      then loop @@ recompute_cfg env @@ update_fn env fn
       else !!fn in
     try_ @@ fun () ->
     (* This only needs to run once at the beginning, since it
