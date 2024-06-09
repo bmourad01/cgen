@@ -58,6 +58,17 @@ module type S = sig
   (** [with_tag fn t v] binds [v] to tag [t] in the dictionary of [fn]. *)
   val with_tag : t -> 'a Dict.tag -> 'a -> t
 
+  (** [with_blks fn blks] returns [fn] with all of the blocks replaced
+      with [blks]. The first block in the list is implicitly the entry
+      block.
+
+      @raise Invalid_argument if [blks] is empty
+  *)
+  val with_blks_exn : t -> blk list -> t
+
+  (** Same as [with_blks_exn], but returns an error upon failure. *)
+  val with_blks : t -> blk list -> t Or_error.t
+
   (** Returns [true] if the function has the associated name. *)
   val has_name : t -> string -> bool
 

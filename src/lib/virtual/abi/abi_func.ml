@@ -38,7 +38,7 @@ let create_exn
     ~blks
     ~args
     () = match blks with
-  | [] -> invalid_argf "Cannot create empty function %s" name ()
+  | [] -> invalid_argf "Cannot create empty function $%s" name ()
   | _ :: _ -> {
       name;
       slots = Ftree.of_list slots;
@@ -65,6 +65,13 @@ let dict fn = fn.dict
 let with_dict fn dict = {fn with dict}
 let with_tag fn tag x = {fn with dict = Dict.set fn.dict tag x}
 let variadic fn = Dict.mem fn.dict Func.Tag.variadic
+
+let with_blks_exn fn = function
+  | [] -> invalid_argf "Cannot create empty function $%s" fn.name ()
+  | blks -> {fn with blks = Ftree.of_list blks}
+
+let with_blks fn blks = try Ok (with_blks_exn fn blks) with
+  | Invalid_argument msg -> Or_error.error_string msg
 
 let linkage fn = match Dict.find fn.dict Func.Tag.linkage with
   | None -> Linkage.default_export
