@@ -132,8 +132,10 @@ let suite = "Test optimizations" >::: [
     "LICM (sinking 2)" >:: test "licmsink2";
     "Short-circuiting AND" >:: test "shortcircand";
     "Short-circuiting AND (flag indirection)" >:: test "shortcircand2";
+    "Short-circuiting AND (negated flag indirection)" >:: test "shortcircand3";
     "Short-circuiting OR" >:: test "shortcircor";
     "Short-circuiting OR (flag indirection)" >:: test "shortcircor2";
+    "Short-circuiting OR (negated flag indirection)" >:: test "shortcircor3";
   ]
 
 let () = run_test_tt_main suite

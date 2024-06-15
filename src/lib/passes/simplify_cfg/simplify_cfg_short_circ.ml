@@ -19,16 +19,39 @@ open O.Syntax
 
 let is_empty = Fn.compose Seq.is_empty Blk.insns
 
-(* Look for a single integer comparison with zero. *)
-let cmp_ne b = match Seq.next @@ Blk.insns b with
+let cmp_true b = match Seq.next @@ Blk.insns b with
   | Some (i, is) when Seq.is_empty is ->
     begin match Insn.op i with
+      (* Not equal to zero. *)
       | `bop (k, `ne _, `var v, `int (n, _))
       | `bop (k, `ne _, `int (n, _), `var v)
-        when Bv.(n = zero) -> Some (k, v)
+        when Bv.(n = zero) -> Some (k, v, true)
+      (* Equal to one. *)
+      | `bop (k, `eq _, `var v, `int (n, _))
+      | `bop (k, `eq _, `int (n, _), `var v)
+        when Bv.(n = one) -> Some (k, v, true)
       | _ -> None
     end
   | _ -> None
+
+let cmp_false b = match Seq.next @@ Blk.insns b with
+  | Some (i, is) when Seq.is_empty is ->
+    begin match Insn.op i with
+      (* Not equal to one. *)
+      | `bop (k, `ne _, `var v, `int (n, _))
+      | `bop (k, `ne _, `int (n, _), `var v)
+        when Bv.(n = one) -> Some (k, v, false)
+      (* Equal to zero. *)
+      | `bop (k, `eq _, `var v, `int (n, _))
+      | `bop (k, `eq _, `int (n, _), `var v)
+        when Bv.(n = zero) -> Some (k, v, false)
+      | _ -> None
+    end
+  | _ -> None
+
+let merge_cmp _ _ = assert false
+
+let try_cmp b = Option.merge (cmp_true b) (cmp_false b) ~f:merge_cmp
 
 let argidx b c =
   Blk.args b |>
@@ -43,11 +66,12 @@ let collect_cond_phi env =
             argidx b c |> Option.value_map ~default:acc ~f:(fun i ->
                 Label.Tree.set acc ~key ~data:(y, n, i, false))
           | _ -> acc
-        else match cmp_ne b with
+        else match try_cmp b with
           | None -> acc
-          | Some (k, v) -> match Blk.ctrl b with
+          | Some (k, v, truth) -> match Blk.ctrl b with
             | `br (c, y, n) when Var.(c = k) ->
               argidx b v |> Option.value_map ~default:acc ~f:(fun i ->
+                  let y, n = if truth then y, n else n, y in
                   Label.Tree.set acc ~key ~data:(y, n, i, true))
             | _ -> acc)
 
