@@ -1015,68 +1015,218 @@ module Groups = struct
   (* flag (x == y) ^ 1 = flag (x != y) *)
   let xor_flag_eq_one = [
     xor `i8 (flag `i8 (eq `i8 x y)) (i8 1) => flag `i8 (ne `i8 x y);
+    xor `i8 (flag `i8 (eq `i16 x y)) (i8 1) => flag `i8 (ne `i16 x y);
+    xor `i8 (flag `i8 (eq `i32 x y)) (i8 1) => flag `i8 (ne `i32 x y);
+    xor `i8 (flag `i8 (eq `i64 x y)) (i8 1) => flag `i8 (ne `i64 x y);
+
+    xor `i16 (flag `i16 (eq `i8 x y)) (i16 1) => flag `i16 (ne `i8 x y);
     xor `i16 (flag `i16 (eq `i16 x y)) (i16 1) => flag `i16 (ne `i16 x y);
+    xor `i16 (flag `i16 (eq `i32 x y)) (i16 1) => flag `i16 (ne `i32 x y);
+    xor `i16 (flag `i16 (eq `i64 x y)) (i16 1) => flag `i16 (ne `i64 x y);
+
+    xor `i32 (flag `i32 (eq `i8 x y)) (i32 1l) => flag `i32 (ne `i8 x y);
+    xor `i32 (flag `i32 (eq `i16 x y)) (i32 1l) => flag `i32 (ne `i16 x y);
     xor `i32 (flag `i32 (eq `i32 x y)) (i32 1l) => flag `i32 (ne `i32 x y);
+    xor `i32 (flag `i32 (eq `i64 x y)) (i32 1l) => flag `i32 (ne `i64 x y);
+
+    xor `i64 (flag `i64 (eq `i8 x y)) (i64 1L) => flag `i64 (ne `i8 x y);
+    xor `i64 (flag `i64 (eq `i16 x y)) (i64 1L) => flag `i64 (ne `i16 x y);
+    xor `i64 (flag `i64 (eq `i32 x y)) (i64 1L) => flag `i64 (ne `i32 x y);
     xor `i64 (flag `i64 (eq `i64 x y)) (i64 1L) => flag `i64 (ne `i64 x y);
   ]
 
   (* flag (x != y) ^ 1 = flag (x == y) *)
   let xor_flag_ne_one = [
     xor `i8 (flag `i8 (ne `i8 x y)) (i8 1) => flag `i8 (eq `i8 x y);
+    xor `i8 (flag `i8 (ne `i16 x y)) (i8 1) => flag `i8 (eq `i16 x y);
+    xor `i8 (flag `i8 (ne `i32 x y)) (i8 1) => flag `i8 (eq `i32 x y);
+    xor `i8 (flag `i8 (ne `i64 x y)) (i8 1) => flag `i8 (eq `i64 x y);
+
+    xor `i16 (flag `i16 (ne `i8 x y)) (i16 1) => flag `i16 (eq `i8 x y);
     xor `i16 (flag `i16 (ne `i16 x y)) (i16 1) => flag `i16 (eq `i16 x y);
+    xor `i16 (flag `i16 (ne `i32 x y)) (i16 1) => flag `i16 (eq `i32 x y);
+    xor `i16 (flag `i16 (ne `i64 x y)) (i16 1) => flag `i16 (eq `i64 x y);
+
+    xor `i32 (flag `i32 (ne `i8 x y)) (i32 1l) => flag `i32 (eq `i8 x y);
+    xor `i32 (flag `i32 (ne `i16 x y)) (i32 1l) => flag `i32 (eq `i16 x y);
     xor `i32 (flag `i32 (ne `i32 x y)) (i32 1l) => flag `i32 (eq `i32 x y);
+    xor `i32 (flag `i32 (ne `i64 x y)) (i32 1l) => flag `i32 (eq `i64 x y);
+
+    xor `i64 (flag `i64 (ne `i8 x y)) (i64 1L) => flag `i64 (eq `i8 x y);
+    xor `i64 (flag `i64 (ne `i16 x y)) (i64 1L) => flag `i64 (eq `i16 x y);
+    xor `i64 (flag `i64 (ne `i32 x y)) (i64 1L) => flag `i64 (eq `i32 x y);
     xor `i64 (flag `i64 (ne `i64 x y)) (i64 1L) => flag `i64 (eq `i64 x y);
   ]
 
   (* flag (x >= y) ^ 1 = flag (x < y) *)
   let xor_flag_ge_one = [
     xor `i8 (flag `i8 (ge `i8 x y)) (i8 1) => flag `i8 (lt `i8 x y);
+    xor `i8 (flag `i8 (ge `i16 x y)) (i8 1) => flag `i8 (lt `i16 x y);
+    xor `i8 (flag `i8 (ge `i32 x y)) (i8 1) => flag `i8 (lt `i32 x y);
+    xor `i8 (flag `i8 (ge `i64 x y)) (i8 1) => flag `i8 (lt `i64 x y);
+
+    xor `i16 (flag `i16 (ge `i8 x y)) (i16 1) => flag `i16 (lt `i8 x y);
     xor `i16 (flag `i16 (ge `i16 x y)) (i16 1) => flag `i16 (lt `i16 x y);
+    xor `i16 (flag `i16 (ge `i32 x y)) (i16 1) => flag `i16 (lt `i32 x y);
+    xor `i16 (flag `i16 (ge `i64 x y)) (i16 1) => flag `i16 (lt `i64 x y);
+
+    xor `i32 (flag `i32 (ge `i8 x y)) (i32 1l) => flag `i32 (lt `i8 x y);
+    xor `i32 (flag `i32 (ge `i16 x y)) (i32 1l) => flag `i32 (lt `i16 x y);
     xor `i32 (flag `i32 (ge `i32 x y)) (i32 1l) => flag `i32 (lt `i32 x y);
+    xor `i32 (flag `i32 (ge `i64 x y)) (i32 1l) => flag `i32 (lt `i64 x y);
+
+    xor `i64 (flag `i64 (ge `i8 x y)) (i64 1L) => flag `i64 (lt `i8 x y);
+    xor `i64 (flag `i64 (ge `i16 x y)) (i64 1L) => flag `i64 (lt `i16 x y);
+    xor `i64 (flag `i64 (ge `i32 x y)) (i64 1L) => flag `i64 (lt `i32 x y);
     xor `i64 (flag `i64 (ge `i64 x y)) (i64 1L) => flag `i64 (lt `i64 x y);
 
     xor `i8 (flag `i8 (sge `i8 x y)) (i8 1) => flag `i8 (slt `i8 x y);
+    xor `i8 (flag `i8 (sge `i16 x y)) (i8 1) => flag `i8 (slt `i16 x y);
+    xor `i8 (flag `i8 (sge `i32 x y)) (i8 1) => flag `i8 (slt `i32 x y);
+    xor `i8 (flag `i8 (sge `i64 x y)) (i8 1) => flag `i8 (slt `i64 x y);
+
+    xor `i16 (flag `i16 (sge `i8 x y)) (i16 1) => flag `i16 (slt `i8 x y);
     xor `i16 (flag `i16 (sge `i16 x y)) (i16 1) => flag `i16 (slt `i16 x y);
+    xor `i16 (flag `i16 (sge `i32 x y)) (i16 1) => flag `i16 (slt `i32 x y);
+    xor `i16 (flag `i16 (sge `i64 x y)) (i16 1) => flag `i16 (slt `i64 x y);
+
+    xor `i32 (flag `i32 (sge `i8 x y)) (i32 1l) => flag `i32 (slt `i8 x y);
+    xor `i32 (flag `i32 (sge `i16 x y)) (i32 1l) => flag `i32 (slt `i16 x y);
     xor `i32 (flag `i32 (sge `i32 x y)) (i32 1l) => flag `i32 (slt `i32 x y);
+    xor `i32 (flag `i32 (sge `i64 x y)) (i32 1l) => flag `i32 (slt `i64 x y);
+
+    xor `i64 (flag `i64 (sge `i8 x y)) (i64 1L) => flag `i64 (slt `i8 x y);
+    xor `i64 (flag `i64 (sge `i16 x y)) (i64 1L) => flag `i64 (slt `i16 x y);
+    xor `i64 (flag `i64 (sge `i32 x y)) (i64 1L) => flag `i64 (slt `i32 x y);
     xor `i64 (flag `i64 (sge `i64 x y)) (i64 1L) => flag `i64 (slt `i64 x y);
   ]
 
   (* flag (x > y) ^ 1 = flag (x <= y) *)
   let xor_flag_gt_one = [
     xor `i8 (flag `i8 (gt `i8 x y)) (i8 1) => flag `i8 (le `i8 x y);
+    xor `i8 (flag `i8 (gt `i16 x y)) (i8 1) => flag `i8 (le `i16 x y);
+    xor `i8 (flag `i8 (gt `i32 x y)) (i8 1) => flag `i8 (le `i32 x y);
+    xor `i8 (flag `i8 (gt `i64 x y)) (i8 1) => flag `i8 (le `i64 x y);
+
+    xor `i16 (flag `i16 (gt `i8 x y)) (i16 1) => flag `i16 (le `i8 x y);
     xor `i16 (flag `i16 (gt `i16 x y)) (i16 1) => flag `i16 (le `i16 x y);
+    xor `i16 (flag `i16 (gt `i32 x y)) (i16 1) => flag `i16 (le `i32 x y);
+    xor `i16 (flag `i16 (gt `i64 x y)) (i16 1) => flag `i16 (le `i64 x y);
+
+    xor `i32 (flag `i32 (gt `i8 x y)) (i32 1l) => flag `i32 (le `i8 x y);
+    xor `i32 (flag `i32 (gt `i16 x y)) (i32 1l) => flag `i32 (le `i16 x y);
     xor `i32 (flag `i32 (gt `i32 x y)) (i32 1l) => flag `i32 (le `i32 x y);
+    xor `i32 (flag `i32 (gt `i64 x y)) (i32 1l) => flag `i32 (le `i64 x y);
+
+    xor `i64 (flag `i64 (gt `i8 x y)) (i64 1L) => flag `i64 (le `i8 x y);
+    xor `i64 (flag `i64 (gt `i16 x y)) (i64 1L) => flag `i64 (le `i16 x y);
+    xor `i64 (flag `i64 (gt `i32 x y)) (i64 1L) => flag `i64 (le `i32 x y);
     xor `i64 (flag `i64 (gt `i64 x y)) (i64 1L) => flag `i64 (le `i64 x y);
 
     xor `i8 (flag `i8 (sgt `i8 x y)) (i8 1) => flag `i8 (sle `i8 x y);
+    xor `i8 (flag `i8 (sgt `i16 x y)) (i8 1) => flag `i8 (sle `i16 x y);
+    xor `i8 (flag `i8 (sgt `i32 x y)) (i8 1) => flag `i8 (sle `i32 x y);
+    xor `i8 (flag `i8 (sgt `i64 x y)) (i8 1) => flag `i8 (sle `i64 x y);
+
+    xor `i16 (flag `i16 (sgt `i8 x y)) (i16 1) => flag `i16 (sle `i8 x y);
     xor `i16 (flag `i16 (sgt `i16 x y)) (i16 1) => flag `i16 (sle `i16 x y);
+    xor `i16 (flag `i16 (sgt `i32 x y)) (i16 1) => flag `i16 (sle `i32 x y);
+    xor `i16 (flag `i16 (sgt `i64 x y)) (i16 1) => flag `i16 (sle `i64 x y);
+
+    xor `i32 (flag `i32 (sgt `i8 x y)) (i32 1l) => flag `i32 (sle `i8 x y);
+    xor `i32 (flag `i32 (sgt `i16 x y)) (i32 1l) => flag `i32 (sle `i16 x y);
     xor `i32 (flag `i32 (sgt `i32 x y)) (i32 1l) => flag `i32 (sle `i32 x y);
+    xor `i32 (flag `i32 (sgt `i64 x y)) (i32 1l) => flag `i32 (sle `i64 x y);
+
+    xor `i64 (flag `i64 (sgt `i8 x y)) (i64 1L) => flag `i64 (sle `i8 x y);
+    xor `i64 (flag `i64 (sgt `i16 x y)) (i64 1L) => flag `i64 (sle `i16 x y);
+    xor `i64 (flag `i64 (sgt `i32 x y)) (i64 1L) => flag `i64 (sle `i32 x y);
     xor `i64 (flag `i64 (sgt `i64 x y)) (i64 1L) => flag `i64 (sle `i64 x y);
   ]
 
   (* flag (x <= y) ^ 1 = flag (x > y) *)
   let xor_flag_le_one = [
     xor `i8 (flag `i8 (le `i8 x y)) (i8 1) => flag `i8 (gt `i8 x y);
+    xor `i8 (flag `i8 (le `i16 x y)) (i8 1) => flag `i8 (gt `i16 x y);
+    xor `i8 (flag `i8 (le `i32 x y)) (i8 1) => flag `i8 (gt `i32 x y);
+    xor `i8 (flag `i8 (le `i64 x y)) (i8 1) => flag `i8 (gt `i64 x y);
+
+    xor `i16 (flag `i16 (le `i8 x y)) (i16 1) => flag `i16 (gt `i8 x y);
     xor `i16 (flag `i16 (le `i16 x y)) (i16 1) => flag `i16 (gt `i16 x y);
+    xor `i16 (flag `i16 (le `i32 x y)) (i16 1) => flag `i16 (gt `i32 x y);
+    xor `i16 (flag `i16 (le `i64 x y)) (i16 1) => flag `i16 (gt `i64 x y);
+
+    xor `i32 (flag `i32 (le `i8 x y)) (i32 1l) => flag `i32 (gt `i8 x y);
+    xor `i32 (flag `i32 (le `i16 x y)) (i32 1l) => flag `i32 (gt `i16 x y);
     xor `i32 (flag `i32 (le `i32 x y)) (i32 1l) => flag `i32 (gt `i32 x y);
+    xor `i32 (flag `i32 (le `i64 x y)) (i32 1l) => flag `i32 (gt `i64 x y);
+
+    xor `i64 (flag `i64 (le `i8 x y)) (i64 1L) => flag `i64 (gt `i8 x y);
+    xor `i64 (flag `i64 (le `i16 x y)) (i64 1L) => flag `i64 (gt `i16 x y);
+    xor `i64 (flag `i64 (le `i32 x y)) (i64 1L) => flag `i64 (gt `i32 x y);
     xor `i64 (flag `i64 (le `i64 x y)) (i64 1L) => flag `i64 (gt `i64 x y);
 
     xor `i8 (flag `i8 (sle `i8 x y)) (i8 1) => flag `i8 (sgt `i8 x y);
+    xor `i8 (flag `i8 (sle `i16 x y)) (i8 1) => flag `i8 (sgt `i16 x y);
+    xor `i8 (flag `i8 (sle `i32 x y)) (i8 1) => flag `i8 (sgt `i32 x y);
+    xor `i8 (flag `i8 (sle `i64 x y)) (i8 1) => flag `i8 (sgt `i64 x y);
+
+    xor `i16 (flag `i16 (sle `i8 x y)) (i16 1) => flag `i16 (sgt `i8 x y);
     xor `i16 (flag `i16 (sle `i16 x y)) (i16 1) => flag `i16 (sgt `i16 x y);
+    xor `i16 (flag `i16 (sle `i32 x y)) (i16 1) => flag `i16 (sgt `i32 x y);
+    xor `i16 (flag `i16 (sle `i64 x y)) (i16 1) => flag `i16 (sgt `i64 x y);
+
+    xor `i32 (flag `i32 (sle `i8 x y)) (i32 1l) => flag `i32 (sgt `i8 x y);
+    xor `i32 (flag `i32 (sle `i16 x y)) (i32 1l) => flag `i32 (sgt `i16 x y);
     xor `i32 (flag `i32 (sle `i32 x y)) (i32 1l) => flag `i32 (sgt `i32 x y);
+    xor `i32 (flag `i32 (sle `i64 x y)) (i32 1l) => flag `i32 (sgt `i64 x y);
+
+    xor `i64 (flag `i64 (sle `i8 x y)) (i64 1L) => flag `i64 (sgt `i8 x y);
+    xor `i64 (flag `i64 (sle `i16 x y)) (i64 1L) => flag `i64 (sgt `i16 x y);
+    xor `i64 (flag `i64 (sle `i32 x y)) (i64 1L) => flag `i64 (sgt `i32 x y);
     xor `i64 (flag `i64 (sle `i64 x y)) (i64 1L) => flag `i64 (sgt `i64 x y);
   ]
 
   (* flag (x < y) ^ 1 = flag (x >= y) *)
   let xor_flag_lt_one = [
     xor `i8 (flag `i8 (lt `i8 x y)) (i8 1) => flag `i8 (ge `i8 x y);
+    xor `i8 (flag `i8 (lt `i16 x y)) (i8 1) => flag `i8 (ge `i16 x y);
+    xor `i8 (flag `i8 (lt `i32 x y)) (i8 1) => flag `i8 (ge `i32 x y);
+    xor `i8 (flag `i8 (lt `i64 x y)) (i8 1) => flag `i8 (ge `i64 x y);
+
+    xor `i16 (flag `i16 (lt `i8 x y)) (i16 1) => flag `i16 (ge `i8 x y);
     xor `i16 (flag `i16 (lt `i16 x y)) (i16 1) => flag `i16 (ge `i16 x y);
+    xor `i16 (flag `i16 (lt `i32 x y)) (i16 1) => flag `i16 (ge `i32 x y);
+    xor `i16 (flag `i16 (lt `i64 x y)) (i16 1) => flag `i16 (ge `i64 x y);
+
+    xor `i32 (flag `i32 (lt `i8 x y)) (i32 1l) => flag `i32 (ge `i8 x y);
+    xor `i32 (flag `i32 (lt `i16 x y)) (i32 1l) => flag `i32 (ge `i16 x y);
     xor `i32 (flag `i32 (lt `i32 x y)) (i32 1l) => flag `i32 (ge `i32 x y);
+    xor `i32 (flag `i32 (lt `i64 x y)) (i32 1l) => flag `i32 (ge `i64 x y);
+
+    xor `i64 (flag `i64 (lt `i8 x y)) (i64 1L) => flag `i64 (ge `i8 x y);
+    xor `i64 (flag `i64 (lt `i16 x y)) (i64 1L) => flag `i64 (ge `i16 x y);
+    xor `i64 (flag `i64 (lt `i32 x y)) (i64 1L) => flag `i64 (ge `i32 x y);
     xor `i64 (flag `i64 (lt `i64 x y)) (i64 1L) => flag `i64 (ge `i64 x y);
 
     xor `i8 (flag `i8 (slt `i8 x y)) (i8 1) => flag `i8 (sge `i8 x y);
+    xor `i8 (flag `i8 (slt `i16 x y)) (i8 1) => flag `i8 (sge `i16 x y);
+    xor `i8 (flag `i8 (slt `i32 x y)) (i8 1) => flag `i8 (sge `i32 x y);
+    xor `i8 (flag `i8 (slt `i64 x y)) (i8 1) => flag `i8 (sge `i64 x y);
+
+    xor `i16 (flag `i16 (slt `i8 x y)) (i16 1) => flag `i16 (sge `i8 x y);
     xor `i16 (flag `i16 (slt `i16 x y)) (i16 1) => flag `i16 (sge `i16 x y);
+    xor `i16 (flag `i16 (slt `i32 x y)) (i16 1) => flag `i16 (sge `i32 x y);
+    xor `i16 (flag `i16 (slt `i64 x y)) (i16 1) => flag `i16 (sge `i64 x y);
+
+    xor `i32 (flag `i32 (slt `i8 x y)) (i32 1l) => flag `i32 (sge `i8 x y);
+    xor `i32 (flag `i32 (slt `i16 x y)) (i32 1l) => flag `i32 (sge `i16 x y);
     xor `i32 (flag `i32 (slt `i32 x y)) (i32 1l) => flag `i32 (sge `i32 x y);
+    xor `i32 (flag `i32 (slt `i64 x y)) (i32 1l) => flag `i32 (sge `i64 x y);
+
+    xor `i64 (flag `i64 (slt `i8 x y)) (i64 1L) => flag `i64 (sge `i8 x y);
+    xor `i64 (flag `i64 (slt `i16 x y)) (i64 1L) => flag `i64 (sge `i16 x y);
+    xor `i64 (flag `i64 (slt `i32 x y)) (i64 1L) => flag `i64 (sge `i32 x y);
     xor `i64 (flag `i64 (slt `i64 x y)) (i64 1L) => flag `i64 (sge `i64 x y);
   ]
 
