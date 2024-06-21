@@ -487,10 +487,10 @@ let cfg t =
   let+ env = collect t Label.pseudoentry in
   Func.map_blks t.eg.input.fn ~f:(fun b ->
       let label = Blk.label b in
-      let ctrl = match Hashtbl.find env.ctrl label with
+      let k = match Hashtbl.find env.ctrl label with
         | None -> Blk.ctrl b
         | Some c -> c in
-      let insns =
+      let is =
         Blk.insns b ~rev:true |>
         Seq.fold ~init:(find_news env label) ~f:(fun acc i ->
             let label = Insn.label i in
@@ -499,6 +499,4 @@ let cfg t =
               Option.value_map ~default:i ~f:(move_dict i) in
             let news = find_news env label ~rev:true in
             List.rev_append news (i :: acc)) in
-      Blk.create () ~insns ~ctrl ~label
-        ~args:(Blk.args b |> Seq.to_list)
-        ~dict:(Blk.dict b))
+      Blk.(with_ctrl (with_insns b is) k))
