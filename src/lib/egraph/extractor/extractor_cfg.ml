@@ -408,11 +408,11 @@ module Hoisting = struct
       (* Explore the newest nodes first, ignoring those that have
          already been placed. *)
       Iset.to_sequence s ~order:`Decreasing |>
-      Seq.filter ~f:(Fn.non @@ Id.Tree.mem env.scp) |>
-      Context.Seq.iter ~f:(fun id -> match extract t id with
+      Seq.map ~f:(fun id -> id, Common.find t.eg id) |>
+      Seq.filter ~f:(fun (_, cid) -> not @@ Id.Tree.mem env.scp cid) |>
+      Context.Seq.iter ~f:(fun (id, cid) -> match extract t id with
           | None -> extract_fail l id
           | Some e ->
-            let cid = Common.find t.eg id in
             if Hash_set.mem t.impure cid
             || is_partial_redundancy t env l id cid then !!()
             else pure t env e >>| ignore)
