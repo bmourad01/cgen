@@ -64,18 +64,16 @@ let is_disjoint env cfg l =
    are disjoint. *)
 let recompute_cfg env fn =
   let g = Cfg.create fn in
-  let fn, g', changed =
+  let fn, g' =
     Graphlib.reverse_postorder_traverse (module Cfg) g |>
-    Seq.fold ~init:(fn, g, false) ~f:(fun ((fn, g, _) as acc) l ->
+    Seq.fold ~init:(fn, g) ~f:(fun ((fn, g) as acc) l ->
         if is_disjoint env g l then
           let g' = Cfg.Node.remove l g in
           Hashtbl.remove env.blks l;
-          Func.remove_blk_exn fn l, g', true
+          Func.remove_blk_exn fn l, g'
         else acc) in
-  if changed then begin
-    env.dom <- Graphlib.dominators (module Cfg) g' Label.pseudoentry;
-    env.cfg <- g'
-  end;
+  env.dom <- Graphlib.dominators (module Cfg) g' Label.pseudoentry;
+  env.cfg <- g';
   fn
 
 (* Remove the cases of the switch that have the same target and args
