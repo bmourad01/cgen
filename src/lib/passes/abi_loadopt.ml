@@ -144,13 +144,14 @@ module Optimize = struct
       | `reg (o, r) -> `reg (operand t o, r)
       | `stk (o, s) -> `stk (operand t o, s))
 
-  let canonicalize t x op =
-    t.memo <- Hashcons.update t.memo op ~f:(function
-        | Some y -> Hashtbl.set t.vars ~key:x ~data:y; y
-        | None -> match op with
-          | Uop (`copy _, a) ->
-            Hashtbl.set t.vars ~key:x ~data:a; a
-          | _ -> `var x)
+  let canonicalize t x op = match Hashcons.find t.memo op with
+    | Some y -> Hashtbl.set t.vars ~key:x ~data:y
+    | None ->
+      let data = match op with
+        | Uop (`copy _, a) ->
+          Hashtbl.set t.vars ~key:x ~data:a; a
+        | _ -> `var x in
+      t.memo <- Hashcons.set t.memo ~key:op ~data
 
   let store t l ty v a =
     let v = operand t v in
