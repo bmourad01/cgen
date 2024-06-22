@@ -49,9 +49,10 @@ let cmp_false b = match Seq.next @@ Blk.insns b with
     end
   | _ -> None
 
-let merge_cmp _ _ = assert false
-
-let try_cmp b = Option.merge (cmp_true b) (cmp_false b) ~f:merge_cmp
+(* These cases should be mutually exclusive. *)
+let try_cmp b =
+  Option.merge (cmp_true b) (cmp_false b)
+    ~f:(fun _ _ -> assert false)
 
 let argidx b c =
   Blk.args b |>
@@ -92,22 +93,22 @@ let brcond env cphi c d ~f =
   | _ -> None
 
 let redir changed env cphi =
-  Hashtbl.mapi_inplace env.blks ~f:(fun ~key ~data:b ->
-      if Label.Tree.mem cphi key then b
-      else match Blk.ctrl b with
-        | `br (c, y, n) ->
-          let y' = brcond env cphi c y ~f:(fun y _ -> changed := true; y) in
-          let n' = brcond env cphi c n ~f:(fun _ n -> changed := true; n) in
-          Blk.with_ctrl b @@ `br (c, y', n')
-        | `jmp `label (l, args) as _jmp ->
-          Option.value ~default:b begin
-            let* y, n, i, ne = Label.Tree.find cphi l in
-            let* x = List.nth args i >>= var_of_operand in
-            let+ c = if ne then Hashtbl.find env.flag x else !!x in
-            changed := true;
-            Blk.with_ctrl b @@ `br (c, y, n)
-          end
-        | _ -> b)
+  Hashtbl.map_inplace env.blks ~f:(fun b ->
+      match Blk.ctrl b with
+      | `br (c, y, n) ->
+        let y' = brcond env cphi c y ~f:(fun y _ -> changed := true; y) in
+        let n' = brcond env cphi c n ~f:(fun _ n -> changed := true; n) in
+        if phys_equal y y' && phys_equal n n' then b
+        else Blk.with_ctrl b @@ `br (c, y', n')
+      | `jmp `label (l, args) ->
+        Option.value ~default:b begin
+          let* y, n, i, ne = Label.Tree.find cphi l in
+          let* x = List.nth args i >>= var_of_operand in
+          let+ c = if ne then Hashtbl.find env.flag x else !!x in
+          changed := true;
+          Blk.with_ctrl b @@ `br (c, y, n)
+        end
+      | _ -> b)
 
 let run env =
   let changed = ref false in
