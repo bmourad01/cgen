@@ -3,6 +3,8 @@ open Regular.Std
 open Graphlib.Std
 open Ssa_impl_common
 
+module Lset = Label.Tree_set
+
 (* First phase of the algorithm is to insert arguments to basic blocks
    and control-flow instructions based on the dominance frontier. *)
 module Make(M : L) : sig
@@ -11,19 +13,19 @@ end = struct
   open M
 
   type state = {
-    defs : Label.Set.t Var.Table.t;
+    defs : Lset.t Var.Table.t;
     args : Var.t list Label.Table.t;
     ctrl : Ctrl.t Label.Table.t;
     outs : Var.t list Label.Tree.t Label.Table.t;
   }
 
   let define defs l = Hashtbl.update defs ~f:(function
-      | None -> Label.Set.singleton l
-      | Some s -> Set.add s l)
+      | None -> Lset.singleton l
+      | Some s -> Lset.add s l)
 
   let blocks_that_define_var st x =
     Hashtbl.find st.defs x |>
-    Option.value ~default:Label.Set.empty
+    Option.value ~default:Lset.empty
 
   let has_arg st l x =
     Hashtbl.find_exn st.args l |>
@@ -56,13 +58,13 @@ end = struct
     update_incoming env l x st.outs
 
   let iterated_frontier f blks =
-    let blks = Set.add blks Label.pseudoentry in
-    let df = Set.fold ~init:Label.Set.empty ~f:(fun init b ->
-        Frontier.enum f b |> Seq.fold ~init ~f:Set.add) in
+    let blks = Lset.add blks Label.pseudoentry in
+    let df = Lset.fold ~init:Lset.empty ~f:(fun init b ->
+        Frontier.enum f b |> Seq.fold ~init ~f:Lset.add) in
     let rec fixpoint idf =
-      let idf' = df @@ Set.union idf blks in
-      if Set.equal idf idf' then idf' else fixpoint idf' in
-    fixpoint Label.Set.empty
+      let idf' = df @@ Lset.union idf blks in
+      if Lset.equal idf idf' then idf' else fixpoint idf' in
+    fixpoint Lset.empty
 
   let needs_arg env st l x =
     Set.mem (Live.ins env.live l) x &&
@@ -74,7 +76,7 @@ end = struct
     Set.iter ~f:(fun x ->
         blocks_that_define_var st x |>
         iterated_frontier env.df |>
-        Set.iter ~f:(fun l ->
+        Lset.iter ~f:(fun l ->
             if needs_arg env st l x
             then add_arg env st l x))
 
