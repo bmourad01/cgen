@@ -8,8 +8,11 @@ end
 
 include T
 
-let pseudoentry = Int63.(zero - of_int 2)
+(* NOTE: do not change these constants, unless you want to redo all of the
+   file tests. *)
+let pseudoentry = Int63.zero
 let pseudoexit = Int63.succ pseudoentry
+
 let is_pseudo l = Int63.(l = pseudoentry || l = pseudoexit)
 
 let pp ppf = function

@@ -30,6 +30,8 @@
   hashmap_intf
   last_stores
   live_intf
+  patricia_tree
+  patricia_tree_intf
   phi_values
   resolver_intf
   sm

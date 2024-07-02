@@ -1,7 +1,7 @@
 module foo
 
 export function w $foo(w %x, w %y) {
-@0:
-  %0 = add.w %y, %x ; @7
+@2:
+  %0 = add.w %y, %x ; @9
   ret %0
-} 
+}

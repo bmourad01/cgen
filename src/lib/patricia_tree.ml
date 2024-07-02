@@ -28,7 +28,7 @@ module Make_key(K : Patricia_tree_intf.Key) = struct
      OCaml compiler has a chance to do some constant folding assuming
      that the user provided `K.size` as a known constant. *)
   let ctz x =
-    let x = Int.(to_int64 (lnot x land pred x)) in
+    let x = Int.(to_int64 ((lnot x) land (pred x))) in
     Int64.popcount x
 
   let branching_size = ctz @@ Int.ceil_pow2 size
@@ -213,7 +213,7 @@ module Make(K : Patricia_tree_intf.Key) = struct
       let b1 = Key.branching p1 in
       let b2 = Key.branching p2 in
       match Key.compare p1 k2 with
-      | NA -> join t1 k2 t2 k2
+      | NA -> join t1 k1 t2 k2
       | RB -> if is_zero ~bit:b1 k2
         then Bin (p1, merge l1 t2 ~f, r1)
         else Bin (p1, l1, merge r1 t2 ~f)
@@ -351,7 +351,7 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       let b1 = Key.branching p1 in
       let b2 = Key.branching p2 in
       match Key.compare p1 k2 with
-      | NA -> join t1 k2 t2 k2
+      | NA -> join t1 k1 t2 k2
       | RB -> if is_zero ~bit:b1 k2
         then Bin (p1, union l1 t2, r1)
         else Bin (p1, l1, union r1 t2)

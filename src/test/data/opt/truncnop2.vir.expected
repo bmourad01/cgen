@@ -1,6 +1,6 @@
 module foo
 
 export function w $foo(w %x) {
-@0:
+@2:
   ret %x
 }
