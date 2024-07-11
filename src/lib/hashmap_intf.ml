@@ -100,11 +100,10 @@ module type S = sig
   (** Returns the number of elements in the map. *)
   val length : 'a t -> int
 
-  (** Returns a list of all keys in the map, in increasing order. *)
+  (** Returns a list of all keys in the map. No particular order is guaranteed. *)
   val keys : 'a t -> key list
 
-  (** Returns a list of all values in the map, in inrcreasing order
-      with respect to their corresponding keys.  *)
+  (** Returns a list of all values in the map. No particular order is guaranteed *)
   val data : 'a t -> 'a list
 
   (** Creates a map from an association list.
