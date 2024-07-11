@@ -8,9 +8,9 @@
 
     Question: why use this over a [Map]?
 
-    Answer: if your key type is expensive to compare, but cheaper
-    to hash, then this data structure may end up having better
-    performance characteristics overall.
+    Answer: if your key type is expensive to compare, then this data
+    structure may end up having better performance characteristics
+    overall.
 *)
 
 open Regular.Std
