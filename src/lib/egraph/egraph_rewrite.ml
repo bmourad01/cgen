@@ -65,6 +65,12 @@ let infer_ty t n = Enode.infer_ty n
    to be caught locally during the search/rewrite phase. *)
 exception Mismatch
 
+(* Rewrite state. *)
+type rws = {
+  mutable id     : id;  (* The newest ID. *)
+  mutable budget : int; (* Remaining rewrites. *)
+}
+
 (* This is the entry point to the insert/rewrite loop, to
    be called from the algorithm in `Egraph_builder` (i.e.
    in depth-first dominator tree order). *)
@@ -102,14 +108,14 @@ and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
     | U _ -> assert false
     | N _ when d <= 0 -> id
     | N (o, cs) -> with_return @@ fun {return} ->
-      (* The updated ID of the term. *)
-      let rid = ref id in
+      (* Rewriting state. *)
+      let rws = {id; budget = t.match_limit} in
       (* Pending unioned nodes. *)
       let pending = Stack.create () in
       (* The e-matching routine. *)
       let children, pat = search t pending in
       (* Inserts a rewritten term based on a substitution. *)
-      let apply = rewrite ?ty ~d:(d - 1) t rid (ref t.match_limit) return in
+      let apply = rewrite ?ty ~d:(d - 1) t rws return in
       (* Start by matching the top-level constructor. *)
       Hashtbl.find t.rules o |> Option.iter ~f:(fun toplevels ->
           List.iter toplevels ~f:(fun (ps, a, subsume) ->
@@ -118,7 +124,7 @@ and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
               (* Now process any pending unioned nodes. *)
               Stack.until_empty pending @@ fun (env, x, xs, id, k) ->
               apply a subsume ~f:(fun () -> pat env x xs id k)));
-      !rid
+      rws.id
 
 and search t pending =
   (* Produce a substitution for an e-class. *)
@@ -153,7 +159,7 @@ and search t pending =
   (* Return the entry points into the search. *)
   (fun ps cs -> children empty_subst ps cs Fn.id), pat
 
-and rewrite ?ty ~d t id budget return action subsume ~f =
+and rewrite ?ty ~d t rws return action subsume ~f =
   (* Assemble the right-hand side of the rule. *)
   let rec go env = function
     | P (o, ps) ->
@@ -165,7 +171,7 @@ and rewrite ?ty ~d t id budget return action subsume ~f =
   (* Cap the number of new terms that can be inserted. For large
      chains of union nodes this helps to keep the running time
      from exploding. *)
-  if !budget > 0 then try
+  if rws.budget > 0 then try
       let env = f () in
       let oid = match action with
         | Static p -> go env p
@@ -174,18 +180,18 @@ and rewrite ?ty ~d t id budget return action subsume ~f =
         | Dyn f -> match f env with
           | Some p -> go env p
           | None -> raise_notrace Mismatch in
-      if check_union_type ?ty t oid then match !id = oid with
+      if check_union_type ?ty t oid then match rws.id = oid with
         | false when subsume || Enode.is_const (node t oid) ->
           (* We've transformed to a constant, or an otherwise optimal
              term, so we can end the search here. Note that we don't
              insert a union node in this case, but we still record the
              equivalence via union-find. All future rewrites w.r.t
              this e-class will refer only to this new term. *)
-          Uf.union t.classes !id oid;
+          Uf.union t.classes rws.id oid;
           return oid
         | false ->
-          decr budget;
-          id := union ?ty t !id oid
+          rws.id <- union ?ty t rws.id oid;
+          rws.budget <- rws.budget - 1
         | true -> () 
     with Mismatch -> ()
-  else return !id
+  else return rws.id
