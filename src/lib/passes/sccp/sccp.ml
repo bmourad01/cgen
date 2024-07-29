@@ -165,19 +165,16 @@ let map_ctrl env : ctrl -> ctrl = function
   | `sw (t, i, d, tbl) -> map_sw env t i d tbl
 
 let map_blk env b =
-  let insns = Blk.insns b |> Seq.map ~f:(fun i ->
+  let is = Blk.insns b |> Seq.map ~f:(fun i ->
       env.cur <- Insn;
       env.pos <- Insn.label i;
       map_insn env i) |> Seq.to_list in
-  if List.is_empty insns then begin
+  if List.is_empty is then begin
     env.cur <- Blk;
     env.pos <- Blk.label b
   end;
-  let ctrl = map_ctrl env @@ Blk.ctrl b in
-  let args = Blk.args b |> Seq.to_list in
-  let dict = Blk.dict b in
-  let label = Blk.label b in
-  Blk.create ~dict ~args ~insns ~ctrl ~label ()
+  let k = map_ctrl env @@ Blk.ctrl b in
+  Blk.(with_ctrl (with_insns b is) k)
 
 let try_ f = try Ok (f ()) with
   | Invalid_argument msg
