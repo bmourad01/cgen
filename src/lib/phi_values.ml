@@ -15,16 +15,15 @@ module Make(D : Domain) = struct
   type state = D.t Var.Map.t [@@deriving equal]
 
   let local ~blk s : local -> state = function
-    | `label (l, vs) -> match blk l with
-      | None -> s
-      | Some b ->
-        let args = Seq.to_list @@ Blk.args b in
-        match List.zip args vs with
-        | Unequal_lengths -> assert false
-        | Ok xs -> List.fold xs ~init:s ~f:(fun s (x, v) ->
-            Map.update s x ~f:(function
-                | Some vs -> D.(join vs @@ one v)
-                | None -> D.one v))
+    | `label (l, vs) ->
+      blk l |> Option.value_map ~default:s ~f:(fun b ->
+          let args = Seq.to_list @@ Blk.args b in
+          match List.zip args vs with
+          | Unequal_lengths -> assert false
+          | Ok xs -> List.fold xs ~init:s ~f:(fun s (x, v) ->
+              Map.update s x ~f:(function
+                  | Some vs -> D.(join vs @@ one v)
+                  | None -> D.one v)))
 
   let dst ~blk s : dst -> state = function
     | #local as l -> local ~blk s l
