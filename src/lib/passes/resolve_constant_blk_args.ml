@@ -1,26 +1,27 @@
 open Core
 open Virtual
 
-(* A variable can have one or many values. *)
-type value =
-  | One of operand
-  | Many
-[@@deriving equal]
-
 module Phis = Phi_values.Make(struct
-    type t = value [@@deriving equal]
-    let one v = One v
-    let join x y = if equal x y then x else Many
-  end)
+    (* `None` indicates that there may be many values for the phi,
+       while `Some v` indicates that `v` is its singular value.
 
-let filter_many = Map.filter_map ~f:(function
-    | Many -> None | One v -> Some v)
+       We choose `option` because filtering the substitution produced
+       by the analysis can use the identity function via `Map.filter_map`,
+       thus avoiding extra allocations.
+    *)
+    type t = operand option [@@deriving equal]
+
+    let one v = Some v
+    let join x y = if equal x y then x else None
+  end)
 
 let run fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
-    let s = filter_many @@ Phis.analyze ~blk:(Label.Tree.find blks) cfg in
+    let s =
+      Map.filter_map ~f:Fn.id @@
+      Phis.analyze ~blk:(Label.Tree.find blks) cfg in
     let fn =
       if not @@ Map.is_empty s then Func.map_blks fn ~f:(fun b ->
           let is, k = Subst_mapper.map_blk s b in
