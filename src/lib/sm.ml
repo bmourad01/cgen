@@ -114,4 +114,9 @@ module Make(M : S) = struct
 
     let all = map ~f:Base.Fn.id
   end
+
+  let map_list_err l ~f = List.map l ~f:(Base.Fn.compose lift_err f)
+  let iter_list_err l ~f = List.iter l ~f:(Base.Fn.compose lift_err f)
+  let map_seq_err s ~f = Seq.map s ~f:(Base.Fn.compose lift_err f)
+  let iter_seq_err s ~f = Seq.iter s ~f:(Base.Fn.compose lift_err f)
 end

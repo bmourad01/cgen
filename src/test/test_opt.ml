@@ -41,16 +41,15 @@ let compare_outputs expected p' =
 
 let from_file_abi filename =
   let open Context.Syntax in
-  let err f = Fn.compose Context.lift_err f in
   let* tenv, m = from_file filename in
   let*? tenv = retype tenv m in
   let* fns =
     Virtual.Module.funs m |> Seq.to_list |>
     Context.List.map ~f:(Passes.Lower_abi.run tenv) in
-  let* fns = Context.List.map fns ~f:(err Passes.Promote_slots.run_abi) in
-  let* fns = Context.List.map fns ~f:(err Passes.Abi_loadopt.run) in
+  let* fns = Context.map_list_err fns ~f:Passes.Promote_slots.run_abi in
+  let* fns = Context.map_list_err fns ~f:Passes.Abi_loadopt.run in
   let fns = List.map fns ~f:Passes.Remove_disjoint_blks.run_abi in
-  let* fns = Context.List.map fns ~f:(err Passes.Remove_dead_vars.run_abi) in
+  let* fns = Context.map_list_err fns ~f:Passes.Remove_dead_vars.run_abi in
   !!fns
 
 let test name _ =
@@ -61,8 +60,7 @@ let test name _ =
   Context.eval begin
     let open Context.Syntax in
     let* _, m = from_file filename in
-    let* () = Virtual.Module.funs m |> Context.Seq.iter ~f:(fun fn ->
-        Context.lift_err @@ Passes.Ssa.check fn) in
+    let* () = Virtual.Module.funs m |> Context.iter_seq_err ~f:Passes.Ssa.check in
     !!(Format.asprintf "%a" Virtual.Module.pp m)
   end |> function
   | Ok p' -> compare_outputs expected p'
@@ -76,8 +74,7 @@ let test_abi target ext name _ =
   Context.eval begin
     let open Context.Syntax in
     let* fns = from_file_abi filename in
-    let* () = Context.List.iter fns ~f:(fun fn ->
-        Context.lift_err @@ Passes.Ssa.check_abi fn) in
+    let* () = Context.iter_list_err fns ~f:Passes.Ssa.check_abi in
     !!(Format.asprintf "@[<v 0>%a@]\n%!"
          (Format.pp_print_list
             ~pp_sep:(fun ppf () -> Format.fprintf ppf "@.@.")

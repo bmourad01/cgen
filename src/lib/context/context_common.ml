@@ -36,3 +36,7 @@ type 'a t = 'a M.m
 let target = M.gets @@ fun s -> s.state.target
 let when_ = M.when_
 let unless = M.unless
+let map_list_err = M.map_list_err
+let iter_list_err = M.iter_list_err
+let map_seq_err = M.map_seq_err
+let iter_seq_err = M.iter_seq_err

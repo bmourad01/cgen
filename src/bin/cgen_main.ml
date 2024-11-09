@@ -2,10 +2,6 @@ open Core
 open Regular.Std
 open Cgen
 
-let pp_sep ppf () = Format.fprintf ppf "@.@."
-
-let err f = Fn.compose Context.lift_err f
-
 let retype tenv m =
   Virtual.Module.funs m |>
   Seq.to_list |> Typecheck.update_fns tenv
@@ -40,13 +36,15 @@ let comp filename =
   let* fns =
     Virtual.Module.funs m |> Seq.to_list |>
     Context.List.map ~f:(Passes.Lower_abi.run tenv) in
-  let* fns = Context.List.map fns ~f:(err Passes.Promote_slots.run_abi) in
-  let* fns = Context.List.map fns ~f:(err Passes.Abi_loadopt.run) in
+  let* fns = Context.map_list_err fns ~f:Passes.Promote_slots.run_abi in
+  let* fns = Context.map_list_err fns ~f:Passes.Abi_loadopt.run in
   let fns = List.map fns ~f:Passes.Remove_disjoint_blks.run_abi in
-  let* fns = Context.List.map fns ~f:(err Passes.Remove_dead_vars.run_abi) in
-  let* () = Context.List.iter fns ~f:(err Passes.Ssa.check_abi) in
+  let* fns = Context.map_list_err fns ~f:Passes.Remove_dead_vars.run_abi in
+  let* () = Context.iter_list_err fns ~f:Passes.Ssa.check_abi in
   Format.printf "@[<v 0>%a@]\n%!"
-    (Format.pp_print_list ~pp_sep Virtual.Abi.Func.pp) fns;
+    (Format.pp_print_list
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf "@.@.")
+       Virtual.Abi.Func.pp) fns;
   !!()
 
 let () =
