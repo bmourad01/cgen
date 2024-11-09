@@ -34,3 +34,5 @@ include M.Syntax
 type 'a t = 'a M.m
 
 let target = M.gets @@ fun s -> s.state.target
+let when_ = M.when_
+let unless = M.unless

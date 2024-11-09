@@ -189,17 +189,16 @@ let register_save_sse env params label s =
     ~ctrl:(`jmp entry)
 
 let compute_register_save_area env =
-  if needs_register_save env then
-    let params = Vec.fold env.params ~init:String.Set.empty
-        ~f:(fun acc p -> match p.pvar with
-            | `reg (_, r) -> Set.add acc r
-            | `stk _ -> acc) in
-    let* rsslot = new_slot env 176 16 in
-    let* sse = Context.Label.fresh in
-    let* rsint = register_save_int env params sse rsslot in
-    let+ rssse = register_save_sse env params sse rsslot in
-    env.rsave <- Some {rsslot; rsint; rssse}
-  else !!()
+  Context.when_ (needs_register_save env) @@ fun () ->
+  let params = Vec.fold env.params ~init:String.Set.empty
+      ~f:(fun acc p -> match p.pvar with
+          | `reg (_, r) -> Set.add acc r
+          | `stk _ -> acc) in
+  let* rsslot = new_slot env 176 16 in
+  let* sse = Context.Label.fresh in
+  let* rsint = register_save_int env params sse rsslot in
+  let+ rssse = register_save_sse env params sse rsslot in
+  env.rsave <- Some {rsslot; rsint; rssse}
 
 (* Lower the parameters of the function and copy their contents
    to SSA variables or stack slots. *)

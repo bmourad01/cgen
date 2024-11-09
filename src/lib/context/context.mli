@@ -28,6 +28,12 @@ val failf : ('a, Format.formatter, unit, unit -> 'b t) format4 -> 'a
 *)
 val lift_err : 'a Or_error.t -> 'a t
 
+(** [when_ k f] evaluates [f] if [k] is [true]. *)
+val when_ : bool -> (unit -> unit t) -> unit t
+
+(** [unless k f] evaluates [f] if [k] is [false]. *)
+val unless : bool -> (unit -> unit t) -> unit t
+
 (** Returns the current target descriptor. *)
 val target : Target.t t
 

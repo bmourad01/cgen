@@ -16,8 +16,8 @@ let check_var_dst v =
   let* env = getenv and* fn = getfn in
   let word = Target.word @@ Env.target env in
   let*? t = Env.typeof_var fn v env in
-  if Type.(t = (word :> Type.t)) then !!()
-  else M.lift_err @@ unify_fail t (word :> Type.t) v fn
+  M.unless Type.(t = (word :> t)) @@ fun () ->
+  M.lift_err @@ unify_fail t (word :> Type.t) v fn
 
 let check_label_dst blks l args =
   let* fn = getfn and* blk = getblk in
@@ -62,9 +62,8 @@ let unify_fail_ret t1 t2 =
 let ctrl_br blks c t f =
   let* env = getenv and* fn = getfn in
   let*? tc = Env.typeof_var fn c env in
-  let* () = match tc with
-    | `flag -> !!()
-    | _ -> unify_flag_fail_ctrl tc c in
+  let* () = M.unless Type.(tc = `flag) @@ fun () ->
+    unify_flag_fail_ctrl tc c in
   let* () = check_dst blks t in
   check_dst blks f
 
@@ -81,8 +80,8 @@ let ctrl_ret_some r =
   | t, None -> unify_fail_void_ret t
   | #Type.t as r, Some t ->
     let* t' = typeof_type_ret env t in
-    if Type.(r = t') then !!()
-    else unify_fail_ret r t'
+    M.unless Type.(r = t') @@ fun () ->
+    unify_fail_ret r t'
 
 let sw_unify_fail t t' =
   let* fn = getfn and* blk = getblk in
@@ -93,13 +92,12 @@ let sw_unify_fail t t' =
 
 let check_sw_index t i =
   let m = max_of_imm t in
-  if Bv.(i > m) then
-    let* fn = getfn and* blk = getblk in
-    M.failf "In `sw.%a` instruction in block %a in function $%s: \
-             index %a_%a does not fit in type %a"
-      Type.pp_imm t Label.pp (Blk.label blk) (Func.name fn)
-      Bv.pp i Type.pp_imm t Type.pp_imm t ()
-  else !!()
+  M.when_ Bv.(i > m) @@ fun () ->
+  let* fn = getfn and* blk = getblk in
+  M.failf "In `sw.%a` instruction in block %a in function $%s: \
+           index %a_%a does not fit in type %a"
+    Type.pp_imm t Label.pp (Blk.label blk) (Func.name fn)
+    Bv.pp i Type.pp_imm t Type.pp_imm t ()
 
 let ctrl_sw blks t v d tbl =
   let t' = (t :> Type.t) in

@@ -36,7 +36,7 @@ let unify_fail_arg t a t' =
 let unify_arg ta a t = match ta, t with
   | #Type.t as ta, _ ->
     let t = (t :> Type.t) in
-    if Type.(ta = t) then !!() else unify_fail_arg t a ta
+    M.unless Type.(ta = t) @@ fun () -> unify_fail_arg t a ta
 
 type binop_typ = [
   | Type.basic
@@ -331,8 +331,8 @@ let check_call_var env v =
      the var is pointer-sized. *)
   match t with
   | #Type.imm_base as b ->
-    if Type.equal_imm_base b word then !!()
-    else expect_ptr_size_base_var v t word "call"
+    M.unless (Type.equal_imm_base b word) @@ fun () ->
+    expect_ptr_size_base_var v t word "call"
   | _ -> expect_ptr_size_var v t "call"
 
 let check_call_sym_ret t ret s = match t, ret with
@@ -343,8 +343,8 @@ let check_call_sym_ret t ret s = match t, ret with
   | None, None -> !!()
 
 let check_call_sym_variadic s vargs variadic =
-  if variadic || List.is_empty vargs then !!()
-  else non_variadic_call s
+  M.unless (variadic || List.is_empty vargs) @@ fun () ->
+  non_variadic_call s
 
 let check_call_sym_args env s (args : (operand * Type.arg) list) =
   let* fn = getfn in
@@ -411,8 +411,8 @@ let variadic_in_fixed_args =
 
 let op_variadic env (v : Insn.variadic) =
   let* fn = getfn in
-  let* () = if Func.variadic fn then !!()
-    else variadic_in_fixed_args in
+  let* () = M.unless (Func.variadic fn) @@ fun () ->
+    variadic_in_fixed_args in
   let* word = target >>| Target.word in
   match v with
   | `vaarg (x, t, y) ->

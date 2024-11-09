@@ -88,6 +88,9 @@ module Make(M : S) = struct
     run = fun ~reject:_ ~accept s -> accept () (f s)
   } [@@inline]
 
+  let when_ k f = if k then f () else !!() [@@inline]
+  let unless k f = if k then !!() else f () [@@inline]
+
   module List = struct
     include List
 

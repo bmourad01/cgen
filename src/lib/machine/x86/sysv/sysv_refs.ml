@@ -29,22 +29,21 @@ let collect_mem_rets env = match env.rmem with
    slot coalescing, store-to-load forwarding, SROA, etc).
 *)
 let make_load env mrs x s a =
-  if not @@ Hashtbl.mem env.refs x then
-    let* k = type_cls env s in
-    (* Re-use the implicit first parameter instead of allocating
-       a new stack slot. *)
-    let* y = match env.rmem with
-      | Some y when Set.mem mrs x -> !!y
-      | Some _ | None -> new_slot env k.size k.align in
-    let* src, srci = match a with
-      | `var x -> !!(x, [])
-      | _ ->
-        let+ x, i = Cv.Abi.unop (`copy `i64) a in
-        x, [i] in
-    let+ blit = Cv.Abi.blit ~src ~dst:y `i64 k.size in
-    Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
-    Hashtbl.set env.refs ~key:x ~data:y
-  else !!()
+  Context.unless (Hashtbl.mem env.refs x) @@ fun () ->
+  let* k = type_cls env s in
+  (* Re-use the implicit first parameter instead of allocating
+     a new stack slot. *)
+  let* y = match env.rmem with
+    | Some y when Set.mem mrs x -> !!y
+    | Some _ | None -> new_slot env k.size k.align in
+  let* src, srci = match a with
+    | `var x -> !!(x, [])
+    | _ ->
+      let+ x, i = Cv.Abi.unop (`copy `i64) a in
+      x, [i] in
+  let+ blit = Cv.Abi.blit ~src ~dst:y `i64 k.size in
+  Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
+  Hashtbl.set env.refs ~key:x ~data:y
 
 let make_store env l s v a =
   let* k = type_cls env s in

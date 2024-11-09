@@ -393,6 +393,10 @@ module Hoisting = struct
       end
     end
 
+  let should_skip t env l id cid =
+    Hash_set.mem t.impure cid ||
+    is_partial_redundancy t env l id cid
+
   (* If any nodes got moved up to this label, then we should check
      to see if it is eligible for this code motion optimization.
 
@@ -413,9 +417,8 @@ module Hoisting = struct
       Context.Seq.iter ~f:(fun (id, cid) -> match extract t id with
           | None -> extract_fail l id
           | Some e ->
-            if Hash_set.mem t.impure cid
-            || is_partial_redundancy t env l id cid then !!()
-            else pure t env e >>| ignore)
+            Context.unless (should_skip t env l id cid) @@ fun () ->
+            pure t env e >>| ignore)
 end
 
 (* Determine placement of instructions at this label. *)
