@@ -1,0 +1,34 @@
+module sumphi
+
+type :t = { w, w }
+
+function w $sum(:t %s) {
+  %p = slot 8, align 4
+@start:
+  st:t %s, %p
+  %a = ld.w %p
+  %p4 = add.l %p, 4_l
+  %b = ld.w %p4
+  %sum = add.w %a, %b
+  ret %sum
+}
+
+export function w $sumphi(:t %a, :t %b, w %x) {
+  %ra = slot 8, align 4
+  %rb = slot 8, align 4
+@start:
+  st:t %a, %ra
+  st:t %b, %rb
+  %c = slt.w %x, 0_w
+  br %c, @neg, @pos
+@neg:
+  %u = ld:t %ra
+  jmp @sum
+@pos:
+  %u = ld:t %rb
+  jmp @sum
+@sum:
+  st.w 5_w, %ra
+  %s = call.w $sum(%u)
+  ret %s
+}

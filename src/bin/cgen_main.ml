@@ -36,9 +36,7 @@ let comp filename =
   Format.printf "=================================================\n%!";
   Format.printf "%a\n%!" Virtual.Module.pp m;
   Format.printf "=================================================\n%!";
-  let*? tenv =
-    Virtual.Module.funs m |>
-    Seq.to_list |> Typecheck.update_fns tenv in
+  let*? tenv = retype tenv m in
   let* fns =
     Virtual.Module.funs m |> Seq.to_list |>
     Context.List.map ~f:(Passes.Lower_abi.run tenv) in

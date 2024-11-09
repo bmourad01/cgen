@@ -12,6 +12,47 @@ let retype tenv m =
   Virtual.Module.funs m |>
   Seq.to_list |> Typecheck.update_fns tenv
 
+let from_file filename =
+  let open Context.Syntax in
+  let* target = Context.target in
+  let* m = Parse.Virtual.from_file filename in
+  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
+  let*? tenv = Typecheck.run m ~target in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Promote_slots.run in
+  let*? tenv = retype tenv m in
+  let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Sccp.run tenv) in
+  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
+  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Simplify_cfg.run tenv) in
+  let*? tenv = retype tenv m in
+  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Egraph_opt.run tenv) in
+  let*? tenv = retype tenv m in
+  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Resolve_constant_blk_args.run in
+  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Simplify_cfg.run tenv) in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
+  !!(tenv, m)
+
+let compare_outputs expected p' =
+  let msg = Format.asprintf "Expected:@,@[%s@]@,Got:@,@[%s@]" expected p' in
+  assert_equal (fmt p') (fmt expected) ~msg ~cmp:String.equal
+
+let from_file_abi filename =
+  let open Context.Syntax in
+  let err f = Fn.compose Context.lift_err f in
+  let* tenv, m = from_file filename in
+  let*? tenv = retype tenv m in
+  let* fns =
+    Virtual.Module.funs m |> Seq.to_list |>
+    Context.List.map ~f:(Passes.Lower_abi.run tenv) in
+  let* fns = Context.List.map fns ~f:(err Passes.Promote_slots.run_abi) in
+  let* fns = Context.List.map fns ~f:(err Passes.Abi_loadopt.run) in
+  let fns = List.map fns ~f:Passes.Remove_disjoint_blks.run_abi in
+  let* fns = Context.List.map fns ~f:(err Passes.Remove_dead_vars.run_abi) in
+  !!fns
+
 let test name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = filename ^ ".expected" in
@@ -19,36 +60,36 @@ let test name _ =
   Context.init Machine.X86.Amd64_sysv.target |>
   Context.eval begin
     let open Context.Syntax in
-    let* target = Context.target in
-    let* m = Parse.Virtual.from_file filename in
-    let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-    let*? tenv = Typecheck.run m ~target in
-    let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
-    let*? m = Virtual.Module.map_funs_err m ~f:Passes.Promote_slots.run in
-    let*? tenv = retype tenv m in
-    let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Sccp.run tenv) in
-    let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-    let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-    let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Simplify_cfg.run tenv) in
-    let*? tenv = retype tenv m in
-    let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Egraph_opt.run tenv) in
-    let*? tenv = retype tenv m in
-    let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-    let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-    let*? m = Virtual.Module.map_funs_err m ~f:Passes.Resolve_constant_blk_args.run in
-    let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Simplify_cfg.run tenv) in
-    let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
+    let* _, m = from_file filename in
     let* () = Virtual.Module.funs m |> Context.Seq.iter ~f:(fun fn ->
         Context.lift_err @@ Passes.Ssa.check fn) in
     !!(Format.asprintf "%a" Virtual.Module.pp m)
   end |> function
-  | Error err ->
-    assert_failure @@ Format.asprintf "%a" Error.pp err
-  | Ok p' ->
-    let msg = Format.asprintf "Expected:@,@[%s@]@,Got:@,@[%s@]" expected p' in
-    assert_equal (fmt p') (fmt expected) ~msg ~cmp:String.equal
+  | Ok p' -> compare_outputs expected p'
+  | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
+
+let test_abi target ext name _ =
+  let filename = Format.sprintf "data/opt/%s.vir" name in
+  let filename' = Format.sprintf "%s.expected.%s" filename ext in
+  let expected = In_channel.read_all filename' in
+  Context.init target |>
+  Context.eval begin
+    let open Context.Syntax in
+    let* fns = from_file_abi filename in
+    let* () = Context.List.iter fns ~f:(fun fn ->
+        Context.lift_err @@ Passes.Ssa.check_abi fn) in
+    !!(Format.asprintf "@[<v 0>%a@]\n%!"
+         (Format.pp_print_list
+            ~pp_sep:(fun ppf () -> Format.fprintf ppf "@.@.")
+            Virtual.Abi.Func.pp) fns)
+  end |> function
+  | Ok p' -> compare_outputs expected p'
+  | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
+
+let test_sysv = test_abi Machine.X86.Amd64_sysv.target "sysv"
 
 let suite = "Test optimizations" >::: [
+    (*  General tests *)
     "Multiply by 1" >:: test "mulby1";
     "Multiply by 2" >:: test "mulby2";
     "Multiply by 8" >:: test "mulby8";
@@ -136,6 +177,19 @@ let suite = "Test optimizations" >::: [
     "Short-circuiting OR" >:: test "shortcircor";
     "Short-circuiting OR (flag indirection)" >:: test "shortcircor2";
     "Short-circuiting OR (negated flag indirection)" >:: test "shortcircor3";
+
+    (* SysV ABI lowering tests *)
+    "Simple calls (SysV)" >:: test_sysv "addcalls";
+    "Empty struct (SysV)" >:: test_sysv "emptystruct";
+    "Extended GCD returning a struct (SysV)" >:: test_sysv "gcdext";
+    "Extended GCD with pointer params (SysV)" >:: test_sysv "gcdextm";
+    "Constructing and returning a struct (SysV)" >:: test_sysv "retmem";
+    "Scalar arguments passed on the stack (SysV)" >:: test_sysv "stkarg";
+    "Struct in a block argument (SysV)" >:: test_sysv "sumphi";
+    "Returning, passing, and dereferencing a struct (SysV)" >:: test_sysv "unref";
+    "Variadic function arguments 1 (SysV)" >:: test_sysv "vaarg1";
+    "Variadic function arguments 2 (SysV)" >:: test_sysv "vaarg2";
+    "Variadic function arguments 3 (SysV)" >:: test_sysv "vasum";
   ]
 
 let () = run_test_tt_main suite

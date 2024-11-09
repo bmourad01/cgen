@@ -1,0 +1,20 @@
+module sumv
+
+export function w $sum(w %n, ...) {
+  %ap = slot 24, align 8
+@start:
+  vastart %ap
+  %i = copy.w 0_w
+  %x = copy.w 0_w
+  jmp @loop
+@loop:
+  %c = lt.w %i, %n
+  br %c, @body, @done
+@body:
+  %y = vaarg.w %ap
+  %x = add.w %x, %y
+  %i = add.w %i, 1_w
+  jmp @loop
+@done:
+  ret %x
+}

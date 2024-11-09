@@ -1,0 +1,22 @@
+module emptystruct
+
+type :t = align 8 {}
+
+function $bar(:t %x) {
+@start:
+  ret
+}
+
+function :t $foo() {
+  %x = slot 0, align 8
+@start:
+  %t = ld:t %x
+  call $bar(%t)
+  ret %t
+}
+
+function $baz() {
+@start:
+  %t = call:t $foo()
+  ret
+}

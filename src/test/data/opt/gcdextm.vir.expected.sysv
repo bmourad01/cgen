@@ -1,0 +1,24 @@
+export function $gcdext(w %a/rdi, w %b/rsi, l %x/rdx, l %y/rcx) {
+  %x1 = slot 8, align 8
+  %y1 = slot 8, align 8
+@2:
+  %1 = eq.w %a, 0x0_w ; @18
+  br %1, @3, @4
+@3:
+  st.w 0x0_w, %x ; @6
+  st.w 0x1_w, %y ; @7
+  jmp @17(%b)
+@4:
+  %m.1 = rem.w %b, %a ; @8
+  %gcd.1/w/rax = call $gcdext(%m.1/rdi, %a/rsi, %x1/rdx, %y1/rcx) ; @9
+  %rx.1 = ld.w %x1 ; @10
+  %ry.1 = ld.w %y1 ; @11
+  %nx.1 = div.w %b, %a ; @12
+  %2 = mul.w %nx.1, %rx.1 ; @19
+  %3 = sub.w %ry.1, %2 ; @20
+  st.w %3, %x ; @15
+  st.w %rx.1, %y ; @16
+  jmp @17(%gcd.1)
+@17(%0):
+  ret rax/%0
+}

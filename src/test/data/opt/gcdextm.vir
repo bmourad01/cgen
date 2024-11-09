@@ -1,0 +1,24 @@
+module gcdextm
+
+export function w $gcdext(w %a, w %b, l %x, l %y) {
+  %x1 = slot 4, align 4
+  %y1 = slot 4, align 4
+@start:
+  %c = eq.w %a, 0_w
+  br %c, @base, @rec
+@base:
+  st.w 0_w, %x
+  st.w 1_w, %y
+  ret %b
+@rec:
+  %m = rem.w %b, %a
+  %gcd = call.w $gcdext(%m, %a, %x1, %y1)
+  %rx = ld.w %x1
+  %ry = ld.w %y1
+  %nx = div.w %b, %a
+  %nx = mul.w %nx, %rx
+  %nx = sub.w %ry, %nx
+  st.w %nx, %x
+  st.w %rx, %y
+  ret %gcd
+}

@@ -1,0 +1,17 @@
+function $bar(l %0/+0) {
+@2:
+  ret
+}
+
+function $foo() {
+  %1 = slot 0, align 8
+@3:
+  call $bar(%1/+0) ; @5
+  ret
+}
+
+function $baz() {
+@6:
+  call $foo() ; @7
+  ret
+}

@@ -1,0 +1,22 @@
+module retmem
+
+type :t = {
+  l,
+  l,
+  l,
+  l
+}
+
+export function :t $foo(l %a, l %b, l %c, l %d) {
+  %x = slot 32, align 8
+@start:
+  st.l %a, %x
+  %x8 = add.l %x, 8_l
+  st.l %b, %x8
+  %x16 = add.l %x, 16_l
+  st.l %c, %x16
+  %x24 = add.l %x, 24_l
+  st.l %d, %x24
+  %r = ld:t %x
+  ret %r
+}

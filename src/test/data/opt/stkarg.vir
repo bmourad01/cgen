@@ -1,0 +1,21 @@
+module stkarg
+
+export function l $foo(l %a, l %b, l %c, l %d, l %e, l %f, w %g, w %h) {
+@start:
+  %x = add.l %a, %b
+  %x = add.l %x, %c
+  %x = add.l %x, %d
+  %x = add.l %x, %e
+  %x = add.l %x, %f
+  %y = sext.l %g
+  %x = add.l %x, %y
+  %y = sext.l %h
+  %x = add.l %x, %y
+  ret %x
+}
+
+export function l $bar() {
+@start:
+  %x = call.l $foo(0_l, 1_l, 2_l, 3_l, 4_l, 5_l, 6_w, 7_w)
+  ret %x
+}
