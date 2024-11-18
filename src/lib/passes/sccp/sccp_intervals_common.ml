@@ -7,12 +7,11 @@ type state = I.t Var.Map.t [@@deriving equal, sexp]
 
 let empty_state : state = Var.Map.empty
 
-let join_state x y =
-  Map.merge_skewed x y ~combine:(fun ~key:_ a b -> I.union a b)
+let combine_state x y ~f =
+  Map.merge_skewed x y ~combine:(fun ~key:_ a b -> f a b)
 
-let meet_state x y =
-  Map.merge_skewed x y ~combine:(fun ~key:_ a b -> I.intersect a b)
-
+let join_state = combine_state ~f:I.union
+let meet_state = combine_state ~f:I.intersect
 let invert_state = Map.map ~f:I.inverse
 
 (* In most cases we don't want to union with the previous
