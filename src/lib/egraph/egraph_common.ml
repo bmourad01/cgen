@@ -43,7 +43,7 @@ let rec pp_pattern ppf = function
 
    [Static p]: the term is always rewritten to [p].
 
-   [Cond (p, k)]: the rerm is rewrtitten to [p] if [k] is
+   [Cond (p, k)]: the term is rewrtitten to [p] if [k] is
    satisfied.
 
    [Dyn f]: if [f] returns [Some p], then the term is rewritten
