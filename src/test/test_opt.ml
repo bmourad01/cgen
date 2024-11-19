@@ -174,6 +174,7 @@ let suite = "Test optimizations" >::: [
     "Short-circuiting OR" >:: test "shortcircor";
     "Short-circuiting OR (flag indirection)" >:: test "shortcircor2";
     "Short-circuiting OR (negated flag indirection)" >:: test "shortcircor3";
+    "Edge contraction and select" >:: test "contractsel";
 
     (* SysV ABI lowering tests *)
     "Simple calls (SysV)" >:: test_sysv "addcalls";

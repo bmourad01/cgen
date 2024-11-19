@@ -56,7 +56,8 @@ let collect tenv env fn =
       with Non_basic -> acc)
 
 let run tenv env fn =
-  collect tenv env fn |> Context.List.iter ~f:(fun (b, c, l, args) ->
+  let xs = collect tenv env fn in
+  let+ () = Context.List.iter xs ~f:(fun (b, c, l, args) ->
       let+ sels = Context.List.map args ~f:(fun (ty, y, n) ->
           let+ x, sel = Context.Virtual.sel ty c y n in
           Hashtbl.set env.typs ~key:x ~data:(ty :> Type.t);
@@ -64,4 +65,5 @@ let run tenv env fn =
       let args, sels = List.unzip sels in
       let b = Blk.with_ctrl b @@ `jmp (`label (l, args)) in
       let b = Blk.append_insns b sels in
-      Hashtbl.set env.blks ~key:(Blk.label b) ~data:b)
+      Hashtbl.set env.blks ~key:(Blk.label b) ~data:b) in
+  not @@ List.is_empty xs

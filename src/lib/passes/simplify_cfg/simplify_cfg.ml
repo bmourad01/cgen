@@ -21,11 +21,12 @@ let run tenv fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let env = init fn in
     let rec loop fn =
-      let* () = Brsel.run tenv env fn in
+      let* brsel = Brsel.run tenv env fn in
       if Merge_blks.run env
       || Contract.run env
       || Short_circ.run env
       || Duplicate_br.run env
+      || brsel
       then loop @@ recompute_cfg env @@ update_fn env fn
       else !!fn in
     try_ @@ fun () ->
