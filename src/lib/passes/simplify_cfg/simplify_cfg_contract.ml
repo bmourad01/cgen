@@ -39,7 +39,15 @@ let chase ?(local_only = false) (s : singles) l =
       | None -> !!(Dest loc) in
   aux l Label.Set.empty
 
-(* Perform the substitutions on block arguments for the entire chain. *)
+(* Perform the substitutions on block arguments for the entire chain.
+
+   The final substitution happens when we reach the `Dest` case, at
+   which point we return it and it becomes the new destination for
+   the block at the beginning of this chain.
+
+   I am mentioning this here because I want to remind myself later
+   that this is sound.
+*)
 let rec eval subst env = function
   | Dest d -> !!(Subst_mapper.map_dst subst d)
   | Next (l, l', x) ->
