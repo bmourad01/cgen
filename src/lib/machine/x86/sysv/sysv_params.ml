@@ -202,23 +202,25 @@ let compute_register_save_area env =
 
 (* Lower the parameters of the function and copy their contents
    to SSA variables or stack slots. *)
-let lower env =
+let lower_params env =
   let ofs = ref 0 in
   let* reg, reg2 = init_regs env in
-  let* () =
-    Func.args env.fn |>
-    Context.Seq.iter ~f:(fun (x, t) -> match t with
-        | #Type.basic as t ->
-          !!(basic_param ~ofs ~reg env t x)
-        | `name s ->
-          let* k = type_cls env s in
-          let* y = if k.size > 0
-            then new_slot env k.size k.align
-            else !!x in
-          Hashtbl.set env.refs ~key:x ~data:y;
-          match k.cls with
-          | Kreg _ when k.size = 0 -> assert false
-          | Kreg (r, _) when k.size = 8 -> onereg_param ~ofs ~reg env x y r
-          | Kreg (r1, r2) -> tworeg_param ~ofs ~reg2 env y r1 r2
-          | Kmem -> memory_param ~ofs env y k.size k.align) in
+  Func.args env.fn |>
+  Context.Seq.iter ~f:(fun (x, t) -> match t with
+      | #Type.basic as t ->
+        !!(basic_param ~ofs ~reg env t x)
+      | `name s ->
+        let* k = type_cls env s in
+        let* y = if k.size > 0
+          then new_slot env k.size k.align
+          else !!x in
+        Hashtbl.set env.refs ~key:x ~data:y;
+        match k.cls with
+        | Kreg _ when k.size = 0 -> assert false
+        | Kreg (r, _) when k.size = 8 -> onereg_param ~ofs ~reg env x y r
+        | Kreg (r1, r2) -> tworeg_param ~ofs ~reg2 env y r1 r2
+        | Kmem -> memory_param ~ofs env y k.size k.align)
+
+let lower env =
+  let* () = lower_params env in
   compute_register_save_area env
