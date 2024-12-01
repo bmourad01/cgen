@@ -1,4 +1,4 @@
-module sumv
+module vasum
 
 export function w $sum(w %n, ...) {
   %ap = slot 24, align 8

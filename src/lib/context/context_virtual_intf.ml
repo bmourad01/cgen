@@ -151,6 +151,12 @@ module type S = sig
       Virtual.module_ ->
       f:(Virtual.func -> Virtual.func context) ->
       Virtual.module_ context
+
+    (** Same as [map_funs], but for ABI-lowered modules. *)
+    val map_funs_abi :
+      Virtual.Abi.module_ ->
+      f:(Virtual.Abi.func -> Virtual.Abi.func context) ->
+      Virtual.Abi.module_ context
   end
 
   (** Same as the above helpers, but for the ABI variant of Virtual IR. *)

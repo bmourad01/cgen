@@ -1,3 +1,5 @@
+module addcalls
+
 export function $foo() {
 @2:
   %v.1/w/rax = call $bar() ; @4

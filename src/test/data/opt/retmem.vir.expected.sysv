@@ -1,3 +1,5 @@
+module retmem
+
 export function $foo(l %3/rdi, l %a/rsi, l %b/rdx, l %c/rcx, l %d/r8) {
   %x = slot 32, align 8
 @2:

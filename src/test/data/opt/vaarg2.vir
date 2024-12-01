@@ -1,4 +1,4 @@
-module vaarg1
+module vaarg2
 
 type :t = {
   l,

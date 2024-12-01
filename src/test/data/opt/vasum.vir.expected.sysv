@@ -1,3 +1,5 @@
+module vasum
+
 export function $sum(w %n/rdi, ...) {
   %ap = slot 24, align 8
   %3 = slot 176, align 16

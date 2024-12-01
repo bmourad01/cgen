@@ -1,3 +1,5 @@
+module vaarg2
+
 export function $foo(l %i/rdi, ...) {
   %ap = slot 24, align 8
   %r = slot 16, align 8

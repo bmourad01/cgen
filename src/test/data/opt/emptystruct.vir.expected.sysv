@@ -1,3 +1,5 @@
+module emptystruct
+
 function $bar(l %0/+0) {
 @2:
   ret

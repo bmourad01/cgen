@@ -1,3 +1,5 @@
+module gcdextm
+
 export function $gcdext(w %a/rdi, w %b/rsi, l %x/rdx, l %y/rcx) {
   %x1 = slot 8, align 8
   %y1 = slot 8, align 8

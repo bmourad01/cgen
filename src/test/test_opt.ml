@@ -39,18 +39,26 @@ let compare_outputs expected p' =
   let msg = Format.asprintf "Expected:@,@[%s@]@,Got:@,@[%s@]" expected p' in
   assert_equal (fmt p') (fmt expected) ~msg ~cmp:String.equal
 
+let to_abi m tenv =
+  let open Context.Syntax in
+  let+ funs =
+    Virtual.Module.funs m |> Seq.to_list |>
+    Context.List.map ~f:(Passes.Lower_abi.run tenv) in
+  Virtual.Abi.Module.create () ~funs
+    ~name:(Virtual.Module.name m)
+    ~dict:(Virtual.Module.dict m)
+    ~data:(Seq.to_list @@ Virtual.Module.data m)
+
 let from_file_abi filename =
   let open Context.Syntax in
   let* tenv, m = from_file filename in
   let*? tenv = retype tenv m in
-  let* fns =
-    Virtual.Module.funs m |> Seq.to_list |>
-    Context.List.map ~f:(Passes.Lower_abi.run tenv) in
-  let* fns = Context.map_list_err fns ~f:Passes.Promote_slots.run_abi in
-  let* fns = Context.map_list_err fns ~f:Passes.Abi_loadopt.run in
-  let fns = List.map fns ~f:Passes.Remove_disjoint_blks.run_abi in
-  let* fns = Context.map_list_err fns ~f:Passes.Remove_dead_vars.run_abi in
-  !!fns
+  let* m = to_abi m tenv in
+  let*? m = Virtual.Abi.Module.map_funs_err m ~f:Passes.Promote_slots.run_abi in
+  let*? m = Virtual.Abi.Module.map_funs_err m ~f:Passes.Abi_loadopt.run in
+  let m = Virtual.Abi.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run_abi in
+  let*? m = Virtual.Abi.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run_abi in
+  !!m
 
 let test name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
@@ -73,12 +81,9 @@ let test_abi target ext name _ =
   Context.init target |>
   Context.eval begin
     let open Context.Syntax in
-    let* fns = from_file_abi filename in
-    let* () = Context.iter_list_err fns ~f:Passes.Ssa.check_abi in
-    !!(Format.asprintf "@[<v 0>%a@]\n%!"
-         (Format.pp_print_list
-            ~pp_sep:(fun ppf () -> Format.fprintf ppf "@.@.")
-            Virtual.Abi.Func.pp) fns)
+    let* m = from_file_abi filename in
+    let* () = Context.iter_seq_err (Virtual.Abi.Module.funs m) ~f:Passes.Ssa.check_abi in
+    !!(Format.asprintf "%a" Virtual.Abi.Module.pp m)
   end |> function
   | Ok p' -> compare_outputs expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err

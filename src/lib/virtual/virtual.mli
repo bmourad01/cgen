@@ -588,7 +588,9 @@ type data = Data.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A module is a single translation unit. *)
 module Module : sig
-  type t [@@deriving bin_io, compare, equal, sexp]
+  include Virtual_module_intf.S
+    with type data := data
+     and type func := func
 
   (** Creates a module. *)
   val create :
@@ -600,74 +602,22 @@ module Module : sig
     unit ->
     t
 
-  (** The name of the module. *)
-  val name : t -> string
-
   (** Declared (compound) types that are visible in the module. *)
   val typs : ?rev:bool -> t -> Type.compound seq
-
-  (** Structs defined in the module. *)
-  val data : ?rev:bool -> t -> data seq
-
-  (** Functions defined in the module. *)
-  val funs : ?rev:bool -> t -> func seq
-
-  (** Returns the dictionary of the module. *)
-  val dict : t -> Dict.t
-
-  (** Replaces the dictionary of the module. *)
-  val with_dict : t -> Dict.t -> t
-
-  (** [with_tag m t v] binds [v] to tag [t] in the dictionary of [m]. *)
-  val with_tag : t -> 'a Dict.tag -> 'a -> t
-
-  (** Returns [true] if the module has the associated name. *)
-  val has_name : t -> string -> bool
 
   (** Appends a type to the module. *)
   val insert_type : t -> Type.compound -> t
 
-  (** Appends a struct to the module. *)
-  val insert_data : t -> data -> t
-
-  (** Appends a function to the module. *)
-  val insert_fn : t -> func -> t
-
   (** Removes the type associated with the name. *)
   val remove_type : t -> string -> t
 
-  (** Removes the struct associated with the name. *)
-  val remove_data : t -> string -> t
-
-  (** Removes the function associated with the name. *)
-  val remove_fn : t -> string -> t
-
   (** Returns the module with each type transformed by [f]. *)
   val map_typs : t -> f:(Type.compound -> Type.compound) -> t
-
-  (** Returns the module with each struct transformed by [f]. *)
-  val map_data : t -> f:(data -> data) -> t
-
-  (** Returns the module with each function transformed by [f]. *)
-  val map_funs : t -> f:(func -> func) -> t
-
-  (** Replaces the functions in the module. *)
-  val with_funs : t -> func list -> t
 
   (** Returns the module with each type transformed by [f],
       where [f] may fail. *)
   val map_typs_err :
     t -> f:(Type.compound -> Type.compound Or_error.t) -> t Or_error.t
-
-  (** Returns the module with each struct transformed by [f],
-      where [f] may fail. *)
-  val map_data_err : t -> f:(data -> data Or_error.t) -> t Or_error.t
-
-  (** Returns the module with each function transformed by [f],
-      where [f] may fail. *)
-  val map_funs_err : t -> f:(func -> func Or_error.t) -> t Or_error.t
-
-  include Regular.S with type t := t
 end
 
 type module_ = Module.t
@@ -879,6 +829,24 @@ module Abi : sig
   end
 
   type func = Func.t [@@deriving bin_io, compare, equal, sexp]
+
+  (** A translation unit. *)
+  module Module : sig
+    include Virtual_module_intf.S
+      with type data := data
+       and type func := func
+
+    (** Creates a module. *)
+    val create :
+      ?dict:Dict.t ->
+      ?data:data list ->
+      ?funs:func list ->
+      name:string ->
+      unit ->
+      t
+  end
+
+  type module_ = Module.t [@@deriving bin_io, compare, equal, sexp]
 
   module Cfg : sig
     include Label.Graph

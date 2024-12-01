@@ -1,3 +1,5 @@
+module sumphi
+
 function $sum(l %s/rdi) {
   %p = slot 8, align 8
 @2:

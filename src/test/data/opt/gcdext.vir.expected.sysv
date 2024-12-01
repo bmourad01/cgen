@@ -1,3 +1,5 @@
+module gcdext
+
 export function $gcd(w %a/rdi, w %b/rsi) {
   %res = slot 16, align 8
   %r = slot 16, align 8
