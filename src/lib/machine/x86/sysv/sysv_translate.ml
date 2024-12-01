@@ -3,6 +3,23 @@ open Regular.Std
 open Virtual
 open Sysv_common
 
+(* A block translation context. *)
+type transl = {
+  ivec         : Abi.insn Vec.t; (* Pending instructions to be committed. *)
+  bvec         : Abi.blk Vec.t;  (* Pending blocks to be committed. *)
+  mutable args : Var.t list;     (* Arguments of the current block. *)
+  mutable cins : Abi.insn list;  (* Instructions immediately before the `ctrl`. *)
+  mutable ctrl : Abi.ctrl;       (* Current control flow instruction. *)
+}
+
+let create_transl () = {
+  ivec = Vec.create ();
+  bvec = Vec.create ();
+  args = [];
+  cins = [];
+  ctrl = `hlt; (* dummy *)
+}
+
 let transl_var env x = match Hashtbl.find env.refs x with
   | Some y -> y
   | None -> x
@@ -91,59 +108,71 @@ let transl_ret env l =
   let r = Hashtbl.find_exn env.rets l in
   r.reti, `ret r.retr
 
-let transl_ctrl env l (c : ctrl) : Abi.insn list * Abi.ctrl =
+let transl_ctrl t env l (c : ctrl) =
   let dst = transl_dst env in
-  match c with
-  | `hlt -> [], `hlt
-  | `jmp d -> [], `jmp (dst d)
-  | `br (c, y, n) -> [], `br (transl_var env c, dst y, dst n)
-  | `sw (t, i, d, tbl) -> [], transl_sw env t i d tbl
-  | `ret None -> [], `ret []
-  | `ret Some _ -> transl_ret env l
+  let is, c' = match c with
+    | `hlt -> [], `hlt
+    | `jmp d -> [], `jmp (dst d)
+    | `br (c, y, n) -> [], `br (transl_var env c, dst y, dst n)
+    | `sw (t, i, d, tbl) -> [], transl_sw env t i d tbl
+    | `ret None -> [], `ret []
+    | `ret Some _ -> transl_ret env l in
+  t.cins <- is;
+  t.ctrl <- c'
 
 (* We're done translating this block, either because we translated
    all the remaining instructions or we had to split it in the
    `vaarg` case. *)
-let commit_blk ivec args (cins, ctrl) label =
-  List.iter cins ~f:(Vec.push ivec);
-  let insns = Vec.to_list ivec in
-  Vec.clear ivec;
-  Abi.Blk.create () ~args ~insns ~ctrl ~label
+let commit_blk t label =
+  List.iter t.cins ~f:(Vec.push t.ivec);
+  let insns = Vec.to_list t.ivec in
+  Vec.clear t.ivec;
+  Vec.push t.bvec @@ Abi.Blk.create ()
+    ~label ~insns ~args:t.args ~ctrl:t.ctrl
 
 (* Translate a single block, which may be split into multiple blocks. *)
-let rec transl_blk env ivec args ctrl label acc = function
-  | [] -> Ftree.to_list (acc @> commit_blk ivec args ctrl label)
-  | i :: rest -> match Insn.op i with
+let rec transl_blk t env label s = match Seq.next s with
+  | None ->
+    commit_blk t label;
+    let blks = Vec.to_list t.bvec in
+    Vec.clear t.bvec;
+    blks
+  | Some (i, rest) -> match Insn.op i with
     | `vaarg _ ->
-      begin match Hashtbl.find env.vaarg @@ Insn.label i with
-        | None -> transl_blk env ivec args ctrl label acc rest
-        | Some v ->
-          (* Jump to the start of the `vaarg` logic. *)
-          let start = Abi.Blk.label @@ List.hd_exn v.vablks in
-          let ctrl' = [], `jmp (`label (start, [])) in
-          let b = commit_blk ivec args ctrl' label in
-          (* Resume with the provided continuation. *)
-          let acc = acc @>* (b :: v.vablks) in
-          transl_blk env ivec [] ctrl v.vacont acc rest
-      end
+      (* If we performed the `vaarg` lowering pass beforehand, then
+         this shouldn't fail. *)
+      let v = Hashtbl.find_exn env.vaarg @@ Insn.label i in
+      transl_vaarg t env label v rest
     | _ ->
       (* No splitting needed. *)
-      transl_insn env ivec i;
-      transl_blk env ivec args ctrl label acc rest
+      transl_insn env t.ivec i;
+      transl_blk t env label rest
+
+(* Translate a `vaarg` instruction in the middle of a block. This is
+   where we split it into multiple blocks and resume translating the
+   rest of the instructions. *)
+and transl_vaarg t env label v rest =
+  (* Jump to the start of the `vaarg` logic. *)
+  let start = Abi.Blk.label @@ List.hd_exn v.vablks in
+  let t' = {t with cins = []; ctrl = `jmp (`label (start, []))} in
+  commit_blk t' label;
+  (* Resume with the provided continuation. *)
+  t.args <- [];
+  List.iter v.vablks ~f:(Vec.push t.bvec);
+  transl_blk t env v.vacont rest
 
 let transl_blks env =
-  let ivec = Vec.create () in
+  let t = create_transl () in
   let entry = Func.entry env.fn in
   Func.blks env.fn |> Seq.to_list |> List.bind ~f:(fun b ->
       let l = Blk.label b in
       (* Entry block copies the parameters. *)
       if Label.(l = entry) then
         Vec.iter env.params ~f:(fun p ->
-            List.iter p.pins ~f:(Vec.push ivec));
-      let args = Blk.args b |> Seq.to_list in
-      let ctrl = transl_ctrl env l @@ Blk.ctrl b in
-      transl_blk env ivec args ctrl l Ftree.empty @@
-      Seq.to_list @@ Blk.insns b)
+            List.iter p.pins ~f:(Vec.push t.ivec));
+      t.args <- Seq.to_list @@ Blk.args b;
+      transl_ctrl t env l @@ Blk.ctrl b;
+      transl_blk t env l @@ Blk.insns b)
 
 let make_dict env =
   let lnk = Func.linkage env.fn in
