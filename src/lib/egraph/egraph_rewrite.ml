@@ -160,19 +160,25 @@ and search t pending =
   (fun ps cs -> children empty_subst ps cs Fn.id), pat
 
 and rewrite ?ty ~d t rws return action subsume ~f =
-  (* Assemble the right-hand side of the rule. *)
-  let rec go env = function
+  (* Check that all variables on the RHS are in the substitution,
+     so that we don't insert useless terms into the e-graph only
+     to run into an uninstantiated variable. *)
+  let rec check env = function
+    | V x when Map.mem env x -> ()
+    | V _ -> raise_notrace Mismatch
+    | P (_, ps) -> List.iter ps ~f:(check env) in
+  (* Assemble the RHS of the rule. *)
+  let rec assemble env = function
+    | V x -> (Map.find_exn env x).Subst.id
     | P (o, ps) ->
-      let cs = List.map ps ~f:(go env) in
-      insert ~d t @@ N (o, cs)
-    | V x -> match Map.find env x with
-      | None -> raise_notrace Mismatch
-      | Some i -> i.Subst.id in
+      let cs = List.map ps ~f:(assemble env) in
+      insert ~d t @@ N (o, cs) in
   (* Cap the number of new terms that can be inserted. For large
      chains of union nodes this helps to keep the running time
      from exploding. *)
   if rws.budget > 0 then try
       let env = f () in
+      let go env p = check env p; assemble env p in
       let oid = match action with
         | Static p -> go env p
         | Cond (p, k) when k env -> go env p
