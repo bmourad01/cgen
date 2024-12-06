@@ -65,13 +65,13 @@ let is_header t l = match blk t l with
   | Some n -> Label.equal l @@ (get t n).header
   | None -> false
 
-let rec is_child_of t n m =
-  n = m || match (get t n).parent with
-  | Some p -> is_child_of t p m
+let rec is_child_of ~parent t n =
+  n = parent || match (get t n).parent with
+  | Some p -> is_child_of ~parent t p
   | None -> false
 
 let is_in_loop t l n = match blk t l with
-  | Some m -> is_child_of t m n
+  | Some m -> is_child_of ~parent:n t m
   | None -> false
 
 let loops_of t l = match blk t l with

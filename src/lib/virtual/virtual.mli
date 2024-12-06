@@ -464,9 +464,9 @@ module Loops : sig
       is the header of a loop. *)
   val is_header : t -> Label.t -> bool
 
-  (** [is_child_of t m n] returns [true] if [m = n] or [m] is
-      nested in [n]. *)
-  val is_child_of : t -> loop -> loop -> bool
+  (** [is_child_of ~parent t n] returns [true] if [equal_loop n parent]
+      or [n] is nested in [parent]. *)
+  val is_child_of : parent:loop -> t -> loop -> bool
 
   (** [is_in_loop t l n] returns [true] if the block at label [l] is
       a member of the loop [n]. *)

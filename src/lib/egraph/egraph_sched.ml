@@ -107,7 +107,7 @@ let duplicate t id a =
     Hashtbl.set t.ilbl ~key:cid ~data:a
 
 module Licm = struct
-  let is_child_loop t a b = Loops.is_child_of t.input.loop a b
+  let is_child_loop ~parent t a = Loops.is_child_of ~parent t.input.loop a
   let find_blk_loop t l = Loops.blk t.input.loop l
 
   let find_loop t l = match Resolver.resolve t.input.reso l with
@@ -120,7 +120,7 @@ module Licm = struct
        thereof. *)
     let rec is_variant ~lp t l n = match find_loop t l with
       | Some lp' when Loops.equal_loop lp lp' -> true
-      | Some lp' when is_child_loop t lp lp' -> false
+      | Some lp' when is_child_loop ~parent:lp' t lp -> false
       | Some _ -> children ~lp t n
       | None -> false
 
@@ -164,7 +164,7 @@ module Licm = struct
               | Some lp' when Loops.equal_loop lp lp' ->
                 (* It's defined by a block within the current loop. *)
                 true
-              | Some lp' when is_child_loop t lp lp' ->
+              | Some lp' when is_child_loop ~parent:lp' t lp ->
                 (* The loop it belongs to is nested inside of the
                    current one. *)
                 false
@@ -210,7 +210,7 @@ module Licm = struct
           | None -> First l
           | Some lp -> Second lp)
 
-  let exists_in_loop t lp = List.exists ~f:(fun lp' -> is_child_loop t lp' lp)
+  let exists_in_loop t parent = List.exists ~f:(is_child_loop ~parent t)
 
   let licm_move t l l' lp id lhs =
     let l' = match lhs with
