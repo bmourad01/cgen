@@ -128,18 +128,12 @@ module Licm = struct
     and children ~lp t n = match (n : enode) with
       | N (_, cs) -> List.exists cs ~f:(child ~lp t)
       | U {pre; post} ->
-        (* XXX: do we want to default to the canonical ID here?
-           We have to answer the question of whether the term
-           could have been (soundly) rewritten such that it
-           becomes invariant with respect to `lp`.
-
-           Note that we ignore the case of rewriting to a constant,
-           as they are marked as "subsuming" the previous term
-           instead of being part of a tree of union nodes.
-        *)
-        let id = find t pre in
-        assert (id = find t post);
-        children ~lp t @@ node t id
+        (* We will take a conservative approach here. Since we can't
+           predict whether the rewritten term is the one that will
+           be extracted, we have to consider whether either terms are
+           loop-variant. *)
+        let go = Fn.compose (children ~lp t) (node t) in
+        go pre || go post
 
     (* Generic entry point for determining of a node ID is variant
        w.r.t the loop `lp`.
