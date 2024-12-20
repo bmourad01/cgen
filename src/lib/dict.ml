@@ -17,6 +17,9 @@ type 'a tag = {
   key : 'a Type_equal.Id.t;
 } [@@unboxed]
 
+let pp_tag ppf {key} =
+  Format.fprintf ppf "%s" @@ Type_equal.Id.name key
+
 type value = Univ_map.Packed.t = T : 'a Type_equal.Id.t * 'a -> value
 
 module Equal = struct

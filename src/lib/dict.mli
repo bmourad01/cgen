@@ -23,6 +23,8 @@ val pp_value : Format.formatter -> value -> unit
 (** A tag constructor of type ['a]. *)
 type 'a tag
 
+val pp_tag : Format.formatter -> 'a tag -> unit
+
 (** [register ~uuid name (module T)] creates a new variant constructor
     that accepts values of type [T.t].
 

@@ -36,7 +36,7 @@
     open Context.Syntax
 
     let setenv v = Context.Local.set tag v
-    let curenv = Context.Local.get tag ~default:Env.empty
+    let curenv = Context.Local.get' tag ~default:Env.empty
 
     (* Each time parse a new function, reset the context, since
        labels do not have scope outside of a function body. *)
