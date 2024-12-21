@@ -104,7 +104,7 @@ let pp_extra ppf : extra -> unit = function
   | `loadreg (x, t, r) ->
     Format.fprintf ppf "%a = rld.%a %s" Var.pp x Type.pp_basic t r
   | `storereg (r, a) ->
-    Format.fprintf ppf "st.r %s, %a" r pp_operand a
+    Format.fprintf ppf "rst %s, %a" r pp_operand a
   | `setreg (r, a) ->
     Format.fprintf ppf "%s = %a" r pp_operand a
   | `stkargs x ->

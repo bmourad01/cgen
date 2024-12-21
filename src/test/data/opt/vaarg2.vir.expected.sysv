@@ -7,35 +7,35 @@ export function $foo(l %i/rdi, ...) {
   %19 = slot 16, align 8
 @18:
   %4 = add.l %3, 0x8_l ; @19
-  st.r rsi, %4 ; @20
+  rst rsi, %4 ; @20
   %5 = add.l %3, 0x10_l ; @21
-  st.r rdx, %5 ; @22
+  rst rdx, %5 ; @22
   %6 = add.l %3, 0x18_l ; @23
-  st.r rcx, %6 ; @24
+  rst rcx, %6 ; @24
   %7 = add.l %3, 0x20_l ; @25
-  st.r r8, %7 ; @26
+  rst r8, %7 ; @26
   %8 = add.l %3, 0x28_l ; @27
-  st.r r9, %8 ; @28
+  rst r9, %8 ; @28
   %9 = rld.b rax ; @29
   %10 = eq.b %9, 0x0_b ; @30
   br %10, @2, @17
 @17:
   %11 = add.l %3, 0x30_l ; @31
-  st.r xmm0, %11 ; @32
+  rst xmm0, %11 ; @32
   %12 = add.l %3, 0x40_l ; @33
-  st.r xmm1, %12 ; @34
+  rst xmm1, %12 ; @34
   %13 = add.l %3, 0x50_l ; @35
-  st.r xmm2, %13 ; @36
+  rst xmm2, %13 ; @36
   %14 = add.l %3, 0x60_l ; @37
-  st.r xmm3, %14 ; @38
+  rst xmm3, %14 ; @38
   %15 = add.l %3, 0x70_l ; @39
-  st.r xmm4, %15 ; @40
+  rst xmm4, %15 ; @40
   %16 = add.l %3, 0x80_l ; @41
-  st.r xmm5, %16 ; @42
+  rst xmm5, %16 ; @42
   %17 = add.l %3, 0x90_l ; @43
-  st.r xmm6, %17 ; @44
+  rst xmm6, %17 ; @44
   %18 = add.l %3, 0xa0_l ; @45
-  st.r xmm7, %18 ; @46
+  rst xmm7, %18 ; @46
   jmp @2
 @2:
   st.w 0x8_w, %ap ; @53
@@ -85,37 +85,37 @@ export function $bar(...) {
   %ap = slot 24, align 8
   %42 = slot 176, align 16
 @84:
-  st.r rdi, %42 ; @85
+  rst rdi, %42 ; @85
   %43 = add.l %42, 0x8_l ; @86
-  st.r rsi, %43 ; @87
+  rst rsi, %43 ; @87
   %44 = add.l %42, 0x10_l ; @88
-  st.r rdx, %44 ; @89
+  rst rdx, %44 ; @89
   %45 = add.l %42, 0x18_l ; @90
-  st.r rcx, %45 ; @91
+  rst rcx, %45 ; @91
   %46 = add.l %42, 0x20_l ; @92
-  st.r r8, %46 ; @93
+  rst r8, %46 ; @93
   %47 = add.l %42, 0x28_l ; @94
-  st.r r9, %47 ; @95
+  rst r9, %47 ; @95
   %48 = rld.b rax ; @96
   %49 = eq.b %48, 0x0_b ; @97
   br %49, @11, @83
 @83:
   %50 = add.l %42, 0x30_l ; @98
-  st.r xmm0, %50 ; @99
+  rst xmm0, %50 ; @99
   %51 = add.l %42, 0x40_l ; @100
-  st.r xmm1, %51 ; @101
+  rst xmm1, %51 ; @101
   %52 = add.l %42, 0x50_l ; @102
-  st.r xmm2, %52 ; @103
+  rst xmm2, %52 ; @103
   %53 = add.l %42, 0x60_l ; @104
-  st.r xmm3, %53 ; @105
+  rst xmm3, %53 ; @105
   %54 = add.l %42, 0x70_l ; @106
-  st.r xmm4, %54 ; @107
+  rst xmm4, %54 ; @107
   %55 = add.l %42, 0x80_l ; @108
-  st.r xmm5, %55 ; @109
+  rst xmm5, %55 ; @109
   %56 = add.l %42, 0x90_l ; @110
-  st.r xmm6, %56 ; @111
+  rst xmm6, %56 ; @111
   %57 = add.l %42, 0xa0_l ; @112
-  st.r xmm7, %57 ; @113
+  rst xmm7, %57 ; @113
   jmp @11
 @11:
   st.w 0x0_w, %ap ; @114

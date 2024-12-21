@@ -7,35 +7,35 @@ export function $foo(l %i/rdi, ...) {
   %20 = slot 16, align 8
 @17:
   %5 = add.l %4, 0x8_l ; @18
-  st.r rsi, %5 ; @19
+  rst rsi, %5 ; @19
   %6 = add.l %4, 0x10_l ; @20
-  st.r rdx, %6 ; @21
+  rst rdx, %6 ; @21
   %7 = add.l %4, 0x18_l ; @22
-  st.r rcx, %7 ; @23
+  rst rcx, %7 ; @23
   %8 = add.l %4, 0x20_l ; @24
-  st.r r8, %8 ; @25
+  rst r8, %8 ; @25
   %9 = add.l %4, 0x28_l ; @26
-  st.r r9, %9 ; @27
+  rst r9, %9 ; @27
   %10 = rld.b rax ; @28
   %11 = eq.b %10, 0x0_b ; @29
   br %11, @2, @16
 @16:
   %12 = add.l %4, 0x30_l ; @30
-  st.r xmm0, %12 ; @31
+  rst xmm0, %12 ; @31
   %13 = add.l %4, 0x40_l ; @32
-  st.r xmm1, %13 ; @33
+  rst xmm1, %13 ; @33
   %14 = add.l %4, 0x50_l ; @34
-  st.r xmm2, %14 ; @35
+  rst xmm2, %14 ; @35
   %15 = add.l %4, 0x60_l ; @36
-  st.r xmm3, %15 ; @37
+  rst xmm3, %15 ; @37
   %16 = add.l %4, 0x70_l ; @38
-  st.r xmm4, %16 ; @39
+  rst xmm4, %16 ; @39
   %17 = add.l %4, 0x80_l ; @40
-  st.r xmm5, %17 ; @41
+  rst xmm5, %17 ; @41
   %18 = add.l %4, 0x90_l ; @42
-  st.r xmm6, %18 ; @43
+  rst xmm6, %18 ; @43
   %19 = add.l %4, 0xa0_l ; @44
-  st.r xmm7, %19 ; @45
+  rst xmm7, %19 ; @45
   jmp @2
 @2:
   st.w 0x8_w, %ap ; @52

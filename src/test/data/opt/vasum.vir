@@ -18,3 +18,9 @@ export function w $sum(w %n, ...) {
 @done:
   ret %x
 }
+
+export function w $twenty_one() {
+@start:
+  %x = call.w $sum(6_w, ..., 1_w, 2_w, 3_w, 4_w, 5_w, 6_w)
+  ret %x
+}
