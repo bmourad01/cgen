@@ -220,12 +220,12 @@ module Optimize = struct
     | `call (xs, f, args) -> call t l xs f args
     | `store (ty, v, a) -> store t l ty v a
     | `load (x, ty, a) -> load t l x ty a
-    | `loadreg _ as lr -> lr
-    | `storereg (r, a) ->
+    | `regcopy _ as lr -> lr
+    | `regstore (r, a) ->
       let a = operand t a in
       undef t l a;
-      `storereg (r, a)
-    | `setreg (r, a) -> `setreg (r, operand t a)
+      `regstore (r, a)
+    | `regassign (r, a) -> `regassign (r, operand t a)
     | `stkargs _ as sa -> sa
 
   let br t c y n =

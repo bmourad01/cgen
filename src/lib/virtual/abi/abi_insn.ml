@@ -88,25 +88,25 @@ let pp_call ppf : call -> unit = function
       pp_call_rets xs pp_global f pp_call_args args
 
 type extra = [
-  | `loadreg of Var.t * Type.basic * string
-  | `storereg of string * operand
-  | `setreg of string * operand
+  | `regcopy of Var.t * Type.basic * string
+  | `regstore of string * operand
+  | `regassign of string * operand
   | `stkargs of Var.t
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_extra : extra -> Var.Set.t = function
-  | `loadreg _ -> Var.Set.empty
-  | `storereg (_, a) | `setreg (_, a) ->
+  | `regcopy _ -> Var.Set.empty
+  | `regstore (_, a) | `regassign (_, a) ->
     List.filter_map [a] ~f:var_of_operand |> Var.Set.of_list
   | `stkargs _ -> Var.Set.empty
 
 let pp_extra ppf : extra -> unit = function
-  | `loadreg (x, t, r) ->
-    Format.fprintf ppf "%a = rld.%a %s" Var.pp x Type.pp_basic t r
-  | `storereg (r, a) ->
-    Format.fprintf ppf "rst %s, %a" r pp_operand a
-  | `setreg (r, a) ->
-    Format.fprintf ppf "%s = %a" r pp_operand a
+  | `regcopy (x, t, r) ->
+    Format.fprintf ppf "%a = regcopy.%a %s" Var.pp x Type.pp_basic t r
+  | `regstore (r, a) ->
+    Format.fprintf ppf "regstore %s, %a" r pp_operand a
+  | `regassign (r, a) ->
+    Format.fprintf ppf "regassign %s, %a" r pp_operand a
   | `stkargs x ->
     Format.fprintf ppf "%a = stkargs" Var.pp x
 
@@ -147,11 +147,11 @@ let with_dict i dict = {i with dict}
 let with_tag i tag x = {i with dict = Dict.set i.dict tag x}
 
 let is_effectful_op : op -> bool = function
-  | #call | `store _ | `storereg _ -> true
+  | #call | `store _ | `regstore _ -> true
   | _ -> false
 
 let can_store_op : op -> bool = function
-  | #call | `store _ | `storereg _ -> true
+  | #call | `store _ | `regstore _ -> true
   | _ -> false
 
 let can_load_op : op -> bool = function
@@ -176,7 +176,7 @@ let def i = match i.op with
   | `uop (x, _, _)
   | `sel (x, _, _, _, _)
   | `load (x, _, _)
-  | `loadreg (x, _, _)
+  | `regcopy (x, _, _)
   | `stkargs x -> Var.Set.singleton x
-  | `store _ | `storereg _ | `setreg _ -> Var.Set.empty
+  | `store _ | `regstore _ | `regassign _ -> Var.Set.empty
   | `call (xs, _, _) -> Var.Set.of_list @@ List.map xs ~f:fst3

@@ -7,35 +7,35 @@ export function $foo(l %i/rdi, ...) {
   %19 = slot 16, align 8
 @18:
   %4 = add.l %3, 0x8_l ; @19
-  rst rsi, %4 ; @20
+  regstore rsi, %4 ; @20
   %5 = add.l %3, 0x10_l ; @21
-  rst rdx, %5 ; @22
+  regstore rdx, %5 ; @22
   %6 = add.l %3, 0x18_l ; @23
-  rst rcx, %6 ; @24
+  regstore rcx, %6 ; @24
   %7 = add.l %3, 0x20_l ; @25
-  rst r8, %7 ; @26
+  regstore r8, %7 ; @26
   %8 = add.l %3, 0x28_l ; @27
-  rst r9, %8 ; @28
-  %9 = rld.b rax ; @29
+  regstore r9, %8 ; @28
+  %9 = regcopy.b rax ; @29
   %10 = eq.b %9, 0x0_b ; @30
   br %10, @2, @17
 @17:
   %11 = add.l %3, 0x30_l ; @31
-  rst xmm0, %11 ; @32
+  regstore xmm0, %11 ; @32
   %12 = add.l %3, 0x40_l ; @33
-  rst xmm1, %12 ; @34
+  regstore xmm1, %12 ; @34
   %13 = add.l %3, 0x50_l ; @35
-  rst xmm2, %13 ; @36
+  regstore xmm2, %13 ; @36
   %14 = add.l %3, 0x60_l ; @37
-  rst xmm3, %14 ; @38
+  regstore xmm3, %14 ; @38
   %15 = add.l %3, 0x70_l ; @39
-  rst xmm4, %15 ; @40
+  regstore xmm4, %15 ; @40
   %16 = add.l %3, 0x80_l ; @41
-  rst xmm5, %16 ; @42
+  regstore xmm5, %16 ; @42
   %17 = add.l %3, 0x90_l ; @43
-  rst xmm6, %17 ; @44
+  regstore xmm6, %17 ; @44
   %18 = add.l %3, 0xa0_l ; @45
-  rst xmm7, %18 ; @46
+  regstore xmm7, %18 ; @46
   jmp @2
 @2:
   st.w 0x8_w, %ap ; @53
@@ -85,37 +85,37 @@ export function $bar(...) {
   %ap = slot 24, align 8
   %42 = slot 176, align 16
 @84:
-  rst rdi, %42 ; @85
+  regstore rdi, %42 ; @85
   %43 = add.l %42, 0x8_l ; @86
-  rst rsi, %43 ; @87
+  regstore rsi, %43 ; @87
   %44 = add.l %42, 0x10_l ; @88
-  rst rdx, %44 ; @89
+  regstore rdx, %44 ; @89
   %45 = add.l %42, 0x18_l ; @90
-  rst rcx, %45 ; @91
+  regstore rcx, %45 ; @91
   %46 = add.l %42, 0x20_l ; @92
-  rst r8, %46 ; @93
+  regstore r8, %46 ; @93
   %47 = add.l %42, 0x28_l ; @94
-  rst r9, %47 ; @95
-  %48 = rld.b rax ; @96
+  regstore r9, %47 ; @95
+  %48 = regcopy.b rax ; @96
   %49 = eq.b %48, 0x0_b ; @97
   br %49, @11, @83
 @83:
   %50 = add.l %42, 0x30_l ; @98
-  rst xmm0, %50 ; @99
+  regstore xmm0, %50 ; @99
   %51 = add.l %42, 0x40_l ; @100
-  rst xmm1, %51 ; @101
+  regstore xmm1, %51 ; @101
   %52 = add.l %42, 0x50_l ; @102
-  rst xmm2, %52 ; @103
+  regstore xmm2, %52 ; @103
   %53 = add.l %42, 0x60_l ; @104
-  rst xmm3, %53 ; @105
+  regstore xmm3, %53 ; @105
   %54 = add.l %42, 0x70_l ; @106
-  rst xmm4, %54 ; @107
+  regstore xmm4, %54 ; @107
   %55 = add.l %42, 0x80_l ; @108
-  rst xmm5, %55 ; @109
+  regstore xmm5, %55 ; @109
   %56 = add.l %42, 0x90_l ; @110
-  rst xmm6, %56 ; @111
+  regstore xmm6, %56 ; @111
   %57 = add.l %42, 0xa0_l ; @112
-  rst xmm7, %57 ; @113
+  regstore xmm7, %57 ; @113
   jmp @11
 @11:
   st.w 0x0_w, %ap ; @114

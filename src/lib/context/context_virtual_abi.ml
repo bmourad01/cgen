@@ -38,16 +38,16 @@ let load ?(dict = Dict.empty) t a =
 let store ?(dict = Dict.empty) t v a =
   insn (`store (t, v, a)) ~dict
 
-let loadreg ?(dict = Dict.empty) t r =
+let regcopy ?(dict = Dict.empty) t r =
   let* var = Var.fresh in
-  let+ i = insn (`loadreg (var, t, r)) ~dict in
+  let+ i = insn (`regcopy (var, t, r)) ~dict in
   var, i
 
-let storereg ?(dict = Dict.empty) r a =
-  insn (`storereg (r, a)) ~dict
+let regstore ?(dict = Dict.empty) r a =
+  insn (`regstore (r, a)) ~dict
 
-let setreg ?(dict = Dict.empty) r a =
-  insn (`setreg (r, a)) ~dict
+let regassign ?(dict = Dict.empty) r a =
+  insn (`regassign (r, a)) ~dict
 
 let stkargs ?(dict = Dict.empty) () =
   let* var = Var.fresh in

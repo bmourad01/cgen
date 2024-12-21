@@ -180,22 +180,22 @@ module type S = sig
       Virtual.Abi.Insn.callarg list ->
       ((var * Type.basic * string) list * Virtual.Abi.insn) context
 
-    (** [loadreg ?dict t r] fetches register [r] with type [t]. *)
-    val loadreg :
+    (** [regcopy ?dict t r] fetches register [r] with type [t]. *)
+    val regcopy :
       ?dict:Dict.t ->
       Type.basic ->
       string ->
       (var * Virtual.Abi.insn) context
 
-    (** [storereg ?dict v a] stores register [r] at address [a]. *)
-    val storereg :
+    (** [regstore ?dict v a] stores register [r] at address [a]. *)
+    val regstore :
       ?dict:Dict.t ->
       string ->
       Virtual.operand ->
       Virtual.Abi.insn context
 
-    (** [setreg ?dict v a] loads register [r] with value [a]. *)
-    val setreg :
+    (** [regassign ?dict v a] assigns value [a] to register [r]. *)
+    val regassign :
       ?dict:Dict.t ->
       string ->
       Virtual.operand ->

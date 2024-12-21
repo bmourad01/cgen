@@ -81,7 +81,7 @@ module A = Make(struct
 
       let check_div_rem i = check_div_rem (Insn.dict i) (Insn.op i)
 
-      (* Even for instructions like `loadreg` and `stkargs`, they can
+      (* Even for instructions like `regcopy` and `stkargs`, they can
          be thought of as pure in the sense that we can discard them
          if they aren't used; the caveat is they cannot be trivially
          rescheduled.
@@ -94,11 +94,11 @@ module A = Make(struct
         | `uop (x, _, _)
         | `sel (x, _, _, _, _)
         | `load (x, _, _)
-        | `loadreg (x, _, _)
+        | `regcopy (x, _, _)
         | `stkargs x -> Some x
         | `store _
-        | `storereg _
-        | `setreg _
+        | `regstore _
+        | `regassign _
         | `call _ -> None
     end
 

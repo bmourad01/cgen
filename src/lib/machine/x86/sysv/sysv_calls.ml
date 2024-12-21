@@ -218,7 +218,7 @@ let lower env = iter_blks env ~f:(fun b ->
             | [] -> !!k
             | _ ->
               let n = Array.length sse_args - Stack.length qs in
-              let+ i = Cv.Abi.setreg (reg_str `rax) (i8 n) in
+              let+ i = Cv.Abi.regassign (reg_str `rax) (i8 n) in
               {k with callai = k.callai @> i} in
           (* Process the return value. *)
           let+ k = lower_call_ret env kret k in

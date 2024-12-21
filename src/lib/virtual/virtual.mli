@@ -663,21 +663,21 @@ module Abi : sig
 
     (** Miscellaneous, ABI-specific instructions. Use with caution.
 
-        [`loadreg (x, t, r)]: load the register [r] into the variable [x], with
-        type [t].
+        [`regcopy (x, t, r)]: copy the register [r] into the variable [x],
+        with type [t].
 
-        [`storereg (r, a)]: store the register [v] at address [a].
+        [`regstore (r, a)]: store the register [v] at address [a].
 
-        [`setreg (r, a)]: load the value [a] into the register [r].
+        [`regassign (r, a)]: assign the value [a] to the register [r].
 
         [`stkargs x]: returns a pointer to the beginning of the memory region
         containing the arguments passed on the stack, and stores the result in
         [x]. This is particularly useful for implementing variadic arguments.
     *)
     type extra = [
-      | `loadreg of Var.t * Type.basic * string
-      | `storereg of string * operand
-      | `setreg of string * operand
+      | `regcopy of Var.t * Type.basic * string
+      | `regstore of string * operand
+      | `regassign of string * operand
       | `stkargs of Var.t
     ] [@@deriving bin_io, compare, equal, sexp]
 

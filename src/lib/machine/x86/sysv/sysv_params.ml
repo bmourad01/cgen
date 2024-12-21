@@ -157,14 +157,14 @@ let register_save_int env params sse s =
     Seq.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
     Context.Seq.fold ~init:Ftree.empty ~f:(fun acc (o, r) ->
         if o = 0 then
-          let+ st = Cv.Abi.storereg r (`var s) in
+          let+ st = Cv.Abi.regstore r (`var s) in
           acc @> st
         else
           let* o, oi = Cv.Abi.binop (`add `i64) (`var s) (i64 o) in
-          let+ st = Cv.Abi.storereg r (`var o) in
+          let+ st = Cv.Abi.regstore r (`var o) in
           acc @>* [oi; st]) in
   let zero = `int (Bv.zero, `i8) in
-  let* r, ri = Cv.Abi.loadreg `i8 (reg_str `rax) in
+  let* r, ri = Cv.Abi.regcopy `i8 (reg_str `rax) in
   let+ z, zi = Cv.Abi.binop (`eq `i8) (`var r) zero in
   let entry = `label (Func.entry env.fn, []) in
   let sse = `label (sse, []) in
@@ -181,7 +181,7 @@ let register_save_sse env params label s =
     Seq.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
     Context.Seq.fold ~init:Ftree.empty ~f:(fun acc (o, r) ->
         let* o, oi = Cv.Abi.binop (`add `i64) (`var s) o in
-        let+ st = Cv.Abi.storereg r (`var o) in
+        let+ st = Cv.Abi.regstore r (`var o) in
         acc @>* [oi; st]) in
   let entry = `label (Func.entry env.fn, []) in
   Abi.Blk.create () ~label
