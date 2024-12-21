@@ -134,316 +134,109 @@ module Reg = struct
 end
 
 module Insn = struct
-  open X86_common
+  (* Displacements for addressing modes. *)
+  type disp =
+    | Dsym of string * int (* Symbol + offset *)
+    | Dimm of int32        (* Immediate *)
+  [@@deriving compare, equal, sexp]
 
-  type 'a add = [
-    | `ADDrr64    of 'a * 'a
-    | `ADDrm64    of 'a * 'a amode
-    | `ADDmr64    of 'a amode * 'a
-    | `ADDr64si8  of 'a * int
-    | `ADDm64si8  of 'a amode * int
-    | `ADDr64si32 of 'a * int32
-    | `ADDm64si32 of 'a amode * int32
+  (* Memory addressing modes. Scale must be 1, 2, 4, or 8. *)
+  type 'a amode =
+    | Ad    of disp                 (* Displacement *)
+    | Ab    of 'a                   (* Base *)
+    | Abi   of 'a * 'a              (* Base + index *)
+    | Abd   of 'a * disp            (* Base + displacement *)
+    | Abid  of 'a * 'a * disp       (* Base + index + displacement *)
+    | Abis  of 'a * 'a * int        (* Base + index * scale *)
+    | Aisd  of 'a * int * disp      (* Index * scale + displacement *)
+    | Abisd of 'a * 'a * int * disp (* Base + index * scale + displacement *)
+  [@@deriving compare, equal, sexp]
+
+  (* An argument to an instruction. *)
+  type 'a arg = [
+    | `reg of 'a * Type.basic (* Register *)
+    | `imm of int64           (* Immediate *)
+    | `sym of string * int    (* Symbol + offset *)
+    | `mem of 'a amode        (* Memory address *)
   ] [@@deriving compare, equal, sexp]
 
-  type 'a and_ = [
-    | `ANDrr64    of 'a * 'a
-    | `ANDrm64    of 'a * 'a amode
-    | `ANDmr64    of 'a amode * 'a
-    | `ANDr64si8  of 'a * int
-    | `ANDm64si8  of 'a amode * int
-    | `ANDr64si32 of 'a * int32
-    | `ANDm64si32 of 'a amode * int32
-  ] [@@deriving compare, equal, sexp]
+  (* Condition codes. *)
+  type cc =
+    | Ca  (* ~CF & ~ZF *)
+    | Cae (* ~CF *)
+    | Cb  (* CF *)
+    | Cbe (* CF | ZF *)
+    | Ce  (* ZF *)
+    | Cne (* ~ZF *)
+    | Cg  (* ~ZF & SF=OF *)
+    | Cge (* SF=OF *)
+    | Cl  (* SF<>OF *)
+    | Cle (* ZF | SF<>OF *)
+    | Cp  (* PF *)
+    | Cnp (* ~PF *)
+  [@@deriving compare, equal, sexp]
 
-  (* CMOVP and CMOVNP are used for unordered and ordered
-     floating point comparison, respectively. *)
-  type 'a cmovcc = [
-    | `CMOVArr64  of 'a * 'a (* ~CF & ~ZF *)
-    | `CMOVArm64  of 'a * 'a amode
-    | `CMOVAErr64 of 'a * 'a (* ~CF *)
-    | `CMOVAErm64 of 'a * 'a amode
-    | `CMOVBrr64  of 'a * 'a (* CF *)
-    | `CMOVBrm64  of 'a * 'a amode
-    | `CMOVBErr64 of 'a * 'a (* CF | ZF *)
-    | `CMOVBErm64 of 'a * 'a amode
-    | `CMOVErr64  of 'a * 'a (* ZF *)
-    | `CMOVErm64  of 'a * 'a amode
-    | `CMOVNErr64 of 'a * 'a (* ~ZF *)
-    | `CMOVNErm64 of 'a * 'a amode
-    | `CMOVGrr64  of 'a * 'a (* ~ZF & SF=OF *)
-    | `CMOVGrm64  of 'a * 'a amode
-    | `CMOVGErr64 of 'a * 'a (* SF=OF *)
-    | `CMOVGErm64 of 'a * 'a amode
-    | `CMOVLrr64  of 'a * 'a (* SF<>OF *)
-    | `CMOVLrm64  of 'a * 'a amode
-    | `CMOVLErr64 of 'a * 'a (* ZF | SF<>OF *)
-    | `CMOVLErm64 of 'a * 'a amode
-    | `CMOVPrr64  of 'a * 'a (* PF *)
-    | `CMOVPrm64  of 'a * 'a amode
-    | `CMOVNPrr64 of 'a * 'a (* ~PF *)
-    | `CMOVNPrm64 of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a cmp = [
-    | `CMPrr64    of 'a * 'a
-    | `CMPrm64    of 'a * 'a amode
-    | `CMPmr64    of 'a amode * 'a
-    | `CMPr64si32 of 'a * int32
-    | `CMPm64si32 of 'a * int32
-  ] [@@deriving compare, equal, sexp]
-
-  type cqo = [
-    | `CQO
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a cvtsi2sd = [
-    | `CVTSD2SIrr64 of 'a * 'a
-    | `CVTSD2SIrm64 of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a cvtsi2ss = [
-    | `CVTSS2SIrr64 of 'a * 'a
-    | `CVTSS2SIrm64 of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a cvtsd2si = [
-    | `CVTSD2SIr64r of 'a * 'a
-    | `CVTSD2SIr64m of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a cvtss2si = [
-    | `CVTSS2SIr64r of 'a * 'a
-    | `CVTSS2SIr64m of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a dec = [
-    | `DECr64 of 'a
-    | `DECm64 of 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a div = [
-    | `DIVr64 of 'a
-    | `DIVm64 of 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a idiv = [
-    | `IDIVr64 of 'a
-    | `IDIVm64 of 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a imul = [
-    | `IMULr64     of 'a
-    | `IMULm64     of 'a amode
-    | `IMULrr64    of 'a * 'a
-    | `IMULrm64    of 'a * 'a amode
-    | `IMULrr64si8 of 'a * 'a * int
-    | `IMULrm64si8 of 'a * 'a amode * int
-    | `IMULrr64i32 of 'a * 'a * int32
-    | `IMULrm64i32 of 'a * 'a amode * int32
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a inc = [
-    | `INCr64 of 'a
-    | `INCm64 of 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a lzcnt = [
-    | `LZCNTrr64 of 'a * 'a
-    | `LZCNTrm64 of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a mov = [
-    | `MOVrr64 of 'a * 'a
-    | `MOVrm64 of 'a * 'a amode
-    | `MOVmr64 of 'a amode * 'a
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a movabs = [
-    | `MOVABSri   of 'a * int64
-    | `MOVABSr8o  of int64 (* AL is implied as the destination. *)
-    | `MOVABSr16o of int64 (* AX is implied as the destination. *)
-    | `MOVABSr32o of int64 (* EAX is implied as the destination. *)
-    | `MOVABSr64o of int64 (* RAX is implied as the destination. *)
-    | `MOVABSor8  of int64 (* AL is implied as the source. *)
-    | `MOVABSor16 of int64 (* AX is implied as the source. *)
-    | `MOVABSor32 of int64 (* EAX is implied as the source. *)
-    | `MOVABSor64 of int64 (* RAX is implied as the source. *)
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a movq = [
-    | `MOVQrr of 'a * 'a
-    | `MOVQrm of 'a * 'a amode
-    | `MOVQmr of 'a amode * 'a
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a movsx = [
-    | `MOVSXr64r8  of 'a * 'a
-    | `MOVSXr64m8  of 'a * 'a amode
-    | `MOVSXr64r16 of 'a * 'a
-    | `MOVSXr64m16 of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a movsxd = [
-    | `MOVSXDr64r32 of 'a * 'a
-    | `MOVSXDr64m32 of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a movzx = [
-    | `MOVZXr64r8  of 'a * 'a
-    | `MOVZXr64m8  of 'a * 'a amode
-    | `MOVZXr64r16 of 'a * 'a
-    | `MOVZXr64m16 of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a mul = [
-    | `MULr64 of 'a
-    | `MULm64 of 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a neg = [
-    | `NEGr64 of 'a
-    | `NEGm64 of 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a not_ = [
-    | `NOTr64 of 'a
-    | `NOTm64 of 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a or_ = [
-    | `ORrr64    of 'a * 'a
-    | `ORrm64    of 'a * 'a amode
-    | `ORmr64    of 'a amode * 'a
-    | `ORr64si8  of 'a * int
-    | `ORm64si8  of 'a amode * int
-    | `ORr64si32 of 'a * int32
-    | `ORm64si32 of 'a amode * int32
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a pop = [
-    | `POPr64 of 'a
-    | `POPm64 of 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a popcnt = [
-    | `POPCNTrr64 of 'a * 'a
-    | `POPCNTrm64 of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a push = [
-    | `PUSHr64 of 'a
-    | `PUSHm64 of 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a rol = [
-    | `ROLr64  of 'a
-    | `ROLm64  of 'a
-    | `ROLr64i of 'a * int
-    | `ROLm64i of 'a * int
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a ror = [
-    | `RORr64  of 'a
-    | `RORm64  of 'a
-    | `RORLr64i of 'a * int
-    | `RORm64i of 'a * int
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a sar = [
-    | `SARr64  of 'a
-    | `SARm64  of 'a
-    | `SARLr64i of 'a * int
-    | `SARm64i of 'a * int
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a shl = [
-    | `SHLr64  of 'a
-    | `SHLm64  of 'a
-    | `SHLr64i of 'a * int
-    | `SHLm64i of 'a * int
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a shr = [
-    | `SHRr64  of 'a
-    | `SHRm64  of 'a
-    | `SHRr64i of 'a * int
-    | `SHRm64i of 'a * int
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a sub = [
-    | `SUBrr64    of 'a * 'a
-    | `SUBrm64    of 'a * 'a amode
-    | `SUBmr64    of 'a amode * 'a
-    | `SUBr64si8  of 'a * int
-    | `SUBm64si8  of 'a amode * int
-    | `SUBr64si32 of 'a * int32
-    | `SUBm64si32 of 'a amode * int32
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a test = [
-    | `TESTrr64    of 'a * 'a
-    | `TESTrm64    of 'a * 'a amode
-    | `TESTmr64    of 'a amode * 'a
-    | `TESTr64si32 of 'a * int32
-    | `TESTm64si32 of 'a * int32
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a tzcnt = [
-    | `TZCNTrr64 of 'a * 'a
-    | `TZCNTrm64 of 'a * 'a amode
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a xor = [
-    | `XORrr64    of 'a * 'a
-    | `XORrm64    of 'a * 'a amode
-    | `XORmr64    of 'a amode * 'a
-    | `XORr64si8  of 'a * int
-    | `XORm64si8  of 'a amode * int
-    | `XORr64si32 of 'a * int32
-    | `XORm64si32 of 'a amode * int32
-  ] [@@deriving compare, equal, sexp]
-
-  type 'a t = [
-    (* Base instructions. *)
-    | 'a insn_base
-    (* 64-bit extensions. *)
-    | 'a add
-    | 'a and_
-    | 'a cmovcc
-    | 'a cmp
-    | cqo
-    | 'a cvtsi2sd
-    | 'a cvtsi2ss
-    | 'a cvtsd2si
-    | 'a cvtss2si
-    | 'a dec
-    | 'a div
-    | 'a idiv
-    | 'a imul
-    | 'a inc
-    | 'a lzcnt
-    | 'a mov
-    | 'a movabs
-    | 'a movq
-    | 'a movsx
-    | 'a movsxd
-    | 'a movzx
-    | 'a mul
-    | 'a neg
-    | 'a not_
-    | 'a or_
-    | 'a pop
-    | 'a popcnt
-    | 'a push
-    | 'a rol
-    | 'a ror
-    | 'a sar
-    | 'a shl
-    | 'a shr
-    | 'a sub
-    | 'a test
-    | 'a tzcnt
-    | 'a xor
-  ] [@@deriving compare, equal, sexp]
+  type 'a t =
+    | ADD      of 'a arg * 'a arg
+    | ADDSD    of 'a arg * 'a arg
+    | ADDSS    of 'a arg * 'a arg
+    | AND      of 'a arg * 'a arg
+    | CALL     of 'a arg
+    | CDQ
+    | CMOV     of cc * 'a arg * 'a arg
+    | CMP      of 'a arg * 'a arg
+    | CQO
+    | CWD
+    | CVTSD2SI of 'a arg * 'a arg
+    | CVTSI2SD of 'a arg * 'a arg
+    | CVTSI2SS of 'a arg * 'a arg
+    | CVTSS2SI of 'a arg * 'a arg
+    | DEC      of 'a arg
+    | DIV      of 'a arg
+    | DIVSD    of 'a arg * 'a arg
+    | DIVSS    of 'a arg * 'a arg
+    | IDIV     of 'a arg
+    | IMUL1    of 'a arg
+    | IMUL2    of 'a arg * 'a arg
+    | IMUL3    of 'a arg * 'a arg * int32
+    | INC      of 'a arg
+    | JCC      of cc * Label.t
+    | JMP      of 'a arg
+    | LEA      of 'a arg * 'a arg
+    | LZCNT    of 'a arg * 'a arg
+    | MOV      of 'a arg * 'a arg
+    | MOVD     of 'a arg * 'a arg
+    | MOVQ     of 'a arg * 'a arg
+    | MOVSD    of 'a arg * 'a arg
+    | MOVSS    of 'a arg * 'a arg
+    | MOVSX    of 'a arg * 'a arg
+    | MOVSXD   of 'a arg * 'a arg
+    | MOVZX    of 'a arg * 'a arg
+    | MUL      of 'a arg
+    | MULSD    of 'a arg * 'a arg
+    | MULSS    of 'a arg * 'a arg
+    | NEG      of 'a arg
+    | NOT      of 'a arg
+    | OR       of 'a arg
+    | POP      of 'a arg
+    | POPCNT   of 'a arg
+    | PUSH     of 'a arg
+    | RET
+    | ROL      of 'a arg * 'a arg
+    | ROR      of 'a arg * 'a arg
+    | SAR      of 'a arg * 'a arg
+    | SETCC    of cc * 'a arg
+    | SHL      of 'a arg * 'a arg
+    | SHR      of 'a arg * 'a arg
+    | SUB      of 'a arg * 'a arg
+    | SUBSD    of 'a arg * 'a arg
+    | SUBSS    of 'a arg * 'a arg
+    | TEST     of 'a arg * 'a arg
+    | TZCNT    of 'a arg * 'a arg
+    | UCOMISD  of 'a arg * 'a arg
+    | UCOMISS  of 'a arg * 'a arg
+    | XOR      of 'a arg * 'a arg
+    | XORPD    of 'a arg * 'a arg
+    | XORPS    of 'a arg * 'a arg
+  [@@deriving compare, equal, sexp]
 end
