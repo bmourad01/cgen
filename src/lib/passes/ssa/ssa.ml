@@ -178,7 +178,8 @@ module A = Make(struct
         `load (x, t, a)
       | `store (t, v, a) ->
         `store (t, opnd v, opnd a)
-      | `loadreg _ -> op
+      | `loadreg (x, t, r) ->
+        `loadreg (rename x, t, r)
       | `storereg (r, a) ->
         `storereg (r, opnd a)
       | `setreg (r, a) ->
