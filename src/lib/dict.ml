@@ -20,7 +20,9 @@ type 'a tag = {
 let pp_tag ppf {key} =
   Format.fprintf ppf "%s" @@ Type_equal.Id.name key
 
-type value = Univ_map.Packed.t = T : 'a Type_equal.Id.t * 'a -> value
+module Value = Univ_map.Packed
+
+type value = Value.t
 
 module Equal = struct
   let proof = Type_equal.Id.same_witness_exn
@@ -45,18 +47,18 @@ let register (type a) ~uuid name
     (module S : S with type t = a) : a tag =
   let name = Format.sprintf "%s:%s" uuid name in
   let key = Type_equal.Id.create ~name S.sexp_of_t in
-  let pp ppf (T (k, x)) =
+  let pp ppf (Value.T (k, x)) =
     let T = Equal.proof k key in
     S.pp ppf x in
-  let of_string s = T (key, Binable.of_string (module S) s) in
-  let to_string (T (k, x)) =
+  let of_string s = Value.T (key, Binable.of_string (module S) s) in
+  let to_string (Value.T (k, x)) =
     let T = Equal.proof k key in
     Binable.to_string (module S) x in
-  let of_sexp s = T (key, S.t_of_sexp s) in
-  let to_sexp (T (k, x)) =
+  let of_sexp s = Value.T (key, S.t_of_sexp s) in
+  let to_sexp (Value.T (k, x)) =
     let T = Equal.proof k key in
     S.sexp_of_t x in
-  let compare (T (kx, x)) (T (ky, y)) =
+  let compare (Value.T (kx, x)) (Value.T (ky, y)) =
     match Equal.try_prove kx ky with
     | None -> Uid.compare (uid kx) (uid ky)
     | Some T ->
@@ -73,8 +75,8 @@ let key_name k =
   String.subo ~pos:(i + 1) k
 
 let key_typeid k = Type_equal.Id.name k
-let tagname (T (k, _)) = key_name k
-let typeid (T (k, _)) = key_typeid k
+let tagname (Value.T (k, _)) = key_name k
+let typeid (Value.T (k, _)) = key_typeid k
 
 let info typeid =
   Hashtbl.find_and_call types typeid
@@ -98,8 +100,8 @@ let value_of_sexp = function
     (info typeid).of_sexp repr
   | _ -> invalid_arg "value_of_sexp: broken representation"
 
-let create {key} x = T (key, x)
-let is {key} (T (k, _)) = Type_equal.Id.same key k
+let create {key} x = Value.T (key, x)
+let is {key} (Value.T (k, _)) = Type_equal.Id.same key k
 
 let get : type a. a tag -> value -> a option =
   fun {key} (T (k, x)) ->
@@ -131,7 +133,7 @@ let data d = Univ_map.to_alist d |> Seq.of_list
 let to_sequence d = data d |> Seq.map ~f:(fun v -> typeid v, v)
 
 let filter t ~f =
-  data t |> Seq.fold ~init:empty ~f:(fun d (T (k, x) as v) ->
+  data t |> Seq.fold ~init:empty ~f:(fun d (Value.T (k, x) as v) ->
       if f v then Univ_map.set d ~key:k ~data:x else d)
 
 let compare x y =
@@ -153,7 +155,7 @@ module Univ = struct
     } [@@deriving bin_io]
   end
 
-  include Binable.Of_binable(Repr)(struct
+  include Binable.Of_binable_without_uuid(Repr)(struct
       type t = value
       let to_binable x = Repr.{
           typeid = typeid x;
@@ -161,21 +163,22 @@ module Univ = struct
         }
       let of_binable {Repr.typeid; data} =
         (info typeid).of_string data
-    end) [@@warning "-D"]
+    end) [@@warning "-D"] [@@alert "-legacy"]
 end
 
 module Data = struct
   type t = Univ.t list [@@deriving bin_io, sexp]
   let of_dict = Univ_map.to_alist
-  let to_dict = List.fold ~init:empty ~f:(fun d (T (k,x)) ->
-      Univ_map.set d ~key:k ~data:x)
+  let to_dict =
+    List.fold ~init:empty ~f:(fun d (Value.T (k,x)) ->
+        Univ_map.set d ~key:k ~data:x)
 end
 
-include Binable.Of_binable(Data)(struct
+include Binable.Of_binable_without_uuid(Data)(struct
     type t = Univ_map.t
     let to_binable = Data.of_dict
     let of_binable = Data.to_dict
-  end) [@@warning "-D"]
+  end) [@@warning "-D"] [@@alert "-legacy"]
 
 include Sexpable.Of_sexpable(Data)(struct
     type t = Univ_map.t

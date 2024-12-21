@@ -295,16 +295,22 @@ let to_list_rev t =
   !l
 
 let to_sequence_mutable t =
-  Seq.unfold_step ~init:0 ~f:(fun i ->
-      if i < t.length
-      then Seq.Step.Yield (unsafe_get t i, i + 1)
-      else Seq.Step.Done)
+  let open Seq.Generator in
+  let rec aux t = function
+    | i when i < t.length ->
+      yield (unsafe_get t i) >>= fun () ->
+      aux t (i + 1)
+    | _ -> return () in
+  run @@ aux t 0
 
 let to_sequence_rev_mutable t =
-  Seq.unfold_step ~init:(t.length - 1) ~f:(fun i ->
-      if i >= 0
-      then Seq.Step.Yield (unsafe_get t i, i - 1)
-      else Seq.Step.Done)
+  let open Seq.Generator in
+  let rec aux t = function
+    | i when i >= 0 ->
+      yield (unsafe_get t i) >>= fun () ->
+      aux t (i - 1)
+    | _ -> return () in
+  run @@ aux t (t.length - 1)
 
 let to_sequence t = to_sequence_mutable @@ copy t
 let to_sequence_rev t = to_sequence_rev_mutable @@ copy t
