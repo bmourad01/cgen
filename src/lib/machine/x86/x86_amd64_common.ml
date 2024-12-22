@@ -133,6 +133,8 @@ module Reg = struct
     | Some r -> r
 end
 
+module Regvar = Regvar.Make(Reg)
+
 module Insn = struct
   (* Displacements for addressing modes. *)
   type disp =
@@ -140,24 +142,26 @@ module Insn = struct
     | Dimm of int32        (* Immediate *)
   [@@deriving compare, equal, sexp]
 
+  type rv = Regvar.t [@@deriving compare, equal, sexp]
+
   (* Memory addressing modes. Scale must be 1, 2, 4, or 8. *)
-  type 'a amode =
+  type amode =
     | Ad    of disp                 (* Displacement *)
-    | Ab    of 'a                   (* Base *)
-    | Abi   of 'a * 'a              (* Base + index *)
-    | Abd   of 'a * disp            (* Base + displacement *)
-    | Abid  of 'a * 'a * disp       (* Base + index + displacement *)
-    | Abis  of 'a * 'a * int        (* Base + index * scale *)
-    | Aisd  of 'a * int * disp      (* Index * scale + displacement *)
-    | Abisd of 'a * 'a * int * disp (* Base + index * scale + displacement *)
+    | Ab    of rv                   (* Base *)
+    | Abi   of rv * rv              (* Base + index *)
+    | Abd   of rv * disp            (* Base + displacement *)
+    | Abid  of rv * rv * disp       (* Base + index + displacement *)
+    | Abis  of rv * rv * int        (* Base + index * scale *)
+    | Aisd  of rv * int * disp      (* Index * scale + displacement *)
+    | Abisd of rv * rv * int * disp (* Base + index * scale + displacement *)
   [@@deriving compare, equal, sexp]
 
   (* An argument to an instruction. *)
-  type 'a arg = [
-    | `reg of 'a * Type.basic (* Register *)
+  type arg = [
+    | `arg of rv * Type.basic (* Register *)
     | `imm of int64           (* Immediate *)
     | `sym of string * int    (* Symbol + offset *)
-    | `mem of 'a amode        (* Memory address *)
+    | `mem of amode           (* Memory address *)
   ] [@@deriving compare, equal, sexp]
 
   (* Condition codes. *)
@@ -176,67 +180,226 @@ module Insn = struct
     | Cnp (* ~PF *)
   [@@deriving compare, equal, sexp]
 
-  type 'a t =
-    | ADD      of 'a arg * 'a arg
-    | ADDSD    of 'a arg * 'a arg
-    | ADDSS    of 'a arg * 'a arg
-    | AND      of 'a arg * 'a arg
-    | CALL     of 'a arg
+  type t =
+    | ADD      of arg * arg
+    | ADDSD    of arg * arg
+    | ADDSS    of arg * arg
+    | AND      of arg * arg
+    | CALL     of arg
     | CDQ
-    | CMOV     of cc * 'a arg * 'a arg
-    | CMP      of 'a arg * 'a arg
+    | CMOV     of cc * arg * arg
+    | CMP      of arg * arg
     | CQO
     | CWD
-    | CVTSD2SI of 'a arg * 'a arg
-    | CVTSI2SD of 'a arg * 'a arg
-    | CVTSI2SS of 'a arg * 'a arg
-    | CVTSS2SI of 'a arg * 'a arg
-    | DEC      of 'a arg
-    | DIV      of 'a arg
-    | DIVSD    of 'a arg * 'a arg
-    | DIVSS    of 'a arg * 'a arg
-    | IDIV     of 'a arg
-    | IMUL1    of 'a arg
-    | IMUL2    of 'a arg * 'a arg
-    | IMUL3    of 'a arg * 'a arg * int32
-    | INC      of 'a arg
+    | CVTSD2SI of arg * arg
+    | CVTSI2SD of arg * arg
+    | CVTSI2SS of arg * arg
+    | CVTSS2SI of arg * arg
+    | DEC      of arg
+    | DIV      of arg
+    | DIVSD    of arg * arg
+    | DIVSS    of arg * arg
+    | IDIV     of arg
+    | IMUL1    of arg
+    | IMUL2    of arg * arg
+    | IMUL3    of arg * arg * int32
+    | INC      of arg
     | JCC      of cc * Label.t
-    | JMP      of 'a arg
-    | LEA      of 'a arg * 'a arg
-    | LZCNT    of 'a arg * 'a arg
-    | MOV      of 'a arg * 'a arg
-    | MOVD     of 'a arg * 'a arg
-    | MOVQ     of 'a arg * 'a arg
-    | MOVSD    of 'a arg * 'a arg
-    | MOVSS    of 'a arg * 'a arg
-    | MOVSX    of 'a arg * 'a arg
-    | MOVSXD   of 'a arg * 'a arg
-    | MOVZX    of 'a arg * 'a arg
-    | MUL      of 'a arg
-    | MULSD    of 'a arg * 'a arg
-    | MULSS    of 'a arg * 'a arg
-    | NEG      of 'a arg
-    | NOT      of 'a arg
-    | OR       of 'a arg
-    | POP      of 'a arg
-    | POPCNT   of 'a arg
-    | PUSH     of 'a arg
+    | JMP      of arg
+    | LEA      of arg * arg
+    | LZCNT    of arg * arg
+    | MOV      of arg * arg
+    | MOVD     of arg * arg
+    | MOVQ     of arg * arg
+    | MOVSD    of arg * arg
+    | MOVSS    of arg * arg
+    | MOVSX    of arg * arg
+    | MOVSXD   of arg * arg
+    | MOVZX    of arg * arg
+    | MUL      of arg
+    | MULSD    of arg * arg
+    | MULSS    of arg * arg
+    | NEG      of arg
+    | NOT      of arg
+    | OR       of arg * arg
+    | POP      of arg
+    | POPCNT   of arg * arg
+    | PUSH     of arg
     | RET
-    | ROL      of 'a arg * 'a arg
-    | ROR      of 'a arg * 'a arg
-    | SAR      of 'a arg * 'a arg
-    | SETCC    of cc * 'a arg
-    | SHL      of 'a arg * 'a arg
-    | SHR      of 'a arg * 'a arg
-    | SUB      of 'a arg * 'a arg
-    | SUBSD    of 'a arg * 'a arg
-    | SUBSS    of 'a arg * 'a arg
-    | TEST     of 'a arg * 'a arg
-    | TZCNT    of 'a arg * 'a arg
-    | UCOMISD  of 'a arg * 'a arg
-    | UCOMISS  of 'a arg * 'a arg
-    | XOR      of 'a arg * 'a arg
-    | XORPD    of 'a arg * 'a arg
-    | XORPS    of 'a arg * 'a arg
+    | ROL      of arg * arg
+    | ROR      of arg * arg
+    | SAR      of arg * arg
+    | SETCC    of cc * arg
+    | SHL      of arg * arg
+    | SHR      of arg * arg
+    | SUB      of arg * arg
+    | SUBSD    of arg * arg
+    | SUBSS    of arg * arg
+    | TEST     of arg * arg
+    | TZCNT    of arg * arg
+    | UCOMISD  of arg * arg
+    | UCOMISS  of arg * arg
+    | XOR      of arg * arg
+    | XORPD    of arg * arg
+    | XORPS    of arg * arg
   [@@deriving compare, equal, sexp]
+
+  let reads i =
+    let r args =
+      Set.of_list (module Regvar) @@
+      List.filter_map args ~f:(function
+          | `arg (a, _) -> Some a
+          | _ -> None) in
+    let rl regs =
+      Set.of_list (module Regvar) @@
+      List.map regs ~f:(fun r -> Regvar.Reg r) in
+    match i with
+    | ADD (a, b)
+    | ADDSD (a, b)
+    | ADDSS (a, b)
+    | AND (a, b)
+    | CMP (a, b)
+    | DIVSD (a, b)
+    | DIVSS (a, b)
+    | IMUL2 (a, b)
+    | MULSD (a, b)
+    | MULSS (a, b)
+    | OR (a, b)
+    | ROL (a, b)
+    | ROR (a, b)
+    | SAR (a, b)
+    | SHL (a, b)
+    | SHR (a, b)
+    | SUB (a, b)
+    | SUBSD (a, b)
+    | SUBSS (a, b)
+    | TEST (a, b)
+    | UCOMISD (a, b)
+    | UCOMISS (a, b)
+    | XOR (a, b)
+    | XORPD (a, b)
+    | XORPS (a, b)
+      -> r [a; b]
+    | CALL a
+    | CMOV (_, _, a)
+    | CVTSD2SI (_, a)
+    | CVTSI2SD (_, a)
+    | CVTSI2SS (_, a)
+    | CVTSS2SI (_, a)
+    | DEC a
+    | DIV a
+    | IDIV a
+    | IMUL1 a
+    | IMUL3 (_, a, _)
+    | INC a
+    | JMP a
+    | LEA (_, a)
+    | LZCNT (_, a)
+    | MOV (_, a)
+    | MOVD (_, a)
+    | MOVQ (_, a)
+    | MOVSD (_, a)
+    | MOVSS (_, a)
+    | MOVSX (_, a)
+    | MOVSXD (_, a)
+    | MOVZX (_, a)
+    | MUL a
+    | NEG a
+    | NOT a
+    | POPCNT (_, a)
+    | PUSH a
+    | TZCNT (_, a)
+      -> r [a]
+    | CDQ
+    | CQO
+    | CWD
+      -> rl [`rax]
+    | JCC (_, _)
+    | POP _
+    | RET
+    | SETCC (_, _)
+      -> Set.empty (module Regvar)
+
+  let writes i =
+    let r args =
+      Set.of_list (module Regvar) @@
+      List.filter_map args ~f:(function
+          | `arg (a, _) -> Some a
+          | _ -> None) in
+    let rl regs =
+      Set.of_list (module Regvar) @@
+      List.map regs ~f:(fun r -> Regvar.Reg r) in
+    match i with
+    | ADD (a, _)
+    | ADDSD (a, _)
+    | ADDSS (a, _)
+    | AND (a, _)
+    | CMOV (_, a, _)
+    | CVTSD2SI (a, _)
+    | CVTSI2SD (a, _)
+    | CVTSI2SS (a, _)
+    | CVTSS2SI (a, _)
+    | DEC a
+    | DIVSD (a, _)
+    | DIVSS (a, _)
+    | IMUL2 (a, _)
+    | IMUL3 (a, _, _)
+    | INC a
+    | LEA (a, _)
+    | LZCNT (a, _)
+    | MOV (a, _)
+    | MOVD (a, _)
+    | MOVQ (a, _)
+    | MOVSD (a, _)
+    | MOVSS (a, _)
+    | MOVSX (a, _)
+    | MOVSXD (a, _)
+    | MOVZX (a, _)
+    | MULSD (a, _)
+    | MULSS (a, _)
+    | NEG a
+    | NOT a
+    | OR (a, _)
+    | POPCNT (a, _)
+    | ROL (a, _)
+    | ROR (a, _)
+    | SAR (a, _)
+    | SETCC (_, a)
+    | SHL (a, _)
+    | SHR (a, _)
+    | SUB (a, _)
+    | SUBSD (a, _)
+    | SUBSS (a, _)
+    | TZCNT (a, _)
+    | XOR (a, _)
+    | XORPD (a, _)
+    | XORPS (a, _)
+      -> r [a]
+    | CALL _
+    | PUSH _
+    | RET
+      -> rl [`rsp]
+    | CMP _
+    | JCC _
+    | JMP _
+    | TEST _
+    | UCOMISD _
+    | UCOMISS _
+      -> Set.empty (module Regvar)
+    (* Special case for 8-bit div/mul. *)
+    | DIV `arg (_, `i8)
+    | IDIV `arg (_, `i8)
+    | IMUL1 `arg (_, `i8)
+    | MUL `arg (_, `i8)
+      -> rl [`rax]
+    | CDQ
+    | CQO
+    | CWD
+    | DIV _
+    | IDIV _
+    | IMUL1 _
+    | MUL _
+      -> rl [`rax; `rdx]
+    | POP a
+      -> Set.union (rl [`rsp]) (r [a])
 end

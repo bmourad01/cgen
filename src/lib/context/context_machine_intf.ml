@@ -1,3 +1,5 @@
+open Core
+
 module type S = sig
   type 'a context
 
@@ -19,9 +21,34 @@ module type S = sig
     val of_string : string -> t option
   end
 
+  (** A machine register or a virtual variable.
+
+      To ease implementation of the backend, instructions can refer to
+      both registers and variables after instruction selection. After
+      register allocation, it is expected that no variables will be
+      present.
+  *)
+  module Regvar : sig
+    type t [@@deriving compare, equal, sexp]
+
+    val reg : t -> Reg.t option
+    val var : t -> Var.t option
+    val is_reg : t -> bool
+    val is_var : t -> bool
+    val which : t -> (Reg.t, Var.t) Either.t
+
+    include Comparator.S with type t := t
+  end
+
   (** A machine instruction. *)
   module Insn : sig
-    type 'a t [@@deriving compare, equal, sexp]
+    type t [@@deriving compare, equal, sexp]
+
+    (** The set of arguments that the instruction reads from. *)
+    val reads : t -> (Regvar.t, Regvar.comparator_witness) Set.t
+
+    (** The set of arguments that the instruction writes to. *)
+    val writes : t -> (Regvar.t, Regvar.comparator_witness) Set.t
   end
 
   (** Lowers the ABI-specific details of a function for a given target. *)

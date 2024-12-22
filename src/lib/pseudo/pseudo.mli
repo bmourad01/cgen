@@ -35,7 +35,6 @@ end
 type 'a func = 'a Func.t [@@deriving sexp]
 
 module Make_select(M : Context.Machine) : sig
-  val run :
-    Virtual.Abi.func ->
-    [ `reg of M.Reg.t | `var of Var.t] func Context.t
+  (** Run instruction selection on the ABI-lowered function. *)
+  val run : Virtual.Abi.func -> M.Insn.t func Context.t
 end
