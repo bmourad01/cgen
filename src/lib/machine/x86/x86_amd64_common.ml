@@ -104,29 +104,21 @@ module Reg = struct
   type t = [
     | gpr
     | sse
-    | `rip
   ] [@@deriving compare, equal, sexp]
 
   let is_gpr = function
     | #gpr -> true
     | #sse -> false
-    | `rip -> false
 
   let is_sse = function
     | #gpr -> false
     | #sse -> true
-    | `rip -> false
-
-  let is_rip = function
-    | `rip -> true
-    | _ -> false
 
   let pp ppf r =
     Format.fprintf ppf "%a" Sexp.pp (sexp_of_t r)
 
   let of_string s =
-    try Some (t_of_sexp @@ Atom s)
-    with _ -> None
+    Option.try_with @@ fun () -> t_of_sexp @@ Atom s
 
   let of_string_exn s = match of_string s with
     | None -> invalid_argf "%s is not a valid AMD64 register" s ()
@@ -157,12 +149,12 @@ module Insn = struct
   [@@deriving compare, equal, sexp]
 
   (* An argument to an instruction. *)
-  type arg = [
-    | `arg of rv * Type.basic (* Register *)
-    | `imm of int64           (* Immediate *)
-    | `sym of string * int    (* Symbol + offset *)
-    | `mem of amode           (* Memory address *)
-  ] [@@deriving compare, equal, sexp]
+  type operand =
+    | Oreg of rv * Type.basic (* Register *)
+    | Oimm of int64           (* Immediate *)
+    | Osym of string * int    (* Symbol + offset *)
+    | Omem of amode           (* Memory address *)
+  [@@deriving compare, equal, sexp]
 
   (* Condition codes. *)
   type cc =
@@ -181,79 +173,108 @@ module Insn = struct
   [@@deriving compare, equal, sexp]
 
   type t =
-    | ADD      of arg * arg
-    | ADDSD    of arg * arg
-    | ADDSS    of arg * arg
-    | AND      of arg * arg
-    | CALL     of arg
+    | ADD      of operand * operand
+    | ADDSD    of operand * operand
+    | ADDSS    of operand * operand
+    | AND      of operand * operand
+    | CALL     of operand
     | CDQ
-    | CMOV     of cc * arg * arg
-    | CMP      of arg * arg
+    | CMOVcc   of cc * operand * operand
+    | CMP      of operand * operand
     | CQO
     | CWD
-    | CVTSD2SI of arg * arg
-    | CVTSI2SD of arg * arg
-    | CVTSI2SS of arg * arg
-    | CVTSS2SI of arg * arg
-    | DEC      of arg
-    | DIV      of arg
-    | DIVSD    of arg * arg
-    | DIVSS    of arg * arg
-    | IDIV     of arg
-    | IMUL1    of arg
-    | IMUL2    of arg * arg
-    | IMUL3    of arg * arg * int32
-    | INC      of arg
-    | JCC      of cc * Label.t
-    | JMP      of arg
-    | LEA      of arg * arg
-    | LZCNT    of arg * arg
-    | MOV      of arg * arg
-    | MOVD     of arg * arg
-    | MOVQ     of arg * arg
-    | MOVSD    of arg * arg
-    | MOVSS    of arg * arg
-    | MOVSX    of arg * arg
-    | MOVSXD   of arg * arg
-    | MOVZX    of arg * arg
-    | MUL      of arg
-    | MULSD    of arg * arg
-    | MULSS    of arg * arg
-    | NEG      of arg
-    | NOT      of arg
-    | OR       of arg * arg
-    | POP      of arg
-    | POPCNT   of arg * arg
-    | PUSH     of arg
+    | CVTSD2SI of operand * operand
+    | CVTSI2SD of operand * operand
+    | CVTSI2SS of operand * operand
+    | CVTSS2SI of operand * operand
+    | DEC      of operand
+    | DIV      of operand
+    | DIVSD    of operand * operand
+    | DIVSS    of operand * operand
+    | IDIV     of operand
+    | IMUL1    of operand
+    | IMUL2    of operand * operand
+    | IMUL3    of operand * operand * int32
+    | INC      of operand
+    | Jcc      of cc * Label.t
+    | JMP      of operand
+    | LEA      of operand * operand
+    | LZCNT    of operand * operand
+    | MOV      of operand * operand
+    | MOVD     of operand * operand
+    | MOVQ     of operand * operand
+    | MOVSD    of operand * operand
+    | MOVSS    of operand * operand
+    | MOVSX    of operand * operand
+    | MOVSXD   of operand * operand
+    | MOVZX    of operand * operand
+    | MUL      of operand
+    | MULSD    of operand * operand
+    | MULSS    of operand * operand
+    | NEG      of operand
+    | NOT      of operand
+    | OR       of operand * operand
+    | POP      of operand
+    | POPCNT   of operand * operand
+    | PUSH     of operand
     | RET
-    | ROL      of arg * arg
-    | ROR      of arg * arg
-    | SAR      of arg * arg
-    | SETCC    of cc * arg
-    | SHL      of arg * arg
-    | SHR      of arg * arg
-    | SUB      of arg * arg
-    | SUBSD    of arg * arg
-    | SUBSS    of arg * arg
-    | TEST     of arg * arg
-    | TZCNT    of arg * arg
-    | UCOMISD  of arg * arg
-    | UCOMISS  of arg * arg
-    | XOR      of arg * arg
-    | XORPD    of arg * arg
-    | XORPS    of arg * arg
+    | ROL      of operand * operand
+    | ROR      of operand * operand
+    | SAR      of operand * operand
+    | SETcc    of cc * operand
+    | SHL      of operand * operand
+    | SHR      of operand * operand
+    | SUB      of operand * operand
+    | SUBSD    of operand * operand
+    | SUBSS    of operand * operand
+    | TEST     of operand * operand
+    | TZCNT    of operand * operand
+    | UCOMISD  of operand * operand
+    | UCOMISS  of operand * operand
+    | XOR      of operand * operand
+    | XORPD    of operand * operand
+    | XORPS    of operand * operand
   [@@deriving compare, equal, sexp]
 
-  let reads i =
-    let r args =
-      Set.of_list (module Regvar) @@
-      List.filter_map args ~f:(function
-          | `arg (a, _) -> Some a
-          | _ -> None) in
-    let rl regs =
-      Set.of_list (module Regvar) @@
-      List.map regs ~f:(fun r -> Regvar.Reg r) in
-    match i with
+  (* Helper for registers mentioned in an addressing mode. *)
+  let rv_of_amode = function
+    | Ab a -> [a]
+    | Abi (a, b) ->  [a; b]
+    | Abd (a, _) -> [a]
+    | Abid (a, b, _) -> [a; b]
+    | Aisd (a, _, _) -> [a]
+    | Abisd (a, b, _, _) -> [a; b]
+    | _ -> []
+
+  (* All registers mentioned in operands. *)
+  let rset operands =
+    Set.of_list (module Regvar) @@
+    List.bind operands ~f:(function
+        | Oreg (a, _) -> [a]
+        | Omem a -> rv_of_amode a
+        | _ -> [])
+
+  (* Only explicit register operands. *)
+  let rset_reg operands =
+    Set.of_list (module Regvar) @@
+    List.bind operands ~f:(function
+        | Oreg (a, _) -> [a]
+        | _ -> [])
+
+  (* Only registers mentioned in memory operands. *)
+  let rset_mem operands =
+    Set.of_list (module Regvar) @@
+    List.bind operands ~f:(function
+        | Omem a -> rv_of_amode a
+        | _ -> [])
+
+  (* Hardcoded registers. *)
+  let rset' regs =
+    Set.of_list (module Regvar) @@
+    List.map regs ~f:(fun r -> Regvar.Reg r)
+
+  (* Registers read by an instruction. *)
+  let reads = function
     | ADD (a, b)
     | ADDSD (a, b)
     | ADDSS (a, b)
@@ -279,17 +300,16 @@ module Insn = struct
     | XOR (a, b)
     | XORPD (a, b)
     | XORPS (a, b)
-      -> r [a; b]
+      -> rset [a; b]
     | CALL a
-    | CMOV (_, _, a)
+    | PUSH a
+      -> Set.union (rset' [`rsp]) (rset_mem [a])
+    | CMOVcc (_, _, a)
     | CVTSD2SI (_, a)
     | CVTSI2SD (_, a)
     | CVTSI2SS (_, a)
     | CVTSS2SI (_, a)
     | DEC a
-    | DIV a
-    | IDIV a
-    | IMUL1 a
     | IMUL3 (_, a, _)
     | INC a
     | JMP a
@@ -303,38 +323,38 @@ module Insn = struct
     | MOVSX (_, a)
     | MOVSXD (_, a)
     | MOVZX (_, a)
-    | MUL a
     | NEG a
     | NOT a
     | POPCNT (_, a)
-    | PUSH a
     | TZCNT (_, a)
-      -> r [a]
+      -> rset [a]
     | CDQ
     | CQO
     | CWD
-      -> rl [`rax]
-    | JCC (_, _)
-    | POP _
-    | RET
-    | SETCC (_, _)
+      -> rset' [`rax]
+    | DIV (Oreg (_, `i8) as a)
+    | IDIV (Oreg (_, `i8) as a)
+    | IMUL1 a
+    | MUL a
+      -> Set.union (rset' [`rax]) (rset [a])
+    | DIV a
+    | IDIV a
+      -> Set.union (rset' [`rax; `rdx]) (rset [a])
+    | Jcc (_, _)
+    | SETcc (_, _)
       -> Set.empty (module Regvar)
+    | POP a
+      -> Set.union (rset' [`rsp]) (rset_mem [a])
+    | RET
+      -> rset' [`rsp]
 
-  let writes i =
-    let r args =
-      Set.of_list (module Regvar) @@
-      List.filter_map args ~f:(function
-          | `arg (a, _) -> Some a
-          | _ -> None) in
-    let rl regs =
-      Set.of_list (module Regvar) @@
-      List.map regs ~f:(fun r -> Regvar.Reg r) in
-    match i with
+  (* Registers written to by an instruction. *)
+  let writes = function
     | ADD (a, _)
     | ADDSD (a, _)
     | ADDSS (a, _)
     | AND (a, _)
-    | CMOV (_, a, _)
+    | CMOVcc (_, a, _)
     | CVTSD2SI (a, _)
     | CVTSI2SD (a, _)
     | CVTSI2SS (a, _)
@@ -364,7 +384,7 @@ module Insn = struct
     | ROL (a, _)
     | ROR (a, _)
     | SAR (a, _)
-    | SETCC (_, a)
+    | SETcc (_, a)
     | SHL (a, _)
     | SHR (a, _)
     | SUB (a, _)
@@ -374,24 +394,24 @@ module Insn = struct
     | XOR (a, _)
     | XORPD (a, _)
     | XORPS (a, _)
-      -> r [a]
+      -> rset_reg [a]
     | CALL _
     | PUSH _
     | RET
-      -> rl [`rsp]
+      -> rset' [`rsp]
     | CMP _
-    | JCC _
+    | Jcc _
     | JMP _
     | TEST _
     | UCOMISD _
     | UCOMISS _
       -> Set.empty (module Regvar)
     (* Special case for 8-bit div/mul. *)
-    | DIV `arg (_, `i8)
-    | IDIV `arg (_, `i8)
-    | IMUL1 `arg (_, `i8)
-    | MUL `arg (_, `i8)
-      -> rl [`rax]
+    | DIV Oreg (_, `i8)
+    | IDIV Oreg (_, `i8)
+    | IMUL1 Oreg (_, `i8)
+    | MUL Oreg (_, `i8)
+      -> rset' [`rax]
     | CDQ
     | CQO
     | CWD
@@ -399,7 +419,7 @@ module Insn = struct
     | IDIV _
     | IMUL1 _
     | MUL _
-      -> rl [`rax; `rdx]
+      -> rset' [`rax; `rdx]
     | POP a
-      -> Set.union (rl [`rsp]) (r [a])
+      -> Set.union (rset' [`rsp]) (rset_reg [a])
 end
