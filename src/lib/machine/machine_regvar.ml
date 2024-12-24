@@ -5,6 +5,7 @@ open Core
 
 module type Reg = sig
   type t [@@deriving compare, equal, sexp]
+  val pp : Format.formatter -> t -> unit
 end
 
 module Make(R : Reg) = struct
@@ -37,4 +38,8 @@ module Make(R : Reg) = struct
   let which = function
     | Reg r -> First r
     | Var v -> Second v
+
+  let pp ppf = function
+    | Reg r -> Format.fprintf ppf "%a" R.pp r
+    | Var v -> Format.fprintf ppf "%a" Var.pp v
 end

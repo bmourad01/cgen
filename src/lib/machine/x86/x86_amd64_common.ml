@@ -125,7 +125,7 @@ module Reg = struct
     | Some r -> r
 end
 
-module Regvar = Regvar.Make(Reg)
+module Regvar = Machine_regvar.Make(Reg)
 
 module Insn = struct
   (* Displacements for addressing modes. *)
@@ -134,7 +134,21 @@ module Insn = struct
     | Dimm of int32        (* Immediate *)
   [@@deriving compare, equal, sexp]
 
+  let pp_disp ppf = function
+    | Dsym (s, o) when o < 0 ->
+      Format.fprintf ppf "$%s-%d" s (-o)
+    | Dsym (s, o) when o > 0 ->
+      Format.fprintf ppf "$%s+%d" s o
+    | Dsym (s, _) ->
+      Format.fprintf ppf "$%s" s
+    | Dimm i ->
+      Format.fprintf ppf "0x%lx" i
+
   type rv = Regvar.t [@@deriving compare, equal, sexp]
+
+  let pp_rv ppf = function
+    | Regvar.Reg r -> Format.fprintf ppf "%a" Reg.pp r
+    | Regvar.Var v -> Format.fprintf ppf "%a" Var.pp v
 
   (* Memory addressing modes. Scale must be 1, 2, 4, or 8. *)
   type amode =
@@ -148,6 +162,24 @@ module Insn = struct
     | Abisd of rv * rv * int * disp (* Base + index * scale + displacement *)
   [@@deriving compare, equal, sexp]
 
+  let pp_amode ppf = function
+    | Ad d ->
+      Format.fprintf ppf "(%a)" pp_disp d
+    | Ab b ->
+      Format.fprintf ppf "(%a)" pp_rv b
+    | Abi (b, i) ->
+      Format.fprintf ppf "(+ %a %a)" pp_rv b pp_rv i
+    | Abd (b, d) ->
+      Format.fprintf ppf "(+ %a %a)" pp_rv b pp_disp d
+    | Abid (b, i, d) ->
+      Format.fprintf ppf "(+ %a %a %a)" pp_rv b pp_rv i pp_disp d
+    | Abis (b, i, s) ->
+      Format.fprintf ppf "(+ %a (* %a %d))" pp_rv b pp_rv i s
+    | Aisd (i, s, d) ->
+      Format.fprintf ppf "(+ (* %a %d) %a)" pp_rv i s pp_disp d
+    | Abisd (b, i, s, d) ->
+      Format.fprintf ppf "(+ %a (* %a %d) %a)" pp_rv b pp_rv i s pp_disp d
+
   (* An argument to an instruction. *)
   type operand =
     | Oreg of rv * Type.basic (* Register *)
@@ -155,6 +187,20 @@ module Insn = struct
     | Osym of string * int    (* Symbol + offset *)
     | Omem of amode           (* Memory address *)
   [@@deriving compare, equal, sexp]
+
+  let pp_operand ppf = function
+    | Oreg (r, t) ->
+      Format.fprintf ppf "%a:%a" pp_rv r Type.pp_basic t
+    | Oimm i ->
+      Format.fprintf ppf "0x%Lx" i
+    | Osym (s, o) when o < 0 ->
+      Format.fprintf ppf "%s-%d" s (-o)
+    | Osym (s, o) when o > 0 ->
+      Format.fprintf ppf "%s+%d" s o
+    | Osym (s, _) ->
+      Format.fprintf ppf "%s" s
+    | Omem a ->
+      Format.fprintf ppf "%a" pp_amode a
 
   (* Condition codes. *)
   type cc =
@@ -171,6 +217,20 @@ module Insn = struct
     | Cp  (* PF *)
     | Cnp (* ~PF *)
   [@@deriving compare, equal, sexp]
+
+  let pp_cc ppf = function
+    | Ca  -> Format.fprintf ppf "a"
+    | Cae -> Format.fprintf ppf "ae"
+    | Cb  -> Format.fprintf ppf "b"
+    | Cbe -> Format.fprintf ppf "be"
+    | Ce  -> Format.fprintf ppf "e"
+    | Cne -> Format.fprintf ppf "ne"
+    | Cg  -> Format.fprintf ppf "g"
+    | Cge -> Format.fprintf ppf "ge"
+    | Cl  -> Format.fprintf ppf "l"
+    | Cle -> Format.fprintf ppf "le"
+    | Cp  -> Format.fprintf ppf "p"
+    | Cnp -> Format.fprintf ppf "np"
 
   type t =
     | ADD      of operand * operand
@@ -197,7 +257,7 @@ module Insn = struct
     | IMUL3    of operand * operand * int32
     | INC      of operand
     | Jcc      of cc * Label.t
-    | JMP      of operand
+    | JMP      of [`op of operand | `lbl of Label.t]
     | LEA      of operand * operand
     | LZCNT    of operand * operand
     | MOV      of operand * operand
@@ -235,6 +295,82 @@ module Insn = struct
     | XORPD    of operand * operand
     | XORPS    of operand * operand
   [@@deriving compare, equal, sexp]
+
+  let pp ppf i =
+    let unary m a =
+      Format.fprintf ppf "(%s %a)" m pp_operand a in
+    let binary m a b =
+      Format.fprintf ppf "(%s %a %a)" m pp_operand a pp_operand b in
+    match i with
+    | ADD (a, b) -> binary "add" a b
+    | ADDSD (a, b) -> binary "addsd" a b
+    | ADDSS (a, b) -> binary "addss" a b
+    | AND (a, b) -> binary "and" a b
+    | CALL a -> unary "call" a
+    | CDQ -> Format.fprintf ppf "(cdq)"
+    | CMOVcc (cc, a, b) ->
+      Format.fprintf ppf "(cmov%a %a %a)"
+        pp_cc cc pp_operand a pp_operand b
+    | CMP (a, b) -> binary "cmp" a b
+    | CQO -> Format.fprintf ppf "(cqo)"
+    | CWD -> Format.fprintf ppf "(cwd)"
+    | CVTSD2SI (a, b) -> binary "cvtsd2si" a b
+    | CVTSI2SD (a, b) -> binary "cvtsi2sd" a b
+    | CVTSI2SS (a, b) -> binary "cvtsi2ss" a b
+    | CVTSS2SI (a, b) -> binary "cvtss2si" a b
+    | DEC a -> unary "dec" a
+    | DIV a -> unary "div" a
+    | DIVSD (a, b) -> binary "divsd" a b
+    | DIVSS (a, b) -> binary "divss" a b
+    | IDIV a -> unary "idiv" a
+    | IMUL1 a -> unary "imul" a
+    | IMUL2 (a, b) -> binary "imul" a b
+    | IMUL3 (a, b, c) ->
+      Format.fprintf ppf "(imul %a %a 0x%lx)"
+        pp_operand a pp_operand b c
+    | INC a -> unary "inc" a
+    | Jcc (cc, l) ->
+      Format.fprintf ppf "(j%a %a)" pp_cc cc Label.pp l
+    | JMP `op a -> unary "jmp" a
+    | JMP `lbl l ->
+      Format.fprintf ppf "(jmp %a)" Label.pp l
+    | LEA (a, b) -> binary "lea" a b
+    | LZCNT (a, b) -> binary "lzcnt" a b
+    | MOV (a, b) -> binary "mov" a b
+    | MOVD (a, b) -> binary "movd" a b
+    | MOVQ (a, b) -> binary "movq" a b
+    | MOVSD (a, b) -> binary "movsd" a b
+    | MOVSS (a, b) -> binary "movss" a b
+    | MOVSX (a, b) -> binary "movsx" a b
+    | MOVSXD (a, b) -> binary "movsxd" a b
+    | MOVZX (a, b) -> binary "movzx" a b
+    | MUL a -> unary "mul" a
+    | MULSD (a, b) -> binary "mulsd" a b
+    | MULSS (a, b) -> binary "mulss" a b
+    | NEG a -> unary "neg" a
+    | NOT a -> unary "not" a
+    | OR (a, b) -> binary "or" a b
+    | POP a -> unary "pop" a
+    | POPCNT (a, b) -> binary "popcnt" a b
+    | PUSH a -> unary "push" a
+    | RET -> Format.fprintf ppf "ret"
+    | ROL (a, b) -> binary "rol" a b
+    | ROR (a, b) -> binary "ror" a b
+    | SAR (a, b) -> binary "sar" a b
+    | SETcc (cc, a) ->
+      Format.fprintf ppf "(set%a %a)" pp_cc cc pp_operand a
+    | SHL (a, b) -> binary "shl" a b
+    | SHR (a, b) -> binary "shr" a b
+    | SUB (a, b) -> binary "sub" a b
+    | SUBSD (a, b) -> binary "subsd" a b
+    | SUBSS (a, b) -> binary "subss" a b
+    | TEST (a, b) -> binary "test" a b
+    | TZCNT (a, b) -> binary "tzcnt" a b
+    | UCOMISD (a, b) -> binary "ucomisd" a b
+    | UCOMISS (a, b) -> binary "ucomiss" a b
+    | XOR (a, b) -> binary "xor" a b
+    | XORPD (a, b) -> binary "xorpd" a b
+    | XORPS (a, b) -> binary "xorps" a b
 
   (* Helper for registers mentioned in an addressing mode. *)
   let rv_of_amode = function
@@ -312,7 +448,7 @@ module Insn = struct
     | DEC a
     | IMUL3 (_, a, _)
     | INC a
-    | JMP a
+    | JMP `op a
     | LEA (_, a)
     | LZCNT (_, a)
     | MOV (_, a)
@@ -342,6 +478,7 @@ module Insn = struct
       -> Set.union (rset' [`rax; `rdx]) (rset [a])
     | Jcc (_, _)
     | SETcc (_, _)
+    | JMP `lbl _
       -> Set.empty (module Regvar)
     | POP a
       -> Set.union (rset' [`rsp]) (rset_mem [a])

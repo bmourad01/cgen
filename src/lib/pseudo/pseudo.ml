@@ -1,5 +1,5 @@
 module Blk = Pseudo_blk
 module Func = Pseudo_func
 
-type 'a blk = 'a Blk.t [@@deriving sexp]
-type 'a func = 'a Func.t [@@deriving sexp]
+type 'a blk = 'a Blk.t [@@deriving bin_io, compare, equal, sexp]
+type 'a func = 'a Func.t [@@deriving bin_io, compare, equal, sexp]

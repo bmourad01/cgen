@@ -36,12 +36,14 @@ module type S = sig
     val is_reg : t -> bool
     val is_var : t -> bool
     val which : t -> (Reg.t, Var.t) Either.t
+    val pp : Format.formatter -> t -> unit
 
     include Comparator.S with type t := t
   end
 
   (** A machine instruction. *)
   module Insn : sig
+    (** The abstract representation of an instruction. *)
     type t [@@deriving compare, equal, sexp]
 
     (** The set of arguments that the instruction reads from. *)
@@ -49,6 +51,13 @@ module type S = sig
 
     (** The set of arguments that the instruction writes to. *)
     val writes : t -> (Regvar.t, Regvar.comparator_witness) Set.t
+
+    (** Pretty-prints the instruction.
+
+        It is recommended to use an s-expression syntax to blend in
+        with the syntax with those seen in the [Pseudo] module.
+    *)
+    val pp : Format.formatter -> t -> unit
   end
 
   (** Lowers the ABI-specific details of a function for a given target. *)
