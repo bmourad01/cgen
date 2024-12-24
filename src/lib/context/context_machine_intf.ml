@@ -5,7 +5,7 @@ module type S = sig
 
   (** A machine register. *)
   module Reg : sig
-    type t [@@deriving compare, equal, sexp]
+    type t [@@deriving bin_io, compare, equal, sexp]
 
     (** Pretty-print the register name. *)
     val pp : Format.formatter -> t -> unit
@@ -29,7 +29,7 @@ module type S = sig
       present.
   *)
   module Regvar : sig
-    type t [@@deriving compare, equal, sexp]
+    type t [@@deriving bin_io, compare, equal, sexp]
 
     val reg : t -> Reg.t option
     val var : t -> Var.t option
@@ -44,7 +44,7 @@ module type S = sig
   (** A machine instruction. *)
   module Insn : sig
     (** The abstract representation of an instruction. *)
-    type t [@@deriving compare, equal, sexp]
+    type t [@@deriving bin_io, compare, equal, sexp]
 
     (** The set of arguments that the instruction reads from. *)
     val reads : t -> (Regvar.t, Regvar.comparator_witness) Set.t

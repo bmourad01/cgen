@@ -4,7 +4,7 @@
 open Core
 
 module type Reg = sig
-  type t [@@deriving compare, equal, sexp]
+  type t [@@deriving bin_io, compare, equal, sexp]
   val pp : Format.formatter -> t -> unit
 end
 
@@ -13,7 +13,7 @@ module Make(R : Reg) = struct
     type t =
       | Reg of R.t
       | Var of Var.t
-    [@@deriving compare, equal, sexp] 
+    [@@deriving bin_io, compare, equal, sexp]
   end
 
   include T

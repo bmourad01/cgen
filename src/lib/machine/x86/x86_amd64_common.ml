@@ -20,7 +20,7 @@ module Reg = struct
     | `r13
     | `r14
     | `r15
-  ] [@@deriving compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   let pp_gpr8 ppf : gpr -> unit = function
     | `rax -> Format.fprintf ppf "al"
@@ -96,7 +96,7 @@ module Reg = struct
     | `xmm13
     | `xmm14
     | `xmm15
-  ] [@@deriving compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   let pp_sse ppf sse =
     Format.fprintf ppf "%a" Sexp.pp (sexp_of_sse sse)
@@ -104,7 +104,7 @@ module Reg = struct
   type t = [
     | gpr
     | sse
-  ] [@@deriving compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, sexp]
 
   let is_gpr = function
     | #gpr -> true
@@ -127,12 +127,14 @@ end
 
 module Regvar = Machine_regvar.Make(Reg)
 
+type rv = Regvar.t [@@deriving bin_io, compare, equal, sexp]
+
 module Insn = struct
   (* Displacements for addressing modes. *)
   type disp =
     | Dsym of string * int (* Symbol + offset *)
     | Dimm of int32        (* Immediate *)
-  [@@deriving compare, equal, sexp]
+  [@@deriving bin_io, compare, equal, sexp]
 
   let pp_disp ppf = function
     | Dsym (s, o) when o < 0 ->
@@ -144,12 +146,6 @@ module Insn = struct
     | Dimm i ->
       Format.fprintf ppf "0x%lx" i
 
-  type rv = Regvar.t [@@deriving compare, equal, sexp]
-
-  let pp_rv ppf = function
-    | Regvar.Reg r -> Format.fprintf ppf "%a" Reg.pp r
-    | Regvar.Var v -> Format.fprintf ppf "%a" Var.pp v
-
   (* Memory addressing modes. Scale must be 1, 2, 4, or 8. *)
   type amode =
     | Ad    of disp                 (* Displacement *)
@@ -160,25 +156,31 @@ module Insn = struct
     | Abis  of rv * rv * int        (* Base + index * scale *)
     | Aisd  of rv * int * disp      (* Index * scale + displacement *)
     | Abisd of rv * rv * int * disp (* Base + index * scale + displacement *)
-  [@@deriving compare, equal, sexp]
+  [@@deriving bin_io, compare, equal, sexp]
 
   let pp_amode ppf = function
     | Ad d ->
       Format.fprintf ppf "(%a)" pp_disp d
     | Ab b ->
-      Format.fprintf ppf "(%a)" pp_rv b
+      Format.fprintf ppf "(%a)" Regvar.pp b
     | Abi (b, i) ->
-      Format.fprintf ppf "(+ %a %a)" pp_rv b pp_rv i
+      Format.fprintf ppf "(+ %a %a)"
+        Regvar.pp b Regvar.pp i
     | Abd (b, d) ->
-      Format.fprintf ppf "(+ %a %a)" pp_rv b pp_disp d
+      Format.fprintf ppf "(+ %a %a)"
+        Regvar.pp b pp_disp d
     | Abid (b, i, d) ->
-      Format.fprintf ppf "(+ %a %a %a)" pp_rv b pp_rv i pp_disp d
+      Format.fprintf ppf "(+ %a %a %a)"
+        Regvar.pp b Regvar.pp i pp_disp d
     | Abis (b, i, s) ->
-      Format.fprintf ppf "(+ %a (* %a %d))" pp_rv b pp_rv i s
+      Format.fprintf ppf "(+ %a (* %a %d))"
+        Regvar.pp b Regvar.pp i s
     | Aisd (i, s, d) ->
-      Format.fprintf ppf "(+ (* %a %d) %a)" pp_rv i s pp_disp d
+      Format.fprintf ppf "(+ (* %a %d) %a)"
+        Regvar.pp i s pp_disp d
     | Abisd (b, i, s, d) ->
-      Format.fprintf ppf "(+ %a (* %a %d) %a)" pp_rv b pp_rv i s pp_disp d
+      Format.fprintf ppf "(+ %a (* %a %d) %a)"
+        Regvar.pp b Regvar.pp i s pp_disp d
 
   (* An argument to an instruction. *)
   type operand =
@@ -186,11 +188,11 @@ module Insn = struct
     | Oimm of int64           (* Immediate *)
     | Osym of string * int    (* Symbol + offset *)
     | Omem of amode           (* Memory address *)
-  [@@deriving compare, equal, sexp]
+  [@@deriving bin_io, compare, equal, sexp]
 
   let pp_operand ppf = function
     | Oreg (r, t) ->
-      Format.fprintf ppf "%a:%a" pp_rv r Type.pp_basic t
+      Format.fprintf ppf "%a:%a" Regvar.pp r Type.pp_basic t
     | Oimm i ->
       Format.fprintf ppf "0x%Lx" i
     | Osym (s, o) when o < 0 ->
@@ -216,7 +218,7 @@ module Insn = struct
     | Cle (* ZF | SF<>OF *)
     | Cp  (* PF *)
     | Cnp (* ~PF *)
-  [@@deriving compare, equal, sexp]
+  [@@deriving bin_io, compare, equal, sexp]
 
   let pp_cc ppf = function
     | Ca  -> Format.fprintf ppf "a"
@@ -294,7 +296,7 @@ module Insn = struct
     | XOR      of operand * operand
     | XORPD    of operand * operand
     | XORPS    of operand * operand
-  [@@deriving compare, equal, sexp]
+  [@@deriving bin_io, compare, equal, sexp]
 
   let pp ppf i =
     let unary m a =
