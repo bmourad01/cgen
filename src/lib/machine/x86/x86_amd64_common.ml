@@ -160,9 +160,9 @@ module Insn = struct
 
   let pp_amode ppf = function
     | Ad d ->
-      Format.fprintf ppf "(%a)" pp_disp d
+      Format.fprintf ppf "%a" pp_disp d
     | Ab b ->
-      Format.fprintf ppf "(%a)" Regvar.pp b
+      Format.fprintf ppf "%a" Regvar.pp b
     | Abi (b, i) ->
       Format.fprintf ppf "(+ %a %a)"
         Regvar.pp b Regvar.pp i
@@ -202,7 +202,7 @@ module Insn = struct
     | Osym (s, _) ->
       Format.fprintf ppf "%s" s
     | Omem a ->
-      Format.fprintf ppf "%a" pp_amode a
+      Format.fprintf ppf "[%a]" pp_amode a
 
   (* Condition codes. *)
   type cc =
