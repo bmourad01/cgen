@@ -164,22 +164,22 @@ module Insn = struct
     | Ab b ->
       Format.fprintf ppf "%a" Regvar.pp b
     | Abi (b, i) ->
-      Format.fprintf ppf "(+ %a %a)"
+      Format.fprintf ppf "%a + %a"
         Regvar.pp b Regvar.pp i
     | Abd (b, d) ->
-      Format.fprintf ppf "(+ %a %a)"
+      Format.fprintf ppf "%a + %a"
         Regvar.pp b pp_disp d
     | Abid (b, i, d) ->
-      Format.fprintf ppf "(+ %a %a %a)"
+      Format.fprintf ppf "%a + %a*1 + %a"
         Regvar.pp b Regvar.pp i pp_disp d
     | Abis (b, i, s) ->
-      Format.fprintf ppf "(+ %a (* %a %d))"
+      Format.fprintf ppf "%a + %a*%d"
         Regvar.pp b Regvar.pp i s
     | Aisd (i, s, d) ->
-      Format.fprintf ppf "(+ (* %a %d) %a)"
+      Format.fprintf ppf "%a*%d + %a"
         Regvar.pp i s pp_disp d
     | Abisd (b, i, s, d) ->
-      Format.fprintf ppf "(+ %a (* %a %d) %a)"
+      Format.fprintf ppf "%a + %a*%d + %a"
         Regvar.pp b Regvar.pp i s pp_disp d
 
   (* An argument to an instruction. *)
@@ -191,6 +191,19 @@ module Insn = struct
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_operand ppf = function
+    (* Print the correct register syntax based on the type. *)
+    | Oreg (Reg (#Reg.sse as r), #Type.fp) ->
+      Format.fprintf ppf "%a" Reg.pp_sse r
+    | Oreg (Reg (#Reg.gpr as r), `i8) ->
+      Format.fprintf ppf "%a" Reg.pp_gpr8 r
+    | Oreg (Reg (#Reg.gpr as r), `i16) ->
+      Format.fprintf ppf "%a" Reg.pp_gpr16 r
+    | Oreg (Reg (#Reg.gpr as r), `i32) ->
+      Format.fprintf ppf "%a" Reg.pp_gpr32 r
+    | Oreg (Reg (#Reg.gpr as r), `i64) ->
+      Format.fprintf ppf "%a" Reg.pp_gpr r
+    (* This should always be a variable in practice, but we
+       won't enforce it here. *)
     | Oreg (r, t) ->
       Format.fprintf ppf "%a:%a" Regvar.pp r Type.pp_basic t
     | Oimm i ->
@@ -300,22 +313,22 @@ module Insn = struct
 
   let pp ppf i =
     let unary m a =
-      Format.fprintf ppf "(%s %a)" m pp_operand a in
+      Format.fprintf ppf "%s %a" m pp_operand a in
     let binary m a b =
-      Format.fprintf ppf "(%s %a %a)" m pp_operand a pp_operand b in
+      Format.fprintf ppf "%s %a, %a" m pp_operand a pp_operand b in
     match i with
     | ADD (a, b) -> binary "add" a b
     | ADDSD (a, b) -> binary "addsd" a b
     | ADDSS (a, b) -> binary "addss" a b
     | AND (a, b) -> binary "and" a b
     | CALL a -> unary "call" a
-    | CDQ -> Format.fprintf ppf "(cdq)"
+    | CDQ -> Format.fprintf ppf "cdq"
     | CMOVcc (cc, a, b) ->
-      Format.fprintf ppf "(cmov%a %a %a)"
+      Format.fprintf ppf "cmov%a %a, %a"
         pp_cc cc pp_operand a pp_operand b
     | CMP (a, b) -> binary "cmp" a b
-    | CQO -> Format.fprintf ppf "(cqo)"
-    | CWD -> Format.fprintf ppf "(cwd)"
+    | CQO -> Format.fprintf ppf "cqo"
+    | CWD -> Format.fprintf ppf "cwd"
     | CVTSD2SI (a, b) -> binary "cvtsd2si" a b
     | CVTSI2SD (a, b) -> binary "cvtsi2sd" a b
     | CVTSI2SS (a, b) -> binary "cvtsi2ss" a b
@@ -328,14 +341,14 @@ module Insn = struct
     | IMUL1 a -> unary "imul" a
     | IMUL2 (a, b) -> binary "imul" a b
     | IMUL3 (a, b, c) ->
-      Format.fprintf ppf "(imul %a %a 0x%lx)"
+      Format.fprintf ppf "imul %a, %a, 0x%lx"
         pp_operand a pp_operand b c
     | INC a -> unary "inc" a
     | Jcc (cc, l) ->
-      Format.fprintf ppf "(j%a %a)" pp_cc cc Label.pp l
+      Format.fprintf ppf "j%a %a" pp_cc cc Label.pp l
     | JMP `op a -> unary "jmp" a
     | JMP `lbl l ->
-      Format.fprintf ppf "(jmp %a)" Label.pp l
+      Format.fprintf ppf "jmp %a" Label.pp l
     | LEA (a, b) -> binary "lea" a b
     | LZCNT (a, b) -> binary "lzcnt" a b
     | MOV (a, b) -> binary "mov" a b
@@ -360,7 +373,7 @@ module Insn = struct
     | ROR (a, b) -> binary "ror" a b
     | SAR (a, b) -> binary "sar" a b
     | SETcc (cc, a) ->
-      Format.fprintf ppf "(set%a %a)" pp_cc cc pp_operand a
+      Format.fprintf ppf "set%a %a" pp_cc cc pp_operand a
     | SHL (a, b) -> binary "shl" a b
     | SHR (a, b) -> binary "shr" a b
     | SUB (a, b) -> binary "sub" a b
@@ -386,7 +399,7 @@ module Insn = struct
 
   (* All registers mentioned in operands. *)
   let rset operands =
-    Set.of_list (module Regvar) @@
+    Regvar.Set.of_list @@
     List.bind operands ~f:(function
         | Oreg (a, _) -> [a]
         | Omem a -> rv_of_amode a
@@ -394,21 +407,21 @@ module Insn = struct
 
   (* Only explicit register operands. *)
   let rset_reg operands =
-    Set.of_list (module Regvar) @@
+    Regvar.Set.of_list @@
     List.bind operands ~f:(function
         | Oreg (a, _) -> [a]
         | _ -> [])
 
   (* Only registers mentioned in memory operands. *)
   let rset_mem operands =
-    Set.of_list (module Regvar) @@
+    Regvar.Set.of_list @@
     List.bind operands ~f:(function
         | Omem a -> rv_of_amode a
         | _ -> [])
 
   (* Hardcoded registers. *)
   let rset' regs =
-    Set.of_list (module Regvar) @@
+    Regvar.Set.of_list @@
     List.map regs ~f:(fun r -> Regvar.Reg r)
 
   (* Registers read by an instruction. *)
@@ -481,7 +494,7 @@ module Insn = struct
     | Jcc (_, _)
     | SETcc (_, _)
     | JMP `lbl _
-      -> Set.empty (module Regvar)
+      -> Regvar.Set.empty
     | POP a
       -> Set.union (rset' [`rsp]) (rset_mem [a])
     | RET
@@ -544,7 +557,7 @@ module Insn = struct
     | TEST _
     | UCOMISD _
     | UCOMISS _
-      -> Set.empty (module Regvar)
+      -> Regvar.Set.empty
     (* Special case for 8-bit div/mul. *)
     | DIV Oreg (_, `i8)
     | IDIV Oreg (_, `i8)

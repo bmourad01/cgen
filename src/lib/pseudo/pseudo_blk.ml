@@ -18,8 +18,8 @@ let pp ppa ppf t =
   let sep ppf = Format.fprintf ppf "@;" in
   match Ftree.is_empty t.insns with
   | true ->
-    Format.fprintf ppf "(%a)" Label.pp t.label
+    Format.fprintf ppf "%a:" Label.pp t.label
   | false ->
-    Format.fprintf ppf "(%a@;@[<v 2>  %a])"
+    Format.fprintf ppf "%a:@;@[<v 2>  %a]"
       Label.pp t.label
       (Ftree.pp ppa sep) t.insns

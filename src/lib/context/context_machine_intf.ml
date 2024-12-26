@@ -39,6 +39,7 @@ module type S = sig
     val pp : Format.formatter -> t -> unit
 
     include Comparator.S with type t := t
+    module Set : Set_intf.S with type Elt.t = t
   end
 
   (** A machine instruction. *)
@@ -47,16 +48,12 @@ module type S = sig
     type t [@@deriving bin_io, compare, equal, sexp]
 
     (** The set of arguments that the instruction reads from. *)
-    val reads : t -> (Regvar.t, Regvar.comparator_witness) Set.t
+    val reads : t -> Regvar.Set.t
 
     (** The set of arguments that the instruction writes to. *)
-    val writes : t -> (Regvar.t, Regvar.comparator_witness) Set.t
+    val writes : t -> Regvar.Set.t
 
-    (** Pretty-prints the instruction.
-
-        It is recommended to use an s-expression syntax to blend in
-        with the syntax with those seen in the [Pseudo] module.
-    *)
+    (** Pretty-prints the instruction. *)
     val pp : Format.formatter -> t -> unit
   end
 

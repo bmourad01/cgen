@@ -16,8 +16,12 @@ module Make(R : Reg) = struct
     [@@deriving bin_io, compare, equal, sexp]
   end
 
-  include T
-  include Comparator.Make(T)
+  module C = struct
+    include T
+    include Comparator.Make(T)
+  end
+  include C
+  module Set = Set.Make(C)
 
   let is_reg = function
     | Reg _ -> true
