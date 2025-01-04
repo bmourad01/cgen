@@ -191,10 +191,11 @@ module Insn = struct
 
   (* An argument to an instruction. *)
   type operand =
-    | Oreg of rv * Type.basic (* Register *)
-    | Oimm of int64           (* Immediate *)
-    | Osym of string * int    (* Symbol + offset *)
-    | Omem of amode           (* Memory address *)
+    | Oreg  of rv * Type.basic (* Register *)
+    | Oimm  of int64           (* Immediate *)
+    | Omem  of amode           (* Memory address *)
+    | Ofp32 of Float32.t       (* Single-precision floating-point number *)
+    | Ofp64 of float           (* Double-precision floating-point number *)
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_operand ppf = function
@@ -215,14 +216,12 @@ module Insn = struct
       Format.fprintf ppf "%a:%a" Regvar.pp r Type.pp_basic t
     | Oimm i ->
       Format.fprintf ppf "0x%Lx" i
-    | Osym (s, o) when o < 0 ->
-      Format.fprintf ppf "%s-%d" s (-o)
-    | Osym (s, o) when o > 0 ->
-      Format.fprintf ppf "%s+%d" s o
-    | Osym (s, _) ->
-      Format.fprintf ppf "%s" s
     | Omem a ->
       Format.fprintf ppf "[%a]" pp_amode a
+    | Ofp32 f ->
+      Format.fprintf ppf "%sf" (Float32.to_string f)
+    | Ofp64 f ->
+      Format.fprintf ppf "%a" Float.pp f
 
   (* Condition codes. *)
   type cc =

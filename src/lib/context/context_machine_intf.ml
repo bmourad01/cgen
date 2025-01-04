@@ -31,8 +31,8 @@ module type S = sig
   module Regvar : sig
     type t [@@deriving bin_io, compare, equal, sexp]
 
-    val reg : t -> Reg.t option
-    val var : t -> Var.t option
+    val reg : Reg.t -> t
+    val var : Var.t -> t
     val is_reg : t -> bool
     val is_var : t -> bool
     val which : t -> (Reg.t, Var.t) Either.t
@@ -58,9 +58,15 @@ module type S = sig
   end
 
   (** Instruction selection. *)
-  module Isel : sig
+  module Isel(C : Context_intf.S) : sig
     (** Rewrite rules for instruction selection. *)
-    val rules : (Regvar.t, Insn.t) Isel.Rule.t list
+    val rules : (Regvar.t, Insn.t) Isel.Rule(C).t list
+
+    (** Move an operand into a register or a variable. *)
+    val move :
+      Regvar.t ->
+      [Type.basic | `flag] ->
+      [Virtual.operand | `reg of Reg.t] -> Insn.t list C.t
   end
 
   (** Lowers the ABI-specific details of a function for a given target. *)

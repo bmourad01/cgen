@@ -31,13 +31,8 @@ module Make(R : Reg) = struct
     | Reg _ -> false
     | Var _ -> true
 
-  let reg = function
-    | Reg r -> Some r
-    | Var _ -> None
-
-  let var = function
-    | Reg _ -> None
-    | Var v -> Some v
+  let reg r = Reg r
+  let var v = Var v
 
   let which = function
     | Reg r -> First r

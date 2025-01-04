@@ -4,4 +4,3 @@ module Rule = Isel_internal.Rule
 
 type pattern = Pattern.t
 type 'r subst = 'r Subst.t
-type ('r, 'i) rule = ('r, 'i) Rule.t

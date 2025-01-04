@@ -120,6 +120,7 @@ module Subst : sig
     | Double of float
     | Sym of string * int
     | Label of Label.t
+    | Bool of bool
 
   (** A substitition. *)
   type 'r t = private 'r Isel_internal.Subst.t
@@ -130,22 +131,20 @@ end
 
 type 'r subst = 'r Subst.t
 
-module Rule : sig
+module Rule(C : Context_intf.S) : sig
   (** A callback for a rule, which takes a substitution and optionally
       returns a list of instructions.
 
       If the callback returns [None], then the rewrite rule fails to produce
       a match.
   *)
-  type ('r, 'i) callback = 'r subst -> 'i list option
+  type ('r, 'i) callback = 'r subst -> 'i list option C.t
 
   (** A rewrite rule. *)
-  type ('r, 'i) t = private ('r, 'i) Isel_internal.Rule.t
-
+  type ('r, 'i) t = private ('r, 'i) Isel_internal.Rule(C).t
+  
   (** [pre => post] constructs a rewrite rule where the pattern [pre] is
       matched with an existing program term, and rewritten to the instruction
       sequence produced by [post]. *)
   val (=>) : pattern -> ('r, 'i) callback -> ('r, 'i) t
 end
-
-type ('r, 'i) rule = ('r, 'i) Rule.t
