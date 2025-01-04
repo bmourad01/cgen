@@ -7,6 +7,7 @@ module Machine = struct
   module Reg = Reg
   module Regvar = Regvar
   module Insn = Insn
+  module Isel = X86_amd64_isel
   let lower_abi = Sysv.run
 end
 

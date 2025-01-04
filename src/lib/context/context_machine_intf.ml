@@ -57,7 +57,12 @@ module type S = sig
     val pp : Format.formatter -> t -> unit
   end
 
+  (** Instruction selection. *)
+  module Isel : sig
+    (** Rewrite rules for instruction selection. *)
+    val rules : (Regvar.t, Insn.t) Isel.Rule.t list
+  end
+
   (** Lowers the ABI-specific details of a function for a given target. *)
   val lower_abi : Typecheck.env -> Virtual.func -> Virtual.Abi.func context
 end
-

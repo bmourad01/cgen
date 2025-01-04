@@ -2,9 +2,6 @@ open Core
 
 include Context_common
 
-type var = Var.t
-type label = Label.t
-
 module Var = Context_var
 module Label = Context_label
 module Local = Context_local

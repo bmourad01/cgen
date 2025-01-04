@@ -3,7 +3,7 @@
 open Regular.Std
 
 (** A program variable. *)
-type t
+type t = private Var_internal.t
 
 (** Returns [true] if the variable is a temporary. *)
 val is_temp : t -> bool

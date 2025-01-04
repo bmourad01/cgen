@@ -1,7 +1,6 @@
 (** The compilation context. *)
 
 open Core
-open Monads.Std
 open Regular.Std
 
 (** The state for the compilation context. *)
@@ -15,35 +14,8 @@ type state = State.t
 (** The compilation context. *)
 type 'a t
 
-(** Terminates the computation with an error. *)
-val fail : Error.t -> 'a t
-
-(** Same as [fail], but formats a pretty-printed error message. *)
-val failf : ('a, Format.formatter, unit, unit -> 'b t) format4 -> 'a
-
-(** Lifts an [Or_error] computation into the context.
-
-    If it is [Ok x], then [x] is returned, otherwise the computation fails
-    with the error.
-*)
-val lift_err : 'a Or_error.t -> 'a t
-
-(** [when_ k f] evaluates [f] if [k] is [true]. *)
-val when_ : bool -> (unit -> unit t) -> unit t
-
-(** [unless k f] evaluates [f] if [k] is [false]. *)
-val unless : bool -> (unit -> unit t) -> unit t
-
 (** Returns the current target descriptor. *)
 val target : Target.t t
-
-(** Local state that can be used during an analysis or transformation pass
-    within the compilation context, without use of monad transformers.
-
-    This state is not persistent between runs of compilation context.
-*)
-module Local : Context_local_intf.S
-  with type 'a context := 'a t
 
 (** The target-specific implementation needed for the compilation pipeline. *)
 module type Machine = Context_machine_intf.S
@@ -59,24 +31,10 @@ val register_machine : Target.t -> (module Machine) -> unit
 (** Returns the target machine implementation for the current context. *)
 val machine : (module Machine) t
 
-type var = Var.t
-
-module Var : sig
-  (** Generates a fresh temporary variable. *)
-  val fresh : var t
-end
-
-type label = Label.t
-
-module Label : sig
-  (** Generates a fresh program label. *)
-  val fresh : label t
-end
-
 (** Helpers for generating [Virtual] terms. *)
 module Virtual : Context_virtual_intf.S
-  with type var := var
-   and type label := label
+  with type var := Var.t
+   and type label := Label.t
    and type 'a context := 'a t
 
 (** Initializes the state. *)
@@ -91,34 +49,4 @@ val run : 'a t -> state -> ('a * state) Or_error.t
     discarded when [x] terminates. *)
 val eval : 'a t -> state -> 'a Or_error.t
 
-module Syntax : sig
-  include Monad.Syntax.S with type 'a t := 'a t
-  include Monad.Syntax.Let.S with type 'a t := 'a t
-
-  (** Attempts to unwrap an [Or_error] computation into the context, and
-      fails if it is an error. *)
-  val (>>?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
-
-  (** Same as the [(>>?)] infix notation. *)
-  val (let*?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
-end
-
-include Monad.S
-  with type 'a t := 'a t
-   and module Syntax := Syntax
-
-(** Same as [List.map], but [f] is allowed to fail early. In this case,
-    the error is lifted into the context. *)
-val map_list_err : 'a list -> f:('a -> 'b Or_error.t) -> 'b list t
-
-(** Same as [List.iter], but [f] is allowed to fail early. In this case,
-    the error is lifted into the context. *)
-val iter_list_err : 'a list -> f:('a -> unit Or_error.t) -> unit t
-
-(** Same as [Seq.map], but [f] is allowed to fail early. In this case,
-    the error is lifted into the context. *)
-val map_seq_err : 'a seq -> f:('a -> 'b Or_error.t) -> 'b seq t
-
-(** Same as [Seq.iter], but [f] is allowed to fail early. In this case,
-    the error is lifted into the context. *)
-val iter_seq_err : 'a seq -> f:('a -> unit Or_error.t) -> unit t
+include Context_intf.S with type 'a t := 'a t

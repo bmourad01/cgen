@@ -28,6 +28,7 @@
   ftree
   hashmap
   hashmap_intf
+  isel_internal
   last_stores
   live_intf
   patricia_tree
