@@ -20,5 +20,5 @@ let pp ppa ppf t =
   | true ->
     Format.fprintf ppf "$%s:" t.name
   | false ->
-    Format.fprintf ppf "$%s:@;@[<v 2>  %a]"
+    Format.fprintf ppf "$%s:@;@[<v 2>  %a@]"
       t.name (Ftree.pp (Pseudo_blk.pp ppa) sep) t.blks
