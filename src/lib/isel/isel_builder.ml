@@ -4,14 +4,12 @@ open Graphlib.Std
 open Virtual.Abi
 open Isel_common
 
-let type' ty = (ty :> [Type.basic | `flag])
-
-let infer_ty_binop : Insn.binop -> [Type.basic | `flag] = function
+let infer_ty_binop : Insn.binop -> ty = function
   | `add t
   | `div t
   | `mul t
   | `rem t
-  | `sub t -> type' t
+  | `sub t -> (t :> ty)
   | `mulh t
   | `udiv t
   | `umulh t
@@ -23,12 +21,12 @@ let infer_ty_binop : Insn.binop -> [Type.basic | `flag] = function
   | `lsr_ t
   | `rol t
   | `ror t
-  | `xor t -> type' t
+  | `xor t -> (t :> ty)
   | #Virtual.Insn.cmp -> `flag
 
-let infer_ty_unop : Insn.unop -> [Type.basic | `flag] = function
+let infer_ty_unop : Insn.unop -> ty = function
   | `neg t
-  | `copy t -> type' t
+  | `copy t -> (t :> ty)
   | `clz t
   | `ctz t
   | `not_ t
@@ -38,17 +36,13 @@ let infer_ty_unop : Insn.unop -> [Type.basic | `flag] = function
   | `ftoui (_, t)
   | `itrunc t
   | `sext t
-  | `zext t -> type' t
-  | `ifbits t -> type' t
+  | `zext t -> (t :> ty)
+  | `ifbits t -> (t :> ty)
   | `fext t
   | `fibits t
   | `ftrunc t
   | `sitof (_, t)
-  | `uitof (_, t) -> type' t
-
-let new_var t x ty =
-  let id = new_node ~ty:(type' ty) t @@ N (Ovar x, []) in
-  Hashtbl.set t.vars ~key:x ~data:id
+  | `uitof (_, t) -> (t :> ty)
 
 module Make(M : Context.Machine)(C : Context_intf.S) = struct
   open C.Syntax
@@ -56,8 +50,6 @@ module Make(M : Context.Machine)(C : Context_intf.S) = struct
   module I = M.Isel(C)
   module R = M.Reg
   module Rv = M.Regvar
-
-  let operand' o = (o :> [Virtual.operand | `reg of R.t])
 
   let reg t r = match R.of_string r with
     | Some r -> !!r
@@ -73,12 +65,19 @@ module Make(M : Context.Machine)(C : Context_intf.S) = struct
         "In Isel_builder.var: unbound variable %a in function $%s"
         Var.pp x (Func.name t.fn) ()
 
-  let typeof_operand t : Virtual.operand -> [Type.basic | `flag] C.t = function
+  let new_var ?l t x ty = Hashtbl.find_or_add t.vars x ~default:(fun () ->
+      let id = new_node ?l ~ty t @@ Rv (Rv.var x) in
+      Hashtbl.set t.vars ~key:x ~data:id;
+      id)
+
+  let word = (Target.word M.target :> ty)
+
+  let typeof_operand t : Virtual.operand -> ty C.t = function
     | `bool _ -> !!`flag
-    | `int (_, t) -> !!(type' t)
+    | `int (_, t) -> !!(t :> ty)
     | `float _ -> !!`f32
     | `double _ -> !!`f64
-    | `sym _ -> !!(type' t.word)
+    | `sym _ -> !!word
     | `var x ->
       let* id = var t x in
       match typeof t id with
@@ -91,119 +90,145 @@ module Make(M : Context.Machine)(C : Context_intf.S) = struct
   let operand t : Virtual.operand -> id C.t = function
     | `bool b -> !!(new_node ~ty:`flag t @@ N (Obool b, []))
     | `int (i, ti) ->
-      !!(new_node ~ty:(type' ti) t @@ N (Oint (i, ti), []))
+      !!(new_node ~ty:(ti :> ty) t @@ N (Oint (i, ti), []))
     | `float f ->
       !!(new_node ~ty:`f32 t @@ N (Osingle f, []))
     | `double d ->
       !!(new_node ~ty:`f64 t @@ N (Odouble d, []))
     | `sym (s, o) ->
-      !!(new_node ~ty:(type' t.word) t @@ N (Osym (s, o), []))
+      !!(new_node ~ty:word t @@ N (Osym (s, o), []))
     | `var x -> var t x
 
   let operands t = C.List.map ~f:(operand t)
 
   let global t : Virtual.global -> id C.t = function
     | `addr a ->
-      !!(new_node ~ty:(type' t.word) t @@ N (Oaddr a, []))
+      !!(new_node ~ty:word t @@ N (Oaddr a, []))
     | `sym (s, o) ->
-      !!(new_node ~ty:(type' t.word) t @@ N (Osym (s, o), []))
+      !!(new_node ~ty:word t @@ N (Osym (s, o), []))
     | `var x -> var t x
 
-  let blkargs t l args = match Label.Tree.find t.blks l with
+  let blkargs ?l t ld args = match Label.Tree.find t.blks ld with
     | None ->
       C.failf
         "In Isel_builder.blkargs: missing block for label %a in function $%s"
-        Label.pp l (Func.name t.fn) ()
+        Label.pp ld (Func.name t.fn) ()
     | Some b ->
       let args' = Seq.to_list @@ Blk.args b in
       match List.zip args' args with
       | Unequal_lengths ->
         C.failf "In Isel_builder.blkargs: unequal lengths for arguments to \
-                 block %a in function $%s (got %d, expected %d)"
-          Label.pp l (Func.name t.fn) (List.length args') (List.length args) ()
-      | Ok moves ->
-        C.List.map moves ~f:(fun (x, a) ->
-            let* ty = typeof_operand t a in
-            I.move (Rv.var x) ty (operand' a))
-        >>| List.concat
+                 block %a in function $%s: got %d, expected %d"
+          Label.pp ld (Func.name t.fn) (List.length args') (List.length args) ()
+      | Ok moves -> C.List.map moves ~f:(fun (x, a) ->
+          let* ty = typeof_operand t a in
+          let+ id = operand t a in
+          let n = N (Omove, [new_var t x ty; id]) in
+          ignore @@ new_node ?l t n)
 
-  let local t : Virtual.local -> id C.t = function
-    | `label (l, args) ->
+  let local ?l t : Virtual.local -> id C.t = function
+    | `label (ld, args) ->
       (* TODO: what do we do with the instructions? *)
-      let* _moves = blkargs t l args in
-      !!(new_node t @@ N (Olocal l, []))
+      let* _moves = blkargs t ld args in
+      !!(new_node ?l t @@ N (Olocal ld, []))
 
-  let dst t : Virtual.dst -> id C.t = function
+  let dst ?l t : Virtual.dst -> id C.t = function
     | #Virtual.global as g -> global t g
-    | #Virtual.local as l -> local t l
+    | #Virtual.local as loc -> local ?l t loc
 
-  let insn t i = match Insn.op i with
+  let insn t i =
+    let l = Insn.label i in
+    match Insn.op i with
     | `bop (x, o, a, b) ->
       let* a = operand t a in
       let+ b = operand t b in
-      let id = new_node ~ty:(infer_ty_binop o) t @@ N (Obinop o, [a; b]) in
+      let n = N (Obinop o, [a; b]) in
+      let id = new_node ~l ~ty:(infer_ty_binop o) t n in
       Hashtbl.set t.vars ~key:x ~data:id;
     | `uop (x, o, a) ->
       let+ a = operand t a in
-      let id = new_node ~ty:(infer_ty_unop o) t @@ N (Ounop o, [a]) in
+      let n = N (Ounop o, [a]) in
+      let id = new_node ~l ~ty:(infer_ty_unop o) t n in
       Hashtbl.set t.vars ~key:x ~data:id
     | `sel (x, ty, c, y, n) ->
       let* c = var t c in
       let* y = operand t y in
       let+ n = operand t n in
-      let id = new_node ~ty:(type' ty) t @@ N (Osel ty, [c; y; n]) in
+      let n = N (Osel ty, [c; y; n]) in
+      let id = new_node ~l ~ty:(ty :> ty) t n in
       Hashtbl.set t.vars ~key:x ~data:id
-    | `call (ret, _f, _args) ->
-      (* TODO *)
-      List.iter ret ~f:(fun (x, ty, _) -> new_var t x ty);
-      !!()
-    | `load (x, ty, _a) ->
-      (* TODO *)
-      new_var t x ty;
-      !!()
-    | `store (_ty, _v, _a) ->
-      (* TODO *)
-      !!()
-    | `regcopy (x, ty, _r) ->
-      (* TODO *)
-      new_var t x ty;
-      !!()
-    | `regstore (_r, _a) ->
-      (* TODO *)
-      !!()
-    | `regassign (_r, _a) ->
-      (* TODO *)
-      !!()
-    | `stkargs x ->
-      (* TODO *)
-      new_var t x t.word;
+    | `call (ret, f, _args) ->
+      (* TODO: passing args *)
+      let* f = global t f in
+      ignore @@ new_node ~l t @@ N (Ocall, [f]);
+      C.List.iter ret ~f:(fun (x, ty, r) ->
+          let+ r = reg t r in
+          let ty = (ty :> ty) in
+          let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+          let xid = new_var t x ty in
+          let n = N (Omove, [xid; rid]) in
+          ignore @@ new_node ~l t n)
+    | `load (x, ty, a) ->
+      let+ a = operand t a in
+      let ty' = (ty :> ty) in
+      let n = N (Oload ty, [a]) in
+      let lid = new_node ~l ~ty:ty' t n in
+      let vid = new_var t x ty' in
+      (* TODO: see if we can do a pessimistic alias analysis to forward
+         the `Oload` node where this var appears, where possible. *)
+      ignore @@ new_node ~l t @@ N (Omove, [vid; lid])
+    | `store (ty, v, a) ->
+      let* v = operand t v in
+      let+ a = operand t a in
+      let ty' = (ty :> [Type.basic | `v128]) in
+      let n = N (Ostore ty', [v; a]) in
+      ignore @@ new_node ~l t n;
+    | `regcopy (x, ty, r) ->
+      let+ r = reg t r in
+      let ty = (ty :> ty) in
+      let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+      let xid = new_var t x ty in
+      let n = N (Omove, [xid; rid]) in
+      ignore @@ new_node ~l t n
+    | `regstore (r, a) ->
+      let* r = reg t r in
+      let+ a = operand t a in
+      let ty = R.typeof r in
+      let rid = new_node ~ty:(ty :> ty) t @@ Rv (Rv.reg r) in
+      let n = N (Ostore ty, [rid; a]) in
+      ignore @@ new_node ~l t n
+    | `regassign (r, a) ->
+      let* r = reg t r in
+      let* ty = typeof_operand t a in
+      let+ a = operand t a in
+      let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+      let n = N (Omove, [rid; a]) in
+      ignore @@ new_node ~l t n
+    | `stkargs _x ->
+      (* TODO: communicate how the stack frame is going to work *)
+      (* new_var t x t.word; *)
       !!()
 
-  let ctrl t = function
+  let ctrl t l : ctrl -> unit C.t = function
     | `hlt ->
-      (* TODO *)
-      !!()
+      !!(ignore @@ new_node ~l t @@ N (Ohlt, []))
     | `jmp d ->
-      (* TODO *)
-      let* d = dst t d in
-      let _id = new_node t @@ N (Ojmp, [d]) in
-      !!()
+      let+ d = dst ~l t d in
+      ignore @@ new_node ~l t @@ N (Ojmp, [d]);
     | `br (c, y, n) ->
       (* TODO *)
       let* c = var t c in
-      let* y = dst t y in
-      let* n = dst t n in
-      let _id = new_node t @@ N (Obr, [c; y; n]) in
-      !!()
+      let* y = dst ~l t y in
+      let+ n = dst ~l t n in
+      ignore @@ new_node ~l t @@ N (Obr, [c; y; n])
     | `ret rets ->
-      (* TODO *)
-      let* _moves = C.List.map rets ~f:(fun (r, a) ->
+      let+ () = C.List.iter rets ~f:(fun (r, a) ->
           let* r = reg t r in
           let* ty = typeof_operand t a in
-          I.move (Rv.reg r) ty (operand' a))
-        >>| List.concat in
-      let _id = new_node t @@ N (Oret, []) in
-      !!()
+          let+ aid = operand t a in
+          let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+          ignore @@ new_node ~l t @@ N (Omove, [rid; aid])) in
+      ignore @@ new_node ~l t @@ N (Oret, [])
     | `sw (_ty, _i, _d, _tbl) ->
       (* TODO *)
       !!()
@@ -216,14 +241,13 @@ module Make(M : Context.Machine)(C : Context_intf.S) = struct
         Label.pp l (Func.name t.fn) ()
     | Some b ->
       let* () = Blk.insns b |> C.Seq.iter ~f:(insn t) in
-      ctrl t @@ Blk.ctrl b
+      ctrl t (Blk.label b) (Blk.ctrl b)
 
-  let enqueue t l q = try
+  let enqueue t l q = try C.return @@
       let cmp a b = compare (t.rpo b) (t.rpo a) in
       Tree.children t.dom l |>
       Seq.to_list |> List.sort ~compare:cmp |>
-      List.iter ~f:(Stack.push q);
-      !!()
+      List.iter ~f:(Stack.push q)
     with Missing_rpo l ->
       C.failf "In Isel_builder.enqueue: missing RPO number for label %a in function $%s"
         Label.pp l (Func.name t.fn) ()

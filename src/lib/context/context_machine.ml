@@ -9,10 +9,16 @@ let get t = Hashtbl.find targets @@ Target.name t
 
 let register t ((module M : S) as data) =
   let key = Target.name t in
-  match Hashtbl.add targets ~key ~data with
-  | `Duplicate ->  
-    invalid_argf "Target %s is already registered to a machine" key ()
-  | `Ok -> ()
+  let key' = Target.name M.target in
+  if String.equal key key' then
+    match Hashtbl.add targets ~key ~data with
+    | `Duplicate ->
+      invalid_argf "Target %s is already registered to a machine" key ()
+    | `Ok -> ()
+  else
+    invalid_argf
+      "Got machine/target mismatch: expected %s, got %s"
+      key key' ()
 
 let machine = {
   M.run = fun ~reject ~accept s -> match get s.state.target with

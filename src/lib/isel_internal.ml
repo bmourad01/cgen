@@ -7,18 +7,20 @@ module Pattern = struct
     | Obinop  of Insn.binop
     | Obool   of bool
     | Obr
+    | Ocall
     | Odouble of float
+    | Ohlt
     | Ojmp
     | Oint    of Bv.t * Type.imm
-    | Oload   of Var.t * Type.arg
+    | Oload   of Type.basic
     | Olocal  of Label.t
+    | Omove
     | Oret
     | Osel    of Type.basic
     | Osingle of Float32.t
-    | Ostore  of Type.arg * Label.t
+    | Ostore  of [Type.basic | `v128]
     | Osym    of string * int
     | Ounop   of Insn.unop
-    | Ovar    of Var.t
   [@@deriving compare, equal, hash, sexp]
 
   type t =

@@ -107,6 +107,10 @@ module Reg = struct
     | `rip
   ] [@@deriving bin_io, compare, equal, sexp]
 
+  let typeof = function
+    | #gpr | `rip -> `i64
+    | #sse -> `v128
+
   let is_gpr = function
     | #gpr -> true
     | #sse -> false
@@ -312,6 +316,7 @@ module Insn = struct
     | TZCNT    of operand * operand
     | UCOMISD  of operand * operand
     | UCOMISS  of operand * operand
+    | UD2
     | XOR      of operand * operand
     | XORPD    of operand * operand
     | XORPS    of operand * operand
@@ -389,6 +394,7 @@ module Insn = struct
     | TZCNT (a, b) -> binary "tzcnt" a b
     | UCOMISD (a, b) -> binary "ucomisd" a b
     | UCOMISS (a, b) -> binary "ucomiss" a b
+    | UD2 -> Format.fprintf ppf "ud2"
     | XOR (a, b) -> binary "xor" a b
     | XORPD (a, b) -> binary "xorpd" a b
     | XORPS (a, b) -> binary "xorps" a b
@@ -500,6 +506,7 @@ module Insn = struct
     | Jcc (_, _)
     | SETcc (_, _)
     | JMP `lbl _
+    | UD2
       -> Regvar.Set.empty
     | POP a
       -> Set.union (rset' [`rsp]) (rset_mem [a])
@@ -563,6 +570,7 @@ module Insn = struct
     | TEST _
     | UCOMISD _
     | UCOMISS _
+    | UD2
       -> Regvar.Set.empty
     (* Special case for 8-bit div/mul. *)
     | DIV Oreg (_, `i8)

@@ -4,6 +4,7 @@ open X86_amd64_common
 let target = Target.declare () ~name:"amd64-sysv" ~word ~little
 
 module Machine = struct
+  let target = target
   module Reg = Reg
   module Regvar = Regvar
   module Insn = Insn

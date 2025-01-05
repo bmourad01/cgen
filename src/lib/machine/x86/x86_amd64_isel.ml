@@ -8,7 +8,7 @@ module Make(C : Context_intf.S) = struct
   let extend_flag_ty = function
     | `flag -> `i32
     | #Type.basic as t -> t
-  
+
   let move dst ty (src : [Virtual.operand | `reg of R.t]) =
     let ty = extend_flag_ty ty in
     let dst = Oreg (dst, ty) in

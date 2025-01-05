@@ -1,11 +1,20 @@
+(** The main interface for target machine implementations. *)
+
 open Core
 
 module type S = sig
+  (** A compilation context. *)
   type 'a context
+
+  (** The target descriptor. *)
+  val target : Target.t
 
   (** A machine register. *)
   module Reg : sig
     type t [@@deriving bin_io, compare, equal, sexp]
+
+    (** The type of the register. *)
+    val typeof : t -> [Type.basic | `v128]
 
     (** Pretty-print the register name. *)
     val pp : Format.formatter -> t -> unit
@@ -60,13 +69,7 @@ module type S = sig
   (** Instruction selection. *)
   module Isel(C : Context_intf.S) : sig
     (** Rewrite rules for instruction selection. *)
-    val rules : (Regvar.t, Insn.t) Isel.Rule(C).t list
-
-    (** Move an operand into a register or a variable. *)
-    val move :
-      Regvar.t ->
-      [Type.basic | `flag] ->
-      [Virtual.operand | `reg of Reg.t] -> Insn.t list C.t
+    val rules : (Regvar.t, Insn.t) Isel_rewrite.Rule(C).t list
   end
 
   (** Lowers the ABI-specific details of a function for a given target. *)
