@@ -102,7 +102,7 @@ let classify_layout lt =
               let s' = s + (Type.sizeof_imm m / 8) in
               begin match s / 8 with
                 | 0 -> Continue (Rint, r2, s')
-                | 1 -> Continue (r1, Rint, s;)
+                | 1 -> Continue (r1, Rint, s')
                 | _ -> assert false
               end
             | #Type.fp as f ->
