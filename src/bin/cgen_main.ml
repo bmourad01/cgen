@@ -50,6 +50,17 @@ let comp filename =
   let*? m = Virtual.Abi.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run_abi in
   let* () = Context.iter_seq_err (Virtual.Abi.Module.funs m) ~f:Passes.Ssa.check_abi in
   Format.printf "%a\n%!" Virtual.Abi.Module.pp m;
+  let* (module Machine) = Context.machine in
+  let module Isel = Isel.Make(Machine)(Context) in
+  let* pfns =
+    Virtual.Abi.Module.funs m |>
+    Context.Seq.map ~f:Isel.run >>|
+    Seq.to_list in
+  Format.printf "=================================================\n%!";
+  Format.pp_print_list
+    ~pp_sep:(fun ppf () -> Format.fprintf ppf "@;@;")
+    (Pseudo.Func.pp Machine.Insn.pp) Format.std_formatter pfns;
+  if not @@ List.is_empty pfns then Format.printf "\n%!";
   !!()
 
 let () =
