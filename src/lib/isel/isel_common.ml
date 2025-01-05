@@ -22,7 +22,8 @@ type 'r t = {
   dom  : Label.t tree;
   rpo  : Label.t -> int;
   blks : blk Label.Tree.t;
-  vars : id Var.Table.t;
+  v2id : id Var.Table.t;
+  id2r : 'r Id.Table.t;
   insn : id Ftree.t Label.Table.t;
 }
 
@@ -38,4 +39,5 @@ let new_node ?l ?ty t n : id =
       | None -> Ftree.singleton id));
   id
 
+let node t id = Vec.get_exn t.node id
 let typeof t id = Uopt.to_option @@ Vec.get_exn t.typs id

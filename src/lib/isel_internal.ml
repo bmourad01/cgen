@@ -39,10 +39,12 @@ module Subst = struct
     | Sym of string * int
     | Label of Label.t
     | Bool of bool
+  [@@deriving equal]
 
   type 'r t = 'r term String.Map.t
 
   let find = Map.find
+  let empty = String.Map.empty
 end
 
 module Rule(C : Context_intf.S) = struct

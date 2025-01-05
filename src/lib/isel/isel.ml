@@ -23,18 +23,21 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry;
       rpo = init_rpo cfg;
       blks = Func.map_of_blks fn;
-      vars = Var.Table.create ();
+      v2id = Var.Table.create ();
+      id2r = Id.Table.create ();
       insn = Label.Table.create ();
     }
 
   open C.Syntax
 
+  module Builder = Isel_builder.Make(M)(C)
+  module Match = Isel_match.Make(M)(C)
+
   let run fn =
     if Dict.mem (Func.dict fn) Tags.ssa then
-      let _t = create fn in
-      let name = Func.name fn in
-      let pfn = Pseudo.Func.create ~name ~blks:[] in
-      !!pfn
+      let t = create fn in
+      let* () = Builder.run t in
+      Match.run t
     else
       C.failf
         "In Isel.run: expected SSA form for function $%s"

@@ -1,3 +1,6 @@
+(* Builds the graph for running the pattern-matching and rewrite
+   engine on. *)
+
 open Core
 open Regular.Std
 open Graphlib.Std
@@ -47,7 +50,6 @@ let infer_ty_unop : Insn.unop -> ty = function
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
 
-  module I = M.Isel(C)
   module R = M.Reg
   module Rv = M.Regvar
 
@@ -58,16 +60,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         "In Isel_builder.reg: invalid register %s in function $%s"
         r (Func.name t.fn) ()
 
-  let var t x = match Hashtbl.find t.vars x with
+  let var t x = match Hashtbl.find t.v2id x with
     | Some id -> !!id
     | None ->
       C.failf
         "In Isel_builder.var: unbound variable %a in function $%s"
         Var.pp x (Func.name t.fn) ()
 
-  let new_var ?l t x ty = Hashtbl.find_or_add t.vars x ~default:(fun () ->
+  let new_var ?l t x ty = Hashtbl.find_or_add t.v2id x ~default:(fun () ->
       let id = new_node ?l ~ty t @@ Rv (Rv.var x) in
-      Hashtbl.set t.vars ~key:x ~data:id;
+      Hashtbl.set t.v2id ~key:x ~data:id;
+      Hashtbl.set t.id2r ~key:id ~data:(Rv.var x);
       id)
 
   let word = (Target.word M.target :> ty)
@@ -143,19 +146,22 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let+ b = operand t b in
       let n = N (Obinop o, [a; b]) in
       let id = new_node ~l ~ty:(infer_ty_binop o) t n in
-      Hashtbl.set t.vars ~key:x ~data:id;
+      Hashtbl.set t.v2id ~key:x ~data:id;
+      Hashtbl.set t.id2r ~key:id ~data:(Rv.var x)
     | `uop (x, o, a) ->
       let+ a = operand t a in
       let n = N (Ounop o, [a]) in
       let id = new_node ~l ~ty:(infer_ty_unop o) t n in
-      Hashtbl.set t.vars ~key:x ~data:id
+      Hashtbl.set t.v2id ~key:x ~data:id;
+      Hashtbl.set t.id2r ~key:id ~data:(Rv.var x)
     | `sel (x, ty, c, y, n) ->
       let* c = var t c in
       let* y = operand t y in
       let+ n = operand t n in
       let n = N (Osel ty, [c; y; n]) in
       let id = new_node ~l ~ty:(ty :> ty) t n in
-      Hashtbl.set t.vars ~key:x ~data:id
+      Hashtbl.set t.v2id ~key:x ~data:id;
+      Hashtbl.set t.id2r ~key:id ~data:(Rv.var x)
     | `call (ret, f, _args) ->
       (* TODO: passing args *)
       let* f = global t f in
@@ -203,9 +209,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let rid = new_node ~ty t @@ Rv (Rv.reg r) in
       let n = N (Omove, [rid; a]) in
       ignore @@ new_node ~l t n
-    | `stkargs _x ->
+    | `stkargs x ->
       (* TODO: communicate how the stack frame is going to work *)
-      (* new_var t x t.word; *)
+      let _xid = new_var t x word in
       !!()
 
   let ctrl t l : ctrl -> unit C.t = function
@@ -215,7 +221,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let+ d = dst t l d in
       ignore @@ new_node ~l t @@ N (Ojmp, [d]);
     | `br (c, y, n) ->
-      (* TODO *)
       let* c = var t c in
       let* y = dst t l y in
       let+ n = dst t l n in
