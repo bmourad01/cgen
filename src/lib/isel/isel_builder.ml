@@ -44,7 +44,7 @@ let infer_ty_unop : Insn.unop -> ty = function
   | `sitof (_, t)
   | `uitof (_, t) -> (t :> ty)
 
-module Make(M : Context.Machine)(C : Context_intf.S) = struct
+module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
 
   module I = M.Isel(C)
@@ -108,7 +108,7 @@ module Make(M : Context.Machine)(C : Context_intf.S) = struct
       !!(new_node ~ty:word t @@ N (Osym (s, o), []))
     | `var x -> var t x
 
-  let blkargs ?l t ld args = match Label.Tree.find t.blks ld with
+  let blkargs t l ld args = match Label.Tree.find t.blks ld with
     | None ->
       C.failf
         "In Isel_builder.blkargs: missing block for label %a in function $%s"
@@ -120,21 +120,20 @@ module Make(M : Context.Machine)(C : Context_intf.S) = struct
         C.failf "In Isel_builder.blkargs: unequal lengths for arguments to \
                  block %a in function $%s: got %d, expected %d"
           Label.pp ld (Func.name t.fn) (List.length args') (List.length args) ()
-      | Ok moves -> C.List.map moves ~f:(fun (x, a) ->
+      | Ok moves -> C.List.iter moves ~f:(fun (x, a) ->
           let* ty = typeof_operand t a in
           let+ id = operand t a in
           let n = N (Omove, [new_var t x ty; id]) in
-          ignore @@ new_node ?l t n)
+          ignore @@ new_node ~l t n)
 
-  let local ?l t : Virtual.local -> id C.t = function
+  let local t l : Virtual.local -> id C.t = function
     | `label (ld, args) ->
-      (* TODO: what do we do with the instructions? *)
-      let* _moves = blkargs t ld args in
-      !!(new_node ?l t @@ N (Olocal ld, []))
+      let* () = blkargs t l ld args in
+      !!(new_node t @@ N (Olocal ld, []))
 
-  let dst ?l t : Virtual.dst -> id C.t = function
+  let dst t l : Virtual.dst -> id C.t = function
     | #Virtual.global as g -> global t g
-    | #Virtual.local as loc -> local ?l t loc
+    | #Virtual.local as loc -> local t l loc
 
   let insn t i =
     let l = Insn.label i in
@@ -213,13 +212,13 @@ module Make(M : Context.Machine)(C : Context_intf.S) = struct
     | `hlt ->
       !!(ignore @@ new_node ~l t @@ N (Ohlt, []))
     | `jmp d ->
-      let+ d = dst ~l t d in
+      let+ d = dst t l d in
       ignore @@ new_node ~l t @@ N (Ojmp, [d]);
     | `br (c, y, n) ->
       (* TODO *)
       let* c = var t c in
-      let* y = dst ~l t y in
-      let+ n = dst ~l t n in
+      let* y = dst t l y in
+      let+ n = dst t l n in
       ignore @@ new_node ~l t @@ N (Obr, [c; y; n])
     | `ret rets ->
       let+ () = C.List.iter rets ~f:(fun (r, a) ->

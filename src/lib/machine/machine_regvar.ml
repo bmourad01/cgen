@@ -1,5 +1,5 @@
 (* Helper module for making the boilerplate stuff for `Regvar`
-   as required by the `Context.Machine` signature. *)
+   as required by the `Machine_intf.S` signature. *)
 
 open Core
 

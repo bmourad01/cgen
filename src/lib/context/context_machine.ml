@@ -17,7 +17,7 @@ let register t ((module M : S) as data) =
     | `Ok -> ()
   else
     invalid_argf
-      "Got machine/target mismatch: expected %s, got %s"
+      "Machine/target mismatch: expected %s, got %s"
       key key' ()
 
 let machine = {
