@@ -145,9 +145,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let* a = operand t a in
       let+ b = operand t b in
       let n = N (Obinop o, [a; b]) in
-      let id = new_node ~l ~ty:(infer_ty_binop o) t n in
-      Hashtbl.set t.v2id ~key:x ~data:id;
-      Hashtbl.set t.id2r ~key:id ~data:(Rv.var x)
+      let ty = infer_ty_binop o in
+      let bid = new_node ~ty t n in
+      Hashtbl.set t.v2id ~key:x ~data:bid;
+      Hashtbl.set t.id2r ~key:bid ~data:(Rv.var x)
     | `uop (x, o, a) ->
       let+ a = operand t a in
       let n = N (Ounop o, [a]) in

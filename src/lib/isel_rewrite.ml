@@ -2,13 +2,6 @@ module Pattern = struct
   include Isel_internal.Pattern
 
   let var x = V x
-  let imm8 x = C (x, `i8)
-  let imm16 x = C (x, `i16)
-  let imm32 x = C (x, `i32)
-  let imm64 x = C (x, `i64)
-  let fp32 x = C (x, `f32)
-  let fp64 x = C (x, `f64)
-  let sym x = C (x, `sym)
   let exp o = P (o, [])
   let (&) o q = P (o, q)
 
@@ -25,6 +18,7 @@ module Pattern = struct
     let i64 n = int Bv.(int64 n mod m64) `i64
     let hlt = exp Ohlt
     let jmp d = Ojmp & [d]
+    let ret = exp Oret
     let move d s = Omove & [d; s]
     let load t a = Oload t & [a]
     let store t v a = Ostore t & [v; a]

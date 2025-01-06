@@ -1,3 +1,5 @@
+open Core
+
 module R = X86_amd64_common.Reg
 module Rv = X86_amd64_common.Regvar
 
@@ -18,7 +20,14 @@ module Make(C : Context_intf.S) = struct
 
   let x = P.var "x"
   let y = P.var "y"
-  let sym = P.sym "sym"
+  let z = P.var "z"
+
+  let yes = P.var "yes"
+  let no = P.var "no"
+
+  let label env x = match S.find env x with
+    | Some (Label l) -> Some l
+    | _ -> None
 
   let xor_gpr x xt =
     let x = Oreg (x, xt) in
@@ -26,8 +35,9 @@ module Make(C : Context_intf.S) = struct
 
   let move_x_y env =
     let*! x = S.find env "x" in
-    let*! y = S.find env "x" in
+    let*! y = S.find env "y" in
     match x, y with
+    | Regvar (x, _), Regvar (y, _) when Rv.equal x y -> !!![]
     | Regvar (x, (#Type.imm as xt)), Regvar (y, (#Type.imm as yt)) ->
       !!![MOV (Oreg (x, xt), Oreg (y, yt))]
     | Regvar (x, (#Type.imm as xt)), Imm (y, _) when Bv.(y = zero) ->
@@ -50,8 +60,72 @@ module Make(C : Context_intf.S) = struct
       !!![MOVSS (Oreg (x, `f32), Ofp32 s)]
     | _ -> !!None
 
+  let add_x_y_z env =
+    let*! x = S.find env "x" in
+    let*! y = S.find env "y" in
+    let*! z = S.find env "z" in
+    match x, y, z with
+    | Regvar (x, (#Type.imm as xt)),
+      Regvar (y, (#Type.imm as yt)),
+      Imm (z, _) ->
+      let z = Bv.to_int64 z in
+      if Int64.(z >= 0L && z <= 0x7FFFFFFL) then
+        let z = Int64.to_int32_trunc z in
+        !!![LEA (Oreg (x, xt), Omem (Abd (y, Dimm z)))]
+      else if Rv.equal x y then
+        !!![ADD (Oreg (x, xt), Oimm z)]
+      else
+        !!![
+          MOV (Oreg (x, xt), Oreg (y, yt));
+          ADD (Oreg (x, xt), Oimm z);
+        ]
+    | _ -> !!None
+
+  let sub_x_y_z env =
+    let*! x = S.find env "x" in
+    let*! y = S.find env "y" in
+    let*! z = S.find env "z" in
+    match x, y, z with
+    | Regvar (x, (#Type.imm as xt)),
+      Regvar (y, (#Type.imm as yt)),
+      Imm (z, _) ->
+      let z = Bv.to_int64 z in
+      if Rv.equal x y then
+        !!![SUB (Oreg (x, xt), Oimm z)]
+      else
+        !!![
+          MOV (Oreg (x, xt), Oreg (y, yt));
+          SUB (Oreg (x, xt), Oimm z);
+        ]
+    | _ -> !!None
+
+  let jle_x_y env =
+    let*! x = S.find env "x" in
+    let*! y = S.find env "y" in
+    let*! yes = label env "yes" in
+    let*! no = label env "no" in
+    match x, y with
+    | Regvar (x, xt), Imm (y, _) -> !!![
+        CMP (Oreg (x, xt), Oimm (Bv.to_int64 y));
+        Jcc (Cle, yes);
+        JMP (`lbl no);
+      ]
+    | _ -> !!None
+
+  let ret_ _ = !!![RET]
+
   let rules = O.[
-      (* Generic move. *)
+      move x (add `i32 y z) => add_x_y_z;
+      move x (add `i64 y z) => add_x_y_z;
+      move x (sub `i32 y z) => sub_x_y_z;
+      move x (sub `i64 y z) => sub_x_y_z;
       move x y => move_x_y;
+
+      (* jle *)
+      br (le `i32 x y) yes no => jle_x_y;
+      br (le `i64 x y) yes no => jle_x_y;
+
+      (* ret *)
+      ret => ret_;
     ]
 end

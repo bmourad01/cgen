@@ -41,3 +41,14 @@ let new_node ?l ?ty t n : id =
 
 let node t id = Vec.get_exn t.node id
 let typeof t id = Uopt.to_option @@ Vec.get_exn t.typs id
+
+let rec pp_node t ppr ppf id = match node t id with
+  | Rv r -> Format.fprintf ppf "%a" ppr r
+  | N (o, []) -> Format.fprintf ppf "%a" P.pp_op o
+  | N (o, cs) ->
+    let pp_sep ppf () = Format.fprintf ppf " " in
+    Format.fprintf ppf "(%a %a)"
+      P.pp_op o
+      (Format.pp_print_list ~pp_sep (pp_node t ppr))
+      cs
+

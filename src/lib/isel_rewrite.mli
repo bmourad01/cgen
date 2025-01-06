@@ -10,27 +10,6 @@ module Pattern : sig
   (** Constructs a substitution variable for an arbitrary term. *)
   val var : string -> t
 
-  (** Constructs a substitution variable for an 8-bit integer. *)
-  val imm8 : string -> t
-
-  (** Constructs a substitution variable for a 16-bit integer. *)
-  val imm16 : string -> t
-
-  (** Constructs a substitution variable for a 32-bit integer. *)
-  val imm32 : string -> t
-
-  (** Constructs a substitution variable for a 64-bit integer. *)
-  val imm64 : string -> t
-
-  (** Constructs a substitution variable for a 32-bit float. *)
-  val fp32 : string -> t
-
-  (** Constructs a substitution variable for a 64-bit float. *)
-  val fp64 : string -> t
-
-  (** Constructs a substitution variable for a symbol. *)
-  val sym : string -> t
-
   (** Helpers for constructing patterns. *)
   module Op : sig
     val bop : Insn.binop -> t -> t -> t
@@ -45,6 +24,7 @@ module Pattern : sig
     val i64 : int64 -> t
     val hlt : t
     val jmp : t -> t
+    val ret : t
     val move : t -> t -> t
     val load : Type.basic -> t -> t
     val store : [Type.basic | `v128] -> t -> t -> t
