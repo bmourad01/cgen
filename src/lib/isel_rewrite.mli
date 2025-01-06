@@ -85,35 +85,16 @@ end
 type pattern = Pattern.t
 
 module Subst : sig
-  (** Terms that can be matched on:
-
-      [Regvar (r, t)]: a variable or register [r] of type [t] bound to the
-      result of an instruction
-
-      [Imm (i, t)]: an integer constant [i] of width [t]
-
-      [Single s]: a single-precision floating-point constant
-
-      [Double d]: a double-precision floating-point constant
-
-      [Sym (s, o)]: a linkage symbol [s] with an offset [o] in bytes
-
-      [Label l]: a program label [l]
-  *)
-  type 'r term =
-    | Regvar of 'r * Type.basic
-    | Imm of Bv.t * Type.imm
-    | Single of Float32.t
-    | Double of float
-    | Sym of string * int
-    | Label of Label.t
-    | Bool of bool
-
   (** A substitition. *)
   type 'r t = private 'r Isel_internal.Subst.t
 
-  (** Looks up the variable in the substitution. *)
-  val find : 'r t -> string -> 'r term option
+  val regvar : 'r t -> string -> ('r * Type.basic) option
+  val imm : 'r t -> string -> (Bv.t * Type.imm) option
+  val single : 'r t -> string -> Float32.t option
+  val double : 'r t -> string -> float option
+  val sym : 'r t -> string -> (string * int) option
+  val label : 'r t -> string -> Label.t option
+  val bool : 'r t -> string -> bool option
 end
 
 type 'r subst = 'r Subst.t
@@ -134,4 +115,15 @@ module Rule(C : Context_intf.S) : sig
       matched with an existing program term, and rewritten to the instruction
       sequence produced by [post]. *)
   val (=>) : pattern -> ('r, 'i) callback -> ('r, 'i) t
+
+  (** Same as [=>], but accepts multiple callbacks for matching the same pattern.
+
+      The callbacks are invoked in the order that they are provided, until one
+      of them produces a successful match.
+  *)
+  val (=>*) : pattern -> ('r, 'i) callback list -> ('r, 'i) t
+
+  val (let*!) : 'a option -> ('a -> 'b option C.t) -> 'b option C.t
+  val (!!!) : 'a -> 'a option C.t
+  val guard : bool -> unit option
 end

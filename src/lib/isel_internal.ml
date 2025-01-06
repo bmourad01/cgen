@@ -75,10 +75,47 @@ module Subst = struct
 
   let find = Map.find
   let empty = String.Map.empty
+
+  let regvar t x = match find t x with
+    | Some (Regvar (r, t)) -> Some (r, t)
+    | _ -> None
+
+  let imm t x = match find t x with
+    | Some (Imm (i, t)) -> Some (i, t)
+    | _ -> None
+
+  let single t x = match find t x with
+    | Some (Single s) -> Some s
+    | _ -> None
+
+  let double t x = match find t x with
+    | Some (Double d) -> Some d
+    | _ -> None
+
+  let sym t x = match find t x with
+    | Some (Sym (s, o)) -> Some (s, o)
+    | _ -> None
+
+  let label t x = match find t x with
+    | Some (Label l) -> Some l
+    | _ -> None
+
+  let bool t x = match find t x with
+    | Some (Bool b) -> Some b
+    | _ -> None
 end
 
 module Rule(C : Context_intf.S) = struct
   type ('r, 'i) callback = 'r Subst.t -> 'i list option C.t
-  type ('r, 'i) t = Pattern.t * ('r, 'i) callback
-  let (=>) pre post = pre, post
+  type ('r, 'i) t = Pattern.t * ('r, 'i) callback list
+
+  let (=>) pre post = pre, [post]
+  let (=>*) pre post = pre, post
+
+  let (let*!) x f = match x with
+    | None -> C.return None
+    | Some x -> f x
+
+  let (!!!) x = C.return @@ Some x
+  let guard x = if x then Some () else None
 end

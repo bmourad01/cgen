@@ -57,23 +57,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     go S.empty p id Base.Fn.id
 
   let match_one t id =
-    Format.printf "  %d = %a\n%!" id (pp_node t Rv.pp) id;
-    let rec aux = function
-      | [] -> !![]
-      | (pre, post) :: rest -> match search t pre id with
-        | exception Mismatch -> aux rest
-        | env -> post env >>= function
-          | None -> aux rest
-          | Some is ->
-            Format.printf "  -> %a\n%!" P.pp pre;
-            !!is in
     let rules = (I.rules :> (Rv.t, M.Insn.t) R.t list) in
-    aux rules
+    C.List.find_map rules ~f:(function
+        | _, [] -> !!None
+        | pre, posts -> match search t pre id with
+          | exception Mismatch -> !!None
+          | env -> C.List.find_map posts ~f:((|>) env))
+    >>| Option.value ~default:[]
 
   let insns t l = match Hashtbl.find t.insn l with
     | None -> !![]
     | Some ids ->
-      Format.printf "matching %a...\n%!" Label.pp l;
       Ftree.to_list ids |>
       C.List.map ~f:(match_one t) >>|
       List.concat
