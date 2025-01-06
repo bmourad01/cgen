@@ -20,6 +20,6 @@ let pp ppa ppf t =
   | true ->
     Format.fprintf ppf "%a:" Label.pp t.label
   | false ->
-    Format.fprintf ppf "%a:@;@[<v 2>  %a]"
+    Format.fprintf ppf "%a:@;@[<v 2>  %a@]"
       Label.pp t.label
       (Ftree.pp ppa sep) t.insns

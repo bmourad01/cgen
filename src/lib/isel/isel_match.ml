@@ -100,8 +100,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let run t =
     let+ blks =
-      Func.blks t.fn |> Seq.to_list |>
-      List.sort ~compare:(compare_postorder t) |>
-      C.List.map ~f:(step t) >>| List.rev in
+      Func.blks t.fn |>
+      C.Seq.map ~f:(step t) >>|
+      Seq.to_list in
     Pseudo.Func.create ~name:(Func.name t.fn) ~blks
 end
