@@ -90,16 +90,20 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                  variable %a in function $%s"
           Var.pp x (Func.name t.fn) ()
 
-  let operand t : Virtual.operand -> id C.t = function
-    | `bool b -> !!(new_node ~ty:`flag t @@ N (Obool b, []))
+  let constant t : Virtual.const -> id = function
+    | `bool b ->
+      new_node ~ty:`flag t @@ N (Obool b, [])
     | `int (i, ti) ->
-      !!(new_node ~ty:(ti :> ty) t @@ N (Oint (i, ti), []))
+      new_node ~ty:(ti :> ty) t @@ N (Oint (i, ti), [])
     | `float f ->
-      !!(new_node ~ty:`f32 t @@ N (Osingle f, []))
+      new_node ~ty:`f32 t @@ N (Osingle f, [])
     | `double d ->
-      !!(new_node ~ty:`f64 t @@ N (Odouble d, []))
+      new_node ~ty:`f64 t @@ N (Odouble d, [])
     | `sym (s, o) ->
-      !!(new_node ~ty:word t @@ N (Osym (s, o), []))
+      new_node ~ty:word t @@ N (Osym (s, o), [])
+
+  let operand t : Virtual.operand -> id C.t = function
+    | #Virtual.const as c -> !!(constant t c)
     | `var x -> var t x
 
   let operands t = C.List.map ~f:(operand t)
@@ -124,8 +128,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                  block %a in function $%s: got %d, expected %d"
           Label.pp ld (Func.name t.fn) (List.length args') (List.length args) ()
       | Ok moves -> C.List.iter moves ~f:(fun (x, a) ->
-          let* ty = typeof_operand t a in
-          let+ id = operand t a in
+          let+ ty = typeof_operand t a in
+          (* XXX: can we do better than this kludge? *)
+          let id = match a with
+            | #Virtual.const as c -> constant t c
+            | `var x -> new_node ~ty t @@ Rv (Rv.var x) in
           let n = N (Omove, [new_var t x ty; id]) in
           ignore @@ new_node ~l t n)
 
@@ -146,23 +153,34 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let+ b = operand t b in
       let n = N (Obinop o, [a; b]) in
       let ty = infer_ty_binop o in
-      let bid = new_node ~ty t n in
-      Hashtbl.set t.v2id ~key:x ~data:bid;
-      Hashtbl.set t.id2r ~key:bid ~data:(Rv.var x)
+      let id = new_node ~ty t n in
+      let r = Rv.var x in
+      let rid = new_node ~ty t @@ Rv r in
+      ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
+      Hashtbl.set t.v2id ~key:x ~data:id;
+      Hashtbl.set t.id2r ~key:id ~data:r
     | `uop (x, o, a) ->
       let+ a = operand t a in
       let n = N (Ounop o, [a]) in
-      let id = new_node ~l ~ty:(infer_ty_unop o) t n in
+      let ty = infer_ty_unop o in
+      let id = new_node ~ty t n in
+      let r = Rv.var x in
+      let rid = new_node ~ty t @@ Rv r in
+      ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
       Hashtbl.set t.v2id ~key:x ~data:id;
-      Hashtbl.set t.id2r ~key:id ~data:(Rv.var x)
+      Hashtbl.set t.id2r ~key:id ~data:r
     | `sel (x, ty, c, y, n) ->
       let* c = var t c in
       let* y = operand t y in
       let+ n = operand t n in
       let n = N (Osel ty, [c; y; n]) in
-      let id = new_node ~l ~ty:(ty :> ty) t n in
+      let ty = (ty :> ty) in
+      let id = new_node ~ty t n in
+      let r = Rv.var x in
+      let rid = new_node ~ty t @@ Rv r in
+      ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
       Hashtbl.set t.v2id ~key:x ~data:id;
-      Hashtbl.set t.id2r ~key:id ~data:(Rv.var x)
+      Hashtbl.set t.id2r ~key:id ~data:r
     | `call (ret, f, _args) ->
       (* TODO: passing args *)
       let* f = global t f in
@@ -178,7 +196,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let+ a = operand t a in
       let ty' = (ty :> ty) in
       let n = N (Oload ty, [a]) in
-      let lid = new_node ~l ~ty:ty' t n in
+      let lid = new_node ~ty:ty' t n in
       let vid = new_var t x ty' in
       (* TODO: see if we can do a pessimistic alias analysis to forward
          the `Oload` node where this var appears, where possible. *)

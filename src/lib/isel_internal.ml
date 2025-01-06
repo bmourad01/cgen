@@ -48,6 +48,16 @@ module Pattern = struct
     | Ostore (#Type.basic as t) -> Format.fprintf ppf "st.%a" Type.pp_basic t
     | Osym (s, o) -> Format.fprintf ppf "$%s+%d" s o
     | Ounop u -> Format.fprintf ppf "%a" Insn.pp_unop u
+
+  let rec pp ppf = function
+    | V x -> Format.fprintf ppf "?%s" x
+    | P (o, []) -> Format.fprintf ppf "%a" pp_op o
+    | P (o, ps) ->
+      let pp_sep ppf () = Format.fprintf ppf " " in
+      Format.fprintf ppf "(%a %a)"
+        pp_op o
+        (Format.pp_print_list ~pp_sep pp)
+        ps
 end
 
 module Subst = struct

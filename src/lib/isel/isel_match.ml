@@ -57,7 +57,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     go S.empty p id Base.Fn.id
 
   let match_one t id =
-    Format.printf "%d = %a\n%!" id (pp_node t Rv.pp) id;
+    Format.printf "  %d = %a\n%!" id (pp_node t Rv.pp) id;
     let rec aux = function
       | [] -> !![]
       | (pre, post) :: rest -> match search t pre id with
@@ -65,7 +65,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | env -> post env >>= function
           | None -> aux rest
           | Some is ->
-            Format.printf "matched with: %a\n%!" Sexp.pp_hum (P.sexp_of_t pre);
+            Format.printf "  -> %a\n%!" P.pp pre;
             !!is in
     let rules = (I.rules :> (Rv.t, M.Insn.t) R.t list) in
     aux rules
