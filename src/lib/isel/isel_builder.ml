@@ -145,116 +145,158 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | #Virtual.global as g -> global t g
     | #Virtual.local as loc -> local t l loc
 
+  let binop t l x o a b =
+    let* a = operand t a in
+    let+ b = operand t b in
+    let n = N (Obinop o, [a; b]) in
+    let ty = infer_ty_binop o in
+    let id = new_node ~ty t n in
+    let r = Rv.var x in
+    let rid = new_node ~ty t @@ Rv r in
+    ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
+    Hashtbl.set t.v2id ~key:x ~data:id;
+    Hashtbl.set t.id2r ~key:id ~data:r
+
+  let unop t l x o a =
+    let+ a = operand t a in
+    let ty = infer_ty_unop o in
+    (* Copy propagation *)
+    let id = match o with
+      | `copy _ -> a
+      | _ ->
+        let n = N (Ounop o, [a]) in
+        new_node ~ty t n in
+    let r = Rv.var x in
+    let rid = new_node ~ty t @@ Rv r in
+    ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
+    Hashtbl.set t.v2id ~key:x ~data:id;
+    Hashtbl.set t.id2r ~key:id ~data:r
+
+  let sel t l x ty c y n =
+    let* c = var t c in
+    let* y = operand t y in
+    let+ n = operand t n in
+    let n = N (Osel ty, [c; y; n]) in
+    let ty = (ty :> ty) in
+    let id = new_node ~ty t n in
+    let r = Rv.var x in
+    let rid = new_node ~ty t @@ Rv r in
+    ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
+    Hashtbl.set t.v2id ~key:x ~data:id;
+    Hashtbl.set t.id2r ~key:id ~data:r
+
+  let call t l ret f args =
+    let* () = C.List.iter args ~f:(function
+        | `stk _ -> !!() (* TODO: stack args *)
+        | `reg (a, r) ->
+          let* r = reg t r >>| Rv.reg in
+          let* ty = typeof_operand t a in
+          let+ a = operand t a in
+          let rid = new_node ~ty t @@ Rv r in
+          ignore @@ new_node ~l t @@ N (Omove, [rid; a])) in
+    let* f = global t f in
+    ignore @@ new_node ~l t @@ N (Ocall, [f]);
+    C.List.iter ret ~f:(fun (x, ty, r) ->
+        let+ r = reg t r in
+        let ty = (ty :> ty) in
+        let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+        let xid = new_var t x ty in
+        let n = N (Omove, [xid; rid]) in
+        ignore @@ new_node ~l t n)
+
+  let load t l x ty a =
+    let+ a = operand t a in
+    let ty' = (ty :> ty) in
+    let n = N (Oload ty, [a]) in
+    let lid = new_node ~ty:ty' t n in
+    let vid = new_var t x ty' in
+    (* TODO: see if we can do a pessimistic alias analysis to forward
+       the `Oload` node where this var appears, where possible. *)
+    ignore @@ new_node ~l t @@ N (Omove, [vid; lid])
+
+  let store t l ty v a =
+    let* v = operand t v in
+    let+ a = operand t a in
+    let ty' = (ty :> [Type.basic | `v128]) in
+    let n = N (Ostore ty', [v; a]) in
+    ignore @@ new_node ~l t n
+
+  let regcopy t l x ty r =
+    let+ r = reg t r in
+    let ty = (ty :> ty) in
+    let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+    let xid = new_var t x ty in
+    let n = N (Omove, [xid; rid]) in
+    ignore @@ new_node ~l t n
+
+  let regstore t l r a =
+    let* r = reg t r in
+    let+ a = operand t a in
+    let ty = R.typeof r in
+    let rid = new_node ~ty:(ty :> ty) t @@ Rv (Rv.reg r) in
+    let n = N (Ostore ty, [rid; a]) in
+    ignore @@ new_node ~l t n
+
+  let regassign t l r a =
+    let* r = reg t r in
+    let* ty = typeof_operand t a in
+    let+ a = operand t a in
+    let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+    let n = N (Omove, [rid; a]) in
+    ignore @@ new_node ~l t n
+
+  let stkargs t _l x =
+    (* TODO: communicate how the stack frame is going to work *)
+    let _xid = new_var t x word in
+    !!()
+
   let insn t i =
     let l = Insn.label i in
     match Insn.op i with
-    | `bop (x, o, a, b) ->
-      let* a = operand t a in
-      let+ b = operand t b in
-      let n = N (Obinop o, [a; b]) in
-      let ty = infer_ty_binop o in
-      let id = new_node ~ty t n in
-      let r = Rv.var x in
-      let rid = new_node ~ty t @@ Rv r in
-      ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
-      Hashtbl.set t.v2id ~key:x ~data:id;
-      Hashtbl.set t.id2r ~key:id ~data:r
-    | `uop (x, o, a) ->
-      let+ a = operand t a in
-      let n = N (Ounop o, [a]) in
-      let ty = infer_ty_unop o in
-      let id = new_node ~ty t n in
-      let r = Rv.var x in
-      let rid = new_node ~ty t @@ Rv r in
-      ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
-      Hashtbl.set t.v2id ~key:x ~data:id;
-      Hashtbl.set t.id2r ~key:id ~data:r
-    | `sel (x, ty, c, y, n) ->
-      let* c = var t c in
-      let* y = operand t y in
-      let+ n = operand t n in
-      let n = N (Osel ty, [c; y; n]) in
-      let ty = (ty :> ty) in
-      let id = new_node ~ty t n in
-      let r = Rv.var x in
-      let rid = new_node ~ty t @@ Rv r in
-      ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
-      Hashtbl.set t.v2id ~key:x ~data:id;
-      Hashtbl.set t.id2r ~key:id ~data:r
-    | `call (ret, f, _args) ->
-      (* TODO: passing args *)
-      let* f = global t f in
-      ignore @@ new_node ~l t @@ N (Ocall, [f]);
-      C.List.iter ret ~f:(fun (x, ty, r) ->
-          let+ r = reg t r in
-          let ty = (ty :> ty) in
-          let rid = new_node ~ty t @@ Rv (Rv.reg r) in
-          let xid = new_var t x ty in
-          let n = N (Omove, [xid; rid]) in
-          ignore @@ new_node ~l t n)
-    | `load (x, ty, a) ->
-      let+ a = operand t a in
-      let ty' = (ty :> ty) in
-      let n = N (Oload ty, [a]) in
-      let lid = new_node ~ty:ty' t n in
-      let vid = new_var t x ty' in
-      (* TODO: see if we can do a pessimistic alias analysis to forward
-         the `Oload` node where this var appears, where possible. *)
-      ignore @@ new_node ~l t @@ N (Omove, [vid; lid])
-    | `store (ty, v, a) ->
-      let* v = operand t v in
-      let+ a = operand t a in
-      let ty' = (ty :> [Type.basic | `v128]) in
-      let n = N (Ostore ty', [v; a]) in
-      ignore @@ new_node ~l t n;
-    | `regcopy (x, ty, r) ->
-      let+ r = reg t r in
-      let ty = (ty :> ty) in
-      let rid = new_node ~ty t @@ Rv (Rv.reg r) in
-      let xid = new_var t x ty in
-      let n = N (Omove, [xid; rid]) in
-      ignore @@ new_node ~l t n
-    | `regstore (r, a) ->
-      let* r = reg t r in
-      let+ a = operand t a in
-      let ty = R.typeof r in
-      let rid = new_node ~ty:(ty :> ty) t @@ Rv (Rv.reg r) in
-      let n = N (Ostore ty, [rid; a]) in
-      ignore @@ new_node ~l t n
-    | `regassign (r, a) ->
-      let* r = reg t r in
-      let* ty = typeof_operand t a in
-      let+ a = operand t a in
-      let rid = new_node ~ty t @@ Rv (Rv.reg r) in
-      let n = N (Omove, [rid; a]) in
-      ignore @@ new_node ~l t n
-    | `stkargs x ->
-      (* TODO: communicate how the stack frame is going to work *)
-      let _xid = new_var t x word in
-      !!()
+    | `bop (x, o, a, b) -> binop t l x o a b
+    | `uop (x, o, a) -> unop t l x o a
+    | `sel (x, ty, c, y, n) -> sel t l x ty c y n
+    | `call (ret, f, args) -> call t l ret f args
+    | `load (x, ty, a) -> load t l x ty a
+    | `store (ty, v, a) -> store t l ty v a
+    | `regcopy (x, ty, r) -> regcopy t l x ty r
+    | `regstore (r, a) -> regstore t l r a
+    | `regassign (r, a) -> regassign t l r a
+    | `stkargs x -> stkargs t l x
+
+  let hlt t l =
+    let _id = new_node ~l t @@ N (Ohlt, []) in
+    !!()
+
+  let jmp t l d =
+    let+ d = dst t l d in
+    ignore @@ new_node ~l t @@ N (Ojmp, [d])
+
+  let br t l c y n =
+    let* c = var t c in
+    let* y = dst t l y in
+    let+ n = dst t l n in
+    ignore @@ new_node ~l t @@ N (Obr, [c; y; n])
+
+  let ret t l rets =
+    let+ () = C.List.iter rets ~f:(fun (r, a) ->
+        let* r = reg t r in
+        let* ty = typeof_operand t a in
+        let+ aid = operand t a in
+        let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+        ignore @@ new_node ~l t @@ N (Omove, [rid; aid])) in
+    ignore @@ new_node ~l t @@ N (Oret, [])
+
+  let sw _t _l _ty _i _d _tbl =
+    (* TODO *)
+    !!()
 
   let ctrl t l : ctrl -> unit C.t = function
-    | `hlt ->
-      !!(ignore @@ new_node ~l t @@ N (Ohlt, []))
-    | `jmp d ->
-      let+ d = dst t l d in
-      ignore @@ new_node ~l t @@ N (Ojmp, [d]);
-    | `br (c, y, n) ->
-      let* c = var t c in
-      let* y = dst t l y in
-      let+ n = dst t l n in
-      ignore @@ new_node ~l t @@ N (Obr, [c; y; n])
-    | `ret rets ->
-      let+ () = C.List.iter rets ~f:(fun (r, a) ->
-          let* r = reg t r in
-          let* ty = typeof_operand t a in
-          let+ aid = operand t a in
-          let rid = new_node ~ty t @@ Rv (Rv.reg r) in
-          ignore @@ new_node ~l t @@ N (Omove, [rid; aid])) in
-      ignore @@ new_node ~l t @@ N (Oret, [])
-    | `sw (_ty, _i, _d, _tbl) ->
-      (* TODO *)
-      !!()
+    | `hlt -> hlt t l
+    | `jmp d -> jmp t l d
+    | `br (c, y, n) -> br t l c y n
+    | `ret rets -> ret t l rets
+    | `sw (ty, i, d, tbl) -> sw t l ty i d tbl
 
   let step t l = match Label.Tree.find t.blks l with
     | None when Label.is_pseudo l -> !!()

@@ -73,7 +73,6 @@ module Pattern = struct
     let sitof i f = uop (`sitof (i, f))
     let uitof i f = uop (`uitof (i, f))
     let zext    t = uop (`zext t)
-    let copy    t = uop (`copy t)
   end
 end
 

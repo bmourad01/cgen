@@ -1,7 +1,5 @@
 (** Interface for writing instruction selection rules. *)
 
-open Virtual.Abi
-
 module Pattern : sig
   (** A witness for expression patterns. *)
   type exp
@@ -26,26 +24,38 @@ module Pattern : sig
 
   (** Helpers for constructing patterns. *)
   module Op : sig
-    val bop : Insn.binop -> sub -> sub -> sub
-    val bool : bool -> sub
+    (** Toplevel instructions. *)
+
+    val store : [Type.basic | `v128] -> sub -> sub -> toplevel
     val br : sub -> sub -> sub -> toplevel
     val call : sub -> toplevel
+    val hlt : toplevel
+    val jmp : sub -> toplevel
+    val ret : toplevel
+    val move : sub -> sub -> toplevel
+
+    (** Constants. *)
+
+    val bool : bool -> sub
     val double : float -> sub
     val int : Bv.t -> Type.imm -> sub
     val i8 : int -> sub
     val i16 : int -> sub
     val i32 : int32 -> sub
     val i64 : int64 -> sub
-    val hlt : toplevel
-    val jmp : sub -> toplevel
-    val ret : toplevel
-    val move : sub -> sub -> toplevel
-    val load : Type.basic -> sub -> sub
-    val store : [Type.basic | `v128] -> sub -> sub -> toplevel
-    val sel : Type.basic -> sub -> sub -> sub -> sub
     val single : Float32.t -> sub
     val sym : string -> int -> sub
-    val uop : Insn.unop -> sub -> sub
+
+    (** Loads. *)
+
+    val load : Type.basic -> sub -> sub
+
+    (** Conditional selection. *)
+
+    val sel : Type.basic -> sub -> sub -> sub -> sub
+
+    (** Binary operators. *)
+
     val add : Type.basic -> sub -> sub -> sub
     val div : Type.basic -> sub -> sub -> sub
     val mul : Type.basic -> sub -> sub -> sub
@@ -63,11 +73,9 @@ module Pattern : sig
     val rol : Type.imm -> sub -> sub -> sub
     val ror : Type.imm -> sub -> sub -> sub
     val xor : Type.imm -> sub -> sub -> sub
-    val neg : Type.basic -> sub -> sub
-    val not_ : Type.imm -> sub -> sub
-    val clz : Type.imm -> sub -> sub
-    val ctz : Type.imm -> sub -> sub
-    val popcnt : Type.imm -> sub -> sub
+
+    (** Comparison operators. *)
+
     val eq : Type.basic -> sub -> sub -> sub
     val ge : Type.basic -> sub -> sub -> sub
     val gt : Type.basic -> sub -> sub -> sub
@@ -80,6 +88,17 @@ module Pattern : sig
     val sle : Type.imm -> sub -> sub -> sub
     val slt : Type.imm -> sub -> sub -> sub
     val uo : Type.fp -> sub -> sub -> sub
+
+    (** Unary operators. *)
+
+    val neg : Type.basic -> sub -> sub
+    val not_ : Type.imm -> sub -> sub
+    val clz : Type.imm -> sub -> sub
+    val ctz : Type.imm -> sub -> sub
+    val popcnt : Type.imm -> sub -> sub
+
+    (** Cast operators. *)
+
     val fext : Type.fp -> sub -> sub
     val fibits : Type.fp -> sub -> sub
     val flag : Type.imm -> sub -> sub
@@ -92,7 +111,6 @@ module Pattern : sig
     val sitof : Type.imm -> Type.fp -> sub -> sub
     val uitof : Type.imm -> Type.fp -> sub -> sub
     val zext : Type.imm -> sub -> sub
-    val copy : Type.basic -> sub -> sub
   end
 end
 
