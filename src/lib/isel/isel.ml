@@ -33,13 +33,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   module Builder = Isel_builder.Make(M)(C)
   module Match = Isel_match.Make(M)(C)
 
+  let is_ssa fn = Dict.mem (Func.dict fn) Tags.ssa
+
   let run fn =
-    if Dict.mem (Func.dict fn) Tags.ssa then
-      let t = create fn in
-      let* () = Builder.run t in
-      Match.run t
-    else
-      C.failf
-        "In Isel.run: expected SSA form for function $%s"
-        (Func.name fn) ()
+    let* () = C.unless (is_ssa fn) @@ fun () ->
+      C.failf "In Isel.run: expected SSA form for function $%s"
+        (Func.name fn) () in
+    let t = create fn in
+    let* () = Builder.run t in
+    Match.run t
 end
