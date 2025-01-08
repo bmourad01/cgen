@@ -437,7 +437,7 @@ module Insn = struct
     List.map regs ~f:(fun r -> Regvar.Reg r)
 
   (* Registers read by an instruction. *)
-  let reads = function
+  let reads call = function
     | ADD (a, b)
     | ADDSD (a, b)
     | ADDSS (a, b)
@@ -464,7 +464,9 @@ module Insn = struct
     | XORPD (a, b)
     | XORPS (a, b)
       -> rset [a; b]
-    | CALL a
+    | CALL a ->
+      Set.union (rset' [`rsp]) @@
+      Set.union (rset_mem [a]) call
     | PUSH a
       -> Set.union (rset' [`rsp]) (rset_mem [a])
     | CMOVcc (_, _, a)
@@ -514,7 +516,7 @@ module Insn = struct
       -> rset' [`rsp]
 
   (* Registers written to by an instruction. *)
-  let writes = function
+  let writes call = function
     | ADD (a, _)
     | ADDSD (a, _)
     | ADDSS (a, _)
@@ -560,7 +562,8 @@ module Insn = struct
     | XORPD (a, _)
     | XORPS (a, _)
       -> rset_reg [a]
-    | CALL _
+    | CALL _ ->
+      Set.union (rset' [`rsp]) call
     | PUSH _
     | RET
       -> rset' [`rsp]
