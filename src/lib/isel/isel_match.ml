@@ -90,10 +90,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           insns @ acc) in
     Pseudo.Blk.create ~label ~insns
 
+  let compare_postorder t a b =
+    let a = Blk.label a in
+    let b = Blk.label b in
+    compare (t.rpo b) (t.rpo a)
+
   let run t =
     let+ blks =
-      Func.blks t.fn |>
-      C.Seq.map ~f:(step t) >>|
-      Seq.to_list in
+      Func.blks t.fn |> Seq.to_list |>
+      List.sort ~compare:(compare_postorder t) |>
+      C.List.fold ~init:[] ~f:(fun acc b ->
+          step t b >>| Fn.flip List.cons acc) in
     Pseudo.Func.create ~name:(Func.name t.fn) ~blks
 end
