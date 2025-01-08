@@ -3,86 +3,98 @@
 open Virtual.Abi
 
 module Pattern : sig
-  (** A pattern for a rewrite rule. *)
-  type t = private Isel_internal.Pattern.t
-  [@@deriving compare, equal, hash, sexp]
+  (** A witness for expression patterns. *)
+  type exp
+
+  (** A witness for statement patterns. *)
+  type stmt
+
+  (** A pattern for a rewrite rule, where ['a] is the type of
+      pattern being constructed, and ['b] is the type of its
+      sub-patterns.
+  *)
+  type ('a, 'b) t = private ('a, 'b) Isel_internal.Pattern.t
+
+  (** A toplevel pattern. *)
+  type toplevel = (stmt, exp) t
+
+  (** A sub-pattern. *)
+  type sub = (exp, exp) t
 
   (** Constructs a substitution variable for an arbitrary term. *)
-  val var : string -> t
+  val var : string -> sub
 
   (** Helpers for constructing patterns. *)
   module Op : sig
-    val bop : Insn.binop -> t -> t -> t
-    val bool : bool -> t
-    val br : t -> t -> t -> t
-    val call : t -> t
-    val double : float -> t
-    val int : Bv.t -> Type.imm -> t
-    val i8 : int -> t
-    val i16 : int -> t
-    val i32 : int32 -> t
-    val i64 : int64 -> t
-    val hlt : t
-    val jmp : t -> t
-    val ret : t
-    val move : t -> t -> t
-    val load : Type.basic -> t -> t
-    val store : [Type.basic | `v128] -> t -> t -> t
-    val sel : Type.basic -> t -> t -> t -> t
-    val single : Float32.t -> t
-    val sym : string -> int -> t
-    val uop : Insn.unop -> t -> t
-    val add : Type.basic -> t -> t -> t
-    val div : Type.basic -> t -> t -> t
-    val mul : Type.basic -> t -> t -> t
-    val mulh : Type.imm -> t -> t -> t
-    val rem : Type.basic -> t -> t -> t
-    val sub : Type.basic -> t -> t -> t
-    val udiv : Type.imm -> t -> t -> t
-    val umulh : Type.imm -> t -> t -> t
-    val urem : Type.imm -> t -> t -> t
-    val and_ : Type.imm -> t -> t -> t
-    val or_ : Type.imm -> t -> t -> t
-    val asr_ : Type.imm -> t -> t -> t
-    val lsl_ : Type.imm -> t -> t -> t
-    val lsr_ : Type.imm -> t -> t -> t
-    val rol : Type.imm -> t -> t -> t
-    val ror : Type.imm -> t -> t -> t
-    val xor : Type.imm -> t -> t -> t
-    val neg : Type.basic -> t -> t
-    val not_ : Type.imm -> t -> t
-    val clz : Type.imm -> t -> t
-    val ctz : Type.imm -> t -> t
-    val popcnt : Type.imm -> t -> t
-    val eq : Type.basic -> t -> t -> t
-    val ge : Type.basic -> t -> t -> t
-    val gt : Type.basic -> t -> t -> t
-    val ne : Type.basic -> t -> t -> t
-    val le : Type.basic -> t -> t -> t
-    val lt : Type.basic -> t -> t -> t
-    val o : Type.fp -> t -> t -> t
-    val sge : Type.imm -> t -> t -> t
-    val sgt : Type.imm -> t -> t -> t
-    val sle : Type.imm -> t -> t -> t
-    val slt : Type.imm -> t -> t -> t
-    val uo : Type.fp -> t -> t -> t
-    val fext : Type.fp -> t -> t
-    val fibits : Type.fp -> t -> t
-    val flag : Type.imm -> t -> t
-    val ftosi : Type.fp -> Type.imm -> t -> t
-    val ftoui : Type.fp -> Type.imm -> t -> t
-    val ftrunc : Type.fp -> t -> t
-    val ifbits : Type.imm_base -> t -> t
-    val itrunc : Type.imm -> t -> t
-    val sext : Type.imm -> t -> t
-    val sitof : Type.imm -> Type.fp -> t -> t
-    val uitof : Type.imm -> Type.fp -> t -> t
-    val zext : Type.imm -> t -> t
-    val copy : Type.basic -> t -> t
+    val bop : Insn.binop -> sub -> sub -> sub
+    val bool : bool -> sub
+    val br : sub -> sub -> sub -> toplevel
+    val call : sub -> toplevel
+    val double : float -> sub
+    val int : Bv.t -> Type.imm -> sub
+    val i8 : int -> sub
+    val i16 : int -> sub
+    val i32 : int32 -> sub
+    val i64 : int64 -> sub
+    val hlt : toplevel
+    val jmp : sub -> toplevel
+    val ret : toplevel
+    val move : sub -> sub -> toplevel
+    val load : Type.basic -> sub -> sub
+    val store : [Type.basic | `v128] -> sub -> sub -> toplevel
+    val sel : Type.basic -> sub -> sub -> sub -> sub
+    val single : Float32.t -> sub
+    val sym : string -> int -> sub
+    val uop : Insn.unop -> sub -> sub
+    val add : Type.basic -> sub -> sub -> sub
+    val div : Type.basic -> sub -> sub -> sub
+    val mul : Type.basic -> sub -> sub -> sub
+    val mulh : Type.imm -> sub -> sub -> sub
+    val rem : Type.basic -> sub -> sub -> sub
+    val sub : Type.basic -> sub -> sub -> sub
+    val udiv : Type.imm -> sub -> sub -> sub
+    val umulh : Type.imm -> sub -> sub -> sub
+    val urem : Type.imm -> sub -> sub -> sub
+    val and_ : Type.imm -> sub -> sub -> sub
+    val or_ : Type.imm -> sub -> sub -> sub
+    val asr_ : Type.imm -> sub -> sub -> sub
+    val lsl_ : Type.imm -> sub -> sub -> sub
+    val lsr_ : Type.imm -> sub -> sub -> sub
+    val rol : Type.imm -> sub -> sub -> sub
+    val ror : Type.imm -> sub -> sub -> sub
+    val xor : Type.imm -> sub -> sub -> sub
+    val neg : Type.basic -> sub -> sub
+    val not_ : Type.imm -> sub -> sub
+    val clz : Type.imm -> sub -> sub
+    val ctz : Type.imm -> sub -> sub
+    val popcnt : Type.imm -> sub -> sub
+    val eq : Type.basic -> sub -> sub -> sub
+    val ge : Type.basic -> sub -> sub -> sub
+    val gt : Type.basic -> sub -> sub -> sub
+    val ne : Type.basic -> sub -> sub -> sub
+    val le : Type.basic -> sub -> sub -> sub
+    val lt : Type.basic -> sub -> sub -> sub
+    val o : Type.fp -> sub -> sub -> sub
+    val sge : Type.imm -> sub -> sub -> sub
+    val sgt : Type.imm -> sub -> sub -> sub
+    val sle : Type.imm -> sub -> sub -> sub
+    val slt : Type.imm -> sub -> sub -> sub
+    val uo : Type.fp -> sub -> sub -> sub
+    val fext : Type.fp -> sub -> sub
+    val fibits : Type.fp -> sub -> sub
+    val flag : Type.imm -> sub -> sub
+    val ftosi : Type.fp -> Type.imm -> sub -> sub
+    val ftoui : Type.fp -> Type.imm -> sub -> sub
+    val ftrunc : Type.fp -> sub -> sub
+    val ifbits : Type.imm_base -> sub -> sub
+    val itrunc : Type.imm -> sub -> sub
+    val sext : Type.imm -> sub -> sub
+    val sitof : Type.imm -> Type.fp -> sub -> sub
+    val uitof : Type.imm -> Type.fp -> sub -> sub
+    val zext : Type.imm -> sub -> sub
+    val copy : Type.basic -> sub -> sub
   end
 end
-
-type pattern = Pattern.t
 
 module Subst : sig
   (** A substitition. *)
@@ -114,14 +126,14 @@ module Rule(C : Context_intf.S) : sig
   (** [pre => post] constructs a rewrite rule where the pattern [pre] is
       matched with an existing program term, and rewritten to the instruction
       sequence produced by [post]. *)
-  val (=>) : pattern -> ('r, 'i) callback -> ('r, 'i) t
+  val (=>) : Pattern.toplevel -> ('r, 'i) callback -> ('r, 'i) t
 
   (** Same as [=>], but accepts multiple callbacks for matching the same pattern.
 
       The callbacks are invoked in the order that they are provided, until one
       of them produces a successful match.
   *)
-  val (=>*) : pattern -> ('r, 'i) callback list -> ('r, 'i) t
+  val (=>*) : Pattern.toplevel -> ('r, 'i) callback list -> ('r, 'i) t
 
   val (let*!) : 'a option -> ('a -> 'b option C.t) -> 'b option C.t
   val (!!!) : 'a -> 'a option C.t

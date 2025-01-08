@@ -18,6 +18,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let word = Target.word M.target
   let wordi = (word :> Type.imm)
 
+  type rule = (Rv.t, M.Insn.t) R.t
+  type env = Rv.t S.t
+  type k = env -> env
+
   let search t p id =
     let subst env x term = Map.update env x ~f:(function
         | Some term' when S.equal_term Rv.equal term term' -> term
@@ -27,12 +31,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | Some (#Type.basic as ty) ->
         k @@ subst env x @@ Regvar (r, ty)
       | Some _ | None -> raise_notrace Mismatch in
-    let rec go env p id k = match (p : P.t) with
-      | P (x, xs) -> pat env x xs id k
-      | V x -> var env x id k
-    and pat env x xs id k = match node t id with
-      | N (y, ys) when P.equal_op x y -> children env xs ys k
-      | N _ | Rv _ -> raise_notrace Mismatch
+    let rec go : type a b. env -> (a, b) P.t -> id -> k -> env =
+      fun env p id k -> match p with
+        | P (x, xs) -> pat env x xs id k
+        | V x -> var env x id k
+    and pat : type b c. env -> P.op -> (b, c) P.t list -> id -> k -> env =
+      fun env x xs id k ->  match node t id with
+        | N (y, ys) when P.equal_op x y -> children env xs ys k
+        | N _ | Rv _ -> raise_notrace Mismatch
     and var env x id k = match node t id with
       | N (Oaddr a, []) -> k @@ subst env x @@ Imm (a, wordi)
       | N (Obool b, []) -> k @@ subst env x @@ Bool b
@@ -45,19 +51,21 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | N _ -> match Hashtbl.find t.id2r id with
         | None -> raise_notrace Mismatch
         | Some r -> regvar env x r id k
-    and children env xs ys k = match List.zip xs ys with
-      | Unequal_lengths -> raise_notrace Mismatch
-      | Ok l -> child env k l
-    and child env k = function
-      | [] -> k env
-      | [p, id] -> go env p id k
-      | (p, id) :: xs ->
-        go env p id @@ fun env ->
-        child env k xs in
+    and children : type b c. env -> (b, c) P.t list -> id list -> k -> env =
+      fun env xs ys k -> match List.zip xs ys with
+        | Unequal_lengths -> raise_notrace Mismatch
+        | Ok l -> child env k l
+    and child : type b c. env -> k -> ((b, c) P.t * id) list -> env =
+      fun env k -> function
+        | [] -> k env
+        | [p, id] -> go env p id k
+        | (p, id) :: xs ->
+          go env p id @@ fun env ->
+          child env k xs in
     go S.empty p id Base.Fn.id
 
   let match_one t id =
-    let rules = (I.rules :> (Rv.t, M.Insn.t) R.t list) in
+    let rules = (I.rules :> rule list) in
     C.List.find_map rules ~f:(function
         | _, [] -> !!None
         | pre, posts -> match search t pre id with

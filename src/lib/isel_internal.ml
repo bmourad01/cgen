@@ -23,10 +23,15 @@ module Pattern = struct
     | Ounop   of Insn.unop
   [@@deriving compare, equal, hash, sexp]
 
-  type t =
-    | V of string
-    | P of op * t list
-  [@@deriving compare, equal, hash, sexp]
+  type exp = Exp
+  type stmt = Stmt
+
+  type ('a, 'b) t =
+    | V : string -> ('a, 'b) t
+    | P : op * ('b, 'c) t list -> ('a, 'b) t
+
+  type toplevel = (stmt, exp) t
+  type sub = (exp, exp) t
 
   let pp_op ppf = function
     | Oaddr a -> Format.fprintf ppf "addr:%a" Bv.pp a
@@ -49,15 +54,16 @@ module Pattern = struct
     | Osym (s, o) -> Format.fprintf ppf "$%s+%d" s o
     | Ounop u -> Format.fprintf ppf "%a" Insn.pp_unop u
 
-  let rec pp ppf = function
-    | V x -> Format.fprintf ppf "?%s" x
-    | P (o, []) -> Format.fprintf ppf "%a" pp_op o
-    | P (o, ps) ->
-      let pp_sep ppf () = Format.fprintf ppf " " in
-      Format.fprintf ppf "(%a %a)"
-        pp_op o
-        (Format.pp_print_list ~pp_sep pp)
-        ps
+  let rec pp : type a b. Format.formatter -> (a, b) t -> unit =
+    fun ppf -> function
+      | V x -> Format.fprintf ppf "?%s" x
+      | P (o, []) -> Format.fprintf ppf "%a" pp_op o
+      | P (o, ps) ->
+        let pp_sep ppf () = Format.fprintf ppf " " in
+        Format.fprintf ppf "(%a %a)"
+          pp_op o
+          (Format.pp_print_list ~pp_sep pp)
+          ps
 end
 
 module Subst = struct
@@ -107,7 +113,7 @@ end
 
 module Rule(C : Context_intf.S) = struct
   type ('r, 'i) callback = 'r Subst.t -> 'i list option C.t
-  type ('r, 'i) t = Pattern.t * ('r, 'i) callback list
+  type ('r, 'i) t = Pattern.toplevel * ('r, 'i) callback list
 
   let (=>) pre post = pre, [post]
   let (=>*) pre post = pre, post
