@@ -91,6 +91,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                  block %a in function $%s: got %d, expected %d"
           Label.pp ld (Func.name t.fn) (List.length args') (List.length args) ()
 
+  (* XXX: can we do better than this kludge?
+
+     This is meant to avoid creating duplicate instructions
+     by making the ID of the var unique, but it might cost
+     us some opportunities to make better selection decisions.
+  *)
+  let operand' t a =
+    let+ ty = typeof_operand t a in
+    match a with
+    | #Virtual.const as c -> ty, constant t c
+    | `var x -> ty, new_node ~ty t @@ Rv (Rv.var x)
+
   let blkargs ?(br = false) t l ld args = zip_blkargs t ld args >>= function
     | [] -> !!None
     | moves ->
@@ -102,11 +114,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           l', l'
         else !!(l, ld) in
       let+ () = C.List.iter moves ~f:(fun (x, a) ->
-          let+ ty = typeof_operand t a in
-          (* XXX: can we do better than this kludge? *)
-          let id = match a with
-            | #Virtual.const as c -> constant t c
-            | `var x -> new_node ~ty t @@ Rv (Rv.var x) in
+          let+ ty, id = operand' t a in
           let n = N (Omove, [new_var t x ty; id]) in
           ignore @@ new_node ~l:l' t n) in
       if br then begin
@@ -171,8 +179,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | `stk _ -> !!() (* TODO: stack args *)
         | `reg (a, r) ->
           let* r = reg t r >>| Rv.reg in
-          let* ty = typeof_operand t a in
-          let+ a = operand t a in
+          let+ ty, a = operand' t a in
           let rid = new_node ~ty t @@ Rv r in
           ignore @@ new_node ~l t @@ N (Omove, [rid; a])) in
     let* f = global t f in

@@ -207,11 +207,12 @@ module Insn = struct
 
   (* An argument to an instruction. *)
   type operand =
-    | Oreg  of rv * Type.basic (* Register *)
-    | Oimm  of int64           (* Immediate *)
-    | Omem  of amode           (* Memory address *)
-    | Ofp32 of Float32.t       (* Single-precision floating-point number *)
-    | Ofp64 of float           (* Double-precision floating-point number *)
+    | Oreg  of rv * Type.basic  (* Register *)
+    | Oimm  of int64 * Type.imm (* Immediate *)
+    | Omem  of amode            (* Memory address *)
+    | Osym  of string * int     (* Symbol *)
+    | Ofp32 of Float32.t        (* Single-precision floating-point number *)
+    | Ofp64 of float            (* Double-precision floating-point number *)
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_operand ppf = function
@@ -230,10 +231,16 @@ module Insn = struct
        won't enforce it here. *)
     | Oreg (r, t) ->
       Format.fprintf ppf "%a:%a" Regvar.pp r Type.pp_basic t
-    | Oimm i ->
-      Format.fprintf ppf "0x%Lx" i
+    | Oimm (i, t) ->
+      Format.fprintf ppf "0x%Lx_%a" i Type.pp_imm t
     | Omem a ->
       Format.fprintf ppf "[%a]" pp_amode a
+    | Osym (s, o) when o < 0 ->
+      Format.fprintf ppf "$%s-%d" s (-o)
+    | Osym (s, o) when o > 0 ->
+      Format.fprintf ppf "$%s+%d" s o
+    | Osym (s, _) ->
+      Format.fprintf ppf "$%s" s
     | Ofp32 f ->
       Format.fprintf ppf "%sf" (Float32.to_string f)
     | Ofp64 f ->

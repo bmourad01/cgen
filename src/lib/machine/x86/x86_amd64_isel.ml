@@ -62,15 +62,18 @@ module Make(C : Context_intf.S) = struct
 
   let move_ri_x_y env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.imm env "y" in
+    let*! y, yt = S.imm env "y" in
     if Bv.(y = zero)
     then !!![xor_gpr_self x xt]
-    else !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y))]
+    else !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y, yt))]
 
   let move_rb_x_y env =
     let*! x, xt = S.regvar env "x" in
+    let*! xti = match xt with
+      | #Type.imm as t -> Some t
+      | _ -> None in
     let*! y = S.bool env "y" in
-    if y then !!![MOV (Oreg (x, xt), Oimm 1L)]
+    if y then !!![MOV (Oreg (x, xt), Oimm (1L, xti))]
     else !!![xor_gpr_self x xt]
 
   let move_rsym_x_y env =
@@ -116,7 +119,7 @@ module Make(C : Context_intf.S) = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! () = guard @@ Type.equal_basic xt yt in
-    let*! z, _ = S.imm env "z" in
+    let*! z, zt = S.imm env "z" in
     let z = Bv.to_int64 z in
     if Int64.(z = 0L) then
       !!![MOV (Oreg (x, xt), Oreg (y, yt))]
@@ -124,11 +127,11 @@ module Make(C : Context_intf.S) = struct
       let z = Int64.to_int32_trunc z in
       !!![LEA (Oreg (x, xt), Omem (Abd (y, Dimm z)))]
     else if Rv.equal x y then
-      !!![ADD (Oreg (x, xt), Oimm z)]
+      !!![ADD (Oreg (x, xt), Oimm (z, zt))]
     else
       !!![
         MOV (Oreg (x, xt), Oreg (y, yt));
-        ADD (Oreg (x, xt), Oimm z);
+        ADD (Oreg (x, xt), Oimm (z, zt));
       ]
 
   let sub_rr_x_y_z env =
@@ -145,7 +148,7 @@ module Make(C : Context_intf.S) = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! () = guard @@ Type.equal_basic xt yt in
-    let*! z, _ = S.imm env "z" in
+    let*! z, zt = S.imm env "z" in
     let z = Bv.to_int64 z in
     let nz = Int64.neg z in
     if Int64.(z = 0L) then
@@ -154,19 +157,19 @@ module Make(C : Context_intf.S) = struct
       let z = Int64.to_int32_trunc nz in
       !!![LEA (Oreg (x, xt), Omem (Abd (y, Dimm z)))]
     else if Rv.equal x y then
-      !!![SUB (Oreg (x, xt), Oimm z)]
+      !!![SUB (Oreg (x, xt), Oimm (z, zt))]
     else
       !!![
         MOV (Oreg (x, xt), Oreg (y, yt));
-        SUB (Oreg (x, xt), Oimm z);
+        SUB (Oreg (x, xt), Oimm (z, zt));
       ]
 
   let and_ri_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in !!![
+    let*! z, zt = S.imm env "z" in !!![
       MOV (Oreg (x, xt) , Oreg (y, yt));
-      AND (Oreg (x, xt), Oimm (Bv.to_int64 z));
+      AND (Oreg (x, xt), Oimm (Bv.to_int64 z, zt));
     ]
 
   let jmp_lbl_x env =
@@ -175,29 +178,62 @@ module Make(C : Context_intf.S) = struct
 
   let jcc_ri_x_y cc env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.imm env "y" in
+    let*! y, yt = S.imm env "y" in
     let*! yes = S.label env "yes" in
     let*! no = S.label env "no" in
     let y = Bv.to_int64 y in
     if fits_int32 y then !!![
-        CMP (Oreg (x, xt), Oimm y);
+        CMP (Oreg (x, xt), Oimm (y, yt));
         Jcc (cc, yes);
         JMP (`lbl no);
       ]
     else
       let*! () = guard @@ Type.equal_basic xt `i64 in
-      let+ yt = C.Var.fresh >>| Rv.var in
+      let+ y' = C.Var.fresh >>| Rv.var in
       Some [
-        MOV (Oreg (yt, `i64), Oimm y);
-        CMP (Oreg (x, xt), Oreg (yt, `i64));
+        MOV (Oreg (y', `i64), Oimm (y, yt));
+        CMP (Oreg (x, xt), Oreg (y', `i64));
         Jcc (Cle, yes);
         JMP (`lbl no);
       ]
+
+  let load_rri_add_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_int32 z in
+    let z = Int64.to_int32_trunc z in !!![
+      MOV (Oreg (x, xt), Omem (Abd (y, Dimm z)));
+    ]
+
+  let load_rr_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in !!![
+      MOV (Oreg (x, xt), Omem (Ab y));
+    ]
 
   let store_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in !!![
       MOV (Omem (Ab y), Oreg (x, xt));
+    ]
+
+  let store_ri_x_y env =
+    let*! x, xt = S.imm env "x" in
+    let*! y, _ = S.regvar env "y" in !!![
+      MOV (Omem (Ab y), Oimm (Bv.to_int64 x, xt));
+    ]
+
+  let store_rri_add_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_int32 z in
+    let z = Int64.to_int32_trunc z in
+    !!![
+      MOV (Omem (Abd (y, Dimm z)), Oreg (x, xt));
     ]
 
   let store_rsym_x_y env =
@@ -216,6 +252,30 @@ module Make(C : Context_intf.S) = struct
       MOV (Omem addr, Oreg (x, xt));
     ]
 
+  let imul_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      IMUL2 (Oreg (x, xt), Oreg (z, zt));
+    ]
+
+  let idiv_rem_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      MOV (Oreg (rax, yt), Oreg (y, yt));
+      IDIV (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oreg (rdx, xt));
+    ]
+
+  let call_sym_x env =
+    let*! s, o = S.sym env "x" in
+    !!![CALL (Osym (s, o))]
+
+  let ret_ _ = !!![RET]
   let nop _ = !!![]
 
   (* The rules themselves. *)
@@ -240,6 +300,16 @@ module Make(C : Context_intf.S) = struct
     move x (add `i64 (mul `i64 z (i64 4L)) y) => add_mul_rr_scale_x_y_z 4;
     move x (add `i64 (mul `i64 z (i64 8L)) y) => add_mul_rr_scale_x_y_z 8;
 
+    move x (add `i64 y (lsl_ `i64 z (i64 0L))) => add_mul_rr_scale_x_y_z 1;
+    move x (add `i64 y (lsl_ `i64 z (i64 1L))) => add_mul_rr_scale_x_y_z 2;
+    move x (add `i64 y (lsl_ `i64 z (i64 2L))) => add_mul_rr_scale_x_y_z 4;
+    move x (add `i64 y (lsl_ `i64 z (i64 3L))) => add_mul_rr_scale_x_y_z 8;
+
+    move x (add `i64 (lsl_ `i64 z (i64 0L)) y) => add_mul_rr_scale_x_y_z 1;
+    move x (add `i64 (lsl_ `i64 z (i64 1L)) y) => add_mul_rr_scale_x_y_z 2;
+    move x (add `i64 (lsl_ `i64 z (i64 2L)) y) => add_mul_rr_scale_x_y_z 4;
+    move x (add `i64 (lsl_ `i64 z (i64 3L)) y) => add_mul_rr_scale_x_y_z 8;
+
     move x (add `i64 y z) =>* [
       add_rr_x_y_z;
       add_ri_x_y_z;
@@ -259,6 +329,22 @@ module Make(C : Context_intf.S) = struct
       and_ri_x_y_z;
     ];
 
+    move x (mul `i32 y z) =>* [
+      imul_rr_x_y_z;
+    ];
+
+    move x (rem `i32 y z) =>* [
+      idiv_rem_rr_x_y_z;
+    ];
+
+    move x (load `i32 (add `i64 y z)) =>* [
+      load_rri_add_x_y_z;
+    ];
+
+    move x (load `i32 y) =>* [
+      load_rr_x_y;
+    ];
+
     move x y =>* [
       move_rr_x_y;
       move_ri_x_y;
@@ -270,6 +356,18 @@ module Make(C : Context_intf.S) = struct
 
     store `i32 x y =>* [
       store_rr_x_y;
+      store_ri_x_y;
+      store_rsym_x_y;
+      store_symr_x_y;
+    ];
+
+    store `i64 x (add `i64 y z) =>* [
+      store_rri_add_x_y_z;
+    ];
+
+    store `i64 x y =>* [
+      store_rr_x_y;
+      store_ri_x_y;
       store_rsym_x_y;
       store_symr_x_y;
     ];
@@ -294,6 +392,10 @@ module Make(C : Context_intf.S) = struct
       jcc_ri_x_y Cle;
     ];
 
-    ret => (fun _ -> !!![RET]);
+    ret => ret_;
+
+    call x =>* [
+      call_sym_x;
+    ];
   ]
 end
