@@ -39,6 +39,10 @@ module Make(C : Context_intf.S) = struct
     let open Int64 in
     x > 0L && x <= 0x7FFFFFFFL
 
+  let can_lea_ty = function
+    | `i16 | `i32 | `i64 -> true
+    | _ -> false
+
   (* Rule callbacks. *)
 
   let move_rr_x_y env =
@@ -93,7 +97,7 @@ module Make(C : Context_intf.S) = struct
     let*! z, zt = S.regvar env "z" in
     let*! () = guard @@ Type.equal_basic xt yt in
     let*! () = guard @@ Type.equal_basic xt zt in
-    if Type.equal_basic xt `i64 then
+    if can_lea_ty xt then
       !!![LEA (Oreg (x, xt), Omem (Abi (y, z)))]
     else
       !!![
@@ -103,10 +107,9 @@ module Make(C : Context_intf.S) = struct
 
   let add_mul_rr_scale_x_y_z s env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let*! () = guard @@ Type.equal_basic xt yt in
-    let*! () = guard @@ Type.equal_basic xt zt in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let*! () = guard @@ can_lea_ty xt in
     !!![LEA (Oreg (x, xt), Omem (Abis (y, z, s)))]
 
   let add_ri_x_y_z env =
@@ -117,7 +120,7 @@ module Make(C : Context_intf.S) = struct
     let z = Bv.to_int64 z in
     if Int64.(z = 0L) then
       !!![MOV (Oreg (x, xt), Oreg (y, yt))]
-    else if fits_int32_pos z then
+    else if fits_int32_pos z && can_lea_ty xt then
       let z = Int64.to_int32_trunc z in
       !!![LEA (Oreg (x, xt), Omem (Abd (y, Dimm z)))]
     else if Rv.equal x y then
@@ -144,10 +147,11 @@ module Make(C : Context_intf.S) = struct
     let*! () = guard @@ Type.equal_basic xt yt in
     let*! z, _ = S.imm env "z" in
     let z = Bv.to_int64 z in
+    let nz = Int64.neg z in
     if Int64.(z = 0L) then
       !!![MOV (Oreg (x, xt), Oreg (y, yt))]
-    else if fits_int32_neg z then
-      let z = Int64.to_int32_trunc z in
+    else if fits_int32_neg nz && can_lea_ty xt then
+      let z = Int64.to_int32_trunc nz in
       !!![LEA (Oreg (x, xt), Omem (Abd (y, Dimm z)))]
     else if Rv.equal x y then
       !!![SUB (Oreg (x, xt), Oimm z)]
@@ -161,7 +165,7 @@ module Make(C : Context_intf.S) = struct
     let*! x = S.label env "x" in
     !!![JMP (`lbl x)]
 
-  let jle_ri_x_y env =
+  let jcc_ri_x_y cc env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.imm env "y" in
     let*! yes = S.label env "yes" in
@@ -169,7 +173,7 @@ module Make(C : Context_intf.S) = struct
     let y = Bv.to_int64 y in
     if fits_int32 y then !!![
         CMP (Oreg (x, xt), Oimm y);
-        Jcc (Cle, yes);
+        Jcc (cc, yes);
         JMP (`lbl no);
       ]
     else
@@ -182,11 +186,15 @@ module Make(C : Context_intf.S) = struct
         JMP (`lbl no);
       ]
 
+  let nop _ = !!![]
+
   (* The rules themselves. *)
 
   open P.Op
 
   let rules = [
+    move x x => nop;
+
     move x (add `i32 y z) =>* [
       add_rr_x_y_z;
       add_ri_x_y_z;
@@ -230,12 +238,20 @@ module Make(C : Context_intf.S) = struct
       jmp_lbl_x;
     ];
 
+    br (eq `i32 x y) yes no =>* [
+      jcc_ri_x_y Ce;
+    ];
+
+    br (eq `i64 x y) yes no =>* [
+      jcc_ri_x_y Ce;
+    ];
+
     br (le `i32 x y) yes no =>* [
-      jle_ri_x_y;
+      jcc_ri_x_y Cle;
     ];
 
     br (le `i64 x y) yes no =>* [
-      jle_ri_x_y;
+      jcc_ri_x_y Cle;
     ];
 
     ret => (fun _ -> !!![RET]);
