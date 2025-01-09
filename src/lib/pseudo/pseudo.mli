@@ -1,5 +1,6 @@
 (** A pseudo-assembly program. *)
 
+open Core
 open Regular.Std
 
 (** A container for a pseudo-assembly instruction. *)
@@ -40,8 +41,20 @@ type 'a blk = 'a Blk.t [@@deriving bin_io, compare, equal, sexp]
 module Func : sig
   type 'a t [@@deriving bin_io, compare, equal, sexp]
 
-  (** Construct a functiom. *)
-  val create : name:string -> blks:'a blk list -> 'a t
+  (** The label of the entry block. *)
+  val entry : 'a t -> Label.t
+
+  (** Construct a function.
+
+      @raise Invalid_argument if [blks] is empty.
+  *)
+  val create_exn : name:string -> blks:'a blk list -> 'a t
+
+  (** Construct a function.
+
+      Returns [Error _] if [blks] is empty.
+  *)
+  val create : name:string -> blks:'a blk list -> 'a t Or_error.t
 
   (** The name of the function. *)
   val name : 'a t -> string

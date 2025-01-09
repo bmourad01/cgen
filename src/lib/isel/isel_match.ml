@@ -115,12 +115,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     compare (t.rpo b) (t.rpo a)
 
   let run t =
-    let+ blks =
+    let* blks =
       Func.blks t.fn |> Seq.to_list |>
       List.sort ~compare:(compare_postorder t) |>
       C.List.fold ~init:[] ~f:(fun acc b ->
           step t b >>| Fn.flip List.cons acc) in
-    Pseudo.Func.create
+    C.lift_err @@ Pseudo.Func.create
       ~name:(Func.name t.fn)
       ~blks:(List.concat blks)
 end

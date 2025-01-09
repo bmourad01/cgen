@@ -6,10 +6,20 @@ type 'a t = {
   blks : 'a Pseudo_blk.t ftree;
 } [@@deriving bin_io, compare, equal, sexp]
 
-let create ~name ~blks = {
-  name;
-  blks = Ftree.of_list blks;
-}
+let entry t = (Ftree.head_exn t.blks).label
+
+let create_exn ~name ~blks = match blks with
+  | [] ->
+    invalid_argf
+      "Cannot create function $%s with an empty list of blocks"
+      name ()
+  | blks -> {
+      name;
+      blks = Ftree.of_list blks
+    }
+
+let create ~name ~blks = try Ok (create_exn ~name ~blks) with
+  | Invalid_argument msg -> Or_error.error_string msg
 
 let name t = t.name
 let blks ?(rev = false) t = Ftree.enum ~rev t.blks
