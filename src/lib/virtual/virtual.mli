@@ -405,7 +405,9 @@ type cfg = Cfg.t
 
 (** Helpers for computing liveness of a function. *)
 module Live : Live_intf.S
-  with type func := func
+  with type var := Var.t
+   and type var_comparator := Var.comparator_witness
+   and type func := func
    and type blk := blk
    and type cfg := cfg
 
@@ -856,7 +858,9 @@ module Abi : sig
   type cfg = Cfg.t
 
   module Live : Live_intf.S
-    with type func := func
+    with type var := Var.t
+     and type var_comparator := Var.comparator_witness
+     and type func := func
      and type blk := blk
      and type cfg := cfg
 

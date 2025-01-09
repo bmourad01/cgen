@@ -14,6 +14,10 @@ let create ~name ~blks = {
 let name t = t.name
 let blks ?(rev = false) t = Ftree.enum ~rev t.blks
 
+let map_of_blks t =
+  Ftree.fold t.blks ~init:Label.Tree.empty ~f:(fun acc b ->
+      Label.Tree.set acc ~key:b.label ~data:b)
+
 let pp ppa ppf t =
   let sep ppf = Format.fprintf ppf "@;" in
   match Ftree.is_empty t.blks with

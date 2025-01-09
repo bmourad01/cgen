@@ -2,18 +2,34 @@
 
 open Regular.Std
 
+(** A container for a pseudo-assembly instruction. *)
+module Insn : sig
+  type 'a t [@@deriving bin_io, compare, equal, sexp]
+
+  (** Create the instruction with a given label. *)
+  val create : label:Label.t -> insn:'a -> 'a t
+
+  (** The label of the instruction. *)
+  val label : 'a t -> Label.t
+
+  (** The instruction itself. *)
+  val insn : 'a t -> 'a
+end
+
+type 'a insn = 'a Insn.t [@@deriving bin_io, compare, equal, sexp]
+
 (** A block of instructions. *)
 module Blk : sig
   type 'a t [@@deriving bin_io, compare, equal, sexp]
 
   (** Construct a block. *)
-  val create : label:Label.t -> insns:'a list -> 'a t
+  val create : label:Label.t -> insns:'a insn list -> 'a t
 
   (** The label of the block. *)
   val label : 'a t -> Label.t
 
   (** The instructions of the block. *)
-  val insns : ?rev:bool -> 'a t -> 'a seq
+  val insns : ?rev:bool -> 'a t -> 'a insn seq
 
   val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
 end
@@ -32,6 +48,9 @@ module Func : sig
 
   (** The blocks of the function. *)
   val blks : ?rev:bool -> 'a t -> 'a blk seq
+
+  (** Returns a mapping from labels to blocks of the function. *)
+  val map_of_blks : 'a t -> 'a blk Label.Tree.t
 
   val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
 end
@@ -58,3 +77,11 @@ module Cfg : sig
   *)
   val create : dests:('a -> Label.Set.t) -> 'a func -> t
 end
+
+(** Liveness analysis of a function. *)
+module Live(M : Machine_intf.S) : Live_intf.S
+  with type var := M.Regvar.t
+   and type var_comparator := M.Regvar.Set.Elt.comparator_witness
+   and type func := M.Insn.t func
+   and type blk := M.Insn.t blk
+   and type cfg := Cfg.t

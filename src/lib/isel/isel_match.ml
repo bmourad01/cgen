@@ -88,6 +88,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       C.List.map ~f:(match_one t l) >>|
       List.concat
 
+  let freshen = C.List.map ~f:(fun i ->
+      let+ label = C.Label.fresh in
+      Pseudo.Insn.create ~label ~insn:i)
+
   let step t b =
     let label = Blk.label b in
     let* extra = match Hashtbl.find t.extra label with
@@ -95,13 +99,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | Some ls ->
         (* NB: we're reversing the order on purpose. *)
         C.List.fold ls ~init:[] ~f:(fun acc l ->
-            let+ insns = insns t l in
+            let+ insns = insns t l >>= freshen in
             Pseudo.Blk.create ~label:l ~insns :: acc) in
-    let* init = insns t label in
+    let* init = insns t label >>= freshen in
     let+ insns =
       Blk.insns b ~rev:true |>
       C.Seq.fold ~init ~f:(fun acc i ->
-          let+ insns = insns t @@ Insn.label i in
+          let+ insns = insns t (Insn.label i) >>= freshen in
           insns @ acc) in
     Pseudo.Blk.create ~label ~insns :: extra
 

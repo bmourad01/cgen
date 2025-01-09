@@ -1,66 +1,41 @@
 open Core
-open Graphlib.Std
 open Regular.Std
-open Live_intf
+open Graphlib.Std
 
-type tran = {
-  defs  : Var.Set.t;
-  uses  : Var.Set.t;
-  insns : Var.Set.t Label.Tree.t;
-}
+module Insn = Pseudo_insn
+module Cfg = Pseudo_cfg
+module Blk = Pseudo_blk
+module Func = Pseudo_func
 
-let empty_tran = {
-  defs  = Var.Set.empty;
-  uses  = Var.Set.empty;
-  insns = Label.Tree.empty;
-}
+module Make(M : Machine_intf.S) = struct
+  module Rv = M.Regvar
 
-let pp_vars ppf vars =
-  Format.pp_print_list
-    ~pp_sep:Format.pp_print_space
-    Var.pp ppf (Set.to_list vars)
+  type tran = {
+    defs  : Rv.Set.t;
+    uses  : Rv.Set.t;
+    insns : Rv.Set.t Label.Tree.t;
+  }
 
-let pp_transfer ppf {uses; defs; _} =
-  Format.fprintf ppf "(%a) / (%a)" pp_vars uses pp_vars defs
+  let empty_tran = {
+    defs  = Rv.Set.empty;
+    uses  = Rv.Set.empty;
+    insns = Label.Tree.empty;
+  }
 
-let (++) = Set.union and (--) = Set.diff
-let apply {defs; uses; _} vars = vars -- defs ++ uses
+  let pp_vars ppf vars =
+    Format.pp_print_list
+      ~pp_sep:Format.pp_print_space
+      Rv.pp ppf (Set.to_list vars)
 
-module type L = sig
-  module Insn : sig
-    type t
-    val lhs : t -> Var.Set.t
-  end
+  let pp_transfer ppf {uses; defs; _} =
+    Format.fprintf ppf "(%a) / (%a)" pp_vars uses pp_vars defs
 
-  module Blk : sig
-    type t
-    val args : ?rev:bool -> t -> Var.t seq
-    val insns : ?rev:bool -> t -> Insn.t seq
-    val liveness : t -> Var.Set.t Label.Tree.t * Var.Set.t
-  end
-
-  module Func : sig
-    type t
-    val map_of_blks : t -> Blk.t Label.Tree.t
-  end
-
-  module Cfg : sig
-    include Label.Graph
-    val create : Func.t -> t
-  end
-end
-
-module Make(M : L) : S
-  with type var := Var.t
-   and type var_comparator := Var.comparator_witness
-   and type func := M.Func.t
-   and type blk := M.Blk.t
-   and type cfg := M.Cfg.t = struct
-  open M
+  let (++) = Set.union and (--) = Set.diff
+  let apply {defs; uses; _} vars = vars -- defs ++ uses
 
   type t = {
     blks : tran Label.Tree.t;
-    outs : (Label.t, Var.Set.t) Solution.t;
+    outs : (Label.t, Rv.Set.t) Solution.t;
   }
 
   let lookup blks n =
@@ -93,44 +68,52 @@ module Make(M : L) : S
     Format.pp_close_box ppf ()
 
   let blk_defs b =
-    Blk.insns b |> Seq.fold ~init:Var.Set.empty
-      ~f:(fun acc i -> acc ++ Insn.lhs i)
+    Blk.insns b |> Seq.fold ~init:Rv.Set.empty
+      ~f:(fun acc i -> acc ++ M.Insn.writes (Insn.insn i))
 
   let update l trans ~f = Label.Tree.update_with trans l
       ~has:f ~nil:(fun () -> f empty_tran)
 
+  let blk_liveness b =
+    let (++) = Set.union and (--) = Set.diff in
+    let init = Label.Tree.empty, Rv.Set.empty in
+    Ftree.fold_right b.Blk.insns ~init ~f:(fun i (out, inc) ->
+        let insn = Insn.insn i in
+        let label = Insn.label i in
+        Label.Tree.set out ~key:label ~data:inc,
+        inc -- M.Insn.writes insn ++ M.Insn.reads insn)
+
   let block_transitions g blks =
     Label.Tree.fold blks ~init:Label.Tree.empty ~f:(fun ~key ~data:b fs ->
-        let insns, uses = Blk.liveness b in
+        let insns, uses = blk_liveness b in
         Label.Tree.add_exn fs ~key ~data:{
           defs = blk_defs b;
           uses;
           insns;
         }) |> fun init ->
-    Label.Tree.fold blks ~init ~f:(fun ~key ~data:b init ->
-        let args = Blk.args b |> Seq.fold ~init:Var.Set.empty ~f:Set.add in
+    Label.Tree.fold blks ~init ~f:(fun ~key ~data:_ init ->
         Cfg.Node.preds key g |>
         Seq.filter ~f:(Label.Tree.mem blks) |>
         Seq.fold ~init ~f:(fun fs p -> update p fs ~f:(fun x ->
-            {x with defs = Set.union x.defs args})))
+            {x with defs = x.defs})))
 
   let init keep =
     let s = Label.(Map.singleton pseudoexit keep) in
-    Solution.create s Var.Set.empty
+    Solution.create s Rv.Set.empty
 
-  let compute' ?(keep = Var.Set.empty) g blks =
+  let compute' ?(keep = Rv.Set.empty) g blks =
     let blks = block_transitions g blks in {
       blks;
       outs = Graphlib.fixpoint (module Cfg) g
           ~init:(init keep) ~rev:true
           ~start:Label.pseudoexit
           ~merge:Set.union
-          ~equal:Var.Set.equal
+          ~equal:Rv.Set.equal
           ~f:(transfer blks);
     }
 
-  let compute ?(keep = Var.Set.empty) fn =
-    let g = Cfg.create fn in
+  let compute ?(keep = Rv.Set.empty) fn =
+    let g = Cfg.create ~dests:M.Insn.dests fn in
     let blks = Func.map_of_blks fn in
     compute' ~keep g blks
 end

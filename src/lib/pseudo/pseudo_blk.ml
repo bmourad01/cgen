@@ -3,7 +3,7 @@ open Pseudo_common
 
 type 'a t = {
   label : Label.t;
-  insns : 'a ftree;
+  insns : 'a Pseudo_insn.t ftree;
 } [@@deriving bin_io, compare, equal, sexp]
 
 let create ~label ~insns = {
@@ -22,4 +22,4 @@ let pp ppa ppf t =
   | false ->
     Format.fprintf ppf "%a:@;@[<v 2>  %a@]"
       Label.pp t.label
-      (Ftree.pp ppa sep) t.insns
+      (Ftree.pp (Pseudo_insn.pp ppa) sep) t.insns

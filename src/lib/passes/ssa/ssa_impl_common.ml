@@ -54,7 +54,9 @@ module type L = sig
   end
 
   module Live : Live_intf.S
-    with type func := Func.t
+    with type var := Var.t
+     and type var_comparator := Var.comparator_witness
+     and type func := Func.t
      and type blk := Blk.t
      and type cfg := Cfg.t
 
