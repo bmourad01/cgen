@@ -14,10 +14,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let word = Target.word M.target
   let wordi = (word :> Type.imm)
+  let wordb = (word :> Type.basic)
 
   type rule = (Rv.t, M.Insn.t) R.t
   type env = Rv.t S.t
   type k = env -> env
+
+  let pp_node t = pp_node t Rv.pp
 
   let search t p id =
     let subst env id x term = Map.update env x ~f:(function
@@ -28,6 +31,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let regvar env x r id k = match typeof t id with
       | Some (#Type.basic as ty) ->
         k @@ subst env id x @@ Regvar (r, ty)
+      | Some `flag ->
+        k @@ subst env id x @@ Regvar (r, wordb)
       | Some _ | None -> raise_notrace Mismatch in
     let rec go : type a b. env -> (a, b) P.t -> Id.t -> k -> env =
       fun env p id k -> match p with
@@ -36,7 +41,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     and pat : type b c. env -> P.op -> (b, c) P.t list -> Id.t -> k -> env =
       fun env x xs id k ->  match node t id with
         | N (y, ys) when P.equal_op x y -> children env xs ys k
-        | N _ | Rv _ -> raise_notrace Mismatch
+        | N _ | Rv _ ->
+          raise_notrace Mismatch
     and var env x id k = match node t id with
       | N (Oaddr a, []) -> k @@ subst env id x @@ Imm (a, wordi)
       | N (Obool b, []) -> k @@ subst env id x @@ Bool b
@@ -62,14 +68,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           child env k xs in
     go S.empty p id Base.Fn.id
 
-  let match_one t _l id =
+  let match_one t l id =
     let rules = (I.rules :> rule list) in
     C.List.find_map rules ~f:(function
         | _, [] -> !!None
         | pre, posts -> match search t pre id with
           | exception Mismatch -> !!None
-          | env -> C.List.find_map posts ~f:((|>) env))
-    >>| Option.value ~default:[]
+          | env -> C.List.find_map posts ~f:((|>) env)) >>= function
+    | Some is -> !!is
+    | None ->
+      C.failf "In Isel_match.match_one: at label %a in function $%s: \
+               failed to produce instructions for node %a (id %d)"
+        Label.pp l (Func.name t.fn) (pp_node t) id id ()
 
   let insns t l = match Hashtbl.find t.insn l with
     | None -> !![]
