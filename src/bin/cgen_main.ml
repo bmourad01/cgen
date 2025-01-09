@@ -58,7 +58,7 @@ let comp filename =
     Seq.to_list in
   Format.printf "=================================================\n%!";
   Format.pp_print_list
-    ~pp_sep:(fun ppf () -> Format.fprintf ppf "@;@;")
+    ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n\n")
     (Pseudo.Func.pp Machine.Insn.pp) Format.std_formatter pfns;
   if not @@ List.is_empty pfns then Format.printf "\n%!";
   !!()
