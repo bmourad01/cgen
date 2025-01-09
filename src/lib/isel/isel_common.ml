@@ -2,13 +2,12 @@ open Core
 open Graphlib.Std
 open Virtual.Abi
 
+module Id = Isel_internal.Id
 module P = Isel_internal.Pattern
-module Id = Int
-
-type id = Id.t [@@deriving compare, equal, hash, sexp]
+module S = Isel_internal.Subst
 
 type 'r node =
-  | N of P.op * id list
+  | N of P.op * Id.t list
   | Rv of 'r
 [@@deriving compare, equal, hash, sexp]
 
@@ -22,15 +21,15 @@ type 'r t = {
   dom   : Label.t tree;
   rpo   : Label.t -> int;
   blks  : blk Label.Tree.t;
-  v2id  : id Var.Table.t;
+  v2id  : Id.t Var.Table.t;
   id2r  : 'r Id.Table.t;
-  insn  : id Ftree.t Label.Table.t;
+  insn  : Id.t Ftree.t Label.Table.t;
   extra : Label.t list Label.Table.t;
 }
 
 exception Missing_rpo of Label.t
 
-let new_node ?l ?ty t n : id =
+let new_node ?l ?ty t n : Id.t =
   let id = Vec.length t.node in
   assert (id = Vec.length t.typs);
   Vec.push t.node n;

@@ -50,7 +50,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                  variable %a in function $%s"
           Var.pp x (Func.name t.fn) ()
 
-  let constant t : Virtual.const -> id = function
+  let constant t : Virtual.const -> Id.t = function
     | `bool b ->
       new_node ~ty:`flag t @@ N (Obool b, [])
     | `int (i, ti) ->
@@ -62,13 +62,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | `sym (s, o) ->
       new_node ~ty:word t @@ N (Osym (s, o), [])
 
-  let operand t : Virtual.operand -> id C.t = function
+  let operand t : Virtual.operand -> Id.t C.t = function
     | #Virtual.const as c -> !!(constant t c)
     | `var x -> var t x
 
   let operands t = C.List.map ~f:(operand t)
 
-  let global t : Virtual.global -> id C.t = function
+  let global t : Virtual.global -> Id.t C.t = function
     | `addr a ->
       !!(new_node ~ty:word t @@ N (Oaddr a, []))
     | `sym (s, o) ->
@@ -113,14 +113,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       end;
       Some ld'
 
-  let local ?(br = false) t l : Virtual.local -> id C.t = function
+  let local ?(br = false) t l : Virtual.local -> Id.t C.t = function
     | `label (ld, args) ->
       let+ ld' = blkargs ~br t l ld args >>| function
         | Some ld' -> ld'
         | None -> ld in
       new_node t @@ N (Olocal ld', [])
 
-  let dst ?(br = false) t l : Virtual.dst -> id C.t = function
+  let dst ?(br = false) t l : Virtual.dst -> Id.t C.t = function
     | #Virtual.global as g -> global t g
     | #Virtual.local as loc -> local ~br t l loc
 

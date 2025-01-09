@@ -1,6 +1,10 @@
 open Core
 open Virtual.Abi
 
+module Id = Int
+
+type id = Id.t [@@deriving compare, equal, hash, sexp]
+
 module Pattern = struct
   type op =
     | Oaddr   of Bv.t
@@ -75,11 +79,16 @@ module Subst = struct
     | Sym of string * int
     | Label of Label.t
     | Bool of bool
-  [@@deriving equal]
+  [@@deriving equal, sexp]
 
-  type 'r t = 'r term String.Map.t
+  type 'r info = {
+    id : id;
+    tm : 'r term;
+  } [@@deriving sexp]
 
-  let find = Map.find
+  type 'r t = 'r info String.Map.t [@@deriving sexp]
+
+  let find t x = Map.find t x |> Option.map ~f:(fun i -> i.tm)
   let empty = String.Map.empty
 
   let regvar t x = match find t x with

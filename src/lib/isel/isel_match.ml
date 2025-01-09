@@ -3,9 +3,6 @@ open Regular.Std
 open Virtual.Abi
 open Isel_common
 
-module S = Isel_internal.Subst
-module P = Isel_internal.Pattern
-
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
 
@@ -23,39 +20,40 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   type k = env -> env
 
   let search t p id =
-    let subst env x term = Map.update env x ~f:(function
-        | Some term' when S.equal_term Rv.equal term term' -> term
+    let subst env id x term = Map.update env x ~f:(function
+        | Some i when i.S.id = id ->
+          assert (S.equal_term Rv.equal i.tm term); i
         | Some _ -> raise_notrace Mismatch
-        | None -> term) in
+        | None -> S.{id; tm = term}) in
     let regvar env x r id k = match typeof t id with
       | Some (#Type.basic as ty) ->
-        k @@ subst env x @@ Regvar (r, ty)
+        k @@ subst env id x @@ Regvar (r, ty)
       | Some _ | None -> raise_notrace Mismatch in
-    let rec go : type a b. env -> (a, b) P.t -> id -> k -> env =
+    let rec go : type a b. env -> (a, b) P.t -> Id.t -> k -> env =
       fun env p id k -> match p with
         | P (x, xs) -> pat env x xs id k
         | V x -> var env x id k
-    and pat : type b c. env -> P.op -> (b, c) P.t list -> id -> k -> env =
+    and pat : type b c. env -> P.op -> (b, c) P.t list -> Id.t -> k -> env =
       fun env x xs id k ->  match node t id with
         | N (y, ys) when P.equal_op x y -> children env xs ys k
         | N _ | Rv _ -> raise_notrace Mismatch
     and var env x id k = match node t id with
-      | N (Oaddr a, []) -> k @@ subst env x @@ Imm (a, wordi)
-      | N (Obool b, []) -> k @@ subst env x @@ Bool b
-      | N (Odouble d, []) -> k @@ subst env x @@ Double d
-      | N (Oint (i, ty), []) -> k @@ subst env x @@ Imm (i, ty)
-      | N (Osingle s, []) -> k @@ subst env x @@ Single s
-      | N (Osym (s, o), []) -> k @@ subst env x @@ Sym (s, o)
-      | N (Olocal l, []) -> k @@ subst env x @@ Label l
+      | N (Oaddr a, []) -> k @@ subst env id x @@ Imm (a, wordi)
+      | N (Obool b, []) -> k @@ subst env id x @@ Bool b
+      | N (Odouble d, []) -> k @@ subst env id x @@ Double d
+      | N (Oint (i, ty), []) -> k @@ subst env id x @@ Imm (i, ty)
+      | N (Osingle s, []) -> k @@ subst env id x @@ Single s
+      | N (Osym (s, o), []) -> k @@ subst env id x @@ Sym (s, o)
+      | N (Olocal l, []) -> k @@ subst env id x @@ Label l
       | Rv r -> regvar env x r id k
       | N _ -> match Hashtbl.find t.id2r id with
         | None -> raise_notrace Mismatch
         | Some r -> regvar env x r id k
-    and children : type b c. env -> (b, c) P.t list -> id list -> k -> env =
+    and children : type b c. env -> (b, c) P.t list -> Id.t list -> k -> env =
       fun env xs ys k -> match List.zip xs ys with
         | Unequal_lengths -> raise_notrace Mismatch
         | Ok l -> child env k l
-    and child : type b c. env -> k -> ((b, c) P.t * id) list -> env =
+    and child : type b c. env -> k -> ((b, c) P.t * Id.t) list -> env =
       fun env k -> function
         | [] -> k env
         | [p, id] -> go env p id k
