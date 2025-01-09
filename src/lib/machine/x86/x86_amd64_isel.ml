@@ -161,6 +161,14 @@ module Make(C : Context_intf.S) = struct
         SUB (Oreg (x, xt), Oimm z);
       ]
 
+  let and_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in !!![
+      MOV (Oreg (x, xt) , Oreg (y, yt));
+      AND (Oreg (x, xt), Oimm (Bv.to_int64 z));
+    ]
+
   let jmp_lbl_x env =
     let*! x = S.label env "x" in
     !!![JMP (`lbl x)]
@@ -185,6 +193,28 @@ module Make(C : Context_intf.S) = struct
         Jcc (Cle, yes);
         JMP (`lbl no);
       ]
+
+  let store_rr_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in !!![
+      MOV (Omem (Ab y), Oreg (x, xt));
+    ]
+
+  let store_rsym_x_y env =
+    let*! s, o = S.sym env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let addr = Abd (Rv.reg `rip, Dsym (s, o)) in
+    let* x = C.Var.fresh >>| Rv.var in !!![
+      LEA (Oreg (x, `i64), Omem addr);
+      MOV (Omem (Ab y), Oreg (x, yt))
+    ]
+
+  let store_symr_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! s, o = S.sym env "y" in
+    let addr = Abd (Rv.reg `rip, Dsym (s, o)) in !!![
+      MOV (Omem addr, Oreg (x, xt));
+    ]
 
   let nop _ = !!![]
 
@@ -225,6 +255,10 @@ module Make(C : Context_intf.S) = struct
       sub_ri_x_y_z;
     ];
 
+    move x (and_ `i64 y z) =>* [
+      and_ri_x_y_z;
+    ];
+
     move x y =>* [
       move_rr_x_y;
       move_ri_x_y;
@@ -232,6 +266,12 @@ module Make(C : Context_intf.S) = struct
       move_rsym_x_y;
       move_rf32_x_y;
       move_rf64_x_y;
+    ];
+
+    store `i32 x y =>* [
+      store_rr_x_y;
+      store_rsym_x_y;
+      store_symr_x_y;
     ];
 
     jmp x =>* [
