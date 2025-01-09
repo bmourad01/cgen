@@ -102,6 +102,10 @@ let with_insns b is = {
   b with insns = Ftree.of_list is;
 }
 
+let with_args b args = {
+  b with args = Ftree.of_list args;
+}
+
 let remove_arg b x = {
   b with args = Ftree.remove_if b.args ~f:(Var.equal x);
 }

@@ -155,6 +155,9 @@ module type S = sig
   (** Replaces the instructions of the block. *)
   val with_insns : t -> insn list -> t
 
+  (** Replaces the arguments of the block. *)
+  val with_args : t -> Var.t list -> t
+
   (** [remove_arg b x] removes an argument [x] from the block [b],
       if it exists. *)
   val remove_arg : t -> Var.t -> t
