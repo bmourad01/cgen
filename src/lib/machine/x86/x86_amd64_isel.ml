@@ -157,6 +157,10 @@ module Make(C : Context_intf.S) = struct
         SUB (Oreg (x, xt), Oimm z);
       ]
 
+  let jmp_lbl_x env =
+    let*! x = S.label env "x" in
+    !!![JMP (`lbl x)]
+
   let jle_ri_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.imm env "y" in
@@ -220,6 +224,10 @@ module Make(C : Context_intf.S) = struct
       move_rsym_x_y;
       move_rf32_x_y;
       move_rf64_x_y;
+    ];
+
+    jmp x =>* [
+      jmp_lbl_x;
     ];
 
     br (le `i32 x y) yes no =>* [
