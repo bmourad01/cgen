@@ -27,8 +27,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         "In Isel_builder.var: unbound variable %a in function $%s"
         Var.pp x (Func.name t.fn) ()
 
-  let new_var ?l t x ty = Hashtbl.find_or_add t.v2id x ~default:(fun () ->
-      let id = new_node ?l ~ty t @@ Rv (Rv.var x) in
+  let new_var t x ty = Hashtbl.find_or_add t.v2id x ~default:(fun () ->
+      let id = new_node ~ty t @@ Rv (Rv.var x) in
       Hashtbl.set t.v2id ~key:x ~data:id;
       Hashtbl.set t.id2r ~key:id ~data:(Rv.var x);
       id)
@@ -277,6 +277,19 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | `ret rets -> ret t l rets
     | `sw (ty, i, d, tbl) -> sw t l ty i d tbl
 
+  let fnarg t l ty = function
+    | `stk (x, _) ->
+      (* TODO: stack arguments *)
+      let ty = (ty :> ty) in
+      let _xid = new_var t x ty in
+      !!()
+    | `reg (x, r) ->
+      let+ r = reg t r in
+      let ty = (ty :> ty) in
+      let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+      let xid = new_var t x ty in
+      ignore @@ new_node ~l t @@ N (Omove, [xid; rid])
+
   let step t l = match Label.Tree.find t.blks l with
     | None when Label.is_pseudo l -> !!()
     | None ->
@@ -284,6 +297,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         "In Isel_builder.step: missing block for label %a in function $%s"
         Label.pp l (Func.name t.fn) ()
     | Some b ->
+      let* () = C.when_ Label.(l = Func.entry t.fn) @@ fun () ->
+        Func.args t.fn |> C.Seq.iter ~f:(fun (a, ty) -> fnarg t l ty a) in
       let* () = Blk.insns b |> C.Seq.iter ~f:(insn t) in
       ctrl t (Blk.label b) (Blk.ctrl b)
 
