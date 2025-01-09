@@ -177,18 +177,30 @@ module Insn = struct
     | Abi (b, i) ->
       Format.fprintf ppf "%a + %a"
         Regvar.pp b Regvar.pp i
+    | Abd (b, Dimm d) when Int32.(d < 0l) ->
+      Format.fprintf ppf "%a - 0x%lx"
+        Regvar.pp b (Int32.neg d)
     | Abd (b, d) ->
       Format.fprintf ppf "%a + %a"
         Regvar.pp b pp_disp d
+    | Abid (b, i, Dimm d) when Int32.(d < 0l) ->
+      Format.fprintf ppf "%a + %a*1 - 0x%lx"
+        Regvar.pp b Regvar.pp i (Int32.neg d)
     | Abid (b, i, d) ->
       Format.fprintf ppf "%a + %a*1 + %a"
         Regvar.pp b Regvar.pp i pp_disp d
     | Abis (b, i, s) ->
       Format.fprintf ppf "%a + %a*%d"
         Regvar.pp b Regvar.pp i s
+    | Aisd (i, s, Dimm d) when Int32.(d < 0l) ->
+      Format.fprintf ppf "%a*%d - 0x%lx"
+        Regvar.pp i s (Int32.neg d)
     | Aisd (i, s, d) ->
       Format.fprintf ppf "%a*%d + %a"
         Regvar.pp i s pp_disp d
+    | Abisd (b, i, s, Dimm d) when Int32.(d < 0l) ->
+      Format.fprintf ppf "%a + %a*%d - 0x%lx"
+        Regvar.pp b Regvar.pp i s (Int32.neg d)
     | Abisd (b, i, s, d) ->
       Format.fprintf ppf "%a + %a*%d + %a"
         Regvar.pp b Regvar.pp i s pp_disp d
