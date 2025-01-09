@@ -7,6 +7,8 @@ open Graphlib.Std
 open Virtual.Abi
 open Isel_common
 
+module Slot = Virtual.Slot
+
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
 
@@ -290,6 +292,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let xid = new_var t x ty in
       ignore @@ new_node ~l t @@ N (Omove, [xid; rid])
 
+  (* TODO: stack stuff *)
+  let slot t _l s =
+    let _sid = new_var t (Slot.var s) word in
+    ()
+
   let step t l = match Label.Tree.find t.blks l with
     | None when Label.is_pseudo l -> !!()
     | None ->
@@ -297,8 +304,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         "In Isel_builder.step: missing block for label %a in function $%s"
         Label.pp l (Func.name t.fn) ()
     | Some b ->
-      let* () = C.when_ Label.(l = Func.entry t.fn) @@ fun () ->
-        Func.args t.fn |> C.Seq.iter ~f:(fun (a, ty) -> fnarg t l ty a) in
       let* () = Blk.insns b |> C.Seq.iter ~f:(insn t) in
       ctrl t (Blk.label b) (Blk.ctrl b)
 
@@ -311,6 +316,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       C.failf "In Isel_builder.enqueue: missing RPO number for label %a in function $%s"
         Label.pp l (Func.name t.fn) ()
 
+  let initial t =
+    let entry = Func.entry t.fn in
+    let b = Label.Tree.find_exn t.blks entry in
+    let l = match Seq.hd @@ Blk.insns b with
+      | Some i -> Insn.label i
+      | None -> entry in
+    let+ () =
+      Func.args t.fn |>
+      C.Seq.iter ~f:(fun (a, ty) ->
+          fnarg t l ty a) in
+    Func.slots t.fn |> Seq.iter ~f:(fun s -> slot t l s)
+
   let run t =
     let rec loop q = match Stack.pop q with
       | None -> !!()
@@ -318,5 +335,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         let* () = step t l in
         let* () = enqueue t l q in
         loop q in
+    let* () = initial t in
     loop @@ Stack.singleton Label.pseudoentry
 end
