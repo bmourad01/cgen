@@ -636,4 +636,9 @@ module Insn = struct
       -> rset' [`rax; `rdx; `rflags]
     | POP a
       -> Set.union (rset' [`rsp]) (rset_reg [a])
+
+  let dests = function
+    | Jcc (_, l) | JMP (Jlbl l) -> Label.Set.singleton l
+    | JMP (Jind (_, ls)) -> ls
+    | _ -> Label.Set.empty
 end

@@ -59,6 +59,9 @@ module type S = sig
     (** The set of arguments that the instruction writes to. *)
     val writes : t -> Regvar.Set.t
 
+    (** The set of static destination labels. *)
+    val dests : t -> Label.Set.t
+
     (** Pretty-prints the instruction. *)
     val pp : Format.formatter -> t -> unit
   end

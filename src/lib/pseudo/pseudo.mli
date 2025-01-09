@@ -37,3 +37,24 @@ module Func : sig
 end
 
 type 'a func = 'a Func.t [@@deriving bin_io, compare, equal, sexp]
+
+(** The control-flow graph of the function. *)
+module Cfg : sig
+  include Label.Graph
+
+  (** Creates the control-flow graph.
+
+      [dests] is the set of static control-flow destinations of a given
+      instruction. See the interface provided by [Machine_intf.S].
+
+      Each node of the graph is the label of a basic block in the function,
+      and edges between basic blocks correspond to control-flow transfers
+      between them.
+
+      Additionally, two pseudo-labels are added to the graph ([Label.pseudoentry]
+      and [Label.pseudoexit]). These labels link with each "entry" and "exit"
+      node in the function, respectively. This representation is useful for
+      computing the dominator tree of the function in question.
+  *)
+  val create : dests:('a -> Label.Set.t) -> 'a func -> t
+end
