@@ -315,8 +315,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let ret t l rets =
     let+ () = C.List.iter rets ~f:(fun (r, a) ->
         let* r = reg t r in
-        let* ty = typeof_operand t a in
-        let+ aid = operand t a in
+        let+ ty, aid = operand' t a in
         let rid = new_node ~ty t @@ Rv (Rv.reg r) in
         ignore @@ new_node ~l t @@ N (Omove, [rid; aid])) in
     ignore @@ new_node ~l t @@ N (Oret, [])
