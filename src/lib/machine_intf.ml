@@ -6,9 +6,15 @@ module type S = sig
   (** The target descriptor. *)
   val target : Target.t
 
+  (** Align the given stack space for arguments passed to a function. *)
+  val call_args_stack_size : int -> int
+
   (** A machine register. *)
   module Reg : sig
     type t [@@deriving bin_io, compare, equal, sexp]
+
+    (** Stack pointer register. *)
+    val sp : t
 
     (** The type of the register. *)
     val typeof : t -> [Type.basic | `v128]

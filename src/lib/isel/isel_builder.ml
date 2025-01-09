@@ -174,23 +174,69 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Hashtbl.set t.v2id ~key:x ~data:id;
     Hashtbl.set t.id2r ~key:id ~data:r
 
+  let call_args_stack_size t l f args =
+    C.List.fold args ~init:0 ~f:(fun sz -> function
+        | a, o ->
+          let* () = C.unless (sz <= o) @@ fun () ->
+            C.failf "In Isel_builder.call: call to function %a at label %a \
+                     in function $%s has invalid stack offset (%d > %d)"
+              Virtual.pp_global f Label.pp l (Func.name t.fn) sz o () in
+          typeof_operand t a >>| function
+          | #Type.basic as b -> o + (Type.sizeof_basic b / 8)
+          | `flag -> o + 1
+          | `v128 -> o + 16)
+    >>| M.call_args_stack_size
+
+  let call_adj_stack ?(restore = false) t l sz =
+    if sz > 0 then begin
+      let w = Target.word M.target in
+      let rid = new_node ~ty:word t @@ Rv (Rv.reg R.sp) in
+      let s = Bv.(int sz mod modulus (Type.sizeof_imm_base w)) in
+      let sid = new_node ~ty:word t @@ N (Oint (s, (w :> Type.imm)), []) in
+      let op = if restore then `add (w :> Type.basic) else `sub (w :> Type.basic) in
+      let id = new_node ~ty:word t @@ N (Obinop op, [rid; sid]) in
+      ignore @@ new_node ~l t @@ N (Omove, [rid; id])
+    end
+
+  let call_arg_reg t l (a, r) =
+    let* r = reg t r >>| Rv.reg in
+    let+ ty, a = operand' t a in
+    let rid = new_node ~ty t @@ Rv r in
+    ignore @@ new_node ~l t @@ N (Omove, [rid; a])
+
+  let call_arg_stk t l (a, o) =
+    let+ ty, a = operand' t a in
+    let w = Target.word M.target in
+    let rid = new_node ~ty:word t @@ Rv (Rv.reg R.sp) in
+    let o = Bv.(int o mod modulus (Type.sizeof_imm_base w)) in
+    let oid = new_node ~ty:word t @@ N (Oint (o, (w :> Type.imm)), []) in
+    let aid = new_node ~ty:word t @@ N (Obinop (`add (w :> Type.basic)), [rid; oid]) in
+    let ty = match ty with
+      | `flag -> `i8
+      | `v128 -> `v128
+      | #Type.basic as b -> (b :> [Type.basic | `v128]) in
+    ignore @@ new_node ~l t @@ N (Ostore ty, [a; aid])
+
+  let call_ret t l (x, ty, r) =
+    let+ r = reg t r in
+    let ty = (ty :> ty) in
+    let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+    let xid = new_var t x ty in
+    let n = N (Omove, [xid; rid]) in
+    ignore @@ new_node ~l t n
+
   let call t l ret f args =
-    let* () = C.List.iter args ~f:(function
-        | `stk _ -> !!() (* TODO: stack args *)
-        | `reg (a, r) ->
-          let* r = reg t r >>| Rv.reg in
-          let+ ty, a = operand' t a in
-          let rid = new_node ~ty t @@ Rv r in
-          ignore @@ new_node ~l t @@ N (Omove, [rid; a])) in
+    let rargs, sargs = List.partition_map args ~f:(function
+        | `reg (a, r) -> First (a, r)
+        | `stk (a, o) -> Second (a, o)) in
+    let* sz = call_args_stack_size t l f sargs in
+    let* () = C.List.iter rargs ~f:(call_arg_reg t l) in
+    call_adj_stack t l sz;
+    let* () = C.List.iter sargs ~f:(call_arg_stk t l) in
     let* f = global t f in
     ignore @@ new_node ~l t @@ N (Ocall, [f]);
-    C.List.iter ret ~f:(fun (x, ty, r) ->
-        let+ r = reg t r in
-        let ty = (ty :> ty) in
-        let rid = new_node ~ty t @@ Rv (Rv.reg r) in
-        let xid = new_var t x ty in
-        let n = N (Omove, [xid; rid]) in
-        ignore @@ new_node ~l t n)
+    call_adj_stack t l sz ~restore:true;
+    C.List.iter ret ~f:(call_ret t l)
 
   let load t l x ty a =
     let+ a = operand t a in
@@ -233,8 +279,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let n = N (Omove, [rid; a]) in
     ignore @@ new_node ~l t n
 
+  (* TODO: communicate how the stack frame is going to work *)
   let stkargs t _l x =
-    (* TODO: communicate how the stack frame is going to work *)
     let _xid = new_var t x word in
     !!()
 
@@ -286,20 +332,31 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | `ret rets -> ret t l rets
     | `sw (ty, i, d, tbl) -> sw t l ty i d tbl
 
-  let fnarg t l ty = function
-    | `stk (x, _) ->
-      (* TODO: stack arguments *)
-      let ty = (ty :> ty) in
-      let _xid = new_var t x ty in
-      !!()
-    | `reg (x, r) ->
-      let+ r = reg t r in
-      let ty = (ty :> ty) in
-      let rid = new_node ~ty t @@ Rv (Rv.reg r) in
-      let xid = new_var t x ty in
-      ignore @@ new_node ~l t @@ N (Omove, [xid; rid])
+  let regarg t l (x, r, ty) =
+    let+ r = reg t r in
+    let ty = (ty :> ty) in
+    let rid = new_node ~ty t @@ Rv (Rv.reg r) in
+    let xid = new_var t x ty in
+    ignore @@ new_node ~l t @@ N (Omove, [xid; rid])
 
-  (* TODO: stack stuff *)
+  let stkarg t l (x, o, ty) =
+    let ty' = (ty :> ty) in
+    let w = Target.word M.target in
+    let xid = new_var t x ty' in
+    let rid = new_node ~ty:word t @@ Rv (Rv.reg R.sp) in
+    let o = Bv.(int o mod modulus (Type.sizeof_imm_base w)) in
+    let oid = new_node ~ty:word t @@ N (Oint (o, (w :> Type.imm)), []) in
+    let aid = new_node ~ty:word t @@ N (Obinop (`add (w :> Type.basic)), [rid; oid]) in
+    let lid = new_node ~ty:word t @@ N (Oload ty, [aid]) in
+    ignore @@ new_node ~l t @@ N (Omove, [xid; lid]);
+    !!()
+
+  (* TODO: stack stuff
+
+     I think would suffice to just make the binding to the variable available
+     and then maintain the slot abstraction up to register allocation, because
+     at that point we will have more information on how to lay out the stack.
+  *)
   let slot t _l s =
     let _sid = new_var t (Slot.var s) word in
     ()
@@ -329,10 +386,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let l = match Seq.hd @@ Blk.insns b with
       | Some i -> Insn.label i
       | None -> entry in
-    let+ () =
-      Func.args t.fn |>
-      C.Seq.iter ~f:(fun (a, ty) ->
-          fnarg t l ty a) in
+    let rargs, sargs =
+      Func.args t.fn |> Seq.to_list |>
+      List.partition_map ~f:(fun (a, ty) -> match a with
+          | `reg (x, r) -> First (x, r, ty)
+          | `stk (x, o) -> Second (x, o, ty)) in
+    let* () = C.List.iter sargs ~f:(stkarg t l) in
+    let+ () = C.List.iter rargs ~f:(regarg t l) in
     Func.slots t.fn |> Seq.iter ~f:(fun s -> slot t l s)
 
   let run t =

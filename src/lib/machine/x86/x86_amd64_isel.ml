@@ -100,7 +100,7 @@ module Make(C : Context_intf.S) = struct
     let*! z, zt = S.regvar env "z" in
     let*! () = guard @@ Type.equal_basic xt yt in
     let*! () = guard @@ Type.equal_basic xt zt in
-    if can_lea_ty xt then
+    if not (Rv.equal x y) && can_lea_ty xt then
       !!![LEA (Oreg (x, xt), Omem (Abi (y, z)))]
     else
       !!![
@@ -123,7 +123,7 @@ module Make(C : Context_intf.S) = struct
     let z = Bv.to_int64 z in
     if Int64.(z = 0L) then
       !!![MOV (Oreg (x, xt), Oreg (y, yt))]
-    else if fits_int32_pos z && can_lea_ty xt then
+    else if not (Rv.equal x y) && fits_int32_pos z && can_lea_ty xt then
       let z = Int64.to_int32_trunc z in
       !!![LEA (Oreg (x, xt), Omem (Abd (y, Dimm z)))]
     else if Rv.equal x y then
@@ -153,7 +153,7 @@ module Make(C : Context_intf.S) = struct
     let nz = Int64.neg z in
     if Int64.(z = 0L) then
       !!![MOV (Oreg (x, xt), Oreg (y, yt))]
-    else if fits_int32_neg nz && can_lea_ty xt then
+    else if not (Rv.equal x y) && fits_int32_neg nz && can_lea_ty xt then
       let z = Int64.to_int32_trunc nz in
       !!![LEA (Oreg (x, xt), Omem (Abd (y, Dimm z)))]
     else if Rv.equal x y then
@@ -294,6 +294,18 @@ module Make(C : Context_intf.S) = struct
       MOV (Omem (Abd (y, Dimm z)), Oreg (x, xt));
     ]
 
+  let store_iri_add_x_y_z env =
+    let*! x, xt = S.imm env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_int32 z in
+    let z = Int64.to_int32_trunc z in
+    let x = Bv.to_int64 x in
+    !!![
+      MOV (Omem (Abd (y, Dimm z)), Oimm (x, xt));
+    ]
+
   let store_rsym_x_y env =
     let*! s, o = S.sym env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -328,6 +340,23 @@ module Make(C : Context_intf.S) = struct
       IDIV (Oreg (z, zt));
       MOV (Oreg (x, xt), Oreg (rdx, xt));
     ]
+
+  let sext_rr_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    if Type.equal_basic xt yt then !!![]
+    else !!![MOVSX (Oreg (x, xt), Oreg (y, yt))]
+
+  let zext_rr_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    if Type.equal_basic xt yt then !!![]
+    else match xt, yt with
+      | `i64, `i32 ->
+        (* Implicit zero-extension. *)
+        !!![MOV (Oreg (x, `i32), Oreg (y, `i32))]
+      | _ ->
+        !!![MOVZX (Oreg (x, xt), Oreg (y, yt))]
 
   let call_sym_x env =
     let*! s, o = S.sym env "x" in
@@ -432,6 +461,30 @@ module Make(C : Context_intf.S) = struct
       load_rr_x_y;
     ];
 
+    move x (sext `i16 y) =>* [
+      sext_rr_x_y;
+    ];
+
+    move x (sext `i32 y) =>* [
+      sext_rr_x_y;
+    ];
+
+    move x (sext `i64 y) =>* [
+      sext_rr_x_y;
+    ];
+
+    move x (zext `i16 y) =>* [
+      zext_rr_x_y;
+    ];
+
+    move x (zext `i32 y) =>* [
+      zext_rr_x_y;
+    ];
+
+    move x (zext `i64 y) =>* [
+      zext_rr_x_y;
+    ];
+
     move x y =>* [
       move_rr_x_y;
       move_ri_x_y;
@@ -448,8 +501,14 @@ module Make(C : Context_intf.S) = struct
       store_symr_x_y;
     ];
 
+    store `i32 x (add `i64 y z) =>* [
+      store_rri_add_x_y_z;
+      store_iri_add_x_y_z;
+    ];
+
     store `i64 x (add `i64 y z) =>* [
       store_rri_add_x_y_z;
+      store_iri_add_x_y_z;
     ];
 
     store `i64 x y =>* [

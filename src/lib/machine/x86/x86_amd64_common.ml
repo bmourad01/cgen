@@ -22,6 +22,8 @@ module Reg = struct
     | `r15
   ] [@@deriving bin_io, compare, equal, sexp]
 
+  let sp = `rsp
+
   let pp_gpr8 ppf : gpr -> unit = function
     | `rax -> Format.fprintf ppf "al"
     | `rcx -> Format.fprintf ppf "cl"

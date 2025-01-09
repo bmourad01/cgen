@@ -39,14 +39,20 @@ let clobbered =
 
 module Machine = struct
   let target = target
+
+  let call_args_stack_size sz = (sz + 15) land (-16)
+
   module Reg = Reg
   module Regvar = Regvar
+
   module Insn = struct
     include Insn
     let reads = reads clobbered
     let writes = writes clobbered
   end
+
   module Isel = X86_amd64_isel.Make
+
   let lower_abi = Sysv.run
 end
 
