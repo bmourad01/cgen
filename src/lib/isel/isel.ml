@@ -26,6 +26,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       v2id = Var.Table.create ();
       id2r = Id.Table.create ();
       insn = Label.Table.create ();
+      extra = Label.Table.create ();
     }
 
   open C.Syntax

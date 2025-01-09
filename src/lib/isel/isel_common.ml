@@ -15,16 +15,17 @@ type 'r node =
 type ty = [Type.basic | `flag | `v128]
 
 type 'r t = {
-  fn   : func;
-  node : 'r node Vec.t;
-  typs : ty Uopt.t Vec.t;
-  cfg  : Cfg.t;
-  dom  : Label.t tree;
-  rpo  : Label.t -> int;
-  blks : blk Label.Tree.t;
-  v2id : id Var.Table.t;
-  id2r : 'r Id.Table.t;
-  insn : id Ftree.t Label.Table.t;
+  fn    : func;
+  node  : 'r node Vec.t;
+  typs  : ty Uopt.t Vec.t;
+  cfg   : Cfg.t;
+  dom   : Label.t tree;
+  rpo   : Label.t -> int;
+  blks  : blk Label.Tree.t;
+  v2id  : id Var.Table.t;
+  id2r  : 'r Id.Table.t;
+  insn  : id Ftree.t Label.Table.t;
+  extra : Label.t list Label.Table.t;
 }
 
 exception Missing_rpo of Label.t
@@ -52,3 +53,42 @@ let rec pp_node t ppr ppf id = match node t id with
       (Format.pp_print_list ~pp_sep (pp_node t ppr))
       cs
 
+let infer_ty_binop : Insn.binop -> ty = function
+  | `add t
+  | `div t
+  | `mul t
+  | `rem t
+  | `sub t -> (t :> ty)
+  | `mulh t
+  | `udiv t
+  | `umulh t
+  | `urem t
+  | `and_ t
+  | `or_ t
+  | `asr_ t
+  | `lsl_ t
+  | `lsr_ t
+  | `rol t
+  | `ror t
+  | `xor t -> (t :> ty)
+  | #Virtual.Insn.cmp -> `flag
+
+let infer_ty_unop : Insn.unop -> ty = function
+  | `neg t
+  | `copy t -> (t :> ty)
+  | `clz t
+  | `ctz t
+  | `not_ t
+  | `popcnt t
+  | `flag t
+  | `ftosi (_, t)
+  | `ftoui (_, t)
+  | `itrunc t
+  | `sext t
+  | `zext t -> (t :> ty)
+  | `ifbits t -> (t :> ty)
+  | `fext t
+  | `fibits t
+  | `ftrunc t
+  | `sitof (_, t)
+  | `uitof (_, t) -> (t :> ty)

@@ -64,7 +64,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           child env k xs in
     go S.empty p id Base.Fn.id
 
-  let match_one t id =
+  let match_one t _l id =
     let rules = (I.rules :> rule list) in
     C.List.find_map rules ~f:(function
         | _, [] -> !!None
@@ -77,18 +77,25 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | None -> !![]
     | Some ids ->
       Ftree.to_list ids |>
-      C.List.map ~f:(match_one t) >>|
+      C.List.map ~f:(match_one t l) >>|
       List.concat
 
   let step t b =
     let label = Blk.label b in
+    let* extra = match Hashtbl.find t.extra label with
+      | None -> !![]
+      | Some ls ->
+        (* NB: we're reversing the order on purpose. *)
+        C.List.fold ls ~init:[] ~f:(fun acc l ->
+            let+ insns = insns t l in
+            Pseudo.Blk.create ~label:l ~insns :: acc) in
     let* init = insns t label in
     let+ insns =
       Blk.insns b ~rev:true |>
       C.Seq.fold ~init ~f:(fun acc i ->
           let+ insns = insns t @@ Insn.label i in
           insns @ acc) in
-    Pseudo.Blk.create ~label ~insns
+    Pseudo.Blk.create ~label ~insns :: extra
 
   let compare_postorder t a b =
     let a = Blk.label a in
@@ -101,5 +108,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       List.sort ~compare:(compare_postorder t) |>
       C.List.fold ~init:[] ~f:(fun acc b ->
           step t b >>| Fn.flip List.cons acc) in
-    Pseudo.Func.create ~name:(Func.name t.fn) ~blks
+    Pseudo.Func.create
+      ~name:(Func.name t.fn)
+      ~blks:(List.concat blks)
 end

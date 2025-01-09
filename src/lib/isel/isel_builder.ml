@@ -7,46 +7,6 @@ open Graphlib.Std
 open Virtual.Abi
 open Isel_common
 
-let infer_ty_binop : Insn.binop -> ty = function
-  | `add t
-  | `div t
-  | `mul t
-  | `rem t
-  | `sub t -> (t :> ty)
-  | `mulh t
-  | `udiv t
-  | `umulh t
-  | `urem t
-  | `and_ t
-  | `or_ t
-  | `asr_ t
-  | `lsl_ t
-  | `lsr_ t
-  | `rol t
-  | `ror t
-  | `xor t -> (t :> ty)
-  | #Virtual.Insn.cmp -> `flag
-
-let infer_ty_unop : Insn.unop -> ty = function
-  | `neg t
-  | `copy t -> (t :> ty)
-  | `clz t
-  | `ctz t
-  | `not_ t
-  | `popcnt t
-  | `flag t
-  | `ftosi (_, t)
-  | `ftoui (_, t)
-  | `itrunc t
-  | `sext t
-  | `zext t -> (t :> ty)
-  | `ifbits t -> (t :> ty)
-  | `fext t
-  | `fibits t
-  | `ftrunc t
-  | `sitof (_, t)
-  | `uitof (_, t) -> (t :> ty)
-
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
 
@@ -115,7 +75,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       !!(new_node ~ty:word t @@ N (Osym (s, o), []))
     | `var x -> var t x
 
-  let blkargs t l ld args = match Label.Tree.find t.blks ld with
+  let zip_blkargs t ld args = match Label.Tree.find t.blks ld with
     | None ->
       C.failf
         "In Isel_builder.blkargs: missing block for label %a in function $%s"
@@ -123,27 +83,46 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | Some b ->
       let args' = Seq.to_list @@ Blk.args b in
       match List.zip args' args with
+      | Ok moves -> !!moves
       | Unequal_lengths ->
         C.failf "In Isel_builder.blkargs: unequal lengths for arguments to \
                  block %a in function $%s: got %d, expected %d"
           Label.pp ld (Func.name t.fn) (List.length args') (List.length args) ()
-      | Ok moves -> C.List.iter moves ~f:(fun (x, a) ->
+
+  let blkargs ?(br = false) t l ld args = zip_blkargs t ld args >>= function
+    | [] -> !!None
+    | moves ->
+      (* If applicable, make a new administrative block for the
+         moves to be inserted into. *)
+      let* l', ld' = if br then
+          let+ l' = C.Label.fresh in
+          Hashtbl.add_multi t.extra ~key:l ~data:l';
+          l', l'
+        else !!(l, ld) in
+      let+ () = C.List.iter moves ~f:(fun (x, a) ->
           let+ ty = typeof_operand t a in
           (* XXX: can we do better than this kludge? *)
           let id = match a with
             | #Virtual.const as c -> constant t c
             | `var x -> new_node ~ty t @@ Rv (Rv.var x) in
           let n = N (Omove, [new_var t x ty; id]) in
-          ignore @@ new_node ~l t n)
+          ignore @@ new_node ~l:l' t n) in
+      if br then begin
+        let lid = new_node t @@ N (Olocal ld, []) in
+        ignore @@ new_node ~l:l' t @@ N (Ojmp, [lid])
+      end;
+      Some ld'
 
-  let local t l : Virtual.local -> id C.t = function
+  let local ?(br = false) t l : Virtual.local -> id C.t = function
     | `label (ld, args) ->
-      let* () = blkargs t l ld args in
-      !!(new_node t @@ N (Olocal ld, []))
+      let+ ld' = blkargs ~br t l ld args >>| function
+        | Some ld' -> ld'
+        | None -> ld in
+      new_node t @@ N (Olocal ld', [])
 
-  let dst t l : Virtual.dst -> id C.t = function
+  let dst ?(br = false) t l : Virtual.dst -> id C.t = function
     | #Virtual.global as g -> global t g
-    | #Virtual.local as loc -> local t l loc
+    | #Virtual.local as loc -> local ~br t l loc
 
   let binop t l x o a b =
     let* a = operand t a in
@@ -274,8 +253,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let br t l c y n =
     let* c = var t c in
-    let* y = dst t l y in
-    let+ n = dst t l n in
+    let* y = dst ~br:true t l y in
+    let+ n = dst ~br:true t l n in
     ignore @@ new_node ~l t @@ N (Obr, [c; y; n])
 
   let ret t l rets =
