@@ -105,24 +105,29 @@ module Reg = struct
     | gpr
     | sse
     | `rip
+    | `rflags
   ] [@@deriving bin_io, compare, equal, sexp]
 
   let typeof = function
-    | #gpr | `rip -> `i64
+    | #gpr | `rip | `rflags -> `i64
     | #sse -> `v128
 
   let is_gpr = function
     | #gpr -> true
     | #sse -> false
-    | `rip -> false
+    | `rip | `rflags -> false
 
   let is_sse = function
     | #gpr -> false
     | #sse -> true
-    | `rip -> false
+    | `rip | `rflags -> false
 
   let is_rip = function
     | `rip -> true
+    | _ -> false
+
+  let is_rflags = function
+    | `rflags -> true
     | _ -> false
 
   let pp ppf r =
@@ -276,6 +281,16 @@ module Insn = struct
     | Cp  -> Format.fprintf ppf "p"
     | Cnp -> Format.fprintf ppf "np"
 
+  (* [Jind (a, ls)]: indirect jump to [o], with an optional set of
+     static labels [ls].
+
+     [Jlbl l]: direct jump to label [l]
+  *)
+  type jmp =
+    | Jind of operand * Label.Set.t
+    | Jlbl of Label.t
+  [@@deriving bin_io, compare, equal, sexp]
+
   type t =
     | ADD      of operand * operand
     | ADDSD    of operand * operand
@@ -301,7 +316,7 @@ module Insn = struct
     | IMUL3    of operand * operand * int32
     | INC      of operand
     | Jcc      of cc * Label.t
-    | JMP      of [`op of operand | `lbl of Label.t]
+    | JMP      of jmp
     | LEA      of operand * operand
     | LZCNT    of operand * operand
     | MOV      of operand * operand
@@ -331,7 +346,7 @@ module Insn = struct
     | SUB      of operand * operand
     | SUBSD    of operand * operand
     | SUBSS    of operand * operand
-    | TEST     of operand * operand
+    | TEST_    of operand * operand
     | TZCNT    of operand * operand
     | UCOMISD  of operand * operand
     | UCOMISS  of operand * operand
@@ -376,8 +391,14 @@ module Insn = struct
     | INC a -> unary "inc" a
     | Jcc (cc, l) ->
       Format.fprintf ppf "j%a %a" pp_cc cc Label.pp l
-    | JMP `op a -> unary "jmp" a
-    | JMP `lbl l ->
+    | JMP (Jind (a, ls)) when Set.length ls = 0 -> unary "jmp" a
+    | JMP (Jind (a, ls)) ->
+      let pp_sep ppf () = Format.fprintf ppf ", " in
+      Format.fprintf ppf "jmp %a ; %a"
+        pp_operand a
+        (Format.pp_print_list ~pp_sep Label.pp)
+        (Set.to_list ls)
+    | JMP (Jlbl l) ->
       Format.fprintf ppf "jmp %a" Label.pp l
     | LEA (a, b) -> binary "lea" a b
     | LZCNT (a, b) -> binary "lzcnt" a b
@@ -409,7 +430,7 @@ module Insn = struct
     | SUB (a, b) -> binary "sub" a b
     | SUBSD (a, b) -> binary "subsd" a b
     | SUBSS (a, b) -> binary "subss" a b
-    | TEST (a, b) -> binary "test" a b
+    | TEST_ (a, b) -> binary "test" a b
     | TZCNT (a, b) -> binary "tzcnt" a b
     | UCOMISD (a, b) -> binary "ucomisd" a b
     | UCOMISS (a, b) -> binary "ucomiss" a b
@@ -476,7 +497,7 @@ module Insn = struct
     | SUB (a, b)
     | SUBSD (a, b)
     | SUBSS (a, b)
-    | TEST (a, b)
+    | TEST_ (a, b)
     | UCOMISD (a, b)
     | UCOMISS (a, b)
     | XOR (a, b)
@@ -489,6 +510,7 @@ module Insn = struct
     | PUSH a
       -> Set.union (rset' [`rsp]) (rset_mem [a])
     | CMOVcc (_, _, a)
+      -> Set.union (rset' [`rflags]) (rset [a])
     | CVTSD2SI (_, a)
     | CVTSI2SD (_, a)
     | CVTSI2SS (_, a)
@@ -496,7 +518,7 @@ module Insn = struct
     | DEC a
     | IMUL3 (_, a, _)
     | INC a
-    | JMP `op a
+    | JMP (Jind (a, _))
     | LEA (_, a)
     | LZCNT (_, a)
     | MOV (_, a)
@@ -526,7 +548,8 @@ module Insn = struct
       -> Set.union (rset' [`rax; `rdx]) (rset [a])
     | Jcc (_, _)
     | SETcc (_, _)
-    | JMP `lbl _
+      -> rset' [`rflags]
+    | JMP (Jlbl _)
     | UD2
       -> Regvar.Set.empty
     | POP a
@@ -537,22 +560,34 @@ module Insn = struct
   (* Registers written to by an instruction. *)
   let writes call = function
     | ADD (a, _)
+    | AND (a, _)
+    | DEC a
+    | IMUL2 (a, _)
+    | IMUL3 (a, _, _)
+    | INC a
+    | LZCNT (a, _)
+    | NEG a
+    | NOT a
+    | OR (a, _)
+    | POPCNT (a, _)
+    | ROL (a, _)
+    | ROR (a, _)
+    | SAR (a, _)
+    | SHL (a, _)
+    | SHR (a, _)
+    | SUB (a, _)
+    | XOR (a, _)
+      -> Set.union (rset' [`rflags]) (rset_reg [a])
     | ADDSD (a, _)
     | ADDSS (a, _)
-    | AND (a, _)
     | CMOVcc (_, a, _)
     | CVTSD2SI (a, _)
     | CVTSI2SD (a, _)
     | CVTSI2SS (a, _)
     | CVTSS2SI (a, _)
-    | DEC a
     | DIVSD (a, _)
     | DIVSS (a, _)
-    | IMUL2 (a, _)
-    | IMUL3 (a, _, _)
-    | INC a
     | LEA (a, _)
-    | LZCNT (a, _)
     | MOV (a, _)
     | MOVD (a, _)
     | MOVQ (a, _)
@@ -563,35 +598,25 @@ module Insn = struct
     | MOVZX (a, _)
     | MULSD (a, _)
     | MULSS (a, _)
-    | NEG a
-    | NOT a
-    | OR (a, _)
-    | POPCNT (a, _)
-    | ROL (a, _)
-    | ROR (a, _)
-    | SAR (a, _)
     | SETcc (_, a)
-    | SHL (a, _)
-    | SHR (a, _)
-    | SUB (a, _)
     | SUBSD (a, _)
     | SUBSS (a, _)
     | TZCNT (a, _)
-    | XOR (a, _)
     | XORPD (a, _)
     | XORPS (a, _)
       -> rset_reg [a]
-    | CALL _ ->
-      Set.union (rset' [`rsp]) call
+    | CALL _
+      -> Set.union (rset' [`rsp]) call
     | PUSH _
     | RET
       -> rset' [`rsp]
     | CMP _
-    | Jcc _
-    | JMP _
-    | TEST _
+    | TEST_ _
     | UCOMISD _
     | UCOMISS _
+      -> rset' [`rflags]
+    | Jcc _
+    | JMP _
     | UD2
       -> Regvar.Set.empty
     (* Special case for 8-bit div/mul. *)
@@ -599,15 +624,16 @@ module Insn = struct
     | IDIV Oreg (_, `i8)
     | IMUL1 Oreg (_, `i8)
     | MUL Oreg (_, `i8)
-      -> rset' [`rax]
+      -> rset' [`rax; `rflags]
     | CDQ
     | CQO
     | CWD
+      -> rset' [`rax; `rdx]
     | DIV _
     | IDIV _
     | IMUL1 _
     | MUL _
-      -> rset' [`rax; `rdx]
+      -> rset' [`rax; `rdx; `rflags]
     | POP a
       -> Set.union (rset' [`rsp]) (rset_reg [a])
 end

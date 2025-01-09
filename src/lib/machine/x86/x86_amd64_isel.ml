@@ -174,7 +174,17 @@ module Make(C : Context_intf.S) = struct
 
   let jmp_lbl_x env =
     let*! x = S.label env "x" in
-    !!![JMP (`lbl x)]
+    !!![JMP (Jlbl x)]
+
+
+  let jcc_r_zero_x env =
+    let*! x, xt = S.regvar env "x" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in !!![
+      TEST_ (Oreg (x, xt), Oreg (x, xt));
+      Jcc (Ce, yes);
+      JMP (Jlbl no);
+    ]
 
   let jcc_ri_x_y cc env =
     let*! x, xt = S.regvar env "x" in
@@ -185,7 +195,7 @@ module Make(C : Context_intf.S) = struct
     if fits_int32 y then !!![
         CMP (Oreg (x, xt), Oimm (y, yt));
         Jcc (cc, yes);
-        JMP (`lbl no);
+        JMP (Jlbl no);
       ]
     else
       let*! () = guard @@ Type.equal_basic xt `i64 in
@@ -194,7 +204,55 @@ module Make(C : Context_intf.S) = struct
         MOV (Oreg (y', `i64), Oimm (y, yt));
         CMP (Oreg (x, xt), Oreg (y', `i64));
         Jcc (Cle, yes);
-        JMP (`lbl no);
+        JMP (Jlbl no);
+      ]
+
+  let setcc_r_zero_x_y ?(neg = false) env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let xt = match xt with
+      | `i64 -> `i32
+      | _ -> xt in
+    let cc = if neg then Cne else Ce in
+    let rax = Rv.reg `rax in
+    match xt with
+    | `i8 -> !!![
+        TEST_ (Oreg (y, yt), Oreg (y, yt));
+        SETcc (cc, Oreg (x, xt));
+      ]
+    | _ -> !!![
+        TEST_ (Oreg (y, yt), Oreg (y, yt));
+        SETcc (cc, Oreg (rax, `i8));
+        MOVZX (Oreg (x, xt), Oreg (rax, `i8));
+      ]
+
+  let setcc_ri_x_y_z cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let rax = Rv.reg `rax in
+    let xt = match xt with
+      | `i64 -> `i32
+      | _ -> xt in
+    match xt with
+    | `i8 -> !!![
+        CMP (Oreg (y, yt), Oimm (z, zt));
+        SETcc (cc, Oreg (x, xt));
+      ]
+    | _ when fits_int32 z -> !!![
+        CMP (Oreg (y, yt), Oimm (z, zt));
+        SETcc (cc, Oreg (rax, `i8));
+        MOVZX (Oreg (x, xt), Oreg (x, `i8));
+      ]
+    | _ ->
+      let*! () = guard @@ Type.equal_basic yt `i64 in
+      let+ z' = C.Var.fresh >>| Rv.var in
+      Some [
+        MOV (Oreg (z', `i64), Oimm (z, zt));
+        CMP (Oreg (y, yt), Oreg (z', `i64));
+        SETcc (cc, Oreg (rax, `i8));
+        MOVZX (Oreg (x, xt), Oreg (rax, `i8));
       ]
 
   let load_rri_add_x_y_z env =
@@ -337,11 +395,40 @@ module Make(C : Context_intf.S) = struct
       idiv_rem_rr_x_y_z;
     ];
 
+    move x (eq `i8 y (i8 0)) => setcc_r_zero_x_y;
+    move x (eq `i16 y (i16 0)) => setcc_r_zero_x_y;
+    move x (eq `i32 y (i32 0l)) => setcc_r_zero_x_y;
+    move x (eq `i64 y (i64 0L)) => setcc_r_zero_x_y;
+
+    move x (eq `i8 y z) =>* [
+      setcc_ri_x_y_z Ce;
+    ];
+
+    move x (eq `i16 y z) =>* [
+      setcc_ri_x_y_z Ce;
+    ];
+
+    move x (eq `i32 y z) =>* [
+      setcc_ri_x_y_z Ce;
+    ];
+
+    move x (eq `i64 y z) =>* [
+      setcc_ri_x_y_z Ce;
+    ];
+
     move x (load `i32 (add `i64 y z)) =>* [
       load_rri_add_x_y_z;
     ];
 
+    move x (load `i64 (add `i64 y z)) =>* [
+      load_rri_add_x_y_z;
+    ];
+
     move x (load `i32 y) =>* [
+      load_rr_x_y;
+    ];
+
+    move x (load `i64 y) =>* [
       load_rr_x_y;
     ];
 
@@ -375,6 +462,9 @@ module Make(C : Context_intf.S) = struct
     jmp x =>* [
       jmp_lbl_x;
     ];
+
+    br (eq `i32 x (i32 0l)) yes no => jcc_r_zero_x;
+    br (eq `i64 x (i64 0L)) yes no => jcc_r_zero_x;
 
     br (eq `i32 x y) yes no =>* [
       jcc_ri_x_y Ce;
