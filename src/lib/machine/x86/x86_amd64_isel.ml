@@ -52,16 +52,22 @@ module Make(C : Context_intf.S) = struct
   let move_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let*! () = guard @@ Type.equal_basic xt yt in
-    if Rv.equal x y then !!![]
-    else
-      let dst = Oreg (x, xt) in
-      let src = Oreg (y, yt) in
-      match xt, yt with
+    if Rv.equal x y && Type.equal_basic xt yt then !!![]
+    else match xt, yt with
       | (#Type.imm as xi), (#Type.imm as yi)
-        when Type.equal_imm xi yi -> !!![MOV (dst, src)]
-      | `f32, `f32 -> !!![MOVSS (dst, src)]
-      | `f64, `f64 -> !!![MOVSD (dst, src)]
+        when Type.sizeof_imm xi > Type.sizeof_imm yi ->
+        (* Assume zero-extension is desired. *)
+        !!![MOVZX (Oreg (x, xt), Oreg (y, yt))]
+      | (#Type.imm as xi), (#Type.imm as yi)
+        when Type.sizeof_imm xi < Type.sizeof_imm yi && Rv.equal x y ->
+        !!![]
+      | #Type.imm, #Type.imm ->
+        (* Assume the width of the destination register. *)
+        !!![MOV (Oreg (x, xt), Oreg (y, xt))]
+      | `f32, `f32 ->
+        !!![MOVSS (Oreg (x, xt), Oreg (y, yt))]
+      | `f64, `f64 ->
+        !!![MOVSD (Oreg (x, xt), Oreg (y, yt))]
       | _ -> !!None
 
   let move_ri_x_y env =
@@ -221,52 +227,39 @@ module Make(C : Context_intf.S) = struct
         JMP (Jlbl no);
       ]
 
+  (* Default to 8-bit *)
   let setcc_r_zero_x_y ?(neg = false) env =
-    let*! x, xt = S.regvar env "x" in
+    let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let xt = match xt with
-      | `i64 -> `i32
-      | _ -> xt in
-    let cc = if neg then Cne else Ce in
-    let rax = Rv.reg `rax in
-    match xt with
-    | `i8 -> !!![
-        TEST_ (Oreg (y, yt), Oreg (y, yt));
-        SETcc (cc, Oreg (x, xt));
-      ]
-    | _ -> !!![
-        TEST_ (Oreg (y, yt), Oreg (y, yt));
-        SETcc (cc, Oreg (rax, `i8));
-        MOVZX (Oreg (x, xt), Oreg (rax, `i8));
-      ]
+    let cc = if neg then Cne else Ce in !!![
+      TEST_ (Oreg (y, yt), Oreg (y, yt));
+      SETcc (cc, Oreg (x, `i8));
+    ]
 
+  (* Default to 8-bit *)
+  let setcc_rr_x_y_z cc env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in !!![
+      CMP (Oreg (y, yt), Oreg (z, zt));
+      SETcc (cc, Oreg (x, `i8));
+    ]
+
+  (* Default to 8-bit *)
   let setcc_ri_x_y_z cc env =
-    let*! x, xt = S.regvar env "x" in
+    let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in
     let z = Bv.to_int64 z in
-    let rax = Rv.reg `rax in
-    let xt = match xt with
-      | `i64 -> `i32
-      | _ -> xt in
-    match xt with
-    | `i8 -> !!![
+    if fits_int32 z then !!![
         CMP (Oreg (y, yt), Oimm (z, zt));
-        SETcc (cc, Oreg (x, xt));
+        SETcc (cc, Oreg (x, `i8));
       ]
-    | _ when fits_int32 z -> !!![
-        CMP (Oreg (y, yt), Oimm (z, zt));
-        SETcc (cc, Oreg (rax, `i8));
-        MOVZX (Oreg (x, xt), Oreg (x, `i8));
-      ]
-    | _ ->
-      let*! () = guard @@ Type.equal_basic yt `i64 in
-      let+ z' = C.Var.fresh >>| Rv.var in
-      Some [
-        MOV (Oreg (z', `i64), Oimm (z, zt));
-        CMP (Oreg (y, yt), Oreg (z', `i64));
-        SETcc (cc, Oreg (rax, `i8));
-        MOVZX (Oreg (x, xt), Oreg (rax, `i8));
+    else
+      let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOV (Oreg (tmp, `i64), Oimm (z, zt));
+        CMP (Oreg (y, yt), Oreg (tmp, `i64));
+        SETcc (cc, Oreg (x, `i8));
       ]
 
   let load_rri_add_x_y_z env =
@@ -437,6 +430,7 @@ module Make(C : Context_intf.S) = struct
     ]
 
     let setcc cc = [
+      setcc_rr_x_y_z cc;
       setcc_ri_x_y_z cc;
     ]
 
@@ -607,12 +601,22 @@ module Make(C : Context_intf.S) = struct
         ]
 
     (* x = cmp y, z *)
-    let setcc_basic = [
-      move x (ne `i8 y z) =>* Group.setcc Ce;
-      move x (ne `i16 y z) =>* Group.setcc Ce;
-      move x (ne `i32 y z) =>* Group.setcc Ce;
-      move x (ne `i64 y z) =>* Group.setcc Ce;
-    ]
+    let setcc_basic = [`i8; `i16; `i32; `i64] >* fun ty ->
+        let ty' = (ty :> Type.basic) in [
+          (* Equality *)
+          move x (eq ty' y z) =>* Group.setcc Ce;
+          move x (ne ty' y z) =>* Group.setcc Cne;
+          (* Unsigned *)
+          move x (lt ty' y z) =>* Group.setcc Cb;
+          move x (le ty' y z) =>* Group.setcc Cbe;
+          move x (gt ty' y z) =>* Group.setcc Ca;
+          move x (ge ty' y z) =>* Group.setcc Cae;
+          (* Signed *)
+          move x (slt ty y z) =>* Group.setcc Cl;
+          move x (sle ty y z) =>* Group.setcc Cle;
+          move x (sgt ty y z) =>* Group.setcc Cg;
+          move x (sge ty y z) =>* Group.setcc Cge;
+        ]
 
     (* x = load (add y, z) *)
     let load_add = [
