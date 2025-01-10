@@ -45,6 +45,8 @@ module Make(C : Context_intf.S) = struct
 
   (* Rule callbacks. *)
 
+  let nop _ = !!![]
+
   let move_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -404,8 +406,6 @@ module Make(C : Context_intf.S) = struct
     let*! s, o = S.sym env "x" in
     !!![CALL (Osym (s, o))]
 
-  let ret_ _ = !!![RET]
-  let nop _ = !!![]
 
   open P.Op
 
@@ -491,160 +491,196 @@ module Make(C : Context_intf.S) = struct
   end
 
   (* The rules themselves. *)
-  let rules = [
-    (* No-op when moving to self. *)
 
+  (* No-op when moving to self. *)
+  let move_nop = [
     move x x => nop;
+  ]
 
-    (* x = add y, z *)
+  (* x = add y (mul z i) => lea x, [y+z*i]
 
+     where i \in {1,2,4,8}
+
+     x = add y (lsl z i) => lea x, [y+z*(1<<i)]
+
+     where i \in {0,1,2,3}
+  *)
+  let add_mul_lea =
+    let tys = [
+      `i16, i16 0,  i16 1,  i16 2,  i16 3,  i16 4,  i16 8;
+      `i32, i32 0l, i32 1l, i32 2l, i32 3l, i32 4l, i32 8l;
+      `i64, i64 0L, i64 1L, i64 2L, i64 3L, i64 4L, i64 8L;
+    ] in
+    List.bind tys ~f:(fun ((ty : Type.imm), zero, one, two, three, four, eight) ->
+        let ty' = (ty :> Type.basic) in [
+          (* x = add (mul z i) y *)
+          move x (add ty' y (mul ty' z one)) => add_mul_rr_scale_x_y_z 1;
+          move x (add ty' y (mul ty' z two)) => add_mul_rr_scale_x_y_z 2;
+          move x (add ty' y (mul ty' z four)) => add_mul_rr_scale_x_y_z 4;
+          move x (add ty' y (mul ty' z eight)) => add_mul_rr_scale_x_y_z 8;
+          (* x = add (mul z i) y *)
+          move x (add ty' (mul ty' z one) y) => add_mul_rr_scale_x_y_z 1;
+          move x (add ty' (mul ty' z two) y) => add_mul_rr_scale_x_y_z 2;
+          move x (add ty' (mul ty' z four) y) => add_mul_rr_scale_x_y_z 4;
+          move x (add ty' (mul ty' z eight) y) => add_mul_rr_scale_x_y_z 8;
+          (* x = add y, (lsl z i) *)
+          move x (add ty' y (lsl_ ty z zero)) => add_mul_rr_scale_x_y_z 1;
+          move x (add ty' y (lsl_ ty z one)) => add_mul_rr_scale_x_y_z 2;
+          move x (add ty' y (lsl_ ty z two)) => add_mul_rr_scale_x_y_z 4;
+          move x (add ty' y (lsl_ ty z three)) => add_mul_rr_scale_x_y_z 8;
+          (* x = add (lsl z i) y *)
+          move x (add ty' (lsl_ ty z zero) y) => add_mul_rr_scale_x_y_z 1;
+          move x (add ty' (lsl_ ty z one) y) => add_mul_rr_scale_x_y_z 2;
+          move x (add ty' (lsl_ ty z two) y) => add_mul_rr_scale_x_y_z 4;
+          move x (add ty' (lsl_ ty z three) y) => add_mul_rr_scale_x_y_z 8;
+        ])
+
+  (* x = add y, z *)
+  let add_basic = [
     move x (add `i8 y z) =>* Group.add;
     move x (add `i16 y z) =>* Group.add;
     move x (add `i32 y z) =>* Group.add;
-
-    move x (add `i64 y (mul `i64 z (i64 1L))) => add_mul_rr_scale_x_y_z 1;
-    move x (add `i64 y (mul `i64 z (i64 2L))) => add_mul_rr_scale_x_y_z 2;
-    move x (add `i64 y (mul `i64 z (i64 4L))) => add_mul_rr_scale_x_y_z 4;
-    move x (add `i64 y (mul `i64 z (i64 8L))) => add_mul_rr_scale_x_y_z 8;
-
-    move x (add `i64 (mul `i64 z (i64 1L)) y) => add_mul_rr_scale_x_y_z 1;
-    move x (add `i64 (mul `i64 z (i64 2L)) y) => add_mul_rr_scale_x_y_z 2;
-    move x (add `i64 (mul `i64 z (i64 4L)) y) => add_mul_rr_scale_x_y_z 4;
-    move x (add `i64 (mul `i64 z (i64 8L)) y) => add_mul_rr_scale_x_y_z 8;
-
-    move x (add `i64 y (lsl_ `i64 z (i64 0L))) => add_mul_rr_scale_x_y_z 1;
-    move x (add `i64 y (lsl_ `i64 z (i64 1L))) => add_mul_rr_scale_x_y_z 2;
-    move x (add `i64 y (lsl_ `i64 z (i64 2L))) => add_mul_rr_scale_x_y_z 4;
-    move x (add `i64 y (lsl_ `i64 z (i64 3L))) => add_mul_rr_scale_x_y_z 8;
-
-    move x (add `i64 (lsl_ `i64 z (i64 0L)) y) => add_mul_rr_scale_x_y_z 1;
-    move x (add `i64 (lsl_ `i64 z (i64 1L)) y) => add_mul_rr_scale_x_y_z 2;
-    move x (add `i64 (lsl_ `i64 z (i64 2L)) y) => add_mul_rr_scale_x_y_z 4;
-    move x (add `i64 (lsl_ `i64 z (i64 3L)) y) => add_mul_rr_scale_x_y_z 8;
-
     move x (add `i64 y z) =>* Group.add;
+  ]
 
-    (* x = sub y z *)
-
+  (* x = sub y z *)
+  let sub_basic = [
     move x (sub `i8 y z) =>* Group.sub;
     move x (sub `i16 y z) =>* Group.sub;
     move x (sub `i32 y z) =>* Group.sub;
     move x (sub `i64 y z) =>* Group.sub;
+  ]
 
-    (* x = and y, z *)
-
+  (* x = and y, z *)
+  let and_basic = [
     move x (and_ `i8 y z) =>* Group.and_;
     move x (and_ `i16 y z) =>* Group.and_;
     move x (and_ `i32 y z) =>* Group.and_;
     move x (and_ `i64 y z) =>* Group.and_;
+  ]
 
-    (* x = mul y, z *)
+  (*  x = mul y i => lea x, [y*i]
 
-    move x (mul `i32 y (i32 1l)) => move_rr_x_y;
-    move x (mul `i32 y (i32 2l)) => mul_lea_ri_x_y 2;
-    move x (mul `i32 y (i32 4l)) => mul_lea_ri_x_y 4;
-    move x (mul `i32 y (i32 8l)) => mul_lea_ri_x_y 8;
+      where i \in {1,2,4,8}
+  *)
+  let mul_lea =
+    let tys = [
+      `i16, i16 1,  i16 2,  i16 4,  i16 8;
+      `i32, i32 1l, i32 2l, i32 4l, i32 8l;
+      `i64, i64 1L, i64 2L, i64 4L, i64 8L;
+    ] in
+    List.bind tys ~f:(fun (ty, one, two, four, eight) -> [
+          (* x = mul y i *)
+          move x (mul ty y one) => move_rr_x_y;
+          move x (mul ty y two) => mul_lea_ri_x_y 2;
+          move x (mul ty y four) => mul_lea_ri_x_y 4;
+          move x (mul ty y eight) => mul_lea_ri_x_y 8;
+          (* x = mul i y *)
+          move x (mul ty one y) => move_rr_x_y;
+          move x (mul ty two y) => mul_lea_ri_x_y 2;
+          move x (mul ty four y) => mul_lea_ri_x_y 4;
+          move x (mul ty eight y) => mul_lea_ri_x_y 8;
+        ])
 
-    move x (mul `i32 (i32 1l) y) => move_rr_x_y;
-    move x (mul `i32 (i32 2l) y) => mul_lea_ri_x_y 2;
-    move x (mul `i32 (i32 4l) y) => mul_lea_ri_x_y 4;
-    move x (mul `i32 (i32 8l) y) => mul_lea_ri_x_y 8;
-
+  (* x = mul y, z *)
+  let mul_basic = [
     move x (mul `i32 y z) =>* Group.mul;
+    move x (mul `i64 y z) =>* Group.mul;
+  ]
 
-    move x (mul `i64 y (i64 1L)) => move_rr_x_y;
-    move x (mul `i64 y (i64 2L)) => mul_lea_ri_x_y 2;
-    move x (mul `i64 y (i64 4L)) => mul_lea_ri_x_y 4;
-    move x (mul `i64 y (i64 8L)) => mul_lea_ri_x_y 8;
-
-    move x (mul `i64 (i64 1L) y) => move_rr_x_y;
-    move x (mul `i64 (i64 2L) y) => mul_lea_ri_x_y 2;
-    move x (mul `i64 (i64 4L) y) => mul_lea_ri_x_y 4;
-    move x (mul `i64 (i64 8L) y) => mul_lea_ri_x_y 8;
-
-    move x (mul `i32 y z) =>* Group.mul;
-
-    (* x = rem y, z *)
-
+  (* x = rem y, z *)
+  let rem_basic = [
     move x (rem `i32 y z) =>* Group.rem;
+  ]
 
-    (* x = y == 0
-       x = y != 0
-    *)
-
+  (* x = y == 0
+     x = y != 0
+  *)
+  let setcc_zero = [
+    (* x = y == 0 *)
     move x (eq `i8 y (i8 0)) => setcc_r_zero_x_y;
     move x (eq `i16 y (i16 0)) => setcc_r_zero_x_y;
     move x (eq `i32 y (i32 0l)) => setcc_r_zero_x_y;
     move x (eq `i64 y (i64 0L)) => setcc_r_zero_x_y;
-
+    (* x = 0 == y *)
     move x (eq `i8 (i8 0) y) => setcc_r_zero_x_y;
     move x (eq `i16 (i16 0) y) => setcc_r_zero_x_y;
     move x (eq `i32 (i32 0l) y) => setcc_r_zero_x_y;
     move x (eq `i64 (i64 0L) y) => setcc_r_zero_x_y;
-
+    (* x = y != 0 *)
     move x (ne `i8 y (i8 0)) => setcc_r_zero_x_y;
     move x (ne `i16 y (i16 0)) => setcc_r_zero_x_y;
     move x (ne `i32 y (i32 0l)) => setcc_r_zero_x_y;
     move x (ne `i64 y (i64 0L)) => setcc_r_zero_x_y;
-
+    (* x = 0 != y *)
     move x (ne `i8 (i8 0) y) => setcc_r_zero_x_y;
     move x (ne `i16 (i16 0) y) => setcc_r_zero_x_y;
     move x (ne `i32 (i32 0l) y) => setcc_r_zero_x_y;
     move x (ne `i64 (i64 0L) y) => setcc_r_zero_x_y;
+  ]
 
-    (* x = cmp y, z *)
-
+  (* x = cmp y, z *)
+  let setcc_basic = [
     move x (ne `i8 y z) =>* Group.setcc Ce;
     move x (ne `i16 y z) =>* Group.setcc Ce;
     move x (ne `i32 y z) =>* Group.setcc Ce;
     move x (ne `i64 y z) =>* Group.setcc Ce;
+  ]
 
-    (* x = load (add y, z) *)
-
+  (* x = load (add y, z) *)
+  let load_add = [
     move x (load `i32 (add `i64 y z)) => load_rri_add_x_y_z;
     move x (load `i64 (add `i64 y z)) => load_rri_add_x_y_z;
+  ]
 
-    (* x = load y *)
-
+  (* x = load y *)
+  let load_basic = [
     move x (load `i32 y) =>* Group.load;
     move x (load `i64 y) =>* Group.load;
+  ]
 
-    (* x = sext y *)
-
+  (* x = sext y *)
+  let sext_basic = [
     move x (sext `i8 y) =>* Group.move_ri;
     move x (sext `i16 y) =>* Group.sext;
     move x (sext `i32 y) =>* Group.sext;
     move x (sext `i64 y) =>* Group.sext;
+  ]
 
-    (* x = zext y *)
-
+  (* x = zext y *)
+  let zext_basic = [
     move x (zext `i8 y) =>* Group.move_ri;
     move x (zext `i16 y) =>* Group.zext;
     move x (zext `i32 y) =>* Group.zext;
     move x (zext `i64 y) =>* Group.zext;
+  ]
 
-    (* x = y *)
-
+  (* x = y *)
+  let move_basic = [
     move x y =>* Group.move;
+  ]
 
-    (* store x, [y + z] *)
-
+  (* store x, [y + z] *)
+  let store_add = [
     store `i32 x (add `i64 y z) =>* Group.store_add;
     store `i64 x (add `i64 y z) =>* Group.store_add;
+  ]
 
-    (* store x, [y] *)
-
+  (* store x, [y] *)
+  let store_basic = [
     store `i32 x y =>* Group.store;
     store `i64 x y =>* Group.store;
+  ]
 
-    (* jmp x *)
-
+  (* jmp x *)
+  let jmp_basic = [
     jmp x =>* Group.jmp;
+  ]
 
-    (* br (x == 0), yes, no
-       br (x != 0), yes, no
-    *)
-
+  (* br (x == 0), yes, no
+     br (x != 0), yes, no
+  *)
+  let br_zero = [
     br (eq `i8 x (i8 0)) yes no => jcc_r_zero_x;
     br (eq `i16 x (i16 0)) yes no => jcc_r_zero_x;
     br (eq `i32 x (i32 0l)) yes no => jcc_r_zero_x;
@@ -664,9 +700,10 @@ module Make(C : Context_intf.S) = struct
     br (ne `i16 (i16 0) x) yes no => jcc_r_zero_x ~neg:true;
     br (ne `i32 (i32 0l) x) yes no => jcc_r_zero_x ~neg:true;
     br (ne `i64 (i64 0L) x) yes no => jcc_r_zero_x ~neg:true;
+  ]
 
-    (* br (cmp x, y), yes, no *)
-
+  (* br (cmp x, y), yes, no *)
+  let br_cmp = [
     br (eq `i16 x y) yes no =>* Group.br_icmp Ce;
     br (eq `i32 x y) yes no =>* Group.br_icmp Ce;
     br (eq `i64 x y) yes no =>* Group.br_icmp Ce;
@@ -674,13 +711,45 @@ module Make(C : Context_intf.S) = struct
     br (le `i16 x y) yes no =>* Group.br_icmp Cle;
     br (le `i32 x y) yes no =>* Group.br_icmp Cle;
     br (le `i64 x y) yes no =>* Group.br_icmp Cle;
+  ]
 
-    (* ret *)
-
-    ret => ret_;
-
-    (* call x *)
-
+  (* call x *)
+  let call_basic = [
     call x =>* Group.call;
   ]
+
+  (* hlt *)
+  let hlt = [
+    hlt => (fun _ -> !!![UD2]);
+  ]
+
+  (* ret *)
+  let ret = [
+    ret => (fun _ -> !!![RET]);
+  ]
+
+  let rules =
+    move_nop @
+    add_mul_lea @
+    add_basic @
+    sub_basic @
+    and_basic @
+    mul_lea @
+    mul_basic @
+    rem_basic @
+    setcc_zero @
+    setcc_basic @
+    load_add @
+    load_basic @
+    sext_basic @
+    zext_basic @
+    move_basic @
+    store_add @
+    store_basic @
+    jmp_basic @
+    br_zero @
+    br_cmp @
+    call_basic @
+    hlt @
+    ret
 end
