@@ -642,6 +642,18 @@ module Make(C : Context_intf.S) = struct
       move x (zext `i64 y) =>* Group.zext;
     ]
 
+    (* x = flag y
+
+       This ends up being just a move. We handle the cases that
+       bind boolean-typed variables directly.
+    *)
+    let flag_basic = [`i8; `i16; `i32; `i64] >* fun ty -> [
+          move x (flag ty y) =>* [
+            move_rr_x_y;
+            move_rb_x_y;
+          ]
+        ]
+
     (* x = y *)
     let move_basic = [
       move x y =>* Group.move;
@@ -729,6 +741,7 @@ module Make(C : Context_intf.S) = struct
     load_basic @
     sext_basic @
     zext_basic @
+    flag_basic @
     move_basic @
     store_add @
     store_basic @
