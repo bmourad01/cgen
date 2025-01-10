@@ -176,13 +176,23 @@ module Make(C : Context_intf.S) = struct
     let*! x = S.label env "x" in
     !!![JMP (Jlbl x)]
 
-
-  let jcc_r_zero_x env =
+  let jcc_r_zero_x ?(neg = false) env =
     let*! x, xt = S.regvar env "x" in
     let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in !!![
+    let*! no = S.label env "no" in
+    let cc = if neg then Cne else Ce in !!![
       TEST_ (Oreg (x, xt), Oreg (x, xt));
-      Jcc (Ce, yes);
+      Jcc (cc, yes);
+      JMP (Jlbl no);
+    ]
+
+  let jcc_rr_x_y cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in !!![
+      CMP (Oreg (x, xt), Oreg (y, yt));
+      Jcc (cc, yes);
       JMP (Jlbl no);
     ]
 
@@ -203,7 +213,7 @@ module Make(C : Context_intf.S) = struct
       Some [
         MOV (Oreg (y', `i64), Oimm (y, yt));
         CMP (Oreg (x, xt), Oreg (y', `i64));
-        Jcc (Cle, yes);
+        Jcc (cc, yes);
         JMP (Jlbl no);
       ]
 
@@ -322,6 +332,12 @@ module Make(C : Context_intf.S) = struct
       MOV (Omem addr, Oreg (x, xt));
     ]
 
+  let mul_lea_ri_x_y s env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! () = guard @@ can_lea_ty xt in
+    !!![LEA (Oreg (x, xt), Omem (Aisd (y, s, Dimm 0l)))]
+
   let imul_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -329,6 +345,21 @@ module Make(C : Context_intf.S) = struct
       MOV (Oreg (x, xt), Oreg (y, yt));
       IMUL2 (Oreg (x, xt), Oreg (z, zt));
     ]
+
+  let imul_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    if fits_int32 z then !!![
+        IMUL3 (Oreg (x, xt), Oreg (y, yt), Int64.to_int32_trunc z);
+      ]
+    else
+      let* z' = C.Var.fresh >>| Rv.var in !!![
+        MOV (Oreg (z', xt), Oimm (z, zt));
+        MOV (Oreg (x, xt), Oreg (y, yt));
+        IMUL2 (Oreg (x, xt), Oreg (z', xt));
+      ]
 
   let idiv_rem_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
@@ -346,6 +377,17 @@ module Make(C : Context_intf.S) = struct
     let*! y, yt = S.regvar env "y" in
     if Type.equal_basic xt yt then !!![]
     else !!![MOVSX (Oreg (x, xt), Oreg (y, yt))]
+
+  let sext_ri_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    match xt with
+    | #Type.fp -> !!None
+    | #Type.imm as xt' ->
+      let*! y, yt = S.imm env "y" in
+      match Virtual.Eval.unop_int (`sext xt') y yt with
+      | Some `int (y, _) ->
+        !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y, xt'))]
+      | _ -> !!None
 
   let zext_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -365,17 +407,100 @@ module Make(C : Context_intf.S) = struct
   let ret_ _ = !!![RET]
   let nop _ = !!![]
 
-  (* The rules themselves. *)
-
   open P.Op
 
-  let rules = [
-    move x x => nop;
-
-    move x (add `i32 y z) =>* [
+  (* Re-used groups of callbacks. *)
+  module Group = struct
+    let add = [
       add_rr_x_y_z;
       add_ri_x_y_z;
-    ];
+    ]
+
+    let sub = [
+      sub_rr_x_y_z;
+      sub_ri_x_y_z;
+    ]
+
+    let and_ = [
+      and_ri_x_y_z;
+    ]
+
+    let mul = [
+      imul_rr_x_y_z;
+      imul_ri_x_y_z;
+    ]
+
+    let rem = [
+      idiv_rem_rr_x_y_z;
+    ]
+
+    let setcc cc = [
+      setcc_ri_x_y_z cc;
+    ]
+
+    let load = [
+      load_rr_x_y;
+    ]
+
+    let move_ri = [
+      move_rr_x_y;
+      move_ri_x_y;
+    ]
+
+    let move = move_ri @ [
+        move_rb_x_y;
+        move_rsym_x_y;
+        move_rf32_x_y;
+        move_rf64_x_y;
+      ]
+
+    let sext = [
+      sext_rr_x_y;
+      sext_ri_x_y;
+    ]
+
+    let zext = [
+      move_rr_x_y;
+      move_ri_x_y;
+    ]
+
+    let store_add = [
+      store_rri_add_x_y_z;
+      store_iri_add_x_y_z;
+    ]
+
+    let store = [
+      store_rr_x_y;
+      store_ri_x_y;
+      store_rsym_x_y;
+      store_symr_x_y;
+    ]
+
+    let jmp = [
+      jmp_lbl_x;
+    ]
+
+    let br_icmp cc = [
+      jcc_rr_x_y cc;
+      jcc_ri_x_y cc;
+    ]
+
+    let call = [
+      call_sym_x;
+    ]
+  end
+
+  (* The rules themselves. *)
+  let rules = [
+    (* No-op when moving to self. *)
+
+    move x x => nop;
+
+    (* x = add y, z *)
+
+    move x (add `i8 y z) =>* Group.add;
+    move x (add `i16 y z) =>* Group.add;
+    move x (add `i32 y z) =>* Group.add;
 
     move x (add `i64 y (mul `i64 z (i64 1L))) => add_mul_rr_scale_x_y_z 1;
     move x (add `i64 y (mul `i64 z (i64 2L))) => add_mul_rr_scale_x_y_z 2;
@@ -397,154 +522,165 @@ module Make(C : Context_intf.S) = struct
     move x (add `i64 (lsl_ `i64 z (i64 2L)) y) => add_mul_rr_scale_x_y_z 4;
     move x (add `i64 (lsl_ `i64 z (i64 3L)) y) => add_mul_rr_scale_x_y_z 8;
 
-    move x (add `i64 y z) =>* [
-      add_rr_x_y_z;
-      add_ri_x_y_z;
-    ];
+    move x (add `i64 y z) =>* Group.add;
 
-    move x (sub `i32 y z) =>* [
-      sub_rr_x_y_z;
-      sub_ri_x_y_z;
-    ];
+    (* x = sub y z *)
 
-    move x (sub `i64 y z) =>* [
-      sub_rr_x_y_z;
-      sub_ri_x_y_z;
-    ];
+    move x (sub `i8 y z) =>* Group.sub;
+    move x (sub `i16 y z) =>* Group.sub;
+    move x (sub `i32 y z) =>* Group.sub;
+    move x (sub `i64 y z) =>* Group.sub;
 
-    move x (and_ `i64 y z) =>* [
-      and_ri_x_y_z;
-    ];
+    (* x = and y, z *)
 
-    move x (mul `i32 y z) =>* [
-      imul_rr_x_y_z;
-    ];
+    move x (and_ `i8 y z) =>* Group.and_;
+    move x (and_ `i16 y z) =>* Group.and_;
+    move x (and_ `i32 y z) =>* Group.and_;
+    move x (and_ `i64 y z) =>* Group.and_;
 
-    move x (rem `i32 y z) =>* [
-      idiv_rem_rr_x_y_z;
-    ];
+    (* x = mul y, z *)
+
+    move x (mul `i32 y (i32 1l)) => move_rr_x_y;
+    move x (mul `i32 y (i32 2l)) => mul_lea_ri_x_y 2;
+    move x (mul `i32 y (i32 4l)) => mul_lea_ri_x_y 4;
+    move x (mul `i32 y (i32 8l)) => mul_lea_ri_x_y 8;
+
+    move x (mul `i32 (i32 1l) y) => move_rr_x_y;
+    move x (mul `i32 (i32 2l) y) => mul_lea_ri_x_y 2;
+    move x (mul `i32 (i32 4l) y) => mul_lea_ri_x_y 4;
+    move x (mul `i32 (i32 8l) y) => mul_lea_ri_x_y 8;
+
+    move x (mul `i32 y z) =>* Group.mul;
+
+    move x (mul `i64 y (i64 1L)) => move_rr_x_y;
+    move x (mul `i64 y (i64 2L)) => mul_lea_ri_x_y 2;
+    move x (mul `i64 y (i64 4L)) => mul_lea_ri_x_y 4;
+    move x (mul `i64 y (i64 8L)) => mul_lea_ri_x_y 8;
+
+    move x (mul `i64 (i64 1L) y) => move_rr_x_y;
+    move x (mul `i64 (i64 2L) y) => mul_lea_ri_x_y 2;
+    move x (mul `i64 (i64 4L) y) => mul_lea_ri_x_y 4;
+    move x (mul `i64 (i64 8L) y) => mul_lea_ri_x_y 8;
+
+    move x (mul `i32 y z) =>* Group.mul;
+
+    (* x = rem y, z *)
+
+    move x (rem `i32 y z) =>* Group.rem;
+
+    (* x = y == 0
+       x = y != 0
+    *)
 
     move x (eq `i8 y (i8 0)) => setcc_r_zero_x_y;
     move x (eq `i16 y (i16 0)) => setcc_r_zero_x_y;
     move x (eq `i32 y (i32 0l)) => setcc_r_zero_x_y;
     move x (eq `i64 y (i64 0L)) => setcc_r_zero_x_y;
 
-    move x (eq `i8 y z) =>* [
-      setcc_ri_x_y_z Ce;
-    ];
+    move x (eq `i8 (i8 0) y) => setcc_r_zero_x_y;
+    move x (eq `i16 (i16 0) y) => setcc_r_zero_x_y;
+    move x (eq `i32 (i32 0l) y) => setcc_r_zero_x_y;
+    move x (eq `i64 (i64 0L) y) => setcc_r_zero_x_y;
 
-    move x (eq `i16 y z) =>* [
-      setcc_ri_x_y_z Ce;
-    ];
+    move x (ne `i8 y (i8 0)) => setcc_r_zero_x_y;
+    move x (ne `i16 y (i16 0)) => setcc_r_zero_x_y;
+    move x (ne `i32 y (i32 0l)) => setcc_r_zero_x_y;
+    move x (ne `i64 y (i64 0L)) => setcc_r_zero_x_y;
 
-    move x (eq `i32 y z) =>* [
-      setcc_ri_x_y_z Ce;
-    ];
+    move x (ne `i8 (i8 0) y) => setcc_r_zero_x_y;
+    move x (ne `i16 (i16 0) y) => setcc_r_zero_x_y;
+    move x (ne `i32 (i32 0l) y) => setcc_r_zero_x_y;
+    move x (ne `i64 (i64 0L) y) => setcc_r_zero_x_y;
 
-    move x (eq `i64 y z) =>* [
-      setcc_ri_x_y_z Ce;
-    ];
+    (* x = cmp y, z *)
 
-    move x (load `i32 (add `i64 y z)) =>* [
-      load_rri_add_x_y_z;
-    ];
+    move x (ne `i8 y z) =>* Group.setcc Ce;
+    move x (ne `i16 y z) =>* Group.setcc Ce;
+    move x (ne `i32 y z) =>* Group.setcc Ce;
+    move x (ne `i64 y z) =>* Group.setcc Ce;
 
-    move x (load `i64 (add `i64 y z)) =>* [
-      load_rri_add_x_y_z;
-    ];
+    (* x = load (add y, z) *)
 
-    move x (load `i32 y) =>* [
-      load_rr_x_y;
-    ];
+    move x (load `i32 (add `i64 y z)) => load_rri_add_x_y_z;
+    move x (load `i64 (add `i64 y z)) => load_rri_add_x_y_z;
 
-    move x (load `i64 y) =>* [
-      load_rr_x_y;
-    ];
+    (* x = load y *)
 
-    move x (sext `i16 y) =>* [
-      sext_rr_x_y;
-    ];
+    move x (load `i32 y) =>* Group.load;
+    move x (load `i64 y) =>* Group.load;
 
-    move x (sext `i32 y) =>* [
-      sext_rr_x_y;
-    ];
+    (* x = sext y *)
 
-    move x (sext `i64 y) =>* [
-      sext_rr_x_y;
-    ];
+    move x (sext `i8 y) =>* Group.move_ri;
+    move x (sext `i16 y) =>* Group.sext;
+    move x (sext `i32 y) =>* Group.sext;
+    move x (sext `i64 y) =>* Group.sext;
 
-    move x (zext `i16 y) =>* [
-      zext_rr_x_y;
-    ];
+    (* x = zext y *)
 
-    move x (zext `i32 y) =>* [
-      zext_rr_x_y;
-    ];
+    move x (zext `i8 y) =>* Group.move_ri;
+    move x (zext `i16 y) =>* Group.zext;
+    move x (zext `i32 y) =>* Group.zext;
+    move x (zext `i64 y) =>* Group.zext;
 
-    move x (zext `i64 y) =>* [
-      zext_rr_x_y;
-    ];
+    (* x = y *)
 
-    move x y =>* [
-      move_rr_x_y;
-      move_ri_x_y;
-      move_rb_x_y;
-      move_rsym_x_y;
-      move_rf32_x_y;
-      move_rf64_x_y;
-    ];
+    move x y =>* Group.move;
 
-    store `i32 x y =>* [
-      store_rr_x_y;
-      store_ri_x_y;
-      store_rsym_x_y;
-      store_symr_x_y;
-    ];
+    (* store x, [y + z] *)
 
-    store `i32 x (add `i64 y z) =>* [
-      store_rri_add_x_y_z;
-      store_iri_add_x_y_z;
-    ];
+    store `i32 x (add `i64 y z) =>* Group.store_add;
+    store `i64 x (add `i64 y z) =>* Group.store_add;
 
-    store `i64 x (add `i64 y z) =>* [
-      store_rri_add_x_y_z;
-      store_iri_add_x_y_z;
-    ];
+    (* store x, [y] *)
 
-    store `i64 x y =>* [
-      store_rr_x_y;
-      store_ri_x_y;
-      store_rsym_x_y;
-      store_symr_x_y;
-    ];
+    store `i32 x y =>* Group.store;
+    store `i64 x y =>* Group.store;
 
-    jmp x =>* [
-      jmp_lbl_x;
-    ];
+    (* jmp x *)
 
+    jmp x =>* Group.jmp;
+
+    (* br (x == 0), yes, no
+       br (x != 0), yes, no
+    *)
+
+    br (eq `i8 x (i8 0)) yes no => jcc_r_zero_x;
+    br (eq `i16 x (i16 0)) yes no => jcc_r_zero_x;
     br (eq `i32 x (i32 0l)) yes no => jcc_r_zero_x;
     br (eq `i64 x (i64 0L)) yes no => jcc_r_zero_x;
 
-    br (eq `i32 x y) yes no =>* [
-      jcc_ri_x_y Ce;
-    ];
+    br (eq `i8 (i8 0) x) yes no => jcc_r_zero_x;
+    br (eq `i16 (i16 0) x) yes no => jcc_r_zero_x;
+    br (eq `i32 (i32 0l) x) yes no => jcc_r_zero_x;
+    br (eq `i64 (i64 0L) x) yes no => jcc_r_zero_x;
 
-    br (eq `i64 x y) yes no =>* [
-      jcc_ri_x_y Ce;
-    ];
+    br (ne `i8 x (i8 0)) yes no => jcc_r_zero_x ~neg:true;
+    br (ne `i16 x (i16 0)) yes no => jcc_r_zero_x ~neg:true;
+    br (ne `i32 x (i32 0l)) yes no => jcc_r_zero_x ~neg:true;
+    br (ne `i64 x (i64 0L)) yes no => jcc_r_zero_x ~neg:true;
 
-    br (le `i32 x y) yes no =>* [
-      jcc_ri_x_y Cle;
-    ];
+    br (ne `i8 (i8 0) x) yes no => jcc_r_zero_x ~neg:true;
+    br (ne `i16 (i16 0) x) yes no => jcc_r_zero_x ~neg:true;
+    br (ne `i32 (i32 0l) x) yes no => jcc_r_zero_x ~neg:true;
+    br (ne `i64 (i64 0L) x) yes no => jcc_r_zero_x ~neg:true;
 
-    br (le `i64 x y) yes no =>* [
-      jcc_ri_x_y Cle;
-    ];
+    (* br (cmp x, y), yes, no *)
+
+    br (eq `i16 x y) yes no =>* Group.br_icmp Ce;
+    br (eq `i32 x y) yes no =>* Group.br_icmp Ce;
+    br (eq `i64 x y) yes no =>* Group.br_icmp Ce;
+
+    br (le `i16 x y) yes no =>* Group.br_icmp Cle;
+    br (le `i32 x y) yes no =>* Group.br_icmp Cle;
+    br (le `i64 x y) yes no =>* Group.br_icmp Cle;
+
+    (* ret *)
 
     ret => ret_;
 
-    call x =>* [
-      call_sym_x;
-    ];
+    (* call x *)
+
+    call x =>* Group.call;
   ]
 end
