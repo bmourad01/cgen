@@ -6,9 +6,7 @@ let target = Target.declare () ~name:"amd64-sysv" ~word ~little
 
 (* Conservative set of registers that will be clobbered by a
    function call. *)
-let clobbered =
-  Regvar.Set.of_list @@
-  List.map ~f:Regvar.reg [
+let clobbered = Insn.rset' [
     `rax;
     `rcx;
     `rdx;
