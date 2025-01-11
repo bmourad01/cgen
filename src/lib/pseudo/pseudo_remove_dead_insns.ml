@@ -8,14 +8,14 @@ module Func = Pseudo_func
 let (--) = Set.diff
 let (++) = Set.union
 let (&) = Set.inter
-let (!!) = Set.is_empty
 
 module Make(M : Machine_intf.S) = struct
   module Live = Pseudo_live.Make(M)
   module Rv = M.Regvar
 
   let should_keep i w alive =
-    not (!!(M.Insn.dests i) && !!(alive & w))
+    M.Insn.always_live i ||
+    not (Set.is_empty (alive & w))
 
   (* For debugging. *)
   let pp_insn ppf (desc, r, w, alive) =
@@ -28,7 +28,7 @@ module Make(M : Machine_intf.S) = struct
       (Set.to_list w)
       (Format.pp_print_list ~pp_sep Rv.pp)
       (Set.to_list alive)
-  
+
   let insn (acc, changed, alive) desc =
     let i = Insn.insn desc in
     let r = M.Insn.reads i in
@@ -59,7 +59,7 @@ module Make(M : Machine_intf.S) = struct
   let init_keep fn =
     let init = Rv.Set.singleton @@ Rv.reg M.Reg.sp in
     Func.rets fn |> Seq.map ~f:Rv.reg |> Seq.fold ~init ~f:Set.add
-  
+
   let run fn =
     let keep = init_keep fn in
     let cfg = Pseudo_cfg.create ~dests:M.Insn.dests fn in

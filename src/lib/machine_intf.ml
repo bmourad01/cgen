@@ -72,6 +72,13 @@ module type S = sig
     *)
     val dests : t -> Label.Set.t
 
+    (** Returns [true] if the instruction writes data to memory. *)
+    val writes_to_memory : t -> bool
+
+    (** Returns [true] if the instruction should always be computed,
+        if it is reachable. *)
+    val always_live : t -> bool
+
     (** Pretty-prints the instruction. *)
     val pp : Format.formatter -> t -> unit
   end

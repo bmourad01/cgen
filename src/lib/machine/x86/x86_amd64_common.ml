@@ -643,4 +643,85 @@ module Insn = struct
     | Jcc (_, l) | JMP (Jlbl l) -> Label.Set.singleton l
     | JMP (Jind (_, ls)) -> ls
     | _ -> Label.Set.empty
+
+  let is_mem = function
+    | Omem _ -> true
+    | _ -> false
+
+  (* "illegal" here means that it is illegal to have a memory
+     operand in the destination. *)
+  let writes_to_memory = function
+    | ADD (a, _)
+    | ADDSD (a, _)
+    | ADDSS (a, _)
+    | AND (a, _)
+    | DEC a
+    | DIVSD (a, _)
+    | DIVSS (a, _)
+    | INC a
+    | MOV (a, _)
+    | MOVD (a, _)
+    | MOVQ (a, _)
+    | MOVSD (a, _)
+    | MOVSS (a, _)
+    | MULSD (a, _)
+    | MULSS (a, _)
+    | NEG a
+    | NOT a
+    | OR (a, _)
+    | POP a
+    | ROL (a, _)
+    | ROR (a, _)
+    | SAR (a, _)
+    | SETcc (_, a)
+    | SHL (a, _)
+    | SHR (a, _)
+    | SUB (a, _)
+    | SUBSD (a, _)
+    | SUBSS (a, _)
+    | XOR (a, _)
+      -> is_mem a
+    | CALL _ (* writes to stack *)
+    | PUSH _ (* writes to stack *)
+      -> true
+    | CDQ
+    | CMOVcc _ (* illegal *)
+    | CMP _
+    | CQO
+    | CWD
+    | CVTSD2SI _ (* illegal *)
+    | CVTSI2SD _ (* illegal *)
+    | CVTSS2SI _ (* illegal *)
+    | CVTSI2SS _ (* illegal *)
+    | DIV _
+    | IDIV _
+    | IMUL1 _
+    | IMUL2 _
+    | IMUL3 _
+    | Jcc _
+    | JMP _
+    | LEA _ (* illegal *)
+    | LZCNT _ (* illegal *)
+    | MOVSX _ (* illegal *)
+    | MOVZX _ (* illegal *)
+    | MOVSXD _ (* illegal *)
+    | MUL _
+    | POPCNT _ (* illegal *)
+    | RET (* XXX: is this OK? *)
+    | TEST_ _
+    | TZCNT _
+    | UCOMISD _
+    | UCOMISS _
+    | UD2
+    | XORPD _ (* illegal *)
+    | XORPS _ (* illegal *)
+      -> false
+
+  let always_live = function
+    | Jcc _
+    | JMP _
+    | CALL _
+    | RET
+    | UD2 -> true
+    | i -> writes_to_memory i
 end
