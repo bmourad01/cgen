@@ -65,7 +65,11 @@ module type S = sig
     (** The set of arguments that the instruction writes to. *)
     val writes : t -> Regvar.Set.t
 
-    (** The set of static destination labels. *)
+    (** The set of static destination labels.
+
+        This is intended for instructions that affect control flow,
+        which makes this function useful for computing the CFG.
+    *)
     val dests : t -> Label.Set.t
 
     (** Pretty-prints the instruction. *)

@@ -114,13 +114,30 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let b = Blk.label b in
     compare (t.rpo b) (t.rpo a)
 
+  let transl_blks t =
+    Func.blks t.fn |> Seq.to_list |>
+    List.sort ~compare:(compare_postorder t) |>
+    C.List.fold ~init:[] ~f:(fun acc b ->
+        step t b >>| Fn.flip List.cons acc)
+    >>| List.concat
+
+  let transl_rets t =
+    Func.blks t.fn |> C.Seq.fold ~init:[] ~f:(fun acc b ->
+        match Blk.ctrl b with
+        | `ret rets ->
+          C.List.fold rets ~init:acc ~f:(fun acc (r, _) ->
+              match M.Reg.of_string r with
+              | Some r -> !!(r :: acc)
+              | None ->
+                C.failf
+                  "In Isel_match.transl_rets: %s is not a valid register"
+                  r ())
+        | _ -> !!acc)
+    >>| List.dedup_and_sort ~compare:M.Reg.compare
+
   let run t =
-    let* blks =
-      Func.blks t.fn |> Seq.to_list |>
-      List.sort ~compare:(compare_postorder t) |>
-      C.List.fold ~init:[] ~f:(fun acc b ->
-          step t b >>| Fn.flip List.cons acc) in
+    let* blks = transl_blks t in
+    let* rets = transl_rets t in
     C.lift_err @@ Pseudo.Func.create
-      ~name:(Func.name t.fn)
-      ~blks:(List.concat blks)
+      ~name:(Func.name t.fn) ~blks ~rets
 end
