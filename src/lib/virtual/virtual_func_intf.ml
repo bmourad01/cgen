@@ -153,7 +153,7 @@ module type S = sig
   (** Returns the previous block (before the given label) if it exists. *)
   val prev_blk : t -> Label.t -> blk option
 
-  (** [update_blk_exn fn b] returns [fn] with block [b] updated, if it exists. *)
+  (** [update_blk fn b] returns [fn] with block [b] updated, if it exists. *)
   val update_blk : t -> blk -> t
 
   (** Same as [update_blk], but for a list of blocks for updating in batches,
