@@ -4,15 +4,13 @@ open Regular.Std
 open Live_intf
 
 type tran = {
-  defs  : Var.Set.t;
-  uses  : Var.Set.t;
-  insns : Var.Set.t Label.Tree.t;
+  defs : Var.Set.t;
+  uses : Var.Set.t;
 }
 
 let empty_tran = {
-  defs  = Var.Set.empty;
-  uses  = Var.Set.empty;
-  insns = Label.Tree.empty;
+  defs = Var.Set.empty;
+  uses = Var.Set.empty;
 }
 
 let pp_vars ppf vars =
@@ -36,7 +34,7 @@ module type L = sig
     type t
     val args : ?rev:bool -> t -> Var.t seq
     val insns : ?rev:bool -> t -> Insn.t seq
-    val liveness : t -> Var.Set.t Label.Tree.t * Var.Set.t
+    val free_vars : t -> Var.Set.t
   end
 
   module Func : sig
@@ -70,11 +68,10 @@ module Make(M : L) : S
   let transfer blks n vars =
     if Label.is_pseudo n then vars else apply (lookup blks n) vars
 
-  let outs  t l = Solution.get t.outs l
-  let ins   t l = transfer t.blks l @@ outs t l
-  let defs  t l = (lookup t.blks l).defs
-  let uses  t l = (lookup t.blks l).uses
-  let insns t l = (lookup t.blks l).insns
+  let outs t l = Solution.get t.outs l
+  let ins  t l = transfer t.blks l @@ outs t l
+  let defs t l = (lookup t.blks l).defs
+  let uses t l = (lookup t.blks l).uses
 
   let fold t ~init ~f =
     Label.Tree.fold t.blks ~init ~f:(fun ~key:l ~data:trans init ->
@@ -101,11 +98,9 @@ module Make(M : L) : S
 
   let block_transitions g blks =
     Label.Tree.fold blks ~init:Label.Tree.empty ~f:(fun ~key ~data:b fs ->
-        let insns, uses = Blk.liveness b in
         Label.Tree.add_exn fs ~key ~data:{
           defs = blk_defs b;
-          uses;
-          insns;
+          uses = Blk.free_vars b;
         }) |> fun init ->
     Label.Tree.fold blks ~init ~f:(fun ~key ~data:b init ->
         let args = Blk.args b |> Seq.fold ~init:Var.Set.empty ~f:Set.add in

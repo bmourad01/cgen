@@ -47,14 +47,12 @@ let map_of_insns b =
           "Duplicate block of label %a in block %a"
           Label.pps key Label.pps b.label ())
 
-let liveness b =
+let free_vars b =
   let (++) = Set.union and (--) = Set.diff in
-  let init = Label.Tree.empty, Abi_ctrl.free_vars b.ctrl in
-  Ftree.fold_right b.insns ~init ~f:(fun i (out, inc) ->
-      Label.Tree.set out ~key:i.label ~data:inc,
+  let init = Abi_ctrl.free_vars b.ctrl in
+  Ftree.fold_right b.insns ~init ~f:(fun i inc ->
       inc -- Abi_insn.def i ++ Abi_insn.free_vars i)
 
-let free_vars b = snd @@ liveness b
 let uses_var b x = Set.mem (free_vars b) x
 
 let map_args b ~f = {

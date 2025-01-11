@@ -11,15 +11,13 @@ module Make(M : Machine_intf.S) = struct
   module Rv = M.Regvar
 
   type tran = {
-    defs  : Rv.Set.t;
-    uses  : Rv.Set.t;
-    insns : Rv.Set.t Label.Tree.t;
+    defs : Rv.Set.t;
+    uses : Rv.Set.t;
   }
 
   let empty_tran = {
-    defs  = Rv.Set.empty;
-    uses  = Rv.Set.empty;
-    insns = Label.Tree.empty;
+    defs = Rv.Set.empty;
+    uses = Rv.Set.empty;
   }
 
   let pp_vars ppf vars =
@@ -45,11 +43,10 @@ module Make(M : Machine_intf.S) = struct
   let transfer blks n vars =
     if Label.is_pseudo n then vars else apply (lookup blks n) vars
 
-  let outs  t l = Solution.get t.outs l
-  let ins   t l = transfer t.blks l @@ outs t l
-  let defs  t l = (lookup t.blks l).defs
-  let uses  t l = (lookup t.blks l).uses
-  let insns t l = (lookup t.blks l).insns
+  let outs t l = Solution.get t.outs l
+  let ins  t l = transfer t.blks l @@ outs t l
+  let defs t l = (lookup t.blks l).defs
+  let uses t l = (lookup t.blks l).uses
 
   let fold t ~init ~f =
     Label.Tree.fold t.blks ~init ~f:(fun ~key:l ~data:trans init ->
@@ -74,22 +71,18 @@ module Make(M : Machine_intf.S) = struct
   let update l trans ~f = Label.Tree.update_with trans l
       ~has:f ~nil:(fun () -> f empty_tran)
 
-  let blk_liveness b =
+  let free_vars_of_blk b =
     let (++) = Set.union and (--) = Set.diff in
-    let init = Label.Tree.empty, Rv.Set.empty in
-    Ftree.fold_right b.Blk.insns ~init ~f:(fun i (out, inc) ->
+    let init = Rv.Set.empty in
+    Ftree.fold_right b.Blk.insns ~init ~f:(fun i inc ->
         let insn = Insn.insn i in
-        let label = Insn.label i in
-        Label.Tree.set out ~key:label ~data:inc,
         inc -- M.Insn.writes insn ++ M.Insn.reads insn)
 
   let block_transitions g blks =
     Label.Tree.fold blks ~init:Label.Tree.empty ~f:(fun ~key ~data:b fs ->
-        let insns, uses = blk_liveness b in
         Label.Tree.add_exn fs ~key ~data:{
           defs = blk_defs b;
-          uses;
-          insns;
+          uses = free_vars_of_blk b;
         }) |> fun init ->
     Label.Tree.fold blks ~init ~f:(fun ~key ~data:_ init ->
         Cfg.Node.preds key g |>

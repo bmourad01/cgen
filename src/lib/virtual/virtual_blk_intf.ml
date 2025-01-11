@@ -48,11 +48,7 @@ module type S = sig
   *)
   val map_of_insns : t -> insn Label.Tree.t
 
-  (** Returns the live-out mappings for each instruction and the set
-      of free variables in the block. *)
-  val liveness : t -> Var.Set.t Label.Tree.t * Var.Set.t
-
-  (** Equivalent to [snd (liveness blk)]. *)
+  (** Returns the the set of free variables in the block. *)
   val free_vars : t -> Var.Set.t
 
   (** [uses_var b x] returns [true] if the variable [x] appears in the

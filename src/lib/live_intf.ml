@@ -33,14 +33,6 @@ module type S = sig
       the label. *)
   val defs : t -> Label.t -> (var, var_comparator) Set.t
 
-  (** Returns the live-out mappings for each instruction in a given block.
-
-      Note that this mapping does not cross block boundaries. It should be
-      used to identify variables that are live within the scope of a single
-      block.
-  *)
-  val insns : t -> Label.t -> (var, var_comparator) Set.t Label.Tree.t
-
   (** The set of variables that were used in the block associated with the
       label.
 
