@@ -9,10 +9,10 @@ module type S = sig
   (** Align the given stack space for arguments passed to a function. *)
   val call_args_stack_size : int -> int
 
-  (** The offset from the stack, at the start of a function, that points
-      to the starting location of arguments passed on the stack.
+  (** The offset from the frame pointer that points to the starting location
+      of arguments passed on the stack.
 
-      This assumes that a stack frame has been created for the function.
+      This assumes that the stack frame has already been allocated.
   *)
   val stack_args_offset : int
 
