@@ -463,13 +463,14 @@ module Insn = struct
 
   (* Helper for registers mentioned in an addressing mode. *)
   let rv_of_amode = function
+    | Ad _ -> []
     | Ab a -> [a]
     | Abi (a, b) ->  [a; b]
     | Abd (a, _) -> [a]
     | Abid (a, b, _) -> [a; b]
+    | Abis (a, b, _) -> [a; b]
     | Aisd (a, _, _) -> [a]
     | Abisd (a, b, _, _) -> [a; b]
-    | _ -> []
 
   (* All registers mentioned in operands. *)
   let rset operands =
