@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open OUnit2
 open Cgen
 
@@ -8,57 +7,21 @@ let fmt = String.filter ~f:(function
     | '\r' | '\n' | '\t' | ' ' -> false
     | _ -> true)
 
-let retype tenv m =
-  Virtual.Module.funs m |>
-  Seq.to_list |> Typecheck.update_fns tenv
-
 let from_file filename =
   let open Context.Syntax in
-  let* target = Context.target in
   let* m = Parse.Virtual.from_file filename in
-  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-  let*? tenv = Typecheck.run m ~target in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Promote_slots.run in
-  let*? tenv = retype tenv m in
-  let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Sccp.run tenv) in
-  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Simplify_cfg.run tenv) in
-  let*? tenv = retype tenv m in
-  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Egraph_opt.run tenv) in
-  let*? tenv = retype tenv m in
-  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Resolve_constant_blk_args.run in
-  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Simplify_cfg.run tenv) in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-  !!(tenv, m)
+  let* tenv, m = Passes.initialize m in
+  Passes.optimize tenv m
 
 let compare_outputs expected p' =
   let msg = Format.asprintf "Expected:@,@[%s@]@,Got:@,@[%s@]" expected p' in
   assert_equal (fmt p') (fmt expected) ~msg ~cmp:String.equal
 
-let to_abi m tenv =
-  let open Context.Syntax in
-  let+ funs =
-    Virtual.Module.funs m |> Seq.to_list |>
-    Context.List.map ~f:(Passes.Lower_abi.run tenv) in
-  Virtual.Abi.Module.create () ~funs
-    ~name:(Virtual.Module.name m)
-    ~dict:(Virtual.Module.dict m)
-    ~data:(Seq.to_list @@ Virtual.Module.data m)
-
 let from_file_abi filename =
   let open Context.Syntax in
   let* tenv, m = from_file filename in
-  let*? tenv = retype tenv m in
-  let* m = to_abi m tenv in
-  let*? m = Virtual.Abi.Module.map_funs_err m ~f:Passes.Promote_slots.run_abi in
-  let*? m = Virtual.Abi.Module.map_funs_err m ~f:Passes.Abi_loadopt.run in
-  let m = Virtual.Abi.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run_abi in
-  let*? m = Virtual.Abi.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run_abi in
-  !!m
+  let* m = Passes.to_abi tenv m in
+  Passes.optimize_abi m
 
 let test name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
