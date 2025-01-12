@@ -73,6 +73,7 @@ end
 module Subst = struct
   type 'r term =
     | Regvar of 'r * Type.basic
+    | Regvar_v of 'r
     | Imm of Bv.t * Type.imm
     | Single of Float32.t
     | Double of float
@@ -93,6 +94,10 @@ module Subst = struct
 
   let regvar t x = match find t x with
     | Some (Regvar (r, t)) -> Some (r, t)
+    | _ -> None
+
+  let regvar_v t x = match find t x with
+    | Some (Regvar_v r) -> Some r
     | _ -> None
 
   let imm t x = match find t x with

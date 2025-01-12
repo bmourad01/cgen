@@ -118,12 +118,28 @@ module Subst : sig
   (** A substitition. *)
   type 'r t = private 'r Isel_internal.Subst.t
 
+  (** Lookup a register with a basic type. *)
   val regvar : 'r t -> string -> ('r * Type.basic) option
+
+  (** Lookup a register with a vector type. *)
+  val regvar_v : 'r t -> string -> 'r option
+
+  (** Lookup an integer constant. *)
   val imm : 'r t -> string -> (Bv.t * Type.imm) option
+
+  (** Lookup a 32-bit float constant. *)
   val single : 'r t -> string -> Float32.t option
+
+  (** Lookup a 64-bit float constant. *)
   val double : 'r t -> string -> float option
+
+  (** Lookup a symbol. *)
   val sym : 'r t -> string -> (string * int) option
+
+  (** Lookup a program label. *)
   val label : 'r t -> string -> Label.t option
+
+  (** Lookup a boolean constant. *)
   val bool : 'r t -> string -> bool option
 end
 

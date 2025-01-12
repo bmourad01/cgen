@@ -4,6 +4,7 @@ open Virtual_common
 
 module Slot = Virtual_slot
 module Func = Virtual_func
+module Tag = Func.Tag
 
 type arg = [
   | `reg of Var.t * string

@@ -31,9 +31,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let regvar env x r id k = match typeof t id with
       | Some (#Type.basic as ty) ->
         k @@ subst env id x @@ Regvar (r, ty)
+      | Some `v128 ->
+        k @@ subst env id x @@ Regvar_v r
       | Some `flag ->
         k @@ subst env id x @@ Regvar (r, wordb)
-      | Some _ | None -> raise_notrace Mismatch in
+      | None -> raise_notrace Mismatch in
     let rec go : type a b. env -> (a, b) P.t -> Id.t -> k -> env =
       fun env p id k -> match p with
         | P (x, xs) -> pat env x xs id k
@@ -138,6 +140,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let run t =
     let* blks = transl_blks t in
     let* rets = transl_rets t in
-    C.lift_err @@ Pseudo.Func.create
-      ~name:(Func.name t.fn) ~blks ~rets
+    let dict = if t.frame
+      then Dict.singleton Pseudo.Func.Tag.needs_stack_frame ()
+      else Dict.empty in
+    C.lift_err @@ Pseudo.Func.create ()
+      ~dict ~name:(Func.name t.fn) ~blks ~rets
 end

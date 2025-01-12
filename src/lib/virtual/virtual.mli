@@ -795,6 +795,15 @@ module Abi : sig
       to test for equality.
   *)
   module Func : sig
+    (** Tags for various information about the function. *)
+    module Tag : sig
+      (** Indicates whether the function is variadic or not. *)
+      val variadic : unit Dict.tag
+
+      (** The linkage of the function. *)
+      val linkage : Linkage.t Dict.tag
+    end
+
     (** An argument to the function.
 
         [`reg (x, r)]: the argument [x] is passed in register [r].

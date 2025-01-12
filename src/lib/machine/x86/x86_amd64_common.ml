@@ -23,6 +23,7 @@ module Reg = struct
   ] [@@deriving bin_io, compare, equal, sexp]
 
   let sp = `rsp
+  let fp = `rbp
 
   let pp_gpr8 ppf : gpr -> unit = function
     | `rax -> Format.fprintf ppf "al"
@@ -212,11 +213,26 @@ module Insn = struct
       Format.fprintf ppf "%a + %a*%d + %a"
         Regvar.pp b Regvar.pp i s pp_disp d
 
+  type memty = [
+    | Type.basic
+    | `v128
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  let pp_memty ppf = function
+    | `i8 -> Format.fprintf ppf "byte ptr"
+    | `i16 -> Format.fprintf ppf "word ptr"
+    | `i32 -> Format.fprintf ppf "dword ptr"
+    | `i64 -> Format.fprintf ppf "qword ptr"
+    | `f32 -> Format.fprintf ppf "dword ptr"
+    | `f64 -> Format.fprintf ppf "qword ptr"
+    | `v128 -> Format.fprintf ppf "xmmword ptr"
+
   (* An argument to an instruction. *)
   type operand =
     | Oreg  of rv * Type.basic  (* Register *)
+    | Oregv of rv               (* Vector register (special case) *)
     | Oimm  of int64 * Type.imm (* Immediate *)
-    | Omem  of amode            (* Memory address *)
+    | Omem  of amode * memty    (* Memory address *)
     | Osym  of string * int     (* Symbol *)
     | Ofp32 of Float32.t        (* Single-precision floating-point number *)
     | Ofp64 of float            (* Double-precision floating-point number *)
@@ -238,10 +254,12 @@ module Insn = struct
        won't enforce it here. *)
     | Oreg (r, t) ->
       Format.fprintf ppf "%a:%a" Regvar.pp r Type.pp_basic t
+    | Oregv r ->
+      Format.fprintf ppf "%a" Regvar.pp r
     | Oimm (i, t) ->
       Format.fprintf ppf "0x%Lx_%a" i Type.pp_imm t
-    | Omem a ->
-      Format.fprintf ppf "[%a]" pp_amode a
+    | Omem (a, t) ->
+      Format.fprintf ppf "%a [%a]" pp_memty t pp_amode a
     | Osym (s, o) when o < 0 ->
       Format.fprintf ppf "$%s-%d" s (-o)
     | Osym (s, o) when o > 0 ->
@@ -323,6 +341,7 @@ module Insn = struct
     | LZCNT    of operand * operand
     | MOV      of operand * operand
     | MOVD     of operand * operand
+    | MOVDQA   of operand * operand
     | MOVQ     of operand * operand
     | MOVSD    of operand * operand
     | MOVSS    of operand * operand
@@ -406,6 +425,7 @@ module Insn = struct
     | LZCNT (a, b) -> binary "lzcnt" a b
     | MOV (a, b) -> binary "mov" a b
     | MOVD (a, b) -> binary "movd" a b
+    | MOVDQA (a, b) -> binary "movdqa" a b
     | MOVQ (a, b) -> binary "movq" a b
     | MOVSD (a, b) -> binary "movsd" a b
     | MOVSS (a, b) -> binary "movss" a b
@@ -455,22 +475,22 @@ module Insn = struct
   let rset operands =
     Regvar.Set.of_list @@
     List.bind operands ~f:(function
-        | Oreg (a, _) -> [a]
-        | Omem a -> rv_of_amode a
+        | Oreg (a, _) | Oregv a -> [a]
+        | Omem (a, _) -> rv_of_amode a
         | _ -> [])
 
   (* Only explicit register operands. *)
   let rset_reg operands =
     Regvar.Set.of_list @@
     List.bind operands ~f:(function
-        | Oreg (a, _) -> [a]
+        | Oreg (a, _) | Oregv a -> [a]
         | _ -> [])
 
   (* Only registers mentioned in memory operands. *)
   let rset_mem operands =
     Regvar.Set.of_list @@
     List.bind operands ~f:(function
-        | Omem a -> rv_of_amode a
+        | Omem (a, _) -> rv_of_amode a
         | _ -> [])
 
   (* Hardcoded registers. *)
@@ -523,11 +543,6 @@ module Insn = struct
     | JMP (Jind (a, _))
     | LEA (_, a)
     | LZCNT (_, a)
-    | MOV (_, a)
-    | MOVD (_, a)
-    | MOVQ (_, a)
-    | MOVSD (_, a)
-    | MOVSS (_, a)
     | MOVSX (_, a)
     | MOVSXD (_, a)
     | MOVZX (_, a)
@@ -536,6 +551,13 @@ module Insn = struct
     | POPCNT (_, a)
     | TZCNT (_, a)
       -> rset [a]
+    | MOV (a, b)
+    | MOVD (a, b)
+    | MOVDQA (a, b)
+    | MOVQ (a, b)
+    | MOVSD (a, b)
+    | MOVSS (a, b)
+      -> Set.union (rset_mem [a]) (rset [b])
     | CDQ
     | CQO
     | CWD
@@ -592,6 +614,7 @@ module Insn = struct
     | LEA (a, _)
     | MOV (a, _)
     | MOVD (a, _)
+    | MOVDQA (a, _)
     | MOVQ (a, _)
     | MOVSD (a, _)
     | MOVSS (a, _)
@@ -661,6 +684,7 @@ module Insn = struct
     | INC a
     | MOV (a, _)
     | MOVD (a, _)
+    | MOVDQA (a, _)
     | MOVQ (a, _)
     | MOVSD (a, _)
     | MOVSS (a, _)

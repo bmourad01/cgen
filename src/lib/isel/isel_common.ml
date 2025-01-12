@@ -25,6 +25,7 @@ type 'r t = {
   id2r  : 'r Id.Table.t;
   insn  : Id.t Ftree.t Label.Table.t;
   extra : Label.t list Label.Table.t;
+  frame : bool;
 }
 
 exception Missing_rpo of Label.t

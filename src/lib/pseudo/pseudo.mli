@@ -42,12 +42,20 @@ type 'a blk = 'a Blk.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A function. *)
 module Func : sig
+  (** Pre-defined attributes. *)
+  module Tag : sig
+    (** The function needs a stack frame set up. *)
+    val needs_stack_frame : unit Dict.tag
+  end
+
   type ('a, 'b) t [@@deriving bin_io, compare, equal, sexp]
 
   (** The label of the entry block. *)
   val entry : ('a, 'b) t -> Label.t
 
   (** Construct a function.
+
+      [dict]: function attributes
 
       [name]: the function name
 
@@ -57,13 +65,25 @@ module Func : sig
 
       @raise Invalid_argument if [blks] is empty.
   *)
-  val create_exn : name:string -> blks:'a blk list -> rets:'b list -> ('a, 'b) t
+  val create_exn :
+    ?dict:Dict.t ->
+    name:string ->
+    blks:'a blk list ->
+    rets:'b list ->
+    unit ->
+    ('a, 'b) t
 
   (** Construct a function.
 
       Returns [Error _] if [blks] is empty.
   *)
-  val create : name:string -> blks:'a blk list -> rets:'b list -> ('a, 'b) t Or_error.t
+  val create :
+    ?dict:Dict.t ->
+    name:string ->
+    blks:'a blk list ->
+    rets:'b list ->
+    unit ->
+    ('a, 'b) t Or_error.t
 
   (** The name of the function. *)
   val name : ('a, 'b) t -> string
@@ -73,6 +93,9 @@ module Func : sig
 
   (** The return registers of the function. *)
   val rets : ?rev:bool -> ('a, 'b) t -> 'b seq
+
+  (** The attributes of the function. *)
+  val dict : ('a, 'b) t -> Dict.t
 
   (** Returns a mapping from labels to blocks of the function. *)
   val map_of_blks : ('a, 'b) t -> 'a blk Label.Tree.t

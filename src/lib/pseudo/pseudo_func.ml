@@ -1,15 +1,22 @@
 open Core
 open Pseudo_common
 
+module Tag = struct
+  let needs_stack_frame = Dict.register
+      ~uuid:"bd4f4a42-723a-4d31-b0ab-e63ba432a9e5"
+      "pseudo-fn-needs-stack-frame" (module Unit)
+end
+
 type ('a, 'b) t = {
   name : string;
   blks : 'a Pseudo_blk.t ftree;
   rets : 'b ftree;
+  dict : Dict.t;
 } [@@deriving bin_io, compare, equal, sexp]
 
 let entry t = (Ftree.head_exn t.blks).label
 
-let create_exn ~name ~blks ~rets = match blks with
+let create_exn ?(dict = Dict.empty) ~name ~blks ~rets () = match blks with
   | [] ->
     invalid_argf
       "Cannot create function $%s with an empty list of blocks"
@@ -18,15 +25,17 @@ let create_exn ~name ~blks ~rets = match blks with
       name;
       blks = Ftree.of_list blks;
       rets = Ftree.of_list rets;
+      dict;
     }
 
-let create ~name ~blks ~rets =
-  try Ok (create_exn ~name ~blks ~rets) with
+let create ?(dict = Dict.empty) ~name ~blks ~rets () =
+  try Ok (create_exn ~dict ~name ~blks ~rets ()) with
   | Invalid_argument msg -> Or_error.error_string msg
 
 let name t = t.name
 let blks ?(rev = false) t = Ftree.enum ~rev t.blks
 let rets ?(rev = false) t = Ftree.enum ~rev t.rets
+let dict t = t.dict
 
 let map_of_blks t =
   Ftree.fold t.blks ~init:Label.Tree.empty ~f:(fun acc b ->

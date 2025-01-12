@@ -279,10 +279,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let n = N (Omove, [rid; a]) in
     ignore @@ new_node ~l t n
 
-  (* TODO: communicate how the stack frame is going to work *)
-  let stkargs t _l x =
-    let _xid = new_var t x word in
-    !!()
+  let stkargs t l x =
+    assert t.frame;
+    let rid = new_node ~ty:word t @@ Rv (Rv.reg R.fp) in
+    let xid = new_var t x word in
+    let w = Target.word M.target in
+    let off = Bv.(int M.stack_args_offset mod modulus (Type.sizeof_imm_base w)) in
+    let oid = new_node ~ty:word t @@ N (Oint (off, (w :> Type.imm)), []) in
+    let id = new_node ~ty:word t @@ N (Obinop (`add (w :> Type.basic)), [rid; oid]) in
+    !!(ignore @@ new_node ~l t @@ N (Omove, [xid; id]))
 
   let insn t i =
     let l = Insn.label i in
@@ -331,14 +336,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | `ret rets -> ret t l rets
     | `sw (ty, i, d, tbl) -> sw t l ty i d tbl
 
-  let regarg t l (x, r, ty) =
+  let regparam t l (x, r, ty) =
     let+ r = reg t r in
     let ty = (ty :> ty) in
     let rid = new_node ~ty t @@ Rv (Rv.reg r) in
     let xid = new_var t x ty in
     ignore @@ new_node ~l t @@ N (Omove, [xid; rid])
 
-  let stkarg t l (x, o, ty) =
+  let stkparam t l (x, o, ty) =
     let ty' = (ty :> ty) in
     let w = Target.word M.target in
     let xid = new_var t x ty' in
@@ -390,8 +395,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       List.partition_map ~f:(fun (a, ty) -> match a with
           | `reg (x, r) -> First (x, r, ty)
           | `stk (x, o) -> Second (x, o, ty)) in
-    let* () = C.List.iter sargs ~f:(stkarg t l) in
-    let+ () = C.List.iter rargs ~f:(regarg t l) in
+    let* () = C.List.iter sargs ~f:(stkparam t l) in
+    let+ () = C.List.iter rargs ~f:(regparam t l) in
     Func.slots t.fn |> Seq.iter ~f:(fun s -> slot t l s)
 
   let run t =

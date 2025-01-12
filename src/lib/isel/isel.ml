@@ -13,6 +13,14 @@ let init_rpo cfg =
     | None -> raise @@ Missing_rpo l
     | Some i -> i
 
+let needs_stack_frame fn =
+  Func.variadic fn ||
+  Func.blks fn |> Seq.exists ~f:(fun b ->
+      Blk.insns b |> Seq.exists ~f:(fun i ->
+          match Insn.op i with
+          | `call _ | `stkargs _ -> true
+          | _ -> false))
+
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let create fn =
     let cfg = Cfg.create fn in {
@@ -27,6 +35,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       id2r = Id.Table.create ();
       insn = Label.Table.create ();
       extra = Label.Table.create ();
+      frame = needs_stack_frame fn;
     }
 
   open C.Syntax
