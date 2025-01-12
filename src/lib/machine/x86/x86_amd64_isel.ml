@@ -372,8 +372,16 @@ module Make(C : Context_intf.S) = struct
   let sext_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    if Type.equal_basic xt yt then !!![]
-    else !!![MOVSX (Oreg (x, xt), Oreg (y, yt))]
+    match xt, yt with
+    | `i64, `i32 ->
+      !!![MOVSXD (Oreg (x, xt), Oreg (y, yt))]
+    | (#Type.imm as xi), (#Type.imm as yi)
+      when Type.sizeof_imm xi > Type.sizeof_imm yi ->
+      !!![MOVSX (Oreg (x, xt), Oreg (y, yt))]
+    | #Type.imm, #Type.imm ->
+      (* Assume the width of the destination. *)
+      !!![MOV (Oreg (x, xt), Oreg (y, xt))]
+    | _ -> !!None
 
   let sext_ri_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -386,21 +394,9 @@ module Make(C : Context_intf.S) = struct
         !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y, xt'))]
       | _ -> !!None
 
-  let zext_rr_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    if Type.equal_basic xt yt then !!![]
-    else match xt, yt with
-      | `i64, `i32 ->
-        (* Implicit zero-extension. *)
-        !!![MOV (Oreg (x, `i32), Oreg (y, `i32))]
-      | _ ->
-        !!![MOVZX (Oreg (x, xt), Oreg (y, yt))]
-
   let call_sym_x env =
     let*! s, o = S.sym env "x" in
     !!![CALL (Osym (s, o))]
-
 
   open P.Op
 
