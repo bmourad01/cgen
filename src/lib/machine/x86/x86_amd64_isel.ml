@@ -31,6 +31,11 @@ module Make(C : Context_intf.S) = struct
     let x = Oreg (x, ty) in
     XOR (x, x)
 
+  let fits_int8 x =
+    let open Int64 in
+    x >= 0xFFFFFFFFFFFFFF80L &&
+    x <= 0xFFL
+
   let fits_int32 x =
     let open Int64 in
     x >= 0xFFFFFFFF80000000L &&
@@ -417,6 +422,52 @@ module Make(C : Context_intf.S) = struct
         IMUL2 (Oreg (x, xt), Oreg (z', xt));
       ]
 
+  let imul_ri_high_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      MOV (Oreg (rax, bty zt), Oimm (z, zt));
+      IMUL1 (Oreg (y, yt));
+      MOV (Oreg (x, xt), Oreg (rdx, xt));
+    ]
+
+  let imul_rr_high_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      MOV (Oreg (rax, yt), Oreg (y, yt));
+      IMUL1 (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oreg (rdx, xt));
+    ]
+
+  let mul_ri_high_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      MOV (Oreg (rax, bty zt), Oimm (z, zt));
+      MUL (Oreg (y, yt));
+      MOV (Oreg (x, xt), Oreg (rdx, xt));
+    ]
+
+  let mul_rr_high_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      MOV (Oreg (rax, yt), Oreg (y, yt));
+      MUL (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oreg (rdx, xt));
+    ]
+
   let idiv_rem_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -426,6 +477,66 @@ module Make(C : Context_intf.S) = struct
       MOV (Oreg (rax, yt), Oreg (y, yt));
       IDIV (Oreg (z, zt));
       MOV (Oreg (x, xt), Oreg (rdx, xt));
+    ]
+
+  let lsl_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let rcx = Rv.reg `rcx in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      MOV (Oreg (rcx, `i8), Oreg (z, `i8));
+      SHL (Oreg (x, xt), Oreg (rcx, `i8));
+    ]
+
+  (* The shift value is ANDed with 0x3F or 0x1F by the hardware. *)
+  let lsl_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      SHL (Oreg (x, xt), Oimm (Int64.(z land 0xFFL), `i8));
+    ]
+
+  let lsr_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let rcx = Rv.reg `rcx in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      MOV (Oreg (rcx, `i8), Oreg (z, `i8));
+      SHR (Oreg (x, xt), Oreg (rcx, `i8));
+    ]
+
+  (* The shift value is ANDed with 0x3F or 0x1F by the hardware. *)
+  let lsr_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      SHR (Oreg (x, xt), Oimm (Int64.(z land 0xFFL), `i8));
+    ]
+
+  let asr_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let rcx = Rv.reg `rcx in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      MOV (Oreg (rcx, `i8), Oreg (z, `i8));
+      SAR (Oreg (x, xt), Oreg (rcx, `i8));
+    ]
+
+  (* The shift value is ANDed with 0x3F or 0x1F by the hardware. *)
+  let asr_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      SAR (Oreg (x, xt), Oimm (Int64.(z land 0xFFL), `i8));
     ]
 
   let sext_rr_x_y env =
@@ -475,9 +586,34 @@ module Make(C : Context_intf.S) = struct
       and_ri_x_y_z;
     ]
 
+    let lsl_ = [
+      lsl_rr_x_y_z;
+      lsl_ri_x_y_z;
+    ]
+
+    let lsr_ = [
+      lsr_rr_x_y_z;
+      lsr_ri_x_y_z;
+    ]
+
+    let asr_ = [
+      asr_rr_x_y_z;
+      asr_ri_x_y_z;
+    ]
+
     let mul = [
       imul_rr_x_y_z;
       imul_ri_x_y_z;
+    ]
+
+    let mulh = [
+      imul_rr_high_x_y_z;
+      imul_ri_high_x_y_z;
+    ]
+
+    let umulh = [
+      mul_rr_high_x_y_z;
+      mul_ri_high_x_y_z;
     ]
 
     let rem = [
@@ -633,6 +769,30 @@ module Make(C : Context_intf.S) = struct
       move x (and_ `i64 y z) =>* Group.and_;
     ]
 
+    (* x = lsl y, z *)
+    let lsl_basic = [
+      move x (lsl_ `i8 y z) =>* Group.lsl_;
+      move x (lsl_ `i16 y z) =>* Group.lsl_;
+      move x (lsl_ `i32 y z) =>* Group.lsl_;
+      move x (lsl_ `i64 y z) =>* Group.lsl_;
+    ]
+
+    (* x = lsr y, z *)
+    let lsr_basic = [
+      move x (lsr_ `i8 y z) =>* Group.lsr_;
+      move x (lsr_ `i16 y z) =>* Group.lsr_;
+      move x (lsr_ `i32 y z) =>* Group.lsr_;
+      move x (lsr_ `i64 y z) =>* Group.lsr_;
+    ]
+
+    (* x = asr y, z *)
+    let asr_basic = [
+      move x (asr_ `i8 y z) =>* Group.asr_;
+      move x (asr_ `i16 y z) =>* Group.asr_;
+      move x (asr_ `i32 y z) =>* Group.asr_;
+      move x (asr_ `i64 y z) =>* Group.asr_;
+    ]
+
     (*  x = mul y i => lea x, [y*i]
 
         where i \in {1,2,4,8}
@@ -658,6 +818,18 @@ module Make(C : Context_intf.S) = struct
     let mul_basic = [
       move x (mul `i32 y z) =>* Group.mul;
       move x (mul `i64 y z) =>* Group.mul;
+    ]
+
+    (* x = mulh y, z *)
+    let mulh_basic = [
+      move x (mulh `i32 y z) =>* Group.mulh;
+      move x (mulh `i64 y z) =>* Group.mulh;
+    ]
+
+    (* x = umulh y, z *)
+    let umulh_basic = [
+      move x (umulh `i32 y z) =>* Group.umulh;
+      move x (umulh `i64 y z) =>* Group.umulh;
     ]
 
     (* x = rem y, z *)
@@ -866,8 +1038,13 @@ module Make(C : Context_intf.S) = struct
     add_basic @
     sub_basic @
     and_basic @
+    lsl_basic @
+    lsr_basic @
+    asr_basic @
     mul_lea @
     mul_basic @
+    mulh_basic @
+    umulh_basic @
     rem_basic @
     setcc_zero @
     setcc_ibasic @
