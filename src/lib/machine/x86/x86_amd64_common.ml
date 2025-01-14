@@ -532,8 +532,17 @@ module Insn = struct
       Set.union (rset_mem [a]) call
     | PUSH a
       -> Set.union (rset' [`rsp]) (rset_mem [a])
-    | CMOVcc (_, _, a)
-      -> Set.union (rset' [`rflags]) (rset [a])
+    | CMOVcc (_, a, b)
+      (* We introduce a dependency on `a` so that any previous
+         writes to it will be preserved.
+
+         This is morally equivalent to:
+
+         `x := cc ? b : a`
+      *)
+      ->
+      Set.union (rset' [`rflags])
+        (Set.union (rset_reg [a]) (rset [b]))
     | CVTSD2SI (_, a)
     | CVTSI2SD (_, a)
     | CVTSI2SS (_, a)

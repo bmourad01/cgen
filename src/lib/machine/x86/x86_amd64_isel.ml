@@ -182,12 +182,52 @@ module Make(C : Context_intf.S) = struct
         SUB (Oreg (x, xt), Oimm (z, zt));
       ]
 
+  let and_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in !!![
+      MOV (Oreg (x, xt) , Oreg (y, yt));
+      AND (Oreg (x, xt), Oreg (z, zt));
+    ]
+
   let and_ri_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in !!![
       MOV (Oreg (x, xt) , Oreg (y, yt));
       AND (Oreg (x, xt), Oimm (Bv.to_int64 z, zt));
+    ]
+
+  let or_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in !!![
+      MOV (Oreg (x, xt) , Oreg (y, yt));
+      OR (Oreg (x, xt), Oreg (z, zt));
+    ]
+
+  let or_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in !!![
+      MOV (Oreg (x, xt) , Oreg (y, yt));
+      OR (Oreg (x, xt), Oimm (Bv.to_int64 z, zt));
+    ]
+
+  let xor_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in !!![
+      MOV (Oreg (x, xt) , Oreg (y, yt));
+      XOR (Oreg (x, xt), Oimm (Bv.to_int64 z, zt));
+    ]
+
+  let xor_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in !!![
+      MOV (Oreg (x, xt) , Oreg (y, yt));
+      XOR (Oreg (x, xt), Oreg (z, zt));
     ]
 
   let jmp_lbl_x env =
@@ -310,6 +350,53 @@ module Make(C : Context_intf.S) = struct
         MOV (Oreg (tmp, `i64), Oimm (z, zt));
         CMP (Oreg (y, yt), Oreg (tmp, `i64));
         SETcc (cc, Oreg (x, `i8));
+      ]
+
+  (* 8-bit cmov is not supported, but we can just use
+     the 32-bit variant and pretend that nothing happened.
+
+     If the input program is well-typed then this should
+     be kosher.
+  *)
+  let sel_i8_ty = function
+    | `i8 -> `i32
+    | t -> t
+
+  let sel_rrrr_x_y_z cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! yes, yes_t = S.regvar env "yes" in
+    let*! no, no_t = S.regvar env "no" in
+    let*! () = guard @@ Type.equal_basic xt yes_t in
+    let*! () = guard @@ Type.equal_basic xt no_t in
+    let xt = sel_i8_ty xt in !!![
+      MOV (Oreg (x, xt), Oreg (no, xt));
+      CMP (Oreg (y, yt), Oreg (z, zt));
+      CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
+    ]
+
+  let sel_rirr_x_y_z cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let*! yes, yes_t = S.regvar env "yes" in
+    let*! no, no_t = S.regvar env "no" in
+    let*! () = guard @@ Type.equal_basic xt yes_t in
+    let*! () = guard @@ Type.equal_basic xt no_t in
+    let xt = sel_i8_ty xt in
+    let z = Bv.to_int64 z in
+    if fits_int32 z then !!![
+        MOV (Oreg (x, xt), Oreg (no, xt));
+        CMP (Oreg (y, yt), Oimm (z, zt));
+        CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
+      ]
+    else
+      let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOV (Oreg (tmp, bty zt), Oimm (z, zt));
+        MOV (Oreg (x, xt), Oreg (no, xt));
+        CMP (Oreg (y, yt), Oreg (tmp, bty zt));
+        CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
       ]
 
   let load_rri_add_x_y_z env =
@@ -479,6 +566,27 @@ module Make(C : Context_intf.S) = struct
       MOV (Oreg (x, xt), Oreg (rdx, xt));
     ]
 
+  let idiv_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in !!![
+      MOV (Oreg (rax, yt), Oreg (y, yt));
+      IDIV (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oreg (rax, xt));
+    ]
+
+  let div_rem_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      MOV (Oreg (rax, yt), Oreg (y, yt));
+      DIV (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oreg (rdx, xt));
+    ]
+
   let lsl_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -539,6 +647,82 @@ module Make(C : Context_intf.S) = struct
       SAR (Oreg (x, xt), Oimm (Int64.(z land 0xFFL), `i8));
     ]
 
+  let rol_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let rcx = Rv.reg `rcx in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      MOV (Oreg (rcx, `i8), Oreg (z, `i8));
+      ROL (Oreg (x, xt), Oreg (rcx, `i8));
+    ]
+
+  let rol_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      ROL (Oreg (x, xt), Oimm (Int64.(z land 0xFFL), `i8));
+    ]
+
+  let ror_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let rcx = Rv.reg `rcx in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      MOV (Oreg (rcx, `i8), Oreg (z, `i8));
+      ROR (Oreg (x, xt), Oreg (rcx, `i8));
+    ]
+
+  let ror_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      ROR (Oreg (x, xt), Oimm (Int64.(z land 0xFFL), `i8));
+    ]
+
+  let neg_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      NEG (Oreg (x, xt));
+    ]
+
+  let neg_i_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    match Virtual.Eval.unop_int (`neg (bty yt)) y yt with
+    | Some `int (i, _) ->
+      !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 i, yt))]
+    | _ ->
+      !!![
+        MOV (Oreg (x, xt), Oimm (Bv.to_int64 y, yt));
+        NEG (Oreg (x, xt));
+      ]
+
+  let not_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in !!![
+      MOV (Oreg (x, xt), Oreg (y, yt));
+      NOT (Oreg (x, xt));
+    ]
+
+  let not_i_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    match Virtual.Eval.unop_int (`not_ yt) y yt with
+    | Some `int (i, _) ->
+      !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 i, yt))]
+    | _ ->
+      !!![
+        MOV (Oreg (x, xt), Oimm (Bv.to_int64 y, yt));
+        NOT (Oreg (x, xt));
+      ]
+
   let sext_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -583,7 +767,18 @@ module Make(C : Context_intf.S) = struct
     ]
 
     let and_ = [
+      and_rr_x_y_z;
       and_ri_x_y_z;
+    ]
+
+    let or_ = [
+      or_rr_x_y_z;
+      or_ri_x_y_z;
+    ]
+
+    let xor = [
+      xor_rr_x_y_z;
+      xor_ri_x_y_z;
     ]
 
     let lsl_ = [
@@ -601,6 +796,16 @@ module Make(C : Context_intf.S) = struct
       asr_ri_x_y_z;
     ]
 
+    let rol = [
+      rol_rr_x_y_z;
+      rol_ri_x_y_z;
+    ]
+
+    let ror = [
+      ror_rr_x_y_z;
+      ror_ri_x_y_z;
+    ]
+
     let mul = [
       imul_rr_x_y_z;
       imul_ri_x_y_z;
@@ -616,8 +821,16 @@ module Make(C : Context_intf.S) = struct
       mul_ri_high_x_y_z;
     ]
 
+    let div = [
+      idiv_rr_x_y_z;
+    ]
+
     let rem = [
       idiv_rem_rr_x_y_z;
+    ]
+
+    let urem = [
+      div_rem_rr_x_y_z;
     ]
 
     let setcc cc = [
@@ -631,6 +844,11 @@ module Make(C : Context_intf.S) = struct
 
     let setcc_f64 cc = [
       setcc_rr_f64_x_y_z cc;
+    ]
+
+    let sel cc = [
+      sel_rrrr_x_y_z cc;
+      sel_rirr_x_y_z cc;
     ]
 
     let load = [
@@ -648,6 +866,16 @@ module Make(C : Context_intf.S) = struct
         move_rf32_x_y;
         move_rf64_x_y;
       ]
+
+    let neg = [
+      neg_r_x_y;
+      neg_i_x_y;
+    ]
+
+    let not_ = [
+      not_r_x_y;
+      not_i_x_y;
+    ]
 
     let sext = [
       sext_rr_x_y;
@@ -769,6 +997,22 @@ module Make(C : Context_intf.S) = struct
       move x (and_ `i64 y z) =>* Group.and_;
     ]
 
+    (* x = or y, z *)
+    let or_basic = [
+      move x (or_ `i8 y z) =>* Group.or_;
+      move x (or_ `i16 y z) =>* Group.or_;
+      move x (or_ `i32 y z) =>* Group.or_;
+      move x (or_ `i64 y z) =>* Group.or_;
+    ]
+
+    (* x = xor y, z *)
+    let xor_basic = [
+      move x (xor `i8 y z) =>* Group.xor;
+      move x (xor `i16 y z) =>* Group.xor;
+      move x (xor `i32 y z) =>* Group.xor;
+      move x (xor `i64 y z) =>* Group.xor;
+    ]
+
     (* x = lsl y, z *)
     let lsl_basic = [
       move x (lsl_ `i8 y z) =>* Group.lsl_;
@@ -791,6 +1035,22 @@ module Make(C : Context_intf.S) = struct
       move x (asr_ `i16 y z) =>* Group.asr_;
       move x (asr_ `i32 y z) =>* Group.asr_;
       move x (asr_ `i64 y z) =>* Group.asr_;
+    ]
+
+    (* x = rol y, z *)
+    let rol_basic = [
+      move x (rol `i8 y z) =>* Group.rol;
+      move x (rol  `i16 y z) =>* Group.rol;
+      move x (rol `i32 y z) =>* Group.rol;
+      move x (rol `i64 y z) =>* Group.rol;
+    ]
+
+    (* x = ror y, z *)
+    let ror_basic = [
+      move x (ror `i8 y z) =>* Group.ror;
+      move x (ror  `i16 y z) =>* Group.ror;
+      move x (ror `i32 y z) =>* Group.ror;
+      move x (ror `i64 y z) =>* Group.ror;
     ]
 
     (*  x = mul y i => lea x, [y*i]
@@ -832,9 +1092,25 @@ module Make(C : Context_intf.S) = struct
       move x (umulh `i64 y z) =>* Group.umulh;
     ]
 
+    (* x = div y, z *)
+    let div_basic = [
+      move x (div `i16 y z) =>* Group.div;
+      move x (div `i32 y z) =>* Group.div;
+      move x (div `i64 y z) =>* Group.div;
+    ]
+
     (* x = rem y, z *)
     let rem_basic = [
+      move x (rem `i16 y z) =>* Group.rem;
       move x (rem `i32 y z) =>* Group.rem;
+      move x (rem `i64 y z) =>* Group.rem;
+    ]
+
+    (* x = urem y, z *)
+    let urem_basic = [
+      move x (urem `i16 y z) =>* Group.urem;
+      move x (urem `i32 y z) =>* Group.urem;
+      move x (urem `i64 y z) =>* Group.urem;
     ]
 
     (* x = y == 0
@@ -890,6 +1166,25 @@ module Make(C : Context_intf.S) = struct
           move x (o ty y z) =>* f Cnp;
         ]
 
+    (* x = sel (cmp y z) yes no *)
+    let sel_ibasic =
+      [`i8; `i16; `i32; `i64] >* fun ty ->
+        let ty' = bty ty in [
+          (* Equality *)
+          move x (sel ty' (eq ty' y z) yes no) =>* Group.sel Ce;
+          move x (sel ty' (ne ty' y z) yes no) =>* Group.sel Cne;
+          (* Unsigned *)
+          move x (sel ty' (lt ty' y z) yes no) =>* Group.sel Cb;
+          move x (sel ty' (le ty' y z) yes no) =>* Group.sel Cbe;
+          move x (sel ty' (gt ty' y z) yes no) =>* Group.sel Ca;
+          move x (sel ty' (ge ty' y z) yes no) =>* Group.sel Cae;
+          (* Signed *)
+          move x (sel ty' (slt ty y z) yes no) =>* Group.sel Cl;
+          move x (sel ty' (sle ty y z) yes no) =>* Group.sel Cle;
+          move x (sel ty' (sgt ty y z) yes no) =>* Group.sel Cg;
+          move x (sel ty' (sge ty y z) yes no) =>* Group.sel Cge;
+        ]
+
     (* x = load (add y, z) *)
     let load_add = [
       move x (load `i32 (add `i64 y z)) => load_rri_add_x_y_z;
@@ -900,6 +1195,22 @@ module Make(C : Context_intf.S) = struct
     let load_basic = [
       move x (load `i32 y) =>* Group.load;
       move x (load `i64 y) =>* Group.load;
+    ]
+
+    (* x = neg y *)
+    let neg_basic = [
+      move x (neg `i8 y) =>* Group.neg;
+      move x (neg `i16 y) =>* Group.neg;
+      move x (neg `i32 y) =>* Group.neg;
+      move x (neg `i64 y) =>* Group.neg;
+    ]
+
+    (* x = not y *)
+    let not_basic = [
+      move x (not_ `i8 y) =>* Group.not_;
+      move x (not_ `i16 y) =>* Group.not_;
+      move x (not_ `i32 y) =>* Group.not_;
+      move x (not_ `i64 y) =>* Group.not_;
     ]
 
     (* x = sext y *)
@@ -1038,19 +1349,28 @@ module Make(C : Context_intf.S) = struct
     add_basic @
     sub_basic @
     and_basic @
+    or_basic @
+    xor_basic @
     lsl_basic @
     lsr_basic @
     asr_basic @
+    rol_basic @
+    ror_basic @
     mul_lea @
     mul_basic @
     mulh_basic @
     umulh_basic @
+    div_basic @
     rem_basic @
+    urem_basic @
     setcc_zero @
     setcc_ibasic @
     setcc_fbasic @
+    sel_ibasic @
     load_add @
     load_basic @
+    neg_basic @
+    not_basic @
     sext_basic @
     zext_basic @
     flag_basic @
