@@ -5,6 +5,8 @@ open Regular.Std
 
 (** A container for a pseudo-assembly instruction. *)
 module Insn : sig
+  (** An instruction descriptor, where ['a] is the concrete type
+      of instructions. *)
   type 'a t [@@deriving bin_io, compare, equal, sexp]
 
   (** Create the instruction with a given label. *)
@@ -21,6 +23,7 @@ type 'a insn = 'a Insn.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A block of instructions. *)
 module Blk : sig
+  (** A basic block, where ['a] is the concrete type of instructions. *)
   type 'a t [@@deriving bin_io, compare, equal, sexp]
 
   (** Construct a block. *)
@@ -48,6 +51,8 @@ module Func : sig
     val needs_stack_frame : unit Dict.tag
   end
 
+  (** The type of a pseudo-assembly function, where ['a] is the type of
+      instructions, and ['b] is the type of registers. *)
   type ('a, 'b) t [@@deriving bin_io, compare, equal, sexp]
 
   (** The label of the entry block. *)
@@ -97,6 +102,12 @@ module Func : sig
   (** The attributes of the function. *)
   val dict : ('a, 'b) t -> Dict.t
 
+  (** Returns the linkage of the function. *)
+  val linkage : ('a, 'b) t -> Linkage.t
+
+  (** Returns [true] if the function has the specified name. *)
+  val has_name : ('a, 'b) t -> string -> bool
+
   (** Returns a mapping from labels to blocks of the function. *)
   val map_of_blks : ('a, 'b) t -> 'a blk Label.Tree.t
 
@@ -129,6 +140,84 @@ module Func : sig
 end
 
 type ('a, 'b) func = ('a, 'b) Func.t [@@deriving bin_io, compare, equal, sexp]
+
+(** A module. *)
+module Module : sig
+  type ('a, 'b) t [@@deriving bin_io, compare, equal, sexp]
+
+  val create :
+    ?dict:Dict.t ->
+    ?data:Virtual.data list ->
+    ?funs:('a, 'b) func list ->
+    name:string ->
+    unit ->
+    ('a, 'b) t
+
+  (** The name of the module. *)
+  val name : ('a, 'b) t -> string
+
+  (** Structs defined in the module. *)
+  val data : ?rev:bool -> ('a, 'b) t -> Virtual.data seq
+
+  (** Functions defined in the module. *)
+  val funs : ?rev:bool -> ('a, 'b) t -> ('a, 'b) func seq
+
+  (** Returns the dictionary of the module. *)
+  val dict : ('a, 'b) t -> Dict.t
+
+  (** Replaces the dictionary of the module. *)
+  val with_dict : ('a, 'b) t -> Dict.t -> ('a, 'b) t
+
+  (** [with_tag m t v] binds [v] to tag [t] in the dictionary of [m]. *)
+  val with_tag : ('a, 'b) t -> 'a Dict.tag -> 'a -> ('a, 'b) t
+
+  (** Returns [true] if the module has the associated name. *)
+  val has_name : ('a, 'b) t -> string -> bool
+
+  (** Appends a struct to the module. *)
+  val insert_data : ('a, 'b) t -> Virtual.data -> ('a, 'b) t
+
+  (** Appends a function to the module. *)
+  val insert_fn : ('a, 'b) t -> ('a, 'b) func -> ('a, 'b) t
+
+  (** Removes the struct associated with the name. *)
+  val remove_data : ('a, 'b) t -> string -> ('a, 'b) t
+
+  (** Removes the function associated with the name. *)
+  val remove_fn : ('a, 'b) t -> string -> ('a, 'b) t
+
+  (** Returns the module with each struct transformed by [f]. *)
+  val map_data : ('a, 'b) t -> f:(Virtual.data -> Virtual.data) -> ('a, 'b) t
+
+  (** Returns the module with each function transformed by [f]. *)
+  val map_funs : ('a, 'b) t -> f:(('a, 'b) func -> ('a, 'b) func) -> ('a, 'b) t
+
+  (** Replaces the functions in the module. *)
+  val with_funs : ('a, 'b) t -> ('a, 'b) func list -> ('a, 'b) t
+
+  (** Returns the module with each struct transformed by [f],
+      where [f] may fail. *)
+  val map_data_err :
+    ('a, 'b) t ->
+    f:(Virtual.data -> Virtual.data Or_error.t) ->
+    ('a, 'b) t Or_error.t
+
+  (** Returns the module with each function transformed by [f],
+      where [f] may fail. *)
+  val map_funs_err :
+    ('a, 'b) t ->
+    f:(('a, 'b) func -> ('a, 'b) func Or_error.t) ->
+    ('a, 'b) t Or_error.t
+
+  val pp :
+    (Format.formatter -> 'a -> unit) ->
+    (Format.formatter -> 'b -> unit) ->
+    Format.formatter ->
+    ('a, 'b) t ->
+    unit
+end
+
+type ('a, 'b) module_ = ('a, 'b) Module.t [@@deriving bin_io, compare, equal, sexp]
 
 (** The control-flow graph of the function. *)
 module Cfg : sig

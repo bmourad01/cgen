@@ -19,28 +19,23 @@ let comp filename =
   Format.printf "%a\n%!" Virtual.Abi.Module.pp m;
   let* (module Machine) = Context.machine in
   let module Isel = Isel.Make(Machine)(Context) in
-  let* pfns =
-    Virtual.Abi.Module.funs m |>
-    Context.Seq.map ~f:Isel.run >>|
-    Seq.to_list in
+  let* m =
+    let+ funs =
+      Virtual.Abi.Module.funs m |>
+      Context.Seq.map ~f:Isel.run >>|
+      Seq.to_list in
+    Pseudo.Module.create ()
+      ~dict:(Virtual.Abi.Module.dict m)
+      ~data:(Virtual.Abi.Module.data m |> Seq.to_list)
+      ~name:(Virtual.Abi.Module.name m) ~funs in
   Format.printf "=================================================\n%!";
   Format.printf "After instruction selection:\n\n%!";
-  Format.pp_print_list
-    ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n\n")
-    (Pseudo.Func.pp Machine.Insn.pp Machine.Reg.pp)
-    Format.std_formatter pfns;
-  if not @@ List.is_empty pfns then begin
-    Format.printf "\n%!";
-    Format.printf "=================================================\n%!"
-  end;
+  Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
   let module Remove_deads = Pseudo.Remove_dead_insns(Machine) in
-  let pfns = List.map pfns ~f:Remove_deads.run in
+  let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
+  Format.printf "=================================================\n%!";
   Format.printf "After removing dead instructions:\n\n%!";
-  Format.pp_print_list
-    ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n\n")
-    (Pseudo.Func.pp Machine.Insn.pp Machine.Reg.pp)
-    Format.std_formatter pfns;
-  if not @@ List.is_empty pfns then Format.printf "\n%!";
+  Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
   !!()
 
 let () =

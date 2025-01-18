@@ -37,6 +37,12 @@ let blks ?(rev = false) t = Ftree.enum ~rev t.blks
 let rets ?(rev = false) t = Ftree.enum ~rev t.rets
 let dict t = t.dict
 
+let has_name t n = String.(n = t.name)
+
+let linkage fn = match Dict.find fn.dict Virtual.Func.Tag.linkage with
+  | None -> Linkage.default_export
+  | Some l -> l
+
 let map_of_blks t =
   Ftree.fold t.blks ~init:Label.Tree.empty ~f:(fun acc b ->
       Label.Tree.set acc ~key:b.label ~data:b)
@@ -66,16 +72,15 @@ let update_blks t blks =
 let pp ppa ppb ppf t =
   let sep_ret ppf = Format.fprintf ppf " " in
   let sep_blk ppf = Format.fprintf ppf "@;" in
-  match Ftree.is_empty t.blks with
-  | true ->
-    Format.fprintf ppf "$%s:" t.name;
-    if not @@ Ftree.is_empty t.rets then
-      Format.fprintf ppf " ; returns: %a"
-        (Ftree.pp ppb sep_ret) t.rets
-  | false ->
-    Format.fprintf ppf "$%s:" t.name;
-    if not @@ Ftree.is_empty t.rets then
-      Format.fprintf ppf " ; returns: %a"
-        (Ftree.pp ppb sep_ret) t.rets;
+  let lnk = linkage t in
+  if Linkage.export lnk
+  || Linkage.section lnk |> Option.is_some then
+    Format.fprintf ppf "%a " Linkage.pp lnk;
+  Format.fprintf ppf "function $%s {" t.name;
+  if not @@ Ftree.is_empty t.rets then
+    Format.fprintf ppf " ; returns: %a"
+      (Ftree.pp ppb sep_ret) t.rets;
+  if not @@ Ftree.is_empty t.blks then
     Format.fprintf ppf "@;@[<v 0>%a@]"
-      (Ftree.pp (Pseudo_blk.pp ppa) sep_blk) t.blks
+      (Ftree.pp (Pseudo_blk.pp ppa) sep_blk) t.blks;
+  Format.fprintf ppf "@;}"

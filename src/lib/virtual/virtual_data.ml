@@ -10,7 +10,7 @@ type elt = [
 
 let pp_elt ppf : elt -> unit = function
   | #const as c -> Format.fprintf ppf "%a" pp_const c
-  | `string s -> Format.fprintf ppf "\"%s\"" s
+  | `string s -> Format.fprintf ppf "%S" s
   | `zero n -> Format.fprintf ppf "z %d" n
 
 module T = struct
