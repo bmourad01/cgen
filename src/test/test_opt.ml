@@ -156,6 +156,7 @@ let suite = "Test optimizations" >::: [
     "Variadic function arguments 1 (SysV)" >:: test_sysv "vaarg1";
     "Variadic function arguments 2 (SysV)" >:: test_sysv "vaarg2";
     "Variadic function arguments 3 (SysV)" >:: test_sysv "vasum";
+    "Unsigned integer to float (SysV)" >:: test_sysv "uitof";
   ]
 
 let () = run_test_tt_main suite

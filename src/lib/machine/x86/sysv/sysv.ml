@@ -8,5 +8,5 @@ let run tenv fn =
   let* () = Sysv_calls.lower env in
   let* () = Sysv_vastart.lower env in
   let* () = Sysv_vaarg.lower env in
-  let*? fn = Sysv_translate.go env in
+  let* fn = Sysv_translate.go env in
   !!fn

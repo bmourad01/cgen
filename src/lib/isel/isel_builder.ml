@@ -147,6 +147,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Hashtbl.set t.id2r ~key:id ~data:r
 
   let unop t l x o a =
+    let* () = match o with
+      | `uitof _ when not M.supports_uitof ->
+        C.failf
+          "In Isel_builder.unop: uitof is not supported by target %a"
+          Target.pp M.target ()
+      | _ -> !!() in
     let+ a = operand t a in
     let ty = infer_ty_unop o in
     (* Copy propagation *)

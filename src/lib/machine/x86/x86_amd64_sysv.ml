@@ -40,6 +40,7 @@ module Machine = struct
 
   let call_args_stack_size sz = (sz + 15) land (-16)
   let stack_args_offset = 16
+  let supports_uitof = false
 
   module Reg = Reg
   module Regvar = Regvar

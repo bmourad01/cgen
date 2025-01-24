@@ -3,6 +3,8 @@ open Regular.Std
 open Virtual
 open Sysv_common
 
+open Context.Syntax
+
 (* A block translation context. *)
 type transl = {
   ivec         : Abi.insn Vec.t; (* Pending instructions to be committed. *)
@@ -44,6 +46,7 @@ let transl_basic env (b : Insn.basic) : Abi.Insn.basic =
   let op = transl_operand env in
   match b with
   | `bop (x, b, l, r) -> `bop (x, b, op l, op r)
+  | `uop (_, `uitof _, _) -> assert false
   | `uop (x, u, a) -> `uop (x, u, op a)
   | `sel (x, t, c, l, r) -> `sel (x, t, c, op l, op r)
 
@@ -136,13 +139,15 @@ let rec transl_blk t env label s = match Seq.next s with
     commit_blk t label;
     let blks = Vec.to_list t.bvec in
     Vec.clear t.bvec;
-    blks
+    !!blks
   | Some (i, rest) -> match Insn.op i with
     | `vaarg _ ->
       (* If we performed the `vaarg` lowering pass beforehand, then
          this shouldn't fail. *)
       let v = Hashtbl.find_exn env.vaarg @@ Insn.label i in
       transl_vaarg t env label v rest
+    | `uop (x, `uitof (ti, tf), a) ->
+      transl_uitof t env label ti tf x a rest
     | _ ->
       (* No splitting needed. *)
       transl_insn env t.ivec i;
@@ -161,10 +166,68 @@ and transl_vaarg t env label v rest =
   List.iter v.vablks ~f:(Vec.push t.bvec);
   transl_blk t env v.vacont rest
 
+(* `uitof` requires us to do a bit of logic, since the hardware doesn't
+   support it natively.
+
+   XXX: it's possible to have this step delayed until right before
+   instruction selection. However, all of the potential optimizations
+   related to this instruction should've happened by now.
+*)
+and transl_uitof t env label ti tf x a rest =
+  let a = transl_operand env a in
+  match ti with
+  | `i64 ->
+    let* l1 = Context.Label.fresh in
+    let* l2 = Context.Label.fresh in
+    let* l3 = Context.Label.fresh in
+    (* br (%a < 0) @l1 @l2 *)
+    let* c, ci = Cv.Abi.binop (`slt ti) a (`int (Bv.zero, ti)) in
+    let br = `br (c, `label (l1, []), `label (l2, [])) in
+    let t' = {t with cins = [ci]; ctrl = br} in
+    commit_blk t' label;
+    t.args <- [];
+    (* @l1:
+         %sh = lsr.ti a, 1     ; divide by 2
+         %an = and.ti a, 1     ; is `a` odd?
+         %or_ = or.ti %sh, %an ; set LSB if `a` was odd
+         %k = sitof.ti.tf %or_ ; convert to float
+         %ad = add.tf %k, %k   ; now double it
+         jmp @l3(%ad)
+    *)
+    let* sh, shi = Cv.Abi.binop (`lsr_ ti) a (`int (Bv.one, ti)) in
+    let* an, ani = Cv.Abi.binop (`and_ ti) a (`int (Bv.one, ti)) in
+    let* or_, ori = Cv.Abi.binop (`or_ ti) (`var sh) (`var an) in
+    let* k, ki = Cv.Abi.unop (`sitof (ti, tf)) (`var or_) in
+    let* ad, adi = Cv.Abi.binop (`add (tf :> Type.basic)) (`var k) (`var k) in
+    let jmp = `jmp (`label (l3, [`var ad])) in
+    let t' = {t with cins = [shi; ani; ori; ki; adi]; ctrl = jmp} in
+    commit_blk t' l1;
+    (* @l2:
+         %k = sitof.ti.tf a
+         jmp @l3(%k)
+    *)
+    let* k, ki = Cv.Abi.unop (`sitof (ti, tf)) a in
+    let jmp = `jmp (`label (l3, [`var k])) in
+    let t' = {t with cins = [ki]; ctrl = jmp} in
+    commit_blk t' l2;
+    (* @l3(%arg):
+         x = copy %arg
+    *)
+    let* arg = Context.Var.fresh in
+    let* cpyi = Cv.Abi.insn (`uop (x, `copy (tf :> Type.basic), `var arg)) in
+    Vec.push t.ivec cpyi;
+    t.args <- [arg];
+    transl_blk t env l3 rest
+  | _ ->
+    let* ki = Cv.Abi.insn (`uop (x, `sitof (ti, tf), a)) in
+    Vec.push t.ivec ki;
+    transl_blk t env label rest
+
 let transl_blks env =
   let t = create_transl () in
   let entry = Func.entry env.fn in
-  Func.blks env.fn |> Seq.to_list |> List.bind ~f:(fun b ->
+  Func.blks env.fn |> Seq.to_list |>
+  Context.List.map ~f:(fun b ->
       let l = Blk.label b in
       (* Entry block copies the parameters. *)
       if Label.(l = entry) then
@@ -173,6 +236,7 @@ let transl_blks env =
       t.args <- Seq.to_list @@ Blk.args b;
       transl_ctrl t env l @@ Blk.ctrl b;
       transl_blk t env l @@ Blk.insns b)
+  >>| List.concat
 
 let make_dict env =
   let lnk = Func.linkage env.fn in
@@ -189,10 +253,12 @@ let go env =
     Vec.to_sequence_mutable env.params |>
     Seq.map ~f:(fun p -> p.pvar, p.pty) |>
     Seq.to_list in
-  let blks = transl_blks env in
+  let* blks = transl_blks env in
   let blks = match env.rsave with
     | Some r -> r.rsint :: r.rssse :: blks
     | None -> blks in
-  Abi.Func.create () ~slots ~args ~blks
-    ~name:(Func.name env.fn)
-    ~dict:(make_dict env)
+  let*? fn =
+    Abi.Func.create () ~slots ~args ~blks
+      ~name:(Func.name env.fn)
+      ~dict:(make_dict env) in
+  !!fn

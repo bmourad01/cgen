@@ -131,11 +131,19 @@ module Make(C : Context_intf.S) = struct
     let*! () = guard @@ Type.equal_basic xt zt in
     if not (Rv.equal x y) && can_lea_ty xt then
       !!![LEA (Oreg (x, xt), Omem (Abi (y, z), `i64))]
-    else
-      !!![
-        MOV (Oreg (x, xt), Oreg (y, yt));
-        ADD (Oreg (x, xt), Oreg (z, zt));
-      ]
+    else match xt with
+      | #Type.imm -> !!![
+          MOV (Oreg (x, xt), Oreg (y, yt));
+          ADD (Oreg (x, xt), Oreg (z, zt));
+        ]
+      | `f64 -> !!![
+          MOVSD (Oreg (x, xt), Oreg (y, yt));
+          ADDSD (Oreg (x, xt), Oreg (z, zt));
+        ]
+      | `f32 -> !!![
+          MOVSS (Oreg (x, xt), Oreg (y, yt));
+          ADDSS (Oreg (x, xt), Oreg (z, zt));
+        ]
 
   let add_mul_rr_scale_x_y_z s env =
     let*! x, xt = S.regvar env "x" in
@@ -162,6 +170,24 @@ module Make(C : Context_intf.S) = struct
         MOV (Oreg (x, xt), Oreg (y, yt));
         ADD (Oreg (x, xt), Oimm (z, zt));
       ]
+
+  let add_rf32_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! () = guard @@ Type.equal_basic xt yt in
+    let*! z = S.single env "z" in !!![
+      MOVSS (Oreg (x, xt), Oreg (y, yt));
+      ADDSS (Oreg (x, xt), Ofp32 z);
+    ]
+
+  let add_rf64_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! () = guard @@ Type.equal_basic xt yt in
+    let*! z = S.double env "z" in !!![
+      MOVSD (Oreg (x, xt), Oreg (y, yt));
+      ADDSD (Oreg (x, xt), Ofp64 z);
+    ]
 
   let sub_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
@@ -947,6 +973,57 @@ module Make(C : Context_intf.S) = struct
       !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y', yt'))]
     | _ -> !!None
 
+  let sitof_rr_x_y ti tf env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! () = guard (Type.equal_basic (tf :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (ti :> Type.basic) yt) in
+    match ti, tf with
+    | (`i8 | `i16), `f32 ->
+      let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOVZX (Oreg (tmp, `i32), Oreg (y, yt));
+        XORPD (Oreg (x, xt), Oreg (x, xt));
+        CVTSI2SS (Oreg (x, xt), Oreg (tmp, `i32));
+      ]
+    | `i32, `f32 ->
+      let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOV (Oreg (tmp, `i32), Oreg (y, yt));
+        XORPD (Oreg (x, xt), Oreg (x, xt));
+        CVTSI2SS (Oreg (x, xt), Oreg (tmp, `i64));
+      ]
+    | `i64, `f32 -> !!![
+        XORPD (Oreg (x, xt), Oreg (x, xt));
+        CVTSI2SS (Oreg (x, xt), Oreg (y, yt));
+      ]
+    | (`i8 | `i16), `f64 ->
+      let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOVZX (Oreg (tmp, `i32), Oreg (y, yt));
+        XORPD (Oreg (x, xt), Oreg (x, xt));
+        CVTSI2SD (Oreg (x, xt), Oreg (tmp, `i32));
+      ]
+    | `i32, `f64 ->
+      let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOV (Oreg (tmp, `i32), Oreg (y, yt));
+        XORPD (Oreg (x, xt), Oreg (x, xt));
+        CVTSI2SD (Oreg (x, xt), Oreg (tmp, `i64));
+      ]
+    | `i64, `f64 -> !!![
+        XORPD (Oreg (x, xt), Oreg (x, xt));
+        CVTSI2SD (Oreg (x, xt), Oreg (y, yt));
+      ]
+
+  let sitof_ri_x_y ti tf env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! () = guard (Type.equal_basic (tf :> Type.basic) xt) in
+    let*! () = guard (Type.equal_imm (ti :> Type.imm) yt) in
+    match Virtual.Eval.unop_int (`sitof (ti, tf)) y yt with
+    | Some `float f ->
+      !!![MOVSS (Oreg (x, xt), Ofp32 f)]
+    | Some `double d ->
+      !!![MOVSD (Oreg (x, xt), Ofp64 d)]
+    | _ -> !!None
+
   let call_sym_x env =
     let*! s, o = S.sym env "x" in
     !!![CALL (Osym (s, o))]
@@ -958,6 +1035,8 @@ module Make(C : Context_intf.S) = struct
     let add = [
       add_rr_x_y_z;
       add_ri_x_y_z;
+      add_rf32_x_y_z;
+      add_rf64_x_y_z;
     ]
 
     let sub = [
@@ -1126,6 +1205,11 @@ module Make(C : Context_intf.S) = struct
       itrunc_ri_x_y ty;
     ]
 
+    let sitof ti tf = [
+      sitof_rr_x_y ti tf;
+      sitof_ri_x_y ti tf;
+    ]
+
     let store_add = [
       store_rri_add_x_y_z;
       store_iri_add_x_y_z;
@@ -1218,6 +1302,8 @@ module Make(C : Context_intf.S) = struct
       move x (add `i16 y z) =>* Group.add;
       move x (add `i32 y z) =>* Group.add;
       move x (add `i64 y z) =>* Group.add;
+      move x (add `f32 y z) =>* Group.add;
+      move x (add `f64 y z) =>* Group.add;
     ]
 
     (* x = sub y z *)
@@ -1514,6 +1600,13 @@ module Make(C : Context_intf.S) = struct
           move x (itrunc ty y) =>* Group.itrunc ty;
         ]
 
+    (* x = sitof y *)
+    let sitof_basic =
+      [`i8; `i16; `i32; `i64] >* fun ty -> [
+          move x (sitof ty `f32 y) =>* Group.sitof ty `f32;
+          move x (sitof ty `f64 y) =>* Group.sitof ty `f64;
+        ]
+
     (* x = flag y
 
        This ends up being just a move. We handle the cases that
@@ -1665,6 +1758,7 @@ module Make(C : Context_intf.S) = struct
     ftrunc_basic @
     ifbits_basic @
     itrunc_basic @
+    sitof_basic @
     flag_basic @
     move_basic @
     store_vec_add @

@@ -16,6 +16,9 @@ module type S = sig
   *)
   val stack_args_offset : int
 
+  (** Does the machine natively support [uitof]? *)
+  val supports_uitof : bool
+
   (** A machine register. *)
   module Reg : sig
     type t [@@deriving bin_io, compare, equal, sexp]

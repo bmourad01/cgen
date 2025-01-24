@@ -773,5 +773,9 @@ module Insn = struct
     | CALL _
     | RET
     | UD2 -> true
+    (* Special case for zeroing a register. *)
+    | XOR (Oreg (a, _), Oreg (b, _))
+    | XORPD (Oreg (a, _), Oreg (b, _))
+      when Regvar.equal a b -> true
     | i -> writes_to_memory i
 end
