@@ -194,10 +194,20 @@ module Make(C : Context_intf.S) = struct
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.regvar env "z" in
     let*! () = guard @@ Type.equal_basic xt yt in
-    let*! () = guard @@ Type.equal_basic xt zt in !!![
-      MOV (Oreg (x, xt), Oreg (y, yt));
-      SUB (Oreg (x, xt), Oreg (z, zt));
-    ]
+    let*! () = guard @@ Type.equal_basic xt zt in
+    match xt with
+    | #Type.imm -> !!![
+        MOV (Oreg (x, xt), Oreg (y, yt));
+        SUB (Oreg (x, xt), Oreg (z, zt));
+      ]
+    | `f64 -> !!![
+        MOVSD (Oreg (x, xt), Oreg (y, yt));
+        SUBSD (Oreg (x, xt), Oreg (z, zt));
+      ]
+    | `f32 -> !!![
+        MOVSS (Oreg (x, xt), Oreg (y, yt));
+        SUBSS (Oreg (x, xt), Oreg (z, zt));
+      ]
 
   let sub_ri_x_y_z env =
     let*! x, xt = S.regvar env "x" in
@@ -295,6 +305,28 @@ module Make(C : Context_intf.S) = struct
       JMP (Jlbl no);
     ]
 
+  let jcc_rr_test_x_y ?(neg = false) env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let cc = if neg then Ce else Cne in !!![
+      TEST_ (Oreg (x, xt), Oreg (y, yt));
+      Jcc (cc, yes);
+      JMP (Jlbl no);
+    ]
+
+  let jcc_ri_test_x_y ?(neg = false) env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let cc = if neg then Ce else Cne in !!![
+      TEST_ (Oreg (x, xt), Oimm (Bv.to_int64 y, yt));
+      Jcc (cc, yes);
+      JMP (Jlbl no);
+    ]
+
   let jcc_rr_x_y cc env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -361,6 +393,26 @@ module Make(C : Context_intf.S) = struct
     let*! y, yt = S.regvar env "y" in
     let cc = if neg then Cns else Cs in !!![
       TEST_ (Oreg (y, yt), Oreg (y, yt));
+      SETcc (cc, Oreg (x, `i8));
+    ]
+
+  (* Default to 8-bit *)
+  let setcc_rr_test_x_y_z ?(neg = false) env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let cc = if neg then Ce else Cne in !!![
+      TEST_ (Oreg (y, yt), Oreg (z, zt));
+      SETcc (cc, Oreg (x, `i8));
+    ]
+
+  (* Default to 8-bit *)
+  let setcc_ri_test_x_y_z ?(neg = false) env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let cc = if neg then Ce else Cne in !!![
+      TEST_ (Oreg (y, yt), Oimm (Bv.to_int64 z, zt));
       SETcc (cc, Oreg (x, `i8));
     ]
 
@@ -1130,6 +1182,11 @@ module Make(C : Context_intf.S) = struct
       div_rem_rr_x_y_z;
     ]
 
+    let setcc_test ?(neg = false) () = [
+      setcc_rr_test_x_y_z ~neg;
+      setcc_ri_test_x_y_z ~neg;
+    ]
+
     let setcc cc = [
       setcc_rr_x_y_z cc;
       setcc_ri_x_y_z cc;
@@ -1254,6 +1311,11 @@ module Make(C : Context_intf.S) = struct
       jmp_sym_x;
     ]
 
+    let br_test ?(neg = false) () = [
+      jcc_rr_test_x_y ~neg;
+      jcc_ri_test_x_y ~neg;
+    ]
+
     let br_icmp cc = [
       jcc_rr_x_y cc;
       jcc_ri_x_y cc;
@@ -1331,6 +1393,8 @@ module Make(C : Context_intf.S) = struct
       move x (sub `i16 y z) =>* Group.sub;
       move x (sub `i32 y z) =>* Group.sub;
       move x (sub `i64 y z) =>* Group.sub;
+      move x (sub `f32 y z) =>* Group.sub;
+      move x (sub `f64 y z) =>* Group.sub;
     ]
 
     (* x = and y, z *)
@@ -1467,6 +1531,8 @@ module Make(C : Context_intf.S) = struct
        `i64, i64 0L;
       ] >* fun (ty, zero) ->
         let ty' = (ty :> Type.basic) in [
+          move x (ne ty' (and_ ty y z) zero) =>* Group.setcc_test (); (* x = (y & z) != 0 *)
+          move x (eq ty' (and_ ty y z) zero) =>* Group.setcc_test () ~neg:true; (* x = (y & z) == 0 *)
           move x (eq ty' y zero) => setcc_r_zero_x_y; (* x = y == 0 *)
           move x (eq ty' zero y) => setcc_r_zero_x_y; (* x = 0 == y *)
           move x (ne ty' y zero) => setcc_r_zero_x_y ~neg:true; (* x = y != 0 *)
@@ -1674,7 +1740,9 @@ module Make(C : Context_intf.S) = struct
       jmp x =>* Group.jmp;
     ]
 
-    (* br (x == 0), yes, no
+    (* br ((x & y) == 0), yes, no
+       br ((x & y) != 0), yes, no
+       br (x == 0), yes, no
        br (x != 0), yes, no
     *)
     let br_zero =
@@ -1684,10 +1752,15 @@ module Make(C : Context_intf.S) = struct
        `i64, i64 0L;
       ] >* fun (ty, zero) ->
         let ty' = (ty :> Type.basic) in [
+          (* Test two operands. *)
+          br (ne ty' (and_ ty x y) zero) yes no =>* Group.br_test ();
+          br (eq ty' (and_ ty x y) zero) yes no =>* Group.br_test () ~neg:true;
+          (* Test against self for ZF. *)
           br (eq ty' x zero) yes no => jcc_r_zero_x;
           br (eq ty' zero x) yes no => jcc_r_zero_x;
           br (ne ty' x zero) yes no => jcc_r_zero_x ~neg:true;
           br (ne ty' zero x) yes no => jcc_r_zero_x ~neg:true;
+          (* Test against self for SF. *)
           br (slt ty x zero) yes no => jcc_r_less_than_zero_x;
           br (sge ty x zero) yes no => jcc_r_less_than_zero_x ~neg:true;
         ]
