@@ -8,6 +8,17 @@ let (>*) x f = List.bind x ~f
 let bty ty = (ty :> Type.basic)
 let mty ty = (ty :> X86_amd64_common.Insn.memty)
 
+external float_to_bits : float -> int64 = "cgen_bits_of_float"
+
+let ftosi_ty = function
+  | `i8 | `i16 | `i32 -> `i32
+  | ty -> ty
+
+let ftoui_ty = function
+  | `i8 | `i16 -> `i32
+  | `i32 -> `i64
+  | ty -> ty
+
 module Make(C : Context_intf.S) = struct
   open C.Syntax
   open Isel_rewrite.Rule(C)
@@ -748,6 +759,194 @@ module Make(C : Context_intf.S) = struct
         !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y, xt'))]
       | _ -> !!None
 
+  let fext_rr_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    match ty, xt, yt with
+    | `f32, `f32, `f32 ->
+      !!![MOVSS (Oreg (x, xt), Oreg (y, yt))]
+    | `f64, `f64, `f64 ->
+      !!![MOVSD (Oreg (x, xt), Oreg (y, yt))]
+    | `f64, `f64, `f32 ->
+      !!![CVTSS2SD (Oreg (x, xt), Oreg (y, yt))]
+    | _ -> !!None
+
+  let fext_rf32_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.single env "y" in
+    match ty, xt with
+    | `f32, `f32 ->
+      !!![MOVSS (Oreg (x, xt), Ofp32 y)]
+    | `f64, `f64 ->
+      let y' = Float32.to_float y in
+      !!![MOVSD (Oreg (x, xt), Ofp64 y')]
+    | _ -> !!None
+
+  let fext_rf64_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.double env "y" in
+    match ty, xt with
+    | `f64, `f64 ->
+      !!![MOVSD (Oreg (x, xt), Ofp64 y)]
+    | _ -> !!None
+
+  let fibits_rr_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    match ty, xt, yt with
+    | `f32, `f32, `i32 ->
+      !!![MOVD (Oreg (x, xt), Oreg (y, yt))]
+    | `f64, `f64, `i64 ->
+      !!![MOVQ (Oreg (x, xt), Oreg (y, yt))]
+    | _ -> !!None
+
+  let fibits_ri_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! () = guard (Type.equal_basic (ty :> Type.basic) xt) in
+    match Virtual.Eval.unop_int (`fibits ty) y yt with
+    | Some `float f ->
+      !!![MOVSS (Oreg (x, xt), Ofp32 f)]
+    | Some `double d ->
+      !!![MOVSD (Oreg (x, xt), Ofp64 d)]
+    | _ -> !!None
+
+  let ftosi_rr_x_y tf ti env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (tf :> Type.basic) yt) in
+    let xt' = ftosi_ty xt in
+    match tf with
+    | `f32 ->
+      !!![CVTSS2SI (Oreg (x, xt'), Oreg (y, yt))]
+    | `f64 ->
+      !!![CVTSD2SI (Oreg (x, xt'), Oreg (y, yt))]
+    | _ -> !!None
+
+  let ftosi_rf32_x_y ti env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.single env "y" in
+    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    match Virtual.Eval.unop_single (`ftosi (`f32, ti)) y with
+    | Some `int (y', yt) ->
+      !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y', yt))]
+    | _ -> !!None
+
+  let ftosi_rf64_x_y ti env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.double env "y" in
+    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    match Virtual.Eval.unop_double (`ftosi (`f64, ti)) y with
+    | Some `int (y', yt) ->
+      !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y', yt))]
+    | _ -> !!None
+
+  let ftoui_rr_x_y tf ti env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (tf :> Type.basic) yt) in
+    let xt' = ftoui_ty xt in
+    match tf with
+    | `f32 ->
+      !!![CVTSS2SI (Oreg (x, xt'), Oreg (y, yt))]
+    | `f64 ->
+      !!![CVTSD2SI (Oreg (x, xt'), Oreg (y, yt))]
+    | _ -> !!None
+
+  let ftoui_rf32_x_y ti env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.single env "y" in
+    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    match Virtual.Eval.unop_single (`ftoui (`f32, ti)) y with
+    | Some `int (y', yt) ->
+      !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y', yt))]
+    | _ -> !!None
+
+  let ftoui_rf64_x_y ti env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.double env "y" in
+    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    match Virtual.Eval.unop_double (`ftoui (`f64, ti)) y with
+    | Some `int (y', yt) ->
+      !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y', yt))]
+    | _ -> !!None
+
+  let ftrunc_rr_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    match ty, xt, yt with
+    | `f64, `f64, `f64 ->
+      !!![MOVSD (Oreg (x, xt), Oreg (y, yt))]
+    | `f32, `f32, `f32 ->
+      !!![MOVSS (Oreg (x, xt), Oreg (y, yt))]
+    | `f32, `f32, `f64 ->
+      !!![CVTSD2SS (Oreg (x, xt), Oreg (y, yt))]
+    | _ -> !!None
+
+  let ftrunc_rf32_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.single env "y" in
+    match ty, xt with
+    | `f32, `f32 ->
+      !!![MOVSS (Oreg (x, xt), Ofp32 y)]
+    | _ -> !!None
+
+  let ftrunc_rf64_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.double env "y" in
+    match ty, xt with
+    | `f32, `f32 ->
+      !!![MOVSS (Oreg (x, xt), Ofp64 y)]
+    | `f64, `f64 ->
+      !!![MOVSD (Oreg (x, xt), Ofp64 y)]
+    | _ -> !!None
+
+  let ifbits_rr_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! () = guard (Type.equal_basic (ty :> Type.basic) xt) in
+    match ty, yt with
+    | `i32, `f32 ->
+      !!![MOVD (Oreg (x, xt), Oreg (y, yt))]
+    | `i64, `f64 ->
+      !!![MOVQ (Oreg (x, xt), Oreg (y, yt))]
+    | _ -> !!None
+
+  let ifbits_rf32_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.single env "y" in
+    match ty, xt with
+    | `i32, `i32 ->
+      let y' = Int64.(of_int32 (Float32.bits y) land 0xFFFFFFFFL) in
+      !!![MOV (Oreg (x, xt), Oimm (y', `i32))]
+    | _ -> !!None
+
+  let ifbits_rf64_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.double env "y" in
+    match ty, xt with
+    | `i64, `i64 ->
+      !!![MOV (Oreg (x, xt), Oimm (float_to_bits y, `i64))]
+    | _ -> !!None
+
+  let itrunc_rr_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! () = guard (Type.equal_basic (ty :> Type.basic) xt) in
+    (* Assume the width of the destination. *)
+    !!![MOV (Oreg (x, xt), Oreg (y, xt))]
+
+  let itrunc_ri_x_y ty env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! () = guard (Type.equal_basic (ty :> Type.basic) xt) in
+    match Virtual.Eval.unop_int (`itrunc ty) y yt with
+    | Some `int (y', yt') ->
+      !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 y', yt'))]
+    | _ -> !!None
+
   let call_sym_x env =
     let*! s, o = S.sym env "x" in
     !!![CALL (Osym (s, o))]
@@ -885,6 +1084,46 @@ module Make(C : Context_intf.S) = struct
     let zext = [
       move_rr_x_y;
       move_ri_x_y;
+    ]
+
+    let fext ty = [
+      fext_rr_x_y ty;
+      fext_rf32_x_y ty;
+      fext_rf64_x_y ty;
+    ]
+
+    let fibits ty = [
+      fibits_rr_x_y ty;
+      fibits_ri_x_y ty;
+    ]
+
+    let ftosi tf ti = [
+      ftosi_rr_x_y tf ti;
+      ftosi_rf32_x_y ti;
+      ftosi_rf64_x_y ti;
+    ]
+
+    let ftoui tf ti = [
+      ftoui_rr_x_y tf ti;
+      ftoui_rf32_x_y ti;
+      ftoui_rf64_x_y ti;
+    ]
+
+    let ftrunc ty = [
+      ftrunc_rr_x_y ty;
+      ftrunc_rf32_x_y ty;
+      ftrunc_rf64_x_y ty;
+    ]
+
+    let ifbits ty = [
+      ifbits_rr_x_y ty;
+      ifbits_rf32_x_y ty;
+      ifbits_rf64_x_y ty;
+    ]
+
+    let itrunc ty = [
+      itrunc_rr_x_y ty;
+      itrunc_ri_x_y ty;
     ]
 
     let store_add = [
@@ -1229,6 +1468,52 @@ module Make(C : Context_intf.S) = struct
       move x (zext `i64 y) =>* Group.zext;
     ]
 
+    (* x = fext y *)
+    let fext_basic = [
+      move x (fext `f32 y) =>* Group.fext `f32;
+      move x (fext `f64 y) =>* Group.fext `f64;
+    ]
+
+    (* x = fibits y *)
+    let fibits_basic = [
+      move x (fibits `f32 y) =>* Group.fibits `f32;
+      move x (fibits `f64 y) =>* Group.fibits `f64;
+    ]
+
+    (* x = ftosi y *)
+    let ftosi_basic =
+      [`i8; `i16; `i32; `i64] >* fun ty ->
+        let ty' = (ty :> Type.imm) in [
+          move x (ftosi `f64 ty' y) =>* Group.ftosi `f64 ty;
+          move x (ftosi `f32 ty' y) =>* Group.ftosi `f32 ty;
+        ]
+
+    (* x = ftoui y *)
+    let ftoui_basic =
+      [`i8; `i16; `i32; `i64] >* fun ty ->
+        let ty' = (ty :> Type.imm) in [
+          move x (ftoui `f64 ty' y) =>* Group.ftoui `f64 ty;
+          move x (ftoui `f32 ty' y) =>* Group.ftoui `f32 ty;
+        ]
+
+    (* x = ftrunc y *)
+    let ftrunc_basic = [
+      move x (ftrunc `f32 y) =>* Group.ftrunc `f32;
+      move x (ftrunc `f64 y) =>* Group.ftrunc `f64;
+    ]
+
+    (* x = ifbits y *)
+    let ifbits_basic = [
+      move x (ifbits `i32 y) =>* Group.ifbits `i64;
+      move x (ifbits `i64 y) =>* Group.ifbits `i64;
+    ]
+
+    (* x = itrunc y *)
+    let itrunc_basic =
+      [`i8; `i16; `i32; `i64] >* fun ty -> [
+          move x (itrunc ty y) =>* Group.itrunc ty;
+        ]
+
     (* x = flag y
 
        This ends up being just a move. We handle the cases that
@@ -1373,6 +1658,13 @@ module Make(C : Context_intf.S) = struct
     not_basic @
     sext_basic @
     zext_basic @
+    fext_basic @
+    fibits_basic @
+    ftosi_basic @
+    ftoui_basic @
+    ftrunc_basic @
+    ifbits_basic @
+    itrunc_basic @
     flag_basic @
     move_basic @
     store_vec_add @

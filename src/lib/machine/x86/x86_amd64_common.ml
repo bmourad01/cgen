@@ -256,8 +256,14 @@ module Insn = struct
       Format.fprintf ppf "%a:%a" Regvar.pp r Type.pp_basic t
     | Oregv r ->
       Format.fprintf ppf "%a" Regvar.pp r
-    | Oimm (i, t) ->
-      Format.fprintf ppf "0x%Lx_%a" i Type.pp_imm t
+    | Oimm (i, `i64) ->
+      Format.fprintf ppf "0x%Lx_%a" i Type.pp_imm `i64
+    | Oimm (i, `i32) ->
+      Format.fprintf ppf "0x%Lx_%a" Int64.(i land 0xFFFFFFFFL) Type.pp_imm `i32
+    | Oimm (i, `i16) ->
+      Format.fprintf ppf "0x%Lx_%a" Int64.(i land 0xFFFFL) Type.pp_imm `i16
+    | Oimm (i, `i8) ->
+      Format.fprintf ppf "0x%Lx_%a" Int64.(i land 0xFFL) Type.pp_imm `i8
     | Omem (a, t) ->
       Format.fprintf ppf "%a [%a]" pp_memty t pp_amode a
     | Osym (s, o) when o < 0 ->
@@ -323,9 +329,11 @@ module Insn = struct
     | CQO
     | CWD
     | CVTSD2SI of operand * operand
+    | CVTSD2SS of operand * operand
     | CVTSI2SD of operand * operand
     | CVTSI2SS of operand * operand
     | CVTSS2SI of operand * operand
+    | CVTSS2SD of operand * operand
     | DEC      of operand
     | DIV      of operand
     | DIVSD    of operand * operand
@@ -396,9 +404,11 @@ module Insn = struct
     | CQO -> Format.fprintf ppf "cqo"
     | CWD -> Format.fprintf ppf "cwd"
     | CVTSD2SI (a, b) -> binary "cvtsd2si" a b
+    | CVTSD2SS (a, b) -> binary "cvtsd2ss" a b
     | CVTSI2SD (a, b) -> binary "cvtsi2sd" a b
     | CVTSI2SS (a, b) -> binary "cvtsi2ss" a b
     | CVTSS2SI (a, b) -> binary "cvtss2si" a b
+    | CVTSS2SD (a, b) -> binary "cvtss2sd" a b
     | DEC a -> unary "dec" a
     | DIV a -> unary "div" a
     | DIVSD (a, b) -> binary "divsd" a b
@@ -544,9 +554,11 @@ module Insn = struct
       Set.union (rset' [`rflags])
         (Set.union (rset_reg [a]) (rset [b]))
     | CVTSD2SI (_, a)
+    | CVTSD2SS (_, a)
     | CVTSI2SD (_, a)
     | CVTSI2SS (_, a)
     | CVTSS2SI (_, a)
+    | CVTSS2SD (_, a)
     | DEC a
     | IMUL3 (_, a, _)
     | INC a
@@ -616,9 +628,11 @@ module Insn = struct
     | ADDSS (a, _)
     | CMOVcc (_, a, _)
     | CVTSD2SI (a, _)
+    | CVTSD2SS (a, _)
     | CVTSI2SD (a, _)
     | CVTSI2SS (a, _)
     | CVTSS2SI (a, _)
+    | CVTSS2SD (a, _)
     | DIVSD (a, _)
     | DIVSS (a, _)
     | LEA (a, _)
@@ -724,9 +738,11 @@ module Insn = struct
     | CQO
     | CWD
     | CVTSD2SI _ (* illegal *)
+    | CVTSD2SS _ (* illegal *)
     | CVTSI2SD _ (* illegal *)
-    | CVTSS2SI _ (* illegal *)
     | CVTSI2SS _ (* illegal *)
+    | CVTSS2SI _ (* illegal *)
+    | CVTSS2SD _ (* illegal *)
     | DIV _
     | IDIV _
     | IMUL1 _
