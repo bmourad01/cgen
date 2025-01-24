@@ -14,7 +14,14 @@ let init_rpo cfg =
     | Some i -> i
 
 let needs_stack_frame fn =
+  (* Takes variadic args. *)
   Func.variadic fn ||
+  (* Takes explicit stack parameters. *)
+  Func.args fn |> Seq.exists ~f:(function
+      | `stk _, _ -> true
+      | _ -> false) ||
+  (* Explicitly calls a function or requests a pointer
+     to the stack parameters. *)
   Func.blks fn |> Seq.exists ~f:(fun b ->
       Blk.insns b |> Seq.exists ~f:(fun i ->
           match Insn.op i with

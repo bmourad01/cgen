@@ -352,11 +352,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let stkparam t l (x, o, ty) =
     let ty' = (ty :> ty) in
     let w = Target.word M.target in
+    let wi = (w :> Type.imm) in
+    let wb = (w :> Type.basic) in
     let xid = new_var t x ty' in
-    let rid = new_node ~ty:word t @@ Rv (Rv.reg R.sp) in
-    let o = Bv.(int o mod modulus (Type.sizeof_imm_base w)) in
-    let oid = new_node ~ty:word t @@ N (Oint (o, (w :> Type.imm)), []) in
-    let aid = new_node ~ty:word t @@ N (Obinop (`add (w :> Type.basic)), [rid; oid]) in
+    (* Use the frame pointer. It will make our lives much easier. *)
+    let rid = new_node ~ty:word t @@ Rv (Rv.reg R.fp) in
+    let o' = o + M.stack_args_offset in
+    let o = Bv.(int o' mod modulus (Type.sizeof_imm_base w)) in
+    let oid = new_node ~ty:word t @@ N (Oint (o, wi), []) in
+    let aid = new_node ~ty:word t @@ N (Obinop (`add wb), [rid; oid]) in
     let lid = new_node ~ty:word t @@ N (Oload ty, [aid]) in
     ignore @@ new_node ~l t @@ N (Omove, [xid; lid]);
     !!()
