@@ -285,6 +285,16 @@ module Make(C : Context_intf.S) = struct
       JMP (Jlbl no);
     ]
 
+  let jcc_r_less_than_zero_x ?(neg = false) env =
+    let*! x, xt = S.regvar env "x" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let cc = if neg then Cns else Cs in !!![
+      TEST_ (Oreg (x, xt), Oreg (x, xt));
+      Jcc (cc, yes);
+      JMP (Jlbl no);
+    ]
+
   let jcc_rr_x_y cc env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -341,6 +351,15 @@ module Make(C : Context_intf.S) = struct
     let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let cc = if neg then Cne else Ce in !!![
+      TEST_ (Oreg (y, yt), Oreg (y, yt));
+      SETcc (cc, Oreg (x, `i8));
+    ]
+
+  (* Default to 8-bit *)
+  let setcc_r_less_than_zero_x_y ?(neg = false) env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let cc = if neg then Cns else Cs in !!![
       TEST_ (Oreg (y, yt), Oreg (y, yt));
       SETcc (cc, Oreg (x, `i8));
     ]
@@ -1442,15 +1461,18 @@ module Make(C : Context_intf.S) = struct
        x = y != 0
     *)
     let setcc_zero =
-      [`i8,  i8 0;
+      [`i8,  i8  0;
        `i16, i16 0;
        `i32, i32 0l;
        `i64, i64 0L;
-      ] >* fun (ty, zero) -> [
-          move x (eq ty y zero) => setcc_r_zero_x_y; (* x = y == 0 *)
-          move x (eq ty zero y) => setcc_r_zero_x_y; (* x = 0 == y *)
-          move x (ne ty y zero) => setcc_r_zero_x_y; (* x = y != 0 *)
-          move x (ne ty zero y) => setcc_r_zero_x_y; (* x = 0 != y *)
+      ] >* fun (ty, zero) ->
+        let ty' = (ty :> Type.basic) in [
+          move x (eq ty' y zero) => setcc_r_zero_x_y; (* x = y == 0 *)
+          move x (eq ty' zero y) => setcc_r_zero_x_y; (* x = 0 == y *)
+          move x (ne ty' y zero) => setcc_r_zero_x_y ~neg:true; (* x = y != 0 *)
+          move x (ne ty' zero y) => setcc_r_zero_x_y ~neg:true; (* x = 0 != y *)
+          move x (slt ty y zero) => setcc_r_less_than_zero_x_y; (* x = y <$ 0 *)
+          move x (sge ty y zero) => setcc_r_less_than_zero_x_y ~neg:true; (* x = y >=$ 0 *)
         ]
 
     (* x = cmp y, z *)
@@ -1656,15 +1678,18 @@ module Make(C : Context_intf.S) = struct
        br (x != 0), yes, no
     *)
     let br_zero =
-      [`i8,  i8 0;
+      [`i8,  i8  0;
        `i16, i16 0;
        `i32, i32 0l;
        `i64, i64 0L;
-      ] >* fun (ty, zero) -> [
-          br (eq ty x zero) yes no => jcc_r_zero_x;
-          br (eq ty zero x) yes no => jcc_r_zero_x;
-          br (ne ty x zero) yes no => jcc_r_zero_x ~neg:true;
-          br (ne ty zero x) yes no => jcc_r_zero_x ~neg:true;
+      ] >* fun (ty, zero) ->
+        let ty' = (ty :> Type.basic) in [
+          br (eq ty' x zero) yes no => jcc_r_zero_x;
+          br (eq ty' zero x) yes no => jcc_r_zero_x;
+          br (ne ty' x zero) yes no => jcc_r_zero_x ~neg:true;
+          br (ne ty' zero x) yes no => jcc_r_zero_x ~neg:true;
+          br (slt ty x zero) yes no => jcc_r_less_than_zero_x;
+          br (sge ty x zero) yes no => jcc_r_less_than_zero_x ~neg:true;
         ]
 
     (* br (icmp x, y), yes, no *)

@@ -291,6 +291,8 @@ module Insn = struct
     | Cle (* ZF | SF<>OF *)
     | Cp  (* PF *)
     | Cnp (* ~PF *)
+    | Cs  (* SF *)
+    | Cns (* ~SF *)
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_cc ppf = function
@@ -306,6 +308,8 @@ module Insn = struct
     | Cle -> Format.fprintf ppf "le"
     | Cp  -> Format.fprintf ppf "p"
     | Cnp -> Format.fprintf ppf "np"
+    | Cs  -> Format.fprintf ppf "s"
+    | Cns -> Format.fprintf ppf "ns"
 
   (* [Jind (a, ls)]: indirect jump to [o], with an optional set of
      static labels [ls].
