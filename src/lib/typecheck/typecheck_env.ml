@@ -29,9 +29,11 @@ let target t = t.target
 let add_data d env =
   let name = Data.name d in
   let word = Target.word env.target in
-  match Map.add env.denv ~key:name ~data:(Data.typeof d ~word) with
-  | `Duplicate -> Or_error.errorf "Redefinition of data $%s" name
-  | `Ok denv -> Ok {env with denv}
+  if Map.mem env.fenv name then
+    Or_error.errorf "Tried to redefine function $%s as data" name
+  else match Map.add env.denv ~key:name ~data:(Data.typeof d ~word) with
+    | `Duplicate -> Or_error.errorf "Redefinition of data $%s" name
+    | `Ok denv -> Ok {env with denv}
 
 (* If we don't have the data defined in the module, then assume it is
    external (i.e. it is linked with our program a posteriori), and that
@@ -43,9 +45,11 @@ let datanames env =
 
 let add_fn fn env =
   let name = Func.name fn in
-  match Map.add env.fenv ~key:name ~data:(Func.typeof fn) with
-  | `Duplicate -> Or_error.errorf "Redefinition of function $%s" name
-  | `Ok fenv -> Ok {env with fenv}
+  if Map.mem env.denv name then
+    Or_error.errorf "Tried to redefine data $%s as a function" name
+  else match Map.add env.fenv ~key:name ~data:(Func.typeof fn) with
+    | `Duplicate -> Or_error.errorf "Redefinition of function $%s" name
+    | `Ok fenv -> Ok {env with fenv}
 
 (* If we don't have the function defined in the module, then assume
    it is external (i.e. it is linked with our program a posteriori),
