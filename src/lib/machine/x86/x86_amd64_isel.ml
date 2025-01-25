@@ -1707,7 +1707,7 @@ end = struct
 
     (* x = add y, z *)
     let add_basic = [
-      move x (add `i8 y z) =>* Group.add;
+      move x (add `i8  y z) =>* Group.add;
       move x (add `i16 y z) =>* Group.add;
       move x (add `i32 y z) =>* Group.add;
       move x (add `i64 y z) =>* Group.add;
@@ -1717,7 +1717,7 @@ end = struct
 
     (* x = sub y z *)
     let sub_basic = [
-      move x (sub `i8 y z) =>* Group.sub;
+      move x (sub `i8  y z) =>* Group.sub;
       move x (sub `i16 y z) =>* Group.sub;
       move x (sub `i32 y z) =>* Group.sub;
       move x (sub `i64 y z) =>* Group.sub;
@@ -1727,7 +1727,7 @@ end = struct
 
     (* x = and y, z *)
     let and_basic = [
-      move x (and_ `i8 y z) =>* Group.and_;
+      move x (and_ `i8  y z) =>* Group.and_;
       move x (and_ `i16 y z) =>* Group.and_;
       move x (and_ `i32 y z) =>* Group.and_;
       move x (and_ `i64 y z) =>* Group.and_;
@@ -1735,7 +1735,7 @@ end = struct
 
     (* x = or y, z *)
     let or_basic = [
-      move x (or_ `i8 y z) =>* Group.or_;
+      move x (or_ `i8  y z) =>* Group.or_;
       move x (or_ `i16 y z) =>* Group.or_;
       move x (or_ `i32 y z) =>* Group.or_;
       move x (or_ `i64 y z) =>* Group.or_;
@@ -1743,7 +1743,7 @@ end = struct
 
     (* x = xor y, z *)
     let xor_basic = [
-      move x (xor `i8 y z) =>* Group.xor;
+      move x (xor `i8  y z) =>* Group.xor;
       move x (xor `i16 y z) =>* Group.xor;
       move x (xor `i32 y z) =>* Group.xor;
       move x (xor `i64 y z) =>* Group.xor;
@@ -1751,7 +1751,7 @@ end = struct
 
     (* x = lsl y, z *)
     let lsl_basic = [
-      move x (lsl_ `i8 y z) =>* Group.lsl_;
+      move x (lsl_ `i8  y z) =>* Group.lsl_;
       move x (lsl_ `i16 y z) =>* Group.lsl_;
       move x (lsl_ `i32 y z) =>* Group.lsl_;
       move x (lsl_ `i64 y z) =>* Group.lsl_;
@@ -1759,7 +1759,7 @@ end = struct
 
     (* x = lsr y, z *)
     let lsr_basic = [
-      move x (lsr_ `i8 y z) =>* Group.lsr_;
+      move x (lsr_ `i8  y z) =>* Group.lsr_;
       move x (lsr_ `i16 y z) =>* Group.lsr_;
       move x (lsr_ `i32 y z) =>* Group.lsr_;
       move x (lsr_ `i64 y z) =>* Group.lsr_;
@@ -1767,7 +1767,7 @@ end = struct
 
     (* x = asr y, z *)
     let asr_basic = [
-      move x (asr_ `i8 y z) =>* Group.asr_;
+      move x (asr_ `i8  y z) =>* Group.asr_;
       move x (asr_ `i16 y z) =>* Group.asr_;
       move x (asr_ `i32 y z) =>* Group.asr_;
       move x (asr_ `i64 y z) =>* Group.asr_;
@@ -1775,16 +1775,16 @@ end = struct
 
     (* x = rol y, z *)
     let rol_basic = [
-      move x (rol `i8 y z) =>* Group.rol;
-      move x (rol  `i16 y z) =>* Group.rol;
+      move x (rol `i8  y z) =>* Group.rol;
+      move x (rol `i16 y z) =>* Group.rol;
       move x (rol `i32 y z) =>* Group.rol;
       move x (rol `i64 y z) =>* Group.rol;
     ]
 
     (* x = ror y, z *)
     let ror_basic = [
-      move x (ror `i8 y z) =>* Group.ror;
-      move x (ror  `i16 y z) =>* Group.ror;
+      move x (ror `i8  y z) =>* Group.ror;
+      move x (ror `i16 y z) =>* Group.ror;
       move x (ror `i32 y z) =>* Group.ror;
       move x (ror `i64 y z) =>* Group.ror;
     ]
