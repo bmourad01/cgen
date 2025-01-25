@@ -10,6 +10,7 @@ let bty ty = (ty :> Type.basic)
 let mty ty = (ty :> X86_amd64_common.Insn.memty)
 
 external float_to_bits : float -> int64 = "cgen_bits_of_float"
+external float_of_bits : int64 -> float = "cgen_float_of_bits"
 
 let ftosi_ty = function
   | `i8 | `i16 | `i32 -> `i32
@@ -976,10 +977,38 @@ end = struct
     | Some `int (i, _) ->
       !!![MOV (Oreg (x, xt), Oimm (Bv.to_int64 i, yt))]
     | _ ->
-      !!![
-        MOV (Oreg (x, xt), Oimm (Bv.to_int64 y, yt));
-        NEG (Oreg (x, xt));
+      (* shouldn't fail *)
+      !!None
+
+  (* NB: this is a bit of a kludge, which will require special handling
+     after isel. *)
+  let fneg_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    match xt with
+    | `f32 -> !!![
+        MOVSS (Oreg (x, xt), Oreg (y, yt));
+        XORPS (Oreg (x, xt), Ofp32 (Float32.of_bits 0x8000_0000l));
       ]
+    | `f64 -> !!![
+        MOVSD (Oreg (x, xt), Oreg (y, yt));
+        XORPD (Oreg (x, xt), Ofp64 (float_of_bits 0x8000_0000_0000_0000L));
+      ]
+    | _ -> !!None
+
+  let fneg_fp32_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.single env "y" in
+    let*! () = guard (Type.equal_basic xt `f32) in !!![
+      MOVSS (Oreg (x, xt), Ofp32 (Float32.neg y));
+    ]
+
+  let fneg_fp64_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.double env "y" in
+    let*! () = guard (Type.equal_basic xt `f64) in !!![
+      MOVSD (Oreg (x, xt), Ofp64 (Float.neg y));
+    ]
 
   let not_r_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -999,6 +1028,66 @@ end = struct
         MOV (Oreg (x, xt), Oimm (Bv.to_int64 y, yt));
         NOT (Oreg (x, xt));
       ]
+
+  let clz_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in !!![
+      LZCNT (Oreg (x, xt), Oreg (y, yt));
+    ]
+
+  (* Idea:
+
+     Zero-extend to 16 bits, shift left by 8, and with 255,
+     and then do the LZCNT. The operand size will be the result
+     in the case of the input being zero, as specified in the
+     manual, although we reserve that the result can be undefined.
+  *)
+  let clz8_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let* tmp1 = C.Var.fresh >>| Rv.var in
+    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+      MOVZX (Oreg (tmp1, `i16), Oreg (y, yt));
+      SHL (Oreg (tmp1, `i16), Oimm (8L, `i8));
+      AND (Oreg (tmp1, `i16), Oimm (0xFFL, `i16));
+      LZCNT (Oreg (tmp2, `i16), Oreg (tmp1, `i16));
+      MOV (Oreg (x, xt), Oreg (tmp2, `i8));
+    ]
+
+  let ctz_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in !!![
+      TZCNT (Oreg (x, xt), Oreg (y, yt));
+    ]
+
+  (* Same idea as the clz case, but we fill the upper 8 bits. *)
+  let ctz8_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let* tmp1 = C.Var.fresh >>| Rv.var in
+    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+      MOVZX (Oreg (tmp1, `i16), Oreg (y, yt));
+      AND (Oreg (tmp1, `i16), Oimm (0xFF00L, `i16));
+      TZCNT (Oreg (tmp2, `i16), Oreg (tmp1, `i16));
+      MOV (Oreg (x, xt), Oreg (tmp2, `i8));
+    ]
+
+  let popcnt_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in !!![
+      POPCNT (Oreg (x, xt), Oreg (y, yt));
+    ]
+
+  (* Here we should be safe with just a zero-extend. *)
+  let popcnt8_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let* tmp1 = C.Var.fresh >>| Rv.var in
+    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+      MOVZX (Oreg (tmp1, `i16), Oreg (y, yt));
+      POPCNT (Oreg (tmp2, `i16), Oreg (tmp1, `i16));
+      MOV (Oreg (x, xt), Oreg (tmp2, `i8));
+    ]
 
   let sext_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -1435,9 +1524,39 @@ end = struct
       neg_i_x_y;
     ]
 
+    let fneg = [
+      fneg_r_x_y;
+      fneg_fp32_x_y;
+      fneg_fp64_x_y;
+    ]
+
     let not_ = [
       not_r_x_y;
       not_i_x_y;
+    ]
+
+    let clz = [
+      clz_r_x_y;
+    ]
+
+    let clz8 = [
+      clz8_r_x_y;
+    ]
+
+    let ctz = [
+      ctz_r_x_y;
+    ]
+
+    let ctz8 = [
+      ctz8_r_x_y;
+    ]
+
+    let popcnt = [
+      popcnt_r_x_y;
+    ]
+
+    let popcnt8 = [
+      popcnt8_r_x_y;
     ]
 
     let sext = [
@@ -1834,23 +1953,49 @@ end = struct
 
     (* x = neg y *)
     let neg_basic = [
-      move x (neg `i8 y) =>* Group.neg;
+      move x (neg `i8  y) =>* Group.neg;
       move x (neg `i16 y) =>* Group.neg;
       move x (neg `i32 y) =>* Group.neg;
       move x (neg `i64 y) =>* Group.neg;
+      move x (neg `f32 y) =>* Group.fneg;
+      move x (neg `f64 y) =>* Group.fneg;
     ]
 
     (* x = not y *)
     let not_basic = [
-      move x (not_ `i8 y) =>* Group.not_;
+      move x (not_ `i8  y) =>* Group.not_;
       move x (not_ `i16 y) =>* Group.not_;
       move x (not_ `i32 y) =>* Group.not_;
       move x (not_ `i64 y) =>* Group.not_;
     ]
 
+    (* x = clz y *)
+    let clz_basic = [
+      move x (clz `i8  y) =>* Group.clz8;
+      move x (clz `i16 y) =>* Group.clz;
+      move x (clz `i32 y) =>* Group.clz;
+      move x (clz `i64 y) =>* Group.clz;
+    ]
+
+    (* x = ctz y *)
+    let ctz_basic = [
+      move x (ctz `i8  y) =>* Group.ctz8;
+      move x (ctz `i16 y) =>* Group.ctz;
+      move x (ctz `i32 y) =>* Group.ctz;
+      move x (ctz `i64 y) =>* Group.ctz;
+    ]
+
+    (* x = popcnt y *)
+    let popcnt_basic = [
+      move x (popcnt `i8  y) =>* Group.popcnt8;
+      move x (popcnt `i16 y) =>* Group.popcnt;
+      move x (popcnt `i32 y) =>* Group.popcnt;
+      move x (popcnt `i64 y) =>* Group.popcnt;
+    ]
+
     (* x = sext y *)
     let sext_basic = [
-      move x (sext `i8 y) =>* Group.move_ri;
+      move x (sext `i8  y) =>* Group.move_ri;
       move x (sext `i16 y) =>* Group.sext;
       move x (sext `i32 y) =>* Group.sext;
       move x (sext `i64 y) =>* Group.sext;
@@ -1858,7 +2003,7 @@ end = struct
 
     (* x = zext y *)
     let zext_basic = [
-      move x (zext `i8 y) =>* Group.move_ri;
+      move x (zext `i8  y) =>* Group.move_ri;
       move x (zext `i16 y) =>* Group.zext;
       move x (zext `i32 y) =>* Group.zext;
       move x (zext `i64 y) =>* Group.zext;
@@ -2069,6 +2214,9 @@ end = struct
     load_basic @
     neg_basic @
     not_basic @
+    clz_basic @
+    ctz_basic @
+    popcnt_basic @
     sext_basic @
     zext_basic @
     fext_basic @
