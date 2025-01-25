@@ -193,6 +193,7 @@ let suite = "Test optimizations" >::: [
     "LEA arithmetic with negative disp (AMD64)" >:: test_amd64 "lea1";
     "Test prime numbers (AMD64)" >:: test_amd64 "prime";
     "Switch case propagation (AMD64)" >:: test_amd64 "switchcaseprop";
+    "Slot promotion 2 (GCD, partial) (AMD64)" >:: test_amd64 "promote2-partial";
   ]
 
 let () = run_test_tt_main suite

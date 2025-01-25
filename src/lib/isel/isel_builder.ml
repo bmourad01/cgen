@@ -85,11 +85,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | Some b ->
       let args' = Seq.to_list @@ Blk.args b in
       match List.zip args' args with
-      | Ok moves -> !!moves
       | Unequal_lengths ->
         C.failf "In Isel_builder.blkargs: unequal lengths for arguments to \
                  block %a in function $%s: got %d, expected %d"
           Label.pp ld (Func.name t.fn) (List.length args') (List.length args) ()
+      | Ok moves ->
+        (* Check for params that are being passed as params. *)
+        let conflicts =
+          List.fold args' ~init:Var.Set.empty ~f:(fun init x ->
+              List.fold args ~init ~f:(fun acc -> function
+                  | `var y when Var.(x = y) -> Set.add acc x
+                  | _ -> acc)) in
+        !!(moves, conflicts)
 
   (* XXX: can we do better than this kludge?
 
@@ -103,9 +110,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | #Virtual.const as c -> ty, constant t c
     | `var x -> ty, new_node ~ty t @@ Rv (Rv.var x)
 
-  let blkargs ?(br = false) t l ld args = zip_blkargs t ld args >>= function
-    | [] -> !!None
-    | moves ->
+  let blkargs ?(br = false) t l ld args =
+    zip_blkargs t ld args >>= function
+    | [], _ -> !!None
+    | moves, conflicts ->
       (* If applicable, make a new administrative block for the
          moves to be inserted into. *)
       let* l', ld' = if br then
@@ -113,10 +121,24 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           Hashtbl.add_multi t.extra ~key:l ~data:l';
           l', l'
         else !!(l, ld) in
-      let+ () = C.List.iter moves ~f:(fun (x, a) ->
-          let+ ty, id = operand' t a in
+      let+ todo =
+        C.List.fold moves ~init:[] ~f:(fun acc (x, a) ->
+            let* ty, id = operand' t a in
+            if Set.mem conflicts x then
+              (* Make an administrative copy that we append after
+                 handling the rest of the block parameters. *)
+              let+ x' = C.Var.fresh in
+              let xid' = new_var t x' ty in
+              let n = N (Omove, [xid'; id]) in
+              ignore @@ new_node ~l:l' t n;
+              (xid', x, ty) :: acc
+            else
+              let n = N (Omove, [new_var t x ty; id]) in
+              ignore @@ new_node ~l:l' t n;
+              !!acc) in
+      List.iter todo ~f:(fun (id, x, ty) ->
           let n = N (Omove, [new_var t x ty; id]) in
-          ignore @@ new_node ~l:l' t n) in
+          ignore @@ new_node ~l:l' t n);
       if br then begin
         let lid = new_node t @@ N (Olocal ld, []) in
         ignore @@ new_node ~l:l' t @@ N (Ojmp, [lid])
