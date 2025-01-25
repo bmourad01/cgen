@@ -41,10 +41,20 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | P (x, xs) -> pat env x xs id k
         | V x -> var env x id k
     and pat : type b c. env -> P.op -> (b, c) P.t list -> Id.t -> k -> env =
-      fun env x xs id k ->  match node t id with
-        | N (y, ys) when P.equal_op x y -> children env xs ys k
-        | N _ | Rv _ ->
-          raise_notrace Mismatch
+      fun env x xs id k -> match node t id with
+        | N (y, ys) as n when P.equal_op x y ->
+          (* If it fails initially, see if commuting the operands will produce
+             a match. This should cut down on the number of cases we have to
+             cover in our patterns. *)
+          begin match children env xs ys k with
+            | exception Mismatch ->
+              begin match commute n with
+                | Some N (_, ys) -> children env xs ys k
+                | _ -> raise_notrace Mismatch
+              end
+            | env -> env
+          end
+        | N _ | Rv _ -> raise_notrace Mismatch
     and var env x id k = match node t id with
       | N (Oaddr a, []) -> k @@ subst env id x @@ Imm (a, wordi)
       | N (Obool b, []) -> k @@ subst env id x @@ Bool b

@@ -1683,26 +1683,16 @@ end = struct
        `i64, i64 0L, i64 1L, i64 2L, i64 3L, i64 4L, i64 8L;
       ] >* fun (ty, zero, one, two, three, four, eight) ->
         let ty' = bty ty in [
-          (* x = add (mul z i) y *)
+          (* x = add y (mul z i) *)
           move x (add ty' y (mul ty' z one)) => add_mul_rr_scale_x_y_z 1;
           move x (add ty' y (mul ty' z two)) => add_mul_rr_scale_x_y_z 2;
           move x (add ty' y (mul ty' z four)) => add_mul_rr_scale_x_y_z 4;
           move x (add ty' y (mul ty' z eight)) => add_mul_rr_scale_x_y_z 8;
-          (* x = add (mul z i) y *)
-          move x (add ty' (mul ty' z one) y) => add_mul_rr_scale_x_y_z 1;
-          move x (add ty' (mul ty' z two) y) => add_mul_rr_scale_x_y_z 2;
-          move x (add ty' (mul ty' z four) y) => add_mul_rr_scale_x_y_z 4;
-          move x (add ty' (mul ty' z eight) y) => add_mul_rr_scale_x_y_z 8;
-          (* x = add y, (lsl z i) *)
+          (* x = add y (lsl z i) *)
           move x (add ty' y (lsl_ ty z zero)) => add_mul_rr_scale_x_y_z 1;
           move x (add ty' y (lsl_ ty z one)) => add_mul_rr_scale_x_y_z 2;
           move x (add ty' y (lsl_ ty z two)) => add_mul_rr_scale_x_y_z 4;
           move x (add ty' y (lsl_ ty z three)) => add_mul_rr_scale_x_y_z 8;
-          (* x = add (lsl z i) y *)
-          move x (add ty' (lsl_ ty z zero) y) => add_mul_rr_scale_x_y_z 1;
-          move x (add ty' (lsl_ ty z one) y) => add_mul_rr_scale_x_y_z 2;
-          move x (add ty' (lsl_ ty z two) y) => add_mul_rr_scale_x_y_z 4;
-          move x (add ty' (lsl_ ty z three) y) => add_mul_rr_scale_x_y_z 8;
         ]
 
     (* x = add y, z *)
@@ -1803,11 +1793,6 @@ end = struct
           move x (mul ty y two) => mul_lea_ri_x_y 2;
           move x (mul ty y four) => mul_lea_ri_x_y 4;
           move x (mul ty y eight) => mul_lea_ri_x_y 8;
-          (* x = mul i y *)
-          move x (mul ty one y) => move_rr_x_y;
-          move x (mul ty two y) => mul_lea_ri_x_y 2;
-          move x (mul ty four y) => mul_lea_ri_x_y 4;
-          move x (mul ty eight y) => mul_lea_ri_x_y 8;
         ]
 
     (* x = mul y, z *)
@@ -1875,9 +1860,7 @@ end = struct
           move x (ne ty' (and_ ty y z) zero) =>* Group.setcc_test (); (* x = (y & z) != 0 *)
           move x (eq ty' (and_ ty y z) zero) =>* Group.setcc_test () ~neg:true; (* x = (y & z) == 0 *)
           move x (eq ty' y zero) => setcc_r_zero_x_y; (* x = y == 0 *)
-          move x (eq ty' zero y) => setcc_r_zero_x_y; (* x = 0 == y *)
           move x (ne ty' y zero) => setcc_r_zero_x_y ~neg:true; (* x = y != 0 *)
-          move x (ne ty' zero y) => setcc_r_zero_x_y ~neg:true; (* x = 0 != y *)
           move x (slt ty y zero) => setcc_r_less_than_zero_x_y; (* x = y <$ 0 *)
           move x (sge ty y zero) => setcc_r_less_than_zero_x_y ~neg:true; (* x = y >=$ 0 *)
         ]
@@ -2124,9 +2107,7 @@ end = struct
           br (eq ty' (and_ ty x y) zero) yes no =>* Group.br_test () ~neg:true;
           (* Test against self for ZF. *)
           br (eq ty' x zero) yes no => jcc_r_zero_x;
-          br (eq ty' zero x) yes no => jcc_r_zero_x;
           br (ne ty' x zero) yes no => jcc_r_zero_x ~neg:true;
-          br (ne ty' zero x) yes no => jcc_r_zero_x ~neg:true;
           (* Test against self for SF. *)
           br (slt ty x zero) yes no => jcc_r_less_than_zero_x;
           br (sge ty x zero) yes no => jcc_r_less_than_zero_x ~neg:true;
