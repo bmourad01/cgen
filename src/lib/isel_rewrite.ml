@@ -18,6 +18,7 @@ module Pattern = struct
     let i64 n = int Bv.(int64 n mod m64) `i64
     let hlt = exp Ohlt
     let jmp d = Ojmp & [d]
+    let sw t i tbl = Osw t & [i; tbl]
     let ret = exp Oret
     let move d s = Omove & [d; s]
     let load t a = Oload t & [a]

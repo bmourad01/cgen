@@ -23,6 +23,7 @@ module Pattern = struct
     | Osel    of Type.basic
     | Osingle of Float32.t
     | Ostore  of [Type.basic | `v128]
+    | Osw     of Type.imm
     | Osym    of string * int
     | Ounop   of Insn.unop
   [@@deriving compare, equal, hash, sexp]
@@ -55,6 +56,7 @@ module Pattern = struct
     | Osingle s -> Format.fprintf ppf "%s_s" (Float32.to_string s)
     | Ostore `v128 -> Format.fprintf ppf "st.v"
     | Ostore (#Type.basic as t) -> Format.fprintf ppf "st.%a" Type.pp_basic t
+    | Osw t -> Format.fprintf ppf "sw.%a" Type.pp_imm t
     | Osym (s, o) -> Format.fprintf ppf "$%s+%d" s o
     | Ounop u -> Format.fprintf ppf "%a" Insn.pp_unop u
 
@@ -80,6 +82,7 @@ module Subst = struct
     | Sym of string * int
     | Label of Label.t
     | Bool of bool
+    | Table of Label.t * (Bv.t * Label.t) list
   [@@deriving equal, sexp]
 
   type 'r info = {
@@ -122,6 +125,10 @@ module Subst = struct
 
   let bool t x = match find t x with
     | Some (Bool b) -> Some b
+    | _ -> None
+
+  let table t x = match find t x with
+    | Some (Table (d, tbl)) -> Some (d, tbl)
     | _ -> None
 end
 

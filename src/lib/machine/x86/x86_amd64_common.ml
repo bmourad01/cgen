@@ -153,6 +153,7 @@ module Insn = struct
   type disp =
     | Dsym of string * int (* Symbol + offset *)
     | Dimm of int32        (* Immediate *)
+    | Dlbl of Label.t      (* Label *)
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_disp ppf = function
@@ -164,6 +165,8 @@ module Insn = struct
       Format.fprintf ppf "$%s" s
     | Dimm i ->
       Format.fprintf ppf "0x%lx" i
+    | Dlbl l ->
+      Format.fprintf ppf "%a" Label.pp l
 
   (* Memory addressing modes. Scale must be 1, 2, 4, or 8. *)
   type amode =
@@ -320,7 +323,7 @@ module Insn = struct
      [Jlbl l]: direct jump to label [l]
   *)
   type jmp =
-    | Jind of operand * Label.Set.t
+    | Jind of operand
     | Jlbl of Label.t
   [@@deriving bin_io, compare, equal, sexp]
 
@@ -390,6 +393,8 @@ module Insn = struct
     | XOR      of operand * operand
     | XORPD    of operand * operand
     | XORPS    of operand * operand
+    (* Pseudo-instruction we will use to represent a jump table. *)
+    | JMPtbl   of Label.t * Label.t list
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp ppf i =
@@ -429,13 +434,7 @@ module Insn = struct
     | INC a -> unary "inc" a
     | Jcc (cc, l) ->
       Format.fprintf ppf "j%a %a" pp_cc cc Label.pp l
-    | JMP (Jind (a, ls)) when Set.length ls = 0 -> unary "jmp" a
-    | JMP (Jind (a, ls)) ->
-      let pp_sep ppf () = Format.fprintf ppf ", " in
-      Format.fprintf ppf "jmp %a ; %a"
-        pp_operand a
-        (Format.pp_print_list ~pp_sep Label.pp)
-        (Set.to_list ls)
+    | JMP (Jind a) -> unary "jmp" a
     | JMP (Jlbl l) ->
       Format.fprintf ppf "jmp %a" Label.pp l
     | LEA (a, b) -> binary "lea" a b
@@ -477,6 +476,12 @@ module Insn = struct
     | XOR (a, b) -> binary "xor" a b
     | XORPD (a, b) -> binary "xorpd" a b
     | XORPS (a, b) -> binary "xorps" a b
+    | JMPtbl (l, ls) ->
+      let pp_sep ppf () = Format.fprintf ppf ", " in
+      Format.fprintf ppf ".tbl %a [@[%a@]]"
+        Label.pp l
+        (Format.pp_print_list ~pp_sep Label.pp)
+        ls
 
   (* Helper for registers mentioned in an addressing mode. *)
   let rv_of_amode = function
@@ -571,7 +576,7 @@ module Insn = struct
     | DEC a
     | IMUL3 (_, a, _)
     | INC a
-    | JMP (Jind (a, _))
+    | JMP (Jind a)
     | LEA (_, a)
     | LZCNT (_, a)
     | MOVSX (_, a)
@@ -606,6 +611,7 @@ module Insn = struct
       -> rset' [`rflags]
     | JMP (Jlbl _)
     | UD2
+    | JMPtbl _
       -> Regvar.Set.empty
     | POP a
       -> Set.union (rset' [`rsp]) (rset_mem [a])
@@ -676,6 +682,7 @@ module Insn = struct
     | Jcc _
     | JMP _
     | UD2
+    | JMPtbl _
       -> Regvar.Set.empty
     (* Special case for 8-bit div/mul. *)
     | DIV Oreg (_, `i8)
@@ -697,7 +704,7 @@ module Insn = struct
 
   let dests = function
     | Jcc (_, l) | JMP (Jlbl l) -> Label.Set.singleton l
-    | JMP (Jind (_, ls)) -> ls
+    | JMPtbl (_, ls) -> Label.Set.of_list ls
     | _ -> Label.Set.empty
 
   let is_mem = function
@@ -774,6 +781,7 @@ module Insn = struct
     | UD2
     | XORPD _ (* illegal *)
     | XORPS _ (* illegal *)
+    | JMPtbl _ (* fake *)
       -> false
 
   let always_live = function
@@ -781,7 +789,9 @@ module Insn = struct
     | JMP _
     | CALL _
     | RET
-    | UD2 -> true
+    | UD2
+    | JMPtbl _
+      -> true
     (* Special case for zeroing a register. *)
     | XOR (Oreg (a, _), Oreg (b, _))
     | XORPD (Oreg (a, _), Oreg (b, _))

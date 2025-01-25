@@ -34,6 +34,11 @@ module Pattern : sig
     val ret : toplevel
     val move : sub -> sub -> toplevel
 
+    (** [sw ty idx tbl] denotes a jump table with [idx] being the
+        index into the table, and [tbl] being the table descriptor
+        itself (see [Subst.table]). *)
+    val sw : Type.imm -> sub -> sub -> toplevel
+
     (** Constants. *)
 
     val bool : bool -> sub
@@ -141,6 +146,12 @@ module Subst : sig
 
   (** Lookup a boolean constant. *)
   val bool : 'r t -> string -> bool option
+
+  (** Lookup a switch table (including the default label).
+
+      The table is sorted from lowest to highest.
+  *)
+  val table : 'r t -> string -> (Label.t * (Bv.t * Label.t) list) option
 end
 
 type 'r subst = 'r Subst.t

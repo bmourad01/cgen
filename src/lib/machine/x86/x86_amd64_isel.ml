@@ -52,6 +52,31 @@ let can_lea_ty = function
   | `i16 | `i32 | `i64 -> true
   | _ -> false
 
+(* pre: `tbl` is non-empty
+
+   TODO:
+
+   - Is int64 the right thing? Negative numbers could burn us.
+   - What do we do about huge tables?
+   - What is a good threshold for the lower-bound on the table?
+*)
+let adjust_table d tbl =
+  let tbl = List.map tbl ~f:(fun (v, l) -> Bv.to_int64 v, l) in
+  (* Assume that it's sorted. *)
+  let lowest = fst @@ List.hd_exn tbl in
+  let highest = fst @@ List.last_exn tbl in
+  (* Pad the table with missing elements. *)
+  let acc = Vec.create () in
+  let _ = List.fold tbl ~init:lowest ~f:(fun p (v, l) ->
+      let diff = Int64.(v - p) in
+      for i = 0 to Int64.to_int_trunc diff - 1 do
+        ignore i;
+        Vec.push acc d;
+      done;
+      Vec.push acc l;
+      Int64.succ v) in
+  Vec.to_list acc, lowest, highest
+
 module Make(C : Context_intf.S) : sig
   val rules : (Rv.t, I.t) Isel_rewrite.Rule(C).t list
 end = struct
@@ -305,7 +330,7 @@ end = struct
 
   let jmp_sym_x env =
     let*! s, o = S.sym env "x" in
-    !!![JMP (Jind (Osym (s, o), Label.Set.empty))]
+    !!![JMP (Jind (Osym (s, o)))]
 
   let jcc_r_zero_x ?(neg = false) env =
     let*! x, xt = S.regvar env "x" in
@@ -1357,6 +1382,65 @@ end = struct
     let*! s, o = S.sym env "x" in
     !!![CALL (Osym (s, o))]
 
+  let jmp_tbl_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! d, tbl = S.table env "y" in
+    match xt, tbl with
+    | _, [] ->
+      (* Just jump to the default label. *)
+      !!![JMP (Jlbl d)]
+    | #Type.fp, _ ->
+      (* Should be impossible. *)
+      !!None
+    | #Type.imm as xt, _ ->
+      let tbl, lowest, highest = adjust_table d tbl in
+      let highest' = Int64.(highest - lowest) in
+      let diff = Int64.(highest - highest') in
+      let* tl = C.Label.fresh in
+      let* tbase = C.Var.fresh >>| Rv.var in
+      let* tidx = C.Var.fresh >>| Rv.var in
+      let rax = Rv.reg `rax in
+      (!!!) @@ List.concat [
+        (* Compare against the lowest value, if necessary. *)
+        ( if Int64.(lowest = 1L) then [
+              TEST_ (Oreg (x, xt), Oreg (x, xt));
+              Jcc (Ce, d);
+            ]
+          else if Int64.(lowest > 0L) then [
+            CMP (Oreg (x, xt), Oimm (lowest, xt));
+            Jcc (Cb, d);
+          ]
+          else []
+        );
+        (* Zero-extend the index. *)
+        [ match xt with
+          | `i8 | `i16 ->
+            MOVZX (Oreg (tidx, `i64), Oreg (x, xt))
+          | `i32 | `i64 ->
+            (* i32 has implicit zero-extension. *)
+            MOV (Oreg (tidx, xt), Oreg (x, xt))
+        ];
+        (* Subtract the difference from the index if needed. *)
+        ( if Int64.(diff = 1L)
+          then [DEC (Oreg (tidx, `i64))]
+          else if Int64.(diff > 0L)
+          then [SUB (Oreg (tidx, `i64), Oimm (diff, `i64))]
+          else []
+        );
+        [ (* Compare against highest value. *)
+          CMP (Oreg (tidx, `i64), Oimm (highest', `i64));
+          Jcc (Ca, d);
+          (* Get the base of the table. *)
+          LEA (Oreg (tbase, `i64), Omem (Abd (Reg `rip, Dlbl tl), `i64));
+          (* Jump to the table entry. *)
+          MOVSXD (Oreg (rax, `i64), Omem (Abis (tbase, tidx, 4), `i32));
+          ADD (Oreg (rax, `i64), Oreg (tbase, `i64));
+          JMP (Jind (Oreg (rax, `i64)));
+          (* The table itself. *)
+          JMPtbl (tl, tbl);
+        ]
+      ]
+
   open P.Op
 
   (* Re-used groups of callbacks. *)
@@ -2155,6 +2239,14 @@ end = struct
       call x =>* Group.call;
     ]
 
+    (* sw x tbl *)
+    let sw_basic = [
+      sw `i8  x y => jmp_tbl_x_y;
+      sw `i16 x y => jmp_tbl_x_y;
+      sw `i32 x y => jmp_tbl_x_y;
+      sw `i64 x y => jmp_tbl_x_y;
+    ]
+
     (* hlt *)
     let hlt = [
       hlt => (fun _ -> !!![UD2]);
@@ -2219,6 +2311,7 @@ end = struct
     br_icmp @
     br_fcmp @
     call_basic @
+    sw_basic @
     hlt @
     ret
 end

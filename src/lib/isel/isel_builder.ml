@@ -123,16 +123,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       end;
       Some ld'
 
-  let local ?(br = false) t l : Virtual.local -> Id.t C.t = function
+  let local ?(br = false) t l : Virtual.local -> (Label.t * Id.t) C.t = function
     | `label (ld, args) ->
       let+ ld' = blkargs ~br t l ld args >>| function
         | Some ld' -> ld'
         | None -> ld in
-      new_node t @@ N (Olocal ld', [])
+      ld', new_node t @@ N (Olocal ld', [])
 
   let dst ?(br = false) t l : Virtual.dst -> Id.t C.t = function
     | #Virtual.global as g -> global t g
-    | #Virtual.local as loc -> local ~br t l loc
+    | #Virtual.local as loc -> local ~br t l loc >>| snd
 
   let binop t l x o a b =
     let* a = operand t a in
@@ -331,9 +331,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         ignore @@ new_node ~l t @@ N (Omove, [rid; aid])) in
     ignore @@ new_node ~l t @@ N (Oret, [])
 
-  let sw _t _l _ty _i _d _tbl =
-    (* TODO *)
-    !!()
+  let sw t l ty i d tbl =
+    let ty' = (ty :> ty) in
+    let i = match i with
+      | `var x -> new_var t x ty'
+      | `sym (s, o) -> new_node ~ty:ty' t @@ N (Osym (s, o), []) in
+    let* d, _ = local ~br:true t l d in
+    let+ tbl =
+      Ctrl.Table.enum tbl |> C.Seq.map ~f:(fun (v, loc) ->
+          let+ lbl, _ = local ~br:true t l loc in
+          v, lbl) >>| Seq.to_list in
+    let tbl' = new_node t @@ Tbl (d, tbl) in
+    ignore @@ new_node ~l t @@ N (Osw ty, [i; tbl'])
 
   let ctrl t l : ctrl -> unit C.t = function
     | `hlt -> hlt t l

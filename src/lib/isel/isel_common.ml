@@ -9,7 +9,8 @@ module S = Isel_internal.Subst
 type 'r node =
   | N of P.op * Id.t list
   | Rv of 'r
-[@@deriving compare, equal, hash, sexp]
+  | Tbl of Label.t * (Bv.t * Label.t) list
+[@@deriving compare, equal, sexp]
 
 let commute = function
   | N (Obinop b, [x; y]) ->
@@ -61,6 +62,14 @@ let typeof t id = Uopt.to_option @@ Vec.get_exn t.typs id
 
 let rec pp_node t ppr ppf id = match node t id with
   | Rv r -> Format.fprintf ppf "%a" ppr r
+  | Tbl (d, tbl) ->
+    let pp_sep ppf () = Format.fprintf ppf " " in
+    let pp_elt ppf (v, l) =
+      Format.fprintf ppf "(%a %a)" Bv.pp v Label.pp l in
+    Format.fprintf ppf "(tbl %a [%a])"
+      Label.pp d
+      (Format.pp_print_list ~pp_sep pp_elt)
+      tbl
   | N (o, []) -> Format.fprintf ppf "%a" P.pp_op o
   | N (o, cs) ->
     let pp_sep ppf () = Format.fprintf ppf " " in

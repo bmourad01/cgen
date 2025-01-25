@@ -54,7 +54,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               end
             | env -> env
           end
-        | N _ | Rv _ -> raise_notrace Mismatch
+        | N _ | Rv _ | Tbl _ -> raise_notrace Mismatch
     and var env x id k = match node t id with
       | N (Oaddr a, []) -> k @@ subst env id x @@ Imm (a, wordi)
       | N (Obool b, []) -> k @@ subst env id x @@ Bool b
@@ -63,6 +63,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | N (Osingle s, []) -> k @@ subst env id x @@ Single s
       | N (Osym (s, o), []) -> k @@ subst env id x @@ Sym (s, o)
       | N (Olocal l, []) -> k @@ subst env id x @@ Label l
+      | Tbl (d, tbl) -> k @@ subst env id x @@ Table (d, tbl)
       | Rv r -> regvar env x r id k
       | N _ -> match Hashtbl.find t.id2r id with
         | None -> raise_notrace Mismatch
