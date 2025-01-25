@@ -122,8 +122,8 @@
 %token ARROW
 %token ELIPSIS
 %token SB SH SW W L B H S D Z
-%token <Type.basic> ADD DIV MUL REM SUB NEG
-%token <Type.imm> MULH UMULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
+%token <Type.basic> ADD DIV MUL SUB NEG
+%token <Type.imm> REM MULH UMULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token SLOT
 %token <Type.arg> LOAD STORE
 %token <Type.basic> EQ GE GT LE LT NE

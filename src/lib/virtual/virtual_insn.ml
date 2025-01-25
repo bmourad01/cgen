@@ -6,7 +6,7 @@ type arith_binop = [
   | `div   of Type.basic
   | `mul   of Type.basic
   | `mulh  of Type.imm
-  | `rem   of Type.basic
+  | `rem   of Type.imm
   | `sub   of Type.basic
   | `udiv  of Type.imm
   | `umulh of Type.imm
@@ -18,7 +18,7 @@ let pp_arith_binop ppf : arith_binop -> unit = function
   | `div   t -> Format.fprintf ppf "div.%a"   Type.pp_basic t
   | `mul   t -> Format.fprintf ppf "mul.%a"   Type.pp_basic t
   | `mulh  t -> Format.fprintf ppf "mulh.%a"  Type.pp_imm t
-  | `rem   t -> Format.fprintf ppf "rem.%a"   Type.pp_basic t
+  | `rem   t -> Format.fprintf ppf "rem.%a"   Type.pp_imm t
   | `sub   t -> Format.fprintf ppf "sub.%a"   Type.pp_basic t
   | `udiv  t -> Format.fprintf ppf "udiv.%a"  Type.pp_imm t
   | `umulh t -> Format.fprintf ppf "umulh.%a" Type.pp_imm t

@@ -70,8 +70,8 @@ let infer_ty_binop : Virtual.Insn.binop -> Type.t option = function
   | `add t
   | `div t
   | `mul t
-  | `rem t
   | `sub t -> Some (t :> Type.t)
+  | `rem t
   | `mulh t
   | `udiv t
   | `umulh t

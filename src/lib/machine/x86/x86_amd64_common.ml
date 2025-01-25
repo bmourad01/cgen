@@ -236,6 +236,7 @@ module Insn = struct
     | Osym  of string * int     (* Symbol *)
     | Ofp32 of Float32.t        (* Single-precision floating-point number *)
     | Ofp64 of float            (* Double-precision floating-point number *)
+    | Oah                       (* AH register *)
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_operand ppf = function
@@ -276,6 +277,8 @@ module Insn = struct
       Format.fprintf ppf "%sf" (Float32.to_string f)
     | Ofp64 f ->
       Format.fprintf ppf "%a" Float.pp f
+    | Oah ->
+      Format.fprintf ppf "ah"
 
   (* Condition codes. *)
   type cc =
@@ -492,6 +495,7 @@ module Insn = struct
     List.bind operands ~f:(function
         | Oreg (a, _) | Oregv a -> [a]
         | Omem (a, _) -> rv_of_amode a
+        | Oah -> [Reg `rax]
         | _ -> [])
 
   (* Only explicit register operands. *)
@@ -499,6 +503,7 @@ module Insn = struct
     Regvar.Set.of_list @@
     List.bind operands ~f:(function
         | Oreg (a, _) | Oregv a -> [a]
+        | Oah -> [Reg `rax]
         | _ -> [])
 
   (* Only registers mentioned in memory operands. *)

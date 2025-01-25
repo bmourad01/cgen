@@ -48,8 +48,8 @@ let op_arith_binop tl al tr ar (o : Insn.arith_binop) =
     | `add t
     | `div t
     | `mul t
-    | `rem t
     | `sub t -> t
+    | `rem t
     | `mulh t
     | `udiv t
     | `umulh t

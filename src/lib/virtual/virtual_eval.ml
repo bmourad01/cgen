@@ -105,7 +105,7 @@ let binop_int o a b = match (o : Insn.binop) with
   | `mul (#Type.imm as t) -> Some (`int (Bv.((a * b) mod imod t), t))
   | `mulh (#Type.imm as t) -> Some (`int (mulh t a b, t))
   | `umulh (#Type.imm as t) -> Some (`int (umulh t a b, t))
-  | `rem (#Type.imm as t) when Bv.(b <> zero) ->
+  | `rem t when Bv.(b <> zero) ->
     Some (`int (Bv.((srem a b) mod imod t), t))
   | `sub (#Type.imm as t) -> Some (`int (Bv.((a - b) mod imod t), t))
   | `udiv t when Bv.(b <> zero) ->
@@ -142,7 +142,6 @@ let binop_single o a b =
   | `add `f32 -> Some (`float (a + b))
   | `div `f32 -> Some (`float (a / b))
   | `mul `f32 -> Some (`float (a * b))
-  | `rem `f32 -> Some (`float (rem a b))
   | `sub `f32 -> Some (`float (a - b))
   | `eq  `f32 -> Some (`bool (cmp_nan (=)  is_nan a b))
   | `ge  `f32 -> Some (`bool (cmp_nan (>=) is_nan a b))
@@ -160,7 +159,6 @@ let binop_double o a b =
   | `add `f64 -> Some (`double (a + b))
   | `div `f64 -> Some (`double (a / b))
   | `mul `f64 -> Some (`double (a * b))
-  | `rem `f64 -> Some (`double (a % b))
   | `sub `f64 -> Some (`double (a - b))
   | `eq  `f64 -> Some (`bool (cmp_nan (=)  is_nan a b))
   | `ge  `f64 -> Some (`bool (cmp_nan (>=) is_nan a b))

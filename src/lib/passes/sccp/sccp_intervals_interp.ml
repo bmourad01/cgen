@@ -32,14 +32,13 @@ let interp_arith_binop o a b = match (o : Insn.arith_binop) with
   | `mul #Type.imm -> I.mul a b
   | `mulh _ -> I.mulh a b
   | `umulh _ -> I.umulh a b
-  | `rem #Type.imm -> I.srem a b
+  | `rem _ -> I.srem a b
   | `sub #Type.imm -> I.sub a b
   | `udiv _ -> I.udiv a b
   | `urem _ -> I.urem a b
   | `add (#Type.fp as t)
   | `div (#Type.fp as t)
   | `mul (#Type.fp as t)
-  | `rem (#Type.fp as t)
   | `sub (#Type.fp as t) ->
     I.create_full ~size:(Type.sizeof_fp t)
 

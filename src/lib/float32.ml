@@ -17,14 +17,12 @@ external add : t -> t -> t = "cgen_float32_add"
 external div : t -> t -> t = "cgen_float32_div"
 external mul : t -> t -> t = "cgen_float32_mul"
 external neg : t -> t      = "cgen_float32_neg"
-external rem : t -> t -> t = "cgen_float32_rem"
 external sub : t -> t -> t = "cgen_float32_sub"
 
 let (+)   x y = add x y
 let (/)   x y = div x y
 let ( * ) x y = mul x y
 let (-~)  x   = neg x
-let ( % ) x   = rem x
 let (-)   x y = sub x y
 
 external bits    : t -> int32 = "cgen_bits_of_float32"

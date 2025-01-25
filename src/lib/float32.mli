@@ -40,9 +40,6 @@ val mul : t -> t -> t
 (** Negation. *)
 val neg : t -> t
 
-(** Remainder. *)
-val rem : t -> t -> t
-
 (** Subtraction. *)
 val sub : t -> t -> t
 
@@ -57,9 +54,6 @@ val ( * ) : t -> t -> t
 
 (** Negation. *)
 val (-~) : t -> t
-
-(** Remainder. *)
-val (%) : t -> t -> t
 
 (** Subtraction. *)
 val (-) : t -> t -> t

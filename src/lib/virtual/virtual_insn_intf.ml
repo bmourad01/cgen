@@ -29,7 +29,7 @@ module type S = sig
     | `div   of Type.basic
     | `mul   of Type.basic
     | `mulh  of Type.imm
-    | `rem   of Type.basic
+    | `rem   of Type.imm
     | `sub   of Type.basic
     | `udiv  of Type.imm
     | `umulh of Type.imm

@@ -2,6 +2,7 @@ open Core
 
 module R = X86_amd64_common.Reg
 module Rv = X86_amd64_common.Regvar
+module I = X86_amd64_common.Insn
 
 let (>*) x f = List.bind x ~f
 
@@ -19,10 +20,43 @@ let ftoui_ty = function
   | `i32 -> `i64
   | ty -> ty
 
-module Make(C : Context_intf.S) = struct
+let xor_gpr_self x ty =
+  (* Shorter instruction encoding when we use the 32-bit register,
+     which is implicitly zero-extended to 64 bits. *)
+  let ty = match ty with
+    | `i64 -> `i32
+    | _ -> ty in
+  let x = I.Oreg (x, ty) in
+  I.XOR (x, x)
+
+let fits_int8 x =
+  let open Int64 in
+  x >= 0xFFFFFFFFFFFFFF80L &&
+  x <= 0xFFL
+
+let fits_int32 x =
+  let open Int64 in
+  x >= 0xFFFFFFFF80000000L &&
+  x <= 0xFFFFFFFFL
+
+let fits_int32_neg x =
+  let open Int64 in
+  x < 0L && x >= 0xFFFFFFFF80000000L
+
+let fits_int32_pos x =
+  let open Int64 in
+  x > 0L && x <= 0x7FFFFFFFL
+
+let can_lea_ty = function
+  | `i16 | `i32 | `i64 -> true
+  | _ -> false
+
+module Make(C : Context_intf.S) : sig
+  val rules : (Rv.t, I.t) Isel_rewrite.Rule(C).t list
+end = struct
   open C.Syntax
   open Isel_rewrite.Rule(C)
-  open X86_amd64_common.Insn
+  open I
 
   module P = Isel_rewrite.Pattern
   module S = Isel_rewrite.Subst
@@ -32,37 +66,6 @@ module Make(C : Context_intf.S) = struct
   let z = P.var "z"
   let yes = P.var "yes"
   let no = P.var "no"
-
-  let xor_gpr_self x ty =
-    (* Shorter instruction encoding when we use the 32-bit register,
-       which is implicitly zero-extended to 64 bits. *)
-    let ty = match ty with
-      | `i64 -> `i32
-      | _ -> ty in
-    let x = Oreg (x, ty) in
-    XOR (x, x)
-
-  let fits_int8 x =
-    let open Int64 in
-    x >= 0xFFFFFFFFFFFFFF80L &&
-    x <= 0xFFL
-
-  let fits_int32 x =
-    let open Int64 in
-    x >= 0xFFFFFFFF80000000L &&
-    x <= 0xFFFFFFFFL
-
-  let fits_int32_neg x =
-    let open Int64 in
-    x < 0L && x >= 0xFFFFFFFF80000000L
-
-  let fits_int32_pos x =
-    let open Int64 in
-    x > 0L && x <= 0x7FFFFFFFL
-
-  let can_lea_ty = function
-    | `i16 | `i32 | `i64 -> true
-    | _ -> false
 
   (* Rule callbacks. *)
 
@@ -228,6 +231,24 @@ module Make(C : Context_intf.S) = struct
         MOV (Oreg (x, xt), Oreg (y, yt));
         SUB (Oreg (x, xt), Oimm (z, zt));
       ]
+
+  let sub_rf32_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! () = guard @@ Type.equal_basic xt yt in
+    let*! z = S.single env "z" in !!![
+      MOVSS (Oreg (x, xt), Oreg (y, yt));
+      SUBSS (Oreg (x, xt), Ofp32 z);
+    ]
+
+  let sub_rf64_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! () = guard @@ Type.equal_basic xt yt in
+    let*! z = S.double env "z" in !!![
+      MOVSD (Oreg (x, xt), Oreg (y, yt));
+      SUBSD (Oreg (x, xt), Ofp64 z);
+    ]
 
   let and_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
@@ -617,6 +638,16 @@ module Make(C : Context_intf.S) = struct
         IMUL2 (Oreg (x, xt), Oreg (z', xt));
       ]
 
+  let imul8_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in !!![
+      MOVZX (Oreg (rax, `i16), Oreg (y, yt));
+      IMUL1 (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oreg (rax, `i8));
+    ]
+
   let imul_ri_high_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -638,6 +669,48 @@ module Make(C : Context_intf.S) = struct
       MOV (Oreg (rax, yt), Oreg (y, yt));
       IMUL1 (Oreg (z, zt));
       MOV (Oreg (x, xt), Oreg (rdx, xt));
+    ]
+
+  let imul8_rr_high_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in !!![
+      MOVZX (Oreg (rax, `i16), Oreg (y, yt));
+      IMUL1 (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oah);
+    ]
+
+  let imul8_ri_high_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let rax = Rv.reg `rax in !!![
+      MOVZX (Oreg (rax, `i16), Oimm (z, zt));
+      IMUL1 (Oreg (y, yt));
+      MOV (Oreg (x, xt), Oah);
+    ]
+
+  let mul8_rr_high_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in !!![
+      MOVZX (Oreg (rax, `i16), Oreg (y, yt));
+      MUL (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oah);
+    ]
+
+  let mul8_ri_high_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let rax = Rv.reg `rax in !!![
+      MOVZX (Oreg (rax, `i16), Oimm (z, zt));
+      MUL (Oreg (y, yt));
+      MOV (Oreg (x, xt), Oah);
     ]
 
   let mul_ri_high_x_y_z env =
@@ -663,6 +736,39 @@ module Make(C : Context_intf.S) = struct
       MOV (Oreg (x, xt), Oreg (rdx, xt));
     ]
 
+  let fmul_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    match xt with
+    | `f64 -> !!![
+        MOVSD (Oreg (x, xt), Oreg (y, yt));
+        MULSD (Oreg (x, xt), Oreg (z, zt));
+      ]
+    | `f32 -> !!![
+        MOVSS (Oreg (x, xt), Oreg (y, yt));
+        MULSS (Oreg (x, xt), Oreg (z, zt));
+      ]
+    | _ -> !!None
+
+  let fmul_rf32_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z = S.single env "z" in
+    let*! () = guard (Type.equal_basic xt `f32) in !!![
+      MOVSS (Oreg (x, xt), Oreg (y, yt));
+      MULSS (Oreg (x, xt), Ofp32 z);
+    ]
+
+  let fmul_rf64_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z = S.double env "z" in
+    let*! () = guard (Type.equal_basic xt `f64) in !!![
+      MOVSD (Oreg (x, xt), Oreg (y, yt));
+      MULSD (Oreg (x, xt), Ofp64 z);
+    ]
+
   let idiv_rem_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -684,6 +790,36 @@ module Make(C : Context_intf.S) = struct
       MOV (Oreg (x, xt), Oreg (rax, xt));
     ]
 
+  let idiv8_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in !!![
+      MOVZX (Oreg (rax, `i16), Oreg (y, yt));
+      IDIV (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oreg (rax, `i8));
+    ]
+
+  let idiv8_rem_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in !!![
+      MOVZX (Oreg (rax, `i16), Oreg (y, yt));
+      IDIV (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oah);
+    ]
+
+  let div8_rem_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in !!![
+      MOVZX (Oreg (rax, `i16), Oreg (y, yt));
+      DIV (Oreg (z, zt));
+      MOV (Oreg (x, xt), Oah);
+    ]
+
   let div_rem_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -693,6 +829,39 @@ module Make(C : Context_intf.S) = struct
       MOV (Oreg (rax, yt), Oreg (y, yt));
       DIV (Oreg (z, zt));
       MOV (Oreg (x, xt), Oreg (rdx, xt));
+    ]
+
+  let fdiv_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    match xt with
+    | `f64 -> !!![
+        MOVSD (Oreg (x, xt), Oreg (y, yt));
+        DIVSD (Oreg (x, xt), Oreg (z, zt));
+      ]
+    | `f32 -> !!![
+        MOVSS (Oreg (x, xt), Oreg (y, yt));
+        DIVSS (Oreg (x, xt), Oreg (z, zt));
+      ]
+    | _ -> !!None
+
+  let fdiv_rf32_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z = S.single env "z" in
+    let*! () = guard (Type.equal_basic xt `f32) in !!![
+      MOVSS (Oreg (x, xt), Oreg (y, yt));
+      DIVSS (Oreg (x, xt), Ofp32 z);
+    ]
+
+  let fdiv_rf64_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z = S.double env "z" in
+    let*! () = guard (Type.equal_basic xt `f64) in !!![
+      MOVSD (Oreg (x, xt), Oreg (y, yt));
+      DIVSD (Oreg (x, xt), Ofp64 z);
     ]
 
   let lsl_rr_x_y_z env =
@@ -1113,6 +1282,8 @@ module Make(C : Context_intf.S) = struct
     let sub = [
       sub_rr_x_y_z;
       sub_ri_x_y_z;
+      sub_rf32_x_y_z;
+      sub_rf64_x_y_z;
     ]
 
     let and_ = [
@@ -1160,9 +1331,24 @@ module Make(C : Context_intf.S) = struct
       imul_ri_x_y_z;
     ]
 
+    let mul8 = [
+      imul8_rr_x_y_z;
+    ]
+
+    let fmul = [
+      fmul_rr_x_y_z;
+      fmul_rf32_x_y_z;
+      fmul_rf64_x_y_z;
+    ]
+
     let mulh = [
       imul_rr_high_x_y_z;
       imul_ri_high_x_y_z;
+    ]
+
+    let mulh8 = [
+      imul8_rr_high_x_y_z;
+      imul8_ri_high_x_y_z;
     ]
 
     let umulh = [
@@ -1170,16 +1356,39 @@ module Make(C : Context_intf.S) = struct
       mul_ri_high_x_y_z;
     ]
 
+    let umulh8 = [
+      mul8_rr_high_x_y_z;
+      mul8_ri_high_x_y_z;
+    ]
+
     let div = [
       idiv_rr_x_y_z;
+    ]
+
+    let fdiv = [
+      fdiv_rr_x_y_z;
+      fdiv_rf32_x_y_z;
+      fdiv_rf64_x_y_z;
+    ]
+
+    let div8 = [
+      idiv8_rr_x_y_z;
     ]
 
     let rem = [
       idiv_rem_rr_x_y_z;
     ]
 
+    let rem8 = [
+      idiv8_rem_rr_x_y_z;
+    ]
+
     let urem = [
       div_rem_rr_x_y_z;
+    ]
+
+    let urem8 = [
+      div8_rem_rr_x_y_z;
     ]
 
     let setcc_test ?(neg = false) () = [
@@ -1484,31 +1693,43 @@ module Make(C : Context_intf.S) = struct
 
     (* x = mul y, z *)
     let mul_basic = [
+      move x (mul `i8  y z) =>* Group.mul8;
+      move x (mul `i16 y z) =>* Group.mul;
       move x (mul `i32 y z) =>* Group.mul;
       move x (mul `i64 y z) =>* Group.mul;
+      move x (mul `f64 y z) =>* Group.fmul;
+      move x (mul `f64 y z) =>* Group.fmul;
     ]
 
     (* x = mulh y, z *)
     let mulh_basic = [
+      move x (mulh `i8  y z) =>* Group.mulh8;
+      move x (mulh `i16 y z) =>* Group.mulh;
       move x (mulh `i32 y z) =>* Group.mulh;
       move x (mulh `i64 y z) =>* Group.mulh;
     ]
 
     (* x = umulh y, z *)
     let umulh_basic = [
+      move x (umulh `i8  y z) =>* Group.umulh8;
+      move x (umulh `i16 y z) =>* Group.umulh;
       move x (umulh `i32 y z) =>* Group.umulh;
       move x (umulh `i64 y z) =>* Group.umulh;
     ]
 
     (* x = div y, z *)
     let div_basic = [
+      move x (div `i8  y z) =>* Group.div8;
       move x (div `i16 y z) =>* Group.div;
       move x (div `i32 y z) =>* Group.div;
       move x (div `i64 y z) =>* Group.div;
+      move x (div `f64 y z) =>* Group.fdiv;
+      move x (div `f64 y z) =>* Group.fdiv;
     ]
 
     (* x = rem y, z *)
     let rem_basic = [
+      move x (rem `i8  y z) =>* Group.rem8;
       move x (rem `i16 y z) =>* Group.rem;
       move x (rem `i32 y z) =>* Group.rem;
       move x (rem `i64 y z) =>* Group.rem;
@@ -1516,6 +1737,7 @@ module Make(C : Context_intf.S) = struct
 
     (* x = urem y, z *)
     let urem_basic = [
+      move x (urem `i8  y z) =>* Group.urem8;
       move x (urem `i16 y z) =>* Group.urem;
       move x (urem `i32 y z) =>* Group.urem;
       move x (urem `i64 y z) =>* Group.urem;

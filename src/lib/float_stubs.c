@@ -111,14 +111,6 @@ value cgen_float32_neg(value x) {
   CAMLreturn(f);
 }
 
-value cgen_float32_rem(value x, value y) {
-  CAMLparam2(x, y);
-  CAMLlocal1(f);
-  f = Alloc_float();
-  Float_val(f) = fmodf(Float_val(x), Float_val(y));
-  CAMLreturn(f);
-}
-
 value cgen_float32_sub(value x, value y) {
   CAMLparam2(x, y);
   CAMLlocal1(f);

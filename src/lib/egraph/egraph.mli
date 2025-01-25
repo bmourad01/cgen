@@ -164,7 +164,7 @@ module Rule : sig
     val div : Type.basic -> pattern -> pattern -> pattern
     val mul : Type.basic -> pattern -> pattern -> pattern
     val mulh : Type.imm -> pattern -> pattern -> pattern
-    val rem : Type.basic -> pattern -> pattern -> pattern
+    val rem : Type.imm -> pattern -> pattern -> pattern
     val sub : Type.basic -> pattern -> pattern -> pattern
     val udiv : Type.imm -> pattern -> pattern -> pattern
     val umulh : Type.imm -> pattern -> pattern -> pattern

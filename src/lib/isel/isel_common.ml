@@ -57,8 +57,8 @@ let infer_ty_binop : Insn.binop -> ty = function
   | `add t
   | `div t
   | `mul t
-  | `rem t
   | `sub t -> (t :> ty)
+  | `rem t
   | `mulh t
   | `udiv t
   | `umulh t

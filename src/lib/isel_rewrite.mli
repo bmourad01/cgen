@@ -60,7 +60,7 @@ module Pattern : sig
     val div : Type.basic -> sub -> sub -> sub
     val mul : Type.basic -> sub -> sub -> sub
     val mulh : Type.imm -> sub -> sub -> sub
-    val rem : Type.basic -> sub -> sub -> sub
+    val rem : Type.imm -> sub -> sub -> sub
     val sub : Type.basic -> sub -> sub -> sub
     val udiv : Type.imm -> sub -> sub -> sub
     val umulh : Type.imm -> sub -> sub -> sub

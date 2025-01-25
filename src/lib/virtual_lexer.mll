@@ -108,7 +108,7 @@ rule token = parse
   | "mul" '.' (basic as t) { MUL (basic_of_char t) }
   | "mulh" '.' (imm as t) { MULH (imm_of_char t) }
   | "umulh" '.' (imm as t) { UMULH (imm_of_char t) }
-  | "rem" '.' (basic as t) { REM (basic_of_char t) }
+  | "rem" '.' (imm as t) { REM (imm_of_char t) }
   | "sub" '.' (basic as t) { SUB (basic_of_char t) }
   | "udiv" '.' (imm as t) { UDIV (imm_of_char t) }
   | "urem" '.' (imm as t) { UREM (imm_of_char t) }
