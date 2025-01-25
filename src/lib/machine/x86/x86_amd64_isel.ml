@@ -1147,8 +1147,10 @@ end = struct
       !!![MOVSS (Oreg (x, xt), Oreg (y, yt))]
     | `f64, `f64, `f64 ->
       !!![MOVSD (Oreg (x, xt), Oreg (y, yt))]
-    | `f64, `f64, `f32 ->
-      !!![CVTSS2SD (Oreg (x, xt), Oreg (y, yt))]
+    | `f64, `f64, `f32 -> !!![
+        XORPD (Oreg (x, xt), Oreg (x, xt));
+        CVTSS2SD (Oreg (x, xt), Oreg (y, yt))
+      ]
     | _ -> !!None
 
   let fext_rf32_x_y ty env =
@@ -1261,8 +1263,10 @@ end = struct
       !!![MOVSD (Oreg (x, xt), Oreg (y, yt))]
     | `f32, `f32, `f32 ->
       !!![MOVSS (Oreg (x, xt), Oreg (y, yt))]
-    | `f32, `f32, `f64 ->
-      !!![CVTSD2SS (Oreg (x, xt), Oreg (y, yt))]
+    | `f32, `f32, `f64 -> !!![
+        XORPS (Oreg (x, xt), Oreg (x, xt));
+        CVTSD2SS (Oreg (x, xt), Oreg (y, yt))
+      ]
     | _ -> !!None
 
   let ftrunc_rf32_x_y ty env =
@@ -1336,17 +1340,17 @@ end = struct
     | (`i8 | `i16), `f32 ->
       let* tmp = C.Var.fresh >>| Rv.var in !!![
         MOVZX (Oreg (tmp, `i32), Oreg (y, yt));
-        XORPD (Oreg (x, xt), Oreg (x, xt));
+        XORPS (Oreg (x, xt), Oreg (x, xt));
         CVTSI2SS (Oreg (x, xt), Oreg (tmp, `i32));
       ]
     | `i32, `f32 ->
       let* tmp = C.Var.fresh >>| Rv.var in !!![
         MOV (Oreg (tmp, `i32), Oreg (y, yt));
-        XORPD (Oreg (x, xt), Oreg (x, xt));
+        XORPS (Oreg (x, xt), Oreg (x, xt));
         CVTSI2SS (Oreg (x, xt), Oreg (tmp, `i64));
       ]
     | `i64, `f32 -> !!![
-        XORPD (Oreg (x, xt), Oreg (x, xt));
+        XORPS (Oreg (x, xt), Oreg (x, xt));
         CVTSI2SS (Oreg (x, xt), Oreg (y, yt));
       ]
     | (`i8 | `i16), `f64 ->
