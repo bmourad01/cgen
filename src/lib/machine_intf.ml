@@ -29,6 +29,14 @@ module type S = sig
     (** Frame pointer register. *)
     val fp : t
 
+    (** Designated "scratch" register.
+
+        This should be a general purpose register, which will never be chosen
+        for register allocation, but instead used to hold the results of
+        intermediate computations.
+    *)
+    val scratch : t
+
     (** The type of the register. *)
     val typeof : t -> [Type.basic | `v128]
 
