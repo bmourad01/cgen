@@ -142,7 +142,8 @@ module Optimize = struct
 
   let callargs t = List.map ~f:(function
       | `reg (o, r) -> `reg (operand t o, r)
-      | `stk (o, s) -> `stk (operand t o, s))
+      | `stk (o, s) -> `stk (operand t o, s)
+      | `imp (o, r) -> `imp (operand t o, r))
 
   let canonicalize t x op = match Hashcons.find t.memo op with
     | Some y -> Hashtbl.set t.vars ~key:x ~data:y

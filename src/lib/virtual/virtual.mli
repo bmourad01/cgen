@@ -635,13 +635,18 @@ module Abi : sig
 
     (** An argument to a call instruction.
 
-        [`reg r]: the argument is passed in a register [r].
+        [`reg (a, r)]: the argument is passed in a register [r].
 
-        [`stk (s, o)]: the argument [s] is passed at stack offset [o].
+        [`stk (a, o)]: the argument [a] is passed at stack offset [o].
+
+        [`imp (a, r)]: same as [`reg (a, r)], but this is implied to happen
+        immediately before the call (i.e. after all other arguments have been
+        passed).
     *)
     type callarg = [
       | `reg of operand * string
       | `stk of operand * int
+      | `imp of operand * string
     ] [@@deriving bin_io, compare, equal, sexp]
 
     val free_vars_of_callarg : callarg -> Var.Set.t

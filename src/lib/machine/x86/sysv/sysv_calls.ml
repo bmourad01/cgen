@@ -214,14 +214,12 @@ let lower env = iter_blks env ~f:(fun b ->
           let* k = Context.List.fold vargs ~init:k ~f:acls in
           (* If this is a variadic call, then RAX must hold the number
              of SSE registers that were used to pass parameters. *)
-          let* k = match vargs with
-            | [] -> !!k
+          let k = match vargs with
+            | [] -> k
             | _ ->
               let n = Array.length sse_args - Stack.length qs in
-              let+ i = Cv.Abi.regassign (reg_str `rax) (i8 n) in
-              {k with callai = k.callai @> i} in
+              {k with callar = k.callar @> `imp (i8 n, reg_str `rax)} in
           (* Process the return value. *)
           let+ k = lower_call_ret env kret k in
           Hashtbl.set env.calls ~key ~data:k
         | _ -> !!()))
-

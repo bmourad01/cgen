@@ -254,13 +254,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     ignore @@ new_node ~l t n
 
   let call t l ret f args =
-    let rargs, sargs = List.partition_map args ~f:(function
-        | `reg (a, r) -> First (a, r)
-        | `stk (a, o) -> Second (a, o)) in
+    let rargs, sargs, iargs = List.partition3_map args ~f:(function
+        | `reg (a, r) -> `Fst (a, r)
+        | `stk (a, o) -> `Snd (a, o)
+        | `imp (a, r) -> `Trd (a, r)) in
     let* sz = call_args_stack_size t l f sargs in
     let* () = C.List.iter rargs ~f:(call_arg_reg t l) in
     call_adj_stack t l sz;
     let* () = C.List.iter sargs ~f:(call_arg_stk t l) in
+    let* () = C.List.iter iargs ~f:(call_arg_reg t l) in
     let* f = global t f in
     ignore @@ new_node ~l t @@ N (Ocall, [f]);
     call_adj_stack t l sz ~restore:true;
