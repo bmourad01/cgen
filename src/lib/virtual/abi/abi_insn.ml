@@ -48,19 +48,14 @@ let pp_mem ppf : mem -> unit = function
 type callarg = [
   | `reg of operand * string
   | `stk of operand * int
-  | `imp of operand * string
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_callarg : callarg -> Var.Set.t = function
-  | `reg (o, _)
-  | `stk (o, _)
-  | `imp (o, _) ->
-    var_of_operand o |> var_set_of_option
+  | `reg (o, _) | `stk (o, _) -> var_of_operand o |> var_set_of_option
 
 let pp_callarg ppf : callarg -> unit = function
   | `reg (o, r) -> Format.fprintf ppf "%a/%s" pp_operand o r
   | `stk (o, s) -> Format.fprintf ppf "%a/+%d" pp_operand o s
-  | `imp (o, r) -> Format.fprintf ppf "!%a/%s" pp_operand o r
 
 type call = [
   | `call of (Var.t * Type.basic * string) list * global * callarg list

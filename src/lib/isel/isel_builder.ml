@@ -253,11 +253,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let n = N (Omove, [xid; rid]) in
     ignore @@ new_node ~l t n
 
+  let scratch_str = Format.asprintf "%a" R.pp R.scratch
+
   let call t l ret f args =
     let rargs, sargs, iargs = List.partition3_map args ~f:(function
+        | `reg (a, r) when String.(r = scratch_str) -> `Trd (a, r)
         | `reg (a, r) -> `Fst (a, r)
-        | `stk (a, o) -> `Snd (a, o)
-        | `imp (a, r) -> `Trd (a, r)) in
+        | `stk (a, o) -> `Snd (a, o)) in
     let* sz = call_args_stack_size t l f sargs in
     let* () = C.List.iter rargs ~f:(call_arg_reg t l) in
     call_adj_stack t l sz;

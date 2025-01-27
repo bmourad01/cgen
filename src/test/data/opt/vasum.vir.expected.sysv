@@ -77,7 +77,7 @@ export function $sum(w %n/rdi, ...) {
 
 export function $twenty_one() {
 @13:
-  %x.1/w/rax = call $sum(0x6_w/rdi, 0x1_w/rsi, 0x2_w/rdx, 0x3_w/rcx, 0x4_w/r8, 0x5_w/r9, 0x6_w/+0, !0x0_b/rax)
+  %x.1/w/rax = call $sum(0x6_w/rdi, 0x1_w/rsi, 0x2_w/rdx, 0x3_w/rcx, 0x4_w/r8, 0x5_w/r9, 0x6_w/+0, 0x0_b/rax)
   ; @14
   ret rax/%x.1
 }

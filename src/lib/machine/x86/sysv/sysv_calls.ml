@@ -218,7 +218,7 @@ let lower env = iter_blks env ~f:(fun b ->
             | [] -> k
             | _ ->
               let n = Array.length sse_args - Stack.length qs in
-              {k with callar = k.callar @> `imp (i8 n, reg_str `rax)} in
+              {k with callar = k.callar @> `reg (i8 n, reg_str `rax)} in
           (* Process the return value. *)
           let+ k = lower_call_ret env kret k in
           Hashtbl.set env.calls ~key ~data:k

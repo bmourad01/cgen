@@ -146,8 +146,7 @@ module A = Make(struct
 
     let callargs ~stk = List.map ~f:(function
         | `reg (o, r) -> `reg (rename_operand ~stk o, r)
-        | `stk (o, s) -> `stk (rename_operand ~stk o, s)
-        | `imp (o, r) -> `imp (rename_operand ~stk o, r))
+        | `stk (o, s) -> `stk (rename_operand ~stk o, s))
 
     let rename_op ~stk ~rename op =
       let glo = rename_global ~stk in
