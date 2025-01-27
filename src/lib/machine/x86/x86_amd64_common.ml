@@ -670,7 +670,7 @@ module Insn = struct
     | XORPS (a, _)
       -> rset_reg [a]
     | CALL _
-      -> Set.union (rset' [`rsp]) call
+      -> Set.union (rset' [`rsp; `rflags]) call
     | PUSH _
     | RET
       -> rset' [`rsp]
