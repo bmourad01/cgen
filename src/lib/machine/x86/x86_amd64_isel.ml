@@ -30,6 +30,12 @@ let xor_gpr_self x ty =
   let x = I.Oreg (x, ty) in
   I.XOR (x, x)
 
+let cwd_cdq_cqo (ty : Type.basic) = match ty with
+  | `i16 -> I.CWD
+  | `i32 -> I.CDQ
+  | `i64 -> I.CQO
+  | `i8 | #Type.fp -> assert false
+
 let fits_int8 x =
   let open Int64 in
   x >= 0xFFFFFFFFFFFFFF80L &&
@@ -826,6 +832,7 @@ end = struct
     let rax = Rv.reg `rax in
     let rdx = Rv.reg `rdx in !!![
       MOV (Oreg (rax, yt), Oreg (y, yt));
+      cwd_cdq_cqo yt;
       IDIV (Oreg (z, zt));
       MOV (Oreg (x, xt), Oreg (rdx, xt));
     ]
@@ -836,6 +843,7 @@ end = struct
     let*! z, zt = S.regvar env "z" in
     let rax = Rv.reg `rax in !!![
       MOV (Oreg (rax, yt), Oreg (y, yt));
+      cwd_cdq_cqo yt;
       IDIV (Oreg (z, zt));
       MOV (Oreg (x, xt), Oreg (rax, xt));
     ]
@@ -846,6 +854,7 @@ end = struct
     let*! z, zt = S.regvar env "z" in
     let rax = Rv.reg `rax in !!![
       MOVZX (Oreg (rax, `i16), Oreg (y, yt));
+      CWD;
       IDIV (Oreg (z, zt));
       MOV (Oreg (x, xt), Oreg (rax, `i8));
     ]
@@ -856,6 +865,7 @@ end = struct
     let*! z, zt = S.regvar env "z" in
     let rax = Rv.reg `rax in !!![
       MOVZX (Oreg (rax, `i16), Oreg (y, yt));
+      CWD;
       IDIV (Oreg (z, zt));
       MOV (Oreg (x, xt), Oah);
     ]
@@ -864,8 +874,10 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.regvar env "z" in
-    let rax = Rv.reg `rax in !!![
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
       MOVZX (Oreg (rax, `i16), Oreg (y, yt));
+      XOR (Oreg (rdx, `i32), Oreg (rdx, `i32));
       DIV (Oreg (z, zt));
       MOV (Oreg (x, xt), Oah);
     ]
@@ -877,6 +889,7 @@ end = struct
     let rax = Rv.reg `rax in
     let rdx = Rv.reg `rdx in !!![
       MOV (Oreg (rax, yt), Oreg (y, yt));
+      XOR (Oreg (rdx, `i32), Oreg (rdx, `i32));
       DIV (Oreg (z, zt));
       MOV (Oreg (x, xt), Oreg (rdx, xt));
     ]

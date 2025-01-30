@@ -694,7 +694,7 @@ module Insn = struct
     | CDQ
     | CQO
     | CWD
-      -> rset' [`rax; `rdx]
+      -> rset' [`rdx]
     | DIV _
     | IDIV _
     | IMUL1 _
