@@ -184,6 +184,7 @@ type env = {
   vaarg         : vaarg Label.Table.t;         (* Lowered `vaarg` instructions. *)
   mutable rsave : regsave option;              (* Register save area. *)
   mutable rmem  : Var.t option;                (* Return value blitted to memory. *)
+  mutable alpar : Var.t option;                (* Implicit AL argument. *)
 }
 
 (* For simplicity, let's make sure each existing stack slot is aligned
@@ -220,6 +221,7 @@ let init_env tenv fn =
     vaarg = Label.Table.create ();
     rsave = None;
     rmem = None;
+    alpar = None;
   }
 
 (* Iterate over the dominator tree. *)

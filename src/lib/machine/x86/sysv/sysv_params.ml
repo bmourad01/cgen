@@ -155,21 +155,23 @@ let register_save_int env params sse s =
     Array.to_sequence_mutable int_args |>
     Seq.mapi ~f:(fun i r -> i * 8, r) |>
     Seq.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
-    Context.Seq.fold ~init:Ftree.empty ~f:(fun acc (o, r) ->
-        if o = 0 then
+    Context.Seq.fold ~init:Ftree.empty ~f:(fun acc -> function
+        | 0, r ->
           let+ st = Cv.Abi.regstore r (`var s) in
           acc @> st
-        else
+        | o, r ->
           let* o, oi = Cv.Abi.binop (`add `i64) (`var s) (i64 o) in
           let+ st = Cv.Abi.regstore r (`var o) in
           acc @>* [oi; st]) in
   let zero = `int (Bv.zero, `i8) in
-  let* r, ri = Cv.Abi.regcopy `i8 (reg_str `rax) in
+  assert (Option.is_none env.alpar);
+  let* r =  Context.Var.fresh in
+  env.alpar <- Some r;
   let+ z, zi = Cv.Abi.binop (`eq `i8) (`var r) zero in
   let entry = `label (Func.entry env.fn, []) in
   let sse = `label (sse, []) in
   Abi.Blk.create () ~label
-    ~insns:(Ftree.to_list (save @>* [ri; zi]))
+    ~insns:(Ftree.to_list (save @> zi))
     ~ctrl:(`br (z, entry, sse))
 
 let rsave_sse_ofs = 48

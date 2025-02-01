@@ -246,13 +246,21 @@ let make_dict env =
     else dict in
   dict
 
-let go env =
-  let slots = Func.slots env.fn |> Seq.to_list in
-  let slots = slots @ Vec.to_list env.slots in
+let make_args env =
   let args =
     Vec.to_sequence_mutable env.params |>
     Seq.map ~f:(fun p -> p.pvar, p.pty) |>
     Seq.to_list in
+  match env.alpar with
+  | None -> args
+  | Some r ->
+    let arg = `reg (r, reg_str `rax) in
+    (arg, `i8) :: args
+
+let go env =
+  let slots = Func.slots env.fn |> Seq.to_list in
+  let slots = slots @ Vec.to_list env.slots in
+  let args = make_args env in
   let* blks = transl_blks env in
   let blks = match env.rsave with
     | Some r -> r.rsint :: r.rssse :: blks

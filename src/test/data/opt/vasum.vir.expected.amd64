@@ -4,85 +4,85 @@ export function $sum { ; returns: rax
   %ap = slot 24, align 8
   %3 = slot 176, align 16
 @19:
-  mov %n:w, edi ; @146
-  mov qword ptr [%3 + 0x8], rsi ; @145
-  mov qword ptr [%3 + 0x10], rdx ; @143
-  mov qword ptr [%3 + 0x18], rcx ; @141
-  mov qword ptr [%3 + 0x20], r8 ; @139
-  mov qword ptr [%3 + 0x28], r9 ; @137
-  mov %9:b, al ; @136
-  test %9:b, %9:b ; @131
-  je @2 ; @132
-  jmp @18 ; @133
+  mov %9:b, al ; @144
+  mov %n:w, edi ; @145
+  mov qword ptr [%3 + 0x8], rsi ; @143
+  mov qword ptr [%3 + 0x10], rdx ; @141
+  mov qword ptr [%3 + 0x18], rcx ; @139
+  mov qword ptr [%3 + 0x20], r8 ; @137
+  mov qword ptr [%3 + 0x28], r9 ; @135
+  test %9:b, %9:b ; @130
+  je @2 ; @131
+  jmp @18 ; @132
 @18:
-  movdqa xmmword ptr [%3 + 0x30], xmm0 ; @129
-  movdqa xmmword ptr [%3 + 0x40], xmm1 ; @127
-  movdqa xmmword ptr [%3 + 0x50], xmm2 ; @125
-  movdqa xmmword ptr [%3 + 0x60], xmm3 ; @123
-  movdqa xmmword ptr [%3 + 0x70], xmm4 ; @121
-  movdqa xmmword ptr [%3 + 0x80], xmm5 ; @119
-  movdqa xmmword ptr [%3 + 0x90], xmm6 ; @117
-  movdqa xmmword ptr [%3 + 0xa0], xmm7 ; @115
-  jmp @2 ; @114
+  movdqa xmmword ptr [%3 + 0x30], xmm0 ; @128
+  movdqa xmmword ptr [%3 + 0x40], xmm1 ; @126
+  movdqa xmmword ptr [%3 + 0x50], xmm2 ; @124
+  movdqa xmmword ptr [%3 + 0x60], xmm3 ; @122
+  movdqa xmmword ptr [%3 + 0x70], xmm4 ; @120
+  movdqa xmmword ptr [%3 + 0x80], xmm5 ; @118
+  movdqa xmmword ptr [%3 + 0x90], xmm6 ; @116
+  movdqa xmmword ptr [%3 + 0xa0], xmm7 ; @114
+  jmp @2 ; @113
 @2:
-  mov dword ptr [%ap], 0x8_w ; @113
-  mov dword ptr [%ap + 0x4], 0x30_w ; @111
-  lea %20:l, qword ptr [rbp + 0x10] ; @110
-  mov qword ptr [%ap + 0x8], %20:l ; @108
-  mov qword ptr [%ap + 0x10], %3:l ; @106
-  xor %x.2:w, %x.2:w ; @103
-  xor %i.2:w, %i.2:w ; @104
-  jmp @3 ; @105
+  mov dword ptr [%ap], 0x8_w ; @112
+  mov dword ptr [%ap + 0x4], 0x30_w ; @110
+  lea %20:l, qword ptr [rbp + 0x10] ; @109
+  mov qword ptr [%ap + 0x8], %20:l ; @107
+  mov qword ptr [%ap + 0x10], %3:l ; @105
+  xor %x.2:w, %x.2:w ; @102
+  xor %i.2:w, %i.2:w ; @103
+  jmp @3 ; @104
 @3:
-  cmp %i.2:w, %n:w ; @98
-  jb @7 ; @99
-  jmp @8 ; @100
+  cmp %i.2:w, %n:w ; @97
+  jb @7 ; @98
+  jmp @8 ; @99
 @8:
-  mov eax, %x.2:w ; @96
-  ret ; @97
+  mov eax, %x.2:w ; @95
+  ret ; @96
 @7:
-  jmp @57 ; @95
-@57:
-  mov %23:w, dword ptr [%ap] ; @94
-  cmp %23:w, 0x28_w ; @89
-  jbe @58 ; @90
-  jmp @59 ; @91
-@59:
-  mov %30:l, qword ptr [%ap + 0x8] ; @88
-  lea %31:l, qword ptr [%30 + 0x8] ; @87
-  mov qword ptr [%ap + 0x8], %31:l ; @86
-  mov %32:l, %30:l ; @84
-  jmp @60 ; @85
-@58:
-  lea %28:w, qword ptr [%23 + 0x8] ; @83
-  mov dword ptr [%ap], %28:w ; @82
-  mov %32:l, %27:l ; @80
-  jmp @60 ; @81
-@60:
-  mov %y.1:w, dword ptr [%32] ; @79
-  jmp @56 ; @78
+  jmp @56 ; @94
 @56:
-  lea %1:w, qword ptr [%x.2 + %y.1] ; @77
-  lea %2:w, qword ptr [%i.2 + 0x1] ; @76
-  mov %x.2:w, %1:w ; @73
-  mov %i.2:w, %2:w ; @74
-  jmp @3 ; @75
+  mov %23:w, dword ptr [%ap] ; @93
+  cmp %23:w, 0x28_w ; @88
+  jbe @57 ; @89
+  jmp @58 ; @90
+@58:
+  mov %30:l, qword ptr [%ap + 0x8] ; @87
+  lea %31:l, qword ptr [%30 + 0x8] ; @86
+  mov qword ptr [%ap + 0x8], %31:l ; @85
+  mov %32:l, %30:l ; @83
+  jmp @59 ; @84
+@57:
+  lea %28:w, qword ptr [%23 + 0x8] ; @82
+  mov dword ptr [%ap], %28:w ; @81
+  mov %32:l, %27:l ; @79
+  jmp @59 ; @80
+@59:
+  mov %y.1:w, dword ptr [%32] ; @78
+  jmp @55 ; @77
+@55:
+  lea %1:w, qword ptr [%x.2 + %y.1] ; @76
+  lea %2:w, qword ptr [%i.2 + 0x1] ; @75
+  mov %x.2:w, %1:w ; @72
+  mov %i.2:w, %2:w ; @73
+  jmp @3 ; @74
 }
 
 export function $twenty_one { ; returns: rax
 @13:
-  mov edi, 0x6_w ; @150
-  mov esi, 0x1_w ; @151
-  mov edx, 0x2_w ; @152
-  mov ecx, 0x3_w ; @153
-  mov r8d, 0x4_w ; @154
-  mov r9d, 0x5_w ; @155
-  sub rsp, 0x10_l ; @156
-  mov dword ptr [rsp + 0x0], 0x6_w ; @157
-  xor al, al ; @158
-  call $sum ; @159
-  add rsp, 0x10_l ; @160
-  mov %x.1:w, eax ; @161
-  mov eax, %x.1:w ; @148
-  ret ; @149
+  mov edi, 0x6_w ; @149
+  mov esi, 0x1_w ; @150
+  mov edx, 0x2_w ; @151
+  mov ecx, 0x3_w ; @152
+  mov r8d, 0x4_w ; @153
+  mov r9d, 0x5_w ; @154
+  sub rsp, 0x10_l ; @155
+  mov dword ptr [rsp + 0x0], 0x6_w ; @156
+  xor al, al ; @157
+  call $sum ; @158
+  add rsp, 0x10_l ; @159
+  mov %x.1:w, eax ; @160
+  mov eax, %x.1:w ; @147
+  ret ; @148
 }
