@@ -394,6 +394,9 @@ module Insn = struct
     | XOR      of operand * operand
     | XORPD    of operand * operand
     | XORPS    of operand * operand
+    (* Same as `MOV`, but we want to force the zero-extension,
+       so this shouldn't be a target of peephole opts. *)
+    | MOV_     of operand * operand
     (* Pseudo-instruction we will use to represent a jump table. *)
     | JMPtbl   of Label.t * Label.t list
   [@@deriving bin_io, compare, equal, sexp]
@@ -477,6 +480,10 @@ module Insn = struct
     | XOR (a, b) -> binary "xor" a b
     | XORPD (a, b) -> binary "xorpd" a b
     | XORPS (a, b) -> binary "xorps" a b
+    | MOV_ (a, b) ->
+      binary "mov" a b;
+      (* Make a little note here. *)
+      Format.fprintf ppf " ; zx"
     | JMPtbl (l, ls) ->
       let pp_sep ppf () = Format.fprintf ppf ", " in
       Format.fprintf ppf ".tbl %a [@[%a@]]"
@@ -589,6 +596,7 @@ module Insn = struct
     | TZCNT (_, a)
       -> rset [a]
     | MOV (a, b)
+    | MOV_ (a, b)
     | MOVD (a, b)
     | MOVDQA (a, b)
     | MOVQ (a, b)
@@ -653,6 +661,7 @@ module Insn = struct
     | DIVSS (a, _)
     | LEA (a, _)
     | MOV (a, _)
+    | MOV_ (a, _)
     | MOVD (a, _)
     | MOVDQA (a, _)
     | MOVQ (a, _)
@@ -724,6 +733,7 @@ module Insn = struct
     | DIVSS (a, _)
     | INC a
     | MOV (a, _)
+    | MOV_ (a, _)
     | MOVD (a, _)
     | MOVDQA (a, _)
     | MOVQ (a, _)

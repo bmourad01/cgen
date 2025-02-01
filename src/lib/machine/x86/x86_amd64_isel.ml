@@ -104,7 +104,7 @@ end = struct
 
   let nop _ = !!![]
 
-  let move_rr_x_y env =
+  let move_rr_x_y ?(zx = false) env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     if Rv.equal x y && Type.equal_basic xt yt then !!![]
@@ -114,8 +114,11 @@ end = struct
         (* Assume zero-extension is desired. *)
         !!![MOVZX (Oreg (x, xt), Oreg (y, yt))]
       | (#Type.imm as xi), (#Type.imm as yi)
-        when Type.sizeof_imm xi < Type.sizeof_imm yi && Rv.equal x y ->
-        !!![]
+        when Type.sizeof_imm xi < Type.sizeof_imm yi
+          && Rv.equal x y -> !!![]
+      | `i32, `i32 when zx ->
+        (* Implicit zero-extension. *)
+        !!![MOV_ (Oreg (x, xt), Oreg (y, yt))]
       | #Type.imm, #Type.imm ->
         (* Assume the width of the destination register. *)
         !!![MOV (Oreg (x, xt), Oreg (y, xt))]
@@ -1457,8 +1460,10 @@ end = struct
         [ match xt with
           | `i8 | `i16 ->
             MOVZX (Oreg (tidx, `i64), Oreg (x, xt))
-          | `i32 | `i64 ->
+          | `i32 ->
             (* i32 has implicit zero-extension. *)
+            MOV_ (Oreg (tidx, xt), Oreg (x, xt))
+          | `i64 ->
             MOV (Oreg (tidx, xt), Oreg (x, xt))
         ];
         (* Subtract the difference from the index if needed. *)
@@ -1633,7 +1638,7 @@ end = struct
     ]
 
     let move_ri = [
-      move_rr_x_y;
+      move_rr_x_y ~zx:false;
       move_ri_x_y;
     ]
 
@@ -1690,7 +1695,7 @@ end = struct
     ]
 
     let zext = [
-      move_rr_x_y;
+      move_rr_x_y ~zx:true;
       move_ri_x_y;
     ]
 
@@ -2247,7 +2252,7 @@ end = struct
     let flag_basic =
       [`i8; `i16; `i32; `i64] >* fun ty -> [
           move x (flag ty y) =>* [
-            move_rr_x_y;
+            move_rr_x_y ~zx:true;
             move_rb_x_y;
           ]
         ]

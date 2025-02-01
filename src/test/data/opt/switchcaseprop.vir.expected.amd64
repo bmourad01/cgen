@@ -5,7 +5,7 @@ export function $foo { ; returns: rax
   mov %x:w, edi ; @26
   test %x:w, %x:w ; @27
   je @11 ; @28
-  mov %2:w, %x:w ; @29
+  mov %2:w, %x:w ; zx ; @29
   dec %2:l ; @30
   cmp %2:l, 0x2_l ; @31
   ja @11 ; @32
