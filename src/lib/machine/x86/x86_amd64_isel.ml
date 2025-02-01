@@ -712,6 +712,16 @@ end = struct
     let*! () = guard @@ can_lea_ty xt in
     !!![LEA (Oreg (x, xt), Omem (Aisd (y, s, Dimm 0l), `i64))]
 
+  let mul_lea_ri_addi_x_y_z s env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_int32_pos z in
+    let*! () = guard @@ can_lea_ty xt in
+    let z = Int64.to_int32_trunc z in
+    !!![LEA (Oreg (x, xt), Omem (Aisd (y, s, Dimm z), `i64))]
+
   let imul_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -2020,15 +2030,31 @@ end = struct
       move x (ror `i64 y z) =>* Group.ror;
     ]
 
+    let mul_lea_tbl = [
+      `i16, i16 1,  i16 2,  i16 4,  i16 8;
+      `i32, i32 1l, i32 2l, i32 4l, i32 8l;
+      `i64, i64 1L, i64 2L, i64 4L, i64 8L;
+    ]
+
+    (*  x = add (mul y i) z => lea x, [y*i+z]
+
+        where i \in {1,2,4,8}
+    *)
+    let mul_lea_add_imm =
+      mul_lea_tbl >* fun (ty, one, two, four, eight) -> [
+          (* x = add (mul y i) z *)
+          move x (add ty (mul ty y one) z) => add_ri_x_y_z;
+          move x (add ty (mul ty y two) z) => mul_lea_ri_addi_x_y_z 2;
+          move x (add ty (mul ty y four) z) => mul_lea_ri_addi_x_y_z 4;
+          move x (add ty (mul ty y eight) z) => mul_lea_ri_addi_x_y_z 8;
+        ]
+
     (*  x = mul y i => lea x, [y*i]
 
         where i \in {1,2,4,8}
     *)
     let mul_lea =
-      [`i16, i16 1,  i16 2,  i16 4,  i16 8;
-       `i32, i32 1l, i32 2l, i32 4l, i32 8l;
-       `i64, i64 1L, i64 2L, i64 4L, i64 8L;
-      ] >* fun (ty, one, two, four, eight) -> [
+      mul_lea_tbl >* fun (ty, one, two, four, eight) -> [
           (* x = mul y i *)
           move x (mul ty y one) => move_rr_x_y;
           move x (mul ty y two) => mul_lea_ri_x_y 2;
@@ -2439,6 +2465,7 @@ end = struct
     asr_basic @
     rol_basic @
     ror_basic @
+    mul_lea_add_imm @
     mul_lea @
     mul_basic @
     mulh_basic @
