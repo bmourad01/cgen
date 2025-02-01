@@ -605,14 +605,29 @@ end = struct
 
   let store_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in !!![
-      MOV (Omem (Ab y, mty xt), Oreg (x, xt));
-    ]
+    let*! y, _ = S.regvar env "y" in
+    let addr = Omem (Ab y, mty xt) in
+    match xt with
+    | #Type.imm -> !!![MOV (addr, Oreg (x, xt))]
+    | `f32 -> !!![MOVSS (addr, Oreg (x, xt))]
+    | `f64 -> !!![MOVSD (addr, Oreg (x, xt))]
 
   let store_ri_x_y env =
     let*! x, xt = S.imm env "x" in
     let*! y, _ = S.regvar env "y" in !!![
       MOV (Omem (Ab y, mty xt), Oimm (Bv.to_int64 x, xt));
+    ]
+
+  let store_rf32_x_y env =
+    let*! x = S.single env "x" in
+    let*! y, _ = S.regvar env "y" in !!![
+      MOVSS (Omem (Ab y, mty `f32), Ofp32 x);
+    ]
+
+  let store_rf64_x_y env =
+    let*! x = S.double env "x" in
+    let*! y, _ = S.regvar env "y" in !!![
+      MOVSS (Omem (Ab y, mty `f64), Ofp64 x);
     ]
 
   let store_rri_add_x_y_z env =
@@ -621,9 +636,12 @@ end = struct
     let*! z, _ = S.imm env "z" in
     let z = Bv.to_int64 z in
     let*! () = guard @@ fits_int32 z in
-    let z = Int64.to_int32_trunc z in !!![
-      MOV (Omem (Abd (y, Dimm z), mty xt), Oreg (x, xt));
-    ]
+    let z = Int64.to_int32_trunc z in
+    let addr = Omem (Abd (y, Dimm z), mty xt) in
+    match xt with
+    | #Type.imm -> !!![MOV (addr, Oreg (x, xt))]
+    | `f32 -> !!![MOVSS (addr, Oreg (x, xt))]
+    | `f64 -> !!![MOVSD (addr, Oreg (x, xt))]
 
   let store_iri_add_x_y_z env =
     let*! x, xt = S.imm env "x" in
@@ -634,6 +652,26 @@ end = struct
     let z = Int64.to_int32_trunc z in
     let x = Bv.to_int64 x in !!![
       MOV (Omem (Abd (y, Dimm z), mty xt), Oimm (x, xt));
+    ]
+
+  let store_f32ri_add_x_y_z env =
+    let*! x = S.single env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_int32 z in
+    let z = Int64.to_int32_trunc z in !!![
+      MOVSS (Omem (Abd (y, Dimm z), mty `f32), Ofp32 x);
+    ]
+
+  let store_f64ri_add_x_y_z env =
+    let*! x = S.double env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_int32 z in
+    let z = Int64.to_int32_trunc z in !!![
+      MOVSD (Omem (Abd (y, Dimm z), mty `f64), Ofp64 x);
     ]
 
   let store_rsym_x_y env =
@@ -1747,6 +1785,8 @@ end = struct
     let store_add = [
       store_rri_add_x_y_z;
       store_iri_add_x_y_z;
+      store_f32ri_add_x_y_z;
+      store_f64ri_add_x_y_z;
     ]
 
     let store = [
@@ -1754,6 +1794,8 @@ end = struct
       store_ri_x_y;
       store_rsym_x_y;
       store_symr_x_y;
+      store_rf32_x_y;
+      store_rf64_x_y;
     ]
 
     let store_vec_add = [
@@ -2274,14 +2316,22 @@ end = struct
 
     (* store x, [y + z] *)
     let store_add = [
+      store `i8  x (add `i64 y z) =>* Group.store_add;
+      store `i16 x (add `i64 y z) =>* Group.store_add;
       store `i32 x (add `i64 y z) =>* Group.store_add;
       store `i64 x (add `i64 y z) =>* Group.store_add;
+      store `f32 x (add `i64 y z) =>* Group.store_add;
+      store `f64 x (add `i64 y z) =>* Group.store_add;
     ]
 
     (* store x, [y] *)
     let store_basic = [
+      store `i8  x y =>* Group.store;
+      store `i16 x y =>* Group.store;
       store `i32 x y =>* Group.store;
       store `i64 x y =>* Group.store;
+      store `f32 x y =>* Group.store;
+      store `f64 x y =>* Group.store;
     ]
 
     (* jmp x *)
