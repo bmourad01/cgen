@@ -155,5 +155,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       then Dict.singleton Pseudo.Func.Tag.needs_stack_frame ()
       else Dict.empty in
     C.lift_err @@ Pseudo.Func.create ()
-      ~dict ~name:(Func.name t.fn) ~blks ~rets
+      ~name:(Func.name t.fn)
+      ~slots:(Func.slots t.fn |> Seq.to_list)
+      ~dict ~blks ~rets
 end

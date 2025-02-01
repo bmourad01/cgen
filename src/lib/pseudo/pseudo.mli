@@ -62,6 +62,8 @@ module Func : sig
 
       [dict]: function attributes
 
+      [slots]: stack slots
+
       [name]: the function name
 
       [blks]: the basic blocks of the function
@@ -72,6 +74,7 @@ module Func : sig
   *)
   val create_exn :
     ?dict:Dict.t ->
+    ?slots:Virtual.slot list ->
     name:string ->
     blks:'a blk list ->
     rets:'b list ->
@@ -84,6 +87,7 @@ module Func : sig
   *)
   val create :
     ?dict:Dict.t ->
+    ?slots:Virtual.slot list ->
     name:string ->
     blks:'a blk list ->
     rets:'b list ->

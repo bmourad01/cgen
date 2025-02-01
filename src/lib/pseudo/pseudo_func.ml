@@ -1,6 +1,8 @@
 open Core
 open Pseudo_common
 
+module Slot = Virtual.Slot
+
 module Tag = struct
   let needs_stack_frame = Dict.register
       ~uuid:"bd4f4a42-723a-4d31-b0ab-e63ba432a9e5"
@@ -8,31 +10,46 @@ module Tag = struct
 end
 
 type ('a, 'b) t = {
-  name : string;
-  blks : 'a Pseudo_blk.t ftree;
-  rets : 'b ftree;
-  dict : Dict.t;
+  name  : string;
+  slots : Slot.t ftree;
+  blks  : 'a Pseudo_blk.t ftree;
+  rets  : 'b ftree;
+  dict  : Dict.t;
 } [@@deriving bin_io, compare, equal, sexp]
 
 let entry t = (Ftree.head_exn t.blks).label
 
-let create_exn ?(dict = Dict.empty) ~name ~blks ~rets () = match blks with
+let create_exn
+    ?(dict = Dict.empty)
+    ?(slots = [])
+    ~name
+    ~blks
+    ~rets
+    () = match blks with
   | [] ->
     invalid_argf
       "Cannot create function $%s with an empty list of blocks"
       name ()
   | blks -> {
       name;
+      slots = Ftree.of_list slots;
       blks = Ftree.of_list blks;
       rets = Ftree.of_list rets;
       dict;
     }
 
-let create ?(dict = Dict.empty) ~name ~blks ~rets () =
-  try Ok (create_exn ~dict ~name ~blks ~rets ()) with
+let create
+    ?(dict = Dict.empty)
+    ?(slots = [])
+    ~name
+    ~blks
+    ~rets
+    () =
+  try Ok (create_exn ~dict ~slots ~name ~blks ~rets ()) with
   | Invalid_argument msg -> Or_error.error_string msg
 
 let name t = t.name
+let slots ?(rev = false) t = Ftree.enum ~rev t.slots
 let blks ?(rev = false) t = Ftree.enum ~rev t.blks
 let rets ?(rev = false) t = Ftree.enum ~rev t.rets
 let dict t = t.dict
@@ -80,6 +97,11 @@ let pp ppa ppb ppf t =
   if not @@ Ftree.is_empty t.rets then
     Format.fprintf ppf " ; returns: %a"
       (Ftree.pp ppb sep_ret) t.rets;
+  if not @@ Ftree.is_empty t.slots then begin
+    let sep ppf = Format.fprintf ppf "@;  " in
+    Format.fprintf ppf "@;@[<v 0>  %a@]"
+      (Ftree.pp Slot.pp sep) t.slots
+  end;
   if not @@ Ftree.is_empty t.blks then
     Format.fprintf ppf "@;@[<v 0>%a@]"
       (Ftree.pp (Pseudo_blk.pp ppa) sep_blk) t.blks;
