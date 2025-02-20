@@ -102,8 +102,6 @@ end = struct
 
   (* Rule callbacks. *)
 
-  let nop _ = !!![]
-
   let move_rr_x_y ?(zx = false) env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -1490,9 +1488,9 @@ end = struct
       let diff = Int64.(highest - highest') in
       let* tl = C.Label.fresh in
       let* tbase = C.Var.fresh >>| Rv.var in
-      let* tidx = C.Var.fresh >>| Rv.var in
+      let+ tidx = C.Var.fresh >>| Rv.var in
       let rax = Rv.reg `rax in
-      (!!!) @@ List.concat [
+      Option.some @@ List.concat [
         (* Compare against the lowest value, if necessary. *)
         ( if Int64.(lowest = 1L) then [
               TEST_ (Oreg (x, xt), Oreg (x, xt));
@@ -1846,11 +1844,6 @@ end = struct
 
   (* The rules themselves. *)
   module Rules = struct
-    (* No-op when moving to self. *)
-    let move_nop = [
-      move x x => nop;
-    ]
-
     let add_mul_lea_tbl = [
       `i16, i16 0,  i16 1,  i16 2,  i16 3,  i16 4,  i16 8;
       `i32, i32 0l, i32 1l, i32 2l, i32 3l, i32 4l, i32 8l;
@@ -2451,7 +2444,6 @@ end = struct
 
   let rules =
     let open Rules in
-    move_nop @
     add_mul_lea_imm @
     add_mul_lea_neg_imm @
     add_mul_lea @
