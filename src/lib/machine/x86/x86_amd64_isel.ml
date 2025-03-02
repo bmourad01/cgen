@@ -1287,7 +1287,7 @@ end = struct
 
   (* Idea:
 
-     Zero-extend to 16 bits, shift left by 8, and with 255,
+     Zero-extend to 16 bits, shift left by 8, OR with 255,
      and then do the LZCNT. The operand size will be the result
      in the case of the input being zero, as specified in the
      manual, although we reserve that the result can be undefined.
@@ -1299,7 +1299,7 @@ end = struct
     let* tmp2 = C.Var.fresh >>| Rv.var in !!![
       MOVZX (Oreg (tmp1, `i16), Oreg (y, yt));
       SHL (Oreg (tmp1, `i16), Oimm (8L, `i8));
-      AND (Oreg (tmp1, `i16), Oimm (0xFFL, `i16));
+      OR (Oreg (tmp1, `i16), Oimm (0xFFL, `i16));
       LZCNT (Oreg (tmp2, `i16), Oreg (tmp1, `i16));
       MOV (Oreg (x, xt), Oreg (tmp2, `i8));
     ]
@@ -1317,7 +1317,7 @@ end = struct
     let* tmp1 = C.Var.fresh >>| Rv.var in
     let* tmp2 = C.Var.fresh >>| Rv.var in !!![
       MOVZX (Oreg (tmp1, `i16), Oreg (y, yt));
-      AND (Oreg (tmp1, `i16), Oimm (0xFF00L, `i16));
+      OR (Oreg (tmp1, `i16), Oimm (0xFF00L, `i16));
       TZCNT (Oreg (tmp2, `i16), Oreg (tmp1, `i16));
       MOV (Oreg (x, xt), Oreg (tmp2, `i8));
     ]
