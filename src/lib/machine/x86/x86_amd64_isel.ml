@@ -595,10 +595,42 @@ end = struct
       MOV (Oreg (x, xt), Omem (Abd (y, Dimm z), mty xt));
     ]
 
+  let fload32_rri_add_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_int32 z in
+    let z = Int64.to_int32_trunc z in !!![
+      MOVSS (Oreg (x, xt), Omem (Abd (y, Dimm z), mty xt));
+    ]
+
+  let fload64_rri_add_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_int32 z in
+    let z = Int64.to_int32_trunc z in !!![
+      MOVSD (Oreg (x, xt), Omem (Abd (y, Dimm z), mty xt));
+    ]
+
   let load_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in !!![
       MOV (Oreg (x, xt), Omem (Ab y, mty xt));
+    ]
+
+  let fload32_rr_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in !!![
+      MOVSS (Oreg (x, xt), Omem (Ab y, mty xt));
+    ]
+
+  let fload64_rr_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in !!![
+      MOVSD (Oreg (x, xt), Omem (Ab y, mty xt));
     ]
 
   let store_rr_x_y env =
@@ -1770,6 +1802,14 @@ end = struct
       load_rr_x_y;
     ]
 
+    let fload32 = [
+      fload32_rr_x_y;
+    ]
+
+    let fload64 = [
+      fload64_rr_x_y;
+    ]
+
     let move_ri = [
       move_rr_x_y ~zx:false;
       move_ri_x_y;
@@ -2271,14 +2311,22 @@ end = struct
 
     (* x = load (add y, z) *)
     let load_add = [
+      move x (load `i8  (add `i64 y z)) => load_rri_add_x_y_z;
+      move x (load `i16 (add `i64 y z)) => load_rri_add_x_y_z;
       move x (load `i32 (add `i64 y z)) => load_rri_add_x_y_z;
       move x (load `i64 (add `i64 y z)) => load_rri_add_x_y_z;
+      move x (load `f32 (add `i64 y z)) => fload32_rri_add_x_y_z;
+      move x (load `f64 (add `i64 y z)) => fload64_rri_add_x_y_z;
     ]
 
     (* x = load y *)
     let load_basic = [
+      move x (load `i8  y) =>* Group.load;
+      move x (load `i16 y) =>* Group.load;
       move x (load `i32 y) =>* Group.load;
       move x (load `i64 y) =>* Group.load;
+      move x (load `f32 y) =>* Group.fload32;
+      move x (load `f64 y) =>* Group.fload64;
     ]
 
     (* x = neg y *)
