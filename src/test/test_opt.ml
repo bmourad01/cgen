@@ -195,6 +195,7 @@ let suite = "Test optimizations" >::: [
     "Switch case propagation (AMD64)" >:: test_amd64 "switchcaseprop";
     "Slot promotion 2 (GCD, partial) (AMD64)" >:: test_amd64 "promote2-partial";
     "Variadic function arguments 3 (AMD64)" >:: test_amd64 "vasum";
+    "Sum an array of words (AMD64)" >:: test_amd64 "sumarray";
   ]
 
 let () = run_test_tt_main suite

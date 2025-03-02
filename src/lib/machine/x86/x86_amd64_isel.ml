@@ -585,6 +585,32 @@ end = struct
         CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
       ]
 
+  let load_add_mul_rr_scale_imm_x_y_z_w s env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let*! w, _ = S.imm env "w" in
+    let w = Bv.to_int64 w in
+    let*! () = guard @@ can_lea_ty xt in
+    let*! () = guard @@ fits_int32_pos w in
+    let w = Int64.to_int32_trunc w in
+    let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
+    match xt with
+    | #Type.imm -> !!![MOV (Oreg (x, xt), addr)]
+    | `f32 -> !!![MOVSS (Oreg (x, xt), addr)]
+    | `f64 -> !!![MOVSD (Oreg (x, xt), addr)]
+
+  let load_add_mul_rr_scale_x_y_z s env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let*! () = guard @@ can_lea_ty xt in
+    let addr = Omem (Abis (y, z, s), mty xt) in
+    match xt with
+    | #Type.imm -> !!![MOV (Oreg (x, xt), addr)]
+    | `f32 -> !!![MOVSS (Oreg (x, xt), addr)]
+    | `f64 -> !!![MOVSD (Oreg (x, xt), addr)]
+
   let load_rri_add_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
@@ -2279,6 +2305,71 @@ end = struct
           move x (sel ty' (sge ty y z) yes no) =>* Group.sel Cge;
         ]
 
+    (* x = load (add (add y (mul z i)) w) => mov x, [y+z*i+w]
+
+       where i \in {1,2,4,8} and w is a constant
+
+       x = load (add (add y (lsl z i)) w) => mov x, [y+z*(1<<i)+w]
+
+       where i \in {0,1,2,3} and w is a constant
+    *)
+    let load_add_mul_disp =
+      [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty -> [
+          (* x = load (add (add y (mul z i)) w) *)
+          move x (load ty (add `i64 (add `i64 y (mul `i64 z (i64 1L))) w)) => load_add_mul_rr_scale_imm_x_y_z_w 1;
+          move x (load ty (add `i64 (add `i64 y (mul `i64 z (i64 2L))) w)) => load_add_mul_rr_scale_imm_x_y_z_w 2;
+          move x (load ty (add `i64 (add `i64 y (mul `i64 z (i64 4L))) w)) => load_add_mul_rr_scale_imm_x_y_z_w 4;
+          move x (load ty (add `i64 (add `i64 y (mul `i64 z (i64 8L))) w)) => load_add_mul_rr_scale_imm_x_y_z_w 8;
+          (* x = load (add y (add (mul z i) w)) *)
+          move x (load ty (add `i64 y (add `i64 (mul `i64 z (i64 1L)) w))) => load_add_mul_rr_scale_imm_x_y_z_w 1;
+          move x (load ty (add `i64 y (add `i64 (mul `i64 z (i64 2L)) w))) => load_add_mul_rr_scale_imm_x_y_z_w 2;
+          move x (load ty (add `i64 y (add `i64 (mul `i64 z (i64 4L)) w))) => load_add_mul_rr_scale_imm_x_y_z_w 4;
+          move x (load ty (add `i64 y (add `i64 (mul `i64 z (i64 8L)) w))) => load_add_mul_rr_scale_imm_x_y_z_w 8;
+          (* x = load (add (add y (lsl z i)) w) *)
+          move x (load ty (add `i64 (add `i64 y (lsl_ `i64 z (i64 0L))) w)) => load_add_mul_rr_scale_imm_x_y_z_w 1;
+          move x (load ty (add `i64 (add `i64 y (lsl_ `i64 z (i64 1L))) w)) => load_add_mul_rr_scale_imm_x_y_z_w 2;
+          move x (load ty (add `i64 (add `i64 y (lsl_ `i64 z (i64 2L))) w)) => load_add_mul_rr_scale_imm_x_y_z_w 4;
+          move x (load ty (add `i64 (add `i64 y (lsl_ `i64 z (i64 3L))) w)) => load_add_mul_rr_scale_imm_x_y_z_w 8;
+          (* x = load (add y (add (lsl z i) w)) *)
+          move x (load ty (add `i64 y (add `i64 (lsl_ `i64 z (i64 0L)) w))) => load_add_mul_rr_scale_imm_x_y_z_w 1;
+          move x (load ty (add `i64 y (add `i64 (lsl_ `i64 z (i64 1L)) w))) => load_add_mul_rr_scale_imm_x_y_z_w 2;
+          move x (load ty (add `i64 y (add `i64 (lsl_ `i64 z (i64 2L)) w))) => load_add_mul_rr_scale_imm_x_y_z_w 4;
+          move x (load ty (add `i64 y (add `i64 (lsl_ `i64 z (i64 3L)) w))) => load_add_mul_rr_scale_imm_x_y_z_w 8;
+        ]
+
+    (* x = load (add y (mul z i)) => mov x, [y+z*i]
+
+       where i \in {1,2,4,8}
+
+       x = load (add y (lsl z i)) => mov x, [y+z*(1<<i)]
+
+       where i \in {0,1,2,3}
+    *)
+    let load_add_mul =
+      [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty -> [
+          (* x = load (add y (mul z i)) *)
+          move x (load ty (add `i64 y (mul `i64 z (i64 1L)))) => load_add_mul_rr_scale_x_y_z 1;
+          move x (load ty (add `i64 y (mul `i64 z (i64 2L)))) => load_add_mul_rr_scale_x_y_z 2;
+          move x (load ty (add `i64 y (mul `i64 z (i64 4L)))) => load_add_mul_rr_scale_x_y_z 4;
+          move x (load ty (add `i64 y (mul `i64 z (i64 8L)))) => load_add_mul_rr_scale_x_y_z 8;
+          (* x = load (add y (mul z i)) *)
+          move x (load ty (add `i64 y (mul `i64 z (i64 1L)))) => load_add_mul_rr_scale_x_y_z 1;
+          move x (load ty (add `i64 y (mul `i64 z (i64 2L)))) => load_add_mul_rr_scale_x_y_z 2;
+          move x (load ty (add `i64 y (mul `i64 z (i64 4L)))) => load_add_mul_rr_scale_x_y_z 4;
+          move x (load ty (add `i64 y (mul `i64 z (i64 8L)))) => load_add_mul_rr_scale_x_y_z 8;
+          (* x = load (add y (lsl z i)) *)
+          move x (load ty (add `i64 y (lsl_ `i64 z (i64 0L)))) => load_add_mul_rr_scale_x_y_z 1;
+          move x (load ty (add `i64 y (lsl_ `i64 z (i64 1L)))) => load_add_mul_rr_scale_x_y_z 2;
+          move x (load ty (add `i64 y (lsl_ `i64 z (i64 2L)))) => load_add_mul_rr_scale_x_y_z 4;
+          move x (load ty (add `i64 y (lsl_ `i64 z (i64 3L)))) => load_add_mul_rr_scale_x_y_z 8;
+          (* x = load (add (lsl z i)) *)
+          move x (load ty (add `i64 y (lsl_ `i64 z (i64 0L)))) => load_add_mul_rr_scale_x_y_z 1;
+          move x (load ty (add `i64 y (lsl_ `i64 z (i64 1L)))) => load_add_mul_rr_scale_x_y_z 2;
+          move x (load ty (add `i64 y (lsl_ `i64 z (i64 2L)))) => load_add_mul_rr_scale_x_y_z 4;
+          move x (load ty (add `i64 y (lsl_ `i64 z (i64 3L)))) => load_add_mul_rr_scale_x_y_z 8;
+        ]
+
+
     (* x = load (add y, z) *)
     let load_add = [
       move x (load `i8  (add `i64 y z)) =>* Group.load_add;
@@ -2574,6 +2665,8 @@ end = struct
     setcc_ibasic @
     setcc_fbasic @
     sel_ibasic @
+    load_add_mul_disp @
+    load_add_mul @
     load_add @
     load_basic @
     neg_basic @
