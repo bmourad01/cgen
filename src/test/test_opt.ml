@@ -155,6 +155,7 @@ let suite = "Test optimizations" >::: [
     "Test reassoc add left" >:: test "reassocaddleft";
     "Test reassoc add const" >:: test "reassocaddconst";
     "Sum an array of words" >:: test "sumarray";
+    "Copy an array of words" >:: test "cpyarray";
     "Constant select" >:: test "constsel";
     "Slot promotion 1" >:: test "promote1";
     "Slot promotion 2 (GCD)" >:: test "promote2";
@@ -196,6 +197,7 @@ let suite = "Test optimizations" >::: [
     "Slot promotion 2 (GCD, partial) (AMD64)" >:: test_amd64 "promote2-partial";
     "Variadic function arguments 3 (AMD64)" >:: test_amd64 "vasum";
     "Sum an array of words (AMD64)" >:: test_amd64 "sumarray";
+    "Copy an array of words (AMD64)" >:: test_amd64 "cpyarray";
   ]
 
 let () = run_test_tt_main suite
