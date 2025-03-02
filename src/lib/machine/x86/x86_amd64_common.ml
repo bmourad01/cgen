@@ -177,6 +177,7 @@ module Insn = struct
     | Abd   of rv * disp            (* Base + displacement *)
     | Abid  of rv * rv * disp       (* Base + index + displacement *)
     | Abis  of rv * rv * int        (* Base + index * scale *)
+    | Ais   of rv * int             (* Index * scale *)
     | Aisd  of rv * int * disp      (* Index * scale + displacement *)
     | Abisd of rv * rv * int * disp (* Base + index * scale + displacement *)
   [@@deriving bin_io, compare, equal, sexp]
@@ -207,6 +208,8 @@ module Insn = struct
     | Aisd (i, s, Dimm d) when Int32.(d < 0l) ->
       Format.fprintf ppf "%a*%d - 0x%lx"
         Regvar.pp i s (Int32.neg d)
+    | Ais (i, s) ->
+      Format.fprintf ppf "%a*%d" Regvar.pp i s
     | Aisd (i, s, d) ->
       Format.fprintf ppf "%a*%d + %a"
         Regvar.pp i s pp_disp d
@@ -499,6 +502,7 @@ module Insn = struct
     | Abd (a, _) -> [a]
     | Abid (a, b, _) -> [a; b]
     | Abis (a, b, _) -> [a; b]
+    | Ais (a, _) -> [a]
     | Aisd (a, _, _) -> [a]
     | Abisd (a, b, _, _) -> [a; b]
 
