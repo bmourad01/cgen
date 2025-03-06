@@ -46,13 +46,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           (* If it fails initially, see if commuting the operands will produce
              a match. This should cut down on the number of cases we have to
              cover in our patterns. *)
-          begin match children env xs ys k with
-            | exception Mismatch ->
-              begin match commute n with
-                | Some N (_, ys) -> children env xs ys k
-                | _ -> raise_notrace Mismatch
-              end
-            | env -> env
+          begin try children env xs ys k with
+            | Mismatch -> match commute n with
+              | Some N (_, ys) -> children env xs ys k
+              | _ -> raise_notrace Mismatch
           end
         | N _ | Rv _ | Tbl _ -> raise_notrace Mismatch
     and var env x id k = match node t id with
