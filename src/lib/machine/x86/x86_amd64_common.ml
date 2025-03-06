@@ -289,18 +289,23 @@ module Insn = struct
 
   (* Condition codes. *)
   type cc =
+    (* Unsigned comparison ("above" or "below") *)
     | Ca  (* ~CF & ~ZF *)
     | Cae (* ~CF *)
     | Cb  (* CF *)
     | Cbe (* CF | ZF *)
+    (* Equality *)
     | Ce  (* ZF *)
     | Cne (* ~ZF *)
+    (* Signed comparison ("greater" or "less") *)
     | Cg  (* ~ZF & SF=OF *)
     | Cge (* SF=OF *)
     | Cl  (* SF<>OF *)
     | Cle (* ZF | SF<>OF *)
+    (* Parity bit *)
     | Cp  (* PF *)
     | Cnp (* ~PF *)
+    (* Sign bit *)
     | Cs  (* SF *)
     | Cns (* ~SF *)
   [@@deriving bin_io, compare, equal, sexp]
