@@ -461,6 +461,7 @@ end = struct
     let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let cc = if neg then Cne else Ce in !!![
+      MOV (Oreg (x, `i32), Oimm (0L, `i32));
       TEST_ (Oreg (y, yt), Oreg (y, yt));
       SETcc (cc, Oreg (x, `i8));
     ]
@@ -470,6 +471,7 @@ end = struct
     let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let cc = if neg then Cns else Cs in !!![
+      MOV (Oreg (x, `i32), Oimm (0L, `i32));
       TEST_ (Oreg (y, yt), Oreg (y, yt));
       SETcc (cc, Oreg (x, `i8));
     ]
@@ -480,6 +482,7 @@ end = struct
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.regvar env "z" in
     let cc = if neg then Ce else Cne in !!![
+      MOV (Oreg (x, `i32), Oimm (0L, `i32));
       TEST_ (Oreg (y, yt), Oreg (z, zt));
       SETcc (cc, Oreg (x, `i8));
     ]
@@ -490,6 +493,7 @@ end = struct
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in
     let cc = if neg then Ce else Cne in !!![
+      MOV (Oreg (x, `i32), Oimm (0L, `i32));
       TEST_ (Oreg (y, yt), Oimm (Bv.to_int64 z, zt));
       SETcc (cc, Oreg (x, `i8));
     ]
@@ -499,6 +503,7 @@ end = struct
     let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.regvar env "z" in !!![
+      MOV (Oreg (x, `i32), Oimm (0L, `i32));
       CMP (Oreg (y, yt), Oreg (z, zt));
       SETcc (cc, Oreg (x, `i8));
     ]
@@ -508,6 +513,7 @@ end = struct
     let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.regvar env "z" in !!![
+      MOV (Oreg (x, `i32), Oimm (0L, `i32));
       UCOMISS (Oreg (y, yt), Oreg (z, zt));
       SETcc (cc, Oreg (x, `i8));
     ]
@@ -517,6 +523,7 @@ end = struct
     let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.regvar env "z" in !!![
+      MOV (Oreg (x, `i32), Oimm (0L, `i32));
       UCOMISD (Oreg (y, yt), Oreg (z, zt));
       SETcc (cc, Oreg (x, `i8));
     ]
@@ -528,11 +535,13 @@ end = struct
     let*! z, zt = S.imm env "z" in
     let z = Bv.to_int64 z in
     if fits_int32 z then !!![
+        MOV (Oreg (x, `i32), Oimm (0L, `i32));
         CMP (Oreg (y, yt), Oimm (z, zt));
         SETcc (cc, Oreg (x, `i8));
       ]
     else
       let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOV (Oreg (x, `i32), Oimm (0L, `i32));
         MOV (Oreg (tmp, `i64), Oimm (z, zt));
         CMP (Oreg (y, yt), Oreg (tmp, `i64));
         SETcc (cc, Oreg (x, `i8));

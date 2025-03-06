@@ -2,11 +2,11 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %arr:l, rdi ; @39
-  mov %num:w, esi ; @40
-  xor %s.2:w, %s.2:w ; @41
-  xor %i.2:w, %i.2:w ; @42
-  jmp @3 ; @43
+  mov %arr:l, rdi ; @40
+  mov %num:w, esi ; @41
+  xor %s.2:w, %s.2:w ; @42
+  xor %i.2:w, %i.2:w ; @43
+  jmp @3 ; @44
 @3:
   cmp %i.2:w, %num:w ; @34
   jb @6 ; @35

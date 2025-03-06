@@ -2,69 +2,69 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %n:w, edi ; @126
-  cmp %n:w, 0x1_w ; @123
-  jbe @44 ; @124
-  jmp @4 ; @125
+  mov %n:w, edi ; @132
+  cmp %n:w, 0x1_w ; @129
+  jbe @44 ; @130
+  jmp @4 ; @131
 @44:
-  xor %0:w, %0:w ; @121
-  jmp @28 ; @122
+  xor %0:w, %0:w ; @127
+  jmp @28 ; @128
 @4:
-  cmp %n:w, 0x3_w ; @116
-  jbe @45 ; @117
-  jmp @7 ; @118
+  cmp %n:w, 0x3_w ; @121
+  jbe @45 ; @122
+  jmp @7 ; @123
 @45:
-  mov %0:w, 0x1_w ; @114
-  jmp @28 ; @115
+  mov %0:w, 0x1_w ; @119
+  jmp @28 ; @120
 @7:
-  test %n:w, 0x1_w ; @107
-  je @46 ; @108
-  jmp @9 ; @109
+  test %n:w, 0x1_w ; @111
+  je @46 ; @112
+  jmp @9 ; @113
 @46:
-  mov %0:w, 0x1_w ; @105
-  jmp @28 ; @106
+  mov %0:w, 0x1_w ; @109
+  jmp @28 ; @110
 @9:
-  mov eax, 0x55555556_w ; @102
-  mul %n:w ; @103
-  mov %5:w, edx ; @104
-  lea %7:w, qword ptr [%5 + %5*2] ; @100
-  mov %8:w, %n:w ; @98
-  sub %8:w, %7:w ; @99
-  test %8:w, %8:w ; @93
-  je @47 ; @94
-  jmp @48 ; @95
+  mov eax, 0x55555556_w ; @106
+  mul %n:w ; @107
+  mov %5:w, edx ; @108
+  lea %7:w, qword ptr [%5 + %5*2] ; @104
+  mov %8:w, %n:w ; @102
+  sub %8:w, %7:w ; @103
+  test %8:w, %8:w ; @96
+  je @47 ; @97
+  jmp @48 ; @98
 @47:
-  mov %0:w, 0x1_w ; @91
-  jmp @28 ; @92
+  mov %0:w, 0x1_w ; @94
+  jmp @28 ; @95
 @48:
-  mov %i.2:w, 0x5_w ; @89
-  jmp @15 ; @90
+  mov %i.2:w, 0x5_w ; @92
+  jmp @15 ; @93
 @15:
-  mov %10:w, %i.2:w ; @87
-  imul %10:w, %i.2:w ; @88
-  cmp %10:w, %n:w ; @82
-  jbe @17 ; @83
-  jmp @49 ; @84
+  mov %10:w, %i.2:w ; @90
+  imul %10:w, %i.2:w ; @91
+  cmp %10:w, %n:w ; @84
+  jbe @17 ; @85
+  jmp @49 ; @86
 @49:
-  mov %0:w, 0x1_w ; @80
-  jmp @28 ; @81
+  mov %0:w, 0x1_w ; @82
+  jmp @28 ; @83
 @17:
-  mov eax, %n:w ; @76
-  xor edx, edx ; @77
-  div %i.2:w ; @78
-  mov %r.3:w, edx ; @79
-  test %r.3:w, %r.3:w ; @71
-  je @50 ; @72
-  jmp @20 ; @73
+  mov eax, %n:w ; @78
+  xor edx, edx ; @79
+  div %i.2:w ; @80
+  mov %r.3:w, edx ; @81
+  test %r.3:w, %r.3:w ; @72
+  je @50 ; @73
+  jmp @20 ; @74
 @50:
-  xor %0:w, %0:w ; @69
-  jmp @28 ; @70
+  xor %0:w, %0:w ; @70
+  jmp @28 ; @71
 @20:
-  lea %13:w, qword ptr [%i.2 + 0x2] ; @68
-  mov eax, %n:w ; @64
-  xor edx, edx ; @65
-  div %13:w ; @66
-  mov %r.4:w, edx ; @67
+  lea %13:w, qword ptr [%i.2 + 0x2] ; @69
+  mov eax, %n:w ; @65
+  xor edx, edx ; @66
+  div %13:w ; @67
+  mov %r.4:w, edx ; @68
   test %r.4:w, %r.4:w ; @59
   je @51 ; @60
   jmp @23 ; @61
