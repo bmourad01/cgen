@@ -625,8 +625,11 @@ module Insn = struct
     | IDIV a
       -> Set.union (rset' [`rax; `rdx]) (rset [a])
     | Jcc (_, _)
-    | SETcc (_, _)
       -> rset' [`rflags]
+    | SETcc (_, a)
+      (* SETcc will "read" the destination in the sense that
+         only the lower 8 bits are changed. *)
+      -> Set.union (rset' [`rflags]) (rset [a])
     | JMP (Jlbl _)
     | UD2
     | JMPtbl _
