@@ -1,0 +1,9 @@
+module foo
+
+export function $foo { ; returns: rax
+@2:
+  mov %x:w, edi ; @11
+  lea %1:w, qword ptr [%x + %x*1 + 0x2] ; @10
+  mov eax, %1:w ; @8
+  ret ; @9
+}

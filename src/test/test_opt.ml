@@ -202,6 +202,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Variadic function arguments 3 (AMD64)" >:: test_amd64 "vasum";
     "Sum an array of words (AMD64)" >:: test_amd64 "sumarray";
     "Copy an array of words (AMD64)" >:: test_amd64 "cpyarray";
+    "Folding addition (AMD64)" >:: test "foldadd";
   ]
 
 let () = run_test_tt_main @@ test_list [
