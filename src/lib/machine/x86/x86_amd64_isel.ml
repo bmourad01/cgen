@@ -2697,7 +2697,7 @@ end = struct
           store ty x p4.(1) => store_add_mul_rr_scale_x_y_z 8;
         ]
 
-    (* store x, [y + z] *)
+    (* store x (add y z) *)
     let store_add = [
       store `i8  x (add `i64 y z) =>* Group.store_add;
       store `i16 x (add `i64 y z) =>* Group.store_add;
@@ -2707,7 +2707,7 @@ end = struct
       store `f64 x (add `i64 y z) =>* Group.store_add;
     ]
 
-    (* store x, [y] *)
+    (* store x y *)
     let store_basic = [
       store `i8  x y =>* Group.store;
       store `i16 x y =>* Group.store;
