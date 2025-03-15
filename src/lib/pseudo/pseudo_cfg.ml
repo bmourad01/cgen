@@ -9,7 +9,13 @@ module Func = Pseudo_func
 module G = Graphlib.Make(Label)(Unit)
 module Pseudo = Label.Pseudo(G)
 
+let check fn =
+  if Dict.mem (Func.dict fn) Tags.peephole then
+    invalid_argf "Function $%s has gone through peephole optimization: \
+                  cannot compute CFG" (Func.name fn) ()
+
 let create ~dests fn =
+  check fn;
   Func.blks fn |> Seq.fold ~init:G.empty ~f:(fun g b ->
       let s = Blk.label b in
       let g = G.Node.insert s g in
