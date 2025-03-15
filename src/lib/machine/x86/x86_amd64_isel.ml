@@ -600,9 +600,23 @@ end = struct
     let*! z, _ = S.regvar env "z" in
     let*! w, _ = S.imm env "w" in
     let w = Bv.to_int64 w in
-    let*! () = guard @@ can_lea_ty xt in
     let*! () = guard @@ fits_int32_pos w in
     let w = Int64.to_int32_trunc w in
+    let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
+    match xt with
+    | #Type.imm -> !!![MOV (Oreg (x, xt), addr)]
+    | `f32 -> !!![MOVSS (Oreg (x, xt), addr)]
+    | `f64 -> !!![MOVSD (Oreg (x, xt), addr)]
+
+  let load_add_mul_rr_scale_neg_imm_x_y_z_w s env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let*! w, _ = S.imm env "w" in
+    let w = Bv.to_int64 w in
+    let nw = Int64.neg w in
+    let*! () = guard @@ fits_int32_neg nw in
+    let w = Int64.to_int32_trunc nw in
     let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
     match xt with
     | #Type.imm -> !!![MOV (Oreg (x, xt), addr)]
@@ -613,7 +627,6 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
     let*! z, _ = S.regvar env "z" in
-    let*! () = guard @@ can_lea_ty xt in
     let addr = Omem (Abis (y, z, s), mty xt) in
     match xt with
     | #Type.imm -> !!![MOV (Oreg (x, xt), addr)]
@@ -675,7 +688,6 @@ end = struct
     let*! z, _ = S.regvar env "z" in
     let*! w, _ = S.imm env "w" in
     let w = Bv.to_int64 w in
-    let*! () = guard @@ can_lea_ty xt in
     let*! () = guard @@ fits_int32_pos w in
     let w = Int64.to_int32_trunc w in
     let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
@@ -691,7 +703,6 @@ end = struct
     let*! w, _ = S.imm env "w" in
     let w = Bv.to_int64 w in
     let nw = Int64.neg w in
-    let*! () = guard @@ can_lea_ty xt in
     let*! () = guard @@ fits_int32_neg nw in
     let w = Int64.to_int32_trunc nw in
     let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
@@ -704,7 +715,6 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
     let*! z, _ = S.regvar env "z" in
-    let*! () = guard @@ can_lea_ty xt in
     let addr = Omem (Abis (y, z, s), mty xt) in
     match xt with
     | #Type.imm -> !!![MOV (addr, Oreg (x, xt))]
@@ -2460,6 +2470,44 @@ end = struct
           move x (load ty p4.(3)) => load_add_mul_rr_scale_imm_x_y_z_w 8;
         ]
 
+    (* x = load (sub (add y (mul z i)) w) => mov x, [y+z*i-w]
+
+       where i \in {1,2,4,8} and w is a constant
+
+       x = load (sub (add y (lsl z i)) w) => mov x, [y+z*(1<<i)-w]
+
+       where i \in {0,1,2,3} and w is a constant
+    *)
+    let load_add_mul_disp_neg =
+      [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty ->
+        let p1 = sib_disp_neg_pat `i64 (i64 1L) (i64 0L) in
+        let p2 = sib_disp_neg_pat `i64 (i64 2L) (i64 1L) in
+        let p3 = sib_disp_neg_pat `i64 (i64 4L) (i64 2L) in
+        let p4 = sib_disp_neg_pat `i64 (i64 8L) (i64 3L) in [
+          (* Scale by 1 *)
+          move x (load ty p1.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          move x (load ty p1.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          move x (load ty p1.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          move x (load ty p1.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          move x (load ty (add ty (add ty y z) w)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          move x (load ty (add ty y (add ty z w))) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          (* Scale by 2 *)
+          move x (load ty p2.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          move x (load ty p2.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          move x (load ty p2.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          move x (load ty p2.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          (* Scale by 4 *)
+          move x (load ty p3.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          move x (load ty p3.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          move x (load ty p3.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          move x (load ty p3.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          (* Scale by 8 *)
+          move x (load ty p4.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+          move x (load ty p4.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+          move x (load ty p4.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+          move x (load ty p4.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+        ]
+
     (* x = load (add y (mul z i)) => mov x, [y+z*i]
 
        where i \in {1,2,4,8}
@@ -2889,6 +2937,7 @@ end = struct
     setcc_fbasic @
     sel_ibasic @
     load_add_mul_disp @
+    load_add_mul_disp_neg @
     load_add_mul @
     load_add @
     load_basic @
