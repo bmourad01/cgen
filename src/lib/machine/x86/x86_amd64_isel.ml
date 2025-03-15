@@ -2489,8 +2489,7 @@ end = struct
           move x (load ty p1.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
           move x (load ty p1.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
           move x (load ty p1.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x (load ty (add ty (add ty y z) w)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x (load ty (add ty y (add ty z w))) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          move x (load ty (sub ty (add ty y z) w)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
           (* Scale by 2 *)
           move x (load ty p2.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
           move x (load ty p2.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
@@ -2753,8 +2752,7 @@ end = struct
           store ty x p1.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
           store ty x p1.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
           store ty x p1.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          store ty x (add `i64 (add `i64 y z) w) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          store ty x (add `i64 y (add `i64 z w)) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          store ty x (sub `i64 (add `i64 y z) w) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
           (* Scale by 2 *)
           store ty x p2.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
           store ty x p2.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
