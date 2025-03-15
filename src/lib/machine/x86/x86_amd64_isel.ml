@@ -2650,8 +2650,8 @@ end = struct
           store ty x p1.(1) => store_add_mul_rr_scale_imm_x_y_z_w 1;
           store ty x p1.(2) => store_add_mul_rr_scale_imm_x_y_z_w 1;
           store ty x p1.(3) => store_add_mul_rr_scale_imm_x_y_z_w 1;
-          store ty x (add `i64 (add `i64 y z) w) => load_add_mul_rr_scale_imm_x_y_z_w 1;
-          store ty x (add `i64 y (add `i64 z w)) => load_add_mul_rr_scale_imm_x_y_z_w 1;
+          store ty x (add `i64 (add `i64 y z) w) => store_add_mul_rr_scale_imm_x_y_z_w 1;
+          store ty x (add `i64 y (add `i64 z w)) => store_add_mul_rr_scale_imm_x_y_z_w 1;
           (* Scale by 2 *)
           store ty x p2.(0) => store_add_mul_rr_scale_imm_x_y_z_w 2;
           store ty x p2.(1) => store_add_mul_rr_scale_imm_x_y_z_w 2;
