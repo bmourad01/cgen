@@ -684,6 +684,22 @@ end = struct
     | `f32 -> !!![MOVSS (addr, Oreg (x, xt))]
     | `f64 -> !!![MOVSD (addr, Oreg (x, xt))]
 
+  let store_add_mul_rr_scale_neg_imm_x_y_z_w s env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let*! w, _ = S.imm env "w" in
+    let w = Bv.to_int64 w in
+    let nw = Int64.neg w in
+    let*! () = guard @@ can_lea_ty xt in
+    let*! () = guard @@ fits_int32_neg nw in
+    let w = Int64.to_int32_trunc nw in
+    let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
+    match xt with
+    | #Type.imm -> !!![MOV (addr, Oreg (x, xt))]
+    | `f32 -> !!![MOVSS (addr, Oreg (x, xt))]
+    | `f64 -> !!![MOVSD (addr, Oreg (x, xt))]
+
   let store_add_mul_rr_scale_x_y_z s env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
@@ -2669,6 +2685,45 @@ end = struct
           store ty x p4.(3) => store_add_mul_rr_scale_imm_x_y_z_w 8;
         ]
 
+
+    (* store x (sub (add y (mul z i)) w) => mov [y+z*i-w], x
+
+       where i \in {1,2,4,8} and w is a constant
+
+       store x (sub (add y (lsl z i)) w) => mov [y+z*(1<<i)-w], x
+
+       where i \in {0,1,2,3} and w is a constant
+    *)
+    let store_add_mul_disp_neg =
+      [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty ->
+        let p1 = sib_disp_neg_pat `i64 (i64 1L) (i64 0L) in
+        let p2 = sib_disp_neg_pat `i64 (i64 2L) (i64 1L) in
+        let p3 = sib_disp_neg_pat `i64 (i64 4L) (i64 2L) in
+        let p4 = sib_disp_neg_pat `i64 (i64 8L) (i64 3L) in [
+          (* Scale by 1 *)
+          store ty x p1.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          store ty x p1.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          store ty x p1.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          store ty x p1.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          store ty x (add `i64 (add `i64 y z) w) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          store ty x (add `i64 y (add `i64 z w)) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          (* Scale by 2 *)
+          store ty x p2.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          store ty x p2.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          store ty x p2.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          store ty x p2.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          (* Scale by 4 *)
+          store ty x p3.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          store ty x p3.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          store ty x p3.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          store ty x p3.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          (* Scale by 8 *)
+          store ty x p4.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+          store ty x p4.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+          store ty x p4.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+          store ty x p4.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+        ]
+
     (* store x (add y (mul z i)) => mov [y+z*i], x
 
        where i \in {1,2,4,8}
@@ -2857,6 +2912,7 @@ end = struct
     store_vec_add @
     store_vec_basic @
     store_add_mul_disp @
+    store_add_mul_disp_neg @
     store_add_mul @
     store_add @
     store_basic @
