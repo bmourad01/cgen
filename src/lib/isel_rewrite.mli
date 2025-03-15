@@ -343,7 +343,16 @@ module Rule(C : Context_intf.S) : sig
   *)
   val (=>*) : Pattern.toplevel -> ('r, 'i) callback list -> ('r, 'i) t
 
+  (** Lifts an [option] computation into the monad and binds it to a result. *)
   val (let*!) : 'a option -> ('a -> 'b option C.t) -> 'b option C.t
+
+  (** [!!!a] is equivalent to [C.return (Some a)] *)
   val (!!!) : 'a -> 'a option C.t
+
+  (** [guard b] returns [Some ()] if [b] is [true], and [None] otherwise. *)
   val guard : bool -> unit option
+
+  (** [try_ x fs] attempts to apply the functions in [fs] to [x] from left
+      to right. *)
+  val try_ : 'a -> ('a -> 'b option C.t) list -> 'b option C.t
 end

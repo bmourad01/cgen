@@ -82,9 +82,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let rules = (I.rules :> rule list) in
     C.List.find_map rules ~f:(function
         | _, [] -> !!None
-        | pre, posts -> match search t pre id with
-          | exception Mismatch -> !!None
-          | env -> C.List.find_map posts ~f:((|>) env)) >>= function
+        | pre, posts ->
+          try R.try_ (search t pre id) posts with
+          | Mismatch -> !!None) >>= function
     | Some is -> !!is
     | None ->
       C.failf "In Isel_match.match_one: at label %a in function $%s: \

@@ -133,6 +133,8 @@ module Subst = struct
 end
 
 module Rule(C : Context_intf.S) = struct
+  open C.Syntax
+
   type ('r, 'i) callback = 'r Subst.t -> 'i list option C.t
   type ('r, 'i) t = Pattern.toplevel * ('r, 'i) callback list
 
@@ -140,9 +142,10 @@ module Rule(C : Context_intf.S) = struct
   let (=>*) pre post = pre, post
 
   let (let*!) x f = match x with
-    | None -> C.return None
+    | None -> !!None
     | Some x -> f x
 
-  let (!!!) x = C.return @@ Some x
+  let (!!!) x = !!(Some x)
   let guard x = if x then Some () else None
+  let try_ x fs = C.List.find_map fs ~f:((|>) x)
 end
