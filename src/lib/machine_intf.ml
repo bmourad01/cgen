@@ -22,7 +22,7 @@ module type S = sig
 
   (** A machine register. *)
   module Reg : sig
-    type t [@@deriving bin_io, compare, equal, sexp]
+    type t [@@deriving bin_io, compare, equal, hash, sexp]
 
     (** Stack pointer register. *)
     val sp : t
@@ -37,6 +37,22 @@ module type S = sig
         intermediate computations.
     *)
     val scratch : t
+
+    (** Same as [scratch], but for floating-point registers. *)
+    val scratch_fp : t
+
+    (** A list, in order of preference, for registers that can be allocated.
+
+        These should be general purpose registers, and [scratch] {b must not}
+        be included.
+    *)
+    val allocatable : t list
+
+    (** Same as [allocatable], but for floating-point registers. *)
+    val allocatable_fp : t list
+
+    (** Returns the class of the register. *)
+    val classof : t -> [`gpr | `fp]
 
     (** The type of the register. *)
     val typeof : t -> [Type.basic | `v128]
@@ -66,10 +82,10 @@ module type S = sig
     type t
 
     val reg : Reg.t -> t
-    val var : Var.t -> t
+    val var : [`gpr | `fp] -> Var.t -> t
     val is_reg : t -> bool
     val is_var : t -> bool
-    val which : t -> (Reg.t, Var.t) Either.t
+    val which : t -> (Reg.t, Var.t * [`gpr | `fp]) Either.t
 
     include Regular.S with type t := t
   end
@@ -98,6 +114,14 @@ module type S = sig
     (** Returns [true] if the instruction should always be computed,
         if it is reachable. *)
     val always_live : t -> bool
+
+    (** If the instruction is a simple copy or move from one register/var to
+        another, then return [Some (d, s)], where [d] is the destination
+        and [s] is the source.
+
+        Note that both [d] and [s] {b must} have the same register class.
+    *)
+    val copy : t -> (Regvar.t * Regvar.t) option
 
     (** Pretty-prints the instruction. *)
     val pp : Format.formatter -> t -> unit

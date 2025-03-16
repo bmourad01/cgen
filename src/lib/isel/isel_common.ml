@@ -30,6 +30,10 @@ let commute = function
 
 type ty = [Type.basic | `flag | `v128]
 
+let regcls : ty -> [> `gpr | `fp] = function
+  | #Type.imm | `flag -> `gpr
+  | #Type.fp | `v128 -> `fp
+
 type 'r t = {
   fn    : func;
   node  : 'r node Vec.t;

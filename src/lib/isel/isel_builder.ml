@@ -30,9 +30,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         Var.pp x (Func.name t.fn) ()
 
   let new_var t x ty = Hashtbl.find_or_add t.v2id x ~default:(fun () ->
-      let id = new_node ~ty t @@ Rv (Rv.var x) in
+      let v = Rv.var (regcls ty) x in
+      let id = new_node ~ty t @@ Rv v in
       Hashtbl.set t.v2id ~key:x ~data:id;
-      Hashtbl.set t.id2r ~key:id ~data:(Rv.var x);
+      Hashtbl.set t.id2r ~key:id ~data:v;
       id)
 
   let word = (Target.word M.target :> ty)
@@ -108,7 +109,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let+ ty = typeof_operand t a in
     match a with
     | #Virtual.const as c -> ty, constant t c
-    | `var x -> ty, new_node ~ty t @@ Rv (Rv.var x)
+    | `var x -> ty, new_node ~ty t @@ Rv (Rv.var (regcls ty) x)
 
   let blkargs ?(br = false) t l ld args =
     zip_blkargs t ld args >>= function
@@ -162,7 +163,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let n = N (Obinop o, [a; b]) in
     let ty = infer_ty_binop o in
     let id = new_node ~ty t n in
-    let r = Rv.var x in
+    let r = Rv.var (regcls ty) x in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
     Hashtbl.set t.v2id ~key:x ~data:id;
@@ -183,7 +184,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | _ ->
         let n = N (Ounop o, [a]) in
         new_node ~ty t n in
-    let r = Rv.var x in
+    let r = Rv.var (regcls ty) x in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
     Hashtbl.set t.v2id ~key:x ~data:id;
@@ -196,7 +197,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let n = N (Osel ty, [c; y; n]) in
     let ty = (ty :> ty) in
     let id = new_node ~ty t n in
-    let r = Rv.var x in
+    let r = Rv.var (regcls ty) x in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
     Hashtbl.set t.v2id ~key:x ~data:id;
@@ -227,8 +228,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     end
 
   let call_arg_reg t l (a, r) =
-    let* r = reg t r >>| Rv.reg in
-    let+ ty, a = operand' t a in
+    let* ty, a = operand' t a in
+    let+ r = reg t r >>| Rv.reg in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; a])
 

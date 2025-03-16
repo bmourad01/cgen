@@ -17,7 +17,7 @@ module Make(R : Reg)(N : Name) = struct
   module T = struct
     type t =
       | Reg of R.t
-      | Var of Var.t
+      | Var of Var.t * [`gpr | `fp]
     [@@deriving bin_io, compare, equal, hash, sexp]
   end
 
@@ -32,15 +32,15 @@ module Make(R : Reg)(N : Name) = struct
     | Var _ -> true
 
   let reg r = Reg r
-  let var v = Var v
+  let var cls v = Var (v, cls)
 
   let which = function
     | Reg r -> First r
-    | Var v -> Second v
+    | Var (v, cls) -> Second (v, cls)
 
   let pp ppf = function
     | Reg r -> Format.fprintf ppf "%a" R.pp r
-    | Var v -> Format.fprintf ppf "%a" Var.pp v
+    | Var (v, _) -> Format.fprintf ppf "%a" Var.pp v
 
   include Regular.Make(struct
       include T

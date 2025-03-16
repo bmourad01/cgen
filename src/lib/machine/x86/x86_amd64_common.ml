@@ -102,6 +102,8 @@ module Reg = struct
     | `xmm15
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+  let scratch_fp = `xmm0
+
   let pp_sse ppf sse =
     Format.fprintf ppf "%a" Sexp.pp (sexp_of_sse sse)
 
@@ -133,6 +135,10 @@ module Reg = struct
   let is_rflags = function
     | `rflags -> true
     | _ -> false
+
+  let classof = function
+    | #gpr | `rip | `rflags -> `gpr
+    | #sse -> `fp
 
   let pp ppf r =
     Format.fprintf ppf "%a" Sexp.pp (sexp_of_t r)
@@ -836,4 +842,11 @@ module Insn = struct
     | XORPD (Oreg (a, _), Oreg (b, _))
       when Regvar.equal a b -> true
     | i -> writes_to_memory i
+
+  (* XXX: any more cases than this? *)
+  let copy = function
+    | MOV (Oreg (d, _), Oreg (s, _))
+    | MOVSS (Oreg (d, _), Oreg (s, _))
+    | MOVSD (Oreg (d, _), Oreg (s, _)) -> Some (d, s)
+    | _ -> None
 end

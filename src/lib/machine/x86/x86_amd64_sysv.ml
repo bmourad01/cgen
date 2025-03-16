@@ -42,7 +42,44 @@ module Machine = struct
   let stack_args_offset = 16
   let supports_uitof = false
 
-  module Reg = Reg
+  module Reg = struct
+    include Reg
+
+    let allocatable = [
+      `rcx;
+      `rdx;
+      `rsi;
+      `rdi;
+      `r8;
+      `r9;
+      `r10;
+      `r11;
+      `rbx;
+      `r12;
+      `r13;
+      `r14;
+      `r15;
+    ]
+
+    let allocatable_fp = [
+      `xmm1;
+      `xmm2;
+      `xmm3;
+      `xmm4;
+      `xmm5;
+      `xmm6;
+      `xmm7;
+      `xmm8;
+      `xmm9;
+      `xmm10;
+      `xmm11;
+      `xmm12;
+      `xmm13;
+      `xmm14;
+      `xmm15;
+    ]
+  end
+
   module Regvar = Regvar
 
   module Insn = struct
