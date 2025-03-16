@@ -192,7 +192,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Returning, passing, and dereferencing a struct (SysV)" >:: test_sysv "unref";
     "Variadic function arguments 1 (SysV)" >:: test_sysv "vaarg1";
     "Variadic function arguments 2 (SysV)" >:: test_sysv "vaarg2";
-    "Variadic function arguments 3 (SysV)" >:: test_sysv "vasum";
+    "Variadic sum (SysV)" >:: test_sysv "vasum";
     "Unsigned integer to float (SysV)" >:: test_sysv "uitof";
   ]
 
@@ -202,11 +202,13 @@ let isel_suite = "Test instruction selection" >::: [
     "Test prime numbers (AMD64)" >:: test_amd64 "prime";
     "Switch case propagation (AMD64)" >:: test_amd64 "switchcaseprop";
     "Slot promotion 2 (GCD, partial) (AMD64)" >:: test_amd64 "promote2-partial";
-    "Variadic function arguments 3 (AMD64)" >:: test_amd64 "vasum";
+    "Variadic function arguments 1 (AMD64)" >:: test_amd64 "vaarg1";
+    "Variadic sum (AMD64)" >:: test_amd64 "vasum";
     "Sum an array of words (AMD64)" >:: test_amd64 "sumarray";
     "Copy an array of words (AMD64)" >:: test_amd64 "cpyarray";
-    "Folding addition (AMD64)" >:: test "foldadd";
-    "Unsigned remainder by 7 (AMD64)" >:: test "uremby7";
+    "Folding addition (AMD64)" >:: test_amd64 "foldadd";
+    "Unsigned remainder by 7 (AMD64)" >:: test_amd64 "uremby7";
+    "Edge contraction and select" >:: test_amd64 "contractsel";
   ]
 
 let () = run_test_tt_main @@ test_list [

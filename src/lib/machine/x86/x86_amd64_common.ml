@@ -307,6 +307,24 @@ module Insn = struct
     | Cns (* ~SF *)
   [@@deriving bin_io, compare, equal, sexp]
 
+  (* For swapping the order of arguments to a comparison. *)
+  let flip_cc = function
+    | Ca -> Cbe
+    | Cae -> Cb
+    | Cb -> Cae
+    | Cbe -> Ca
+    | Ce -> Ce
+    | Cne -> Cne
+    | Cg -> Cle
+    | Cge -> Cl
+    | Cl -> Cge
+    | Cle -> Cg
+    (* XXX: is this correct? *)
+    | Cp -> Cp
+    | Cnp -> Cnp
+    | Cs -> Cs
+    | Cns -> Cns
+
   let pp_cc ppf = function
     | Ca  -> Format.fprintf ppf "a"
     | Cae -> Format.fprintf ppf "ae"

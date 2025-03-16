@@ -78,13 +78,38 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           child env k xs in
     go S.empty p id Base.Fn.id
 
+  (* The most general rule `move ?x ?y` needs to exclude cases where ?x and
+     ?y refer to the same term, otherwise we will mistakenly achieve coverage
+     with an incorrect instruction lowering.
+
+     These cases occur because of how the DAG gets built. ?x may refer to the
+     result of computing ?y because future instructions may want to match on
+     it.
+  *)
+  let is_blank_move env = function
+    | P.P (Omove, [V x; V y]) ->
+      begin match Map.find env x, Map.find env y with
+        | Some x, Some y ->
+          let open S in
+          (* This usually isn't the case, but doesn't hurt to check. *)
+          x.id = y.id ||
+          (* They might end up having different IDs, but this should
+             catch the edge cases. *)
+          equal_term Rv.equal x.tm y.tm
+        | _ -> false
+      end
+    | _ -> false
+
   let match_one t l id =
     let rules = (I.rules :> rule list) in
     C.List.find_map rules ~f:(function
         | _, [] -> !!None
         | pre, posts ->
-          try R.try_ (search t pre id) posts with
-          | Mismatch -> !!None) >>= function
+          try
+            let env = search t pre id in
+            if is_blank_move env pre then raise_notrace Mismatch;
+            R.try_ env posts
+          with Mismatch -> !!None) >>= function
     | Some is -> !!is
     | None ->
       C.failf "In Isel_match.match_one: at label %a in function $%s: \

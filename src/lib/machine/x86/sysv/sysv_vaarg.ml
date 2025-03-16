@@ -8,7 +8,8 @@
    @breg:
      %a = add.l %ap, 16      ; Load `reg_save_area`.
      %l = ld.l %a            ;
-     %r = add.l %l, %o       ; Pointer to the next register.
+     %ox = zext.l %o         ;
+     %r = add.l %l, %ox      ; Pointer to the next register.
      %n = add.w %o, inc      ; Increment the offset.
      %a = add.l %ap, ofs     ; Update the offset in %ap.
      st.w %n, %a             ;
@@ -61,13 +62,14 @@ let fetch_reg ?(num = 1) env x t ap cont =
      offset. *)
   let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 16) in
   let* l, li = Cv.Abi.load `i64 (`var a) in
-  let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var o) in
+  let* ox, oxi = Cv.Abi.unop (`zext `i64) (`var o) in
+  let* r, ri = Cv.Abi.binop (`add `i64) (`var l) (`var ox) in
   let* n, ni = Cv.Abi.binop (`add `i32) (`var o) (i32 inc) in
   let* st = Cv.Abi.store `i32 (`var n) a1 in
   let breg =
     Abi.Blk.create ()
       ~label:lreg
-      ~insns:[ai; li; ri; ni; st]
+      ~insns:[ai; li; oxi; ri; ni; st]
       ~ctrl:(`jmp (`label (ljoin, [`var r]))) in
   (* Access the overflow arg area and increment it. *)
   let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 8) in
@@ -117,8 +119,10 @@ let fetch_two_reg env x t1 t2 ap cont =
   (* Access the register save area and increment. *)
   let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 16) in
   let* l, li = Cv.Abi.load `i64 (`var a) in
-  let* r1, ri1 = Cv.Abi.binop (`add `i64) (`var l) (`var o1) in
-  let* r2, ri2 = Cv.Abi.binop (`add `i64) (`var l) (`var o2) in
+  let* ox1, oxi1 = Cv.Abi.unop (`zext `i64) (`var o1) in
+  let* r1, ri1 = Cv.Abi.binop (`add `i64) (`var l) (`var ox1) in
+  let* ox2, oxi2 = Cv.Abi.unop (`zext `i64) (`var o2) in
+  let* r2, ri2 = Cv.Abi.binop (`add `i64) (`var l) (`var ox2) in
   let* n1, ni1 = Cv.Abi.binop (`add `i32) (`var o1) (i64 inc1) in
   let* n2, ni2 = Cv.Abi.binop (`add `i32) (`var o2) (i64 inc2) in
   let* st1 = Cv.Abi.store `i32 (`var n1) a1 in
@@ -126,7 +130,7 @@ let fetch_two_reg env x t1 t2 ap cont =
   let breg =
     Abi.Blk.create ()
       ~label:lreg
-      ~insns:[ai; li; ri1; ri2; ni1; ni2; st1; st2]
+      ~insns:[ai; li; oxi1; ri1; oxi2; ri2; ni1; ni2; st1; st2]
       ~ctrl:(`jmp (`label (ljoin, [`var r1; `var r2]))) in
   (* Access the overflow arg area and increment *)
   let* a, ai = Cv.Abi.binop (`add `i64) ap (i64 8) in

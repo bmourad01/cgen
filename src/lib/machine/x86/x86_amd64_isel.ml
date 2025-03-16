@@ -105,26 +105,25 @@ end = struct
   let move_rr_x_y ?(zx = false) env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    if Rv.equal x y && Type.equal_basic xt yt then !!![]
-    else match xt, yt with
-      | (#Type.imm as xi), (#Type.imm as yi)
-        when Type.sizeof_imm xi > Type.sizeof_imm yi ->
-        (* Assume zero-extension is desired. *)
-        !!![MOVZX (Oreg (x, xt), Oreg (y, yt))]
-      | (#Type.imm as xi), (#Type.imm as yi)
-        when Type.sizeof_imm xi < Type.sizeof_imm yi
-          && Rv.equal x y -> !!![]
-      | `i32, `i32 when zx ->
-        (* Implicit zero-extension. *)
-        !!![MOV_ (Oreg (x, xt), Oreg (y, yt))]
-      | #Type.imm, #Type.imm ->
-        (* Assume the width of the destination register. *)
-        !!![MOV (Oreg (x, xt), Oreg (y, xt))]
-      | `f32, `f32 ->
-        !!![MOVSS (Oreg (x, xt), Oreg (y, yt))]
-      | `f64, `f64 ->
-        !!![MOVSD (Oreg (x, xt), Oreg (y, yt))]
-      | _ -> !!None
+    (* This should be handled by the matching logic, but we'll put it
+       here just in case. *)
+    let*! () = guard @@ not @@ Rv.equal x y in
+    match xt, yt with
+    | (`i64 | `i32), `i32 when zx ->
+      (* Implicit extension, but record it as a normal move. *)
+      !!![MOV (Oreg (x, yt), Oreg (y, yt))]
+    | (#Type.imm as xi), (#Type.imm as yi)
+      when Type.sizeof_imm xi > Type.sizeof_imm yi ->
+      (* Assume zero-extension is desired. *)
+      !!![MOVZX (Oreg (x, xt), Oreg (y, yt))]
+    | #Type.imm, #Type.imm ->
+      (* Assume the width of the destination register. *)
+      !!![MOV (Oreg (x, xt), Oreg (y, xt))]
+    | `f32, `f32 ->
+      !!![MOVSS (Oreg (x, xt), Oreg (y, yt))]
+    | `f64, `f64 ->
+      !!![MOVSD (Oreg (x, xt), Oreg (y, yt))]
+    | _ -> !!None
 
   let move_ri_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -571,6 +570,50 @@ end = struct
       CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
     ]
 
+  let sel_rrri_x_y_z cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! yes, yes_t = S.regvar env "yes" in
+    let*! no, no_t = S.imm env "no" in
+    let*! () = guard @@ Type.equal_basic xt yes_t in
+    let*! () = guard @@ Type.equal_basic xt (bty no_t) in
+    let xt = sel_i8_ty xt in !!![
+      MOV (Oreg (x, xt), Oimm (Bv.to_int64 no, no_t));
+      CMP (Oreg (y, yt), Oreg (z, zt));
+      CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
+    ]
+
+  let sel_rrir_x_y_z cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! yes, yes_t = S.imm env "yes" in
+    let*! no, no_t = S.regvar env "no" in
+    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
+    let*! () = guard @@ Type.equal_basic xt no_t in
+    let xt = sel_i8_ty xt in !!![
+      MOV (Oreg (x, xt), Oimm (Bv.to_int64 yes, yes_t));
+      CMP (Oreg (y, yt), Oreg (z, zt));
+      CMOVcc (flip_cc cc, Oreg (x, xt), Oreg (no, xt));
+    ]
+
+  let sel_rrii_x_y_z cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! yes, yes_t = S.imm env "yes" in
+    let*! no, no_t = S.imm env "no" in
+    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
+    let*! () = guard @@ Type.equal_basic xt (bty no_t) in
+    let* tmp_yes = C.Var.fresh >>| Rv.var in
+    let xt = sel_i8_ty xt in !!![
+      MOV (Oreg (tmp_yes, xt), Oimm (Bv.to_int64 yes, yes_t));
+      MOV (Oreg (x, xt), Oimm (Bv.to_int64 no, no_t));
+      CMP (Oreg (y, yt), Oreg (z, zt));
+      CMOVcc (cc, Oreg (x, xt), Oreg (tmp_yes, xt));
+    ]
+
   let sel_rirr_x_y_z cc env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -592,6 +635,78 @@ end = struct
         MOV (Oreg (x, xt), Oreg (no, xt));
         CMP (Oreg (y, yt), Oreg (tmp, bty zt));
         CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
+      ]
+
+  let sel_riri_x_y_z cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let*! yes, yes_t = S.regvar env "yes" in
+    let*! no, no_t = S.imm env "no" in
+    let*! () = guard @@ Type.equal_basic xt yes_t in
+    let*! () = guard @@ Type.equal_basic xt (bty no_t) in
+    let xt = sel_i8_ty xt in
+    let z = Bv.to_int64 z in
+    if fits_int32 z then !!![
+        MOV (Oreg (x, xt), Oimm (Bv.to_int64 no, no_t));
+        CMP (Oreg (y, yt), Oimm (z, zt));
+        CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
+      ]
+    else
+      let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOV (Oreg (tmp, bty zt), Oimm (z, zt));
+        MOV (Oreg (x, xt), Oimm (Bv.to_int64 no, no_t));
+        CMP (Oreg (y, yt), Oreg (tmp, bty zt));
+        CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
+      ]
+
+  let sel_riir_x_y_z cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let*! yes, yes_t = S.imm env "yes" in
+    let*! no, no_t = S.regvar env "no" in
+    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
+    let*! () = guard @@ Type.equal_basic xt no_t in
+    let xt = sel_i8_ty xt in
+    let z = Bv.to_int64 z in
+    if fits_int32 z then !!![
+        MOV (Oreg (x, xt), Oimm (Bv.to_int64 yes, yes_t));
+        CMP (Oreg (y, yt), Oimm (z, zt));
+        CMOVcc (flip_cc cc, Oreg (x, xt), Oreg (no, xt));
+      ]
+    else
+      let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOV (Oreg (x, xt), Oimm (Bv.to_int64 yes, yes_t));
+        MOV (Oreg (tmp, bty zt), Oimm (z, zt));
+        CMP (Oreg (y, yt), Oreg (tmp, bty zt));
+        CMOVcc (flip_cc cc, Oreg (x, xt), Oreg (no, xt));
+      ]
+
+  let sel_riii_x_y_z cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let*! yes, yes_t = S.imm env "yes" in
+    let*! no, no_t = S.imm env "no" in
+    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
+    let*! () = guard @@ Type.equal_basic xt (bty no_t) in
+    let* tmp_yes = C.Var.fresh >>| Rv.var in
+    let xt = sel_i8_ty xt in
+    let z = Bv.to_int64 z in
+    if fits_int32 z then !!![
+        MOV (Oreg (tmp_yes, xt), Oimm (Bv.to_int64 yes, yes_t));
+        MOV (Oreg (x, xt), Oimm (Bv.to_int64 no, no_t));
+        CMP (Oreg (y, yt), Oimm (z, zt));
+        CMOVcc (cc, Oreg (x, xt), Oreg (tmp_yes, xt));
+      ]
+    else
+      let* tmp = C.Var.fresh >>| Rv.var in !!![
+        MOV (Oreg (tmp_yes, xt), Oimm (Bv.to_int64 yes, yes_t));
+        MOV (Oreg (tmp, bty zt), Oimm (z, zt));
+        MOV (Oreg (x, xt), Oimm (Bv.to_int64 no, no_t));
+        CMP (Oreg (y, yt), Oreg (tmp, bty zt));
+        CMOVcc (cc, Oreg (x, xt), Oreg (tmp_yes, xt));
       ]
 
   let load_add_mul_rr_scale_imm_x_y_z_w s env =
@@ -1850,7 +1965,13 @@ end = struct
 
     let sel cc = [
       sel_rrrr_x_y_z cc;
+      sel_rrri_x_y_z cc;
+      sel_rrir_x_y_z cc;
+      sel_rrii_x_y_z cc;
       sel_rirr_x_y_z cc;
+      sel_riri_x_y_z cc;
+      sel_riir_x_y_z cc;
+      sel_riii_x_y_z cc;
     ]
 
     let load = [
