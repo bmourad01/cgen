@@ -20,7 +20,7 @@ module Reg = struct
     | `r13
     | `r14
     | `r15
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   let sp = `rsp
   let fp = `rbp
@@ -100,7 +100,7 @@ module Reg = struct
     | `xmm13
     | `xmm14
     | `xmm15
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   let pp_sse ppf sse =
     Format.fprintf ppf "%a" Sexp.pp (sexp_of_sse sse)
@@ -110,7 +110,7 @@ module Reg = struct
     | sse
     | `rip
     | `rflags
-  ] [@@deriving bin_io, compare, equal, sexp]
+  ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   let typeof = function
     | #gpr | `rip | `rflags -> `i64
@@ -145,9 +145,11 @@ module Reg = struct
     | Some r -> r
 end
 
-module Regvar = Machine_regvar.Make(Reg)
+module Regvar = Machine_regvar.Make(Reg)(struct
+    let module_name = "Cgen.Machine.X86_amd64_common.Regvar"
+  end)
 
-type rv = Regvar.t [@@deriving bin_io, compare, equal, sexp]
+type rv = Regvar.t [@@deriving bin_io, compare, equal, hash, sexp]
 
 module Insn = struct
   (* Displacements for addressing modes. *)

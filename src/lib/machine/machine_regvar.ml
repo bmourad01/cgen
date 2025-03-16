@@ -2,26 +2,26 @@
    as required by the `Machine_intf.S` signature. *)
 
 open Core
+open Regular.Std
 
 module type Reg = sig
-  type t [@@deriving bin_io, compare, equal, sexp]
+  type t [@@deriving bin_io, compare, equal, hash, sexp]
   val pp : Format.formatter -> t -> unit
 end
 
-module Make(R : Reg) = struct
+module type Name = sig
+  val module_name : string
+end
+
+module Make(R : Reg)(N : Name) = struct
   module T = struct
     type t =
       | Reg of R.t
       | Var of Var.t
-    [@@deriving bin_io, compare, equal, sexp]
+    [@@deriving bin_io, compare, equal, hash, sexp]
   end
 
-  module C = struct
-    include T
-    include Comparator.Make(T)
-  end
-  include C
-  module Set = Set.Make(C)
+  include T
 
   let is_reg = function
     | Reg _ -> true
@@ -41,4 +41,11 @@ module Make(R : Reg) = struct
   let pp ppf = function
     | Reg r -> Format.fprintf ppf "%a" R.pp r
     | Var v -> Format.fprintf ppf "%a" Var.pp v
+
+  include Regular.Make(struct
+      include T
+      let pp = pp
+      let version = "0.1"
+      let module_name = Some N.module_name
+    end)
 end

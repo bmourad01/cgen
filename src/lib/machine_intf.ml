@@ -1,6 +1,7 @@
 (** The main interface for target machine implementations. *)
 
 open Core
+open Regular.Std
 
 module type S = sig
   (** The target descriptor. *)
@@ -62,17 +63,15 @@ module type S = sig
       present.
   *)
   module Regvar : sig
-    type t [@@deriving bin_io, compare, equal, sexp]
+    type t
 
     val reg : Reg.t -> t
     val var : Var.t -> t
     val is_reg : t -> bool
     val is_var : t -> bool
     val which : t -> (Reg.t, Var.t) Either.t
-    val pp : Format.formatter -> t -> unit
 
-    include Comparator.S with type t := t
-    module Set : Set_intf.S with type Elt.t = t
+    include Regular.S with type t := t
   end
 
   (** A machine instruction. *)
