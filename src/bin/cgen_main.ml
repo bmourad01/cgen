@@ -2,6 +2,17 @@ open Core
 open Regular.Std
 open Cgen
 
+let isel m ~f =
+  let open Context.Syntax in
+  let+ funs =
+    Virtual.Abi.Module.funs m |>
+    Context.Seq.map ~f >>|
+    Seq.to_list in
+  Pseudo.Module.create ()
+    ~dict:(Virtual.Abi.Module.dict m)
+    ~data:(Virtual.Abi.Module.data m |> Seq.to_list)
+    ~name:(Virtual.Abi.Module.name m) ~funs
+
 let comp filename =
   let open Context.Syntax in
   let* m = Parse.Virtual.from_file filename in
@@ -19,15 +30,7 @@ let comp filename =
   Format.printf "%a\n%!" Virtual.Abi.Module.pp m;
   let* (module Machine) = Context.machine in
   let module Isel = Isel.Make(Machine)(Context) in
-  let* m =
-    let+ funs =
-      Virtual.Abi.Module.funs m |>
-      Context.Seq.map ~f:Isel.run >>|
-      Seq.to_list in
-    Pseudo.Module.create ()
-      ~dict:(Virtual.Abi.Module.dict m)
-      ~data:(Virtual.Abi.Module.data m |> Seq.to_list)
-      ~name:(Virtual.Abi.Module.name m) ~funs in
+  let* m = isel m ~f:Isel.run in
   Format.printf "=================================================\n%!";
   Format.printf "After instruction selection:\n\n%!";
   Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
