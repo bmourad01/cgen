@@ -797,12 +797,6 @@ end = struct
       MOVDQA (Omem (Abd (y, Dimm z), `v128), Oregv x);
     ]
 
-  let mul_lea_ri_x_y s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! () = guard @@ can_lea_ty xt in
-    !!![LEA (Oreg (x, xt), Omem (Ais (y, s), `i64))]
-
   let mul_lea_ri_addi_x_y_z s env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
@@ -2062,12 +2056,6 @@ end = struct
         add ty' (lsl_ ty y ss) z;
       |]
 
-    let si_pat ty sm ss =
-      let ty' = bty ty in [|
-        mul ty' y sm;
-        lsl_ ty y ss;
-      |]
-
     (* x = add (add y (mul z i)) w => lea x, [y+z*i+w]
 
        where i \in {1,2,4,8} and w is a constant
@@ -2279,30 +2267,6 @@ end = struct
           (* Scale by 8 *)
           move x p4.(0) => mul_lea_ri_addi_x_y_z 8;
           move x p4.(1) => mul_lea_ri_addi_x_y_z 8;
-        ]
-
-    (*  x = mul y i => lea x, [y*i]
-
-        where i \in {1,2,4,8}
-    *)
-    let mul_lea =
-      add_mul_lea_tbl >* fun (ty, zero, one, two, three, four, eight) ->
-        let p1 = si_pat ty one zero in
-        let p2 = si_pat ty two one in
-        let p3 = si_pat ty four two in
-        let p4 = si_pat ty eight three in [
-          (* Scale by 1 *)
-          move x p1.(0) => move_rr_x_y;
-          move x p1.(1) => move_rr_x_y;
-          (* Scale by 2 *)
-          move x p2.(0) => mul_lea_ri_x_y 2;
-          move x p2.(1) => mul_lea_ri_x_y 2;
-          (* Scale by 4 *)
-          move x p3.(0) => mul_lea_ri_x_y 4;
-          move x p3.(1) => mul_lea_ri_x_y 4;
-          (* Scale by 8 *)
-          move x p4.(0) => mul_lea_ri_x_y 8;
-          move x p4.(1) => mul_lea_ri_x_y 8;
         ]
 
     (* x = mul y, z *)
@@ -2913,7 +2877,6 @@ end = struct
     add_mul_lea_neg_imm @
     add_mul_lea @
     mul_lea_add_imm @
-    mul_lea @
     add_basic @
     sub_basic @
     and_basic @

@@ -87,8 +87,8 @@ let test_sysv = test_abi Machine.X86.Amd64_sysv.target "sysv"
 (* Specific instruction selection tests. *)
 let test_amd64 = test_isel Machine.X86.Amd64_sysv.target "amd64"
 
+(*  General optimization tests *)
 let opt_suite = "Test optimizations" >::: [
-    (*  General tests *)
     "Multiply by 1" >:: test "mulby1";
     "Multiply by 2" >:: test "mulby2";
     "Multiply by 8" >:: test "mulby8";
@@ -180,8 +180,8 @@ let opt_suite = "Test optimizations" >::: [
     "Edge contraction and select" >:: test "contractsel";
   ]
 
+(* SysV ABI lowering tests *)
 let abi_suite = "Test ABI lowering" >::: [
-    (* SysV ABI lowering tests *)
     "Simple calls (SysV)" >:: test_sysv "addcalls";
     "Empty struct (SysV)" >:: test_sysv "emptystruct";
     "Extended GCD returning a struct (SysV)" >:: test_sysv "gcdext";
@@ -196,8 +196,8 @@ let abi_suite = "Test ABI lowering" >::: [
     "Unsigned integer to float (SysV)" >:: test_sysv "uitof";
   ]
 
+(* AMD64 instruction selection tests *)
 let isel_suite = "Test instruction selection" >::: [
-    (* AMD64 instruction selection tests *)
     "LEA arithmetic with negative disp (AMD64)" >:: test_amd64 "lea1";
     "Test prime numbers (AMD64)" >:: test_amd64 "prime";
     "Switch case propagation (AMD64)" >:: test_amd64 "switchcaseprop";
@@ -206,6 +206,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Sum an array of words (AMD64)" >:: test_amd64 "sumarray";
     "Copy an array of words (AMD64)" >:: test_amd64 "cpyarray";
     "Folding addition (AMD64)" >:: test "foldadd";
+    "Unsigned remainder by 7 (AMD64)" >:: test "uremby7";
   ]
 
 let () = run_test_tt_main @@ test_list [
