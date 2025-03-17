@@ -358,7 +358,35 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       | LB -> if is_zero ~bit:b2 k1
         then Bin (p2, union t1 l2, r2)
         else Bin (p2, l2, union t1 r2)
-  [@@specialise]
+
+  let rec inter_key k t = match t with
+    | Nil -> Nil
+    | Tip k' when equal k k' -> t
+    | Tip _ -> Nil
+    | Bin (p, l, r) -> match Key.compare p k with
+      | NA -> Nil
+      | LB -> inter_key k l
+      | RB -> inter_key k r
+
+  let rec inter t1 t2 = match t1, t2 with
+    | Nil, _ | _, Nil -> Nil
+    | Tip k, t -> inter_key k t
+    | t, Tip k -> inter_key k t
+    | Bin (p1, l1, r1), Bin (p2, l2, r2) when Key.equal p1 p2 ->
+      of_key p1 (inter l1 l2) (inter r1 r2)
+    | Bin (p1, l1, r1), Bin (p2, l2, r2) ->
+      let k1 = Key.payload p1 in
+      let k2 = Key.payload p2 in
+      let b1 = Key.branching p1 in
+      let b2 = Key.branching p2 in
+      match Key.compare p1 k2 with
+      | NA -> Nil
+      | RB -> if is_zero ~bit:b1 k2
+        then inter l1 t2
+        else inter r1 t2
+      | LB -> if is_zero ~bit:b2 k1
+        then inter t1 l2
+        else inter t1 r2
 
   let rec equal t1 t2 = phys_equal t1 t2 || match t1, t2 with
     | Nil, Nil -> assert false (* covered by phys_equal *)

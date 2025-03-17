@@ -203,6 +203,9 @@ module type Set = sig
   (** Combines two sets together. *)
   val union : t -> t -> t
 
+  (** Intersects two sets (i.e. returns the set that has elements of both). *)
+  val inter : t -> t -> t
+
   (** Returns [true] if the two sets are equal. *)
   val equal : t -> t -> bool
 
