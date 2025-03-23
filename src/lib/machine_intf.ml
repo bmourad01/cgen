@@ -132,4 +132,19 @@ module type S = sig
     (** Rewrite rules for instruction selection. *)
     val rules : (Regvar.t, Insn.t) Isel_rewrite.Rule(C).t list
   end
+
+  (** Register allocation helpers. *)
+  module Regalloc : sig
+    (** Produce an instruction to load a value from a slot, where [src] holds the
+        address of the slot and [dst] is destination register/variable. *)
+    val load_from_slot : dst:Regvar.t -> src:Regvar.t -> Insn.t
+
+    (** Produce an instruction to store a value to a slot, where [src] holds the
+        value being stored and [dst] is the address of the slot. *)
+    val store_to_slot : src:Regvar.t -> dst:Regvar.t -> Insn.t
+
+    (** [substitute i f] performs the substitution [f] to [i] on all reigsters/variables
+        that count as definitions/uses in the instruction. *)
+    val substitute : Insn.t -> (Regvar.t -> Regvar.t) -> Insn.t
+  end
 end

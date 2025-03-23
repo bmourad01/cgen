@@ -13,6 +13,14 @@ let isel m ~f =
     ~data:(Virtual.Abi.Module.data m |> Seq.to_list)
     ~name:(Virtual.Abi.Module.name m) ~funs
 
+let pseudo_map_funs m ~f =
+  let open Context.Syntax in
+  let+ funs =
+    Pseudo.Module.funs m |>
+    Context.Seq.map ~f >>|
+    Seq.to_list in
+  Pseudo.Module.with_funs m funs
+
 let comp filename =
   let open Context.Syntax in
   let* m = Parse.Virtual.from_file filename in
@@ -38,6 +46,11 @@ let comp filename =
   let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
   Format.printf "=================================================\n%!";
   Format.printf "After removing dead instructions:\n\n%!";
+  Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+  let module Regalloc = Regalloc.Make(Machine)(Context) in
+  let* m = pseudo_map_funs m ~f:Regalloc.run in
+  Format.printf "=================================================\n%!";
+  Format.printf "After register allocation:\n\n%!";
   Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
   !!()
 

@@ -89,6 +89,7 @@ module Machine = struct
   end
 
   module Isel = X86_amd64_isel.Make
+  module Regalloc = X86_amd64_regalloc
 
   let lower_abi = Sysv.run
 end

@@ -15,6 +15,10 @@ let label t = t.label
 let has_label t l = Label.equal l t.label
 let insns ?(rev = false) t = Ftree.enum ~rev t.insns
 
+let with_insns t is = {
+  t with insns = Ftree.of_list is;
+}
+
 let pp ppa ppf t =
   let sep ppf = Format.fprintf ppf "@;" in
   match Ftree.is_empty t.insns with

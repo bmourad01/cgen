@@ -17,6 +17,9 @@ module Insn : sig
 
   (** The instruction itself. *)
   val insn : 'a t -> 'a
+
+  (** Replaces the instruction. *)
+  val with_insn : 'a t -> 'a -> 'a t
 end
 
 type 'a insn = 'a Insn.t [@@deriving bin_io, compare, equal, sexp]
@@ -37,6 +40,9 @@ module Blk : sig
 
   (** Returns [true] if the block has the given label. *)
   val has_label : 'a t -> Label.t -> bool
+
+  (** Replaces the instructions of the block. *)
+  val with_insns : 'a t -> 'a insn list -> 'a t
 
   val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
 end
@@ -117,6 +123,9 @@ module Func : sig
 
   (** Returns a mapping from labels to blocks of the function. *)
   val map_of_blks : ('a, 'b) t -> 'a blk Label.Tree.t
+
+  (** Replaces the blocks of the function. *)
+  val with_blks : ('a, 'b) t -> 'a blk list -> ('a, 'b) t
 
   (** Appends a slot to the function. *)
   val insert_slot : ('a, 'b) t -> Virtual.slot -> ('a, 'b) t
