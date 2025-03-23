@@ -64,6 +64,16 @@ let map_of_blks t =
   Ftree.fold t.blks ~init:Label.Tree.empty ~f:(fun acc b ->
       Label.Tree.set acc ~key:b.label ~data:b)
 
+let insert_slot fn s = {
+  fn with slots = Ftree.snoc fn.slots s;
+}
+
+let insert_slots fn = function
+  | [] -> fn
+  | ss -> {
+      fn with slots = List.fold ss ~init:fn.slots ~f:Ftree.snoc;
+    }
+
 let update_blk fn b =
   let l = Pseudo_blk.label b in {
     fn with blks = Ftree.update_if fn.blks b ~f:(Fn.flip Pseudo_blk.has_label l);

@@ -106,6 +106,9 @@ module Func : sig
   (** The attributes of the function. *)
   val dict : ('a, 'b) t -> Dict.t
 
+  (** The stack slots of the function. *)
+  val slots : ?rev:bool -> ('a, 'b) t -> Virtual.slot seq
+
   (** Returns the linkage of the function. *)
   val linkage : ('a, 'b) t -> Linkage.t
 
@@ -114,6 +117,12 @@ module Func : sig
 
   (** Returns a mapping from labels to blocks of the function. *)
   val map_of_blks : ('a, 'b) t -> 'a blk Label.Tree.t
+
+  (** Appends a slot to the function. *)
+  val insert_slot : ('a, 'b) t -> Virtual.slot -> ('a, 'b) t
+
+  (** Same as [insert_slot], but for a list of slots. *)
+  val insert_slots : ('a, 'b) t -> Virtual.slot list -> ('a, 'b) t
 
   (** [update_blk fn b] returns [fn] with block [b] updated, if it exists. *)
   val update_blk : ('a, 'b) t -> 'a blk -> ('a, 'b) t
