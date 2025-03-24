@@ -149,6 +149,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     keep = init_keep fn;
   }
 
+  (* Explicit registers and variables that correspond to stack slots
+     should be excluded from consideration. *)
+  let exclude_from_coloring t n = Rv.is_reg n || Hash_set.mem t.slots n
+
   let inc_degree t n =
     Hashtbl.update t.degree n ~f:(function
         | Some d -> d + 1
@@ -159,14 +163,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | Some d -> max 0 (d - 1)
         | None -> 0)
 
+  let degree' t n = Hashtbl.find t.degree n
+
   (* All variables should be in this table. Preassigned registers
      won't be in here, so they should just get the maximum value. *)
-  let degree t n =
-    Hashtbl.find t.degree n |>
-    Option.value ~default:Int.max_value
+  let degree t n = degree' t n |> Option.value ~default:Int.max_value
 
   (* Mimic the adjList *)
-  let adjlist t n = if Rv.is_var n then G.Node.succs n t.g else Seq.empty
+  let adjlist t n = if exclude_from_coloring t n then Seq.empty else G.Node.succs n t.g
   let adjlist_set t n = Rv.Set.of_sequence @@ adjlist t n
 
   (* adjList[n] \ (selectStack U coalescedNodes) *)
@@ -219,10 +223,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       t.g <- G.Edge.(insert uv (insert vu t.g));
       (* if u \notin precolored then
            degree[u] := degree[u]+1 *)
-      if Rv.is_var u then inc_degree t u;
+      if not @@ exclude_from_coloring t u then inc_degree t u;
       (* if v \notin precolored then
            degree[v] := degree[v]+1 *)
-      if Rv.is_var v then inc_degree t v
+      if not @@ exclude_from_coloring t v then inc_degree t v
 
   let add_move t label n =
     Hashtbl.update t.moves n ~f:(function
@@ -302,22 +306,23 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let decrement_degree t adj m =
     (* let d = degree[m]
        degree[m] := d-1 *)
-    let d = degree t m in
-    dec_degree t m;
-    (* if d = K then *)
-    if d = node_k m then begin
-      (* EnableMoves({m} U Adjacent(m)) *)
-      enable_moves t @@ Set.add adj m;
-      (* spillWorklist := splillWorklist \ {m} *)
-      Hash_set.remove t.wspill m;
-      (* if MoveRelated(m) then
-           freezeWorklist := freezeWorklist U {m}
-         else
-           simplifyWorklist := simplifyWorklist U {m} *)
-      if move_related t m
-      then Hash_set.add t.wfreeze m
-      else Hash_set.add t.wsimplify m
-    end
+    degree' t m |> Option.iter ~f:(fun d ->
+        assert (not @@ exclude_from_coloring t m);
+        dec_degree t m;
+        (* if d = K then *)
+        if d = node_k m then begin
+          (* EnableMoves({m} U Adjacent(m)) *)
+          enable_moves t @@ Set.add adj m;
+          (* spillWorklist := splillWorklist \ {m} *)
+          Hash_set.remove t.wspill m;
+          (* if MoveRelated(m) then
+               freezeWorklist := freezeWorklist U {m}
+             else
+               simplifyWorklist := simplifyWorklist U {m} *)
+          if move_related t m
+          then Hash_set.add t.wfreeze m
+          else Hash_set.add t.wsimplify m
+        end)
 
   exception Found_node of Rv.t
 
@@ -341,7 +346,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let should_add_to_worklist t u =
     (* u \notin precolored *)
-    Rv.is_var u && 
+    not (exclude_from_coloring t u) &&
     (* not(MoveRelated(u)) *)
     not (move_related t u) &&
     (* degree[u] < K *)
@@ -356,7 +361,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let ok t a r =
     (* t \in precolored *)
-    Rv.is_reg a ||
+    exclude_from_coloring t a ||
     (* degree[t] < K *)
     degree t a < node_k a ||
     (* (a,r) \in adjSet *)
@@ -432,7 +437,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
          let (u,v) = (y,x)
        else
          let (u,v) = (x,y) *)
-    let u, v = if Rv.is_reg y then y, x else x, y in
+    let u, v = if exclude_from_coloring t y then y, x else x, y in
     (* worklistMoves := worklistMoves \ {m} *)
     t.wmoves <- Lset.remove t.wmoves m;
     (* if u = v then *)
@@ -443,7 +448,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       add_worklist t u
     end else if
       (* v \in precolored *)
-      Rv.is_reg v ||
+      exclude_from_coloring t v ||
       (* (u,v) \in adjSet *)
       G.Edge.(mem (create u v ()) t.g) then begin
       (* constrainedMoves := constrainedMoves U {m} *)
@@ -454,9 +459,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       add_worklist t v
     end else if
       (* u \in precolored ^ (\forall t \in Adjacent(v), OK(t,u)) *)
-      (Rv.is_reg u && all_adjacent_ok t u v) ||
+      (exclude_from_coloring t u && all_adjacent_ok t u v) ||
       (* u \notin precolored ^ Conservative(Adjacent(u), Adjacent(v)) *)
-      (Rv.is_var u && conservative_adj t u v) then begin
+      (not (exclude_from_coloring t u) && conservative_adj t u v) then begin
       (* coalescedMoves := coalescedMoves U {m} *)
       t.cmoves <- Lset.add t.cmoves m;
       (* Combine(u,v) *)
@@ -539,7 +544,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Assign a color to `n` if possible, spilling it otherwise. *)
   let color_node t n =
-    if Rv.is_var n then
+    if not @@ exclude_from_coloring t n then
       (* okColors := {0,...,K-1} *)
       let k = node_k n in
       let cs = ref Z.(pred (one lsl k)) in
@@ -689,9 +694,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      processed by the algorithm. *)
   let init_initial t =
     let add_initial rv =
-      if Rv.is_var rv
+      if not (exclude_from_coloring t rv)
       && not (Hash_set.mem t.colored rv)
-      && not (Hash_set.mem t.slots rv)
       then Hash_set.add t.initial rv in
     Func.blks t.fn |> Seq.iter ~f:(fun b ->
         Blk.insns b |> Seq.iter ~f:(fun i ->
@@ -703,7 +707,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let apply_alloc t =
     let subst n = match Hashtbl.find t.colors n with
-      | None -> assert (Rv.is_reg n || Hash_set.mem t.slots n); n
+      | None -> assert (exclude_from_coloring t n); n
       | Some c -> Rv.reg @@ match classof n with
         | `gpr -> allocatable.(c)
         | `fp -> allocatable_fp.(c) in
