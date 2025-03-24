@@ -533,27 +533,24 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Seq.filter_map ~f:(color t) |>
     Seq.iter ~f:(fun c -> cs := Z.(!cs land ~!(one lsl c)))
 
-  (* pre: n \notin precolored
-
-     Assign a color to `n` if possible, spilling it otherwise.
-  *)
+  (* Assign a color to `n` if possible, spilling it otherwise. *)
   let color_node t n =
-    assert (Rv.is_var n);
-    (* okColors := {0,...,K-1} *)
-    let k = node_k n in
-    let cs = ref Z.(pred (one lsl k)) in
-    eliminate_colors t n cs;
-    (* if okColors = {} then *)
-    if Z.(equal !cs zero) then
-      (* spilledNodes := spilledNodes U {n} *)
-      Hash_set.add t.spilled n
-    else begin
-      (* coloredNodes := coloredNodes U {n} *)
-      Hash_set.add t.colored n;
-      (* let c \in okColors
-         color[n] := c *)
-      set_color t n @@ Z.trailing_zeros !cs
-    end
+    if Rv.is_var n then
+      (* okColors := {0,...,K-1} *)
+      let k = node_k n in
+      let cs = ref Z.(pred (one lsl k)) in
+      eliminate_colors t n cs;
+      (* if okColors = {} then *)
+      if Z.(equal !cs zero) then
+        (* spilledNodes := spilledNodes U {n} *)
+        Hash_set.add t.spilled n
+      else begin
+        (* coloredNodes := coloredNodes U {n} *)
+        Hash_set.add t.colored n;
+        (* let c \in okColors
+           color[n] := c *)
+        set_color t n @@ Z.trailing_zeros !cs
+      end
 
   let assign_colors t =
     (* while SelectStack is not empty
