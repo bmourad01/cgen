@@ -179,7 +179,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | None -> Lset.empty
     | Some m -> m
 
-  (* moveList[n] /\ (activeMoves U worklistMoves) *)
+  (* moveList[n] ^ (activeMoves U worklistMoves) *)
   let node_moves t n =
     Lset.inter (moves t n) (Lset.union t.amoves t.wmoves)
 
@@ -453,9 +453,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* addWorkList(v) *)
       add_worklist t v
     end else if
-      (* u \in precolored /\ (\forall t \in Adjacent(v), OK(t,u)) *)
+      (* u \in precolored ^ (\forall t \in Adjacent(v), OK(t,u)) *)
       (Rv.is_reg u && all_adjacent_ok t u v) ||
-      (* u \notin precolored /\ Conservative(Adjacent(u), Adjacent(v)) *)
+      (* u \notin precolored ^ Conservative(Adjacent(u), Adjacent(v)) *)
       (Rv.is_var u && conservative_adj t u v) then begin
       (* coalescedMoves := coalescedMoves U {m} *)
       t.cmoves <- Lset.add t.cmoves m;
@@ -467,7 +467,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* activeMoves := activeMoves U {m} *)
       t.amoves <- Lset.add t.amoves m
 
-  (* pre: u \in copies
+  (* pre: m \in copies
 
      Returns the other node `v` of the copy.
   *)
@@ -488,10 +488,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               t.amoves <- Lset.remove t.amoves m 
             else
               (* worklistMoves := worklistMoves \ {m} *)
-              t.wmoves <- Lset.add t.wmoves m;
+              t.wmoves <- Lset.remove t.wmoves m;
             (* frozenMoves := frozenMoves U {m} *)
             t.fmoves <- Lset.add t.fmoves m;
-            (* if NodeMoves(v) = {} /\ degree[v] < K *)
+            (* if NodeMoves(v) = {} ^ degree[v] < K *)
             if Lset.is_empty (node_moves t v)
             && degree t v < node_k v then begin
               (* freezeWorklist := freezeWorklist \ {v} *)
