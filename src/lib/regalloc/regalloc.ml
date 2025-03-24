@@ -652,12 +652,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* coalescedNodes := {} *)
     Hash_set.clear t.coalesced
 
-  let should_stop t =
-    Hash_set.is_empty t.wsimplify &&
-    Lset.is_empty t.wmoves &&
-    Hash_set.is_empty t.wfreeze &&
-    Hash_set.is_empty t.wspill
-
   let rec main t ~round ~max_rounds =
     let open C.Syntax in
     let* () = C.when_ (round > max_rounds) @@ fun () ->
@@ -667,7 +661,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let live = Live.compute ~keep:t.keep t.fn in
     build t live;
     (* Process the worklists. *)
-    while not @@ should_stop t do
+    let continue = ref true in
+    while !continue do
       if not @@ Hash_set.is_empty t.wsimplify then
         simplify t
       else if not @@ Lset.is_empty t.wmoves then
@@ -676,6 +671,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         freeze t
       else if not @@ Hash_set.is_empty t.wspill then
         select_spill t
+      else
+        continue := false
     done;
     (* Assign colors or spill. *)
     assign_colors t;
