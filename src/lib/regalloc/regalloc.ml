@@ -40,8 +40,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let same_class_node a b = same_class (classof a) (classof b)
 
-  let allocatable = Array.of_list M.Reg.allocatable
-  let allocatable_fp = Array.of_list M.Reg.allocatable_fp
+  let allocatable = Array.of_list M.Reg.(scratch :: allocatable)
+  let allocatable_fp = Array.of_list M.Reg.(scratch_fp :: allocatable_fp)
 
   let kallocatable = Array.length allocatable
   let kallocatable_fp = Array.length allocatable_fp
@@ -57,6 +57,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Array.iteri allocatable_fp ~f:(fun i r ->
         Hashtbl.add_exn t ~key:r ~data:i);
     t
+
+  let () = assert (Hashtbl.find_exn prealloc M.Reg.scratch = 0)
+  let () = assert (Hashtbl.find_exn prealloc_fp M.Reg.scratch_fp = 0)
+  let scratch_inv_mask = Z.(~!one)
 
   let reg_color r =
     let tbl = match M.Reg.classof r with
@@ -539,6 +543,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* okColors := {0,...,K-1} *)
       let k = node_k n in
       let cs = ref Z.(pred (one lsl k)) in
+      cs := Z.(!cs land scratch_inv_mask);
       eliminate_colors t n cs;
       (* if okColors = {} then *)
       if Z.(equal !cs zero) then
@@ -697,16 +702,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             Set.iter def ~f:add_initial))
 
   let apply_alloc t =
-    let alloc =
-      Hashtbl.fold t.colors ~init:Rv.Map.empty
-        ~f:(fun ~key:n ~data:c m ->
-            if Rv.is_var n then
-              let r = match classof n with
-                | `gpr -> allocatable.(c)
-                | `fp -> allocatable_fp.(c) in
-              Map.set m ~key:n ~data:(Rv.reg r)
-            else m) in
-    let subst n = Map.find alloc n |> Option.value ~default:n in
+    let subst n = match Hashtbl.find t.colors n with
+      | None -> assert (Rv.is_reg n || Hash_set.mem t.slots n); n
+      | Some c -> Rv.reg @@ match classof n with
+        | `gpr -> allocatable.(c)
+        | `fp -> allocatable_fp.(c) in
     Func.blks t.fn |> Seq.map ~f:(fun b ->
         Blk.insns b |> Seq.map ~f:(fun i ->
             Insn.with_insn i @@ M.Regalloc.substitute (Insn.insn i) subst) |>

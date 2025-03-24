@@ -44,7 +44,7 @@ module type S = sig
     (** A list, in order of preference, for registers that can be allocated.
 
         These should be general purpose registers, and [scratch] {b must not}
-        be included.
+        be included, nor shall it have any duplicate entries.
     *)
     val allocatable : t list
 
