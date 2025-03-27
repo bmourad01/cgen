@@ -3,7 +3,6 @@
 
 open Core
 open Regular.Std
-open Graphlib.Std
 open Pseudo
 
 module Lset = Label.Tree_set
@@ -26,7 +25,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | `fp -> ())
 
   module Rv = M.Regvar
-  module G = Graphlib.Make(Rv)(Unit)
   module Live = Live(M)
 
   let classof rv = match Rv.which rv with
@@ -96,7 +94,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   *)
   type t = {
     mutable fn     : (M.Insn.t, M.Reg.t) func;
-    mutable g      : G.t;
+    adjlist        : Rv.Set.t Rv.Table.t;
     degree         : int Rv.Table.t;
     moves          : Lset.t Rv.Table.t;
     copies         : (Rv.t * Rv.t) Label.Table.t;
@@ -126,7 +124,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let create fn = {
     fn;
-    g = G.empty;
+    adjlist = Rv.Table.create ();
     degree = Rv.Table.create ();
     moves = Rv.Table.create ();
     copies = Label.Table.create ();
@@ -169,13 +167,24 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      won't be in here, so they should just get the maximum value. *)
   let degree t n = degree' t n |> Option.value ~default:Int.max_value
 
+  let add_adjlist t u v =
+    Hashtbl.update t.adjlist u ~f:(function
+        | None -> Rv.Set.singleton v
+        | Some s -> Set.add s v)
+
+  let has_edge t u v = match Hashtbl.find t.adjlist u with
+    | Some s -> Set.mem s v
+    | None -> false
+
   (* Mimic the adjList *)
-  let adjlist t n = if exclude_from_coloring t n then Seq.empty else G.Node.succs n t.g
-  let adjlist_set t n = Rv.Set.of_sequence @@ adjlist t n
+  let adjlist t n =
+    let default = Rv.Set.empty in
+    if exclude_from_coloring t n then default
+    else Hashtbl.find t.adjlist n |> Option.value ~default
 
   (* adjList[n] \ (selectStack U coalescedNodes) *)
   let adjacent t n =
-    let a = adjlist_set t n in
+    let a = adjlist t n in
     let a = Stack.fold t.select ~init:a ~f:Set.remove in
     Hash_set.fold t.coalesced ~init:a ~f:Set.remove
 
@@ -216,17 +225,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     if Rv.(u <> v)
     && same_class_node u v
     && not (Hash_set.mem t.slots u)
-    && not (Hash_set.mem t.slots v) then
+    && not (Hash_set.mem t.slots v) then begin
       (* adjSet := adjSet U {(u,v),(v,u)} *)
-      let uv = G.Edge.create u v () in
-      let vu = G.Edge.create v u () in
-      t.g <- G.Edge.(insert uv (insert vu t.g));
+      add_adjlist t u v;
+      add_adjlist t v u;
       (* if u \notin precolored then
            degree[u] := degree[u]+1 *)
       if not @@ exclude_from_coloring t u then inc_degree t u;
       (* if v \notin precolored then
            degree[v] := degree[v]+1 *)
       if not @@ exclude_from_coloring t v then inc_degree t v
+    end
 
   let add_move t label n =
     Hashtbl.update t.moves n ~f:(function
@@ -363,7 +372,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* degree[t] < K *)
     degree t a < node_k a ||
     (* (a,r) \in adjSet *)
-    G.Edge.(mem (create a r ()) t.g)
+    has_edge t a r
 
   (* forall t \in Adjacent(v), OK(t,u)  *)
   let all_adjacent_ok t u v =
@@ -448,7 +457,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* v \in precolored *)
       exclude_from_coloring t v ||
       (* (u,v) \in adjSet *)
-      G.Edge.(mem (create u v ()) t.g) then begin
+      has_edge t u v then begin
       (* constrainedMoves := constrainedMoves U {m} *)
       t.kmoves <- Lset.add t.kmoves m;
       (* addWorkList(u) *)
@@ -533,7 +542,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      set of his available colors. *)
   let eliminate_colors t n cs =
     (* forall w \in adjList[n] *)
-    adjlist t n |> Seq.map ~f:(alias t) |>
+    adjlist t n |> Set.to_sequence |> Seq.map ~f:(alias t) |>
     (* if GetAlias(w) \in (coloredNodes U precolored) then *)
     Seq.filter ~f:(fun w -> Rv.is_reg w || Hash_set.mem t.colored w) |>
     (* okColors := okColors \ {color[GetAlias(w)]} *)
@@ -669,10 +678,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Hash_set.clear t.coalesced;
     (* Reset the rest of the state that will be recomputed
        in `build`. *)
+    Hashtbl.clear t.adjlist;
     Hashtbl.clear t.degree;
     Hashtbl.clear t.copies;
-    Hashtbl.clear t.moves;
-    t.g <- G.empty
+    Hashtbl.clear t.moves
 
   let rec main t ~round ~max_rounds =
     let open C.Syntax in
