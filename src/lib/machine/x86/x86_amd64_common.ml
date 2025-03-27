@@ -842,11 +842,4 @@ module Insn = struct
     | XORPD (Oreg (a, _), Oreg (b, _))
       when Regvar.equal a b -> true
     | i -> writes_to_memory i
-
-  (* XXX: any more cases than this? *)
-  let copy = function
-    | MOV (Oreg (d, _), Oreg (s, _))
-    | MOVSS (Oreg (d, _), Oreg (s, _))
-    | MOVSD (Oreg (d, _), Oreg (s, _)) -> Some (d, s)
-    | _ -> None
 end

@@ -239,7 +239,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
     (* if isMoveInstruction(I) then *)
-    let out = match M.Insn.copy insn with
+    let out = match M.Regalloc.copy insn with
       | None -> out
       | Some ((d, s) as p) ->
         (* This is an invariant that is required of `M.Insn.copy`; better
@@ -273,11 +273,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     ()
 
   let build t live =
-    (* Reset state that gets computed during `build_blk` and `build_insn`. *)
-    Hashtbl.clear t.degree;
-    Hashtbl.clear t.copies;
-    Hashtbl.clear t.moves;
-    t.g <- G.empty;
     (* Build the interference graph. *)
     Func.blks t.fn |> Seq.iter ~f:(build_blk t live);
     (* Initialize the worklists. *)
@@ -304,25 +299,28 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             end))
 
   let decrement_degree t adj m =
-    (* let d = degree[m]
-       degree[m] := d-1 *)
-    degree' t m |> Option.iter ~f:(fun d ->
-        assert (not @@ exclude_from_coloring t m);
-        dec_degree t m;
-        (* if d = K then *)
-        if d = node_k m then begin
-          (* EnableMoves({m} U Adjacent(m)) *)
-          enable_moves t @@ Set.add adj m;
-          (* spillWorklist := splillWorklist \ {m} *)
-          Hash_set.remove t.wspill m;
-          (* if MoveRelated(m) then
-               freezeWorklist := freezeWorklist U {m}
-             else
-               simplifyWorklist := simplifyWorklist U {m} *)
-          if move_related t m
-          then Hash_set.add t.wfreeze m
-          else Hash_set.add t.wsimplify m
-        end)
+    match degree' t m with
+    | None ->
+      assert (exclude_from_coloring t m)
+    | Some d ->
+      assert (not @@ exclude_from_coloring t m);
+      (* let d = degree[m]
+         degree[m] := d-1 *)
+      dec_degree t m;
+      (* if d = K then *)
+      if d = node_k m then begin
+        (* EnableMoves({m} U Adjacent(m)) *)
+        enable_moves t @@ Set.add adj m;
+        (* spillWorklist := splillWorklist \ {m} *)
+        Hash_set.remove t.wspill m;
+        (* if MoveRelated(m) then
+             freezeWorklist := freezeWorklist U {m}
+           else
+             simplifyWorklist := simplifyWorklist U {m} *)
+        if move_related t m
+        then Hash_set.add t.wfreeze m
+        else Hash_set.add t.wsimplify m
+      end
 
   exception Found_node of Rv.t
 
@@ -574,7 +572,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* Create slots for spilled nodes. *)
   let make_slots t =
     let ty = Target.word M.target in
-    let size = Type.sizeof_imm_base ty in
+    let size = Type.sizeof_imm_base ty / 8 in
     let slots = Hash_set.fold t.spilled ~init:[] ~f:(fun acc n ->
         match Rv.which n with
         | First _ -> assert false
@@ -586,7 +584,32 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Rewrite a single instruction to spill and reload variables.
 
-     NB: `acc` is accumulated in reverse
+     Suppose we have:
+
+       mov v, [v+16]
+
+     We will transform this code to:
+
+       mov v_i, [v]
+       mov v_i, [v_i+16]
+       mov [v], v_i
+
+     Again suppose:
+
+       mov v, [a+16]
+       ...
+       add a, v
+
+     We get:
+
+       mov v_i, [a+16]
+       mov [v], v_i
+       ...
+       mov v_i', [v]
+       add a, v_i'
+
+     NB: `acc` is accumulated in reverse, and we populate `initial`
+     with the fresh temporaries (`newTemps`) here.
   *)
   let rewrite_insn t acc i =
     let open C.Syntax in
@@ -615,6 +638,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               else !!f in
             (* Update the substitution. *)
             let m' = Map.set m ~key:v ~data:v' in
+            (* initial := initial U newTemps *)
             Hash_set.add t.initial v';
             f', s', m') in
     (* Apply the substitution to the existing instruction. *)
@@ -622,9 +646,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let i' = Insn.with_insn i @@ M.Regalloc.substitute insn subst in
     List.concat [fetch; i' :: store; acc]
 
-  (* Rewrite the function to have the necessary spill code. *)
-  let rewrite_function t =
+  (* Insert spilling code and set up the state for the next round. *)
+  let rewrite_program t =
     let open C.Syntax in
+    make_slots t;
     let+ blks =
       Func.blks ~rev:true t.fn |>
       C.Seq.fold ~init:[] ~f:(fun acc b ->
@@ -632,25 +657,22 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             Blk.insns ~rev:true b |>
             C.Seq.fold ~init:[] ~f:(rewrite_insn t) in
           Blk.with_insns b insns :: acc) in
-    t.fn <- Func.with_blks t.fn blks
-
-  (* Rewrite the program for the spilled variables.
-
-     NB: `newTemps` is added to `initial` in `rewrite_insn`.
-  *)
-  let rewrite_program t =
-    let open C.Syntax in
-    make_slots t;
-    let+ () = rewrite_function t in
+    t.fn <- Func.with_blks t.fn blks;
     (* spilledNodes := {} *)
     Hash_set.clear t.spilled;
-    (* initial := coloredNodes U coalescedNodes U newTemps *)
+    (* initial := coloredNodes U coalescedNodes *)
     Hash_set.iter t.colored ~f:(Hash_set.add t.initial);
     Hash_set.iter t.coalesced ~f:(Hash_set.add t.initial);
     (* coloredNodes := {} *)
     Hash_set.clear t.colored;
     (* coalescedNodes := {} *)
-    Hash_set.clear t.coalesced
+    Hash_set.clear t.coalesced;
+    (* Reset the rest of the state that will be recomputed
+       in `build`. *)
+    Hashtbl.clear t.degree;
+    Hashtbl.clear t.copies;
+    Hashtbl.clear t.moves;
+    t.g <- G.empty
 
   let rec main t ~round ~max_rounds =
     let open C.Syntax in
@@ -691,8 +713,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      processed by the algorithm. *)
   let init_initial t =
     let add_initial rv =
-      if not (exclude_from_coloring t rv)
-      && not (Hash_set.mem t.colored rv)
+      if not @@ exclude_from_coloring t rv
       then Hash_set.add t.initial rv in
     Func.blks t.fn |> Seq.iter ~f:(fun b ->
         Blk.insns b |> Seq.iter ~f:(fun i ->

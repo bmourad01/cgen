@@ -4,6 +4,13 @@ open Core
 open X86_amd64_common
 open Insn
 
+(* XXX: any more cases than this? *)
+let copy = function
+  | MOV (Oreg (d, _), Oreg (s, _))
+  | MOVSS (Oreg (d, _), Oreg (s, _))
+  | MOVSD (Oreg (d, _), Oreg (s, _)) -> Some (d, s)
+  | _ -> None
+
 let classof rv = match Regvar.which rv with
   | First r -> Reg.classof r
   | Second (_, cls) -> cls

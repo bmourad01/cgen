@@ -41,14 +41,14 @@ module type S = sig
     (** Same as [scratch], but for floating-point registers. *)
     val scratch_fp : t
 
-    (** A list, in order of preference, for registers that can be allocated.
-
-        These should be general purpose registers, and [scratch] {b must not}
-        be included, nor shall it have any duplicate entries.
-    *)
+    (** A list of all general purpose registers, in order of their preference
+        for register allocation, {b except for} [scratch], which {b must not}
+        be contained. *)
     val allocatable : t list
 
-    (** Same as [allocatable], but for floating-point registers. *)
+    (** A list of all floating point registers, in order of their preference
+        for register allocation, {b except for} [scratch_fp], which {b must not}
+        be contained. *)
     val allocatable_fp : t list
 
     (** Returns the class of the register. *)
@@ -115,14 +115,6 @@ module type S = sig
         if it is reachable. *)
     val always_live : t -> bool
 
-    (** If the instruction is a simple copy or move from one register/var to
-        another, then return [Some (d, s)], where [d] is the destination
-        and [s] is the source.
-
-        Note that both [d] and [s] {b must} have the same register class.
-    *)
-    val copy : t -> (Regvar.t * Regvar.t) option
-
     (** Pretty-prints the instruction. *)
     val pp : Format.formatter -> t -> unit
   end
@@ -135,6 +127,14 @@ module type S = sig
 
   (** Register allocation helpers. *)
   module Regalloc : sig
+    (** If the instruction is a simple copy or move from one register/var to
+        another, then return [Some (d, s)], where [d] is the destination
+        and [s] is the source.
+
+        Note that both [d] and [s] {b must} have the same register class.
+    *)
+    val copy : Insn.t -> (Regvar.t * Regvar.t) option
+
     (** Produce an instruction to load a value from a slot, where [src] holds the
         address of the slot and [dst] is destination register/variable. *)
     val load_from_slot : dst:Regvar.t -> src:Regvar.t -> Insn.t
