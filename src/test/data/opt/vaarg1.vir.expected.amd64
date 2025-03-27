@@ -53,9 +53,9 @@ export function $foo { ; returns: rax
   jmp @64 ; @120
 @62:
   mov %36:w, %30:w ; zx ; @117
-  lea %37:l, qword ptr [%4 + %36] ; @116
+  lea %37:l, qword ptr [%4 + %36*1] ; @116
   mov %38:w, %32:w ; zx ; @115
-  lea %39:l, qword ptr [%4 + %38] ; @114
+  lea %39:l, qword ptr [%4 + %38*1] ; @114
   lea %40:w, qword ptr [%30 + 0x10] ; @113
   lea %41:w, qword ptr [%32 + 0x8] ; @112
   mov dword ptr [%ap + 0x4], %40:w ; @111
@@ -76,8 +76,8 @@ export function $foo { ; returns: rax
   mov qword ptr [%r + 0x8], %23:l ; @96
   movsd %f1.1:d, qword ptr [%r] ; @95
   cvtsd2si %1:l, %f1.1:d ; @94
-  lea %2:l, qword ptr [%23 + %1] ; @93
-  lea %3:l, qword ptr [%2 + %i] ; @92
+  lea %2:l, qword ptr [%23 + %1*1] ; @93
+  lea %3:l, qword ptr [%2 + %i*1] ; @92
   mov rax, %3:l ; @90
   ret ; @91
 }

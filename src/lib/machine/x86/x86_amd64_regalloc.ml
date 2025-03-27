@@ -30,9 +30,7 @@ let store_to_slot ~src ~dst =
 let substitute_amode f = function
   | Ad _ as a -> a
   | Ab b -> Ab (f b)
-  | Abi (b, i) -> Abi (f b, f i)
   | Abd (b, d) -> Abd (f b, d)
-  | Abid (b, i, d) -> Abid (f b, f i, d)
   | Abis (b, i, s) -> Abis (f b, f i, s)
   | Aisd (i, s, d) -> Aisd (f i, s, d)
   | Abisd (b, i, s, d) -> Abisd (f b, f i, s, d)

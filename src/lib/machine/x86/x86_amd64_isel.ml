@@ -166,7 +166,7 @@ end = struct
     let*! () = guard @@ Type.equal_basic xt yt in
     let*! () = guard @@ Type.equal_basic xt zt in
     if not (Rv.equal x y) && can_lea_ty xt then
-      !!![LEA (Oreg (x, xt), Omem (Abi (y, z), `i64))]
+      !!![LEA (Oreg (x, xt), Omem (Abis (y, z, S1), `i64))]
     else match xt with
       | #Type.imm -> !!![
           MOV (Oreg (x, xt), Oreg (y, yt));
@@ -1808,7 +1808,7 @@ end = struct
           (* Get the base of the table. *)
           LEA (Oreg (tbase, `i64), Omem (Abd (Reg `rip, Dlbl tl), `i64));
           (* Jump to the table entry. *)
-          MOVSXD (Oreg (rax, `i64), Omem (Abis (tbase, tidx, 4), `i32));
+          MOVSXD (Oreg (rax, `i64), Omem (Abis (tbase, tidx, S4), `i32));
           ADD (Oreg (rax, `i64), Oreg (tbase, `i64));
           JMP (Jind (Oreg (rax, `i64)));
           (* The table itself. *)
@@ -2193,27 +2193,27 @@ end = struct
         let p4 = sib_disp_pat ty eight three in
         let ty' = bty ty in [
           (* Scale by 1 *)
-          move x p1.(0) => add_mul_rr_scale_imm_x_y_z_w 1;
-          move x p1.(1) => add_mul_rr_scale_imm_x_y_z_w 1;
-          move x p1.(2) => add_mul_rr_scale_imm_x_y_z_w 1;
-          move x p1.(3) => add_mul_rr_scale_imm_x_y_z_w 1;
-          move x (add ty' (add ty' y z) w) => add_mul_rr_scale_imm_x_y_z_w 1;
-          move x (add ty' y (add ty' z w)) => add_mul_rr_scale_imm_x_y_z_w 1;
+          move x p1.(0) => add_mul_rr_scale_imm_x_y_z_w S1;
+          move x p1.(1) => add_mul_rr_scale_imm_x_y_z_w S1;
+          move x p1.(2) => add_mul_rr_scale_imm_x_y_z_w S1;
+          move x p1.(3) => add_mul_rr_scale_imm_x_y_z_w S1;
+          move x (add ty' (add ty' y z) w) => add_mul_rr_scale_imm_x_y_z_w S1;
+          move x (add ty' y (add ty' z w)) => add_mul_rr_scale_imm_x_y_z_w S1;
           (* Scale by 2 *)
-          move x p2.(0) => add_mul_rr_scale_imm_x_y_z_w 2;
-          move x p2.(1) => add_mul_rr_scale_imm_x_y_z_w 2;
-          move x p2.(2) => add_mul_rr_scale_imm_x_y_z_w 2;
-          move x p2.(3) => add_mul_rr_scale_imm_x_y_z_w 2;
+          move x p2.(0) => add_mul_rr_scale_imm_x_y_z_w S2;
+          move x p2.(1) => add_mul_rr_scale_imm_x_y_z_w S2;
+          move x p2.(2) => add_mul_rr_scale_imm_x_y_z_w S2;
+          move x p2.(3) => add_mul_rr_scale_imm_x_y_z_w S2;
           (* Scale by 4 *)
-          move x p3.(0) => add_mul_rr_scale_imm_x_y_z_w 4;
-          move x p3.(1) => add_mul_rr_scale_imm_x_y_z_w 4;
-          move x p3.(2) => add_mul_rr_scale_imm_x_y_z_w 4;
-          move x p3.(3) => add_mul_rr_scale_imm_x_y_z_w 4;
+          move x p3.(0) => add_mul_rr_scale_imm_x_y_z_w S4;
+          move x p3.(1) => add_mul_rr_scale_imm_x_y_z_w S4;
+          move x p3.(2) => add_mul_rr_scale_imm_x_y_z_w S4;
+          move x p3.(3) => add_mul_rr_scale_imm_x_y_z_w S4;
           (* Scale by 8 *)
-          move x p4.(0) => add_mul_rr_scale_imm_x_y_z_w 8;
-          move x p4.(1) => add_mul_rr_scale_imm_x_y_z_w 8;
-          move x p4.(2) => add_mul_rr_scale_imm_x_y_z_w 8;
-          move x p4.(3) => add_mul_rr_scale_imm_x_y_z_w 8;
+          move x p4.(0) => add_mul_rr_scale_imm_x_y_z_w S8;
+          move x p4.(1) => add_mul_rr_scale_imm_x_y_z_w S8;
+          move x p4.(2) => add_mul_rr_scale_imm_x_y_z_w S8;
+          move x p4.(3) => add_mul_rr_scale_imm_x_y_z_w S8;
         ]
 
     (* x = sub (add y (mul z i)) w => lea x, [y+z*i-w]
@@ -2232,26 +2232,26 @@ end = struct
         let p4 = sib_disp_neg_pat ty eight three in
         let ty' = bty ty in [
           (* Scale by 1 *)
-          move x p1.(0) => add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x p1.(1) => add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x p1.(2) => add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x p1.(3) => add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x (sub ty' (add ty' y z) w) => add_mul_rr_scale_imm_x_y_z_w 1;
+          move x p1.(0) => add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          move x p1.(1) => add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          move x p1.(2) => add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          move x p1.(3) => add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          move x (sub ty' (add ty' y z) w) => add_mul_rr_scale_imm_x_y_z_w S1;
           (* Scale by 2 *)
-          move x p2.(0) => add_mul_rr_scale_neg_imm_x_y_z_w 2;
-          move x p2.(1) => add_mul_rr_scale_neg_imm_x_y_z_w 2;
-          move x p2.(2) => add_mul_rr_scale_neg_imm_x_y_z_w 2;
-          move x p2.(3) => add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          move x p2.(0) => add_mul_rr_scale_neg_imm_x_y_z_w S2;
+          move x p2.(1) => add_mul_rr_scale_neg_imm_x_y_z_w S2;
+          move x p2.(2) => add_mul_rr_scale_neg_imm_x_y_z_w S2;
+          move x p2.(3) => add_mul_rr_scale_neg_imm_x_y_z_w S2;
           (* Scale by 4 *)
-          move x p3.(0) => add_mul_rr_scale_neg_imm_x_y_z_w 4;
-          move x p3.(1) => add_mul_rr_scale_neg_imm_x_y_z_w 4;
-          move x p3.(2) => add_mul_rr_scale_neg_imm_x_y_z_w 4;
-          move x p3.(3) => add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          move x p3.(0) => add_mul_rr_scale_neg_imm_x_y_z_w S4;
+          move x p3.(1) => add_mul_rr_scale_neg_imm_x_y_z_w S4;
+          move x p3.(2) => add_mul_rr_scale_neg_imm_x_y_z_w S4;
+          move x p3.(3) => add_mul_rr_scale_neg_imm_x_y_z_w S4;
           (* Scale by 8 *)
-          move x p4.(0) => add_mul_rr_scale_neg_imm_x_y_z_w 8;
-          move x p4.(1) => add_mul_rr_scale_neg_imm_x_y_z_w 8;
-          move x p4.(2) => add_mul_rr_scale_neg_imm_x_y_z_w 8;
-          move x p4.(3) => add_mul_rr_scale_neg_imm_x_y_z_w 8;
+          move x p4.(0) => add_mul_rr_scale_neg_imm_x_y_z_w S8;
+          move x p4.(1) => add_mul_rr_scale_neg_imm_x_y_z_w S8;
+          move x p4.(2) => add_mul_rr_scale_neg_imm_x_y_z_w S8;
+          move x p4.(3) => add_mul_rr_scale_neg_imm_x_y_z_w S8;
         ]
 
     (* x = add y (mul z i) => lea x, [y+z*i]
@@ -2269,17 +2269,17 @@ end = struct
         let p3 = sib_pat ty four two in
         let p4 = sib_pat ty eight three in [
           (* Scale by 1 *)
-          move x p1.(0) => add_mul_rr_scale_x_y_z 1;
-          move x p1.(1) => add_mul_rr_scale_x_y_z 1;
+          move x p1.(0) => add_mul_rr_scale_x_y_z S1;
+          move x p1.(1) => add_mul_rr_scale_x_y_z S1;
           (* Scale by 2 *)
-          move x p2.(0) => add_mul_rr_scale_x_y_z 2;
-          move x p2.(1) => add_mul_rr_scale_x_y_z 2;
+          move x p2.(0) => add_mul_rr_scale_x_y_z S2;
+          move x p2.(1) => add_mul_rr_scale_x_y_z S2;
           (* Scale by 4 *)
-          move x p3.(0) => add_mul_rr_scale_x_y_z 4;
-          move x p3.(1) => add_mul_rr_scale_x_y_z 4;
+          move x p3.(0) => add_mul_rr_scale_x_y_z S4;
+          move x p3.(1) => add_mul_rr_scale_x_y_z S4;
           (* Scale by 8 *)
-          move x p4.(0) => add_mul_rr_scale_x_y_z 8;
-          move x p4.(1) => add_mul_rr_scale_x_y_z 8;
+          move x p4.(0) => add_mul_rr_scale_x_y_z S8;
+          move x p4.(1) => add_mul_rr_scale_x_y_z S8;
         ]
 
     (* x = add y, z *)
@@ -2380,14 +2380,14 @@ end = struct
           move x p1.(0) => add_ri_x_y_z;
           move x p1.(1) => add_ri_x_y_z;
           (* Scale by 2 *)
-          move x p2.(0) => mul_lea_ri_addi_x_y_z 2;
-          move x p2.(1) => mul_lea_ri_addi_x_y_z 2;
+          move x p2.(0) => mul_lea_ri_addi_x_y_z S2;
+          move x p2.(1) => mul_lea_ri_addi_x_y_z S2;
           (* Scale by 4 *)
-          move x p3.(0) => mul_lea_ri_addi_x_y_z 4;
-          move x p3.(1) => mul_lea_ri_addi_x_y_z 4;
+          move x p3.(0) => mul_lea_ri_addi_x_y_z S4;
+          move x p3.(1) => mul_lea_ri_addi_x_y_z S4;
           (* Scale by 8 *)
-          move x p4.(0) => mul_lea_ri_addi_x_y_z 8;
-          move x p4.(1) => mul_lea_ri_addi_x_y_z 8;
+          move x p4.(0) => mul_lea_ri_addi_x_y_z S8;
+          move x p4.(1) => mul_lea_ri_addi_x_y_z S8;
         ]
 
     (* x = mul y, z *)
@@ -2532,27 +2532,27 @@ end = struct
         let p3 = sib_disp_pat `i64 (i64 4L) (i64 2L) in
         let p4 = sib_disp_pat `i64 (i64 8L) (i64 3L) in [
           (* Scale by 1 *)
-          move x (load ty p1.(0)) => load_add_mul_rr_scale_imm_x_y_z_w 1;
-          move x (load ty p1.(1)) => load_add_mul_rr_scale_imm_x_y_z_w 1;
-          move x (load ty p1.(2)) => load_add_mul_rr_scale_imm_x_y_z_w 1;
-          move x (load ty p1.(3)) => load_add_mul_rr_scale_imm_x_y_z_w 1;
-          move x (load ty (add ty (add ty y z) w)) => load_add_mul_rr_scale_imm_x_y_z_w 1;
-          move x (load ty (add ty y (add ty z w))) => load_add_mul_rr_scale_imm_x_y_z_w 1;
+          move x (load ty p1.(0)) => load_add_mul_rr_scale_imm_x_y_z_w S1;
+          move x (load ty p1.(1)) => load_add_mul_rr_scale_imm_x_y_z_w S1;
+          move x (load ty p1.(2)) => load_add_mul_rr_scale_imm_x_y_z_w S1;
+          move x (load ty p1.(3)) => load_add_mul_rr_scale_imm_x_y_z_w S1;
+          move x (load ty (add ty (add ty y z) w)) => load_add_mul_rr_scale_imm_x_y_z_w S1;
+          move x (load ty (add ty y (add ty z w))) => load_add_mul_rr_scale_imm_x_y_z_w S1;
           (* Scale by 2 *)
-          move x (load ty p2.(0)) => load_add_mul_rr_scale_imm_x_y_z_w 2;
-          move x (load ty p2.(1)) => load_add_mul_rr_scale_imm_x_y_z_w 2;
-          move x (load ty p2.(2)) => load_add_mul_rr_scale_imm_x_y_z_w 2;
-          move x (load ty p2.(3)) => load_add_mul_rr_scale_imm_x_y_z_w 2;
+          move x (load ty p2.(0)) => load_add_mul_rr_scale_imm_x_y_z_w S2;
+          move x (load ty p2.(1)) => load_add_mul_rr_scale_imm_x_y_z_w S2;
+          move x (load ty p2.(2)) => load_add_mul_rr_scale_imm_x_y_z_w S2;
+          move x (load ty p2.(3)) => load_add_mul_rr_scale_imm_x_y_z_w S2;
           (* Scale by 4 *)
-          move x (load ty p3.(0)) => load_add_mul_rr_scale_imm_x_y_z_w 4;
-          move x (load ty p3.(1)) => load_add_mul_rr_scale_imm_x_y_z_w 4;
-          move x (load ty p3.(2)) => load_add_mul_rr_scale_imm_x_y_z_w 4;
-          move x (load ty p3.(3)) => load_add_mul_rr_scale_imm_x_y_z_w 4;
+          move x (load ty p3.(0)) => load_add_mul_rr_scale_imm_x_y_z_w S4;
+          move x (load ty p3.(1)) => load_add_mul_rr_scale_imm_x_y_z_w S4;
+          move x (load ty p3.(2)) => load_add_mul_rr_scale_imm_x_y_z_w S4;
+          move x (load ty p3.(3)) => load_add_mul_rr_scale_imm_x_y_z_w S4;
           (* Scale by 8 *)
-          move x (load ty p4.(0)) => load_add_mul_rr_scale_imm_x_y_z_w 8;
-          move x (load ty p4.(1)) => load_add_mul_rr_scale_imm_x_y_z_w 8;
-          move x (load ty p4.(2)) => load_add_mul_rr_scale_imm_x_y_z_w 8;
-          move x (load ty p4.(3)) => load_add_mul_rr_scale_imm_x_y_z_w 8;
+          move x (load ty p4.(0)) => load_add_mul_rr_scale_imm_x_y_z_w S8;
+          move x (load ty p4.(1)) => load_add_mul_rr_scale_imm_x_y_z_w S8;
+          move x (load ty p4.(2)) => load_add_mul_rr_scale_imm_x_y_z_w S8;
+          move x (load ty p4.(3)) => load_add_mul_rr_scale_imm_x_y_z_w S8;
         ]
 
     (* x = load (sub (add y (mul z i)) w) => mov x, [y+z*i-w]
@@ -2570,26 +2570,26 @@ end = struct
         let p3 = sib_disp_neg_pat `i64 (i64 4L) (i64 2L) in
         let p4 = sib_disp_neg_pat `i64 (i64 8L) (i64 3L) in [
           (* Scale by 1 *)
-          move x (load ty p1.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x (load ty p1.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x (load ty p1.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x (load ty p1.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          move x (load ty (sub ty (add ty y z) w)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          move x (load ty p1.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          move x (load ty p1.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          move x (load ty p1.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          move x (load ty p1.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          move x (load ty (sub ty (add ty y z) w)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S1;
           (* Scale by 2 *)
-          move x (load ty p2.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
-          move x (load ty p2.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
-          move x (load ty p2.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
-          move x (load ty p2.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          move x (load ty p2.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S2;
+          move x (load ty p2.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S2;
+          move x (load ty p2.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S2;
+          move x (load ty p2.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S2;
           (* Scale by 4 *)
-          move x (load ty p3.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 4;
-          move x (load ty p3.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 4;
-          move x (load ty p3.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 4;
-          move x (load ty p3.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          move x (load ty p3.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S4;
+          move x (load ty p3.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S4;
+          move x (load ty p3.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S4;
+          move x (load ty p3.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S4;
           (* Scale by 8 *)
-          move x (load ty p4.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 8;
-          move x (load ty p4.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 8;
-          move x (load ty p4.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 8;
-          move x (load ty p4.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+          move x (load ty p4.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S8;
+          move x (load ty p4.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S8;
+          move x (load ty p4.(2)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S8;
+          move x (load ty p4.(3)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S8;
         ]
 
     (* x = load (add y (mul z i)) => mov x, [y+z*i]
@@ -2607,17 +2607,17 @@ end = struct
         let p3 = sib_pat `i64 (i64 4L) (i64 2L) in
         let p4 = sib_pat `i64 (i64 8L) (i64 3L) in [
           (* Scale by 1 *)
-          move x (load ty p1.(0)) => load_add_mul_rr_scale_x_y_z 1;
-          move x (load ty p1.(1)) => load_add_mul_rr_scale_x_y_z 1;
+          move x (load ty p1.(0)) => load_add_mul_rr_scale_x_y_z S1;
+          move x (load ty p1.(1)) => load_add_mul_rr_scale_x_y_z S1;
           (* Scale by 2 *)
-          move x (load ty p2.(0)) => load_add_mul_rr_scale_x_y_z 2;
-          move x (load ty p2.(1)) => load_add_mul_rr_scale_x_y_z 2;
+          move x (load ty p2.(0)) => load_add_mul_rr_scale_x_y_z S2;
+          move x (load ty p2.(1)) => load_add_mul_rr_scale_x_y_z S2;
           (* Scale by 4 *)
-          move x (load ty p3.(0)) => load_add_mul_rr_scale_x_y_z 4;
-          move x (load ty p3.(1)) => load_add_mul_rr_scale_x_y_z 4;
+          move x (load ty p3.(0)) => load_add_mul_rr_scale_x_y_z S4;
+          move x (load ty p3.(1)) => load_add_mul_rr_scale_x_y_z S4;
           (* Scale by 8 *)
-          move x (load ty p4.(0)) => load_add_mul_rr_scale_x_y_z 8;
-          move x (load ty p4.(1)) => load_add_mul_rr_scale_x_y_z 8;
+          move x (load ty p4.(0)) => load_add_mul_rr_scale_x_y_z S8;
+          move x (load ty p4.(1)) => load_add_mul_rr_scale_x_y_z S8;
         ]
 
     (* x = load (add y, z) *)
@@ -2794,27 +2794,27 @@ end = struct
         let p3 = sib_disp_pat `i64 (i64 4L) (i64 2L) in
         let p4 = sib_disp_pat `i64 (i64 8L) (i64 3L) in [
           (* Scale by 1 *)
-          store ty x p1.(0) => store_add_mul_rr_scale_imm_x_y_z_w 1;
-          store ty x p1.(1) => store_add_mul_rr_scale_imm_x_y_z_w 1;
-          store ty x p1.(2) => store_add_mul_rr_scale_imm_x_y_z_w 1;
-          store ty x p1.(3) => store_add_mul_rr_scale_imm_x_y_z_w 1;
-          store ty x (add `i64 (add `i64 y z) w) => store_add_mul_rr_scale_imm_x_y_z_w 1;
-          store ty x (add `i64 y (add `i64 z w)) => store_add_mul_rr_scale_imm_x_y_z_w 1;
+          store ty x p1.(0) => store_add_mul_rr_scale_imm_x_y_z_w S1;
+          store ty x p1.(1) => store_add_mul_rr_scale_imm_x_y_z_w S1;
+          store ty x p1.(2) => store_add_mul_rr_scale_imm_x_y_z_w S1;
+          store ty x p1.(3) => store_add_mul_rr_scale_imm_x_y_z_w S1;
+          store ty x (add `i64 (add `i64 y z) w) => store_add_mul_rr_scale_imm_x_y_z_w S1;
+          store ty x (add `i64 y (add `i64 z w)) => store_add_mul_rr_scale_imm_x_y_z_w S1;
           (* Scale by 2 *)
-          store ty x p2.(0) => store_add_mul_rr_scale_imm_x_y_z_w 2;
-          store ty x p2.(1) => store_add_mul_rr_scale_imm_x_y_z_w 2;
-          store ty x p2.(2) => store_add_mul_rr_scale_imm_x_y_z_w 2;
-          store ty x p2.(3) => store_add_mul_rr_scale_imm_x_y_z_w 2;
+          store ty x p2.(0) => store_add_mul_rr_scale_imm_x_y_z_w S2;
+          store ty x p2.(1) => store_add_mul_rr_scale_imm_x_y_z_w S2;
+          store ty x p2.(2) => store_add_mul_rr_scale_imm_x_y_z_w S2;
+          store ty x p2.(3) => store_add_mul_rr_scale_imm_x_y_z_w S2;
           (* Scale by 4 *)
-          store ty x p3.(0) => store_add_mul_rr_scale_imm_x_y_z_w 4;
-          store ty x p3.(1) => store_add_mul_rr_scale_imm_x_y_z_w 4;
-          store ty x p3.(2) => store_add_mul_rr_scale_imm_x_y_z_w 4;
-          store ty x p3.(3) => store_add_mul_rr_scale_imm_x_y_z_w 4;
+          store ty x p3.(0) => store_add_mul_rr_scale_imm_x_y_z_w S4;
+          store ty x p3.(1) => store_add_mul_rr_scale_imm_x_y_z_w S4;
+          store ty x p3.(2) => store_add_mul_rr_scale_imm_x_y_z_w S4;
+          store ty x p3.(3) => store_add_mul_rr_scale_imm_x_y_z_w S4;
           (* Scale by 8 *)
-          store ty x p4.(0) => store_add_mul_rr_scale_imm_x_y_z_w 8;
-          store ty x p4.(1) => store_add_mul_rr_scale_imm_x_y_z_w 8;
-          store ty x p4.(2) => store_add_mul_rr_scale_imm_x_y_z_w 8;
-          store ty x p4.(3) => store_add_mul_rr_scale_imm_x_y_z_w 8;
+          store ty x p4.(0) => store_add_mul_rr_scale_imm_x_y_z_w S8;
+          store ty x p4.(1) => store_add_mul_rr_scale_imm_x_y_z_w S8;
+          store ty x p4.(2) => store_add_mul_rr_scale_imm_x_y_z_w S8;
+          store ty x p4.(3) => store_add_mul_rr_scale_imm_x_y_z_w S8;
         ]
 
 
@@ -2833,26 +2833,26 @@ end = struct
         let p3 = sib_disp_neg_pat `i64 (i64 4L) (i64 2L) in
         let p4 = sib_disp_neg_pat `i64 (i64 8L) (i64 3L) in [
           (* Scale by 1 *)
-          store ty x p1.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          store ty x p1.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          store ty x p1.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          store ty x p1.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
-          store ty x (sub `i64 (add `i64 y z) w) => store_add_mul_rr_scale_neg_imm_x_y_z_w 1;
+          store ty x p1.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          store ty x p1.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          store ty x p1.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          store ty x p1.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w S1;
+          store ty x (sub `i64 (add `i64 y z) w) => store_add_mul_rr_scale_neg_imm_x_y_z_w S1;
           (* Scale by 2 *)
-          store ty x p2.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
-          store ty x p2.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
-          store ty x p2.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
-          store ty x p2.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w 2;
+          store ty x p2.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w S2;
+          store ty x p2.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w S2;
+          store ty x p2.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w S2;
+          store ty x p2.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w S2;
           (* Scale by 4 *)
-          store ty x p3.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w 4;
-          store ty x p3.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 4;
-          store ty x p3.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w 4;
-          store ty x p3.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w 4;
+          store ty x p3.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w S4;
+          store ty x p3.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w S4;
+          store ty x p3.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w S4;
+          store ty x p3.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w S4;
           (* Scale by 8 *)
-          store ty x p4.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w 8;
-          store ty x p4.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w 8;
-          store ty x p4.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w 8;
-          store ty x p4.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w 8;
+          store ty x p4.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w S8;
+          store ty x p4.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w S8;
+          store ty x p4.(2) => store_add_mul_rr_scale_neg_imm_x_y_z_w S8;
+          store ty x p4.(3) => store_add_mul_rr_scale_neg_imm_x_y_z_w S8;
         ]
 
     (* store x (add y (mul z i)) => mov [y+z*i], x
@@ -2870,17 +2870,17 @@ end = struct
         let p3 = sib_pat `i64 (i64 4L) (i64 2L) in
         let p4 = sib_pat `i64 (i64 8L) (i64 3L) in [
           (* Scale by 1 *)
-          store ty x p1.(0) => store_add_mul_rr_scale_x_y_z 1;
-          store ty x p1.(1) => store_add_mul_rr_scale_x_y_z 1;
+          store ty x p1.(0) => store_add_mul_rr_scale_x_y_z S1;
+          store ty x p1.(1) => store_add_mul_rr_scale_x_y_z S1;
           (* Scale by 2 *)
-          store ty x p2.(0) => store_add_mul_rr_scale_x_y_z 2;
-          store ty x p2.(1) => store_add_mul_rr_scale_x_y_z 2;
+          store ty x p2.(0) => store_add_mul_rr_scale_x_y_z S2;
+          store ty x p2.(1) => store_add_mul_rr_scale_x_y_z S2;
           (* Scale by 4 *)
-          store ty x p3.(0) => store_add_mul_rr_scale_x_y_z 4;
-          store ty x p3.(1) => store_add_mul_rr_scale_x_y_z 4;
+          store ty x p3.(0) => store_add_mul_rr_scale_x_y_z S4;
+          store ty x p3.(1) => store_add_mul_rr_scale_x_y_z S4;
           (* Scale by 8 *)
-          store ty x p4.(0) => store_add_mul_rr_scale_x_y_z 8;
-          store ty x p4.(1) => store_add_mul_rr_scale_x_y_z 8;
+          store ty x p4.(0) => store_add_mul_rr_scale_x_y_z S8;
+          store ty x p4.(1) => store_add_mul_rr_scale_x_y_z S8;
         ]
 
     (* store x (add y z) *)

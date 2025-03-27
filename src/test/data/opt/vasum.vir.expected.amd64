@@ -55,7 +55,7 @@ export function $sum { ; returns: rax
   jmp @59 ; @87
 @57:
   mov %27:w, %23:w ; zx ; @85
-  lea %28:l, qword ptr [%3 + %27] ; @84
+  lea %28:l, qword ptr [%3 + %27*1] ; @84
   lea %29:w, qword ptr [%23 + 0x8] ; @83
   mov dword ptr [%ap], %29:w ; @82
   mov %33:l, %28:l ; @80
@@ -64,7 +64,7 @@ export function $sum { ; returns: rax
   mov %y.1:w, dword ptr [%33] ; @79
   jmp @55 ; @78
 @55:
-  lea %1:w, qword ptr [%x.2 + %y.1] ; @77
+  lea %1:w, qword ptr [%x.2 + %y.1*1] ; @77
   lea %2:w, qword ptr [%i.2 + 0x1] ; @76
   mov %x.2:w, %1:w ; @73
   mov %i.2:w, %2:w ; @74

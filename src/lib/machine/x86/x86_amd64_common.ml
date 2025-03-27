@@ -177,16 +177,30 @@ module Insn = struct
     | Dlbl l ->
       Format.fprintf ppf "%a" Label.pp l
 
-  (* Memory addressing modes. Scale must be 1, 2, 4, or 8. *)
+  (* SIB scale. Only 1, 2, 4, and 8 are valid. *)
+  type scale =
+    | S1
+    | S2
+    | S4
+    | S8
+  [@@deriving bin_io, compare, equal, sexp]
+
+  let int_of_scale = function
+    | S1 -> 1
+    | S2 -> 2
+    | S4 -> 4
+    | S8 -> 8
+
+  let pp_scale ppf s = Format.fprintf ppf "%d" @@ int_of_scale s
+
+  (* Memory addressing modes. *)
   type amode =
-    | Ad    of disp                 (* Displacement *)
-    | Ab    of rv                   (* Base *)
-    | Abi   of rv * rv              (* Base + index *)
-    | Abd   of rv * disp            (* Base + displacement *)
-    | Abid  of rv * rv * disp       (* Base + index + displacement *)
-    | Abis  of rv * rv * int        (* Base + index * scale *)
-    | Aisd  of rv * int * disp      (* Index * scale + displacement *)
-    | Abisd of rv * rv * int * disp (* Base + index * scale + displacement *)
+    | Ad    of disp                   (* Displacement *)
+    | Ab    of rv                     (* Base *)
+    | Abd   of rv * disp              (* Base + displacement *)
+    | Abis  of rv * rv * scale        (* Base + index * scale *)
+    | Aisd  of rv * scale * disp      (* Index * scale + displacement *)
+    | Abisd of rv * rv * scale * disp (* Base + index * scale + displacement *)
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_amode ppf = function
@@ -194,36 +208,27 @@ module Insn = struct
       Format.fprintf ppf "%a" pp_disp d
     | Ab b ->
       Format.fprintf ppf "%a" Regvar.pp b
-    | Abi (b, i) ->
-      Format.fprintf ppf "%a + %a"
-        Regvar.pp b Regvar.pp i
     | Abd (b, Dimm d) when Int32.(d < 0l) ->
       Format.fprintf ppf "%a - 0x%lx"
         Regvar.pp b (Int32.neg d)
     | Abd (b, d) ->
       Format.fprintf ppf "%a + %a"
         Regvar.pp b pp_disp d
-    | Abid (b, i, Dimm d) when Int32.(d < 0l) ->
-      Format.fprintf ppf "%a + %a*1 - 0x%lx"
-        Regvar.pp b Regvar.pp i (Int32.neg d)
-    | Abid (b, i, d) ->
-      Format.fprintf ppf "%a + %a*1 + %a"
-        Regvar.pp b Regvar.pp i pp_disp d
     | Abis (b, i, s) ->
-      Format.fprintf ppf "%a + %a*%d"
-        Regvar.pp b Regvar.pp i s
+      Format.fprintf ppf "%a + %a*%a"
+        Regvar.pp b Regvar.pp i pp_scale s
     | Aisd (i, s, Dimm d) when Int32.(d < 0l) ->
-      Format.fprintf ppf "%a*%d - 0x%lx"
-        Regvar.pp i s (Int32.neg d)
+      Format.fprintf ppf "%a*%a - 0x%lx"
+        Regvar.pp i pp_scale s (Int32.neg d)
     | Aisd (i, s, d) ->
-      Format.fprintf ppf "%a*%d + %a"
-        Regvar.pp i s pp_disp d
+      Format.fprintf ppf "%a*%a + %a"
+        Regvar.pp i pp_scale s pp_disp d
     | Abisd (b, i, s, Dimm d) when Int32.(d < 0l) ->
-      Format.fprintf ppf "%a + %a*%d - 0x%lx"
-        Regvar.pp b Regvar.pp i s (Int32.neg d)
+      Format.fprintf ppf "%a + %a*%a - 0x%lx"
+        Regvar.pp b Regvar.pp i pp_scale s (Int32.neg d)
     | Abisd (b, i, s, d) ->
-      Format.fprintf ppf "%a + %a*%d + %a"
-        Regvar.pp b Regvar.pp i s pp_disp d
+      Format.fprintf ppf "%a + %a*%a + %a"
+        Regvar.pp b Regvar.pp i pp_scale s pp_disp d
 
   type memty = [
     | Type.basic
@@ -526,9 +531,7 @@ module Insn = struct
   let rv_of_amode = function
     | Ad _ -> []
     | Ab a -> [a]
-    | Abi (a, b) ->  [a; b]
     | Abd (a, _) -> [a]
-    | Abid (a, b, _) -> [a; b]
     | Abis (a, b, _) -> [a; b]
     | Aisd (a, _, _) -> [a]
     | Abisd (a, b, _, _) -> [a; b]
