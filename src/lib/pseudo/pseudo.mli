@@ -20,6 +20,8 @@ module Insn : sig
 
   (** Replaces the instruction. *)
   val with_insn : 'a t -> 'a -> 'a t
+
+  val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
 end
 
 type 'a insn = 'a Insn.t [@@deriving bin_io, compare, equal, sexp]

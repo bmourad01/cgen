@@ -8,6 +8,8 @@ open Pseudo
 module Lset = Label.Tree_set
 
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
+  open C.Syntax
+
   (* Enforce the invariant that the scratch register for each
      class may not appear in the allocatable registers. *)
   let () =
@@ -176,7 +178,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | Some s -> Set.mem s v
     | None -> false
 
-  (* Mimic the adjList *)
+  (* Our `adjList` has precolored nodes among its keys, so we need to
+     exclude those to be consistent with the paper. *)
   let adjlist t n =
     let default = Rv.Set.empty in
     if exclude_from_coloring t n then default
@@ -214,11 +217,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let set_color t n c = Hashtbl.set t.colors ~key:n ~data:c
 
-  (* Adds an edge between `u` and `v` in the interference graph.
-
-     Note that we don't use the adjList like in the paper, but instead
-     we use a filter on the adjSet.
-  *)
+  (* Adds an edge between `u` and `v` in the interference graph. *)
   let add_edge t u v =
     (* A node cannot interfere with itself, nor a node with a different
        register class. Nodes that correspond to slots are excluded. *)
@@ -226,7 +225,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     && same_class_node u v
     && not (Hash_set.mem t.slots u)
     && not (Hash_set.mem t.slots v) then begin
-      (* adjSet := adjSet U {(u,v),(v,u)} *)
+      (* We're going to combine the `adjList` and `adjSet`. *)
       add_adjlist t u v;
       add_adjlist t v u;
       (* if u \notin precolored then
@@ -248,12 +247,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
     (* if isMoveInstruction(I) then *)
-    let out = match M.Regalloc.copy insn with
-      | None -> out
+    let+ out = match M.Regalloc.copy insn with
+      | None -> !!out
       | Some ((d, s) as p) ->
-        (* This is an invariant that is required of `M.Insn.copy`; better
+        (* This is an invariant that is required of `M.Regalloc.copy`; better
            to fail loudly here than silently introduce errors. *)
-        assert (same_class_node d s);
+        let+ () = C.unless (same_class_node d s) @@ fun () ->
+          C.failf "In Regalloc.build_insn: got a copy instruction `%a` between \
+                   between two different register classes (%a, %a)"
+            (Insn.pp M.Insn.pp) i Rv.pp d Rv.pp s () in
         (* live := live\use(I) *)
         let out = Set.diff out use in
         (* forall n \in def(I) U use(I)
@@ -276,14 +278,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let build_blk t live b =
     let out = Live.outs live @@ Blk.label b in
-    let _ =
+    let+ _ =
       Blk.insns b ~rev:true |>
-      Seq.fold ~init:out ~f:(build_insn t) in
+      C.Seq.fold ~init:out ~f:(build_insn t) in
     ()
 
   let build t live =
     (* Build the interference graph. *)
-    Func.blks t.fn |> Seq.iter ~f:(build_blk t live);
+    let+ () = Func.blks t.fn |> C.Seq.iter ~f:(build_blk t live) in
     (* Initialize the worklists. *)
     Hash_set.iter t.initial ~f:(fun n ->
         if degree t n >= node_k n then
@@ -621,7 +623,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      with the fresh temporaries (`newTemps`) here.
   *)
   let rewrite_insn t acc i =
-    let open C.Syntax in
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
@@ -657,7 +658,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Insert spilling code and set up the state for the next round. *)
   let rewrite_program t =
-    let open C.Syntax in
     make_slots t;
     let+ blks =
       Func.blks ~rev:true t.fn |>
@@ -675,22 +675,23 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* coloredNodes := {} *)
     Hash_set.clear t.colored;
     (* coalescedNodes := {} *)
-    Hash_set.clear t.coalesced;
-    (* Reset the rest of the state that will be recomputed
-       in `build`. *)
-    Hashtbl.clear t.adjlist;
-    Hashtbl.clear t.degree;
-    Hashtbl.clear t.copies;
-    Hashtbl.clear t.moves
+    Hash_set.clear t.coalesced
 
   let rec main t ~round ~max_rounds =
-    let open C.Syntax in
     let* () = C.when_ (round > max_rounds) @@ fun () ->
       C.failf "In Regalloc.main: maximum rounds reached (%d) with no \
                convergence on spilling" max_rounds () in
+    (* If we're going for another round, then clear the previous state
+       before we rebuild the interference graph. *)
+    if round > 1 then begin
+      Hashtbl.clear t.adjlist;
+      Hashtbl.clear t.degree;
+      Hashtbl.clear t.copies;
+      Hashtbl.clear t.moves
+    end;
     (* Build the interference graph. *)
     let live = Live.compute ~keep:t.keep t.fn in
-    build t live;
+    let* () = build t live in
     (* Process the worklists. *)
     let continue = ref true in
     while !continue do
@@ -745,7 +746,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Seq.to_list |> Func.with_blks t.fn
 
   let run ?(max_rounds = 40) fn =
-    let open C.Syntax in
     let t = create fn in
     init_slots t;
     init_initial t;
