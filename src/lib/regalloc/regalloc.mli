@@ -1,6 +1,7 @@
 (** Register allocation *)
 
-module Make(M : Machine_intf.S)(C : Context_intf.S) : sig
+(** The Iterated Register Coalescing algorithm. *)
+module IRC(M : Machine_intf.S)(C : Context_intf.S) : sig
   (** Performs register allocation on the function.
 
       [max_rounds] provides the maximum number of iterations that

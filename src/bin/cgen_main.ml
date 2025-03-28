@@ -47,7 +47,7 @@ let comp filename =
   Format.printf "=================================================\n%!";
   Format.printf "After removing dead instructions:\n\n%!";
   Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
-  let module Regalloc = Regalloc.Make(Machine)(Context) in
+  let module Regalloc = Regalloc.IRC(Machine)(Context) in
   let* m = pseudo_map_funs m ~f:Regalloc.run in
   Format.printf "=================================================\n%!";
   Format.printf "After register allocation:\n\n%!";
