@@ -75,17 +75,21 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* live := use(I) U (live\def(I))  *)
     Set.union use (Set.diff out def)
 
-  let build_blk t live b =
-    let out = Live.outs live @@ Blk.label b in
-    let+ _ =
-      Blk.insns b ~rev:true |>
-      C.Seq.fold ~init:out ~f:(build_insn t) in
-    ()
-
+  (* Build the interference graph and other initial state for the
+     algorithm. *)
   let build t live =
-    (* Build the interference graph. *)
-    let+ () = Func.blks t.fn |> C.Seq.iter ~f:(build_blk t live) in
-    (* Initialize the worklists. *)
+    (* forall b \in blocks in program *)
+    Func.blks t.fn |> C.Seq.iter ~f:(fun b ->
+        (* live := liveOut(b) *)
+        let out = Live.outs live @@ Blk.label b in
+        (* forall I \in instructions(b) in reverse order *)
+        let+ _out =
+          Blk.insns b ~rev:true |>
+          C.Seq.fold ~init:out ~f:(build_insn t) in
+        ())
+
+  (* Initialize the worklists. *)
+  let make_worklist t =
     Hash_set.iter t.initial ~f:(fun n ->
         if degree t n >= Regs.node_k n then
           Hash_set.add t.wspill n
@@ -482,6 +486,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Build the interference graph. *)
     let live = Live.compute ~keep:t.keep t.fn in
     let* () = build t live in
+    make_worklist t;
     (* Process the worklists. *)
     let continue = ref true in
     while !continue do
