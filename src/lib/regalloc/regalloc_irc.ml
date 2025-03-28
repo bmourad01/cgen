@@ -108,7 +108,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               t.wmoves <- Lset.add t.wmoves m;
             end))
 
-  let decrement_degree t adj m =
+  (* Simulate removing a node grom the interference graph (this is what
+     the `degree` table is for). *)
+  let decrement_degree t m =
     match degree' t m with
     | None ->
       assert (exclude_from_coloring t m)
@@ -120,7 +122,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* if d = K then *)
       if d = Regs.node_k m then begin
         (* EnableMoves({m} U Adjacent(m)) *)
-        enable_moves t @@ Set.add adj m;
+        enable_moves t @@ Set.add (adjacent t m) m;
         (* spillWorklist := splillWorklist \ {m} *)
         Hash_set.remove t.wspill m;
         (* if MoveRelated(m) then
@@ -140,8 +142,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* push(n, selectStack) *)
     Stack.push t.select n;
     (* forall m \in Adjacent(n) *)
-    let adj = adjacent t n in
-    Set.iter adj ~f:(decrement_degree t adj)
+    adjacent t n |> Set.iter ~f:(decrement_degree t)
 
   let should_add_to_worklist t u =
     (* u \notin precolored *)
@@ -193,9 +194,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let combine t u v =
     (* if v \in freezeWorklist *)
     if Hash_set.mem t.wfreeze v then
-      (* freezeWorklist := freezeWorklist \ {u} *)
+      (* freezeWorklist := freezeWorklist \ {v} *)
       Hash_set.remove t.wfreeze v
     else
+      (* spillWorklist := spillWorklist \ {v} *)
       Hash_set.remove t.wspill v;
     (* coalescedNodes := coalescedNodes U {v} *)
     Hash_set.add t.coalesced v;
@@ -207,12 +209,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | Some um -> Lset.union um vm
         | None -> vm);
     (* forall t \in Adjacent(v) *)
-    let adj = adjacent t v in
-    Set.iter adj ~f:(fun a ->
+    adjacent t v |> Set.iter ~f:(fun a ->
         (* AddEdge(t,u) *)
         add_edge t a u;
         (* DecrementDegree(t) *)
-        decrement_degree t adj a);
+        decrement_degree t a);
     if (* degree[u] >= K*)
       degree t u >= Regs.node_k u &&
       (* u \in freezeWorklist *)
