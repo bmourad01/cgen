@@ -7,6 +7,14 @@ open Pseudo
 
 module Lset = Label.Tree_set
 
+(* Pick the first element we encounter in the set and remove it. *)
+let take_one hs =
+  let e = with_return @@ fun {return} ->
+    Hash_set.iter hs ~f:return;
+    assert false in
+  Hash_set.remove hs e;
+  e
+
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   module Live = Live(M)
 
@@ -26,10 +34,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       add_adjlist t v u;
       (* if u \notin precolored then
            degree[u] := degree[u]+1 *)
-      if not @@ exclude_from_coloring t u then inc_degree t u;
+      if can_be_colored t u then inc_degree t u;
       (* if v \notin precolored then
            degree[v] := degree[v]+1 *)
-      if not @@ exclude_from_coloring t v then inc_degree t v
+      if can_be_colored t v then inc_degree t v
     end
 
   let build_insn t out i =
@@ -105,7 +113,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | None ->
       assert (exclude_from_coloring t m)
     | Some d ->
-      assert (not @@ exclude_from_coloring t m);
+      assert (can_be_colored t m);
       (* let d = degree[m]
          degree[m] := d-1 *)
       dec_degree t m;
@@ -124,20 +132,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         else Hash_set.add t.wsimplify m
       end
 
-  exception Found_node of Rv.t
-
-  (* Pick the first element we encounter in the set. *)
-  let pick hs = try
-      Hash_set.iter hs ~f:(fun n -> raise_notrace @@ Found_node n);
-      assert false
-    with Found_node n -> n
-
   (* pre: wsimplify is not empty *)
   let simplify t =
-    (* let n \in simplifyWorklist *)
-    let n = pick t.wsimplify in
-    (* simplifyWorklist := simplifyWorklist \ {n} *)
-    Hash_set.remove t.wsimplify n;
+    (* let n \in simplifyWorklist
+       simplifyWorklist := simplifyWorklist \ {n} *)
+    let n = take_one t.wsimplify in
     (* push(n, selectStack) *)
     Stack.push t.select n;
     (* forall m \in Adjacent(n) *)
@@ -146,7 +145,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let should_add_to_worklist t u =
     (* u \notin precolored *)
-    not (exclude_from_coloring t u) &&
+    can_be_colored t u &&
     (* not(MoveRelated(u)) *)
     not (move_related t u) &&
     (* degree[u] < K *)
@@ -261,7 +260,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* u \in precolored ^ (\forall t \in Adjacent(v), OK(t,u)) *)
       (exclude_from_coloring t u && all_adjacent_ok t u v) ||
       (* u \notin precolored ^ Conservative(Adjacent(u), Adjacent(v)) *)
-      (not (exclude_from_coloring t u) && conservative_adj t u v) then begin
+      (can_be_colored t u && conservative_adj t u v) then begin
       (* coalescedMoves := coalescedMoves U {m} *)
       t.cmoves <- Lset.add t.cmoves m;
       (* Combine(u,v) *)
@@ -307,10 +306,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* pre: wfreeze is not empty *)
   let freeze t =
-    (* let u \in freezeWorklist *)
-    let u = pick t.wfreeze in
-    (* freezeWorklist := freezeWorklist \ {u} *)
-    Hash_set.remove t.wfreeze u;
+    (* let u \in freezeWorklist
+       freezeWorklist := freezeWorklist \ {u} *)
+    let u = take_one t.wfreeze in
     (* simplifyWorklist := simplifyWorklist U {u} *)
     Hash_set.add t.wsimplify u;
     (* FreezeMoves(u) *)
@@ -344,7 +342,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Assign a color to `n` if possible, spilling it otherwise. *)
   let color_node t n =
-    if not @@ exclude_from_coloring t n then
+    if can_be_colored t n then
       (* okColors := {0,...,K-1} *)
       let k = Regs.node_k n in
       let cs = ref Z.(pred (one lsl k)) in
@@ -504,26 +502,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* () = rewrite_program t in
     main t ~round:(round + 1) ~max_rounds
 
-  (* Initial set of stack slots. These should be excluded from consideration
-     in the interference graph. *)
-  let init_slots t =
-    Func.slots t.fn |> Seq.iter ~f:(fun s ->
-        Hash_set.add t.slots @@ Rv.var `gpr @@ Virtual.Slot.var s)
-
-  (* initial: temporary registers, not preassigned a color and not yet
-     processed by the algorithm. *)
-  let init_initial t =
-    let add_initial rv =
-      if not @@ exclude_from_coloring t rv
-      then Hash_set.add t.initial rv in
-    Func.blks t.fn |> Seq.iter ~f:(fun b ->
-        Blk.insns b |> Seq.iter ~f:(fun i ->
-            let insn = Insn.insn i in
-            let use = M.Insn.reads insn in
-            let def = M.Insn.writes insn in
-            Set.iter use ~f:add_initial;
-            Set.iter def ~f:add_initial))
-
   let apply_alloc t =
     let subst n = match Hashtbl.find t.colors n with
       | None -> assert (exclude_from_coloring t n); n
@@ -532,7 +510,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | `fp -> Regs.allocatable_fp.(c) in
     Func.blks t.fn |> Seq.map ~f:(fun b ->
         Blk.insns b |> Seq.map ~f:(fun i ->
-            Insn.with_insn i @@ M.Regalloc.substitute (Insn.insn i) subst) |>
+            let insn = Insn.insn i in
+            let insn' = M.Regalloc.substitute insn subst in
+            Insn.with_insn i insn') |>
         Seq.to_list |> Blk.with_insns b) |>
     Seq.to_list |> Func.with_blks t.fn
 

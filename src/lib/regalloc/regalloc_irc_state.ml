@@ -8,7 +8,7 @@ module Make(M : Machine_intf.S) = struct
   module Rv = M.Regvar
   module Regs = Regalloc_regs.Make(M)
   module Live = Live(M)
-  
+
   (* Terminology:
 
      - [simplifyWorklist]: list of low-degree non-move-related nodes
@@ -84,6 +84,7 @@ module Make(M : Machine_intf.S) = struct
   (* Explicit registers and variables that correspond to stack slots
      should be excluded from consideration. *)
   let exclude_from_coloring t n = Rv.is_reg n || Hash_set.mem t.slots n
+  let can_be_colored t n = not @@ exclude_from_coloring t n
 
   let inc_degree t n =
     Hashtbl.update t.degree n ~f:(function
@@ -101,21 +102,24 @@ module Make(M : Machine_intf.S) = struct
      won't be in here, so they should just get the maximum value. *)
   let degree t n = degree' t n |> Option.value ~default:Int.max_value
 
+  (* NB: we include nodes that could be pre-colored as keys here. *)
   let add_adjlist t u v =
     Hashtbl.update t.adjlist u ~f:(function
         | None -> Rv.Set.singleton v
         | Some s -> Set.add s v)
 
+  (* NB: this is unidirectional *)
   let has_edge t u v = match Hashtbl.find t.adjlist u with
     | Some s -> Set.mem s v
     | None -> false
 
-  (* Our `adjList` has precolored nodes among its keys, so we need to
-     exclude those to be consistent with the paper. *)
+  (* NB: since we include nodes that can be precolored as keys, we need
+     to exclude them here. *)
   let adjlist t n =
     let default = Rv.Set.empty in
-    if exclude_from_coloring t n then default
-    else Hashtbl.find t.adjlist n |> Option.value ~default
+    if can_be_colored t n
+    then Hashtbl.find t.adjlist n |> Option.value ~default
+    else default
 
   (* adjList[n] \ (selectStack U coalescedNodes) *)
   let adjacent t n =
@@ -153,4 +157,24 @@ module Make(M : Machine_intf.S) = struct
     Hashtbl.update t.moves n ~f:(function
         | None -> Lset.singleton label
         | Some ls -> Lset.add ls label)
+
+  (* Initial set of stack slots. These should be excluded from consideration
+     in the interference graph. *)
+  let init_slots t =
+    Func.slots t.fn |> Seq.iter ~f:(fun s ->
+        Hash_set.add t.slots @@ Rv.var `gpr @@ Virtual.Slot.var s)
+
+  let add_initial t n =
+    if can_be_colored t n then Hash_set.add t.initial n
+
+  (* initial: temporary registers, not preassigned a color and not yet
+     processed by the algorithm. *)
+  let init_initial t =
+    Func.blks t.fn |> Seq.iter ~f:(fun b ->
+        Blk.insns b |> Seq.iter ~f:(fun i ->
+            let insn = Insn.insn i in
+            let use = M.Insn.reads insn in
+            let def = M.Insn.writes insn in
+            Set.iter use ~f:(add_initial t);
+            Set.iter def ~f:(add_initial t)))
 end
