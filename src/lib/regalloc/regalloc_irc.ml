@@ -529,10 +529,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | GPR -> Regs.allocatable.(c)
         | FP -> Regs.allocatable_fp.(c) in
     Func.blks t.fn |> Seq.map ~f:(fun b ->
-        Blk.insns b |> Seq.map ~f:(fun i ->
+        Blk.insns b |> Seq.filter_map ~f:(fun i ->
             let insn = Insn.insn i in
             let insn' = M.Regalloc.substitute insn subst in
-            Insn.with_insn i insn') |>
+            (* Now we can remove useless copies. *)
+            match M.Regalloc.copy insn' with
+            | Some (d, s) when Rv.(d = s) -> None
+            | Some _ | None -> Some (Insn.with_insn i insn')) |>
         Seq.to_list |> Blk.with_insns b) |>
     Seq.to_list |> Func.with_blks t.fn
 
