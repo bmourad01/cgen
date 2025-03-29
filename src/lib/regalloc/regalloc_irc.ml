@@ -481,7 +481,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Hashtbl.clear t.adjlist;
       Hashtbl.clear t.degree;
       Hashtbl.clear t.copies;
-      Hashtbl.clear t.moves
+      Hashtbl.clear t.moves;
+      (* This doesn't seem to happen in the paper, but we should discard
+         the previous coloring since we introduced new spill/reload code.
+
+         Since `rewrite_program` will add the colored and coalesced nodes
+         to the `initial` set, this should be safe as some if not all of
+         them can make their way to `simplify`.
+      *)
+      Hashtbl.clear t.colors
     end;
     (* Build the interference graph. *)
     let live = Live.compute ~keep:t.keep t.fn in
