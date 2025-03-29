@@ -90,10 +90,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               else !!insns in
             (* Insert epilogue if we see a return. *)
             let+ insns =
+              let once = ref true in
               C.List.map insns ~f:(fun i ->
                   let insn = Insn.insn i in
-                  if M.Insn.is_return insn then
+                  if !once && M.Insn.is_return insn then
                     let+ insns = freshen @@ epilogue regs size in
+                    once := false;
                     insns @ [i]
                   else !![i])
               >>| List.concat in
