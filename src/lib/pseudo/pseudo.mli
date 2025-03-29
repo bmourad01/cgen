@@ -43,6 +43,9 @@ module Blk : sig
   (** Returns [true] if the block has the given label. *)
   val has_label : 'a t -> Label.t -> bool
 
+  (** Transforms the instructions of the block according to [f]. *)
+  val map_insns : 'a t -> f:('a insn -> 'a insn) -> 'a t
+
   (** Replaces the instructions of the block. *)
   val with_insns : 'a t -> 'a insn list -> 'a t
 
@@ -125,6 +128,15 @@ module Func : sig
 
   (** Returns a mapping from labels to blocks of the function. *)
   val map_of_blks : ('a, 'b) t -> 'a blk Label.Tree.t
+
+  (** Replaces the dictionary of the function. *)
+  val with_dict : ('a, 'b) t -> Dict.t -> ('a, 'b) t
+
+  (** Replaces the slots of the function. *)
+  val with_slots : ('a, 'b) t -> Virtual.slot list -> ('a, 'b) t
+
+  (** Transforms the blocks of the function according to [f]. *)
+  val map_blks : ('a, 'b) t -> f:('a blk -> 'a blk) -> ('a, 'b) t
 
   (** Replaces the blocks of the function. *)
   val with_blks : ('a, 'b) t -> 'a blk list -> ('a, 'b) t

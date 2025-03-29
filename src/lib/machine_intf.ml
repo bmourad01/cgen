@@ -132,5 +132,23 @@ module type S = sig
     (** Returns the written registers/variables of the instruction, mapped to
         their types. *)
     val writes_with_types : Insn.t -> [Type.basic | `v128] Regvar.Map.t
+
+    (** Replaces slots that appear directly as operands with intermediate operations,
+        creating fresh variables if necessary.
+
+        This happens right before register allocation, in order to massage the program
+        into a form that is simpler for [replace_slots] to handle.
+    *)
+    module Replace_direct_slot_uses(C : Context_intf.S) : sig
+      val replace : (Regvar.t -> bool) -> Insn.t -> Insn.t list C.t
+    end
+
+    (** [assign_slots base offsets i] replaces uses of virtual stack slots in [i]
+        with conrete offsets from [base], according to [offsets].
+
+        This is meant to happen {i after} register allocation, where the only
+        remaining variables in the program are those referring to virtual slots.
+    *)
+    val assign_slots : Reg.t -> int Var.Map.t -> Insn.t -> Insn.t
   end
 end

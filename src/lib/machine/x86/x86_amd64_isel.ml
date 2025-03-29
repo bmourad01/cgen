@@ -2500,22 +2500,24 @@ end = struct
 
     (* x = sel (cmp y z) yes no *)
     let sel_ibasic =
-      [`i8; `i16; `i32; `i64] >* fun ty ->
-        let ty' = bty ty in [
-          (* Equality *)
-          move x (sel ty' (eq ty' y z) yes no) =>* Group.sel Ce;
-          move x (sel ty' (ne ty' y z) yes no) =>* Group.sel Cne;
-          (* Unsigned *)
-          move x (sel ty' (lt ty' y z) yes no) =>* Group.sel Cb;
-          move x (sel ty' (le ty' y z) yes no) =>* Group.sel Cbe;
-          move x (sel ty' (gt ty' y z) yes no) =>* Group.sel Ca;
-          move x (sel ty' (ge ty' y z) yes no) =>* Group.sel Cae;
-          (* Signed *)
-          move x (sel ty' (slt ty y z) yes no) =>* Group.sel Cl;
-          move x (sel ty' (sle ty y z) yes no) =>* Group.sel Cle;
-          move x (sel ty' (sgt ty y z) yes no) =>* Group.sel Cg;
-          move x (sel ty' (sge ty y z) yes no) =>* Group.sel Cge;
-        ]
+      [`i8; `i16; `i32; `i64] >* fun tyc ->
+        [`i8; `i16; `i32; `i64] >* fun tys ->
+          let tys' = bty tys in
+          let tyc' = bty tyc in [
+            (* Equality *)
+            move x (sel tys' (eq tyc' y z) yes no) =>* Group.sel Ce;
+            move x (sel tys' (ne tyc' y z) yes no) =>* Group.sel Cne;
+            (* Unsigned *)
+            move x (sel tys' (lt tyc' y z) yes no) =>* Group.sel Cb;
+            move x (sel tys' (le tyc' y z) yes no) =>* Group.sel Cbe;
+            move x (sel tys' (gt tyc' y z) yes no) =>* Group.sel Ca;
+            move x (sel tys' (ge tyc' y z) yes no) =>* Group.sel Cae;
+            (* Signed *)
+            move x (sel tys' (slt tyc y z) yes no) =>* Group.sel Cl;
+            move x (sel tys' (sle tyc y z) yes no) =>* Group.sel Cle;
+            move x (sel tys' (sgt tyc y z) yes no) =>* Group.sel Cg;
+            move x (sel tys' (sge tyc y z) yes no) =>* Group.sel Cge;
+          ]
 
     (* x = load (add (add y (mul z i)) w) => mov x, [y+z*i+w]
 

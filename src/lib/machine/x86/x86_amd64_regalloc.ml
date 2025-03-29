@@ -62,9 +62,7 @@ let substitute_operand f = function
   | Ofp64 _ as d -> d
   | Oah -> Oah
 
-let substitute i f =
-  let op = substitute_operand f in
-  match i with
+let substitute' i op = match i with
   | ADD (a, b) -> ADD (op a, op b)
   | ADDSD (a, b) -> ADDSD (op a, op b)
   | ADDSS (a, b) -> ADDSS (op a, op b)
@@ -133,6 +131,8 @@ let substitute i f =
   | XORPS (a, b) -> XORPS (op a, op b)
   | MOV_ (a, b) -> MOV_ (op a, op b)
   | JMPtbl _ -> i
+
+let substitute i f = substitute' i @@ substitute_operand f
 
 module Typed_writes = struct
   type ty = [Type.basic | `v128]
@@ -281,3 +281,334 @@ module Typed_writes = struct
 end
 
 let writes_with_types = Typed_writes.writes
+
+module Replace_direct_slot_uses(C : Context_intf.S) = struct
+  open C.Syntax
+
+  let replace_amode is_slot a = match a with
+    | Abis (b, i, s) when is_slot i ->
+      let+ x = C.Var.fresh >>| Regvar.var GPR in
+      Abis (b, x, s), [LEA (Oreg (x, `i64), Omem (Ab i, `i64))]
+    | Aisd (i, s, d) when is_slot i ->
+      let+ x = C.Var.fresh >>| Regvar.var GPR in
+      Aisd (x, s, d), [LEA (Oreg (x, `i64), Omem (Ab i, `i64))]
+    | Abisd (b, i, s, d) when is_slot i ->
+      let+ x = C.Var.fresh >>| Regvar.var GPR in
+      Abisd (b, x, s, d), [LEA (Oreg (x, `i64), Omem (Ab i, `i64))]
+    | _ -> !!(a, [])
+
+  let replace_operand is_slot op = match op with
+    | Oreg (r, ty) when is_slot r ->
+      let+ x = C.Var.fresh >>| Regvar.var GPR in
+      Oreg (x, ty), [LEA (Oreg (x, ty), Omem (Ab r, `i64))]
+    | Oreg _ -> !!(op, [])
+    | Omem (a, ty) ->
+      let+ a, ai = replace_amode is_slot a in
+      Omem (a, ty), ai
+    | _ -> !!(op, [])
+
+  let replace is_slot i =
+    let op = replace_operand is_slot in
+    match i with
+    | ADD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [ADD (a, b)]
+    | ADDSD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [ADDSD (a, b)]
+    | ADDSS (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [ADDSS (a, b)]
+    | AND (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [AND (a, b)]
+    | CALL a ->
+      let+ a, ai = op a in
+      ai @ [CALL a]
+    | CDQ -> !![i]
+    | CMOVcc (cc, a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [CMOVcc (cc, a, b)]
+    | CMP (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [CMP (a, b)]
+    | CQO -> !![i]
+    | CWD -> !![i]
+    | CVTSD2SI (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [CVTSD2SI (a, b)]
+    | CVTSD2SS (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [CVTSD2SS (a, b)]
+    | CVTSI2SD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [CVTSI2SD (a, b)]
+    | CVTSI2SS (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [CVTSI2SS (a, b)]
+    | CVTSS2SD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [CVTSS2SD (a, b)]
+    | CVTSS2SI (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [CVTSS2SI (a, b)]
+    | DEC a ->
+      let+ a, ai = op a in
+      ai @ [DEC a]
+    | DIV a ->
+      let+ a, ai = op a in
+      ai @ [DIV a]
+    | DIVSD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [DIVSD (a, b)]
+    | DIVSS (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [DIVSS (a, b)]
+    | IDIV a ->
+      let+ a, ai = op a in
+      ai @ [IDIV a]
+    | IMUL1 a ->
+      let+ a, ai = op a in
+      ai @ [IDIV a]
+    | IMUL2 (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [IMUL2 (a, b)]
+    | IMUL3 (a, b, c) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [IMUL3 (a, b, c)]
+    | INC a ->
+      let+ a, ai = op a in
+      ai @ [INC a]
+    | Jcc _ -> !![i]
+    | JMP (Jind a) ->
+      let+ a, ai = op a in
+      ai @ [JMP (Jind a)]
+    | JMP (Jlbl _) -> !![i]
+    | LEA (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [LEA (a, b)]
+    | LZCNT (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [LZCNT (a, b)]
+    | MOV (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOV (a, b)]
+    | MOVD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOVD (a, b)]
+    | MOVDQA (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOVDQA (a, b)]
+    | MOVQ (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOVQ (a, b)]
+    | MOVSD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOVSD (a, b)]
+    | MOVSS (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOVSS (a, b)]
+    | MOVSX (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOVSX (a, b)]
+    | MOVSXD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOVSXD (a, b)]
+    | MOVZX (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOVZX (a, b)]
+    | MUL a ->
+      let+ a, ai = op a in
+      ai @ [MUL a]
+    | MULSD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MULSD (a, b)]
+    | MULSS (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MULSS (a, b)]
+    | NEG a ->
+      let+ a, ai = op a in
+      ai @ [NEG a]
+    | NOT a ->
+      let+ a, ai = op a in
+      ai @ [NOT a]
+    | OR (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [OR (a, b)]
+    | POP a ->
+      let+ a, ai = op a in
+      ai @ [POP a]
+    | POPCNT (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [POPCNT (a, b)]
+    | PUSH a ->
+      let+ a, ai = op a in
+      ai @ [PUSH a]
+    | RET -> !![i]
+    | ROL (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [ROL (a, b)]
+    | ROR (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [ROR (a, b)]
+    | SAR (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [SAR (a, b)]
+    | SETcc (cc, a) ->
+      let+ a, ai = op a in
+      ai @ [SETcc (cc, a)]
+    | SHL (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [SHL (a, b)]
+    | SHR (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [SHR (a, b)]
+    | SUB (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [SUB (a, b)]
+    | SUBSD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [SUBSD (a, b)]
+    | SUBSS (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [SUBSS (a, b)]
+    | TEST_ (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [TEST_ (a, b)]
+    | TZCNT (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [TZCNT (a, b)]
+    | UCOMISD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [UCOMISD (a, b)]
+    | UCOMISS (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [UCOMISS (a, b)]
+    | UD2 -> !![i]
+    | XOR (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [XOR (a, b)]
+    | XORPD (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [XORPD (a, b)]
+    | XORPS (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [XORPS (a, b)]
+    | MOV_ (a, b) ->
+      let* a, ai = op a in
+      let+ b, bi = op b in
+      ai @ bi @ [MOV_ (a, b)]
+    | JMPtbl _ -> !![i]
+end
+
+module Assign_slots = struct
+  let find offsets rv = match Regvar.which rv with
+    | Second (v, _) -> Map.find offsets v
+    | First _ -> None
+
+  (* XXX: fix this to account for overflow *)
+  let add_disp off = function
+    | Dsym (s, o) -> Dsym (s, o + off)
+    | Dimm i -> Dimm Int32.(i + of_int_exn off)
+    | Dlbl _ -> assert false
+
+  let idisp i = Dimm (Int32.of_int_exn i)
+
+  let assign_amode base offsets a = match a with
+    | Ad _d -> a
+    | Ab b ->
+      begin match find offsets b with
+        | Some 0 -> Ab base
+        | Some o -> Abd (base, idisp o)
+        | None -> a
+      end
+    | Abd (b, d) ->
+      begin match find offsets b with
+        | Some o -> Abd (base, add_disp o d)
+        | None -> a
+      end
+    | Abis (b, i, s) ->
+      begin match find offsets b, find offsets i with
+        | None, None -> a
+        | Some 0, None -> Abis (base, i, s)
+        | Some o, None -> Abisd (base, i, s, idisp o)
+        | _, Some _ -> assert false
+      end
+    | Aisd (i, _s, _d) ->
+      begin match find offsets i with
+        | None -> a
+        | Some _ -> assert false
+      end
+    | Abisd (b, i, s, d) ->
+      begin match find offsets b, find offsets i with
+        | None, None -> a
+        | Some o, None -> Abisd (base, i, s, add_disp o d)
+        | _, Some _ -> assert false
+      end
+
+  let assign_operand base offsets op = match op with
+    | Oreg (r, _) ->
+      begin match find offsets r with
+        | None -> op
+        | Some _ -> assert false
+      end
+    | Oregv r ->
+      begin match find offsets r with
+        | None -> op
+        | Some _ -> assert false
+      end
+    | Omem (a, ty) -> Omem (assign_amode base offsets a, ty)
+    | _ -> op
+
+  let assign base offsets i =
+    let base = Regvar.reg base in
+    substitute' i @@ assign_operand base offsets
+end
+
+let assign_slots = Assign_slots.assign

@@ -522,13 +522,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let apply_alloc t =
     let subst n = match Hashtbl.find t.colors n with
-      | None -> assert (exclude_from_coloring t n); n
+      | None ->
+        assert (exclude_from_coloring t n); n
       | Some c ->
         assert (can_be_colored t n);
         Rv.reg @@ match Regs.classof n with
         | GPR -> Regs.allocatable.(c)
         | FP -> Regs.allocatable_fp.(c) in
-    Func.blks t.fn |> Seq.map ~f:(fun b ->
+    Func.map_blks t.fn ~f:(fun b ->
         Blk.insns b |> Seq.filter_map ~f:(fun i ->
             let insn = Insn.insn i in
             let insn' = M.Regalloc.substitute insn subst in
@@ -536,12 +537,29 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             match M.Regalloc.copy insn' with
             | Some (d, s) when Rv.(d = s) -> None
             | Some _ | None -> Some (Insn.with_insn i insn')) |>
-        Seq.to_list |> Blk.with_insns b) |>
-    Seq.to_list |> Func.with_blks t.fn
+        Seq.to_list |> Blk.with_insns b)
+
+  module Replace_slots = M.Regalloc.Replace_direct_slot_uses(C)
+
+  let replace_direct_slot_uses t =
+    let+ blks =
+      Func.blks t.fn |> C.Seq.map ~f:(fun b ->
+          let+ insns =
+            Blk.insns b |> C.Seq.map ~f:(fun i ->
+                let insn = Insn.insn i in
+                Replace_slots.replace (Hash_set.mem t.slots) insn >>=
+                C.List.map ~f:(fun insn ->
+                    let+ label = C.Label.fresh in
+                    Insn.create ~label ~insn))
+            >>| Seq.to_list in
+          Blk.with_insns b @@ List.concat insns)
+      >>| Seq.to_list in
+    t.fn <- Func.with_blks t.fn blks
 
   let run ?(max_rounds = 40) fn =
     let t = create fn in
     init_slots t;
+    let* () = replace_direct_slot_uses t in
     init_initial t;
     let+ () = main t ~round:1 ~max_rounds in
     apply_alloc t
