@@ -144,7 +144,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
        simplifyWorklist := simplifyWorklist \ {n} *)
     let n = take_one t.wsimplify in
     (* push(n, selectStack) *)
-    Stack.push t.select n;
+    if can_be_colored t n then Stack.push t.select n;
     (* forall m \in Adjacent(n) *)
     adjacent t n |> Set.iter ~f:(decrement_degree t)
 
@@ -345,30 +345,27 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Seq.filter_map ~f:(color t) |>
     Seq.iter ~f:(fun c -> cs := Z.(!cs land ~!(one lsl c)))
 
-  (* Assign a color to `n` if possible, spilling it otherwise. *)
-  let color_node t n =
-    if can_be_colored t n then
-      (* okColors := {0,...,K-1} *)
-      let k = Regs.node_k n in
-      let cs = ref Z.(pred (one lsl k)) in
-      cs := Z.(!cs land Regs.scratch_inv_mask);
-      eliminate_colors t n cs;
-      (* if okColors = {} then *)
-      if Z.(equal !cs zero) then
-        (* spilledNodes := spilledNodes U {n} *)
-        t.spilled <- Set.add t.spilled n
-      else begin
-        (* coloredNodes := coloredNodes U {n} *)
-        Hash_set.add t.colored n;
-        (* let c \in okColors
-           color[n] := c *)
-        set_color t n @@ Z.trailing_zeros !cs
-      end
-
   let assign_colors t =
     (* while SelectStack is not empty
        let n = pop(SelectStack) *)
-    Stack.until_empty t.select (color_node t);
+    Stack.until_empty t.select (fun n ->
+        assert (can_be_colored t n);
+        (* okColors := {0,...,K-1} *)
+        let k = Regs.node_k n in
+        let cs = ref Z.(pred (one lsl k)) in
+        cs := Z.(!cs land Regs.scratch_inv_mask);
+        eliminate_colors t n cs;
+        (* if okColors = {} then *)
+        if Z.(equal !cs zero) then
+          (* spilledNodes := spilledNodes U {n} *)
+          t.spilled <- Set.add t.spilled n
+        else begin
+          (* coloredNodes := coloredNodes U {n} *)
+          Hash_set.add t.colored n;
+          (* let c \in okColors
+             color[n] := c *)
+          set_color t n @@ Z.trailing_zeros !cs
+        end);
     (* forall n \in coalescedNodes *)
     Hash_set.iter t.coalesced ~f:(fun n ->
         (* color[n] := color[GetAlias(n)] *)
@@ -428,32 +425,30 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
     let+ fetch, store, subst =
-      Set.inter t.spilled (Set.union use def) |>
-      Set.to_sequence |> C.Seq.fold
-        ~init:([], [], Rv.Map.empty)
-        ~f:(fun (f, s, m) v ->
-            let* ty = typeof t v in
-            (* Create a new temporary v_i for each definition and
-               each use. *)
-            let* v' = C.Var.fresh >>| Rv.var (Regs.classof v) in
-            (* Insert a store after each definition of a v_i, *)
-            let* s' = if Set.mem def v then
-                let+ label = C.Label.fresh in
-                let insn = M.Regalloc.store_to_slot ty ~src:v' ~dst:v in
-                Insn.create ~label ~insn :: s
-              else !!s in
-            (* a fetch before each use of a v_i *)
-            let+ f' = if Set.mem use v then
-                let+ label = C.Label.fresh in
-                let insn = M.Regalloc.load_from_slot ty ~dst:v' ~src:v in
-                Insn.create ~label ~insn :: f
-              else !!f in
-            (* Update the substitution. *)
-            let m' = Map.set m ~key:v ~data:v' in
-            (* initial := initial U newTemps *)
-            Hash_set.add t.initial v';
-            t.types <- Map.set t.types ~key:v' ~data:ty;
-            f', s', m') in
+      Set.union use def |> Set.inter t.spilled |> Set.to_sequence |>
+      C.Seq.fold ~init:([], [], Rv.Map.empty) ~f:(fun (f, s, m) v ->
+          let* ty = typeof t v in
+          (* Create a new temporary v_i for each definition and
+             each use. *)
+          let* v' = C.Var.fresh >>| Rv.var (Regs.classof v) in
+          (* Insert a store after each definition of a v_i, *)
+          let* s' = if Set.mem def v then
+              let+ label = C.Label.fresh in
+              let insn = M.Regalloc.store_to_slot ty ~src:v' ~dst:v in
+              Insn.create ~label ~insn :: s
+            else !!s in
+          (* a fetch before each use of a v_i *)
+          let+ f' = if Set.mem use v then
+              let+ label = C.Label.fresh in
+              let insn = M.Regalloc.load_from_slot ty ~dst:v' ~src:v in
+              Insn.create ~label ~insn :: f
+            else !!f in
+          (* Update the substitution. *)
+          let m' = Map.set m ~key:v ~data:v' in
+          (* initial := initial U newTemps *)
+          Hash_set.add t.initial v';
+          t.types <- Map.set t.types ~key:v' ~data:ty;
+          f', s', m') in
     (* Apply the substitution to the existing instruction. *)
     let subst n = Map.find subst n |> Option.value ~default:n in
     let i' = Insn.with_insn i @@ M.Regalloc.substitute insn subst in

@@ -136,8 +136,10 @@ module Make(M : Machine_intf.S) = struct
   (* adjList[n] \ (selectStack U coalescedNodes) *)
   let adjacent t n =
     let a = adjlist t n in
-    let a = Stack.fold t.select ~init:a ~f:Set.remove in
-    Hash_set.fold t.coalesced ~init:a ~f:Set.remove
+    if not @@ Set.is_empty a then
+      let a = Stack.fold t.select ~init:a ~f:Set.remove in
+      Hash_set.fold t.coalesced ~init:a ~f:Set.remove
+    else a
 
   let moves t n = match Hashtbl.find t.moves n with
     | None -> Lset.empty
