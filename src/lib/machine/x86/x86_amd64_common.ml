@@ -592,9 +592,6 @@ module Insn = struct
     | TEST_ (a, b)
     | UCOMISD (a, b)
     | UCOMISS (a, b)
-    | XOR (a, b)
-    | XORPD (a, b)
-    | XORPS (a, b)
       -> rset [a; b]
     | CALL a ->
       Set.union (rset' [`rsp]) @@
@@ -666,6 +663,17 @@ module Insn = struct
       -> Set.union (rset' [`rsp]) (rset_mem [a])
     | RET
       -> rset' [`rsp]
+    (* Special case for XORing with self: this isn't really a use
+       of the register, since we're just assigning 0. *)
+    | XOR (Oreg (a, _), Oreg (b, _))
+    | XORPD (Oreg (a, _), Oreg (b, _))
+    | XORPS (Oreg (a, _), Oreg (b, _))
+      when Regvar.(a = b)
+      -> Regvar.Set.empty
+    | XOR (a, b)
+    | XORPD (a, b)
+    | XORPS (a, b)
+      -> rset [a; b]
 
   (* Registers written to by an instruction. *)
   let writes call = function
