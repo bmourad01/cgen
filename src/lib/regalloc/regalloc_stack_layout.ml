@@ -9,21 +9,30 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   module Rv = M.Regvar
 
-  let compute_offsets fn addend =
+  let alup i a = (i + a - 1) land -a
+
+  let order_slots fn =
     Func.slots fn |> Seq.to_list |>
     List.sort ~compare:(fun a b ->
         (* Sort in descending order of size, then alignment. *)
         match Int.compare (Slot.size b) (Slot.size a) with
         | 0 -> Int.compare (Slot.align b) (Slot.align a)
-        | n -> n) |>
-    List.fold ~init:(addend, Var.Map.empty) ~f:(fun (o, m) s ->
+        | n -> n)
+
+  let compute_size = List.fold ~init:0 ~f:(fun o s ->
+      let size = Slot.size s in
+      let align = Slot.align s in
+      alup o align + size)
+
+  let compute_offsets slots start =
+    List.fold slots ~init:(start, Var.Map.empty) ~f:(fun (o, m) s ->
         let v = Slot.var s in
         let size = Slot.size s in
         let align = Slot.align s in
         (* Round up the offset to the correct alignment. *)
-        let o = (o + align - 1) land -align in
+        let o = alup o align in
         let m = Map.set m ~key:v ~data:o in
-        o + size, m)
+        o + size, m) |> snd
 
   let callee_saves fn =
     Func.blks fn |> Seq.fold ~init:Rv.Set.empty ~f:(fun acc b ->
@@ -45,21 +54,24 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let+ label = C.Label.fresh in
       Insn.create ~label ~insn)
 
+  let wordsz = Type.sizeof_imm_base (Target.word M.target) / 8
+
   let run fn =
     let dict = Func.dict fn in
     let frame = Dict.mem dict Func.Tag.needs_stack_frame in
-    (* Initial offset. *)
-    let base, addend = if frame then
-        let word = Target.word M.target in
-        M.Reg.fp, Type.sizeof_imm_base word / 8
-      else M.Reg.sp, 0 in
-    (* Choose offsets for the slots. *)
-    let size, offsets = compute_offsets fn addend in
+    let slots = order_slots fn in
+    let size = compute_size slots in
+    (* The frame pointer offsets will be negative. We're also accounting
+       for the fact that the previous frame pointer will be preserved
+       on the stack. *)
+    let start = if frame then -(size + wordsz) else 0 in
+    let offsets = compute_offsets slots start in
+    let base = if frame then M.Reg.fp else M.Reg.sp in
     let fn = Func.map_blks fn ~f:(fun b ->
         Blk.map_insns b ~f:(fun i ->
-            Insn.insn i |>
-            M.Regalloc.assign_slots base offsets |>
-            Insn.with_insn i)) in
+            let insn = Insn.insn i in
+            let insn' = M.Regalloc.assign_slots base offsets insn in
+            Insn.with_insn i insn')) in
     (* Allocate the stack frame and preserve any callee-save registers. *)
     let regs = callee_saves fn in
     let entry = Func.entry fn in

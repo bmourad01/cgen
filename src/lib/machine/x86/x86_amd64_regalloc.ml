@@ -614,27 +614,57 @@ end
 let assign_slots = Assign_slots.assign
 
 let align8 i = (i + 7) land -8
+let odd i = (i land 1) <> 0
+let is16 i = (i land 15) = 0
+
+(* Pad the stack to account for:
+
+   1. The return address already on the stack upon entry.
+   2. The callee-save registers being pushed to the stack.
+*)
+let adjust_sp_size regs size = match List.length regs with
+  | 0 when is16 size -> size + 8
+  | 0 -> size
+  | n when odd n && is16 size -> size
+  | n when odd n -> size + 8
+  | _ when is16 size -> size + 8
+  | _ -> size
 
 let no_frame_prologue regs size =
-  let size = Int64.of_int @@ align8 @@ max size 8 in
+  let size = Int64.of_int @@ adjust_sp_size regs @@ align8 size in
   let rsp = Oreg (Regvar.reg `rsp, `i64) in
   List.concat [
     List.map regs ~f:(fun r ->
         PUSH (Oreg (Regvar.reg r, `i64)));
-    [SUB (rsp, Oimm (size, `i64))]
+    (if Int64.(size = 0L) then []
+     else [SUB (rsp, Oimm (size, `i64))]);
   ]
 
 let no_frame_epilogue regs size =
-  let size = Int64.of_int @@ align8 @@ max size 8 in
+  let size = Int64.of_int @@ adjust_sp_size regs @@ align8 size in
   let rsp = Oreg (Regvar.reg `rsp, `i64) in
   List.concat [
-    [ADD (rsp, Oimm (size, `i64))];
+    (if Int64.(size = 0L) then []
+     else [ADD (rsp, Oimm (size, `i64))]);
     List.rev regs |> List.map ~f:(fun r ->
-          POP (Oreg (Regvar.reg r, `i64)));
+        POP (Oreg (Regvar.reg r, `i64)));
   ]
 
+(* Same as above, but with the added factor of the frame
+   pointer being pushed to the stack.
+
+   This amounts to adding 8 in the opposite cases.
+*)
+let adjust_fp_size regs size = match List.length regs with
+  | 0 when is16 size -> size
+  | 0 -> size + 8
+  | n when odd n && is16 size -> size + 8
+  | n when odd n -> size
+  | _ when is16 size -> size
+  | _ -> size + 8
+
 let frame_prologue regs size =
-  let size = Int64.of_int @@ align8 size in
+  let size = Int64.of_int @@ adjust_fp_size regs @@ align8 size in
   let rsp = Oreg (Regvar.reg `rsp, `i64) in
   let rbp = Oreg (Regvar.reg `rbp, `i64) in
   List.concat [
@@ -650,7 +680,7 @@ let frame_prologue regs size =
   ]
 
 let frame_epilogue regs size =
-  let size = Int64.of_int @@ align8 size in
+  let size = Int64.of_int @@ adjust_fp_size regs @@ align8 size in
   let rsp = Oreg (Regvar.reg `rsp, `i64) in
   let rbp = Oreg (Regvar.reg `rbp, `i64) in
   List.concat [
