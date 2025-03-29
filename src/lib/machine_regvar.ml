@@ -1,8 +1,18 @@
-(* Helper module for making the boilerplate stuff for `Regvar`
-   as required by the `Machine_intf.S` signature. *)
-
 open Core
 open Regular.Std
+
+module type S = sig
+  type t
+  type reg
+
+  val reg : reg -> t
+  val var : [`gpr | `fp] -> Var.t -> t
+  val is_reg : t -> bool
+  val is_var : t -> bool
+  val which : t -> (reg, Var.t * [`gpr | `fp]) Either.t
+
+  include Regular.S with type t := t
+end
 
 module type Reg = sig
   type t [@@deriving bin_io, compare, equal, hash, sexp]

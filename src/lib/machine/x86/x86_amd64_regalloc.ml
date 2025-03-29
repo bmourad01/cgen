@@ -1,4 +1,4 @@
-(* Helpers required by [Regalloc]. *)
+(* Helpers required by the implementations in [Regalloc]. *)
 
 open Core
 open X86_amd64_common
@@ -164,7 +164,7 @@ module Typed_writes = struct
         | Oreg (a, t) -> [a, wty t]
         | Oregv a -> [a, `v128]
         | Omem (a, _) -> rv_of_amode a
-        | Oah -> [Reg `rax, wty `i8]
+        | Oah -> [Regvar.reg `rax, wty `i8]
         | _ -> [])
 
   (* Only explicit register operands. *)
@@ -173,7 +173,7 @@ module Typed_writes = struct
     List.bind operands ~f:(function
         | Oreg (a, t) -> [a, wty t]
         | Oregv a -> [a, `v128]
-        | Oah -> [Reg `rax, `i8]
+        | Oah -> [Regvar.reg `rax, `i8]
         | _ -> [])
 
   let rmap' l =

@@ -1,7 +1,6 @@
 (** The main interface for target machine implementations. *)
 
 open Core
-open Regular.Std
 
 module type S = sig
   (** The target descriptor. *)
@@ -71,24 +70,7 @@ module type S = sig
     val of_string : string -> t option
   end
 
-  (** A machine register or a virtual variable.
-
-      To ease implementation of the backend, instructions can refer to
-      both registers and variables after instruction selection. After
-      register allocation, it is expected that no variables will be
-      present.
-  *)
-  module Regvar : sig
-    type t
-
-    val reg : Reg.t -> t
-    val var : [`gpr | `fp] -> Var.t -> t
-    val is_reg : t -> bool
-    val is_var : t -> bool
-    val which : t -> (Reg.t, Var.t * [`gpr | `fp]) Either.t
-
-    include Regular.S with type t := t
-  end
+  module Regvar : Machine_regvar.S with type reg := Reg.t
 
   (** A machine instruction. *)
   module Insn : sig

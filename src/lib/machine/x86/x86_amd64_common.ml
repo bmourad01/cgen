@@ -258,20 +258,23 @@ module Insn = struct
 
   let pp_operand ppf = function
     (* Print the correct register syntax based on the type. *)
-    | Oreg (Reg (#Reg.sse as r), #Type.fp) ->
-      Format.fprintf ppf "%a" Reg.pp_sse r
-    | Oreg (Reg (#Reg.gpr as r), `i8) ->
-      Format.fprintf ppf "%a" Reg.pp_gpr8 r
-    | Oreg (Reg (#Reg.gpr as r), `i16) ->
-      Format.fprintf ppf "%a" Reg.pp_gpr16 r
-    | Oreg (Reg (#Reg.gpr as r), `i32) ->
-      Format.fprintf ppf "%a" Reg.pp_gpr32 r
-    | Oreg (Reg (#Reg.gpr as r), `i64) ->
-      Format.fprintf ppf "%a" Reg.pp_gpr r
-    (* This should always be a variable in practice, but we
-       won't enforce it here. *)
-    | Oreg (r, t) ->
-      Format.fprintf ppf "%a:%a" Regvar.pp r Type.pp_basic t
+    | Oreg (rv, t) ->
+      begin match Regvar.which rv, t with
+        | First (#Reg.sse as r), #Type.fp ->
+          Format.fprintf ppf "%a" Reg.pp_sse r
+        | First (#Reg.gpr as r), `i8 ->
+          Format.fprintf ppf "%a" Reg.pp_gpr8 r
+        | First (#Reg.gpr as r), `i16 ->
+          Format.fprintf ppf "%a" Reg.pp_gpr16 r
+        | First (#Reg.gpr as r), `i32 ->
+          Format.fprintf ppf "%a" Reg.pp_gpr32 r
+        | First (#Reg.gpr as r), `i64 ->
+          Format.fprintf ppf "%a" Reg.pp_gpr r
+        | _ ->
+          (* This should always be a variable in practice, but we
+             won't enforce it here. *)
+          Format.fprintf ppf "%a:%a" Regvar.pp rv Type.pp_basic t
+      end
     | Oregv r ->
       Format.fprintf ppf "%a" Regvar.pp r
     | Oimm (i, `i64) ->
@@ -542,7 +545,7 @@ module Insn = struct
     List.bind operands ~f:(function
         | Oreg (a, _) | Oregv a -> [a]
         | Omem (a, _) -> rv_of_amode a
-        | Oah -> [Reg `rax]
+        | Oah -> [Regvar.reg `rax]
         | _ -> [])
 
   (* Only explicit register operands. *)
@@ -550,7 +553,7 @@ module Insn = struct
     Regvar.Set.of_list @@
     List.bind operands ~f:(function
         | Oreg (a, _) | Oregv a -> [a]
-        | Oah -> [Reg `rax]
+        | Oah -> [Regvar.reg `rax]
         | _ -> [])
 
   (* Only registers mentioned in memory operands. *)
@@ -563,7 +566,7 @@ module Insn = struct
   (* Hardcoded registers. *)
   let rset' regs =
     Regvar.Set.of_list @@
-    List.map regs ~f:(fun r -> Regvar.Reg r)
+    List.map regs ~f:Regvar.reg
 
   (* Registers read by an instruction. *)
   let reads call = function
