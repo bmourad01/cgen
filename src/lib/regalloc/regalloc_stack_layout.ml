@@ -65,9 +65,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* The frame pointer offsets will be negative. We're also accounting
          for the fact that the previous frame pointer will be preserved
          on the stack. *)
-      let start = if frame then -(size + wordsz) else 0 in
+      let start, size = if frame then
+          let size = size + wordsz in
+          -size, size
+        else 0, size in
       let offsets = compute_offsets slots start in
       let base = if frame then M.Reg.fp else M.Reg.sp in
+      (* Replace uses of virtual slots with concrete stack locations. *)
       let fn = Func.map_blks fn ~f:(fun b ->
           Blk.map_insns b ~f:(fun i ->
               let insn = Insn.insn i in
