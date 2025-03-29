@@ -4,6 +4,16 @@ open Pseudo
 
 module Lset = Label.Tree_set
 
+let reduce a b = match a, b with
+  | (#Type.imm as ia), (#Type.imm as ib)
+    when Type.sizeof_imm ia < Type.sizeof_imm ib -> b
+  | #Type.imm, #Type.imm -> a
+  | (#Type.fp as fa), (#Type.fp as fb)
+    when Type.sizeof_fp fa < Type.sizeof_fp fb -> b
+  | #Type.fp, #Type.fp -> a
+  | `v128, `v128 -> `v128
+  | _ -> assert false
+
 module Make(M : Machine_intf.S) = struct
   module Rv = M.Regvar
   module Regs = Regalloc_regs.Make(M)
@@ -27,28 +37,29 @@ module Make(M : Machine_intf.S) = struct
      - [activeMoves]: moves not yet ready for coalescing
   *)
   type t = {
-    mutable fn     : (M.Insn.t, M.Reg.t) func;
-    adjlist        : Rv.Set.t Rv.Table.t;
-    degree         : int Rv.Table.t;
-    moves          : Lset.t Rv.Table.t;
-    copies         : (Rv.t * Rv.t) Label.Table.t;
-    mutable wmoves : Lset.t; (* worklist moves *)
-    mutable amoves : Lset.t; (* active moves *)
-    mutable cmoves : Lset.t; (* coalesced moves *)
-    mutable kmoves : Lset.t; (* constrained moves *)
-    mutable fmoves : Lset.t; (* frozen moves *)
-    wspill         : Rv.Hash_set.t;
-    wfreeze        : Rv.Hash_set.t;
-    wsimplify      : Rv.Hash_set.t;
-    coalesced      : Rv.Hash_set.t;
-    spilled        : Rv.Hash_set.t;
-    colored        : Rv.Hash_set.t;
-    initial        : Rv.Hash_set.t;
-    slots          : Rv.Hash_set.t;
-    colors         : int Rv.Table.t;
-    select         : Rv.t Stack.t;
-    alias          : Rv.t Rv.Table.t;
-    keep           : Rv.Set.t;
+    mutable fn      : (M.Insn.t, M.Reg.t) func;
+    adjlist         : Rv.Set.t Rv.Table.t;
+    degree          : int Rv.Table.t;
+    moves           : Lset.t Rv.Table.t;
+    copies          : (Rv.t * Rv.t) Label.Table.t;
+    mutable wmoves  : Lset.t; (* worklist moves *)
+    mutable amoves  : Lset.t; (* active moves *)
+    mutable cmoves  : Lset.t; (* coalesced moves *)
+    mutable kmoves  : Lset.t; (* constrained moves *)
+    mutable fmoves  : Lset.t; (* frozen moves *)
+    wspill          : Rv.Hash_set.t;
+    wfreeze         : Rv.Hash_set.t;
+    wsimplify       : Rv.Hash_set.t;
+    coalesced       : Rv.Hash_set.t;
+    mutable spilled : Rv.Set.t;
+    colored         : Rv.Hash_set.t;
+    initial         : Rv.Hash_set.t;
+    slots           : Rv.Hash_set.t;
+    colors          : int Rv.Table.t;
+    select          : Rv.t Stack.t;
+    alias           : Rv.t Rv.Table.t;
+    keep            : Rv.Set.t;
+    mutable types   : [Type.basic | `v128] Rv.Map.t;
   } [@@ocaml.warning "-69"]
 
   (* Set of registers that should always be live at the exit. *)
@@ -71,7 +82,7 @@ module Make(M : Machine_intf.S) = struct
     wfreeze = Rv.Hash_set.create ();
     wsimplify = Rv.Hash_set.create ();
     coalesced = Rv.Hash_set.create ();
-    spilled = Rv.Hash_set.create ();
+    spilled = Rv.Set.empty;
     colored = Rv.Hash_set.create ();
     initial = Rv.Hash_set.create ();
     slots = Rv.Hash_set.create ();
@@ -79,6 +90,7 @@ module Make(M : Machine_intf.S) = struct
     select = Stack.create ();
     alias = Rv.Table.create ();
     keep = init_keep fn;
+    types = Rv.Map.empty;
   }
 
   (* Explicit registers and variables that correspond to stack slots
@@ -167,6 +179,10 @@ module Make(M : Machine_intf.S) = struct
   let add_initial t n =
     if can_be_colored t n then Hash_set.add t.initial n
 
+  let update_types t insn =
+    let types = M.Regalloc.writes_with_types insn in
+    t.types <- Map.merge_skewed t.types types ~combine:(fun ~key:_  -> reduce)
+
   (* initial: temporary registers, not preassigned a color and not yet
      processed by the algorithm. *)
   let init_initial t =
@@ -176,5 +192,6 @@ module Make(M : Machine_intf.S) = struct
             let use = M.Insn.reads insn in
             let def = M.Insn.writes insn in
             Set.iter use ~f:(add_initial t);
-            Set.iter def ~f:(add_initial t)))
+            Set.iter def ~f:(add_initial t);
+            update_types t insn))
 end

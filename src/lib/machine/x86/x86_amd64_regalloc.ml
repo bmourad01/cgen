@@ -15,17 +15,33 @@ let classof rv = match Regvar.which rv with
   | First r -> Reg.classof r
   | Second (_, cls) -> cls
 
-let load_from_slot ~dst ~src =
-  (* FIXME: we need the types *)
-  match classof dst with
-  | `gpr -> MOV (Oreg (dst, `i64), Omem (Ab src, `i64))
-  | `fp -> MOVSD (Oreg (dst, `f64), Omem (Ab src, `i64))
+let load_from_slot ty ~dst ~src = match classof dst with
+  | `gpr ->
+    begin match ty with
+      | `v128 | #Type.fp -> assert false
+      | #Type.basic as b -> MOV (Oreg (dst, b), Omem (Ab src, b))
+    end
+  | `fp ->
+    begin match ty with
+      | `f64 -> MOVSD (Oreg (dst, `f64), Omem (Ab src, `i64))
+      | `f32 -> MOVSS (Oreg (dst, `f32), Omem (Ab src, `i32))
+      | `v128 -> MOVDQA (Oregv dst, Omem (Ab src, `v128))
+      | #Type.imm -> assert false
+    end
 
-let store_to_slot ~src ~dst =
-  (* FIXME: we need the types *)
-  match classof src with
-  | `gpr -> MOV (Omem (Ab dst, `i64), Oreg (src, `i64))
-  | `fp -> MOVSD (Omem (Ab dst, `i64), Oreg (src, `f64))
+let store_to_slot ty ~src ~dst = match classof src with
+  | `gpr ->
+    begin match ty with
+      | `v128 | #Type.fp -> assert false
+      | #Type.basic as b -> MOV (Omem (Ab dst, b), Oreg (src, b))
+    end
+  | `fp ->
+    begin match ty with
+      | `f64 -> MOVSD (Omem (Ab dst, `i64), Oreg (src, `f64))
+      | `f32 -> MOVSD (Omem (Ab dst, `i32), Oreg (src, `f32))
+      | `v128 -> MOVDQA (Omem (Ab dst, `v128), Oregv src)
+      | #Type.imm -> assert false
+    end
 
 let substitute_amode f = function
   | Ad _ as a -> a
@@ -116,3 +132,151 @@ let substitute i f =
   | XORPS (a, b) -> XORPS (op a, op b)
   | MOV_ (a, b) -> MOV_ (op a, op b)
   | JMPtbl _ -> i
+
+module Typed_writes = struct
+  type ty = [Type.basic | `v128]
+
+  let wty ty = (ty :> ty)
+
+  let reduce a b = match a, b with
+    | (#Type.imm as ia), (#Type.imm as ib)
+      when Type.sizeof_imm ia < Type.sizeof_imm ib -> b
+    | #Type.imm, #Type.imm -> a
+    | (#Type.fp as fa), (#Type.fp as fb)
+      when Type.sizeof_fp fa < Type.sizeof_fp fb -> b
+    | #Type.fp, #Type.fp -> a
+    | `v128, `v128 -> `v128
+    | _ -> assert false
+
+  (* Helper for registers mentioned in an addressing mode. *)
+  let rv_of_amode = function
+    | Ad _ -> []
+    | Ab a -> [a, `i64]
+    | Abd (a, _) -> [a, `i64]
+    | Abis (a, b, _) -> [a, `i64; b, `i64]
+    | Aisd (a, _, _) -> [a, `i64]
+    | Abisd (a, b, _, _) -> [a, `i64; b, `i64]
+
+  (* All registers mentioned in operands. *)
+  let rmap operands =
+    Regvar.Map.of_alist_reduce ~f:reduce @@
+    List.bind operands ~f:(function
+        | Oreg (a, t) -> [a, wty t]
+        | Oregv a -> [a, `v128]
+        | Omem (a, _) -> rv_of_amode a
+        | Oah -> [Reg `rax, wty `i8]
+        | _ -> [])
+
+  (* Only explicit register operands. *)
+  let rmap_reg operands =
+    Regvar.Map.of_alist_reduce ~f:reduce @@
+    List.bind operands ~f:(function
+        | Oreg (a, t) -> [a, wty t]
+        | Oregv a -> [a, `v128]
+        | Oah -> [Reg `rax, `i8]
+        | _ -> [])
+
+  let rmap' l =
+    Regvar.Map.of_alist_reduce ~f:reduce @@
+    List.map l ~f:(fun (r, t) -> Regvar.reg r, t)
+
+  (* Registers written to by an instruction. *)
+  let writes call = function
+    | ADD (a, _)
+    | AND (a, _)
+    | DEC a
+    | IMUL2 (a, _)
+    | IMUL3 (a, _, _)
+    | INC a
+    | LZCNT (a, _)
+    | NEG a
+    | NOT a
+    | OR (a, _)
+    | POPCNT (a, _)
+    | ROL (a, _)
+    | ROR (a, _)
+    | SAR (a, _)
+    | SHL (a, _)
+    | SHR (a, _)
+    | SUB (a, _)
+    | XOR (a, _)
+      -> rmap_reg [a]
+    | ADDSD (a, _)
+    | ADDSS (a, _)
+    | CMOVcc (_, a, _)
+    | CVTSD2SI (a, _)
+    | CVTSD2SS (a, _)
+    | CVTSI2SD (a, _)
+    | CVTSI2SS (a, _)
+    | CVTSS2SI (a, _)
+    | CVTSS2SD (a, _)
+    | DIVSD (a, _)
+    | DIVSS (a, _)
+    | LEA (a, _)
+    | MOV (a, _)
+    | MOV_ (a, _)
+    | MOVD (a, _)
+    | MOVDQA (a, _)
+    | MOVQ (a, _)
+    | MOVSD (a, _)
+    | MOVSS (a, _)
+    | MOVSX (a, _)
+    | MOVSXD (a, _)
+    | MOVZX (a, _)
+    | MULSD (a, _)
+    | MULSS (a, _)
+    | SETcc (_, a)
+    | SUBSD (a, _)
+    | SUBSS (a, _)
+    | TZCNT (a, _)
+    | XORPD (a, _)
+    | XORPS (a, _)
+      -> rmap_reg [a]
+    | CALL _
+      -> call
+    | PUSH _
+    | RET
+      -> Regvar.Map.empty
+    | CMP _
+    | TEST_ _
+    | UCOMISD _
+    | UCOMISS _
+      -> Regvar.Map.empty
+    | Jcc _
+    | JMP _
+    | UD2
+    | JMPtbl _
+      -> Regvar.Map.empty
+    (* Special case for 8-bit div/mul. *)
+    | DIV Oreg (_, `i8)
+    | IDIV Oreg (_, `i8)
+    | IMUL1 Oreg (_, `i8)
+    | MUL Oreg (_, `i8)
+      -> rmap' [`rax, `i8]
+    | CDQ
+      -> rmap' [`rdx, `i32]
+    | CQO
+      -> rmap' [`rdx, `i64]
+    | CWD
+      -> rmap' [`rdx, `i16]
+    | DIV (Oreg (_, t))
+    | IDIV (Oreg (_, t))
+    | IMUL1 (Oreg (_, t))
+    | MUL (Oreg (_, t))
+      -> rmap' [`rax, wty t; `rdx, wty t]
+    | DIV (Omem (_, t))
+    | IDIV (Omem (_, t))
+    | IMUL1 (Omem (_, t))
+    | MUL (Omem (_, t))
+      -> rmap' [`rax, wty t; `rdx, wty t]
+    (* These are invalid forms. *)
+    | DIV _
+    | IDIV _
+    | IMUL1 _
+    | MUL _
+      -> Regvar.Map.empty
+    | POP a
+      -> rmap_reg [a]
+end
+
+let writes_with_types = Typed_writes.writes

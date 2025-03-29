@@ -356,7 +356,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* if okColors = {} then *)
       if Z.(equal !cs zero) then
         (* spilledNodes := spilledNodes U {n} *)
-        Hash_set.add t.spilled n
+        t.spilled <- Set.add t.spilled n
       else begin
         (* coloredNodes := coloredNodes U {n} *)
         Hash_set.add t.colored n;
@@ -374,17 +374,24 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         (* color[n] := color[GetAlias(n)] *)
         alias t n |> color t |> Option.iter ~f:(set_color t n))
 
+  let typeof t v = match Map.find t.types v with
+    | None -> C.failf "no type available for spilled node %a" Rv.pp v ()
+    | Some ty -> !!ty
+
   (* Create slots for spilled nodes. *)
   let make_slots t =
-    let ty = Target.word M.target in
-    let size = Type.sizeof_imm_base ty / 8 in
-    let slots = Hash_set.fold t.spilled ~init:[] ~f:(fun acc n ->
-        match Rv.which n with
-        | First _ -> assert false
-        | Second (v, _) ->
-          let s = Virtual.Slot.create_exn v ~size ~align:size in
-          Hash_set.add t.slots @@ Rv.var `gpr v;
-          s :: acc) in
+    let+ slots =
+      Set.to_sequence t.spilled |>
+      C.Seq.fold ~init:[] ~f:(fun acc n ->
+          match Rv.which n with
+          | First _ -> assert false
+          | Second (v, _) ->
+            let+ size = typeof t n >>| function
+              | #Type.basic as b -> Type.sizeof_basic b / 8
+              | `v128 -> 16 in
+            let s = Virtual.Slot.create_exn v ~size ~align:size in
+            Hash_set.add t.slots @@ Rv.var `gpr v;
+            s :: acc) in
     t.fn <- Func.insert_slots t.fn slots
 
   (* Rewrite a single instruction to spill and reload variables.
@@ -421,29 +428,31 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
     let+ fetch, store, subst =
-      Set.union use def |> Set.to_sequence |>
-      Seq.filter ~f:(Hash_set.mem t.spilled) |>
-      C.Seq.fold ~init:([], [], Rv.Map.empty)
+      Set.inter t.spilled (Set.union use def) |>
+      Set.to_sequence |> C.Seq.fold
+        ~init:([], [], Rv.Map.empty)
         ~f:(fun (f, s, m) v ->
+            let* ty = typeof t v in
             (* Create a new temporary v_i for each definition and
                each use. *)
             let* v' = C.Var.fresh >>| Rv.var (Regs.classof v) in
             (* Insert a store after each definition of a v_i, *)
             let* s' = if Set.mem def v then
                 let+ label = C.Label.fresh in
-                let insn = M.Regalloc.store_to_slot ~src:v' ~dst:v in
+                let insn = M.Regalloc.store_to_slot ty ~src:v' ~dst:v in
                 Insn.create ~label ~insn :: s
               else !!s in
             (* a fetch before each use of a v_i *)
             let+ f' = if Set.mem use v then
                 let+ label = C.Label.fresh in
-                let insn = M.Regalloc.load_from_slot ~dst:v' ~src:v in
+                let insn = M.Regalloc.load_from_slot ty ~dst:v' ~src:v in
                 Insn.create ~label ~insn :: f
               else !!f in
             (* Update the substitution. *)
             let m' = Map.set m ~key:v ~data:v' in
             (* initial := initial U newTemps *)
             Hash_set.add t.initial v';
+            t.types <- Map.set t.types ~key:v' ~data:ty;
             f', s', m') in
     (* Apply the substitution to the existing instruction. *)
     let subst n = Map.find subst n |> Option.value ~default:n in
@@ -452,7 +461,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Insert spilling code and set up the state for the next round. *)
   let rewrite_program t =
-    make_slots t;
+    let* () = make_slots t in
     let+ blks =
       Func.blks ~rev:true t.fn |>
       C.Seq.fold ~init:[] ~f:(fun acc b ->
@@ -462,7 +471,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           Blk.with_insns b insns :: acc) in
     t.fn <- Func.with_blks t.fn blks;
     (* spilledNodes := {} *)
-    Hash_set.clear t.spilled;
+    t.spilled <- Rv.Set.empty;
     (* initial := coloredNodes U coalescedNodes *)
     Hash_set.iter t.colored ~f:(Hash_set.add t.initial);
     Hash_set.iter t.coalesced ~f:(Hash_set.add t.initial);
@@ -512,14 +521,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Assign colors or spill. *)
     assign_colors t;
     (* Rewrite according to the spilled nodes. *)
-    C.unless (Hash_set.is_empty t.spilled) @@ fun () ->
+    C.unless (Set.is_empty t.spilled) @@ fun () ->
     let* () = rewrite_program t in
     main t ~round:(round + 1) ~max_rounds
 
   let apply_alloc t =
     let subst n = match Hashtbl.find t.colors n with
       | None -> assert (exclude_from_coloring t n); n
-      | Some c -> Rv.reg @@ match Regs.classof n with
+      | Some c ->
+        assert (can_be_colored t n);
+        Rv.reg @@ match Regs.classof n with
         | `gpr -> Regs.allocatable.(c)
         | `fp -> Regs.allocatable_fp.(c) in
     Func.blks t.fn |> Seq.map ~f:(fun b ->

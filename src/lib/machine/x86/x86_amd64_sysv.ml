@@ -4,36 +4,41 @@ open X86_amd64_common
 
 let target = Target.declare () ~name:"amd64-sysv" ~word ~little
 
+let clobbered_map = X86_amd64_regalloc.Typed_writes.rmap' [
+    `rax,   `i64;
+    `rcx,   `i64;
+    `rdx,   `i64;
+    `rdi,   `i64;
+    `rsi,   `i64;
+    `rsp,   `i64;
+    `r8,    `i64;
+    `r9,    `i64;
+    `r10,   `i64;
+    `r11,   `i64;
+    `xmm0,  `v128;
+    `xmm1,  `v128;
+    `xmm2,  `v128;
+    `xmm3,  `v128;
+    `xmm4,  `v128;
+    `xmm5,  `v128;
+    `xmm6,  `v128;
+    `xmm7,  `v128;
+    `xmm8,  `v128;
+    `xmm9,  `v128;
+    `xmm10, `v128;
+    `xmm11, `v128;
+    `xmm12, `v128;
+    `xmm13, `v128;
+    `xmm14, `v128;
+    `xmm15, `v128;
+  ]
+
 (* Conservative set of registers that will be clobbered by a
    function call. *)
-let clobbered = Insn.rset' [
-    `rax;
-    `rcx;
-    `rdx;
-    `rdi;
-    `rsi;
-    `rsp;
-    `r8;
-    `r9;
-    `r10;
-    `r11;
-    `xmm0;
-    `xmm1;
-    `xmm2;
-    `xmm3;
-    `xmm4;
-    `xmm5;
-    `xmm6;
-    `xmm7;
-    `xmm8;
-    `xmm9;
-    `xmm10;
-    `xmm11;
-    `xmm12;
-    `xmm13;
-    `xmm14;
-    `xmm15;
-  ]
+let clobbered =
+  Regvar.Set.of_list @@
+  List.map ~f:fst @@
+  Map.to_alist clobbered_map
 
 module Machine = struct
   let target = target
@@ -89,7 +94,11 @@ module Machine = struct
   end
 
   module Isel = X86_amd64_isel.Make
-  module Regalloc = X86_amd64_regalloc
+
+  module Regalloc = struct
+    include X86_amd64_regalloc
+    let writes_with_types = writes_with_types clobbered_map
+  end
 
   let lower_abi = Sysv.run
 end
