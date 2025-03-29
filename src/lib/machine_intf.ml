@@ -56,6 +56,9 @@ module type S = sig
     (** The type of the register. *)
     val typeof : t -> [Type.basic | `v128]
 
+    (** Returns [true] if the register must be preserved by the callee. *)
+    val is_callee_save : t -> bool
+
     (** Pretty-print the register name. *)
     val pp : Format.formatter -> t -> unit
 
@@ -96,6 +99,9 @@ module type S = sig
     (** Returns [true] if the instruction should always be computed,
         if it is reachable. *)
     val always_live : t -> bool
+
+    (** Returns [true] if the instruction returns from a function. *)
+    val is_return : t -> bool
 
     (** Pretty-prints the instruction. *)
     val pp : Format.formatter -> t -> unit
@@ -150,5 +156,21 @@ module type S = sig
         remaining variables in the program are those referring to virtual slots.
     *)
     val assign_slots : Reg.t -> int Var.Map.t -> Insn.t -> Insn.t
+
+    (** Create a function prologue with no stack frame, given the callee-save
+        registers in use and the size of the local variables. *)
+    val no_frame_prologue : Reg.t list -> int -> Insn.t list
+
+    (** Create a function epilogue with no stack frame, given the callee-save
+        registers in use and the size of the local variables. *)
+    val no_frame_epilogue : Reg.t list -> int -> Insn.t list
+
+    (** Create a function prologue with a stack frame, given the callee-save
+        registers in use and the size of the local variables. *)
+    val frame_prologue : Reg.t list -> int -> Insn.t list
+
+    (** Create a function epilogue with a stack frame, given the callee-save
+        registers in use and the size of the local variables. *)
+    val frame_epilogue : Reg.t list -> int -> Insn.t list
   end
 end

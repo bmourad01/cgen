@@ -83,6 +83,14 @@ module Machine = struct
       `xmm14;
       `xmm15;
     ]
+
+    let is_callee_save = function
+      | `rbx
+      | `r12
+      | `r13
+      | `r14
+      | `r15 -> true
+      | _ -> false
   end
 
   module Regvar = Regvar

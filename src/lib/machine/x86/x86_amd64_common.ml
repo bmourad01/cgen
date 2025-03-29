@@ -848,4 +848,8 @@ module Insn = struct
     | XORPD (Oreg (a, _), Oreg (b, _))
       when Regvar.equal a b -> true
     | i -> writes_to_memory i
+
+  let is_return = function
+    | RET -> true
+    | _ -> false
 end

@@ -612,3 +612,54 @@ module Assign_slots = struct
 end
 
 let assign_slots = Assign_slots.assign
+
+let align8 i = (i + 7) land -8
+
+let no_frame_prologue regs size =
+  let size = Int64.of_int @@ align8 @@ max size 8 in
+  let rsp = Oreg (Regvar.reg `rsp, `i64) in
+  List.concat [
+    List.map regs ~f:(fun r ->
+        PUSH (Oreg (Regvar.reg r, `i64)));
+    [SUB (rsp, Oimm (size, `i64))]
+  ]
+
+let no_frame_epilogue regs size =
+  let size = Int64.of_int @@ align8 @@ max size 8 in
+  let rsp = Oreg (Regvar.reg `rsp, `i64) in
+  List.concat [
+    [ADD (rsp, Oimm (size, `i64))];
+    List.rev regs |> List.map ~f:(fun r ->
+          POP (Oreg (Regvar.reg r, `i64)));
+  ]
+
+let frame_prologue regs size =
+  let size = Int64.of_int @@ align8 size in
+  let rsp = Oreg (Regvar.reg `rsp, `i64) in
+  let rbp = Oreg (Regvar.reg `rbp, `i64) in
+  List.concat [
+    (* Push the frame pointer and give it the base of the stack. *)
+    [PUSH rbp;
+     MOV (rbp, rsp)];
+    (* Allocate space. *)
+    (if Int64.(size = 0L) then []
+     else [SUB (rsp, Oimm (size, `i64))]);
+    (* Push the callee-save registers. *)
+    List.map regs ~f:(fun r ->
+        PUSH (Oreg (Regvar.reg r, `i64)));
+  ]
+
+let frame_epilogue regs size =
+  let size = Int64.of_int @@ align8 size in
+  let rsp = Oreg (Regvar.reg `rsp, `i64) in
+  let rbp = Oreg (Regvar.reg `rbp, `i64) in
+  List.concat [
+    (* Pop the callee-save registers in reverse order. *)
+    List.rev regs |> List.map ~f:(fun r ->
+        POP (Oreg (Regvar.reg r, `i64)));
+    (* Deallocate space. *)
+    (if Int64.(size = 0L) then []
+     else [ADD (rsp, Oimm (size, `i64))]);
+    (* Pop the frame pointer. *)
+    [POP rbp];
+  ]
