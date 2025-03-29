@@ -16,12 +16,12 @@ let classof rv = match Regvar.which rv with
   | Second (_, cls) -> cls
 
 let load_from_slot ty ~dst ~src = match classof dst with
-  | `gpr ->
+  | GPR ->
     begin match ty with
       | `v128 | #Type.fp -> assert false
       | #Type.basic as b -> MOV (Oreg (dst, b), Omem (Ab src, b))
     end
-  | `fp ->
+  | FP ->
     begin match ty with
       | `f64 -> MOVSD (Oreg (dst, `f64), Omem (Ab src, `i64))
       | `f32 -> MOVSS (Oreg (dst, `f32), Omem (Ab src, `i32))
@@ -30,12 +30,12 @@ let load_from_slot ty ~dst ~src = match classof dst with
     end
 
 let store_to_slot ty ~src ~dst = match classof src with
-  | `gpr ->
+  | GPR ->
     begin match ty with
       | `v128 | #Type.fp -> assert false
       | #Type.basic as b -> MOV (Omem (Ab dst, b), Oreg (src, b))
     end
-  | `fp ->
+  | FP ->
     begin match ty with
       | `f64 -> MOVSD (Omem (Ab dst, `i64), Oreg (src, `f64))
       | `f32 -> MOVSD (Omem (Ab dst, `i32), Oreg (src, `f32))

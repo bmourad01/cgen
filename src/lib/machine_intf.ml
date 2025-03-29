@@ -51,7 +51,7 @@ module type S = sig
     val allocatable_fp : t list
 
     (** Returns the class of the register. *)
-    val classof : t -> [`gpr | `fp]
+    val classof : t -> Machine_regvar.cls
 
     (** The type of the register. *)
     val typeof : t -> [Type.basic | `v128]

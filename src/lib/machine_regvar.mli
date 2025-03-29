@@ -4,6 +4,16 @@
 open Core
 open Regular.Std
 
+(** A register class.
+
+    [GPR]: general-purpose register
+
+    [FP]: floating-point register
+*)
+type cls = GPR | FP [@@deriving bin_io, compare, equal, hash, sexp]
+
+val pp_cls : Format.formatter -> cls -> unit
+
 (** A machine register or a virtual variable.
 
     To ease implementation of the backend, instructions can refer to
@@ -19,7 +29,7 @@ module type S = sig
   val reg : reg -> t
 
   (** Construct a variable, with the provided register class. *)
-  val var : [`gpr | `fp] -> Var.t -> t
+  val var : cls -> Var.t -> t
 
   (** Returns [true] if it is a register. *)
   val is_reg : t -> bool
@@ -28,7 +38,7 @@ module type S = sig
   val is_var : t -> bool
 
   (** Returns the discrimination. *)
-  val which : t -> (reg, Var.t * [`gpr | `fp]) Either.t
+  val which : t -> (reg, Var.t * cls) Either.t
 
   include Regular.S with type t := t
 end

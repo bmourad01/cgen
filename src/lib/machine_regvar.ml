@@ -1,15 +1,21 @@
 open Core
 open Regular.Std
 
+type cls = GPR | FP [@@deriving bin_io, compare, equal, hash, sexp]
+
+let pp_cls ppf = function
+  | GPR -> Format.fprintf ppf "gpr"
+  | FP -> Format.fprintf ppf "fp"
+
 module type S = sig
   type t
   type reg
 
   val reg : reg -> t
-  val var : [`gpr | `fp] -> Var.t -> t
+  val var : cls -> Var.t -> t
   val is_reg : t -> bool
   val is_var : t -> bool
-  val which : t -> (reg, Var.t * [`gpr | `fp]) Either.t
+  val which : t -> (reg, Var.t * cls) Either.t
 
   include Regular.S with type t := t
 end
@@ -27,7 +33,7 @@ module Make(R : Reg)(N : Name) = struct
   module T = struct
     type t =
       | Reg of R.t
-      | Var of Var.t * [`gpr | `fp]
+      | Var of Var.t * cls
     [@@deriving bin_io, compare, equal, hash, sexp]
   end
 

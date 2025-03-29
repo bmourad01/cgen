@@ -136,9 +136,9 @@ module Reg = struct
     | `rflags -> true
     | _ -> false
 
-  let classof = function
-    | #gpr | `rip | `rflags -> `gpr
-    | #sse -> `fp
+  let classof : t -> Machine_regvar.cls = function
+    | #gpr | `rip | `rflags -> GPR
+    | #sse -> FP
 
   let pp ppf r =
     Format.fprintf ppf "%a" Sexp.pp (sexp_of_t r)

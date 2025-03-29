@@ -30,9 +30,10 @@ let commute = function
 
 type ty = [Type.basic | `flag | `v128]
 
-let regcls : ty -> [> `gpr | `fp] = function
-  | #Type.imm | `flag -> `gpr
-  | #Type.fp | `v128 -> `fp
+(* XXX: maybe we should let the machine implementation decide this. *)
+let regcls : ty -> Machine_regvar.cls = function
+  | #Type.imm | `flag -> GPR
+  | #Type.fp | `v128 -> FP
 
 type 'r t = {
   fn    : func;

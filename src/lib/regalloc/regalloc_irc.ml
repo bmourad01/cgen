@@ -387,7 +387,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               | #Type.basic as b -> Type.sizeof_basic b / 8
               | `v128 -> 16 in
             let s = Virtual.Slot.create_exn v ~size ~align:size in
-            Hash_set.add t.slots @@ Rv.var `gpr v;
+            Hash_set.add t.slots @@ Rv.var GPR v;
             s :: acc) in
     t.fn <- Func.insert_slots t.fn slots
 
@@ -526,8 +526,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | Some c ->
         assert (can_be_colored t n);
         Rv.reg @@ match Regs.classof n with
-        | `gpr -> Regs.allocatable.(c)
-        | `fp -> Regs.allocatable_fp.(c) in
+        | GPR -> Regs.allocatable.(c)
+        | FP -> Regs.allocatable_fp.(c) in
     Func.blks t.fn |> Seq.map ~f:(fun b ->
         Blk.insns b |> Seq.map ~f:(fun i ->
             let insn = Insn.insn i in

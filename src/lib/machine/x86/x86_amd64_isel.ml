@@ -447,7 +447,7 @@ end = struct
       ]
     else
       let*! () = guard @@ Type.equal_basic xt `i64 in
-      let+ y' = C.Var.fresh >>| Rv.var `gpr in
+      let+ y' = C.Var.fresh >>| Rv.var GPR in
       Some [
         MOV (Oreg (y', `i64), Oimm (y, yt));
         CMP (Oreg (x, xt), Oreg (y', `i64));
@@ -539,7 +539,7 @@ end = struct
         SETcc (cc, Oreg (x, `i8));
       ]
     else
-      let* tmp = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
         MOV (Oreg (x, `i32), Oimm (0L, `i32));
         MOV (Oreg (tmp, `i64), Oimm (z, zt));
         CMP (Oreg (y, yt), Oreg (tmp, `i64));
@@ -606,7 +606,7 @@ end = struct
     let*! no, no_t = S.imm env "no" in
     let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
     let*! () = guard @@ Type.equal_basic xt (bty no_t) in
-    let* tmp_yes = C.Var.fresh >>| Rv.var `gpr in
+    let* tmp_yes = C.Var.fresh >>| Rv.var GPR in
     let xt = sel_i8_ty xt in !!![
       MOV (Oreg (tmp_yes, xt), Oimm (Bv.to_int64 yes, yes_t));
       MOV (Oreg (x, xt), Oimm (Bv.to_int64 no, no_t));
@@ -630,7 +630,7 @@ end = struct
         CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
       ]
     else
-      let* tmp = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
         MOV (Oreg (tmp, bty zt), Oimm (z, zt));
         MOV (Oreg (x, xt), Oreg (no, xt));
         CMP (Oreg (y, yt), Oreg (tmp, bty zt));
@@ -653,7 +653,7 @@ end = struct
         CMOVcc (cc, Oreg (x, xt), Oreg (yes, xt));
       ]
     else
-      let* tmp = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
         MOV (Oreg (tmp, bty zt), Oimm (z, zt));
         MOV (Oreg (x, xt), Oimm (Bv.to_int64 no, no_t));
         CMP (Oreg (y, yt), Oreg (tmp, bty zt));
@@ -676,7 +676,7 @@ end = struct
         CMOVcc (flip_cc cc, Oreg (x, xt), Oreg (no, xt));
       ]
     else
-      let* tmp = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
         MOV (Oreg (x, xt), Oimm (Bv.to_int64 yes, yes_t));
         MOV (Oreg (tmp, bty zt), Oimm (z, zt));
         CMP (Oreg (y, yt), Oreg (tmp, bty zt));
@@ -691,7 +691,7 @@ end = struct
     let*! no, no_t = S.imm env "no" in
     let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
     let*! () = guard @@ Type.equal_basic xt (bty no_t) in
-    let* tmp_yes = C.Var.fresh >>| Rv.var `gpr in
+    let* tmp_yes = C.Var.fresh >>| Rv.var GPR in
     let xt = sel_i8_ty xt in
     let z = Bv.to_int64 z in
     if fits_int32 z then !!![
@@ -701,7 +701,7 @@ end = struct
         CMOVcc (cc, Oreg (x, xt), Oreg (tmp_yes, xt));
       ]
     else
-      let* tmp = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
         MOV (Oreg (tmp_yes, xt), Oimm (Bv.to_int64 yes, yes_t));
         MOV (Oreg (tmp, bty zt), Oimm (z, zt));
         MOV (Oreg (x, xt), Oimm (Bv.to_int64 no, no_t));
@@ -884,7 +884,7 @@ end = struct
     let*! s, o = S.sym env "x" in
     let*! y, yt = S.regvar env "y" in
     let addr = Abd (Rv.reg `rip, Dsym (s, o)) in
-    let* x = C.Var.fresh >>| Rv.var `gpr in !!![
+    let* x = C.Var.fresh >>| Rv.var GPR in !!![
       LEA (Oreg (x, `i64), Omem (addr, `i64));
       MOV (Omem (Ab y, mty yt), Oreg (x, yt))
     ]
@@ -939,7 +939,7 @@ end = struct
         IMUL3 (Oreg (x, xt), Oreg (y, yt), Int64.to_int32_trunc z);
       ]
     else
-      let* z' = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* z' = C.Var.fresh >>| Rv.var GPR in !!![
         MOV (Oreg (z', xt), Oimm (z, zt));
         MOV (Oreg (x, xt), Oreg (y, yt));
         IMUL2 (Oreg (x, xt), Oreg (z', xt));
@@ -1092,7 +1092,7 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var `gpr in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
     let rax = Rv.reg `rax in
     let rdx = Rv.reg `rdx in !!![
       MOV (Oreg (tmp, bty zt), Oimm (Bv.to_int64 z, zt));
@@ -1117,7 +1117,7 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var `gpr in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
     let rax = Rv.reg `rax in !!![
       MOV (Oreg (tmp, bty zt), Oimm (Bv.to_int64 z ,zt));
       MOV (Oreg (rax, yt), Oreg (y, yt));
@@ -1141,7 +1141,7 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var `gpr in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
     let rax = Rv.reg `rax in !!![
       MOV (Oreg (tmp, bty zt), Oimm (Bv.to_int64 z, zt));
       MOVZX (Oreg (rax, `i16), Oreg (y, yt));
@@ -1165,7 +1165,7 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var `gpr in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
     let rax = Rv.reg `rax in !!![
       MOV (Oreg (tmp, bty zt), Oimm (Bv.to_int64 z, zt));
       MOVZX (Oreg (rax, `i16), Oreg (y, yt));
@@ -1190,7 +1190,7 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var `gpr in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
     let rax = Rv.reg `rax in
     let rdx = Rv.reg `rdx in !!![
       MOV (Oreg (tmp, bty zt), Oimm (Bv.to_int64 z, zt));
@@ -1216,7 +1216,7 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var `gpr in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
     let rax = Rv.reg `rax in
     let rdx = Rv.reg `rdx in !!![
       MOV (Oreg (tmp, bty zt), Oimm (Bv.to_int64 z, zt));
@@ -1439,8 +1439,8 @@ end = struct
   let clz8_r_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let* tmp1 = C.Var.fresh >>| Rv.var `gpr in
-    let* tmp2 = C.Var.fresh >>| Rv.var `gpr in !!![
+    let* tmp1 = C.Var.fresh >>| Rv.var GPR in
+    let* tmp2 = C.Var.fresh >>| Rv.var GPR in !!![
       MOVZX (Oreg (tmp1, `i16), Oreg (y, yt));
       SHL (Oreg (tmp1, `i16), Oimm (8L, `i8));
       OR (Oreg (tmp1, `i16), Oimm (0xFFL, `i16));
@@ -1458,8 +1458,8 @@ end = struct
   let ctz8_r_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let* tmp1 = C.Var.fresh >>| Rv.var `gpr in
-    let* tmp2 = C.Var.fresh >>| Rv.var `gpr in !!![
+    let* tmp1 = C.Var.fresh >>| Rv.var GPR in
+    let* tmp2 = C.Var.fresh >>| Rv.var GPR in !!![
       MOVZX (Oreg (tmp1, `i16), Oreg (y, yt));
       OR (Oreg (tmp1, `i16), Oimm (0xFF00L, `i16));
       TZCNT (Oreg (tmp2, `i16), Oreg (tmp1, `i16));
@@ -1476,8 +1476,8 @@ end = struct
   let popcnt8_r_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let* tmp1 = C.Var.fresh >>| Rv.var `gpr in
-    let* tmp2 = C.Var.fresh >>| Rv.var `gpr in !!![
+    let* tmp1 = C.Var.fresh >>| Rv.var GPR in
+    let* tmp2 = C.Var.fresh >>| Rv.var GPR in !!![
       MOVZX (Oreg (tmp1, `i16), Oreg (y, yt));
       POPCNT (Oreg (tmp2, `i16), Oreg (tmp1, `i16));
       MOV (Oreg (x, xt), Oreg (tmp2, `i8));
@@ -1707,13 +1707,13 @@ end = struct
     let*! () = guard (Type.equal_basic (ti :> Type.basic) yt) in
     match ti, tf with
     | (`i8 | `i16), `f32 ->
-      let* tmp = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
         MOVZX (Oreg (tmp, `i32), Oreg (y, yt));
         XORPS (Oreg (x, xt), Oreg (x, xt));
         CVTSI2SS (Oreg (x, xt), Oreg (tmp, `i32));
       ]
     | `i32, `f32 ->
-      let* tmp = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
         MOV (Oreg (tmp, `i32), Oreg (y, yt));
         XORPS (Oreg (x, xt), Oreg (x, xt));
         CVTSI2SS (Oreg (x, xt), Oreg (tmp, `i64));
@@ -1723,13 +1723,13 @@ end = struct
         CVTSI2SS (Oreg (x, xt), Oreg (y, yt));
       ]
     | (`i8 | `i16), `f64 ->
-      let* tmp = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
         MOVZX (Oreg (tmp, `i32), Oreg (y, yt));
         XORPD (Oreg (x, xt), Oreg (x, xt));
         CVTSI2SD (Oreg (x, xt), Oreg (tmp, `i32));
       ]
     | `i32, `f64 ->
-      let* tmp = C.Var.fresh >>| Rv.var `gpr in !!![
+      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
         MOV (Oreg (tmp, `i32), Oreg (y, yt));
         XORPD (Oreg (x, xt), Oreg (x, xt));
         CVTSI2SD (Oreg (x, xt), Oreg (tmp, `i64));
@@ -1770,8 +1770,8 @@ end = struct
       let highest' = Int64.(highest - lowest) in
       let diff = Int64.(highest - highest') in
       let* tl = C.Label.fresh in
-      let* tbase = C.Var.fresh >>| Rv.var `gpr in
-      let+ tidx = C.Var.fresh >>| Rv.var `gpr in
+      let* tbase = C.Var.fresh >>| Rv.var GPR in
+      let+ tidx = C.Var.fresh >>| Rv.var GPR in
       let rax = Rv.reg `rax in
       Option.some @@ List.concat [
         (* Compare against the lowest value, if necessary. *)
