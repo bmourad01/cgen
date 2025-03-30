@@ -546,11 +546,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Func.blks t.fn |> C.Seq.map ~f:(fun b ->
           let+ insns =
             Blk.insns b |> C.Seq.map ~f:(fun i ->
-                let insn = Insn.insn i in
-                Replace_slots.replace (Hash_set.mem t.slots) insn >>=
-                C.List.map ~f:(fun insn ->
-                    let+ label = C.Label.fresh in
-                    Insn.create ~label ~insn))
+                Replace_slots.replace
+                  (Hash_set.mem t.slots)
+                  (Insn.insn i) >>= function
+                | [] -> !![]
+                (* Try to save fresh labels if we can. *)
+                | [insn] -> !![Insn.with_insn i insn]
+                | insn :: insns ->
+                  let i' = Insn.with_insn i insn in
+                  let+ is' = C.List.map insns ~f:(fun insn ->
+                      let+ label = C.Label.fresh in
+                      Insn.create ~label ~insn) in
+                  i' :: is')
             >>| Seq.to_list in
           Blk.with_insns b @@ List.concat insns)
       >>| Seq.to_list in
