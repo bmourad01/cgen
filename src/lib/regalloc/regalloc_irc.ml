@@ -353,7 +353,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         (* okColors := {0,...,K-1} *)
         let k = Regs.node_k n in
         let cs = ref Z.(pred (one lsl k)) in
-        cs := Z.(!cs land Regs.scratch_inv_mask);
+        (* XXX: do we need a designated scratch register? *)
+        (* cs := Z.(!cs land Regs.scratch_inv_mask); *)
         eliminate_colors t n cs;
         (* if okColors = {} then *)
         if Z.(equal !cs zero) then
