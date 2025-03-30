@@ -254,8 +254,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Func.blks t.fn |> Seq.to_list |>
     List.sort ~compare:(compare_postorder t) |>
     C.List.fold ~init:[] ~f:(fun acc b ->
-        step t b >>| Fn.flip List.cons acc)
-    >>| List.concat
+        let+ bs = step t b in
+        bs @ acc)
 
   let transl_rets t =
     Func.blks t.fn |> C.Seq.fold ~init:[] ~f:(fun acc b ->
