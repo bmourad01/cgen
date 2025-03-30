@@ -29,7 +29,7 @@ type 'r t = {
   blks  : blk Label.Tree.t;
   v2id  : Id.t Var.Table.t;
   id2r  : 'r Id.Table.t;
-  insn  : Id.t Ftree.t Label.Table.t;
+  insn  : Id.t list Label.Table.t;
   extra : Label.t list Label.Table.t;
   frame : bool;
 }
@@ -41,9 +41,8 @@ let new_node ?l ?ty t n : Id.t =
   assert (id = Vec.length t.typs);
   Vec.push t.node n;
   Vec.push t.typs @@ Uopt.of_option ty;
-  Option.iter l ~f:(Hashtbl.update t.insn ~f:(function
-      | Some ids -> Ftree.snoc ids id
-      | None -> Ftree.singleton id));
+  Option.iter l ~f:(fun key ->
+      Hashtbl.add_multi t.insn ~key ~data:id);
   id
 
 let node t id = Vec.get_exn t.node id

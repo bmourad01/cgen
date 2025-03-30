@@ -216,12 +216,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | None -> fail_match t l id
     | Some is -> !!is
 
+  (* NB: the list we get from `t.insn` is in reverse order, so a normal
+     fold will correct it. *)
   let insns t l = match Hashtbl.find t.insn l with
     | None -> !![]
-    | Some ids ->
-      Ftree.to_list ids |>
-      C.List.map ~f:(match_one t l) >>|
-      List.concat
+    | Some ids -> C.List.fold ids ~init:[] ~f:(fun acc id ->
+        let+ insns = match_one t l id in
+        insns @ acc)
 
   let freshen = C.List.map ~f:(fun i ->
       let+ label = C.Label.fresh in
