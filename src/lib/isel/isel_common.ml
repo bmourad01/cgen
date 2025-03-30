@@ -12,22 +12,6 @@ type 'r node =
   | Tbl of Label.t * (Bv.t * Label.t) list
 [@@deriving compare, equal, sexp]
 
-let commute = function
-  | N (Obinop b, [x; y]) ->
-    begin match b with
-      | `add _
-      | `mul _
-      | `mulh _
-      | `umulh _
-      | `and_ _
-      | `or_ _
-      | `xor _
-      | `eq _
-      | `ne _ -> Some (N (Obinop b, [y; x]))
-      | _ -> None
-    end
-  | _ -> None
-
 type ty = [Type.basic | `flag | `v128]
 
 (* XXX: maybe we should let the machine implementation decide this. *)

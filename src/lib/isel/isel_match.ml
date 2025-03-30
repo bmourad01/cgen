@@ -17,12 +17,82 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let wordb = (word :> Type.basic)
 
   type rule = (Rv.t, M.Insn.t) R.t
+  type callback = (Rv.t, M.Insn.t) R.callback
   type env = Rv.t S.t
   type k = env -> env
 
   let pp_node t = pp_node t Rv.pp
 
-  let search t p id =
+  type pat =
+    | V1 of string
+    | P1 of P.op * pat list
+
+  let rec pp_pat ppf = function
+    | V1 x -> Format.fprintf ppf "?%s" x
+    | P1 (op, []) -> Format.fprintf ppf "%a" P.pp_op op
+    | P1 (op, ps) ->
+      let pp_sep ppf () = Format.fprintf ppf " " in
+      Format.fprintf ppf "(%a %a)"
+        P.pp_op op
+        (Format.pp_print_list ~pp_sep pp_pat)
+        ps
+
+  let rec to_untyped : type a b. (a, b) P.t -> pat = function
+    | P (op, ps) -> P1 (op, List.map ps ~f:to_untyped)
+    | V x -> V1 x
+
+  type tables = {
+    moves : (P.op, (pat * pat list * callback list) seq) Hashtbl.t;
+    other : (P.op, (pat list * callback list) seq) Hashtbl.t;
+  }
+
+  (* Reduce the search space by specializing the top-level pattern
+     for each rule's LHS. It stands to reason that we will have many
+     rules but only a handful of them will match with any given node. *)
+  let build_tables (rules : rule list) =
+    let module Op = struct
+      type t = P.op [@@deriving compare, hash, sexp]
+    end in
+    let ts = {
+      moves = Hashtbl.create (module Op);
+      other = Hashtbl.create (module Op);
+    } in
+    (* We'll store it as a sequence since it will be modified on-demand
+       during the search. *)
+    let update t k a = Hashtbl.update t k ~f:(function
+        | Some s -> Seq.(append s @@ singleton a)
+        | None -> Seq.singleton a) in
+    List.iter rules ~f:(fun (pre, post) ->
+        match to_untyped pre with
+        | P1 (Omove, [a; P1 (op, ps)]) ->
+          update ts.moves op (a, ps, post)
+        | P1 (op, ps) ->
+          update ts.other op (ps, post)
+        | V1 _ -> assert false);
+    ts
+
+  let rules = (I.rules :> rule list)
+  let tables = build_tables rules
+
+  let commutable = function
+    | P.Obinop b ->
+      begin match b with
+        | `add _
+        | `mul _
+        | `mulh _
+        | `umulh _
+        | `and_ _
+        | `or_ _
+        | `xor _
+        | `eq _
+        | `ne _ -> true
+        | _ -> false
+      end
+    | _ -> false
+
+  (* The actual tree-matching routine, which builds up a substitution
+     for the LHS of a rule, for consumption by the callbacks on the RHS. *)
+  let search t =
     let subst env id x term = Map.update env x ~f:(function
         | Some i when i.S.id = id ->
           assert (S.equal_term Rv.equal i.tm term); i
@@ -36,22 +106,19 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | Some `flag ->
         k @@ subst env id x @@ Regvar (r, wordb)
       | None -> raise_notrace Mismatch in
-    let rec go : type a b. env -> (a, b) P.t -> Id.t -> k -> env =
-      fun env p id k -> match p with
-        | P (x, xs) -> pat env x xs id k
-        | V x -> var env x id k
-    and pat : type b c. env -> P.op -> (b, c) P.t list -> Id.t -> k -> env =
-      fun env x xs id k -> match node t id with
-        | N (y, ys) as n when P.equal_op x y ->
-          (* If it fails initially, see if commuting the operands will produce
-             a match. This should cut down on the number of cases we have to
-             cover in our patterns. *)
-          begin try children env xs ys k with
-            | Mismatch -> match commute n with
-              | Some N (_, ys) -> children env xs ys k
-              | _ -> raise_notrace Mismatch
-          end
-        | N _ | Rv _ | Tbl _ -> raise_notrace Mismatch
+    let rec go env p id k = match p with
+      | P1 (x, xs) -> pat env x xs id k
+      | V1 x -> var env x id k
+    and pat env x xs id k = match node t id with
+      | N (y, ys) when P.equal_op x y ->
+        (* If it fails initially, see if commuting the operands will produce
+           a match. This should cut down on the number of cases we have to
+           cover in our patterns. *)
+        begin try children env xs ys k with
+          | Mismatch when commutable x ->
+            children env xs (List.rev ys) k
+        end
+      | N _ | Rv _ | Tbl _ -> raise_notrace Mismatch
     and var env x id k = match node t id with
       | N (Oaddr a, []) -> k @@ subst env id x @@ Imm (a, wordi)
       | N (Obool b, []) -> k @@ subst env id x @@ Bool b
@@ -65,18 +132,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | N _ -> match Hashtbl.find t.id2r id with
         | None -> raise_notrace Mismatch
         | Some r -> regvar env x r id k
-    and children : type b c. env -> (b, c) P.t list -> Id.t list -> k -> env =
-      fun env xs ys k -> match List.zip xs ys with
-        | Unequal_lengths -> raise_notrace Mismatch
-        | Ok l -> child env k l
-    and child : type b c. env -> k -> ((b, c) P.t * Id.t) list -> env =
-      fun env k -> function
-        | [] -> k env
-        | [p, id] -> go env p id k
-        | (p, id) :: xs ->
-          go env p id @@ fun env ->
-          child env k xs in
-    go S.empty p id Base.Fn.id
+    and children env xs ys k = match List.zip xs ys with
+      | Unequal_lengths -> raise_notrace Mismatch
+      | Ok l -> child env k l
+    and child env k = function
+      | [] -> k env
+      | [p, id] -> go env p id k
+      | (p, id) :: xs ->
+        go env p id @@ fun env ->
+        child env k xs in
+    (fun env p id -> go env p id Base.Fn.id),
+    (fun env xs ys -> children env xs ys Base.Fn.id)
 
   (* The most general rule `move ?x ?y` needs to exclude cases where ?x and
      ?y refer to the same term, otherwise we will mistakenly achieve coverage
@@ -87,7 +153,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      it.
   *)
   let is_blank_move env = function
-    | P.P (Omove, [V x; V y]) ->
+    | [V1 x; V1 y] ->
       begin match Map.find env x, Map.find env y with
         | Some x, Some y ->
           let open S in
@@ -100,21 +166,55 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       end
     | _ -> false
 
+  let fail_match t l id =
+    C.failf "In Isel_match.match_one: at label %a in function $%s: \
+             failed to produce instructions for node %a (id %d)"
+      Label.pp l (Func.name t.fn) (pp_node t) id id ()
+
+  (* Find the appropriate rules to match against based on the top-level
+     operator of the current node. *)
+  let fetch_rules t l id =
+    let default op cs = match Hashtbl.find tables.other op with
+      | None -> fail_match t l id
+      | Some tls -> Seq.map tls ~f:(fun (ps, posts) ->
+          None, (cs, ps), posts) |> C.return in
+    match node t id with
+    | N (Omove, [a; b]) ->
+      begin match node t b with
+        | N (op, cs) ->
+          begin match Hashtbl.find tables.moves op with
+            | None -> default Omove [a; b]
+            | Some tls -> Seq.map tls ~f:(fun (pa, ps, posts) ->
+                Some (a, pa, op), (cs, ps), posts) |> C.return
+          end
+        | Rv _ -> default Omove [a; b]
+        | _ -> fail_match t l id
+      end
+    | N (op, cs) -> default op cs
+    | _ -> fail_match t l id
+
   let match_one t l id =
-    let rules = (I.rules :> rule list) in
-    C.List.find_map rules ~f:(function
-        | _, [] -> !!None
-        | pre, posts ->
+    let* rules = fetch_rules t l id in
+    let go, children = search t in
+    C.Seq.find_map rules ~f:(function
+        | _, _, [] -> !!None
+        | p, (cs, ps), posts ->
           try
-            let env = search t pre id in
-            if is_blank_move env pre then raise_notrace Mismatch;
+            let env, comm = match p with
+              | None -> S.empty, false
+              | Some (c, p, op) ->
+                (* Do the match first before checking commutativity. *)
+                let env = go S.empty p c in
+                env, commutable op in
+            let env = try children env ps cs with
+              | Mismatch when comm ->
+                children env ps @@ List.rev cs in
+            if Option.is_none p && is_blank_move env ps
+            then raise_notrace Mismatch;
             R.try_ env posts
           with Mismatch -> !!None) >>= function
+    | None -> fail_match t l id
     | Some is -> !!is
-    | None ->
-      C.failf "In Isel_match.match_one: at label %a in function $%s: \
-               failed to produce instructions for node %a (id %d)"
-        Label.pp l (Func.name t.fn) (pp_node t) id id ()
 
   let insns t l = match Hashtbl.find t.insn l with
     | None -> !![]
