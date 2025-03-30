@@ -367,162 +367,177 @@ module Insn = struct
     | Jlbl of Label.t
   [@@deriving bin_io, compare, equal, sexp]
 
-  type t =
-    | ADD      of operand * operand
-    | ADDSD    of operand * operand
-    | ADDSS    of operand * operand
-    | AND      of operand * operand
-    | CALL     of operand
-    | CDQ
-    | CMOVcc   of cc * operand * operand
-    | CMP      of operand * operand
-    | CQO
-    | CWD
-    | CVTSD2SI of operand * operand
-    | CVTSD2SS of operand * operand
-    | CVTSI2SD of operand * operand
-    | CVTSI2SS of operand * operand
-    | CVTSS2SI of operand * operand
-    | CVTSS2SD of operand * operand
-    | DEC      of operand
-    | DIV      of operand
-    | DIVSD    of operand * operand
-    | DIVSS    of operand * operand
-    | IDIV     of operand
-    | IMUL1    of operand
-    | IMUL2    of operand * operand
-    | IMUL3    of operand * operand * int32
-    | INC      of operand
-    | Jcc      of cc * Label.t
-    | JMP      of jmp
-    | LEA      of operand * operand
-    | LZCNT    of operand * operand
-    | MOV      of operand * operand
-    | MOVD     of operand * operand
-    | MOVDQA   of operand * operand
-    | MOVQ     of operand * operand
-    | MOVSD    of operand * operand
-    | MOVSS    of operand * operand
-    | MOVSX    of operand * operand
-    | MOVSXD   of operand * operand
-    | MOVZX    of operand * operand
-    | MUL      of operand
-    | MULSD    of operand * operand
-    | MULSS    of operand * operand
-    | NEG      of operand
-    | NOT      of operand
-    | OR       of operand * operand
-    | POP      of operand
-    | POPCNT   of operand * operand
-    | PUSH     of operand
-    | RET
-    | ROL      of operand * operand
-    | ROR      of operand * operand
-    | SAR      of operand * operand
-    | SETcc    of cc * operand
-    | SHL      of operand * operand
-    | SHR      of operand * operand
-    | SUB      of operand * operand
-    | SUBSD    of operand * operand
-    | SUBSS    of operand * operand
-    | TEST_    of operand * operand
-    | TZCNT    of operand * operand
-    | UCOMISD  of operand * operand
-    | UCOMISS  of operand * operand
-    | UD2
-    | XOR      of operand * operand
-    | XORPD    of operand * operand
-    | XORPS    of operand * operand
-    (* Same as `MOV`, but we want to force the zero-extension,
-       so this shouldn't be a target of peephole opts. *)
-    | MOV_     of operand * operand
-    (* Pseudo-instruction we will use to represent a jump table. *)
-    | JMPtbl   of Label.t * Label.t list
+  type unop =
+    | CALL
+    | DEC
+    | DIV
+    | IDIV
+    | IMUL1
+    | INC
+    | MUL
+    | NEG
+    | NOT
+    | POP
+    | PUSH
+    | SETcc of cc
   [@@deriving bin_io, compare, equal, sexp]
 
-  let pp ppf i =
-    let unary m a =
-      Format.fprintf ppf "%s %a" m pp_operand a in
-    let binary m a b =
-      Format.fprintf ppf "%s %a, %a" m pp_operand a pp_operand b in
-    match i with
-    | ADD (a, b) -> binary "add" a b
-    | ADDSD (a, b) -> binary "addsd" a b
-    | ADDSS (a, b) -> binary "addss" a b
-    | AND (a, b) -> binary "and" a b
-    | CALL a -> unary "call" a
-    | CDQ -> Format.fprintf ppf "cdq"
-    | CMOVcc (cc, a, b) ->
-      Format.fprintf ppf "cmov%a %a, %a"
-        pp_cc cc pp_operand a pp_operand b
-    | CMP (a, b) -> binary "cmp" a b
-    | CQO -> Format.fprintf ppf "cqo"
-    | CWD -> Format.fprintf ppf "cwd"
-    | CVTSD2SI (a, b) -> binary "cvtsd2si" a b
-    | CVTSD2SS (a, b) -> binary "cvtsd2ss" a b
-    | CVTSI2SD (a, b) -> binary "cvtsi2sd" a b
-    | CVTSI2SS (a, b) -> binary "cvtsi2ss" a b
-    | CVTSS2SI (a, b) -> binary "cvtss2si" a b
-    | CVTSS2SD (a, b) -> binary "cvtss2sd" a b
-    | DEC a -> unary "dec" a
-    | DIV a -> unary "div" a
-    | DIVSD (a, b) -> binary "divsd" a b
-    | DIVSS (a, b) -> binary "divss" a b
-    | IDIV a -> unary "idiv" a
-    | IMUL1 a -> unary "imul" a
-    | IMUL2 (a, b) -> binary "imul" a b
+  let pp_unop ppf = function
+    | CALL -> Format.fprintf ppf "call"
+    | DEC -> Format.fprintf ppf "dec"
+    | DIV -> Format.fprintf ppf "div"
+    | IDIV -> Format.fprintf ppf "idiv"
+    | IMUL1 -> Format.fprintf ppf "imul"
+    | INC -> Format.fprintf ppf "inc"
+    | MUL -> Format.fprintf ppf "mul"
+    | NEG -> Format.fprintf ppf "neg"
+    | NOT -> Format.fprintf ppf "not"
+    | POP -> Format.fprintf ppf "pop"
+    | PUSH -> Format.fprintf ppf "push"
+    | SETcc cc -> Format.fprintf ppf "set%a" pp_cc cc
+
+  type binop =
+    | ADD
+    | ADDSD
+    | ADDSS
+    | AND
+    | CMOVcc of cc
+    | CMP
+    | CVTSD2SI
+    | CVTSD2SS
+    | CVTSI2SD
+    | CVTSI2SS
+    | CVTSS2SD
+    | CVTSS2SI
+    | DIVSD
+    | DIVSS
+    | IMUL2
+    | LEA
+    | LZCNT
+    | MOV
+    | MOVD
+    | MOVDQA
+    | MOVQ
+    | MOVSD
+    | MOVSS
+    | MOVSX
+    | MOVSXD
+    | MOVZX
+    | MULSD
+    | MULSS
+    | OR
+    | POPCNT
+    | ROL
+    | ROR
+    | SAR
+    | SHL
+    | SHR
+    | SUB
+    | SUBSD
+    | SUBSS
+    | TEST_
+    | TZCNT
+    | UCOMISD
+    | UCOMISS
+    | XOR
+    | XORPD
+    | XORPS
+    (* Same as `MOV`, but we want to force the zero-extension,
+       so this shouldn't be a target of peephole opts. *)
+    | MOV_
+  [@@deriving bin_io, compare, equal, sexp]
+
+  let pp_binop ppf = function
+    | ADD -> Format.fprintf ppf "add"
+    | ADDSD -> Format.fprintf ppf "addsd"
+    | ADDSS -> Format.fprintf ppf "addss"
+    | AND -> Format.fprintf ppf "and"
+    | CMOVcc cc -> Format.fprintf ppf "cmov%a" pp_cc cc
+    | CMP -> Format.fprintf ppf "cmp"
+    | CVTSD2SI -> Format.fprintf ppf "cvtsd2si"
+    | CVTSD2SS -> Format.fprintf ppf "cvtsd2ss"
+    | CVTSI2SD -> Format.fprintf ppf "cvtsi2sd"
+    | CVTSI2SS -> Format.fprintf ppf "cvtsi2ss"
+    | CVTSS2SD -> Format.fprintf ppf "cvtss2sd"
+    | CVTSS2SI -> Format.fprintf ppf "cvtss2si"
+    | DIVSD -> Format.fprintf ppf "divsd"
+    | DIVSS -> Format.fprintf ppf "divss"
+    | IMUL2 -> Format.fprintf ppf "imul"
+    | LEA -> Format.fprintf ppf "lea"
+    | LZCNT -> Format.fprintf ppf "lzcnt"
+    | MOV -> Format.fprintf ppf "mov"
+    | MOVD -> Format.fprintf ppf "movd"
+    | MOVDQA -> Format.fprintf ppf "movdqa"
+    | MOVQ -> Format.fprintf ppf "movq"
+    | MOVSD -> Format.fprintf ppf "movsd"
+    | MOVSS -> Format.fprintf ppf "movss"
+    | MOVSX -> Format.fprintf ppf "movsx"
+    | MOVSXD -> Format.fprintf ppf "movsxd"
+    | MOVZX -> Format.fprintf ppf "movzx"
+    | MULSD -> Format.fprintf ppf "mulsd"
+    | MULSS -> Format.fprintf ppf "mulss"
+    | OR -> Format.fprintf ppf "or"
+    | POPCNT -> Format.fprintf ppf "popcnt"
+    | ROL -> Format.fprintf ppf "rol"
+    | ROR -> Format.fprintf ppf "ror"
+    | SAR -> Format.fprintf ppf "sar"
+    | SHL -> Format.fprintf ppf "shl"
+    | SHR -> Format.fprintf ppf "shr"
+    | SUB -> Format.fprintf ppf "sub"
+    | SUBSD -> Format.fprintf ppf "subsd"
+    | SUBSS -> Format.fprintf ppf "subss"
+    | TEST_ -> Format.fprintf ppf "test"
+    | TZCNT -> Format.fprintf ppf "tzcnt"
+    | UCOMISD -> Format.fprintf ppf "ucomisd"
+    | UCOMISS -> Format.fprintf ppf "ucomiss"
+    | XOR -> Format.fprintf ppf "xor"
+    | XORPD -> Format.fprintf ppf "xorpd"
+    | XORPS -> Format.fprintf ppf "xorpss"
+    | MOV_ -> Format.fprintf ppf "mov"
+
+  type t =
+    | One of unop * operand
+    | Two of binop * operand * operand
+    | CDQ
+    | CQO
+    | CWD
+    | IMUL3 of operand * operand * int32
+    | Jcc of cc * Label.t
+    | JMP of jmp
+    | RET
+    | UD2
+    (* Pseudo-instruction we will use to represent a jump table. *)
+    | JMPtbl of Label.t * Label.t list
+  [@@deriving bin_io, compare, equal, sexp]
+
+  let pp ppf = function
+    | One (op, a) ->
+      Format.fprintf ppf "%a %a" pp_unop op pp_operand a
+    | Two (op, a, b) ->
+      Format.fprintf ppf "%a %a, %a"
+        pp_binop op pp_operand a pp_operand b;
+      if equal_binop op MOV_ then
+        Format.fprintf ppf " ; zx";
+    | CDQ ->
+      Format.fprintf ppf "cdq"
+    | CQO ->
+      Format.fprintf ppf "cqo"
+    | CWD ->
+      Format.fprintf ppf "cwd"
     | IMUL3 (a, b, c) ->
       Format.fprintf ppf "imul %a, %a, 0x%lx"
         pp_operand a pp_operand b c
-    | INC a -> unary "inc" a
     | Jcc (cc, l) ->
-      Format.fprintf ppf "j%a %a" pp_cc cc Label.pp l
-    | JMP (Jind a) -> unary "jmp" a
+      Format.fprintf ppf "j%a %a"
+        pp_cc cc Label.pp l
+    | JMP (Jind a) ->
+      Format.fprintf ppf "jmp %a" pp_operand a
     | JMP (Jlbl l) ->
       Format.fprintf ppf "jmp %a" Label.pp l
-    | LEA (a, b) -> binary "lea" a b
-    | LZCNT (a, b) -> binary "lzcnt" a b
-    | MOV (a, b) -> binary "mov" a b
-    | MOVD (a, b) -> binary "movd" a b
-    | MOVDQA (a, b) -> binary "movdqa" a b
-    | MOVQ (a, b) -> binary "movq" a b
-    | MOVSD (a, b) -> binary "movsd" a b
-    | MOVSS (a, b) -> binary "movss" a b
-    | MOVSX (a, b) -> binary "movsx" a b
-    | MOVSXD (a, b) -> binary "movsxd" a b
-    | MOVZX (a, b) -> binary "movzx" a b
-    | MUL a -> unary "mul" a
-    | MULSD (a, b) -> binary "mulsd" a b
-    | MULSS (a, b) -> binary "mulss" a b
-    | NEG a -> unary "neg" a
-    | NOT a -> unary "not" a
-    | OR (a, b) -> binary "or" a b
-    | POP a -> unary "pop" a
-    | POPCNT (a, b) -> binary "popcnt" a b
-    | PUSH a -> unary "push" a
-    | RET -> Format.fprintf ppf "ret"
-    | ROL (a, b) -> binary "rol" a b
-    | ROR (a, b) -> binary "ror" a b
-    | SAR (a, b) -> binary "sar" a b
-    | SETcc (cc, a) ->
-      Format.fprintf ppf "set%a %a" pp_cc cc pp_operand a
-    | SHL (a, b) -> binary "shl" a b
-    | SHR (a, b) -> binary "shr" a b
-    | SUB (a, b) -> binary "sub" a b
-    | SUBSD (a, b) -> binary "subsd" a b
-    | SUBSS (a, b) -> binary "subss" a b
-    | TEST_ (a, b) -> binary "test" a b
-    | TZCNT (a, b) -> binary "tzcnt" a b
-    | UCOMISD (a, b) -> binary "ucomisd" a b
-    | UCOMISS (a, b) -> binary "ucomiss" a b
-    | UD2 -> Format.fprintf ppf "ud2"
-    | XOR (a, b) -> binary "xor" a b
-    | XORPD (a, b) -> binary "xorpd" a b
-    | XORPS (a, b) -> binary "xorps" a b
-    | MOV_ (a, b) ->
-      binary "mov" a b;
-      (* Make a little note here. *)
-      Format.fprintf ppf " ; zx"
+    | RET ->
+      Format.fprintf ppf "ret"
+    | UD2 ->
+      Format.fprintf ppf "ud2"
     | JMPtbl (l, ls) ->
       let pp_sep ppf () = Format.fprintf ppf ", " in
       Format.fprintf ppf ".tbl %a [@[%a@]]"
@@ -570,195 +585,214 @@ module Insn = struct
 
   (* Registers read by an instruction. *)
   let reads call = function
-    | ADD (a, b)
-    | ADDSD (a, b)
-    | ADDSS (a, b)
-    | AND (a, b)
-    | CMP (a, b)
-    | DIVSD (a, b)
-    | DIVSS (a, b)
-    | IMUL2 (a, b)
-    | MULSD (a, b)
-    | MULSS (a, b)
-    | OR (a, b)
-    | ROL (a, b)
-    | ROR (a, b)
-    | SAR (a, b)
-    | SHL (a, b)
-    | SHR (a, b)
-    | SUB (a, b)
-    | SUBSD (a, b)
-    | SUBSS (a, b)
-    | TEST_ (a, b)
-    | UCOMISD (a, b)
-    | UCOMISS (a, b)
-      -> rset [a; b]
-    | CALL a ->
-      Set.union (rset' [`rsp]) @@
-      Set.union (rset_mem [a]) call
-    | PUSH a
-      -> Set.union (rset' [`rsp]) (rset_mem [a])
-    | CMOVcc (_, a, b)
-      (* We introduce a dependency on `a` so that any previous
-         writes to it will be preserved.
+    | Two (op, a, b) ->
+      begin match op with
+        | ADD
+        | ADDSD
+        | ADDSS
+        | AND
+        | CMP
+        | DIVSD
+        | DIVSS
+        | IMUL2
+        | MULSD
+        | MULSS
+        | OR
+        | ROL
+        | ROR
+        | SAR
+        | SHL
+        | SHR
+        | SUB
+        | SUBSD
+        | SUBSS
+        | TEST_
+        | UCOMISD
+        | UCOMISS
+          -> rset [a; b]
+        | CMOVcc _
+          (* We introduce a dependency on `a` so that any previous
+             writes to it will be preserved.
 
-         This is morally equivalent to:
+             This is morally equivalent to:
 
-         `x := cc ? b : a`
-      *)
-      ->
-      Set.union (rset' [`rflags])
-        (Set.union (rset_reg [a]) (rset [b]))
-    | CVTSD2SI (_, a)
-    | CVTSD2SS (_, a)
-    | CVTSI2SD (_, a)
-    | CVTSI2SS (_, a)
-    | CVTSS2SI (_, a)
-    | CVTSS2SD (_, a)
-    | DEC a
-    | IMUL3 (_, a, _)
-    | INC a
-    | JMP (Jind a)
-    | LEA (_, a)
-    | LZCNT (_, a)
-    | MOVSX (_, a)
-    | MOVSXD (_, a)
-    | MOVZX (_, a)
-    | NEG a
-    | NOT a
-    | POPCNT (_, a)
-    | TZCNT (_, a)
-      -> rset [a]
-    | MOV (a, b)
-    | MOV_ (a, b)
-    | MOVD (a, b)
-    | MOVDQA (a, b)
-    | MOVQ (a, b)
-    | MOVSD (a, b)
-    | MOVSS (a, b)
-      -> Set.union (rset_mem [a]) (rset [b])
+             `x := cc ? b : a`
+          *)
+          ->
+          Set.union (rset' [`rflags])
+            (Set.union (rset_reg [a]) (rset [b]))
+        | CVTSD2SI
+        | CVTSD2SS
+        | CVTSI2SD
+        | CVTSI2SS
+        | CVTSS2SD
+        | CVTSS2SI
+        | LEA
+        | LZCNT
+        | MOVSX
+        | MOVSXD
+        | MOVZX
+        | POPCNT
+        | TZCNT
+          -> rset [b]
+        | MOV
+        | MOV_
+        | MOVD
+        | MOVDQA
+        | MOVQ
+        | MOVSD
+        | MOVSS
+          -> Set.union (rset_mem [a]) (rset [b])
+        | XOR
+        | XORPD
+        | XORPS ->
+          begin match a, b with
+            | Oreg (a, _), Oreg (b, _) when Regvar.(a = b)
+              (* Special case for XORing with self: this isn't really a use
+                 of the register, since we're just assigning 0. *)
+              -> Regvar.Set.empty
+            | _ -> rset [a; b]
+          end
+      end
+    | One (op, a) ->
+      begin match op with
+        | CALL ->
+          Set.union (rset' [`rsp]) @@
+          Set.union (rset_mem [a]) call
+        | DEC
+        | INC
+        | NEG
+        | NOT
+          -> rset [a]
+        | DIV
+        | IDIV ->
+          begin match a with
+            | Oreg (_, `i8)
+              -> Set.union (rset' [`rax]) (rset [a])
+            | _ 
+              -> Set.union (rset' [`rax; `rdx]) (rset [a])
+          end
+        | IMUL1
+        | MUL
+          -> Set.union (rset' [`rax]) (rset [a])
+        | SETcc _
+          (* SETcc will "read" the destination in the sense that
+             only the lower 8 bits are changed. *)
+          -> Set.union (rset' [`rflags]) (rset [a])
+        | POP
+        | PUSH
+          -> Set.union (rset' [`rsp]) (rset_mem [a])
+      end
+    | JMP (Jind a) -> rset [a]
     | CDQ
     | CQO
     | CWD
       -> rset' [`rax]
-    | DIV (Oreg (_, `i8) as a)
-    | IDIV (Oreg (_, `i8) as a)
-    | IMUL1 a
-    | MUL a
-      -> Set.union (rset' [`rax]) (rset [a])
-    | DIV a
-    | IDIV a
-      -> Set.union (rset' [`rax; `rdx]) (rset [a])
-    | Jcc (_, _)
+    | IMUL3 (_, b, _)
+      -> rset [b]
+    | Jcc _
       -> rset' [`rflags]
-    | SETcc (_, a)
-      (* SETcc will "read" the destination in the sense that
-         only the lower 8 bits are changed. *)
-      -> Set.union (rset' [`rflags]) (rset [a])
     | JMP (Jlbl _)
+      -> Regvar.Set.empty
+    | RET
+      -> rset' [`rsp]
     | UD2
     | JMPtbl _
       -> Regvar.Set.empty
-    | POP a
-      -> Set.union (rset' [`rsp]) (rset_mem [a])
-    | RET
-      -> rset' [`rsp]
-    (* Special case for XORing with self: this isn't really a use
-       of the register, since we're just assigning 0. *)
-    | XOR (Oreg (a, _), Oreg (b, _))
-    | XORPD (Oreg (a, _), Oreg (b, _))
-    | XORPS (Oreg (a, _), Oreg (b, _))
-      when Regvar.(a = b)
-      -> Regvar.Set.empty
-    | XOR (a, b)
-    | XORPD (a, b)
-    | XORPS (a, b)
-      -> rset [a; b]
 
   (* Registers written to by an instruction. *)
   let writes call = function
-    | ADD (a, _)
-    | AND (a, _)
-    | DEC a
-    | IMUL2 (a, _)
+    | Two (op, a, _) ->
+      begin match op with
+        | ADD
+        | AND
+        | IMUL2
+        | LZCNT
+        | OR
+        | POPCNT
+        | ROL
+        | ROR
+        | SAR
+        | SHL
+        | SHR
+        | SUB
+        | XOR
+          -> Set.union (rset' [`rflags]) (rset_reg [a])
+        | ADDSD
+        | ADDSS
+        | CMOVcc _
+        | CVTSD2SI
+        | CVTSD2SS
+        | CVTSI2SD
+        | CVTSI2SS
+        | CVTSS2SD
+        | CVTSS2SI
+        | DIVSD
+        | DIVSS
+        | LEA
+        | MOV
+        | MOV_
+        | MOVD
+        | MOVDQA
+        | MOVQ
+        | MOVSD
+        | MOVSS
+        | MOVSX
+        | MOVSXD
+        | MOVZX
+        | MULSD
+        | MULSS
+        | SUBSD
+        | SUBSS
+        | TZCNT
+        | XORPD
+        | XORPS
+          -> rset_reg [a]
+        | CMP
+        | TEST_
+        | UCOMISD
+        | UCOMISS
+          -> rset' [`rflags]
+      end
+    | One (op, a) ->
+      begin match op with
+        | DEC
+        | INC
+        | NEG
+        | NOT
+          -> Set.union (rset' [`rflags]) (rset_reg [a])
+        | SETcc _
+          -> rset_reg [a]
+        | CALL
+          -> Set.union (rset' [`rsp; `rflags]) call
+        | PUSH
+          -> rset' [`rsp]
+        | DIV
+        | IDIV
+        | IMUL1
+        | MUL ->
+          begin match a with
+            | Oreg (_, `i8)
+              -> rset' [`rax; `rflags]
+            | _
+              -> rset' [`rax; `rdx; `rflags]
+          end
+        | POP
+          -> Set.union (rset' [`rsp]) (rset_reg [a])
+      end
     | IMUL3 (a, _, _)
-    | INC a
-    | LZCNT (a, _)
-    | NEG a
-    | NOT a
-    | OR (a, _)
-    | POPCNT (a, _)
-    | ROL (a, _)
-    | ROR (a, _)
-    | SAR (a, _)
-    | SHL (a, _)
-    | SHR (a, _)
-    | SUB (a, _)
-    | XOR (a, _)
       -> Set.union (rset' [`rflags]) (rset_reg [a])
-    | ADDSD (a, _)
-    | ADDSS (a, _)
-    | CMOVcc (_, a, _)
-    | CVTSD2SI (a, _)
-    | CVTSD2SS (a, _)
-    | CVTSI2SD (a, _)
-    | CVTSI2SS (a, _)
-    | CVTSS2SI (a, _)
-    | CVTSS2SD (a, _)
-    | DIVSD (a, _)
-    | DIVSS (a, _)
-    | LEA (a, _)
-    | MOV (a, _)
-    | MOV_ (a, _)
-    | MOVD (a, _)
-    | MOVDQA (a, _)
-    | MOVQ (a, _)
-    | MOVSD (a, _)
-    | MOVSS (a, _)
-    | MOVSX (a, _)
-    | MOVSXD (a, _)
-    | MOVZX (a, _)
-    | MULSD (a, _)
-    | MULSS (a, _)
-    | SETcc (_, a)
-    | SUBSD (a, _)
-    | SUBSS (a, _)
-    | TZCNT (a, _)
-    | XORPD (a, _)
-    | XORPS (a, _)
-      -> rset_reg [a]
-    | CALL _
-      -> Set.union (rset' [`rsp; `rflags]) call
-    | PUSH _
     | RET
       -> rset' [`rsp]
-    | CMP _
-    | TEST_ _
-    | UCOMISD _
-    | UCOMISS _
-      -> rset' [`rflags]
     | Jcc _
     | JMP _
     | UD2
     | JMPtbl _
       -> Regvar.Set.empty
-    (* Special case for 8-bit div/mul. *)
-    | DIV Oreg (_, `i8)
-    | IDIV Oreg (_, `i8)
-    | IMUL1 Oreg (_, `i8)
-    | MUL Oreg (_, `i8)
-      -> rset' [`rax; `rflags]
     | CDQ
     | CQO
     | CWD
       -> rset' [`rdx]
-    | DIV _
-    | IDIV _
-    | IMUL1 _
-    | MUL _
-      -> rset' [`rax; `rdx; `rflags]
-    | POP a
-      -> Set.union (rset' [`rsp]) (rset_reg [a])
 
   let dests = function
     | Jcc (_, l) | JMP (Jlbl l) -> Label.Set.singleton l
@@ -772,92 +806,174 @@ module Insn = struct
   (* "illegal" here means that it is illegal to have a memory
      operand in the destination. *)
   let writes_to_memory = function
-    | ADD (a, _)
-    | ADDSD (a, _)
-    | ADDSS (a, _)
-    | AND (a, _)
-    | DEC a
-    | DIVSD (a, _)
-    | DIVSS (a, _)
-    | INC a
-    | MOV (a, _)
-    | MOV_ (a, _)
-    | MOVD (a, _)
-    | MOVDQA (a, _)
-    | MOVQ (a, _)
-    | MOVSD (a, _)
-    | MOVSS (a, _)
-    | MULSD (a, _)
-    | MULSS (a, _)
-    | NEG a
-    | NOT a
-    | OR (a, _)
-    | POP a
-    | ROL (a, _)
-    | ROR (a, _)
-    | SAR (a, _)
-    | SETcc (_, a)
-    | SHL (a, _)
-    | SHR (a, _)
-    | SUB (a, _)
-    | SUBSD (a, _)
-    | SUBSS (a, _)
-    | XOR (a, _)
-      -> is_mem a
-    | CALL _ (* writes to stack *)
-    | PUSH _ (* writes to stack *)
-      -> true
+    | Two (op, a, _) ->
+      begin match op with
+        | ADD
+        | ADDSD
+        | ADDSS
+        | AND
+        | DIVSD
+        | DIVSS
+        | MOV
+        | MOV_
+        | MOVD
+        | MOVDQA
+        | MOVQ
+        | MOVSD
+        | MOVSS
+        | MULSD
+        | MULSS
+        | OR
+        | ROL
+        | ROR
+        | SAR
+        | SHL
+        | SHR
+        | SUB
+        | SUBSD
+        | SUBSS
+        | XOR
+          -> is_mem a
+        | CMOVcc _ (* illegal *)
+        | CMP
+        | CVTSD2SI (* illegal *)
+        | CVTSD2SS (* illegal *)
+        | CVTSI2SD (* illegal *)
+        | CVTSI2SS (* illegal *)
+        | CVTSS2SI (* illegal *)
+        | CVTSS2SD (* illegal *)
+        | IMUL2
+        | LEA  (* illegal *)
+        | LZCNT (* illegal *)
+        | MOVSX (* illegal *)
+        | MOVZX (* illegal *)
+        | MOVSXD (* illegal *)
+        | POPCNT (* illegal *)
+        | TEST_
+        | TZCNT
+        | UCOMISD
+        | UCOMISS
+        | XORPD (* illegal *)
+        | XORPS (* illegal *)
+          -> false
+      end
+    | One (op, a) ->
+      begin match op with
+        | DEC
+        | INC
+        | NEG
+        | NOT
+        | POP
+        | SETcc _
+          -> is_mem a
+        | CALL (* writes to stack *)
+        | PUSH (* writes to stack *)
+          -> true
+        | DIV
+        | IDIV
+        | IMUL1
+        | MUL
+          -> false
+      end
     | CDQ
-    | CMOVcc _ (* illegal *)
-    | CMP _
     | CQO
     | CWD
-    | CVTSD2SI _ (* illegal *)
-    | CVTSD2SS _ (* illegal *)
-    | CVTSI2SD _ (* illegal *)
-    | CVTSI2SS _ (* illegal *)
-    | CVTSS2SI _ (* illegal *)
-    | CVTSS2SD _ (* illegal *)
-    | DIV _
-    | IDIV _
-    | IMUL1 _
-    | IMUL2 _
-    | IMUL3 _
     | Jcc _
     | JMP _
-    | LEA _ (* illegal *)
-    | LZCNT _ (* illegal *)
-    | MOVSX _ (* illegal *)
-    | MOVZX _ (* illegal *)
-    | MOVSXD _ (* illegal *)
-    | MUL _
-    | POPCNT _ (* illegal *)
     | RET (* XXX: is this OK? *)
-    | TEST_ _
-    | TZCNT _
-    | UCOMISD _
-    | UCOMISS _
     | UD2
-    | XORPD _ (* illegal *)
-    | XORPS _ (* illegal *)
     | JMPtbl _ (* fake *)
+    | IMUL3 _
       -> false
 
   let always_live = function
     | Jcc _
     | JMP _
-    | CALL _
+    | One (CALL, _)
     | RET
     | UD2
     | JMPtbl _
       -> true
     (* Special case for zeroing a register. *)
-    | XOR (Oreg (a, _), Oreg (b, _))
-    | XORPD (Oreg (a, _), Oreg (b, _))
+    | Two (XOR, Oreg (a, _), Oreg (b, _))
+    | Two (XORPD, Oreg (a, _), Oreg (b, _))
+    | Two (XORPS, Oreg (a, _), Oreg (b, _))
       when Regvar.equal a b -> true
     | i -> writes_to_memory i
 
   let is_return = function
     | RET -> true
     | _ -> false
+
+  module I = struct
+    let add a b = Two (ADD, a, b)
+    let addsd a b = Two (ADDSD, a, b)
+    let addss a b = Two (ADDSS, a, b)
+    let and_ a b = Two (AND, a, b)
+    let cmov cc a b = Two (CMOVcc cc, a, b)
+    let cmp a b = Two (CMP, a, b)
+    let cvtsd2si a b = Two (CVTSD2SI, a, b)
+    let cvtsd2ss a b = Two (CVTSD2SS, a, b)
+    let cvtsi2sd a b = Two (CVTSI2SD, a, b)
+    let cvtsi2ss a b = Two (CVTSI2SS, a, b)
+    let cvtss2sd a b = Two (CVTSS2SD, a, b)
+    let cvtss2si a b = Two (CVTSS2SI, a, b)
+    let divsd a b = Two (DIVSD, a, b)
+    let divss a b = Two (DIVSS, a, b)
+    let imul2 a b = Two (IMUL2, a, b)
+    let lea a b = Two (LEA, a, b)
+    let lzcnt a b = Two (LZCNT, a, b)
+    let mov a b = Two (MOV, a, b)
+    let mov_ a b = Two (MOV_, a, b)
+    let movd a b = Two (MOVD, a, b)
+    let movdqa a b = Two (MOVDQA, a, b)
+    let movq a b = Two (MOVQ, a, b)
+    let movsd a b = Two (MOVSD, a, b)
+    let movss a b = Two (MOVSS, a, b)
+    let movsx a b = Two (MOVSX, a, b)
+    let movsxd a b = Two (MOVSXD, a, b)
+    let movzx a b = Two (MOVZX, a, b)
+    let mulsd a b = Two (MULSD, a, b)
+    let mulss a b = Two (MULSS, a, b)
+    let or_ a b = Two (OR, a, b)
+    let popcnt a b = Two (POPCNT, a, b)
+    let rol a b = Two (ROL, a, b)
+    let ror a b = Two (ROR, a, b)
+    let sar a b = Two (SAR, a, b)
+    let shl a b = Two (SHL, a, b)
+    let shr a b = Two (SHR, a, b)
+    let sub a b = Two (SUB, a, b)
+    let subsd a b = Two (SUBSD, a, b)
+    let subss a b = Two (SUBSS, a, b)
+    let test a b = Two (TEST_, a, b)
+    let tzcnt a b = Two (TZCNT, a, b)
+    let ucomisd a b = Two (UCOMISD, a, b)
+    let ucomiss a b = Two (UCOMISS, a, b)
+    let xor a b = Two (XOR, a, b)
+    let xorpd a b = Two (XORPD, a, b)
+    let xorps a b = Two (XORPS, a, b)
+
+    let call a = One (CALL, a)
+    let dec a = One (DEC, a)
+    let div a = One (DIV, a)
+    let idiv a = One (IDIV, a)
+    let imul1 a = One (IMUL1, a)
+    let inc a = One (INC, a)
+    let mul a = One (MUL, a)
+    let neg a = One (NEG, a)
+    let not_ a = One (NOT, a)
+    let pop a = One (POP, a)
+    let push a = One (PUSH, a)
+    let setcc cc a = One (SETcc cc, a)
+
+    let cdq = CDQ
+    let cqo = CQO
+    let cwd = CWD
+    let imul3 a b c = IMUL3 (a, b, c)
+    let jcc cc a = Jcc (cc, a)
+    let jmp a = JMP a
+    let ret = RET
+    let ud2 = UD2
+    let jmptbl l ls = JMPtbl (l, ls)
+  end
 end

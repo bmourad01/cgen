@@ -6,9 +6,9 @@ open Insn
 
 (* XXX: any more cases than this? *)
 let copy = function
-  | MOV (Oreg (d, td), Oreg (s, ts))
-  | MOVSS (Oreg (d, td), Oreg (s, ts))
-  | MOVSD (Oreg (d, td), Oreg (s, ts))
+  | Two (MOV, Oreg (d, td), Oreg (s, ts))
+  | Two (MOVSS, Oreg (d, td), Oreg (s, ts))
+  | Two (MOVSD, Oreg (d, td), Oreg (s, ts))
     when Type.equal_basic td ts -> Some (d, s)
   | _ -> None
 
@@ -20,13 +20,13 @@ let load_from_slot ty ~dst ~src = match classof dst with
   | GPR ->
     begin match ty with
       | `v128 | #Type.fp -> assert false
-      | #Type.basic as b -> MOV (Oreg (dst, b), Omem (Ab src, b))
+      | #Type.basic as b -> I.mov (Oreg (dst, b)) (Omem (Ab src, b))
     end
   | FP ->
     begin match ty with
-      | `f64 -> MOVSD (Oreg (dst, `f64), Omem (Ab src, `i64))
-      | `f32 -> MOVSS (Oreg (dst, `f32), Omem (Ab src, `i32))
-      | `v128 -> MOVDQA (Oregv dst, Omem (Ab src, `v128))
+      | `f64 -> I.movsd (Oreg (dst, `f64)) (Omem (Ab src, `i64))
+      | `f32 -> I.movss (Oreg (dst, `f32)) (Omem (Ab src, `i32))
+      | `v128 -> I.movdqa (Oregv dst) (Omem (Ab src, `v128))
       | #Type.imm -> assert false
     end
 
@@ -34,13 +34,13 @@ let store_to_slot ty ~src ~dst = match classof src with
   | GPR ->
     begin match ty with
       | `v128 | #Type.fp -> assert false
-      | #Type.basic as b -> MOV (Omem (Ab dst, b), Oreg (src, b))
+      | #Type.basic as b -> I.mov (Omem (Ab dst, b)) (Oreg (src, b))
     end
   | FP ->
     begin match ty with
-      | `f64 -> MOVSD (Omem (Ab dst, `i64), Oreg (src, `f64))
-      | `f32 -> MOVSD (Omem (Ab dst, `i32), Oreg (src, `f32))
-      | `v128 -> MOVDQA (Omem (Ab dst, `v128), Oregv src)
+      | `f64 -> I.movsd (Omem (Ab dst, `i64)) (Oreg (src, `f64))
+      | `f32 -> I.movss (Omem (Ab dst, `i32)) (Oreg (src, `f32))
+      | `v128 -> I.movdqa (Omem (Ab dst, `v128)) (Oregv src)
       | #Type.imm -> assert false
     end
 
@@ -63,73 +63,16 @@ let substitute_operand f = function
   | Oah -> Oah
 
 let substitute' i op = match i with
-  | ADD (a, b) -> ADD (op a, op b)
-  | ADDSD (a, b) -> ADDSD (op a, op b)
-  | ADDSS (a, b) -> ADDSS (op a, op b)
-  | AND (a, b) -> AND (op a, op b)
-  | CALL a -> CALL (op a)
-  | CDQ -> i
-  | CMOVcc (cc, a, b) -> CMOVcc (cc, op a, op b)
-  | CMP (a, b) -> CMP (op a, op b)
-  | CQO -> i
-  | CWD -> i
-  | CVTSD2SI (a, b) -> CVTSD2SI (op a, op b)
-  | CVTSD2SS (a, b) -> CVTSD2SS (op a, op b)
-  | CVTSI2SD (a, b) -> CVTSI2SD (op a, op b)
-  | CVTSI2SS (a, b) -> CVTSI2SS (op a, op b)
-  | CVTSS2SI (a, b) -> CVTSS2SI (op a, op b)
-  | CVTSS2SD (a, b) -> CVTSS2SD (op a, op b)
-  | DEC a -> DEC (op a)
-  | DIV a -> DIV (op a)
-  | DIVSD (a, b) -> DIVSD (op a, op b)
-  | DIVSS (a, b) -> DIVSS (op a, op b)
-  | IDIV a -> IDIV (op a)
-  | IMUL1 a -> IMUL1 (op a)
-  | IMUL2 (a, b) -> IMUL2 (op a, op b)
+  | One (o, a) -> One (o, op a)
+  | Two (o, a, b) -> Two (o, op a, op b)
   | IMUL3 (a, b, c) -> IMUL3 (op a, op b, c)
-  | INC a -> INC (op a)
-  | Jcc _  -> i
-  | JMP (Jind a) -> JMP (Jind (op a))
-  | JMP (Jlbl _) -> i
-  | LEA (a, b) -> LEA (op a, op b)
-  | LZCNT (a, b) -> LZCNT (op a, op b)
-  | MOV (a, b) -> MOV (op a, op b)
-  | MOVD (a, b) -> MOVD (op a, op b)
-  | MOVDQA (a, b) -> MOVDQA (op a, op b)
-  | MOVQ (a, b) -> MOVQ (op a, op b)
-  | MOVSD (a, b) -> MOVSD (op a, op b)
-  | MOVSS (a, b) -> MOVSS (op a, op b)
-  | MOVSX (a, b) -> MOVSX (op a, op b)
-  | MOVSXD (a, b) -> MOVSXD (op a, op b)
-  | MOVZX (a, b) -> MOVZX (op a, op b)
-  | MUL a -> MUL (op a)
-  | MULSD (a, b) -> MULSD (op a, op b)
-  | MULSS (a, b) -> MULSS (op a, op b)
-  | NEG a -> NEG (op a)
-  | NOT a -> NOT (op a)
-  | OR (a, b) -> OR (op a, op b)
-  | POP a -> POP (op a)
-  | POPCNT (a, b) -> POPCNT (op a, op b)
-  | PUSH a -> PUSH (op a)
-  | RET -> i
-  | ROL (a, b) -> ROL (op a, op b)
-  | ROR (a, b) -> ROR (op a, op b)
-  | SAR (a, b) -> SAR (op a, op b)
-  | SETcc (cc, a) -> SETcc (cc, op a)
-  | SHL (a, b) -> SHL (op a, op b)
-  | SHR (a, b) -> SHR (op a, op b)
-  | SUB (a, b) -> SUB (op a, op b)
-  | SUBSD (a, b) -> SUBSD (op a, op b)
-  | SUBSS (a, b) -> SUBSS (op a, op b)
-  | TEST_ (a, b) -> TEST_ (op a, op b)
-  | TZCNT (a, b) -> TZCNT (op a, op b)
-  | UCOMISD (a, b) -> UCOMISD (op a, op b)
-  | UCOMISS (a, b) -> UCOMISS (op a, op b)
-  | UD2 -> i
-  | XOR (a, b) -> XOR (op a, op b)
-  | XORPD (a, b) -> XORPD (op a, op b)
-  | XORPS (a, b) -> XORPS (op a, op b)
-  | MOV_ (a, b) -> MOV_ (op a, op b)
+  | CDQ
+  | CQO
+  | CWD
+  | Jcc _
+  | JMP _
+  | RET
+  | UD2
   | JMPtbl _ -> i
 
 let substitute i f = substitute' i @@ substitute_operand f
@@ -183,101 +126,100 @@ module Typed_writes = struct
 
   (* Registers written to by an instruction. *)
   let writes call = function
-    | ADD (a, _)
-    | AND (a, _)
-    | DEC a
-    | IMUL2 (a, _)
+    | Two (o, a, _) ->
+      begin match o with
+        | ADD
+        | ADDSD
+        | ADDSS
+        | AND
+        | CMOVcc _
+        | CVTSD2SI
+        | CVTSD2SS
+        | CVTSI2SD
+        | CVTSI2SS
+        | CVTSS2SD
+        | CVTSS2SI
+        | DIVSD
+        | DIVSS
+        | IMUL2
+        | LEA
+        | LZCNT
+        | MOV
+        | MOV_
+        | MOVD
+        | MOVDQA
+        | MOVQ
+        | MOVSD
+        | MOVSS
+        | MOVSX
+        | MOVSXD
+        | MOVZX
+        | MULSD
+        | MULSS
+        | OR
+        | POPCNT
+        | ROL
+        | ROR
+        | SAR
+        | SHL
+        | SHR
+        | SUB
+        | SUBSD
+        | SUBSS
+        | TZCNT
+        | XOR
+        | XORPD
+        | XORPS
+          -> rmap_reg [a]
+        | CMP
+        | TEST_
+        | UCOMISD
+        | UCOMISS
+          -> Regvar.Map.empty
+      end
+    | One (o, a) ->
+      begin match o with
+        | CALL
+          -> call
+        | DEC
+        | INC
+        | NEG
+        | NOT
+        | SETcc _
+        | POP
+          -> rmap_reg [a]
+        | PUSH
+          -> Regvar.Map.empty
+        | DIV
+        | IDIV
+        | IMUL1
+        | MUL ->
+          begin match a with
+            | Oreg (_, `i8)
+              -> rmap' [`rax, `i8]
+            | Oreg (_, t)
+              -> rmap' [`rax, wty t; `rdx, wty t]
+            | Omem (_, t)
+              -> rmap' [`rax, wty t; `rdx, wty t]
+            | _
+              (* invalid forms *)
+              -> Regvar.Map.empty
+          end
+      end
     | IMUL3 (a, _, _)
-    | INC a
-    | LZCNT (a, _)
-    | NEG a
-    | NOT a
-    | OR (a, _)
-    | POPCNT (a, _)
-    | ROL (a, _)
-    | ROR (a, _)
-    | SAR (a, _)
-    | SHL (a, _)
-    | SHR (a, _)
-    | SUB (a, _)
-    | XOR (a, _)
       -> rmap_reg [a]
-    | ADDSD (a, _)
-    | ADDSS (a, _)
-    | CMOVcc (_, a, _)
-    | CVTSD2SI (a, _)
-    | CVTSD2SS (a, _)
-    | CVTSI2SD (a, _)
-    | CVTSI2SS (a, _)
-    | CVTSS2SI (a, _)
-    | CVTSS2SD (a, _)
-    | DIVSD (a, _)
-    | DIVSS (a, _)
-    | LEA (a, _)
-    | MOV (a, _)
-    | MOV_ (a, _)
-    | MOVD (a, _)
-    | MOVDQA (a, _)
-    | MOVQ (a, _)
-    | MOVSD (a, _)
-    | MOVSS (a, _)
-    | MOVSX (a, _)
-    | MOVSXD (a, _)
-    | MOVZX (a, _)
-    | MULSD (a, _)
-    | MULSS (a, _)
-    | SETcc (_, a)
-    | SUBSD (a, _)
-    | SUBSS (a, _)
-    | TZCNT (a, _)
-    | XORPD (a, _)
-    | XORPS (a, _)
-      -> rmap_reg [a]
-    | CALL _
-      -> call
-    | PUSH _
-    | RET
-      -> Regvar.Map.empty
-    | CMP _
-    | TEST_ _
-    | UCOMISD _
-    | UCOMISS _
-      -> Regvar.Map.empty
     | Jcc _
     | JMP _
-    | UD2
     | JMPtbl _
+    | RET
+    | UD2
       -> Regvar.Map.empty
-    (* Special case for 8-bit div/mul. *)
-    | DIV Oreg (_, `i8)
-    | IDIV Oreg (_, `i8)
-    | IMUL1 Oreg (_, `i8)
-    | MUL Oreg (_, `i8)
-      -> rmap' [`rax, `i8]
     | CDQ
       -> rmap' [`rdx, `i32]
     | CQO
       -> rmap' [`rdx, `i64]
     | CWD
       -> rmap' [`rdx, `i16]
-    | DIV (Oreg (_, t))
-    | IDIV (Oreg (_, t))
-    | IMUL1 (Oreg (_, t))
-    | MUL (Oreg (_, t))
-      -> rmap' [`rax, wty t; `rdx, wty t]
-    | DIV (Omem (_, t))
-    | IDIV (Omem (_, t))
-    | IMUL1 (Omem (_, t))
-    | MUL (Omem (_, t))
-      -> rmap' [`rax, wty t; `rdx, wty t]
-    (* These are invalid forms. *)
-    | DIV _
-    | IDIV _
-    | IMUL1 _
-    | MUL _
-      -> Regvar.Map.empty
-    | POP a
-      -> rmap_reg [a]
 end
 
 let writes_with_types = Typed_writes.writes
@@ -288,19 +230,19 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
   let replace_amode is_slot a = match a with
     | Abis (b, i, s) when is_slot i ->
       let+ x = C.Var.fresh >>| Regvar.var GPR in
-      Abis (b, x, s), [LEA (Oreg (x, `i64), Omem (Ab i, `i64))]
+      Abis (b, x, s), [I.lea (Oreg (x, `i64)) (Omem (Ab i, `i64))]
     | Aisd (i, s, d) when is_slot i ->
       let+ x = C.Var.fresh >>| Regvar.var GPR in
-      Aisd (x, s, d), [LEA (Oreg (x, `i64), Omem (Ab i, `i64))]
+      Aisd (x, s, d), [I.lea (Oreg (x, `i64)) (Omem (Ab i, `i64))]
     | Abisd (b, i, s, d) when is_slot i ->
       let+ x = C.Var.fresh >>| Regvar.var GPR in
-      Abisd (b, x, s, d), [LEA (Oreg (x, `i64), Omem (Ab i, `i64))]
+      Abisd (b, x, s, d), [I.lea (Oreg (x, `i64)) (Omem (Ab i, `i64))]
     | _ -> !!(a, [])
 
   let replace_operand is_slot op = match op with
     | Oreg (r, ty) when is_slot r ->
       let+ x = C.Var.fresh >>| Regvar.var GPR in
-      Oreg (x, ty), [LEA (Oreg (x, ty), Omem (Ab r, `i64))]
+      Oreg (x, ty), [I.lea (Oreg (x, ty)) (Omem (Ab r, `i64))]
     | Oreg _ -> !!(op, [])
     | Omem (a, ty) ->
       let+ a, ai = replace_amode is_slot a in
@@ -310,240 +252,27 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
   let replace is_slot i =
     let op = replace_operand is_slot in
     match i with
-    | ADD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [ADD (a, b)]
-    | ADDSD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [ADDSD (a, b)]
-    | ADDSS (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [ADDSS (a, b)]
-    | AND (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [AND (a, b)]
-    | CALL a ->
+    | One (o, a) ->
       let+ a, ai = op a in
-      ai @ [CALL a]
-    | CDQ -> !![i]
-    | CMOVcc (cc, a, b) ->
+      ai @ [One (o, a)]
+    | Two (o, a, b) ->
       let* a, ai = op a in
       let+ b, bi = op b in
-      ai @ bi @ [CMOVcc (cc, a, b)]
-    | CMP (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [CMP (a, b)]
-    | CQO -> !![i]
-    | CWD -> !![i]
-    | CVTSD2SI (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [CVTSD2SI (a, b)]
-    | CVTSD2SS (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [CVTSD2SS (a, b)]
-    | CVTSI2SD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [CVTSI2SD (a, b)]
-    | CVTSI2SS (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [CVTSI2SS (a, b)]
-    | CVTSS2SD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [CVTSS2SD (a, b)]
-    | CVTSS2SI (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [CVTSS2SI (a, b)]
-    | DEC a ->
-      let+ a, ai = op a in
-      ai @ [DEC a]
-    | DIV a ->
-      let+ a, ai = op a in
-      ai @ [DIV a]
-    | DIVSD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [DIVSD (a, b)]
-    | DIVSS (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [DIVSS (a, b)]
-    | IDIV a ->
-      let+ a, ai = op a in
-      ai @ [IDIV a]
-    | IMUL1 a ->
-      let+ a, ai = op a in
-      ai @ [IDIV a]
-    | IMUL2 (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [IMUL2 (a, b)]
+      ai @ bi @ [Two (o, a, b)]
     | IMUL3 (a, b, c) ->
       let* a, ai = op a in
       let+ b, bi = op b in
       ai @ bi @ [IMUL3 (a, b, c)]
-    | INC a ->
-      let+ a, ai = op a in
-      ai @ [INC a]
-    | Jcc _ -> !![i]
     | JMP (Jind a) ->
       let+ a, ai = op a in
       ai @ [JMP (Jind a)]
-    | JMP (Jlbl _) -> !![i]
-    | LEA (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [LEA (a, b)]
-    | LZCNT (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [LZCNT (a, b)]
-    | MOV (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOV (a, b)]
-    | MOVD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOVD (a, b)]
-    | MOVDQA (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOVDQA (a, b)]
-    | MOVQ (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOVQ (a, b)]
-    | MOVSD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOVSD (a, b)]
-    | MOVSS (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOVSS (a, b)]
-    | MOVSX (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOVSX (a, b)]
-    | MOVSXD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOVSXD (a, b)]
-    | MOVZX (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOVZX (a, b)]
-    | MUL a ->
-      let+ a, ai = op a in
-      ai @ [MUL a]
-    | MULSD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MULSD (a, b)]
-    | MULSS (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MULSS (a, b)]
-    | NEG a ->
-      let+ a, ai = op a in
-      ai @ [NEG a]
-    | NOT a ->
-      let+ a, ai = op a in
-      ai @ [NOT a]
-    | OR (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [OR (a, b)]
-    | POP a ->
-      let+ a, ai = op a in
-      ai @ [POP a]
-    | POPCNT (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [POPCNT (a, b)]
-    | PUSH a ->
-      let+ a, ai = op a in
-      ai @ [PUSH a]
-    | RET -> !![i]
-    | ROL (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [ROL (a, b)]
-    | ROR (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [ROR (a, b)]
-    | SAR (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [SAR (a, b)]
-    | SETcc (cc, a) ->
-      let+ a, ai = op a in
-      ai @ [SETcc (cc, a)]
-    | SHL (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [SHL (a, b)]
-    | SHR (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [SHR (a, b)]
-    | SUB (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [SUB (a, b)]
-    | SUBSD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [SUBSD (a, b)]
-    | SUBSS (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [SUBSS (a, b)]
-    | TEST_ (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [TEST_ (a, b)]
-    | TZCNT (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [TZCNT (a, b)]
-    | UCOMISD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [UCOMISD (a, b)]
-    | UCOMISS (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [UCOMISS (a, b)]
-    | UD2 -> !![i]
-    | XOR (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [XOR (a, b)]
-    | XORPD (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [XORPD (a, b)]
-    | XORPS (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [XORPS (a, b)]
-    | MOV_ (a, b) ->
-      let* a, ai = op a in
-      let+ b, bi = op b in
-      ai @ bi @ [MOV_ (a, b)]
+    | CDQ
+    | CQO
+    | CWD
+    | Jcc _
+    | JMP _
+    | RET
+    | UD2
     | JMPtbl _ -> !![i]
 end
 
@@ -635,9 +364,9 @@ let no_frame_prologue regs size =
   let rsp = Oreg (Regvar.reg `rsp, `i64) in
   List.concat [
     List.map regs ~f:(fun r ->
-        PUSH (Oreg (Regvar.reg r, `i64)));
+        I.push (Oreg (Regvar.reg r, `i64)));
     (if Int64.(size = 0L) then []
-     else [SUB (rsp, Oimm (size, `i64))]);
+     else [I.sub rsp (Oimm (size, `i64))]);
   ]
 
 let no_frame_epilogue regs size =
@@ -645,9 +374,9 @@ let no_frame_epilogue regs size =
   let rsp = Oreg (Regvar.reg `rsp, `i64) in
   List.concat [
     (if Int64.(size = 0L) then []
-     else [ADD (rsp, Oimm (size, `i64))]);
+     else [I.add rsp (Oimm (size, `i64))]);
     List.rev regs |> List.map ~f:(fun r ->
-        POP (Oreg (Regvar.reg r, `i64)));
+        I.pop (Oreg (Regvar.reg r, `i64)));
   ]
 
 (* Same as above, but with the added factor of the frame
@@ -669,14 +398,14 @@ let frame_prologue regs size =
   let rbp = Oreg (Regvar.reg `rbp, `i64) in
   List.concat [
     (* Push the frame pointer and give it the base of the stack. *)
-    [PUSH rbp;
-     MOV (rbp, rsp)];
+    [I.push rbp;
+     I.mov rbp rsp];
     (* Allocate space. *)
     (if Int64.(size = 0L) then []
-     else [SUB (rsp, Oimm (size, `i64))]);
+     else [I.sub rsp (Oimm (size, `i64))]);
     (* Push the callee-save registers. *)
     List.map regs ~f:(fun r ->
-        PUSH (Oreg (Regvar.reg r, `i64)));
+        I.push (Oreg (Regvar.reg r, `i64)));
   ]
 
 let frame_epilogue regs size =
@@ -686,10 +415,10 @@ let frame_epilogue regs size =
   List.concat [
     (* Pop the callee-save registers in reverse order. *)
     List.rev regs |> List.map ~f:(fun r ->
-        POP (Oreg (Regvar.reg r, `i64)));
+        I.pop (Oreg (Regvar.reg r, `i64)));
     (* Deallocate space. *)
     (if Int64.(size = 0L) then []
-     else [ADD (rsp, Oimm (size, `i64))]);
+     else [I.add rsp (Oimm (size, `i64))]);
     (* Pop the frame pointer. *)
-    [POP rbp];
+    [I.pop rbp];
   ]
