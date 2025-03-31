@@ -48,7 +48,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Reduce the search space by specializing the top-level pattern
      for each rule's LHS. It stands to reason that we will have many
-     rules but only a handful of them will match with any given node. *)
+     rules but only a handful of them will match with the current node
+     at any given time. *)
   let build_tables (rules : rule list) =
     let module Op = struct
       type t = P.op [@@deriving compare, hash, sexp]
@@ -63,12 +64,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | Some s -> Seq.(append s @@ singleton a)
         | None -> Seq.singleton a) in
     List.iter rules ~f:(fun (pre, post) ->
-        match to_untyped pre with
-        | P1 (Omove, [a; P1 (op, ps)]) ->
-          update ts.moves op (a, ps, post)
-        | P1 (op, ps) ->
-          update ts.other op (ps, post)
-        | V1 _ -> assert false);
+        (* Skip rules that won't produce anything. *)
+        if not @@ List.is_empty post then
+          match to_untyped pre with
+          | P1 (Omove, [a; P1 (op, ps)]) ->
+            (* Specialize based on the operation for the move. *)
+            update ts.moves op (a, ps, post)
+          | P1 (op, ps) ->
+            (* All other cases should be less frequent in practice. *)
+            update ts.other op (ps, post)
+          | V1 _ -> assert false);
     ts
 
   let rules = (I.rules :> rule list)
@@ -181,7 +186,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let default op cs = match Hashtbl.find tables.other op with
       | None -> fail_match t l id
       | Some tls -> Seq.map tls ~f:(fun (ps, posts) ->
-          None, (cs, ps), posts) |> C.return in
+          None, cs, ps, posts) |> C.return in
     match node t id with
     | N (Omove, [a; b]) ->
       begin match node t b with
@@ -189,7 +194,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           begin match Hashtbl.find tables.moves op with
             | None -> default Omove [a; b]
             | Some tls -> Seq.map tls ~f:(fun (pa, ps, posts) ->
-                Some (a, pa, op), (cs, ps), posts) |> C.return
+                Some (a, pa, op), cs, ps, posts) |> C.return
           end
         | Rv _ -> default Omove [a; b]
         | _ -> fail_match t l id
@@ -201,9 +206,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* rules = fetch_rules t l id in
     let go, children = search t in
     C.Seq.find_map rules ~f:(function
-        | _, _, [] -> !!None
-        | p, (cs, ps), posts ->
+        | _, _, _, [] ->
+          (* No RHS to produce instructions, so skip it. *)
+          !!None
+        | p, cs, ps, posts ->
           try
+            (* If this is a specialized move, then produce the env of
+               matching the first argument. *)
             let env, comm = match p with
               | None -> S.empty, false
               | Some (c, p, op) ->
