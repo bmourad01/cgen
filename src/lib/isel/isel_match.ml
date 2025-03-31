@@ -152,16 +152,20 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      result of computing ?y because future instructions may want to match on
      it.
   *)
-  let is_blank_move env = function
-    | [V1 x; V1 y] ->
-      begin match Map.find env x, Map.find env y with
-        | Some x, Some y ->
-          let open S in
-          (* This usually isn't the case, but doesn't hurt to check. *)
-          x.id = y.id ||
-          (* They might end up having different IDs, but this should
-             catch the edge cases. *)
-          equal_term Rv.equal x.tm y.tm
+  let is_blank_move t env id ps = match node t id with
+    | N (Omove, [_; _]) ->
+      begin match ps with
+        | [V1 x; V1 y] ->
+          begin match Map.find env x, Map.find env y with
+            | Some x, Some y ->
+              let open S in
+              (* This usually isn't the case, but doesn't hurt to check. *)
+              x.id = y.id ||
+              (* They might end up having different IDs, but this should
+                 catch the edge cases. *)
+              equal_term Rv.equal x.tm y.tm
+            | _ -> false
+          end
         | _ -> false
       end
     | _ -> false
@@ -209,7 +213,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             let env = try children env ps cs with
               | Mismatch when comm ->
                 children env ps @@ List.rev cs in
-            if Option.is_none p && is_blank_move env ps
+            if Option.is_none p && is_blank_move t env id ps
             then raise_notrace Mismatch;
             R.try_ env posts
           with Mismatch -> !!None) >>= function
