@@ -1806,7 +1806,7 @@ end = struct
           I.cmp (Oreg (tidx, `i64)) (Oimm (highest', `i64));
           I.jcc Ca d;
           (* Get the base of the table. *)
-          I.lea (Oreg (tbase, `i64)) (Omem (Abd (Rv.reg `rip, Dlbl tl), `i64));
+          I.lea (Oreg (tbase, `i64)) (Omem (Abd (Rv.reg `rip, Dlbl (tl, 0)), `i64));
           (* Jump to the table entry. *)
           I.movsxd (Oreg (rax, `i64)) (Omem (Abis (tbase, tidx, S4), `i32));
           I.add (Oreg (rax, `i64)) (Oreg (tbase, `i64));

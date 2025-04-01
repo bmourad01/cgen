@@ -281,14 +281,26 @@ module Assign_slots = struct
     | Second (v, _) -> Map.find offsets v
     | First _ -> None
 
-  (* XXX: fix this to account for overflow *)
+  (* XXX: deal with overflow instead of exploding when it happens. *)
   let add_disp off = function
-    | Dsym (s, o) -> Dsym (s, o + off)
-    | Dimm i -> Dimm Int32.(i + of_int_exn off)
-    | Dlbl _ -> assert false
+    | Dsym (s, o) ->
+      let o' = o + off in
+      assert (if off > 0 then o' > o else o' <= o);
+      Dsym (s, o')
+    | Dimm i ->
+      let open Int32 in
+      let i' = i + of_int_exn off in
+      assert (if Int.(off > 0) then i' > i else i' <= i);
+      Dimm i'
+    | Dlbl (l, o) ->
+      let o' = o + off in
+      assert (if off > 0 then o' > o else o' <= o);
+      Dlbl (l, o')
 
   let idisp i = Dimm (Int32.of_int_exn i)
 
+  (* NB: the cases where `i` appears as the index in an SIB address
+     should be handled by `Replace_direct_slot_uses`. *)
   let assign_amode base offsets a = match a with
     | Ad _d -> a
     | Ab b ->

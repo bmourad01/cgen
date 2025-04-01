@@ -160,9 +160,9 @@ type rv = Regvar.t [@@deriving bin_io, compare, equal, hash, sexp]
 module Insn = struct
   (* Displacements for addressing modes. *)
   type disp =
-    | Dsym of string * int (* Symbol + offset *)
-    | Dimm of int32        (* Immediate *)
-    | Dlbl of Label.t      (* Label *)
+    | Dsym of string * int  (* Symbol + offset *)
+    | Dimm of int32         (* Immediate *)
+    | Dlbl of Label.t * int (* Label *)
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_disp ppf = function
@@ -174,7 +174,11 @@ module Insn = struct
       Format.fprintf ppf "$%s" s
     | Dimm i ->
       Format.fprintf ppf "0x%lx" i
-    | Dlbl l ->
+    | Dlbl (l, o) when o < 0 ->
+      Format.fprintf ppf "%a-%d" Label.pp l (-o)
+    | Dlbl (l, o) when o > 0 ->
+      Format.fprintf ppf "%a+%d" Label.pp l o
+    | Dlbl (l, _) ->
       Format.fprintf ppf "%a" Label.pp l
 
   (* SIB scale. Only 1, 2, 4, and 8 are valid. *)
