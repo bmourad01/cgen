@@ -224,26 +224,54 @@ end
 
 let writes_with_types = Typed_writes.writes
 
+(* A few points here:
+
+   1. Slots appearing in operands will need to refer to their
+      assigned stack location later, so we need to insert some
+      admininstrative code.
+
+   2. Slots appearing in an addressing mode in the presence of
+      an existing displacement will need this treatment as well,
+      because we want to avoid overflowing the displacement (which
+      is a signed 32-bit immediate).
+
+   3. Slots appearing as an index register in the addressing mode
+      will also need this, because the index register is scaled.
+*)
 module Replace_direct_slot_uses(C : Context_intf.S) = struct
   open C.Syntax
 
+  let freshen is_slot x = if is_slot x then
+      let+ x' = C.Var.fresh >>| Regvar.var GPR in
+      x', [I.lea (Oreg (x', `i64)) (Omem (Ab x, `i64))]
+    else !!(x, [])
+
   let replace_amode is_slot a = match a with
-    | Abis (b, i, s) when is_slot i ->
-      let+ x = C.Var.fresh >>| Regvar.var GPR in
-      Abis (b, x, s), [I.lea (Oreg (x, `i64)) (Omem (Ab i, `i64))]
-    | Aisd (i, s, d) when is_slot i ->
-      let+ x = C.Var.fresh >>| Regvar.var GPR in
-      Aisd (x, s, d), [I.lea (Oreg (x, `i64)) (Omem (Ab i, `i64))]
-    | Abisd (b, i, s, d) when is_slot i ->
-      let+ x = C.Var.fresh >>| Regvar.var GPR in
-      Abisd (b, x, s, d), [I.lea (Oreg (x, `i64)) (Omem (Ab i, `i64))]
-    | _ -> !!(a, [])
+    | Ad _ -> !!(a, [])
+    | Ab b ->
+      let+ b', bi = freshen is_slot b in
+      Ab b', bi
+    | Abd (b, d) ->
+      let+ b', bi = freshen is_slot b in
+      Abd (b', d), bi
+    | Abis (b, i, s) ->
+      let* b', bi = freshen is_slot b in
+      let+ i', ii = freshen is_slot i in
+      Abis (b', i', s), bi @ ii
+    | Aisd (i, s, d) ->
+      let+ i', ii = freshen is_slot i in
+      Aisd (i', s, d), ii
+    | Abisd (b, i, s, d) ->
+      let* b', bi = freshen is_slot b in
+      let+ i', ii = freshen is_slot i in
+      Abisd (b', i', s, d), bi @ ii
 
   let replace_operand is_slot op = match op with
-    | Oreg (r, ty) when is_slot r ->
-      let+ x = C.Var.fresh >>| Regvar.var GPR in
-      Oreg (x, ty), [I.lea (Oreg (x, ty)) (Omem (Ab r, `i64))]
-    | Oreg _ -> !!(op, [])
+    | Oreg (r, ty) ->
+      (* XXX: let's hope that a slot doesn't appear here if this is a
+         destination register. *)
+      let+ r', ri = freshen is_slot r in
+      Oreg (r', ty), ri
     | Omem (a, ty) ->
       let+ a, ai = replace_amode is_slot a in
       Omem (a, ty), ai
@@ -281,26 +309,9 @@ module Assign_slots = struct
     | Second (v, _) -> Map.find offsets v
     | First _ -> None
 
-  (* XXX: deal with overflow instead of exploding when it happens. *)
-  let add_disp off = function
-    | Dsym (s, o) ->
-      let o' = o + off in
-      assert (if off > 0 then o' > o else o' <= o);
-      Dsym (s, o')
-    | Dimm i ->
-      let open Int32 in
-      let i' = i + of_int_exn off in
-      assert (if Int.(off > 0) then i' > i else i' <= i);
-      Dimm i'
-    | Dlbl (l, o) ->
-      let o' = o + off in
-      assert (if off > 0 then o' > o else o' <= o);
-      Dlbl (l, o')
-
   let idisp i = Dimm (Int32.of_int_exn i)
 
-  (* NB: the cases where `i` appears as the index in an SIB address
-     should be handled by `Replace_direct_slot_uses`. *)
+  (* NB: this makes assumptions based on the results of `Replace_direct_slot_uses`. *)
   let assign_amode base offsets a = match a with
     | Ad _d -> a
     | Ab b ->
@@ -309,28 +320,29 @@ module Assign_slots = struct
         | Some o -> Abd (base, idisp o)
         | None -> a
       end
-    | Abd (b, d) ->
+    | Abd (b, _d) ->
       begin match find offsets b with
-        | Some o -> Abd (base, add_disp o d)
         | None -> a
+        | Some _ -> assert false
       end
-    | Abis (b, i, s) ->
+    | Abis (b, i, _s) ->
       begin match find offsets b, find offsets i with
         | None, None -> a
-        | Some 0, None -> Abis (base, i, s)
-        | Some o, None -> Abisd (base, i, s, idisp o)
-        | _, Some _ -> assert false
+        | Some _, None -> assert false
+        | None, Some _ -> assert false
+        | Some _, Some _ -> assert false
       end
     | Aisd (i, _s, _d) ->
       begin match find offsets i with
         | None -> a
         | Some _ -> assert false
       end
-    | Abisd (b, i, s, d) ->
+    | Abisd (b, i, _s, _d) ->
       begin match find offsets b, find offsets i with
         | None, None -> a
-        | Some o, None -> Abisd (base, i, s, add_disp o d)
-        | _, Some _ -> assert false
+        | Some _, None -> assert false
+        | None, Some _ -> assert false
+        | Some _, Some _ -> assert false
       end
 
   let assign_operand base offsets op = match op with
