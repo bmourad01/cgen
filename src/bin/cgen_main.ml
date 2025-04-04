@@ -57,6 +57,10 @@ let comp filename =
   Format.printf "=================================================\n%!";
   Format.printf "After stack layout:\n\n%!";
   Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+  let module Emit = Pseudo.Emit(Machine) in
+  Format.printf "=================================================\n%!";
+  Format.printf "Final assembly code:\n\n%!";
+  Format.printf "%a" Emit.emit m;
   !!()
 
 let () =

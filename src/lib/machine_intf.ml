@@ -173,4 +173,31 @@ module type S = sig
         registers in use and the size of the local variables. *)
     val frame_epilogue : Reg.t list -> int -> Insn.t list
   end
+
+  (** Emitting the assembly for the target platform.
+
+      This exists separately from the usual pretty-printing facilities because
+      the final assembly code may be platform/target specific (i.e. a specific
+      assembler is being targeted with a specific syntax).
+
+      The implementation of this module should handle all formatting, such as
+      indentation and newlines.
+  *)
+  module Emit : sig
+    (** Emit a prelude of directives for the program, given the name of the
+        current module. *)
+    val emit_prelude : Format.formatter -> string -> unit
+
+    (** Emit a structure of data. *)
+    val emit_data : Format.formatter -> Virtual.data -> unit
+
+    (** Emit the start of a function. *)
+    val emit_func : Format.formatter -> (string * Linkage.t) -> unit
+
+    (** Emit the start of a basic block. *)
+    val emit_blk : Format.formatter -> Label.t -> unit
+
+    (** Emit an instruction as part of a basic block. *)
+    val emit_insn : Format.formatter -> Insn.t -> unit
+  end
 end

@@ -288,3 +288,8 @@ module Live(M : Machine_intf.S) : Live_intf.S
 module Remove_dead_insns(M : Machine_intf.S) : sig
   val run : (M.Insn.t, M.Reg.t) func -> (M.Insn.t, M.Reg.t) func
 end
+
+(** Emits the target-specific assembly code. *)
+module Emit(M : Machine_intf.S) : sig
+  val emit : Format.formatter -> (M.Insn.t, M.Reg.t) module_ -> unit
+end

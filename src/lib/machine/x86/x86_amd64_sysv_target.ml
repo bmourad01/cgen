@@ -108,6 +108,8 @@ module Machine = struct
     let writes_with_types = writes_with_types clobbered_map
   end
 
+  module Emit = X86_amd64_emit
+
   let lower_abi = Sysv.run
 end
 
