@@ -13,6 +13,9 @@ open X86_amd64_common
 
 module Data = Virtual.Data
 
+let label ppf (l : Label.t) =
+  Format.fprintf ppf ".L%a" Int63.pp (l :> Int63.t)
+
 let global ppf name =
   Format.fprintf ppf ".global %s\n" name
 
@@ -66,7 +69,7 @@ let emit_func ppf (name, lnk) =
   Format.fprintf ppf "%s:\n" name
 
 let emit_blk ppf (l : Label.t) =
-  Format.fprintf ppf ".L%a:\n" Int63.pp (l :> Int63.t)
+  Format.fprintf ppf "%a:\n" label l
 
 let emit_disp ppf : Insn.disp -> unit = function
   | Dsym (s, o) when o < 0 ->
@@ -78,11 +81,11 @@ let emit_disp ppf : Insn.disp -> unit = function
   | Dimm i ->
     Format.fprintf ppf "0x%lx" i
   | Dlbl (l, o) when o < 0 ->
-    Format.fprintf ppf ".L%a-%d" Int63.pp (l :> Int63.t) (-o)
+    Format.fprintf ppf "%a-%d" label l (-o)
   | Dlbl (l, o) when o > 0 ->
-    Format.fprintf ppf ".L%a+%d" Int63.pp (l :> Int63.t) o
+    Format.fprintf ppf "%a+%d" label l o
   | Dlbl (l, _) ->
-    Format.fprintf ppf ".L%a" Int63.pp (l :> Int63.t)
+    Format.fprintf ppf "%a" label l
 
 let emit_regvar t ppf rv = match Regvar.which rv with
   | First r ->
@@ -165,9 +168,7 @@ let emit_operand ppf : Insn.operand -> unit = function
     Format.fprintf ppf "ah"
 
 let emit_tblentry (start : Label.t) ppf (dest : Label.t) =
-  Format.fprintf ppf "  .long .L%a-.L%a\n"
-    Int63.pp (dest :> Int63.t)
-    Int63.pp (start :> Int63.t)
+  Format.fprintf ppf "  .long %a-%a\n" label dest label start
 
 let emit_insn ppf : Insn.t -> unit = function
   | One (op, a) ->
@@ -185,16 +186,16 @@ let emit_insn ppf : Insn.t -> unit = function
     Format.fprintf ppf "  imul %a, %a, 0x%lx\n"
       emit_operand a emit_operand b c
   | Jcc (cc, l) ->
-    Format.fprintf ppf "  j%a .L%a\n"
-      Insn.pp_cc cc Int63.pp (l :> Int63.t)
+    Format.fprintf ppf "  j%a %a\n"
+      Insn.pp_cc cc label l
   | JMP (Jind a) ->
     Format.fprintf ppf "  jmp %a\n" emit_operand a
   | JMP (Jlbl l) ->
-    Format.fprintf ppf "  jmp .L%a\n" Int63.pp (l :> Int63.t)
+    Format.fprintf ppf "  jmp %a\n" label l
   | RET ->
     Format.fprintf ppf "  ret\n"
   | UD2 ->
     Format.fprintf ppf "  ud2\n"
   | JMPtbl (l, ls) ->
-    Format.fprintf ppf ".L%a:\n" Int63.pp (l :> Int63.t);
+    Format.fprintf ppf "%a:\n" label l;
     List.iter ls ~f:(emit_tblentry l ppf)
