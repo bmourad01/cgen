@@ -239,7 +239,7 @@ data:
 
 data_elt:
   | c = const { (c :> Virtual.Data.elt) }
-  | B s = STRING { `string s }
+  | s = STRING { `string s }
   | Z n = NUM { `zero (Bv.to_int n) }
 
 typ:
