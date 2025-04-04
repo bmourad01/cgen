@@ -66,11 +66,12 @@ let substitute' i op = match i with
   | One (o, a) -> One (o, op a)
   | Two (o, a, b) -> Two (o, op a, op b)
   | IMUL3 (a, b, c) -> IMUL3 (op a, op b, c)
+  | JMP (Jind a) -> JMP (Jind (op a))
   | CDQ
   | CQO
   | CWD
   | Jcc _
-  | JMP _
+  | JMP (Jlbl _)
   | RET
   | UD2
   | JMPtbl _ -> i
@@ -298,7 +299,7 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
     | CQO
     | CWD
     | Jcc _
-    | JMP _
+    | JMP (Jlbl _)
     | RET
     | UD2
     | JMPtbl _ -> !![i]

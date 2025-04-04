@@ -10,9 +10,9 @@ export function $foo { ; returns: rax
   cmp %2:l, 0x2_l ; @31
   ja @11 ; @32
   lea %1:l, qword ptr [rip + @25] ; @33
-  movsxd rax, dword ptr [%1 + %2*4] ; @34
-  add rax, %1:l ; @35
-  jmp rax ; @36
+  movsxd %3:l, dword ptr [%1 + %2*4] ; @34
+  add %3:l, %1:l ; @35
+  jmp %3:l ; @36
   .tbl @25 [@12, @13, @14] ; @37
 @11:
   mov %0:w, %x:w ; @23

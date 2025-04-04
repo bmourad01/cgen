@@ -1771,8 +1771,8 @@ end = struct
       let diff = Int64.(highest - highest') in
       let* tl = C.Label.fresh in
       let* tbase = C.Var.fresh >>| Rv.var GPR in
-      let+ tidx = C.Var.fresh >>| Rv.var GPR in
-      let rax = Rv.reg `rax in
+      let* tidx = C.Var.fresh >>| Rv.var GPR in
+      let+ tdst = C.Var.fresh >>| Rv.var GPR in
       Option.some @@ List.concat [
         (* Compare against the lowest value, if necessary. *)
         ( if Int64.(lowest = 1L) then [
@@ -1808,9 +1808,9 @@ end = struct
           (* Get the base of the table. *)
           I.lea (Oreg (tbase, `i64)) (Omem (Abd (Rv.reg `rip, Dlbl (tl, 0)), `i64));
           (* Jump to the table entry. *)
-          I.movsxd (Oreg (rax, `i64)) (Omem (Abis (tbase, tidx, S4), `i32));
-          I.add (Oreg (rax, `i64)) (Oreg (tbase, `i64));
-          I.jmp (Jind (Oreg (rax, `i64)));
+          I.movsxd (Oreg (tdst, `i64)) (Omem (Abis (tbase, tidx, S4), `i32));
+          I.add (Oreg (tdst, `i64)) (Oreg (tbase, `i64));
+          I.jmp (Jind (Oreg (tdst, `i64)));
           (* The table itself. *)
           I.jmptbl tl tbl;
         ]
