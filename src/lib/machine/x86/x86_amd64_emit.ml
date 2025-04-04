@@ -134,9 +134,14 @@ let emit_operand ppf : Insn.operand -> unit = function
     Format.fprintf ppf "%a" (emit_regvar (t :> Insn.memty)) rv
   | Oregv rv ->
     Format.fprintf ppf "%a" (emit_regvar `v128) rv
-  | Oimm (i, t) ->
-    let mask = Int64.(pred (1L lsl Type.sizeof_imm t)) in
-    Format.fprintf ppf "0x%Lx" Int64.(i land mask)
+  | Oimm (i, `i8) ->
+    Format.fprintf ppf "0x%Lx" Int64.(i land 0xFFL)
+  | Oimm (i, `i16) ->
+    Format.fprintf ppf "0x%Lx" Int64.(i land 0xFFFFL)
+  | Oimm (i, `i32) ->
+    Format.fprintf ppf "0x%Lx" Int64.(i land 0xFFFF_FFFFL)
+  | Oimm (i, `i64) ->
+    Format.fprintf ppf "0x%Lx" i
   | Omem (a, t) ->
     Format.fprintf ppf "%a [%a]" Insn.pp_memty t emit_amode a
   | Osym (s, o) when o < 0 ->
