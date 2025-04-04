@@ -1,3 +1,12 @@
+(* The targets this case are the GNU and LLVM assemblers.
+
+   Why do we use Intel syntax?
+
+   1. Because it's the syntax described in the Intel and AMD manuals!
+   2. Because it's prettier than AT&T syntax.
+   3. Because you can go pound sand if you disagree!
+*)
+
 open Core
 open Regular.Std
 open X86_amd64_common
