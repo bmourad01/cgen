@@ -73,7 +73,7 @@ let emit_disp ppf : Insn.disp -> unit = function
   | Dlbl (l, o) when o > 0 ->
     Format.fprintf ppf ".L%a+%d" Int63.pp (l :> Int63.t) o
   | Dlbl (l, _) ->
-    Format.fprintf ppf ".L%a" Label.pp l
+    Format.fprintf ppf ".L%a" Int63.pp (l :> Int63.t)
 
 let emit_regvar t ppf rv = match Regvar.which rv with
   | First r ->
@@ -176,7 +176,7 @@ let emit_insn ppf : Insn.t -> unit = function
     Format.fprintf ppf "  imul %a, %a, 0x%lx\n"
       emit_operand a emit_operand b c
   | Jcc (cc, l) ->
-    Format.fprintf ppf "  j%a %a\n"
+    Format.fprintf ppf "  j%a .L%a\n"
       Insn.pp_cc cc Int63.pp (l :> Int63.t)
   | JMP (Jind a) ->
     Format.fprintf ppf "  jmp %a\n" emit_operand a
