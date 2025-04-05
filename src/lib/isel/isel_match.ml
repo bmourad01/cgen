@@ -287,9 +287,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let run t =
     let* blks = transl_blks t in
     let* rets = transl_rets t in
-    let dict = if t.frame
-      then Dict.singleton Pseudo.Func.Tag.needs_stack_frame ()
-      else Dict.empty in
+    let dict = Func.dict t.fn in
+    let dict = if not t.frame then dict
+      else Dict.set dict Pseudo.Func.Tag.needs_stack_frame () in
     C.lift_err @@ Pseudo.Func.create ()
       ~name:(Func.name t.fn)
       ~slots:(Func.slots t.fn |> Seq.to_list)

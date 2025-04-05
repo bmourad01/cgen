@@ -1,6 +1,6 @@
 module foo
 
-export function $foo { ; returns: rax
+function $foo { ; returns: rax
 @2:
   mov %x:w, edi ; @33
   cmp %x:w, 0x2a_w ; @30

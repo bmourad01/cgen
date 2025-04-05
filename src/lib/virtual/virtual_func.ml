@@ -83,7 +83,7 @@ let with_blks fn blks = try Ok (with_blks_exn fn blks) with
   | Invalid_argument msg -> Or_error.error_string msg
 
 let linkage fn = match Dict.find fn.dict Tag.linkage with
-  | None -> Linkage.default_export
+  | None -> Linkage.default_static
   | Some l -> l
 
 let has_name fn name = String.(name = fn.name)
