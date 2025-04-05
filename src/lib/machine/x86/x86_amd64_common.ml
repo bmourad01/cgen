@@ -255,8 +255,6 @@ module Insn = struct
     | Oimm  of int64 * Type.imm (* Immediate *)
     | Omem  of amode * memty    (* Memory address *)
     | Osym  of string * int     (* Symbol *)
-    | Ofp32 of Float32.t        (* Single-precision floating-point number *)
-    | Ofp64 of float            (* Double-precision floating-point number *)
     | Oah                       (* AH register *)
   [@@deriving bin_io, compare, equal, sexp]
 
@@ -297,10 +295,6 @@ module Insn = struct
       Format.fprintf ppf "$%s+%d" s o
     | Osym (s, _) ->
       Format.fprintf ppf "$%s" s
-    | Ofp32 f ->
-      Format.fprintf ppf "%sf" (Float32.to_string f)
-    | Ofp64 f ->
-      Format.fprintf ppf "%a" Float.pp f
     | Oah ->
       Format.fprintf ppf "ah"
 
@@ -512,6 +506,9 @@ module Insn = struct
     | UD2
     (* Pseudo-instruction we will use to represent a jump table. *)
     | JMPtbl of Label.t * Label.t list
+    (* Pseudo instructions for floating-point constants. *)
+    | FP32 of Label.t * Float32.t
+    | FP64 of Label.t * float
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp ppf = function
@@ -548,6 +545,10 @@ module Insn = struct
         Label.pp l
         (Format.pp_print_list ~pp_sep Label.pp)
         ls
+    | FP32 (l, f) ->
+      Format.fprintf ppf ".fp32 %a, %s" Label.pp l (Float32.to_string f)
+    | FP64 (l, f) ->
+      Format.fprintf ppf ".fp64 %a, %a" Label.pp l Float.pp f
 
   (* Helper for registers mentioned in an addressing mode. *)
   let rv_of_amode = function
@@ -702,6 +703,8 @@ module Insn = struct
       -> rset' [`rsp]
     | UD2
     | JMPtbl _
+    | FP32 _
+    | FP64 _
       -> Regvar.Set.empty
 
   (* Registers written to by an instruction. *)
@@ -792,6 +795,8 @@ module Insn = struct
     | JMP _
     | UD2
     | JMPtbl _
+    | FP32 _
+    | FP64 _
       -> Regvar.Set.empty
     | CDQ
     | CQO
@@ -887,6 +892,8 @@ module Insn = struct
     | RET (* XXX: is this OK? *)
     | UD2
     | JMPtbl _ (* fake *)
+    | FP32 _ (* fake *)
+    | FP64 _ (* fake *)
     | IMUL3 _
       -> false
 
@@ -897,6 +904,8 @@ module Insn = struct
     | RET
     | UD2
     | JMPtbl _
+    | FP32 _
+    | FP64 _
       -> true
     (* Special case for zeroing a register. *)
     | Two (XOR, Oreg (a, _), Oreg (b, _))
@@ -979,5 +988,7 @@ module Insn = struct
     let ret = RET
     let ud2 = UD2
     let jmptbl l ls = JMPtbl (l, ls)
+    let fp32 l f = FP32 (l, f)
+    let fp64 l f = FP64 (l, f)
   end
 end

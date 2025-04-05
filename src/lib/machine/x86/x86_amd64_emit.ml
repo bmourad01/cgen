@@ -162,9 +162,6 @@ let emit_operand ppf : Insn.operand -> unit = function
     Format.fprintf ppf "%s+%d" s o
   | Osym (s, _) ->
     Format.fprintf ppf "%s" s
-  | Ofp32 _ | Ofp64 _ ->
-    (* TODO: there should be a separate pass to deal with this. *)
-    invalid_arg "tried to emit a floating point literal in an operand"
   | Oah ->
     Format.fprintf ppf "ah"
 
@@ -204,3 +201,9 @@ let emit_insn ppf (_l, i, s) =
     Format.fprintf ppf ".section .rodata\n.p2align 2\n%a:\n" label l;
     List.iter ls ~f:(emit_tblentry l ppf);
     Format.fprintf ppf ".section %s\n" s;
+  | FP32 (l, f) ->
+    Format.fprintf ppf ".section .rodata\n.p2align 2\n%a:\n  .float %s\n.section %s\n"
+      label l (Float32.to_string f) s
+  | FP64 (l, f) ->
+    Format.fprintf ppf ".section .rodata\n.p2align 3\n%a:\n  .double %a\n.section %s\n"
+      label l Float.pp f s

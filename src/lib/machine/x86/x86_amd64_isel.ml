@@ -151,13 +151,21 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! () = guard @@ Type.equal_basic xt `f32 in
     let*! s = S.single env "y" in
-    !!![I.movss (Oreg (x, xt)) (Ofp32 s)]
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+      I.movss (Oreg (x, xt)) (Omem (addr, `f32));
+      I.fp32 l s;
+    ]
 
   let move_rf64_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! () = guard @@ Type.equal_basic xt `f64 in
     let*! d = S.double env "y" in
-    !!![I.movsd (Oreg (x, xt)) (Ofp64 d)]
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+      I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
+      I.fp64 l d;
+    ]
 
   let add_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
@@ -234,18 +242,24 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! () = guard @@ Type.equal_basic xt yt in
-    let*! z = S.single env "z" in !!![
+    let*! z = S.single env "z" in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
       I.movss (Oreg (x, xt)) (Oreg (y, yt));
-      I.addss (Oreg (x, xt)) (Ofp32 z);
+      I.addss (Oreg (x, xt)) (Omem (addr, `f32));
+      I.fp32 l z;
     ]
 
   let add_rf64_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! () = guard @@ Type.equal_basic xt yt in
-    let*! z = S.double env "z" in !!![
+    let*! z = S.double env "z" in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
       I.movsd (Oreg (x, xt)) (Oreg (y, yt));
-      I.addsd (Oreg (x, xt)) (Ofp64 z);
+      I.addsd (Oreg (x, xt)) (Omem (addr, `f64));
+      I.fp64 l z;
     ]
 
   let sub_rr_x_y_z env =
@@ -292,18 +306,24 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! () = guard @@ Type.equal_basic xt yt in
-    let*! z = S.single env "z" in !!![
+    let*! z = S.single env "z" in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
       I.movss (Oreg (x, xt)) (Oreg (y, yt));
-      I.subss (Oreg (x, xt)) (Ofp32 z);
+      I.subss (Oreg (x, xt)) (Omem (addr, `f32));
+      I.fp32 l z;
     ]
 
   let sub_rf64_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! () = guard @@ Type.equal_basic xt yt in
-    let*! z = S.double env "z" in !!![
+    let*! z = S.double env "z" in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
       I.movsd (Oreg (x, xt)) (Oreg (y, yt));
-      I.subsd (Oreg (x, xt)) (Ofp64 z);
+      I.subsd (Oreg (x, xt)) (Omem (addr, `f64));
+      I.fp64 l z;
     ]
 
   let and_rr_x_y_z env =
@@ -787,14 +807,20 @@ end = struct
 
   let store_rf32_x_y env =
     let*! x = S.single env "x" in
-    let*! y, _ = S.regvar env "y" in !!![
-      I.movss (Omem (Ab y, mty `f32)) (Ofp32 x);
+    let*! y, _ = S.regvar env "y" in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+      I.movss (Omem (Ab y, mty `f32)) (Omem (addr, `f32));
+      I.fp32 l x;
     ]
 
   let store_rf64_x_y env =
     let*! x = S.double env "x" in
-    let*! y, _ = S.regvar env "y" in !!![
-      I.movsd (Omem (Ab y, mty `f64)) (Ofp64 x);
+    let*! y, _ = S.regvar env "y" in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+      I.movsd (Omem (Ab y, mty `f64)) (Omem (addr, `f64));
+      I.fp64 l x;
     ]
 
   let store_add_mul_rr_scale_imm_x_y_z_w s env =
@@ -866,8 +892,11 @@ end = struct
     let*! z, _ = S.imm env "z" in
     let z = Bv.to_int64 z in
     let*! () = guard @@ fits_int32 z in
-    let z = Int64.to_int32_trunc z in !!![
-      I.movss (Omem (Abd (y, Dimm z), mty `f32)) (Ofp32 x);
+    let z = Int64.to_int32_trunc z in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+      I.movss (Omem (Abd (y, Dimm z), mty `f32)) (Omem (addr, `f32));
+      I.fp32 l x;
     ]
 
   let store_f64ri_add_x_y_z env =
@@ -876,8 +905,11 @@ end = struct
     let*! z, _ = S.imm env "z" in
     let z = Bv.to_int64 z in
     let*! () = guard @@ fits_int32 z in
-    let z = Int64.to_int32_trunc z in !!![
-      I.movsd (Omem (Abd (y, Dimm z), mty `f64)) (Ofp64 x);
+    let z = Int64.to_int32_trunc z in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+      I.movsd (Omem (Abd (y, Dimm z), mty `f64)) (Omem (addr, `f64));
+      I.fp64 l x;
     ]
 
   let store_rsym_x_y env =
@@ -1062,18 +1094,24 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z = S.single env "z" in
-    let*! () = guard (Type.equal_basic xt `f32) in !!![
+    let*! () = guard (Type.equal_basic xt `f32) in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
       I.movss (Oreg (x, xt)) (Oreg (y, yt));
-      I.mulss (Oreg (x, xt)) (Ofp32 z);
+      I.mulss (Oreg (x, xt)) (Omem (addr, `f32));
+      I.fp32 l z;
     ]
 
   let fmul_rf64_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z = S.double env "z" in
-    let*! () = guard (Type.equal_basic xt `f64) in !!![
+    let*! () = guard (Type.equal_basic xt `f64) in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
       I.movsd (Oreg (x, xt)) (Oreg (y, yt));
-      I.mulsd (Oreg (x, xt)) (Ofp64 z);
+      I.mulsd (Oreg (x, xt)) (Omem (addr, `f64));
+      I.fp64 l z;
     ]
 
   let idiv_rem_rr_x_y_z env =
@@ -1245,18 +1283,24 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z = S.single env "z" in
-    let*! () = guard (Type.equal_basic xt `f32) in !!![
+    let*! () = guard (Type.equal_basic xt `f32) in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
       I.movss (Oreg (x, xt)) (Oreg (y, yt));
-      I.divss (Oreg (x, xt)) (Ofp32 z);
+      I.divss (Oreg (x, xt)) (Omem (addr, `f32));
+      I.fp32 l z;
     ]
 
   let fdiv_rf64_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z = S.double env "z" in
-    let*! () = guard (Type.equal_basic xt `f64) in !!![
+    let*! () = guard (Type.equal_basic xt `f64) in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
       I.movsd (Oreg (x, xt)) (Oreg (y, yt));
-      I.divsd (Oreg (x, xt)) (Ofp64 z);
+      I.divsd (Oreg (x, xt)) (Omem (addr, `f64));
+      I.fp64 l z;
     ]
 
   let lsl_rr_x_y_z env =
@@ -1374,34 +1418,48 @@ end = struct
       (* shouldn't fail *)
       !!None
 
-  (* NB: this is a bit of a kludge, which will require special handling
-     after isel. *)
   let fneg_r_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     match xt with
-    | `f32 -> !!![
+    | `f32 ->
+      let f = Float32.of_bits 0x8000_0000l in
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
         I.movss (Oreg (x, xt)) (Oreg (y, yt));
-        I.xorps (Oreg (x, xt)) (Ofp32 (Float32.of_bits 0x8000_0000l));
+        I.xorps (Oreg (x, xt)) (Omem (addr, `f32));
+        I.fp32 l f;
       ]
-    | `f64 -> !!![
+    | `f64 ->
+      let f = float_of_bits 0x8000_0000_0000_0000L in
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
         I.movsd (Oreg (x, xt)) (Oreg (y, yt));
-        I.xorpd (Oreg (x, xt)) (Ofp64 (float_of_bits 0x8000_0000_0000_0000L));
+        I.xorpd (Oreg (x, xt)) (Omem (addr, `f64));
+        I.fp64 l f;
       ]
     | _ -> !!None
 
   let fneg_fp32_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y = S.single env "y" in
-    let*! () = guard (Type.equal_basic xt `f32) in !!![
-      I.movss (Oreg (x, xt)) (Ofp32 (Float32.neg y));
+    let*! () = guard (Type.equal_basic xt `f32) in
+    let y = Float32.neg y in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+      I.movss (Oreg (x, xt)) (Omem (addr, `f32));
+      I.fp32 l y;
     ]
 
   let fneg_fp64_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y = S.double env "y" in
-    let*! () = guard (Type.equal_basic xt `f64) in !!![
-      I.movsd (Oreg (x, xt)) (Ofp64 (Float.neg y));
+    let*! () = guard (Type.equal_basic xt `f64) in
+    let y = Float.neg y in
+    let* l = C.Label.fresh in
+    let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+      I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
+      I.fp64 l y;
     ]
 
   let not_r_x_y env =
@@ -1527,10 +1585,18 @@ end = struct
     let*! y = S.single env "y" in
     match ty, xt with
     | `f32, `f32 ->
-      !!![I.movss (Oreg (x, xt)) (Ofp32 y)]
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+        I.movss (Oreg (x, xt)) (Omem (addr, `f32));
+        I.fp32 l y;
+      ]
     | `f64, `f64 ->
-      let y' = Float32.to_float y in
-      !!![I.movsd (Oreg (x, xt)) (Ofp64 y')]
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in
+      let y' = Float32.to_float y in !!![
+        I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
+        I.fp64 l y';
+      ]
     | _ -> !!None
 
   let fext_rf64_x_y ty env =
@@ -1538,7 +1604,11 @@ end = struct
     let*! y = S.double env "y" in
     match ty, xt with
     | `f64, `f64 ->
-      !!![I.movsd (Oreg (x, xt)) (Ofp64 y)]
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+        I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
+        I.fp64 l y;
+      ]
     | _ -> !!None
 
   let fibits_rr_x_y ty env =
@@ -1557,9 +1627,17 @@ end = struct
     let*! () = guard (Type.equal_basic (ty :> Type.basic) xt) in
     match Virtual.Eval.unop_int (`fibits ty) y yt with
     | Some `float f ->
-      !!![I.movss (Oreg (x, xt)) (Ofp32 f)]
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+        I.movss (Oreg (x, xt)) (Omem (addr, `f32));
+        I.fp32 l f;
+      ]
     | Some `double d ->
-      !!![I.movsd (Oreg (x, xt)) (Ofp64 d)]
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+        I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
+        I.fp64 l d;
+      ]
     | _ -> !!None
 
   let ftosi_rr_x_y tf ti env =
@@ -1643,7 +1721,11 @@ end = struct
     let*! y = S.single env "y" in
     match ty, xt with
     | `f32, `f32 ->
-      !!![I.movss (Oreg (x, xt)) (Ofp32 y)]
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+        I.movss (Oreg (x, xt)) (Omem (addr, `f32));
+        I.fp32 l y;
+      ]
     | _ -> !!None
 
   let ftrunc_rf64_x_y ty env =
@@ -1651,9 +1733,18 @@ end = struct
     let*! y = S.double env "y" in
     match ty, xt with
     | `f32, `f32 ->
-      !!![I.movss (Oreg (x, xt)) (Ofp64 y)]
+      let y = Float32.of_float y in
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+        I.movss (Oreg (x, xt)) (Omem (addr, `f32));
+        I.fp32 l y;
+      ]
     | `f64, `f64 ->
-      !!![I.movsd (Oreg (x, xt)) (Ofp64 y)]
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+        I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
+        I.fp64 l y;
+      ]
     | _ -> !!None
 
   let ifbits_rr_x_y ty env =
@@ -1746,9 +1837,17 @@ end = struct
     let*! () = guard (Type.equal_imm (ti :> Type.imm) yt) in
     match Virtual.Eval.unop_int (`sitof (ti, tf)) y yt with
     | Some `float f ->
-      !!![I.movss (Oreg (x, xt)) (Ofp32 f)]
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+        I.movss (Oreg (x, xt)) (Omem (addr, `f32));
+        I.fp32 l f;
+      ]
     | Some `double d ->
-      !!![I.movsd (Oreg (x, xt)) (Ofp64 d)]
+      let* l = C.Label.fresh in
+      let addr = Abd (Rv.reg `rip, Dlbl (l, 0)) in !!![
+        I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
+        I.fp64 l d;
+      ]
     | _ -> !!None
 
   let call_sym_x env =

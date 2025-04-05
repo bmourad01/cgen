@@ -58,8 +58,6 @@ let substitute_operand f = function
   | Oimm _ as i -> i
   | Omem (a, ty) -> Omem (substitute_amode f a, ty)
   | Osym _ as s -> s
-  | Ofp32 _ as s -> s
-  | Ofp64 _ as d -> d
   | Oah -> Oah
 
 let substitute' i op = match i with
@@ -74,7 +72,9 @@ let substitute' i op = match i with
   | JMP (Jlbl _)
   | RET
   | UD2
-  | JMPtbl _ -> i
+  | JMPtbl _
+  | FP32 _
+  | FP64 _ -> i
 
 let substitute i f = substitute' i @@ substitute_operand f
 
@@ -212,6 +212,8 @@ module Typed_writes = struct
     | Jcc _
     | JMP _
     | JMPtbl _
+    | FP32 _
+    | FP64 _
     | RET
     | UD2
       -> Regvar.Map.empty
@@ -299,7 +301,9 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
     | JMP (Jlbl _)
     | RET
     | UD2
-    | JMPtbl _ -> !![i]
+    | JMPtbl _
+    | FP32 _
+    | FP64 _ -> !![i]
 end
 
 module Assign_slots = struct
