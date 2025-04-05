@@ -37,17 +37,13 @@ module type S = sig
     *)
     val scratch : t
 
-    (** Same as [scratch], but for floating-point registers. *)
-    val scratch_fp : t
-
     (** A list of all general purpose registers, in order of their preference
-        for register allocation, {b except for} [scratch], which {b must not}
-        be contained. *)
+        for register allocation, {b except for} [scratch], [sp], and [fp], which
+        {b must not} be contained. *)
     val allocatable : t list
 
     (** A list of all floating point registers, in order of their preference
-        for register allocation, {b except for} [scratch_fp], which {b must not}
-        be contained. *)
+        for register allocation. *)
     val allocatable_fp : t list
 
     (** Returns the class of the register. *)
@@ -154,8 +150,12 @@ module type S = sig
 
         This is meant to happen {i after} register allocation, where the only
         remaining variables in the program are those referring to virtual slots.
+
+        This function {b shall not} return an empty list of instructions. In the
+        case of needing additional admininstrative instructions, the [Reg.scratch]
+        register is available for use.
     *)
-    val assign_slots : Reg.t -> int Var.Map.t -> Insn.t -> Insn.t
+    val assign_slots : Reg.t -> int Var.Map.t -> Insn.t -> Insn.t list
 
     (** Create a function prologue with no stack frame, given the callee-save
         registers in use and the size of the local variables. *)

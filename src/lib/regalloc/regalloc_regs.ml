@@ -16,7 +16,6 @@ module Make(M : Machine_intf.S) = struct
         | FP -> assert false
         | GPR -> ());
     List.iter M.Reg.allocatable_fp ~f:(fun r ->
-        assert (not M.Reg.(equal r scratch_fp));
         match M.Reg.classof r with
         | GPR -> assert false
         | FP -> ())
@@ -33,7 +32,7 @@ module Make(M : Machine_intf.S) = struct
   let same_class_node a b = same_class (classof a) (classof b)
 
   let allocatable = Array.of_list M.Reg.(scratch :: allocatable)
-  let allocatable_fp = Array.of_list M.Reg.(scratch_fp :: allocatable_fp)
+  let allocatable_fp = Array.of_list M.Reg.allocatable_fp
 
   let kallocatable = Array.length allocatable
   let kallocatable_fp = Array.length allocatable_fp
@@ -51,7 +50,6 @@ module Make(M : Machine_intf.S) = struct
     t
 
   let () = assert (Hashtbl.find_exn prealloc M.Reg.scratch = 0)
-  let () = assert (Hashtbl.find_exn prealloc_fp M.Reg.scratch_fp = 0)
   let scratch_inv_mask = Z.(~!one)
 
   let reg_color r =

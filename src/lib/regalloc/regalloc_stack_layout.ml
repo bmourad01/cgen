@@ -72,11 +72,28 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let offsets = compute_offsets slots start in
       let base = if frame then M.Reg.fp else M.Reg.sp in
       (* Replace uses of virtual slots with concrete stack locations. *)
-      let fn = Func.map_blks fn ~f:(fun b ->
-          Blk.map_insns b ~f:(fun i ->
-              let insn = Insn.insn i in
-              let insn' = M.Regalloc.assign_slots base offsets insn in
-              Insn.with_insn i insn')) in
+      let* fn =
+        let+ blks =
+          Func.blks ~rev:true fn |>
+          C.Seq.fold ~init:[] ~f:(fun bs b ->
+              let+ insns =
+                Blk.insns ~rev:true b |>
+                C.Seq.fold ~init:[] ~f:(fun is i ->
+                    let insn = Insn.insn i in
+                    match M.Regalloc.assign_slots base offsets insn with
+                    | [] ->
+                      C.failf
+                        "In Regalloc_stack_layout.run: assign_slots cannot \
+                         return an empty list" ()
+                    | [insn] -> !!(Insn.with_insn i insn :: is)
+                    | insn :: insns ->
+                      let i' = Insn.with_insn i insn in
+                      let+ is' = C.List.map insns ~f:(fun insn ->
+                          let+ label = C.Label.fresh in
+                          Insn.create ~label ~insn) in
+                      (i' :: is') @ is) in
+              Blk.with_insns b insns :: bs) in
+        Func.with_blks fn blks in
       (* Allocate the stack frame and preserve any callee-save registers. *)
       let regs = callee_saves fn in
       let entry = Func.entry fn in

@@ -102,8 +102,6 @@ module Reg = struct
     | `xmm15
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 
-  let scratch_fp = `xmm0
-
   let pp_sse ppf sse =
     Format.fprintf ppf "%a" Sexp.pp (sexp_of_sse sse)
 

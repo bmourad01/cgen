@@ -306,20 +306,20 @@ module Assign_slots = struct
     | Second (v, _) -> Map.find offsets v
     | First _ -> None
 
-  let add_disp off d =
-      let d' = Int32.(d + of_int_exn off) in
-      (* We can't easily predict whether this will overflow or not ahead of time,
-         because we don't know what the stack layout will be, so it seems fair to
-         alert the user that their code is likely to be wrong. *)
-      if (off > 0 && Int32.(d' < d)) ||
-         (off < 0 && Int32.(d' > d)) then
-        failwithf "Overflow when adjusting displacement with stack \
-                   offset 0x%x (pre: 0x%lx, post: 0x%lx)"
-          off d d' ();
-      d'
+  let scratch = Regvar.reg Reg.scratch
+
+  let add_disp is base off d =
+    let off' = Int32.of_int_exn off in
+    let d' = Int32.(d + off') in
+    if (off > 0 && Int32.(d' < d)) ||
+       (off < 0 && Int32.(d' > d)) then begin
+      assert (Option.is_none !is);
+      is := Some (I.lea (Oreg (scratch, `i64)) (Omem (Abd (base, off'), `i64)));
+      Second scratch
+    end else First d'
 
   (* NB: this makes assumptions based on the results of `Replace_direct_slot_uses`. *)
-  let assign_amode base offsets a = match a with
+  let assign_amode is base offsets a = match a with
     | Albl _ | Asym _ -> a
     | Ab b ->
       begin match find offsets b with
@@ -330,7 +330,9 @@ module Assign_slots = struct
     | Abd (b, d) ->
       begin match find offsets b with
         | None -> a
-        | Some o -> Abd (base, add_disp o d)
+        | Some o -> match add_disp is base o d with
+          | First d' -> Abd (base, d')
+          | Second b' -> Abd (b', d)
       end
     | Abis (b, i, s) ->
       begin match find offsets b, find offsets i with
@@ -348,12 +350,14 @@ module Assign_slots = struct
     | Abisd (b, i, s, d) ->
       begin match find offsets b, find offsets i with
         | None, None -> a
-        | Some o, None -> Abisd (base, i, s, add_disp o d)
         | None, Some _ -> assert false
         | Some _, Some _ -> assert false
+        | Some o, None -> match add_disp is base o d with
+          | First d' -> Abisd (base, i, s, d')
+          | Second b' -> Abisd (b', i, s, d)
       end
 
-  let assign_operand base offsets op = match op with
+  let assign_operand is base offsets op = match op with
     | Oreg (r, _) ->
       begin match find offsets r with
         | None -> op
@@ -364,12 +368,16 @@ module Assign_slots = struct
         | None -> op
         | Some _ -> assert false
       end
-    | Omem (a, ty) -> Omem (assign_amode base offsets a, ty)
+    | Omem (a, ty) -> Omem (assign_amode is base offsets a, ty)
     | _ -> op
 
   let assign base offsets i =
     let base = Regvar.reg base in
-    substitute' i @@ assign_operand base offsets
+    let is = ref None in
+    let i' = substitute' i @@ assign_operand is base offsets in
+    match !is with
+    | None -> [i']
+    | Some lea -> [lea; i']
 end
 
 let assign_slots = Assign_slots.assign
