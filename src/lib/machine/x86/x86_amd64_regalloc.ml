@@ -250,21 +250,16 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
     else !!(x, [])
 
   let replace_amode is_slot a = match a with
-    | Ab _ | Albl _ | Asym _ -> !!(a, [])
-    | Abd (b, d) ->
-      let+ b', bi = freshen is_slot b in
-      Abd (b', d), bi
+    | Ab _ | Albl _ | Asym _ | Abd _ -> !!(a, [])
     | Abis (b, i, s) ->
-      let* b', bi = freshen is_slot b in
       let+ i', ii = freshen is_slot i in
-      Abis (b', i', s), bi @ ii
+      Abis (b, i', s), ii
     | Aisd (i, s, d) ->
       let+ i', ii = freshen is_slot i in
       Aisd (i', s, d), ii
     | Abisd (b, i, s, d) ->
-      let* b', bi = freshen is_slot b in
       let+ i', ii = freshen is_slot i in
-      Abisd (b', i', s, d), bi @ ii
+      Abisd (b, i', s, d), ii
 
   let replace_operand is_slot op = match op with
     | Oreg (r, ty) ->
@@ -311,6 +306,18 @@ module Assign_slots = struct
     | Second (v, _) -> Map.find offsets v
     | First _ -> None
 
+  let add_disp off d =
+      let d' = Int32.(d + of_int_exn off) in
+      (* We can't easily predict whether this will overflow or not ahead of time,
+         because we don't know what the stack layout will be, so it seems fair to
+         alert the user that their code is likely to be wrong. *)
+      if (off > 0 && Int32.(d' < d)) ||
+         (off < 0 && Int32.(d' > d)) then
+        failwithf "Overflow when adjusting displacement with stack \
+                   offset 0x%x (pre: 0x%lx, post: 0x%lx)"
+          off d d' ();
+      d'
+
   (* NB: this makes assumptions based on the results of `Replace_direct_slot_uses`. *)
   let assign_amode base offsets a = match a with
     | Albl _ | Asym _ -> a
@@ -320,15 +327,16 @@ module Assign_slots = struct
         | Some o -> Abd (base, Int32.of_int_exn o)
         | None -> a
       end
-    | Abd (b, _d) ->
+    | Abd (b, d) ->
       begin match find offsets b with
         | None -> a
-        | Some _ -> assert false
+        | Some o -> Abd (base, add_disp o d)
       end
-    | Abis (b, i, _s) ->
+    | Abis (b, i, s) ->
       begin match find offsets b, find offsets i with
         | None, None -> a
-        | Some _, None -> assert false
+        | Some 0, None -> Abis (base, i, s)
+        | Some o, None -> Abisd (base, i, s, Int32.of_int_exn o)
         | None, Some _ -> assert false
         | Some _, Some _ -> assert false
       end
@@ -337,10 +345,10 @@ module Assign_slots = struct
         | None -> a
         | Some _ -> assert false
       end
-    | Abisd (b, i, _s, _d) ->
+    | Abisd (b, i, s, d) ->
       begin match find offsets b, find offsets i with
         | None, None -> a
-        | Some _, None -> assert false
+        | Some o, None -> Abisd (base, i, s, add_disp o d)
         | None, Some _ -> assert false
         | Some _, Some _ -> assert false
       end
