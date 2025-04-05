@@ -11,9 +11,13 @@ module Make(M : Machine_intf.S) = struct
     M.Emit.emit_prelude ppf @@ Module.name m;
     Module.data m |> Seq.iter ~f:(M.Emit.emit_data ppf);
     Module.funs m |> Seq.iter ~f:(fun fn ->
-        M.Emit.emit_func ppf (Func.name fn, Func.linkage fn);
+        let lnk = Func.linkage fn in
+        let section = Linkage.section lnk in
+        M.Emit.emit_func ppf (Func.name fn, lnk);
         Func.blks fn |> Seq.iter ~f:(fun b ->
             M.Emit.emit_blk ppf @@ Blk.label b;
             Blk.insns b |> Seq.iter ~f:(fun i ->
-                M.Emit.emit_insn ppf @@ Insn.insn i)))
+                let insn = Insn.insn i in
+                let label = Insn.label i in
+                M.Emit.emit_insn ppf (label, insn, section))))
 end

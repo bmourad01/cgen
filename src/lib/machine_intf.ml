@@ -191,13 +191,22 @@ module type S = sig
     (** Emit a structure of data. *)
     val emit_data : Format.formatter -> Virtual.data -> unit
 
-    (** Emit the start of a function. *)
+    (** Emit the start of a function.
+
+        The name of the function and the linkage are provided.
+    *)
     val emit_func : Format.formatter -> (string * Linkage.t) -> unit
 
     (** Emit the start of a basic block. *)
     val emit_blk : Format.formatter -> Label.t -> unit
 
-    (** Emit an instruction as part of a basic block. *)
-    val emit_insn : Format.formatter -> Insn.t -> unit
+    (** Emit an instruction as part of a basic block.
+
+        The label of the instruction, the instruction itself, and the section
+        of the containing function are provided. In the case that the section
+        is [None], then it will be the default section for code (this is decided
+        by the implementation).
+    *)
+    val emit_insn : Format.formatter -> (Label.t * Insn.t * string option) -> unit
   end
 end

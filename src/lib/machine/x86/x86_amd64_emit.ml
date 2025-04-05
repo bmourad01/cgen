@@ -163,6 +163,7 @@ let emit_operand ppf : Insn.operand -> unit = function
   | Osym (s, _) ->
     Format.fprintf ppf "%s" s
   | Ofp32 _ | Ofp64 _ ->
+    (* TODO: there should be a separate pass to deal with this. *)
     invalid_arg "tried to emit a floating point literal in an operand"
   | Oah ->
     Format.fprintf ppf "ah"
@@ -170,12 +171,15 @@ let emit_operand ppf : Insn.operand -> unit = function
 let emit_tblentry (start : Label.t) ppf (dest : Label.t) =
   Format.fprintf ppf "  .long %a-%a\n" label dest label start
 
-let emit_insn ppf : Insn.t -> unit = function
-  | One (op, a) ->
-    Format.fprintf ppf "  %a %a\n" Insn.pp_unop op emit_operand a
-  | Two (op, a, b) ->
+let emit_insn ppf (_l, i, s) =
+  let s = Option.value s ~default:".text" in
+  let op = emit_operand in
+  match (i : Insn.t) with
+  | One (o, a) ->
+    Format.fprintf ppf "  %a %a\n" Insn.pp_unop o op a
+  | Two (o, a, b) ->
     Format.fprintf ppf "  %a %a, %a\n"
-      Insn.pp_binop op emit_operand a emit_operand b
+      Insn.pp_binop o op a op b
   | CDQ ->
     Format.fprintf ppf "  cdq\n"
   | CQO ->
@@ -184,12 +188,12 @@ let emit_insn ppf : Insn.t -> unit = function
     Format.fprintf ppf "  cwd\n"
   | IMUL3 (a, b, c) ->
     Format.fprintf ppf "  imul %a, %a, 0x%lx\n"
-      emit_operand a emit_operand b c
+      op a op b c
   | Jcc (cc, l) ->
     Format.fprintf ppf "  j%a %a\n"
       Insn.pp_cc cc label l
   | JMP (Jind a) ->
-    Format.fprintf ppf "  jmp %a\n" emit_operand a
+    Format.fprintf ppf "  jmp %a\n" op a
   | JMP (Jlbl l) ->
     Format.fprintf ppf "  jmp %a\n" label l
   | RET ->
@@ -197,5 +201,6 @@ let emit_insn ppf : Insn.t -> unit = function
   | UD2 ->
     Format.fprintf ppf "  ud2\n"
   | JMPtbl (l, ls) ->
-    Format.fprintf ppf "%a:\n" label l;
-    List.iter ls ~f:(emit_tblentry l ppf)
+    Format.fprintf ppf ".section .rodata\n.p2align 2\n%a:\n" label l;
+    List.iter ls ~f:(emit_tblentry l ppf);
+    Format.fprintf ppf ".section %s\n" s;
