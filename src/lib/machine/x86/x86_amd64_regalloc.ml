@@ -248,10 +248,7 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
     else !!(x, [])
 
   let replace_amode is_slot a = match a with
-    | Ad _ -> !!(a, [])
-    | Ab b ->
-      let+ b', bi = freshen is_slot b in
-      Ab b', bi
+    | Ad _ | Ab _ -> !!(a, [])
     | Abd (b, d) ->
       let+ b', bi = freshen is_slot b in
       Abd (b', d), bi
