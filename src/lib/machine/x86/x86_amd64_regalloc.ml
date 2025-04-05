@@ -45,12 +45,12 @@ let store_to_slot ty ~src ~dst = match classof src with
     end
 
 let substitute_amode f = function
-  | Ad _ as a -> a
   | Ab b -> Ab (f b)
   | Abd (b, d) -> Abd (f b, d)
   | Abis (b, i, s) -> Abis (f b, f i, s)
   | Aisd (i, s, d) -> Aisd (f i, s, d)
   | Abisd (b, i, s, d) -> Abisd (f b, f i, s, d)
+  | (Asym _ | Albl _) as a -> a
 
 let substitute_operand f = function
   | Oreg (r, t) -> Oreg (f r, t)
@@ -95,12 +95,12 @@ module Typed_writes = struct
 
   (* Helper for registers mentioned in an addressing mode. *)
   let rv_of_amode = function
-    | Ad _ -> []
     | Ab a -> [a, `i64]
     | Abd (a, _) -> [a, `i64]
     | Abis (a, b, _) -> [a, `i64; b, `i64]
     | Aisd (a, _, _) -> [a, `i64]
     | Abisd (a, b, _, _) -> [a, `i64; b, `i64]
+    | Albl _ | Asym _ -> [Regvar.reg `rip, `i64]
 
   (* All registers mentioned in operands. *)
   let rmap operands =
@@ -250,7 +250,7 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
     else !!(x, [])
 
   let replace_amode is_slot a = match a with
-    | Ad _ | Ab _ -> !!(a, [])
+    | Ab _ | Albl _ | Asym _ -> !!(a, [])
     | Abd (b, d) ->
       let+ b', bi = freshen is_slot b in
       Abd (b', d), bi
@@ -311,15 +311,13 @@ module Assign_slots = struct
     | Second (v, _) -> Map.find offsets v
     | First _ -> None
 
-  let idisp i = Dimm (Int32.of_int_exn i)
-
   (* NB: this makes assumptions based on the results of `Replace_direct_slot_uses`. *)
   let assign_amode base offsets a = match a with
-    | Ad _d -> a
+    | Albl _ | Asym _ -> a
     | Ab b ->
       begin match find offsets b with
         | Some 0 -> Ab base
-        | Some o -> Abd (base, idisp o)
+        | Some o -> Abd (base, Int32.of_int_exn o)
         | None -> a
       end
     | Abd (b, _d) ->

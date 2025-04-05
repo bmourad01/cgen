@@ -102,7 +102,7 @@ end = struct
 
   let fresh_label_addr =
     let+ l = C.Label.fresh in
-    l, Abd (Rv.reg `rip, Dlbl (l, 0))
+    l, Albl (l, 0)
 
   (* Rule callbacks. *)
 
@@ -148,8 +148,7 @@ end = struct
   let move_rsym_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! s, o = S.sym env "y" in
-    let addr = Abd (Rv.reg `rip, Dsym (s, o)) in
-    !!![I.lea (Oreg (x, xt)) (Omem (addr, `i64))]
+    !!![I.lea (Oreg (x, xt)) (Omem (Asym (s, o), `i64))]
 
   let move_rf32_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -207,7 +206,7 @@ end = struct
     let*! () = guard @@ can_lea_ty xt in
     let*! () = guard @@ fits_int32_pos w in
     let w = Int64.to_int32_trunc w in
-    !!![I.lea (Oreg (x, xt)) (Omem (Abisd (y, z, s, Dimm w), `i64))]
+    !!![I.lea (Oreg (x, xt)) (Omem (Abisd (y, z, s, w), `i64))]
 
   let add_mul_rr_scale_neg_imm_x_y_z_w s env =
     let*! x, xt = S.regvar env "x" in
@@ -219,7 +218,7 @@ end = struct
     let*! () = guard @@ can_lea_ty xt in
     let*! () = guard @@ fits_int32_neg nw in
     let w = Int64.to_int32_trunc nw in
-    !!![I.lea (Oreg (x, xt)) (Omem (Abisd (y, z, s, Dimm w), `i64))]
+    !!![I.lea (Oreg (x, xt)) (Omem (Abisd (y, z, s, w), `i64))]
 
   let add_ri_x_y_z env =
     let*! x, xt = S.regvar env "x" in
@@ -231,7 +230,7 @@ end = struct
       !!![I.mov (Oreg (x, xt)) (Oreg (y, yt))]
     else if not (Rv.equal x y) && fits_int32_pos z && can_lea_ty xt then
       let z = Int64.to_int32_trunc z in
-      !!![I.lea (Oreg (x, xt)) (Omem (Abd (y, Dimm z), `i64))]
+      !!![I.lea (Oreg (x, xt)) (Omem (Abd (y, z), `i64))]
     else if Rv.equal x y then
       !!![I.add (Oreg (x, xt)) (Oimm (z, zt))]
     else
@@ -293,7 +292,7 @@ end = struct
       !!![I.mov (Oreg (x, xt)) (Oreg (y, yt))]
     else if not (Rv.equal x y) && fits_int32_neg nz && can_lea_ty xt then
       let z = Int64.to_int32_trunc nz in
-      !!![I.lea (Oreg (x, xt)) (Omem (Abd (y, Dimm z), `i64))]
+      !!![I.lea (Oreg (x, xt)) (Omem (Abd (y, z), `i64))]
     else if Rv.equal x y then
       !!![I.sub (Oreg (x, xt)) (Oimm (z, zt))]
     else
@@ -735,7 +734,7 @@ end = struct
     let w = Bv.to_int64 w in
     let*! () = guard @@ fits_int32_pos w in
     let w = Int64.to_int32_trunc w in
-    let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
+    let addr = Omem (Abisd (y, z, s, w), mty xt) in
     match xt with
     | #Type.imm -> !!![I.mov (Oreg (x, xt)) addr]
     | `f32 -> !!![I.movss (Oreg (x, xt)) addr]
@@ -750,7 +749,7 @@ end = struct
     let nw = Int64.neg w in
     let*! () = guard @@ fits_int32_neg nw in
     let w = Int64.to_int32_trunc nw in
-    let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
+    let addr = Omem (Abisd (y, z, s, w), mty xt) in
     match xt with
     | #Type.imm -> !!![I.mov (Oreg (x, xt)) addr]
     | `f32 -> !!![I.movss (Oreg (x, xt)) addr]
@@ -773,7 +772,7 @@ end = struct
     let z = Bv.to_int64 z in
     let*! () = guard @@ fits_int32 z in
     let z = Int64.to_int32_trunc z in
-    let addr = Omem (Abd (y, Dimm z), mty xt) in
+    let addr = Omem (Abd (y, z), mty xt) in
     match xt with
     | #Type.imm -> !!![I.mov (Oreg (x, xt)) addr]
     | `f32 -> !!![I.movss (Oreg (x, xt)) addr]
@@ -827,7 +826,7 @@ end = struct
     let w = Bv.to_int64 w in
     let*! () = guard @@ fits_int32_pos w in
     let w = Int64.to_int32_trunc w in
-    let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
+    let addr = Omem (Abisd (y, z, s, w), mty xt) in
     match xt with
     | #Type.imm -> !!![I.mov addr (Oreg (x, xt))]
     | `f32 -> !!![I.movss addr (Oreg (x, xt))]
@@ -842,7 +841,7 @@ end = struct
     let nw = Int64.neg w in
     let*! () = guard @@ fits_int32_neg nw in
     let w = Int64.to_int32_trunc nw in
-    let addr = Omem (Abisd (y, z, s, Dimm w), mty xt) in
+    let addr = Omem (Abisd (y, z, s, w), mty xt) in
     match xt with
     | #Type.imm -> !!![I.mov addr (Oreg (x, xt))]
     | `f32 -> !!![I.movss addr (Oreg (x, xt))]
@@ -865,7 +864,7 @@ end = struct
     let z = Bv.to_int64 z in
     let*! () = guard @@ fits_int32 z in
     let z = Int64.to_int32_trunc z in
-    let addr = Omem (Abd (y, Dimm z), mty xt) in
+    let addr = Omem (Abd (y, z), mty xt) in
     match xt with
     | #Type.imm -> !!![I.mov addr (Oreg (x, xt))]
     | `f32 -> !!![I.movss addr (Oreg (x, xt))]
@@ -879,7 +878,7 @@ end = struct
     let*! () = guard @@ fits_int32 z in
     let z = Int64.to_int32_trunc z in
     let x = Bv.to_int64 x in !!![
-      I.mov (Omem (Abd (y, Dimm z), mty xt)) (Oimm (x, xt));
+      I.mov (Omem (Abd (y, z), mty xt)) (Oimm (x, xt));
     ]
 
   let store_f32ri_add_x_y_z env =
@@ -890,7 +889,7 @@ end = struct
     let*! () = guard @@ fits_int32 z in
     let z = Int64.to_int32_trunc z in
     let* l, addr = fresh_label_addr in !!![
-      I.movss (Omem (Abd (y, Dimm z), mty `f32)) (Omem (addr, `f32));
+      I.movss (Omem (Abd (y, z), mty `f32)) (Omem (addr, `f32));
       I.fp32 l x;
     ]
 
@@ -902,24 +901,22 @@ end = struct
     let*! () = guard @@ fits_int32 z in
     let z = Int64.to_int32_trunc z in
     let* l, addr = fresh_label_addr in !!![
-      I.movsd (Omem (Abd (y, Dimm z), mty `f64)) (Omem (addr, `f64));
+      I.movsd (Omem (Abd (y, z), mty `f64)) (Omem (addr, `f64));
       I.fp64 l x;
     ]
 
   let store_rsym_x_y env =
     let*! s, o = S.sym env "x" in
     let*! y, yt = S.regvar env "y" in
-    let addr = Abd (Rv.reg `rip, Dsym (s, o)) in
     let* x = C.Var.fresh >>| Rv.var GPR in !!![
-      I.lea (Oreg (x, `i64)) (Omem (addr, `i64));
+      I.lea (Oreg (x, `i64)) (Omem (Asym (s, o), `i64));
       I.mov (Omem (Ab y, mty yt)) (Oreg (x, yt));
     ]
 
   let store_symr_x_y env =
     let*! x, xt = S.regvar env "x" in
-    let*! s, o = S.sym env "y" in
-    let addr = Abd (Rv.reg `rip, Dsym (s, o)) in !!![
-      I.mov (Omem (addr, mty xt)) (Oreg (x, xt));
+    let*! s, o = S.sym env "y" in !!![
+      I.mov (Omem (Asym (s, o), mty xt)) (Oreg (x, xt));
     ]
 
   let store_v_rr_x_y env =
@@ -935,7 +932,7 @@ end = struct
     let z = Bv.to_int64 z in
     let*! () = guard @@ fits_int32 z in
     let z = Int64.to_int32_trunc z in !!![
-      I.movdqa (Omem (Abd (y, Dimm z), `v128)) (Oregv x);
+      I.movdqa (Omem (Abd (y, z), `v128)) (Oregv x);
     ]
 
   let mul_lea_ri_addi_x_y_z s env =
@@ -946,7 +943,7 @@ end = struct
     let*! () = guard @@ fits_int32_pos z in
     let*! () = guard @@ can_lea_ty xt in
     let z = Int64.to_int32_trunc z in
-    !!![I.lea (Oreg (x, xt)) (Omem (Aisd (y, s, Dimm z), `i64))]
+    !!![I.lea (Oreg (x, xt)) (Omem (Aisd (y, s, z), `i64))]
 
   let imul_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in

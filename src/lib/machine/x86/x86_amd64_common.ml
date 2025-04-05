@@ -158,29 +158,6 @@ module Regvar = Machine_regvar.Make(Reg)(struct
 type rv = Regvar.t [@@deriving bin_io, compare, equal, hash, sexp]
 
 module Insn = struct
-  (* Displacements for addressing modes. *)
-  type disp =
-    | Dsym of string * int  (* Symbol + offset *)
-    | Dimm of int32         (* Immediate *)
-    | Dlbl of Label.t * int (* Label *)
-  [@@deriving bin_io, compare, equal, sexp]
-
-  let pp_disp ppf = function
-    | Dsym (s, o) when o < 0 ->
-      Format.fprintf ppf "$%s-%d" s (-o)
-    | Dsym (s, o) when o > 0 ->
-      Format.fprintf ppf "$%s+%d" s o
-    | Dsym (s, _) ->
-      Format.fprintf ppf "$%s" s
-    | Dimm i ->
-      Format.fprintf ppf "0x%lx" i
-    | Dlbl (l, o) when o < 0 ->
-      Format.fprintf ppf "%a-%d" Label.pp l (-o)
-    | Dlbl (l, o) when o > 0 ->
-      Format.fprintf ppf "%a+%d" Label.pp l o
-    | Dlbl (l, _) ->
-      Format.fprintf ppf "%a" Label.pp l
-
   (* SIB scale. Only 1, 2, 4, and 8 are valid. *)
   type scale =
     | S1
@@ -199,40 +176,51 @@ module Insn = struct
 
   (* Memory addressing modes. *)
   type amode =
-    | Ad    of disp                   (* Displacement *)
-    | Ab    of rv                     (* Base *)
-    | Abd   of rv * disp              (* Base + displacement *)
-    | Abis  of rv * rv * scale        (* Base + index * scale *)
-    | Aisd  of rv * scale * disp      (* Index * scale + displacement *)
-    | Abisd of rv * rv * scale * disp (* Base + index * scale + displacement *)
+    | Ab    of rv                      (* Base *)
+    | Abd   of rv * int32              (* Base + displacement *)
+    | Abis  of rv * rv * scale         (* Base + index * scale *)
+    | Aisd  of rv * scale * int32      (* Index * scale + displacement *)
+    | Abisd of rv * rv * scale * int32 (* Base + index * scale + displacement *)
+    | Albl  of Label.t * int           (* RIP + label + offset *)
+    | Asym  of string * int            (* RIP + symbol + offset *)
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_amode ppf = function
-    | Ad d ->
-      Format.fprintf ppf "%a" pp_disp d
     | Ab b ->
       Format.fprintf ppf "%a" Regvar.pp b
-    | Abd (b, Dimm d) when Int32.(d < 0l) ->
+    | Abd (b, d) when Int32.(d < 0l) ->
       Format.fprintf ppf "%a - 0x%lx"
         Regvar.pp b (Int32.neg d)
     | Abd (b, d) ->
-      Format.fprintf ppf "%a + %a"
-        Regvar.pp b pp_disp d
+      Format.fprintf ppf "%a + 0x%lx" Regvar.pp b d
     | Abis (b, i, s) ->
       Format.fprintf ppf "%a + %a*%a"
         Regvar.pp b Regvar.pp i pp_scale s
-    | Aisd (i, s, Dimm d) when Int32.(d < 0l) ->
+    | Aisd (i, s, d) when Int32.(d < 0l) ->
       Format.fprintf ppf "%a*%a - 0x%lx"
         Regvar.pp i pp_scale s (Int32.neg d)
     | Aisd (i, s, d) ->
-      Format.fprintf ppf "%a*%a + %a"
-        Regvar.pp i pp_scale s pp_disp d
-    | Abisd (b, i, s, Dimm d) when Int32.(d < 0l) ->
+      Format.fprintf ppf "%a*%a + 0x%lx"
+        Regvar.pp i pp_scale s d
+    | Abisd (b, i, s, d) when Int32.(d < 0l) ->
       Format.fprintf ppf "%a + %a*%a - 0x%lx"
         Regvar.pp b Regvar.pp i pp_scale s (Int32.neg d)
     | Abisd (b, i, s, d) ->
-      Format.fprintf ppf "%a + %a*%a + %a"
-        Regvar.pp b Regvar.pp i pp_scale s pp_disp d
+      Format.fprintf ppf "%a + %a*%a + 0x%lx"
+        Regvar.pp b Regvar.pp i pp_scale s d
+    | Asym (s, o) when o < 0 ->
+      Format.fprintf ppf "rip + $%s-%d" s (-o)
+    | Asym (s, o) when o > 0 ->
+      Format.fprintf ppf "rip + $%s+%d" s o
+    | Asym (s, _) ->
+      Format.fprintf ppf "rip + $%s" s
+    | Albl (l, o) when o < 0 ->
+      Format.fprintf ppf "rip + %a-%d" Label.pp l (-o)
+    | Albl (l, o) when o > 0 ->
+      Format.fprintf ppf "rip + %a+%d" Label.pp l o
+    | Albl (l, _) ->
+      Format.fprintf ppf "rip + %a" Label.pp l
+
 
   type memty = [
     | Type.basic
@@ -552,12 +540,12 @@ module Insn = struct
 
   (* Helper for registers mentioned in an addressing mode. *)
   let rv_of_amode = function
-    | Ad _ -> []
     | Ab a -> [a]
     | Abd (a, _) -> [a]
     | Abis (a, b, _) -> [a; b]
     | Aisd (a, _, _) -> [a]
     | Abisd (a, b, _, _) -> [a; b]
+    | Asym _ | Albl _ -> [Regvar.reg `rip]
 
   (* All registers mentioned in operands. *)
   let rset operands =

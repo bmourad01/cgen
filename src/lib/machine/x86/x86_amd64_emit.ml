@@ -71,22 +71,6 @@ let emit_func ppf (name, lnk) =
 let emit_blk ppf (l : Label.t) =
   Format.fprintf ppf "%a:\n" label l
 
-let emit_disp ppf : Insn.disp -> unit = function
-  | Dsym (s, o) when o < 0 ->
-    Format.fprintf ppf "%s-%d" s (-o)
-  | Dsym (s, o) when o > 0 ->
-    Format.fprintf ppf "%s+%d" s o
-  | Dsym (s, _) ->
-    Format.fprintf ppf "%s" s
-  | Dimm i ->
-    Format.fprintf ppf "0x%lx" i
-  | Dlbl (l, o) when o < 0 ->
-    Format.fprintf ppf "%a-%d" label l (-o)
-  | Dlbl (l, o) when o > 0 ->
-    Format.fprintf ppf "%a+%d" label l o
-  | Dlbl (l, _) ->
-    Format.fprintf ppf "%a" label l
-
 let emit_regvar t ppf rv = match Regvar.which rv with
   | First r ->
     begin match r, t with
@@ -118,28 +102,38 @@ let emit_regvar t ppf rv = match Regvar.which rv with
 let emit_amode ppf (a : Insn.amode) =
   let rv = emit_regvar `i64 in
   match a with
-  | Ad d ->
-    Format.fprintf ppf "%a" emit_disp d
   | Ab b ->
     Format.fprintf ppf "%a" rv b
-  | Abd (b, Dimm d) when Int32.(d < 0l) ->
+  | Abd (b, d) when Int32.(d < 0l) ->
     Format.fprintf ppf "%a - 0x%lx" rv b (Int32.neg d)
   | Abd (b, d) ->
-    Format.fprintf ppf "%a + %a" rv b emit_disp d
+    Format.fprintf ppf "%a + 0x%lx" rv b d
   | Abis (b, i, s) ->
     Format.fprintf ppf "%a + %a*%a" rv b rv i Insn.pp_scale s
-  | Aisd (i, s, Dimm d) when Int32.(d < 0l) ->
+  | Aisd (i, s, d) when Int32.(d < 0l) ->
     Format.fprintf ppf "%a*%a - 0x%lx"
       rv i Insn.pp_scale s (Int32.neg d)
   | Aisd (i, s, d) ->
-    Format.fprintf ppf "%a*%a + %a"
-      rv i Insn.pp_scale s emit_disp d
-  | Abisd (b, i, s, Dimm d) when Int32.(d < 0l) ->
+    Format.fprintf ppf "%a*%a + 0x%lx"
+      rv i Insn.pp_scale s d
+  | Abisd (b, i, s, d) when Int32.(d < 0l) ->
     Format.fprintf ppf "%a + %a*%a - 0x%lx"
       rv b rv i Insn.pp_scale s (Int32.neg d)
   | Abisd (b, i, s, d) ->
-    Format.fprintf ppf "%a + %a*%a + %a"
-      rv b rv i Insn.pp_scale s Insn.pp_disp d
+    Format.fprintf ppf "%a + %a*%a + 0x%lx"
+      rv b rv i Insn.pp_scale s d
+  | Asym (s, o) when o < 0 ->
+    Format.fprintf ppf "rip + %s-%d" s (-o)
+  | Asym (s, o) when o > 0 ->
+    Format.fprintf ppf "rip + %s+%d" s o
+  | Asym (s, _) ->
+    Format.fprintf ppf "rip + %s" s
+  | Albl (l, o) when o < 0 ->
+    Format.fprintf ppf "rip + %a-%d" label l (-o)
+  | Albl (l, o) when o > 0 ->
+    Format.fprintf ppf "rip + %a+%d" label l o
+  | Albl (l, _) ->
+    Format.fprintf ppf "rip + %a" label l
 
 let emit_operand ppf : Insn.operand -> unit = function
   | Oreg (rv, t) ->
