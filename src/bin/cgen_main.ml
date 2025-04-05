@@ -24,6 +24,8 @@ let pseudo_map_funs m ~f =
 let comp filename =
   let open Context.Syntax in
   let* m = Parse.Virtual.from_file filename in
+  Format.printf "%a\n%!" Virtual.Module.pp m;
+  Format.printf "=================================================\n%!";
   let* tenv, m = Passes.initialize m in
   Format.printf "After SSA transformation:\n\n%!";
   Format.printf "%a\n%!" Virtual.Module.pp m;
