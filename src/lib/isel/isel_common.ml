@@ -10,6 +10,7 @@ type 'r node =
   | N of P.op * Id.t list
   | Rv of 'r
   | Tbl of Label.t * (Bv.t * Label.t) list
+  | Callargs of 'r list
 [@@deriving compare, equal, sexp]
 
 type ty = [Type.basic | `flag | `v128]
@@ -58,6 +59,11 @@ let rec pp_node t ppr ppf id = match node t id with
       Label.pp d
       (Format.pp_print_list ~pp_sep pp_elt)
       tbl
+  | Callargs rs ->
+    let pp_sep ppf () = Format.fprintf ppf " " in
+    Format.fprintf ppf "(callargs %a)"
+      (Format.pp_print_list ~pp_sep ppr)
+      rs
   | N (o, []) -> Format.fprintf ppf "%a" P.pp_op o
   | N (o, cs) ->
     let pp_sep ppf () = Format.fprintf ppf " " in

@@ -352,7 +352,7 @@ module Insn = struct
   [@@deriving bin_io, compare, equal, sexp]
 
   type unop =
-    | CALL
+    | CALL of Regvar.t list (* arguments *)
     | DEC
     | DIV
     | IDIV
@@ -367,7 +367,7 @@ module Insn = struct
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp_unop ppf = function
-    | CALL -> Format.fprintf ppf "call"
+    | CALL _ -> Format.fprintf ppf "call"
     | DEC -> Format.fprintf ppf "dec"
     | DIV -> Format.fprintf ppf "div"
     | IDIV -> Format.fprintf ppf "idiv"
@@ -499,7 +499,16 @@ module Insn = struct
 
   let pp ppf = function
     | One (op, a) ->
-      Format.fprintf ppf "%a %a" pp_unop op pp_operand a
+      Format.fprintf ppf "%a %a" pp_unop op pp_operand a;
+      begin match op with
+        | CALL [] -> ()
+        | CALL args ->
+          let pp_sep ppf () = Format.fprintf ppf " " in
+          Format.fprintf ppf " ; %a"
+            (Format.pp_print_list ~pp_sep Regvar.pp)
+            args
+        | _ -> ()
+      end
     | Two (op, a, b) ->
       Format.fprintf ppf "%a %a, %a"
         pp_binop op pp_operand a pp_operand b;
@@ -575,7 +584,7 @@ module Insn = struct
     List.map regs ~f:Regvar.reg
 
   (* Registers read by an instruction. *)
-  let reads call = function
+  let reads = function
     | Two (op, a, b) ->
       begin match op with
         | ADD
@@ -647,9 +656,10 @@ module Insn = struct
       end
     | One (op, a) ->
       begin match op with
-        | CALL ->
+        | CALL args ->
           Set.union (rset' [`rsp]) @@
-          Set.union (rset_mem [a]) call
+          Set.union (rset_mem [a]) @@
+          Regvar.Set.of_list args
         | DEC
         | INC
         | NEG
@@ -756,7 +766,7 @@ module Insn = struct
           -> Set.union (rset' [`rflags]) (rset_reg [a])
         | SETcc _
           -> rset_reg [a]
-        | CALL
+        | CALL _
           -> Set.union (rset' [`rsp; `rflags]) call
         | PUSH
           -> rset' [`rsp]
@@ -861,7 +871,7 @@ module Insn = struct
         | POP
         | SETcc _
           -> is_mem a
-        | CALL (* writes to stack *)
+        | CALL _ (* writes to stack *)
         | PUSH (* writes to stack *)
           -> true
         | DIV
@@ -886,7 +896,7 @@ module Insn = struct
   let always_live = function
     | Jcc _
     | JMP _
-    | One (CALL, _)
+    | One (CALL _, _)
     | RET
     | UD2
     | JMPtbl _
@@ -952,7 +962,7 @@ module Insn = struct
     let xorpd a b = Two (XORPD, a, b)
     let xorps a b = Two (XORPS, a, b)
 
-    let call a = One (CALL, a)
+    let call args a = One (CALL args, a)
     let dec a = One (DEC, a)
     let div a = One (DIV, a)
     let idiv a = One (IDIV, a)

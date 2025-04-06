@@ -1824,8 +1824,9 @@ end = struct
     | _ -> !!None
 
   let call_sym_x env =
-    let*! s, o = S.sym env "x" in
-    !!![I.call (Osym (s, o))]
+    let*! args = S.callargs env "x" in
+    let*! s, o = S.sym env "y" in
+    !!![I.call args (Osym (s, o))]
 
   let jmp_tbl_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -3044,7 +3045,7 @@ end = struct
 
     (* call x *)
     let call_basic = [
-      call x =>* Group.call;
+      call x y =>* Group.call;
     ]
 
     (* sw x tbl *)

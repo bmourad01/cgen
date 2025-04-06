@@ -97,7 +97,6 @@ module Machine = struct
 
   module Insn = struct
     include Insn
-    let reads = reads clobbered
     let writes = writes clobbered
   end
 

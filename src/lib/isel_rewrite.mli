@@ -32,8 +32,8 @@ module Pattern : sig
     (** [br c y n]: branch on condition [c] to [y] if true, and [n] if false. *)
     val br : sub -> sub -> sub -> toplevel
 
-    (** [call x]: call to function [x]. *)
-    val call : sub -> toplevel
+    (** [call args x]: call to function [x] with [args] (see [Subst.callargs]).  *)
+    val call : sub -> sub -> toplevel
 
     (** [hlt]: halt the program. *)
     val hlt : toplevel
@@ -315,6 +315,9 @@ module Subst : sig
       The table is sorted from lowest to highest.
   *)
   val table : 'r t -> string -> (Label.t * (Bv.t * Label.t) list) option
+
+  (** Look up the arguments for a call. *)
+  val callargs : 'r t -> string -> 'r list option
 end
 
 type 'r subst = 'r Subst.t

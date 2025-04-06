@@ -83,6 +83,7 @@ module Subst = struct
     | Label of Label.t
     | Bool of bool
     | Table of Label.t * (Bv.t * Label.t) list
+    | Callargs of 'r list
   [@@deriving equal, sexp]
 
   type 'r info = {
@@ -129,6 +130,10 @@ module Subst = struct
 
   let table t x = match find t x with
     | Some (Table (d, tbl)) -> Some (d, tbl)
+    | _ -> None
+
+  let callargs t x = match find t x with
+    | Some (Callargs rs) -> Some rs
     | _ -> None
 end
 

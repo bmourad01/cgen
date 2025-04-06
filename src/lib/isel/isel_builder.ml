@@ -267,7 +267,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* () = C.List.iter sargs ~f:(call_arg_stk t l) in
     let* () = C.List.iter iargs ~f:(call_arg_reg t l) in
     let* f = global t f in
-    ignore @@ new_node ~l t @@ N (Ocall, [f]);
+    let callargs =
+      List.map (rargs @ iargs) ~f:(fun (_, r) ->
+          (* Should be safe to do it here. *)
+          Rv.reg @@ M.Reg.of_string_exn r) |>
+      List.dedup_and_sort ~compare:Rv.compare in
+    let ca = new_node t @@ Callargs callargs in
+    ignore @@ new_node ~l t @@ N (Ocall, [ca; f]);
     call_adj_stack t l sz ~restore:true;
     C.List.iter ret ~f:(call_ret t l)
 

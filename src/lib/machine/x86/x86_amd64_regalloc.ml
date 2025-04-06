@@ -180,7 +180,7 @@ module Typed_writes = struct
       end
     | One (o, a) ->
       begin match o with
-        | CALL
+        | CALL _
           -> call
         | DEC
         | INC
