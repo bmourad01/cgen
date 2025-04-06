@@ -238,6 +238,13 @@ let writes_with_types = Typed_writes.writes
       because we want to avoid overflowing the displacement (which
       is a signed 32-bit immediate).
 
+      There is a caveat here, because we don't want to do it for
+      the base register if we can help it. Creating a temporary
+      for it can lead to unfavorable register pressure when usually
+      it can be folded into the displacement. Only later when we
+      see that an overflow is inevitable, we reserve the scratch
+      register for this use case.
+
    3. Slots appearing as an index register in the addressing mode
       will also need this, because the index register is scaled.
 *)
@@ -300,6 +307,43 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
     | FP32 _
     | FP64 _ -> !![i]
 end
+
+(* Because of how `Assign_slots` may need to use the scratch register,
+   we need to tell the register allocator of a potential use and def
+   of it in such circumstances. *)
+module May_need_scratch = struct
+  let need_scratch_amode is_slot = function
+    | Abd (b, _) | Abisd (b, _, _, _) -> is_slot b
+    | Albl _
+    | Asym _
+    | Ab _
+    | Abis _
+    | Aisd _ -> false
+
+  let need_scratch_operand is_slot = function
+    | Omem (a, _) -> need_scratch_amode is_slot a
+    | _ -> false
+
+  let need_scratch is_slot i =
+    let op = need_scratch_operand is_slot in
+    match i with
+    | One (_, a) -> op a
+    | Two (_, a, b) -> op a || op b
+    | IMUL3 (a, b, _) -> op a || op b
+    | JMP (Jind a) -> op a
+    | CDQ
+    | CQO
+    | CWD
+    | Jcc _
+    | JMP (Jlbl _)
+    | RET
+    | UD2
+    | JMPtbl _
+    | FP32 _
+    | FP64 _ -> false
+end
+
+let may_need_scratch = May_need_scratch.need_scratch
 
 module Assign_slots = struct
   let find offsets rv = match Regvar.which rv with

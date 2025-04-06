@@ -40,11 +40,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       if can_be_colored t v then inc_degree t v
     end
 
+  let scratch_rv = Rv.reg M.Reg.scratch
+
   let build_insn t out i =
     let label = Insn.label i in 
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
+    let use, def =
+      if M.Regalloc.may_need_scratch (Hash_set.mem t.slots) insn
+      then Set.add use scratch_rv, Set.add def scratch_rv
+      else use, def in
     (* if isMoveInstruction(I) then *)
     let+ out = match M.Regalloc.copy insn with
       | None -> !!out
@@ -354,7 +360,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         let k = Regs.node_k n in
         let cs = ref Z.(pred (one lsl k)) in
         (* Exclude the scratch register, which we reserve for future
-           passes (for example, legalization). *)
+           passes (for example, stack layout). *)
         begin match Regs.classof n with
           | GPR -> cs := Z.(!cs land Regs.scratch_inv_mask)
           | FP -> ()

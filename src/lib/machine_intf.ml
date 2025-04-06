@@ -135,6 +135,12 @@ module type S = sig
         their types. *)
     val writes_with_types : Insn.t -> [Type.basic | `v128] Regvar.Map.t
 
+    (** Returns [true] if the scratch register may be needed in the instruction.
+
+        A predicate is provided telling if a given regvar is a slot.
+    *)
+    val may_need_scratch : (Regvar.t -> bool) -> Insn.t -> bool
+
     (** Replaces slots that appear directly as operands with intermediate operations,
         creating fresh variables if necessary.
 
