@@ -48,11 +48,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
     let def =
-      (* XXX: what if `scratch_rv` is in `out`? *)
       let is_slot = Hash_set.mem t.slots in
-      if M.Regalloc.may_need_scratch is_slot insn
-      then Set.add def scratch_rv
-      else def in
+      if M.Regalloc.may_need_scratch is_slot insn then begin
+        (* XXX: maybe there is a transformation we can do beforehand to ensure
+           that this is the case. *)
+        assert (not @@ Set.mem out scratch_rv);
+        Set.add def scratch_rv
+      end else def in
     (* if isMoveInstruction(I) then *)
     let+ out = match M.Regalloc.copy insn with
       | None -> !!out
