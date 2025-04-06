@@ -21,52 +21,70 @@ let pseudo_map_funs m ~f =
     Seq.to_list in
   Pseudo.Module.with_funs m funs
 
-let comp filename =
+let comp (opts : Cli.t) =
   let open Context.Syntax in
-  let* m = Parse.Virtual.from_file filename in
-  Format.printf "%a\n%!" Virtual.Module.pp m;
-  Format.printf "=================================================\n%!";
+  let* m = Parse.Virtual.from_file opts.file in
+  if Cli.equal_dump opts.dump Dparse then begin
+    Format.printf ";; After parsing:@;@.%a\n%!"
+      Virtual.Module.pp m;
+    Cli.bail ();
+  end;
   let* tenv, m = Passes.initialize m in
-  Format.printf "After SSA transformation:\n\n%!";
-  Format.printf "%a\n%!" Virtual.Module.pp m;
+  if Cli.equal_dump opts.dump Dssa then begin
+    Format.printf ";; After SSA transformation:@;@.%a\n%!"
+      Virtual.Module.pp m;
+    Cli.bail ();
+  end;
   let* tenv, m = Passes.optimize tenv m in
-  Format.printf "=================================================\n%!";
-  Format.printf "After middle-end optimizations:\n\n%!";
-  Format.printf "%a\n%!" Virtual.Module.pp m;
-  Format.printf "=================================================\n%!";
+  if Cli.equal_dump opts.dump Dmiddle then begin
+    Format.printf ";; After middle-end-optimizations:@;@.%a\n%!"
+      Virtual.Module.pp m;
+    Cli.bail ();
+  end;
   let* m = Passes.to_abi tenv m in
   let* m = Passes.optimize_abi m in
-  Format.printf "After ABI lowering:\n\n%!";
-  Format.printf "%a\n%!" Virtual.Abi.Module.pp m;
+  if Cli.equal_dump opts.dump Dabi then begin
+    Format.printf ";; After ABI lowering:@;@.%a\n%!"
+      Virtual.Abi.Module.pp m;
+    Cli.bail ();
+  end;
   let* (module Machine) = Context.machine in
   let module Isel = Isel.Make(Machine)(Context) in
   let* m = isel m ~f:Isel.run in
-  Format.printf "=================================================\n%!";
-  Format.printf "After instruction selection:\n\n%!";
-  Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+  if Cli.equal_dump opts.dump Disel then begin
+    Format.printf ";; After instruction selection:@;@.%a\n%!"
+      (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+    Cli.bail ();
+  end;
   let module Remove_deads = Pseudo.Remove_dead_insns(Machine) in
   let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
-  Format.printf "=================================================\n%!";
-  Format.printf "After removing dead instructions:\n\n%!";
-  Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+  if Cli.equal_dump opts.dump Disel_dce then begin
+    Format.printf ";; After dead-code elimination (isel):@;@.%a\n%!"
+      (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+    Cli.bail ();
+  end;
   let module RA = Regalloc.IRC(Machine)(Context) in
   let* m = pseudo_map_funs m ~f:RA.run in
-  Format.printf "=================================================\n%!";
-  Format.printf "After register allocation:\n\n%!";
-  Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+  if Cli.equal_dump opts.dump Dregalloc then begin
+    Format.printf ";; After register allocation:@;@.%a\n%!"
+      (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+    Cli.bail ();
+  end;
   let module Layout = Regalloc.Layout_stack(Machine)(Context) in
   let* m = pseudo_map_funs m ~f:Layout.run in
-  Format.printf "=================================================\n%!";
-  Format.printf "After stack layout:\n\n%!";
-  Format.printf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+  if Cli.equal_dump opts.dump Dstklayout then begin
+    Format.printf ";; After stack layout:@;@.%a\n%!"
+      (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+    Cli.bail ();
+  end;
+  assert (Cli.equal_dump opts.dump Dasm);
   let module Emit = Pseudo.Emit(Machine) in
-  Format.printf "=================================================\n%!";
-  Format.printf "Final assembly code:\n\n%!";
-  Format.printf "%a" Emit.emit m;
+  Format.printf "%a%!" Emit.emit m;
   !!()
 
 let () =
-  let args = Sys.get_argv () in
-  Context.init Machine.X86.Amd64_sysv.target |>
-  Context.run (comp args.(1)) |>
-  Or_error.iter_error ~f:(Format.eprintf "%a\n%!" Error.pp)
+  Cli.run @@ fun opts ->
+  Context.init opts.target |>
+  Context.run (comp opts) |>
+  Or_error.iter_error ~f:(fun err ->
+      Cli.fatal "%a\n%!" Error.pp err ())

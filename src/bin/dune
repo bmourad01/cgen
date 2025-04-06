@@ -3,5 +3,8 @@
  (public_name cgen)
  (package cgen)
  (libraries cgen cmdliner)
+ (modules cgen_main cli)
  (flags -w -58)
- (ocamlopt_flags -O2))
+ (ocamlopt_flags -O2)
+ (preprocess
+  (pps ppx_compare)))

@@ -36,4 +36,5 @@ let eval x s =
 module type Machine = Context_machine.S
 
 let register_machine = Context_machine.register
+let init_machines = Context_machine.init_machines
 let machine = Context_machine.machine

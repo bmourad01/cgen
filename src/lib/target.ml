@@ -24,6 +24,8 @@ let declare ~name ~word ~little () =
     targets := m;
     t
 
+let find = Map.find !targets
+
 let name t = t.name
 let word t = t.word
 let bits t = Type.sizeof_imm_base t.word

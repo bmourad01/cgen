@@ -26,6 +26,9 @@ val declare :
   unit ->
   t
 
+(** Searches a declared target by name. *)
+val find : string -> t option
+
 (** The name of the target. *)
 val name : t -> string
 

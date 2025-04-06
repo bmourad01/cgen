@@ -28,6 +28,9 @@ module type Machine = Context_machine_intf.S
 *)
 val register_machine : Target.t -> (module Machine) -> unit
 
+(** Forces all of the machines to register. *)
+val init_machines : unit -> unit
+
 (** Returns the target machine implementation for the current context. *)
 val machine : (module Machine) t
 
