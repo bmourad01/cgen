@@ -2,6 +2,6 @@
  (name cgen_main)
  (public_name cgen)
  (package cgen)
- (libraries cgen)
+ (libraries cgen cmdliner)
  (flags -w -58)
  (ocamlopt_flags -O2))
