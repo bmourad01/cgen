@@ -256,14 +256,23 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
       x', [I.lea (Oreg (x', `i64)) (Omem (Ab x, `i64))]
     else !!(x, [])
 
+  (* NB: if we can switch the index register to be the base register
+     without changing the meaning of the program, then that would be
+     preferable. *)
   let replace_amode is_slot a = match a with
     | Ab _ | Albl _ | Asym _ | Abd _ -> !!(a, [])
+    | Abis (b, i, S1) when is_slot i && not (is_slot b) ->
+      !!(Abis (i, b, S1), [])
     | Abis (b, i, s) ->
       let+ i', ii = freshen is_slot i in
       Abis (b, i', s), ii
+    | Aisd (i, S1, d) when is_slot i ->
+      !!(Abd (i, d), [])
     | Aisd (i, s, d) ->
       let+ i', ii = freshen is_slot i in
       Aisd (i', s, d), ii
+    | Abisd (b, i, S1, d) when is_slot i && not (is_slot b) ->
+      !!(Abisd (i, b, S1, d), [])
     | Abisd (b, i, s, d) ->
       let+ i', ii = freshen is_slot i in
       Abisd (b, i', s, d), ii
