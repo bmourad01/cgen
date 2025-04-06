@@ -8,9 +8,20 @@ module Module = Pseudo_module
 
 module Make(M : Machine_intf.S) = struct
   let emit ppf m =
+    let funs = Module.funs m |> Seq.to_list in
+    let data = Module.data m |> Seq.to_list in
+    let last_fun = List.length funs - 1 in
+    let last_data = List.length data - 1 in
     M.Emit.emit_prelude ppf @@ Module.name m;
-    Module.data m |> Seq.iter ~f:(M.Emit.emit_data ppf);
-    Module.funs m |> Seq.iter ~f:(fun fn ->
+    if last_data >= 0 || last_fun >= 0 then
+      M.Emit.emit_separator ppf ();
+    List.iteri data ~f:(fun i d ->
+        M.Emit.emit_data ppf d;
+        if i < last_data then
+          M.Emit.emit_separator ppf ());
+    if last_data >= 0 && last_fun >= 0 then
+      M.Emit.emit_separator ppf ();
+    List.iteri funs ~f:(fun i fn ->
         let lnk = Func.linkage fn in
         let section = Linkage.section lnk in
         M.Emit.emit_func ppf (Func.name fn, lnk);
@@ -19,5 +30,7 @@ module Make(M : Machine_intf.S) = struct
             Blk.insns b |> Seq.iter ~f:(fun i ->
                 let insn = Insn.insn i in
                 let label = Insn.label i in
-                M.Emit.emit_insn ppf (label, insn, section))))
+                M.Emit.emit_insn ppf (label, insn, section)));
+        if i < last_fun then
+          M.Emit.emit_separator ppf ())
 end

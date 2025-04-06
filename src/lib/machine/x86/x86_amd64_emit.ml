@@ -201,3 +201,5 @@ let emit_insn ppf (_l, i, s) =
   | FP64 (l, f) ->
     Format.fprintf ppf ".section .rodata\n.p2align 3\n%a:\n  .double %a\n.section %s\n"
       label l Float.pp f s
+
+let emit_separator ppf () = Format.fprintf ppf "\n"

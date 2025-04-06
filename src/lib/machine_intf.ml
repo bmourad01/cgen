@@ -214,5 +214,8 @@ module type S = sig
         by the implementation).
     *)
     val emit_insn : Format.formatter -> (Label.t * Insn.t * string option) -> unit
+
+    (** Emit a separator (such as newlines) between data and function elements. *)
+    val emit_separator : Format.formatter -> unit -> unit
   end
 end
