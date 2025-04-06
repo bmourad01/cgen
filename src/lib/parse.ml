@@ -34,4 +34,10 @@ module Virtual : S with type t := Virtual.module_ = struct
       try_parse lexbuf ~f:(fun () ->
           Virtual_parser.module_ Virtual_lexer.token lexbuf)
         ~filename:name)
+
+  let from_stdin () =
+    let lexbuf = Lexing.from_channel In_channel.stdin in
+    try_parse lexbuf ~f:(fun () ->
+        Virtual_parser.module_ Virtual_lexer.token lexbuf)
+      ~filename:"<stdin>"
 end

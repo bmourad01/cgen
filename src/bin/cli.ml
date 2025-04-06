@@ -28,7 +28,9 @@ let fatal fmt =
   Format.kfprintf kon Format.err_formatter fmt
 
 let file =
-  let doc = "The input .vir file" in
+  let doc =
+    "The input .vir program. If no file is provided, then the \
+     program is read from stdin." in
   Arg.(value &
        pos 0 file "" &
        info [] ~docv:"FILE" ~doc)
@@ -106,13 +108,15 @@ let target =
          (info ["t"; "target"] ~docv:"TARGET" ~doc))
 
 type t = {
-  file   : string;
+  file   : [`stdin | `file of string];
   dump   : dump;
   target : Cgen.Target.t;
 }
 
 let go f file dump target =
-  if String.(file = "") then fatal "missing input file\n%!" ();
+  let file = match file with
+    | "" -> `stdin
+    | _ -> `file file in
   let dump = match dump_of_string_opt dump with
     | None -> fatal "invalid dump option: %s\n%!" dump ()
     | Some d -> d in

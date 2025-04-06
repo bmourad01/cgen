@@ -7,4 +7,7 @@ module type S = sig
 
   (** Parse a file by name. *)
   val from_file : string -> t Context.t
+
+  (** Parse from stdin. *)
+  val from_stdin : unit -> t Context.t
 end
