@@ -554,24 +554,24 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let replace_direct_slot_uses t =
     let+ blks =
-      Func.blks t.fn |> C.Seq.map ~f:(fun b ->
+      Func.blks ~rev:true t.fn |>
+      C.Seq.fold ~init:[] ~f:(fun bs b ->
           let+ insns =
-            Blk.insns b |> C.Seq.map ~f:(fun i ->
+            Blk.insns ~rev:true b |>
+            C.Seq.fold ~init:[] ~f:(fun is i ->
                 Replace_slots.replace
                   (Hash_set.mem t.slots)
                   (Insn.insn i) >>= function
-                | [] -> !![]
+                | [] -> !!is
                 (* Try to save fresh labels if we can. *)
-                | [insn] -> !![Insn.with_insn i insn]
+                | [insn] -> !!(Insn.with_insn i insn :: is)
                 | insn :: insns ->
                   let i' = Insn.with_insn i insn in
                   let+ is' = C.List.map insns ~f:(fun insn ->
                       let+ label = C.Label.fresh in
                       Insn.create ~label ~insn) in
-                  i' :: is')
-            >>| Seq.to_list in
-          Blk.with_insns b @@ List.concat insns)
-      >>| Seq.to_list in
+                  (i' :: is') @ is) in
+          Blk.with_insns b insns :: bs) in
     t.fn <- Func.with_blks t.fn blks
 
   let run ?(max_rounds = 40) fn =
