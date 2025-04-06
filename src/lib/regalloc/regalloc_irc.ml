@@ -47,10 +47,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
-    let use, def =
-      if M.Regalloc.may_need_scratch (Hash_set.mem t.slots) insn
-      then Set.add use scratch_rv, Set.add def scratch_rv
-      else use, def in
+    let def =
+      (* XXX: what if `scratch_rv` is in `out`? *)
+      let is_slot = Hash_set.mem t.slots in
+      if M.Regalloc.may_need_scratch is_slot insn
+      then Set.add def scratch_rv
+      else def in
     (* if isMoveInstruction(I) then *)
     let+ out = match M.Regalloc.copy insn with
       | None -> !!out
@@ -78,7 +80,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         (* forall l \in live
              AddEdge(l,d) *)
         Set.iter out ~f:(fun o -> add_edge t o d));
-    (* live := use(I) U (live\def(I))  *)
+    (* live := use(I) U (live\def(I)) *)
     Set.union use (Set.diff out def)
 
   (* Build the interference graph and other initial state for the
