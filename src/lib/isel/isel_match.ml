@@ -259,15 +259,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           insns @ acc) in
     Pseudo.Blk.create ~label ~insns :: extra
 
-  let compare_postorder t a b =
-    let a = Blk.label a in
-    let b = Blk.label b in
-    compare (t.rpo b) (t.rpo a)
-
+  (* Traverse the blocks in pseudo-postorder, which ends up accumulating
+     in reverse postoder. *)
   let transl_blks t =
-    Func.blks t.fn |> Seq.to_list |>
-    List.sort ~compare:(compare_postorder t) |>
-    C.List.fold ~init:[] ~f:(fun acc b ->
+    Func.blks t.fn |> Seq.map ~f:(fun b -> b, t.rpo (Blk.label b)) |>
+    Seq.to_list |> List.sort ~compare:(fun (_, a) (_, b) -> compare b a) |>
+    C.List.fold ~init:[] ~f:(fun acc (b, _) ->
         let+ bs = step t b in
         bs @ acc)
 

@@ -304,6 +304,8 @@ let try_ f = try Ok (f ()) with
 
 let run eg = try_ @@ fun () ->
   let env = init () in
+  (* Note that we compare in pseudo-postorder because we are pushing
+     onto the stack, which will maintain reverse postorder. *)
   let cmp a b = compare (eg.input.rpo b) (eg.input.rpo a) in
   let q = Stack.singleton (Label.pseudoentry, env.mem) in
   Stack.until_empty q @@ fun (l, lst) ->
