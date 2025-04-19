@@ -172,12 +172,6 @@ module Make(M : Machine_intf.S) = struct
         | None -> Lset.singleton label
         | Some ls -> Lset.add ls label)
 
-  (* Initial set of stack slots. These should be excluded from consideration
-     in the interference graph. *)
-  let init_slots t =
-    Func.slots t.fn |> Seq.iter ~f:(fun s ->
-        Hash_set.add t.slots @@ Rv.var GPR @@ Virtual.Slot.var s)
-
   let add_initial t n =
     if can_be_colored t n then Hash_set.add t.initial n
 

@@ -43,7 +43,6 @@ type dump =
   | Disel
   | Disel_dce
   | Dregalloc
-  | Dstklayout
   | Dasm
 [@@deriving equal]
 
@@ -55,7 +54,6 @@ let string_of_dump = function
   | Disel -> "isel"
   | Disel_dce -> "isel-dce"
   | Dregalloc -> "regalloc"
-  | Dstklayout -> "stklayout"
   | Dasm -> "asm"
 
 let dump_of_string_opt = function
@@ -66,7 +64,6 @@ let dump_of_string_opt = function
   | "isel" -> Some Disel
   | "isel-dce" -> Some Disel_dce
   | "regalloc" -> Some Dregalloc
-  | "stklayout" -> Some Dstklayout
   | "asm" -> Some Dasm
   | _ -> None
 
@@ -82,7 +79,6 @@ let man_dump () =
       Disel, "dump the IR after instruction selection";
       Disel_dce, "dump the IR after dead code elimination (after instruction selection)";
       Dregalloc, "dump the IR after register allocation";
-      Dstklayout, "dump the IR after computing the stack layout (after register allocation)";
       Dasm, "dump the finalized assembly program";
     ]
   end

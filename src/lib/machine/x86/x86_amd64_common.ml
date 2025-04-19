@@ -24,7 +24,6 @@ module Reg = struct
 
   let sp = `rsp
   let fp = `rbp
-  let scratch = `rax
 
   let pp_gpr8 ppf : gpr -> unit = function
     | `rax -> Format.fprintf ppf "al"

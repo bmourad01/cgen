@@ -51,6 +51,7 @@ module Machine = struct
     include Reg
 
     let allocatable = [
+      `rax;
       `rcx;
       `rdx;
       `rsi;
@@ -67,6 +68,7 @@ module Machine = struct
     ]
 
     let allocatable_fp = [
+      `xmm0;
       `xmm1;
       `xmm2;
       `xmm3;
@@ -90,6 +92,23 @@ module Machine = struct
       | `r13
       | `r14
       | `r15 -> true
+      | _ -> false
+
+    let is_arg = function
+      | `rdi
+      | `rsi
+      | `rdx
+      | `rcx
+      | `r8
+      | `r9
+      | `xmm0
+      | `xmm1
+      | `xmm2
+      | `xmm3
+      | `xmm4
+      | `xmm5
+      | `xmm6
+      | `xmm7 -> true
       | _ -> false
   end
 

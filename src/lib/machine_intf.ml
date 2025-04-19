@@ -29,16 +29,8 @@ module type S = sig
     (** Frame pointer register. *)
     val fp : t
 
-    (** Designated "scratch" register.
-
-        This should be a general purpose register, which will never be chosen
-        for register allocation, but instead used to hold the results of
-        intermediate computations.
-    *)
-    val scratch : t
-
     (** A list of all general purpose registers, in order of their preference
-        for register allocation, {b except for} [scratch], [sp], and [fp], which
+        for register allocation, {b except for} [sp] and [fp], which
         {b must not} be contained. *)
     val allocatable : t list
 
@@ -54,6 +46,10 @@ module type S = sig
 
     (** Returns [true] if the register must be preserved by the callee. *)
     val is_callee_save : t -> bool
+
+    (** Returns [true] if the register is passed as an argument as part of
+        the calling convention. *)
+    val is_arg : t -> bool
 
     (** Pretty-print the register name. *)
     val pp : Format.formatter -> t -> unit
@@ -135,33 +131,27 @@ module type S = sig
         their types. *)
     val writes_with_types : Insn.t -> [Type.basic | `v128] Regvar.Map.t
 
-    (** Returns [true] if the scratch register may be needed in the instruction.
+    (** Pre-assign stack slots before doing register allocation. *)
+    module Pre_assign_slots(C : Context_intf.S) : sig
+      (** [pre_assign_slots find base i] replaces uses of virtual stack slots in [i]
+          with conrete offsets from [base], according to [find].
 
-        A predicate is provided telling if a given regvar is a slot.
-    *)
-    val may_need_scratch : (Regvar.t -> bool) -> Insn.t -> bool
+          This is meant to happen {i before} register allocation (i.e. before spilling
+          happens).
 
-    (** Replaces slots that appear directly as operands with intermediate operations,
-        creating fresh variables if necessary.
-
-        This happens right before register allocation, in order to massage the program
-        into a form that is simpler for [replace_slots] to handle.
-    *)
-    module Replace_direct_slot_uses(C : Context_intf.S) : sig
-      val replace : (Regvar.t -> bool) -> Insn.t -> Insn.t list C.t
+          Opportunity is provided here to produce administrative instructions to manage
+          references to stack slots in certain operand forms.
+      *)
+      val assign : (Regvar.t -> int option) -> Regvar.t -> Insn.t -> Insn.t list C.t
     end
 
-    (** [assign_slots base offsets i] replaces uses of virtual stack slots in [i]
-        with conrete offsets from [base], according to [offsets].
+    (** [post_assign_slots find base i] replaces uses of virtual stack slots in [i]
+        with conrete offsets from [base], according to [find].
 
         This is meant to happen {i after} register allocation, where the only
-        remaining variables in the program are those referring to virtual slots.
-
-        This function {b shall not} return an empty list of instructions. In the
-        case of needing additional admininstrative instructions, the [Reg.scratch]
-        register is available for use.
+        remaining variables in the program are those referring to spill slots.
     *)
-    val assign_slots : Reg.t -> int Var.Map.t -> Insn.t -> Insn.t list
+    val post_assign_slots : (Regvar.t -> int option) -> Regvar.t -> Insn.t -> Insn.t
 
     (** Create a function prologue with no stack frame, given the callee-save
         registers in use and the size of the local variables. *)

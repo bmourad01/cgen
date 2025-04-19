@@ -40,21 +40,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       if can_be_colored t v then inc_degree t v
     end
 
-  let scratch_rv = Rv.reg M.Reg.scratch
-
   let build_insn t out i =
     let label = Insn.label i in 
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
-    let def =
-      let is_slot = Hash_set.mem t.slots in
-      if M.Regalloc.may_need_scratch is_slot insn then begin
-        (* XXX: maybe there is a transformation we can do beforehand to ensure
-           that this is the case. *)
-        assert (not @@ Set.mem out scratch_rv);
-        Set.add def scratch_rv
-      end else def in
     (* if isMoveInstruction(I) then *)
     let+ out = match M.Regalloc.copy insn with
       | None -> !!out
@@ -363,12 +353,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         (* okColors := {0,...,K-1} *)
         let k = Regs.node_k n in
         let cs = ref Z.(pred (one lsl k)) in
-        (* Exclude the scratch register, which we reserve for future
-           passes (for example, stack layout). *)
-        begin match Regs.classof n with
-          | GPR -> cs := Z.(!cs land Regs.scratch_inv_mask)
-          | FP -> ()
-        end;
         eliminate_colors t n cs;
         (* if okColors = {} then *)
         if Z.(equal !cs zero) then
@@ -554,35 +538,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             | Some _ | None -> Some (Insn.with_insn i insn')) |>
         Seq.to_list |> Blk.with_insns b)
 
-  module Replace_slots = M.Regalloc.Replace_direct_slot_uses(C)
-
-  let replace_direct_slot_uses t =
-    let+ blks =
-      Func.blks ~rev:true t.fn |>
-      C.Seq.fold ~init:[] ~f:(fun bs b ->
-          let+ insns =
-            Blk.insns ~rev:true b |>
-            C.Seq.fold ~init:[] ~f:(fun is i ->
-                Replace_slots.replace
-                  (Hash_set.mem t.slots)
-                  (Insn.insn i) >>= function
-                | [] -> !!is
-                (* Try to save fresh labels if we can. *)
-                | [insn] -> !!(Insn.with_insn i insn :: is)
-                | insn :: insns ->
-                  let i' = Insn.with_insn i insn in
-                  let+ is' = C.List.map insns ~f:(fun insn ->
-                      let+ label = C.Label.fresh in
-                      Insn.create ~label ~insn) in
-                  (i' :: is') @ is) in
-          Blk.with_insns b insns :: bs) in
-    t.fn <- Func.with_blks t.fn blks
+  module Layout = Regalloc_stack_layout.Make(M)(C)
 
   let run ?(max_rounds = 40) fn =
+    let* fn, presize = Layout.pre_assign fn in
+    assert (Seq.is_empty @@ Func.slots fn);
     let t = create fn in
-    init_slots t;
-    let* () = replace_direct_slot_uses t in
+    t.fn <- fn;
     init_initial t;
-    let+ () = main t ~round:1 ~max_rounds in
-    apply_alloc t
+    let* () = main t ~round:1 ~max_rounds in
+    let fn = apply_alloc t in
+    Layout.post_assign fn presize
 end

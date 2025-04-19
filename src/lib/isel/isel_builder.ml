@@ -254,12 +254,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let n = N (Omove, [xid; rid]) in
     ignore @@ new_node ~l t n
 
-  let scratch_str = Format.asprintf "%a" R.pp R.scratch
-
   let call t l ret f args =
     let rargs, sargs, iargs = List.partition3_map args ~f:(function
-        | `reg (a, r) when String.(r = scratch_str) -> `Trd (a, r)
-        | `reg (a, r) -> `Fst (a, r)
+        | `reg (a, r) ->
+          (* Sometimes there are special cases where a register not typically
+             used for argument passing needs to be passed (i.e. variadic functions
+             in amd64-sysv pass the number of floating point arguments in AL). *)
+          if M.Reg.(is_arg @@ of_string_exn r)
+          then `Fst (a, r)
+          else `Trd (a, r)
         | `stk (a, o) -> `Snd (a, o)) in
     let* sz = call_args_stack_size t l f sargs in
     let* () = C.List.iter rargs ~f:(call_arg_reg t l) in

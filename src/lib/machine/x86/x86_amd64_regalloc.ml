@@ -227,69 +227,99 @@ end
 
 let writes_with_types = Typed_writes.writes
 
-(* A few points here:
-
-   1. Slots appearing in operands will need to refer to their
-      assigned stack location later, so we need to insert some
-      admininstrative code.
-
-   2. Slots appearing in an addressing mode in the presence of
-      an existing displacement will need this treatment as well,
-      because we want to avoid overflowing the displacement (which
-      is a signed 32-bit immediate).
-
-      There is a caveat here, because we don't want to do it for
-      the base register if we can help it. Creating a temporary
-      for it can lead to unfavorable register pressure when usually
-      it can be folded into the displacement. Only later when we
-      see that an overflow is inevitable, we reserve the scratch
-      register for this use case.
-
-   3. Slots appearing as an index register in the addressing mode
-      will also need this, because the index register is scaled.
-*)
-module Replace_direct_slot_uses(C : Context_intf.S) = struct
+module Pre_assign_slots(C : Context_intf.S) = struct
   open C.Syntax
 
-  let freshen is_slot x = if is_slot x then
-      let+ x' = C.Var.fresh >>| Regvar.var GPR in
-      x', [I.lea (Oreg (x', `i64)) (Omem (Ab x, `i64))]
-    else !!(x, [])
+  let freshen x off =
+    let+ x' = C.Var.fresh >>| Regvar.var GPR in
+    x', [I.lea (Oreg (x', `i64)) (Omem (Abd (x, off), `i64))]
 
-  (* NB: if we can switch the index register to be the base register
-     without changing the meaning of the program, then that would be
-     preferable. *)
-  let replace_amode is_slot a = match a with
-    | Ab _ | Albl _ | Asym _ | Abd _ -> !!(a, [])
-    | Abis (b, i, S1) when is_slot i && not (is_slot b) ->
-      !!(Abis (i, b, S1), [])
+  let add_disp base off d =
+    let off' = Int32.of_int_exn off in
+    let d' = Int32.(d + off') in
+    if (off > 0 && Int32.(d' < d)) ||
+       (off < 0 && Int32.(d' > d)) then begin
+      let+ x, is = freshen base off' in
+      Second (x, is)
+    end else !!(First d')
+
+  let rec assign_amode find base a = match a with
+    | Albl _ | Asym _ -> !!(a, [])
+    | Ab b ->
+      begin match find b with
+        | Some 0 -> !!(Ab base, [])
+        | Some o -> !!(Abd (base, Int32.of_int_exn o), [])
+        | None -> !!(a, [])
+      end
+    | Abd (b, d) ->
+      begin match find b with
+        | None -> !!(a, [])
+        | Some o -> add_disp base o d >>| function
+          | First d' -> Abd (base, d'), []
+          | Second (b', bi) -> Abd (b', d), bi
+      end
     | Abis (b, i, s) ->
-      let+ i', ii = freshen is_slot i in
-      Abis (b, i', s), ii
-    | Aisd (i, S1, d) when is_slot i ->
-      !!(Abd (i, d), [])
+      begin match find b, find i with
+        | None, None -> !!(a, [])
+        | Some 0, None -> !!(Abis (base, i, s), [])
+        | Some o, None -> !!(Abisd (base, i, s, Int32.of_int_exn o), [])
+        | None, Some o ->
+          let+ i', ii = freshen base (Int32.of_int_exn o) in
+          Abis (b, i', s), ii
+        | Some ob, Some oi ->
+          let+ i', ii = freshen base (Int32.of_int_exn oi) in
+          Abisd (base, i', s, Int32.of_int_exn ob), ii
+      end
+    | Aisd (i, S1, d) -> assign_amode find base @@ Abd (i, d)
     | Aisd (i, s, d) ->
-      let+ i', ii = freshen is_slot i in
-      Aisd (i', s, d), ii
-    | Abisd (b, i, S1, d) when is_slot i && not (is_slot b) ->
-      !!(Abisd (i, b, S1, d), [])
+      begin match find i with
+        | None -> !!(a, [])
+        | Some o ->
+          let+ i', ii = freshen base (Int32.of_int_exn o) in
+          Aisd (i', s, d), ii
+      end
     | Abisd (b, i, s, d) ->
-      let+ i', ii = freshen is_slot i in
-      Abisd (b, i', s, d), ii
+      begin match find b, find i with
+        | None, None -> !!(a, [])
+        | None, Some _ when equal_scale s S1 ->
+          assign_amode find base @@ Abisd (i, b, S1, d)
+        | None, Some o ->
+          let+ i', ii = freshen base (Int32.of_int_exn o) in
+          Abisd (b, i', s, d), ii
+        | Some o, None ->
+          begin add_disp base o d >>| function
+            | First d' -> Abisd (base, i, s, d'), []
+            | Second (b', bi) -> Abisd (b', i, s, d), bi
+          end
+        | Some ob, Some oi ->
+          let* i', ii = freshen base (Int32.of_int_exn oi) in
+          add_disp base ob d >>| function
+          | First d' -> Abisd (base, i', s, d'), ii
+          | Second (b', bi) -> Abisd (b', i', s, d), bi @ ii
+      end
 
-  let replace_operand is_slot op = match op with
-    | Oreg (r, ty) ->
+  let assign_operand find base op = match op with
+    | Oreg (r, t) ->
       (* XXX: let's hope that a slot doesn't appear here if this is a
          destination register. *)
-      let+ r', ri = freshen is_slot r in
-      Oreg (r', ty), ri
+      begin match find r with
+        | None -> !!(op, [])
+        | Some o ->
+          let+ r', ri = freshen base (Int32.of_int_exn o) in
+          Oreg (r', t), ri
+      end
+    | Oregv r ->
+      begin match find r with
+        | None -> !!(op, [])
+        | Some _ -> assert false (* ill-typed *)
+      end
     | Omem (a, ty) ->
-      let+ a, ai = replace_amode is_slot a in
-      Omem (a, ty), ai
+      let+ a', ai = assign_amode find base a in
+      Omem (a', ty), ai
     | _ -> !!(op, [])
 
-  let replace is_slot i =
-    let op = replace_operand is_slot in
+  let assign find base i =
+    let op = assign_operand find base in
     match i with
     | One (o, a) ->
       let+ a, ai = op a in
@@ -317,123 +347,60 @@ module Replace_direct_slot_uses(C : Context_intf.S) = struct
     | FP64 _ -> !![i]
 end
 
-(* Because of how `Assign_slots` may need to use the scratch register,
-   we need to tell the register allocator of a potential use and def
-   of it in such circumstances. *)
-module May_need_scratch = struct
-  let need_scratch_amode is_slot = function
-    | Abd (b, _) | Abisd (b, _, _, _) -> is_slot b
-    | Albl _
-    | Asym _
-    | Ab _
-    | Abis _
-    | Aisd _ -> false
-
-  let need_scratch_operand is_slot = function
-    | Omem (a, _) -> need_scratch_amode is_slot a
-    | _ -> false
-
-  let need_scratch is_slot i =
-    let op = need_scratch_operand is_slot in
-    match i with
-    | One (_, a) -> op a
-    | Two (_, a, b) -> op a || op b
-    | IMUL3 (a, b, _) -> op a || op b
-    | JMP (Jind a) -> op a
-    | CDQ
-    | CQO
-    | CWD
-    | Jcc _
-    | JMP (Jlbl _)
-    | RET
-    | UD2
-    | JMPtbl _
-    | FP32 _
-    | FP64 _ -> false
-end
-
-let may_need_scratch = May_need_scratch.need_scratch
-
-module Assign_slots = struct
-  let find offsets rv = match Regvar.which rv with
-    | Second (v, _) -> Map.find offsets v
-    | First _ -> None
-
-  let scratch = Regvar.reg Reg.scratch
-
-  let add_disp is base off d =
-    let off' = Int32.of_int_exn off in
-    let d' = Int32.(d + off') in
-    if (off > 0 && Int32.(d' < d)) ||
-       (off < 0 && Int32.(d' > d)) then begin
-      assert (Option.is_none !is);
-      is := Some (I.lea (Oreg (scratch, `i64)) (Omem (Abd (base, off'), `i64)));
-      Second scratch
-    end else First d'
-
-  (* NB: this makes assumptions based on the results of `Replace_direct_slot_uses`. *)
-  let assign_amode is base offsets a = match a with
+module Post_assign_slots = struct
+  (* NB: this makes assumptions based on the results of `Pre_assign_slots`. *)
+  let assign_amode find base a = match a with
     | Albl _ | Asym _ -> a
     | Ab b ->
-      begin match find offsets b with
+      (* All spills/reloads should be using this form. *)
+      begin match find b with
         | Some 0 -> Ab base
         | Some o -> Abd (base, Int32.of_int_exn o)
         | None -> a
       end
-    | Abd (b, d) ->
-      begin match find offsets b with
+    | Abd (b, _d) ->
+      begin match find b with
         | None -> a
-        | Some o -> match add_disp is base o d with
-          | First d' -> Abd (base, d')
-          | Second b' -> Abd (b', d)
+        | Some _ -> assert false
       end
-    | Abis (b, i, s) ->
-      begin match find offsets b, find offsets i with
+    | Abis (b, i, _s) ->
+      begin match find b, find i with
         | None, None -> a
-        | Some 0, None -> Abis (base, i, s)
-        | Some o, None -> Abisd (base, i, s, Int32.of_int_exn o)
+        | Some _, None -> assert false
         | None, Some _ -> assert false
         | Some _, Some _ -> assert false
       end
     | Aisd (i, _s, _d) ->
-      begin match find offsets i with
+      begin match find i with
         | None -> a
         | Some _ -> assert false
       end
-    | Abisd (b, i, s, d) ->
-      begin match find offsets b, find offsets i with
+    | Abisd (b, i, _s, _d) ->
+      begin match find b, find i with
         | None, None -> a
         | None, Some _ -> assert false
         | Some _, Some _ -> assert false
-        | Some o, None -> match add_disp is base o d with
-          | First d' -> Abisd (base, i, s, d')
-          | Second b' -> Abisd (b', i, s, d)
+        | Some _, None -> assert false
       end
 
-  let assign_operand is base offsets op = match op with
+  let assign_operand find base op = match op with
     | Oreg (r, _) ->
-      begin match find offsets r with
+      begin match find r with
         | None -> op
         | Some _ -> assert false
       end
     | Oregv r ->
-      begin match find offsets r with
+      begin match find r with
         | None -> op
         | Some _ -> assert false
       end
-    | Omem (a, ty) -> Omem (assign_amode is base offsets a, ty)
+    | Omem (a, ty) -> Omem (assign_amode find base a, ty)
     | _ -> op
 
-  let assign base offsets i =
-    let base = Regvar.reg base in
-    let is = ref None in
-    let i' = substitute' i @@ assign_operand is base offsets in
-    match !is with
-    | None -> [i']
-    | Some lea -> [lea; i']
+  let assign find base i = substitute' i @@ assign_operand find base
 end
 
-let assign_slots = Assign_slots.assign
+let post_assign_slots = Post_assign_slots.assign
 
 let align8 i = (i + 7) land -8
 let odd i = (i land 1) <> 0

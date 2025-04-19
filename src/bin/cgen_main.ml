@@ -72,13 +72,6 @@ let comp (opts : Cli.t) =
       (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
     Cli.bail ();
   end;
-  let module Layout = Regalloc.Layout_stack(Machine)(Context) in
-  let* m = pseudo_map_funs m ~f:Layout.run in
-  if Cli.equal_dump opts.dump Dstklayout then begin
-    Format.printf ";; After stack layout:@;@.%a\n%!"
-      (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
-    Cli.bail ();
-  end;
   assert (Cli.equal_dump opts.dump Dasm);
   let module Emit = Pseudo.Emit(Machine) in
   Format.printf "%a%!" Emit.emit m;
