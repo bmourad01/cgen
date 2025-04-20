@@ -1,13 +1,10 @@
 open Core
 open Context_common
 
-module type S = Context_machine_intf.S
-  with type 'a context := 'a t
-
 let targets = String.Table.create ()
 let get t = Hashtbl.find targets @@ Target.name t
 
-let register t ((module M : S) as data) =
+let register t ((module M : Machine_intf.S) as data) =
   let key = Target.name t in
   let key' = Target.name M.target in
   if String.equal key key' then

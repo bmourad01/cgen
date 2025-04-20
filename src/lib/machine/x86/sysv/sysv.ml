@@ -1,12 +1,22 @@
-open Context.Syntax
+module Make(Context : Context_intf.S_virtual) = struct
+  open Context.Syntax
 
-let run tenv fn =
-  let env = Sysv_common.init_env tenv fn in
-  let* () = Sysv_params.lower env in
-  let* () = Sysv_refs.lower env in
-  let* () = Sysv_rets.lower env in
-  let* () = Sysv_calls.lower env in
-  let* () = Sysv_vastart.lower env in
-  let* () = Sysv_vaarg.lower env in
-  let* fn = Sysv_translate.go env in
-  !!fn
+  module Params = Sysv_params.Make(Context)
+  module Refs = Sysv_refs.Make(Context)
+  module Rets = Sysv_rets.Make(Context)
+  module Calls = Sysv_calls.Make(Context)
+  module Vastart = Sysv_vastart.Make(Context)
+  module Vaarg = Sysv_vaarg.Make(Context)
+  module Translate = Sysv_translate.Make(Context)
+
+  let run tenv fn =
+    let env = Sysv_common.init_env tenv fn in
+    let* () = Params.lower env in
+    let* () = Refs.lower env in
+    let* () = Rets.lower env in
+    let* () = Calls.lower env in
+    let* () = Vastart.lower env in
+    let* () = Vaarg.lower env in
+    let* fn = Translate.go env in
+    !!fn
+end

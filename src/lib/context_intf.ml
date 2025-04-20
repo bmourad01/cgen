@@ -4,18 +4,21 @@ open Core
 open Monads.Std
 open Regular.Std
 
+type var = Var.t
+type label = Label.t
+
 module type S = sig
   (** The monadic context. *)
   type 'a t
 
   module Var : sig
     (** Generates a fresh program variable. *)
-    val fresh : Var.t t
+    val fresh : var t
   end
 
   module Label : sig
     (** Generates a fresh program label. *)
-    val fresh : Label.t t
+    val fresh : label t
   end
 
   (** Local state for the computation.
@@ -94,4 +97,16 @@ module type S = sig
   (** Same as [Seq.iter], but [f] is allowed to fail early. In this case,
       the error is lifted into the context. *)
   val iter_seq_err : 'a seq -> f:('a -> unit Or_error.t) -> unit t
+end
+
+(** Extension of the Context interface, with helpers for generating
+    [Virtual] terms. *)
+module type S_virtual = sig
+  include S
+
+  (** Helpers for generating [Virtual] terms. *)
+  module Virtual : Context_virtual_intf.S
+    with type var := var
+     and type label := label
+     and type 'a context := 'a t
 end

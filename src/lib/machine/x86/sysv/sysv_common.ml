@@ -3,10 +3,6 @@ open Regular.Std
 open Graphlib.Std
 open Virtual
 
-module Cv = Context.Virtual
-
-open Context.Syntax
-
 let reg_str = Format.asprintf "%a" X86_amd64_common.Reg.pp
 
 let int_args = Array.map ~f:reg_str [|
@@ -224,52 +220,56 @@ let init_env tenv fn =
     alpar = None;
   }
 
-(* Iterate over the dominator tree. *)
-let iter_blks env ~f =
-  let rec loop q = match Stack.pop q with
-    | None -> !!()
-    | Some l ->
-      let* () = match Label.Tree.find env.blks l with
-        | None -> !!()
-        | Some b -> f b in
-      Tree.children env.doms l |>
-      Seq.iter ~f:(Stack.push q);
-      loop q in
-  loop @@ Stack.singleton @@ Func.entry env.fn
+module Make0(Context : Context_intf.S) = struct
+  open Context.Syntax
 
-let new_slot env size align =
-  let* x = Context.Var.fresh in
-  let*? s = Slot.create x ~size ~align in
-  Vec.push env.slots s;
-  !!x
+  (* Iterate over the dominator tree. *)
+  let iter_blks env ~f =
+    let rec loop q = match Stack.pop q with
+      | None -> !!()
+      | Some l ->
+        let* () = match Label.Tree.find env.blks l with
+          | None -> !!()
+          | Some b -> f b in
+        Tree.children env.doms l |>
+        Seq.iter ~f:(Stack.push q);
+        loop q in
+    loop @@ Stack.singleton @@ Func.entry env.fn
 
-let find_ref env x = match Hashtbl.find env.refs x with
-  | Some y -> y
-  | None ->
-    failwithf "%a has no ref in function $%s"
-      Var.pps x (Func.name env.fn) ()
+  let new_slot env size align =
+    let* x = Context.Var.fresh in
+    let*? s = Slot.create x ~size ~align in
+    Vec.push env.slots s;
+    !!x
 
-let type_cls env s = match Hashtbl.find env.layout s with
-  | Some k -> !!k
-  | None ->
-    let*? lt = Typecheck.Env.layout s env.tenv in
-    let k = classify_layout lt in
-    Hashtbl.set env.layout ~key:s ~data:k;
-    !!k
+  let find_ref env x = match Hashtbl.find env.refs x with
+    | Some y -> y
+    | None ->
+      failwithf "%a has no ref in function $%s"
+        Var.pps x (Func.name env.fn) ()
 
-let i8 i = `int (Bv.M8.int i, `i8)
-let i32 i = `int (Bv.M32.int i, `i32)
-let i64 i = `int (Bv.M64.int i, `i64)
+  let type_cls env s = match Hashtbl.find env.layout s with
+    | Some k -> !!k
+    | None ->
+      let*? lt = Typecheck.Env.layout s env.tenv in
+      let k = classify_layout lt in
+      Hashtbl.set env.layout ~key:s ~data:k;
+      !!k
 
-let typeof_var env x =
-  Context.lift_err @@ Typecheck.Env.typeof_var env.fn x env.tenv
+  let i8 i = `int (Bv.M8.int i, `i8)
+  let i32 i = `int (Bv.M32.int i, `i32)
+  let i64 i = `int (Bv.M64.int i, `i64)
 
-let word env = (Target.word (Typecheck.Env.target env.tenv) :> Type.t)
+  let typeof_var env x =
+    Context.lift_err @@ Typecheck.Env.typeof_var env.fn x env.tenv
 
-let typeof_operand env : operand -> Type.t Context.t = function
-  | `int (_, t) -> !!(t :> Type.t)
-  | `bool _ -> !!`flag
-  | `float _ -> !!`f32
-  | `double _ -> !!`f64
-  | `sym _ -> !!(word env)
-  | `var x -> typeof_var env x
+  let word env = (Target.word (Typecheck.Env.target env.tenv) :> Type.t)
+
+  let typeof_operand env : operand -> Type.t Context.t = function
+    | `int (_, t) -> !!(t :> Type.t)
+    | `bool _ -> !!`flag
+    | `float _ -> !!`f32
+    | `double _ -> !!`f64
+    | `sym _ -> !!(word env)
+    | `var x -> typeof_var env x
+end

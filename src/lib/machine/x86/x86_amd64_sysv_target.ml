@@ -119,6 +119,7 @@ module Machine = struct
     let writes = writes clobbered
   end
 
+  module Lower_abi = Sysv.Make
   module Isel = X86_amd64_isel.Make
 
   module Regalloc = struct
@@ -127,8 +128,6 @@ module Machine = struct
   end
 
   module Emit = X86_amd64_emit
-
-  let lower_abi = Sysv.run
 end
 
 let () = Context.register_machine target (module Machine)

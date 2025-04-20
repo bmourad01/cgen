@@ -23,6 +23,7 @@
   regular
   zarith)
  (private_modules
+  context_virtual_intf
   dominance
   ftree
   hashmap

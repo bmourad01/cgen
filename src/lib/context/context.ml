@@ -33,8 +33,6 @@ let run x s =
 let eval x s =
   x.run (init_ctx s) ~reject ~accept:(fun x _ -> Ok x)
 
-module type Machine = Context_machine.S
-
 let register_machine = Context_machine.register
 let init_machines = Context_machine.init_machines
 let machine = Context_machine.machine

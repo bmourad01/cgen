@@ -99,6 +99,18 @@ module type S = sig
     val pp : Format.formatter -> t -> unit
   end
 
+  (** Lowers the ABI-specific details of a function for a given target.
+
+      The function is expected to be in SSA form.
+
+      The resulting output is expected to preserve the function's [dict],
+      specifically information about linkage and whether the function is
+      variadic or not.
+  *)
+  module Lower_abi(C : Context_intf.S_virtual) : sig
+    val run : Typecheck.env -> Virtual.func -> Virtual.Abi.func C.t
+  end
+
   (** Instruction selection. *)
   module Isel(C : Context_intf.S) : sig
     (** Rewrite rules for instruction selection. *)
