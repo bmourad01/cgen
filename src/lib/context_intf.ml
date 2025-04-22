@@ -45,6 +45,10 @@ module type S = sig
         reset the state for re-runs or to discard state that is isolated to
         a particular analysis or transformation. *)
     val erase : 'a Dict.tag -> unit t
+
+    (** [with_ f] runs the computation [f], in which local state can be
+        modified, and after [f] finishes the original local state is restored. *)
+    val with_ : (unit -> 'a t) -> 'a t
   end
 
   (** Lifts an [Or_error] computation into the context.
