@@ -91,6 +91,12 @@ module Make(M : S) = struct
   let when_ k f = if k then f () else !!() [@@inline]
   let unless k f = if k then !!() else f () [@@inline]
 
+  let catch x err = {
+    run = fun ~reject ~accept s ->
+      x.run s ~accept ~reject:(fun p ->
+          (err p).run ~reject ~accept s)
+  } [@@inline]
+
   module List = struct
     include List
 

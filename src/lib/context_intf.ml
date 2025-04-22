@@ -66,6 +66,10 @@ module type S = sig
   (** [unless k f] evaluates [f] if [k] is [false]. *)
   val unless : bool -> (unit -> unit t) -> unit t
 
+  (** [catch x err] runs the computation [x], and if [x] results in an error,
+      it is handled by [err]. *)
+  val catch : 'a t -> (Error.t -> 'a t) -> 'a t
+
   module Syntax : sig
     include Monad.Syntax.S with type 'a t := 'a t
     include Monad.Syntax.Let.S with type 'a t := 'a t
