@@ -57,22 +57,28 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   module Pre_assign = M.Regalloc.Pre_assign_slots(C)
 
+  let make_offsets_and_size ?presize slots frame =
+    let size = compute_size slots in
+    (* The frame pointer offsets will be negative. We're also accounting
+       for the fact that the previous frame pointer will be preserved
+       on the stack. *)
+    let presize = match presize with
+      | Some ps -> alup ps wordsz
+      | None when frame -> wordsz
+      | None -> 0 in
+    let start, size = if frame then
+        let size = size + presize in
+        -size, size
+      else presize, size + presize in
+    let offsets = compute_offsets slots start in
+    let base = if frame then M.Reg.fp else M.Reg.sp in
+    Map.find offsets, Rv.reg base, size
+
   let pre_assign fn =
     let dict = Func.dict fn in
     let frame = Dict.mem dict Func.Tag.needs_stack_frame in
     let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
-    let size = compute_size slots in
-    let find, base, size =
-      (* The frame pointer offsets will be negative. We're also accounting
-         for the fact that the previous frame pointer will be preserved
-         on the stack. *)
-      let start, size = if frame then
-          let size = size + wordsz in
-          -size, size
-        else 0, size in
-      let offsets = compute_offsets slots start in
-      let base = if frame then M.Reg.fp else M.Reg.sp in
-      Map.find offsets, Rv.reg base, size in
+    let find, base, size = make_offsets_and_size slots frame in
     let+ blks =
       Func.blks ~rev:true fn |>
       C.Seq.fold ~init:[] ~f:(fun bs b ->
@@ -88,9 +94,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                 | [insn] -> !!(Insn.with_insn i insn :: is)
                 | insn :: insns ->
                   let i' = Insn.with_insn i insn in
-                  let+ is' = C.List.map insns ~f:(fun insn ->
-                      let+ label = C.Label.fresh in
-                      Insn.create ~label ~insn) in
+                  let+ is' = freshen insns in
                   (i' :: is') @ is) in
           Blk.with_insns b insns :: bs) in
     Func.with_slots (Func.with_blks fn blks) [], size
@@ -99,15 +103,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let dict = Func.dict fn in
     let frame = Dict.mem dict Func.Tag.needs_stack_frame in
     let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
-    let size = compute_size slots in
-    let presize = alup presize wordsz in
-    let find, base, size =
-      let start, size = if frame then
-          -(size + presize), size + presize
-        else presize, size + presize in
-      let offsets = compute_offsets slots start in
-      let base = if frame then M.Reg.fp else M.Reg.sp in
-      Map.find offsets, Rv.reg base, size in
+    let find, base, size = make_offsets_and_size ~presize slots frame in
     let fn = Func.map_blks fn ~f:(fun b ->
         Blk.map_insns b ~f:(fun i ->
             Insn.with_insn i @@
