@@ -172,7 +172,15 @@ module type S = sig
   val to_sequence :
     ?order:[`Increasing_key | `Decreasing_key] ->
     'a t ->
-    (key * 'a) seq  
+    (key * 'a) seq
+
+  (** Given an equality predicate for elements of the tree, returns
+      [true] if both trees are equal. *)
+  val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+
+  (** Given an ordering predicate for elements of the tree, returns
+      an ordering for the two trees. *)
+  val compare : ('a -> 'a -> int) -> 'a t -> 'a t -> int
 end
 
 (** The signature for sets. *)
@@ -208,6 +216,9 @@ module type Set = sig
 
   (** Returns [true] if the two sets are equal. *)
   val equal : t -> t -> bool
+
+  (** Compares the two sets and returns an ordering. *)
+  val compare : t -> t -> int
 
   (** Iterates the set according to [f]. *)
   val iter : t -> f:(key -> unit) -> unit

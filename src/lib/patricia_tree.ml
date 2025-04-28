@@ -271,6 +271,41 @@ module Make(K : Patricia_tree_intf.Key) = struct
         | Tip (k, x) -> yield (k, x)
         | Bin (_, l, r) -> aux r >>= fun () -> aux l in
       fun t -> run @@ aux t
+
+  let rec equal f t1 t2 =
+    phys_equal t1 t2 || match t1, t2 with
+    | Nil, Nil -> assert false (* covered by phys_equal *)
+    | Tip (k1, x1), Tip (k2, x2) -> K.equal k1 k2 && f x1 x2
+    | Bin (p1, l1, r1), Bin (p2, l2, r2) ->
+      Key.equal p1 p2 && equal f l1 l2 && equal f r1 r2
+    | _ -> false
+
+  let rec compare f t1 t2 =
+    if phys_equal t1 t2 then 0
+    else match t1, t2 with
+      | Nil, Nil -> assert false (* covered by phys_equal *)
+      | Tip (k1, x1), Tip (k2, x2) ->
+        let c = K.compare k1 k2 in
+        if c = 0 then f x1 x2 else c
+      | Bin (p1, l1, r1), Bin (p2, l2, r2) ->
+        let b1 = Key.branching p1 in
+        let b2 = Key.branching p2 in
+        let c = K.compare b1 b2 in
+        if c = 0 then
+          let k1 = Key.payload p1 in
+          let k2 = Key.payload p2 in
+          let c = K.compare k1 k2 in
+          if c = 0 then
+            let c = compare f l1 l2 in
+            if c = 0 then compare f r1 r2 else c
+          else c
+        else c
+      | Nil, Tip _ -> 1
+      | Nil, Bin _ -> 1
+      | Tip _, Bin _ -> 1
+      | Tip _, Nil -> -1
+      | Bin _, Nil -> -1
+      | Bin _, Tip _ -> -1
 end
 
 module Make_set(K : Patricia_tree_intf.Key) = struct
@@ -394,6 +429,31 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
     | Bin (p1, l1, r1), Bin (p2, l2, r2) ->
       Key.equal p1 p2 && equal l1 l2 && equal r1 r2
     | _ -> false
+
+  let rec compare t1 t2 =
+    if phys_equal t1 t2 then 0
+    else match t1, t2 with
+      | Nil, Nil -> assert false (* covered by phys_equal *)
+      | Tip k1, Tip k2 -> K.compare k1 k2
+      | Bin (p1, l1, r1), Bin (p2, l2, r2) ->
+        let b1 = Key.branching p1 in
+        let b2 = Key.branching p2 in
+        let c = K.compare b1 b2 in
+        if c = 0 then
+          let k1 = Key.payload p1 in
+          let k2 = Key.payload p2 in
+          let c = K.compare k1 k2 in
+          if c = 0 then
+            let c = compare l1 l2 in
+            if c = 0 then compare r1 r2 else c
+          else c
+        else c
+      | Nil, Tip _ -> 1
+      | Nil, Bin _ -> 1
+      | Tip _, Bin _ -> 1
+      | Tip _, Nil -> -1
+      | Bin _, Nil -> -1
+      | Bin _, Tip _ -> -1
 
   let rec iter t ~f = match t with
     | Nil -> ()
