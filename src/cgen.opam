@@ -20,6 +20,10 @@ depends: [
   "graphlib"
   "menhir"
   "monads"
+  "ppx_bin_prot"
+  "ppx_compare"
+  "ppx_fields_conv"
+  "ppx_sexp_conv"
   "regular"
   "zarith"
   "odoc" {with-doc}
