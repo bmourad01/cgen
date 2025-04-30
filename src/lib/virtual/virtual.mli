@@ -385,7 +385,7 @@ type func = Func.t [@@deriving bin_io, compare, equal, sexp]
 
 (** The control-flow graph of the function. *)
 module Cfg : sig
-  include Label.Graph
+  include Label.Graph_s
 
   (** Creates the control-flow graph.
 
@@ -860,7 +860,7 @@ module Abi : sig
   type module_ = Module.t [@@deriving bin_io, compare, equal, sexp]
 
   module Cfg : sig
-    include Label.Graph
+    include Label.Graph_s
     val create : func -> t
   end
 

@@ -34,12 +34,15 @@ module Tree : Patricia_tree_intf.S with type key := t
 module Tree_set : Patricia_tree_intf.Set with type key := t
 
 (** The signature for graphs with labels as nodes. *)
-module type Graph = Graph
+module type Graph_s = Graph
   with type node = t
    and type Edge.label = unit
 
+(** A concrete implementation of [Graph_s]. *)
+module Graph : Graph_s
+
 (** An interface for connecting entry and exit nodes of the graph
     with [pseudoentry] and [pseudoexit], respectively. *)
-module Pseudo(G : Graph) : sig
+module Pseudo(G : Graph_s) : sig
   val add : G.t -> G.t
 end

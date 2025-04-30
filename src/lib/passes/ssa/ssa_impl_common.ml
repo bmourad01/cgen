@@ -49,7 +49,7 @@ module type L = sig
   end
 
   module Cfg : sig
-    include Label.Graph
+    include Label.Graph_s
     val create : Func.t -> t
   end
 

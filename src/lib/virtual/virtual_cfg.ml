@@ -1,11 +1,10 @@
 open Core
-open Graphlib.Std
 open Regular.Std
 
 module Blk = Virtual_blk
 module Ctrl = Virtual_ctrl
 module Func = Virtual_func
-module G = Graphlib.Make(Label)(Unit)
+module G = Label.Graph
 module Pseudo = Label.Pseudo(G)
 
 let accum tbl g b : _ -> G.t = function

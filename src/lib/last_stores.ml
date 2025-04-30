@@ -14,7 +14,7 @@ module type L = sig
     type t
     val insns : ?rev:bool -> t -> Insn.t seq
   end
-  module Cfg : Label.Graph
+  module Cfg : Label.Graph_s
   val resolve : Label.t -> Blk.t
 end
 

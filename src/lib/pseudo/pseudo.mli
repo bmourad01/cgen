@@ -257,7 +257,7 @@ type ('a, 'b) module_ = ('a, 'b) Module.t [@@deriving bin_io, compare, equal, se
 
 (** The control-flow graph of the function. *)
 module Cfg : sig
-  include Label.Graph
+  include Label.Graph_s
 
   (** Creates the control-flow graph.
 

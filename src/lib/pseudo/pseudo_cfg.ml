@@ -1,12 +1,11 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 
 module Insn = Pseudo_insn
 module Blk = Pseudo_blk
 module Func = Pseudo_func
 
-module G = Graphlib.Make(Label)(Unit)
+module G = Label.Graph
 module Pseudo = Label.Pseudo(G)
 
 let check fn =
