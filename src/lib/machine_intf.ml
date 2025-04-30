@@ -132,8 +132,13 @@ module type S = sig
     val load_from_slot : [Type.basic | `v128] -> dst:Regvar.t -> src:Regvar.t -> Insn.t
 
     (** Produce an instruction to store a value to a slot, where [src] holds the
-        value being stored and [dst] is the address of the slot. *)
-    val store_to_slot : [Type.basic | `v128] -> src:Regvar.t -> dst:Regvar.t -> Insn.t
+        value being stored and [dst] is the address of the slot.
+
+        The original instruction (where [dst] is written to) is provided so that
+        implementations of this function have an opportunity to perform peephole
+        optimization of the resulting instruction.
+    *)
+    val store_to_slot : [Type.basic | `v128] -> Insn.t -> src:Regvar.t -> dst:Regvar.t -> Insn.t
 
     (** [substitute i f] performs the substitution [f] to [i] on all reigsters/variables
         that count as definitions/uses in the instruction. *)

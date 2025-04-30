@@ -91,12 +91,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* Initialize the worklists. *)
   let make_worklist t =
     Hash_set.iter t.initial ~f:(fun n ->
-        if degree t n >= Regs.node_k n then
-          Hash_set.add t.wspill n
-        else if move_related t n then
-          Hash_set.add t.wfreeze n
-        else
-          Hash_set.add t.wsimplify n);
+        (* If we introduced `n` during spilling, but later removed
+           its definition during dead code elimination, then it
+           won't have a degree. *)
+        degree' t n |> Option.iter ~f:(fun d ->
+            if d >= Regs.node_k n then
+              Hash_set.add t.wspill n
+            else if move_related t n then
+              Hash_set.add t.wfreeze n
+            else
+              Hash_set.add t.wsimplify n));
     Hash_set.clear t.initial
 
   let enable_moves t nodes =
@@ -433,7 +437,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           (* Insert a store after each definition of a v_i, *)
           let* s' = if Set.mem def v then
               let+ label = C.Label.fresh in
-              let insn = M.Regalloc.store_to_slot ty ~src:v' ~dst:v in
+              let insn = M.Regalloc.store_to_slot ty insn ~src:v' ~dst:v in
               Insn.create ~label ~insn :: s
             else !!s in
           (* a fetch before each use of a v_i *)
@@ -453,6 +457,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let i' = Insn.with_insn i @@ M.Regalloc.substitute insn subst in
     List.concat [fetch; i' :: store; acc]
 
+  module Remove_deads = Remove_dead_insns(M)
+
   (* Insert spilling code and set up the state for the next round. *)
   let rewrite_program t =
     let* () = make_slots t in
@@ -463,7 +469,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             Blk.insns ~rev:true b |>
             C.Seq.fold ~init:[] ~f:(rewrite_insn t) in
           Blk.with_insns b insns :: acc) in
-    t.fn <- Func.with_blks t.fn blks;
+    t.fn <- Remove_deads.run @@ Func.with_blks t.fn blks;
     (* spilledNodes := {} *)
     t.spilled <- Rv.Set.empty;
     (* initial := coloredNodes U coalescedNodes *)

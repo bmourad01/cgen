@@ -30,11 +30,75 @@ let load_from_slot ty ~dst ~src = match classof dst with
       | #Type.imm -> assert false
     end
 
-let store_to_slot ty ~src ~dst = match classof src with
+let immty = function
+  | #Type.imm as ty -> ty
+  | _ -> assert false
+
+let fold_op i ~dst = match i with
+  | One (op, Oreg (x, _)) when Regvar.(x = dst) ->
+    begin match op with
+      | DEC -> Some I.dec
+      | INC -> Some I.inc
+      | NEG -> Some I.neg
+      | NOT -> Some I.not_
+      | _ -> None
+    end
+  | Two (op, Oreg (x, _), y) when Regvar.(x = dst) ->
+    begin match y with
+      | Omem _ -> None (* forbid mem-to-mem ops *)
+      | _ ->
+        let go f = Fn.flip f y in
+        match op with
+        | ADD -> Some (go I.add)
+        | SUB -> Some (go I.sub)
+        | AND -> Some (go I.and_)
+        | OR  -> Some (go I.or_)
+        | XOR -> Some (go I.xor)
+        | SHL -> Some (go I.shl)
+        | SHR -> Some (go I.shr)
+        | SAR -> Some (go I.sar)
+        | ROL -> Some (go I.rol)
+        | ROR -> Some (go I.ror)
+        | _ ->
+          (* We're not handling the `MOV` case here,
+             since the register allocation algorithm
+             will be trying to coalesce moves, and
+             introducing more of them can lead to
+             more spilling (and an assertion violation
+             in [Post_assign_slots]). Not sure if this
+             indicates a bug or not, though. *)
+          None
+    end
+  | _ -> None
+
+let store_to_slot ty i ~src ~dst = match classof src with
   | GPR ->
     begin match ty with
       | `v128 | #Type.fp -> assert false
-      | #Type.basic as b -> I.mov (Omem (Ab dst, b)) (Oreg (src, b))
+      | #Type.basic as b ->
+        (* Attempt some peephole optimizations of the
+           store. *)
+        begin match i with
+          (* XOR with self -> just store 0 in the slot *)
+          | Two (XOR, Oreg (x, _), Oreg (y ,_))
+            when Regvar.(x = y) && Regvar.(x = dst) ->
+            I.mov (Omem (Ab dst, b)) (Oimm (0L, immty ty))
+          | Two (SUB, Oreg (x, _), Oimm (1L, _))
+            when Regvar.(x = dst) ->
+            I.dec (Omem (Ab dst, b))
+          | Two (ADD, Oreg (x, _), Oimm (1L, _))
+            when Regvar.(x = dst) ->
+            I.inc (Omem (Ab dst, b))
+          | _ ->
+            (* OP to self -> use OP with addressing mode *)
+            begin match fold_op i ~dst with
+              | Some f -> f (Omem (Ab dst, b))
+              | None ->
+                (* Default case: just do a regular store
+                   to the slot. *)
+                I.mov (Omem (Ab dst, b)) (Oreg (src, b))
+            end
+        end
     end
   | FP ->
     begin match ty with
@@ -62,7 +126,29 @@ let substitute_operand f = function
 
 let substitute' i op = match i with
   | One (o, a) -> One (o, op a)
-  | Two (o, a, b) -> Two (o, op a, op b)
+  | Two (o, a, b) ->
+    (* Attempt some peephole optimizations after the substitution.
+       XXX: what if the FLAGS register is live? *)
+    begin match o, op a, op b with
+      | LEA, Oreg (x, ty), Omem (Abd (y, d), _) when Regvar.(x = y) ->
+        (* lea x, [x+d] => add x, d or sub x, -d *)
+        if Int32.(d < 0l) then
+          let d = Int32.neg d in
+          let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
+          Two (SUB, Oreg (x, ty), Oimm (d', immty ty))
+        else
+          let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
+          Two (ADD, Oreg (x, ty), Oimm (d', immty ty))
+      | LEA, Oreg (x, ty), Omem (Abis (y, z, S1), _) when Regvar.(x = y) ->
+        (* lea x, [x+y*1] => add x, y *)
+        Two (ADD, Oreg (x, ty), Oreg (z, ty))
+      | LEA, Oreg (x, ty), Omem (Abis (y, z, S1), _) when Regvar.(x = z) ->
+        (* lea x, [y+x*1] => add x, y *)
+        Two (ADD, Oreg (x, ty), Oreg (y, ty))
+      | o, a, b ->
+        (* Default case. *)
+        Two (o, a, b)
+    end
   | IMUL3 (a, b, c) -> IMUL3 (op a, op b, c)
   | JMP (Jind a) -> JMP (Jind (op a))
   | CDQ

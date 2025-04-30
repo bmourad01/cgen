@@ -902,11 +902,6 @@ module Insn = struct
     | FP32 _
     | FP64 _
       -> true
-    (* Special case for zeroing a register. *)
-    | Two (XOR, Oreg (a, _), Oreg (b, _))
-    | Two (XORPD, Oreg (a, _), Oreg (b, _))
-    | Two (XORPS, Oreg (a, _), Oreg (b, _))
-      when Regvar.equal a b -> true
     | i -> writes_to_memory i
 
   let is_return = function
