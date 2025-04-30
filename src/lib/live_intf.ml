@@ -27,7 +27,7 @@ module type S = sig
   val outs : t -> Label.t -> (var, var_comparator) Set.t
 
   (** The set of blocks where the variable is live-in. *)
-  val blks : t -> var -> Label.Set.t
+  val blks : t -> var -> Label.Tree_set.t
 
   (** The set of variables that were defined in the block associated with
       the label. *)

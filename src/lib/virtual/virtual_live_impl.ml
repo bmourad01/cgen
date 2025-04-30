@@ -77,8 +77,8 @@ module Make(M : L) : S
     Label.Tree.fold t.blks ~init ~f:(fun ~key:l ~data:trans init ->
         f init l @@ apply trans @@ outs t l)
 
-  let blks t x = fold t ~init:Label.Set.empty ~f:(fun blks l ins ->
-      if Set.mem ins x then Set.add blks l else blks)
+  let blks t x = fold t ~init:Label.Tree_set.empty ~f:(fun blks l ins ->
+      if Set.mem ins x then Label.Tree_set.add blks l else blks)
 
   let solution t = t.outs
 

@@ -119,11 +119,11 @@ let remove_blks_exn fn = function
   | [] -> fn
   | [l] -> remove_blk_exn fn l
   | ls ->
-    let s = Label.Set.of_list ls in
-    if Set.mem s @@ entry fn then
+    let s = Label.Tree_set.of_list ls in
+    if Label.Tree_set.mem s @@ entry fn then
       invalid_argf "Cannot remove entry block of function $%s" fn.name ()
     else
-      let f = Fn.non @@ Fn.compose (Set.mem s) Abi_blk.label in
+      let f = Fn.non @@ Fn.compose (Label.Tree_set.mem s) Abi_blk.label in
       {fn with blks = Ftree.filter fn.blks ~f}
 
 let remove_slot fn x = {
