@@ -358,6 +358,22 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
 
   let singleton k = Tip k
 
+  exception Empty
+
+  let rec min_elt_exn = function
+    | Nil -> raise Empty
+    | Tip k -> k
+    | Bin (_, l, r) ->
+      try min_elt_exn l with
+      | Empty -> min_elt_exn r
+
+  let rec max_elt_exn = function
+    | Nil -> raise Empty
+    | Tip k -> k
+    | Bin (_, l, r) ->
+      try max_elt_exn r with
+      | Empty -> max_elt_exn l
+
   let rec add t k = match t with
     | Nil -> Tip k
     | Tip k' when equal k' k -> t

@@ -202,6 +202,20 @@ module type Set = sig
   (** [singleton k] returns a singleton set for [k]. *)
   val singleton : key -> t
 
+  exception Empty
+
+  (** [min_elt_exn t] will pick the lowest key from the set.
+
+      @raise Empty if the set is empty
+  *)
+  val min_elt_exn : t -> key
+
+  (** [max_elt_exn t] will pick the highest key from the set.
+
+      @raise Empty if the set is empty
+  *)
+  val max_elt_exn : t -> key
+
   (** Adds the key to the set if the key is not present. *)
   val add : t -> key -> t
 

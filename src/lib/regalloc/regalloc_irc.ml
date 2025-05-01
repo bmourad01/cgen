@@ -235,7 +235,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* pre: wmoves is not empty *)
   let coalesce t =
     (* let m_(=copy(x,y)) \in worklistMoves *)
-    let m = Lset.to_sequence t.wmoves |> Seq.hd_exn in
+    let m = Lset.min_elt_exn t.wmoves in
     let x, y = Hashtbl.find_exn t.copies m in
     (* x := GetAlias(x) *)
     let x = alias t x in
