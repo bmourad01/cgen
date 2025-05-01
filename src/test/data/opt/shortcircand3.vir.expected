@@ -1,0 +1,17 @@
+module foo
+
+export function w $foo(l %a, l %i) {
+@2:
+  %1 = sge.l %i, 0x3_l ; @17
+  br %1, @16(0xffffffff_w), @4
+@4:
+  %6 = sge.l %i, 0x0_l ; @22
+  br %6, @11, @16(0xffffffff_w)
+@11:
+  %4 = lsl.l %i, 0x2_l ; @20
+  %5 = add.l %a, %4 ; @21
+  %v.1 = ld.w %5 ; @15
+  jmp @16(%v.1)
+@16(%0):
+  ret %0
+}

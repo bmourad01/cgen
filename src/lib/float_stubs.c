@@ -1,5 +1,6 @@
 #include <caml/alloc.h>
 #include <caml/custom.h>
+#include <caml/hash.h>
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
 #include <caml/version.h>
@@ -12,20 +13,48 @@
 
 #define Float_val(v) (*(float *)(Data_custom_val(v)))
 
+intnat cgen_float32_compare_unboxed(float f, float g) {
+  return (intnat)(f > g) - (intnat)(f < g) + (intnat)(f == f) -
+         (intnat)(g == g);
+}
+
+int cgen_float32_compare_to_untagged(value f, value g) {
+  return cgen_float32_compare_unboxed(Float_val(f), Float_val(g));
+}
+
+value cgen_float32_compare(value f, value g) {
+  return Val_int(cgen_float32_compare_to_untagged(f, g));
+}
+
+/* See:
+
+   - ocaml/runtime/hash.c
+   - ocaml/stdlib/float.ml
+*/
+value cgen_float32_hash(value x) {
+  uint32_t h = caml_hash_mix_float(0, Float_val(x));
+  h ^= h >> 16;
+  h *= 0x85ebca6b;
+  h ^= h >> 13;
+  h *= 0xc2b2ae35;
+  h ^= h >> 16;
+  return Val_int(h & 0x3fffffffu);
+}
+
 static struct custom_operations cgen_float32_custom_ops = {
-    (char *)"cgen_float32_custom_ops",
-    custom_finalize_default,
-    custom_compare_default,
-    custom_compare_ext_default,
-    custom_hash_default,
-    custom_serialize_default,
-    custom_deserialize_default,
+    .identifier = (char *)"cgen_float32_custom_ops",
+    .finalize = custom_finalize_default,
+    .compare = cgen_float32_compare_to_untagged,
+    .hash = cgen_float32_hash,
+    .serialize = custom_serialize_default,
+    .deserialize = custom_deserialize_default,
+    .compare_ext = custom_compare_ext_default,
 #if OCAML_VERSION_MAJOR >= 4 && OCAML_VERSION_MINOR >= 8
-    NULL, // custom_fixed_length
+    .fixed_length = NULL,
 #endif
 };
 
-#define Alloc_float()                                               \
+#define Alloc_float()                                                          \
   caml_alloc_custom(&cgen_float32_custom_ops, sizeof(float), 0, 1)
 
 value cgen_float32_of_float(value x) {
@@ -79,14 +108,6 @@ value cgen_float32_neg(value x) {
   CAMLlocal1(f);
   f = Alloc_float();
   Float_val(f) = -Float_val(x);
-  CAMLreturn(f);
-}
-
-value cgen_float32_rem(value x, value y) {
-  CAMLparam2(x, y);
-  CAMLlocal1(f);
-  f = Alloc_float();
-  Float_val(f) = fmodf(Float_val(x), Float_val(y));
   CAMLreturn(f);
 }
 

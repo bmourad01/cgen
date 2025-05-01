@@ -1,0 +1,7 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %x = rem.w %x, 0xffffffff_w
+  ret %x
+}

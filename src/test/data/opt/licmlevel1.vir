@@ -1,0 +1,18 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %i = copy.w 0_w
+  %z = copy.w 0_w
+  jmp @loop
+@loop:
+  %c = lt.w %i, 10_w
+  br %c, @body, @done
+@body:
+  %y = add.w %x, 1_w
+  %z = add.w %z, %y
+  %i = add.w %i, 1_w
+  jmp @loop
+@done:
+  ret %z
+}

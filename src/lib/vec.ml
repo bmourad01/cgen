@@ -12,11 +12,12 @@ type 'a t = {
 let default_capacity = 7
 let growth_factor = 2
 
-let create ?(capacity = default_capacity) () = {
-  data = Oa.create ~len:(max capacity 1);
-  length = 0;
-  capacity;
-}
+let create ?(capacity = default_capacity) () =
+  let len = max capacity 1 in {
+    data = Oa.create ~len;
+    length = 0;
+    capacity = len;
+  }
 
 let length t = t.length
 let is_empty t = t.length = 0
@@ -35,23 +36,31 @@ let append t1 t2 =
     let l2 = t2.length in
     let new_length = l1 + l2 in
     let dst = if t1.capacity < new_length then
-        let dst = Oa.create ~len:new_length in
+        (* Try to ensure that future additions won't immediately
+           trigger a resizing of the backing array. Hopefully
+           this doesn't end up wasting too much memory. *)
+        let new_capacity = new_length * growth_factor in
+        let dst = Oa.create ~len:new_capacity in
         Oa.unsafe_blit ~src:t1.data ~src_pos:0 ~dst ~dst_pos:0 ~len:l1;
         t1.data <- dst;
-        t1.capacity <- new_length;
+        t1.capacity <- new_capacity;
         dst
       else t1.data in
     Oa.unsafe_blit ~src:t2.data ~src_pos:0 ~dst ~dst_pos:l1 ~len:l2;
     t1.length <- new_length;
   end
 
-let grow t =
-  let new_capacity = t.capacity * growth_factor in
-  let dst = Oa.create ~len:new_capacity in
+let grow_to t n =
+  let dst = Oa.create ~len:n in
   Oa.unsafe_blit ~src:t.data ~src_pos:0 ~dst ~dst_pos:0 ~len:t.length;
   t.data <- dst;
-  t.capacity <- new_capacity
+  t.capacity <- n
 
+let ensure_capacity t n =
+  if t.capacity < n then
+    grow_to t @@ Int.(ceil_pow2 @@ max 1 n)
+
+let grow t = grow_to t (t.capacity * growth_factor)
 let unsafe_get t i = Oa.unsafe_get_some_assuming_some t.data i [@@inline]
 let unsafe_set t i x = Oa.unsafe_set_some t.data i x [@@inline]
 
@@ -65,6 +74,7 @@ let pop_exn t =
   let i = t.length - 1 in
   if i >= 0 then
     let x = unsafe_get t i in
+    (* Clear the element to prevent a memory leak. *)
     Oa.unsafe_set_none t.data i;
     t.length <- i;
     x
@@ -233,11 +243,33 @@ let filteri_inplace t ~f =
       incr j
     end
   done;
+  (* Clear the filtered elements to prevent a memory leak. *)
+  for i = !j to t.length - 1 do
+    Oa.unsafe_set_none t.data i
+  done;
   t.length <- !j
 [@@specialise]
 
 let filter_inplace t ~f = filteri_inplace t ~f:(fun _ x -> f x)
 [@@specialise]
+
+let exists t ~f =
+  let exception Found in try
+    for i = 0 to t.length - 1 do
+      if f @@ unsafe_get t i then
+        raise_notrace Found
+    done;
+    false
+  with Found -> true
+
+let for_all t ~f =
+  let exception Failed in try
+    for i = 0 to t.length - 1 do
+      if not @@ f @@ unsafe_get t i then
+        raise_notrace Failed
+    done;
+    true
+  with Failed -> false
 
 let remove_consecutive_duplicates t ~compare =
   let prev = ref None in
@@ -263,16 +295,22 @@ let to_list_rev t =
   !l
 
 let to_sequence_mutable t =
-  Seq.unfold_step ~init:0 ~f:(fun i ->
-      if i < t.length
-      then Seq.Step.Yield (unsafe_get t i, i + 1)
-      else Seq.Step.Done)
+  let open Seq.Generator in
+  let rec aux t = function
+    | i when i < t.length ->
+      yield (unsafe_get t i) >>= fun () ->
+      aux t (i + 1)
+    | _ -> return () in
+  run @@ aux t 0
 
 let to_sequence_rev_mutable t =
-  Seq.unfold_step ~init:(t.length - 1) ~f:(fun i ->
-      if i >= 0
-      then Seq.Step.Yield (unsafe_get t i, i - 1)
-      else Seq.Step.Done)
+  let open Seq.Generator in
+  let rec aux t = function
+    | i when i >= 0 ->
+      yield (unsafe_get t i) >>= fun () ->
+      aux t (i - 1)
+    | _ -> return () in
+  run @@ aux t (t.length - 1)
 
 let to_sequence t = to_sequence_mutable @@ copy t
 let to_sequence_rev t = to_sequence_rev_mutable @@ copy t
@@ -289,7 +327,7 @@ let of_list l =
   List.iteri l ~f:(Oa.unsafe_set_some data);
   {data; length; capacity = length}
 
-(* This is taken from the Array module in Jane Street's Base library. *)
+(* This is taken from the Array module in Jane Street's `Base` library. *)
 
 module Sort = struct
   let get = Oa.get_some_exn
@@ -409,8 +447,8 @@ module Sort = struct
           intro_sort arr ~max_depth ~compare ~left:l ~right:r;
         intro_sort arr ~max_depth ~compare ~left:(r + 1) ~right
 
-    let log10_of_3 = Caml.log10 3.
-    let log3 x = Caml.log10 x /. log10_of_3
+    let log10_of_3 = Float.log10 3.
+    let log3 x = Float.log10 x /. log10_of_3
 
     let sort arr ~compare ~left ~right =
       let len = right - left + 1 in

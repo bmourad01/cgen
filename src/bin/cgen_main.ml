@@ -2,58 +2,84 @@ open Core
 open Regular.Std
 open Cgen
 
-module Test_target = struct
-  let r0 = Target.Reg.r64 "r0"
-  let r1 = Target.Reg.r64 "r1"
-  let r2 = Target.Reg.r64 "r2"
-  let r3 = Target.Reg.r64 "r3"
-
-  let d0 = Target.Reg.r64 "d0"
-  let d1 = Target.Reg.r64 "d1"
-  let d2 = Target.Reg.r64 "d2"
-  let d3 = Target.Reg.r64 "d3"
-
-  let sp = Target.Reg.r64 "sp"
-
-  let cf = Target.Reg.r1 "cf"
-  let sf = Target.Reg.r1 "sf"
-  let zf = Target.Reg.r1 "zf"
-  let vf = Target.Reg.r1 "vf"
-
-  let t = Target.create ()
-      ~name:"test"
-      ~word:`i64
-      ~little:true
-      ~flag:[cf; sf; zf; vf]
-      ~fp:[d0; d1; d2; d3]
-      ~gpr:[r0; r1; r2; r3]
-      ~sp
-end
-
-let comp filename =
+let isel m ~f =
   let open Context.Syntax in
-  let* target = Context.target in
-  let* m = Parse.Virtual.from_file filename in
-  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-  let*? tenv = Typecheck.run m ~target in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Ssa.run in
-  Format.printf "%a\n%!" Virtual.Module.pp m;
-  let*? m = Virtual.Module.map_funs_err m ~f:(Passes.Sccp.run tenv) in
-  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-  let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
-  let m = Virtual.Module.map_funs m ~f:Passes.Tailcall.run in
-  let* m = Context.Virtual.Module.map_funs m ~f:(Passes.Peephole.run tenv) in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-  let m = Virtual.Module.map_funs m ~f:Passes.Remove_disjoint_blks.run in
-  let* m = Context.Virtual.Module.map_funs m ~f:Passes.Simplify_cfg.run in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-  Format.printf "=================================================\n%!";
-  Format.printf "%a\n%!" Virtual.Module.pp m;
+  let+ funs =
+    Virtual.Abi.Module.funs m |>
+    Context.Seq.map ~f >>|
+    Seq.to_list in
+  Pseudo.Module.create ()
+    ~dict:(Virtual.Abi.Module.dict m)
+    ~data:(Virtual.Abi.Module.data m |> Seq.to_list)
+    ~name:(Virtual.Abi.Module.name m) ~funs
+
+let pseudo_map_funs m ~f =
+  let open Context.Syntax in
+  let+ funs =
+    Pseudo.Module.funs m |>
+    Context.Seq.map ~f >>|
+    Seq.to_list in
+  Pseudo.Module.with_funs m funs
+
+let comp (opts : Cli.t) =
+  let open Context.Syntax in
+  let* m = match opts.file with
+    | `file file -> Parse.Virtual.from_file file
+    | `stdin -> Parse.Virtual.from_stdin () in
+  if Cli.equal_dump opts.dump Dparse then begin
+    Format.printf ";; After parsing:@;@.%a\n%!"
+      Virtual.Module.pp m;
+    Cli.bail ();
+  end;
+  let* tenv, m = Passes.initialize m in
+  if Cli.equal_dump opts.dump Dssa then begin
+    Format.printf ";; After SSA transformation:@;@.%a\n%!"
+      Virtual.Module.pp m;
+    Cli.bail ();
+  end;
+  let* tenv, m = Passes.optimize tenv m in
+  if Cli.equal_dump opts.dump Dmiddle then begin
+    Format.printf ";; After middle-end-optimizations:@;@.%a\n%!"
+      Virtual.Module.pp m;
+    Cli.bail ();
+  end;
+  let* m = Passes.to_abi tenv m in
+  let* m = Passes.optimize_abi m in
+  if Cli.equal_dump opts.dump Dabi then begin
+    Format.printf ";; After ABI lowering:@;@.%a\n%!"
+      Virtual.Abi.Module.pp m;
+    Cli.bail ();
+  end;
+  let* (module Machine) = Context.machine in
+  let module Isel = Isel.Make(Machine)(Context) in
+  let* m = isel m ~f:Isel.run in
+  if Cli.equal_dump opts.dump Disel then begin
+    Format.printf ";; After instruction selection:@;@.%a\n%!"
+      (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+    Cli.bail ();
+  end;
+  let module Remove_deads = Pseudo.Remove_dead_insns(Machine) in
+  let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
+  if Cli.equal_dump opts.dump Disel_dce then begin
+    Format.printf ";; After dead-code elimination (isel):@;@.%a\n%!"
+      (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+    Cli.bail ();
+  end;
+  let module RA = Regalloc.IRC(Machine)(Context) in
+  let* m = pseudo_map_funs m ~f:RA.run in
+  if Cli.equal_dump opts.dump Dregalloc then begin
+    Format.printf ";; After register allocation:@;@.%a\n%!"
+      (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+    Cli.bail ();
+  end;
+  assert (Cli.equal_dump opts.dump Dasm);
+  let module Emit = Pseudo.Emit(Machine) in
+  Format.printf "%a%!" Emit.emit m;
   !!()
 
 let () =
-  let args = Sys.get_argv () in
-  Context.init Test_target.t |>
-  Context.run (comp args.(1)) |>
-  Or_error.iter_error ~f:(Format.eprintf "%a\n%!" Error.pp)
+  Cli.run @@ fun opts ->
+  Context.init opts.target |>
+  Context.run (comp opts) |>
+  Or_error.iter_error ~f:(fun err ->
+      Cli.fatal "%a\n%!" Error.pp err ())

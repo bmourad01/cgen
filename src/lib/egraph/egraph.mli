@@ -57,7 +57,7 @@ type rules
 (** Creates a table from a list of rules.
 
     @raise Invalid_argument if there is a rule where the precondition is
-    simply a variable.
+    a variable at the top-level.
 *)
 val create_table : rule list -> rules
 
@@ -88,6 +88,33 @@ val run :
   func Context.t
 
 module Rule : sig
+  (** A rewrite rule.
+
+      The general structure of a rule is two-fold:
+
+      1. A pre-condition matches a pattern against an existing term,
+      creating a series of substitutions for variables that are mentioned.
+
+      2. A post-condition that is applied given that the pre-condition
+      successfully matches with a term, optionally making use of the
+      substitutions that were constructed in the pre-condition.
+
+      Furthermore, the post-condition will not produce a rewritten term if:
+
+      1. It contains unbound variables.
+      2. The new term does not have the same type as the original.
+
+      Note that such rewrite failures do not result in a run-time error;
+      the rewriting engine merely skips this rule during the search procedure.
+
+      Another aspect of rewrite rules is {i subsumption}, denoted by the [!]
+      suffix. For such rules, if the rewrite is successful then the rewritten
+      term is presumed to be optimal for the associated e-class, and its other
+      equivalent forms will not be considered during future rewrites. This is
+      useful for performance concerns: users can tell the rewriting engine that
+      it should not waste time searching for more rewrite opportunities if the
+      optimal form has already been discovered.
+  *)
   type t = rule
 
   (** [var x] constructs a substitution for variable [x]. *)
@@ -137,7 +164,7 @@ module Rule : sig
     val div : Type.basic -> pattern -> pattern -> pattern
     val mul : Type.basic -> pattern -> pattern -> pattern
     val mulh : Type.imm -> pattern -> pattern -> pattern
-    val rem : Type.basic -> pattern -> pattern -> pattern
+    val rem : Type.imm -> pattern -> pattern -> pattern
     val sub : Type.basic -> pattern -> pattern -> pattern
     val udiv : Type.imm -> pattern -> pattern -> pattern
     val umulh : Type.imm -> pattern -> pattern -> pattern

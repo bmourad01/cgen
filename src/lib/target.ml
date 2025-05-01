@@ -1,83 +1,35 @@
 open Core
 open Regular.Std
 
-module Reg = struct
-  module T = struct
-    type t = {
-      name  : string;
-      width : int;
-    } [@@deriving bin_io, compare, equal, hash, sexp]
-  end
-
-  include T
-
-  let create ~name ~width = {name; width}
-  let name r = r.name
-  let width r = r.width
-
-  let r1   name = create ~name ~width:1
-  let r8   name = create ~name ~width:8
-  let r16  name = create ~name ~width:16
-  let r32  name = create ~name ~width:32
-  let r64  name = create ~name ~width:64
-  let r128 name = create ~name ~width:128
-
-  include Regular.Make(struct
-      include T
-      let pp ppf r = Format.fprintf ppf "%s" r.name
-      let version = "0.1"
-      let hash = hash
-      let module_name = Some "Cgen.Target.Reg"
-    end)
-end
-
-type reg = Reg.t [@@deriving bin_io, compare, equal, hash, sexp]
-
 module T = struct
   type t = {
     name   : string;
     word   : Type.imm_base;
     little : bool;
-    flag   : Set.M(Reg).t;
-    fp     : Set.M(Reg).t;
-    gpr    : Set.M(Reg).t;
-    sp     : reg;
   } [@@deriving bin_io, compare, equal, hash, sexp]
 end
 
 include T
 
-let create
-    ?(flag = [])
-    ?(fp = [])
-    ?(gpr = [])
-    ~name
-    ~word
-    ~little
-    ~sp
-    () = {
-  name;
-  word;
-  little;
-  flag = Reg.Set.of_list flag;
-  fp = Reg.Set.of_list fp;
-  gpr = Reg.Set.of_list gpr;
-  sp;
-}
+let targets = ref String.Map.empty
+
+let enum_targets () =
+  Map.to_sequence !targets |> Seq.map ~f:snd
+
+let declare ~name ~word ~little () =
+  let t = {name; word; little} in
+  match Map.add !targets ~key:name ~data:t with
+  | `Duplicate -> failwithf "A target with the name %s already exists" name ()
+  | `Ok m ->
+    targets := m;
+    t
+
+let find = Map.find !targets
 
 let name t = t.name
 let word t = t.word
 let bits t = Type.sizeof_imm_base t.word
 let little t = t.little
-let flag t = t.flag
-let fp t = t.fp
-let gpr t = t.gpr
-let sp t = t.sp
-
-let is_flag t r = Set.mem t.flag r
-let is_fp t r = Set.mem t.fp r
-let is_gpr t r = Set.mem t.flag r
-let is_sp t r = Reg.equal t.sp r
 
 include Regular.Make(struct
     include T

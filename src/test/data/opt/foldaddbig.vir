@@ -1,0 +1,57 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  %x = add.w %x, 1_w
+  ret %x
+}

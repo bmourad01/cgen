@@ -6,11 +6,12 @@
     be referred to by name.
 *)
 
+open Core
 open Graphlib.Std
 open Regular.Std
 
 (** A program label. *)
-type t
+type t = private Int63.t
 
 (** The pseudo-entry label. Primarily useful for computing the
     dominator tree of a graph .*)
@@ -29,17 +30,19 @@ include Regular.S with type t := t
     as a PATRICIA tree. *)
 module Tree : Patricia_tree_intf.S with type key := t
 
-(** The signature for graphs with labels as nodes. *)
-module type Graph = sig
-  include Graph with type node = t
+(** Same as [Tree], but for sets of labels. *)
+module Tree_set : Patricia_tree_intf.Set with type key := t
 
-  (** [e] is the default edge label, specifically for edges that
-      connect nodes with [pseudoentry] and [pseudoexit]. *)
-  val e : Edge.label
-end
+(** The signature for graphs with labels as nodes. *)
+module type Graph_s = Graph
+  with type node = t
+   and type Edge.label = unit
+
+(** A concrete implementation of [Graph_s]. *)
+module Graph : Graph_s
 
 (** An interface for connecting entry and exit nodes of the graph
     with [pseudoentry] and [pseudoexit], respectively. *)
-module Pseudo(G : Graph) : sig
+module Pseudo(G : Graph_s) : sig
   val add : G.t -> G.t
 end

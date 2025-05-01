@@ -1,0 +1,26 @@
+module foo
+
+export function sw $foo(l %s1, l %s2) {
+@start:
+  jmp @next
+@next:
+  %c1 = ld.b %s1
+  %c2 = ld.b %s2
+  jmp @check1
+@check1:
+  %nz = ne.b %c1, 0_b
+  br %nz, @check2, @diff
+@check2:
+  %eq = eq.b %c1, %c2
+  br %eq, @inc, @diff
+@inc:
+  %s1 = add.l %s1, 1_l
+  %s2 = add.l %s2, 1_l
+  jmp @next
+@diff:
+  %c1 = ld.b %s1
+  %c2 = ld.b %s2
+  %d = sub.b %c1, %c2
+  %r = sext.w %d
+  ret %r
+}

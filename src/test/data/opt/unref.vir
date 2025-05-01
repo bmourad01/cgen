@@ -1,0 +1,38 @@
+module unref
+
+type :t = { w, w }
+
+function w $sum(:t %s) {
+  %p = slot 8, align 4
+@start:
+  st:t %s, %p
+  %a = ld.w %p
+  %p4 = add.l %p, 4_l
+  %b = ld.w %p4
+  %sum = add.w %a, %b
+  ret %sum
+}
+
+export function w $sump(l %p) {
+@start:
+  %s = ld:t %p
+  %sum = call.w $sum(%s)
+  ret %sum
+}
+
+export function :t $mkt(w %a, w %b) {
+  %r = slot 8, align 4
+@start:
+  st.w %a, %r
+  %r4 = add.l %r, 4_l
+  st.w %b, %r4
+  %s = ld:t %r
+  ret %s
+}
+
+export function w $sumt(w %a, w %b) {
+@start:
+  %s = call:t $mkt(%a, %b)
+  %sum = call.w $sum(%s)
+  ret %sum
+}

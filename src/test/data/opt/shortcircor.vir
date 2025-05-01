@@ -1,0 +1,19 @@
+module foo
+
+export function w $foo(l %a, l %i) {
+@start:
+  %k = sge.l %i, 3_l
+  br %k, @join, @cont
+@cont:
+  %k = slt.l %i, 0_l
+  jmp @join
+@join:
+  br %k, @bad, @ok
+@ok:
+  %s = mul.l %i, 4_l
+  %a = add.l %a, %s
+  %v = ld.w %a
+  ret %v
+@bad:
+  ret 0xffffffff_w
+}

@@ -59,6 +59,11 @@ val update_if : 'a t -> 'a -> f:('a -> bool) -> 'a t
 val to_list : 'a t -> 'a list
 val min_elt : 'a t -> compare:('a -> 'a -> int) -> 'a option
 val max_elt : 'a t -> compare:('a -> 'a -> int) -> 'a option
+val iindex : 'a t -> ('a -> 'b -> bool) -> 'b -> int option
+val icons : ?before:'a -> 'b t -> 'b -> ('b -> 'a -> bool) -> 'b t
+val isnoc : ?after:'a -> 'b t -> 'b -> ('b -> 'a -> bool) -> 'b t
+val icons_multi : ?before:'a -> 'b t -> 'b list -> ('b -> 'a -> bool) -> 'b t
+val isnoc_multi : ?after:'a -> 'b t -> 'b list -> ('b -> 'a -> bool) -> 'b t
 
 val pp :
   (Format.formatter -> 'a -> unit) ->

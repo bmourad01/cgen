@@ -1,0 +1,15 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %c = lt.w 1_w, %x
+  br %c, @y, @n
+@y:
+  %r = copy.w 1_w
+  jmp @end
+@n:
+  %r = flag.w %c
+  jmp @end
+@end:
+  ret %r
+}

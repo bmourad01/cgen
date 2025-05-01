@@ -3,7 +3,7 @@
     This is here because the OCaml compiler only supports double-precision
     floating point numbers. We rely on the C behavior of [float] types on
     the native machine, and we implement the minimal subset of operations
-    to support those seen in [Virtual.Insn.Data].
+    to support those seen in the Virtual IR.
 *)
 
 open Core
@@ -40,9 +40,6 @@ val mul : t -> t -> t
 (** Negation. *)
 val neg : t -> t
 
-(** Remainder. *)
-val rem : t -> t -> t
-
 (** Subtraction. *)
 val sub : t -> t -> t
 
@@ -57,9 +54,6 @@ val ( * ) : t -> t -> t
 
 (** Negation. *)
 val (-~) : t -> t
-
-(** Remainder. *)
-val (%) : t -> t -> t
 
 (** Subtraction. *)
 val (-) : t -> t -> t
@@ -128,7 +122,11 @@ val of_string : string -> t
 val equal : t -> t -> bool
 
 (** [compare x y] returns [0] if [x = y], a negative number if [x < y],
-    and a positive number otherwise. *)
+    and a positive number if [x > y].
+
+    Like [Float.compare], the NaN case is treated as equal to itself
+    and less than any other value, which ensures a total ordering.
+*)
 val compare : t -> t -> int
 
 val (=) : t -> t -> bool

@@ -1,9 +1,7 @@
 open Core
-open Common
+open Egraph_common
 open Monads.Std
 open Virtual
-
-module O = Monad.Option
 
 (* We store the canonical and real IDs to help us determine
    the ordering when reifying back to the CFG representation.
@@ -26,7 +24,20 @@ let pp_prov ppf = function
    out the edges of translating the CFG representation. *)
 type ext = E of prov * Enode.op * ext list
 
-module Cost = struct
+(* Let the bottom N bits of the cost be the depth of a given
+   term, and the remaining upper bits are the actual cost
+   of the operation(s).
+
+   This should favor shallower terms, which in practice lead
+   to more favorable register pressure.
+*)
+module Cost : sig
+  type t = private Int63.t
+  val (<) : t -> t -> bool
+  val pure : int -> t
+  val incr : t -> t
+  val add : t -> t -> t
+end = struct
   include Int63
 
   let depth_bits = 12
@@ -67,11 +78,6 @@ let rec pp_ext ppf = function
     Format.fprintf ppf "(%a %a %a)" pp_prov p Enode.pp_op op
       (Format.pp_print_list ~pp_sep pp_ext) args
 
-let has t id = Hashtbl.mem t.table @@ find t.eg id
-let get t id = Hashtbl.find t.table @@ find t.eg id
-
-open O.Let
-
 let op_cost : Enode.op -> cost = function
   | Oint (i, t) ->
     (* In practice, a negative constant might need some work to
@@ -93,41 +99,47 @@ let op_cost : Enode.op -> cost = function
   | Oset _
   | Ostore _
   | Otbl _
-  | Otcall0
-  | Otcall _
   | Ovaarg _
   | Ovastart _ -> Cost.pure 0
   | Obr | Ovar _ -> Cost.pure 2
-  | Osw _ | (Obinop #Insn.bitwise_binop) | Ounop _ -> Cost.pure 3
+  | Osw _ | Obinop #Insn.bitwise_binop | Ounop _ -> Cost.pure 3
   | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> Cost.pure 90
   | Obinop (`mul _) -> Cost.pure 42
   | Obinop (`mulh _ | `umulh _) -> Cost.pure 11
   | Obinop _ -> Cost.pure 4
   | Osel _ -> Cost.pure 8
 
-let cost t (n : enode) = match n with
-  | N (op, children) ->
-    let+ k = O.List.fold children ~init:(op_cost op) ~f:(fun k id ->
-        let+ c, _ = get t id in
-        Cost.add k c) in
-    Cost.incr k, n
-  | U {pre; post} ->
-    (* Break ties by favoring the rewritten term. *)
-    let* pre, a = get t pre in
-    let+ post, b = get t post in
-    if Cost.(pre < post) then pre, a else post, b
+(* Fill the table with the "best" terms for each e-class. *)
+module Saturation : sig
+  val go : t -> unit
+end = struct
+  let get t id = find t.eg id |> Hashtbl.find_exn t.table
+  let set t id ~f = find t.eg id |> Hashtbl.update t.table ~f
 
-let saturate t =
-  let unsat = ref true in
-  while !unsat do
-    unsat := false;
-    (* Explore newer nodes first. *)
-    Vec.iteri_rev t.eg.node ~f:(fun i n ->
-        cost t n |> Option.iter ~f:(fun ((x, _) as term) ->
-            find t.eg i |> Hashtbl.update t.table ~f:(function
-                | Some ((y, _) as prev) when Cost.(x >= y) -> prev
-                | Some _ | None -> unsat := true; term)))
-  done
+  let cost t (n : enode) = match n with
+    | N (op, []) -> op_cost op, n
+    | N (op, children) ->
+      let k = List.fold children ~init:(op_cost op)
+          ~f:(fun k id -> Cost.add k @@ fst @@ get t id) in
+      Cost.incr k, n
+    | U {pre; post} ->
+      (* Break ties by favoring the rewritten term. *)
+      let pre, a = get t pre in
+      let post, b = get t post in
+      if Cost.(pre < post) then pre, a else post, b
+
+  (* We're searching in a pseudo-topological order, so we shouldn't need
+     a fixpoint loop.
+
+     Note that because of this ordering, we can always eagerly break ties
+     by using the newer term.
+  *)
+  let go t = Vec.iteri t.eg.node ~f:(fun id n ->
+      let (x, _) as term = cost t n in
+      set t id ~f:(function
+          | Some ((y, _) as prev) when Cost.(y < x) -> prev
+          | Some _ | None -> term))
+end
 
 let init eg =
   let t = {
@@ -136,7 +148,7 @@ let init eg =
     memo = Id.Table.create ();
     impure = Id.Hash_set.create ();
   } in
-  saturate t;
+  Saturation.go t;
   t
 
 let rec must_remain_fixed op args = match (op : Enode.op) with
@@ -148,8 +160,6 @@ let rec must_remain_fixed op args = match (op : Enode.op) with
   | Ocall _
   | Oload _
   | Ostore _
-  | Otcall0
-  | Otcall _
   | Ovaarg _
   | Ovastart _ ->
     (* Control-flow and other side-effecting instructions must
@@ -176,24 +186,28 @@ let rec must_remain_fixed op args = match (op : Enode.op) with
 let prov t cid id op args =
   if must_remain_fixed op args then begin
     Hash_set.add t.impure cid;
-    match Hashtbl.find t.eg.id2lbl cid with
+    match Hashtbl.find t.eg.ilbl cid with
     | Some l -> Label l
-    | None -> match Hashtbl.find t.eg.id2lbl id with
+    | None when id = cid -> Id {canon = cid; real = id}
+    | None -> match Hashtbl.find t.eg.ilbl id with
       | None -> Id {canon = cid; real = id}
       | Some l -> Label l
   end else Id {canon = cid; real = id}
+
+module O = Monad.Option
 
 let rec extract t id =
   let cid = find t.eg id in
   match Hashtbl.find t.memo cid with
   | Some _ as e -> e
   | None ->
+    let open O.Let in
     let* _, n = Hashtbl.find t.table cid in
     match n with
     | N (op, cs) ->
       let+ cs = O.List.map cs ~f:(extract t) in
       let e = E (prov t cid id op cs, op, cs) in
-      Hashtbl.set t.memo ~key:id ~data:e;
+      Hashtbl.set t.memo ~key:cid ~data:e;
       e
     | U {pre; post} ->
       let id = find t.eg post in

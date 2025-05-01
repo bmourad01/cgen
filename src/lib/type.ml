@@ -84,6 +84,31 @@ let compound_align : compound -> int option = function
   | `compound (_, a, _) -> a
   | `opaque (_, a, _) -> Some a
 
+let pp_compound ppf : compound -> unit = function
+  | `compound (_, align, fields) ->
+    let pp_sep ppf () = Format.fprintf ppf ",@;" in
+    Option.iter align ~f:(Format.fprintf ppf "align %d ");
+    if List.is_empty fields then
+      Format.fprintf ppf "{}"
+    else
+      Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
+        (Format.pp_print_list ~pp_sep pp_field) fields
+  | `opaque (_, align, n) ->
+    Format.fprintf ppf "align %d {%d}" align n
+
+let pp_compound_decl ppf : compound -> unit = function
+  | `compound (name, align, fields) ->
+    let pp_sep ppf () = Format.fprintf ppf ",@;" in
+    Format.fprintf ppf "type :%s = " name;
+    Option.iter align ~f:(Format.fprintf ppf "align %d ");
+    if List.is_empty fields then
+      Format.fprintf ppf "{}"
+    else
+      Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
+        (Format.pp_print_list ~pp_sep pp_field) fields
+  | `opaque (name, align, n) ->
+    Format.fprintf ppf "type :%s = align %d {%d}" name align n
+
 type datum = [
   | basic
   | `pad    of int
@@ -122,8 +147,8 @@ let pp_layout ppf l =
   Format.fprintf ppf "%d(%a)" l.align Data.pp l.data
 
 let sizeof_layout l = Array.fold l.data ~init:0 ~f:(fun sz -> function
-    | #basic as b -> sz + sizeof_basic b
-    | `pad n | `opaque n -> sz + n * 8)
+    | #basic as b -> sz + (sizeof_basic b / 8)
+    | `pad n | `opaque n -> sz + n)
 
 module Layout = struct
   type t = layout
@@ -131,11 +156,11 @@ module Layout = struct
   let sizeof = sizeof_layout
   let align l = l.align
   let data l = Array.to_sequence l.data
+  let is_empty l = Array.is_empty l.data
 
   (* pre: `align` is a positive power of 2 *)
   let padding size align =
-    let a = align - 1 in
-    ((size + a) land lnot a) - size
+    ((size + align - 1) land -align) - size
 
   (* pre: the list is accumulated in reverse *)
   let padded data = function
@@ -160,13 +185,13 @@ module Layout = struct
       when n < 1 || (n land (n - 1)) <> 0 ->
       invalid_argf "Invalid alignment %d for type :%s, \
                     must be positive power of 2" n s ()
-    | `opaque (s, _, n) when n < 0 ->
-      invalid_argf "Invalid number of bytes %d for opaque type :%s" n s ()
-    | `opaque (_, align, 0) -> {align; data = [|`pad align|]}
+    | `opaque (s, _, n) when n < 1 ->
+      invalid_argf "Invalid number of bytes %d for opaque \
+                    type :%s, must be greater than 0" n s ()
     | `opaque (_, align, n) ->
       {align; data = Array.of_list @@ padded [`opaque n] @@ padding n align}
-    | `compound (_, Some n, []) -> {align = n; data = [|`pad n|]}
-    | `compound (_, None, []) -> {align = 1; data = [|`pad 1|]}
+    | `compound (_, Some n, []) -> {align = n; data = [||]}
+    | `compound (_, None, []) -> {align = 1; data = [||]}
     | `compound (name, align, fields) ->
       let data, align, size =
         let init = [], Option.value align ~default:1, 0 in
@@ -179,6 +204,9 @@ module Layout = struct
                 let s = sizeof_basic t / 8 in
                 let d = List.init c ~f:(fun _ -> (t :> datum)) in
                 d, s, s * c
+              | `name (s, _) when String.(s = name) ->
+                invalid_argf "Type :%s is incomplete, it cannot \
+                              contain itself as a field" name ()
               | `name (s, c) -> match gamma s with
                 | exception exn ->
                   invalid_argf "Invalid argument :%s for gamma: %s"
@@ -188,9 +216,9 @@ module Layout = struct
                 | {align; data} as l ->
                   let data = Array.to_list data in
                   let data = List.init c ~f:(fun _ -> data) |> List.concat in
-                  data, align, (sizeof l / 8) * c in
+                  data, align, sizeof l * c in
+            let pad = padding size falign in
             let align = max align falign in
-            let pad = padding size align in
             let data = List.rev_append fdata @@ padded data pad in
             data, align, size + pad + fsize) in
       {align; data = finalize data align size}
@@ -269,32 +297,6 @@ let layouts_of_types_exn = Layout.of_types
 let layouts_of_types ts = try Ok (layouts_of_types_exn ts) with
   | Invalid_argument msg -> Or_error.error_string msg
 
-let pp_compound ppf : compound -> unit = function
-  | `compound (_, align, fields) ->
-    let pp_sep ppf () = Format.fprintf ppf ",@;" in
-    Option.iter align ~f:(Format.fprintf ppf "align %d ");
-    Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
-      (Format.pp_print_list ~pp_sep pp_field) fields
-  | `opaque (_, align, n) ->
-    Format.fprintf ppf "align %d {%d}" align n
-
-let pp_compound_decl ppf : compound -> unit = function
-  | `compound (name, align, fields) ->
-    let pp_sep ppf () = Format.fprintf ppf ",@;" in
-    Format.fprintf ppf "type :%s = " name;
-    Option.iter align ~f:(Format.fprintf ppf "align %d ");
-    Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
-      (Format.pp_print_list ~pp_sep pp_field) fields
-  | `opaque (name, align, n) ->
-    Format.fprintf ppf "type :%s = align %d {%d}" name align n
-
-type special = [
-  | `flag
-] [@@deriving bin_io, compare, equal, hash, sexp]
-
-let pp_special ppf : special -> unit = function
-  | `flag -> Format.fprintf ppf "f"
-
 type arg = [
   | basic
   | `name of string
@@ -304,15 +306,38 @@ let pp_arg ppf : arg -> unit = function
   | #basic as b -> Format.fprintf ppf "%a" pp_basic b
   | `name s -> Format.fprintf ppf ":%s" s
 
+type ret = [
+  | arg
+  | `si8
+  | `si16
+  | `si32
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+let pp_ret ppf = function
+  | #arg as a -> Format.fprintf ppf "%a" pp_arg a
+  | `si8 -> Format.fprintf ppf "sb"
+  | `si16 -> Format.fprintf ppf "sh"
+  | `si32 -> Format.fprintf ppf "sw"
+
+let same_ret (a : ret) (b : ret) = match a, b with
+  | `i8, `si8 | `si8, `i8 -> true
+  | `i16, `si16 | `si16, `i16 -> true
+  | `i32, `si32 | `si32, `i32 -> true
+  | _ -> equal_ret a b
+
+let is_ret_signed : ret -> bool = function
+  | `si8 | `si16 | `si32 -> true
+  | _ -> false
+
 type proto = [
-  | `proto of arg option * arg list * bool
+  | `proto of ret option * arg list * bool
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_proto ppf : proto -> unit = function
   | `proto (ret, args, variadic) ->
     let pp_sep ppf () = Format.fprintf ppf ", " in
     let pp_args = Format.pp_print_list ~pp_sep pp_arg in
-    Option.iter ret ~f:(Format.fprintf ppf "%a " pp_arg);
+    Option.iter ret ~f:(Format.fprintf ppf "%a " pp_ret);
     Format.fprintf ppf "(%a" pp_args args;
     match variadic, args with
     | false, _ -> Format.fprintf ppf ")"
@@ -323,7 +348,7 @@ module T = struct
   type t = [
     | basic
     | compound
-    | special
+    | `flag
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 end
 
@@ -332,7 +357,7 @@ include T
 let pp ppf : t -> unit = function
   | #basic    as b -> Format.fprintf ppf "%a" pp_basic b
   | #compound as c -> Format.fprintf ppf "%a" pp_compound c
-  | #special  as s -> Format.fprintf ppf "%a" pp_special s
+  | `flag          -> Format.fprintf ppf "flag"
 
 include Regular.Make(struct
     include T

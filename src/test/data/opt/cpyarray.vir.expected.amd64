@@ -1,0 +1,23 @@
+module foo
+
+export function $foo {
+@2:
+  mov %arr:l, rdi ; @40
+  mov %src:l, rsi ; @41
+  mov %num:w, edx ; @42
+  xor %i.2:w, %i.2:w ; @43
+  jmp @3 ; @44
+@3:
+  cmp %i.2:w, %num:w ; @34
+  jb @5 ; @35
+  jmp @6 ; @36
+@6:
+  ret ; @33
+@5:
+  mov %1:w, %i.2:w ; zx ; @32
+  mov %w.1:w, dword ptr [%src + %1*4] ; @28
+  mov dword ptr [%arr + %1*4], %w.1:w ; @26
+  lea %5:w, qword ptr [%i.2 + 0x1] ; @25
+  mov %i.2:w, %5:w ; @23
+  jmp @3 ; @24
+}

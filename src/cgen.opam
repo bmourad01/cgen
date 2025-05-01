@@ -13,12 +13,17 @@ depends: [
   "bitvec-binprot"
   "bitvec-order"
   "bitvec-sexp"
+  "cmdliner"
   "core" {= "v0.15"}
   "core_kernel" {= "v0.15"}
-  "dune" {>= "3.7"}
+  "dune" {>= "3.15"}
   "graphlib"
   "menhir"
   "monads"
+  "ppx_bin_prot"
+  "ppx_compare"
+  "ppx_fields_conv"
+  "ppx_sexp_conv"
   "regular"
   "zarith"
   "odoc" {with-doc}

@@ -1,0 +1,10 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %c = lt.w %x, 5_w
+  %f = flag.w %c
+  %f = xor.w %f, 1_w
+  %f = xor.w %f, 1_w
+  ret %f
+}

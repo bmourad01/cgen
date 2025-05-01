@@ -1,0 +1,91 @@
+module vaarg1
+
+export function $foo(b %10/rax, l %i/rdi, ...) {
+  %ap = slot 24, align 8
+  %r = slot 16, align 8
+  %4 = slot 176, align 16
+  %20 = slot 16, align 8
+@17:
+  %5 = add.l %4, 0x8_l ; @18
+  regstore rsi, %5 ; @19
+  %6 = add.l %4, 0x10_l ; @20
+  regstore rdx, %6 ; @21
+  %7 = add.l %4, 0x18_l ; @22
+  regstore rcx, %7 ; @23
+  %8 = add.l %4, 0x20_l ; @24
+  regstore r8, %8 ; @25
+  %9 = add.l %4, 0x28_l ; @26
+  regstore r9, %9 ; @27
+  %11 = eq.b %10, 0x0_b ; @28
+  br %11, @2, @16
+@16:
+  %12 = add.l %4, 0x30_l ; @29
+  regstore xmm0, %12 ; @30
+  %13 = add.l %4, 0x40_l ; @31
+  regstore xmm1, %13 ; @32
+  %14 = add.l %4, 0x50_l ; @33
+  regstore xmm2, %14 ; @34
+  %15 = add.l %4, 0x60_l ; @35
+  regstore xmm3, %15 ; @36
+  %16 = add.l %4, 0x70_l ; @37
+  regstore xmm4, %16 ; @38
+  %17 = add.l %4, 0x80_l ; @39
+  regstore xmm5, %17 ; @40
+  %18 = add.l %4, 0x90_l ; @41
+  regstore xmm6, %18 ; @42
+  %19 = add.l %4, 0xa0_l ; @43
+  regstore xmm7, %19 ; @44
+  jmp @2
+@2:
+  st.w 0x8_w, %ap ; @51
+  %25 = add.l %ap, 0x4_l ; @52
+  st.w 0x30_w, %25 ; @53
+  %26 = stkargs ; @54
+  %27 = add.l %ap, 0x8_l ; @55
+  st.l %26, %27 ; @56
+  %28 = add.l %ap, 0x10_l ; @57
+  st.l %4, %28 ; @58
+  jmp @60
+@60:
+  %30 = ld.w %25 ; @66
+  %31 = le.w %30, 0xa0_w ; @67
+  br %31, @61, @63
+@61:
+  %32 = ld.w %ap ; @68
+  %33 = le.w %32, 0x28_w ; @69
+  br %33, @62, @63
+@62:
+  %36 = zext.l %30 ; @72
+  %37 = add.l %4, %36 ; @73
+  %38 = zext.l %32 ; @74
+  %39 = add.l %4, %38 ; @75
+  %40 = add.w %30, 0x10_l ; @76
+  %41 = add.w %32, 0x8_l ; @77
+  st.w %40, %25 ; @78
+  st.w %41, %ap ; @79
+  jmp @64(%37, %39)
+@63:
+  %43 = ld.l %27 ; @81
+  %44 = add.l %43, 0x8_l ; @82
+  %45 = add.l %43, 0x10_l ; @83
+  st.l %45, %27 ; @84
+  jmp @64(%43, %44)
+@64(%46, %47):
+  %48 = ld.l %46 ; @85
+  st.l %48, %20 ; @86
+  %49 = ld.l %47 ; @87
+  %50 = add.l %20, 0x8_l ; @88
+  st.l %49, %50 ; @89
+  jmp @59
+@59:
+  %21 = ld.l %20 ; @45
+  st.l %21, %r ; @46
+  %23 = ld.l %50 ; @48
+  %24 = add.l %r, 0x8_l ; @49
+  st.l %23, %24 ; @50
+  %f1.1 = ld.d %r ; @6
+  %1 = ftosi.d.l %f1.1 ; @13
+  %2 = add.l %23, %1 ; @14
+  %3 = add.l %2, %i ; @15
+  ret rax/%3
+}

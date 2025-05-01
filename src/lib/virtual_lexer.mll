@@ -51,7 +51,6 @@ let ninteger = '-' integer
 let hinteger = "0x" ['0'-'9' 'a'-'f' 'A'-'F']+
 let ointeger = "0o" ['0'-'7']+
 let binteger = "0b" ['0'-'1']+
-let ints = (integer | hinteger | ointeger | binteger)
 let posints = (integer | hinteger | ointeger | binteger)
 let exp = ('E' | 'e') (integer | ninteger)
 let inf = ("INF" | "inf" | "INFINITY" | "infinity")
@@ -82,6 +81,7 @@ rule token = parse
   | '%' (integer as id) '.' (integer as i) { TEMPI (id, int_of_string i) }
   | "module" space+ (ident as id) { MODULE id }
   | "align" { ALIGN }
+  | "const" { CONST () }
   | "type" { TYPE }
   | '{' { LBRACE }
   | '}' { RBRACE }
@@ -93,6 +93,9 @@ rule token = parse
   | '=' { EQUALS }
   | "->" { ARROW }
   | "..." { ELIPSIS }
+  | "sb" { SB }
+  | "sh" { SH }
+  | "sw" { SW }
   | 'w' { W }
   | 'l' { L }
   | 'b' { B }
@@ -105,7 +108,7 @@ rule token = parse
   | "mul" '.' (basic as t) { MUL (basic_of_char t) }
   | "mulh" '.' (imm as t) { MULH (imm_of_char t) }
   | "umulh" '.' (imm as t) { UMULH (imm_of_char t) }
-  | "rem" '.' (basic as t) { REM (basic_of_char t) }
+  | "rem" '.' (imm as t) { REM (imm_of_char t) }
   | "sub" '.' (basic as t) { SUB (basic_of_char t) }
   | "udiv" '.' (imm as t) { UDIV (imm_of_char t) }
   | "urem" '.' (imm as t) { UREM (imm_of_char t) }
@@ -123,8 +126,10 @@ rule token = parse
   | "popcnt" '.' (imm as t) { POPCNT (imm_of_char t) }
   | "not" '.' (imm as t) { NOT (imm_of_char t) }
   | "slot" { SLOT }
-  | "ld" '.' (basic as t) { LOAD (basic_of_char t) }
-  | "st" '.' (basic as t) { STORE (basic_of_char t) }
+  | "ld" '.' (basic as t) { LOAD (basic_of_char t :> Type.arg) }
+  | "ld" ':' (ident as id) { LOAD (`name id) }
+  | "st" '.' (basic as t) { STORE (basic_of_char t :> Type.arg) }
+  | "st" ':' (ident as id) { STORE (`name id) }
   | "eq" '.' (basic as t) { EQ (basic_of_char t) }
   | "ge" '.' (basic as t) { GE (basic_of_char t) }
   | "gt" '.' (basic as t) { GT (basic_of_char t) }
@@ -158,15 +163,13 @@ rule token = parse
   }
   | "zext" '.' (imm as t) { ZEXT (imm_of_char t) }
   | "copy" '.' (basic as t) { COPY (basic_of_char t) }
-  | "ref" { REF }
-  | "unref" { UNREF }
   | "sel" '.' (basic as t) { SEL (basic_of_char t) }
-  | "call" '.' (basic as t) { ACALL (basic_of_char t :> Type.arg) }
+  | "call" '.' (basic as t) { ACALL (basic_of_char t :> Type.ret) }
+  | "call" '.' "sb" { ACALL `si8 }
+  | "call" '.' "sh" { ACALL `si16 }
+  | "call" '.' "sw" { ACALL `si32 }
   | "call" ':' (ident as id) { ACALL (`name id) }
   | "call" { CALL }
-  | "tcall" '.' (basic as t) { ATCALL (basic_of_char t :> Type.arg) }
-  | "tcall" ':' (ident as id) { ATCALL (`name id) }
-  | "tcall" { TCALL }
   | "vaarg" '.' (basic as t) { VAARG (basic_of_char t :> Type.arg) }
   | "vaarg" ':' (ident as id) { VAARG (`name id) }
   | "vastart" { VASTART }
@@ -174,7 +177,7 @@ rule token = parse
   | "jmp" { JMP }
   | "br" { BR }
   | "ret" { RET }
-  | "sw" '.' (imm as t) { SW (imm_of_char t) }
+  | "switch" '.' (imm as t) { SWITCH (imm_of_char t) }
   | "function" { FUNCTION }
   | "data" { DATA }
   | "export" { EXPORT }
@@ -186,12 +189,15 @@ rule token = parse
     STRING (Buffer.contents string_buff)
   }
   | eof { EOF }
-  | (ints as i) '_' (imm as t) {
+  | (posints as i) '_' (imm as t) {
     let i = Z.of_string i in
     let t = imm_of_char t in
     INT (Bv.bigint_unsafe i, t)
   }
-  | posints as i { NUM (int_of_string i) }
+  | posints as i {
+    let i = Z.of_string i in
+    NUM (Bv.bigint_unsafe i)
+  }
   | (flt as f) "_d" { DOUBLE (Float.of_string f) }
   | (flt as f) "_s" { SINGLE (Float32.of_string f) }
   | "true" { BOOL true }

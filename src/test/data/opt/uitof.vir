@@ -1,0 +1,20 @@
+module foo
+
+export function s $foo(w %x) {
+@start:
+  %y = uitof.w.s %x
+  ret %y
+}
+
+export function s $bar(l %x) {
+@start:
+  %y = uitof.l.s %x
+  ret %y
+}
+
+export function s $baz(h %x) {
+@start:
+  %y = uitof.h.s %x
+  ret %y
+}
+

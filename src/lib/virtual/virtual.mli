@@ -6,7 +6,6 @@
 *)
 
 open Core
-open Graphlib.Std
 open Regular.Std
 
 (** A constant value.
@@ -94,259 +93,11 @@ val pp_dst : Format.formatter -> dst -> unit
 
 (** Data-flow-effectful instruction. *)
 module Insn : sig
-  (** Arithmetic binary operations.
-
-      [`add t]: addition.
-
-      [`div t]: division.
-
-      [`mul t]: multiplication.
-
-      [`mulh t]: signed immediate high multiplication.
-
-      [`rem t]: remainder.
-
-      [`sub t]: subtraction.
-
-      [`udiv t]: unsigned division (immediate only).
-
-      [`umulh t]: unsigned immediate high multiplication.
-
-      [`urem t]: unsigned remainder (immediate only).
-  *)
-  type arith_binop = [
-    | `add   of Type.basic
-    | `div   of Type.basic
-    | `mul   of Type.basic
-    | `mulh  of Type.imm
-    | `rem   of Type.basic
-    | `sub   of Type.basic
-    | `udiv  of Type.imm
-    | `umulh of Type.imm
-    | `urem  of Type.imm
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints the arithmetic binary operator. *)
-  val pp_arith_binop : Format.formatter -> arith_binop -> unit
-
-  (** Arithmetic unary operations.
-
-      [`neg t]: negation.
-  *)
-  type arith_unop = [
-    | `neg of Type.basic
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints the arithmetic unary operator. *)
-  val pp_arith_unop : Format.formatter -> arith_unop -> unit
-
-  (** Bitwise binary operations.
-
-      [`and_ t]: bitwise intersection (AND).
-
-      [`or_ t]: bitwise union (OR).
-
-      [`asr_ t]: arithmetic shift right.
-
-      [`lsl_ t]: logical shift left.
-
-      [`lsr_ t]: logical shift right.
-
-      [`rol t]: rotate left.
-
-      [`ror t]: rotate right.
-
-      [`xor t]: bitwise difference (exclusive-OR).
-  *)
-  type bitwise_binop = [
-    | `and_ of Type.imm
-    | `or_  of Type.imm
-    | `asr_ of Type.imm
-    | `lsl_ of Type.imm
-    | `lsr_ of Type.imm
-    | `rol  of Type.imm
-    | `ror  of Type.imm
-    | `xor  of Type.imm
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints the bitwise binary operator. *)
-  val pp_bitwise_binop : Format.formatter -> bitwise_binop -> unit
-
-  (** Bitwise unary operations.
-
-      [`clz t]: count leading zeroes.
-
-      [`ctz t]: count trailing zeroes.
-
-      [`not_ t]: bitwise complement (NOT).
-
-      [`popcnt t]: population count (number of set bits).
-  *)
-  type bitwise_unop = [
-    | `clz    of Type.imm
-    | `ctz    of Type.imm
-    | `not_   of Type.imm
-    | `popcnt of Type.imm
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints the bitwise unary operator. *)
-  val pp_bitwise_unop : Format.formatter -> bitwise_unop -> unit
-
-  (** Comparison operations.
-
-      [`eq t l, r)]: equal.
-
-      [`ge t]: greater or equal.
-
-      [`gt t]: greater than.
-
-      [`le t]: less or equal.
-
-      [`lt t]: less than.
-
-      [`ne t]: not equal.
-
-      [`o t]: ordered (floating point only).
-
-      [`sge t]: signed greater or equal (immediate only).
-
-      [`sgt t]: signed greater than (immediate only).
-
-      [`sle t]: signed less or equal (immediate only).
-
-      [`slt t]: signed less than (immediate only).
-
-      [`uo t]: unordered (floating point only).
-  *)
-  type cmp = [
-    | `eq  of Type.basic
-    | `ge  of Type.basic
-    | `gt  of Type.basic
-    | `le  of Type.basic
-    | `lt  of Type.basic
-    | `ne  of Type.basic
-    | `o   of Type.fp
-    | `sge of Type.imm
-    | `sgt of Type.imm
-    | `sle of Type.imm
-    | `slt of Type.imm
-    | `uo  of Type.fp
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints a comparison operation. *)
-  val pp_cmp : Format.formatter -> cmp -> unit
-
-  (** Cast operations.
-
-      [`fext t]: extends a floating point value to a higher
-      precision.
-
-      [`fibits t]: reinterpret the bits of an integer as a
-      float of type [t].
-
-      [`flag t]: converts a flag bit into an integer of type [t].
-
-      [`ftosi (t, i)]: cast a float of type [t] to a signed
-      integer of type [i].
-
-      [`ftoui (t, i)]: cast a float of type [t] to an unsigned
-      integer of type [i].
-
-      [`ftrunc t]: truncate a float to a float of type [t].
-
-      [`ifbits t]: reinterpret the bits of a floating point
-      number as an integer of type [t].
-
-      [`itrunc t]: truncate an integer to an integer of type [t].
-
-      [`sext t]: sign-extend an integer to an integer of type [t].
-
-      [`sitof (t, f)]: cast a signed integer of type [t] to a float
-      of type [f].
-
-      [`uitof (t, f)]: cast an unsigned integer of type [t] to a
-      float of type [f].
-
-      [`zext t]: zero-extend an integer to an integer of type [t].
-  *)
-  type cast = [
-    | `fext   of Type.fp
-    | `fibits of Type.fp
-    | `flag   of Type.imm
-    | `ftosi  of Type.fp * Type.imm
-    | `ftoui  of Type.fp * Type.imm
-    | `ftrunc of Type.fp
-    | `ifbits of Type.imm_base
-    | `itrunc of Type.imm
-    | `sext   of Type.imm
-    | `sitof  of Type.imm * Type.fp
-    | `uitof  of Type.imm * Type.fp
-    | `zext   of Type.imm
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints a cast operation. *)
-  val pp_cast : Format.formatter -> cast -> unit 
-
-  (** Copy operations.
-
-      [`copy t]: move to a destination of type [t].
-
-      [`ref]: copy a reference to a compound type.
-
-      [`unref s]: reinterpret a reference as a compound type [s],
-      mainly for passing as an argument to a function.
-  *)
-  type copy = [
-    | `copy  of Type.basic
-    | `ref
-    | `unref of string
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints a copy operation. *)
-  val pp_copy : Format.formatter -> copy -> unit
-
-  (** All binary operations. *)
-  type binop = [
-    | arith_binop
-    | bitwise_binop
-    | cmp
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints the binary operator. *)
-  val pp_binop : Format.formatter -> binop -> unit
-
-  (** All unary operations. *)
-  type unop = [
-    | arith_unop
-    | bitwise_unop
-    | cast
-    | copy
-  ] [@@deriving bin_io, compare, equal, hash, sexp]
-
-  (** Pretty-prints the unary operator. *)
-  val pp_unop : Format.formatter -> unop -> unit
-
-  (** All basic instructions.
-
-      [`bop (x, b, l, r)]: compute [b(l, r)] and store the result in [x].
-
-      [`uop (x, u, a)]: compute [u(a)] and store the result in [x].
-
-      [`sel (x, t, c, l, r)]: evaluate [c]; if non-zero then select [l]
-      and assign to [x], otherwise select [r]. Both [l] and [r] must have
-      type [t].
-  *)
-  type basic = [
-    | `bop of Var.t * binop * operand * operand
-    | `uop of Var.t * unop  * operand
-    | `sel of Var.t * Type.basic * Var.t * operand * operand
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the set of free variables in the basic instruction. *)
-  val free_vars_of_basic : basic -> Var.Set.t
-
-  (** Pretty-prints a basic instruction. *)
-  val pp_basic : Format.formatter -> basic -> unit
+  include Virtual_insn_intf.S with type operand := operand
+
+  include Virtual_insn_intf.Mem
+    with type operand := operand
+     and type ty := Type.arg
 
   (** A call instruction.
 
@@ -358,35 +109,17 @@ module Insn : sig
       Note that variadic calls require at least one non-variadic argument.
   *)
   type call = [
-    | `call of (Var.t * Type.arg) option * global * operand list * operand list
+    | `call of (Var.t * Type.ret) option * global * operand list * operand list
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the call. *)
   val free_vars_of_call : call -> Var.Set.t
 
-  (** Returns [true] if the call is variadic. *)
-  val is_variadic : call -> bool
-
   (** Pretty-prints a call instruction. *)
   val pp_call : Format.formatter -> call -> unit
 
-  (** Memory operations.
-
-      [`load (x, t, a)]: load a value of type [t] from address [a] and
-      assign the result to [x].
-
-      [`store (t, v, a)]: store a value [v] of type [t] to address [a].
-  *)
-  type mem = [
-    | `load  of Var.t * Type.basic * operand
-    | `store of Type.basic * operand * operand
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the set of free variables in the memory operation. *)
-  val free_vars_of_mem : mem -> Var.Set.t
-
-  (** Pretty-prints a memory operation. *)
-  val pp_mem : Format.formatter -> mem -> unit
+  (** Returns [true] if the call is variadic. *)
+  val is_variadic : call -> bool
 
   (** Variadic argument list pointer. *)
   type alist = global [@@deriving bin_io, compare, equal, sexp]
@@ -421,24 +154,11 @@ module Insn : sig
     | variadic
   ] [@@deriving bin_io, compare, equal, sexp]
 
-  (** Returns the assigned variable of the operation, if it exists. *)
-  val lhs_of_op : op -> Var.t option
-
-  (** [has_lhs d x] returns [true] if the instruction [d] assigns the
-      variable [x]. *)
-  val op_has_lhs : op -> Var.t -> bool
-
-  (** Returns the set of free variables in the data instruction. *)
+  (** Returns the set of free variables in the data operation. *)
   val free_vars_of_op : op -> Var.Set.t
 
   (** Pretty-prints a data operation. *)
   val pp_op : Format.formatter -> op -> unit
-
-  (** Tags for various information about the instruction. *)
-  module Tag : sig
-    (** Do not attempt to transform this call into a tail call. *)
-    val non_tail : unit Dict.tag
-  end
 
   (** A labeled data operation. *)
   type t [@@deriving bin_io, compare, equal, sexp]
@@ -499,6 +219,13 @@ module Insn : sig
 
   (** Same as [pp_op]. *)
   val pp : Format.formatter -> t -> unit
+
+  (** Returns the assigned variable of the operation, if it exists. *)
+  val lhs_of_op : op -> Var.t option
+
+  (** [has_lhs d x] returns [true] if the instruction [d] assigns the
+      variable [x]. *)
+  val op_has_lhs : op -> Var.t -> bool
 end
 
 type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
@@ -553,324 +280,75 @@ module Eval : sig
 end
 
 (** Control-flow-effectful instructions. *)
-module Ctrl : sig
-  (** A switch table. *)
-  module Table : sig
-    type t [@@deriving bin_io, compare, equal, sexp]
-
-    (** Creates a switch table from an association list.
-
-        @raise Invalid_argument if the list has duplicate keys.
-    *)
-    val create_exn : (Bv.t * local) list -> Type.imm -> t
-
-    (** Same as [create_exn], but returns an error upon failure. *)
-    val create : (Bv.t * local) list -> Type.imm -> t Or_error.t
-
-    (** Returns the elements of the table. *)
-    val enum : t -> (Bv.t * local) seq
-
-    (** Returns the number of cases in the table. *)
-    val length : t -> int
-
-    (** Returns the immediate type for the index into the table. *)
-    val typ : t -> Type.imm
-
-    (** [find t v] searches the table [t] for the label associated
-        with the constant [v]. *)
-    val find : t -> Bv.t -> local option
-
-    (** [map_exn t ~f] applies [f] to each element of [t].
-
-        @raise Invalid_argument if [f] produces a duplicate key.
-    *)
-    val map_exn : t -> f:(Bv.t -> local -> Bv.t * local) -> t
-
-    (** Returns the set of free variables in the table. *)
-    val free_vars : t -> Var.Set.t
-
-    (** Same as [map_exn], but returns [Error _] if [f] produces a
-        duplicate key. *)
-    val map : t -> f:(Bv.t -> local -> Bv.t * local) -> t Or_error.t
-  end
-
-  type table = Table.t [@@deriving bin_io, compare, equal, sexp]
-
-  (** A valid index into the switch table.
-
-      The [`sym (s, offset)] constructor is included because it is
-      technically legal to use a symbol as an index into the table.
-      A constant propagation pass could resolve the index to some
-      symbol, although this is rarely a case.
-  *)
-  type swindex = [
-    | `var of Var.t
-    | `sym of string * int
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** A control-flow instruction.
-
-      [`hlt] terminates execution of the program. This is typically used
-      to mark certain program locations as unreachable.
-
-      [`jmp dst] is an unconditional jump to the destination [dst].
-
-      [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
-      is non-zero. Otherwise, the destination is [no].
-
-      [`ret x] returns from a function. If the function returns a value,
-      then [x] holds the value (and must not be [None]).
-
-      [`sw (typ, index, default, table)] implements a jump table.
-      For a variable [index] of type [typ], it will find the associated
-      label of [index] in [table] and jump to it, if it exists. If not,
-      then the destination of the jump is [default].
-
-      [`tcall (typ, f, args, vargs)] is similar to a [`call] instruction,
-      but is in tail position of the function.
-  *)
-  type t = [
-    | `hlt
-    | `jmp   of dst
-    | `br    of Var.t * dst * dst
-    | `ret   of operand option
-    | `sw    of Type.imm * swindex * local * table
-    | `tcall of Type.arg option * global * operand list * operand list
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  (** Returns the set of free variables in the control-flow instruction. *)
-  val free_vars : t -> Var.Set.t
-
-  (** Pretty-prints a control-flow instruction. *)
-  val pp : Format.formatter -> t -> unit
-end
+module Ctrl : Virtual_ctrl_intf.S
+  with type operand := operand
+   and type local := local
+   and type dst := dst
+   and type ret := operand option
 
 type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
-(** A control-flow edge. *)
-module Edge : sig
-  (** The kinds of edges that may occur:
-
-      [`always]: unconditional jump.
-
-      [`true_ x]: taken if [x] is non-zero.
-
-      [`false_ x]: taken if [x] is zero.
-
-      [`switch_ (x, vs, def)]: taken if [x \in vs]. If [def] is [true], then
-      the edge also applies to the default case.
-
-      [`default x]: taken if [x] doesn't match any entry in the switch table.
-  *)
-  type t = [
-    | `always
-    | `true_ of Var.t
-    | `false_ of Var.t
-    | `switch of Ctrl.swindex * Bv.t list * bool
-    | `default of Ctrl.swindex
-  ] [@@deriving bin_io, compare, equal, sexp]
-
-  include Regular.S with type t := t
-end
-
-type edge = Edge.t [@@deriving bin_io, compare, equal, sexp]
-
 (** A basic block. *)
 module Blk : sig
-  type t [@@deriving bin_io, compare, equal, sexp]
-
-  (** Creates a basic block. *)
-  val create :
-    ?dict:Dict.t ->
-    ?args:Var.t list ->
-    ?insns:insn list ->
-    label:Label.t ->
-    ctrl:ctrl ->
-    unit ->
-    t
-
-  (** Returns the label of the basic block. *)
-  val label : t -> Label.t
-
-  (** Returns the arguments of the basic block. *)
-  val args : ?rev:bool -> t -> Var.t seq
-
-  (** Returns the sequence of data instructions. *)
-  val insns : ?rev:bool -> t -> insn seq
-
-  (** Returns the control-flow instruction (also called the terminator)
-      of the block. *)
-  val ctrl : t -> ctrl
-
-  (** Returns the dictionary of the block. *)
-  val dict : t -> Dict.t
-
-  (** Replaces the dictionary of the block. *)
-  val with_dict : t -> Dict.t -> t
-
-  (** [with_tag b t v] binds [v] to tag [t] in the dictionary of [b]. *)
-  val with_tag : t -> 'a Dict.tag -> 'a -> t
-
-  (** [has_label b l] returns [true] if block [b] has label [l]. *)
-  val has_label : t -> Label.t -> bool
-
-  (** Returns a mapping from instruction labels to instructions.
-
-      @raise Invalid_argument if there are duplicate labels
-  *)
-  val map_of_insns : t -> insn Label.Tree.t
-
-  (** Returns the live-out mappings for each instruction and the set
-      of free variables in the block. *)
-  val liveness : t -> Var.Set.t Label.Tree.t * Var.Set.t
-
-  (** Equivalent to [snd (liveness blk)]. *)
-  val free_vars : t -> Var.Set.t
-
-  (** [uses_var b x] returns [true] if the variable [x] appears in the
-      free variables of [b].
-
-      Equivalent to [Set.mem (free_vars b) x].
-  *)
-  val uses_var : t -> Var.t -> bool
-
-  (** [defines_var b x] returns [true] if the variable [x] is defined
-      in the block [b]. *)
-  val defines_var : t -> Var.t -> bool
-
-  (** Returns [true] if the block has a data instruction associated with
-      the label. *)
-  val has_insn : t -> Label.t -> bool
-
-  (** Finds the data instruction with the associated label. *)
-  val find_insn : t -> Label.t -> insn option
-
-  (** Returns the next data instruction (after the given label) if it
-      exists. *)
-  val next_insn : t -> Label.t -> insn option
-
-  (** Returns the previous data instruction (before the given label) if it
-      exists. *)
-  val prev_insn : t -> Label.t -> insn option
-
-  (** Applies [f] to each argument of the block. *)
-  val map_args : t -> f:(Var.t -> Var.t) -> t
-
-  (** [map_insns b ~f] returns [b] with each data instruction applied
-      to [f]. *)
-  val map_insns : t -> f:(Label.t -> Insn.op -> Insn.op) -> t
-
-  (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
-  val map_ctrl : t -> f:(ctrl -> ctrl) -> t
-
-  (** [prepend_arg b a ?before] prepends the argument [a] to the block
-
-      If [before] is [None], then [a] is inserted at the beginning of
-      the argument list.
-
-      If [before] is [Some x], then [a] will appear directly before the
-      argument [x]. If [x] doesn't exist, then [a] is not inserted.
-  *)
-  val prepend_arg : ?before:Var.t option -> t -> Var.t -> t
-
-  (** [append_arg b a ?after] appends the argument [a] to the block [b].
-
-      If [after] is [None], then [a] is inserted at the end of the
-      argument list.
-
-      If [after] is [Some x], then [a] will appear directly after the
-      argument [x]. If [x] doesn't exist, then [a] is not inserted.
-  *)
-  val append_arg : ?after:Var.t option -> t -> Var.t -> t
-
-  (** [prepend_insn b d ?before] prepends the data instruction [d] to
-      the block [b].
-
-      If [before] is [None], then [d] is inserted at the beginning of
-      the data instructions.
-
-      If [before] is [Some l], then [d] will appear directly before the
-      data instruction at label [l]. If [l] doesn't exist, then [d] is
-      not inserted.
-  *)
-  val prepend_insn : ?before:Label.t option -> t -> insn -> t
-
-  (** [append_insn b d ?after] appends the data instruction [d] to
-      the block [b].
-
-      If [after] is [None], then [d] is inserted at the end of the
-      data instructions.
-
-      If [after] is [Some l], then [d] will appear directly after the
-      data instruction at label [l]. If [l] doesn't exist, then [d] is
-      not inserted.
-  *)
-  val append_insn : ?after:Label.t option -> t -> insn -> t
-
-  (** Replaces the control-flow instruction in the block. *)
-  val with_ctrl : t -> ctrl -> t
-
-  (** [remove_arg b x] removes an argument [x] from the block [b],
-      if it exists. *)
-  val remove_arg : t -> Var.t -> t
-
-  (** [remove_insn b l] removes a data instruction with label [l] from
-      the block [b], if it exists. *)
-  val remove_insn : t -> Label.t -> t
-
-  (** [has_arg b x] returns true if [b] has an argument [x]. *)
-  val has_arg : t -> Var.t -> bool
-
-  (** [has_lhs b x] returns [true] if a data instruction in [b] defines
-      [x]. *)
-  val has_lhs : t -> Var.t -> bool
-
-  include Regular.S with type t := t
+  include Virtual_blk_intf.S
+    with type op := Insn.op
+     and type insn := insn
+     and type ctrl := ctrl
 end
 
 type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
 
+(** A stack slot. *)
+module Slot : sig
+  type t [@@deriving bin_io, compare, equal, hash, sexp]
+
+  (** [create_exn x ~size ~align] creates a slot for variable [x] with
+      [size] and [align].
+
+      The [size] and [align]ment are the minimum such values for any
+      given slot, and they may be increased according to the needs of
+      the target ABI.
+
+      @raise Invalid_argument if [size < 0], [align < 1], or [align] is
+      not a power of two.
+  *)
+  val create_exn : Var.t -> size:int -> align:int -> t
+
+  (** Same as [create_exn], but returns an error instead of raising. *)
+  val create : Var.t -> size:int -> align:int -> t Or_error.t
+
+  (** The variable associated with the slot. *)
+  val var : t -> Var.t
+
+  (** The size of the slot in bytes. *)
+  val size : t -> int
+
+  (** The alignment of the slot in bytes. *)
+  val align : t -> int
+
+  (** [is_var s x] returns [true] if slot [s] is associated with the
+      variable [x]. *)
+  val is_var : t -> Var.t -> bool
+
+  include Regular.S with type t := t
+end
+
+type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
+
 (** A function. *)
 module Func : sig
-  (** A stack slot. *)
-  module Slot : sig
-    type t [@@deriving bin_io, compare, equal, sexp]
-
-    (** [create_exn x ~size ~align] creates a slot for variable [x] with
-        [size] and [align].
-
-        @raise Invalid_argument if [size < 1], [align < 1], or [align] is
-        not a power of two.
-    *)
-    val create_exn : Var.t -> size:int -> align:int -> t
-
-    (** Same as [create_exn], but returns an error instead of raising. *)
-    val create : Var.t -> size:int -> align:int -> t Or_error.t
-
-    (** The variable associated with the slot. *)
-    val var : t -> Var.t
-
-    (** The size of the slot in bytes. *)
-    val size : t -> int
-
-    (** The alignment of the slot in bytes. *)
-    val align : t -> int
-
-    (** [is_var s x] returns [true] if slot [s] is associated with the
-        variable [x]. *)
-    val is_var : t -> Var.t -> bool
-
-    val pp : Format.formatter -> t -> unit
-  end
-
-  type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
-
-  val pp_slot : Format.formatter -> slot -> unit
+  include Virtual_func_intf.S
+    with type blk := blk
+     and type arg := Var.t
+     and type argt := Type.arg
+     and type slot := slot
 
   (** Tags for various information about the function. *)
   module Tag : sig
-    (** The return type of the function. *)
-    val return : Type.arg Dict.tag
+    (** The return type of the function, paired with a flag
+        indicating whether the result should be interpreted
+        as signed. *)
+    val return : Type.ret Dict.tag
 
     (** Indicates whether the function is variadic or not. *)
     val variadic : unit Dict.tag
@@ -883,54 +361,8 @@ module Func : sig
     val linkage : Linkage.t Dict.tag
   end
 
-  type t [@@deriving bin_io, compare, equal, sexp]
-
-  (** Creates a function.
-
-      It is assumed that [blks] is ordered such that the entry block is
-      the first element.
-
-      The entry block must have no incoming control-flow edges (this is
-      enforced in [Typecheck]).
-
-      @raise Invalid_argument if [blks] is empty.
-  *)
-  val create_exn :
-    ?dict:Dict.t ->
-    ?slots:slot list ->
-    name:string ->
-    blks:blk list ->
-    args:(Var.t * Type.arg) list ->
-    unit ->
-    t
-
-  (** Same as [create_exn], but returns an error upon failure. *)
-  val create :
-    ?dict:Dict.t ->
-    ?slots:slot list ->
-    name:string ->
-    blks:blk list ->
-    args:(Var.t * Type.arg) list ->
-    unit ->
-    t Or_error.t
-
-  (** Returns the name of the function. *)
-  val name : t -> string
-
-  (** Returns the slots of the function. *)
-  val slots : ?rev:bool -> t -> slot seq
-
-  (** Returns the basic blocks of the function. *)
-  val blks : ?rev:bool -> t -> blk seq
-
-  (** Returns the label of the entry block. *)
-  val entry : t -> Label.t
-
-  (** Returns the arguments of the function, along with their types. *)
-  val args : ?rev:bool -> t -> (Var.t * Type.arg) seq
-
   (** Returns the return type of the function, if it exists. *)
-  val return : t -> Type.arg option
+  val return : t -> Type.ret option
 
   (** Returns [true] if the function is variadic. *)
   val variadic : t -> bool
@@ -945,133 +377,21 @@ module Func : sig
   *)
   val linkage : t -> Linkage.t
 
-  (** Returns the dictionary of the function. *)
-  val dict : t -> Dict.t
-
-  (** Replaces the dictionary of the function. *)
-  val with_dict : t -> Dict.t -> t
-
-  (** [with_tag fn t v] binds [v] to tag [t] in the dictionary of [fn]. *)
-  val with_tag : t -> 'a Dict.tag -> 'a -> t
-
-  (** Returns [true] if the function has the associated name. *)
-  val has_name : t -> string -> bool
-
   (** Returns the function prototype. *)
   val typeof : t -> Type.proto
-
-  (** Returns a mapping from block labels to blocks.
-
-      @raise Invalid_argument if there are duplicate labels
-  *)
-  val map_of_blks : t -> blk Label.Tree.t
-
-  (** [map_blks fn ~f] returns [fn] with each basic block applied to [f].
-
-      Note that [f] is allowed to change the label of the entry block.
-      This change is reflected in the updated function.
-  *)
-  val map_blks : t -> f:(blk -> blk) -> t
-
-  (** Same as [map_blks], but handles the case where [f] may fail. *)
-  val map_blks_err : t -> f:(blk -> blk Or_error.t) -> t Or_error.t
-
-  (** Appends a block to the end of the function. *)
-  val insert_blk : t -> blk -> t
-
-  (** Appends a slot to the function. *)
-  val insert_slot : t -> slot -> t
-
-  (** Removes a slot from the function. *)
-  val remove_slot : t -> Var.t -> t
-
-  (** [remove_blk_exn fn l] removes the block with label [l] from function
-      [f].
-
-      @raise Invalid_argument if [l] is the label of the entry block.
-  *)
-  val remove_blk_exn : t -> Label.t -> t
-
-  (** Same as [remove_blk_exn], but returns an error upon failure. *)
-  val remove_blk : t -> Label.t -> t Or_error.t
-
-  (** Same as [remove_blk_exn], but removes multiple blocks.
-
-      @raise Invalid_argument if one of the labels is the entry block.
-  *)
-  val remove_blks_exn : t -> Label.t list -> t
-
-  (** Same as [remove_blks_exn], but returns an error if one of the labels
-      is the entry block. *)
-  val remove_blks : t -> Label.t list -> t Or_error.t
-
-  (** [prepend_arg ?before fn x t] adds the argument [x] of type [t] to [fn].
-
-      If [before] is [None], then [x] is inserted at the beginning of the
-      argument list.
-
-      If [before] is [Some y], then [x] will appear directly before the
-      argument [y]. If [y] doesn't exist, then [x] is not inserted.
-  *)
-  val prepend_arg : ?before:Var.t option -> t -> Var.t -> Type.arg -> t
-
-  (** [append_arg ?after fn x t] adds the argument [x] of type [t] to [fn].
-
-      If [after] is [None], then [x] is inserted at the end of the
-      argument list.
-
-      If [after] is [Some y], then [x] will appear directly after the
-      argument [y]. If [y] doesn't exist, then [x] is not inserted.
-  *)
-  val append_arg : ?after:Var.t option -> t -> Var.t -> Type.arg -> t
-
-  (** [remove_arg fn x] removes the argument [x] from [fn], if it exists. *)
-  val remove_arg : t -> Var.t -> t
-
-  (** Returns [true] if the function has a block associated with the given
-      label. *)
-  val has_blk : t -> Label.t -> bool
-
-  (** Finds the block with the associated label, if it exists. *)
-  val find_blk : t -> Label.t -> blk option
-
-  (** Returns the next block (after the given label) if it exists. *)
-  val next_blk : t -> Label.t -> blk option
-
-  (** Returns the previous block (before the given label) if it exists. *)
-  val prev_blk : t -> Label.t -> blk option
-
-  (** [update_blk_exn fn b] returns [fn] with block [b] updated, if it exists. *)
-  val update_blk : t -> blk -> t
-
-  (** Same as [update_blk], but for a list of blocks for updating in batches,
-      which should be more efficient.
-
-      @raise Invalid_argument if the list of blocks contains duplicate labels.
-  *)
-  val update_blks_exn : t -> blk list -> t
-
-  (** Same as [update_blks_exn], but returns an error if there is a duplicate
-      block label. *)
-  val update_blks : t -> blk list -> t Or_error.t
-
-  include Regular.S with type t := t
 end
 
 type func = Func.t [@@deriving bin_io, compare, equal, sexp]
 
 (** The control-flow graph of the function. *)
 module Cfg : sig
-  include Graph
-    with type node = Label.t
-     and type Node.label = Label.t
-     and type Edge.label = edge
+  include Label.Graph_s
 
   (** Creates the control-flow graph.
 
       Each node of the graph is the label of a basic block in the function,
-      and edges between basic blocks are labeled according to the type of
-      control-flow instruction that links them (see the [Edge] module).
+      and edges between basic blocks correspond to control-flow transfers
+      between them.
 
       Additionally, two pseudo-labels are added to the graph ([Label.pseudoentry]
       and [Label.pseudoexit]). These labels link with each "entry" and "exit"
@@ -1084,104 +404,23 @@ end
 type cfg = Cfg.t
 
 (** Helpers for computing liveness of a function. *)
-module Live : sig
-  type t
-
-  (** [compute fn ~keep] solves the data flow equations for liveness in
-      the function [fn].
-
-      [keep] is a set of variables that are initially live on the exit
-      nodes of the function.
-  *)
-  val compute : ?keep:Var.Set.t -> func -> t
-
-  (** The set of live-in variables at the block assicated with the label. *)
-  val ins : t -> Label.t -> Var.Set.t
-
-  (** The set of live-out variables at the block assicated with the label. *)
-  val outs : t -> Label.t -> Var.Set.t
-
-  (** The set of blocks where the variable is live-in. *)
-  val blks : t -> Var.t -> Label.Set.t
-
-  (** The set of variables that were defined in the block associated with
-      the label. *)
-  val defs : t -> Label.t -> Var.Set.t
-
-  (** Returns the live-out mappings for each instruction in a given block.
-
-      Note that this mapping does not cross block boundaries. It should be
-      used to identify variables that are live within the scope of a single
-      block.
-  *)
-  val insns : t -> Label.t -> Var.Set.t Label.Tree.t
-
-  (** The set of variables that were used in the block associated with the
-      label.
-
-      Note that this set only includes the free variables of the block.
-  *)
-  val uses : t -> Label.t -> Var.Set.t
-
-  (** Folds over the live-ins of each block.
-
-      Applies [f] to the live-in set of each block in the function.
-  *)
-  val fold : t -> init:'a -> f:('a -> Label.t -> Var.Set.t -> 'a) -> 'a
-
-  (** Returns the solution of the data-flow equations, which is a mapping
-      from block labels to their live-out sets. *)
-  val solution : t -> (Label.t, Var.Set.t) Solution.t
-
-  (** Pretty-prints the live-in sets for each block. *)
-  val pp : Format.formatter -> t -> unit
-end
+module Live : Live_intf.S
+  with type var := Var.t
+   and type var_comparator := Var.comparator_witness
+   and type func := func
+   and type blk := blk
+   and type cfg := cfg
 
 type live = Live.t
 
-(** Abstract interpretation over intervals. *)
-module Intervals : sig
-  (** Mapping of variables to intervals. *)
-  type state [@@deriving equal, sexp]
+(** Helpers for resolving labels to instructions/blocks. *)
+module Resolver : Resolver_intf.S
+  with type lhs := Var.t option
+   and type insn := insn
+   and type blk := blk
+   and type func := func
 
-  (** The empty mapping. *)
-  val empty_state : state
-
-  (** Finds the interval associated with a variable, if it exists. *)
-  val find_var : state -> Var.t -> Bv_interval.t option
-
-  (** Enumerates the mapping. *)
-  val enum_state : state -> (Var.t * Bv_interval.t) seq
-
-  (** The analysis results. *)
-  type t
-
-  (** [insn t l] returns the output state of the instruction [l], if it
-      exists. Otherwise, [empty_state] is returned. *)
-  val insn : t -> Label.t -> state
-
-  (** [input t l] returns the input state of the basic block [l], if it
-      exists. Otherwise, [empty_state] is returned. *)
-  val input : t -> Label.t -> state
-
-  (** Performs the interval analysis.
-
-      [word] is the pointer size for the target.
-
-      [typeof] is the typing relation for variables.
-
-      [steps] is an upper bound on the number of iterations before
-      a fixed point can be reached.
-
-      @raise Invalid_argument if the function is not in SSA form.
-  *)
-  val analyze :
-    ?steps:int ->
-    func ->
-    word:Type.imm_base ->
-    typeof:(Var.t -> Type.t) ->
-    t
-end
+type resolver = Resolver.t
 
 (** Loop analysis of a function. *)
 module Loops : sig
@@ -1209,7 +448,10 @@ module Loops : sig
   (** [analyze fn] performs the loop analysis of [fn]. *)
   val analyze : func -> t
 
-  (** [get t x] returns the data for loop [x]. *)
+  (** [get t x] returns the data for loop [x].
+
+      @raise Invalid_argument is [x] does not exist in the function.
+  *)
   val get : t -> loop -> data
 
   (** [blk t l] returns the innermost loop for the block
@@ -1224,9 +466,9 @@ module Loops : sig
       is the header of a loop. *)
   val is_header : t -> Label.t -> bool
 
-  (** [is_child_of t m n] returns [true] if [m = n] or [m] is
-      nested in [n]. *)
-  val is_child_of : t -> loop -> loop -> bool
+  (** [is_child_of ~parent t n] returns [true] if [equal_loop n parent]
+      or [n] is nested in [parent]. *)
+  val is_child_of : parent:loop -> t -> loop -> bool
 
   (** [is_in_loop t l n] returns [true] if the block at label [l] is
       a member of the loop [n]. *)
@@ -1269,6 +511,9 @@ module Data : sig
 
     (** The linkage of the struct. *)
     val linkage : Linkage.t Dict.tag
+
+    (** Indicates that the struct is read-only. *)
+    val const : unit Dict.tag
   end
 
   type t [@@deriving bin_io, compare, equal, sexp]
@@ -1310,6 +555,9 @@ module Data : sig
   (** Returns the desired alignment, if any. *)
   val align : t -> int option
 
+  (** Returns [true] if the struct is read-only. *)
+  val const : t -> bool
+
   (** Returns the dictionary of the struct. *)
   val dict : t -> Dict.t
 
@@ -1322,8 +570,9 @@ module Data : sig
   (** Returns [true] if the struct has the associated name. *)
   val has_name : t -> string -> bool
 
-  (** Returns the corresponding compound type of the struct. *)
-  val typeof : t -> Target.t -> Type.compound
+  (** Returns the corresponding compound type of the struct, where
+      [word] is the target's pointer size. *)
+  val typeof : t -> word:Type.imm_base -> Type.compound
 
   (** Prepends an element to the beginning of the structure. *)
   val prepend_elt : t -> elt -> t
@@ -1341,7 +590,9 @@ type data = Data.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A module is a single translation unit. *)
 module Module : sig
-  type t [@@deriving bin_io, compare, equal, sexp]
+  include Virtual_module_intf.S
+    with type data := data
+     and type func := func
 
   (** Creates a module. *)
   val create :
@@ -1353,74 +604,282 @@ module Module : sig
     unit ->
     t
 
-  (** The name of the module. *)
-  val name : t -> string
-
   (** Declared (compound) types that are visible in the module. *)
   val typs : ?rev:bool -> t -> Type.compound seq
-
-  (** Structs defined in the module. *)
-  val data : ?rev:bool -> t -> data seq
-
-  (** Functions defined in the module. *)
-  val funs : ?rev:bool -> t -> func seq
-
-  (** Returns the dictionary of the module. *)
-  val dict : t -> Dict.t
-
-  (** Replaces the dictionary of the module. *)
-  val with_dict : t -> Dict.t -> t
-
-  (** [with_tag m t v] binds [v] to tag [t] in the dictionary of [m]. *)
-  val with_tag : t -> 'a Dict.tag -> 'a -> t
-
-  (** Returns [true] if the module has the associated name. *)
-  val has_name : t -> string -> bool
 
   (** Appends a type to the module. *)
   val insert_type : t -> Type.compound -> t
 
-  (** Appends a struct to the module. *)
-  val insert_data : t -> data -> t
-
-  (** Appends a function to the module. *)
-  val insert_fn : t -> func -> t
-
   (** Removes the type associated with the name. *)
   val remove_type : t -> string -> t
 
-  (** Removes the struct associated with the name. *)
-  val remove_data : t -> string -> t
-
-  (** Removes the function associated with the name. *)
-  val remove_fn : t -> string -> t
-
   (** Returns the module with each type transformed by [f]. *)
   val map_typs : t -> f:(Type.compound -> Type.compound) -> t
-
-  (** Returns the module with each struct transformed by [f]. *)
-  val map_data : t -> f:(data -> data) -> t
-
-  (** Returns the module with each function transformed by [f]. *)
-  val map_funs : t -> f:(func -> func) -> t
-
-  (** Replaces the functions in the module. *)
-  val with_funs : t -> func list -> t
 
   (** Returns the module with each type transformed by [f],
       where [f] may fail. *)
   val map_typs_err :
     t -> f:(Type.compound -> Type.compound Or_error.t) -> t Or_error.t
-
-  (** Returns the module with each struct transformed by [f],
-      where [f] may fail. *)
-  val map_data_err : t -> f:(data -> data Or_error.t) -> t Or_error.t
-
-  (** Returns the module with each function transformed by [f],
-      where [f] may fail. *)
-  val map_funs_err : t -> f:(func -> func Or_error.t) -> t Or_error.t
-
-  include Regular.S with type t := t
 end
 
 type module_ = Module.t
+
+(** The Virtual IR, lowered to conform to a specific ABI. *)
+module Abi : sig
+  module Insn : sig
+    include Virtual_insn_intf.S with type operand := operand
+
+    include Virtual_insn_intf.Mem
+      with type operand := operand
+       and type ty := Type.basic
+
+    (** An argument to a call instruction.
+
+        [`reg (a, r)]: the argument is passed in a register [r].
+
+        [`stk (a, o)]: the argument [a] is passed at stack offset [o].
+    *)
+    type callarg = [
+      | `reg of operand * string
+      | `stk of operand * int
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    val free_vars_of_callarg : callarg -> Var.Set.t
+
+    val pp_callarg : Format.formatter -> callarg -> unit
+
+    (** A call instruction.
+
+        [`call (xs, f, args)] calls the function [f] with [args], returning
+        zero or more results in [xs]. Each [x \in xs] is a tuple [(x, t, r)],
+        where [x] has type [t] and is bound to the register [r] that is returned
+        from the call.
+    *)
+    type call = [
+      | `call of (Var.t * Type.basic * string) list * global * callarg list
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    val free_vars_of_call : call -> Var.Set.t
+
+    val pp_call : Format.formatter -> call -> unit
+
+    (** Miscellaneous, ABI-specific instructions. Use with caution.
+
+        [`regcopy (x, t, r)]: copy the register [r] into the variable [x],
+        with type [t].
+
+        [`regstore (r, a)]: store the register [v] at address [a].
+
+        [`regassign (r, a)]: assign the value [a] to the register [r].
+
+        [`stkargs x]: returns a pointer to the beginning of the memory region
+        containing the arguments passed on the stack, and stores the result in
+        [x]. This is particularly useful for implementing variadic arguments.
+    *)
+    type extra = [
+      | `regcopy of Var.t * Type.basic * string
+      | `regstore of string * operand
+      | `regassign of string * operand
+      | `stkargs of Var.t
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    val free_vars_of_extra : extra -> Var.Set.t
+
+    val pp_extra : Format.formatter -> extra -> unit
+
+    (** A data operation. *)
+    type op = [
+      | basic
+      | call
+      | mem
+      | extra
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** Returns the set of free variables in the data operation. *)
+    val free_vars_of_op : op -> Var.Set.t
+
+    (** Pretty-prints a data operation. *)
+    val pp_op : Format.formatter -> op -> unit
+
+    (** A labeled data operation. *)
+    type t [@@deriving bin_io, compare, equal, sexp]
+
+    (** Creates a labeled instruction. *)
+    val create : ?dict:Dict.t -> op -> label:Label.t -> t
+
+    (** The label of the instruction. *)
+    val label : t -> Label.t
+
+    (** The operation itself. *)
+    val op : t -> op
+
+    (** Replaces the operation *)
+    val with_op : t -> op -> t
+
+    (** Returns the dictionary of the instruction. *)
+    val dict : t -> Dict.t
+
+    (** Replaces the dictionary of the instruction. *)
+    val with_dict : t -> Dict.t -> t
+
+    (** [with_tag i t v] binds [v] to tag [t] in the dictionary of [i]. *)
+    val with_tag : t -> 'a Dict.tag -> 'a -> t
+
+    (** Returns [true] if the instruction has a given label. *)
+    val has_label : t -> Label.t -> bool
+
+    (** Same as [free_vars_of_op (op i)]. *)
+    val free_vars : t -> Var.Set.t
+
+    (** Returns [true] for instructions that have side effects. *)
+    val is_effectful_op : op -> bool
+
+    (** Returns [true] for instructions that can store to memory. *)
+    val can_store_op : op -> bool
+
+    (** Returns [true] for instructions that can load from memory. *)
+    val can_load_op : op -> bool
+
+    (** Same as [is_effectful_op (op i)]. *)
+    val is_effectful : t -> bool
+
+    (** Same as [can_store_op (op i)]. *)
+    val can_store : t -> bool
+
+    (** Same as [can_load_op (op i)]. *)
+    val can_load : t -> bool
+
+    (** Transforms the underlying operation. *)
+    val map : t -> f:(op -> op) -> t
+
+    (** Returns the set of defined variables of the instruction. *)
+    val def : t -> Var.Set.t
+
+    (** Same as [pp_op]. *)
+    val pp : Format.formatter -> t -> unit
+
+    (** Tags for various information about the instruction. *)
+    module Tag : sig
+      (** Do not attempt to transform this call into a tail call. *)
+      val non_tail : unit Dict.tag
+    end
+  end
+
+  type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
+
+  module Ctrl : Virtual_ctrl_intf.S
+    with type operand := operand
+     and type local := local
+     and type dst := dst
+     and type ret := (string * operand) list
+
+  type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
+
+  module Blk : sig
+    include Virtual_blk_intf.S
+      with type op := Insn.op
+       and type insn := insn
+       and type ctrl := ctrl
+  end
+
+  type blk = Blk.t [@@deriving bin_io, compare, equal, sexp]
+
+  (** An ABI-lowered function.
+
+      Note that an argument [a] in the [args] of a function may include
+      a [`reg r], indicating that [a] is passed in register [r]. All
+      other arguments are assumed to be passed in memory according to
+      the target ABI.
+
+      As a special case, [{prepend,append,remove}_arg] will use [same_arg]
+      to test for equality.
+  *)
+  module Func : sig
+    (** Tags for various information about the function. *)
+    module Tag : sig
+      (** Indicates whether the function is variadic or not. *)
+      val variadic : unit Dict.tag
+
+      (** The linkage of the function. *)
+      val linkage : Linkage.t Dict.tag
+    end
+
+    (** An argument to the function.
+
+        [`reg (x, r)]: the argument [x] is passed in register [r].
+
+        [`stk (x, o)]: the argument [x] is passed at stack offset [o].
+    *)
+    type arg = [
+      | `reg of Var.t * string
+      | `stk of Var.t * int
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    (** [same_arg x y] returns [true] if [x] and [y] refer to the same
+        register or variable; e.g. stack offsets are ignored. *)
+    val same_arg : arg -> arg -> bool
+
+    val pp_arg : Format.formatter -> arg -> unit
+
+    include Virtual_func_intf.S
+      with type blk := blk
+       and type arg := arg
+       and type argt := Type.basic
+       and type slot := slot
+
+    (** Returns [true] if the function takes a variable number of
+        arguments (using [Func.Tag.variadic]). *)
+    val variadic : t -> bool
+
+    (** Returns the linkage of the function (using [Func.Tag.linkage]).
+
+        If no value was given for it in the [dict], then the result defaults
+        to [Linkage.default_export].
+    *)
+    val linkage : t -> Linkage.t
+  end
+
+  type func = Func.t [@@deriving bin_io, compare, equal, sexp]
+
+  (** A translation unit. *)
+  module Module : sig
+    include Virtual_module_intf.S
+      with type data := data
+       and type func := func
+
+    (** Creates a module. *)
+    val create :
+      ?dict:Dict.t ->
+      ?data:data list ->
+      ?funs:func list ->
+      name:string ->
+      unit ->
+      t
+  end
+
+  type module_ = Module.t [@@deriving bin_io, compare, equal, sexp]
+
+  module Cfg : sig
+    include Label.Graph_s
+    val create : func -> t
+  end
+
+  type cfg = Cfg.t
+
+  module Live : Live_intf.S
+    with type var := Var.t
+     and type var_comparator := Var.comparator_witness
+     and type func := func
+     and type blk := blk
+     and type cfg := cfg
+
+  type live = Live.t
+
+  module Resolver : Resolver_intf.S
+    with type lhs := Var.Set.t
+     and type insn := insn
+     and type blk := blk
+     and type func := func
+
+  type resolver = Resolver.t
+end

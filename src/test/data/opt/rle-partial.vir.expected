@@ -1,0 +1,18 @@
+module foo
+
+export function w $foo(l %x, w %b) {
+@2:
+  %0 = eq.w %b, 0x0_w ; @12
+  br %0, @3, @4
+@3:
+  %a.3 = ld.w %x ; @7
+  jmp @6(%a.3)
+@4:
+  %2 = add.l %x, 0x4_l ; @14
+  %a.2 = ld.w %2 ; @9
+  jmp @6(%a.2)
+@6(%a.1):
+  %a1.1 = ld.w %x ; @10
+  %1 = add.w %a1.1, %a.1 ; @13
+  ret %1
+}

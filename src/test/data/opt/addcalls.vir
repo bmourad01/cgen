@@ -1,0 +1,23 @@
+module addcalls
+
+export function w $foo() {
+@start:
+  %a = copy.w 0_w
+  %v = call.w $bar()
+  %a = add.w %a, %v
+  %v = call.w $bar()
+  %a = add.w %a, %v
+  %v = call.w $bar()
+  %a = add.w %a, %v
+  %v = call.w $bar()
+  %a = add.w %a, %v
+  %v = call.w $bar()
+  %a = add.w %a, %v
+  %v = call.w $bar()
+  %a = add.w %a, %v
+  %v = call.w $bar()
+  %a = add.w %a, %v
+  %v = call.w $bar()
+  %a = add.w %a, %v
+  ret %a
+}

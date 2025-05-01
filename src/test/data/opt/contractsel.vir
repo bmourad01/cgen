@@ -1,0 +1,23 @@
+module foo
+
+function w $foo(w %x) {
+@start:
+  %c = sgt.w %x, 42_w
+  br %c, @default, @chk
+@default:
+  %y = copy.w 5_w
+  jmp @cont
+@chk:
+  %c = slt.w %x, 0_w
+  br %c, @yes, @no
+@yes:
+  %y = copy.w 3_w
+  jmp @cont
+@no:
+  %y = copy.w %x
+  jmp @cont
+@cont:
+  jmp @cont2
+@cont2:
+  ret %y
+}

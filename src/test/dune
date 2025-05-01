@@ -1,7 +1,6 @@
 (tests
- (names
-   test_bv_interval
-   test_opt
-   test_type)
+ (names test_bv_interval test_opt test_type)
  (libraries ounit2 cgen)
- (ocamlopt_flags -O2))
+ (ocamlopt_flags -O2)
+ (deps
+  (glob_files_rec data/*)))

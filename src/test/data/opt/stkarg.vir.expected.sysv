@@ -1,0 +1,22 @@
+module stkarg
+
+export function $foo(l %a/rdi, l %b/rsi, l %c/rdx, l %d/rcx, l %e/r8, l %f/r9, w %g/+0, w %h/+8) {
+@2:
+  %0 = add.l %a, %b ; @14
+  %1 = add.l %c, %d ; @15
+  %2 = add.l %0, %1 ; @16
+  %3 = add.l %e, %f ; @17
+  %4 = sext.l %g ; @18
+  %5 = sext.l %h ; @19
+  %6 = add.l %4, %5 ; @20
+  %7 = add.l %3, %6 ; @21
+  %8 = add.l %2, %7 ; @22
+  ret rax/%8
+}
+
+export function $bar() {
+@12:
+  %x.1/l/rax = call $foo(0x0_l/rdi, 0x1_l/rsi, 0x2_l/rdx, 0x3_l/rcx, 0x4_l/r8, 0x5_l/r9, 0x6_w/+0, 0x7_w/+8)
+  ; @13
+  ret rax/%x.1
+}

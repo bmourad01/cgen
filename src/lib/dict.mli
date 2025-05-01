@@ -23,6 +23,8 @@ val pp_value : Format.formatter -> value -> unit
 (** A tag constructor of type ['a]. *)
 type 'a tag
 
+val pp_tag : Format.formatter -> 'a tag -> unit
+
 (** [register ~uuid name (module T)] creates a new variant constructor
     that accepts values of type [T.t].
 
@@ -63,6 +65,9 @@ val is_empty : t -> bool
 (** [set d t v] sets the tag [t] to value [v] in [d], overwriting
     the previous value if it exists. *)
 val set : t -> 'a tag -> 'a -> t
+
+(** Equivalent to [set empty t v]. *)
+val singleton : 'a tag -> 'a -> t
 
 (** [remove d t] removes the binding for tag [t] in [d]. *)
 val remove : t -> 'a tag -> t

@@ -1,0 +1,56 @@
+module gcdext
+
+export function $gcd(w %a/rdi, w %b/rsi) {
+  %res = slot 16, align 8
+  %r = slot 16, align 8
+  %8 = slot 16, align 8
+  %13 = slot 16, align 8
+  %18 = slot 16, align 8
+@2:
+  %3 = eq.w %a, 0x0_w ; @32
+  %2 = add.l %res, 0x4_l ; @31
+  %1 = add.l %res, 0x8_l ; @30
+  br %3, @3, @4
+@3:
+  st.w %b, %res ; @6
+  st.w 0x0_w, %2 ; @8
+  st.w 0x1_w, %1 ; @10
+  %19 = ld.l %res ; @49
+  st.l %19, %18 ; @50
+  %21 = ld.l %1 ; @52
+  %22 = add.l %18, 0x8_l ; @53
+  st.l %21, %22 ; @54
+  jmp @29(%18)
+@4:
+  %m.1 = rem.w %b, %a ; @12
+  %27/l/rax, %28/l/rdx = call $gcd(%m.1/rdi, %a/rsi) ; @13
+  %26 = add.l %8, 0x8_l ; @58
+  st.l %27, %8 ; @59
+  st.l %28, %26 ; @60
+  %9 = ld.l %8 ; @37
+  st.l %9, %r ; @38
+  %11 = ld.l %26 ; @40
+  %12 = add.l %r, 0x8_l ; @41
+  st.l %11, %12 ; @42
+  %rg.1 = ld.w %r ; @15
+  %4 = add.l %r, 0x4_l ; @33
+  %rx.1 = ld.w %4 ; @17
+  %ry.1 = ld.w %12 ; @19
+  st.w %rg.1, %res ; @20
+  %nx.1 = div.w %b, %a ; @21
+  %6 = mul.w %nx.1, %rx.1 ; @35
+  %7 = sub.w %ry.1, %6 ; @36
+  st.w %7, %2 ; @25
+  st.w %rx.1, %1 ; @27
+  %14 = ld.l %res ; @43
+  st.l %14, %13 ; @44
+  %16 = ld.l %1 ; @46
+  %17 = add.l %13, 0x8_l ; @47
+  st.l %16, %17 ; @48
+  jmp @29(%13)
+@29(%0):
+  %23 = ld.l %0 ; @55
+  %24 = add.l %0, 0x8_l ; @56
+  %25 = ld.l %24 ; @57
+  ret rax/%23, rdx/%25
+}

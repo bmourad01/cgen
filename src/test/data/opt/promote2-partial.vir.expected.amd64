@@ -1,0 +1,26 @@
+module foo
+
+export function $foo { ; returns: rax
+@2:
+  mov %a:w, edi ; @31
+  mov %b:w, esi ; @32
+  mov %y.2:w, %b:w ; @33
+  mov %x.2:w, %a:w ; @34
+  jmp @3 ; @35
+@3:
+  test %y.2:w, %y.2:w ; @25
+  je @6 ; @26
+  jmp @7 ; @27
+@7:
+  mov eax, %x.2:w ; @21
+  cdq ; @22
+  idiv %y.2:w ; @23
+  mov %ax.1:w, edx ; @24
+  mov %1:w, %ax.1:w ; @17
+  mov %x.2:w, %y.2:w ; @18
+  mov %y.2:w, %1:w ; @19
+  jmp @3 ; @20
+@6:
+  mov eax, %x.2:w ; @15
+  ret ; @16
+}

@@ -1,10 +1,11 @@
 open Core
 open Virtual
 
-include Common
+include Egraph_common
 
-module Rule = Rule
-module Subst = Subst
+module Rule = Egraph_rule
+module Subst = Egraph_subst
+module Builder = Egraph_builder
 
 type rule = Rule.t
 
@@ -16,10 +17,9 @@ let init input depth_limit match_limit rules = {
   typs = Vec.create ();
   lmoved = Label.Table.create ();
   imoved = Id.Table.create ();
-  imoved2 = Id.Table.create ();
-  licm = Id.Hash_set.create ();
-  id2lbl = Id.Table.create ();
-  lbl2id = Label.Table.create ();
+  pinned = Id.Hash_set.create ();
+  ilbl = Id.Table.create ();
+  lval = Label.Table.create ();
   depth_limit;
   match_limit;
   rules;

@@ -89,9 +89,9 @@ val pp_field : Format.formatter -> field -> unit
 
     An [`opaque (name, align, n)] data type requires an [align]ment.
     It is intended to describe [n] bytes of opaque data whose internal
-    structure is unspecified.
+    structure is unspecified. Note that [n <= 0] is illegal.
 
-    Note that an alignment [n] must be a positive power of 2.
+    Note that an alignment must be a positive power of 2.
 *)
 type compound = [
   | `compound of string * int option * field list
@@ -120,7 +120,7 @@ val pp_datum : Format.formatter -> datum -> unit
 (** The layout of a compound data type. *)
 type layout [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** Returns the size of the layout in bits. *)
+(** Returns the size of the layout in bytes. *)
 val sizeof_layout : layout -> int
 
 (** Pretty-prints a layout. *)
@@ -129,14 +129,24 @@ val pp_layout : Format.formatter -> layout -> unit
 module Layout : sig
   type t = layout
 
-  (** Returns the size of the layout in bits. *)
+  (** Returns the size of the layout in bytes. *)
   val sizeof : t -> int
 
-  (** Returns the alignment of the data. *)
+  (** Returns the alignment of the data in bytes.
+
+      If the result is [0], then it is implied that the layout
+      contains no data.
+
+      In all other cases, the result is a non-negative power of
+      two.
+  *)
   val align : t -> int
 
   (** Returns the exact structure of the data. *)
   val data : t -> datum seq
+
+  (** Returns [true] if the layout contains no data. *)
+  val is_empty : t -> bool
 
   include Regular.S with type t := t
 end
@@ -176,22 +186,7 @@ val pp_compound : Format.formatter -> compound -> unit
 (** Pretty-prints a compound type as a declaration. *)
 val pp_compound_decl : Format.formatter -> compound -> unit
 
-(** Special types that are not meant to be user-defined.
-
-    [`flag] is the type of a condition flag. It is used for
-    typing comparisons and conditional jumps.
-*)
-type special = [
-  | `flag
-] [@@deriving bin_io, compare, equal, hash, sexp]
-
-(** Pretty-prints a special type. *)
-val pp_special : Format.formatter -> special -> unit
-
-(** A type that is allowed to be used as a function argument.
-
-    Note that return types also fall into this category.
-*)
+(** A type that is allowed to be used as a function argument. *)
 type arg = [
   | basic
   | `name of string
@@ -201,19 +196,57 @@ type arg = [
     for function arguments. *)
 val pp_arg : Format.formatter -> arg -> unit
 
-(** A function prototype. *)
+(** A type that is allowed to be used for returning values from
+    a function call. *)
+type ret = [
+  | arg
+  | `si8
+  | `si16
+  | `si32
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+(** Returns [true] if the return type is interpreted as a signed
+    integer. *)
+val is_ret_signed : ret -> bool
+
+(** Returns [true] if both return types are compatible.
+
+    This is defined by the following relation:
+
+    [`i8 ~ `si8]
+    [`i16 ~ `si16]
+    [`i32 ~ `si32]
+
+    The remainder of the relation is denoted by [equal_ret].
+*)
+val same_ret : ret -> ret -> bool
+
+(** Pretty prints an argument type in the syntax that is allowed
+    for function returns. *)
+val pp_ret : Format.formatter -> ret -> unit
+
+(** A function prototype.
+
+    [`proto (ret, args, variadic)] denotes a function prototype
+    with an optional [ret]urn type, a list of argument types
+    [args], and a flag indicating whether the function is
+    [variadic].
+*)
 type proto = [
-  | `proto of arg option * arg list * bool
+  | `proto of ret option * arg list * bool
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty prints a function prototype. *)
 val pp_proto : Format.formatter -> proto -> unit
 
-(** A type. *)
+(** A type.
+
+    [`flag] is the type of a boolean value.
+*)
 type t = [
   | basic
   | compound
-  | special
+  | `flag
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 include Regular.S with type t := t

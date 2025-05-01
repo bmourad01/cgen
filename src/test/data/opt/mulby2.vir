@@ -1,0 +1,7 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %x = mul.w %x, 2_w
+  ret %x
+}

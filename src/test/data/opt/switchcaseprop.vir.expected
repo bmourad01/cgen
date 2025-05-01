@@ -1,0 +1,10 @@
+module foo
+
+export function w $foo(w %x) {
+@2:
+  switch.w %x, @10(%x) [0x1_w -> @10(0x2_w),
+                        0x2_w -> @10(0x3_w),
+                        0x3_w -> @10(0x4_w)]
+@10(%0):
+  ret %0
+}

@@ -1,0 +1,22 @@
+module vaarg1
+
+type :t = {
+  d,
+  l
+}
+
+export function l $foo(l %i, ...) {
+  %ap = slot 24, align 8
+  %r = slot 16, align 8
+@start:
+  vastart %ap
+  %t = vaarg:t %ap
+  st:t %t, %r
+  %f1 = ld.d %r
+  %r8 = add.l %r, 8_l
+  %f2 = ld.l %r8
+  %f3 = ftosi.d.l %f1
+  %a1 = add.l %f2, %f3
+  %a2 = add.l %a1, %i
+  ret %a2
+}

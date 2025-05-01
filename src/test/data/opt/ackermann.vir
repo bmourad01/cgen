@@ -1,0 +1,31 @@
+module foo
+
+export function w $foo(w %m, w %n) {
+@start:
+  %c = eq.w %m, 0_w
+  br %c, @n1, @cmgt
+@n1:
+  %r = add.w %n, 1_w
+  ret %r
+@cmgt:
+  %c = gt.w %m, 0_w
+  br %c, @cnzero, @cngt
+@cnzero:
+  %c = eq.w %n, 0_w
+  br %c, @case1, @cngt
+@case1:
+  %m = sub.w %m, 1_w
+  %r = call.w $foo(%m, 1_w)
+  ret %r
+@cngt:
+  %c = gt.w %n, 0_w
+  br %c, @case2, @bad
+@case2:
+  %n = sub.w %n, 1_w
+  %r = call.w $foo(%m, %n)
+  %m = sub.w %m, 1_w
+  %r = call.w $foo(%m, %r)
+  ret %r
+@bad:
+  hlt
+}

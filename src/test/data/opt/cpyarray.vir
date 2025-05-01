@@ -1,0 +1,23 @@
+module foo
+
+export function $foo(l %arr, l %src, w %num) {
+@entry:
+  %i = copy.w 0_w
+  jmp @loop
+@loop:
+  %c = lt.w %i, %num
+  br %c, @body, @end
+@body:
+  %ptr = zext.l %i
+  %ptr = mul.l %ptr, 4_l
+  %ptr = add.l %ptr, %src
+  %w = ld.w %ptr
+  %ptr = zext.l %i
+  %ptr = mul.l %ptr, 4_l
+  %ptr = add.l %ptr, %arr
+  st.w %w, %ptr
+  %i = add.w %i, 1_w
+  jmp @loop
+@end:
+  ret
+}

@@ -1,16 +1,12 @@
  %{
-    open Monads.Std
+    type elt =
+      | Func of Virtual.func
+      | Typ  of Type.compound
+      | Data of Virtual.data
 
-    type elt = [
-      | `func of Virtual.func
-      | `typ  of Type.compound
-      | `data of Virtual.data
-    ]
-
-    type call_arg = [
-      | `arg  of Virtual.operand
-      | `varg of Virtual.operand
-    ]
+    type call_arg =
+      | Arg  of Virtual.operand
+      | Varg of Virtual.operand
 
     module Env = struct
       (* Since we allow a nicer surface syntax over the internal
@@ -22,53 +18,72 @@
       type t = {
         labels : Label.t Core.String.Map.t;
         temps : Var.t Core.String.Map.t;
-      }
+      } [@@deriving bin_io, compare, sexp]
 
       let empty = {
         labels = Core.String.Map.empty;
         temps = Core.String.Map.empty;
       }
+
+      (* Not needed. *)
+      let pp _ppf _t = ()
     end
 
-    module M = Monad.State.Make(Env)(Context)
+    let tag = Dict.register
+        ~uuid:"98ff53de-6779-494c-81d6-1d3dd6f71e5e"
+        "virtual-parser-env" (module Env)
 
-    type 'a m = 'a Monad.State.T1(Env)(Context).t
-    
-    open M.Syntax
-    open M.Let
+    open Context.Syntax
+
+    let setenv v = Context.Local.set tag v
+    let curenv = Context.Local.get' tag ~default:Env.empty
 
     (* Each time parse a new function, reset the context, since
        labels do not have scope outside of a function body. *)
-    let reset = M.put Env.empty
+    let reset = setenv Env.empty
     
     let label_of_name name =
-      let* env = M.get () in
+      let* env = curenv in
       match Core.Map.find env.labels name with
       | Some l -> !!l
       | None ->
-         let* l = M.lift @@ Context.Label.fresh in
+         let* l = Context.Label.fresh in
          let labels = Core.Map.set env.labels ~key:name ~data:l in
-         let+ () = M.put {env with labels} in
+         let+ () = setenv {env with labels} in
          l
 
     let temp_of_name ?index name =
-      let* env = M.get () in
+      let* env = curenv in
       let+ v = match Core.Map.find env.temps name with
         | Some v -> !!v
         | None ->
-          let* v = M.lift @@ Context.Var.fresh in
+          let* v = Context.Var.fresh in
           let temps = Core.Map.set env.temps ~key:name ~data:v in
-          let+ () = M.put {env with temps} in
+          let+ () = setenv {env with temps} in
           v in
       match index with
       | Some i -> Var.with_index v i
       | None -> v
 
-    let unwrap_list = M.List.map ~f:(fun x -> x >>| Core.Fn.id)
+    let make_data l align c name elts =
+      let module Tag = Virtual.Data.Tag in
+      let dict = Dict.empty in
+      let dict = match l with
+        | Some linkage -> Dict.set dict Tag.linkage linkage
+        | None -> dict in
+      let dict = match align with
+        | Some align -> Dict.set dict Tag.align align
+        | None -> dict in
+      let dict = match c with
+        | Some k -> Dict.set dict Tag.const k
+        | None -> dict in
+      match Virtual.Data.create () ~name ~elts ~dict with
+      | Error err -> Context.fail err
+      | Ok d -> !!d
 
     let make_fn slots blks args l name return noreturn =
-      let* slots = unwrap_list slots in
-      let* blks = unwrap_list blks in
+      let* slots = Context.List.all slots in
+      let* blks = Context.List.all blks in
       let* args, variadic = match args with
         | None -> !!([], false)
         | Some a -> a in
@@ -82,7 +97,7 @@
         | None -> dict in
       let dict = Dict.set dict Tag.linkage linkage in
       match Virtual.Func.create () ~name ~blks ~args ~slots ~dict with
-      | Error err -> M.lift @@ Context.fail err
+      | Error err -> Context.fail err
       | Ok fn -> !!fn
  %}
 
@@ -94,6 +109,7 @@
 %token <string> LABEL
 %token COLON
 %token ALIGN
+%token <unit> CONST
 %token TYPE
 %token LBRACE
 %token RBRACE
@@ -105,11 +121,12 @@
 %token EQUALS
 %token ARROW
 %token ELIPSIS
-%token W L B H S D Z
-%token <Type.basic> ADD DIV MUL REM SUB NEG
-%token <Type.imm> MULH UMULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
+%token SB SH SW W L B H S D Z
+%token <Type.basic> ADD DIV MUL SUB NEG
+%token <Type.imm> REM MULH UMULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token SLOT
-%token <Type.basic> LOAD STORE EQ GE GT LE LT NE
+%token <Type.arg> LOAD STORE
+%token <Type.basic> EQ GE GT LE LT NE
 %token <Type.imm> SGE SGT SLE SLT
 %token <Type.fp> O UO
 %token <Type.fp * Type.imm> FTOSI FTOUI
@@ -118,16 +135,15 @@
 %token <Type.imm_base> IFBITS
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL
-%token <Type.arg> ACALL ATCALL
-%token REF UNREF
-%token CALL TCALL
+%token <Type.ret> ACALL
+%token CALL
 %token <Type.arg> VAARG
 %token VASTART
 %token HLT
 %token JMP
 %token BR
 %token RET
-%token <Type.imm> SW
+%token <Type.imm> SWITCH
 %token <string> MODULE
 %token FUNCTION
 %token DATA
@@ -136,7 +152,7 @@
 %token NORETURN
 %token <string> STRING
 %token <Bv.t * Type.imm> INT
-%token <int> NUM
+%token <Bv.t> NUM
 %token <float> DOUBLE
 %token <Float32.t> SINGLE
 %token <bool> BOOL
@@ -148,27 +164,27 @@
 %start module_
 
 %type <Virtual.module_ Context.t> module_
-%type <elt m> module_elt
-%type <Virtual.data m> data
+%type <elt Context.t> module_elt
+%type <Virtual.data Context.t> data
 %type <Virtual.Data.elt> data_elt
 %type <Type.compound> typ
-%type <int> align
 %type <[`opaque of int | `fields of Type.field list]> typ_fields_or_opaque
 %type <Type.field> typ_field
-%type <Virtual.func m> func
-%type <((Var.t * Type.arg) list * bool) m> func_args
+%type <Virtual.func Context.t> func
+%type <((Var.t * Type.arg) list * bool) Context.t> func_args
 %type <Type.basic> type_basic
 %type <Type.arg> type_arg
+%type <Type.ret> type_ret
 %type <Linkage.t> linkage
 %type <string> section
-%type <Virtual.Func.slot m> slot
-%type <Virtual.blk m> blk
-%type <Var.t m> blk_arg
-%type <Virtual.Ctrl.t m> ctrl
-%type <Virtual.Ctrl.swindex m> ctrl_index
-%type <((Bv.t * Type.imm) * Virtual.local) m> ctrl_table_entry
-%type <Virtual.Insn.op m> insn
-%type <call_arg list m> call_args
+%type <Virtual.slot Context.t> slot
+%type <Virtual.blk Context.t> blk
+%type <Var.t Context.t> blk_arg
+%type <Virtual.Ctrl.t Context.t> ctrl
+%type <Virtual.Ctrl.swindex Context.t> ctrl_index
+%type <((Bv.t * Type.imm) * Virtual.local) Context.t> ctrl_table_entry
+%type <Virtual.Insn.op Context.t> insn
+%type <call_arg list Context.t> call_args
 %type <Virtual.Insn.binop> insn_binop
 %type <Virtual.Insn.unop> insn_unop
 %type <Virtual.Insn.arith_binop> insn_arith_binop
@@ -178,81 +194,77 @@
 %type <Virtual.Insn.bitwise_unop> insn_bitwise_unop
 %type <Virtual.Insn.cast> insn_cast
 %type <Virtual.Insn.copy> insn_copy
-%type <Virtual.dst m> dst
-%type <Virtual.local m> local
-%type <Virtual.global m> global
-%type <Virtual.operand m> operand
+%type <Virtual.dst Context.t> dst
+%type <Virtual.local Context.t> local
+%type <Virtual.global Context.t> global
+%type <Virtual.operand Context.t> operand
 %type <Virtual.const> const
-%type <Var.t m> var
+%type <Var.t Context.t> var
 
 %%
 
 module_:
   | name = MODULE elts = list(module_elt) EOF
     {
-      M.run begin
-        let+ funs, typs, data =
-          let init = [], [], [] in
-          M.List.fold_right elts ~init ~f:(fun x (funs, typs, data) ->
-              reset >>= fun () -> x >>| function
-              | `func f -> f :: funs, typs, data
-              | `typ  t -> funs, t :: typs, data
-              | `data d -> funs, typs, d :: data) in
-        Virtual.Module.create ~funs ~typs ~data ~name ()
-      end Env.empty |> Context.map ~f:fst
+      let* funs, typs, data =
+        let init = [], [], [] in
+        Context.List.fold elts ~init ~f:(fun (funs, typs, data) x ->
+            reset >>= fun () -> x >>| function
+            | Func f -> f :: funs, typs, data
+            | Typ  t -> funs, t :: typs, data
+            | Data d -> funs, typs, d :: data) in
+      (* Our state is local to the parser, so we should avoid a
+         potential memory leak. *)
+      let+ () = Context.Local.erase tag in
+      Virtual.Module.create () ~name
+        ~funs:(List.rev funs)
+        ~typs:(List.rev typs)
+        ~data:(List.rev data)
     }
 
 module_elt:
-  | f = func { let+ f = f in `func f }
-  | t = typ { !!(`typ t) }
-  | d = data { let+ d = d in `data d }
+  | f = func { let+ f = f in Func f }
+  | t = typ { !!(Typ t) }
+  | d = data { let+ d = d in Data d }
 
 data:
-  | l = option(linkage) DATA name = SYM EQUALS align = option(align) LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
+  | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS ALIGN align = NUM LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
     {
-      let module Tag = Virtual.Data.Tag in
-      let dict = Dict.empty in
-      let dict = match l with
-        | Some linkage -> Dict.(set empty Tag.linkage linkage)
-        | None -> dict in
-      let dict = match align with
-        | Some align -> Dict.set dict Tag.align align
-        | None -> dict in
-      match Virtual.Data.create () ~name ~elts ~dict with
-      | Error err -> M.lift @@ Context.fail err
-      | Ok d -> !!d
+      make_data l (Some (Bv.to_int align)) c name elts
+    }
+  | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
+    {
+      make_data l None c name elts
     }
 
 data_elt:
   | c = const { (c :> Virtual.Data.elt) }
-  | B s = STRING { `string s }
-  | Z n = NUM { `zero n }
+  | s = STRING { `string s }
+  | Z n = NUM { `zero (Bv.to_int n) }
 
 typ:
-  | TYPE name = TYPENAME EQUALS LBRACE fields = separated_nonempty_list(COMMA, typ_field) RBRACE
+  | TYPE name = TYPENAME EQUALS LBRACE fields = separated_list(COMMA, typ_field) RBRACE
     { `compound (name, None, fields) }
-  | TYPE name = TYPENAME EQUALS align = align LBRACE t = typ_fields_or_opaque RBRACE
+  | TYPE name = TYPENAME EQUALS ALIGN align = NUM LBRACE t = typ_fields_or_opaque RBRACE
     {
+      let align = Bv.to_int align in
       match t with
       | `opaque n -> `opaque (name, align, n)
       | `fields f -> `compound (name, Some align, f)
     }
 
-align:
-  | ALIGN n = NUM { n }
-
 typ_fields_or_opaque:
-  | n = NUM { `opaque n }
-  | fs = separated_nonempty_list(COMMA, typ_field) { `fields fs }
+  | n = NUM { `opaque (Bv.to_int n) }
+  | fs = separated_list(COMMA, typ_field) { `fields fs }
 
 typ_field:
-  | b = type_basic n = option(NUM) { `elt (b, Core.Option.value n ~default:1) }
-  | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value n ~default:1) }
+  | b = type_basic n = option(NUM) { `elt (b, Core.Option.value_map n ~default:1 ~f:Bv.to_int) }
+  | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value_map n ~default:1 ~f:Bv.to_int) }
 
 func:
-  | l = option(linkage) FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
+  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
     { make_fn slots blks args l name return false }
-  | l = option(linkage) NORETURN FUNCTION return = option(type_arg) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
+  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
     { make_fn slots blks args l name return true }
 
 func_args:
@@ -276,6 +288,12 @@ type_arg:
   | b = type_basic { (b :> Type.arg) }
   | n = TYPENAME { `name n }
 
+type_ret:
+  | a = type_arg { (a :> Type.ret) }
+  | SB { `si8 }
+  | SH { `si16 }
+  | SW { `si32 }
+
 linkage:
   | section = option(section) EXPORT { Linkage.create () ~section ~export:true }
   | s = section { Linkage.create () ~section:(Some s) ~export:false }
@@ -287,8 +305,10 @@ slot:
   | x = var EQUALS SLOT size = NUM COMMA ALIGN align = NUM
     {
       let* x = x in
-      match Virtual.Func.Slot.create x ~size ~align with
-      | Error e -> M.lift @@ Context.fail e
+      let size = Bv.to_int size in
+      let align = Bv.to_int align in
+      match Virtual.Slot.create x ~size ~align with
+      | Error e -> Context.fail e
       | Ok s -> !!s
     }
 
@@ -296,17 +316,17 @@ blk:
   | ln = LABEL COLON insns = list(insn) ctrl = ctrl
     {
       let* l = label_of_name ln
-      and* insns = unwrap_list insns
+      and* insns = Context.List.all insns
       and* ctrl = ctrl in
-      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~insns ~ctrl
+      Context.Virtual.blk' () ~label:(Some l) ~insns ~ctrl
     }
   | ln = LABEL LPAREN args = separated_nonempty_list(COMMA, blk_arg) RPAREN COLON insns = list(insn) ctrl = ctrl
     {
       let* l = label_of_name ln
-      and* args = unwrap_list args
-      and* insns = unwrap_list insns
+      and* args = Context.List.all args
+      and* insns = Context.List.all insns
       and* ctrl = ctrl in
-      M.lift @@ Context.Virtual.blk' () ~label:(Some l) ~args ~insns ~ctrl
+      Context.Virtual.blk' () ~label:(Some l) ~args ~insns ~ctrl
     }
 
 blk_arg:
@@ -326,39 +346,25 @@ ctrl:
       | None -> !!(`ret None)
       | Some a -> let+ a = a in `ret (Some a)
     }
-  | t = SW i = ctrl_index COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
+  | t = SWITCH i = ctrl_index COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
     {
-      let* i = i and* d = def and* tbl = unwrap_list tbl in
-      let* tbl = M.List.map tbl ~f:(fun ((i, t'), l) ->
+      let* i = i and* d = def and* tbl = Context.List.all tbl in
+      let* tbl = Context.List.map tbl ~f:(fun ((i, t'), l) ->
           if not @@ Type.equal_imm t t' then
-            M.lift @@ Context.failf
+            Context.failf
               "Invalid switch value %a_%a, expected size %a"
               Bv.pp i Type.pp_imm t' Type.pp_imm t ()
           else !!(i, l)) in
       match Virtual.Ctrl.Table.create tbl t with
-      | Error err -> M.lift @@ Context.fail err
+      | Error err -> Context.fail err
       | Ok tbl -> !!(`sw (t, i, d, tbl))
-    }
-  | t = ATCALL f = global LPAREN args = call_args RPAREN
-    {
-      let+ f = f and+ args = args in
-      let args, vargs = Core.List.partition_map args ~f:(function
-        | `arg a -> First a | `varg a -> Second a) in
-      `tcall (Some t, f, args, vargs)
-    }
-  | TCALL f = global LPAREN args = call_args RPAREN
-    {
-      let+ f = f and+ args = args in
-      let args, vargs = Core.List.partition_map args ~f:(function
-        | `arg a -> First a | `varg a -> Second a) in
-      `tcall (None, f, args, vargs)
     }
 
 ctrl_index:
   | x = var { let+ x = x in `var x }
   | s = SYM { !!(`sym (s, 0)) }
-  | s = SYM PLUS i = NUM { !!(`sym (s, i)) }
-  | s = SYM MINUS i = NUM { !!(`sym (s, -i)) }
+  | s = SYM PLUS i = NUM { !!(`sym (s, Bv.to_int i)) }
+  | s = SYM MINUS i = NUM { !!(`sym (s, -(Bv.to_int i))) }
 
 ctrl_table_entry:
   | i = INT ARROW l = local { let+ l = l in i, l }
@@ -382,15 +388,19 @@ insn:
   | x = var EQUALS t = ACALL f = global LPAREN args = call_args RPAREN
     {
       let+ x = x and+ f = f and+ args = args in
-      let args, vargs = Core.List.partition_map args ~f:(function
-        | `arg a -> First a | `varg a -> Second a) in
+      let args, vargs =
+        Core.List.partition_map args ~f:(function
+            | Arg a -> First a
+            | Varg a -> Second a) in
       `call (Some (x, t), f, args, vargs)
     }
   | CALL f = global LPAREN args = call_args RPAREN
     {
       let+ f = f and+ args = args in
-      let args, vargs = Core.List.partition_map args ~f:(function
-        | `arg a -> First a | `varg a -> Second a) in
+      let args, vargs =
+        Core.List.partition_map args ~f:(function
+            | Arg a -> First a
+            | Varg a -> Second a) in
       `call (None, f, args, vargs)
     }
   | x = var EQUALS t = VAARG y = var
@@ -398,10 +408,10 @@ insn:
       let+ x = x and+ y = y in
       `vaarg (x, t, `var y)
     }
-  | x = var EQUALS t = VAARG y = INT
+  | x = var EQUALS t = VAARG y = NUM
     {
       let+ x = x in
-      `vaarg (x, t, `addr (fst y))
+      `vaarg (x, t, `addr y)
     }
   | x = var EQUALS t = VAARG y = SYM
     {
@@ -411,18 +421,18 @@ insn:
   | x = var EQUALS t = VAARG y = SYM PLUS i = NUM
     {
       let+ x = x in
-      `vaarg (x, t, `sym (y, i))
+      `vaarg (x, t, `sym (y, Bv.to_int i))
     }
   | x = var EQUALS t = VAARG y = SYM MINUS i = NUM
     {
       let+ x = x in
-      `vaarg (x, t, `sym (y, -i))
+      `vaarg (x, t, `sym (y, -(Bv.to_int i)))
     }
   | VASTART x = var { let+ x = x in `vastart (`var x) }
-  | VASTART x = INT { !!(`vastart (`addr (fst x))) }
+  | VASTART x = NUM { !!(`vastart (`addr x)) }
   | VASTART x = SYM { !!(`vastart (`sym (x, 0))) }
-  | VASTART x = SYM PLUS i = NUM { !!(`vastart (`sym (x, i))) }
-  | VASTART x = SYM MINUS i = NUM { !!(`vastart (`sym (x, -i))) }
+  | VASTART x = SYM PLUS i = NUM { !!(`vastart (`sym (x, Bv.to_int i))) }
+  | VASTART x = SYM MINUS i = NUM { !!(`vastart (`sym (x, -(Bv.to_int i)))) }
   | x = var EQUALS t = LOAD a = operand
     {
       let+ x = x and+ a = a in
@@ -439,17 +449,17 @@ call_args:
     {
       match a with
       | None -> !![]
-      | Some a -> let+ a = a in [`arg a]
+      | Some a -> let+ a = a in [Arg a]
     }
   | a = operand COMMA rest = call_args
     {
       let+ a = a and+ rest = rest in
-      `arg a :: rest
+      Arg a :: rest
     }
   | a = operand COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, operand)
     {
-      let+ a = a and+ vargs = unwrap_list vargs in
-      `arg a :: Core.List.map vargs ~f:(fun a -> `varg a)
+      let+ a = a and+ vargs = Context.List.all vargs in
+      Arg a :: Core.List.map vargs ~f:(fun a -> Varg a)
     }
 
 insn_binop:
@@ -523,8 +533,6 @@ insn_cast:
 
 insn_copy:
   | t = COPY { `copy t }
-  | REF { `ref }
-  | UNREF s = TYPENAME { `unref s }
 
 dst:
   | g = global { let+ g = g in (g :> Virtual.dst) }
@@ -538,15 +546,15 @@ local:
     }
   | l = LABEL LPAREN args = separated_nonempty_list(COMMA, operand) RPAREN
     {
-      let+ args = unwrap_list args and+ l = label_of_name l in
+      let+ args = Context.List.all args and+ l = label_of_name l in
       `label (l, args)
     }
 
 global:
-  | i = INT { !!(`addr (fst i)) }
+  | i = NUM { !!(`addr i) }
   | s = SYM { !!(`sym (s, 0)) }
-  | s = SYM PLUS i = NUM { !!(`sym (s, i)) }
-  | s = SYM MINUS i = NUM { !!(`sym (s, -i)) }
+  | s = SYM PLUS i = NUM { !!(`sym (s, Bv.to_int i)) }
+  | s = SYM MINUS i = NUM { !!(`sym (s, -(Bv.to_int i))) }
   | x = var { let+ x = x in `var x }
 
 operand:
@@ -559,8 +567,8 @@ const:
   | s = SINGLE { `float s }
   | d = DOUBLE { `double d }
   | s = SYM { `sym (s, 0) }
-  | s = SYM PLUS i = NUM { `sym (s, i) }
-  | s = SYM MINUS i = NUM { `sym (s, -i) }
+  | s = SYM PLUS i = NUM { `sym (s, Bv.to_int i) }
+  | s = SYM MINUS i = NUM { `sym (s, -(Bv.to_int i)) }
 
 var:
   | x = VAR { !!Var.(with_index (create (fst x)) (snd x)) }

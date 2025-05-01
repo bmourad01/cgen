@@ -1,0 +1,42 @@
+module gcdext
+
+type :t = {
+  w, ; gcd
+  w, ; x coefficient
+  w  ; y coefficient
+}
+
+export function :t $gcd(w %a, w %b) {
+  %res = slot 12, align 4
+  %r = slot 12, align 4
+@start:
+  %c = eq.w %a, 0_w
+  br %c, @base, @rec
+@base:
+  st.w %b, %res
+  %o = add.l %res, 4_l
+  st.w 0_w, %o
+  %o = add.l %res, 8_l
+  st.w 1_w, %o
+  %gcd = ld:t %res
+  ret %gcd
+@rec:
+  %m = rem.w %b, %a
+  %gcd = call:t $gcd(%m, %a)
+  st:t %gcd, %r
+  %rg = ld.w %r
+  %o = add.l %r, 4_l
+  %rx = ld.w %o
+  %o = add.l %r, 8_l
+  %ry = ld.w %o
+  st.w %rg, %res
+  %nx = div.w %b, %a
+  %nx = mul.w %nx, %rx
+  %nx = sub.w %ry, %nx
+  %o = add.l %res, 4_l
+  st.w %nx, %o
+  %o = add.l %res, 8_l
+  st.w %rx, %o
+  %gcd = ld:t %res
+  ret %gcd
+}

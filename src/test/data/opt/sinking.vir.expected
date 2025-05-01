@@ -1,0 +1,14 @@
+module foo
+
+export function w $foo(w %x, w %y) {
+@2:
+  %0 = slt.w %x, 0x0_w ; @11
+  br %0, @3, @8(%y)
+@3:
+  %1 = add.w %x, 0x1_w ; @12
+  %2 = lsl.w %1, 0x1_w ; @13
+  %3 = add.w %2, %y ; @14
+  jmp @8(%3)
+@8(%b.1):
+  ret %b.1
+}

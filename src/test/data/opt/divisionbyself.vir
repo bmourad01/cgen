@@ -1,0 +1,12 @@
+module foo
+
+export function w $foo(w %x) {
+@start:
+  %c = eq.w %x, 0_w
+  br %c, @zero, @notzero
+@zero:
+  ret %x
+@notzero:
+  %y = div.w %x, %x
+  ret %y
+}
