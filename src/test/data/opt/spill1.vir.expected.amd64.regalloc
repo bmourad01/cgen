@@ -28,7 +28,7 @@ export function $foo { ; returns: rax
   jmp @3 ; @179
 @3:
   mov eax, dword ptr [rsp + 0x3c] ; @236
-  add eax, 0x1_w ; @160
+  inc eax ; @160
   mov dword ptr [rsp + 0x44], eax ; @235
   mov eax, dword ptr [rsp + 0x38] ; @234
   add eax, 0x2_w ; @159
@@ -63,7 +63,7 @@ export function $foo { ; returns: rax
   mov r13d, dword ptr [rsp] ; @219
   add r13d, 0x10_w ; @145
   mov r14d, dword ptr [rsp + 0x40] ; @218
-  sub r14d, 0x1_w ; @144
+  dec r14d ; @144
   mov dword ptr [rsp + 0x4c], r14d ; @217
   mov r14d, dword ptr [rsp + 0x4c] ; @216
   test r14d, r14d ; @138

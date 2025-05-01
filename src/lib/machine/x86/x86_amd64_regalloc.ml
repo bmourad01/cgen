@@ -135,10 +135,16 @@ let substitute' i op = match i with
         if Int32.(d < 0l) then
           let d = Int32.neg d in
           let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
-          Two (SUB, Oreg (x, ty), Oimm (d', immty ty))
+          if Int64.(d' = 1L) then
+            One (DEC, Oreg (x, ty))
+          else
+            Two (SUB, Oreg (x, ty), Oimm (d', immty ty))
         else
           let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
-          Two (ADD, Oreg (x, ty), Oimm (d', immty ty))
+          if Int64.(d' = 1L) then
+            One (INC, Oreg (x, ty))
+          else
+            Two (ADD, Oreg (x, ty), Oimm (d', immty ty))
       | LEA, Oreg (x, ty), Omem (Abis (y, z, S1), _) when Regvar.(x = y) ->
         (* lea x, [x+y*1] => add x, y *)
         Two (ADD, Oreg (x, ty), Oreg (z, ty))
