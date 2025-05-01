@@ -63,6 +63,14 @@ let isel m ~f =
     ~data:(Virtual.Abi.Module.data m |> Seq.to_list)
     ~name:(Virtual.Abi.Module.name m) ~funs
 
+let pseudo_map_funs m ~f =
+  let open Context.Syntax in
+  let+ funs =
+    Pseudo.Module.funs m |>
+    Context.Seq.map ~f >>|
+    Seq.to_list in
+  Pseudo.Module.with_funs m funs
+
 let test_isel target ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = Format.sprintf "%s.expected.%s" filename ext in
@@ -81,11 +89,34 @@ let test_isel target ext name _ =
   | Ok p' -> compare_outputs expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
+let test_regalloc target ext name _ =
+  let filename = Format.sprintf "data/opt/%s.vir" name in
+  let filename' = Format.sprintf "%s.expected.%s.regalloc" filename ext in
+  let expected = In_channel.read_all filename' in
+  Context.init target |>
+  Context.eval begin
+    let open Context.Syntax in
+    let* m = from_file_abi filename in
+    let* (module Machine) = Context.machine in
+    let module Isel = Isel.Make(Machine)(Context) in
+    let* m = isel m ~f:Isel.run in
+    let module Remove_deads = Pseudo.Remove_dead_insns(Machine) in
+    let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
+    let module RA = Regalloc.IRC(Machine)(Context) in
+    let* m = pseudo_map_funs m ~f:RA.run in
+    !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
+  end |> function
+  | Ok p' -> compare_outputs expected p'
+  | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
+
 (* Specific ABI lowering tests. *)
 let test_sysv = test_abi Machine.X86.Amd64_sysv.target "sysv"
 
 (* Specific instruction selection tests. *)
 let test_amd64 = test_isel Machine.X86.Amd64_sysv.target "amd64"
+
+(* Specific register allocation tests. *)
+let test_amd64_regalloc = test_regalloc Machine.X86.Amd64_sysv.target "amd64"
 
 (*  General optimization tests *)
 let opt_suite = "Test optimizations" >::: [
@@ -180,8 +211,8 @@ let opt_suite = "Test optimizations" >::: [
     "Edge contraction and select" >:: test "contractsel";
   ]
 
-(* SysV ABI lowering tests *)
 let abi_suite = "Test ABI lowering" >::: [
+    (* SysV ABI lowering tests *)
     "Simple calls (SysV)" >:: test_sysv "addcalls";
     "Empty struct (SysV)" >:: test_sysv "emptystruct";
     "Extended GCD returning a struct (SysV)" >:: test_sysv "gcdext";
@@ -196,8 +227,8 @@ let abi_suite = "Test ABI lowering" >::: [
     "Unsigned integer to float (SysV)" >:: test_sysv "uitof";
   ]
 
-(* AMD64 instruction selection tests *)
 let isel_suite = "Test instruction selection" >::: [
+    (* AMD64 instruction selection tests *)
     "LEA arithmetic with negative disp (AMD64)" >:: test_amd64 "lea1";
     "Test prime numbers (AMD64)" >:: test_amd64 "prime";
     "Switch case propagation (AMD64)" >:: test_amd64 "switchcaseprop";
@@ -211,8 +242,16 @@ let isel_suite = "Test instruction selection" >::: [
     "Edge contraction and select" >:: test_amd64 "contractsel";
   ]
 
+let regalloc_suite = "Test register allocation" >::: [
+    (* AMD64 register allocation tests *)
+    "LEA arithmetic with negative disp (AMD64)" >:: test_amd64_regalloc "lea1";
+    "Test prime numbers (AMD64)" >:: test_amd64_regalloc "prime";
+    "Spill test 1 (AMD64)" >:: test_amd64_regalloc "spill1";
+  ]
+
 let () = run_test_tt_main @@ test_list [
     opt_suite;
     abi_suite;
     isel_suite;
+    regalloc_suite;
   ]

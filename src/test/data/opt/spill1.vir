@@ -1,0 +1,62 @@
+module spill1
+
+export function w $foo(w %n0) {
+@start:
+  %n1 = copy.w %n0
+  %p0 = copy.w 0_w
+  %p1 = copy.w 0_w
+  %p2 = copy.w 0_w
+  %p3 = copy.w 0_w
+  %p4 = copy.w 0_w
+  %p5 = copy.w 0_w
+  %p6 = copy.w 0_w
+  %p7 = copy.w 0_w
+  %p8 = copy.w 0_w
+  %p9 = copy.w 0_w
+  %pa = copy.w 0_w
+  %pb = copy.w 0_w
+  %pc = copy.w 0_w
+  %pd = copy.w 0_w
+  %pe = copy.w 0_w
+  %pf = copy.w 0_w
+  jmp @loop
+@loop:
+  %p0 = add.w %p0, 1_w
+  %p1 = add.w %p1, 2_w
+  %p2 = add.w %p2, 3_w
+  %p3 = add.w %p3, 4_w
+  %p4 = add.w %p4, 5_w
+  %p5 = add.w %p5, 6_w
+  %p6 = add.w %p6, 7_w
+  %p7 = add.w %p7, 8_w
+  %p8 = add.w %p8, 9_w
+  %p9 = add.w %p9, 10_w
+  %pa = add.w %pa, 11_w
+  %pb = add.w %pb, 12_w
+  %pc = add.w %pc, 13_w
+  %pd = add.w %pd, 14_w
+  %pe = add.w %pe, 15_w
+  %pf = add.w %pf, 16_w
+  %n1 = sub.w %n1, 1_w
+  %c = ne.w %n1, 0_w
+  br %c, @loop, @end
+@end:
+  %a = copy.w 0_w
+  %a = add.w %p0, %a  
+  %a = add.w %p1, %a  
+  %a = add.w %p2, %a  
+  %a = add.w %p3, %a  
+  %a = add.w %p4, %a  
+  %a = add.w %p5, %a  
+  %a = add.w %p6, %a  
+  %a = add.w %p7, %a  
+  %a = add.w %p8, %a  
+  %a = add.w %p9, %a  
+  %a = add.w %pa, %a  
+  %a = add.w %pb, %a  
+  %a = add.w %pc, %a  
+  %a = add.w %pd, %a  
+  %a = add.w %pe, %a  
+  %a = add.w %pf, %a  
+  ret %a
+}

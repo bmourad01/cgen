@@ -1,0 +1,78 @@
+module foo
+
+export function $foo { ; returns: rax
+@2:
+  sub rsp, 0x8_l ; @137
+  mov esi, edi ; @133
+  cmp esi, 0x1_w ; @130
+  jbe @44 ; @131
+  jmp @4 ; @132
+@44:
+  xor eax, eax ; @128
+  jmp @28 ; @129
+@4:
+  cmp esi, 0x3_w ; @122
+  jbe @45 ; @123
+  jmp @7 ; @124
+@45:
+  mov eax, 0x1_w ; @120
+  jmp @28 ; @121
+@7:
+  test esi, 0x1_w ; @112
+  je @46 ; @113
+  jmp @9 ; @114
+@46:
+  mov eax, 0x1_w ; @110
+  jmp @28 ; @111
+@9:
+  mov eax, 0x55555556_w ; @107
+  mul esi ; @108
+  lea ecx, qword ptr [rdx + rdx*2] ; @104
+  mov eax, esi ; @102
+  sub eax, ecx ; @103
+  test eax, eax ; @96
+  je @47 ; @97
+  jmp @48 ; @98
+@47:
+  mov eax, 0x1_w ; @94
+  jmp @28 ; @95
+@48:
+  mov ecx, 0x5_w ; @92
+  jmp @15 ; @93
+@15:
+  mov eax, ecx ; @90
+  imul eax, ecx ; @91
+  cmp eax, esi ; @84
+  jbe @17 ; @85
+  jmp @49 ; @86
+@49:
+  mov eax, 0x1_w ; @82
+  jmp @28 ; @83
+@17:
+  mov eax, esi ; @78
+  xor edx, edx ; @79
+  div ecx ; @80
+  test edx, edx ; @72
+  je @50 ; @73
+  jmp @20 ; @74
+@50:
+  xor eax, eax ; @70
+  jmp @28 ; @71
+@20:
+  lea edi, qword ptr [rcx + 0x2] ; @69
+  mov eax, esi ; @65
+  xor edx, edx ; @66
+  div edi ; @67
+  test edx, edx ; @59
+  je @51 ; @60
+  jmp @23 ; @61
+@51:
+  xor eax, eax ; @57
+  jmp @28 ; @58
+@28:
+  add rsp, 0x8_l ; @138
+  ret ; @56
+@23:
+  add ecx, 0x6_w ; @54
+  jmp @15 ; @53
+}
