@@ -16,4 +16,28 @@ The generated documentation (in HTML format) should be located in `./src/_build/
 
 # Usage
 
-TODO
+The basic usage is `cgen file.vir`, where `file.vir` is a file containing the syntax for cgen's user-facing intermediate language: "Virtual".
+cgen will then transform the contents of this file, and the final output (via stdout) is an assembly program, which is intended to be fed into a common system assembler (such as GNU `as`).
+
+See `cgen --help` for more information.
+
+## Library
+
+cgen is also intended to be used directly as a library for language front-ends.
+The library API that is provided can be seen in the generated documentation.
+
+# Pipeline
+
+The compilation pipeline roughly follows this plan:
+
+```
+Virtual IR (input) ->
+Virtual IR (parse, SSA transformation, typecheck) ->
+Virtual IR (middle-end optimizations) ->
+Virtual ABI IR (lowering for ABI-specific rules) ->
+Virtual ABI IR (more optimizations) ->
+Pseudo IR (instruction selection) ->
+Pseudo IR (dead code elimination) ->
+Pseudo IR (register allocation, stack layout) ->
+Assembly (concrete assembly syntax)
+```
