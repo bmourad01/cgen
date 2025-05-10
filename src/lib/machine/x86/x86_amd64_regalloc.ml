@@ -34,43 +34,6 @@ let immty = function
   | #Type.imm as ty -> ty
   | _ -> assert false
 
-let fold_op i ~dst = match i with
-  | One (op, Oreg (x, _)) when Regvar.(x = dst) ->
-    begin match op with
-      | DEC -> Some I.dec
-      | INC -> Some I.inc
-      | NEG -> Some I.neg
-      | NOT -> Some I.not_
-      | _ -> None
-    end
-  | Two (op, Oreg (x, _), y) when Regvar.(x = dst) ->
-    begin match y with
-      | Omem _ -> None (* forbid mem-to-mem ops *)
-      | _ ->
-        let go f = Fn.flip f y in
-        match op with
-        | ADD -> Some (go I.add)
-        | SUB -> Some (go I.sub)
-        | AND -> Some (go I.and_)
-        | OR  -> Some (go I.or_)
-        | XOR -> Some (go I.xor)
-        | SHL -> Some (go I.shl)
-        | SHR -> Some (go I.shr)
-        | SAR -> Some (go I.sar)
-        | ROL -> Some (go I.rol)
-        | ROR -> Some (go I.ror)
-        | _ ->
-          (* We're not handling the `MOV` case here,
-             since the register allocation algorithm
-             will be trying to coalesce moves, and
-             introducing more of them can lead to
-             more spilling (and an assertion violation
-             in [Post_assign_slots]). Not sure if this
-             indicates a bug or not, though. *)
-          None
-    end
-  | _ -> None
-
 let store_to_slot ty i ~src ~dst = match classof src with
   | GPR ->
     begin match ty with
@@ -90,14 +53,9 @@ let store_to_slot ty i ~src ~dst = match classof src with
             when Regvar.(x = dst) ->
             I.inc (Omem (Ab dst, b))
           | _ ->
-            (* OP to self -> use OP with addressing mode *)
-            begin match fold_op i ~dst with
-              | Some f -> f (Omem (Ab dst, b))
-              | None ->
-                (* Default case: just do a regular store
-                   to the slot. *)
-                I.mov (Omem (Ab dst, b)) (Oreg (src, b))
-            end
+            (* Default case: just do a regular store
+               to the slot. *)
+            I.mov (Omem (Ab dst, b)) (Oreg (src, b))
         end
     end
   | FP ->
