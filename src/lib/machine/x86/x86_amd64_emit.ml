@@ -191,6 +191,8 @@ let emit_insn ppf (_l, i, s) =
     Format.fprintf ppf "  ret\n"
   | UD2 ->
     Format.fprintf ppf "  ud2\n"
+  | LEAVE ->
+    Format.fprintf ppf "  leave\n"
   | JMPtbl (l, ls) ->
     Format.fprintf ppf ".section .rodata\n.p2align 2\n%a:\n" label l;
     List.iter ls ~f:(emit_tblentry l ppf);

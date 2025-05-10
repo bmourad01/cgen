@@ -489,6 +489,7 @@ module Insn = struct
     | JMP of jmp
     | RET
     | UD2
+    | LEAVE
     (* Pseudo-instruction we will use to represent a jump table. *)
     | JMPtbl of Label.t * Label.t list
     (* Pseudo instructions for floating-point constants. *)
@@ -533,6 +534,8 @@ module Insn = struct
       Format.fprintf ppf "ret"
     | UD2 ->
       Format.fprintf ppf "ud2"
+    | LEAVE ->
+      Format.fprintf ppf "leave"
     | JMPtbl (l, ls) ->
       let pp_sep ppf () = Format.fprintf ppf ", " in
       Format.fprintf ppf ".tbl %a [@[%a@]]"
@@ -696,6 +699,8 @@ module Insn = struct
       -> Regvar.Set.empty
     | RET
       -> rset' [`rsp]
+    | LEAVE
+      -> rset' [`rbp]
     | UD2
     | JMPtbl _
     | FP32 _
@@ -786,6 +791,8 @@ module Insn = struct
       -> Set.union (rset' [`rflags]) (rset_reg [a])
     | RET
       -> rset' [`rsp]
+    | LEAVE
+      -> rset' [`rsp; `rbp]
     | Jcc _
     | JMP _
     | UD2
@@ -891,6 +898,8 @@ module Insn = struct
     | FP64 _ (* fake *)
     | IMUL3 _
       -> false
+    | LEAVE
+      -> true
 
   let always_live = function
     | Jcc _
@@ -977,6 +986,7 @@ module Insn = struct
     let jmp a = JMP a
     let ret = RET
     let ud2 = UD2
+    let leave = LEAVE
     let jmptbl l ls = JMPtbl (l, ls)
     let fp32 l f = FP32 (l, f)
     let fp64 l f = FP64 (l, f)

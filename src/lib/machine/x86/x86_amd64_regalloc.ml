@@ -122,6 +122,7 @@ let substitute' i op = match i with
   | JMP (Jlbl _)
   | RET
   | UD2
+  | LEAVE
   | JMPtbl _
   | FP32 _
   | FP64 _ -> i
@@ -273,6 +274,8 @@ module Typed_writes = struct
       -> rmap' [`rdx, `i64]
     | CWD
       -> rmap' [`rdx, `i16]
+    | LEAVE
+      -> rmap' [`rsp, `i64; `rbp, `i64]
 end
 
 let writes_with_types = Typed_writes.writes
@@ -392,6 +395,7 @@ module Pre_assign_slots(C : Context_intf.S) = struct
     | JMP (Jlbl _)
     | RET
     | UD2
+    | LEAVE
     | JMPtbl _
     | FP32 _
     | FP64 _ -> !![i]
@@ -518,17 +522,11 @@ let frame_prologue regs size =
         I.push (Oreg (Regvar.reg r, `i64)));
   ]
 
-let frame_epilogue regs size =
-  let size = Int64.of_int @@ adjust_fp_size regs @@ align8 size in
-  let rsp = Oreg (Regvar.reg `rsp, `i64) in
-  let rbp = Oreg (Regvar.reg `rbp, `i64) in
+let frame_epilogue regs _size =
   List.concat [
     (* Pop the callee-save registers in reverse order. *)
     List.rev regs |> List.map ~f:(fun r ->
         I.pop (Oreg (Regvar.reg r, `i64)));
-    (* Deallocate space. *)
-    (if Int64.(size = 0L) then []
-     else [I.add rsp (Oimm (size, `i64))]);
-    (* Pop the frame pointer. *)
-    [I.pop rbp];
+    (* Deallocate the space and pop the frame pointer. *)
+    [I.leave];
   ]
