@@ -103,16 +103,20 @@ let target =
        opt string "amd64-sysv"
          (info ["t"; "target"] ~docv:"TARGET" ~doc))
 
+type input =
+  | Ifile of string
+  | Istdin
+
 type t = {
-  file   : [`stdin | `file of string];
+  file   : input;
   dump   : dump;
   target : Cgen.Target.t;
 }
 
 let go f file dump target =
   let file = match file with
-    | "" -> `stdin
-    | _ -> `file file in
+    | "" -> Istdin
+    | _ -> Ifile file in
   let dump = match dump_of_string_opt dump with
     | None -> fatal "invalid dump option: %s\n%!" dump ()
     | Some d -> d in

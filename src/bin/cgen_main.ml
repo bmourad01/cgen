@@ -24,8 +24,8 @@ let pseudo_map_funs m ~f =
 let comp (opts : Cli.t) =
   let open Context.Syntax in
   let* m = match opts.file with
-    | `file file -> Parse.Virtual.from_file file
-    | `stdin -> Parse.Virtual.from_stdin () in
+    | Ifile file -> Parse.Virtual.from_file file
+    | Istdin -> Parse.Virtual.from_stdin () in
   if Cli.equal_dump opts.dump Dparse then begin
     Format.printf ";; After parsing:@;@.%a\n%!"
       Virtual.Module.pp m;
