@@ -7,13 +7,13 @@ open Virtual
 module O = Monad.Option
 
 type env = {
-  blks        : blk Label.Table.t;
-  typs        : Type.t Var.Table.t;
-  flag        : Var.t Var.Table.t;
-  start       : Label.t;
-  mutable cfg : Cfg.t;
-  mutable dom : Label.t tree;
-  mutable ret : Label.t option;
+  blks          : blk Label.Table.t;
+  typs          : Type.t Var.Table.t;
+  flag          : Var.t Var.Table.t;
+  mutable start : Label.t;
+  mutable cfg   : Cfg.t;
+  mutable dom   : Label.t tree;
+  mutable ret   : Label.t option;
 }
 
 let collect_flag fn =

@@ -74,4 +74,5 @@ let go env fn =
       List.fold args ~init:e ~f:Blk.prepend_arg :: rest in
   let* h = new_entry fn e in
   let*? fn = Func.with_blks fn (h :: blks) in
+  env.start <- Blk.label h;
   !!fn
