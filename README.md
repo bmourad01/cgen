@@ -31,13 +31,54 @@ The library API that is provided can be seen in the generated documentation.
 The compilation pipeline roughly follows this plan:
 
 ```
-Virtual IR (input) ->
-Virtual IR (parse, SSA transformation, typecheck) ->
-Virtual IR (middle-end optimizations) ->
-Virtual ABI IR (lowering for ABI-specific rules) ->
-Virtual ABI IR (more optimizations) ->
-Pseudo IR (instruction selection) ->
-Pseudo IR (dead code elimination) ->
-Pseudo IR (register allocation, stack layout) ->
-Assembly (concrete assembly syntax)
++---------------------------+
+|    Virtual IR (input)     |
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Virtual IR (SSA, parse,   |
+| typecheck)                |
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Virtual IR (mid-end       |
+| optimizations)            |
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Virtual ABI IR (ABI       |
+| lowering)                 |
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Virtual ABI IR (more      |
+| optimizations)            |
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Pseudo IR (instr.         |
+| selection)                |
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Pseudo IR (dead code      |
+| elimination)              |
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Pseudo IR (register       |
+| allocation, stack layout) |
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Assembly (final output)   |
++---------------------------+
 ```
