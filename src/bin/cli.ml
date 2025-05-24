@@ -67,11 +67,11 @@ let dump_of_string_opt = function
   | "asm" -> Some Dasm
   | _ -> None
 
-let man_dump () =
+let man_dump =
   `S "DUMP" ::
   `Pre "Options for dumping stages of the compiler" :: begin
     Core.List.map ~f:(fun (d, desc) ->
-        `I (string_of_dump d, desc)) [
+        `I (string_of_dump d ^ ":", desc)) [
       Dparse, "dump the IR after parsing";
       Dssa, "dump the IR after SSA transformation";
       Dmiddle, "dump the IR after middle-end optimizations";
@@ -89,7 +89,7 @@ let dump =
        opt string (string_of_dump Dasm)
          (info ["d"; "dump"] ~docv:"DUMP" ~doc))
 
-let man_targets () =
+let man_targets =
   `S "TARGET" ::
   `Pre "Supported target platforms" :: begin
     Core.Map.data targets |>
@@ -127,9 +127,13 @@ let go f file dump target =
 
 let t f = Term.(const (go f) $ file $ dump $ target)
 
+let man = List.concat [
+    man_dump;
+    man_targets;
+  ]
+
 let info =
   let doc = "The cgen compiler backend" in
-  Cmd.info "cgen" ~doc ~version:"0.1" ~exits:Cmd.Exit.defaults
-    ~man:(man_dump () @ man_targets ())
+  Cmd.info "cgen" ~doc ~man ~version:"0.1" ~exits:Cmd.Exit.defaults
 
 let run f = exit @@ Cmd.eval @@ Cmd.v info (t f)
