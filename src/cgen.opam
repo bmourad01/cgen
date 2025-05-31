@@ -20,6 +20,7 @@ depends: [
   "graphlib"
   "menhir"
   "monads"
+  "ounit2"
   "ppx_bin_prot"
   "ppx_compare"
   "ppx_fields_conv"
