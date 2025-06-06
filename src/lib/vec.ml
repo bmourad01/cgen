@@ -113,24 +113,24 @@ let fold_until =
       | Continue y -> loop t (i + 1) y ~f ~finish
       | Stop x -> x
     else finish acc in
-  fun t ~init ~f ~finish -> (loop[@specialised]) t 0 init ~f ~finish
+  fun t ~init ~f ~finish -> loop t 0 init ~f ~finish
 
 let foldi =
   let rec loop t i acc ~f =
     if i >= t.length then acc
     else loop t (i + 1) (f i acc @@ unsafe_get t i) ~f in
-  fun t ~init ~f -> (loop[@specialised]) t 0 init ~f
+  fun t ~init ~f -> loop t 0 init ~f
 
 let fold =
   let rec loop t i acc ~f =
     if i >= t.length then acc
     else loop t (i + 1) (f acc @@ unsafe_get t i) ~f in
-  fun t ~init ~f -> (loop[@specialised]) t 0 init ~f
+  fun t ~init ~f -> loop t 0 init ~f
 
 let fold_right =
   let rec loop t i acc ~f =
     if i < 0 then acc else loop t (i - 1) (f (unsafe_get t i) acc) ~f in
-  fun t ~init ~f -> (loop[@specialised]) t (t.length - 1) init ~f
+  fun t ~init ~f -> loop t (t.length - 1) init ~f
 
 let iteri t ~f =
   for i = 0 to t.length - 1 do
@@ -162,7 +162,7 @@ let findi =
       let x = unsafe_get t i in
       if f i x then Some x else loop t (i + 1) ~f
     else None in
-  fun t ~f -> (loop[@specialised]) t 0 ~f
+  fun t ~f -> loop t 0 ~f
 
 let find =
   let rec loop t i ~f =
@@ -170,7 +170,7 @@ let find =
       let x = unsafe_get t i in
       if f x then Some x else loop t (i + 1) ~f
     else None in
-  fun t ~f -> (loop[@specialised]) t 0 ~f
+  fun t ~f -> loop t 0 ~f
 
 let find_mapi =
   let rec loop t i ~f =
@@ -178,7 +178,7 @@ let find_mapi =
       | None -> loop t (i + 1) ~f
       | Some _ as y -> y
     else None in
-  fun t ~f -> (loop[@specialised]) t 0 ~f
+  fun t ~f -> loop t 0 ~f
 
 let find_map =
   let rec loop t i ~f =
@@ -186,7 +186,7 @@ let find_map =
       | None -> loop t (i + 1) ~f
       | Some _ as y -> y
     else None in
-  fun t ~f -> (loop[@specialised]) t 0 ~f
+  fun t ~f -> loop t 0 ~f
 
 let mapi_inplace t ~f =
   for i = 0 to t.length - 1 do

@@ -20,8 +20,8 @@
     bitvec-order
     bitvec-sexp
     cmdliner
-    (core (= v0.15))
-    (core_kernel (= v0.15))
+    (core (>= v0.15))
+    (core_kernel (>= v0.15))
     dune
     graphlib
     menhir

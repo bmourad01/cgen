@@ -24,6 +24,3 @@ let machine = {
         error_prefix Target.pps s.state.target
     | Some m -> accept m s
 }
-
-let init_machines () =
-  Hashtbl.iter targets ~f:(fun t -> ignore @@ Sys.opaque_identity_global t)

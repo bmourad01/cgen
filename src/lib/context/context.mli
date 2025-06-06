@@ -24,9 +24,6 @@ val target : Target.t t
 *)
 val register_machine : Target.t -> (module Machine_intf.S) -> unit
 
-(** Forces all of the machines to register. *)
-val init_machines : unit -> unit
-
 (** Returns the target machine implementation for the current context. *)
 val machine : (module Machine_intf.S) t
 

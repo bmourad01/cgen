@@ -14,8 +14,8 @@ depends: [
   "bitvec-order"
   "bitvec-sexp"
   "cmdliner"
-  "core" {= "v0.15"}
-  "core_kernel" {= "v0.15"}
+  "core" {>= "v0.15"}
+  "core_kernel" {>= "v0.15"}
   "dune" {>= "3.15"}
   "graphlib"
   "menhir"
@@ -32,7 +32,7 @@ depends: [
 dev-repo: "git+https://github.com/bmourad01/cgen.git"
 build: [
   [
-    "make"
+    make
     "build"
     "doc" {with-doc}
     "install"

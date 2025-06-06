@@ -1,6 +1,6 @@
 SRC := ./src/
 
-.PHONY: build clean install uninstall test doc indent
+.PHONY: build clean install uninstall test doc indent status-clean check-style
 
 all: install
 
@@ -24,3 +24,9 @@ doc:
 
 indent:
 	sh tools/ocp-indent-all.sh
+
+status-clean:
+	git diff --quiet --exit-code
+
+check-style: status-clean indent
+	git diff --exit-code
