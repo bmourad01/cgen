@@ -1,0 +1,47 @@
+name: main
+run-name: Linting ${{ github.ref }}
+
+on:
+  - pull_request
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    env:
+      OPAMJOBS: 4
+      OPAMRETRIES: 8
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 4.14.x
+          opam-pin: false
+          dune-cache: true
+          opam-repositories: |
+            default: git+https://github.com/ocaml/opam-repository.git
+            bitvec: git+https://github.com/BinaryAnalysisPlatform/opam-repository#testing
+            bitvec-binprot: git+https://github.com/BinaryAnalysisPlatform/opam-repository#testing
+            bitvec-order: git+https://github.com/BinaryAnalysisPlatform/opam-repository#testing
+            bitvec-sexp: git+https://github.com/BinaryAnalysisPlatform/opam-repository#testing
+            graphlib: git+https://github.com/BinaryAnalysisPlatform/opam-repository#testing
+            monads: git+https://github.com/BinaryAnalysisPlatform/opam-repository#testing
+            regular: git+https://github.com/BinaryAnalysisPlatform/opam-repository#testing
+
+      - name: Install dependencies
+        run: |
+          opam install src/ --deps-only
+
+      - name: Build cgen
+        run: |
+          eval $(opam env)
+          make
+
+      - name: Run the tests
+        run: |
+          eval $(opam env)
+          make test

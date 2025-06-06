@@ -34,5 +34,4 @@ let eval x s =
   x.run (init_ctx s) ~reject ~accept:(fun x _ -> Ok x)
 
 let register_machine = Context_machine.register
-let init_machines = Context_machine.init_machines
 let machine = Context_machine.machine
