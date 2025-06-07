@@ -6,6 +6,7 @@ Inspired by the [QBE](https://c9x.me/compile/) project.
 
 # Setup
 
+- To install the opam dependencies, run `make deps`
 - To build and install the project, run `make` (these can be done individually with `make build` and `make install`, respectively).
 - To uninstall the project, run `make uninstall`.
 - To clean the build artifacts, run `make clean`.
