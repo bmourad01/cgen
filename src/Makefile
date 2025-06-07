@@ -9,7 +9,7 @@ BAP_DEPS = \
 	monads \
 	regular
 
-BAP_REPO := git+https://github.com/BinaryAnalysisPlatform/opam-repository#testing
+BAP_REPO := git+https://github.com/BinaryAnalysisPlatform/opam-repository\#testing
 REPOADD := opam repository --all-switches --set-default add
 
 all:
