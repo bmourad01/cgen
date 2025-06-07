@@ -116,6 +116,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       then M.Regalloc.(frame_prologue, frame_epilogue)
       else M.Regalloc.(no_frame_prologue, no_frame_epilogue) in
     let* blks =
+      let ivec = Vec.create () in
       Func.blks fn |> C.Seq.map ~f:(fun b ->
           let insns = Blk.insns b |> Seq.to_list in
           (* Insert prologue if this is the entry block. *)
@@ -125,17 +126,19 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               insns' @ insns
             else !!insns in
           (* Insert epilogue if we see a return. *)
-          let+ insns =
+          let+ () =
             let once = ref true in
-            C.List.map insns ~f:(fun i ->
+            C.List.iter insns ~f:(fun i ->
                 let insn = Insn.insn i in
                 if !once && M.Insn.is_return insn then
                   let+ insns = freshen @@ epilogue regs size in
                   once := false;
-                  insns @ [i]
-                else !![i])
-            >>| List.concat in
-          Blk.with_insns b insns)
+                  List.iter insns ~f:(Vec.push ivec);
+                  Vec.push ivec i
+                else !!(Vec.push ivec i)) in
+          let b = Blk.with_insns b @@ Vec.to_list ivec in
+          Vec.clear ivec;
+          b)
       >>| Seq.to_list in
     (* Update the dict. *)
     let dict = Dict.remove dict Func.Tag.needs_stack_frame in

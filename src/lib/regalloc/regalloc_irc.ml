@@ -423,7 +423,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      NB: `acc` is accumulated in reverse, and we populate `initial`
      with the fresh temporaries (`newTemps`) here.
   *)
-  let rewrite_insn t acc i =
+  let rewrite_insn t ivec i =
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
@@ -455,7 +455,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Apply the substitution to the existing instruction. *)
     let subst n = Map.find subst n |> Option.value ~default:n in
     let i' = Insn.with_insn i @@ M.Regalloc.substitute insn subst in
-    List.concat [fetch; i' :: store; acc]
+    List.iter fetch ~f:(Vec.push ivec);
+    Vec.push ivec i';
+    List.iter store ~f:(Vec.push ivec)
 
   module Remove_deads = Remove_dead_insns(M)
 
@@ -463,12 +465,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let rewrite_program t =
     let* () = make_slots t in
     let+ blks =
+      let ivec = Vec.create () in
       Func.blks ~rev:true t.fn |>
       C.Seq.fold ~init:[] ~f:(fun acc b ->
-          let+ insns =
-            Blk.insns ~rev:true b |>
-            C.Seq.fold ~init:[] ~f:(rewrite_insn t) in
-          Blk.with_insns b insns :: acc) in
+          let+ () = Blk.insns b |> C.Seq.iter ~f:(rewrite_insn t ivec) in
+          let acc = Blk.with_insns b (Vec.to_list ivec) :: acc in
+          Vec.clear ivec;
+          acc) in
     t.fn <- Remove_deads.run @@ Func.with_blks t.fn blks;
     (* spilledNodes := {} *)
     t.spilled <- Rv.Set.empty;
@@ -480,26 +483,25 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* coalescedNodes := {} *)
     Hash_set.clear t.coalesced
 
+  (* Clear the relevant state for the next round. *)
+  let new_round t =
+    Hashtbl.clear t.adjlist;
+    Hashtbl.clear t.degree;
+    Hashtbl.clear t.copies;
+    Hashtbl.clear t.moves;
+    (* This doesn't seem to happen in the paper, but we should discard
+       the previous coloring since we introduced new spill/reload code.
+
+       Since `rewrite_program` will add the colored and coalesced nodes
+       to the `initial` set, this should be safe as some if not all of
+       them can make their way to `simplify`.
+    *)
+    Hashtbl.clear t.colors
+
   let rec main t ~round ~max_rounds =
     let* () = C.when_ (round > max_rounds) @@ fun () ->
       C.failf "In Regalloc.main: maximum rounds reached (%d) with no \
                convergence on spilling" max_rounds () in
-    (* If we're going for another round, then clear the previous state
-       before we rebuild the interference graph. *)
-    if round > 1 then begin
-      Hashtbl.clear t.adjlist;
-      Hashtbl.clear t.degree;
-      Hashtbl.clear t.copies;
-      Hashtbl.clear t.moves;
-      (* This doesn't seem to happen in the paper, but we should discard
-         the previous coloring since we introduced new spill/reload code.
-
-         Since `rewrite_program` will add the colored and coalesced nodes
-         to the `initial` set, this should be safe as some if not all of
-         them can make their way to `simplify`.
-      *)
-      Hashtbl.clear t.colors
-    end;
     (* Build the interference graph. *)
     let live = Live.compute ~keep:t.keep t.fn in
     let* () = build t live in
@@ -523,6 +525,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Rewrite according to the spilled nodes. *)
     C.unless (Set.is_empty t.spilled) @@ fun () ->
     let* () = rewrite_program t in
+    new_round t;
     main t ~round:(round + 1) ~max_rounds
 
   let apply_alloc t =

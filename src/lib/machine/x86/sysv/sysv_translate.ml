@@ -228,8 +228,8 @@ module Make(Context : Context_intf.S_virtual) = struct
   let transl_blks env =
     let t = create_transl () in
     let entry = Func.entry env.fn in
-    Func.blks env.fn |> Seq.to_list |>
-    Context.List.map ~f:(fun b ->
+    let bvec = Vec.create () in
+    let+ () = Func.blks env.fn |> Context.Seq.iter ~f:(fun b ->
         let l = Blk.label b in
         (* Entry block copies the parameters. *)
         if Label.(l = entry) then
@@ -237,8 +237,9 @@ module Make(Context : Context_intf.S_virtual) = struct
               List.iter p.pins ~f:(Vec.push t.ivec));
         t.args <- Seq.to_list @@ Blk.args b;
         transl_ctrl t env l @@ Blk.ctrl b;
-        transl_blk t env l @@ Blk.insns b)
-    >>| List.concat
+        let+ blks = transl_blk t env l @@ Blk.insns b in
+        List.iter blks ~f:(Vec.push bvec)) in
+    Vec.to_list bvec
 
   let make_dict env =
     let lnk = Func.linkage env.fn in
