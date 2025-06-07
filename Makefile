@@ -1,6 +1,6 @@
 SRC := ./src/
 
-.PHONY: build clean install uninstall test doc indent status-clean check-style
+.PHONY: build clean install uninstall test doc deps indent status-clean check-style
 
 all: install
 
@@ -21,6 +21,9 @@ test:
 
 doc:
 	$(MAKE) doc -C $(SRC)
+
+deps:
+	$(MAKE) deps -C $(SRC)
 
 indent:
 	sh tools/ocp-indent-all.sh
