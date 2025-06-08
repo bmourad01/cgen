@@ -1,5 +1,5 @@
 name: main
-run-name: Linting ${{ github.ref }}
+run-name: Testing ${{ github.ref }}
 
 on:
   - pull_request
