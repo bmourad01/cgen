@@ -10,7 +10,6 @@ BAP_DEPS = \
 	regular
 
 BAP_REPO := git+https://github.com/BinaryAnalysisPlatform/opam-repository\#testing
-REPOADD := opam repository --all-switches --set-default add
 
 all:
 	dune build
@@ -35,5 +34,5 @@ deps: bap-deps
 
 bap-deps:
 	for dep in $(BAP_DEPS); do \
-		$(REPOADD) $$dep $(BAP_REPO); \
+		opam repository add $$dep $(BAP_REPO); \
 	done
