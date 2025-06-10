@@ -92,3 +92,82 @@ The compilation pipeline roughly follows this plan:
 | Assembly (final output)   | Platform-specific assembly code.
 +---------------------------+
 ```
+
+# A quick demo: print the nth Fibonacci number
+
+We start with our IR file `fibdemo.vir`:
+
+```
+module fibdemo
+
+const data $fmt = {
+  "fib(%d) = %d\n",        ; our format string
+  0_b                      ; zero-terminator
+}
+
+function w $fib(w %n) {
+@start:
+  %c = eq.w %n, 0_w        ; fib(0) = 0
+  br %c, @retn, @chk1
+@retn:
+  ret %n
+@chk1:
+  %c = eq.w %n, 1_w        ; fib(1) = 1
+  br %c, @retn, @body
+@body:
+  %m1 = sub.w %n, 1_w      ; fib(n) = fib(n-1) + fib(n-2)
+  %fm1 = call.w $fib(%m1)
+  %m2 = sub.w %n, 2_w
+  %fm2 = call.w $fib(%m2)
+  %r = add.w %fm1, %fm2
+  ret %r
+}
+
+export function w $main(w %argc, l %argv) {
+@start:
+  %p = add.l %argv, 8_l    ; n = atoi(argv[1])
+  %arg = ld.l %p
+  %n = call.w $atoi(%arg)
+  %f = call.w $fib(%n)
+  %r = call.w $printf($fmt, ..., %n, %f)
+  ret 0_w
+}
+```
+
+We then run:
+
+```
+$ cgen fibdemo.vir > fibdemo.S
+```
+
+This will be our completed assembly program. Next, we produce the executable using the system's C compiler (assumed to be GCC or Clang):
+
+```
+$ cc fibdemo.S -o fibdemo
+```
+
+Now, we can run the program. Let's print out the first 20 Fibonnaci numbers:
+
+```
+$ for i in `seq 1 20`; do ./fibdemo $i; done
+fib(1) = 1
+fib(2) = 1
+fib(3) = 2
+fib(4) = 3
+fib(5) = 5
+fib(6) = 8
+fib(7) = 13
+fib(8) = 21
+fib(9) = 34
+fib(10) = 55
+fib(11) = 89
+fib(12) = 144
+fib(13) = 233
+fib(14) = 377
+fib(15) = 610
+fib(16) = 987
+fib(17) = 1597
+fib(18) = 2584
+fib(19) = 4181
+fib(20) = 6765
+```
