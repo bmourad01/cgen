@@ -137,7 +137,7 @@ export function w $main(w %argc, l %argv) {
 We then run:
 
 ```
-$ cgen fibdemo.vir > fibdemo.S
+$ cgen fibdemo.vir -o fibdemo.S
 ```
 
 This will be our completed assembly program. Next, we produce the executable using the system's C compiler (assumed to be GCC or Clang):

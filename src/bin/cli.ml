@@ -103,29 +103,44 @@ let target =
        opt string "amd64-sysv"
          (info ["t"; "target"] ~docv:"TARGET" ~doc))
 
+let output =
+  let doc = "The output file. If no file is provided, then the output \
+             is printed to stdout." in
+  Arg.(value &
+       opt (some string) None
+         (info ["o"; "output"] ~docv:"OUTPUT" ~doc))
+
 type input =
   | Ifile of string
   | Istdin
 
+type output =
+  | Ofile of string
+  | Ostdout
+
 type t = {
   file   : input;
+  output : output;
   dump   : dump;
   target : Cgen.Target.t;
 }
 
-let go f file dump target =
+let go f file output dump target =
   let file = match file with
     | "" -> Istdin
     | _ -> Ifile file in
+  let output = match output with
+    | None -> Ostdout
+    | Some out -> Ofile out in
   let dump = match dump_of_string_opt dump with
     | None -> fatal "invalid dump option: %s\n%!" dump ()
     | Some d -> d in
   let target = match Core.Map.find targets target with
     | None -> fatal "invalid target: %s\n%!" target ()
     | Some t -> t in
-  f {file; dump; target}
+  f {file; output; dump; target}
 
-let t f = Term.(const (go f) $ file $ dump $ target)
+let t f = Term.(const (go f) $ file $ output $ dump $ target)
 
 let man = List.concat [
     man_dump;
