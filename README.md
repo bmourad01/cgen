@@ -1,8 +1,12 @@
 # Overview
 
-cgen is a compiler backend.
+cgen is a compiler backend, inspired by the [QBE](https://c9x.me/compile/) project.
 
-Inspired by the [QBE](https://c9x.me/compile/) project.
+The overall goal of the project is:
+1. Provide language front-ends with a target language for compilation to native code.
+2. Implement the necessary ABI rules to ensure seamless interop with C code.
+3. Provide a library that gives language developers control over how this process happens.
+4. Provide a conservative set of sound optimizations for input programs.
 
 # Setup
 
