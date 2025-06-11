@@ -247,6 +247,10 @@ let regalloc_suite = "Test register allocation" >::: [
     "LEA arithmetic with negative disp (AMD64)" >:: test_amd64_regalloc "lea1";
     "Test prime numbers (AMD64)" >:: test_amd64_regalloc "prime";
     "Spill test 1 (AMD64)" >:: test_amd64_regalloc "spill1";
+    "Copy an array of words (AMD64)" >:: test_amd64_regalloc "cpyarray";
+    "Folding addition (AMD64)" >:: test_amd64_regalloc "foldadd";
+    "Unsigned remainder by 7 (AMD64)" >:: test_amd64_regalloc "uremby7";
+    "Edge contraction and select" >:: test_amd64_regalloc "contractsel";
   ]
 
 let () = run_test_tt_main @@ test_list [
