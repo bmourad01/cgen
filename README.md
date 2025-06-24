@@ -175,3 +175,148 @@ fib(18) = 2584
 fib(19) = 4181
 fib(20) = 6765
 ```
+
+## Second example: print the first `n` prime numbers
+
+Our file `prime.vir`:
+
+```
+module prime
+
+const data $fmt = {
+  "prime(%d) = %d\n",
+  0x0_b
+}
+
+function w $is_prime(w %n) {
+@start:
+  %c = le.w %n, 1_w
+  br %c, @no, @twothree
+@no:
+  ret 0_w
+@twothree:
+  %c = le.w %n, 3_w
+  br %c, @yes, @divtwo
+@yes:
+  ret 1_w
+@divtwo:
+  %r = urem.w %n, 2_w
+  %c = eq.w %r, 0_w
+  br %c, @no, @divthree
+@divthree:
+  %r = urem.w %n, 3_w
+  %c = eq.w %r, 0_w
+  br %c, @no, @main
+@main:
+  %i = copy.w 5_w
+  jmp @loop
+@loop:
+  %s = mul.w %i, %i
+  %c = le.w %s, %n
+  br %c, @divi, @yes
+@divi:
+  %r = urem.w %n, %i
+  %c = eq.w %r, 0_w
+  br %c, @no, @divi2
+@divi2:
+  %i2 = add.w %i, 2_w
+  %r = urem.w %n, %i2
+  %c = eq.w %r, 0_w
+  br %c, @no, @inc
+@inc:
+  %i = add.w %i, 6_w
+  jmp @loop
+}
+
+export function w $main(w %argc, l %argv) {
+@start:
+  %p = add.l %argv, 0x8_l
+  %p = ld.l %p
+  %n = call.w $atoi(%p)
+  %m = copy.w 1_w
+  %i = copy.w 1_w
+  jmp @loop1
+@loop1:
+  %c = sle.w %n, 0_w
+  br %c, @done, @loop2
+@loop2:
+  %b = call.w $is_prime(%i)
+  %c = eq.w %b, 1_w
+  br %c, @yes, @no
+@yes:
+  %k = call.w $printf($fmt, ..., %m, %i)
+  %n = sub.w %n, 1_w
+  %i = add.w %i, 1_w
+  %m = add.w %m, 1_w
+  jmp @loop1
+@no:
+  %i = add.w %i, 1_w
+  jmp @loop2
+@done:
+  ret 0_w
+}
+```
+
+Compiling:
+
+```
+$ cgen prime.vir -o prime.S
+$ cc prime.S -o prime
+```
+
+Let's print the first 50 prime numbers, and we'll get a wall clock time:
+
+```
+$ time ./prime 50
+prime(1) = 2
+prime(2) = 3
+prime(3) = 5
+prime(4) = 7
+prime(5) = 11
+prime(6) = 13
+prime(7) = 17
+prime(8) = 19
+prime(9) = 23
+prime(10) = 29
+prime(11) = 31
+prime(12) = 37
+prime(13) = 41
+prime(14) = 43
+prime(15) = 47
+prime(16) = 53
+prime(17) = 59
+prime(18) = 61
+prime(19) = 67
+prime(20) = 71
+prime(21) = 73
+prime(22) = 79
+prime(23) = 83
+prime(24) = 89
+prime(25) = 97
+prime(26) = 101
+prime(27) = 103
+prime(28) = 107
+prime(29) = 109
+prime(30) = 113
+prime(31) = 127
+prime(32) = 131
+prime(33) = 137
+prime(34) = 139
+prime(35) = 149
+prime(36) = 151
+prime(37) = 157
+prime(38) = 163
+prime(39) = 167
+prime(40) = 173
+prime(41) = 179
+prime(42) = 181
+prime(43) = 191
+prime(44) = 193
+prime(45) = 197
+prime(46) = 199
+prime(47) = 211
+prime(48) = 223
+prime(49) = 227
+prime(50) = 229
+./prime 50  0.00s user 0.00s system 77% cpu 0.002 total
+```
