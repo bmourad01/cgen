@@ -14,11 +14,11 @@ export function w $foo(w %n) {
 @divtwo:
   %r = urem.w %n, 2_w
   %c = eq.w %r, 0_w
-  br %c, @yes, @divthree
+  br %c, @no, @divthree
 @divthree:
   %r = urem.w %n, 3_w
   %c = eq.w %r, 0_w
-  br %c, @yes, @main
+  br %c, @no, @main
 @main:
   %i = copy.w 5_w
   jmp @loop

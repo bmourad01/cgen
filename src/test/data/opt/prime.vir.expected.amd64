@@ -21,7 +21,7 @@ export function $foo { ; returns: rax
   je @46 ; @113
   jmp @9 ; @114
 @46:
-  mov %0:w, 0x1_w ; @110
+  xor %0:w, %0:w ; @110
   jmp @28 ; @111
 @9:
   mov eax, 0x55555556_w ; @107
@@ -34,7 +34,7 @@ export function $foo { ; returns: rax
   je @47 ; @97
   jmp @48 ; @98
 @47:
-  mov %0:w, 0x1_w ; @94
+  xor %0:w, %0:w ; @94
   jmp @28 ; @95
 @48:
   mov %i.2:w, 0x5_w ; @92
