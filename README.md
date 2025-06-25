@@ -241,8 +241,8 @@ export function w $main(w %argc, l %argv) {
   br %c, @done, @loop2
 @loop2:
   %b = call.w $is_prime(%i)
-  %c = eq.w %b, 1_w
-  br %c, @yes, @no
+  %c = eq.w %b, 0_w
+  br %c, @no, @yes
 @yes:
   %k = call.w $printf($fmt, ..., %m, %i)
   %n = sub.w %n, 1_w

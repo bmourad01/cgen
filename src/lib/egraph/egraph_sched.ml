@@ -107,6 +107,7 @@ let duplicate t id a =
     Hashtbl.set t.ilbl ~key:cid ~data:a
 
 module Licm = struct
+  let header t lp = Loops.(header @@ get t.input.loop lp)
   let is_child_loop ~parent t a = Loops.is_child_of ~parent t.input.loop a
   let find_blk_loop t l = Loops.blk t.input.loop l
 
@@ -159,12 +160,16 @@ module Licm = struct
                 (* It's defined by a block within the current loop. *)
                 true
               | Some lp' when is_child_loop ~parent:lp' t lp ->
-                (* The loop it belongs to is nested inside of the
-                   current one. *)
+                (* The current loop is nested inside of the one that
+                   the node is defined in. *)
                 false
-              | Some _ ->
-                (* It's defined in a loop, but not a child of the
+              | Some lp' when is_child_loop ~parent:lp t lp' ->
+                (* It's defined in a loop that is a child of the
                    current one. *)
+                true
+              | Some _ ->
+                (* It's defined in a loop, but not a child, nor a parent,
+                   of the current one. *)
                 false
               | None ->
                 (* It's not defined inside of any loop, so it's
@@ -189,8 +194,6 @@ module Licm = struct
              so we will play it safe and consider it variant. *)
           true
   end
-
-  let header t lp = Loops.(header @@ get t.input.loop lp)
 
   let header_parent t lp =
     header t lp |> Tree.parent t.input.dom |> Option.value_exn

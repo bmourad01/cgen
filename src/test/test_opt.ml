@@ -183,6 +183,7 @@ let opt_suite = "Test optimizations" >::: [
     "Redundant load elimination" >:: test "rle";
     "Redundant load elimination (partial redundancy)" >:: test "rle-partial";
     "Test prime numbers" >:: test "prime";
+    "Prime numbers driver (LICM)" >:: test "prime_main_licm";
     "Test strcmp RLE" >:: test "strcmprle";
     "Test strcmp non-RLE" >:: test "strcmpnonrle";
     "Test reassoc add right" >:: test "reassocaddright";
