@@ -16,6 +16,7 @@ let pp_loop = Int.pp
 let pp_level = Int.pp
 
 type data = {
+  ident          : loop;
   header         : Label.t;
   mutable parent : loop option;
   mutable level  : level;
@@ -28,12 +29,14 @@ let level d = d.level
 let pp_data ppf d =
   let none ppf () = Format.fprintf ppf "none" in
   Format.fprintf ppf
-    "((header %a) (parent %a) (level %a))"
+    "((ident %a) (header %a) (parent %a) (level %a))"
+    pp_loop d.ident
     Label.pp d.header
     (Format.pp_print_option ~none pp_loop) d.parent
     pp_level d.level
 
-let create_data l = {
+let create_data i l = {
+  ident = i;
   header = l;
   parent = None;
   level = -1;
@@ -44,6 +47,15 @@ type t = {
   loops : data Vec.t;
   blks  : loop Label.Table.t;
 }
+
+let pp ppf t =
+  let pp_sep ppf () = Format.fprintf ppf " " in
+  let pp_blk ppf (blk, lp) = Format.fprintf ppf "(%a %a)" Label.pp blk pp_loop lp in
+  Format.fprintf ppf
+    "((name %s) (loops (%a)) (blks (%a))"
+    t.name
+    (Format.pp_print_list ~pp_sep pp_data) (Vec.to_list t.loops)
+    (Format.pp_print_list ~pp_sep pp_blk) (Hashtbl.to_alist t.blks)
 
 let init fn = {
   name = Func.name fn;
@@ -87,7 +99,7 @@ let loops_of t l = match blk t l with
 
 let new_loop t l =
   let n = Vec.length t.loops in
-  Vec.push t.loops @@ create_data l;
+  Vec.push t.loops @@ create_data n l;
   n
 
 let dom_backedge l cfg dom =

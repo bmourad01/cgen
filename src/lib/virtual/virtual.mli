@@ -436,6 +436,8 @@ module Loops : sig
   (** The loop analysis. *)
   type t
 
+  val pp : Format.formatter -> t -> unit
+
   (** [header d] gets the header block of the loop. *)
   val header : data -> Label.t
 
