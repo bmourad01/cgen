@@ -1891,138 +1891,139 @@ module Groups = struct
 
   (* All rules. *)
   let all =
-    commute_consts @
-    assoc_consts @
-    reassoc @
-    reassoc_add_sub @
-    reassoc_comm_const @
-    add_neg_const @
-    sub_neg_const @
-    add_neg @
-    sub_neg @
-    add_zero @
-    sub_zero @
-    sub_zero_neg @
-    double_neg @
-    double_not @
-    inc_not @
-    dec_not @
-    mul_negs @
-    sub_self @
-    mul_zero @
-    mul_one @
-    mul_neg_one @
-    mul_two_add_self @
-    mul_pow2 @
-    sdiv_const_pow2 @
-    sdiv_const_non_pow2 @
-    srem_const_pow2 @
-    srem_const_non_pow2 @
-    udiv_const_pow2 @
-    udiv_const_non_pow2 @
-    urem_const_pow2 @
-    urem_const_non_pow2 @
-    div_one @
-    sdiv_neg_one @
-    srem_neg_one @
-    udiv_neg_one @
-    urem_neg_one @
-    rem_one @
-    and_zero @
-    and_ones @
-    and_self @
-    or_zero @
-    or_ones @
-    or_self @
-    or_not_self @
-    demorgan_not_or @
-    demorgan_not_and @
-    or_and_not @
-    asr_zero @
-    lsl_zero @
-    lsr_zero @
-    rol_zero @
-    ror_zero @
-    recognize_rol_const @
-    recognize_ror_const @
-    xor_zero @
-    xor_ones @
-    xor_self @
-    xor_not_self @
-    double_xor @
-    lsr_asr_bitwidth @
-    eq_self @
-    ne_self @
-    ge_self @
-    gt_self @
-    le_self @
-    lt_self @
-    xor_flag_eq_one @
-    xor_flag_ne_one @
-    xor_flag_ge_one @
-    xor_flag_gt_one @
-    xor_flag_le_one @
-    xor_flag_lt_one @
-    ult_zero @
-    uge_zero @
-    ule_zero @
-    ugt_zero @
-    ult_ones @
-    uge_ones @
-    ule_ones @
-    ugt_ones @
-    slt_min @
-    sge_min @
-    sle_min @
-    sgt_min @
-    sgt_max @
-    sle_max @
-    sge_max @
-    slt_max @
-    slt_zero_zext @
-    sge_zero_zext @
-    flag_eq_one @
-    flag_eq_zero @
-    flag_ne_one @
-    flag_ne_zero @
-    flag_ule_zero @
-    flag_ule_one @
-    flag_sle_one @
-    flag_sle_zero @
-    flag_ult_one @
-    flag_slt_one @
-    flag_ult_zero @
-    flag_slt_zero @
-    flag_uge_zero @
-    flag_sge_zero @
-    flag_uge_one @
-    flag_sge_one @
-    flag_ugt_zero @
-    flag_sgt_zero @
-    flag_ugt_one @
-    flag_sgt_one @
-    flag_eq_not_bool @
-    flag_ne_not_bool @
-    flag_ult_not_bool @
-    flag_slt_not_bool @
-    flag_ule_not_bool @
-    flag_sle_not_bool @
-    flag_ugt_not_bool @
-    flag_sgt_not_bool @
-    flag_uge_not_bool @
-    flag_sge_not_bool @
-    extend_flag @
-    trunc_flag @
-    extend_i8 @
-    double_extend @
-    extend_nop @
-    itrunc_nop @
-    itrunc_extend_nop @
-    br_const @
-    sel_const @
-    sel_bool @
-    prop_copy @
-    []
+    List.concat [
+      commute_consts;
+      assoc_consts;
+      reassoc;
+      reassoc_add_sub;
+      reassoc_comm_const;
+      add_neg_const;
+      sub_neg_const;
+      add_neg;
+      sub_neg;
+      add_zero;
+      sub_zero;
+      sub_zero_neg;
+      double_neg;
+      double_not;
+      inc_not;
+      dec_not;
+      mul_negs;
+      sub_self;
+      mul_zero;
+      mul_one;
+      mul_neg_one;
+      mul_two_add_self;
+      mul_pow2;
+      sdiv_const_pow2;
+      sdiv_const_non_pow2;
+      srem_const_pow2;
+      srem_const_non_pow2;
+      udiv_const_pow2;
+      udiv_const_non_pow2;
+      urem_const_pow2;
+      urem_const_non_pow2;
+      div_one;
+      sdiv_neg_one;
+      srem_neg_one;
+      udiv_neg_one;
+      urem_neg_one;
+      rem_one;
+      and_zero;
+      and_ones;
+      and_self;
+      or_zero;
+      or_ones;
+      or_self;
+      or_not_self;
+      demorgan_not_or;
+      demorgan_not_and;
+      or_and_not;
+      asr_zero;
+      lsl_zero;
+      lsr_zero;
+      rol_zero;
+      ror_zero;
+      recognize_rol_const;
+      recognize_ror_const;
+      xor_zero;
+      xor_ones;
+      xor_self;
+      xor_not_self;
+      double_xor;
+      lsr_asr_bitwidth;
+      eq_self;
+      ne_self;
+      ge_self;
+      gt_self;
+      le_self;
+      lt_self;
+      xor_flag_eq_one;
+      xor_flag_ne_one;
+      xor_flag_ge_one;
+      xor_flag_gt_one;
+      xor_flag_le_one;
+      xor_flag_lt_one;
+      ult_zero;
+      uge_zero;
+      ule_zero;
+      ugt_zero;
+      ult_ones;
+      uge_ones;
+      ule_ones;
+      ugt_ones;
+      slt_min;
+      sge_min;
+      sle_min;
+      sgt_min;
+      sgt_max;
+      sle_max;
+      sge_max;
+      slt_max;
+      slt_zero_zext;
+      sge_zero_zext;
+      flag_eq_one;
+      flag_eq_zero;
+      flag_ne_one;
+      flag_ne_zero;
+      flag_ule_zero;
+      flag_ule_one;
+      flag_sle_one;
+      flag_sle_zero;
+      flag_ult_one;
+      flag_slt_one;
+      flag_ult_zero;
+      flag_slt_zero;
+      flag_uge_zero;
+      flag_sge_zero;
+      flag_uge_one;
+      flag_sge_one;
+      flag_ugt_zero;
+      flag_sgt_zero;
+      flag_ugt_one;
+      flag_sgt_one;
+      flag_eq_not_bool;
+      flag_ne_not_bool;
+      flag_ult_not_bool;
+      flag_slt_not_bool;
+      flag_ule_not_bool;
+      flag_sle_not_bool;
+      flag_ugt_not_bool;
+      flag_sgt_not_bool;
+      flag_uge_not_bool;
+      flag_sge_not_bool;
+      extend_flag;
+      trunc_flag;
+      extend_i8;
+      double_extend;
+      extend_nop;
+      itrunc_nop;
+      itrunc_extend_nop;
+      br_const;
+      sel_const;
+      sel_bool;
+      prop_copy;
+    ]
 end
 
 let all = Egraph.create_table Groups.all
