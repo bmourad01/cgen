@@ -1,0 +1,12 @@
+module unordered
+
+export function $foo {
+@2:
+  push rbp ; @15
+  mov rbp, rsp ; @16
+  add edi, 0x2a_w ; @14
+  mov esi, edi ; @11
+  call $bar ; rdi rsi ; @12
+  leave ; @17
+  ret ; @9
+}

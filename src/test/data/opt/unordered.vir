@@ -1,0 +1,11 @@
+module unordered
+
+export function $foo(w %x) {
+@start:
+  %y = copy.w 42_w
+  %z = add.w %x, %y
+  %w = copy.w 42_w
+  %v = add.w %x, %w
+  call $bar(%z, %v)
+  ret
+}

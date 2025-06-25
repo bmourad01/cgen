@@ -252,6 +252,8 @@ let regalloc_suite = "Test register allocation" >::: [
     "Folding addition (AMD64)" >:: test_amd64_regalloc "foldadd";
     "Unsigned remainder by 7 (AMD64)" >:: test_amd64_regalloc "uremby7";
     "Edge contraction and select" >:: test_amd64_regalloc "contractsel";
+    "Prime numbers driver" >:: test_amd64_regalloc "prime_main_licm";
+    "Unordered CSE" >:: test_amd64_regalloc "unordered";
   ]
 
 let () = run_test_tt_main @@ test_list [

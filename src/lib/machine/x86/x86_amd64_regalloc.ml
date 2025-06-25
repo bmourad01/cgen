@@ -500,10 +500,19 @@ let no_frame_epilogue regs size =
 *)
 let adjust_fp_size regs size = match List.length regs with
   | 0 when is16 size -> size
+  | 0 when size = 8 ->
+    (* Same as below. *)
+    0
   | 0 -> size + 8
   | n when odd n && is16 size -> size + 8
   | n when odd n -> size
   | _ when is16 size -> size
+  | _ when size = 8 ->
+    (* In this case, the stack pointer is already aligned, and
+       the size of 8 already accounts for preserving the frame
+       pointer, so we don't need to adjust the stack pointer
+       at all. *)
+    0
   | _ -> size + 8
 
 let frame_prologue regs size =
