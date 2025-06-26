@@ -95,6 +95,9 @@ module type S = sig
     (** Returns [true] if the instruction returns from a function. *)
     val is_return : t -> bool
 
+    (** Returns [true] if the instruction does not implicitly fall through. *)
+    val is_barrier : t -> bool
+
     (** Pretty-prints the instruction. *)
     val pp : Format.formatter -> t -> unit
   end

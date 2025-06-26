@@ -269,6 +269,9 @@ module Cfg : sig
 
   (** Creates the control-flow graph.
 
+      [is_barrier] indicates if a function has no implicit fallthrough. See
+      then interface provided by [Machine_intf.S].
+
       [dests] is the set of static control-flow destinations of a given
       instruction. See the interface provided by [Machine_intf.S].
 
@@ -281,5 +284,8 @@ module Cfg : sig
       node in the function, respectively. This representation is useful for
       computing the dominator tree of the function in question.
   *)
-  val create : dests:('a -> Label.Set.t) -> ('a, 'b) func -> t
+  val create :
+    is_barrier:('a -> bool) ->
+    dests:('a -> Label.Set.t) ->
+    ('a, 'b) func -> t
 end

@@ -933,6 +933,19 @@ module Insn = struct
     | RET -> true
     | _ -> false
 
+  let is_barrier = function
+    | JMP _
+    | UD2
+    | RET
+    (* These are pseudo-instructions, with no actual
+       semantics, but let's lump them in this category
+       anyway. *)
+    | JMPtbl _
+    | FP32 _
+    | FP64 _
+      -> true
+    | _ -> false
+
   module I = struct
     let add a b = Two (ADD, a, b)
     let addsd a b = Two (ADDSD, a, b)

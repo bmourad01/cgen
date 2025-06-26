@@ -59,7 +59,9 @@ module Make(M : Machine_intf.S) = struct
 
   let run fn =
     let keep = init_keep fn in
-    let cfg = Cfg.create ~dests:M.Insn.dests fn in
+    let cfg = Cfg.create fn
+        ~is_barrier:M.Insn.is_barrier
+        ~dests:M.Insn.dests in
     let blks = Func.map_of_blks fn in
     Func.update_blks' fn @@ run ~keep blks cfg
 end

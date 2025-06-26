@@ -102,7 +102,9 @@ module Make(M : Machine_intf.S) = struct
     }
 
   let compute ?(keep = Rv.Set.empty) fn =
-    let g = Cfg.create ~dests:M.Insn.dests fn in
+    let g = Cfg.create fn
+        ~is_barrier:M.Insn.is_barrier
+        ~dests:M.Insn.dests in
     let blks = Func.map_of_blks fn in
     compute' ~keep g blks
 end

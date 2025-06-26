@@ -46,6 +46,4 @@ let run fn =
   let afters = Func.collect_afters fn in
   let fn = invert_branches afters fn in
   let fn = implicit_fallthroughs afters fn in
-  let dict = Func.dict fn in
-  let dict = Dict.set dict Tags.peephole () in
-  Func.with_dict fn dict
+  fn
