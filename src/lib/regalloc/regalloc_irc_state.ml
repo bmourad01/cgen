@@ -17,7 +17,7 @@ let reduce a b = match a, b with
 module Make(M : Machine_intf.S) = struct
   module Rv = M.Regvar
   module Regs = Regalloc_regs.Make(M)
-  module Live = Live(M)
+  module Live = Pseudo_passes.Live(M)
 
   (* Terminology:
 

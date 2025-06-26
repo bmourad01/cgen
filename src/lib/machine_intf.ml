@@ -187,6 +187,11 @@ module type S = sig
     val frame_epilogue : Reg.t list -> int -> Insn.t list
   end
 
+  module Peephole : sig
+    (** Runs target-specific peephole optimizations on a function. *)
+    val run : (Insn.t, Reg.t) Pseudo.func -> (Insn.t, Reg.t) Pseudo.func
+  end
+
   (** Emitting the assembly for the target platform.
 
       This exists separately from the usual pretty-printing facilities because

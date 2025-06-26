@@ -65,7 +65,7 @@ let comp (opts : Cli.t) =
       (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
     bail ();
   end;
-  let module Remove_deads = Pseudo.Remove_dead_insns(Machine) in
+  let module Remove_deads = Pseudo_passes.Remove_dead_insns(Machine) in
   let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
   if Cli.equal_dump opts.dump Disel_dce then begin
     Format.fprintf ppf ";; After dead-code elimination (isel):@;@.%a\n%!"
@@ -79,8 +79,14 @@ let comp (opts : Cli.t) =
       (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
     bail ();
   end;
+  let m = Pseudo.Module.map_funs m ~f:Machine.Peephole.run in
+  if Cli.equal_dump opts.dump Dpeephole then begin
+    Format.fprintf ppf ";; After peephole optimizations:@;@.%a\n%!"
+      (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
+    bail ();
+  end;
   assert (Cli.equal_dump opts.dump Dasm);
-  let module Emit = Pseudo.Emit(Machine) in
+  let module Emit = Pseudo_passes.Emit(Machine) in
   Format.fprintf ppf "%a%!" Emit.emit m;
   !!(close ())
 

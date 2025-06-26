@@ -18,21 +18,17 @@ export function $main { ; returns: rax
   mov r14d, eax ; @63
   mov r13d, 0x1_w ; @64
   mov eax, 0x1_w ; @65
-  jmp @3 ; @66
 @3:
   cmp r14d, 0x0_w ; @57
   jle @9 ; @58
-  jmp @27 ; @59
 @27:
   mov ebx, eax ; @55
-  jmp @10 ; @56
 @10:
   mov edi, ebx ; @52
   call $is_prime ; rdi ; @53
   lea r12d, qword ptr [rbx + 0x1] ; @48
   test eax, eax ; @45
-  je @28 ; @46
-  jmp @13 ; @47
+  jne @13 ; @46
 @28:
   mov ebx, r12d ; @43
   jmp @10 ; @44

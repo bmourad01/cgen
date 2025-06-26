@@ -93,6 +93,11 @@ The compilation pipeline roughly follows this plan:
               |
               v
 +---------------------------+
+| Pseudo IR (peephole opts) | Performs target-specific peephole optimizations.
++-------------+-------------+
+              |
+              v
++---------------------------+
 | Assembly (final output)   | Platform-specific assembly code.
 +---------------------------+
 ```

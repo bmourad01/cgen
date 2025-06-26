@@ -1,11 +1,7 @@
 open Core
 open Regular.Std
 open Graphlib.Std
-
-module Insn = Pseudo_insn
-module Cfg = Pseudo_cfg
-module Blk = Pseudo_blk
-module Func = Pseudo_func
+open Pseudo
 
 module Make(M : Machine_intf.S) = struct
   module Rv = M.Regvar
@@ -74,7 +70,7 @@ module Make(M : Machine_intf.S) = struct
   let free_vars_of_blk b =
     let (++) = Set.union and (--) = Set.diff in
     let init = Rv.Set.empty in
-    Ftree.fold_right b.Blk.insns ~init ~f:(fun i inc ->
+    Blk.insns b ~rev:true |> Seq.fold ~init ~f:(fun inc i ->
         let insn = Insn.insn i in
         inc -- M.Insn.writes insn ++ M.Insn.reads insn)
 

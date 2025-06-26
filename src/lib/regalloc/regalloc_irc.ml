@@ -16,7 +16,7 @@ let take_one hs =
   e
 
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
-  module Live = Live(M)
+  module Live = Pseudo_passes.Live(M)
 
   open C.Syntax
   open Regalloc_irc_state.Make(M)
@@ -459,7 +459,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Vec.push ivec i';
     List.iter store ~f:(Vec.push ivec)
 
-  module Remove_deads = Remove_dead_insns(M)
+  module Remove_deads = Pseudo_passes.Remove_dead_insns(M)
 
   (* Insert spilling code and set up the state for the next round. *)
   let rewrite_program t =

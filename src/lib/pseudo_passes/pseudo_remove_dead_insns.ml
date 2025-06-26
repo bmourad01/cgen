@@ -1,9 +1,6 @@
 open Core
 open Regular.Std
-
-module Insn = Pseudo_insn
-module Blk = Pseudo_blk
-module Func = Pseudo_func
+open Pseudo
 
 let (--) = Set.diff
 let (++) = Set.union
@@ -62,7 +59,7 @@ module Make(M : Machine_intf.S) = struct
 
   let run fn =
     let keep = init_keep fn in
-    let cfg = Pseudo_cfg.create ~dests:M.Insn.dests fn in
+    let cfg = Cfg.create ~dests:M.Insn.dests fn in
     let blks = Func.map_of_blks fn in
     Func.update_blks' fn @@ run ~keep blks cfg
 end

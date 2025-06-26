@@ -168,6 +168,14 @@ module Func : sig
   *)
   val update_blks' : ('a, 'b) t -> 'a blk Label.Tree.t -> ('a, 'b) t
 
+  (** Returns a mapping from block labels to their immediate next block
+      in the sequence.
+
+      This can be useful for identifying which blocks can potentially
+      fall through to another block.
+  *)
+  val collect_afters : ('a, 'b) t -> Label.t Label.Tree.t
+
   val pp :
     (Format.formatter -> 'a -> unit) ->
     (Format.formatter -> 'b -> unit) ->
@@ -274,22 +282,4 @@ module Cfg : sig
       computing the dominator tree of the function in question.
   *)
   val create : dests:('a -> Label.Set.t) -> ('a, 'b) func -> t
-end
-
-(** Liveness analysis of a function. *)
-module Live(M : Machine_intf.S) : Live_intf.S
-  with type var := M.Regvar.t
-   and type var_comparator := M.Regvar.Set.Elt.comparator_witness
-   and type func := (M.Insn.t, M.Reg.t) func
-   and type blk := M.Insn.t blk
-   and type cfg := Cfg.t
-
-(** Removes instructions whose results are never used. *)
-module Remove_dead_insns(M : Machine_intf.S) : sig
-  val run : (M.Insn.t, M.Reg.t) func -> (M.Insn.t, M.Reg.t) func
-end
-
-(** Emits the target-specific assembly code. *)
-module Emit(M : Machine_intf.S) : sig
-  val emit : Format.formatter -> (M.Insn.t, M.Reg.t) module_ -> unit
 end

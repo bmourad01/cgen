@@ -1,4 +1,5 @@
 open Core
+open Regular.Std
 open Pseudo_common
 
 module Slot = Virtual.Slot
@@ -111,6 +112,16 @@ let update_blks_exn t blks =
 let update_blks t blks =
   try Ok (update_blks_exn t blks) with
   | Invalid_argument msg -> Or_error.error_string msg
+
+let collect_afters fn =
+  let rec aux acc s = match Seq.next s with
+    | None -> acc
+    | Some (x, xs) -> match Seq.next xs with
+      | None -> acc
+      | Some (y, _) ->
+        let key = x.Pseudo_blk.label and data = y.label in
+        aux (Label.Tree.set acc ~key ~data) xs in
+  aux Label.Tree.empty @@ Ftree.enum fn.blks
 
 let pp ppa ppb ppf t =
   let sep_ret ppf = Format.fprintf ppf " " in

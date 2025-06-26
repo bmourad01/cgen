@@ -1,10 +1,6 @@
 open Core
 open Regular.Std
-
-module Insn = Pseudo_insn
-module Blk = Pseudo_blk
-module Func = Pseudo_func
-module Module = Pseudo_module
+open Pseudo
 
 module Make(M : Machine_intf.S) = struct
   let emit ppf m =

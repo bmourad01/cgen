@@ -127,6 +127,7 @@ module Machine = struct
     let writes_with_types = writes_with_types clobbered_map
   end
 
+  module Peephole = X86_amd64_peephole
   module Emit = X86_amd64_emit
 end
 

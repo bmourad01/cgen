@@ -5,11 +5,9 @@ export function $foo {
   sub rsp, 0x8_l ; @45
   mov ecx, edx ; @42
   xor eax, eax ; @43
-  jmp @3 ; @44
 @3:
   cmp eax, ecx ; @34
   jb @5 ; @35
-  jmp @6 ; @36
 @6:
   add rsp, 0x8_l ; @46
   ret ; @33

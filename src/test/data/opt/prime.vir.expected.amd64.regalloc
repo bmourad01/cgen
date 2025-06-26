@@ -5,22 +5,19 @@ export function $foo { ; returns: rax
   sub rsp, 0x8_l ; @137
   mov esi, edi ; @133
   cmp esi, 0x1_w ; @130
-  jbe @44 ; @131
-  jmp @4 ; @132
+  ja @4 ; @131
 @44:
   xor eax, eax ; @128
   jmp @28 ; @129
 @4:
   cmp esi, 0x3_w ; @122
-  jbe @45 ; @123
-  jmp @7 ; @124
+  ja @7 ; @123
 @45:
   mov eax, 0x1_w ; @120
   jmp @28 ; @121
 @7:
   test esi, 0x1_w ; @112
-  je @46 ; @113
-  jmp @9 ; @114
+  jne @9 ; @113
 @46:
   xor eax, eax ; @110
   jmp @28 ; @111
@@ -31,20 +28,17 @@ export function $foo { ; returns: rax
   mov eax, esi ; @102
   sub eax, ecx ; @103
   test eax, eax ; @96
-  je @47 ; @97
-  jmp @48 ; @98
+  jne @48 ; @97
 @47:
   xor eax, eax ; @94
   jmp @28 ; @95
 @48:
   mov ecx, 0x5_w ; @92
-  jmp @15 ; @93
 @15:
   mov eax, ecx ; @90
   imul eax, ecx ; @91
   cmp eax, esi ; @84
   jbe @17 ; @85
-  jmp @49 ; @86
 @49:
   mov eax, 0x1_w ; @82
   jmp @28 ; @83
@@ -53,8 +47,7 @@ export function $foo { ; returns: rax
   xor edx, edx ; @79
   div ecx ; @80
   test edx, edx ; @72
-  je @50 ; @73
-  jmp @20 ; @74
+  jne @20 ; @73
 @50:
   xor eax, eax ; @70
   jmp @28 ; @71
@@ -64,11 +57,9 @@ export function $foo { ; returns: rax
   xor edx, edx ; @66
   div edi ; @67
   test edx, edx ; @59
-  je @51 ; @60
-  jmp @23 ; @61
+  jne @23 ; @60
 @51:
   xor eax, eax ; @57
-  jmp @28 ; @58
 @28:
   add rsp, 0x8_l ; @138
   ret ; @56

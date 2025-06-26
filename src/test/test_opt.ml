@@ -82,7 +82,7 @@ let test_isel target ext name _ =
     let* (module Machine) = Context.machine in
     let module Isel = Isel.Make(Machine)(Context) in
     let* m = isel m ~f:Isel.run in
-    let module Remove_deads = Pseudo.Remove_dead_insns(Machine) in
+    let module Remove_deads = Pseudo_passes.Remove_dead_insns(Machine) in
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
   end |> function
@@ -100,10 +100,11 @@ let test_regalloc target ext name _ =
     let* (module Machine) = Context.machine in
     let module Isel = Isel.Make(Machine)(Context) in
     let* m = isel m ~f:Isel.run in
-    let module Remove_deads = Pseudo.Remove_dead_insns(Machine) in
+    let module Remove_deads = Pseudo_passes.Remove_dead_insns(Machine) in
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
     let module RA = Regalloc.IRC(Machine)(Context) in
     let* m = pseudo_map_funs m ~f:RA.run in
+    let m = Pseudo.Module.map_funs m ~f:Machine.Peephole.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
   end |> function
   | Ok p' -> compare_outputs expected p'

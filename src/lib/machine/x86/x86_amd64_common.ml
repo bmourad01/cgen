@@ -324,6 +324,22 @@ module Insn = struct
     | Cs -> Cs
     | Cns -> Cns
 
+  let negate_cc = function
+    | Ca -> Cbe
+    | Cae -> Cb
+    | Cb -> Cae
+    | Cbe -> Ca
+    | Ce -> Cne
+    | Cne -> Ce
+    | Cg -> Cle
+    | Cge -> Cl
+    | Cl -> Cge
+    | Cle -> Cg
+    | Cp -> Cnp
+    | Cnp -> Cp
+    | Cs -> Cns
+    | Cns -> Cs
+
   let pp_cc ppf = function
     | Ca  -> Format.fprintf ppf "a"
     | Cae -> Format.fprintf ppf "ae"

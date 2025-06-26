@@ -4,8 +4,7 @@ function $foo { ; returns: rax
 @2:
   sub rsp, 0x8_l ; @37
   cmp edi, 0x2a_w ; @30
-  jg @17 ; @31
-  jmp @4 ; @32
+  jle @4 ; @31
 @17:
   mov eax, 0x5_w ; @28
   jmp @6 ; @29
@@ -13,7 +12,6 @@ function $foo { ; returns: rax
   mov eax, 0x3_w ; @22
   cmp edi, 0x0_w ; @23
   cmovge eax, edi ; @24
-  jmp @6 ; @21
 @6:
   add rsp, 0x8_l ; @38
   ret ; @19
