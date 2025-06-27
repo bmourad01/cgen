@@ -984,11 +984,25 @@ end = struct
     let*! z, zt = S.imm env "z" in
     let z = Bv.to_int64 z in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
-      I.mov (Oreg (rax, bty zt)) (Oimm (z, zt));
-      I.imul1 (Oreg (y, yt));
-      I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
-    ]
+    let rdx = Rv.reg `rdx in
+    match xt with
+    | `i32 when fits_int32 z && Int64.(z land 0x8000_0000L = 0L) ->
+      !!![
+        I.imul3 (Oreg (x, `i64)) (Oreg (y, `i64)) (Int64.to_int32_trunc z);
+        I.shr (Oreg (x, `i64)) (Oimm (32L, `i64));
+      ]
+    | `i32 when fits_int32 z ->
+      !!![
+        I.mov (Oreg (x, `i32)) (Oimm (z, `i32));
+        I.imul2 (Oreg (x, `i64)) (Oreg (y, `i64));
+        I.shr (Oreg (x, `i64)) (Oimm (32L, `i64));
+      ]
+    | _ ->
+      !!![
+        I.mov (Oreg (rax, bty zt)) (Oimm (z, zt));
+        I.imul1 (Oreg (y, yt));
+        I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
+      ]
 
   let imul_rr_high_x_y_z env =
     let*! x, xt = S.regvar env "x" in
@@ -1049,11 +1063,25 @@ end = struct
     let*! z, zt = S.imm env "z" in
     let z = Bv.to_int64 z in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
-      I.mov (Oreg (rax, bty zt)) (Oimm (z, zt));
-      I.mul (Oreg (y, yt));
-      I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
-    ]
+    let rdx = Rv.reg `rdx in
+    match xt with
+    | `i32 when fits_int32 z && Int64.(z land 0x8000_0000L = 0L) ->
+      !!![
+        I.imul3 (Oreg (x, `i64)) (Oreg (y, `i64)) (Int64.to_int32_trunc z);
+        I.shr (Oreg (x, `i64)) (Oimm (32L, `i64));
+      ]
+    | `i32 when fits_int32 z ->
+      !!![
+        I.mov (Oreg (x, `i32)) (Oimm (z, `i32));
+        I.imul2 (Oreg (x, `i64)) (Oreg (y, `i64));
+        I.shr (Oreg (x, `i64)) (Oimm (32L, `i64));
+      ]
+    | _ ->
+      !!![
+        I.mov (Oreg (rax, bty zt)) (Oimm (z, zt));
+        I.mul (Oreg (y, yt));
+        I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
+      ]
 
   let mul_rr_high_x_y_z env =
     let*! x, xt = S.regvar env "x" in

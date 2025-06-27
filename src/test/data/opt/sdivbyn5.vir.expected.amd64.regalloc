@@ -1,0 +1,14 @@
+module foo
+
+export function $foo { ; returns: rax
+@2:
+  sub rsp, 0x8_l ; @16
+  mov eax, 0xcccccccc_w ; @13
+  imul rax, rdi ; @14
+  shr rax, 0x20_l ; @15
+  mov ecx, eax ; @10
+  shr ecx, 0x1f_b ; @11
+  add eax, ecx ; @9
+  add rsp, 0x8_l ; @17
+  ret ; @8
+}

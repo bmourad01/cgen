@@ -2,29 +2,29 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  sub rsp, 0x8_l ; @137
-  mov esi, edi ; @133
-  cmp esi, 0x1_w ; @130
-  ja @4 ; @131
+  sub rsp, 0x8_l ; @136
+  mov esi, edi ; @132
+  cmp esi, 0x1_w ; @129
+  ja @4 ; @130
 @44:
-  xor eax, eax ; @128
-  jmp @28 ; @129
+  xor eax, eax ; @127
+  jmp @28 ; @128
 @4:
-  cmp esi, 0x3_w ; @122
-  ja @7 ; @123
+  cmp esi, 0x3_w ; @121
+  ja @7 ; @122
 @45:
-  mov eax, 0x1_w ; @120
-  jmp @28 ; @121
+  mov eax, 0x1_w ; @119
+  jmp @28 ; @120
 @7:
-  test esi, 0x1_w ; @112
-  jne @9 ; @113
+  test esi, 0x1_w ; @111
+  jne @9 ; @112
 @46:
-  xor eax, eax ; @110
-  jmp @28 ; @111
+  xor eax, eax ; @109
+  jmp @28 ; @110
 @9:
-  mov eax, 0x55555556_w ; @107
-  mul esi ; @108
-  lea ecx, qword ptr [rdx + rdx*2] ; @104
+  imul rax, rsi, 0x55555556 ; @107
+  shr rax, 0x20_l ; @108
+  lea ecx, qword ptr [rax + rax*2] ; @104
   mov eax, esi ; @102
   sub eax, ecx ; @103
   test eax, eax ; @96
@@ -61,7 +61,7 @@ export function $foo { ; returns: rax
 @51:
   xor eax, eax ; @57
 @28:
-  add rsp, 0x8_l ; @138
+  add rsp, 0x8_l ; @137
   ret ; @56
 @23:
   add ecx, 0x6_w ; @54

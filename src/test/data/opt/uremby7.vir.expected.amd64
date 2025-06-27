@@ -3,9 +3,8 @@ module foo
 export function $foo { ; returns: rax
 @2:
   mov %x:w, edi ; @16
-  mov eax, 0x24924925_w ; @17
-  mul %x:w ; @18
-  mov %0:w, edx ; @19
+  imul %0:l, %x:l, 0x24924925 ; @17
+  shr %0:l, 0x20_l ; @18
   mov %1:w, %0:w ; @14
   shl %1:w, 0x3_b ; @15
   mov %2:w, %1:w ; @12
