@@ -16,6 +16,36 @@ val to_abi : Typecheck.env -> module_ -> Abi.module_ Context.t
     ABI-lowered module. *)
 val optimize_abi : Abi.module_ -> Abi.module_ Context.t
 
+(** Runs instruction selection on the ABI-lowered module according to the
+    provided machine implementation.
+
+    Will fail if the provided machine interface is not the same target
+    as that of the current context (see [Context.target]).
+*)
+val isel :
+  (module Machine_intf.S
+    with type Reg.t = 'r
+     and type Insn.t = 'i) ->
+  Abi.module_ ->
+  ('i, 'r) Pseudo.module_ Context.t
+
+(** Runs register allocation on the pseudo-assembly module according to the
+    provided machine implementation.
+
+    Will fail if the provided machine interface is not the same target
+    as that of the current context (see [Context.target]).
+*)
+val regalloc :
+  (module Machine_intf.S
+    with type Reg.t = 'r
+     and type Insn.t = 'i) ->
+  ('i, 'r) Pseudo.module_ ->
+  ('i, 'r) Pseudo.module_ Context.t
+
+(** Lowers the ABI module to target-specific assembly code, and prints it
+    to the provided formatter. *)
+val to_asm : Format.formatter -> Abi.module_ -> unit Context.t
+
 (** Performs store-to-load forwarding and redundant load elimination
     on an ABI-lowered function (and some canonicalization of instruction
     operands in the process, which includes copy propagation).

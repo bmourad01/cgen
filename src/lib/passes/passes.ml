@@ -60,3 +60,46 @@ let optimize_abi m =
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in
   let* () = Context.iter_seq_err (Abi.Module.funs m) ~f:Ssa.check_abi in
   !!m
+
+let assert_same_target msg t' =
+  let* t = Context.target in
+  Context.unless (Target.equal t t') @@ fun () ->
+  Context.failf "In %s: expected target %a, got target %a"
+    msg Target.pp t Target.pp t' ()
+
+let isel
+    (type i r)
+    (module M : Machine_intf.S with type Reg.t = r and type Insn.t = i)
+    (m : Abi.module_) : (i, r) Pseudo.module_ Context.t =
+  let* () = assert_same_target "isel" M.target in
+  let module Isel = Isel.Make(M)(Context) in
+  let+ funs =
+    Abi.Module.funs m |>
+    Context.Seq.map ~f:Isel.run >>|
+    Seq.to_list in
+  Pseudo.Module.create ()
+    ~dict:(Abi.Module.dict m)
+    ~data:(Abi.Module.data m |> Seq.to_list)
+    ~name:(Abi.Module.name m) ~funs
+
+let regalloc
+    (type i r)
+    (module M : Machine_intf.S with type Reg.t = r and type Insn.t = i)
+    (m : (i, r) Pseudo.module_) : (i, r) Pseudo.module_ Context.t =
+  let* () = assert_same_target "regalloc" M.target in
+  let module RA = Regalloc.IRC(M)(Context) in
+  let+ funs =
+    Pseudo.Module.funs m |>
+    Context.Seq.map ~f:RA.run >>|
+    Seq.to_list in
+  Pseudo.Module.with_funs m funs
+
+let to_asm ppf m =
+  let* (module Machine) = Context.machine in
+  let* m = isel (module Machine) m in
+  let module Remove_deads = Pseudo_passes.Remove_dead_insns(Machine) in
+  let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
+  let+ m = regalloc (module Machine) m in
+  let m = Pseudo.Module.map_funs m ~f:Machine.Peephole.run in
+  let module Emit = Pseudo_passes.Emit(Machine) in
+  Format.fprintf ppf "%a%!" Emit.emit m

@@ -131,4 +131,4 @@ module Machine = struct
   module Emit = X86_amd64_emit
 end
 
-let () = Context.register_machine target (module Machine)
+let () = Context.register_machine (module Machine)

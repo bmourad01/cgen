@@ -17,12 +17,14 @@ type 'a t
 (** Returns the current target descriptor. *)
 val target : Target.t t
 
-(** [register_machine t m] registers the machine implementation [m] for
-    target descriptor [t].
+(** [register_machine m] registers the machine implementation [m].
 
-    @raise Invalid_argument if [t] is already registered with a machine.
+    The machine is registered by its provided target (see the [Target]
+    module).
+
+    @raise Invalid_argument if [m] is already registered.
 *)
-val register_machine : Target.t -> (module Machine_intf.S) -> unit
+val register_machine : (module Machine_intf.S) -> unit
 
 (** Returns the target machine implementation for the current context. *)
 val machine : (module Machine_intf.S) t

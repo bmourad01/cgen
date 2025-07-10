@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open OUnit2
 open Cgen
 
@@ -52,25 +51,6 @@ let test_abi target ext name _ =
   | Ok p' -> compare_outputs expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
-let isel m ~f =
-  let open Context.Syntax in
-  let+ funs =
-    Virtual.Abi.Module.funs m |>
-    Context.Seq.map ~f >>|
-    Seq.to_list in
-  Pseudo.Module.create ()
-    ~dict:(Virtual.Abi.Module.dict m)
-    ~data:(Virtual.Abi.Module.data m |> Seq.to_list)
-    ~name:(Virtual.Abi.Module.name m) ~funs
-
-let pseudo_map_funs m ~f =
-  let open Context.Syntax in
-  let+ funs =
-    Pseudo.Module.funs m |>
-    Context.Seq.map ~f >>|
-    Seq.to_list in
-  Pseudo.Module.with_funs m funs
-
 let test_isel target ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = Format.sprintf "%s.expected.%s" filename ext in
@@ -80,8 +60,7 @@ let test_isel target ext name _ =
     let open Context.Syntax in
     let* m = from_file_abi filename in
     let* (module Machine) = Context.machine in
-    let module Isel = Isel.Make(Machine)(Context) in
-    let* m = isel m ~f:Isel.run in
+    let* m = Passes.isel (module Machine) m in
     let module Remove_deads = Pseudo_passes.Remove_dead_insns(Machine) in
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
@@ -98,12 +77,10 @@ let test_regalloc target ext name _ =
     let open Context.Syntax in
     let* m = from_file_abi filename in
     let* (module Machine) = Context.machine in
-    let module Isel = Isel.Make(Machine)(Context) in
-    let* m = isel m ~f:Isel.run in
+    let* m = Passes.isel (module Machine) m in
     let module Remove_deads = Pseudo_passes.Remove_dead_insns(Machine) in
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
-    let module RA = Regalloc.IRC(Machine)(Context) in
-    let* m = pseudo_map_funs m ~f:RA.run in
+    let* m = Passes.regalloc (module Machine) m in
     let m = Pseudo.Module.map_funs m ~f:Machine.Peephole.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
   end |> function

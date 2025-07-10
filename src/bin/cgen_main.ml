@@ -2,25 +2,6 @@ open Core
 open Regular.Std
 open Cgen
 
-let isel m ~f =
-  let open Context.Syntax in
-  let+ funs =
-    Virtual.Abi.Module.funs m |>
-    Context.Seq.map ~f >>|
-    Seq.to_list in
-  Pseudo.Module.create ()
-    ~dict:(Virtual.Abi.Module.dict m)
-    ~data:(Virtual.Abi.Module.data m |> Seq.to_list)
-    ~name:(Virtual.Abi.Module.name m) ~funs
-
-let pseudo_map_funs m ~f =
-  let open Context.Syntax in
-  let+ funs =
-    Pseudo.Module.funs m |>
-    Context.Seq.map ~f >>|
-    Seq.to_list in
-  Pseudo.Module.with_funs m funs
-
 let comp (opts : Cli.t) =
   let open Context.Syntax in
   let* m = match opts.file with
@@ -58,8 +39,7 @@ let comp (opts : Cli.t) =
     bail ();
   end;
   let* (module Machine) = Context.machine in
-  let module Isel = Isel.Make(Machine)(Context) in
-  let* m = isel m ~f:Isel.run in
+  let* m = Passes.isel (module Machine) m in
   if Cli.equal_dump opts.dump Disel then begin
     Format.fprintf ppf ";; After instruction selection:@;@.%a\n%!"
       (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
@@ -72,8 +52,7 @@ let comp (opts : Cli.t) =
       (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
     bail ();
   end;
-  let module RA = Regalloc.IRC(Machine)(Context) in
-  let* m = pseudo_map_funs m ~f:RA.run in
+  let* m = Passes.regalloc (module Machine) m in
   if Cli.equal_dump opts.dump Dregalloc then begin
     Format.fprintf ppf ";; After register allocation:@;@.%a\n%!"
       (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
