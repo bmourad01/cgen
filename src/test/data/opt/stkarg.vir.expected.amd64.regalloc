@@ -24,11 +24,11 @@ export function $bar { ; returns: rax
   push rbp ; @59
   mov rbp, rsp ; @60
   xor edi, edi ; @44
-  mov rsi, 0x1_l ; @45
-  mov rdx, 0x2_l ; @46
-  mov rcx, 0x3_l ; @47
-  mov r8, 0x4_l ; @48
-  mov r9, 0x5_l ; @49
+  mov esi, 0x1_w ; @45
+  mov edx, 0x2_w ; @46
+  mov ecx, 0x3_w ; @47
+  mov r8d, 0x4_w ; @48
+  mov r9d, 0x5_w ; @49
   sub rsp, 0x10_l ; @50
   mov dword ptr [rsp + 0x0], 0x6_w ; @51
   mov dword ptr [rsp + 0x8], 0x7_w ; @52

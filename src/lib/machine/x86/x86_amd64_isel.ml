@@ -132,9 +132,15 @@ end = struct
   let move_ri_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
-    if Bv.(y = zero)
-    then !!![xor_gpr_self x xt]
-    else !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y, yt))]
+    let*! () = guard @@ Type.equal_basic xt (bty yt) in
+    if Bv.(y = zero) then
+      !!![xor_gpr_self x xt]
+    else
+      let y = Bv.to_int64 y in
+      let ty = match yt with
+        | `i64 when fits_int32_pos y -> `i32
+        | _ -> yt in
+      !!![I.mov (Oreg (x, bty ty)) (Oimm (y, ty))]
 
   let move_rb_x_y env =
     let*! x, xt = S.regvar env "x" in
