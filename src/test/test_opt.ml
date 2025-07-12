@@ -218,7 +218,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Copy an array of words (AMD64)" >:: test_amd64 "cpyarray";
     "Folding addition (AMD64)" >:: test_amd64 "foldadd";
     "Unsigned remainder by 7 (AMD64)" >:: test_amd64 "uremby7";
-    "Edge contraction and select" >:: test_amd64 "contractsel";
+    "Edge contraction and select (AMD64)" >:: test_amd64 "contractsel";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -229,11 +229,12 @@ let regalloc_suite = "Test register allocation" >::: [
     "Copy an array of words (AMD64)" >:: test_amd64_regalloc "cpyarray";
     "Folding addition (AMD64)" >:: test_amd64_regalloc "foldadd";
     "Unsigned remainder by 7 (AMD64)" >:: test_amd64_regalloc "uremby7";
-    "Edge contraction and select" >:: test_amd64_regalloc "contractsel";
-    "Prime numbers driver" >:: test_amd64_regalloc "prime_main_licm";
-    "Unordered CSE" >:: test_amd64_regalloc "unordered";
-    "Signed remainder by 7" >:: test_amd64_regalloc "sremby7";
-    "Signed division by -5" >:: test_amd64_regalloc "sdivbyn5";
+    "Edge contraction and select (AMD64)" >:: test_amd64_regalloc "contractsel";
+    "Prime numbers driver (AMD64)" >:: test_amd64_regalloc "prime_main_licm";
+    "Unordered CSE (AMD64)" >:: test_amd64_regalloc "unordered";
+    "Signed remainder by 7 (AMD64)" >:: test_amd64_regalloc "sremby7";
+    "Signed division by -5 (AMD64)" >:: test_amd64_regalloc "sdivbyn5";
+    "Scalar arguments passed on the stack (AMD64)" >:: test_amd64_regalloc "stkarg";
   ]
 
 let () = run_test_tt_main @@ test_list [

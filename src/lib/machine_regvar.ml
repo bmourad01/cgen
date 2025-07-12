@@ -15,6 +15,8 @@ module type S = sig
   val var : cls -> Var.t -> t
   val is_reg : t -> bool
   val is_var : t -> bool
+  val has_reg : t -> reg -> bool
+  val has_var : t -> Var.t -> bool
   val which : t -> (reg, Var.t * cls) Either.t
 
   include Regular.S with type t := t
@@ -47,6 +49,14 @@ module Make(R : Reg)(N : Name) = struct
     | Reg _ -> false
     | Var _ -> true
 
+  let has_reg t r = match t with
+    | Reg r' -> R.equal r r'
+    | Var _ -> false
+
+  let has_var t v = match t with
+    | Var (v', _) -> Var.(v = v')
+    | Reg _ -> false
+  
   let reg r = Reg r
   let var cls v = Var (v, cls)
 

@@ -37,6 +37,12 @@ module type S = sig
   (** Returns [true] if it is a variable. *)
   val is_var : t -> bool
 
+  (** Returns [true] if it corresponds to the provided register. *)
+  val has_reg : t -> reg -> bool
+
+  (** Returns [true] if it corresponds to the provided variable. *)
+  val has_var : t -> Var.t -> bool
+
   (** Returns the discrimination. *)
   val which : t -> (reg, Var.t * cls) Either.t
 

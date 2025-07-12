@@ -1,0 +1,38 @@
+module stkarg
+
+export function $foo { ; returns: rax
+@2:
+  push rbp ; @56
+  mov rbp, rsp ; @57
+  mov r10d, dword ptr [rbp + 0x10] ; @33
+  mov eax, dword ptr [rbp + 0x18] ; @34
+  add rsi, rdi ; @41
+  add rcx, rdx ; @32
+  add rcx, rsi ; @31
+  lea rsi, qword ptr [r8 + r9*1] ; @30
+  movsxd rdx, r10d ; @29
+  movsxd rax, eax ; @28
+  add rax, rdx ; @27
+  add rax, rsi ; @26
+  add rax, rcx ; @25
+  leave ; @58
+  ret ; @24
+}
+
+export function $bar { ; returns: rax
+@12:
+  push rbp ; @59
+  mov rbp, rsp ; @60
+  xor edi, edi ; @44
+  mov rsi, 0x1_l ; @45
+  mov rdx, 0x2_l ; @46
+  mov rcx, 0x3_l ; @47
+  mov r8, 0x4_l ; @48
+  mov r9, 0x5_l ; @49
+  sub rsp, 0x10_l ; @50
+  mov dword ptr [rsp + 0x0], 0x6_w ; @51
+  mov dword ptr [rsp + 0x8], 0x7_w ; @52
+  call $foo ; r8 r9 rcx rdi rdx rsi ; @53
+  leave ; @61
+  ret ; @43
+}
