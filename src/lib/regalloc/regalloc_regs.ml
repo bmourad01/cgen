@@ -21,12 +21,7 @@ module Make(M : Machine_intf.S) = struct
     | First r -> M.Reg.classof r
     | Second (_, k) -> k
 
-  let same_class (k : MR.cls) (k' : MR.cls) = match k, k' with
-    | GPR, GPR -> true
-    | FP, FP -> true
-    | _ -> false
-
-  let same_class_node a b = same_class (classof a) (classof b)
+  let same_class_node a b = MR.equal_cls (classof a) (classof b)
 
   let allocatable = Array.of_list M.Reg.allocatable
   let allocatable_fp = Array.of_list M.Reg.allocatable_fp
