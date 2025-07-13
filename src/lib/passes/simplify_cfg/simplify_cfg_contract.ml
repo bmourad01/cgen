@@ -9,6 +9,8 @@ open Simplify_cfg_common
 open O.Let
 open O.Syntax
 
+module Lset = Label.Tree_set
+
 type singles = dst Label.Tree.t
 
 type chain =
@@ -29,15 +31,15 @@ let singles env : singles =
 (* Chase down the final destination. *)
 let chase ?(local_only = false) (s : singles) l =
   let rec aux l vis =
-    let* () = O.guard @@ not @@ Set.mem vis l in
+    let* () = O.guard @@ not @@ Lset.mem vis l in
     Label.Tree.find s l >>= function
     | #global when local_only -> None
     | #global as g -> !!(Dest g)
     | `label (l', _) as loc ->
-      match aux l' @@ Set.add vis l with
+      match aux l' @@ Lset.add vis l with
       | Some x -> !!(Next (l, l', x))
       | None -> !!(Dest loc) in
-  aux l Label.Set.empty
+  aux l Lset.empty
 
 (* Perform the substitutions on block arguments for the entire chain.
 
@@ -83,10 +85,12 @@ let find_loc env s : local -> local option = function
     | #local as l -> l
 
 let map_dst changed env s d = match find_dst env s d with
+  | Some x when equal_dst d x -> x
   | Some x -> changed := true; x
   | None -> d
 
 let map_loc changed env s l = match find_loc env s l with
+  | Some x when equal_local l x -> x
   | Some x -> changed := true; x
   | None -> l
 

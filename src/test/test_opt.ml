@@ -195,6 +195,7 @@ let opt_suite = "Test optimizations" >::: [
     "Short-circuiting OR (negated flag indirection)" >:: test "shortcircor3";
     "Edge contraction and select" >:: test "contractsel";
     "Naiive even-odd test" >:: test "evenodd";
+    "Trivial infinite loop" >:: test "forever";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -212,6 +213,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Variadic sum (SysV)" >:: test_sysv "vasum";
     "Unsigned integer to float (SysV)" >:: test_sysv "uitof";
     "Naiive even-odd test (SysV)" >:: test_sysv "evenodd";
+    "Trivial infinite loop (SysV)" >:: test_sysv "forever";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -228,6 +230,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Unsigned remainder by 7 (AMD64)" >:: test_amd64 "uremby7";
     "Edge contraction and select (AMD64)" >:: test_amd64 "contractsel";
     "Naiive even-odd test (AMD64)" >:: test_amd64 "evenodd";
+    "Trivial infinite loop (AMD64)" >:: test_amd64 "forever";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -246,6 +249,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Scalar arguments passed on the stack (AMD64)" >:: test_amd64_regalloc "stkarg";
     "Naiive even-odd test (AMD64)" >:: test_amd64_regalloc "evenodd";
     "Variadic function arguments 1 (AMD64)" >:: test_amd64_regalloc "vaarg1";
+    "Trivial infinite loop (AMD64)" >:: test_amd64_regalloc "forever";
   ]
 
 let () = run_test_tt_main @@ test_list [

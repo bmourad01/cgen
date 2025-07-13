@@ -1,0 +1,8 @@
+module forever
+
+export function $foo {
+@2:
+  jmp @3 ; @5
+@3:
+  jmp @3 ; @4
+}

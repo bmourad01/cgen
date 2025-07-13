@@ -1,0 +1,8 @@
+module forever
+
+export function $foo() {
+@start:
+  jmp @loop
+@loop:
+  jmp @loop
+}
