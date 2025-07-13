@@ -245,6 +245,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Signed division by -5 (AMD64)" >:: test_amd64_regalloc "sdivbyn5";
     "Scalar arguments passed on the stack (AMD64)" >:: test_amd64_regalloc "stkarg";
     "Naiive even-odd test (AMD64)" >:: test_amd64_regalloc "evenodd";
+    "Variadic function arguments 1 (AMD64)" >:: test_amd64_regalloc "vaarg1";
   ]
 
 let () = run_test_tt_main @@ test_list [

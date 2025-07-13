@@ -1,0 +1,74 @@
+module vaarg1
+
+export function $foo { ; returns: rax
+@19:
+  push rbp ; @190
+  mov rbp, rsp ; @191
+  sub rsp, 0xf0_l ; @192
+  mov r10b, al ; @186
+  mov rax, rdi ; @187
+  mov qword ptr [rbp - 0xe8], rsi ; @185
+  mov qword ptr [rbp - 0xe0], rdx ; @183
+  mov qword ptr [rbp - 0xd8], rcx ; @181
+  mov qword ptr [rbp - 0xd0], r8 ; @179
+  mov qword ptr [rbp - 0xc8], r9 ; @177
+  test r10b, r10b ; @171
+  je @2 ; @172
+@18:
+  movdqa xmmword ptr [rbp - 0xc0], xmm0 ; @169
+  movdqa xmmword ptr [rbp - 0xb0], xmm1 ; @167
+  movdqa xmmword ptr [rbp - 0xa0], xmm2 ; @165
+  movdqa xmmword ptr [rbp - 0x90], xmm3 ; @163
+  movdqa xmmword ptr [rbp - 0x80], xmm4 ; @161
+  movdqa xmmword ptr [rbp - 0x70], xmm5 ; @159
+  movdqa xmmword ptr [rbp - 0x60], xmm6 ; @157
+  movdqa xmmword ptr [rbp - 0x50], xmm7 ; @155
+@2:
+  mov dword ptr [rbp - 0x40], 0x8_w ; @153
+  mov dword ptr [rbp - 0x3c], 0x30_w ; @151
+  lea rcx, qword ptr [rbp + 0x10] ; @150
+  mov qword ptr [rbp - 0x38], rcx ; @148
+  lea rcx, qword ptr [rbp - 0xf0] ; @146
+  mov qword ptr [rbp - 0x30], rcx ; @189
+@62:
+  mov esi, dword ptr [rbp - 0x3c] ; @144
+  cmp esi, 0xa0_w ; @138
+  ja @65 ; @139
+@63:
+  mov edi, dword ptr [rbp - 0x40] ; @137
+  cmp edi, 0x28_w ; @131
+  jbe @64 ; @132
+@65:
+  mov rdx, qword ptr [rbp - 0x38] ; @130
+  lea rcx, qword ptr [rdx + 0x8] ; @129
+  lea rsi, qword ptr [rdx + 0x10] ; @128
+  mov qword ptr [rbp - 0x38], rsi ; @127
+  jmp @66 ; @126
+@64:
+  mov ecx, esi ; zx ; @123
+  lea rdx, qword ptr [rbp + rcx*1 - 0xf0] ; @122
+  mov ecx, edi ; zx ; @121
+  lea rcx, qword ptr [rbp + rcx*1 - 0xf0] ; @120
+  add esi, 0x10_w ; @119
+  add edi, 0x8_w ; @118
+  mov dword ptr [rbp - 0x3c], esi ; @117
+  mov dword ptr [rbp - 0x40], edi ; @116
+@66:
+  mov rdx, qword ptr [rdx] ; @112
+  mov qword ptr [rbp - 0x18], rdx ; @111
+  mov rcx, qword ptr [rcx] ; @110
+  mov qword ptr [rbp - 0x10], rcx ; @108
+@61:
+  mov rcx, qword ptr [rbp - 0x18] ; @106
+  mov qword ptr [rbp - 0x28], rcx ; @105
+  mov rdx, qword ptr [rbp - 0x10] ; @104
+  mov qword ptr [rbp - 0x20], rdx ; @102
+  movsd xmm0, qword ptr [rbp - 0x28] ; @101
+  addsd xmm0, qword ptr [rip + @97] ; @99
+  .fp64 @97, 1.234 ; @100
+  cvtsd2si rcx, xmm0 ; @96
+  add rcx, rdx ; @95
+  add rax, rcx ; @94
+  leave ; @193
+  ret ; @93
+}

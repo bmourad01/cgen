@@ -13,6 +13,7 @@ export function l $foo(l %i, ...) {
   %t = vaarg:t %ap
   st:t %t, %r
   %f1 = ld.d %r
+  %f1 = add.d %f1, 1.234_d
   %r8 = add.l %r, 8_l
   %f2 = ld.l %r8
   %f3 = ftosi.d.l %f1

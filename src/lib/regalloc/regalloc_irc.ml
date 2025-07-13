@@ -21,10 +21,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
   open Regalloc_irc_state.Make(M)
 
+  let ensure_degree t n =
+    if can_be_colored t n then
+      Hashtbl.update t.degree n ~f:(function
+          | None -> 0
+          | Some d -> d)
+
   (* Adds an edge between `u` and `v` in the interference graph. *)
   let add_edge t u v =
     (* A node cannot interfere with itself, nor a node with a different
        register class. Nodes that correspond to slots are excluded. *)
+    ensure_degree t u;
+    ensure_degree t v;
     if Rv.(u <> v)
     && Regs.same_class_node u v
     && not (Hash_set.mem t.slots u)
