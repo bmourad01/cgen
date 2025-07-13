@@ -5,9 +5,7 @@ function $abs { ; returns: rax
   sub rsp, 0x8_l ; @88
   mov eax, edi ; @42
   test eax, eax ; @39
-  js @3 ; @40
-@30:
-  jmp @21 ; @38
+  jns @21 ; @40
 @3:
   neg eax ; @36
 @21:

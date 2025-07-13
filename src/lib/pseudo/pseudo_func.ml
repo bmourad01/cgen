@@ -54,6 +54,7 @@ let slots ?(rev = false) t = Ftree.enum ~rev t.slots
 let blks ?(rev = false) t = Ftree.enum ~rev t.blks
 let rets ?(rev = false) t = Ftree.enum ~rev t.rets
 let dict t = t.dict
+let start t = Pseudo_blk.label @@ Ftree.head_exn t.blks
 
 let has_name t n = String.(n = t.name)
 
@@ -122,6 +123,22 @@ let collect_afters fn =
         let key = x.Pseudo_blk.label and data = y.label in
         aux (Label.Tree.set acc ~key ~data) xs in
   aux Label.Tree.empty @@ Ftree.enum fn.blks
+
+let remove_blk_exn fn l =
+  if Label.(l = entry fn)
+  then invalid_argf "Cannot remove entry block of function $%s" fn.name ()
+  else {fn with blks = Ftree.remove_if fn.blks ~f:(Fn.flip Pseudo_blk.has_label l)}
+
+let remove_blks_exn fn = function
+  | [] -> fn
+  | [l] -> remove_blk_exn fn l
+  | ls ->
+    let s = Label.Tree_set.of_list ls in
+    if Label.Tree_set.mem s @@ entry fn then
+      invalid_argf "Cannot remove entry block of function $%s" fn.name ()
+    else
+      let f = Fn.non @@ Fn.compose (Label.Tree_set.mem s) Pseudo_blk.label in
+      {fn with blks = Ftree.filter fn.blks ~f}
 
 let pp ppa ppb ppf t =
   let sep_ret ppf = Format.fprintf ppf " " in

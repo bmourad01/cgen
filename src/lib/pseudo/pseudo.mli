@@ -120,6 +120,9 @@ module Func : sig
   (** The stack slots of the function. *)
   val slots : ?rev:bool -> ('a, 'b) t -> Virtual.slot seq
 
+  (** Returns the label of the entry block. *)
+  val start : ('a, 'b) t -> Label.t
+
   (** Returns the linkage of the function. *)
   val linkage : ('a, 'b) t -> Linkage.t
 
@@ -175,6 +178,19 @@ module Func : sig
       fall through to another block.
   *)
   val collect_afters : ('a, 'b) t -> Label.t Label.Tree.t
+
+  (** [remove_blk_exn fn l] removes the block with label [l] from function
+      [f].
+
+      @raise Invalid_argument if [l] is the label of the entry block.
+  *)
+  val remove_blk_exn : ('a, 'b) t -> Label.t -> ('a, 'b) t
+
+  (** Same as [remove_blk_exn], but removes multiple blocks.
+
+      @raise Invalid_argument if one of the labels is the entry block.
+  *)
+  val remove_blks_exn : ('a, 'b) t -> Label.t list -> ('a, 'b) t
 
   val pp :
     (Format.formatter -> 'a -> unit) ->
