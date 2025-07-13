@@ -93,6 +93,10 @@ let dump =
        opt string (string_of_dump Dasm)
          (info ["d"; "dump"] ~docv:"DUMP" ~doc))
 
+let dump_no_comment =
+  let doc = "Don't include a descriptive comment when dumping" in
+  Arg.(value & flag (info ["dump-no-comment"] ~doc))
+
 let man_targets =
   `S "TARGET" ::
   `Pre "Supported target platforms" :: begin
@@ -126,10 +130,11 @@ type t = {
   file   : input;
   output : output;
   dump   : dump;
+  nc     : bool;
   target : Cgen.Target.t;
 }
 
-let go f file output dump target =
+let go f file output dump nc target =
   let file = match file with
     | "" -> Istdin
     | _ -> Ifile file in
@@ -142,9 +147,9 @@ let go f file output dump target =
   let target = match Core.Map.find targets target with
     | None -> fatal "invalid target: %s\n%!" target ()
     | Some t -> t in
-  f {file; output; dump; target}
+  f {file; output; dump; nc; target}
 
-let t f = Term.(const (go f) $ file $ output $ dump $ target)
+let t f = Term.(const (go f) $ file $ output $ dump $ dump_no_comment $ target)
 
 let man = List.concat [
     man_dump;

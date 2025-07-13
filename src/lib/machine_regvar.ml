@@ -56,7 +56,7 @@ module Make(R : Reg)(N : Name) = struct
   let has_var t v = match t with
     | Var (v', _) -> Var.(v = v')
     | Reg _ -> false
-  
+
   let reg r = Reg r
   let var cls v = Var (v, cls)
 
