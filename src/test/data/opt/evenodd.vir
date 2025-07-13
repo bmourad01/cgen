@@ -1,0 +1,38 @@
+module evenodd
+
+function w $abs(w %n) {
+@start:
+  %c = slt.w %n, 0_w
+  br %c, @neg, @pos
+@neg:
+  %n = neg.w %n
+  ret %n
+@pos:
+  ret %n
+}
+
+export function b $even(w %n) {
+@start:
+  %n = call.w $abs(%n)
+  %c = eq.w %n, 0_w
+  br %c, @zero, @nonzero
+@zero:
+  ret 1_b
+@nonzero:
+  %n = sub.w %n, 1_w
+  %b = call.b $odd(%n)
+  ret %b
+}
+
+export function b $odd(w %n) {
+@start:
+  %n = call.w $abs(%n)
+  %c = eq.w %n, 0_w
+  br %c, @zero, @nonzero
+@zero:
+  ret 0_b
+@nonzero:
+  %n = sub.w %n, 1_w
+  %b = call.b $even(%n)
+  ret %b
+}

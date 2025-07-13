@@ -2,10 +2,16 @@ open Core
 open OUnit2
 open Cgen
 
-(* Ignore certain characters when comparing the output *)
-let fmt = String.filter ~f:(function
-    | '\r' | '\n' | '\t' | ' ' -> false
-    | _ -> true)
+let fmt s =
+  (* Ignore lines starting with a double comment *)
+  let s =
+    String.split_lines s |> List.filter ~f:(fun ln ->
+        not @@ String.is_prefix ln ~prefix:";;") |>
+    String.concat in
+  (* Ignore returns/newlines/tabs/spaces *)
+  String.filter s ~f:(function
+      | '\r' | '\n' | '\t' | ' ' -> false
+      | _ -> true)
 
 let from_file filename =
   let open Context.Syntax in
@@ -188,6 +194,7 @@ let opt_suite = "Test optimizations" >::: [
     "Short-circuiting OR (flag indirection)" >:: test "shortcircor2";
     "Short-circuiting OR (negated flag indirection)" >:: test "shortcircor3";
     "Edge contraction and select" >:: test "contractsel";
+    "Naiive even-odd test" >:: test "evenodd";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -204,6 +211,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Variadic function arguments 2 (SysV)" >:: test_sysv "vaarg2";
     "Variadic sum (SysV)" >:: test_sysv "vasum";
     "Unsigned integer to float (SysV)" >:: test_sysv "uitof";
+    "Naiive even-odd test (SysV)" >:: test_sysv "evenodd";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -219,6 +227,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Folding addition (AMD64)" >:: test_amd64 "foldadd";
     "Unsigned remainder by 7 (AMD64)" >:: test_amd64 "uremby7";
     "Edge contraction and select (AMD64)" >:: test_amd64 "contractsel";
+    "Naiive even-odd test (AMD64)" >:: test_amd64 "evenodd";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -235,6 +244,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Signed remainder by 7 (AMD64)" >:: test_amd64_regalloc "sremby7";
     "Signed division by -5 (AMD64)" >:: test_amd64_regalloc "sdivbyn5";
     "Scalar arguments passed on the stack (AMD64)" >:: test_amd64_regalloc "stkarg";
+    "Naiive even-odd test (AMD64)" >:: test_amd64_regalloc "evenodd";
   ]
 
 let () = run_test_tt_main @@ test_list [
