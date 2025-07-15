@@ -196,6 +196,7 @@ let opt_suite = "Test optimizations" >::: [
     "Edge contraction and select" >:: test "contractsel";
     "Naiive even-odd test" >:: test "evenodd";
     "Trivial infinite loop" >:: test "forever";
+    "Tail-recursive infinite loop" >:: test "forever2";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -214,6 +215,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Unsigned integer to float (SysV)" >:: test_sysv "uitof";
     "Naiive even-odd test (SysV)" >:: test_sysv "evenodd";
     "Trivial infinite loop (SysV)" >:: test_sysv "forever";
+    "Tail-recursive infinite loop (SysV)" >:: test_sysv "forever2";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -231,6 +233,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Edge contraction and select (AMD64)" >:: test_amd64 "contractsel";
     "Naiive even-odd test (AMD64)" >:: test_amd64 "evenodd";
     "Trivial infinite loop (AMD64)" >:: test_amd64 "forever";
+    "Tail-recursive infinite loop (AMD64)" >:: test_amd64 "forever2";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -250,6 +253,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Naiive even-odd test (AMD64)" >:: test_amd64_regalloc "evenodd";
     "Variadic function arguments 1 (AMD64)" >:: test_amd64_regalloc "vaarg1";
     "Trivial infinite loop (AMD64)" >:: test_amd64_regalloc "forever";
+    "Tail-recursive infinite loop (AMD64)" >:: test_amd64_regalloc "forever2";
   ]
 
 let () = run_test_tt_main @@ test_list [

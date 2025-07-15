@@ -1,0 +1,7 @@
+module forever2
+
+export function $foo() {
+@start:
+  call $foo()
+  ret
+}
