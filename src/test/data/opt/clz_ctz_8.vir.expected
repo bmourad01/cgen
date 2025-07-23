@@ -1,0 +1,13 @@
+module clz_ctz_8
+
+export function b $clz8(b %x) {
+@2:
+  %0 = clz.b %x ; @6
+  ret %0
+}
+
+export function b $ctz8(b %x) {
+@4:
+  %1 = ctz.b %x ; @7
+  ret %1
+}

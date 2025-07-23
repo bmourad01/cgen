@@ -1,0 +1,22 @@
+module clz_ctz_8
+
+export function $clz8 { ; returns: rax
+@2:
+  sub rsp, 0x8_l ; @23
+  movzx ax, dil ; @11
+  shl ax, 0x8_b ; @12
+  or ax, 0xff_h ; @13
+  lzcnt ax, ax ; @14
+  add rsp, 0x8_l ; @24
+  ret ; @9
+}
+
+export function $ctz8 { ; returns: rax
+@4:
+  sub rsp, 0x8_l ; @25
+  movzx ax, dil ; @19
+  or ax, 0xff00_h ; @20
+  tzcnt ax, ax ; @21
+  add rsp, 0x8_l ; @26
+  ret ; @17
+}

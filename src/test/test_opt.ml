@@ -198,6 +198,7 @@ let opt_suite = "Test optimizations" >::: [
     "Naiive even-odd test" >:: test "evenodd";
     "Trivial infinite loop" >:: test "forever";
     "Tail-recursive infinite loop" >:: test "forever2";
+    "CLZ/CTZ 8-bit" >:: test "clz_ctz_8";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -218,6 +219,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Trivial infinite loop (SysV)" >:: test_sysv "forever";
     "Tail-recursive infinite loop (SysV)" >:: test_sysv "forever2";
     "Switch simplification 2 (SysV)" >:: test_sysv "sw";
+    "CLZ/CTZ 8-bit (SysV)" >:: test_sysv "clz_ctz_8";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -237,6 +239,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Trivial infinite loop (AMD64)" >:: test_amd64 "forever";
     "Tail-recursive infinite loop (AMD64)" >:: test_amd64 "forever2";
     "Switch simplification 2 (AMD64)" >:: test_amd64 "sw";
+    "CLZ/CTZ 8-bit (AMD64)" >:: test_amd64 "clz_ctz_8";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -258,6 +261,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Trivial infinite loop (AMD64)" >:: test_amd64_regalloc "forever";
     "Tail-recursive infinite loop (AMD64)" >:: test_amd64_regalloc "forever2";
     "Switch simplification 2 (AMD64)" >:: test_amd64_regalloc "sw";
+    "CLZ/CTZ 8-bit (AMD64)" >:: test_amd64_regalloc "clz_ctz_8";
   ]
 
 let () = run_test_tt_main @@ test_list [
