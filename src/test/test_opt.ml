@@ -32,7 +32,7 @@ let from_file_abi filename =
 
 let test name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
-  let filename' = filename ^ ".expected" in
+  let filename' = filename ^ ".opt" in
   let expected = In_channel.read_all filename' in
   Context.init Machine.X86.Amd64_sysv.target |>
   Context.eval begin
@@ -46,7 +46,7 @@ let test name _ =
 
 let test_abi target ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
-  let filename' = Format.sprintf "%s.expected.%s" filename ext in
+  let filename' = Format.sprintf "%s.opt.%s" filename ext in
   let expected = In_channel.read_all filename' in
   Context.init target |>
   Context.eval begin
@@ -57,9 +57,9 @@ let test_abi target ext name _ =
   | Ok p' -> compare_outputs expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
-let test_isel target ext name _ =
+let test_isel target abi ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
-  let filename' = Format.sprintf "%s.expected.%s" filename ext in
+  let filename' = Format.sprintf "%s.opt.%s.%s" filename abi ext in
   let expected = In_channel.read_all filename' in
   Context.init target |>
   Context.eval begin
@@ -74,9 +74,9 @@ let test_isel target ext name _ =
   | Ok p' -> compare_outputs expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
-let test_regalloc target ext name _ =
+let test_regalloc target abi ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
-  let filename' = Format.sprintf "%s.expected.%s.regalloc" filename ext in
+  let filename' = Format.sprintf "%s.opt.%s.%s.regalloc" filename abi ext in
   let expected = In_channel.read_all filename' in
   Context.init target |>
   Context.eval begin
@@ -97,10 +97,10 @@ let test_regalloc target ext name _ =
 let test_sysv = test_abi Machine.X86.Amd64_sysv.target "sysv"
 
 (* Specific instruction selection tests. *)
-let test_amd64 = test_isel Machine.X86.Amd64_sysv.target "amd64"
+let test_sysv_amd64 = test_isel Machine.X86.Amd64_sysv.target "sysv" "amd64"
 
 (* Specific register allocation tests. *)
-let test_amd64_regalloc = test_regalloc Machine.X86.Amd64_sysv.target "amd64"
+let test_sysv_amd64_regalloc = test_regalloc Machine.X86.Amd64_sysv.target "sysv" "amd64"
 
 (*  General optimization tests *)
 let opt_suite = "Test optimizations" >::: [
@@ -225,46 +225,46 @@ let abi_suite = "Test ABI lowering" >::: [
 
 let isel_suite = "Test instruction selection" >::: [
     (* AMD64 instruction selection tests *)
-    "LEA arithmetic with negative disp (AMD64)" >:: test_amd64 "lea1";
-    "Test prime numbers (AMD64)" >:: test_amd64 "prime";
-    "Switch case propagation (AMD64)" >:: test_amd64 "switchcaseprop";
-    "Slot promotion 2 (GCD, partial) (AMD64)" >:: test_amd64 "promote2-partial";
-    "Variadic function arguments 1 (AMD64)" >:: test_amd64 "vaarg1";
-    "Variadic sum (AMD64)" >:: test_amd64 "vasum";
-    "Sum an array of words (AMD64)" >:: test_amd64 "sumarray";
-    "Copy an array of words (AMD64)" >:: test_amd64 "cpyarray";
-    "Folding addition (AMD64)" >:: test_amd64 "foldadd";
-    "Unsigned remainder by 7 (AMD64)" >:: test_amd64 "uremby7";
-    "Edge contraction and select (AMD64)" >:: test_amd64 "contractsel";
-    "Naiive even-odd test (AMD64)" >:: test_amd64 "evenodd";
-    "Trivial infinite loop (AMD64)" >:: test_amd64 "forever";
-    "Tail-recursive infinite loop (AMD64)" >:: test_amd64 "forever2";
-    "Switch simplification 2 (AMD64)" >:: test_amd64 "sw";
-    "CLZ/CTZ 8-bit (AMD64)" >:: test_amd64 "clz_ctz_8";
-    "Short-circuiting AND (flag indirection) (AMD64)" >:: test_amd64 "shortcircand2";
+    "LEA arithmetic with negative disp (SysV AMD64)" >:: test_sysv_amd64 "lea1";
+    "Test prime numbers (SysV AMD64)" >:: test_sysv_amd64 "prime";
+    "Switch case propagation (SysV AMD64)" >:: test_sysv_amd64 "switchcaseprop";
+    "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64 "promote2-partial";
+    "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64 "vaarg1";
+    "Variadic sum (SysV AMD64)" >:: test_sysv_amd64 "vasum";
+    "Sum an array of words (SysV AMD64)" >:: test_sysv_amd64 "sumarray";
+    "Copy an array of words (SysV AMD64)" >:: test_sysv_amd64 "cpyarray";
+    "Folding addition (SysV AMD64)" >:: test_sysv_amd64 "foldadd";
+    "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64 "uremby7";
+    "Edge contraction and select (SysV AMD64)" >:: test_sysv_amd64 "contractsel";
+    "Naiive even-odd test (SysV AMD64)" >:: test_sysv_amd64 "evenodd";
+    "Trivial infinite loop (SysV AMD64)" >:: test_sysv_amd64 "forever";
+    "Tail-recursive infinite loop (SysV AMD64)" >:: test_sysv_amd64 "forever2";
+    "Switch simplification 2 (SysV AMD64)" >:: test_sysv_amd64 "sw";
+    "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64 "clz_ctz_8";
+    "Short-circuiting AND (flag indirection) (SysV AMD64)" >:: test_sysv_amd64 "shortcircand2";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
     (* AMD64 register allocation tests *)
-    "LEA arithmetic with negative disp (AMD64)" >:: test_amd64_regalloc "lea1";
-    "Test prime numbers (AMD64)" >:: test_amd64_regalloc "prime";
-    "Spill test 1 (AMD64)" >:: test_amd64_regalloc "spill1";
-    "Copy an array of words (AMD64)" >:: test_amd64_regalloc "cpyarray";
-    "Folding addition (AMD64)" >:: test_amd64_regalloc "foldadd";
-    "Unsigned remainder by 7 (AMD64)" >:: test_amd64_regalloc "uremby7";
-    "Edge contraction and select (AMD64)" >:: test_amd64_regalloc "contractsel";
-    "Prime numbers driver (AMD64)" >:: test_amd64_regalloc "prime_main_licm";
-    "Unordered CSE (AMD64)" >:: test_amd64_regalloc "unordered";
-    "Signed remainder by 7 (AMD64)" >:: test_amd64_regalloc "sremby7";
-    "Signed division by -5 (AMD64)" >:: test_amd64_regalloc "sdivbyn5";
-    "Scalar arguments passed on the stack (AMD64)" >:: test_amd64_regalloc "stkarg";
-    "Naiive even-odd test (AMD64)" >:: test_amd64_regalloc "evenodd";
-    "Variadic function arguments 1 (AMD64)" >:: test_amd64_regalloc "vaarg1";
-    "Trivial infinite loop (AMD64)" >:: test_amd64_regalloc "forever";
-    "Tail-recursive infinite loop (AMD64)" >:: test_amd64_regalloc "forever2";
-    "Switch simplification 2 (AMD64)" >:: test_amd64_regalloc "sw";
-    "CLZ/CTZ 8-bit (AMD64)" >:: test_amd64_regalloc "clz_ctz_8";
-    "Short-circuiting AND (flag indirection) (AMD64)" >:: test_amd64_regalloc "shortcircand2";
+    "LEA arithmetic with negative disp (SysV AMD64)" >:: test_sysv_amd64_regalloc "lea1";
+    "Test prime numbers (SysV AMD64)" >:: test_sysv_amd64_regalloc "prime";
+    "Spill test 1 (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill1";
+    "Copy an array of words (SysV AMD64)" >:: test_sysv_amd64_regalloc "cpyarray";
+    "Folding addition (SysV AMD64)" >:: test_sysv_amd64_regalloc "foldadd";
+    "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_regalloc "uremby7";
+    "Edge contraction and select (SysV AMD64)" >:: test_sysv_amd64_regalloc "contractsel";
+    "Prime numbers driver (SysV AMD64)" >:: test_sysv_amd64_regalloc "prime_main_licm";
+    "Unordered CSE (SysV AMD64)" >:: test_sysv_amd64_regalloc "unordered";
+    "Signed remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_regalloc "sremby7";
+    "Signed division by -5 (SysV AMD64)" >:: test_sysv_amd64_regalloc "sdivbyn5";
+    "Scalar arguments passed on the stack (SysV AMD64)" >:: test_sysv_amd64_regalloc "stkarg";
+    "Naiive even-odd test (SysV AMD64)" >:: test_sysv_amd64_regalloc "evenodd";
+    "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64_regalloc "vaarg1";
+    "Trivial infinite loop (SysV AMD64)" >:: test_sysv_amd64_regalloc "forever";
+    "Tail-recursive infinite loop (SysV AMD64)" >:: test_sysv_amd64_regalloc "forever2";
+    "Switch simplification 2 (SysV AMD64)" >:: test_sysv_amd64_regalloc "sw";
+    "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_regalloc "clz_ctz_8";
+    "Short-circuiting AND (flag indirection) (SysV AMD64)" >:: test_sysv_amd64_regalloc "shortcircand2";
   ]
 
 let () = run_test_tt_main @@ test_list [
