@@ -1,0 +1,13 @@
+module sw
+
+export function $test() {
+@start:
+  %x = copy.l $sym
+  switch.l %x, @def [0x1_l -> @one, 0x2_l -> @two]
+@def:
+  ret
+@one:
+  ret
+@two:
+  hlt
+}

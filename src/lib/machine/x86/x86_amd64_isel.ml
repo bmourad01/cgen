@@ -75,8 +75,7 @@ let adjust_table d tbl =
   let acc = Vec.create () in
   let _ = List.fold tbl ~init:lowest ~f:(fun p (v, l) ->
       let diff = Int64.(v - p) in
-      for i = 0 to Int64.to_int_trunc diff - 1 do
-        ignore i;
+      for _ = 0 to Int64.to_int_trunc diff - 1 do
         Vec.push acc d;
       done;
       Vec.push acc l;
@@ -427,6 +426,19 @@ end = struct
       I.jmp (Jlbl no);
     ]
 
+  let jcc_rsym_test_x_y ?(neg = false) env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yo = S.sym env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
+    let cc = if neg then Ce else Cne in !!![
+      I.lea (Oreg (tmp, `i64)) (Osym (y, yo));
+      I.test (Oreg (x, xt)) (Oreg (tmp, `i64));
+      I.jcc cc yes;
+      I.jmp (Jlbl no);
+    ]
+
   let jcc_rr_x_y cc env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -478,6 +490,32 @@ end = struct
         I.jmp (Jlbl no);
       ]
 
+  let jcc_rsym_x_y cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yo = S.sym env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
+      I.lea (Oreg (tmp, `i64)) (Osym (y, yo));
+      I.cmp (Oreg (x, xt)) (Oreg (tmp, `i64));
+      I.jcc cc yes;
+      I.jmp (Jlbl no);
+    ]
+
+  let jcc_symi_x_y cc env =
+    let*! x, xo = S.sym env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! () = guard @@ Type.equal_imm yt `i64 in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
+    let y = Bv.to_int64 y in !!![
+      I.lea (Oreg (tmp, `i64)) (Osym (x, xo));
+      I.cmp (Oreg (tmp, `i64)) (Oimm (y, yt));
+      I.jcc cc yes;
+      I.jmp (Jlbl no);
+    ]
+
   (* Default to 8-bit *)
   let setcc_r_zero_x_y ?(neg = false) env =
     let*! x, _ = S.regvar env "x" in
@@ -520,6 +558,17 @@ end = struct
       I.setcc cc (Oreg (x, `i8));
     ]
 
+  let setcc_rsym_test_x_y_z ?(neg = false) env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zo = S.sym env "y" in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
+    let cc = if neg then Ce else Cne in !!![
+      I.lea (Oreg (tmp, `i64)) (Osym (z, zo));
+      I.test (Oreg (y, yt)) (Oreg (tmp, `i64));
+      I.setcc cc (Oreg (x, `i8));
+    ]
+
   (* Default to 8-bit *)
   let setcc_rr_x_y_z cc env =
     let*! x, _ = S.regvar env "x" in
@@ -527,6 +576,28 @@ end = struct
     let*! z, zt = S.regvar env "z" in !!![
       I.mov (Oreg (x, `i32)) (Oimm (0L, `i32));
       I.cmp (Oreg (y, yt)) (Oreg (z, zt));
+      I.setcc cc (Oreg (x, `i8));
+    ]
+
+  let setcc_rsym_x_y_z cc env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zo = S.sym env "y" in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
+      I.lea (Oreg (tmp, `i64)) (Osym (z, zo));
+      I.cmp (Oreg (y, yt)) (Oreg (tmp, `i64));
+      I.setcc cc (Oreg (x, `i8));
+    ]
+
+  let setcc_symi_x_y_z cc env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yo = S.sym env "y" in
+    let*! z, zt = S.imm env "z" in
+    let*! () = guard @@ Type.equal_imm zt `i64 in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
+    let z = Bv.to_int64 z in !!![
+      I.lea (Oreg (tmp, `i64)) (Osym (y, yo));
+      I.cmp (Oreg (tmp, `i64)) (Oimm (z, zt));
       I.setcc cc (Oreg (x, `i8));
     ]
 
@@ -2055,11 +2126,14 @@ end = struct
     let setcc_test ?(neg = false) () = [
       setcc_rr_test_x_y_z ~neg;
       setcc_ri_test_x_y_z ~neg;
+      setcc_rsym_test_x_y_z ~neg;
     ]
 
     let setcc cc = [
       setcc_rr_x_y_z cc;
       setcc_ri_x_y_z cc;
+      setcc_rsym_x_y_z cc;
+      setcc_symi_x_y_z cc;
     ]
 
     let setcc_f32 cc = [
@@ -2228,11 +2302,14 @@ end = struct
     let br_test ?(neg = false) () = [
       jcc_rr_test_x_y ~neg;
       jcc_ri_test_x_y ~neg;
+      jcc_rsym_test_x_y ~neg;
     ]
 
     let br_icmp cc = [
       jcc_rr_x_y cc;
       jcc_ri_x_y cc;
+      jcc_rsym_x_y cc;
+      jcc_symi_x_y cc;
     ]
 
     let br_fcmp32 cc = [

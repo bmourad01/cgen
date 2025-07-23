@@ -148,6 +148,7 @@ let opt_suite = "Test optimizations" >::: [
     "CSE (hoist and merge 3)" >:: test "csehoistandmerge3";
     "Switch case propagation" >:: test "switchcaseprop";
     "Switch simplification" >:: test "switchsimpl";
+    "Switch simplification 2" >:: test "sw";
     "Muti-block fold" >:: test "multiblockfold";
     "CSE (hoist and merge, with commute)" >:: test "csehoistandmergecommute";
     "Conditional propagation 1" >:: test "condprop1";
@@ -216,6 +217,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Naiive even-odd test (SysV)" >:: test_sysv "evenodd";
     "Trivial infinite loop (SysV)" >:: test_sysv "forever";
     "Tail-recursive infinite loop (SysV)" >:: test_sysv "forever2";
+    "Switch simplification 2 (SysV)" >:: test_sysv "sw";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -234,6 +236,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Naiive even-odd test (AMD64)" >:: test_amd64 "evenodd";
     "Trivial infinite loop (AMD64)" >:: test_amd64 "forever";
     "Tail-recursive infinite loop (AMD64)" >:: test_amd64 "forever2";
+    "Switch simplification 2 (AMD64)" >:: test_amd64 "sw";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -254,6 +257,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Variadic function arguments 1 (AMD64)" >:: test_amd64_regalloc "vaarg1";
     "Trivial infinite loop (AMD64)" >:: test_amd64_regalloc "forever";
     "Tail-recursive infinite loop (AMD64)" >:: test_amd64_regalloc "forever2";
+    "Switch simplification 2 (AMD64)" >:: test_amd64_regalloc "sw";
   ]
 
 let () = run_test_tt_main @@ test_list [

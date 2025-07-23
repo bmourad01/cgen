@@ -1,0 +1,13 @@
+module sw
+
+export function $test {
+@2:
+  lea %2:l, $sym ; @12
+  cmp %2:l, 0x2_l ; @13
+  je @5 ; @14
+  jmp @7 ; @15
+@7:
+  ret ; @11
+@5:
+  ud2 ; @10
+}
