@@ -909,6 +909,20 @@ module Groups = struct
     xor `i64 (not_ `i64 x) x =>! i64 0xffff_ffff_ffff_ffffL;
   ]
 
+  (* (x & y) ^ (x ^ y) =
+     (x ^ y) ^ (x & y) = x | y *)
+  let xor_to_or = [
+    xor `i8 (and_ `i8 x y) (xor `i8 x y) =>! or_ `i8 x y;
+    xor `i16 (and_ `i16 x y) (xor `i16 x y) =>! or_ `i16 x y;
+    xor `i32 (and_ `i32 x y) (xor `i32 x y) =>! or_ `i32 x y;
+    xor `i64 (and_ `i64 x y) (xor `i64 x y) =>! or_ `i64 x y;
+
+    xor `i8 (xor `i8 x y) (and_ `i8 x y) =>! or_ `i8 x y;
+    xor `i16 (xor `i16 x y) (and_ `i16 x y) =>! or_ `i16 x y;
+    xor `i32 (xor `i32 x y) (and_ `i32 x y) =>! or_ `i32 x y;
+    xor `i64 (xor `i64 x y) (and_ `i64 x y) =>! or_ `i64 x y;
+  ]
+
   (* (x ^ y) ^ y =
      (y ^ x) ^ y =
      y ^ (x ^ y) =
@@ -1950,6 +1964,7 @@ module Groups = struct
       xor_ones;
       xor_self;
       xor_not_self;
+      xor_to_or;
       double_xor;
       lsr_asr_bitwidth;
       eq_self;

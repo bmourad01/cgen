@@ -1,0 +1,19 @@
+module xor_to_or
+
+export function $foo { ; returns: rax
+@2:
+  sub rsp, 0x8_l ; @22
+  mov eax, edi ; @15
+  or eax, esi ; @16
+  add rsp, 0x8_l ; @23
+  ret ; @13
+}
+
+export function $bar { ; returns: rax
+@6:
+  sub rsp, 0x8_l ; @24
+  mov eax, edi ; @20
+  or eax, esi ; @21
+  add rsp, 0x8_l ; @25
+  ret ; @18
+}

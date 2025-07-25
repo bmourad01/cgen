@@ -1,0 +1,13 @@
+module xor_to_or
+
+export function w $foo(w %x, w %y) {
+@2:
+  %0 = or.w %x, %y ; @10
+  ret %0
+}
+
+export function w $bar(w %x, w %y) {
+@6:
+  %1 = or.w %x, %y ; @11
+  ret %1
+}
