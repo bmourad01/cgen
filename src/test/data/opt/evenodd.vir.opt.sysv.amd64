@@ -2,16 +2,16 @@ module evenodd
 
 function $abs { ; returns: rax
 @2:
-  mov %n:w, edi ; @42
-  test %n:w, %n:w ; @39
-  js @3 ; @40
-  jmp @30 ; @41
+  mov %n:w, edi ; @24
+  test %n:w, %n:w ; @38
+  js @3 ; @39
+  jmp @30 ; @40
 @30:
-  mov %0:w, %n:w ; @37
-  jmp @21 ; @38
+  mov %0:w, %n:w ; @36
+  jmp @21 ; @37
 @3:
-  mov %4:w, %n:w ; @35
-  neg %4:w ; @36
+  mov %4:w, %n:w ; @25
+  neg %4:w ; @35
   mov %0:w, %4:w ; @33
   jmp @21 ; @34
 @21:
@@ -21,48 +21,48 @@ function $abs { ; returns: rax
 
 export function $even { ; returns: rax
 @7:
-  mov %n:w, edi ; @63
-  mov edi, %n:w ; @64
-  call $abs ; rdi ; @65
-  mov %n.1:w, eax ; @66
-  test %n.1:w, %n.1:w ; @57
-  je @46 ; @58
-  jmp @9 ; @59
-@46:
-  mov %1:b, 0x1_b ; @55
-  jmp @22 ; @56
+  mov %n:w, edi ; @10
+  mov edi, %n:w ; @58
+  call $abs ; rdi ; @59
+  mov %n.1:w, eax ; @60
+  test %n.1:w, %n.1:w ; @53
+  je @44 ; @54
+  jmp @9 ; @55
+@44:
+  mov %1:b, 0x1_b ; @51
+  jmp @22 ; @52
 @9:
-  lea %6:w, qword ptr [%n.1 - 0x1] ; @54
-  mov edi, %6:w ; @51
-  call $odd ; rdi ; @52
-  mov %b.1:b, al ; @53
-  mov %1:b, %b.1:b ; @49
-  jmp @22 ; @50
+  lea %6:w, qword ptr [%n.1 - 0x1] ; @27
+  mov edi, %6:w ; @13
+  call $odd ; rdi ; @49
+  mov %b.1:b, al ; @50
+  mov %1:b, %b.1:b ; @47
+  jmp @22 ; @48
 @22:
-  mov al, %1:b ; @47
-  ret ; @48
+  mov al, %1:b ; @45
+  ret ; @46
 }
 
 export function $odd { ; returns: rax
 @14:
-  mov %n:w, edi ; @84
-  mov edi, %n:w ; @85
-  call $abs ; rdi ; @86
-  mov %n.1:w, eax ; @87
-  test %n.1:w, %n.1:w ; @78
-  je @67 ; @79
-  jmp @16 ; @80
-@67:
-  xor %2:b, %2:b ; @76
-  jmp @23 ; @77
+  mov %n:w, edi ; @17
+  mov edi, %n:w ; @75
+  call $abs ; rdi ; @76
+  mov %n.1:w, eax ; @77
+  test %n.1:w, %n.1:w ; @70
+  je @61 ; @71
+  jmp @16 ; @72
+@61:
+  xor %2:b, %2:b ; @68
+  jmp @23 ; @69
 @16:
-  lea %8:w, qword ptr [%n.1 - 0x1] ; @75
-  mov edi, %8:w ; @72
-  call $even ; rdi ; @73
-  mov %b.1:b, al ; @74
-  mov %2:b, %b.1:b ; @70
-  jmp @23 ; @71
+  lea %8:w, qword ptr [%n.1 - 0x1] ; @29
+  mov edi, %8:w ; @20
+  call $even ; rdi ; @66
+  mov %b.1:b, al ; @67
+  mov %2:b, %b.1:b ; @64
+  jmp @23 ; @65
 @23:
-  mov al, %2:b ; @68
-  ret ; @69
+  mov al, %2:b ; @62
+  ret ; @63
 }

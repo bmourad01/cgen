@@ -2,21 +2,21 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  sub rsp, 0x8_l ; @50
-  cmp rsi, 0x3_l ; @42
-  jl @3 ; @43
+  sub rsp, 0x8_l ; @45
+  cmp rsi, 0x3_l ; @38
+  jl @3 ; @39
 @22:
-  mov eax, 0xffffffff_w ; @40
-  jmp @16 ; @41
+  mov eax, 0xffffffff_w ; @36
+  jmp @16 ; @37
 @3:
-  test rsi, rsi ; @34
-  jns @10 ; @35
+  test rsi, rsi ; @31
+  jns @10 ; @32
 @23:
-  mov eax, 0xffffffff_w ; @32
-  jmp @16 ; @33
+  mov eax, 0xffffffff_w ; @29
+  jmp @16 ; @30
 @10:
-  mov eax, dword ptr [rdi + rsi*4] ; @28
+  mov eax, dword ptr [rdi + rsi*4] ; @15
 @16:
-  add rsp, 0x8_l ; @51
+  add rsp, 0x8_l ; @46
   ret ; @25
 }

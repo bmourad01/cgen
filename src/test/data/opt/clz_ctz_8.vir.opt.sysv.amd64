@@ -2,23 +2,23 @@ module clz_ctz_8
 
 export function $clz8 { ; returns: rax
 @2:
-  mov %x:b, dil ; @10
-  movzx %2:h, %x:b ; @11
-  shl %2:h, 0x8_b ; @12
-  or %2:h, 0xff_h ; @13
-  lzcnt %3:h, %2:h ; @14
-  mov %0:b, %3:b ; @15
+  mov %x:b, dil ; @6
+  movzx %2:h, %x:b ; @10
+  shl %2:h, 0x8_b ; @11
+  or %2:h, 0xff_h ; @12
+  lzcnt %3:h, %2:h ; @13
+  mov %0:b, %3:b ; @14
   mov al, %0:b ; @8
   ret ; @9
 }
 
 export function $ctz8 { ; returns: rax
 @4:
-  mov %x:b, dil ; @18
-  movzx %4:h, %x:b ; @19
-  or %4:h, 0xff00_h ; @20
-  tzcnt %5:h, %4:h ; @21
-  mov %1:b, %5:b ; @22
-  mov al, %1:b ; @16
-  ret ; @17
+  mov %x:b, dil ; @7
+  movzx %4:h, %x:b ; @17
+  or %4:h, 0xff00_h ; @18
+  tzcnt %5:h, %4:h ; @19
+  mov %1:b, %5:b ; @20
+  mov al, %1:b ; @15
+  ret ; @16
 }

@@ -19,9 +19,16 @@ let from_file filename =
   let* tenv, m = Passes.initialize m in
   Passes.optimize tenv m
 
-let compare_outputs expected p' =
+(* Toggle this to overwrite cases that differ. *)
+let overwrite = false
+
+let compare_outputs filename' expected p' =
   let msg = Format.asprintf "Expected:@,@[%s@]@,Got:@,@[%s@]" expected p' in
-  assert_equal (fmt p') (fmt expected) ~msg ~cmp:String.equal
+  try assert_equal (fmt p') (fmt expected) ~msg ~cmp:String.equal with
+  | _ when overwrite ->
+    (* Assume we're being tested via `dune test`, which runs with
+       "_build/default/test/" as the CWD. *)
+    Out_channel.write_all ("../../../test/" ^ filename') ~data:(p' ^ "\n")
 
 let from_file_abi filename =
   let open Context.Syntax in
@@ -41,7 +48,7 @@ let test name _ =
     let* () = Virtual.Module.funs m |> Context.iter_seq_err ~f:Passes.Ssa.check in
     !!(Format.asprintf "%a" Virtual.Module.pp m)
   end |> function
-  | Ok p' -> compare_outputs expected p'
+  | Ok p' -> compare_outputs filename' expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
 let test_abi target ext name _ =
@@ -54,7 +61,7 @@ let test_abi target ext name _ =
     let* m = from_file_abi filename in
     !!(Format.asprintf "%a" Virtual.Abi.Module.pp m)
   end |> function
-  | Ok p' -> compare_outputs expected p'
+  | Ok p' -> compare_outputs filename' expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
 let test_isel target abi ext name _ =
@@ -71,7 +78,7 @@ let test_isel target abi ext name _ =
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
   end |> function
-  | Ok p' -> compare_outputs expected p'
+  | Ok p' -> compare_outputs filename' expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
 let test_regalloc target abi ext name _ =
@@ -90,7 +97,7 @@ let test_regalloc target abi ext name _ =
     let m = Pseudo.Module.map_funs m ~f:Machine.Peephole.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
   end |> function
-  | Ok p' -> compare_outputs expected p'
+  | Ok p' -> compare_outputs filename' expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
 (* Specific ABI lowering tests. *)

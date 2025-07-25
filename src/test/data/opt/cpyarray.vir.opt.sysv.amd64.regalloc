@@ -2,19 +2,19 @@ module foo
 
 export function $foo {
 @2:
-  sub rsp, 0x8_l ; @45
-  mov ecx, edx ; @42
-  xor eax, eax ; @43
+  sub rsp, 0x8_l ; @37
+  mov ecx, edx ; @34
+  xor eax, eax ; @35
 @3:
-  cmp eax, ecx ; @34
-  jb @5 ; @35
+  cmp eax, ecx ; @27
+  jb @5 ; @28
 @6:
-  add rsp, 0x8_l ; @46
-  ret ; @33
+  add rsp, 0x8_l ; @38
+  ret ; @26
 @5:
-  mov r8d, eax ; zx ; @32
-  mov edx, dword ptr [rsi + r8*4] ; @28
-  mov dword ptr [rdi + r8*4], edx ; @26
-  inc eax ; @25
+  mov r8d, eax ; zx ; @18
+  mov edx, dword ptr [rsi + r8*4] ; @11
+  mov dword ptr [rdi + r8*4], edx ; @15
+  inc eax ; @22
   jmp @3 ; @24
 }

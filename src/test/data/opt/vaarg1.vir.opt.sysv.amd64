@@ -6,81 +6,81 @@ export function $foo { ; returns: rax
   %5 = slot 176, align 16
   %21 = slot 16, align 8
 @19:
-  mov %11:b, al ; @186
-  mov %i:l, rdi ; @187
-  mov qword ptr [%5 + 0x8], rsi ; @185
-  mov qword ptr [%5 + 0x10], rdx ; @183
-  mov qword ptr [%5 + 0x18], rcx ; @181
-  mov qword ptr [%5 + 0x20], r8 ; @179
-  mov qword ptr [%5 + 0x28], r9 ; @177
-  test %11:b, %11:b ; @171
-  je @2 ; @172
-  jmp @18 ; @173
+  mov %11:b, al ; @20
+  mov %i:l, rdi ; @121
+  mov qword ptr [%5 + 0x8], rsi ; @21
+  mov qword ptr [%5 + 0x10], rdx ; @23
+  mov qword ptr [%5 + 0x18], rcx ; @25
+  mov qword ptr [%5 + 0x20], r8 ; @27
+  mov qword ptr [%5 + 0x28], r9 ; @29
+  test %11:b, %11:b ; @116
+  je @2 ; @117
+  jmp @18 ; @118
 @18:
-  movdqa xmmword ptr [%5 + 0x30], xmm0 ; @169
-  movdqa xmmword ptr [%5 + 0x40], xmm1 ; @167
-  movdqa xmmword ptr [%5 + 0x50], xmm2 ; @165
-  movdqa xmmword ptr [%5 + 0x60], xmm3 ; @163
-  movdqa xmmword ptr [%5 + 0x70], xmm4 ; @161
-  movdqa xmmword ptr [%5 + 0x80], xmm5 ; @159
-  movdqa xmmword ptr [%5 + 0x90], xmm6 ; @157
-  movdqa xmmword ptr [%5 + 0xa0], xmm7 ; @155
-  jmp @2 ; @154
+  movdqa xmmword ptr [%5 + 0x30], xmm0 ; @32
+  movdqa xmmword ptr [%5 + 0x40], xmm1 ; @34
+  movdqa xmmword ptr [%5 + 0x50], xmm2 ; @36
+  movdqa xmmword ptr [%5 + 0x60], xmm3 ; @38
+  movdqa xmmword ptr [%5 + 0x70], xmm4 ; @40
+  movdqa xmmword ptr [%5 + 0x80], xmm5 ; @42
+  movdqa xmmword ptr [%5 + 0x90], xmm6 ; @44
+  movdqa xmmword ptr [%5 + 0xa0], xmm7 ; @46
+  jmp @2 ; @115
 @2:
-  mov dword ptr [%ap], 0x8_w ; @153
-  mov dword ptr [%ap + 0x4], 0x30_w ; @151
-  lea %27:l, qword ptr [rbp + 0x10] ; @150
-  mov qword ptr [%ap + 0x8], %27:l ; @148
-  mov qword ptr [%ap + 0x10], %5:l ; @146
-  jmp @62 ; @145
+  mov dword ptr [%ap], 0x8_w ; @53
+  mov dword ptr [%ap + 0x4], 0x30_w ; @55
+  lea %27:l, qword ptr [rbp + 0x10] ; @56
+  mov qword ptr [%ap + 0x8], %27:l ; @58
+  mov qword ptr [%ap + 0x10], %5:l ; @60
+  jmp @62 ; @114
 @62:
-  mov %31:w, dword ptr [%ap + 0x4] ; @144
-  cmp %31:w, 0xa0_w ; @138
-  jbe @63 ; @139
-  jmp @65 ; @140
+  mov %31:w, dword ptr [%ap + 0x4] ; @68
+  cmp %31:w, 0xa0_w ; @109
+  jbe @63 ; @110
+  jmp @65 ; @111
 @63:
-  mov %33:w, dword ptr [%ap] ; @137
-  cmp %33:w, 0x28_w ; @131
-  jbe @64 ; @132
-  jmp @65 ; @133
+  mov %33:w, dword ptr [%ap] ; @70
+  cmp %33:w, 0x28_w ; @104
+  jbe @64 ; @105
+  jmp @65 ; @106
 @65:
-  mov %44:l, qword ptr [%ap + 0x8] ; @130
-  lea %45:l, qword ptr [%44 + 0x8] ; @129
-  lea %46:l, qword ptr [%44 + 0x10] ; @128
-  mov qword ptr [%ap + 0x8], %46:l ; @127
-  mov %47:l, %44:l ; @124
-  mov %48:l, %45:l ; @125
-  jmp @66 ; @126
+  mov %44:l, qword ptr [%ap + 0x8] ; @83
+  lea %45:l, qword ptr [%44 + 0x8] ; @84
+  lea %46:l, qword ptr [%44 + 0x10] ; @85
+  mov qword ptr [%ap + 0x8], %46:l ; @86
+  mov %47:l, %44:l ; @101
+  mov %48:l, %45:l ; @102
+  jmp @66 ; @103
 @64:
-  mov %37:w, %31:w ; zx ; @123
-  lea %38:l, qword ptr [%5 + %37*1] ; @122
-  mov %39:w, %33:w ; zx ; @121
-  lea %40:l, qword ptr [%5 + %39*1] ; @120
-  lea %41:w, qword ptr [%31 + 0x10] ; @119
-  lea %42:w, qword ptr [%33 + 0x8] ; @118
-  mov dword ptr [%ap + 0x4], %41:w ; @117
-  mov dword ptr [%ap], %42:w ; @116
-  mov %47:l, %38:l ; @113
-  mov %48:l, %40:l ; @114
-  jmp @66 ; @115
+  mov %37:w, %31:w ; zx ; @74
+  lea %38:l, qword ptr [%5 + %37*1] ; @75
+  mov %39:w, %33:w ; zx ; @76
+  lea %40:l, qword ptr [%5 + %39*1] ; @77
+  lea %41:w, qword ptr [%31 + 0x10] ; @78
+  lea %42:w, qword ptr [%33 + 0x8] ; @79
+  mov dword ptr [%ap + 0x4], %41:w ; @80
+  mov dword ptr [%ap], %42:w ; @81
+  mov %47:l, %38:l ; @98
+  mov %48:l, %40:l ; @99
+  jmp @66 ; @100
 @66:
-  mov %49:l, qword ptr [%47] ; @112
-  mov qword ptr [%21], %49:l ; @111
-  mov %50:l, qword ptr [%48] ; @110
-  mov qword ptr [%21 + 0x8], %50:l ; @108
-  jmp @61 ; @107
+  mov %49:l, qword ptr [%47] ; @87
+  mov qword ptr [%21], %49:l ; @88
+  mov %50:l, qword ptr [%48] ; @89
+  mov qword ptr [%21 + 0x8], %50:l ; @91
+  jmp @61 ; @97
 @61:
-  mov %22:l, qword ptr [%21] ; @106
-  mov qword ptr [%r], %22:l ; @105
-  mov %24:l, qword ptr [%21 + 0x8] ; @104
-  mov qword ptr [%r + 0x8], %24:l ; @102
-  movsd %f1.1:d, qword ptr [%r] ; @101
-  movsd %1:d, %f1.1:d ; @98
-  addsd %1:d, qword ptr [rip + @97] ; @99
-  .fp64 @97, 1.234 ; @100
-  cvtsd2si %2:l, %1:d ; @96
-  lea %3:l, qword ptr [%24 + %2*1] ; @95
-  lea %4:l, qword ptr [%3 + %i*1] ; @94
+  mov %22:l, qword ptr [%21] ; @47
+  mov qword ptr [%r], %22:l ; @48
+  mov %24:l, qword ptr [%21 + 0x8] ; @50
+  mov qword ptr [%r + 0x8], %24:l ; @52
+  movsd %f1.1:d, qword ptr [%r] ; @6
+  movsd %1:d, %f1.1:d ; @14
+  addsd %1:d, qword ptr [rip + @94] ; @95
+  .fp64 @94, 1.234 ; @96
+  cvtsd2si %2:l, %1:d ; @15
+  lea %3:l, qword ptr [%24 + %2*1] ; @16
+  lea %4:l, qword ptr [%3 + %i*1] ; @17
   mov rax, %4:l ; @92
   ret ; @93
 }

@@ -255,7 +255,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let+ insns =
       Blk.insns b ~rev:true |>
       C.Seq.fold ~init ~f:(fun acc i ->
-          let+ insns = insns t (Insn.label i) >>= freshen in
+          let label = Insn.label i in
+          let+ insns = insns t label >>= function
+            | [] -> !![]
+            | x :: xs ->
+              let x = Pseudo.Insn.create ~label ~insn:x in
+              let+ xs = freshen xs in
+              x :: xs in
           insns @ acc) in
     Pseudo.Blk.create ~label ~insns :: extra
 

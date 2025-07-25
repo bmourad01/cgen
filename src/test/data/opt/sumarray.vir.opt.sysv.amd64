@@ -2,24 +2,24 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %arr:l, rdi ; @41
-  mov %num:w, esi ; @42
-  xor %s.2:w, %s.2:w ; @43
-  xor %i.2:w, %i.2:w ; @44
-  jmp @3 ; @45
+  mov %arr:l, rdi ; @33
+  mov %num:w, esi ; @34
+  xor %s.2:w, %s.2:w ; @35
+  xor %i.2:w, %i.2:w ; @36
+  jmp @3 ; @37
 @3:
-  cmp %i.2:w, %num:w ; @35
-  jb @6 ; @36
-  jmp @7 ; @37
+  cmp %i.2:w, %num:w ; @28
+  jb @6 ; @29
+  jmp @7 ; @30
 @7:
-  movsxd %6:l, %s.2:w ; @34
-  mov rax, %6:l ; @32
-  ret ; @33
+  movsxd %6:l, %s.2:w ; @21
+  mov rax, %6:l ; @26
+  ret ; @27
 @6:
-  mov %1:w, %i.2:w ; zx ; @31
-  mov %w.1:w, dword ptr [%arr + %1*4] ; @27
-  lea %4:w, qword ptr [%w.1 + %s.2*1] ; @26
-  lea %5:w, qword ptr [%i.2 + 0x1] ; @25
+  mov %1:w, %i.2:w ; zx ; @16
+  mov %w.1:w, dword ptr [%arr + %1*4] ; @12
+  lea %4:w, qword ptr [%w.1 + %s.2*1] ; @19
+  lea %5:w, qword ptr [%i.2 + 0x1] ; @20
   mov %s.2:w, %4:w ; @22
   mov %i.2:w, %5:w ; @23
   jmp @3 ; @24
