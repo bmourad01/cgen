@@ -206,6 +206,8 @@ let opt_suite = "Test optimizations" >::: [
     "Trivial infinite loop" >:: test "forever";
     "Tail-recursive infinite loop" >:: test "forever2";
     "CLZ/CTZ 8-bit" >:: test "clz_ctz_8";
+    "Compare slots" >:: test "cmpslot";
+    "Add to slot" >:: test "slotadd1";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -228,6 +230,8 @@ let abi_suite = "Test ABI lowering" >::: [
     "Switch simplification 2 (SysV)" >:: test_sysv "sw";
     "CLZ/CTZ 8-bit (SysV)" >:: test_sysv "clz_ctz_8";
     "Short-circuiting AND (flag indirection) (SysV)" >:: test_sysv "shortcircand2";
+    "Compare slots (SysV)" >:: test_sysv "cmpslot";
+    "Add to slot (SysV)" >:: test_sysv "slotadd1";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -249,6 +253,8 @@ let isel_suite = "Test instruction selection" >::: [
     "Switch simplification 2 (SysV AMD64)" >:: test_sysv_amd64 "sw";
     "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64 "clz_ctz_8";
     "Short-circuiting AND (flag indirection) (SysV AMD64)" >:: test_sysv_amd64 "shortcircand2";
+    "Compare slots (SysV AMD64)" >:: test_sysv_amd64 "cmpslot";
+    "Add to slot (SysV AMD64)" >:: test_sysv_amd64 "slotadd1";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -272,6 +278,8 @@ let regalloc_suite = "Test register allocation" >::: [
     "Switch simplification 2 (SysV AMD64)" >:: test_sysv_amd64_regalloc "sw";
     "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_regalloc "clz_ctz_8";
     "Short-circuiting AND (flag indirection) (SysV AMD64)" >:: test_sysv_amd64_regalloc "shortcircand2";
+    "Compare slots (SysV AMD64)" >:: test_sysv_amd64_regalloc "cmpslot";
+    "Add to slot (SysV AMD64)" >:: test_sysv_amd64_regalloc "slotadd1";
   ]
 
 let () = run_test_tt_main @@ test_list [

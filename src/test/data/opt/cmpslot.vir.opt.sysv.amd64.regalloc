@@ -1,0 +1,13 @@
+module cmpslot
+
+export function $foo { ; returns: rax
+@2:
+  sub rsp, 0x18_l ; @20
+  mov eax, esi ; @14
+  lea rdx, qword ptr [rsp + 0x0] ; @12
+  lea rcx, qword ptr [rsp + 0x8] ; @18
+  cmp rdx, rcx ; @19
+  cmova eax, edi ; @13
+  add rsp, 0x18_l ; @21
+  ret ; @11
+}

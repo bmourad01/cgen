@@ -1,0 +1,10 @@
+module cmpslot
+
+export function $foo(w %a/rdi, w %b/rsi) {
+  %x = slot 8, align 8
+  %y = slot 8, align 8
+@2:
+  %2 = gt.l %x, %y ; @8
+  %3 = sel.w %2, %a, %b ; @9
+  ret rax/%3
+}

@@ -1,0 +1,13 @@
+module slotadd1
+
+export function l $foo() {
+  %x = slot 8, align 8
+@start:
+  ;; this should require an administrative
+  ;; instruction because the stack offset
+  ;; will overflow the displacement.
+  %r = sub.l %x, 0x7fffffff_l
+  %r = call.l $bar(%r)
+  %r = add.l %r, 1_l
+  ret %r
+}

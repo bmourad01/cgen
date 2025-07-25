@@ -1,0 +1,13 @@
+module cmpslot
+
+export function w $foo(w %a, w %b) {
+  %x = slot 4, align 4
+  %y = slot 4, align 4
+@start:
+  %c = gt.l %x, %y
+  br %c, @yes, @no
+@yes:
+  ret %a
+@no:
+  ret %b
+}
