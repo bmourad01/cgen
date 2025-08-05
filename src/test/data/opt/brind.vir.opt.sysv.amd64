@@ -1,0 +1,41 @@
+module brind
+
+export function $foo {
+@2:
+  mov %x:w, edi ; @10
+  test %x:w, %x:w ; @20
+  js @13 ; @21
+  jmp @3 ; @22
+@13:
+  mov %3:w, 0x1234_w ; @18
+  jmp %3:l ; @19
+@3:
+  ret ; @17
+}
+
+export function $bar {
+@5:
+  mov %x:w, edi ; @11
+  mov %y:l, rsi ; @31
+  test %x:w, %x:w ; @28
+  js @14 ; @29
+  jmp @6 ; @30
+@14:
+  jmp %y:l ; @27
+@6:
+  ret ; @26
+}
+
+export function $baz {
+@8:
+  mov %x:w, edi ; @12
+  mov %y:l, rsi ; @41
+  test %x:w, %x:w ; @38
+  js @15 ; @39
+  jmp @16 ; @40
+@16:
+  mov %4:w, 0x1234_w ; @36
+  jmp %4:l ; @37
+@15:
+  jmp %y:l ; @35
+}

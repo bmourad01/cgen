@@ -929,10 +929,6 @@ module Insn = struct
       -> true
     | i -> writes_to_memory i
 
-  let is_return = function
-    | RET -> true
-    | _ -> false
-
   let is_barrier = function
     | JMP _
     | UD2

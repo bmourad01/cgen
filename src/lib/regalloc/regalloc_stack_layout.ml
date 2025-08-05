@@ -101,6 +101,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let post_assign fn presize =
     let dict = Func.dict fn in
+    let cfg = Cfg.create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests fn in
     let frame = Dict.mem dict Func.Tag.needs_stack_frame in
     let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
     let find, base, size = make_offsets_and_size ~presize slots frame in
@@ -118,6 +119,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* blks =
       let ivec = Vec.create () in
       Func.blks fn |> C.Seq.map ~f:(fun b ->
+          (* XXX: the last instruction is assumed to be the "return",
+             if the only successor is pseudoexit. This could fall
+             apart on more sophisticated exit sequences. *)
+          let last = match Cfg.Node.succs (Blk.label b) cfg |> Seq.to_list with
+            | [l] when Label.(l = pseudoexit) ->
+              Blk.insns b ~rev:true |> Seq.map ~f:Insn.label |> Seq.hd
+            | _ -> None in
           let insns = Blk.insns b |> Seq.to_list in
           (* Insert prologue if this is the entry block. *)
           let* insns =
@@ -125,17 +133,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               let+ insns' = freshen @@ prologue regs size in
               insns' @ insns
             else !!insns in
-          (* Insert epilogue if we see a return. *)
-          let+ () =
-            let once = ref true in
-            C.List.iter insns ~f:(fun i ->
-                let insn = Insn.insn i in
-                if !once && M.Insn.is_return insn then
-                  let+ insns = freshen @@ epilogue regs size in
-                  once := false;
-                  List.iter insns ~f:(Vec.push ivec);
-                  Vec.push ivec i
-                else !!(Vec.push ivec i)) in
+          (* Insert epilogue immediately before the return. *)
+          let+ () = match last with
+            | None ->
+              C.return @@ List.iter insns ~f:(Vec.push ivec)
+            | Some l ->
+              let once = ref true in
+              C.List.iter insns ~f:(fun i ->
+                  let+ () = C.when_ (!once && Label.(l = Insn.label i)) @@ fun () ->
+                    let+ insns = freshen @@ epilogue regs size in
+                    once := false;
+                    List.iter insns ~f:(Vec.push ivec) in
+                  Vec.push ivec i) in
           let b = Blk.with_insns b @@ Vec.to_list ivec in
           Vec.clear ivec;
           b)

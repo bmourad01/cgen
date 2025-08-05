@@ -10,5 +10,6 @@ export function $test {
   add rsp, 0x8_l ; @19
   ret ; @11
 @5:
+  add rsp, 0x8_l ; @20
   ud2 ; @10
 }

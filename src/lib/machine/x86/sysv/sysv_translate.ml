@@ -10,7 +10,7 @@ module Make(Context : Context_intf.S_virtual) = struct
   (* A block translation context. *)
   type transl = {
     ivec         : Abi.insn Vec.t; (* Pending instructions to be committed. *)
-    bvec         : Abi.blk Vec.t;  (* Pending blocks to be committed. *)
+    mutable bvec : Abi.blk Vec.t;  (* Pending blocks to be committed. *)
     mutable args : Var.t list;     (* Arguments of the current block. *)
     mutable cins : Abi.insn list;  (* Instructions immediately before the `ctrl`. *)
     mutable ctrl : Abi.ctrl;       (* Current control flow instruction. *)
@@ -113,18 +113,6 @@ module Make(Context : Context_intf.S_virtual) = struct
     let r = Hashtbl.find_exn env.rets l in
     r.reti, `ret r.retr
 
-  let transl_ctrl t env l (c : ctrl) =
-    let dst = transl_dst env in
-    let is, c' = match c with
-      | `hlt -> [], `hlt
-      | `jmp d -> [], `jmp (dst d)
-      | `br (c, y, n) -> [], `br (transl_var env c, dst y, dst n)
-      | `sw (t, i, d, tbl) -> [], transl_sw env t i d tbl
-      | `ret None -> [], `ret []
-      | `ret Some _ -> transl_ret env l in
-    t.cins <- is;
-    t.ctrl <- c'
-
   (* We're done translating this block, either because we translated
      all the remaining instructions or we had to split it in the
      `vaarg` case. *)
@@ -134,6 +122,48 @@ module Make(Context : Context_intf.S_virtual) = struct
     Vec.clear t.ivec;
     Vec.push t.bvec @@ Abi.Blk.create ()
       ~label ~insns ~args:t.args ~ctrl:t.ctrl
+
+  let administrative_blk t l c =
+    let t' = create_transl () in
+    t'.bvec <- t.bvec;
+    t'.ctrl <- c;
+    commit_blk t' l
+
+  (* Insert administrative blocks for branch targets that are not labels. *)
+  let transl_br env t c (y : dst) (n : dst) =
+    let c = transl_var env c in
+    match y, n with
+    | #local, #local ->
+      !!(`br (c, transl_dst env y, transl_dst env n))
+    | #local, #global ->
+      let+ l' = Context.Label.fresh in
+      administrative_blk t l' @@ `jmp (transl_dst env n);
+      `br (c, transl_dst env y, `label (l', []))
+    | #global, #local ->
+      let+ l' = Context.Label.fresh in
+      administrative_blk t l' @@ `jmp (transl_dst env y);
+      `br (c, `label (l', []), transl_dst env n)
+    | #global, #global ->
+      let* ly = Context.Label.fresh in
+      let+ ln = Context.Label.fresh in
+      administrative_blk t ly @@ `jmp (transl_dst env y);
+      administrative_blk t ln @@ `jmp (transl_dst env n);
+      `br (c, `label (ly, []), `label (ln, []))
+
+  let transl_ctrl t env l (c : ctrl) =
+    let dst = transl_dst env in
+    let+ is, c' = match c with
+      | `hlt -> !!([], `hlt)
+      | `jmp d -> !!([], `jmp (dst d))
+      | `br (c, y, n) ->
+        let+ c = transl_br env t c y n in
+        [], c
+      | `sw (t, i, d, tbl) ->
+        !!([], transl_sw env t i d tbl)
+      | `ret None -> !!([], `ret [])
+      | `ret Some _ -> !!(transl_ret env l) in
+    t.cins <- is;
+    t.ctrl <- c'
 
   (* Translate a single block, which may be split into multiple blocks. *)
   let rec transl_blk t env label s = match Seq.next s with
@@ -236,9 +266,20 @@ module Make(Context : Context_intf.S_virtual) = struct
           Vec.iter env.params ~f:(fun p ->
               List.iter p.pins ~f:(Vec.push t.ivec));
         t.args <- Seq.to_list @@ Blk.args b;
-        transl_ctrl t env l @@ Blk.ctrl b;
+        let* () = transl_ctrl t env l @@ Blk.ctrl b in
         let+ blks = transl_blk t env l @@ Blk.insns b in
         List.iter blks ~f:(Vec.push bvec)) in
+    (* Ensure that the entry block appears first. *)
+    let is_entry i b =
+      Option.some_if (Label.equal entry @@ Abi.Blk.label b) (i, b) in
+    begin match Vec.find_mapi bvec ~f:is_entry with
+      | None -> assert false
+      | Some (0, _) -> ()
+      | Some (i, b) ->
+        let tmp = Vec.unsafe_get bvec 0 in
+        Vec.unsafe_set bvec 0 b;
+        Vec.unsafe_set bvec i tmp
+    end;
     Vec.to_list bvec
 
   let make_dict env =

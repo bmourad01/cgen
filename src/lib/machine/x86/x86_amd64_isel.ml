@@ -384,6 +384,21 @@ end = struct
     let*! s, o = S.sym env "x" in
     !!![I.jmp (Jind (Osym (s, o)))]
 
+  let jmp_r_x env =
+    let*! x, xt = S.regvar env "x" in
+    let*! () = guard @@ Type.equal_basic xt `i64 in
+    !!![I.jmp (Jind (Oreg (x, xt)))]
+
+  let jmp_i_x env =
+    let*! x, xt = S.imm env "x" in
+    let*! () = guard @@ Type.equal_imm xt `i64 in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
+    let x = Bv.to_int64 x in
+    let ty = if fits_int32 x then `i32 else xt in !!![
+      I.mov (Oreg (tmp, bty ty)) (Oimm (x, ty));
+      I.jmp (Jind (Oreg (tmp, `i64)))
+    ]
+
   let jcc_r_zero_x ?(neg = false) env =
     let*! x, xt = S.regvar env "x" in
     let*! yes = S.label env "yes" in
@@ -2297,6 +2312,8 @@ end = struct
     let jmp = [
       jmp_lbl_x;
       jmp_sym_x;
+      jmp_r_x;
+      jmp_i_x;
     ]
 
     let br_test ?(neg = false) () = [

@@ -92,9 +92,6 @@ module type S = sig
         if it is reachable. *)
     val always_live : t -> bool
 
-    (** Returns [true] if the instruction returns from a function. *)
-    val is_return : t -> bool
-
     (** Returns [true] if the instruction does not implicitly fall through. *)
     val is_barrier : t -> bool
 

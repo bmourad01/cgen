@@ -1,0 +1,23 @@
+module brind
+
+export function $foo(w %x) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, 0x1234, @no
+@no:
+  ret
+}
+
+export function $bar(w %x, l %y) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, %y, @no
+@no:
+  ret
+}
+
+export function $baz(w %x, l %y) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, %y, 0x1234
+}

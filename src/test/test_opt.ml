@@ -209,6 +209,7 @@ let opt_suite = "Test optimizations" >::: [
     "CLZ/CTZ 8-bit" >:: test "clz_ctz_8";
     "Compare slots" >:: test "cmpslot";
     "Add to slot" >:: test "slotadd1";
+    "Branch to non-label 1" >:: test "brind";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -234,6 +235,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Compare slots (SysV)" >:: test_sysv "cmpslot";
     "Add to slot (SysV)" >:: test_sysv "slotadd1";
     "XOR to OR (SysV)" >:: test_sysv "xor_to_or";
+    "Branch to non-label 1 (SysV)" >:: test_sysv "brind";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -258,6 +260,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Compare slots (SysV AMD64)" >:: test_sysv_amd64 "cmpslot";
     "Add to slot (SysV AMD64)" >:: test_sysv_amd64 "slotadd1";
     "XOR to OR (SysV AMD64)" >:: test_sysv_amd64 "xor_to_or";
+    "Branch to non-label 1 (SysV AMD64)" >:: test_sysv_amd64 "brind";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -284,6 +287,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Compare slots (SysV AMD64)" >:: test_sysv_amd64_regalloc "cmpslot";
     "Add to slot (SysV AMD64)" >:: test_sysv_amd64_regalloc "slotadd1";
     "XOR to OR (SysV AMD64)" >:: test_sysv_amd64_regalloc "xor_to_or";
+    "Branch to non-label 1 (SysV AMD64)" >:: test_sysv_amd64_regalloc "brind";
   ]
 
 let () = run_test_tt_main @@ test_list [

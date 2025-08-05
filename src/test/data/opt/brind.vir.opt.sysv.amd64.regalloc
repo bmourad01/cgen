@@ -1,0 +1,42 @@
+module brind
+
+export function $foo {
+@2:
+  sub rsp, 0x8_l ; @45
+  test edi, edi ; @20
+  jns @3 ; @21
+@13:
+  mov eax, 0x1234_w ; @18
+  add rsp, 0x8_l ; @46
+  jmp rax ; @19
+@3:
+  add rsp, 0x8_l ; @47
+  ret ; @17
+}
+
+export function $bar {
+@5:
+  sub rsp, 0x8_l ; @48
+  test edi, edi ; @28
+  jns @6 ; @29
+@14:
+  add rsp, 0x8_l ; @49
+  jmp rsi ; @27
+@6:
+  add rsp, 0x8_l ; @50
+  ret ; @26
+}
+
+export function $baz {
+@8:
+  sub rsp, 0x8_l ; @51
+  test edi, edi ; @38
+  js @15 ; @39
+@16:
+  mov eax, 0x1234_w ; @36
+  add rsp, 0x8_l ; @52
+  jmp rax ; @37
+@15:
+  add rsp, 0x8_l ; @53
+  jmp rsi ; @35
+}
