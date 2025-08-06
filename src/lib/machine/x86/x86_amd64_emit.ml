@@ -66,7 +66,8 @@ let emit_func ppf (name, lnk) =
   Format.fprintf ppf ".section %s\n" section;
   if Linkage.export lnk then global ppf name;
   Format.fprintf ppf ".p2align 4\n";
-  Format.fprintf ppf "%s:\n" name
+  Format.fprintf ppf "%s:\n" name;
+  Format.fprintf ppf "  endbr64\n"
 
 let emit_blk ppf (l : Label.t) =
   Format.fprintf ppf "%a:\n" label l
