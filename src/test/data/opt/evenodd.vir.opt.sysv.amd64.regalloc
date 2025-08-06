@@ -2,7 +2,6 @@ module evenodd
 
 function $abs { ; returns: rax
 @2:
-  sub rsp, 0x8_l ; @78
   test edi, edi ; @38
   js @3 ; @39
 @30:
@@ -12,14 +11,13 @@ function $abs { ; returns: rax
   neg edi ; @35
   mov eax, edi ; @33
 @21:
-  add rsp, 0x8_l ; @79
   ret ; @32
 }
 
 export function $even { ; returns: rax
 @7:
-  push rbp ; @80
-  mov rbp, rsp ; @81
+  push rbp ; @78
+  mov rbp, rsp ; @79
   call $abs ; rdi ; @59
   test eax, eax ; @53
   jne @9 ; @54
@@ -30,14 +28,14 @@ export function $even { ; returns: rax
   lea edi, qword ptr [rax - 0x1] ; @27
   call $odd ; rdi ; @49
 @22:
-  leave ; @82
+  leave ; @80
   ret ; @46
 }
 
 export function $odd { ; returns: rax
 @14:
-  push rbp ; @83
-  mov rbp, rsp ; @84
+  push rbp ; @81
+  mov rbp, rsp ; @82
   call $abs ; rdi ; @76
   test eax, eax ; @70
   jne @16 ; @71
@@ -48,6 +46,6 @@ export function $odd { ; returns: rax
   lea edi, qword ptr [rax - 0x1] ; @29
   call $even ; rdi ; @66
 @23:
-  leave ; @85
+  leave ; @83
   ret ; @63
 }

@@ -2,7 +2,6 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  sub rsp, 0x8_l ; @45
   cmp rsi, 0x3_l ; @38
   jl @3 ; @39
 @22:
@@ -17,6 +16,5 @@ export function $foo { ; returns: rax
 @10:
   mov eax, dword ptr [rdi + rsi*4] ; @15
 @16:
-  add rsp, 0x8_l ; @46
   ret ; @25
 }

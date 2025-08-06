@@ -2,7 +2,6 @@ module forever2
 
 export function $foo {
 @4:
-  sub rsp, 0x8_l ; @7
 @2:
   jmp @2 ; @5
 }

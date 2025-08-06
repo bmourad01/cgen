@@ -2,7 +2,6 @@ module foo
 
 function $foo { ; returns: rax
 @2:
-  sub rsp, 0x8_l ; @34
   cmp edi, 0x2a_w ; @28
   jle @4 ; @29
 @17:
@@ -13,6 +12,5 @@ function $foo { ; returns: rax
   cmp edi, 0x0_w ; @22
   cmovge eax, edi ; @23
 @6:
-  add rsp, 0x8_l ; @35
   ret ; @19
 }

@@ -466,6 +466,17 @@ let is16 i = (i land 15) = 0
    2. The callee-save registers being pushed to the stack.
 *)
 let adjust_sp_size regs size = match List.length regs with
+  | 0 when size = 0 ->
+    (* If we're not allocating any slots, and we have no
+       callee-save registers to preserve, then the stack
+       pointer does not need to be aligned.
+
+       There is a consideration for instructions that
+       require aligned memory access (such as MOVDQA),
+       but this should be handled by the instruction
+       selection pass.
+    *)
+    0
   | 0 when is16 size -> size + 8
   | 0 -> size
   | n when odd n && is16 size -> size

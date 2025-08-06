@@ -2,7 +2,6 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  sub rsp, 0x8_l ; @17
   imul rax, rdi, 0x24924925 ; @15
   shr rax, 0x20_l ; @16
   mov ecx, eax ; @5
@@ -12,6 +11,5 @@ export function $foo { ; returns: rax
   shl ecx, 0x3_b ; @13
   sub edi, ecx ; @12
   add eax, edi ; @9
-  add rsp, 0x8_l ; @18
   ret ; @11
 }

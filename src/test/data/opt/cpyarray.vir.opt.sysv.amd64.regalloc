@@ -2,14 +2,12 @@ module foo
 
 export function $foo {
 @2:
-  sub rsp, 0x8_l ; @37
   mov ecx, edx ; @34
   xor eax, eax ; @35
 @3:
   cmp eax, ecx ; @27
   jb @5 ; @28
 @6:
-  add rsp, 0x8_l ; @38
   ret ; @26
 @5:
   mov r8d, eax ; zx ; @18

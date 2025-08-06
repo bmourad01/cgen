@@ -2,14 +2,11 @@ module sw
 
 export function $test {
 @2:
-  sub rsp, 0x8_l ; @18
   lea rax, $sym ; @12
   cmp rax, 0x2_l ; @13
   je @5 ; @14
 @7:
-  add rsp, 0x8_l ; @19
   ret ; @11
 @5:
-  add rsp, 0x8_l ; @20
   ud2 ; @10
 }
