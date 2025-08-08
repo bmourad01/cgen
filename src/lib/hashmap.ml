@@ -1,14 +1,12 @@
 open Core
 open Regular.Std
 
+(* Ensure that we stay within the allotted bits for the payload. *)
+let payload_mask = Int63.of_int ((1 lsl 57) - 1)
+
 module Make(K : Hashtbl.Key) = struct
   module M = Map.Make(K)
   module P = Patricia_tree.Make(struct
-      (* NB: this relies on the assumption that the hash function
-         returns an int with 31 bits of precision, both on 32 and
-         64-bit OCaml platforms. This ensures that the compressed
-         keys we use in the PATRICIA tree implementation will not
-         lose any information. *)
       include Int63
       let size = 63
       let to_int = to_int_trunc
@@ -27,7 +25,7 @@ module Make(K : Hashtbl.Key) = struct
   let empty = P.empty
   let is_empty = P.is_empty
 
-  let hash' = Fn.compose Int63.of_int K.hash
+  let hash' k = Int63.(of_int (K.hash k) land payload_mask)
 
   let find_exn t k =
     hash' k |> P.find_exn t |>
