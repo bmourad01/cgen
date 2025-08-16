@@ -15,8 +15,8 @@ let can_merge env l l' =
   Cfg.Node.degree ~dir:`In l' env.cfg = 1
 
 let candidate subst env b l =
-  Cfg.Node.succs l env.cfg |> Seq.to_list |> function
-  | [l'] when can_merge env l l' ->
+  Cfg.Node.succs l env.cfg |> Seq.next |> function
+  | Some (l', rest) when Seq.is_empty rest && can_merge env l l' ->
     let* b' = Hashtbl.find env.blks l' in
     let+ subst = Subst_mapper.blk_extend subst b b' in
     subst, l', b'
@@ -37,14 +37,13 @@ let rec try_merge ?child subst env l =
     | None -> next ()
 
 and merge subst env l l' b b' =
-  let insns', ctrl = if Map.is_empty subst
+  let insns', c = if Map.is_empty subst
     then Seq.to_list (Blk.insns b'), Blk.ctrl b'
     else Subst_mapper.map_blk subst b' in
-  let insns = Blk.insns b |> Seq.to_list in
-  let b = Blk.create () ~ctrl ~label:l
-      ~args:(Seq.to_list @@ Blk.args b)
-      ~insns:(insns @ insns')
-      ~dict:(Blk.dict b) in
+  let new_insns =
+    Blk.insns ~rev:true b |>
+    Seq.fold ~init:insns' ~f:(Fn.flip List.cons) in
+  let b = Blk.(with_insns (with_ctrl b c) new_insns) in
   Hashtbl.set env.blks ~key:l ~data:b;
   Hashtbl.remove env.blks l';
   let es = map_edges env l l' in
@@ -59,10 +58,8 @@ let run env =
   Stack.until_empty q (fun (l, subst) ->
       if not @@ Map.is_empty subst then
         Hashtbl.change env.blks l ~f:(O.map ~f:(fun b ->
-            let dict = Blk.dict b in
-            let args = Blk.args b |> Seq.to_list in
-            let insns, ctrl = Subst_mapper.map_blk subst b in
-            Blk.create () ~dict ~args ~insns ~ctrl ~label:l));
+            let is, c = Subst_mapper.map_blk subst b in
+            Blk.(with_insns (with_ctrl b c) is)));
       (* If we successfully merge for the block at this label,
          then we know it has only one child in the dominator
          tree, so we can just skip forward to the child that

@@ -122,8 +122,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           (* XXX: the last instruction is assumed to be the "return",
              if the only successor is pseudoexit. This could fall
              apart on more sophisticated exit sequences. *)
-          let last = match Cfg.Node.succs (Blk.label b) cfg |> Seq.to_list with
-            | [l] when Label.(l = pseudoexit) ->
+          let last = match Cfg.Node.succs (Blk.label b) cfg |> Seq.next with
+            | Some (l, rest) when Seq.is_empty rest && Label.(l = pseudoexit) ->
               Blk.insns b ~rev:true |> Seq.map ~f:Insn.label |> Seq.hd
             | _ -> None in
           let insns = Blk.insns b |> Seq.to_list in
