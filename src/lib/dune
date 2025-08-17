@@ -1,10 +1,10 @@
 (include_subdirs qualified)
 
-(ocamllex virtual_lexer)
+(ocamllex virtual_lexer structured_lexer)
 
 (menhir
- (modules virtual_parser)
- (flags --explain))
+ (modules virtual_parser structured_parser)
+ (explain true))
 
 (library
  (name cgen)
@@ -45,6 +45,8 @@
   scalars
   slot_initialization
   sm
+  structured_lexer
+  structured_parser
   subst_mapper
   subst_mapper_abi
   tags

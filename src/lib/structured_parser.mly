@@ -1,12 +1,16 @@
- %{
+%{
     type elt =
-      | Func of Virtual.func
+      | Func of Structured.func
       | Typ  of Type.compound
       | Data of Virtual.data
 
     type call_arg =
       | Arg  of Virtual.operand
       | Varg of Virtual.operand
+
+    type swcase =
+      | Case    of Bv.t * Type.imm * Structured.stmt
+      | Default of Structured.stmt
 
     module Env = struct
       (* Since we allow a nicer surface syntax over the internal
@@ -30,8 +34,8 @@
     end
 
     let tag = Dict.register
-        ~uuid:"98ff53de-6779-494c-81d6-1d3dd6f71e5e"
-        "virtual-parser-env" (module Env)
+        ~uuid:"c487156f-eec6-47bc-83ec-daf3b838dba2"
+        "structured-parser-env" (module Env)
 
     open Context.Syntax
 
@@ -81,10 +85,10 @@
       | Error err -> Context.fail err
       | Ok d -> !!d
 
-    let make_fn slots blks args l name return noreturn =
+    let make_fn slots body args l name return noreturn =
       let* slots = Context.List.all slots in
-      let* blks = Context.List.all blks in
-      let* args, variadic = match args with
+      let* body = body in
+      let+ args, variadic = match args with
         | None -> !!([], false)
         | Some a -> a in
       let linkage = Core.Option.value l ~default:Linkage.default_static in
@@ -96,9 +100,7 @@
         | Some t -> Dict.set dict Tag.return t
         | None -> dict in
       let dict = Dict.set dict Tag.linkage linkage in
-      match Virtual.Func.create () ~name ~blks ~args ~slots ~dict with
-      | Error err -> Context.fail err
-      | Ok fn -> !!fn
+      Structured.Func.create () ~name ~body ~args ~slots ~dict
 %}
 
 %token EOF
@@ -108,6 +110,7 @@
 %token <string> SYM
 %token <string> LABEL
 %token COLON
+%token SEMI
 %token ALIGN
 %token <unit> CONST
 %token TYPE
@@ -115,14 +118,12 @@
 %token RBRACE
 %token LPAREN
 %token RPAREN
-%token LSQUARE
-%token RSQUARE
 %token COMMA
 %token EQUALS
-%token ARROW
 %token ELLIPSIS
 %token SB SH SW W L B H S D Z
 %token <Type.basic> ADD DIV MUL SUB NEG
+%token NOP
 %token <Type.imm> REM MULH UMULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
 %token SLOT
 %token <Type.arg> LOAD STORE
@@ -139,11 +140,18 @@
 %token CALL
 %token <Type.arg> VAARG
 %token VASTART
+%token START
 %token HLT
-%token JMP
-%token BR
+%token GOTO
+%token IF ELSE
+%token WHEN UNLESS
+%token LOOP
+%token WHILE
+%token DO
+%token BREAK
 %token RET
 %token <Type.imm> SWITCH
+%token CASE DEFAULT
 %token <string> MODULE
 %token FUNCTION
 %token DATA
@@ -163,14 +171,13 @@
 
 %start module_
 
-%type <Virtual.module_ Context.t> module_
+%type<Structured.module_ Context.t> module_
 %type <elt Context.t> module_elt
-%type <Virtual.data Context.t> data
 %type <Virtual.Data.elt> data_elt
 %type <Type.compound> typ
 %type <[`opaque of int | `fields of Type.field list]> typ_fields_or_opaque
 %type <Type.field> typ_field
-%type <Virtual.func Context.t> func
+%type <Structured.func Context.t> func
 %type <((Var.t * Type.arg) list * bool) Context.t> func_args
 %type <Type.basic> type_basic
 %type <Type.arg> type_arg
@@ -178,13 +185,13 @@
 %type <Linkage.t> linkage
 %type <string> section
 %type <Virtual.slot Context.t> slot
-%type <Virtual.blk Context.t> blk
-%type <Var.t Context.t> blk_arg
-%type <Virtual.Ctrl.t Context.t> ctrl
-%type <Virtual.Ctrl.swindex Context.t> ctrl_index
-%type <((Bv.t * Type.imm) * Virtual.local) Context.t> ctrl_table_entry
-%type <Virtual.Insn.op Context.t> insn
+%type <swcase Context.t> switch_case
+%type <(Label.t * Structured.stmt) Context.t> label_stmt
+%type <Structured.stmt Context.t> label_stmt_full
+%type <Structured.stmt Context.t> stmt
+%type <Structured.stmt Context.t> non_label_stmt
 %type <call_arg list Context.t> call_args
+%type <Structured.Stmt.cond Context.t> stmt_cond
 %type <Virtual.Insn.binop> insn_binop
 %type <Virtual.Insn.unop> insn_unop
 %type <Virtual.Insn.arith_binop> insn_arith_binop
@@ -194,8 +201,7 @@
 %type <Virtual.Insn.bitwise_unop> insn_bitwise_unop
 %type <Virtual.Insn.cast> insn_cast
 %type <Virtual.Insn.copy> insn_copy
-%type <Virtual.dst Context.t> dst
-%type <Virtual.local Context.t> local
+%type <Structured.Stmt.goto Context.t> goto
 %type <Virtual.global Context.t> global
 %type <Virtual.operand Context.t> operand
 %type <Virtual.const> const
@@ -213,10 +219,8 @@ module_:
             | Func f -> f :: funs, typs, data
             | Typ  t -> funs, t :: typs, data
             | Data d -> funs, typs, d :: data) in
-      (* Our state is local to the parser, so we should avoid a
-         potential memory leak. *)
       let+ () = Context.Local.erase tag in
-      Virtual.Module.create () ~name
+      Structured.Module.create () ~name
         ~funs:(List.rev funs)
         ~typs:(List.rev typs)
         ~data:(List.rev data)
@@ -262,10 +266,10 @@ typ_field:
   | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value_map n ~default:1 ~f:Bv.to_int) }
 
 func:
-  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
-    { make_fn slots blks args l name return false }
-  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) blks = nonempty_list(blk) RBRACE
-    { make_fn slots blks args l name return true }
+  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) START COLON body = stmt RBRACE
+    { make_fn slots body args l name return false }
+  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) START COLON body = stmt RBRACE
+    { make_fn slots body args l name return true }
 
 func_args:
   | ELLIPSIS { !!([], true) }
@@ -312,64 +316,82 @@ slot:
       | Ok s -> !!s
     }
 
-blk:
-  | ln = LABEL COLON insns = list(insn) ctrl = ctrl
+switch_case:
+  | CASE i = INT COLON b = stmt { let+ b = b in Case (fst i, snd i, b) }
+  | DEFAULT COLON d = stmt { let+ d = d in Default d }
+
+%inline label_stmt:
+  | l = LABEL COLON s = stmt
+    { let+ l = label_of_name l and+ s = s in l, s }
+
+%inline label_stmt_full:
+  | s = label_stmt
     {
-      let* l = label_of_name ln
-      and* insns = Context.List.all insns
-      and* ctrl = ctrl in
-      Context.Virtual.blk' () ~label:(Some l) ~insns ~ctrl
-    }
-  | ln = LABEL LPAREN args = separated_nonempty_list(COMMA, blk_arg) RPAREN COLON insns = list(insn) ctrl = ctrl
-    {
-      let* l = label_of_name ln
-      and* args = Context.List.all args
-      and* insns = Context.List.all insns
-      and* ctrl = ctrl in
-      Context.Virtual.blk' () ~label:(Some l) ~args ~insns ~ctrl
+      let+ l, s = s in
+      `label (l, s)
     }
 
-blk_arg:
-  | v = var { v }
+stmt:
+  | s = non_label_stmt option(SEMI) { s }
+  | s1 = non_label_stmt SEMI s2 = stmt
+    {
+      let+ s1 = s1 and+ s2 = s2 in
+      `seq (s1, s2)
+    }
+  | lab = label_stmt_full { lab }
 
-ctrl:
+stmt_cond:
+  | x = var { let+ x = x in `var x }
+  | k = insn_cmp l = operand COMMA r = operand
+    {
+      let+ l = l and+ r = r in
+      `cmp (k, l, r)
+    }
+
+non_label_stmt:
+  | NOP { !!`nop }
+  | BREAK { !!`break }
+  | IF x = stmt_cond LBRACE t = stmt RBRACE ELSE LBRACE e = stmt RBRACE
+    {
+      let+ x = x and+ t = t and+ e = e in
+      `ite (x, t, e)
+    }
+  | WHEN x = stmt_cond LBRACE b = stmt RBRACE
+    { let+ x = x and+ b = b in Structured.Stmt.when_ x b }
+  | UNLESS x = stmt_cond LBRACE b = stmt RBRACE
+    { let+ x = x and+ b = b in Structured.Stmt.unless x b }
+  | LOOP LBRACE b = stmt RBRACE { let+ b = b in `loop b }
+  | WHILE x = stmt_cond LBRACE b = stmt RBRACE
+    {
+      let+ x = x and+ b = b in
+      Structured.Stmt.while_ x b
+    }
+  | DO LBRACE b = stmt RBRACE WHILE x = stmt_cond
+    {
+      let+ b = b and+ x = x in
+      Structured.Stmt.dowhile b x
+    }
+  | GOTO g = goto { let+ g = g in `goto g }
+  | t = SWITCH i = var LBRACE cs = list(switch_case) RBRACE
+    {
+      let* i = i and* cs = Context.List.all cs in
+      let+ cs = Context.List.map cs ~f:(function
+          | Default d -> !!(`default d)
+          | Case (i, t', b) when Type.equal_imm t t' ->
+            !!(`case (i, b))
+          | Case (i, t', _) ->
+            Context.failf
+              "Invalid switch value %a_%a, expected size %a"
+              Bv.pp i Type.pp_imm t' Type.pp_imm t ()) in
+      `sw (i, t, cs)
+    }
   | HLT { !!`hlt }
-  | JMP d = dst { let+ d = d in `jmp d }
-  | BR c = var COMMA t = dst COMMA f = dst
-    {
-      let+ c = c and+ t = t and+ f = f in
-      `br (c, t, f)
-    }
   | RET a = option(operand)
     {
       match a with
       | None -> !!(`ret None)
       | Some a -> let+ a = a in `ret (Some a)
     }
-  | t = SWITCH i = ctrl_index COMMA def = local LSQUARE tbl = separated_nonempty_list(COMMA, ctrl_table_entry) RSQUARE
-    {
-      let* i = i and* d = def and* tbl = Context.List.all tbl in
-      let* tbl = Context.List.map tbl ~f:(fun ((i, t'), l) ->
-          if not @@ Type.equal_imm t t' then
-            Context.failf
-              "Invalid switch value %a_%a, expected size %a"
-              Bv.pp i Type.pp_imm t' Type.pp_imm t ()
-          else !!(i, l)) in
-      match Virtual.Ctrl.Table.create tbl t with
-      | Error err -> Context.fail err
-      | Ok tbl -> !!(`sw (t, i, d, tbl))
-    }
-
-ctrl_index:
-  | x = var { let+ x = x in `var x }
-  | s = SYM { !!(`sym (s, 0)) }
-  | s = SYM PLUS i = NUM { !!(`sym (s, Bv.to_int i)) }
-  | s = SYM MINUS i = NUM { !!(`sym (s, -(Bv.to_int i))) }
-
-ctrl_table_entry:
-  | i = INT ARROW l = local { let+ l = l in i, l }
-
-insn:
   | x = var EQUALS b = insn_binop l = operand COMMA r = operand
     {
       let+ x = x and+ l = l and+ r = r in
@@ -534,21 +556,9 @@ insn_cast:
 insn_copy:
   | t = COPY { `copy t }
 
-dst:
-  | g = global { let+ g = g in (g :> Virtual.dst) }
-  | l = local { let+ l = l in (l :> Virtual.dst) }
-
-local:
-  | l = LABEL
-    {
-      let+ l = label_of_name l in
-      `label (l, [])
-    }
-  | l = LABEL LPAREN args = separated_nonempty_list(COMMA, operand) RPAREN
-    {
-      let+ args = Context.List.all args and+ l = label_of_name l in
-      `label (l, args)
-    }
+goto:
+  | g = global { let+ g = g in (g :> Structured.Stmt.goto) }
+  | l = LABEL { let+ l = label_of_name l in `label l }
 
 global:
   | i = NUM { !!(`addr i) }

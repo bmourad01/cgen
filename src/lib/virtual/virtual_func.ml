@@ -218,7 +218,7 @@ let pp ppf fn =
 
 include Regular.Make(struct
     include T
-    let module_name = Some "Cgen.Virtual.Fn"
+    let module_name = Some "Cgen.Virtual.Func"
     let version = "0.1"
     let pp = pp
     let hash = hash
