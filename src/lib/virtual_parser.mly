@@ -99,7 +99,7 @@
       match Virtual.Func.create () ~name ~blks ~args ~slots ~dict with
       | Error err -> Context.fail err
       | Ok fn -> !!fn
- %}
+%}
 
 %token EOF
 %token PLUS
