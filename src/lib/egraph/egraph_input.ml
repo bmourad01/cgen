@@ -20,19 +20,19 @@ module Phis = Phi_values.Make(struct
 
 (* General information about the function we're translating. *)
 type t = {
-  fn   : func;              (* The function itself. *)
-  loop : loops;             (* Loops analysis. *)
-  reso : resolver;          (* Labels to blocks/insns. *)
-  cfg  : Cfg.t;             (* The CFG. *)
-  dom  : Label.t tree;      (* Dominator tree. *)
-  domd : int Label.Table.t; (* Dominator tree depths. *)
-  pdom : Label.t tree;      (* Post-dominator tree. *)
-  rdom : Dominance.t;       (* Fine-grained dominance relation. *)
-  df   : Label.t frontier;  (* Dominance frontiers. *)
-  lst  : Last_stores.t;     (* Last stores analysis. *)
-  tenv : Typecheck.env;     (* Typing environment. *)
-  phis : Phis.state;        (* Block argument value sets. *)
-  rpo  : Label.t -> int;    (* Reverse post-order number. *)
+  fn   : func;                      (* The function itself. *)
+  loop : loops;                     (* Loops analysis. *)
+  reso : resolver;                  (* Labels to blocks/insns. *)
+  cfg  : Cfg.t;                     (* The CFG. *)
+  dom  : Label.t Semi_nca.tree;     (* Dominator tree. *)
+  domd : int Label.Table.t;         (* Dominator tree depths. *)
+  pdom : Label.t Semi_nca.tree;     (* Post-dominator tree. *)
+  rdom : Dominance.t;               (* Fine-grained dominance relation. *)
+  df   : Label.t Semi_nca.frontier; (* Dominance frontiers. *)
+  lst  : Last_stores.t;             (* Last stores analysis. *)
+  tenv : Typecheck.env;             (* Typing environment. *)
+  phis : Phis.state;                (* Block argument value sets. *)
+  rpo  : Label.t -> int;            (* Reverse post-order number. *)
 }
 
 let init_dom_relation reso dom =
@@ -40,7 +40,7 @@ let init_dom_relation reso dom =
       type lhs = Var.t option
       type insn = Insn.t
       module Blk = Blk
-      let rec is_descendant_of ~parent l = match Tree.parent dom l with
+      let rec is_descendant_of ~parent l = match Semi_nca.Tree.parent dom l with
         | Some p -> Label.(p = parent) || is_descendant_of ~parent p
         | None -> false
       let resolve = Resolver.resolve reso
@@ -63,7 +63,7 @@ let dom_depths dom =
   let q = Stack.singleton (Label.pseudoentry, 0) in
   Stack.until_empty q (fun (l, d) ->
       Hashtbl.set t ~key:l ~data:d;
-      Tree.children dom l |> Seq.iter ~f:(fun l' ->
+      Semi_nca.Tree.children dom l |> Seq.iter ~f:(fun l' ->
           Stack.push q (l', d + 1)));
   t
 
@@ -83,9 +83,9 @@ let init fn tenv =
   let+ reso = Resolver.create fn in
   let loop = Loops.analyze fn in
   let cfg = Cfg.create fn in
-  let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
-  let pdom = Graphlib.dominators (module Cfg) cfg Label.pseudoexit ~rev:true in
-  let df = Graphlib.dom_frontier (module Cfg) cfg dom in
+  let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
+  let pdom = Semi_nca.compute (module Cfg) cfg Label.pseudoexit ~rev:true in
+  let df = Semi_nca.frontier (module Cfg) cfg dom in
   let rdom = init_dom_relation reso dom in
   let lst = init_last_stores cfg reso in
   let domd = dom_depths dom in

@@ -35,7 +35,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       node = Vec.create ();
       typs = Vec.create ();
       cfg;
-      dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry;
+      dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry;
       rpo = init_rpo cfg;
       blks = Func.map_of_blks fn;
       v2id = Var.Table.create ();

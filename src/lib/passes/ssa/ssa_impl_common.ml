@@ -1,5 +1,4 @@
 open Regular.Std
-open Graphlib.Std
 
 exception Missing_blk of Label.t
 
@@ -78,9 +77,9 @@ module type L = sig
 end
 
 type ('live, 'cfg, 'blk) env = {
-  live : 'live;              (* Liveness analysis. *)
-  cfg  : 'cfg;               (* Control-flow graph. *)
-  dom  : Label.t tree;       (* Dominator tree. *)
-  df   : Label.t frontier;   (* Dominance frontier. *)
-  blks : 'blk Label.Table.t; (* Current version of each block. *)
+  live : 'live;                     (* Liveness analysis. *)
+  cfg  : 'cfg;                      (* Control-flow graph. *)
+  dom  : Label.t Semi_nca.tree;     (* Dominator tree. *)
+  df   : Label.t Semi_nca.frontier; (* Dominance frontier. *)
+  blks : 'blk Label.Table.t;        (* Current version of each block. *)
 }

@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 open Ssa_impl_common
 
 (* Second phase of the algorithm is to traverse the dominator tree
@@ -67,7 +66,7 @@ end = struct
         (* Pop the renamed variables from the stack. *)
         Stack.push q @@ Pop b);
     (* Repeat for the children in the dominator tree. *)
-    Tree.children env.dom l |> Seq.iter
+    Semi_nca.Tree.children env.dom l |> Seq.iter
       ~f:(fun l -> Stack.push q @@ Visit l)
 
   let go env =

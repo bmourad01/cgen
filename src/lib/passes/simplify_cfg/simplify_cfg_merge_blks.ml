@@ -2,7 +2,6 @@
 
 open Core
 open Regular.Std
-open Graphlib.Std
 open Virtual
 open Simplify_cfg_common
 
@@ -65,7 +64,7 @@ let run env =
          tree, so we can just skip forward to the child that
          we merged with. *)
       let subst, l = try_merge subst env l in
-      Tree.children env.dom l |>
+      Semi_nca.Tree.children env.dom l |>
       Seq.iter ~f:(fun l -> Stack.push q (l, subst)));
   (* We're only ever removing blocks, so this is the only
      condition where something would've changed. *)

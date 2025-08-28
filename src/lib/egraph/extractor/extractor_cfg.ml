@@ -3,7 +3,6 @@
 open Core
 open Extractor_core
 open Regular.Std
-open Graphlib.Std
 open Virtual
 
 module Common = Egraph_common
@@ -319,8 +318,8 @@ let exp t env l e =
 module Hoisting = struct
   let (++) = Lset.union
   let not_pseudo = Fn.non Label.is_pseudo
-  let descendants t = Tree.descendants t.eg.input.dom
-  let frontier t = Frontier.enum t.eg.input.df
+  let descendants t = Semi_nca.Tree.descendants t.eg.input.dom
+  let frontier t = Semi_nca.Frontier.enum t.eg.input.df
   let to_set = Fn.compose Lset.of_sequence @@ Seq.filter ~f:not_pseudo
 
   let rec closure ?(self = true) t env l =
@@ -357,7 +356,7 @@ module Hoisting = struct
         | Some `blk _ | None -> assert false)
 
   let rec post_dominated t l bs =
-    match Tree.parent t.eg.input.pdom l with
+    match Semi_nca.Tree.parent t.eg.input.pdom l with
     | Some p -> Lset.mem bs p || post_dominated t p bs
     | None -> false
 
@@ -463,7 +462,7 @@ let collect t l =
     | Some (l, scp) ->
       env.scp <- scp;
       let* () = step t env l in
-      Tree.children t.eg.input.dom l |>
+      Semi_nca.Tree.children t.eg.input.dom l |>
       Seq.iter ~f:(fun l -> Stack.push q (l, env.scp));
       loop () in
   loop ()

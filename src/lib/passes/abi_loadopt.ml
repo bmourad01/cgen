@@ -67,7 +67,7 @@ module Mem = Regular.Make(struct
 
 type t = {
   reso         : Abi.resolver;
-  dom          : Label.t tree;
+  dom          : Label.t Semi_nca.tree;
   rdom         : Dominance.t;
   lst          : Last_stores.t;
   blks         : Abi.blk Label.Table.t;
@@ -82,7 +82,7 @@ let init_dom_relation reso dom =
       type lhs = Var.Set.t
       type insn = Abi.insn
       module Blk = Abi.Blk
-      let rec is_descendant_of ~parent l = match Tree.parent dom l with
+      let rec is_descendant_of ~parent l = match Semi_nca.Tree.parent dom l with
         | Some p -> Label.(p = parent) || is_descendant_of ~parent p
         | None -> false
       let resolve = Abi.Resolver.resolve reso
@@ -103,7 +103,7 @@ let init_last_stores cfg reso =
 let init fn =
   let+ reso = Abi.Resolver.create fn in
   let cfg = Abi.Cfg.create fn in
-  let dom = Graphlib.dominators (module Abi.Cfg) cfg Label.pseudoentry in
+  let dom = Semi_nca.compute (module Abi.Cfg) cfg Label.pseudoentry in
   let rdom = init_dom_relation reso dom in
   let lst = init_last_stores cfg reso in
   let blks = Label.Table.create () in
@@ -279,7 +279,7 @@ let run fn =
     let q = Stack.singleton (Label.pseudoentry, t.mem, t.memo) in
     Stack.until_empty q (fun (l, lst, memo) ->
         Optimize.step t l lst memo;
-        Tree.children t.dom l |> Seq.iter ~f:(fun l ->
+        Semi_nca.Tree.children t.dom l |> Seq.iter ~f:(fun l ->
             Stack.push q (l, t.mem, t.memo)));
     Abi.Func.map_blks fn ~f:(fun b ->
         Abi.Blk.label b |> Hashtbl.find t.blks |>

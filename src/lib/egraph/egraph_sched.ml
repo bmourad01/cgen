@@ -3,12 +3,11 @@
    motion when we extract back to the CFG form. *)
 
 open Core
-open Graphlib.Std
 open Egraph_common
 open Virtual
 
 (* Immediate dominator. *)
-let idom t l = match Tree.parent t.input.dom l with
+let idom t l = match Semi_nca.Tree.parent t.input.dom l with
   | Some l' -> l'
   | None ->
     (* The root is pseudoentry, which we should never reach. *)
@@ -196,7 +195,7 @@ module Licm = struct
   end
 
   let header_parent t lp =
-    header t lp |> Tree.parent t.input.dom |> Option.value_exn
+    header t lp |> Semi_nca.Tree.parent t.input.dom |> Option.value_exn
 
   let partition_uses t x =
     Resolver.uses t.input.reso x |>

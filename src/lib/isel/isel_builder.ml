@@ -3,7 +3,6 @@
 
 open Core
 open Regular.Std
-open Graphlib.Std
 open Virtual.Abi
 open Isel_common
 
@@ -432,7 +431,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let enqueue t l q = try C.return @@
       let cmp a b = compare (t.rpo b) (t.rpo a) in
-      Tree.children t.dom l |>
+      Semi_nca.Tree.children t.dom l |>
       Seq.to_list |> List.sort ~compare:cmp |>
       List.iter ~f:(Stack.push q)
     with Missing_rpo l ->

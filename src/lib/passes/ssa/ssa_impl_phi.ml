@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 open Ssa_impl_common
 
 module Lset = Label.Tree_set
@@ -60,7 +59,7 @@ end = struct
   let iterated_frontier f blks =
     let blks = Lset.add blks Label.pseudoentry in
     let df = Lset.fold ~init:Lset.empty ~f:(fun init b ->
-        Frontier.enum f b |> Seq.fold ~init ~f:Lset.add) in
+        Semi_nca.Frontier.enum f b |> Seq.fold ~init ~f:Lset.add) in
     let rec fixpoint idf =
       let idf' = df @@ Lset.union idf blks in
       if Lset.equal idf idf' then idf' else fixpoint idf' in
