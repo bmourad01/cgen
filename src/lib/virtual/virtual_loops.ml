@@ -104,7 +104,7 @@ let new_loop t l =
 
 let dom_backedge l cfg dom =
   Cfg.Node.preds l cfg |> Seq.filter ~f:(fun l' ->
-      Label.(l = l') || Tree.is_descendant_of dom ~parent:l l')
+      Label.(l = l') || Semi_nca.Tree.is_descendant_of dom ~parent:l l')
 
 let find_headers t cfg dom =
   Graphlib.reverse_postorder_traverse (module Cfg)
@@ -180,7 +180,7 @@ let assign_levels t =
 let analyze fn =
   let t = init fn in
   let cfg = Cfg.create fn in
-  let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
+  let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
   find_headers t cfg dom;
   find_loop_blks t cfg dom;
   assign_levels t;

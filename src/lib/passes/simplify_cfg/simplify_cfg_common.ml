@@ -12,7 +12,7 @@ type env = {
   flag          : Var.t Var.Table.t;
   mutable start : Label.t;
   mutable cfg   : Cfg.t;
-  mutable dom   : Label.t tree;
+  mutable dom   : Label.t Semi_nca.tree;
   mutable ret   : Label.t option;
 }
 
@@ -32,7 +32,7 @@ let init fn =
   let blks = Label.Table.create () in
   let typs = Var.Table.create () in
   let flag = collect_flag fn in
-  let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
+  let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
   Func.blks fn |> Seq.iter ~f:(fun b ->
       Hashtbl.set blks ~key:(Blk.label b) ~data:b);
   {blks; typs; flag; start; cfg; dom; ret = None}
@@ -72,7 +72,7 @@ let recompute_cfg env fn =
           Hashtbl.remove env.blks l;
           Func.remove_blk_exn fn l, g'
         else acc) in
-  env.dom <- Graphlib.dominators (module Cfg) g' Label.pseudoentry;
+  env.dom <- Semi_nca.compute (module Cfg) g' Label.pseudoentry;
   env.cfg <- g';
   fn
 

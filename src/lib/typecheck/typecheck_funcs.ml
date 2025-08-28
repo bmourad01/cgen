@@ -37,7 +37,7 @@ let rec check_blk doms rpo blks seen l =
   let* () = Insns.go seen in
   let* () = Ctrls.go blks @@ Blk.ctrl blk in
   let rpn = Hashtbl.find_exn rpo in
-  Tree.children doms l |> Seq.filter ~f:not_pseudo |> Seq.to_list |>
+  Semi_nca.Tree.children doms l |> Seq.filter ~f:not_pseudo |> Seq.to_list |>
   List.sort ~compare:(fun a b -> compare (rpn a) (rpn b)) |>
   M.List.iter ~f:(check_blk doms rpo blks seen)
 
@@ -112,7 +112,7 @@ let check fn =
   let start = Label.pseudoentry in
   (* We will traverse the blocks according to the dominator tree
      so that we get the right ordering for definitions. *)
-  let doms = Graphlib.dominators (module Cfg) cfg start in
+  let doms = Semi_nca.compute (module Cfg) cfg start in
   (* However, it requires us to visit children of each node in
      the tree according to the reverse postorder traversal. *)
   check_blk doms (make_rpo cfg start) blks seen @@ Func.entry fn

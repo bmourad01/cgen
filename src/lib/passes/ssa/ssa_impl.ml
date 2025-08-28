@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 open Ssa_impl_common
 
 module Make(M : L) : sig
@@ -12,8 +11,8 @@ end = struct
   let init fn =
     let live = Live.compute fn in
     let cfg = Cfg.create fn in
-    let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
-    let df = Graphlib.dom_frontier (module Cfg) cfg dom in
+    let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
+    let df = Semi_nca.frontier (module Cfg) cfg dom in
     let blks = Label.Table.create () in
     Func.blks fn |> Seq.iter ~f:(fun b ->
         Hashtbl.set blks ~key:(Blk.label b) ~data:b);
@@ -46,6 +45,6 @@ end = struct
 
   let check fn = try_ fn @@ fun () ->
     let cfg = Cfg.create fn in
-    let dom = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in
+    let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
     Check.go dom fn
 end

@@ -1,11 +1,10 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 open Ssa_impl_common
 
 (* Verify that the function does not violate the SSA invariants. *)
 module Make(M : L) : sig
-  val go : Label.t tree -> M.Func.t -> unit
+  val go : Label.t Semi_nca.tree -> M.Func.t -> unit
 end = struct
   open M
 
@@ -15,7 +14,7 @@ end = struct
     let l = Blk.label b in
     let l' = Blk.label b' in
     if Label.(l = l') then k ()
-    else if not (Tree.is_descendant_of dom ~parent:l l')
+    else if not (Semi_nca.Tree.is_descendant_of dom ~parent:l l')
     then fail fn
 
   (* The resolver should handle multiple definitions, as well as uses

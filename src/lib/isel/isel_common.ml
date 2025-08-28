@@ -1,5 +1,4 @@
 open Core
-open Graphlib.Std
 open Virtual.Abi
 
 module Id = Isel_internal.Id
@@ -25,7 +24,7 @@ type 'r t = {
   node  : 'r node Vec.t;
   typs  : ty Uopt.t Vec.t;
   cfg   : Cfg.t;
-  dom   : Label.t tree;
+  dom   : Label.t Semi_nca.tree;
   rpo   : Label.t -> int;
   blks  : blk Label.Tree.t;
   v2id  : Id.t Var.Table.t;

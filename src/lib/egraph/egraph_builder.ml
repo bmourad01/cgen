@@ -310,6 +310,6 @@ let run eg = try_ @@ fun () ->
   let q = Stack.singleton (Label.pseudoentry, env.mem) in
   Stack.until_empty q @@ fun (l, lst) ->
   step env eg l lst;
-  Tree.children eg.input.dom l |>
+  Semi_nca.Tree.children eg.input.dom l |>
   Seq.to_list |> List.sort ~compare:cmp |>
   List.iter ~f:(fun l -> Stack.push q (l, env.mem))

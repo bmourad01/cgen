@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 open Virtual
 
 let reg_str = Format.asprintf "%a" X86_amd64_common.Reg.pp
@@ -166,7 +165,7 @@ type vaarg = {
 type env = {
   fn            : func;                        (* The original function. *)
   blks          : blk Label.Tree.t;            (* Map of basic blocks. *)
-  doms          : Label.t tree;                (* Dominator tree. *)
+  doms          : Label.t Semi_nca.tree;       (* Dominator tree. *)
   tenv          : Typecheck.env;               (* Typing environment. *)
   rets          : ret Label.Table.t;           (* Lowered `ret` instructions. *)
   calls         : call Label.Table.t;          (* Lowered `call` instructions. *)
@@ -200,7 +199,7 @@ let align_slots fn =
 let init_env tenv fn =
   let fn = align_slots fn in
   let cfg = Cfg.create fn in
-  let doms = Graphlib.dominators (module Cfg) cfg Label.pseudoentry in {
+  let doms = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in {
     fn;
     blks = Func.map_of_blks fn;
     doms;
@@ -231,7 +230,7 @@ module Make0(Context : Context_intf.S) = struct
         let* () = match Label.Tree.find env.blks l with
           | None -> !!()
           | Some b -> f b in
-        Tree.children env.doms l |>
+        Semi_nca.Tree.children env.doms l |>
         Seq.iter ~f:(Stack.push q);
         loop q in
     loop @@ Stack.singleton @@ Func.entry env.fn
