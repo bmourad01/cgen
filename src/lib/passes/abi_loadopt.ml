@@ -82,9 +82,7 @@ let init_dom_relation reso dom =
       type lhs = Var.Set.t
       type insn = Abi.insn
       module Blk = Abi.Blk
-      let rec is_descendant_of ~parent l = match Semi_nca.Tree.parent dom l with
-        | Some p -> Label.(p = parent) || is_descendant_of ~parent p
-        | None -> false
+      let is_descendant_of = Semi_nca.Tree.is_descendant_of dom
       let resolve = Abi.Resolver.resolve reso
     end) in
   Dom.dominates

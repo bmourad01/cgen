@@ -40,9 +40,7 @@ let init_dom_relation reso dom =
       type lhs = Var.t option
       type insn = Insn.t
       module Blk = Blk
-      let rec is_descendant_of ~parent l = match Semi_nca.Tree.parent dom l with
-        | Some p -> Label.(p = parent) || is_descendant_of ~parent p
-        | None -> false
+      let is_descendant_of = Semi_nca.Tree.is_descendant_of dom
       let resolve = Resolver.resolve reso
     end) in
   Dom.dominates
