@@ -30,6 +30,22 @@ module Frontier = struct
   let mem t = t.mem
 end
 
+module Iset = Patricia_tree.Make_set(struct
+    include Int
+    let size = Sys.int_size_in_bits
+  end)
+
+(* DFS preorder node. *)
+type 'a node = {
+  parent       : int Uopt.t;
+  mutable ans  : int Uopt.t;
+  mutable sdom : int;
+  mutable best : int;
+  mutable idom : int Uopt.t;
+  mutable chld : Iset.t;
+  self         : 'a;
+}
+
 let idom
     (type t n e)
     (module G : Graph
@@ -38,86 +54,87 @@ let idom
        and type node = n) ?(rev = false) g entry =
   (* DFS preorder. *)
   let preord = Vec.create () in
-  (* Immediate parent in the DFS tree. *)
-  let parent = G.Node.Table.create () in
   (* Preorder numberings. *)
   let pre = G.Node.Table.create () in
-  (* Union-find parent in the DFS tree. *)
-  let ans = G.Node.Table.create () in
-  (* Pending semidominated nodes. *)
-  let chld = G.Node.Table.create () in
-  (* Semidominator with the smallest DFS preorder number. *)
-  let best = G.Node.Table.create () in
-  (* Semidominators. *)
-  let sdom = G.Node.Table.create () in
-  (* Immediate dominators *)
-  let idom = G.Node.Table.create () in
+  let ( .!() ) t i = Vec.unsafe_get t i in
   let ( .![] ) t k = Hashtbl.find_exn t k in
   let ( .![]<- ) t k v = Hashtbl.set t ~key:k ~data:v in
   (* Perform path compression according to the ancestor table. *)
   let rec compress v =
-    Hashtbl.find ans v |> Option.iter ~f:(fun a ->
-        if Hashtbl.mem ans a then begin
-          compress a;
-          let ba = best.![a] in
-          if pre.![ba] < pre.![best.![v]] then
-            best.![v] <- ba;
-          ans.![v] <- ans.![a]
-        end) in
+    let vn = preord.!(v) in
+    let a = Uopt.value_exn vn.ans in
+    let an = preord.!(a) in
+    if Uopt.is_some an.ans then begin
+      compress a;
+      if an.best < vn.best then
+        vn.best <- an.best;
+      vn.ans <- an.ans
+    end in
   (* Get the updated `best` link to `v` when performing path compression. *)
-  let eval v = compress v; best.![v] in
+  let eval v =
+    let vn = preord.!(v) in
+    if Uopt.is_some vn.ans then compress v;
+    vn.best in
   (* Pre-order traversal. *)
   let dir = if rev then G.Node.preds else G.Node.succs in
-  let rec dfs u =
-    best.![u] <- u;
-    sdom.![u] <- u;
-    pre.![u] <- Vec.length preord;
-    Vec.push preord u;
-    dir u g |> Seq.iter ~f:(fun v ->
-        if not @@ Hashtbl.mem pre v then begin
-          parent.![v] <- u;
-          dfs v
-        end) in
+  let rec dfs ?p u =
+    let n = Vec.length preord in
+    pre.![u] <- n;
+    let parent = match p with
+      | None -> Uopt.none
+      | Some p -> Uopt.some pre.![p] in
+    Vec.push preord {
+      parent;
+      ans = Uopt.none;
+      sdom = n;
+      best = n;
+      idom = Uopt.none;
+      chld = Iset.empty;
+      self = u;
+    };
+    dir u g |>
+    Seq.filter ~f:(Fn.non @@ Hashtbl.mem pre) |>
+    Seq.iter ~f:(dfs ~p:u) in
   dfs entry;
   (* Process in reverse preorder, skipping the entry node. *)
   let dir = if rev then G.Node.succs else G.Node.preds in
   for iv = Vec.length preord - 1 downto 1 do
     (* Find v's semidominator. *)
-    let v = Vec.unsafe_get preord iv in
-    dir v g |> Seq.iter ~f:(fun u ->
+    let vn = Vec.unsafe_get preord iv in
+    dir vn.self g |> Seq.iter ~f:(fun u ->
         let iu = pre.![u] in
-        let s, is =
-          if iu < iv then u, iu
-          else
-            let s = sdom.![eval u] in
-            s, pre.![s] in
-        let sv = sdom.![v] in
-        if is < pre.![sv] then sdom.![v] <- s);
+        let s = if iu < iv then iu
+          else preord.!(eval iu).sdom in
+        if s < vn.sdom then vn.sdom <- s);
     (* Enqueue v to be processed in order to find its immediate
        dominator. *)
-    Hashtbl.update chld sdom.![v] ~f:(function
-        | None -> G.Node.Set.singleton v
-        | Some s -> Set.add s v);
-    let p = parent.![v] in
+    let svn = preord.!(vn.sdom) in
+    svn.chld <- Iset.add svn.chld iv;
     (* v's initial ancestor is its DFS parent. *)
-    ans.![v] <- p;
+    let p = Uopt.value_exn vn.parent in
+    vn.ans <- Uopt.some p;
     (* Find the immediate dominators of the nodes semidominated
        by v's parent. *)
-    Hashtbl.find chld p |>
-    Option.value ~default:G.Node.Set.empty |>
-    Set.iter ~f:(fun w ->
+    let pn = preord.!(p) in
+    Iset.iter pn.chld ~f:(fun w ->
         let u = eval w in
-        idom.![w] <- if pre.![sdom.![u]] < pre.![sdom.![w]] then u else p);
-    Hashtbl.remove chld p;
+        let wn = preord.!(w) in
+        let un = preord.!(u) in
+        wn.idom <- Uopt.some @@ if un.sdom < wn.sdom then u else p);
+    pn.chld <- Iset.empty;
   done;
   (* Fix up the immediate dominator table. *)
-  for i = 1 to Vec.length preord - 1 do
-    let v = Vec.unsafe_get preord i in
-    let dv = idom.![v] in
-    if G.Node.(dv <> sdom.![v]) then
-      idom.![v] <- idom.![dv]
+  for v = 1 to Vec.length preord - 1 do
+    let vn = preord.!(v) in
+    let dv = Uopt.value_exn vn.idom in
+    if dv <> vn.sdom then
+      vn.idom <- preord.!(dv).idom
   done;
-  Hashtbl.find idom
+  fun u ->
+    Hashtbl.find pre u |>
+    Option.bind ~f:(fun iu ->
+        Uopt.to_option preord.!(iu).idom) |>
+    Option.map ~f:(fun id -> preord.!(id).self)
 
 let compute
     (type t n e)
@@ -156,7 +173,7 @@ let frontier
     (module G : Graph
       with type t = t
        and type edge = e
-       and type node = n) ?(rev = false) g tree : n frontier =
+       and type node = n) ?(rev = false) g (tree : n tree) : n frontier =
   let adj = if rev then G.Node.succs else G.Node.preds in
   let idom = tree.parent in
   let rec walk top dfs r =
