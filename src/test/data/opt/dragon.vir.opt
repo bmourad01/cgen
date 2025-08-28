@@ -1,0 +1,10 @@
+module dragon
+
+function $dragon() {
+@2:
+  jmp @7
+@7:
+  jmp @8
+@8:
+  jmp @7
+}

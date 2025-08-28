@@ -1,0 +1,31 @@
+module dragon
+
+function $dragon() {
+@start:
+  %c = eq.w 0_w, 1_w
+  jmp @b1
+@b1:
+  br %c, @b2, @b3
+@b2:
+  jmp @b3
+@b3:
+  jmp @b4_1
+@b4_1:
+  br %c, @b3, @b4_2
+@b4_2:
+  br %c, @b5, @b6
+@b5:
+  jmp @b7
+@b6:
+  jmp @b7
+@b7:
+  br %c, @b8_1, @b4_1
+@b8_1:
+  br %c, @b3, @b8_2
+@b8_2:
+  br %c, @b9, @b10
+@b9:
+  jmp @b1
+@b10:
+  jmp @b7
+}
