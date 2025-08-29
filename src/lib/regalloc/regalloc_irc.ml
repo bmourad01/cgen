@@ -205,6 +205,27 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let nodes = Set.union (adjacent t u) (adjacent t v) in
     conservative t (Regs.node_k u) nodes
 
+  (* XXX: the algorithm in the paper does:
+
+     AddEdge(t, u)
+     DecrementDegree(t)
+
+     but this seems to be rather bug-prone. If `t` and
+     `u` already interfere, then we should just decrement
+     the degree of `t` to simulate removing `v`.
+
+     Otherwise, we add the edge and increment the degree
+     of `u`, leaving the degree of `t` unchanged.
+  *)
+  let combine_edge t u v =
+    if has_edge t u v then
+      decrement_degree t v
+    else begin
+      add_adjlist t u v;
+      add_adjlist t v u;
+      if can_be_colored t u then inc_degree t u;
+    end
+
   (* Combine `v` with `u` in the interference graph, where
      `u` is the destination. *)
   let combine t u v =
@@ -225,11 +246,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | Some um -> Lset.union um vm
         | None -> vm);
     (* forall t \in Adjacent(v) *)
-    adjacent t v |> Set.iter ~f:(fun a ->
-        (* AddEdge(t,u) *)
-        add_edge t a u;
-        (* DecrementDegree(t) *)
-        decrement_degree t a);
+    adjacent t v |> Set.iter ~f:(combine_edge t u);
     if (* degree[u] >= K*)
       degree t u >= Regs.node_k u &&
       (* u \in freezeWorklist *)

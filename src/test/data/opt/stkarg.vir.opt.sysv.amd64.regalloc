@@ -4,14 +4,14 @@ export function $foo { ; returns: rax
 @2:
   push rbp ; @46
   mov rbp, rsp ; @47
-  mov r10d, dword ptr [rbp + 0x10] ; @14
-  mov eax, dword ptr [rbp + 0x18] ; @25
+  mov eax, dword ptr [rbp + 0x10] ; @14
+  mov r10d, dword ptr [rbp + 0x18] ; @25
   add rsi, rdi ; @32
   add rcx, rdx ; @15
   add rcx, rsi ; @16
   lea rsi, qword ptr [r8 + r9*1] ; @17
-  movsxd rdx, r10d ; @18
-  movsxd rax, eax ; @19
+  movsxd rdx, eax ; @18
+  movsxd rax, r10d ; @19
   add rax, rdx ; @20
   add rax, rsi ; @21
   add rax, rcx ; @22
