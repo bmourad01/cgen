@@ -100,6 +100,32 @@ let test_regalloc target abi ext name _ =
   | Ok p' -> compare_outputs filename' expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
+let test_native target abi ext name code _ =
+  let filename = Format.sprintf "data/opt/%s.vir" name in
+  let driver = Format.sprintf "data/opt/%s.driver.%s.%s.c" name abi ext in
+  let tmpname = Format.asprintf "cgen-%s-%s-%s" name abi ext in
+  let exe = Format.sprintf "/tmp/%s" tmpname in
+  Context.init target |>
+  Context.eval begin
+    let open Context.Syntax in
+    let* m = from_file_abi filename in
+    let tmp = Stdlib.Filename.temp_file ~temp_dir:"/tmp" (tmpname ^ "-") ".S" in
+    let oc = Out_channel.create tmp in
+    let fmt = Format.formatter_of_out_channel oc in
+    let* () = Passes.to_asm fmt m in
+    Out_channel.close oc;
+    (* TODO: cross-platform? *)
+    let code = Stdlib.Sys.command @@ Format.sprintf "cc %s %s -o %s" tmp driver exe in
+    if code <> 0 then
+      Context.failf "failed to compile (error code %d)" code ()
+    else
+      !!(Stdlib.Sys.command exe)
+  end |> function
+  | Ok c ->
+    let msg = Format.sprintf "Unexpected return code: got %d, expected %d" c code in
+    assert_bool msg (c = code)
+  | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
+
 (* Specific ABI lowering tests. *)
 let test_sysv = test_abi Machine.X86.Amd64_sysv.target "sysv"
 
@@ -108,6 +134,9 @@ let test_sysv_amd64 = test_isel Machine.X86.Amd64_sysv.target "sysv" "amd64"
 
 (* Specific register allocation tests. *)
 let test_sysv_amd64_regalloc = test_regalloc Machine.X86.Amd64_sysv.target "sysv" "amd64"
+
+(* Specific native tests. *)
+let test_sysv_amd64_native = test_native Machine.X86.Amd64_sysv.target "sysv" "amd64"
 
 (*  General optimization tests *)
 let opt_suite = "Test optimizations" >::: [
@@ -192,6 +221,7 @@ let opt_suite = "Test optimizations" >::: [
     "Tail recursion elimination 2 (fibonacci)" >:: test "tailrec2";
     "Constant phi" >:: test "constphi";
     "Collatz (promotion)" >:: test "collatz";
+    "Collatz (recursive)" >:: test "collatz_rec";
     "Ackermann" >:: test "ackermann";
     "Branchless" >:: test "branchless";
     "LICM (sinking)" >:: test "licmsink";
@@ -238,6 +268,8 @@ let abi_suite = "Test ABI lowering" >::: [
     "XOR to OR (SysV)" >:: test_sysv "xor_to_or";
     "Branch to non-label 1 (SysV)" >:: test_sysv "brind";
     "Dragon (SysV)" >:: test_sysv "dragon";
+    "Collatz (SysV)" >:: test_sysv "collatz";
+    "Collatz recursive (SysV)" >:: test_sysv "collatz_rec";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -264,6 +296,8 @@ let isel_suite = "Test instruction selection" >::: [
     "XOR to OR (SysV AMD64)" >:: test_sysv_amd64 "xor_to_or";
     "Branch to non-label 1 (SysV AMD64)" >:: test_sysv_amd64 "brind";
     "Dragon (SysV AMD64)" >:: test_sysv_amd64 "dragon";
+    "Collatz (SysV AMD64)" >:: test_sysv_amd64 "collatz";
+    "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64 "collatz_rec";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -292,6 +326,18 @@ let regalloc_suite = "Test register allocation" >::: [
     "XOR to OR (SysV AMD64)" >:: test_sysv_amd64_regalloc "xor_to_or";
     "Branch to non-label 1 (SysV AMD64)" >:: test_sysv_amd64_regalloc "brind";
     "Dragon (SysV AMD64)" >:: test_sysv_amd64_regalloc "dragon";
+    "Collatz (SysV AMD64)" >:: test_sysv_amd64_regalloc "collatz";
+    "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_regalloc "collatz_rec";
+  ]
+
+let native_suite = "Test native code" >::: [
+    (* AMD64 SysV *)
+    "20th prime number (SysV AMD64)" >:: test_sysv_amd64_native "prime" 71;
+    "GCD of 12 and 18 (SysV AMD64)" >:: test_sysv_amd64_native "gcdext" 6;
+    "Copy array (SysV AMD64)" >:: test_sysv_amd64_native "cpyarray" 6;
+    "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_native "vasum" 28;
+    "Collatz of 6 (SysV AMD64)" >:: test_sysv_amd64_native "collatz" 8;
+    "Collatz of 6, recursive (SysV AMD64)" >:: test_sysv_amd64_native "collatz_rec" 8;
   ]
 
 let () = run_test_tt_main @@ test_list [
@@ -299,4 +345,5 @@ let () = run_test_tt_main @@ test_list [
     abi_suite;
     isel_suite;
     regalloc_suite;
+    native_suite;
   ]

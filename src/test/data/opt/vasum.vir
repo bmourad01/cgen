@@ -19,8 +19,8 @@ export function w $sum(w %n, ...) {
   ret %x
 }
 
-export function w $twenty_one() {
+export function w $twenty_eight() {
 @start:
-  %x = call.w $sum(6_w, ..., 1_w, 2_w, 3_w, 4_w, 5_w, 6_w)
+  %x = call.w $sum(7_w, ..., 1_w, 2_w, 3_w, 4_w, 5_w, 6_w, 7_w)
   ret %x
 }

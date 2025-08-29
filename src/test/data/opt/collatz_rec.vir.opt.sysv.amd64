@@ -1,0 +1,36 @@
+module collatz_rec
+
+export function $foo { ; returns: rax
+@18:
+  mov %n:w, edi ; @49
+  mov %steps:w, esi ; @50
+  mov %1:w, %n:w ; @51
+  mov %2:w, %steps:w ; @52
+  jmp @2 ; @53
+@2:
+  cmp %1:w, 0x1_w ; @44
+  je @17 ; @45
+  jmp @4 ; @46
+@17:
+  mov eax, %2:w ; @42
+  ret ; @43
+@4:
+  test %1:w, 0x1_w ; @36
+  je @6 ; @37
+  jmp @7 ; @38
+@7:
+  lea %9:w, qword ptr [%2 + 0x1] ; @25
+  mov %6:w, %1:w ; @22
+  shl %6:w, 0x1_b ; @35
+  lea %8:w, qword ptr [%6 + %1*1 + 0x1] ; @24
+  mov %1:w, %8:w ; @32
+  mov %2:w, %9:w ; @33
+  jmp @2 ; @34
+@6:
+  lea %11:w, qword ptr [%2 + 0x1] ; @27
+  mov %10:w, %1:w ; @26
+  shr %10:w, 0x1_b ; @31
+  mov %1:w, %10:w ; @28
+  mov %2:w, %11:w ; @29
+  jmp @2 ; @30
+}

@@ -1,0 +1,24 @@
+module collatz_rec
+
+export function w $foo(w %n, w %steps) {
+@start:
+  %c = eq.w %n, 1_w
+  br %c, @one, @notone
+@one:
+  ret %steps
+@notone:    
+  %a = urem.w %n, 2_w
+  %c = eq.w %a, 0_w
+  br %c, @even, @odd
+@even:
+  %steps = add.w %steps, 1_w
+  %n = udiv.w %n, 2_w
+  %r = call.w $foo(%n, %steps)
+  ret %r
+@odd:
+  %steps = add.w %steps, 1_w
+  %n = mul.w %n, 3_w
+  %n = add.w %n, 1_w
+  %r = call.w $foo(%n, %steps)
+  ret %r
+}

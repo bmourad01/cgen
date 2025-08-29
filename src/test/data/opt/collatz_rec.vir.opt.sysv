@@ -1,0 +1,25 @@
+module collatz_rec
+
+export function $foo(w %n/rdi, w %steps/rsi) {
+@18:
+  jmp @2(%n, %steps)
+@2(%1, %2):
+  %3 = eq.w %1, 0x1_w ; @19
+  br %3, @17, @4
+@4:
+  %4 = and.w %1, 0x1_w ; @20
+  %5 = eq.w %4, 0x0_w ; @21
+  br %5, @6, @7
+@6:
+  %11 = add.w %2, 0x1_w ; @27
+  %10 = lsr.w %1, 0x1_w ; @26
+  jmp @2(%10, %11)
+@7:
+  %9 = add.w %2, 0x1_w ; @25
+  %6 = lsl.w %1, 0x1_w ; @22
+  %7 = add.w %6, %1 ; @23
+  %8 = add.w %7, 0x1_w ; @24
+  jmp @2(%8, %9)
+@17:
+  ret rax/%2
+}

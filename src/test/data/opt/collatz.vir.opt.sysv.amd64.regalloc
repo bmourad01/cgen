@@ -1,0 +1,24 @@
+module foo
+
+export function $foo { ; returns: rax
+@2:
+  xor eax, eax ; @59
+@3:
+  cmp edi, 0x1_w ; @52
+  ja @6 ; @53
+@7:
+  ret ; @51
+@6:
+  test edi, 0x1_w ; @44
+  je @10 ; @45
+@11:
+  mov ecx, edi ; @31
+  shl ecx, 0x1_b ; @43
+  lea edi, qword ptr [rcx + rdi*1 + 0x1] ; @33
+  jmp @15 ; @42
+@10:
+  shr edi, 0x1_b ; @40
+@15:
+  inc eax ; @30
+  jmp @3 ; @37
+}

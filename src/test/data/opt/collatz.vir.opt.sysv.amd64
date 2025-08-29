@@ -1,0 +1,36 @@
+module foo
+
+export function $foo { ; returns: rax
+@2:
+  mov %n:w, edi ; @57
+  mov %x.2:w, %n:w ; @58
+  xor %count.2:w, %count.2:w ; @59
+  jmp @3 ; @60
+@3:
+  cmp %x.2:w, 0x1_w ; @52
+  ja @6 ; @53
+  jmp @7 ; @54
+@7:
+  mov eax, %count.2:w ; @50
+  ret ; @51
+@6:
+  test %x.2:w, 0x1_w ; @44
+  je @10 ; @45
+  jmp @11 ; @46
+@11:
+  mov %4:w, %x.2:w ; @31
+  shl %4:w, 0x1_b ; @43
+  lea %6:w, qword ptr [%4 + %x.2*1 + 0x1] ; @33
+  mov %x.3:w, %6:w ; @41
+  jmp @15 ; @42
+@10:
+  mov %7:w, %x.2:w ; @34
+  shr %7:w, 0x1_b ; @40
+  mov %x.3:w, %7:w ; @38
+  jmp @15 ; @39
+@15:
+  lea %3:w, qword ptr [%count.2 + 0x1] ; @30
+  mov %x.2:w, %x.3:w ; @35
+  mov %count.2:w, %3:w ; @36
+  jmp @3 ; @37
+}

@@ -71,9 +71,9 @@ export function $sum { ; returns: rax
   jmp @3 ; @75
 }
 
-export function $twenty_one { ; returns: rax
+export function $twenty_eight { ; returns: rax
 @13:
-  mov edi, 0x6_w ; @14
+  mov edi, 0x7_w ; @14
   mov esi, 0x1_w ; @107
   mov edx, 0x2_w ; @108
   mov ecx, 0x3_w ; @109
@@ -81,10 +81,11 @@ export function $twenty_one { ; returns: rax
   mov r9d, 0x5_w ; @111
   sub rsp, 0x10_l ; @112
   mov dword ptr [rsp + 0x0], 0x6_w ; @113
-  xor al, al ; @114
-  call $sum ; r8 r9 rax rcx rdi rdx rsi ; @115
-  add rsp, 0x10_l ; @116
-  mov %x.1:w, eax ; @117
+  mov dword ptr [rsp + 0x8], 0x7_w ; @114
+  xor al, al ; @115
+  call $sum ; r8 r9 rax rcx rdi rdx rsi ; @116
+  add rsp, 0x10_l ; @117
+  mov %x.1:w, eax ; @118
   mov eax, %x.1:w ; @105
   ret ; @106
 }
