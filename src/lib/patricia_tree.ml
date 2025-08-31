@@ -213,13 +213,16 @@ module Make(K : Patricia_tree_intf.Key) = struct
       let b1 = Key.branching p1 in
       let b2 = Key.branching p2 in
       match Key.compare p1 k2 with
-      | NA -> join t1 k1 t2 k2
       | RB -> if is_zero ~bit:b1 k2
         then Bin (p1, merge l1 t2 ~f, r1)
         else Bin (p1, l1, merge r1 t2 ~f)
       | LB -> if is_zero ~bit:b2 k1
         then Bin (p2, merge t1 l2 ~f, r2)
         else Bin (p2, l2, merge t1 r2 ~f)
+      | NA -> match Key.compare p2 k1 with
+        | NA -> join t1 k1 t2 k2
+        | RB -> Bin (p2, l2, merge t1 r2 ~f)
+        | LB -> Bin (p2, merge t1 l2 ~f, r2)
   [@@specialise]
 
   let rec iter t ~f = match t with
@@ -406,13 +409,16 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       let b1 = Key.branching p1 in
       let b2 = Key.branching p2 in
       match Key.compare p1 k2 with
-      | NA -> join t1 k1 t2 k2
       | RB -> if is_zero ~bit:b1 k2
         then Bin (p1, union l1 t2, r1)
         else Bin (p1, l1, union r1 t2)
       | LB -> if is_zero ~bit:b2 k1
         then Bin (p2, union t1 l2, r2)
         else Bin (p2, l2, union t1 r2)
+      | NA -> match Key.compare p2 k1 with
+        | NA -> join t1 k1 t2 k2
+        | LB -> Bin (p2, union t1 l2, r2)
+        | RB -> Bin (p2, l2, union t1 r2)
 
   let rec inter_key k t = match t with
     | Nil -> Nil

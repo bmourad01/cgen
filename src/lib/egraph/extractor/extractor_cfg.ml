@@ -322,6 +322,12 @@ module Hoisting = struct
   let frontier t = Semi_nca.Frontier.enum t.eg.input.df
   let to_set = Fn.compose Lset.of_sequence @@ Seq.filter ~f:not_pseudo
 
+  (* Effectively, we are computing the dominator-subtree closure
+     over the iterated dominance frontier of `l`.
+
+     This helps answer the question of where the computation of a
+     given instruction is "available" in the CFG.
+  *)
   let rec closure ?(self = true) t env l =
     let c = match Hashtbl.find env.closure l with
       | Some c -> c
@@ -387,8 +393,11 @@ module Hoisting = struct
            that we moved to. *)
         let b = closure t env l ~self:false in
         (* If these sets are not equal, then we have a partial
-           redundancy, and thus need to duplicate code. *)
-        not @@ Lset.equal a b
+           redundancy, and thus need to duplicate code. In the
+           case where the closure includes our target block `l`,
+           we want to exclude it, since the closure for `l` will
+           exclude itself. *)
+        not @@ Lset.equal (Lset.remove a l) b
       end
     end
 
