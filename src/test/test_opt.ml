@@ -237,6 +237,7 @@ let opt_suite = "Test optimizations" >::: [
     "Trivial infinite loop" >:: test "forever";
     "Tail-recursive infinite loop" >:: test "forever2";
     "CLZ/CTZ 8-bit" >:: test "clz_ctz_8";
+    "POPCNT" >:: test "popcnt";
     "Compare slots" >:: test "cmpslot";
     "Add to slot" >:: test "slotadd1";
     "Branch to non-label 1" >:: test "brind";
@@ -262,6 +263,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Tail-recursive infinite loop (SysV)" >:: test_sysv "forever2";
     "Switch simplification 2 (SysV)" >:: test_sysv "sw";
     "CLZ/CTZ 8-bit (SysV)" >:: test_sysv "clz_ctz_8";
+    "POPCNT (SysV)" >:: test_sysv "popcnt";
     "Short-circuiting AND (flag indirection) (SysV)" >:: test_sysv "shortcircand2";
     "Compare slots (SysV)" >:: test_sysv "cmpslot";
     "Add to slot (SysV)" >:: test_sysv "slotadd1";
@@ -291,6 +293,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Tail-recursive infinite loop (SysV AMD64)" >:: test_sysv_amd64 "forever2";
     "Switch simplification 2 (SysV AMD64)" >:: test_sysv_amd64 "sw";
     "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64 "clz_ctz_8";
+    "POPCNT (SysV AMD64)" >:: test_sysv_amd64 "popcnt";
     "Short-circuiting AND (flag indirection) (SysV AMD64)" >:: test_sysv_amd64 "shortcircand2";
     "Compare slots (SysV AMD64)" >:: test_sysv_amd64 "cmpslot";
     "Add to slot (SysV AMD64)" >:: test_sysv_amd64 "slotadd1";
@@ -322,6 +325,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Tail-recursive infinite loop (SysV AMD64)" >:: test_sysv_amd64_regalloc "forever2";
     "Switch simplification 2 (SysV AMD64)" >:: test_sysv_amd64_regalloc "sw";
     "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_regalloc "clz_ctz_8";
+    "POPCNT (SysV AMD64)" >:: test_sysv_amd64_regalloc "popcnt";
     "Short-circuiting AND (flag indirection) (SysV AMD64)" >:: test_sysv_amd64_regalloc "shortcircand2";
     "Compare slots (SysV AMD64)" >:: test_sysv_amd64_regalloc "cmpslot";
     "Add to slot (SysV AMD64)" >:: test_sysv_amd64_regalloc "slotadd1";
@@ -343,6 +347,7 @@ let native_suite = "Test native code" >::: [
     "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_native "collatz_rec" 0;
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64_native "ackermann" 0;
     "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_native "clz_ctz_8" 0;
+    "POPCNT (SysV AMD64)" >:: test_sysv_amd64_native "popcnt" 0;
   ]
 
 let () = run_test_tt_main @@ test_list [

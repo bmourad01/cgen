@@ -1,0 +1,25 @@
+module popcnt
+
+export function b $popcnt8(b %n) {
+@start:
+  %x = popcnt.b %n
+  ret %x
+}
+
+export function h $popcnt16(h %n) {
+@start:
+  %x = popcnt.h %n
+  ret %x
+}
+
+export function w $popcnt32(w %n) {
+@start:
+  %x = popcnt.w %n
+  ret %x
+}
+
+export function l $popcnt64(l %n) {
+@start:
+  %x = popcnt.l %n
+  ret %x
+}

@@ -1619,19 +1619,16 @@ end = struct
 
   let popcnt_r_x_y env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in !!![
-      I.popcnt (Oreg (x, xt)) (Oreg (y, yt));
-    ]
-
-  (* Here we should be safe with just a zero-extend. *)
-  let popcnt8_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
+    let*! movinst, ty = match xt with
+      | `i8 | `i16 -> Some (I.movzx, `i32)
+      | `i32 | `i64 -> Some (I.mov, xt)
+      | _ -> None in
     let* tmp1 = C.Var.fresh >>| Rv.var GPR in
     let* tmp2 = C.Var.fresh >>| Rv.var GPR in !!![
-      I.movzx (Oreg (tmp1, `i16)) (Oreg (y, yt));
-      I.popcnt (Oreg (tmp2, `i16)) (Oreg (tmp1, `i16));
-      I.mov (Oreg (x, xt)) (Oreg (tmp2, `i8));
+      movinst (Oreg (tmp1, ty)) (Oreg (y, yt));
+      I.popcnt (Oreg (tmp2, ty)) (Oreg (tmp1, ty));
+      I.mov (Oreg (x, ty)) (Oreg (tmp2, ty));
     ]
 
   let sext_rr_x_y env =
@@ -2206,10 +2203,6 @@ end = struct
 
     let popcnt = [
       popcnt_r_x_y;
-    ]
-
-    let popcnt8 = [
-      popcnt8_r_x_y;
     ]
 
     let sext = [
@@ -2861,7 +2854,7 @@ end = struct
 
     (* x = popcnt y *)
     let popcnt_basic = [
-      move x (popcnt `i8  y) =>* Group.popcnt8;
+      move x (popcnt `i8  y) =>* Group.popcnt;
       move x (popcnt `i16 y) =>* Group.popcnt;
       move x (popcnt `i32 y) =>* Group.popcnt;
       move x (popcnt `i64 y) =>* Group.popcnt;
