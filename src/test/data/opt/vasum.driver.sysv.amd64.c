@@ -1,5 +1,7 @@
+#include <assert.h>
+
 extern int twenty_eight(void);
 
 int main() {
-  return twenty_eight();
+  assert(twenty_eight() == 28);
 }

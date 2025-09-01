@@ -13,5 +13,5 @@ int main() {
   assert(foo(8) == 3);
   assert(foo(9) == 19);
   assert(foo(10) == 6);
-  return 0;
+  assert(foo(837799) == 524);
 }

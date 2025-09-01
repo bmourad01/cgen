@@ -100,31 +100,72 @@ let test_regalloc target abi ext name _ =
   | Ok p' -> compare_outputs filename' expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
-let test_native target abi ext name code _ =
+type proc = {
+  code   : int;
+  stdout : string;
+  stderr : string;
+}
+
+let run_process cmd args =
+  let open Shexp_process in
+  let open Shexp_process.Infix in
+  eval @@
+  with_temp_file ~prefix:"stdout" ~suffix:".log" @@ fun stdout_file ->
+  with_temp_file ~prefix:"stderr" ~suffix:".log" @@ fun stderr_file ->
+  stdout_to stdout_file @@
+  stderr_to stderr_file @@
+  run_exit_code cmd args >>= fun code ->
+  return {
+    code;
+    stdout = In_channel.read_all stdout_file;
+    stderr = In_channel.read_all stderr_file;
+  }
+
+let compile_c_driver asm driver exe =
+  let p = run_process "cc" [asm; driver; "-o"; exe] in
+  Context.unless (p.code = 0) @@ fun () ->
+  Context.failf "failed to compile C driver program %s (error code %d): %s"
+    driver p.code p.stderr ()
+
+let output_asm m file =
+  let open Context.Syntax in
+  let oc = Out_channel.create file in
+  let fmt = Format.formatter_of_out_channel oc in
+  let+ () = Passes.to_asm fmt m in
+  Out_channel.close oc
+
+let test_native target abi ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
-  let driver = Format.sprintf "data/opt/%s.driver.%s.%s.c" name abi ext in
+  let driver = Format.sprintf "data/opt/%s.driver.%s.%s" name abi ext in
+  let driver_c = driver ^ ".c" in
+  let driver_output = driver ^ ".output" in
   let tmpname = Format.asprintf "cgen-%s-%s-%s" name abi ext in
   let exe = Format.sprintf "/tmp/%s" tmpname in
+  let asm = Format.sprintf "/tmp/%s.S" tmpname in
   Context.init target |>
   Context.eval begin
     let open Context.Syntax in
     let* m = from_file_abi filename in
-    let tmp = Stdlib.Filename.temp_file ~temp_dir:"/tmp" (tmpname ^ "-") ".S" in
-    let oc = Out_channel.create tmp in
-    let fmt = Format.formatter_of_out_channel oc in
-    let* () = Passes.to_asm fmt m in
-    Out_channel.close oc;
-    (* TODO: cross-platform? *)
-    let code = Stdlib.Sys.command @@ Format.sprintf "cc %s %s -o %s" tmp driver exe in
-    if code <> 0 then
-      Context.failf "failed to compile (error code %d)" code ()
-    else
-      !!(Stdlib.Sys.command exe)
+    let* () = output_asm m asm in
+    let+ () = compile_c_driver asm driver_c exe in
+    run_process exe []
   end |> function
-  | Ok c ->
-    let msg = Format.sprintf "Unexpected return code: got %d, expected %d" c code in
-    assert_bool msg (c = code)
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
+  | Ok p ->
+    let msg = Format.sprintf
+        "Unexpected return code: got %d, expected 0\n\n\
+         STDERR:\n%s\n" p.code p.stderr in
+    assert_bool msg (p.code = 0);
+    if Shexp_process.(eval @@ file_exists driver_output) then
+      let contents = In_channel.read_all driver_output in
+      let msg = Format.asprintf
+          "Unequal output\n\
+           ---------------------------\n\
+           Got:\n%s\n\
+           ---------------------------\n\
+           Expected:\n%s\n"
+          p.stdout contents in
+      assert_bool msg @@ String.(contents = p.stdout)
 
 (* Specific ABI lowering tests. *)
 let test_sysv = test_abi Machine.X86.Amd64_sysv.target "sysv"
@@ -339,15 +380,15 @@ let regalloc_suite = "Test register allocation" >::: [
 
 let native_suite = "Test native code" >::: [
     (* AMD64 SysV *)
-    "20th prime number (SysV AMD64)" >:: test_sysv_amd64_native "prime" 71;
-    "Extended GCD (SysV AMD64)" >:: test_sysv_amd64_native "gcdext" 0;
-    "Copy array (SysV AMD64)" >:: test_sysv_amd64_native "cpyarray" 6;
-    "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_native "vasum" 28;
-    "Collatz (SysV AMD64)" >:: test_sysv_amd64_native "collatz" 0;
-    "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_native "collatz_rec" 0;
-    "Ackermann (SysV AMD64)" >:: test_sysv_amd64_native "ackermann" 0;
-    "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_native "clz_ctz_8" 0;
-    "POPCNT (SysV AMD64)" >:: test_sysv_amd64_native "popcnt" 0;
+    "First 20 prime numbers (SysV AMD64)" >:: test_sysv_amd64_native "prime";
+    "Extended GCD (SysV AMD64)" >:: test_sysv_amd64_native "gcdext";
+    "Copy array (SysV AMD64)" >:: test_sysv_amd64_native "cpyarray";
+    "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_native "vasum";
+    "Collatz (SysV AMD64)" >:: test_sysv_amd64_native "collatz";
+    "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_native "collatz_rec";
+    "Ackermann (SysV AMD64)" >:: test_sysv_amd64_native "ackermann";
+    "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_native "clz_ctz_8";
+    "POPCNT (SysV AMD64)" >:: test_sysv_amd64_native "popcnt";
   ]
 
 let () = run_test_tt_main @@ test_list [

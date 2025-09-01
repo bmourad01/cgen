@@ -10,6 +10,4 @@ int main() {
 
   assert(clz8(0b11110000) == 0);
   assert(ctz8(0b11110000) == 4);
-  
-  return 0;
 }

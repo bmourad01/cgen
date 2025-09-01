@@ -21,5 +21,4 @@ int main() {
   test(0, 7, 7);
   test(7, 0, 7);
   test(18, 84, 6);
-  return 0;
 }

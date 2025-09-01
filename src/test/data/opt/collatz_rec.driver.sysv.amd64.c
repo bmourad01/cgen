@@ -17,5 +17,5 @@ int main() {
   assert(bar(8) == 3);
   assert(bar(9) == 19);
   assert(bar(10) == 6);
-  return 0;
+  assert(bar(837799) == 524);
 }

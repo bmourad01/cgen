@@ -17,6 +17,4 @@ int main() {
 
   assert(popcnt64(0xFFFFFFFFFFFFFFFF) == 64);
   assert(popcnt64(0x00000000FFFFFFFF) == 32);
-
-  return 0;
 }

@@ -32,4 +32,5 @@
     ppx_fields_conv
     ppx_sexp_conv
     regular
+    shexp
     zarith))
