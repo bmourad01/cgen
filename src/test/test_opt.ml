@@ -270,6 +270,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Dragon (SysV)" >:: test_sysv "dragon";
     "Collatz (SysV)" >:: test_sysv "collatz";
     "Collatz recursive (SysV)" >:: test_sysv "collatz_rec";
+    "Ackermann (SysV)" >:: test_sysv "ackermann";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -298,6 +299,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Dragon (SysV AMD64)" >:: test_sysv_amd64 "dragon";
     "Collatz (SysV AMD64)" >:: test_sysv_amd64 "collatz";
     "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64 "collatz_rec";
+    "Ackermann (SysV AMD64)" >:: test_sysv_amd64 "ackermann";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -328,16 +330,18 @@ let regalloc_suite = "Test register allocation" >::: [
     "Dragon (SysV AMD64)" >:: test_sysv_amd64_regalloc "dragon";
     "Collatz (SysV AMD64)" >:: test_sysv_amd64_regalloc "collatz";
     "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_regalloc "collatz_rec";
+    "Ackermann (SysV AMD64)" >:: test_sysv_amd64_regalloc "ackermann";
   ]
 
 let native_suite = "Test native code" >::: [
     (* AMD64 SysV *)
     "20th prime number (SysV AMD64)" >:: test_sysv_amd64_native "prime" 71;
-    "GCD of 12 and 18 (SysV AMD64)" >:: test_sysv_amd64_native "gcdext" 6;
+    "Extended GCD (SysV AMD64)" >:: test_sysv_amd64_native "gcdext" 0;
     "Copy array (SysV AMD64)" >:: test_sysv_amd64_native "cpyarray" 6;
     "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_native "vasum" 28;
-    "Collatz of 6 (SysV AMD64)" >:: test_sysv_amd64_native "collatz" 8;
-    "Collatz of 6, recursive (SysV AMD64)" >:: test_sysv_amd64_native "collatz_rec" 8;
+    "Collatz (SysV AMD64)" >:: test_sysv_amd64_native "collatz" 0;
+    "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_native "collatz_rec" 0;
+    "Ackermann (SysV AMD64)" >:: test_sysv_amd64_native "ackermann" 0;
   ]
 
 let () = run_test_tt_main @@ test_list [
