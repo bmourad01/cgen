@@ -84,9 +84,11 @@ module type S = sig
 
   (** Bitwise unary operations.
 
-      [`clz t]: count leading zeroes.
+      [`clz t]: count leading zeroes. If the operand is zero, then the
+      result is unspecified.
 
-      [`ctz t]: count trailing zeroes.
+      [`ctz t]: count trailing zeroes. If the operand is zero, then the
+      result is unspecified.
 
       [`not_ t]: bitwise complement (NOT).
 
