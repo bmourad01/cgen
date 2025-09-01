@@ -16,8 +16,6 @@ let take_one hs =
   e
 
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
-  module Live = Pseudo_passes.Live(M)
-
   open C.Syntax
   open Regalloc_irc_state.Make(M)
 
