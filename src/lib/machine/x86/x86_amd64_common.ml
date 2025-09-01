@@ -400,6 +400,8 @@ module Insn = struct
     | ADDSD
     | ADDSS
     | AND
+    | BSF
+    | BSR
     | CMOVcc of cc
     | CMP
     | CVTSD2SI
@@ -412,7 +414,6 @@ module Insn = struct
     | DIVSS
     | IMUL2
     | LEA
-    | LZCNT
     | MOV
     | MOVD
     | MOVDQA
@@ -435,7 +436,6 @@ module Insn = struct
     | SUBSD
     | SUBSS
     | TEST_
-    | TZCNT
     | UCOMISD
     | UCOMISS
     | XOR
@@ -451,6 +451,8 @@ module Insn = struct
     | ADDSD -> Format.fprintf ppf "addsd"
     | ADDSS -> Format.fprintf ppf "addss"
     | AND -> Format.fprintf ppf "and"
+    | BSF -> Format.fprintf ppf "bsf"
+    | BSR -> Format.fprintf ppf "bsr"
     | CMOVcc cc -> Format.fprintf ppf "cmov%a" pp_cc cc
     | CMP -> Format.fprintf ppf "cmp"
     | CVTSD2SI -> Format.fprintf ppf "cvtsd2si"
@@ -463,7 +465,6 @@ module Insn = struct
     | DIVSS -> Format.fprintf ppf "divss"
     | IMUL2 -> Format.fprintf ppf "imul"
     | LEA -> Format.fprintf ppf "lea"
-    | LZCNT -> Format.fprintf ppf "lzcnt"
     | MOV -> Format.fprintf ppf "mov"
     | MOVD -> Format.fprintf ppf "movd"
     | MOVDQA -> Format.fprintf ppf "movdqa"
@@ -486,7 +487,6 @@ module Insn = struct
     | SUBSD -> Format.fprintf ppf "subsd"
     | SUBSS -> Format.fprintf ppf "subss"
     | TEST_ -> Format.fprintf ppf "test"
-    | TZCNT -> Format.fprintf ppf "tzcnt"
     | UCOMISD -> Format.fprintf ppf "ucomisd"
     | UCOMISS -> Format.fprintf ppf "ucomiss"
     | XOR -> Format.fprintf ppf "xor"
@@ -639,6 +639,8 @@ module Insn = struct
           ->
           Set.union (rset' [`rflags])
             (Set.union (rset_reg [a]) (rset [b]))
+        | BSF
+        | BSR
         | CVTSD2SI
         | CVTSD2SS
         | CVTSI2SD
@@ -646,12 +648,10 @@ module Insn = struct
         | CVTSS2SD
         | CVTSS2SI
         | LEA
-        | LZCNT
         | MOVSX
         | MOVSXD
         | MOVZX
         | POPCNT
-        | TZCNT
           -> rset [b]
         | MOV
         | MOV_
@@ -729,8 +729,9 @@ module Insn = struct
       begin match op with
         | ADD
         | AND
+        | BSF
+        | BSR
         | IMUL2
-        | LZCNT
         | OR
         | POPCNT
         | ROL
@@ -767,7 +768,6 @@ module Insn = struct
         | MULSS
         | SUBSD
         | SUBSS
-        | TZCNT
         | XORPD
         | XORPS
           -> rset_reg [a]
@@ -861,6 +861,8 @@ module Insn = struct
         | SUBSS
         | XOR
           -> is_mem a
+        | BSF (* illegal *)
+        | BSR (* illegal *)
         | CMOVcc _ (* illegal *)
         | CMP
         | CVTSD2SI (* illegal *)
@@ -871,13 +873,11 @@ module Insn = struct
         | CVTSS2SD (* illegal *)
         | IMUL2
         | LEA  (* illegal *)
-        | LZCNT (* illegal *)
         | MOVSX (* illegal *)
         | MOVZX (* illegal *)
         | MOVSXD (* illegal *)
         | POPCNT (* illegal *)
         | TEST_
-        | TZCNT
         | UCOMISD
         | UCOMISS
         | XORPD (* illegal *)
@@ -947,6 +947,8 @@ module Insn = struct
     let addsd a b = Two (ADDSD, a, b)
     let addss a b = Two (ADDSS, a, b)
     let and_ a b = Two (AND, a, b)
+    let bsf a b = Two (BSF, a, b)
+    let bsr a b = Two (BSR, a, b)
     let cmov cc a b = Two (CMOVcc cc, a, b)
     let cmp a b = Two (CMP, a, b)
     let cvtsd2si a b = Two (CVTSD2SI, a, b)
@@ -959,7 +961,6 @@ module Insn = struct
     let divss a b = Two (DIVSS, a, b)
     let imul2 a b = Two (IMUL2, a, b)
     let lea a b = Two (LEA, a, b)
-    let lzcnt a b = Two (LZCNT, a, b)
     let mov a b = Two (MOV, a, b)
     let mov_ a b = Two (MOV_, a, b)
     let movd a b = Two (MOVD, a, b)
@@ -983,7 +984,6 @@ module Insn = struct
     let subsd a b = Two (SUBSD, a, b)
     let subss a b = Two (SUBSS, a, b)
     let test a b = Two (TEST_, a, b)
-    let tzcnt a b = Two (TZCNT, a, b)
     let ucomisd a b = Two (UCOMISD, a, b)
     let ucomiss a b = Two (UCOMISS, a, b)
     let xor a b = Two (XOR, a, b)

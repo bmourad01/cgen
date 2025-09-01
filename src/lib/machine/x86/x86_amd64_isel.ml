@@ -1586,45 +1586,35 @@ end = struct
 
   let clz_r_x_y env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in !!![
-      I.lzcnt (Oreg (x, xt)) (Oreg (y, yt));
-    ]
-
-  (* Idea:
-
-     Zero-extend to 16 bits, shift left by 8, OR with 255,
-     and then do the LZCNT. The operand size will be the result
-     in the case of the input being zero, as specified in the
-     manual, although we reserve that the result can be undefined.
-  *)
-  let clz8_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
+    let n = Int64.of_int (Type.sizeof_basic xt - 1) in
     let*! y, yt = S.regvar env "y" in
+    let*! movinst, ty, ity = match xt with
+      | #Type.imm as imm ->
+        begin match imm with
+          | `i8 | `i16 -> Some (I.movzx, `i32, `i32)
+          | `i32 | `i64 -> Some (I.mov, xt, imm)
+        end
+      | _ -> None in
     let* tmp1 = C.Var.fresh >>| Rv.var GPR in
     let* tmp2 = C.Var.fresh >>| Rv.var GPR in !!![
-      I.movzx (Oreg (tmp1, `i16)) (Oreg (y, yt));
-      I.shl (Oreg (tmp1, `i16)) (Oimm (8L, `i8));
-      I.or_ (Oreg (tmp1, `i16)) (Oimm (0xFFL, `i16));
-      I.lzcnt (Oreg (tmp2, `i16)) (Oreg (tmp1, `i16));
-      I.mov (Oreg (x, xt)) (Oreg (tmp2, `i8));
+      movinst (Oreg (tmp1, ty)) (Oreg (y, yt));
+      I.bsr (Oreg (tmp2, ty)) (Oreg (tmp1, ty));
+      I.xor (Oreg (tmp2, ty)) (Oimm (n, ity));
+      I.mov (Oreg (x, ty)) (Oreg (tmp2, ty));
     ]
 
   let ctz_r_x_y env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in !!![
-      I.tzcnt (Oreg (x, xt)) (Oreg (y, yt));
-    ]
-
-  (* Same idea as the clz case, but we fill the upper 8 bits. *)
-  let ctz8_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
+    let*! movinst, ty = match xt with
+      | `i8 | `i16 -> Some (I.movzx, `i32)
+      | `i32 | `i64 -> Some (I.mov, xt)
+      | _ -> None in
     let* tmp1 = C.Var.fresh >>| Rv.var GPR in
     let* tmp2 = C.Var.fresh >>| Rv.var GPR in !!![
-      I.movzx (Oreg (tmp1, `i16)) (Oreg (y, yt));
-      I.or_ (Oreg (tmp1, `i16)) (Oimm (0xFF00L, `i16));
-      I.tzcnt (Oreg (tmp2, `i16)) (Oreg (tmp1, `i16));
-      I.mov (Oreg (x, xt)) (Oreg (tmp2, `i8));
+      movinst (Oreg (tmp1, ty)) (Oreg (y, yt));
+      I.bsf (Oreg (tmp2, ty)) (Oreg (tmp1, ty));
+      I.mov (Oreg (x, ty)) (Oreg (tmp2, ty));
     ]
 
   let popcnt_r_x_y env =
@@ -2210,16 +2200,8 @@ end = struct
       clz_r_x_y;
     ]
 
-    let clz8 = [
-      clz8_r_x_y;
-    ]
-
     let ctz = [
       ctz_r_x_y;
-    ]
-
-    let ctz8 = [
-      ctz8_r_x_y;
     ]
 
     let popcnt = [
@@ -2863,7 +2845,7 @@ end = struct
 
     (* x = clz y *)
     let clz_basic = [
-      move x (clz `i8  y) =>* Group.clz8;
+      move x (clz `i8  y) =>* Group.clz;
       move x (clz `i16 y) =>* Group.clz;
       move x (clz `i32 y) =>* Group.clz;
       move x (clz `i64 y) =>* Group.clz;
@@ -2871,7 +2853,7 @@ end = struct
 
     (* x = ctz y *)
     let ctz_basic = [
-      move x (ctz `i8  y) =>* Group.ctz8;
+      move x (ctz `i8  y) =>* Group.ctz;
       move x (ctz `i16 y) =>* Group.ctz;
       move x (ctz `i32 y) =>* Group.ctz;
       move x (ctz `i64 y) =>* Group.ctz;

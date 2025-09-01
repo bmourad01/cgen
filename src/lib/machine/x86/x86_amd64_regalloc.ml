@@ -184,6 +184,8 @@ module Typed_writes = struct
         | ADDSD
         | ADDSS
         | AND
+        | BSF
+        | BSR
         | CMOVcc _
         | CVTSD2SI
         | CVTSD2SS
@@ -195,7 +197,6 @@ module Typed_writes = struct
         | DIVSS
         | IMUL2
         | LEA
-        | LZCNT
         | MOV
         | MOV_
         | MOVD
@@ -218,7 +219,6 @@ module Typed_writes = struct
         | SUB
         | SUBSD
         | SUBSS
-        | TZCNT
         | XOR
         | XORPD
         | XORPS

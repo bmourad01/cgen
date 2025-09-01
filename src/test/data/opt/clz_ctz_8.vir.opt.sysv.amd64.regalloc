@@ -2,17 +2,15 @@ module clz_ctz_8
 
 export function $clz8 { ; returns: rax
 @2:
-  movzx ax, dil ; @10
-  shl ax, 0x8_b ; @11
-  or ax, 0xff_h ; @12
-  lzcnt ax, ax ; @13
+  movzx eax, dil ; @10
+  bsr eax, eax ; @11
+  xor eax, 0x7_w ; @12
   ret ; @9
 }
 
 export function $ctz8 { ; returns: rax
 @4:
-  movzx ax, dil ; @17
-  or ax, 0xff00_h ; @18
-  tzcnt ax, ax ; @19
-  ret ; @16
+  movzx eax, dil ; @16
+  bsf eax, eax ; @17
+  ret ; @15
 }

@@ -342,6 +342,7 @@ let native_suite = "Test native code" >::: [
     "Collatz (SysV AMD64)" >:: test_sysv_amd64_native "collatz" 0;
     "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_native "collatz_rec" 0;
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64_native "ackermann" 0;
+    "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_native "clz_ctz_8" 0;
   ]
 
 let () = run_test_tt_main @@ test_list [
