@@ -214,6 +214,54 @@ let collect_dealloc_stack_before_leave fn =
 let dealloc_stack_before_leave fn =
   filter_not_in fn @@ collect_dealloc_stack_before_leave fn
 
+(* If we store a value to an address only to immediately reload
+   from it, then eliminate the load. *)
+let collect_redundant_reload_after_spill fn =
+  Func.blks fn |> Seq.fold
+    ~init:(Lset.empty, Ltree.empty)
+    ~f:(fun ((set, map) as acc) b ->
+        let rec go acc s = match Seq.to_list @@ Seq.take s 2 with
+          | [] | [_] -> acc
+          | [_, Two (MOV, Omem (a1, t1), Oreg (r1, r1t));
+             l, Two (MOV, Oreg (r2, r2t), Omem (a2, t2))]
+            when equal_amode a1 a2 && equal_memty t1 t2 ->
+            let acc =
+              if Rv.equal r1 r2 then
+                Lset.add set l, map
+              else
+                let data = Two (MOV, Oreg (r2, r2t), Oreg (r1, r1t)) in
+                set, Ltree.set map ~key:l ~data in
+            go acc @@ Seq.drop_eagerly s 2
+          | _ -> go acc @@ Seq.drop_eagerly s 1 in
+        go acc @@ Seq.map ~f:decomp @@ Blk.insns b)
+
+let redundant_reload_after_spill fn =
+  let set, map = collect_redundant_reload_after_spill fn in
+  map_insns (filter_not_in fn set) map
+
+(* If we have a LEA of the same address as a subsequent load,
+   then use the result of the LEA as the address for the load.
+
+   This is made under the assumption that the result of the LEA
+   is going to be re-used later (otherwise it would have been
+   recognized as dead code).
+*)
+let collect_reuse_lea fn =
+  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+      let rec go acc s = match Seq.to_list @@ Seq.take s 2 with
+        | [] | [_] -> acc
+        | [_, Two (LEA, Oreg (r1, _), Omem (a1, _));
+           l, Two (MOV, Oreg (r2, r2t), Omem (a2, t2))]
+          when equal_amode a1 a2 ->
+          let data = Two (MOV, Oreg (r2, r2t), Omem (Ab r1, t2)) in
+          let acc = Ltree.set acc ~key:l ~data in
+          go acc @@ Seq.drop_eagerly s 2
+        | _ -> go acc @@ Seq.drop_eagerly s 1 in
+      go acc @@ Seq.map ~f:decomp @@ Blk.insns b)
+
+let reuse_lea fn =
+  map_insns fn @@ collect_reuse_lea fn
+
 let run fn =
   let fn = jump_threading fn in
   let fn = remove_disjoint fn in
@@ -221,4 +269,6 @@ let run fn =
   let fn = invert_branches afters fn in
   let fn = implicit_fallthroughs afters fn in
   let fn = dealloc_stack_before_leave fn in
+  let fn = redundant_reload_after_spill fn in
+  let fn = reuse_lea fn in
   fn

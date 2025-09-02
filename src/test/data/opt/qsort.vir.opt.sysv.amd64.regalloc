@@ -22,14 +22,13 @@ function $partition { ; returns: rax
   mov r14, rdi ; @49
   mov rcx, rdx ; @97
   lea r13, qword ptr [r14 + rcx*4] ; @50
-  mov ebx, dword ptr [r14 + rcx*4] ; @11
+  mov ebx, dword ptr [r13] ; @11
   lea rax, qword ptr [rsi - 0x1] ; @52
   lea r12, qword ptr [rcx - 0x1] ; @51
   mov r15, rsi ; @93
 @8:
   lea rcx, qword ptr [rax + 0x1] ; @53
   mov qword ptr [rbp - 0x10], rcx ; @122
-  mov rcx, qword ptr [rbp - 0x10] ; @123
   lea rcx, qword ptr [r14 + rcx*4] ; @55
   cmp r15, r12 ; @87
   jle @14 ; @88
@@ -47,7 +46,7 @@ function $partition { ; returns: rax
   ret ; @84
 @14:
   lea rdx, qword ptr [r14 + r15*4] ; @58
-  mov esi, dword ptr [r14 + r15*4] ; @22
+  mov esi, dword ptr [rdx] ; @22
   cmp esi, ebx ; @77
   jg @19 ; @78
 @18:

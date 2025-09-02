@@ -64,7 +64,6 @@ export function $foo { ; returns: rax
   mov r14d, dword ptr [rsp + 0x40] ; @196
   dec r14d ; @57
   mov dword ptr [rsp + 0x4c], r14d ; @195
-  mov r14d, dword ptr [rsp + 0x4c] ; @197
   test r14d, r14d ; @117
   je @21 ; @118
 @96:
