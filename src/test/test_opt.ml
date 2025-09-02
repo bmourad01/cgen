@@ -394,6 +394,7 @@ let native_suite = "Test native code" >::: [
     "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_native "clz_ctz_8";
     "POPCNT (SysV AMD64)" >:: test_sysv_amd64_native "popcnt";
     "Quicksort (SysV AMD64)" >:: test_sysv_amd64_native "qsort";
+    "Spill test 1 (SysV AMD64)" >:: test_sysv_amd64_native "spill1";
   ]
 
 let () = run_test_tt_main @@ test_list [
