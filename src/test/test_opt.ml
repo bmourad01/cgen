@@ -122,7 +122,7 @@ let run_process cmd args =
   }
 
 let compile_c_driver asm driver exe =
-  let p = run_process "cc" [asm; driver; "-o"; exe] in
+  let p = run_process "cc" [asm; driver; "-o"; exe; "-g"] in
   Context.unless (p.code = 0) @@ fun () ->
   Context.failf "failed to compile C driver program %s (error code %d): %s"
     driver p.code p.stderr ()
