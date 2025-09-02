@@ -12,9 +12,7 @@ export function $foo { ; returns: rax
   test edi, 0x1_w ; @44
   je @10 ; @45
 @11:
-  mov ecx, edi ; @31
-  shl ecx, 0x1_b ; @43
-  lea edi, qword ptr [rcx + rdi*1 + 0x1] ; @33
+  lea edi, qword ptr [rdi + rdi*2 + 0x1] ; @33
   jmp @15 ; @42
 @10:
   shr edi, 0x1_b ; @40
