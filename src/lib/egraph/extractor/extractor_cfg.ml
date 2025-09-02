@@ -366,6 +366,21 @@ module Hoisting = struct
     | Some p -> Lset.mem bs p || post_dominated t p bs
     | None -> false
 
+  (* See if there exists a cycle starting from `l` that does not intersect
+     with `bs`. *)
+  let exists_bypass t l bs =
+    let rec loop q = match Stack.pop q with
+      | None -> false
+      | Some (n, vis) when Lset.mem vis n ->
+        (Label.(n = l) && Lset.disjoint vis bs) || loop q
+      | Some (n, vis) ->
+        let vis = Lset.add vis n in
+        Cfg.Node.succs n t.eg.input.cfg |>
+        Seq.iter ~f:(fun s -> Stack.push q (s, vis));
+        loop q in
+    Loops.mem t.eg.input.loop l &&
+    loop (Stack.singleton (l, Lset.empty))
+
   (* When we "move" duplicate nodes up to the LCA (lowest common ancestor)
      in the dominator tree, we might be introducing a partial redundancy.
      This means that, at the LCA, the node is not going to be used on all
@@ -384,7 +399,11 @@ module Hoisting = struct
          of this node beyond any benefit from hoisting it. In terms
          of native code generation, this means added register pressure,
          which may lead to increased spilling. *)
-      not (post_dominated t l bs) && begin
+      if post_dominated t l bs then
+        (* Check if we can reach the target block via a backedge
+           without visiting any of the blocks we moved from. *)
+        exists_bypass t l bs
+      else
         (* For each of these blocks, get its reflexive transitive
            closure in the dominator tree, and union them together. *)
         let a = Lset.fold bs ~init:Lset.empty
@@ -398,7 +417,6 @@ module Hoisting = struct
            we want to exclude it, since the closure for `l` will
            exclude itself. *)
         not @@ Lset.equal (Lset.remove a l) b
-      end
     end
 
   let should_skip t env l id cid =

@@ -228,6 +228,9 @@ module type Set = sig
   (** Intersects two sets (i.e. returns the set that has elements of both). *)
   val inter : t -> t -> t
 
+  (** Returns [true] if the two sets are disjoint from each other. *)
+  val disjoint : t -> t -> bool
+
   (** Returns [true] if the two sets are equal. *)
   val equal : t -> t -> bool
 

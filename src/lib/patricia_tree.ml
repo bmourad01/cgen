@@ -431,8 +431,7 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
 
   let rec inter t1 t2 = match t1, t2 with
     | Nil, _ | _, Nil -> Nil
-    | Tip k, t -> inter_key k t
-    | t, Tip k -> inter_key k t
+    | Tip k, t | t, Tip k -> inter_key k t
     | Bin (p1, l1, r1), Bin (p2, l2, r2) when Key.equal p1 p2 ->
       of_key p1 (inter l1 l2) (inter r1 r2)
     | Bin (p1, l1, r1), Bin (p2, l2, r2) ->
@@ -448,6 +447,25 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       | LB -> if is_zero ~bit:b2 k1
         then inter t1 l2
         else inter t1 r2
+
+  let rec disjoint t1 t2 = match t1, t2 with
+    | Nil, _ | _, Nil -> true
+    | Tip k, t | t, Tip k -> not @@ mem t k
+    | Bin (p1, l1, r1), Bin (p2, l2, r2) when Key.equal p1 p2 ->
+      disjoint l1 l2 && disjoint r1 r2
+    | Bin (p1, l1, r1), Bin (p2, l2, r2) ->
+      let k1 = Key.payload p1 in
+      let k2 = Key.payload p2 in
+      let b1 = Key.branching p1 in
+      let b2 = Key.branching p2 in
+      match Key.compare p1 k2 with
+      | NA -> true
+      | RB -> if is_zero ~bit:b1 k2
+        then disjoint l1 t2
+        else disjoint r1 t2
+      | LB -> if is_zero ~bit:b2 k1
+        then disjoint t1 l2
+        else disjoint t1 r2
 
   let rec equal t1 t2 = phys_equal t1 t2 || match t1, t2 with
     | Nil, Nil -> assert false (* covered by phys_equal *)
