@@ -1,0 +1,65 @@
+module qsort
+
+function $swap(l %a, l %b) {
+@start:
+  %x = ld.w %a
+  %y = ld.w %b
+  st.w %x, %b
+  st.w %y, %a
+  ret
+}
+
+function l $partition(l %arr, l %low, l %high) {
+@start:
+  %pivot_idx = mul.l %high, 4_l
+  %pivot_idx = add.l %arr, %pivot_idx
+  %pivot = ld.w %pivot_idx
+  %i = sub.l %low, 1_l
+  %j = copy.l %low
+  jmp @chk
+@chk:
+  %h1 = sub.l %high, 1_l
+  %c = sle.l %j, %h1
+  br %c, @loop, @swap
+@loop:
+  %j_ptr = mul.l %j, 4_l
+  %j_ptr = add.l %arr, %j_ptr
+  %j_val = ld.w %j_ptr
+  %c = sle.w %j_val, %pivot
+  br %c, @swap_inner, @inc
+@inc:
+  %j = add.l %j, 1_l
+  jmp @chk
+@swap_inner:
+  %i = add.l %i, 1_l
+  %i_ptr = mul.l %i, 4_l
+  %i_ptr = add.l %arr, %i_ptr
+  %j_ptr = mul.l %j, 4_l
+  %j_ptr = add.l %arr, %j_ptr
+  call $swap(%i_ptr, %j_ptr)
+  jmp @inc
+@swap:
+  %high_ptr = mul.l %high, 4_l
+  %high_ptr = add.l %arr, %high_ptr
+  %i1 = add.l %i, 1_l
+  %i_ptr = mul.l %i1, 4_l
+  %i_ptr = add.l %arr, %i_ptr
+  call $swap(%i_ptr, %high_ptr)
+  %i1 = add.l %i, 1_l
+  ret %i1
+}
+
+export function $qsort(l %arr, l %low, l %high) {
+@start:
+  %c = slt.l %low, %high
+  br %c, @rec, @done
+@done:
+  ret
+@rec:
+  %p = call.l $partition(%arr, %low, %high)
+  %ph = sub.l %p, 1_l
+  call $qsort(%arr, %low, %ph)
+  %pl = add.l %p, 1_l
+  call $qsort(%arr, %pl, %high)
+  ret
+}

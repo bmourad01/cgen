@@ -283,6 +283,7 @@ let opt_suite = "Test optimizations" >::: [
     "Add to slot" >:: test "slotadd1";
     "Branch to non-label 1" >:: test "brind";
     "Dragon" >:: test "dragon";
+    "Quicksort" >:: test "qsort";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -314,6 +315,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Collatz (SysV)" >:: test_sysv "collatz";
     "Collatz recursive (SysV)" >:: test_sysv "collatz_rec";
     "Ackermann (SysV)" >:: test_sysv "ackermann";
+    "Quicksort (SysV)" >:: test_sysv "qsort";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -344,6 +346,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Collatz (SysV AMD64)" >:: test_sysv_amd64 "collatz";
     "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64 "collatz_rec";
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64 "ackermann";
+    "Quicksort (SysV AMD64)" >:: test_sysv_amd64 "qsort";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -376,6 +379,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Collatz (SysV AMD64)" >:: test_sysv_amd64_regalloc "collatz";
     "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_regalloc "collatz_rec";
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64_regalloc "ackermann";
+    "Quicksort (SysV AMD64)" >:: test_sysv_amd64_regalloc "qsort";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -389,6 +393,7 @@ let native_suite = "Test native code" >::: [
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64_native "ackermann";
     "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_native "clz_ctz_8";
     "POPCNT (SysV AMD64)" >:: test_sysv_amd64_native "popcnt";
+    "Quicksort (SysV AMD64)" >:: test_sysv_amd64_native "qsort";
   ]
 
 let () = run_test_tt_main @@ test_list [
