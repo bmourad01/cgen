@@ -5,12 +5,16 @@ open X86_amd64_common
 open Insn
 
 (* XXX: any more cases than this? *)
-let copy = function
+let is_copy = function
   | Two (MOV, Oreg (d, td), Oreg (s, ts))
   | Two (MOVSS, Oreg (d, td), Oreg (s, ts))
   | Two (MOVSD, Oreg (d, td), Oreg (s, ts))
     when Type.equal_basic td ts -> Some (d, s)
   | _ -> None
+
+let is_call = function
+  | One (CALL _, _) -> true
+  | _ -> false
 
 let classof rv = match Regvar.which rv with
   | First r -> Reg.classof r
@@ -27,6 +31,20 @@ let load_from_slot ty ~dst ~src = match classof dst with
       | `f64 -> I.movsd (Oreg (dst, `f64)) (Omem (Ab src, `i64))
       | `f32 -> I.movss (Oreg (dst, `f32)) (Omem (Ab src, `i32))
       | `v128 -> I.movdqa (Oregv dst) (Omem (Ab src, `v128))
+      | #Type.imm -> assert false
+    end
+
+let move ty ~dst ~src = match classof dst with
+  | GPR ->
+    begin match ty with
+      | `v128 | #Type.fp -> assert false
+      | #Type.basic as b -> I.mov (Oreg (dst, b)) (Oreg (src, b))
+    end
+  | FP ->
+    begin match ty with
+      | `f64 -> I.movsd (Oreg (dst, `f64)) (Oreg (src, `f64))
+      | `f32 -> I.movss (Oreg (dst, `f32)) (Oreg (src, `f32))
+      | `v128 -> I.movdqa (Oregv dst) (Oregv src)
       | #Type.imm -> assert false
     end
 

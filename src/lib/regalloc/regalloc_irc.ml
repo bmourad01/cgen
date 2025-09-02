@@ -52,10 +52,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
     (* if isMoveInstruction(I) then *)
-    let+ out = match M.Regalloc.copy insn with
+    let+ out = match M.Regalloc.is_copy insn with
       | None -> !!out
       | Some ((d, s) as p) ->
-        (* This is an invariant that is required of `M.Regalloc.copy`; better
+        (* This is an invariant that is required of `M.Regalloc.is_copy`; better
            to fail loudly here than silently introduce errors. *)
         let+ () = C.unless (Regs.same_class_node d s) @@ fun () ->
           C.failf "In Regalloc.build_insn: got a copy instruction `%a` between \
@@ -446,56 +446,85 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      NB: `acc` is accumulated in reverse, and we populate `initial`
      with the fresh temporaries (`newTemps`) here.
   *)
-  let rewrite_insn t ivec i =
+  let rewrite_insn t reload ivec i =
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
-    let+ fetch, store, subst =
+    let+ fetch, store, subst, reload =
+      let init = [], [], Rv.Map.empty, reload in
       Set.union use def |> Set.inter t.spilled |> Set.to_sequence |>
-      C.Seq.fold ~init:([], [], Rv.Map.empty) ~f:(fun (f, s, m) v ->
+      C.Seq.fold ~init ~f:(fun (f, s, m, rl) v ->
           let* ty = typeof t v in
           (* Create a new temporary v_i for each definition and
              each use. *)
           let* v' = C.Var.fresh >>| Rv.var (Regs.classof v) in
+          (* a fetch before each use of a v_i *)
+          let* f', rl = if Set.mem use v then
+              let+ label = C.Label.fresh in
+              let insn = match Map.find reload v with
+                | None -> M.Regalloc.load_from_slot ty ~dst:v' ~src:v
+                | Some v'' -> M.Regalloc.move ty ~dst:v' ~src:v'' in
+              Insn.create ~label ~insn :: f,
+              Map.set rl ~key:v ~data:v'
+            else !!(f, rl) in
           (* Insert a store after each definition of a v_i, *)
-          let* s' = if Set.mem def v then
+          let+ s', rl = if Set.mem def v then
               let+ label = C.Label.fresh in
               let insn = M.Regalloc.store_to_slot ty insn ~src:v' ~dst:v in
-              Insn.create ~label ~insn :: s
-            else !!s in
-          (* a fetch before each use of a v_i *)
-          let+ f' = if Set.mem use v then
-              let+ label = C.Label.fresh in
-              let insn = M.Regalloc.load_from_slot ty ~dst:v' ~src:v in
-              Insn.create ~label ~insn :: f
-            else !!f in
+              Insn.create ~label ~insn :: s,
+              Map.set rl ~key:v ~data:v'
+            else !!(s, rl) in
           (* Update the substitution. *)
           let m' = Map.set m ~key:v ~data:v' in
           (* initial := initial U newTemps *)
           Hash_set.add t.initial v';
           t.types <- Map.set t.types ~key:v' ~data:ty;
-          f', s', m') in
+          f', s', m', rl) in
     (* Apply the substitution to the existing instruction. *)
     let subst n = Map.find subst n |> Option.value ~default:n in
     let i' = Insn.with_insn i @@ M.Regalloc.substitute insn subst in
     List.iter fetch ~f:(Vec.push ivec);
     Vec.push ivec i';
-    List.iter store ~f:(Vec.push ivec)
+    List.iter store ~f:(Vec.push ivec);
+    reload
+
+  let rewrite_blk t b blks ivec =
+    let+ _rl =
+      Blk.insns b |> C.Seq.fold
+        ~init:Rv.Map.empty ~f:(fun rl i ->
+            let insn = Insn.insn i in
+            let rl = if M.Regalloc.is_call insn
+              then Rv.Map.empty else rl in
+            rewrite_insn t rl ivec i) in
+    let data = Blk.with_insns b @@ Vec.to_list ivec in
+    Hashtbl.set blks ~key:(Blk.label b) ~data;
+    Vec.clear ivec
 
   module Remove_deads = Pseudo_passes.Remove_dead_insns(M)
 
+  let rewrite_function t =
+    let ivec = Vec.create () in
+    let blks = Label.Table.create () in
+    Func.blks t.fn |> Seq.iter ~f:(fun b ->
+        Hashtbl.set blks ~key:(Blk.label b) ~data:b);
+    let rec loop q = match Stack.pop q with
+      | None -> !!()
+      | Some l ->
+        let* () = match Hashtbl.find blks l with
+          | Some b -> rewrite_blk t b blks ivec
+          | None -> !!() in
+        Semi_nca.Tree.children t.dom l |> Seq.iter ~f:(Stack.push q);
+        loop q in
+    let+ () = loop @@ Stack.singleton Label.pseudoentry in
+    let fn = Func.map_blks t.fn ~f:(fun b ->
+        Blk.label b |> Hashtbl.find blks |>
+        Option.value ~default:b) in
+    t.fn <- Remove_deads.run fn
+
   (* Insert spilling code and set up the state for the next round. *)
-  let rewrite_program t =
+  let spill_and_reload t =
     let* () = make_slots t in
-    let+ blks =
-      let ivec = Vec.create () in
-      Func.blks ~rev:true t.fn |>
-      C.Seq.fold ~init:[] ~f:(fun acc b ->
-          let+ () = Blk.insns b |> C.Seq.iter ~f:(rewrite_insn t ivec) in
-          let acc = Blk.with_insns b (Vec.to_list ivec) :: acc in
-          Vec.clear ivec;
-          acc) in
-    t.fn <- Remove_deads.run @@ Func.with_blks t.fn blks;
+    let+ () = rewrite_function t in
     (* spilledNodes := {} *)
     t.spilled <- Rv.Set.empty;
     (* initial := coloredNodes U coalescedNodes *)
@@ -547,7 +576,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     assign_colors t;
     (* Rewrite according to the spilled nodes. *)
     C.unless (Set.is_empty t.spilled) @@ fun () ->
-    let* () = rewrite_program t in
+    let* () = spill_and_reload t in
     new_round t;
     main t ~round:(round + 1) ~max_rounds
 
@@ -565,7 +594,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             let insn = Insn.insn i in
             let insn' = M.Regalloc.substitute insn subst in
             (* Now we can remove useless copies. *)
-            match M.Regalloc.copy insn' with
+            match M.Regalloc.is_copy insn' with
             | Some (d, s) when Rv.(d = s) -> None
             | Some _ | None -> Some (Insn.with_insn i insn')) |>
         Seq.to_list |> Blk.with_insns b)

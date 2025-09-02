@@ -60,6 +60,8 @@ module Make(M : Machine_intf.S) = struct
     alias           : Rv.t Rv.Table.t;
     keep            : Rv.Set.t;
     mutable types   : [Type.basic | `v128] Rv.Map.t;
+    cfg             : Pseudo.Cfg.t;
+    dom             : Label.t Semi_nca.tree;
   } [@@ocaml.warning "-69"]
 
   (* Set of registers that should always be live at the exit. *)
@@ -67,31 +69,35 @@ module Make(M : Machine_intf.S) = struct
     let init = Rv.Set.singleton @@ Rv.reg M.Reg.sp in
     Func.rets fn |> Seq.map ~f:Rv.reg |> Seq.fold ~init ~f:Set.add
 
-  let create fn = {
-    fn;
-    adjlist = Rv.Table.create ();
-    degree = Rv.Table.create ();
-    moves = Rv.Table.create ();
-    copies = Label.Table.create ();
-    wmoves = Lset.empty;
-    amoves = Lset.empty;
-    cmoves = Lset.empty;
-    kmoves = Lset.empty;
-    fmoves = Lset.empty;
-    wspill = Rv.Hash_set.create ();
-    wfreeze = Rv.Hash_set.create ();
-    wsimplify = Rv.Hash_set.create ();
-    coalesced = Rv.Hash_set.create ();
-    spilled = Rv.Set.empty;
-    colored = Rv.Hash_set.create ();
-    initial = Rv.Hash_set.create ();
-    slots = Rv.Hash_set.create ();
-    colors = Rv.Table.create ();
-    select = Stack.create ();
-    alias = Rv.Table.create ();
-    keep = init_keep fn;
-    types = Rv.Map.empty;
-  }
+  let create fn =
+    let cfg = Pseudo.Cfg.create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests fn in
+    let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in {
+      fn;
+      adjlist = Rv.Table.create ();
+      degree = Rv.Table.create ();
+      moves = Rv.Table.create ();
+      copies = Label.Table.create ();
+      wmoves = Lset.empty;
+      amoves = Lset.empty;
+      cmoves = Lset.empty;
+      kmoves = Lset.empty;
+      fmoves = Lset.empty;
+      wspill = Rv.Hash_set.create ();
+      wfreeze = Rv.Hash_set.create ();
+      wsimplify = Rv.Hash_set.create ();
+      coalesced = Rv.Hash_set.create ();
+      spilled = Rv.Set.empty;
+      colored = Rv.Hash_set.create ();
+      initial = Rv.Hash_set.create ();
+      slots = Rv.Hash_set.create ();
+      colors = Rv.Table.create ();
+      select = Stack.create ();
+      alias = Rv.Table.create ();
+      keep = init_keep fn;
+      types = Rv.Map.empty;
+      cfg;
+      dom;
+    }
 
   (* Explicit registers and variables that correspond to stack slots
      should be excluded from consideration. *)

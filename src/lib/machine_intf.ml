@@ -125,11 +125,18 @@ module type S = sig
 
         Note that both [d] and [s] {b must} have the same register class.
     *)
-    val copy : Insn.t -> (Regvar.t * Regvar.t) option
+    val is_copy : Insn.t -> (Regvar.t * Regvar.t) option
+
+    (** Returns [true] if this is a call instruction, or an instruction that
+        may otherwise clobber an arbitrary set of registers. *)
+    val is_call : Insn.t -> bool
 
     (** Produce an instruction to load a value from a slot, where [src] holds the
         address of the slot and [dst] is destination register/variable. *)
     val load_from_slot : [Type.basic | `v128] -> dst:Regvar.t -> src:Regvar.t -> Insn.t
+
+    (** Constructs a move instruction, copying from register [src] to [dst]. *)
+    val move : [Type.basic | `v128] -> dst:Regvar.t -> src:Regvar.t -> Insn.t
 
     (** Produce an instruction to store a value to a slot, where [src] holds the
         value being stored and [dst] is the address of the slot.
