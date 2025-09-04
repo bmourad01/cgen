@@ -33,8 +33,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     ensure_degree t v;
     if Rv.(u <> v)
     && Regs.same_class_node u v
-    && not (Hash_set.mem t.slots u)
-    && not (Hash_set.mem t.slots v) then begin
+    && not (Hashtbl.mem t.slots u)
+    && not (Hashtbl.mem t.slots v) then begin
       (* We're going to combine the `adjList` and `adjSet`. *)
       add_adjlist t u v;
       add_adjlist t v u;
@@ -401,20 +401,32 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | None -> C.failf "no type available for spilled node %a" Rv.pp v ()
     | Some ty -> !!ty
 
+  (* Find an existing slot of comparable size that doesn't interfere
+     with `n`. *)
+  let find_reusable_slot t m n size =
+    Map.find m size |> Option.bind ~f:(fun vs ->
+        List.find vs ~f:(Fn.non @@ has_edge t n))
+
   (* Create slots for spilled nodes. *)
   let make_slots t =
-    let+ slots =
+    let+ slots, _ =
       Set.to_sequence t.spilled |>
-      C.Seq.fold ~init:[] ~f:(fun acc n ->
+      C.Seq.fold ~init:([], Int.Map.empty) ~f:(fun (acc, m) n ->
           match Rv.which n with
           | First _ -> assert false
           | Second (v, _) ->
             let+ size = typeof t n >>| function
               | #Type.basic as b -> Type.sizeof_basic b / 8
               | `v128 -> 16 in
-            let s = Virtual.Slot.create_exn v ~size ~align:size in
-            Hash_set.add t.slots @@ Rv.var GPR v;
-            s :: acc) in
+            let r = Rv.var GPR v in
+            match find_reusable_slot t m n size with
+            | Some r' ->
+              Hashtbl.set t.slots ~key:r ~data:r';
+              acc, m
+            | None ->
+              let s = Virtual.Slot.create_exn v ~size ~align:size in
+              Hashtbl.set t.slots ~key:r ~data:r;
+              s :: acc, Map.add_multi m ~key:size ~data:r) in
     t.fn <- Func.insert_slots t.fn slots
 
   (* Rewrite a single instruction to spill and reload variables.
@@ -455,6 +467,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Set.union use def |> Set.inter t.spilled |> Set.to_sequence |>
       C.Seq.fold ~init ~f:(fun (f, s, m, rl) v ->
           let* ty = typeof t v in
+          let slot = Hashtbl.find_exn t.slots v in
           (* Create a new temporary v_i for each definition and
              each use. *)
           let* v' = C.Var.fresh >>| Rv.var (Regs.classof v) in
@@ -462,7 +475,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           let* f', rl = if Set.mem use v then
               let+ label = C.Label.fresh in
               let insn = match Map.find reload v with
-                | None -> M.Regalloc.load_from_slot ty ~dst:v' ~src:v
+                | None -> M.Regalloc.load_from_slot ty ~dst:v' ~src:slot
                 | Some v'' -> M.Regalloc.move ty ~dst:v' ~src:v'' in
               Insn.create ~label ~insn :: f,
               Map.set rl ~key:v ~data:v'
@@ -470,7 +483,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           (* Insert a store after each definition of a v_i, *)
           let+ s', rl = if Set.mem def v then
               let+ label = C.Label.fresh in
-              let insn = M.Regalloc.store_to_slot ty insn ~src:v' ~dst:v in
+              let insn = M.Regalloc.store_to_slot ty insn ~src:v' ~dst:slot in
               Insn.create ~label ~insn :: s,
               Map.set rl ~key:v ~data:v'
             else !!(s, rl) in

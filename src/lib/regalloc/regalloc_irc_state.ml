@@ -54,7 +54,7 @@ module Make(M : Machine_intf.S) = struct
     mutable spilled : Rv.Set.t;
     colored         : Rv.Hash_set.t;
     initial         : Rv.Hash_set.t;
-    slots           : Rv.Hash_set.t;
+    slots           : Rv.t Rv.Table.t;
     colors          : int Rv.Table.t;
     select          : Rv.t Stack.t;
     alias           : Rv.t Rv.Table.t;
@@ -89,7 +89,7 @@ module Make(M : Machine_intf.S) = struct
       spilled = Rv.Set.empty;
       colored = Rv.Hash_set.create ();
       initial = Rv.Hash_set.create ();
-      slots = Rv.Hash_set.create ();
+      slots = Rv.Table.create ();
       colors = Rv.Table.create ();
       select = Stack.create ();
       alias = Rv.Table.create ();
@@ -101,7 +101,7 @@ module Make(M : Machine_intf.S) = struct
 
   (* Explicit registers and variables that correspond to stack slots
      should be excluded from consideration. *)
-  let exclude_from_coloring t n = Rv.is_reg n || Hash_set.mem t.slots n
+  let exclude_from_coloring t n = Rv.is_reg n || Hashtbl.mem t.slots n
   let can_be_colored t n = not @@ exclude_from_coloring t n
 
   let inc_degree t n =
