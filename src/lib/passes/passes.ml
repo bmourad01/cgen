@@ -101,5 +101,6 @@ let to_asm ppf m =
   let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
   let+ m = regalloc (module Machine) m in
   let m = Pseudo.Module.map_funs m ~f:Machine.Peephole.run in
+  let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
   let module Emit = Pseudo_passes.Emit(Machine) in
   Format.fprintf ppf "%a%!" Emit.emit m

@@ -95,6 +95,7 @@ let test_regalloc target abi ext name _ =
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
     let* m = Passes.regalloc (module Machine) m in
     let m = Pseudo.Module.map_funs m ~f:Machine.Peephole.run in
+    let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
   end |> function
   | Ok p' -> compare_outputs filename' expected p'
@@ -395,6 +396,7 @@ let native_suite = "Test native code" >::: [
     "POPCNT (SysV AMD64)" >:: test_sysv_amd64_native "popcnt";
     "Quicksort (SysV AMD64)" >:: test_sysv_amd64_native "qsort";
     "Spill test 1 (SysV AMD64)" >:: test_sysv_amd64_native "spill1";
+    "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64_native "vaarg1";
   ]
 
 let () = run_test_tt_main @@ test_list [

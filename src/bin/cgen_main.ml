@@ -59,6 +59,7 @@ let comp (opts : Cli.t) =
     bail ();
   end;
   let m = Pseudo.Module.map_funs m ~f:Machine.Peephole.run in
+  let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
   if Cli.equal_dump opts.dump Dpeephole then begin
     if not opts.nc then Format.fprintf ppf ";; After peephole optimizations:\n\n%!";
     Format.fprintf ppf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;

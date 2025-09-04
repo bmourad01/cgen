@@ -94,8 +94,6 @@ export function $foo { ; returns: rax
   mov dword ptr [rsp + 0x38], eax ; @194
   mov eax, dword ptr [rsp + 0x40] ; @195
   mov dword ptr [rsp + 0x3c], eax ; @196
-  mov eax, dword ptr [rsp + 0x48] ; @197
-  mov dword ptr [rsp + 0x48], eax ; @198
   jmp @3 ; @116
 @21:
   mov ecx, dword ptr [rsp + 0x38] ; @200

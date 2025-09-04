@@ -716,7 +716,7 @@ module Insn = struct
     | RET
       -> rset' [`rsp]
     | LEAVE
-      -> rset' [`rbp]
+      -> rset' [`rbp; `rsp] (* fake a read from RSP *)
     | UD2
     | JMPtbl _
     | FP32 _
@@ -921,7 +921,10 @@ module Insn = struct
     | Jcc _
     | JMP _
     | One (CALL _, _)
+    | One (PUSH, _)
+    | One (POP, _)
     | RET
+    | LEAVE
     | UD2
     | JMPtbl _
     | FP32 _
