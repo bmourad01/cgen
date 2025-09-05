@@ -202,31 +202,32 @@ let implicit_fallthroughs afters fn =
 *)
 let collect_dealloc_stack_before_leave fn =
   Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
-      let rec go acc s = match Seq.to_list @@ Seq.take s 2 with
+      let rec go acc = function
         | [] | [_] -> acc
-        | [l, Two (ADD, Oreg (r, `i64), Oimm _);
-           _, LEAVE] when Rv.has_reg r `rsp ->
+        | (l, Two (ADD, Oreg (r, `i64), Oimm _))
+          :: (_, LEAVE)
+          :: xs when Rv.has_reg r `rsp ->
           let acc = Lset.add acc l in
-          go acc @@ Seq.drop_eagerly s 2
-        | _ -> go acc @@ Seq.drop_eagerly s 1 in
-      go acc @@ Seq.map ~f:decomp @@ Blk.insns b)
+          go acc xs
+        | _ :: xs -> go acc xs in
+      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
 let dealloc_stack_before_leave fn =
   filter_not_in fn @@ collect_dealloc_stack_before_leave fn
 
 let collect_redundant_spill_after_reload fn =
   Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
-      let rec go acc s = match Seq.to_list @@ Seq.take s 2 with
+      let rec go acc = function
         | [] | [_] -> acc
-        | [_, Two (MOV, Oreg (r2, _), Omem (a2, t2));
-           l, Two (MOV, Omem (a1, t1), Oreg (r1, _))]
-          when equal_amode a1 a2
-            && equal_memty t1 t2
-            && Rv.equal r1 r2 ->
+        | (_, Two (MOV, Oreg (r2, _), Omem (a2, t2)))
+          :: (l, Two (MOV, Omem (a1, t1), Oreg (r1, _)))
+          :: xs when equal_amode a1 a2
+                  && equal_memty t1 t2
+                  && Rv.equal r1 r2 ->
           let acc = Lset.add acc l in
-          go acc @@ Seq.drop_eagerly s 2
-        | _ -> go acc @@ Seq.drop_eagerly s 1 in
-      go acc @@ Seq.map ~f:decomp @@ Blk.insns b)
+          go acc xs
+        | _ :: xs -> go acc xs in
+      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
 let redundant_spill_after_reload fn =
   filter_not_in fn @@ collect_redundant_spill_after_reload fn
@@ -240,16 +241,16 @@ let redundant_spill_after_reload fn =
 *)
 let collect_reuse_lea fn =
   Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
-      let rec go acc s = match Seq.to_list @@ Seq.take s 2 with
+      let rec go acc = function
         | [] | [_] -> acc
-        | [_, Two (LEA, Oreg (r1, _), Omem (a1, _));
-           l, Two (MOV, Oreg (r2, r2t), Omem (a2, t2))]
-          when equal_amode a1 a2 ->
+        | (_, Two (LEA, Oreg (r1, _), Omem (a1, _)))
+          :: (l, Two (MOV, Oreg (r2, r2t), Omem (a2, t2)))
+          :: xs when equal_amode a1 a2 ->
           let data = Two (MOV, Oreg (r2, r2t), Omem (Ab r1, t2)) in
           let acc = Ltree.set acc ~key:l ~data in
-          go acc @@ Seq.drop_eagerly s 2
-        | _ -> go acc @@ Seq.drop_eagerly s 1 in
-      go acc @@ Seq.map ~f:decomp @@ Blk.insns b)
+          go acc xs
+        | _ :: xs -> go acc xs in
+      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
 let reuse_lea fn =
   map_insns fn @@ collect_reuse_lea fn
