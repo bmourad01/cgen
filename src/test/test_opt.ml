@@ -381,6 +381,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_regalloc "collatz_rec";
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64_regalloc "ackermann";
     "Quicksort (SysV AMD64)" >:: test_sysv_amd64_regalloc "qsort";
+    "Quicksort, swap inlined (SysV AMD64)" >:: test_sysv_amd64_regalloc "qsort_inline_swap";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -395,6 +396,7 @@ let native_suite = "Test native code" >::: [
     "CLZ/CTZ 8-bit (SysV AMD64)" >:: test_sysv_amd64_native "clz_ctz_8";
     "POPCNT (SysV AMD64)" >:: test_sysv_amd64_native "popcnt";
     "Quicksort (SysV AMD64)" >:: test_sysv_amd64_native "qsort";
+    "Quicksort, swap inlined (SysV AMD64)" >:: test_sysv_amd64_native "qsort_inline_swap";
     "Spill test 1 (SysV AMD64)" >:: test_sysv_amd64_native "spill1";
     "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64_native "vaarg1";
   ]
