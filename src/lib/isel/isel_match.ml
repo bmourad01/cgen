@@ -42,8 +42,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | V x -> V1 x
 
   type tables = {
-    moves : (P.op, (pat * pat list * callback list) seq) Hashtbl.t;
-    other : (P.op, (pat list * callback list) seq) Hashtbl.t;
+    moves : (P.op, (pat * pat list * callback list) Vec.t) Hashtbl.t;
+    other : (P.op, (pat list * callback list) Vec.t) Hashtbl.t;
   }
 
   (* Reduce the search space by specializing the top-level pattern
@@ -58,11 +58,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       moves = Hashtbl.create (module Op);
       other = Hashtbl.create (module Op);
     } in
-    (* We'll store it as a sequence since it will be modified on-demand
-       during the search. *)
-    let update t k a = Hashtbl.update t k ~f:(function
-        | Some s -> Seq.(append s @@ singleton a)
-        | None -> Seq.singleton a) in
+    let update t k a = match Hashtbl.find t k with
+      | Some s -> Vec.push s a
+      | None ->
+        let s = Vec.create () in
+        Vec.push s a;
+        Hashtbl.set t ~key:k ~data:s in
     List.iter rules ~f:(fun (pre, post) ->
         (* Skip rules that won't produce anything. *)
         if not @@ List.is_empty post then
@@ -186,16 +187,20 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let fetch_rules t l id =
     let default op cs = match Hashtbl.find tables.other op with
       | None -> fail_match t l id
-      | Some tls -> Seq.map tls ~f:(fun (ps, posts) ->
-          None, cs, ps, posts) |> C.return in
+      | Some tls ->
+        Vec.to_sequence_mutable tls |>
+        Seq.map ~f:(fun (ps, posts) ->
+            None, cs, ps, posts) |> C.return in
     match node t id with
     | N (Omove, [a; b]) ->
       begin match node t b with
         | N (op, cs) ->
           begin match Hashtbl.find tables.moves op with
             | None -> default Omove [a; b]
-            | Some tls -> Seq.map tls ~f:(fun (pa, ps, posts) ->
-                Some (a, pa, op), cs, ps, posts) |> C.return
+            | Some tls ->
+              Vec.to_sequence_mutable tls |>
+              Seq.map ~f:(fun (pa, ps, posts) ->
+                  Some (a, pa, op), cs, ps, posts) |> C.return
           end
         | Rv _ -> default Omove [a; b]
         | _ -> fail_match t l id
