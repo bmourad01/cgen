@@ -18,8 +18,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   type rule = (Rv.t, M.Insn.t) R.t
   type callback = (Rv.t, M.Insn.t) R.callback
-  type env = Rv.t S.t
-  type k = env -> env
 
   let pp_node t = pp_node t Rv.pp
 
