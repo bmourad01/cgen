@@ -22,7 +22,7 @@ export function $foo { ; returns: rax
   jmp @28 ; @97
 @9:
   imul rax, rsi, 0x55555556 ; @33
-  shr rax, 0x20_l ; @95
+  shr rax, 0x20_b ; @95
   lea ecx, qword ptr [rax + rax*2] ; @35
   mov eax, esi ; @36
   sub eax, ecx ; @93

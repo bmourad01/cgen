@@ -1081,13 +1081,13 @@ end = struct
     | `i32 when fits_int32 z && Int64.(z land 0x8000_0000L = 0L) ->
       !!![
         I.imul3 (Oreg (x, `i64)) (Oreg (y, `i64)) (Int64.to_int32_trunc z);
-        I.shr (Oreg (x, `i64)) (Oimm (32L, `i64));
+        I.shr (Oreg (x, `i64)) (Oimm (32L, `i8));
       ]
     | `i32 when fits_int32 z ->
       !!![
         I.mov (Oreg (x, `i32)) (Oimm (z, `i32));
         I.imul2 (Oreg (x, `i64)) (Oreg (y, `i64));
-        I.shr (Oreg (x, `i64)) (Oimm (32L, `i64));
+        I.shr (Oreg (x, `i64)) (Oimm (32L, `i8));
       ]
     | _ ->
       !!![
@@ -1160,13 +1160,13 @@ end = struct
     | `i32 when fits_int32 z && Int64.(z land 0x8000_0000L = 0L) ->
       !!![
         I.imul3 (Oreg (x, `i64)) (Oreg (y, `i64)) (Int64.to_int32_trunc z);
-        I.shr (Oreg (x, `i64)) (Oimm (32L, `i64));
+        I.shr (Oreg (x, `i64)) (Oimm (32L, `i8));
       ]
     | `i32 when fits_int32 z ->
       !!![
         I.mov (Oreg (x, `i32)) (Oimm (z, `i32));
         I.imul2 (Oreg (x, `i64)) (Oreg (y, `i64));
-        I.shr (Oreg (x, `i64)) (Oimm (32L, `i64));
+        I.shr (Oreg (x, `i64)) (Oimm (32L, `i8));
       ]
     | _ ->
       !!![

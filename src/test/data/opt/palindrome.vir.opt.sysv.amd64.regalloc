@@ -16,7 +16,7 @@ export function $palindrome { ; returns: rax
   ret ; @36
 @6:
   imul rsi, rdx, 0x1999999a ; @21
-  shr rsi, 0x20_l ; @34
+  shr rsi, 0x20_b ; @34
   mov edi, esi ; @22
   shr edi, 0x1f_b ; @33
   add esi, edi ; @23

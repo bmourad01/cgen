@@ -25,7 +25,7 @@ export function $foo { ; returns: rax
   jmp @28 ; @97
 @9:
   imul %5:l, %n:l, 0x55555556 ; @33
-  shr %5:l, 0x20_l ; @95
+  shr %5:l, 0x20_b ; @95
   lea %7:w, qword ptr [%5 + %5*2] ; @35
   mov %8:w, %n:w ; @36
   sub %8:w, %7:w ; @93

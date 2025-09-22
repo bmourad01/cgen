@@ -3,7 +3,7 @@ module foo
 export function $foo { ; returns: rax
 @2:
   imul rax, rdi, 0x24924925 ; @15
-  shr rax, 0x20_l ; @16
+  shr rax, 0x20_b ; @16
   mov ecx, eax ; @5
   shr ecx, 0x1f_b ; @14
   add eax, ecx ; @6
