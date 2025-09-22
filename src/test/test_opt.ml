@@ -285,6 +285,7 @@ let opt_suite = "Test optimizations" >::: [
     "Branch to non-label 1" >:: test "brind";
     "Dragon" >:: test "dragon";
     "Quicksort" >:: test "qsort";
+    "Palindrome" >:: test "palindrome";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -382,6 +383,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64_regalloc "ackermann";
     "Quicksort (SysV AMD64)" >:: test_sysv_amd64_regalloc "qsort";
     "Quicksort, swap inlined (SysV AMD64)" >:: test_sysv_amd64_regalloc "qsort_inline_swap";
+    "Palindrome (SysV AMD64)" >:: test_sysv_amd64_regalloc "palindrome";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -399,6 +401,7 @@ let native_suite = "Test native code" >::: [
     "Quicksort, swap inlined (SysV AMD64)" >:: test_sysv_amd64_native "qsort_inline_swap";
     "Spill test 1 (SysV AMD64)" >:: test_sysv_amd64_native "spill1";
     "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64_native "vaarg1";
+    "Palindrome (SysV AMD64)" >:: test_sysv_amd64_native "palindrome";
   ]
 
 let () = run_test_tt_main @@ test_list [

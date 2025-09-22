@@ -1,0 +1,24 @@
+module palindrome
+
+export function b $palindrome(w %n) {
+@2:
+  jmp @3(0x0_w, %n)
+@3(%rev.2, %n.1):
+  %0 = ne.w %n.1, 0x0_w ; @15
+  br %0, @6, @7
+@6:
+  %6 = mulh.w %n.1, 0x1999999a_w ; @21
+  %7 = lsr.w %6, 0x1f_w ; @22
+  %8 = add.w %6, %7 ; @23
+  %9 = mul.w %8, 0xa_w ; @24
+  %10 = sub.w %n.1, %9 ; @25
+  %3 = lsl.w %rev.2, 0x3_w ; @18
+  %4 = lsl.w %rev.2, 0x1_w ; @19
+  %5 = add.w %3, %4 ; @20
+  %11 = add.w %5, %10 ; @26
+  jmp @3(%11, %8)
+@7:
+  %1 = eq.w %n, %rev.2 ; @16
+  %2 = flag.b %1 ; @17
+  ret %2
+}

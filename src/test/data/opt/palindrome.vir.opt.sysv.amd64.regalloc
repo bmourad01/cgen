@@ -1,0 +1,31 @@
+module palindrome
+
+export function $palindrome { ; returns: rax
+@2:
+  mov eax, edi ; @44
+  xor ecx, ecx ; @45
+  mov edx, eax ; @46
+@3:
+  test edx, edx ; @39
+  jne @6 ; @40
+@7:
+  mov edx, 0x0_w ; @16
+  cmp eax, ecx ; @37
+  sete dl ; @38
+  mov al, dl ; @35
+  ret ; @36
+@6:
+  imul rsi, rdx, 0x1999999a ; @21
+  shr rsi, 0x20_l ; @34
+  mov edi, esi ; @22
+  shr edi, 0x1f_b ; @33
+  add esi, edi ; @23
+  imul edi, esi, 0xa ; @24
+  sub edx, edi ; @32
+  mov edi, ecx ; @19
+  shl edi, 0x1_b ; @30
+  lea ecx, qword ptr [rdi + rcx*8] ; @20
+  add ecx, edx ; @26
+  mov edx, esi ; @28
+  jmp @3 ; @29
+}

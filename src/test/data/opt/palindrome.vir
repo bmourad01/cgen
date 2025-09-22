@@ -1,0 +1,21 @@
+module palindrome
+
+export function b $palindrome(w %n) {
+@start:
+  %rev = copy.w 0_w
+  %orig = copy.w %n
+  jmp @loop
+@loop:
+  %c = ne.w %n, 0_w
+  br %c, @body, @done
+@body:
+  %rem = rem.w %n, 10_w
+  %rev = mul.w %rev, 10_w
+  %rev = add.w %rev, %rem
+  %n = div.w %n, 10_w
+  jmp @loop
+@done:
+  %c = eq.w %orig, %rev
+  %result = flag.b %c
+  ret %result
+}
