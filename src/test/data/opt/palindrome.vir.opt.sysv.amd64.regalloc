@@ -9,7 +9,7 @@ export function $palindrome { ; returns: rax
   test edx, edx ; @39
   jne @6 ; @40
 @7:
-  mov edx, 0x0_w ; @16
+  xor edx, edx ; @16
   cmp eax, ecx ; @37
   sete dl ; @38
   mov al, dl ; @35
