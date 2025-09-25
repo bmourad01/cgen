@@ -2,23 +2,7 @@
 
 open Core
 
-module type S = sig
-  (** The target descriptor. *)
-  val target : Target.t
-
-  (** Align the given stack space for arguments passed to a function. *)
-  val call_args_stack_size : int -> int
-
-  (** The offset from the frame pointer that points to the starting location
-      of arguments passed on the stack.
-
-      This assumes that the stack frame has already been allocated.
-  *)
-  val stack_args_offset : int
-
-  (** Does the machine natively support [uitof]? *)
-  val supports_uitof : bool
-
+module type S_reg = sig
   (** A machine register. *)
   module Reg : sig
     type t [@@deriving bin_io, compare, equal, hash, sexp]
@@ -66,6 +50,10 @@ module type S = sig
   end
 
   module Regvar : Machine_regvar.S with type reg := Reg.t
+end
+
+module type S_insn = sig
+  include S_reg
 
   (** A machine instruction. *)
   module Insn : sig
@@ -98,6 +86,26 @@ module type S = sig
     (** Pretty-prints the instruction. *)
     val pp : Format.formatter -> t -> unit
   end
+end
+
+module type S = sig
+  (** The target descriptor. *)
+  val target : Target.t
+
+  (** Align the given stack space for arguments passed to a function. *)
+  val call_args_stack_size : int -> int
+
+  (** The offset from the frame pointer that points to the starting location
+      of arguments passed on the stack.
+
+      This assumes that the stack frame has already been allocated.
+  *)
+  val stack_args_offset : int
+
+  (** Does the machine natively support [uitof]? *)
+  val supports_uitof : bool
+
+  include S_insn
 
   (** Lowers the ABI-specific details of a function for a given target.
 

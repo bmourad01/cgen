@@ -3,7 +3,7 @@ open Regular.Std
 open Graphlib.Std
 open Pseudo
 
-module Make(M : Machine_intf.S) = struct
+module Make(M : Machine_intf.S_insn) = struct
   module Rv = M.Regvar
 
   type tran = {

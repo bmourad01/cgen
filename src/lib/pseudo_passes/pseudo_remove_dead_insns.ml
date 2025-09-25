@@ -6,7 +6,7 @@ let (--) = Set.diff
 let (++) = Set.union
 let (&) = Set.inter
 
-module Make(M : Machine_intf.S) = struct
+module Make(M : Machine_intf.S_insn) = struct
   module Live = Pseudo_live.Make(M)
   module Rv = M.Regvar
 

@@ -1,7 +1,7 @@
 open Pseudo
 
 (** Liveness analysis of a function. *)
-module Live(M : Machine_intf.S) : Live_intf.S
+module Live(M : Machine_intf.S_insn) : Live_intf.S
   with type var := M.Regvar.t
    and type var_comparator := M.Regvar.Set.Elt.comparator_witness
    and type func := (M.Insn.t, M.Reg.t) func
@@ -9,7 +9,7 @@ module Live(M : Machine_intf.S) : Live_intf.S
    and type cfg := Cfg.t
 
 (** Removes instructions whose results are never used. *)
-module Remove_dead_insns(M : Machine_intf.S) : sig
+module Remove_dead_insns(M : Machine_intf.S_insn) : sig
   val run : (M.Insn.t, M.Reg.t) func -> (M.Insn.t, M.Reg.t) func
 end
 
