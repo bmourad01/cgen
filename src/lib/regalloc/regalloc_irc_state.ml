@@ -47,7 +47,8 @@ module Make(M : Machine_intf.S) = struct
     mutable cmoves  : Lset.t; (* coalesced moves *)
     mutable kmoves  : Lset.t; (* constrained moves *)
     mutable fmoves  : Lset.t; (* frozen moves *)
-    wspill          : Rv.Hash_set.t;
+    wspill          : Rv.t Pairing_heap.t;
+    wspill_elts     : Rv.t Pairing_heap.Elt.t Rv.Table.t;
     wfreeze         : Rv.Hash_set.t;
     wsimplify       : Rv.Hash_set.t;
     coalesced       : Rv.Hash_set.t;
@@ -69,12 +70,21 @@ module Make(M : Machine_intf.S) = struct
     let init = Rv.Set.singleton @@ Rv.reg M.Reg.sp in
     Func.rets fn |> Seq.map ~f:Rv.reg |> Seq.fold ~init ~f:Set.add
 
+  let degree' : int Rv.Table.t -> Rv.t -> int option = Hashtbl.find
+
+  (* All variables should be in this table. Preassigned registers
+     won't be in here, so they should just get the maximum value. *)
+  let degree t n = degree' t n |> Option.value ~default:Int.max_value
+
+  let spill_cmp t a b = compare (degree t b) (degree t a)
+
   let create fn =
     let cfg = Pseudo.Cfg.create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests fn in
-    let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in {
+    let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in
+    let degree = Rv.Table.create () in {
       fn;
       adjlist = Rv.Table.create ();
-      degree = Rv.Table.create ();
+      degree;
       moves = Rv.Table.create ();
       copies = Label.Table.create ();
       wmoves = Lset.empty;
@@ -82,7 +92,8 @@ module Make(M : Machine_intf.S) = struct
       cmoves = Lset.empty;
       kmoves = Lset.empty;
       fmoves = Lset.empty;
-      wspill = Rv.Hash_set.create ();
+      wspill = Pairing_heap.create ~cmp:(spill_cmp degree) ();
+      wspill_elts = Rv.Table.create ();
       wfreeze = Rv.Hash_set.create ();
       wsimplify = Rv.Hash_set.create ();
       coalesced = Rv.Hash_set.create ();
@@ -99,6 +110,18 @@ module Make(M : Machine_intf.S) = struct
       dom;
     }
 
+  let add_spill t n =
+    let elt = Pairing_heap.add_removable t.wspill n in
+    Hashtbl.set t.wspill_elts ~key:n ~data:elt
+
+  let remove_spill t n = Hashtbl.change t.wspill_elts n ~f:(function
+      | Some elt -> Pairing_heap.remove t.wspill elt; None
+      | None -> None)
+
+  let update_spill t n =
+    Hashtbl.change t.wspill_elts n
+      ~f:(Option.map ~f:(Fn.flip (Pairing_heap.update t.wspill) n))
+
   (* Explicit registers and variables that correspond to stack slots
      should be excluded from consideration. *)
   let exclude_from_coloring t n = Rv.is_reg n || Hashtbl.mem t.slots n
@@ -107,18 +130,17 @@ module Make(M : Machine_intf.S) = struct
   let inc_degree t n =
     Hashtbl.update t.degree n ~f:(function
         | Some d -> d + 1
-        | None -> 1)
+        | None -> 1);
+    update_spill t n
 
   let dec_degree t n =
     Hashtbl.update t.degree n ~f:(function
         | Some d -> max 0 (d - 1)
-        | None -> 0)
+        | None -> 0);
+    update_spill t n
 
-  let degree' t n = Hashtbl.find t.degree n
-
-  (* All variables should be in this table. Preassigned registers
-     won't be in here, so they should just get the maximum value. *)
-  let degree t n = degree' t n |> Option.value ~default:Int.max_value
+  let degree' t = degree' t.degree
+  let degree t = degree t.degree
 
   (* NB: we include nodes that could be pre-colored as keys here. *)
   let add_adjlist t u v =

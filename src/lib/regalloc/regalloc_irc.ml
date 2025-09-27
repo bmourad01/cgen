@@ -102,7 +102,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
            won't have a degree. *)
         degree' t n |> Option.iter ~f:(fun d ->
             if d >= Regs.node_k n then
-              Hash_set.add t.wspill n
+              add_spill t n
             else if move_related t n then
               Hash_set.add t.wfreeze n
             else
@@ -138,7 +138,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         (* EnableMoves({m} U Adjacent(m)) *)
         enable_moves t @@ Set.add (adjacent t m) m;
         (* spillWorklist := splillWorklist \ {m} *)
-        Hash_set.remove t.wspill m;
+        remove_spill t m;
         (* if MoveRelated(m) then
              freezeWorklist := freezeWorklist U {m}
            else
@@ -233,7 +233,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Hash_set.remove t.wfreeze v
     else
       (* spillWorklist := spillWorklist \ {v} *)
-      Hash_set.remove t.wspill v;
+      remove_spill t v;
     (* coalescedNodes := coalescedNodes U {v} *)
     Hash_set.add t.coalesced v;
     (* alias[v] := u *)
@@ -252,7 +252,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* freezeWorklist := freezeWorklist \ {u} *)
       Hash_set.remove t.wfreeze u;
       (* spillWorklist := spillWorklist U {u} *)
-      Hash_set.add t.wspill u;
+      add_spill t u
     end      
 
   (* pre: wmoves is not empty *)
@@ -347,15 +347,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     freeze_moves t u
 
   let select_spill t =
-    (* XXX: try a better heuristic as the paper suggests. For now,
-       we will choose the node with the highest degree. In much of
-       the literature, the spill cost is inversely proportional to
-       the degree of the node. *)
-    let compare a b = Int.compare (degree t a) (degree t b) in
-    (* let m \in spillWorklist *)
-    Hash_set.max_elt t.wspill ~compare |> Option.iter ~f:(fun m ->
+    Pairing_heap.pop t.wspill |> Option.iter ~f:(fun m ->
         (* spillWorklist := spillWorklist \ {m} *)
-        Hash_set.remove t.wspill m;
+        Hashtbl.remove t.wspill_elts m;
         (* simplifyWorklist := simplifyworklist U {m} *)
         Hash_set.add t.wsimplify m;
         (* FreezeMoves(m) *)
@@ -580,7 +574,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         coalesce t
       else if not @@ Hash_set.is_empty t.wfreeze then
         freeze t
-      else if not @@ Hash_set.is_empty t.wspill then
+      else if not @@ Pairing_heap.is_empty t.wspill then
         select_spill t
       else
         continue := false
