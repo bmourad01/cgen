@@ -32,6 +32,8 @@
   isel_internal
   last_stores
   live_intf
+  loops
+  loops_intf
   patricia_tree
   patricia_tree_intf
   phi_values
