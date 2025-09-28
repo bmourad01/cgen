@@ -1,0 +1,42 @@
+module int_pow
+
+export function l $int_pow(l %base, l %exponent) {
+@start:
+  %ret = copy.l 1_l
+  %mul0 = copy.l 1_l
+  %mul1 = copy.l %base
+  %mul2 = copy.l 0_l
+  %mul3 = copy.l 1_l
+  jmp @header
+@header:
+  %c = ne.l %exponent, 0_l
+  br %c, @loop, @done
+@loop:
+  %mul1 = mul.l %mul1, %mul3
+  %mul2 = mul.l %mul1, %mul1
+  %mul3 = mul.l %mul2, %mul1
+  %i = and.l %exponent, 3_l
+  switch.l %i, @nothing [0_l -> @r0,
+                         1_l -> @r1,
+                         2_l -> @r2,
+                         3_l -> @r3]
+@nothing:
+  jmp @next
+@r0:
+  %ret = mul.l %ret, %mul0
+  jmp @next
+@r1:
+  %ret = mul.l %ret, %mul1
+  jmp @next
+@r2:
+  %ret = mul.l %ret, %mul2
+  jmp @next
+@r3:
+  %ret = mul.l %ret, %mul3
+  jmp @next
+@next:
+  %exponent = asr.l %exponent, 2_l
+  jmp @header
+@done:
+  ret %ret
+}

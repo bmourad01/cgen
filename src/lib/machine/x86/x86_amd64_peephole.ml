@@ -255,6 +255,20 @@ let collect_reuse_lea fn =
 let reuse_lea fn =
   map_insns fn @@ collect_reuse_lea fn
 
+let collect_and_test fn =
+  Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
+      let rec go acc = function
+        | [] | [_] -> acc
+        | (_, Two (AND, Oreg (r1, _), _))
+          :: (l, Two (TEST_, Oreg (r1', _), Oreg (r2', _)))
+          :: xs when Rv.equal r1 r1' && Rv.equal r1 r2' ->
+          go (Lset.add acc l) xs
+        | _ :: xs -> go acc xs in
+      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+
+let and_test fn =
+  filter_not_in fn @@ collect_and_test fn
+
 let run fn =
   let fn = jump_threading fn in
   let fn = remove_disjoint fn in
@@ -264,4 +278,5 @@ let run fn =
   let fn = dealloc_stack_before_leave fn in
   let fn = redundant_spill_after_reload fn in
   let fn = reuse_lea fn in
+  let fn = and_test fn in
   fn
