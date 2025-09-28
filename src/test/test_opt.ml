@@ -287,6 +287,7 @@ let opt_suite = "Test optimizations" >::: [
     "Quicksort" >:: test "qsort";
     "Palindrome" >:: test "palindrome";
     "Integer pow" >:: test "int_pow";
+    "AND test" >:: test "and_test";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -386,6 +387,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Quicksort, swap inlined (SysV AMD64)" >:: test_sysv_amd64_regalloc "qsort_inline_swap";
     "Palindrome (SysV AMD64)" >:: test_sysv_amd64_regalloc "palindrome";
     "Integer pow (SysV AMD64)" >:: test_sysv_amd64_regalloc "int_pow";
+    "AND test (SysV AMD64)" >:: test_sysv_amd64_regalloc "and_test";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -405,6 +407,7 @@ let native_suite = "Test native code" >::: [
     "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64_native "vaarg1";
     "Palindrome (SysV AMD64)" >:: test_sysv_amd64_native "palindrome";
     "Integer pow (SysV AMD64)" >:: test_sysv_amd64_native "int_pow";
+    "AND test (SysV AMD64)" >:: test_sysv_amd64_native "and_test";
   ]
 
 let () = run_test_tt_main @@ test_list [

@@ -1,0 +1,53 @@
+module and_test
+
+export function w $foo(w %x, w %y) {
+@start:
+  %a = and.w %x, 3_w
+  %c = eq.w %a, 0_w
+  br %c, @zero, @notzero
+@zero:
+  %r = copy.w %y
+  jmp @done
+@notzero:
+  %r = copy.w %x
+  jmp @done
+@done:
+  ret %r
+}
+
+export function w $bar(w %x, w %y) {
+@start:
+  %a = and.w %x, 3_w
+  %c = eq.w %a, 0_w
+  br %c, @zero, @notzero
+@zero:
+  %r = add.w %y, 1_w
+  jmp @done
+@notzero:
+  %r = add.w %x, 1_w
+  jmp @done
+@done:
+  ret %r
+}
+
+export function l $baz(l %x) {
+@start:
+  %a = and.l %x, 3_l
+  switch.l %a, @default [1_l -> @one,
+                         2_l -> @two,
+                         3_l -> @three]
+@default:
+  %r = add.l %x, 1_l
+  jmp @done
+@one:
+  %r = add.l %x, 2_l
+  jmp @done
+@two:
+  %r = add.l %x, 3_l
+  jmp @done
+@three:
+  %r = add.l %x, 4_l
+  jmp @done
+@done:
+  ret %r
+}

@@ -263,6 +263,10 @@ let collect_and_test fn =
           :: (l, Two (TEST_, Oreg (r1', _), Oreg (r2', _)))
           :: xs when Rv.equal r1 r1' && Rv.equal r1 r2' ->
           go (Lset.add acc l) xs
+        | (_, Two (AND, Oreg (r1, _), _))
+          :: (l, Two (CMP, Oreg (r1', _), Oimm (0L, _)))
+          :: xs when Rv.equal r1 r1' ->
+          go (Lset.add acc l) xs
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 

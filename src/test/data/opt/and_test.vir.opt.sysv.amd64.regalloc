@@ -1,0 +1,51 @@
+module and_test
+
+export function $foo { ; returns: rax
+@2:
+  mov eax, edi ; @59
+  and eax, 0x3_w ; @60
+  cmove edi, esi ; @55
+  mov eax, edi ; @52
+  ret ; @53
+}
+
+export function $bar { ; returns: rax
+@10:
+  test edi, 0x3_w ; @67
+  je @11 ; @68
+@12:
+  lea eax, qword ptr [rdi + 0x1] ; @44
+  jmp @15 ; @66
+@11:
+  lea eax, qword ptr [rsi + 0x1] ; @45
+@15:
+  ret ; @62
+}
+
+export function $baz { ; returns: rax
+@18:
+  mov rax, rdi ; @97
+  and rax, 0x3_l ; @98
+  je @19 ; @87
+  dec rax ; @89
+  cmp rax, 0x2_l ; @90
+  ja @19 ; @91
+  lea rcx, qword ptr [rip + @85] ; @92
+  movsxd rax, dword ptr [rcx + rax*4] ; @93
+  add rax, rcx ; @94
+  jmp rax ; @95
+  .tbl @85 [@20, @21, @22] ; @96
+@22:
+  lea rax, qword ptr [rdi + 0x4] ; @47
+  jmp @24 ; @84
+@21:
+  lea rax, qword ptr [rdi + 0x3] ; @48
+  jmp @24 ; @82
+@20:
+  lea rax, qword ptr [rdi + 0x2] ; @49
+  jmp @24 ; @80
+@19:
+  lea rax, qword ptr [rdi + 0x1] ; @50
+@24:
+  ret ; @76
+}
