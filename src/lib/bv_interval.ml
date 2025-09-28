@@ -48,6 +48,22 @@ let bv_popcnt x =
   let x = Bv.to_bigint x in
   Z.popcount x
 
+let must_be_ones lo hi size =
+  if Bv.(lo = hi) then lo
+  else
+    let m = Bv.modulus size in
+    let diff = Bv.((lo lxor hi) mod m) in
+    let mask = Bv.((lnot diff) mod m) in
+    Bv.((lo land mask) mod m)
+
+let must_be_zeros lo hi size =
+  if Bv.(lo = hi) then Bv.zero
+  else
+    let m = Bv.modulus size in
+    let diff = Bv.((lo lxor hi) mod m) in
+    let mask = Bv.((lnot diff) mod m) in
+    Bv.(((lnot lo mod m) land mask) mod m)
+
 let create_empty ~size =
   let lo = Bv.min_unsigned_value in
   {lo; hi = lo; size}
@@ -701,9 +717,18 @@ let srem t1 t2 =
 
 let lnot t =
   let size = t.size in
+  let module B = (val Bv.modular size) in
   if is_empty t then t
-  else if is_wrapped t then create_full ~size
-  else sub (create_single ~value:Bv.(max_unsigned_value t.size) ~size) t
+  else match single_of t with
+    | Some v ->
+      create_single ~value:B.(lnot v) ~size:size
+    | None when is_wrapped t -> create_full ~size
+    | None ->
+      let lo1 = unsigned_min t in
+      let hi1 = unsigned_max t in
+      let lo = B.lnot hi1 in
+      let hi = B.(succ (lnot lo1)) in
+      create_non_empty ~lo ~hi ~size
 
 let neg t =
   if is_empty t then t
@@ -714,44 +739,80 @@ let logand t1 t2 =
     invalid_arg "logand: sizes must be equal"
   else
     let size = t1.size in
-    let m = Bv.modulus size in
+    let module B = (val Bv.modular size) in
     if is_empty t1 || is_empty t2
     then create_empty ~size
-    else match (single_of t1, single_of t2) with
+    else match single_of t1, single_of t2 with
       | Some v1, Some v2 ->
-        create_single ~value:Bv.(v1 land v2 mod m) ~size
+        create_single ~value:B.(v1 land v2) ~size
       | _ ->
-        create_non_empty ~size ~lo:Bv.zero
-          ~hi:Bv.(succ (min (unsigned_max t2) (unsigned_max t1)) mod m)
+        let lo1 = unsigned_min t1 in
+        let hi1 = unsigned_max t1 in
+        let lo2 = unsigned_min t2 in
+        let hi2 = unsigned_max t2 in
+        let must1_1 = must_be_ones lo1 hi1 size in
+        let must0_1 = must_be_zeros lo1 hi1 size in
+        let must1_2 = must_be_ones lo2 hi2 size in
+        let must0_2 = must_be_zeros lo2 hi2 size in
+        let must_ones = B.(must1_1 land must1_2) in
+        let must_zeros = B.(must0_1 lor must0_2) in
+        let lo = must_ones in
+        let hi = B.(succ (lnot must_zeros)) in
+        create_non_empty ~size ~lo ~hi
 
 let logor t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "logor: sizes must be equal"
   else
     let size = t1.size in
-    let m = Bv.modulus size in
+    let module B = (val Bv.modular size) in
     if is_empty t1 || is_empty t2
     then create_empty ~size
-    else match (single_of t1, single_of t2) with
-      | Some v1, Some v2 -> create_single ~value:Bv.(v1 lor v2 mod m) ~size
+    else match single_of t1, single_of t2 with
+      | Some v1, Some v2 ->
+        create_single ~value:B.(v1 lor v2) ~size
       | _ ->
-        create_non_empty ~hi:Bv.zero ~size
-          ~lo:Bv.(succ (max (unsigned_min t2) (unsigned_min t1)) mod m)
+        let lo1 = unsigned_min t1 in
+        let hi1 = unsigned_max t1 in
+        let lo2 = unsigned_min t2 in
+        let hi2 = unsigned_max t2 in
+        let must1_1 = must_be_ones lo1 hi1 size in
+        let must0_1 = must_be_zeros lo1 hi1 size in
+        let must1_2 = must_be_ones lo2 hi2 size in
+        let must0_2 = must_be_zeros lo2 hi2 size in
+        let must_ones = B.(must1_1 lor must1_2) in
+        let must_zeros = B.(must0_1 land must0_2) in
+        let lo = must_ones in
+        let hi = B.(succ (lnot must_zeros)) in
+        create_non_empty ~size ~lo ~hi
 
 let logxor t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "logxor: sizes must be equal"
   else
     let size = t1.size in
-    let m = Bv.modulus size in
+    let module B = (val Bv.modular size) in
     if is_empty t1 || is_empty t2
     then create_empty ~size
-    else match (single_of t1, single_of t2) with
+    else match single_of t1, single_of t2 with
       | Some v1, Some v2 ->
-        create_single ~value:Bv.(v1 lxor v2 mod m) ~size
+        create_single ~value:B.(v1 lxor v2) ~size
       | None, Some v when Bv.(v = max_unsigned_value size) -> lnot t1
       | Some v, None when Bv.(v = max_unsigned_value size) -> lnot t2
-      | _ -> create_full ~size (* XXX: this could be more precise *)
+      | _ ->
+        let lo1 = unsigned_min t1 in
+        let hi1 = unsigned_max t1 in
+        let lo2 = unsigned_min t2 in
+        let hi2 = unsigned_max t2 in
+        let must1_1 = must_be_ones lo1 hi1 size in
+        let must0_1 = must_be_zeros lo1 hi1 size in
+        let must1_2 = must_be_ones lo2 hi2 size in
+        let must0_2 = must_be_zeros lo2 hi2 size in
+        let must_ones = B.((must1_1 land must0_2) lor (must0_1 land must1_2)) in
+        let must_zeros = B.((must1_1 land must1_2) lor (must0_1 land must0_2)) in
+        let lo = must_ones in
+        let hi = B.(succ (lnot must_zeros)) in
+        create_non_empty ~size ~lo ~hi
 
 let logical_shift_left t1 t2 =
   if t1.size <> t2.size then
