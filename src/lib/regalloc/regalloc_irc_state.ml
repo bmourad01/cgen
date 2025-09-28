@@ -19,6 +19,17 @@ module Make(M : Machine_intf.S) = struct
   module Regs = Regalloc_regs.Make(M)
   module Live = Pseudo_passes.Live(M)
 
+  module Loop = Loops.Make(struct
+      module Func = struct
+        type t = (M.Insn.t, M.Reg.t) Pseudo.func
+        let name = Pseudo.Func.name
+      end
+      module Cfg = struct
+        include Pseudo.Cfg
+        let create = create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests
+      end
+    end)
+
   (* Terminology:
 
      - [simplifyWorklist]: list of low-degree non-move-related nodes
@@ -62,8 +73,15 @@ module Make(M : Machine_intf.S) = struct
     keep            : Rv.Set.t;
     mutable types   : [Type.basic | `v128] Rv.Map.t;
     cfg             : Pseudo.Cfg.t;
+    loop            : Loop.t;
+    spill_cost      : int Rv.Table.t;
     dom             : Label.t Semi_nca.tree;
   } [@@ocaml.warning "-69"]
+
+  (* Explicit registers and variables that correspond to stack slots
+     should be excluded from consideration. *)
+  let exclude_from_coloring t n = Rv.is_reg n || Hashtbl.mem t.slots n
+  let can_be_colored t n = not @@ exclude_from_coloring t n
 
   (* Set of registers that should always be live at the exit. *)
   let init_keep fn =
@@ -76,11 +94,34 @@ module Make(M : Machine_intf.S) = struct
      won't be in here, so they should just get the maximum value. *)
   let degree t n = degree' t n |> Option.value ~default:Int.max_value
 
-  let spill_cmp t a b = compare (degree t b) (degree t a)
+  (* cost(v) = (Sigma_{u \in uses(v)} weight(u)) / degree(v)
+
+     Here, the weighted cost of a use is 10^loop_depth(u).
+  *)
+  let spill_cost costs degree_ v =
+    let d = degree degree_ v in
+    if d = 0 then Float.infinity
+    else
+      let cost = Hashtbl.find costs v |> Option.value ~default:0 in
+      Int.to_float cost /. Int.to_float d
+
+  let weighted_spill_cost loop_depth = Int.pow 10 loop_depth
+
+  let update_cost ~loop_depth t u =
+    if can_be_colored t u then
+      let w = weighted_spill_cost loop_depth in
+      Hashtbl.update t.spill_cost u ~f:(function
+          | Some c -> c + w
+          | None -> w)
+
+  let spill_cmp costs degree_ a b =
+    Float.compare (spill_cost costs degree_ a) (spill_cost costs degree_ b)
 
   let create fn =
     let cfg = Pseudo.Cfg.create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests fn in
     let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in
+    let loop = Loop.analyze fn in
+    let spill_cost = Rv.Table.create () in
     let degree = Rv.Table.create () in {
       fn;
       adjlist = Rv.Table.create ();
@@ -92,7 +133,7 @@ module Make(M : Machine_intf.S) = struct
       cmoves = Lset.empty;
       kmoves = Lset.empty;
       fmoves = Lset.empty;
-      wspill = Pairing_heap.create ~cmp:(spill_cmp degree) ();
+      wspill = Pairing_heap.create ~cmp:(spill_cmp spill_cost degree) ();
       wspill_elts = Rv.Table.create ();
       wfreeze = Rv.Hash_set.create ();
       wsimplify = Rv.Hash_set.create ();
@@ -107,12 +148,15 @@ module Make(M : Machine_intf.S) = struct
       keep = init_keep fn;
       types = Rv.Map.empty;
       cfg;
+      loop;
+      spill_cost;
       dom;
     }
 
   let add_spill t n =
-    let elt = Pairing_heap.add_removable t.wspill n in
-    Hashtbl.set t.wspill_elts ~key:n ~data:elt
+    if can_be_colored t n then
+      let elt = Pairing_heap.add_removable t.wspill n in
+      Hashtbl.set t.wspill_elts ~key:n ~data:elt
 
   let remove_spill t n = Hashtbl.change t.wspill_elts n ~f:(function
       | Some elt -> Pairing_heap.remove t.wspill elt; None
@@ -121,11 +165,6 @@ module Make(M : Machine_intf.S) = struct
   let update_spill t n =
     Hashtbl.change t.wspill_elts n
       ~f:(Option.map ~f:(Fn.flip (Pairing_heap.update t.wspill) n))
-
-  (* Explicit registers and variables that correspond to stack slots
-     should be excluded from consideration. *)
-  let exclude_from_coloring t n = Rv.is_reg n || Hashtbl.mem t.slots n
-  let can_be_colored t n = not @@ exclude_from_coloring t n
 
   let inc_degree t n =
     Hashtbl.update t.degree n ~f:(function

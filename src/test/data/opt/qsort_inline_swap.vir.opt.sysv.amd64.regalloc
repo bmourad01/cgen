@@ -38,9 +38,9 @@ export function $qsort {
   push rbx ; @123
   mov r14, rdi ; @113
   mov r13, rdx ; @115
-  mov r12, rsi ; @116
+  mov rbx, rsi ; @116
 @39:
-  cmp r12, r13 ; @108
+  cmp rbx, r13 ; @108
   jl @40 ; @109
 @48:
   pop rbx ; @124
@@ -51,15 +51,15 @@ export function $qsort {
   ret ; @107
 @40:
   mov rdi, r14 ; @43
-  mov rsi, r12 ; @103
+  mov rsi, rbx ; @103
   mov rdx, r13 ; @104
   call $partition ; rdi rdx rsi ; @105
-  mov rbx, rax ; @106
-  lea rdx, qword ptr [rbx - 0x1] ; @66
+  mov r12, rax ; @106
+  lea rdx, qword ptr [r12 - 0x1] ; @66
   mov rdi, r14 ; @45
-  mov rsi, r12 ; @100
+  mov rsi, rbx ; @100
   call $qsort ; rdi rdx rsi ; @102
-  lea rax, qword ptr [rbx + 0x1] ; @67
-  mov r12, rax ; @98
+  lea rax, qword ptr [r12 + 0x1] ; @67
+  mov rbx, rax ; @98
   jmp @39 ; @99
 }

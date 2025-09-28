@@ -46,10 +46,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       if can_be_colored t v then inc_degree t v
     end
 
-  let build_insn t out i =
+  let build_insn ~loop_depth t out i =
     let label = Insn.label i in 
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
+    Set.iter use ~f:(update_cost ~loop_depth t);
     let def = M.Insn.writes insn in
     (* if isMoveInstruction(I) then *)
     let+ out = match M.Regalloc.is_copy insn with
@@ -86,12 +87,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let build t live =
     (* forall b \in blocks in program *)
     Func.blks t.fn |> C.Seq.iter ~f:(fun b ->
+        let l = Blk.label b in
+        let loop_depth = match Loop.blk t.loop l with
+          | None -> 0
+          | Some lp ->
+            (* NB: levels start at 0 *)
+            (Loop.(level (get t.loop lp)) :> int) + 1 in
         (* live := liveOut(b) *)
-        let out = Live.outs live @@ Blk.label b in
+        let out = Live.outs live l in
         (* forall I \in instructions(b) in reverse order *)
         let+ _out =
           Blk.insns b ~rev:true |>
-          C.Seq.fold ~init:out ~f:(build_insn t) in
+          C.Seq.fold ~init:out ~f:(build_insn ~loop_depth t) in
         ())
 
   (* Initialize the worklists. *)
@@ -548,6 +555,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Hashtbl.clear t.degree;
     Hashtbl.clear t.copies;
     Hashtbl.clear t.moves;
+    Hashtbl.clear t.spill_cost;
     (* This doesn't seem to happen in the paper, but we should discard
        the previous coloring since we introduced new spill/reload code.
 
