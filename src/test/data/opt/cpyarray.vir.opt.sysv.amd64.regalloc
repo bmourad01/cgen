@@ -2,16 +2,16 @@ module foo
 
 export function $foo {
 @2:
-  xor eax, eax ; @35
+  xor eax, eax ; @41
 @3:
-  cmp eax, edx ; @27
-  jb @5 ; @28
+  cmp eax, edx ; @33
+  jb @5 ; @34
 @6:
-  ret ; @26
+  ret ; @32
 @5:
-  mov r8d, eax ; zx ; @18
-  mov ecx, dword ptr [rsi + r8*4] ; @11
-  mov dword ptr [rdi + r8*4], ecx ; @15
-  inc eax ; @22
-  jmp @3 ; @24
+  mov ecx, eax ; zx ; @24
+  mov r8d, dword ptr [rsi + rcx*4] ; @11
+  mov dword ptr [rdi + rcx*4], r8d ; @15
+  inc eax ; @28
+  jmp @3 ; @30
 }

@@ -3,18 +3,18 @@ module unref
 function $sum(l %s/rdi) {
   %p = slot 8, align 8
 @2:
-  st.l %s, %p ; @24
+  st.l %s, %p ; @27
   %a.1 = ld.w %p ; @4
-  %0.1 = add.l %p, 0x4_l ; @19
-  %b.1 = ld.w %0.1 ; @6
-  %1.1 = add.w %a.1, %b.1 ; @20
-  ret rax/%1.1
+  %3.1 = add.l %p, 0x4_l ; @22
+  %b.1 = ld.w %3.1 ; @6
+  %4.1 = add.w %a.1, %b.1 ; @23
+  ret rax/%4.1
 }
 
 export function $sump(l %p/rdi) {
 @8:
-  %6.1 = ld.l %p ; @25
-  %sum.1/w/rax = call $sum(%6.1/rdi) ; @10
+  %9.1 = ld.l %p ; @28
+  %sum.1/w/rax = call $sum(%9.1/rdi) ; @10
   ret rax/%sum.1
 }
 
@@ -22,15 +22,15 @@ export function $mkt(w %a/rdi, w %b/rsi) {
   %r = slot 8, align 8
 @11:
   st.w %a, %r ; @12
-  %2.1 = add.l %r, 0x4_l ; @21
-  st.w %b, %2.1 ; @14
-  %9.1 = ld.l %r ; @28
-  ret rax/%9.1
+  %5.1 = add.l %r, 0x4_l ; @24
+  st.w %b, %5.1 ; @14
+  %12.1 = ld.l %r ; @31
+  ret rax/%12.1
 }
 
 export function $sumt(w %a/rdi, w %b/rsi) {
 @16:
-  %12.1/l/rax = call $mkt(%a/rdi, %b/rsi) ; @17
-  %sum.1/w/rax = call $sum(%12.1/rdi) ; @18
+  %15.1/l/rax = call $mkt(%a/rdi, %b/rsi) ; @17
+  %sum.1/w/rax = call $sum(%15.1/rdi) ; @18
   ret rax/%sum.1
 }

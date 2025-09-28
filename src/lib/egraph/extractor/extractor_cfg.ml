@@ -25,6 +25,7 @@ type env = {
   ctrl        : ctrl Label.Table.t;
   news        : Label.t Id.Tree.t Label.Table.t;
   closure     : Lset.t Label.Table.t;
+  hoisted     : Id.Hash_set.t;
   mutable cur : Label.t;
   mutable scp : scope;
 }
@@ -34,6 +35,7 @@ let init () = {
   ctrl = Label.Table.create ();
   news = Label.Table.create();
   closure = Label.Table.create ();
+  hoisted = Id.Hash_set.create ();
   cur = Label.pseudoentry;
   scp = empty_scope;
 }
@@ -444,6 +446,7 @@ module Hoisting = struct
           | None -> extract_fail l id
           | Some e ->
             Context.unless (should_skip t env l id cid) @@ fun () ->
+            Hash_set.add env.hoisted id;
             pure t env e >>| ignore)
 end
 
@@ -454,13 +457,18 @@ let reify t env l =
   | None -> !!()
   | Some id -> match extract t id with
     | None -> extract_fail l @@ Common.find t.eg id
-    | Some (E (Id {canon; _}, _, _)) when not @@ Hash_set.mem t.impure canon ->
+    | Some (E (Id {canon; _}, op, args) as e) when not @@ Hash_set.mem t.impure canon ->
       (* There may be an opportunity to "sink" this instruction,
          which is the dual of the "hoisting" optimization below.
          Since this is a pure operation, we can wait until it is
          actually needed by an effectful instruction or for
          control-flow. *)
-      !!()
+      begin match op, args with
+        | Oset _, [E (Id {canon; _}, _, _)]
+          when Hash_set.mem t.eg.pinned canon ->
+          exp t env l e
+        | _ -> !!()
+      end
     | Some e -> exp t env l e
 
 (* Rewrite a single instruction. *)
@@ -506,8 +514,13 @@ let find_news ?(rev = false) env l =
   let seq = Id.Tree.to_sequence ~order in
   Hashtbl.find env.news l |>
   Option.value_map ~default:[] ~f:(fun m ->
-      seq m |> Seq.map ~f:snd |>
-      Seq.filter_map ~f:(find_insn env) |>
+      seq m |>  Seq.filter_map ~f:(fun (id, l) ->
+          find_insn env l |> Option.map ~f:(fun i -> id, i)) |>
+      Seq.map ~f:(fun (id, i) ->
+          if Hash_set.mem env.hoisted id then
+            let dict = Insn.dict i in
+            Insn.with_dict i @@ Dict.set dict Tags.pinned ()
+          else i) |>
       Seq.to_list)
 
 let move_dict i i' = Insn.(with_dict i' @@ dict i)

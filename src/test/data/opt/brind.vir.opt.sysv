@@ -2,9 +2,9 @@ module brind
 
 export function $foo(w %x/rdi) {
 @2:
-  %0 = slt.w %x, 0x0_w ; @10
-  br %0, @13, @3
-@13:
+  %3 = slt.w %x, 0x0_w ; @13
+  br %3, @16, @3
+@16:
   jmp 0x1234
 @3:
   ret
@@ -12,9 +12,9 @@ export function $foo(w %x/rdi) {
 
 export function $bar(w %x/rdi, l %y/rsi) {
 @5:
-  %1 = slt.w %x, 0x0_w ; @11
-  br %1, @14, @6
-@14:
+  %4 = slt.w %x, 0x0_w ; @14
+  br %4, @17, @6
+@17:
   jmp %y
 @6:
   ret
@@ -22,10 +22,10 @@ export function $bar(w %x/rdi, l %y/rsi) {
 
 export function $baz(w %x/rdi, l %y/rsi) {
 @8:
-  %2 = slt.w %x, 0x0_w ; @12
-  br %2, @15, @16
-@16:
+  %5 = slt.w %x, 0x0_w ; @15
+  br %5, @18, @19
+@19:
   jmp 0x1234
-@15:
+@18:
   jmp %y
 }

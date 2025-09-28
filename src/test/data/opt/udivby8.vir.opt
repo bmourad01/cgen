@@ -2,6 +2,6 @@ module foo
 
 export function w $foo(w %x) {
 @2:
-  %0 = lsr.w %x, 0x3_w ; @4
-  ret %0
+  %1 = lsr.w %x, 0x3_w ; @5
+  ret %1
 }

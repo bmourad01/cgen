@@ -2,7 +2,7 @@ module foo
 
 export function w $foo(w %x) {
 @2:
-  %0 = eq.w %x, 0x1_w ; @5
-  %1 = flag.w %0 ; @6
-  ret %1
+  %2 = eq.w %x, 0x1_w ; @7
+  %3 = flag.w %2 ; @8
+  ret %3
 }

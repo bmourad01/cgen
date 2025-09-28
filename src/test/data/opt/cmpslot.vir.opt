@@ -4,7 +4,7 @@ export function w $foo(w %a, w %b) {
   %x = slot 4, align 4
   %y = slot 4, align 4
 @2:
-  %2 = gt.l %x, %y ; @8
-  %3 = sel.w %2, %a, %b ; @9
-  ret %3
+  %4 = gt.l %x, %y ; @10
+  %5 = sel.w %4, %a, %b ; @11
+  ret %5
 }

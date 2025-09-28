@@ -71,6 +71,9 @@ end
 *)
 module Egraph_opt : sig
   val run : Typecheck.env -> func -> func Context.t
+
+  (** Runs the pass with no rewrite rules. *)
+  val run_no_rules : Typecheck.env -> func -> func Context.t
 end
 
 (** This pass lowers a Virtual function into a Virtual ABI function,

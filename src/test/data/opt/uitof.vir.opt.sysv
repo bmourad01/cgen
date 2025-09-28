@@ -2,30 +2,30 @@ module foo
 
 export function $foo(w %x/rdi) {
 @2:
-  %0 = sitof.w.s %x ; @11
-  ret xmm0/%0
+  %3 = sitof.w.s %x ; @14
+  ret xmm0/%3
 }
 
 export function $bar(l %x/rdi) {
 @4:
-  %3 = slt.l %x, 0x0_l ; @15
-  br %3, @12, @13
-@12:
-  %4 = lsr.l %x, 0x1_l ; @16
-  %5 = and.l %x, 0x1_l ; @17
-  %6 = or.l %4, %5 ; @18
-  %7 = sitof.l.s %6 ; @19
-  %8 = add.s %7, %7 ; @20
-  jmp @14(%8)
-@13:
-  %9 = sitof.l.s %x ; @21
-  jmp @14(%9)
-@14(%10):
-  ret xmm0/%10
+  %6 = slt.l %x, 0x0_l ; @18
+  br %6, @15, @16
+@15:
+  %7 = lsr.l %x, 0x1_l ; @19
+  %8 = and.l %x, 0x1_l ; @20
+  %9 = or.l %7, %8 ; @21
+  %10 = sitof.l.s %9 ; @22
+  %11 = add.s %10, %10 ; @23
+  jmp @17(%11)
+@16:
+  %12 = sitof.l.s %x ; @24
+  jmp @17(%12)
+@17(%13):
+  ret xmm0/%13
 }
 
 export function $baz(h %x/rdi) {
 @6:
-  %2 = sitof.h.s %x ; @23
-  ret xmm0/%2
+  %5 = sitof.h.s %x ; @26
+  ret xmm0/%5
 }

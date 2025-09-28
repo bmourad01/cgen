@@ -2,13 +2,13 @@ module slotadd1
 
 export function $foo { ; returns: rax
 @2:
-  push rbp ; @13
-  mov rbp, rsp ; @14
-  sub rsp, 0x10_l ; @15
-  lea rax, qword ptr [rbp - 0x10] ; @6
-  lea rdi, qword ptr [rax - 0x7fffffff] ; @12
-  call $bar ; rdi ; @10
-  inc rax ; @7
-  leave ; @16
-  ret ; @9
+  push rbp ; @15
+  mov rbp, rsp ; @16
+  sub rsp, 0x10_l ; @17
+  lea rax, qword ptr [rbp - 0x10] ; @8
+  lea rdi, qword ptr [rax - 0x7fffffff] ; @14
+  call $bar ; rdi ; @12
+  inc rax ; @9
+  leave ; @18
+  ret ; @11
 }

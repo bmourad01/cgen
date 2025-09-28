@@ -2,7 +2,7 @@ module foo
 
 export function w $foo(w %x, w %y, w %z) {
 @2:
-  %0 = ne.w %x, 0x0_w ; @15
-  %1 = sel.w %0, %y, %z ; @16
-  ret %1
+  %1 = ne.w %x, 0x0_w ; @16
+  %2 = sel.w %1, %y, %z ; @17
+  ret %2
 }

@@ -2,11 +2,11 @@ module sw
 
 export function $test {
 @2:
-  lea rax, $sym ; @12
-  cmp rax, 0x2_l ; @13
-  je @5 ; @14
+  lea rax, $sym ; @13
+  cmp rax, 0x2_l ; @14
+  je @5 ; @15
 @7:
-  ret ; @11
+  ret ; @12
 @5:
-  ud2 ; @10
+  ud2 ; @11
 }

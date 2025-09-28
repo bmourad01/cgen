@@ -2,40 +2,40 @@ module popcnt
 
 export function $popcnt8 { ; returns: rax
 @2:
-  mov %n:b, dil ; @10
-  movzx %4:w, %n:b ; @16
-  popcnt %5:w, %4:w ; @17
-  mov %0:w, %5:w ; @18
-  mov al, %0:b ; @14
-  ret ; @15
+  mov %n:b, dil ; @14
+  movzx %8:w, %n:b ; @20
+  popcnt %9:w, %8:w ; @21
+  mov %4:w, %9:w ; @22
+  mov al, %4:b ; @18
+  ret ; @19
 }
 
 export function $popcnt16 { ; returns: rax
 @4:
-  mov %n:h, di ; @11
-  movzx %6:w, %n:h ; @21
-  popcnt %7:w, %6:w ; @22
-  mov %1:w, %7:w ; @23
-  mov ax, %1:h ; @19
-  ret ; @20
+  mov %n:h, di ; @15
+  movzx %10:w, %n:h ; @25
+  popcnt %11:w, %10:w ; @26
+  mov %5:w, %11:w ; @27
+  mov ax, %5:h ; @23
+  ret ; @24
 }
 
 export function $popcnt32 { ; returns: rax
 @6:
-  mov %n:w, edi ; @12
-  mov %8:w, %n:w ; @26
-  popcnt %9:w, %8:w ; @27
-  mov %2:w, %9:w ; @28
-  mov eax, %2:w ; @24
-  ret ; @25
+  mov %n:w, edi ; @16
+  mov %12:w, %n:w ; @30
+  popcnt %13:w, %12:w ; @31
+  mov %6:w, %13:w ; @32
+  mov eax, %6:w ; @28
+  ret ; @29
 }
 
 export function $popcnt64 { ; returns: rax
 @8:
-  mov %n:l, rdi ; @13
-  mov %10:l, %n:l ; @31
-  popcnt %11:l, %10:l ; @32
-  mov %3:l, %11:l ; @33
-  mov rax, %3:l ; @29
-  ret ; @30
+  mov %n:l, rdi ; @17
+  mov %14:l, %n:l ; @35
+  popcnt %15:l, %14:l ; @36
+  mov %7:l, %15:l ; @37
+  mov rax, %7:l ; @33
+  ret ; @34
 }

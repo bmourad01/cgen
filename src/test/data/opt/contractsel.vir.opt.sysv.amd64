@@ -2,20 +2,20 @@ module foo
 
 function $foo { ; returns: rax
 @2:
-  mov %x:w, edi ; @14
-  cmp %x:w, 0x2a_w ; @28
-  jg @17 ; @29
-  jmp @4 ; @30
-@17:
-  mov %y.1:w, 0x5_w ; @26
-  jmp @6 ; @27
+  mov %x:w, edi ; @16
+  cmp %x:w, 0x2a_w ; @30
+  jg @19 ; @31
+  jmp @4 ; @32
+@19:
+  mov %y.1:w, 0x5_w ; @28
+  jmp @6 ; @29
 @4:
-  mov %2:w, 0x3_w ; @16
-  cmp %x:w, 0x0_w ; @22
-  cmovge %2:w, %x:w ; @23
-  mov %y.1:w, %2:w ; @20
-  jmp @6 ; @21
+  mov %4:w, 0x3_w ; @18
+  cmp %x:w, 0x0_w ; @24
+  cmovge %4:w, %x:w ; @25
+  mov %y.1:w, %4:w ; @22
+  jmp @6 ; @23
 @6:
-  mov eax, %y.1:w ; @18
-  ret ; @19
+  mov eax, %y.1:w ; @20
+  ret ; @21
 }

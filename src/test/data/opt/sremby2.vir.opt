@@ -2,9 +2,9 @@ module foo
 
 export function w $foo(w %x) {
 @2:
-  %0 = lsr.w %x, 0x1f_w ; @4
-  %1 = add.w %x, %0 ; @5
-  %2 = and.w %1, 0x1_w ; @6
-  %3 = sub.w %2, %0 ; @7
-  ret %3
+  %4 = lsr.w %x, 0x1f_w ; @8
+  %5 = add.w %x, %4 ; @9
+  %6 = and.w %5, 0x1_w ; @10
+  %7 = sub.w %6, %4 ; @11
+  ret %7
 }

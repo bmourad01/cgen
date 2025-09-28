@@ -2,37 +2,37 @@ module stkarg
 
 export function $foo { ; returns: rax
 @2:
-  push rbp ; @46
-  mov rbp, rsp ; @47
-  mov eax, dword ptr [rbp + 0x10] ; @14
-  mov r10d, dword ptr [rbp + 0x18] ; @25
-  add rsi, rdi ; @32
-  add rcx, rdx ; @15
-  add rcx, rsi ; @16
-  lea rsi, qword ptr [r8 + r9*1] ; @17
-  movsxd rdx, eax ; @18
-  movsxd rax, r10d ; @19
-  add rax, rdx ; @20
-  add rax, rsi ; @21
-  add rax, rcx ; @22
-  leave ; @48
-  ret ; @24
+  push rbp ; @55
+  mov rbp, rsp ; @56
+  mov eax, dword ptr [rbp + 0x10] ; @23
+  mov r10d, dword ptr [rbp + 0x18] ; @34
+  add rsi, rdi ; @41
+  add rcx, rdx ; @24
+  add rcx, rsi ; @25
+  lea rsi, qword ptr [r8 + r9*1] ; @26
+  movsxd rdx, eax ; @27
+  movsxd rax, r10d ; @28
+  add rax, rdx ; @29
+  add rax, rsi ; @30
+  add rax, rcx ; @31
+  leave ; @57
+  ret ; @33
 }
 
 export function $bar { ; returns: rax
 @12:
-  push rbp ; @49
-  mov rbp, rsp ; @50
+  push rbp ; @58
+  mov rbp, rsp ; @59
   xor edi, edi ; @13
-  mov esi, 0x1_w ; @35
-  mov edx, 0x2_w ; @36
-  mov ecx, 0x3_w ; @37
-  mov r8d, 0x4_w ; @38
-  mov r9d, 0x5_w ; @39
-  sub rsp, 0x10_l ; @40
-  mov dword ptr [rsp + 0x0], 0x6_w ; @41
-  mov dword ptr [rsp + 0x8], 0x7_w ; @42
-  call $foo ; r8 r9 rcx rdi rdx rsi ; @43
-  leave ; @51
-  ret ; @34
+  mov esi, 0x1_w ; @44
+  mov edx, 0x2_w ; @45
+  mov ecx, 0x3_w ; @46
+  mov r8d, 0x4_w ; @47
+  mov r9d, 0x5_w ; @48
+  sub rsp, 0x10_l ; @49
+  mov dword ptr [rsp + 0x0], 0x6_w ; @50
+  mov dword ptr [rsp + 0x8], 0x7_w ; @51
+  call $foo ; r8 r9 rcx rdi rdx rsi ; @52
+  leave ; @60
+  ret ; @43
 }

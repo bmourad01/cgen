@@ -2,50 +2,45 @@ module int_pow
 
 export function $int_pow { ; returns: rax
 @2:
-  mov rcx, rdi ; @89
-  mov r8d, 0x1_w ; @91
-  mov edi, 0x1_w ; @92
+  mov r8, rdi ; @93
+  mov rdx, rsi ; @94
+  mov eax, 0x1_w ; @95
+  mov edi, 0x1_w ; @96
 @3:
-  test rsi, rsi ; @84
-  jne @9 ; @85
+  test rdx, rdx ; @88
+  jne @9 ; @89
 @10:
-  mov rax, r8 ; @82
-  ret ; @83
+  ret ; @87
 @9:
-  mov rax, rsi ; @28
-  and rax, 0x3_l ; @81
-  je @21 ; @71
-  dec rax ; @73
-  cmp rax, 0x2_l ; @74
-  ja @21 ; @75
-  lea rdx, qword ptr [rip + @69] ; @76
-  movsxd rax, dword ptr [rdx + rax*4] ; @77
-  add rax, rdx ; @78
-  jmp rax ; @79
-  .tbl @69 [@14, @15, @16] ; @80
+  mov rcx, rdx ; @46
+  and rcx, 0x3_l ; @85
+  imul r8, rdi ; @84
+  mov rdi, r8 ; @45
+  imul rdi, r8 ; @83
+  mov rsi, rax ; @44
+  imul rsi, r8 ; @82
+  test rcx, rcx ; @71
+  je @21 ; @72
+  dec rcx ; @74
+  cmp rcx, 0x2_l ; @75
+  ja @21 ; @76
+  lea r9, qword ptr [rip + @70] ; @77
+  movsxd rcx, dword ptr [r9 + rcx*4] ; @78
+  add rcx, r9 ; @79
+  jmp rcx ; @80
+  .tbl @70 [@52, @15, @16] ; @81
+@52:
+  mov rax, rsi ; @66
+  jmp @21 ; @67
 @16:
-  mov rdx, rcx ; @33
-  imul rdx, rdi ; @66
-  mov rax, rdx ; @35
-  imul rax, rdx ; @65
-  imul r8, rdx ; @64
-  imul r8, rax ; @63
-  jmp @21 ; @62
+  imul rsi, rdi ; @65
+  mov rax, rsi ; @63
+  jmp @21 ; @64
 @15:
-  mov rax, rcx ; @37
-  imul rax, rdi ; @60
-  imul r8, rax ; @59
-  imul r8, rax ; @58
-  jmp @21 ; @57
-@14:
-  mov rax, rcx ; @40
-  imul rax, rdi ; @55
-  imul r8, rax ; @54
+  imul rsi, r8 ; @62
+  mov rax, rsi ; @60
 @21:
-  imul rcx, rdi ; @51
-  mov rdi, rcx ; @30
-  imul rdi, rcx ; @50
-  imul rdi, rcx ; @49
-  sar rsi, 0x2_b ; @48
-  jmp @3 ; @47
+  imul rdi, r8 ; @59
+  sar rdx, 0x2_b ; @58
+  jmp @3 ; @57
 }

@@ -2,15 +2,15 @@ module foo
 
 function $foo { ; returns: rax
 @2:
-  cmp edi, 0x2a_w ; @28
-  jle @4 ; @29
-@17:
-  mov eax, 0x5_w ; @26
-  jmp @6 ; @27
+  cmp edi, 0x2a_w ; @30
+  jle @4 ; @31
+@19:
+  mov eax, 0x5_w ; @28
+  jmp @6 ; @29
 @4:
-  mov eax, 0x3_w ; @16
-  cmp edi, 0x0_w ; @22
-  cmovge eax, edi ; @23
+  mov eax, 0x3_w ; @18
+  cmp edi, 0x0_w ; @24
+  cmovge eax, edi ; @25
 @6:
-  ret ; @19
+  ret ; @21
 }

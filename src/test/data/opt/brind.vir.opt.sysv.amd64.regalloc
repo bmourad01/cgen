@@ -2,32 +2,32 @@ module brind
 
 export function $foo {
 @2:
-  test edi, edi ; @20
-  jns @3 ; @21
-@13:
-  mov eax, 0x1234_w ; @18
-  jmp rax ; @19
+  test edi, edi ; @23
+  jns @3 ; @24
+@16:
+  mov eax, 0x1234_w ; @21
+  jmp rax ; @22
 @3:
-  ret ; @17
+  ret ; @20
 }
 
 export function $bar {
 @5:
-  test edi, edi ; @28
-  jns @6 ; @29
-@14:
-  jmp rsi ; @27
+  test edi, edi ; @31
+  jns @6 ; @32
+@17:
+  jmp rsi ; @30
 @6:
-  ret ; @26
+  ret ; @29
 }
 
 export function $baz {
 @8:
-  test edi, edi ; @38
-  js @15 ; @39
-@16:
-  mov eax, 0x1234_w ; @36
-  jmp rax ; @37
-@15:
-  jmp rsi ; @35
+  test edi, edi ; @41
+  js @18 ; @42
+@19:
+  mov eax, 0x1234_w ; @39
+  jmp rax ; @40
+@18:
+  jmp rsi ; @38
 }

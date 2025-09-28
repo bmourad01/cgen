@@ -267,6 +267,8 @@ let is_effectful t n i =
 let add t l id n = match Resolver.resolve t.input.reso l with
   | None -> assert false
   | Some `blk _ -> Hashtbl.set t.ilbl ~key:id ~data:l
+  | Some `insn (i, _, _, _) when Dict.mem (Insn.dict i) Tags.pinned ->
+    Hash_set.add t.pinned id
   | Some `insn (i, _, _, _) when is_effectful t n i ->
     Hashtbl.set t.ilbl ~key:id ~data:l
   | Some `insn (_, b, lhs, _) ->

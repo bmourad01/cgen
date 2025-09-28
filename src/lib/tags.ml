@@ -16,3 +16,7 @@ let div_rem_nonzero = Dict.register
 let stack_laid_out = Dict.register
     ~uuid:"dcb47c73-b6be-421a-875b-5cbbd857aab3"
     "stack-laid-out" (module Unit)
+
+let pinned = Dict.register
+    ~uuid:"25b0acea-b459-46d8-bd8f-f3bf61d092bf"
+    "pinned" (module Unit)

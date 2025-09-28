@@ -3,11 +3,11 @@ module slotadd1
 export function $foo { ; returns: rax
   %x = slot 8, align 8
 @2:
-  lea %0:l, qword ptr [%x - 0x7fffffff] ; @6
-  mov rdi, %0:l ; @4
-  call $bar ; rdi ; @10
-  mov %r.2:l, rax ; @11
-  lea %1:l, qword ptr [%r.2 + 0x1] ; @7
-  mov rax, %1:l ; @8
-  ret ; @9
+  lea %2:l, qword ptr [%x - 0x7fffffff] ; @8
+  mov rdi, %2:l ; @4
+  call $bar ; rdi ; @12
+  mov %r.2:l, rax ; @13
+  lea %3:l, qword ptr [%r.2 + 0x1] ; @9
+  mov rax, %3:l ; @10
+  ret ; @11
 }

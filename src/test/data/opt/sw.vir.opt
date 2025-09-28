@@ -2,8 +2,8 @@ module sw
 
 export function $test() {
 @2:
-  %1 = eq.l $sym, 0x2_l ; @9
-  br %1, @5, @7
+  %2 = eq.l $sym, 0x2_l ; @10
+  br %2, @5, @7
 @5:
   hlt
 @7:

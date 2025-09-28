@@ -2,16 +2,16 @@ module stkarg
 
 export function $foo(l %a/rdi, l %b/rsi, l %c/rdx, l %d/rcx, l %e/r8, l %f/r9, w %g/+0, w %h/+8) {
 @2:
-  %0 = add.l %a, %b ; @14
-  %1 = add.l %c, %d ; @15
-  %2 = add.l %0, %1 ; @16
-  %3 = add.l %e, %f ; @17
-  %4 = sext.l %g ; @18
-  %5 = sext.l %h ; @19
-  %6 = add.l %4, %5 ; @20
-  %7 = add.l %3, %6 ; @21
-  %8 = add.l %2, %7 ; @22
-  ret rax/%8
+  %9 = add.l %a, %b ; @23
+  %10 = add.l %c, %d ; @24
+  %11 = add.l %9, %10 ; @25
+  %12 = add.l %e, %f ; @26
+  %13 = sext.l %g ; @27
+  %14 = sext.l %h ; @28
+  %15 = add.l %13, %14 ; @29
+  %16 = add.l %12, %15 ; @30
+  %17 = add.l %11, %16 ; @31
+  ret rax/%17
 }
 
 export function $bar() {
