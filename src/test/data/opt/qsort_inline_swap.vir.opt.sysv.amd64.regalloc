@@ -11,9 +11,10 @@ function $partition { ; returns: rax
   jle @9 ; @105
 @10:
   inc rax ; @73
-  mov esi, dword ptr [rcx + rax*4] ; @34
-  mov dword ptr [rcx + rax*4], edi ; @36
-  mov dword ptr [rcx + rdx*4], esi ; @37
+  mov edi, dword ptr [rcx + rax*4] ; @34
+  mov esi, dword ptr [rcx + rdx*4] ; @35
+  mov dword ptr [rcx + rax*4], esi ; @36
+  mov dword ptr [rcx + rdx*4], edi ; @37
   ret ; @102
 @9:
   mov r9d, dword ptr [rcx + rsi*4] ; @17

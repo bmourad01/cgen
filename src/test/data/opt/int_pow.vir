@@ -40,3 +40,47 @@ export function l $int_pow(l %base, l %exponent) {
 @done:
   ret %ret
 }
+
+export function l $int_pow_alt(l %base, l %exponent) {
+  %mul = slot 32, align 8
+@start:
+  ; ret = 1
+  %ret = copy.l 1_l
+  ; mul[0] = 1
+  st.l 1_l, %mul
+  ; mul[1] = base
+  %a1 = add.l %mul, 8_l
+  st.l %base, %a1
+  ; mul[3] = 1
+  %a3 = add.l %mul, 24_l
+  st.l 1_l, %a3
+  jmp @header
+@header:
+  %c = ne.l %exponent, 0_l
+  br %c, @loop, @done
+@loop:
+  %a1 = add.l %mul, 8_l
+  %a2 = add.l %mul, 16_l
+  %a3 = add.l %mul, 24_l
+  ; mul[1] *= mul[3]
+  %mul1 = ld.l %a1
+  %mul3 = ld.l %a3
+  %mul1 = mul.l %mul1, %mul3
+  st.l %mul1, %a1
+  ; mul[2] = mul[1] * mul[1]
+  %mul2 = mul.l %mul1, %mul1
+  st.l %mul2, %a2
+  ; mul[3] = mul[2] * mul[1]
+  %mul3 = mul.l %mul2, %mul1
+  st.l %mul3, %a3
+  ; res *= mul[exponent & 3]
+  %ae = and.l %exponent, 3_l
+  %ae = mul.l %ae, 8_l
+  %ae = add.l %mul, %ae
+  %mule = ld.l %ae
+  %ret = mul.l %ret, %mule
+  %exponent = asr.l %exponent, 2_l
+  jmp @header
+@done:
+  ret %ret
+}

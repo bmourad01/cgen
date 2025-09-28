@@ -256,9 +256,8 @@ module Optimize = struct
     | `ret rs -> `ret (List.map rs ~f:(fun (r, o) -> r, operand t o))
     | `sw (ty, i, d, tbl) -> sw t ty i d tbl
 
-  let setmem t l m = t.mem <- match m with
-      | None -> Solution.get t.lst l
-      | Some _ -> m
+  let setmem t l m =
+    t.mem <- Option.merge (Solution.get t.lst l) m ~f:Fn.const
 
   let step t l lst memo = match Abi.Resolver.resolve t.reso l with
     | None when Label.is_pseudo l -> ()

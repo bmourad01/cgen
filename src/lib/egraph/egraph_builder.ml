@@ -247,9 +247,8 @@ let ctrl env eg l : ctrl -> unit = function
    If it doesn't exist, then fall back to the solution from
    our last stores analysis.
 *)
-let setmem env eg l m = env.mem <- match m with
-    | None -> Solution.get eg.input.lst l
-    | Some _ -> m
+let setmem env eg l m =
+  env.mem <- Option.merge (Solution.get eg.input.lst l) m ~f:Fn.const
 
 let add_phi_value r env eg acc = function
   | #const as c ->
