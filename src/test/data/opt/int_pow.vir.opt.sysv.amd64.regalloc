@@ -60,8 +60,7 @@ export function $int_pow_alt { ; returns: rax
   ret ; @163
 @35:
   mov rdx, qword ptr [rsp + 0x8] ; @41
-  mov rcx, qword ptr [rsp + 0x18] ; @42
-  imul rdx, rcx ; @161
+  imul rdx, qword ptr [rsp + 0x18] ; @161
   mov qword ptr [rsp + 0x8], rdx ; @44
   mov rcx, rdx ; @96
   imul rcx, rdx ; @160

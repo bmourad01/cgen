@@ -119,8 +119,7 @@ export function $foo { ; returns: rax
   lea eax, qword ptr [rax + rsi*1 + 0x1b] ; @120
   lea edi, qword ptr [rax + rdx*1] ; @132
   mov eax, dword ptr [rsp] ; @247
-  mov edx, dword ptr [rsp + 0x4] ; @246
-  add eax, edx ; @114
+  add eax, dword ptr [rsp + 0x4] ; @114
   mov edx, dword ptr [rsp + 0x10] ; @249
   mov esi, dword ptr [rsp + 0x14] ; @248
   lea edx, qword ptr [rdx + rsi*1 + 0x1f] ; @118

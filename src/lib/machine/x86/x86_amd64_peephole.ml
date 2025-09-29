@@ -223,7 +223,7 @@ let collect_redundant_spill_after_reload fn =
           :: (l, Two (MOV, Omem (a1, t1), Oreg (r1, _)))
           :: xs when equal_amode a1 a2
                   && equal_memty t1 t2
-                  && Rv.equal r1 r2 ->
+                  && Rv.(r1 = r2) ->
           let acc = Lset.add acc l in
           go acc xs
         | _ :: xs -> go acc xs in
@@ -261,7 +261,7 @@ let collect_and_test fn =
         | [] | [_] -> acc
         | (_, Two (AND, Oreg (r1, _), _))
           :: (l, Two (TEST_, Oreg (r1', _), Oreg (r2', _)))
-          :: xs when Rv.equal r1 r1' && Rv.equal r1 r2' ->
+          :: xs when Rv.(r1 = r1') && Rv.(r1 = r2') ->
           go (Lset.add acc l) xs
         | (_, Two (AND, Oreg (r1, _), _))
           :: (l, Two (CMP, Oreg (r1', _), Oimm (0L, _)))
@@ -283,7 +283,7 @@ let collect_lea_mov fn =
         | [] | [_] -> acc
         | (_, Two (LEA, Oreg (r1, _), Omem (Abd (b, d), _)))
           :: (l, Two (MOV, Oreg (r1', r1t), Oreg (r2', _)))
-          :: xs when Rv.equal b r1' && Rv.equal r1 r2' ->
+          :: xs when Rv.(b = r1') && Rv.(r1 = r2') ->
           let i = match d with
             | 1l -> One (INC, Oreg (r1', r1t))
             | _ ->
@@ -296,6 +296,35 @@ let collect_lea_mov fn =
 let lea_mov fn =
   map_insns fn @@ collect_lea_mov fn
 
+(* TODO: fill me in *)
+let combinable_binop = function
+  | ADD
+  | SUB
+  | IMUL2
+  | AND
+  | OR
+  | XOR
+  | TEST_
+  | CMP -> true
+  | _ -> false
+
+let collect_mov_op fn =
+  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+      let rec go acc = function
+        | [] | [_] -> acc
+        | (_, Two (MOV, Oreg (r1, _), o))
+          :: (l, Two (op, Oreg (r1', r1t), Oreg (r2', _)))
+          :: xs when combinable_binop op
+                  && Rv.(r1 = r2')
+                  && not (Set.mem (rset [o]) r1) ->
+          let i = Two (op, Oreg (r1', r1t), o) in
+          go (Ltree.set acc ~key:l ~data:i) xs
+        | _ :: xs -> go acc xs in
+      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+
+let mov_op fn =
+  map_insns fn @@ collect_mov_op fn
+
 let run fn =
   let fn = jump_threading fn in
   let fn = remove_disjoint fn in
@@ -307,4 +336,5 @@ let run fn =
   let fn = reuse_lea fn in
   let fn = and_test fn in
   let fn = lea_mov fn in
+  let fn = mov_op fn in
   fn

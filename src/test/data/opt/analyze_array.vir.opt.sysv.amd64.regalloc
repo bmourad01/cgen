@@ -3,7 +3,7 @@ module analyze_array
 function $max { ; returns: rax
 @2:
   mov eax, esi ; @73
-  cmp edi, eax ; @71
+  cmp edi, esi ; @71
   cmovg eax, edi ; @72
   ret ; @70
 }
@@ -11,7 +11,7 @@ function $max { ; returns: rax
 function $min { ; returns: rax
 @6:
   mov eax, esi ; @81
-  cmp edi, eax ; @79
+  cmp edi, esi ; @79
   cmovl eax, edi ; @80
   ret ; @78
 }
@@ -40,14 +40,12 @@ export function $analyze_array { ; returns: rax
   mov ebx, edi ; @115
   xor r14d, r14d ; @117
 @13:
-  mov eax, dword ptr [rbp - 0xc] ; @123
-  cmp r14d, eax ; @109
+  cmp r14d, dword ptr [rbp - 0xc] ; @109
   jl @18 ; @110
 @19:
   sub edi, ebx ; @108
   call $square ; rdi ; @106
-  mov ecx, dword ptr [rbp - 0x10] ; @124
-  add eax, ecx ; @61
+  add eax, dword ptr [rbp - 0x10] ; @61
   pop rbx ; @135
   pop r15 ; @136
   pop r14 ; @137
@@ -69,8 +67,7 @@ export function $analyze_array { ; returns: rax
   call $square ; rdi ; @95
   mov ecx, r13d ; @66
   sub ecx, ebx ; @94
-  mov edx, dword ptr [rbp - 0x10] ; @125
-  add eax, edx ; @65
+  add eax, dword ptr [rbp - 0x10] ; @65
   add ecx, eax ; @67
   lea eax, qword ptr [r14 + 0x1] ; @68
   mov dword ptr [rbp - 0x10], ecx ; @126
