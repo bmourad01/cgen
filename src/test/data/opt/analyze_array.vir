@@ -1,0 +1,57 @@
+module analyze_array
+
+function w $max(w %a, w %b) {
+@start:
+  %c = sgt.w %a, %b
+  br %c, @yes, @no
+@yes:
+  ret %a
+@no:
+  ret %b
+}
+
+function w $min(w %a, w %b) {
+@start:
+  %c = slt.w %a, %b
+  br %c, @yes, @no
+@yes:
+  ret %a
+@no:
+  ret %b
+}
+
+function w $square(w %x) {
+@start:
+  %r = mul.w %x, %x
+  ret %r
+}
+
+export function w $analyze_array(l %arr, w %n) {
+@start:
+  %total = copy.w 0_w
+  %largest = ld.w %arr
+  %smallest = ld.w %arr
+  %i = copy.w 0_w
+  jmp @header
+@header:
+  %c = slt.w %i, %n
+  br %c, @loop, @done
+@loop:
+  %a = zext.l %i
+  %a = mul.l %a, 4_l
+  %a = add.l %arr, %a
+  %value = ld.w %a
+  %largest = call.w $max(%largest, %value)
+  %smallest = call.w $min(%smallest, %value)
+  %sq = call.w $square(%value)
+  %diff = sub.w %largest, %smallest
+  %sdiff = add.w %sq, %diff
+  %total = add.w %total, %sdiff
+  %i = add.w %i, 1_w
+  jmp @header
+@done:
+  %range = sub.w %largest, %smallest
+  %sq = call.w $square(%range)
+  %total = add.w %total, %sq
+  ret %total
+}

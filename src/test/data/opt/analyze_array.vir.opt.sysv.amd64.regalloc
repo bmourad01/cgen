@@ -1,0 +1,80 @@
+module analyze_array
+
+function $max { ; returns: rax
+@2:
+  mov eax, esi ; @73
+  cmp edi, eax ; @71
+  cmovg eax, edi ; @72
+  ret ; @70
+}
+
+function $min { ; returns: rax
+@6:
+  mov eax, esi ; @81
+  cmp edi, eax ; @79
+  cmovl eax, edi ; @80
+  ret ; @78
+}
+
+function $square { ; returns: rax
+@10:
+  mov eax, edi ; @87
+  imul eax, edi ; @88
+  ret ; @86
+}
+
+export function $analyze_array { ; returns: rax
+@12:
+  push rbp ; @127
+  mov rbp, rsp ; @128
+  sub rsp, 0x18_l ; @129
+  push r12 ; @130
+  push r13 ; @131
+  push r14 ; @132
+  push r15 ; @133
+  push rbx ; @134
+  mov r15, rdi ; @15
+  mov dword ptr [rbp - 0xc], esi ; @121
+  mov edi, dword ptr [r15] ; @120
+  mov dword ptr [rbp - 0x10], 0x0_w ; @122
+  mov ebx, edi ; @115
+  xor r14d, r14d ; @117
+@13:
+  mov eax, dword ptr [rbp - 0xc] ; @123
+  cmp r14d, eax ; @109
+  jl @18 ; @110
+@19:
+  sub edi, ebx ; @108
+  call $square ; rdi ; @106
+  mov ecx, dword ptr [rbp - 0x10] ; @124
+  add eax, ecx ; @61
+  pop rbx ; @135
+  pop r15 ; @136
+  pop r14 ; @137
+  pop r13 ; @138
+  pop r12 ; @139
+  leave ; @140
+  ret ; @105
+@18:
+  mov eax, r14d ; zx ; @62
+  mov r12d, dword ptr [r15 + rax*4] ; @24
+  mov esi, r12d ; @100
+  call $max ; rdi rsi ; @101
+  mov r13d, eax ; @102
+  mov edi, ebx ; @26
+  mov esi, r12d ; @97
+  call $min ; rdi rsi ; @98
+  mov ebx, eax ; @99
+  mov edi, r12d ; @27
+  call $square ; rdi ; @95
+  mov ecx, r13d ; @66
+  sub ecx, ebx ; @94
+  mov edx, dword ptr [rbp - 0x10] ; @125
+  add eax, edx ; @65
+  add ecx, eax ; @67
+  lea eax, qword ptr [r14 + 0x1] ; @68
+  mov dword ptr [rbp - 0x10], ecx ; @126
+  mov edi, r13d ; @91
+  mov r14d, eax ; @92
+  jmp @13 ; @93
+}
