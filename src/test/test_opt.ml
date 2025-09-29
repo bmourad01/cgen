@@ -301,6 +301,7 @@ let opt_suite = "Test optimizations" >::: [
     "Integer pow" >:: test "int_pow";
     "AND test" >:: test "and_test";
     "No sinking" >:: test "nosink";
+    "Spill test 2" >:: test "spill2";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -402,6 +403,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Integer pow (SysV AMD64)" >:: test_sysv_amd64_regalloc "int_pow";
     "AND test (SysV AMD64)" >:: test_sysv_amd64_regalloc "and_test";
     "No sinking (SysV AMD64)" >:: test_sysv_amd64_regalloc "nosink";
+    "Spill test 2 (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill2";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -423,6 +425,7 @@ let native_suite = "Test native code" >::: [
     "Integer pow (SysV AMD64)" >:: test_sysv_amd64_native "int_pow";
     "AND test (SysV AMD64)" >:: test_sysv_amd64_native "and_test";
     "No sinking (SysV AMD64)" >:: test_sysv_amd64_native "nosink";
+    "Spill test 2 (SysV AMD64)" >:: test_sysv_amd64_native "spill2";
   ]
 
 let () = run_test_tt_main @@ test_list [

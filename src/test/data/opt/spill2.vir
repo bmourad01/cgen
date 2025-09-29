@@ -1,0 +1,49 @@
+module spill2
+
+export function w $foo(l %a, l %b, l %c, l %d, w %n) {
+@start:
+  %sum = copy.w 0_w
+  %i = copy.w 0_w
+  jmp @header
+@header:
+  %k = slt.w %i, %n
+  br %k, @loop, @done
+@loop:
+  %il = zext.l %i
+  %il = mul.l %il, 4_l
+  %aa = add.l %a, %il
+  %ab = add.l %b, %il
+  %ac = add.l %c, %il
+  %ad = add.l %d, %il
+  %t1 = ld.w %aa
+  %t2 = ld.w %ab
+  %t3 = ld.w %ac
+  %t4 = ld.w %ad
+  %j = copy.w 0_w
+  jmp @inner_header
+@inner_header:
+  %k = slt.w %j, %n
+  br %k, @inner_loop, @loop_done
+@inner_loop:
+  %x1 = add.w %t1, %j
+  %x2 = add.w %t2, %j
+  %x3 = add.w %t3, %j
+  %x4 = add.w %t4, %j
+  %y1 = mul.w %x1, %x2
+  %y2 = mul.w %x3, %x4
+  %z1 = add.w %y1, %x3
+  %z2 = add.w %y2, %x4
+  %sa = xor.w %z1, %z2
+  %sum = add.w %sum, %sa
+  %j = add.w %j, 1_w
+  jmp @inner_header
+@loop_done:
+  %cold1 = add.w %t1, %t2
+  %cold2 = add.w %t3, %t4
+  %prod = mul.w %cold1, %cold2
+  %sum = add.w %sum, %prod
+  %i = add.w %i, 1_w
+  jmp @header
+@done:
+  ret %sum
+}

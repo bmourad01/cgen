@@ -1,0 +1,66 @@
+module spill2
+
+export function $foo { ; returns: rax
+@2:
+  push r12 ; @126
+  push r13 ; @127
+  push r14 ; @128
+  push r15 ; @129
+  push rbx ; @130
+  sub rsp, 0x10_l ; @131
+  mov qword ptr [rsp + 0x8], rdi ; @122
+  mov qword ptr [rsp], rsi ; @123
+  mov r15, rdx ; @116
+  mov r14, rcx ; @117
+  mov r10d, r8d ; @118
+  xor r12d, r12d ; @119
+  xor r13d, r13d ; @120
+@3:
+  cmp r13d, r10d ; @109
+  jl @6 ; @110
+@7:
+  mov eax, r12d ; @107
+  add rsp, 0x10_l ; @132
+  pop rbx ; @133
+  pop r15 ; @134
+  pop r14 ; @135
+  pop r13 ; @136
+  pop r12 ; @137
+  ret ; @108
+@6:
+  mov ecx, r13d ; zx ; @65
+  mov rax, qword ptr [rsp + 0x8] ; @124
+  mov esi, dword ptr [rax + rcx*4] ; @16
+  mov rax, qword ptr [rsp] ; @125
+  mov edi, dword ptr [rax + rcx*4] ; @17
+  mov r8d, dword ptr [r15 + rcx*4] ; @18
+  mov r9d, dword ptr [r14 + rcx*4] ; @19
+  xor eax, eax ; @104
+@9:
+  cmp eax, r10d ; @98
+  jl @21 ; @99
+@22:
+  lea eax, qword ptr [rsi + rdi*1] ; @72
+  lea ecx, qword ptr [r8 + r9*1] ; @73
+  imul eax, ecx ; @97
+  add r12d, eax ; @75
+  lea eax, qword ptr [r13 + 0x1] ; @76
+  mov r13d, eax ; @95
+  jmp @3 ; @96
+@21:
+  lea edx, qword ptr [rsi + rax*1] ; @77
+  lea ecx, qword ptr [rdi + rax*1] ; @78
+  lea ebx, qword ptr [r8 + rax*1] ; @80
+  lea r11d, qword ptr [r9 + rax*1] ; @82
+  imul edx, ecx ; @93
+  mov ecx, ebx ; @83
+  imul ecx, r11d ; @92
+  add edx, ebx ; @81
+  add r11d, ecx ; @84
+  mov ecx, edx ; @85
+  xor ecx, r11d ; @91
+  add ecx, r12d ; @86
+  inc eax ; @87
+  mov r12d, ecx ; @88
+  jmp @9 ; @90
+}
