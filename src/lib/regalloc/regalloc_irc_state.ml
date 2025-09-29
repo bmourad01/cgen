@@ -76,7 +76,7 @@ module Make(M : Machine_intf.S) = struct
     loop            : Loop.t;
     spill_cost      : int Rv.Table.t;
     dom             : Label.t Semi_nca.tree;
-  } [@@ocaml.warning "-69"]
+  }
 
   (* Explicit registers and variables that correspond to stack slots
      should be excluded from consideration. *)
