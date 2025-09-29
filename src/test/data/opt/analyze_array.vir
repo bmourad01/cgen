@@ -55,3 +55,35 @@ export function w $analyze_array(l %arr, w %n) {
   %total = add.w %total, %sq
   ret %total
 }
+
+export function w $analyze_array_inl(l %arr, w %n) {
+@start:
+  %total = copy.w 0_w
+  %largest = ld.w %arr
+  %smallest = ld.w %arr
+  %i = copy.w 0_w
+  jmp @header
+@header:
+  %c = slt.w %i, %n
+  br %c, @loop, @done
+@loop:
+  %a = zext.l %i
+  %a = mul.l %a, 4_l
+  %a = add.l %arr, %a
+  %value = ld.w %a
+  %c = sgt.w %largest, %value
+  %largest = sel.w %c, %largest, %value
+  %c = slt.w %smallest, %value    
+  %smallest = sel.w %c, %smallest, %value
+  %sq = mul.w %value, %value    
+  %diff = sub.w %largest, %smallest
+  %sdiff = add.w %sq, %diff
+  %total = add.w %total, %sdiff
+  %i = add.w %i, 1_w
+  jmp @header
+@done:
+  %range = sub.w %largest, %smallest
+  %sq = mul.w %range, %range
+  %total = add.w %total, %sq
+  ret %total
+}
