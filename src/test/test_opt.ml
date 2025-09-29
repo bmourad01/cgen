@@ -102,7 +102,7 @@ let test_regalloc target abi ext name _ =
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
 type proc = {
-  code   : int;
+  code   : Shexp_process.Exit_status.t;
   stdout : string;
   stderr : string;
 }
@@ -115,7 +115,7 @@ let run_process cmd args =
   with_temp_file ~prefix:"stderr" ~suffix:".log" @@ fun stderr_file ->
   stdout_to stdout_file @@
   stderr_to stderr_file @@
-  run_exit_code cmd args >>= fun code ->
+  run_exit_status cmd args >>= fun code ->
   return {
     code;
     stdout = In_channel.read_all stdout_file;
@@ -124,9 +124,14 @@ let run_process cmd args =
 
 let compile_c_driver asm driver exe =
   let p = run_process "cc" [asm; driver; "-o"; exe; "-g"] in
-  Context.unless (p.code = 0) @@ fun () ->
-  Context.failf "failed to compile C driver program %s (error code %d): %s"
-    driver p.code p.stderr ()
+  match p.code with
+  | Shexp_process.Exit_status.Exited n ->
+    Context.unless (n = 0) @@ fun () ->
+    Context.failf "failed to compile C driver program %s (error code %d): %s"
+      driver n p.stderr ()
+  | Shexp_process.Exit_status.Signaled n ->
+    Context.failf "failed to compile C driver program %s (signaled %d): %s"
+      driver n p.stderr ()
 
 let output_asm m file =
   let open Context.Syntax in
@@ -153,10 +158,17 @@ let test_native target abi ext name _ =
   end |> function
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
   | Ok p ->
-    let msg = Format.sprintf
-        "Unexpected return code: got %d, expected 0\n\n\
-         STDERR:\n%s\n" p.code p.stderr in
-    assert_bool msg (p.code = 0);
+    begin match p.code with
+      | Shexp_process.Exit_status.Exited n ->
+        let msg = Format.sprintf
+            "Unexpected return code: got %d, expected 0\n\n\
+             STDERR:\n%s\n" n p.stderr in
+        assert_bool msg (n = 0)
+      | Shexp_process.Exit_status.Signaled n ->
+        assert_failure @@ Format.sprintf
+          "Process signaled %d, expected return code 0\n\n\
+           STDERR:\n:%s\n" n p.stderr
+    end;
     if Shexp_process.(eval @@ file_exists driver_output) then
       let contents = In_channel.read_all driver_output in
       let msg = Format.asprintf
