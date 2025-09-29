@@ -53,8 +53,7 @@ function $partition { ; returns: rax
   call $swap ; rdi rsi ; @95
   mov rcx, r13 ; @92
 @19:
-  lea rax, qword ptr [rbx + 0x1] ; @78
-  mov rbx, rax ; @89
+  inc rbx ; @89
   jmp @8 ; @91
 }
 

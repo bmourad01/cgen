@@ -44,8 +44,7 @@ export function $foo { ; returns: rax
   lea ecx, qword ptr [r8 + r9*1] ; @73
   imul eax, ecx ; @97
   add r12d, eax ; @75
-  lea eax, qword ptr [r13 + 0x1] ; @76
-  mov r13d, eax ; @95
+  inc r13d ; @95
   jmp @3 ; @96
 @21:
   lea edx, qword ptr [rsi + rax*1] ; @77

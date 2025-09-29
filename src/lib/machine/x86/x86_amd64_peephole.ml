@@ -273,6 +273,29 @@ let collect_and_test fn =
 let and_test fn =
   filter_not_in fn @@ collect_and_test fn
 
+let immty = function
+  | #Type.imm as imm -> imm
+  | _ -> assert false
+
+let collect_lea_mov fn =
+  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+      let rec go acc = function
+        | [] | [_] -> acc
+        | (_, Two (LEA, Oreg (r1, _), Omem (Abd (b, d), _)))
+          :: (l, Two (MOV, Oreg (r1', r1t), Oreg (r2', _)))
+          :: xs when Rv.equal b r1' && Rv.equal r1 r2' ->
+          let i = match d with
+            | 1l -> One (INC, Oreg (r1', r1t))
+            | _ ->
+              let d = Int64.(of_int32 d land 0xFFFFFFFFL) in
+              Two (ADD, Oreg (r1', r1t), Oimm (d, immty r1t)) in
+          go (Ltree.set acc ~key:l ~data:i) xs
+        | _ :: xs -> go acc xs in
+      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+
+let lea_mov fn =
+  map_insns fn @@ collect_lea_mov fn
+
 let run fn =
   let fn = jump_threading fn in
   let fn = remove_disjoint fn in
@@ -283,4 +306,5 @@ let run fn =
   let fn = redundant_spill_after_reload fn in
   let fn = reuse_lea fn in
   let fn = and_test fn in
+  let fn = lea_mov fn in
   fn
