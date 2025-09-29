@@ -113,8 +113,8 @@ end = struct
     let*! () = guard @@ not @@ Rv.equal x y in
     match xt, yt with
     | (`i64 | `i32), `i32 when zx ->
-      (* Implicit zero-extension; use the special variant. *)
-      !!![I.mov_ (Oreg (x, yt)) (Oreg (y, yt))]
+      (* Implicit zero-extension. *)
+      !!![I.mov (Oreg (x, yt)) (Oreg (y, yt))]
     | (#Type.imm as xi), (#Type.imm as yi)
       when Type.sizeof_imm xi > Type.sizeof_imm yi ->
       (* Assume zero-extension is desired. *)

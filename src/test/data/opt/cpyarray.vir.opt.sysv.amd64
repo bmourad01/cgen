@@ -14,7 +14,7 @@ export function $foo {
 @6:
   ret ; @32
 @5:
-  mov %7:w, %i.2:w ; zx ; @24
+  mov %7:w, %i.2:w ; @24
   mov %w.1:w, dword ptr [%src + %7*4] ; @11
   mov dword ptr [%arr + %7*4], %w.1:w ; @15
   lea %11:w, qword ptr [%i.2 + 0x1] ; @28

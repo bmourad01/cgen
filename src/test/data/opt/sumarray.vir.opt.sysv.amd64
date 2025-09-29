@@ -16,7 +16,7 @@ export function $foo { ; returns: rax
   mov rax, %12:l ; @32
   ret ; @33
 @6:
-  mov %7:w, %i.2:w ; zx ; @22
+  mov %7:w, %i.2:w ; @22
   mov %w.1:w, dword ptr [%arr + %7*4] ; @12
   lea %10:w, qword ptr [%w.1 + %s.2*1] ; @25
   lea %11:w, qword ptr [%i.2 + 0x1] ; @26

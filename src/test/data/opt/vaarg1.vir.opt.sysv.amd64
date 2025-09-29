@@ -52,9 +52,9 @@ export function $foo { ; returns: rax
   mov %53:l, %50:l ; @107
   jmp @71 ; @108
 @69:
-  mov %42:w, %36:w ; zx ; @79
+  mov %42:w, %36:w ; @79
   lea %43:l, qword ptr [%10 + %42*1] ; @80
-  mov %44:w, %38:w ; zx ; @81
+  mov %44:w, %38:w ; @81
   lea %45:l, qword ptr [%10 + %44*1] ; @82
   lea %46:w, qword ptr [%36 + 0x10] ; @83
   lea %47:w, qword ptr [%38 + 0x8] ; @84

@@ -43,10 +43,8 @@ export function $foo { ; returns: rax
   mov qword ptr [rbp - 0x38], rdx ; @91
   jmp @71 ; @108
 @69:
-  mov eax, esi ; zx ; @79
-  lea rcx, qword ptr [rbp + rax*1 - 0xf0] ; @80
-  mov eax, edx ; zx ; @81
-  lea rax, qword ptr [rbp + rax*1 - 0xf0] ; @82
+  lea rcx, qword ptr [rbp + rsi*1 - 0xf0] ; @80
+  lea rax, qword ptr [rbp + rdx*1 - 0xf0] ; @82
   add esi, 0x10_w ; @83
   add edx, 0x8_w ; @84
   mov dword ptr [rbp - 0x3c], esi ; @85
