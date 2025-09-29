@@ -1,0 +1,24 @@
+module nosink
+
+export function w $foo(w %x) {
+@start:
+  %a = mul.w %x, 5_w
+  %c = eq.w %x, 0_w
+  br %c, @zero, @notzero
+@zero:
+  %a = add.w %a, 1_w
+  jmp @final
+@notzero:
+  %a = add.w %a, 2_w
+  %c = eq.w %x, 1_w
+  br %c, @one, @notone
+@one:
+  %a = add.w %a, 3_w
+  jmp @final
+@notone:
+  %a = add.w %a, 4_w
+  jmp @final
+@final:
+  %a = sub.w %a, 1_w
+  ret %a
+}

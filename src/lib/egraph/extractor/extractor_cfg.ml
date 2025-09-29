@@ -361,7 +361,8 @@ module Hoisting = struct
     find_moved t id cid |> Lset.map ~f:(fun l ->
         match Resolver.resolve t.eg.input.reso l with
         | Some `insn (_, b, _, _) -> Blk.label b
-        | Some `blk _ | None -> assert false)
+        | Some `blk b -> Blk.label b
+        | None -> assert false)
 
   let rec post_dominated t l bs =
     match Semi_nca.Tree.parent t.eg.input.pdom l with
