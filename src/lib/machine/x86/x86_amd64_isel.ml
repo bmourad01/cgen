@@ -1425,10 +1425,15 @@ end = struct
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, _ = S.imm env "z" in
-    let z = Bv.to_int64 z in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.shl (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
-    ]
+    let z = Bv.to_int64 z in
+    match z with
+    | 1L when can_lea_ty xt ->
+      !!![I.lea (Oreg (x, xt)) (Omem (Abis (y, y, S1), `i64))]
+    | _ ->
+      !!![
+        I.mov (Oreg (x, xt)) (Oreg (y, yt));
+        I.shl (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
+      ]
 
   let lsr_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in

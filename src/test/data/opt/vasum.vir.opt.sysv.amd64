@@ -81,7 +81,7 @@ export function $twenty_eight { ; returns: rax
   mov r8d, 0x4_w ; @113
   mov r9d, 0x5_w ; @114
   sub rsp, 0x10_l ; @115
-  mov dword ptr [rsp + 0x0], 0x6_w ; @116
+  mov dword ptr [rsp], 0x6_w ; @116
   mov dword ptr [rsp + 0x8], 0x7_w ; @117
   xor al, al ; @118
   call $sum ; r8 r9 rax rcx rdi rdx rsi ; @119

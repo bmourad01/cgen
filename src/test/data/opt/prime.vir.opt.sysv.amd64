@@ -3,29 +3,29 @@ module foo
 export function $foo { ; returns: rax
 @2:
   mov %n:w, edi ; @44
-  cmp %n:w, 0x1_w ; @128
-  jbe @59 ; @129
-  jmp @4 ; @130
+  cmp %n:w, 0x1_w ; @127
+  jbe @59 ; @128
+  jmp @4 ; @129
 @59:
-  xor %0:w, %0:w ; @126
-  jmp @28 ; @127
+  xor %0:w, %0:w ; @125
+  jmp @28 ; @126
 @4:
-  cmp %n:w, 0x3_w ; @121
-  jbe @60 ; @122
-  jmp @7 ; @123
+  cmp %n:w, 0x3_w ; @120
+  jbe @60 ; @121
+  jmp @7 ; @122
 @60:
-  mov %0:w, 0x1_w ; @119
-  jmp @28 ; @120
+  mov %0:w, 0x1_w ; @118
+  jmp @28 ; @119
 @7:
-  test %n:w, 0x1_w ; @113
-  je @61 ; @114
-  jmp @9 ; @115
+  test %n:w, 0x1_w ; @112
+  je @61 ; @113
+  jmp @9 ; @114
 @61:
-  xor %0:w, %0:w ; @111
-  jmp @28 ; @112
+  xor %0:w, %0:w ; @110
+  jmp @28 ; @111
 @9:
   imul %20:l, %n:l, 0x55555556 ; @48
-  shr %20:l, 0x20_b ; @110
+  shr %20:l, 0x20_b ; @109
   lea %22:w, qword ptr [%20 + %20*2] ; @50
   mov %23:w, %n:w ; @51
   sub %23:w, %22:w ; @108

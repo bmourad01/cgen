@@ -185,6 +185,8 @@ module Insn = struct
   let pp_amode ppf = function
     | Ab b ->
       Format.fprintf ppf "%a" Regvar.pp b
+    | Abd (b, 0l) ->
+      Format.fprintf ppf "%a" Regvar.pp b
     | Abd (b, d) when Int32.(d < 0l) ->
       Format.fprintf ppf "%a - 0x%lx"
         Regvar.pp b (Int32.neg d)
@@ -193,12 +195,17 @@ module Insn = struct
     | Abis (b, i, s) ->
       Format.fprintf ppf "%a + %a*%a"
         Regvar.pp b Regvar.pp i pp_scale s
+    | Aisd (i, s, 0l) ->
+      Format.fprintf ppf "%a*%a" Regvar.pp i pp_scale s
     | Aisd (i, s, d) when Int32.(d < 0l) ->
       Format.fprintf ppf "%a*%a - 0x%lx"
         Regvar.pp i pp_scale s (Int32.neg d)
     | Aisd (i, s, d) ->
       Format.fprintf ppf "%a*%a + 0x%lx"
         Regvar.pp i pp_scale s d
+    | Abisd (b, i, s, 0l) ->
+      Format.fprintf ppf "%a + %a*%a"
+        Regvar.pp b Regvar.pp i pp_scale s
     | Abisd (b, i, s, d) when Int32.(d < 0l) ->
       Format.fprintf ppf "%a + %a*%a - 0x%lx"
         Regvar.pp b Regvar.pp i pp_scale s (Int32.neg d)

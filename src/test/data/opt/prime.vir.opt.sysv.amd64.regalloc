@@ -3,26 +3,26 @@ module foo
 export function $foo { ; returns: rax
 @2:
   mov esi, edi ; @44
-  cmp esi, 0x1_w ; @128
-  ja @4 ; @129
+  cmp esi, 0x1_w ; @127
+  ja @4 ; @128
 @59:
-  xor eax, eax ; @126
-  jmp @28 ; @127
+  xor eax, eax ; @125
+  jmp @28 ; @126
 @4:
-  cmp esi, 0x3_w ; @121
-  ja @7 ; @122
+  cmp esi, 0x3_w ; @120
+  ja @7 ; @121
 @60:
-  mov eax, 0x1_w ; @119
-  jmp @28 ; @120
+  mov eax, 0x1_w ; @118
+  jmp @28 ; @119
 @7:
-  test esi, 0x1_w ; @113
-  jne @9 ; @114
+  test esi, 0x1_w ; @112
+  jne @9 ; @113
 @61:
-  xor eax, eax ; @111
-  jmp @28 ; @112
+  xor eax, eax ; @110
+  jmp @28 ; @111
 @9:
   imul rax, rsi, 0x55555556 ; @48
-  shr rax, 0x20_b ; @110
+  shr rax, 0x20_b ; @109
   lea ecx, qword ptr [rax + rax*2] ; @50
   mov eax, esi ; @51
   sub eax, ecx ; @108

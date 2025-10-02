@@ -2,15 +2,15 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  xor eax, eax ; @67
+  xor eax, eax ; @66
 @3:
-  cmp edi, 0x1_w ; @60
-  ja @6 ; @61
+  cmp edi, 0x1_w ; @59
+  ja @6 ; @60
 @7:
-  ret ; @59
+  ret ; @58
 @6:
-  test edi, 0x1_w ; @52
-  je @10 ; @53
+  test edi, 0x1_w ; @51
+  je @10 ; @52
 @11:
   lea edi, qword ptr [rdi + rdi*2 + 0x1] ; @41
   jmp @15 ; @50

@@ -4,7 +4,7 @@ export function $foo { ; returns: rax
 @2:
   sub rsp, 0x18_l ; @22
   mov eax, esi ; @16
-  lea rdx, qword ptr [rsp + 0x0] ; @14
+  lea rdx, qword ptr [rsp] ; @14
   lea rcx, qword ptr [rsp + 0x8] ; @20
   cmp rdx, rcx ; @21
   cmova eax, edi ; @15

@@ -30,7 +30,7 @@ export function $bar { ; returns: rax
   mov r8d, 0x4_w ; @47
   mov r9d, 0x5_w ; @48
   sub rsp, 0x10_l ; @49
-  mov dword ptr [rsp + 0x0], 0x6_w ; @50
+  mov dword ptr [rsp], 0x6_w ; @50
   mov dword ptr [rsp + 0x8], 0x7_w ; @51
   call $foo ; r8 r9 rcx rdi rdx rsi ; @52
   leave ; @60

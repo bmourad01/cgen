@@ -105,18 +105,24 @@ let emit_amode ppf (a : Insn.amode) =
   match a with
   | Ab b ->
     Format.fprintf ppf "%a" rv b
+  | Abd (b, 0l) ->
+    Format.fprintf ppf "%a" rv b
   | Abd (b, d) when Int32.(d < 0l) ->
     Format.fprintf ppf "%a - 0x%lx" rv b (Int32.neg d)
   | Abd (b, d) ->
     Format.fprintf ppf "%a + 0x%lx" rv b d
   | Abis (b, i, s) ->
     Format.fprintf ppf "%a + %a*%a" rv b rv i Insn.pp_scale s
+  | Aisd (i, s, 0l) ->
+    Format.fprintf ppf "%a*%a" rv i Insn.pp_scale s
   | Aisd (i, s, d) when Int32.(d < 0l) ->
     Format.fprintf ppf "%a*%a - 0x%lx"
       rv i Insn.pp_scale s (Int32.neg d)
   | Aisd (i, s, d) ->
     Format.fprintf ppf "%a*%a + 0x%lx"
       rv i Insn.pp_scale s d
+  | Abisd (b, i, s, 0l) ->
+    Format.fprintf ppf "%a + %a*%a" rv b rv i Insn.pp_scale s
   | Abisd (b, i, s, d) when Int32.(d < 0l) ->
     Format.fprintf ppf "%a + %a*%a - 0x%lx"
       rv b rv i Insn.pp_scale s (Int32.neg d)

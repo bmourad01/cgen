@@ -2,21 +2,21 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %n:w, edi ; @65
-  mov %x.2:w, %n:w ; @66
-  xor %count.2:w, %count.2:w ; @67
-  jmp @3 ; @68
+  mov %n:w, edi ; @64
+  mov %x.2:w, %n:w ; @65
+  xor %count.2:w, %count.2:w ; @66
+  jmp @3 ; @67
 @3:
-  cmp %x.2:w, 0x1_w ; @60
-  ja @6 ; @61
-  jmp @7 ; @62
+  cmp %x.2:w, 0x1_w ; @59
+  ja @6 ; @60
+  jmp @7 ; @61
 @7:
-  mov eax, %count.2:w ; @58
-  ret ; @59
+  mov eax, %count.2:w ; @57
+  ret ; @58
 @6:
-  test %x.2:w, 0x1_w ; @52
-  je @10 ; @53
-  jmp @11 ; @54
+  test %x.2:w, 0x1_w ; @51
+  je @10 ; @52
+  jmp @11 ; @53
 @11:
   lea %14:w, qword ptr [%x.2 + %x.2*2 + 0x1] ; @41
   mov %x.3:w, %14:w ; @49

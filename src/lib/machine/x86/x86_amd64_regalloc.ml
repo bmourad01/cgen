@@ -127,6 +127,15 @@ let substitute' i op = match i with
       | LEA, Oreg (x, ty), Omem (Abis (y, z, S1), _) when Regvar.(x = z) ->
         (* lea x, [y+x*1] => add x, y *)
         Two (ADD, Oreg (x, ty), Oreg (y, ty))
+      | LEA, Oreg (x, ty), Omem (Aisd (y, S2, 0l), _) when Regvar.(x = y) ->
+        (* lea x, [x*2] => shl x, 1 *)
+        Two (SHL, Oreg (x, ty), Oimm (1L, `i8))
+      | LEA, Oreg (x, ty), Omem (Aisd (y, S4, 0l), _) when Regvar.(x = y) ->
+        (* lea x, [x*4] => shl x, 2 *)
+        Two (SHL, Oreg (x, ty), Oimm (2L, `i8))
+      | LEA, Oreg (x, ty), Omem (Aisd (y, S8, 0l), _) when Regvar.(x = y) ->
+        (* lea x, [x*8] => shl x, 3 *)
+        Two (SHL, Oreg (x, ty), Oimm (3L, `i8))
       | o, a, b ->
         (* Default case. *)
         Two (o, a, b)
