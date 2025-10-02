@@ -428,6 +428,7 @@ let native_suite = "Test native code" >::: [
     "No sinking (SysV AMD64)" >:: test_sysv_amd64_native "nosink";
     "Spill test 2 (SysV AMD64)" >:: test_sysv_amd64_native "spill2";
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_native "analyze_array";
+    "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_native "uremby7";
   ]
 
 let () = run_test_tt_main @@ test_list [
