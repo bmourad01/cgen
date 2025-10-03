@@ -54,16 +54,14 @@ let not_visited pre = Fn.non @@ Hashtbl.mem pre
 (* Initialize the DFS spanning tree. *)
 let dfs g pre entry dir =
   let preord = Vec.create () in
-  let rec aux = function
-    | (u, p) :: init when not_visited pre u ->
-      let n = Vec.length preord in
-      Hashtbl.set pre ~key:u ~data:n;
-      Vec.push preord @@ create_node p n u;
-      dir u g |> Seq.filter ~f:(not_visited pre) |>
-      Seq.fold ~init ~f:(fun s v -> (v, n) :: s) |> aux
-    | _ :: rest -> aux rest
-    | [] -> () in
-  aux [entry, 0];
+  let q = Stack.singleton (entry, 0) in
+  Stack.until_empty q (fun (u, p) ->
+      if not_visited pre u then
+        let n = Vec.length preord in
+        Hashtbl.set pre ~key:u ~data:n;
+        Vec.push preord @@ create_node p n u;
+        dir u g |> Seq.filter ~f:(not_visited pre) |>
+        Seq.iter ~f:(fun v -> Stack.push q (v, n)));
   preord
 
 (* Compute the path containing v's ancestors. *)
