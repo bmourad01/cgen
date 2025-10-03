@@ -83,6 +83,14 @@ module type S_insn = sig
     (** Returns [true] if the instruction does not implicitly fall through. *)
     val is_barrier : t -> bool
 
+    (** Returns [true] if this is a pseudo-instruction.
+
+        A pseudo-instruction does not exist in the target instruction set,
+        but is useful for e.g. creating signposts for certain passes in the
+        compiler.
+    *)
+    val is_pseudo : t -> bool
+
     (** Pretty-prints the instruction. *)
     val pp : Format.formatter -> t -> unit
   end

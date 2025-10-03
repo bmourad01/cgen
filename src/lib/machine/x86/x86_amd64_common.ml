@@ -939,18 +939,19 @@ module Insn = struct
       -> true
     | i -> writes_to_memory i
 
-  let is_barrier = function
-    | JMP _
-    | UD2
-    | RET
-    (* These are pseudo-instructions, with no actual
-       semantics, but let's lump them in this category
-       anyway. *)
+  let is_pseudo = function
     | JMPtbl _
     | FP32 _
     | FP64 _
       -> true
     | _ -> false
+
+  let is_barrier = function
+    | JMP _
+    | UD2
+    | RET
+      -> true
+    | i -> is_pseudo i
 
   module I = struct
     let add a b = Two (ADD, a, b)

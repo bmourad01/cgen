@@ -124,7 +124,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
              apart on more sophisticated exit sequences. *)
           let last = match Cfg.Node.succs (Blk.label b) cfg |> Seq.next with
             | Some (l, rest) when Seq.is_empty rest && Label.(l = pseudoexit) ->
-              Blk.insns b ~rev:true |> Seq.map ~f:Insn.label |> Seq.hd
+              Blk.insns b ~rev:true |>
+              Seq.filter ~f:(fun i -> not @@ M.Insn.is_pseudo @@ Insn.insn i) |>
+              Seq.map ~f:Insn.label |> Seq.hd
             | _ -> None in
           let insns = Blk.insns b |> Seq.to_list in
           (* Insert prologue if this is the entry block. *)
