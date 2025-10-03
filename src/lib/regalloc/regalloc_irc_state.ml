@@ -18,17 +18,7 @@ module Make(M : Machine_intf.S) = struct
   module Rv = M.Regvar
   module Regs = Regalloc_regs.Make(M)
   module Live = Pseudo_passes.Live(M)
-
-  module Loop = Loops.Make(struct
-      module Func = struct
-        type t = (M.Insn.t, M.Reg.t) Pseudo.func
-        let name = Pseudo.Func.name
-      end
-      module Cfg = struct
-        include Pseudo.Cfg
-        let create = create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests
-      end
-    end)
+  module Loop = Loops.Make(Cfg)
 
   (* Terminology:
 
@@ -120,7 +110,7 @@ module Make(M : Machine_intf.S) = struct
   let create fn =
     let cfg = Pseudo.Cfg.create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests fn in
     let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in
-    let loop = Loop.analyze fn in
+    let loop = Loop.analyze ~name:(Pseudo.Func.name fn) cfg in
     let spill_cost = Rv.Table.create () in
     let degree = Rv.Table.create () in {
       fn;

@@ -79,8 +79,8 @@ let resolve_blk reso l =
 
 let init fn tenv =
   let+ reso = Resolver.create fn in
-  let loop = Loops.analyze fn in
   let cfg = Cfg.create fn in
+  let loop = Loops.analyze ~name:(Func.name fn) cfg in
   let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
   let pdom = Semi_nca.compute (module Cfg) cfg Label.pseudoexit ~rev:true in
   let df = Semi_nca.frontier (module Cfg) cfg dom in

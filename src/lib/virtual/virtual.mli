@@ -422,7 +422,7 @@ module Resolver : Resolver_intf.S
 
 type resolver = Resolver.t
 
-module Loops : Loops_intf.S with type func := func
+module Loops : Loops_intf.S with type cfg := cfg
 
 type loops = Loops.t
 

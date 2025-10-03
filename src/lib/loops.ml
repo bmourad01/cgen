@@ -5,21 +5,12 @@ open Monads.Std
 
 module O = Monad.Option
 
-open O.Let
+let rec while_top q ~f = match Stack.top q with
+  | Some x -> f x; while_top q ~f
+  | None -> ()
 
-module type L = sig
-  module Func : sig
-    type t
-    val name : t -> string
-  end
-  module Cfg : sig
-    include Label.Graph_s
-    val create : Func.t -> t
-  end
-end
-
-module Make(M : L) : Loops_intf.S with type func := M.Func.t = struct
-  open M
+module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
+  open O.Let
 
   type loop = int [@@deriving compare, equal]
   type level = int [@@deriving compare, equal]
@@ -69,8 +60,8 @@ module Make(M : L) : Loops_intf.S with type func := M.Func.t = struct
       (Format.pp_print_list ~pp_sep pp_data) (Vec.to_list t.loops)
       (Format.pp_print_list ~pp_sep pp_blk) (Hashtbl.to_alist t.blks)
 
-  let init fn = {
-    name = Func.name fn;
+  let init name = {
+    name;
     loops = Vec.create ();
     blks = Label.Table.create ();
   }
@@ -118,40 +109,41 @@ module Make(M : L) : Loops_intf.S with type func := M.Func.t = struct
     Cfg.Node.preds l cfg |> Seq.filter ~f:(fun l' ->
         Label.(l = l') || Semi_nca.Tree.is_descendant_of dom ~parent:l l')
 
+  (* Discover loop headers and initialize all candidate blocks in reverse postorder.
+
+     A loop header is a block that dominates one of its back-edges.
+  *)
   let find_headers t cfg dom =
     Graphlib.reverse_postorder_traverse (module Cfg)
       ~start:Label.pseudoentry cfg |> Seq.iter ~f:(fun l ->
           if dom_backedge l cfg dom |> Seq.is_empty |> not then
             Hashtbl.set t.blks ~key:l ~data:(new_loop t l))
 
-  (* For our analysis of the loop `n` we have a block associated
-     with loop `m`. We need to recursively chase the parent of `m`
-     until we reach `n` or we find no parent. *)
-  let chase_parent t n m =
+  (* Check if loop `m` can be reparented under loop `n`. If so, return the root of `m`. *)
+  let find_candidate_for_reparenting t n m =
     let rec chase m = function
       | None -> Some m
       | Some p when n = p -> None
       | Some p -> chase p (get t p).parent in
-    chase m (get t m).parent
+    let* m = chase m (get t m).parent in
+    Option.some_if (n <> m) m
 
-  let find_next t n l = match Hashtbl.find t.blks l with
+  let visit_loop_block t n l = match Hashtbl.find t.blks l with
     | None ->
       (* We haven't visited this block yet, so it needs to be
          enqueued for analysis. *)
       Hashtbl.set t.blks ~key:l ~data:n;
       Some l
     | Some m ->
-      (* We found that `m` has no parent. *)
-      let* m = chase_parent t n m in
-      (* Check to see if it's the loop we're analyzing. *)
-      let+ () = O.guard (n <> m) in
-      (* Set the parent. *)
+      let+ m = find_candidate_for_reparenting t n m in
       let d = get t m in
       d.parent <- Some n;
       d.header
 
+  (* Work to collect all blocks in a given loop by walking backwards from
+     all of its back-edges. *)
   let analyze_loop t cfg q n =
-    Stack.until_empty q @@ fun l -> match find_next t n l with
+    Stack.until_empty q @@ fun l -> match visit_loop_block t n l with
     | Some c -> Cfg.Node.preds c cfg |> Seq.iter ~f:(Stack.push q)
     | None -> ()
 
@@ -162,36 +154,28 @@ module Make(M : L) : Loops_intf.S with type func := M.Func.t = struct
         (* Enqueue the predecessors that the loop header dominates. *)
         dom_backedge lp.header cfg dom |>
         Seq.iter ~f:(Stack.push q);
-        (* Analyze the loop. *)
         analyze_loop t cfg q n)
 
   let set_level q d k =
     d.level <- k;
     ignore @@ Stack.pop_exn q
 
-  let loop_level t q d = match d.parent with
+  let assign_loop_level t q d = match d.parent with
     | None -> set_level q d 0
     | Some p -> match (get t p).level with
       | k when k < 0 -> Stack.push q p
       | k -> set_level q d (k + 1)
-
-  let rec assign_loop t q = match Stack.top q with
-    | None -> ()
-    | Some n ->
-      loop_level t q @@ get t n;
-      assign_loop t q
 
   let assign_levels t =
     let q = Stack.create () in
     Vec.iteri t.loops ~f:(fun n d ->
         if d.level < 0 then begin
           Stack.push q n;
-          assign_loop t q
+          while_top q ~f:(fun n -> assign_loop_level t q @@ get t n);
         end)
 
-  let analyze fn =
-    let t = init fn in
-    let cfg = Cfg.create fn in
+  let analyze ~name cfg =
+    let t = init name in
     let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
     find_headers t cfg dom;
     find_loop_blks t cfg dom;

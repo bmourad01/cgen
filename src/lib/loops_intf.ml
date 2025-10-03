@@ -2,7 +2,7 @@ open Regular.Std
 
 (** Loop analysis of a function. *)
 module type S = sig
-  type func
+  type cfg
 
   (** The identifier of a loop. *)
   type loop [@@deriving compare, equal]
@@ -27,8 +27,8 @@ module type S = sig
   (** [level d] gets the nesting level of the loop. *)
   val level : data -> level
 
-  (** [analyze fn] performs the loop analysis of [fn]. *)
-  val analyze : func -> t
+  (** [analyze ~name cfg] performs the loop analysis of [cfg] for function [name]. *)
+  val analyze : name:string -> cfg -> t
 
   (** [get t x] returns the data for loop [x].
 
