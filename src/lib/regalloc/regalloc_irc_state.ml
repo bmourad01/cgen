@@ -144,7 +144,7 @@ module Make(M : Machine_intf.S) = struct
     }
 
   let add_spill t n =
-    if can_be_colored t n then
+    if can_be_colored t n && not (Hashtbl.mem t.wspill_elts n) then
       let elt = Pairing_heap.add_removable t.wspill n in
       Hashtbl.set t.wspill_elts ~key:n ~data:elt
 
