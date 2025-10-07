@@ -96,34 +96,33 @@ export function $foo { ; returns: rax
   mov dword ptr [rsp + 0x3c], eax ; @233
   jmp @3 ; @155
 @21:
-  mov ecx, dword ptr [rsp + 0x38] ; @235
-  mov eax, dword ptr [rsp + 0x3c] ; @234
-  lea edx, qword ptr [rcx + rax*1] ; @127
-  mov eax, dword ptr [rsp + 0x30] ; @237
-  mov ecx, dword ptr [rsp + 0x34] ; @236
-  lea eax, qword ptr [rax + rcx*1 + 0xf] ; @126
-  lea ecx, qword ptr [rax + rdx*1 + 0x15] ; @129
-  mov eax, dword ptr [rsp + 0x28] ; @239
-  mov edx, dword ptr [rsp + 0x2c] ; @238
-  lea eax, qword ptr [rax + rdx*1 + 0x13] ; @124
-  add eax, ecx ; @130
-  mov edx, dword ptr [rsp + 0x20] ; @241
-  mov ecx, dword ptr [rsp + 0x24] ; @240
-  lea ecx, qword ptr [rdx + rcx*1 + 0x17] ; @122
-  lea edx, qword ptr [rcx + rax*1] ; @131
-  mov eax, dword ptr [rsp + 0x8] ; @243
-  mov ecx, dword ptr [rsp + 0xc] ; @242
+  mov ecx, dword ptr [rsp + 0x30] ; @235
+  mov eax, dword ptr [rsp + 0x34] ; @234
+  lea esi, qword ptr [rcx + rax*1] ; @125
+  mov eax, dword ptr [rsp + 0x28] ; @237
+  mov ecx, dword ptr [rsp + 0x2c] ; @236
+  lea edi, qword ptr [rax + rcx*1] ; @123
+  mov eax, dword ptr [rsp + 0x38] ; @239
+  mov ecx, dword ptr [rsp + 0x3c] ; @238
+  lea edx, qword ptr [rax + rcx*1 + 0x15] ; @128
+  mov ecx, dword ptr [rsp + 0x20] ; @241
+  add ecx, dword ptr [rsp + 0x24] ; @121
+  lea edx, qword ptr [rdx + rsi*1 + 0xf] ; @129
+  mov eax, dword ptr [rsp + 0x18] ; @243
+  mov esi, dword ptr [rsp + 0x1c] ; @242
+  add esi, eax ; @119
+  lea eax, qword ptr [rdx + rdi*1 + 0x13] ; @130
+  mov edx, dword ptr [rsp + 0x10] ; @245
+  mov edi, dword ptr [rsp + 0x14] ; @244
+  add edi, edx ; @117
+  lea edx, qword ptr [rax + rcx*1 + 0x17] ; @131
+  mov eax, dword ptr [rsp + 0x8] ; @247
+  mov ecx, dword ptr [rsp + 0xc] ; @246
   add ecx, eax ; @115
-  mov eax, dword ptr [rsp + 0x18] ; @245
-  mov esi, dword ptr [rsp + 0x1c] ; @244
-  lea eax, qword ptr [rax + rsi*1 + 0x1b] ; @120
-  lea edi, qword ptr [rax + rdx*1] ; @132
-  mov eax, dword ptr [rsp] ; @247
+  lea esi, qword ptr [rdx + rsi*1 + 0x1b] ; @132
+  mov eax, dword ptr [rsp] ; @249
   add eax, dword ptr [rsp + 0x4] ; @114
-  mov edx, dword ptr [rsp + 0x10] ; @249
-  mov esi, dword ptr [rsp + 0x14] ; @248
-  lea edx, qword ptr [rdx + rsi*1 + 0x1f] ; @118
-  add edx, edi ; @133
+  lea edx, qword ptr [rsi + rdi*1 + 0x1f] ; @133
   add eax, ecx ; @116
   add eax, edx ; @134
   add rsp, 0x50_l ; @256
