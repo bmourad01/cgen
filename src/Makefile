@@ -12,7 +12,7 @@ BAP_DEPS = \
 BAP_REPO := git+https://github.com/BinaryAnalysisPlatform/opam-repository\#testing
 
 all:
-	dune build
+	dune build --profile=release
 
 clean:
 	dune clean
@@ -24,7 +24,7 @@ uninstall:
 	dune uninstall
 
 test:
-	dune test
+	dune test --profile=release
 
 doc:
 	dune build @doc
