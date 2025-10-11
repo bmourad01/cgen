@@ -77,14 +77,14 @@ module Make(M : L) = struct
   (* VM register *)
   type reg = {
     reg : int
-  } [@@unboxed] [@@deriving compare, equal, sexp]
+  } [@@unboxed] [@@deriving compare, equal, hash, sexp]
 
   let (+$) r i = {reg = r.reg + i}
 
   (* Program label *)
   type label = {
     label : int;
-  } [@@unboxed] [@@deriving compare, equal, sexp]
+  } [@@unboxed] [@@deriving compare, equal, hash, sexp]
 
   let nil = {label = -1}
 
@@ -98,7 +98,7 @@ module Make(M : L) = struct
        of the machine for a new term. *)
     | Init of {
         f : op;
-        mutable next : label;
+        mutable next : (label [@hash.ignore] [@compare.ignore]);
       }
     (* Match `i` with operator `f`, and if successful, bind its
        arguments starting at `o` before continuing to `next`. *)
@@ -106,26 +106,26 @@ module Make(M : L) = struct
         i : reg;
         f : op;
         o : reg;
-        mutable next : label;
+        mutable next : (label [@hash.ignore] [@compare.ignore]);
       }
     (* Same as `Bind`, but specialized to ground terms. *)
     | Check of {
         i : reg;
         t : op;
-        mutable next : label;
+        mutable next : (label [@hash.ignore] [@compare.ignore]);
       }
     (* Check that `i` and `j` unify to the same term, and if
        successful, continue to `next`. *)
     | Compare of {
         i : reg;
         j : reg;
-        mutable next : label;
+        mutable next : (label [@hash.ignore] [@compare.ignore]);
       }
     (* Save `alt` as a backtracking point (if available), and
        continue to next. *)
     | Choose of {
-        mutable alt : label option;
-        mutable next : label;
+        mutable alt : (label option [@hash.ignore] [@compare.ignore]);
+        mutable next : (label [@hash.ignore] [@compare.ignore]);
       }
     (* Yield a successful match; `regs` will be used to build
        the resulting substitution. *)
@@ -133,7 +133,11 @@ module Make(M : L) = struct
         regs : (reg * string) list;
         rule : int;
       }
-  [@@deriving sexp]
+  [@@deriving compare, hash, sexp]
+
+  (* We have to ignore the mutable fields for `compare` anyway,
+     so it ends up being the same as the `compatible` relation. *)
+  let compatible a b = compare_insn a b = 0
 
   let succs_of_insn = function
     | Init i' -> [i'.next.label]
@@ -145,10 +149,12 @@ module Make(M : L) = struct
     | Yield _ -> []
 
   module Insn = struct
+    type t = insn [@@deriving compare, hash, sexp]
+
     let init f = Init {f; next = nil}
     let bind i f o = Bind {i; f; o; next = nil}
     let check i t = Check {i; t; next = nil}
-    let compare i j = Compare {i; j; next = nil}
+    let compare_ i j = Compare {i; j; next = nil}
     let yield regs rule = Yield {regs; rule}
   end
 
@@ -178,13 +184,43 @@ module Make(M : L) = struct
 
   (* A tree of code sequences. *)
   type tree =
+    (* The end of a code sequence. This should always
+       be a [Yield] in practice. *)
     | Leaf of insn
+    (* Execute [insn] and proceed to the [next] tree. *)
     | Seq of {
         insn : insn;
         next : tree;
       }
-    | Br of tree Ftree.t
-  [@@deriving sexp]
+    (* Choose one of a set of [alts]. The [memo] table
+       is here to cache previous results locally. *)
+    | Br of {
+        alts : tree Vec.t;
+        memo : (insn, tree * int) Hashtbl.t;
+      }
+
+  let rec sexp_of_tree : tree -> Sexp.t = function
+    | Leaf l -> List [Atom "Leaf"; sexp_of_insn l]
+    | Seq s ->
+      List [
+        Atom "Seq";
+        List [
+          Atom "insn";
+          sexp_of_insn s.insn;
+        ];
+        List [
+          Atom "next";
+          sexp_of_tree s.next;
+        ];
+      ]
+    | Br b ->
+      List [
+        Atom "Br";
+        List [
+          Atom "alts";
+          List (List.map ~f:sexp_of_tree @@ Vec.to_list b.alts);
+        ];
+      ]
 
   let pp_tree ppf t =
     Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_tree t
@@ -193,24 +229,12 @@ module Make(M : L) = struct
   module Tree = struct
     let leaf insn = Leaf insn
     let seq insn next = Seq {insn; next}
-    let br alts = Br (Ftree.of_list alts)
-  end
 
-  (* Check if two instructions represent the same operation prefix. *)
-  let compatible a b = match a, b with
-    | Init a, Init b -> equal_op a.f b.f
-    | Bind a, Bind b ->
-      equal_reg a.i b.i && equal_op a.f b.f && equal_reg a.o b.o
-    | Check a, Check b -> 
-      equal_reg a.i b.i && equal_op a.t b.t
-    | Compare a, Compare b ->
-      equal_reg a.i b.i && equal_reg a.j b.j
-    | Yield a, Yield b ->
-      a.rule = b.rule &&
-      List.equal (fun (r1, x1) (r2, x2) ->
-          equal_reg r1 r2 && String.(x1 = x2))
-        a.regs b.regs
-    | _ -> false
+    let br alts = Br {
+        alts = Vec.of_list alts;
+        memo = Hashtbl.create (module Insn);
+      }
+  end
 
   type 'a program = {
     rule : (pat * 'a) Vec.t;
@@ -279,7 +303,7 @@ module Make(M : L) = struct
             Insn.bind {reg = i} f {reg = o} :: go wext v o' vars
           | V x ->
             match Map.find v x with
-            | Some j -> Insn.compare {reg = i} j :: go w' v o vars
+            | Some j -> Insn.compare_ {reg = i} j :: go w' v o vars
             | None ->
               (* We haven't seen this variable before, so push it and
                  continue processing the worklist. *)
@@ -295,8 +319,6 @@ module Make(M : L) = struct
         failwithf
           "compile_one_rule: in rule %d, variable ?%s is at the toplevel"
           rule x ()
-
-    let (@>) = Ftree.snoc
 
     (* Create a tree from a sequence of instructions. *)
     let rec sequentialize = function
@@ -323,23 +345,43 @@ module Make(M : L) = struct
         else
           (* Divergence: branch here. *)
           Tree.br [t; sequentialize p], false
-      | _ :: _, Br alts ->
-        (* Existing branch node: see if any alternatives can
-           be merged with the program. *)
-        let any = ref false in
-        let alts = Ftree.map alts ~f:(fun a ->
-            (* Only extend the first matching alternative. *)
-            if !any then a else match insert p a with
-              | a', true -> any := true; a'
-              | _ -> a) in
-        (* If none matched, then the program just becomes a
-           new alternative. *)
-        let alts = if !any then alts
-          else alts @> sequentialize p in
-        Br alts, !any
+      | insn :: _, Br b ->
+        begin match Hashtbl.find b.memo insn with
+          | Some (a, i) ->
+            let a', changed = insert p a in
+            if changed then begin
+              Hashtbl.set b.memo ~key:insn ~data:(a', i);
+              Vec.set_exn b.alts i a'
+            end;
+            t, true
+          | None ->
+            (* Existing branch node: see if any alternatives can
+               be merged with the program. If none matched, then
+               the program just becomes a new alternative. *)
+            t, merge_alt p b.alts b.memo
+        end
       | _ :: _, Leaf _ ->
         (* Existing leaf: no continuation to descend. *)
         Tree.br [t; sequentialize p], false
+
+    and merge_alt p alts memo =
+      let key = List.hd_exn p in
+      let any = ref false in
+      (* Use first-fit ordering semantics like the paper. *)
+      Vec.iteri alts ~f:(fun i a ->
+          if not !any then match insert p a with
+            | a', true ->
+              Hashtbl.set memo ~key ~data:(a', i);
+              Vec.set_exn alts i a';
+              any := true
+            | _ -> ());
+      if not !any then begin
+        let i = Vec.length alts in
+        let a = sequentialize p in
+        Hashtbl.set memo ~key ~data:(a, i);
+        Vec.push alts a
+      end;
+      !any
 
     let emit code i =
       let label = Vec.length code in
@@ -366,18 +408,18 @@ module Make(M : L) = struct
           let label = emit code s.insn in
           patch_next_at code label @@ go s.next;
           label
-        | Br alts ->
-          assert (not @@ Ftree.is_empty alts);
+        | Br b ->
+          assert (not @@ Vec.is_empty b.alts);
           (* Emit a `choose` instruction for each alternative. *)
-          let alts = Ftree.map alts ~f:(fun a ->
-              emit code @@ Choose {alt = None; next = go a}) in
+          let alts = Vec.fold b.alts ~init:[] ~f:(fun acc a ->
+              (emit code @@ Choose {alt = None; next = go a}) :: acc) in
           (* Every alternative but the last one will have its
              next one as a continuation for its subtree. *)
-          Ftree.fold_right alts ~init:None ~f:(fun ch alt ->
+          let label = List.fold alts ~init:None ~f:(fun alt ch ->
               patch_choose_alt_at code ch alt;
-              Some ch) |> ignore;
-          (* Start with the first alternative. *)
-          Ftree.head_exn alts in
+              Some ch) in
+          (* Use the first alternative as the label. *)
+          Option.value_exn label in
       go t
 
     (* Compute a backtracking priority for each program label.
