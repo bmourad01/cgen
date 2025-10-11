@@ -123,7 +123,7 @@ module Make(M : L) = struct
     (* Yield a successful match; `regs` will be used to build
        the resulting substitution. *)
     | Yield of {
-        regs : (reg * string) list;
+        regs : reg Map.M(String).t;
         rule : int;
       }
   [@@deriving compare, hash, sexp]
@@ -175,9 +175,9 @@ module Make(M : L) = struct
     | Yield y ->
       Format.fprintf ppf "yield(%a) ; rule %d"
         (Format.pp_print_list
-           (fun ppf (r, x) -> Format.fprintf ppf "%a:?%s" pp_reg r x)
+           (fun ppf (x, r) -> Format.fprintf ppf "%a:?%s" pp_reg r x)
            ~pp_sep:(fun ppf () -> Format.fprintf ppf ", "))
-        y.regs y.rule
+        (Map.to_alist y.regs) y.rule
 
   (* A tree of code sequences. *)
   type tree =
@@ -298,42 +298,40 @@ module Make(M : L) = struct
 
     (* [v]: a mapping from substitution variables to registers
 
-       [vars]: the current substitution variables in last-seen order
-
-       [a]: the payload for the rule
-
-       [rule]: the ordinal for the rule
-
        [w]: the current worklist of subpatterns, keyed by their
        corresponding register
 
        [o]: the next free register
+
+       [rule]: the ordinal for the rule
     *)
     let compile_pat ~rule w o =
-      let[@tail_mod_cons] rec go v o vars =
+      let[@tail_mod_cons] rec go v o =
         (* Pop from the worklist. *)
         match Queue.dequeue w with
         | None ->
           (* Worklist is empty. Yield the registers. *)
-          [Insn.yield vars rule]
+          [Insn.yield v rule]
         | Some (i, p) ->
           match p with
           | P (t, []) ->
             (* Ground term. *)
-            Insn.check {reg = i} t :: go v o vars
+            Insn.check {reg = i} t :: go v o
           | P (f, args) ->
+            (* Bind each argument to a new register and
+               continue. *)
             let o' = enqueue_children w args o in
-            Insn.bind {reg = i} f {reg = o} :: go v o' vars
+            Insn.bind {reg = i} f {reg = o} :: go v o'
           | V x ->
             match Map.find v x with
-            | Some j -> Insn.compare_ {reg = i} j :: go v o vars
+            | Some j ->
+              (* Recurrence of variable, emit a comparison
+                 to verify that they point to the same term. *)
+              Insn.compare_ {reg = i} j :: go v o
             | None ->
-              (* We haven't seen this variable before, so push it and
-                 continue processing the worklist. *)
-              let r = {reg = i} in
-              let v' = Map.set v ~key:x ~data:r in
-              go v' o ((r, x) :: vars) in
-      go String.Map.empty o []
+              (* New variable, continue processing. *)
+              go (Map.set v ~key:x ~data:{reg = i}) o in
+      go String.Map.empty o
 
     let compile_one_rule rule = function
       | P (f, args) ->
@@ -647,11 +645,6 @@ module Make(M : L) = struct
       end;
       len
 
-    (* pre: each `x` should be unique *)
-    let make_subst st regs : subst =
-      List.fold regs ~init:String.Map.empty
-        ~f:(fun s (r, x) -> Map.set s ~key:x ~data:st.$[r])
-
     type 'a result =
       | Continue
       | Yield of 'a yield
@@ -691,7 +684,7 @@ module Make(M : L) = struct
         else backtrack st;
         Continue
       | Yield y ->
-        let subst = make_subst st y.regs in
+        let subst = Map.map y.regs ~f:(fun r -> st.$[r]) in
         let pat, payload = Vec.get_exn prog.rule y.rule in
         Yield {subst; payload; rule = y.rule; pat}
 
