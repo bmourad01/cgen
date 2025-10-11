@@ -132,14 +132,19 @@ module Make(M : L) = struct
      so it ends up being the same as the `compatible` relation. *)
   let compatible a b = compare_insn a b = 0
 
+  type succs =
+    | Zero
+    | One of label
+    | Two of label * label
+
   let succs_of_insn = function
-    | Init i' -> [i'.next.label]
-    | Bind b -> [b.next.label]
-    | Check c -> [c.next.label]
-    | Compare c -> [c.next.label]
-    | Choose {alt = None; next} -> [next.label]
-    | Choose {alt = Some a; next} -> [a.label; next.label]
-    | Yield _ -> []
+    | Init i -> One i.next
+    | Bind b -> One b.next
+    | Check c -> One c.next
+    | Compare c -> One c.next
+    | Choose {alt = None; next} -> One next
+    | Choose {alt = Some a; next} -> Two (a, next)
+    | Yield _ -> Zero
 
   module Insn = struct
     type t = insn [@@deriving compare, hash, sexp]
@@ -323,6 +328,9 @@ module Make(M : L) = struct
       | [], t ->
         (* Reached the end of the rule. Return the existing tree. *)
         t, false
+      | _ :: _, Leaf _ ->
+        (* Existing leaf: no continuation to descend. *)
+        Tree.br t (sequentialize p), false
       | insn :: rest, Seq s ->
         (* Existing sequential node. *)
         if compatible insn s.insn then begin
@@ -333,23 +341,19 @@ module Make(M : L) = struct
           (* Divergence: branch here. *)
           Tree.br t (sequentialize p), false
       | insn :: _, Br b ->
-        begin match Hashtbl.find b.memo insn with
-          | Some e ->
-            let a', changed = insert p e.tree in
-            if changed then begin
-              e.tree <- a';
-              Vec.set_exn b.alts e.index a'
-            end;
-            t, true
-          | None ->
-            (* Existing branch node: see if any alternatives can
-               be merged with the program. If none matched, then
-               the program just becomes a new alternative. *)
-            t, merge_alt p b.alts b.memo
-        end
-      | _ :: _, Leaf _ ->
-        (* Existing leaf: no continuation to descend. *)
-        Tree.br t (sequentialize p), false
+        match Hashtbl.find b.memo insn with
+        | Some e ->
+          let a', changed = insert p e.tree in
+          if changed then begin
+            e.tree <- a';
+            Vec.set_exn b.alts e.index a'
+          end;
+          t, true
+        | None ->
+          (* Existing branch node: see if any alternatives can
+             be merged with the program. If none matched, then
+             the program just becomes a new alternative. *)
+          t, merge_alt p b.alts b.memo
 
     (* Try to merge the subsequence `p` into the `alts` of a branch.
 
@@ -396,7 +400,13 @@ module Make(M : L) = struct
       | Bind b -> b.next <- next
       | Check c -> c.next <- next
       | Compare c -> c.next <- next
-      | Choose _ | Yield _ -> assert false
+      | Choose c -> c.next <- next
+      | Yield _ -> assert false
+
+    let patch_choose_alt_at code i alt =
+      match Vec.get_exn code i.label with
+      | Choose c -> c.alt <- Some alt
+      | _ -> assert false
 
     let linearize code t =
       let rec go = function
@@ -408,58 +418,51 @@ module Make(M : L) = struct
         | Br b ->
           let n = Vec.length b.alts in
           assert (n > 0);
-          (* Emit a `choose` instruction for each alternative. Every
-             alternative but the last one will have its next one as
-             a continuation for its subtree. *)
-          let prev = ref None in
-          for i = n - 1 downto 0 do
-            let a = Vec.get_exn b.alts i in
-            let c = Choose {alt = !prev; next = go a} in
-            prev := Some (emit code c);
-          done;
+          (* Emit a `choose` instruction for each alternative. *)
+          let alts = Array.init n ~f:(fun _ ->
+              emit code @@ Choose {alt = None; next = nil}) in
+          Vec.iteri b.alts ~f:(fun i a ->
+              (* Emit the body of the alternative and set the
+                 successor of the `choose` to it. *)
+              let c = alts.(i) in
+              patch_next_at code c @@ go a;
+              (* Unless this is the last alternative, patch its
+                 continuation to be the next `choose` instruction. *)
+              if i < n - 1 then patch_choose_alt_at code c alts.(i + 1));
           (* Use the first alternative as the label. *)
-          Option.value_exn !prev in
+          alts.(0) in
       go t
 
     (* Compute a backtracking priority for each program label.
 
        In this case, we want `yield` instructions to be visited
        in rule ID (insertion) order when we run the VM.
+
+       We take advantage of the fact that the control-flow graph
+       of the program is essentially a forest, so there are no
+       back-edges to consider (which means we do not need to
+       perform a full iterative worklist analysis).
     *)
     let compute_rmin code =
-      let n = Vec.length code in
-      (* Compute the control-flow graph. *)
-      let succs = Array.init n ~f:(fun i ->
-          succs_of_insn @@ Vec.get_exn code i) in
-      let preds = Array.create ~len:n [] in
-      Array.iteri succs ~f:(fun i ss ->
-          List.iter ss ~f:(fun s ->
-              preds.(s) <- i :: preds.(s)));
-      (* Seed the worklist with all `yield` instructions. *)
-      let inf = Int.max_value in
-      let rmin = Array.create ~len:n inf in
-      let q = Stack.create () in
-      Vec.iteri code ~f:(fun i -> function
-          | Yield y ->
-            rmin.(i) <- y.rule;
-            Stack.push q i
-          | _ -> ());
-      (* Merge function. *)
-      let min_succ i = List.fold succs.(i) ~init:inf
-          ~f:(fun acc j -> Int.min acc rmin.(j)) in
-      let yield_at i = match Vec.get_exn code i with
-        | Yield y -> y.rule
-        | _ -> inf in
-      let merge p = Int.min (yield_at p) (min_succ p) in
-      (* Perform a backwards-flow analysis until we reach a
-         fixed point. *)
-      Stack.until_empty q (fun v ->
-          List.iter preds.(v) ~f:(fun p ->
-              let m = merge p in
-              if m < rmin.(p) then begin
-                rmin.(p) <- m;
-                Stack.push q p
-              end));
+      let rmin = Array.create ~len:(Vec.length code) Int.max_value in
+      (* Assuming the code is laid out topologically in `linearize`,
+         we can do an O(n) backwards traversal to compute the minimum
+         rule ID for each instruction. *)
+      Vec.iteri_rev code ~f:(fun i -> function
+          | Yield y -> rmin.(i) <- y.rule
+          | insn ->
+            rmin.(i) <- match succs_of_insn insn with
+              | Zero ->
+                (* The only case where we have no successors is a
+                   `Yield`, which we covered above. *)
+                assert false
+              | One s ->
+                assert (i < s.label);
+                rmin.(s.label)
+              | Two (s1, s2) ->
+                assert (i < s1.label);
+                assert (i < s2.label);
+                Int.min rmin.(s1.label) rmin.(s2.label));
       rmin
 
     let compile_tree forest i pat =
@@ -478,10 +481,10 @@ module Make(M : L) = struct
       let rule = Vec.of_list rules in
       let code = Vec.create () in
       let root = Hashtbl.create (module Op) in
-      let forest = Hashtbl.create (module Op) in
       let rmin = match rules with
         | [] -> [||]
         | _ ->
+          let forest = Hashtbl.create (module Op) in
           if commute then
             Vec.iteri rule ~f:(fun i (pat, _) ->
                 permute_commutative pat |>
