@@ -96,18 +96,19 @@ export function $foo { ; returns: rax
   mov dword ptr [rsp + 0x3c], eax ; @233
   jmp @3 ; @155
 @21:
-  mov ecx, dword ptr [rsp + 0x30] ; @235
-  mov eax, dword ptr [rsp + 0x34] ; @234
-  lea esi, qword ptr [rcx + rax*1] ; @125
+  mov ecx, dword ptr [rsp + 0x38] ; @235
+  mov eax, dword ptr [rsp + 0x3c] ; @234
+  lea esi, qword ptr [rcx + rax*1] ; @127
   mov eax, dword ptr [rsp + 0x28] ; @237
   mov ecx, dword ptr [rsp + 0x2c] ; @236
   lea edi, qword ptr [rax + rcx*1] ; @123
-  mov eax, dword ptr [rsp + 0x38] ; @239
-  mov ecx, dword ptr [rsp + 0x3c] ; @238
-  lea edx, qword ptr [rax + rcx*1 + 0x15] ; @128
-  mov ecx, dword ptr [rsp + 0x20] ; @241
-  add ecx, dword ptr [rsp + 0x24] ; @121
-  lea edx, qword ptr [rdx + rsi*1 + 0xf] ; @129
+  mov eax, dword ptr [rsp + 0x20] ; @239
+  mov ecx, dword ptr [rsp + 0x24] ; @238
+  add ecx, eax ; @121
+  mov edx, dword ptr [rsp + 0x30] ; @241
+  mov eax, dword ptr [rsp + 0x34] ; @240
+  lea eax, qword ptr [rdx + rax*1 + 0xf] ; @126
+  lea edx, qword ptr [rax + rsi*1 + 0x15] ; @129
   mov eax, dword ptr [rsp + 0x18] ; @243
   mov esi, dword ptr [rsp + 0x1c] ; @242
   add esi, eax ; @119
