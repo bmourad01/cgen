@@ -193,13 +193,49 @@ module Make(M : L) = struct
        is here to cache previous results locally. *)
     | Br of {
         alts : tree Vec.t;
-        memo : (insn, table_entry) Hashtbl.t;
+        mutable memo : memo;
       }
 
-  and table_entry = {
+  and memo =
+    | M0
+    | M1 of insn * mentry
+    | M2 of insn * mentry * insn * mentry
+    | M3 of insn * mentry * insn * mentry * insn * mentry
+    | MN of (insn, mentry) Hashtbl.t
+
+  and mentry = {
     mutable tree : tree;
     index : int;
   }
+
+  (* Look up the memoized entry. *)
+  let memo_find m k = match m with
+    | M1 (i, e) when compatible i k -> Some e
+    | M2 (i, e, _, _) when compatible i k -> Some e
+    | M2 (_, _, i, e) when compatible i k -> Some e
+    | M3 (i, e, _, _, _, _) when compatible i k -> Some e
+    | M3 (_, _, i, e, _, _) when compatible i k -> Some e
+    | M3 (_, _, _, _, i, e) when compatible i k -> Some e
+    | MN t -> Hashtbl.find t k
+    | _ -> None
+
+  (* Assuming that `k` is not present in `m`, compute a new `m`
+     with `k` and `v` associated. *)
+  let memo_set_assuming_not_present m k v = match m with
+    | M0 -> M1 (k, v)
+    | M1 (i, e) -> M2 (i, e, k, v)
+    | M2 (i1, e1, i2, e2) ->
+      M3 (i1, e1, i2, e2, k, v)
+    | M3 (i1, e1, i2, e2, i3, e3) ->
+      let t = Hashtbl.create (module Insn) in
+      Hashtbl.set t ~key:i1 ~data:e1;
+      Hashtbl.set t ~key:i2 ~data:e2;
+      Hashtbl.set t ~key:i3 ~data:e3;
+      Hashtbl.set t ~key:k ~data:v;
+      MN t
+    | MN t ->
+      Hashtbl.set t ~key:k ~data:v;
+      m
 
   let rec sexp_of_tree : tree -> Sexp.t = function
     | Leaf l -> List [Atom "Leaf"; sexp_of_insn l]
@@ -241,10 +277,7 @@ module Make(M : L) = struct
       let v = Vec.create ~capacity:4 () in
       Vec.push v t;
       Vec.push v t';
-      Br {
-        alts = v;
-        memo = Hashtbl.create (module Insn);
-      }
+      Br {alts = v; memo = M0}
   end
 
   type 'a program = {
@@ -331,46 +364,49 @@ module Make(M : L) = struct
       | _ :: _, Leaf _ ->
         (* Existing leaf: no continuation to descend. *)
         Tree.br t (sequentialize p), false
-      | insn :: rest, Seq s ->
-        (* Existing sequential node. *)
-        if compatible insn s.insn then begin
-          (* Shared prefix: continue downward. *)
-          s.next <- fst @@ insert rest s.next;
-          t, true
-        end else
-          (* Divergence: branch here. *)
-          Tree.br t (sequentialize p), false
+      | insn :: rest, Seq s when compatible insn s.insn ->
+        (* Shared prefix: continue downward. *)
+        s.next <- fst @@ insert rest s.next;
+        t, true
+      | _ :: _, Seq _ ->
+        (* Divergence: branch here. *)
+        Tree.br t (sequentialize p), false
       | insn :: _, Br b ->
-        match Hashtbl.find b.memo insn with
+        match memo_find b.memo insn with
         | Some e ->
-          let a', changed = insert p e.tree in
-          if changed then begin
-            e.tree <- a';
-            Vec.set_exn b.alts e.index a'
-          end;
+          insert_mentry p e b.alts;
           t, true
         | None ->
           (* Existing branch node: see if any alternatives can
              be merged with the program. If none matched, then
              the program just becomes a new alternative. *)
-          t, merge_alt p b.alts b.memo
+          let changed, memo = merge_alt p b.alts b.memo in
+          b.memo <- memo;
+          t, changed
 
-    (* Try to merge the subsequence `p` into the `alts` of a branch.
+    and insert_mentry p e alts = match insert p e.tree with
+      | a', true ->
+        e.tree <- a';
+        Vec.set_exn alts e.index a'
+      | _ -> ()
+
+    (* Try to merge the subsequence `p` into one of the `alts` of
+       a branch.
 
        pre: `hd p` is not a member of `memo`
     *)
     and merge_alt p alts memo =
       let alt = find_compatible_alt p alts in
-      let data = match alt with
-        | Some (a, i) -> {tree = a; index = i}
+      let e = match alt with
+        | Some e -> e
         | None ->
           let i = Vec.length alts in
           let a = sequentialize p in
-          let data = {tree = a; index = i} in
+          let e = {tree = a; index = i} in
           Vec.push alts a;
-          data in
-      Hashtbl.set memo ~key:(List.hd_exn p) ~data;
-      Option.is_some alt
+          e in
+      let memo = memo_set_assuming_not_present memo (List.hd_exn p) e in
+      Option.is_some alt, memo
 
     and find_compatible_alt p alts = with_return @@ fun {return} ->
       (* Use first-fit ordering semantics like the paper. We inline
@@ -382,7 +418,7 @@ module Make(M : L) = struct
           | Seq s when not (compatible s.insn key) -> ()
           | Seq s as a ->
             s.next <- fst @@ insert (List.tl_exn p) s.next;
-            return @@ Some (a, i)
+            return @@ Some {tree = a; index = i}
           | Br _ ->
             (* We should never end up with a tree structure like
                this. *)
@@ -680,10 +716,9 @@ module Make(M : L) = struct
         true
       | _ -> assert false
 
-    let many ?limit st prog =
+    let many ?(limit = Int.max_value) st prog =
       let result = ref [] in
       let count = ref 0 in
-      let limit = Option.value limit ~default:Int.max_value in
       let continue = ref true in
       while !continue && !count < limit do
         try match step st prog with
