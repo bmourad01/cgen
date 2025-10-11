@@ -72,12 +72,14 @@ module Make(M : L) = struct
     reg : int
   } [@@unboxed] [@@deriving compare, equal, hash, sexp]
 
-  let (+$) r i = {reg = r.reg + i}
+  let (+$) r i = {reg = r.reg + i} [@@inline]
 
   (* Program label *)
   type label = {
     label : int;
   } [@@unboxed] [@@deriving compare, equal, hash, sexp]
+
+  let (+@) l i = {label = l.label + i} [@@inline]
 
   let nil = {label = -1}
 
@@ -428,6 +430,10 @@ module Make(M : L) = struct
       Vec.push code i;
       {label}
 
+    let emit_choice code =
+      emit code @@ Choose {alt = None; next = nil}
+    [@@inline]
+
     let patch_next_at code i next =
       match Vec.get_exn code i.label with
       | Init i -> i.next <- next
@@ -453,18 +459,18 @@ module Make(M : L) = struct
           let n = Vec.length b.alts in
           assert (n > 0);
           (* Emit a `choose` instruction for each alternative. *)
-          let alts = Array.init n ~f:(fun _ ->
-              emit code @@ Choose {alt = None; next = nil}) in
+          let first = emit_choice code in
+          for i = 1 to n - 1 do ignore @@ emit_choice code done;
           Vec.iteri b.alts ~f:(fun i a ->
-              (* Emit the body of the alternative and set the
-                 successor of the `choose` to it. *)
-              let c = alts.(i) in
+              (* Emit the body of the alternative and make it the
+                 `next` for the corresponding `choose`. *)
+              let c = first +@ i in
               patch_next_at code c @@ go a;
               (* Unless this is the last alternative, patch its
                  continuation to be the next `choose` instruction. *)
-              if i < n - 1 then patch_choose_alt_at code c alts.(i + 1));
+              if i < n - 1 then patch_choose_alt_at code c (c +@ 1));
           (* Use the first alternative as the label. *)
-          alts.(0) in
+          first in
       go t
 
     (* Compute a backtracking priority for each program label.
