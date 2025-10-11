@@ -17,20 +17,6 @@ module type L = sig
   val pp_op : Format.formatter -> op -> unit
 end
 
-let rec permutations = function
-  | [] -> [[]]
-  | x :: xs ->
-    permutations xs |> List.bind ~f:(fun ys ->
-        List.length ys |> succ |> List.init ~f:(fun i ->
-            let l, r = List.split_n ys i in
-            l @ (x :: r)))
-
-let rec cartesian_product = function
-  | [] -> [[]]
-  | xs :: rest ->
-    List.bind xs ~f:(fun x ->
-        cartesian_product rest |>
-        List.map ~f:(List.cons x))
 
 module Make(M : L) = struct
   open M
@@ -51,18 +37,25 @@ module Make(M : L) = struct
     | P of op * pat list
   [@@deriving compare, equal, sexp]
 
-  let make_pats f = List.map ~f:(fun args -> P (f, args))
-  let dedup_pats = List.dedup_and_sort ~compare:compare_pat
-
   let rec permute_commutative = function
-    | V _ as p -> [p]
+    | V _ as v -> [v]
+    | P (_, []) as p -> [p]
+    | P (f, [a; b]) when is_commutative f ->
+      (* Assume that all commutative ops are binary, this way
+         we can specialize. *)
+      let pa = permute_commutative a in
+      let pb = permute_commutative b in
+      List.bind pa ~f:(fun a' ->
+          List.bind pb ~f:(fun b' ->
+              if equal_pat a' b'
+              then [P (f, [a'; b'])]
+              else [P (f, [a'; b']); P (f, [b'; a'])]))
     | P (f, args) ->
-      let sub = List.map args ~f:permute_commutative in
-      let prod = cartesian_product sub in
-      if is_commutative f then
-        List.bind prod ~f:permutations |>
-        make_pats f |> dedup_pats
-      else make_pats f prod
+      List.rev_map args ~f:permute_commutative |>
+      List.fold ~init:[[]] ~f:(fun acc xs ->
+          List.bind xs ~f:(fun x ->
+              List.map acc ~f:(List.cons x))) |>
+      List.map ~f:(fun args' -> P (f, args'))
 
   let rec pp_pat ppf = function
     | V x -> Format.fprintf ppf "?%s" x
@@ -150,7 +143,6 @@ module Make(M : L) = struct
 
   module Insn = struct
     type t = insn [@@deriving compare, hash, sexp]
-
     let init f = Init {f; next = nil}
     let bind i f o = Bind {i; f; o; next = nil}
     let check i t = Check {i; t; next = nil}
@@ -190,14 +182,19 @@ module Make(M : L) = struct
     (* Execute [insn] and proceed to the [next] tree. *)
     | Seq of {
         insn : insn;
-        next : tree;
+        mutable next : tree;
       }
     (* Choose one of a set of [alts]. The [memo] table
        is here to cache previous results locally. *)
     | Br of {
         alts : tree Vec.t;
-        memo : (insn, tree * int) Hashtbl.t;
+        memo : (insn, table_entry) Hashtbl.t;
       }
+
+  and table_entry = {
+    mutable tree : tree;
+    index : int;
+  }
 
   let rec sexp_of_tree : tree -> Sexp.t = function
     | Leaf l -> List [Atom "Leaf"; sexp_of_insn l]
@@ -230,8 +227,17 @@ module Make(M : L) = struct
     let leaf insn = Leaf insn
     let seq insn next = Seq {insn; next}
 
-    let br alts = Br {
-        alts = Vec.of_list alts;
+    let br t t' =
+      (* At minimum, we'll have a branching factor of 2,
+         but in cases where there is a large amount of
+         sharing it can be in the hundreds. My initial
+         analysis shows that 4 is the average for the
+         kinds of rulesets we're going to be running with. *)
+      let v = Vec.create ~capacity:4 () in
+      Vec.push v t;
+      Vec.push v t';
+      Br {
+        alts = v;
         memo = Hashtbl.create (module Insn);
       }
   end
@@ -241,35 +247,16 @@ module Make(M : L) = struct
     code : insn Vec.t;
     root : (op, label) Hashtbl.t;
     rmin : int array;
-  } [@@ocaml.warning "-69"]
+  }
 
   let pp_program ppf p = Vec.iteri p.code ~f:(fun l i ->
       Format.fprintf ppf "@%d: %a\n" l pp_insn i)
 
   module Compiler = struct
-    let enqueue_children ?(w = Int.Map.empty) cs o =
-      List.fold cs ~init:(w, o) ~f:(fun (w, o) a ->
-          Map.set w ~key:o ~data:a, o + 1)
-
-    let yield_regs v vars =
-      List.rev @@ List.filter_map vars ~f:(fun x ->
-          Map.find v x |> Option.map ~f:(fun r -> r, x))
-
-    (* Simple heuristic for picking the next pattern.
-
-       The goal is to prioritize patterns that maximize
-       discrimination (i.e. the one that is most likely to fail early).
-    *)
-    let rec depth = function
-      | P (_, args) -> 1 + List.sum (module Int) args ~f:depth
-      | V _ -> 0
-
-    let pick_one w =
-      Map.fold w ~init:None ~f:(fun ~key ~data acc ->
-          let d = depth data in
-          match acc with
-          | Some (_, _, d') when d' >= d -> acc
-          | Some _ | None -> Some (key, data, d))
+    let enqueue_children w cs o =
+      List.fold cs ~init:o ~f:(fun o a ->
+          Queue.enqueue w (o, a);
+          o + 1)
 
     (* [v]: a mapping from substitution variables to registers
 
@@ -285,35 +272,35 @@ module Make(M : L) = struct
        [o]: the next free register
     *)
     let compile_pat ~rule w o =
-      let[@tail_mod_cons] rec go w v o vars =
-        match pick_one w with
+      let[@tail_mod_cons] rec go v o vars =
+        (* Pop from the worklist. *)
+        match Queue.dequeue w with
         | None ->
-          (* Worklist is empty. Yield the registers in first-seen
-             variable order. *)
-          [Insn.yield (yield_regs v vars) rule]
-        | Some (i, p, _) ->
-          (* Pop from the worklist. *)
-          let w' = Map.remove w i in
+          (* Worklist is empty. Yield the registers. *)
+          [Insn.yield vars rule]
+        | Some (i, p) ->
           match p with
           | P (t, []) ->
             (* Ground term. *)
-            Insn.check {reg = i} t :: go w' v o vars
+            Insn.check {reg = i} t :: go v o vars
           | P (f, args) ->
-            let wext, o' = enqueue_children ~w:w' args o in
-            Insn.bind {reg = i} f {reg = o} :: go wext v o' vars
+            let o' = enqueue_children w args o in
+            Insn.bind {reg = i} f {reg = o} :: go v o' vars
           | V x ->
             match Map.find v x with
-            | Some j -> Insn.compare_ {reg = i} j :: go w' v o vars
+            | Some j -> Insn.compare_ {reg = i} j :: go v o vars
             | None ->
               (* We haven't seen this variable before, so push it and
                  continue processing the worklist. *)
-              let v' = Map.set v ~key:x ~data:{reg = i} in
-              go w' v' o (x :: vars) in
-      go w String.Map.empty o []
+              let r = {reg = i} in
+              let v' = Map.set v ~key:x ~data:r in
+              go v' o ((r, x) :: vars) in
+      go String.Map.empty o []
 
     let compile_one_rule rule = function
       | P (f, args) ->
-        let w, o = enqueue_children args 0 in
+        let w = Queue.create ~capacity:7 () in
+        let o = enqueue_children w args 0 in
         Insn.init f :: compile_pat ~rule w o
       | V x ->
         failwithf
@@ -338,20 +325,20 @@ module Make(M : L) = struct
         t, false
       | insn :: rest, Seq s ->
         (* Existing sequential node. *)
-        if compatible insn s.insn then
+        if compatible insn s.insn then begin
           (* Shared prefix: continue downward. *)
-          let next, _ = insert rest s.next in
-          Seq {s with next}, true
-        else
+          s.next <- fst @@ insert rest s.next;
+          t, true
+        end else
           (* Divergence: branch here. *)
-          Tree.br [t; sequentialize p], false
+          Tree.br t (sequentialize p), false
       | insn :: _, Br b ->
         begin match Hashtbl.find b.memo insn with
-          | Some (a, i) ->
-            let a', changed = insert p a in
+          | Some e ->
+            let a', changed = insert p e.tree in
             if changed then begin
-              Hashtbl.set b.memo ~key:insn ~data:(a', i);
-              Vec.set_exn b.alts i a'
+              e.tree <- a';
+              Vec.set_exn b.alts e.index a'
             end;
             t, true
           | None ->
@@ -362,26 +349,41 @@ module Make(M : L) = struct
         end
       | _ :: _, Leaf _ ->
         (* Existing leaf: no continuation to descend. *)
-        Tree.br [t; sequentialize p], false
+        Tree.br t (sequentialize p), false
 
+    (* Try to merge the subsequence `p` into the `alts` of a branch.
+
+       pre: `hd p` is not a member of `memo`
+    *)
     and merge_alt p alts memo =
+      let alt = find_compatible_alt p alts in
+      let data = match alt with
+        | Some (a, i) -> {tree = a; index = i}
+        | None ->
+          let i = Vec.length alts in
+          let a = sequentialize p in
+          let data = {tree = a; index = i} in
+          Vec.push alts a;
+          data in
+      Hashtbl.set memo ~key:(List.hd_exn p) ~data;
+      Option.is_some alt
+
+    and find_compatible_alt p alts = with_return @@ fun {return} ->
+      (* Use first-fit ordering semantics like the paper. We inline
+         the prefix check once to see if we can avoid allocating
+         a subtree that would be discarded anyway. *)
       let key = List.hd_exn p in
-      let any = ref false in
-      (* Use first-fit ordering semantics like the paper. *)
-      Vec.iteri alts ~f:(fun i a ->
-          if not !any then match insert p a with
-            | a', true ->
-              Hashtbl.set memo ~key ~data:(a', i);
-              Vec.set_exn alts i a';
-              any := true
-            | _ -> ());
-      if not !any then begin
-        let i = Vec.length alts in
-        let a = sequentialize p in
-        Hashtbl.set memo ~key ~data:(a, i);
-        Vec.push alts a
-      end;
-      !any
+      Vec.iteri alts ~f:(fun i -> function
+          | Leaf _ -> ()
+          | Seq s when not (compatible s.insn key) -> ()
+          | Seq s as a ->
+            s.next <- fst @@ insert (List.tl_exn p) s.next;
+            return @@ Some (a, i)
+          | Br _ ->
+            (* We should never end up with a tree structure like
+               this. *)
+            assert false);
+      None
 
     let emit code i =
       let label = Vec.length code in
@@ -396,11 +398,6 @@ module Make(M : L) = struct
       | Compare c -> c.next <- next
       | Choose _ | Yield _ -> assert false
 
-    let patch_choose_alt_at code i alt =
-      match Vec.get_exn code i.label with
-      | Choose c -> c.alt <- alt
-      | _ -> assert false
-
     let linearize code t =
       let rec go = function
         | Leaf insn -> emit code insn
@@ -409,17 +406,19 @@ module Make(M : L) = struct
           patch_next_at code label @@ go s.next;
           label
         | Br b ->
-          assert (not @@ Vec.is_empty b.alts);
-          (* Emit a `choose` instruction for each alternative. *)
-          let alts = Vec.fold b.alts ~init:[] ~f:(fun acc a ->
-              (emit code @@ Choose {alt = None; next = go a}) :: acc) in
-          (* Every alternative but the last one will have its
-             next one as a continuation for its subtree. *)
-          let label = List.fold alts ~init:None ~f:(fun alt ch ->
-              patch_choose_alt_at code ch alt;
-              Some ch) in
+          let n = Vec.length b.alts in
+          assert (n > 0);
+          (* Emit a `choose` instruction for each alternative. Every
+             alternative but the last one will have its next one as
+             a continuation for its subtree. *)
+          let prev = ref None in
+          for i = n - 1 downto 0 do
+            let a = Vec.get_exn b.alts i in
+            let c = Choose {alt = !prev; next = go a} in
+            prev := Some (emit code c);
+          done;
           (* Use the first alternative as the label. *)
-          Option.value_exn label in
+          Option.value_exn !prev in
       go t
 
     (* Compute a backtracking priority for each program label.
