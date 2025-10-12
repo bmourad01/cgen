@@ -223,51 +223,55 @@ module Make(M : L) = struct
     | MN of (insn, tree) Hashtbl.t
 
   (* Look up the memoized entry. *)
-  let memo_update m k ~has ~nil = match m with
-    | M1 m when compatible m.insn  k -> has m.tree
-    | M2 m when compatible m.insn1 k -> has m.tree1
-    | M2 m when compatible m.insn2 k -> has m.tree2
-    | M3 m when compatible m.insn1 k -> has m.tree1
-    | M3 m when compatible m.insn2 k -> has m.tree2
-    | M3 m when compatible m.insn3 k -> has m.tree3
-    | MN t ->
-      begin match Hashtbl.find t k with
-        | Some t -> has t
-        | None -> nil ()
-      end
-    | _ -> nil ()
+  let memo_lookup m k ~has ~nil = match k with
+    | Yield _ -> nil ()
+    | _ -> match m with
+      | M1 m when compatible m.insn  k -> has m.tree
+      | M2 m when compatible m.insn1 k -> has m.tree1
+      | M2 m when compatible m.insn2 k -> has m.tree2
+      | M3 m when compatible m.insn1 k -> has m.tree1
+      | M3 m when compatible m.insn2 k -> has m.tree2
+      | M3 m when compatible m.insn3 k -> has m.tree3
+      | MN t ->
+        begin match Hashtbl.find t k with
+          | Some t -> has t
+          | None -> nil ()
+        end
+      | _ -> nil ()
   [@@specialise]
 
   (* Assuming that `k` is not present in `m`, compute a new `m`
      with `k` and `v` associated. *)
-  let memo_set_assuming_not_present m k v = match m with
-    | M0 -> M1 {insn = k; tree = v}
-    | M1 m ->
-      M2 {
-        insn1 = m.insn;
-        tree1 = m.tree;
-        insn2 = k;
-        tree2 = v;
-      }
-    | M2 m ->
-      M3 {
-        insn1 = m.insn1;
-        tree1 = m.tree1;
-        insn2 = m.insn2;
-        tree2 = m.tree2;
-        insn3 = k;
-        tree3 = v;
-      }
-    | M3 m ->
-      let t = Hashtbl.create (module Insn) in
-      Hashtbl.set t ~key:m.insn1 ~data:m.tree1;
-      Hashtbl.set t ~key:m.insn2 ~data:m.tree2;
-      Hashtbl.set t ~key:m.insn3 ~data:m.tree3;
-      Hashtbl.set t ~key:k ~data:v;
-      MN t
-    | MN t ->
-      Hashtbl.set t ~key:k ~data:v;
-      m
+  let memo_set_assuming_not_present m k v = match k with
+    | Yield _ -> m
+    | _ -> match m with
+      | M0 -> M1 {insn = k; tree = v}
+      | M1 m ->
+        M2 {
+          insn1 = m.insn;
+          tree1 = m.tree;
+          insn2 = k;
+          tree2 = v;
+        }
+      | M2 m ->
+        M3 {
+          insn1 = m.insn1;
+          tree1 = m.tree1;
+          insn2 = m.insn2;
+          tree2 = m.tree2;
+          insn3 = k;
+          tree3 = v;
+        }
+      | M3 m ->
+        let t = Hashtbl.create (module Insn) in
+        Hashtbl.set t ~key:m.insn1 ~data:m.tree1;
+        Hashtbl.set t ~key:m.insn2 ~data:m.tree2;
+        Hashtbl.set t ~key:m.insn3 ~data:m.tree3;
+        Hashtbl.set t ~key:k ~data:v;
+        MN t
+      | MN t ->
+        Hashtbl.set t ~key:k ~data:v;
+        m
 
   let rec sexp_of_tree : tree -> Sexp.t = function
     | Leaf l -> List [Atom "Leaf"; sexp_of_insn l]
@@ -405,7 +409,7 @@ module Make(M : L) = struct
         (* Divergence: branch here. *)
         Tree.br t @@ sequentialize p
       | insn :: rest, Br b ->
-        memo_update b.memo insn
+        memo_lookup b.memo insn
           ~nil:(fun () -> b.memo <- merge_alt p b.alts b.memo)
           ~has:(function
               | Leaf _ | Br _ -> assert false
