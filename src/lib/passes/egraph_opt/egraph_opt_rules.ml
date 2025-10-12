@@ -2041,5 +2041,5 @@ module Groups = struct
     ]
 end
 
-let all = Egraph.create_table Groups.all
-let none = Egraph.create_table []
+let all = Egraph.compile Groups.all
+let none = Egraph.compile []
