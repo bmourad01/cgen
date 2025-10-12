@@ -317,7 +317,7 @@ module Make(M : L) = struct
   end
 
   type 'a program = {
-    rule : (pat * 'a) Vec.t;
+    rule : (pat * 'a) array;
     code : insn Vec.t;
     root : (op, label) Hashtbl.t;
     rmin : int array;
@@ -546,7 +546,7 @@ module Make(M : L) = struct
         failwithf "compile_tree: empty sequence at rule %d" i ()
 
     let compile ?(commute = false) rules =
-      let rule = Vec.of_list rules in
+      let rule = Array.of_list rules in
       let code = Vec.create () in
       let root = Hashtbl.create (module Op) in
       let rmin = match rules with
@@ -554,11 +554,11 @@ module Make(M : L) = struct
         | _ ->
           let forest = Hashtbl.create (module Op) in
           if commute then
-            Vec.iteri rule ~f:(fun i (pat, _) ->
+            Array.iteri rule ~f:(fun i (pat, _) ->
                 permute_commutative pat |>
                 List.iter ~f:(compile_tree forest i))
           else
-            Vec.iteri rule ~f:(fun i (pat, _) ->
+            Array.iteri rule ~f:(fun i (pat, _) ->
                 compile_tree forest i pat);
           Hashtbl.iteri forest ~f:(fun ~key ~data ->
               let data = linearize code data in
@@ -740,7 +740,7 @@ module Make(M : L) = struct
         Continue
       | Yield y ->
         let subst = Map.map y.regs ~f:(fun r -> st.$[r]) in
-        let pat, payload = Vec.get_exn prog.rule y.rule in
+        let pat, payload = prog.rule.(y.rule) in
         Yield {subst; payload; rule = y.rule; pat}
 
     let (let-) x f = match x with
