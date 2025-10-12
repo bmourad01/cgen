@@ -118,6 +118,9 @@ type t = {
 type egraph = t
 
 let compile rules =
+  (* XXX: the previous implementation also reversed the rule order,
+     and now the testsuite relies on that behavior. Maybe the real
+     fix is in changing how the extractor breaks ties. *)
   Matcher.compile @@ List.fold rules ~init:[]
     ~f:(fun acc r -> (r.pre, (r.post, r.subsume)) :: acc)
 

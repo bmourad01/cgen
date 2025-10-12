@@ -61,10 +61,6 @@ let infer_ty t n = Enode.infer_ty n
     ~tvar:(typeof_var t)
     ~word:(word t)
 
-(* Raised when a rewrite rule is not applicable. This is intended
-   to be caught locally during the search/rewrite phase. *)
-exception Mismatch
-
 (* Rewrite state. *)
 type rws = {
   mutable id     : id;  (* The newest ID. *)
@@ -107,26 +103,24 @@ and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
   | None -> match n with
     | U _ -> assert false
     | N _ when d <= 0 -> id
-    | N (o, cs) -> with_return @@ fun {return} ->
+    | N (o, cs) ->
       let vm = VM.create () in
-      let init = VM.init ~lookup:(node t) vm t.rules id in
-      if not init then return id;
       let rws = {id; budget = t.match_limit} in
-      (* Cap the number of new terms that can be inserted. For large
-         chains of union nodes this helps to keep the running time
-         from exploding. *)
-      let continue = ref true in
-      while !continue && rws.budget > 0 do
-        match VM.one vm t.rules with
-        | None -> continue := false
-        | Some y ->
-          let env = Map.map (Y.subst y) ~f:(subst_info t) in
-          let action, subsume = Y.payload y in
-          rewrite ?ty ~d:(d - 1) t rws return action subsume env
-      done;
+      if VM.init ~lookup:(node t) vm t.rules id then begin
+        (* Cap the number of new terms that can be inserted. For large
+           chains of union nodes this helps to keep the running time
+           from exploding. *)
+        let continue = ref true in
+        while !continue && rws.budget > 0 do
+          continue := match VM.one vm t.rules with
+            | Some y -> rewrite ?ty ~d:(d - 1) t rws y
+            | None -> false
+        done;
+      end;
       rws.id
 
-and rewrite ?ty ~d t rws return action subsume env =
+and rewrite ?ty ~d t rws y =
+  let exception Mismatch in
   (* Check that all variables on the RHS are in the substitution,
      so that we don't insert useless terms into the e-graph only
      to run into an uninstantiated variable. *)
@@ -140,7 +134,22 @@ and rewrite ?ty ~d t rws return action subsume env =
     | P (o, ps) ->
       let cs = List.map ps ~f:(assemble env) in
       insert ~d t @@ N (o, cs) in
+  (* Not immediately obvious that this is an optimal term, so make
+     a union node to record the equivalence. *)
+  let default oid =
+    rws.id <- union ?ty t rws.id oid;
+    rws.budget <- rws.budget - 1 in
+  (* We've transformed to a constant, or an otherwise optimal
+     term, so we can end the search here. Note that we don't
+     insert a union node in this case, but we still record the
+     equivalence via union-find. All future rewrites w.r.t
+     this e-class will refer only to this new term. *)
+  let optimal oid =
+    Uf.union t.classes rws.id oid;
+    rws.id <- oid in
   try
+    let env = Map.map (Y.subst y) ~f:(subst_info t) in
+    let action, subsume = Y.payload y in
     let go env p = check env p; assemble env p in
     let oid = match action with
       | Static p -> go env p
@@ -149,17 +158,14 @@ and rewrite ?ty ~d t rws return action subsume env =
       | Dyn f -> match f env with
         | Some p -> go env p
         | None -> raise_notrace Mismatch in
-    if check_union_type ?ty t oid then match rws.id = oid with
-      | false when subsume || Enode.is_const (node t oid) ->
-        (* We've transformed to a constant, or an otherwise optimal
-           term, so we can end the search here. Note that we don't
-           insert a union node in this case, but we still record the
-           equivalence via union-find. All future rewrites w.r.t
-           this e-class will refer only to this new term. *)
-        Uf.union t.classes rws.id oid;
-        return oid
-      | false ->
-        rws.id <- union ?ty t rws.id oid;
-        rws.budget <- rws.budget - 1
-      | true -> ()
-  with Mismatch -> ()
+    if rws.id = oid then
+      (* Technically not a mismatch, but there's nothing to do,
+         so we will bail out early. *)
+      raise_notrace Mismatch;
+    if not @@ check_union_type ?ty t oid then
+      raise_notrace Mismatch;
+    (* Rewrite is OK, integrate with the current e-class. *)
+    let continue = not (subsume || Enode.is_const (node t oid)) in
+    if continue then default oid else optimal oid;
+    continue
+  with Mismatch -> true

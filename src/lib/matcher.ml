@@ -18,7 +18,6 @@ module type L = sig
   val pp_op : Format.formatter -> op -> unit
 end
 
-
 module Make(M : L) = struct
   open M
 
@@ -297,7 +296,7 @@ module Make(M : L) = struct
 
   module Tree = struct
     let leaf insn = Leaf insn
-    let seq insn next = Seq {insn; next}
+    let seq insn next = Seq {insn; next} [@@ocaml.warning "-32"]
 
     let br t t' =
       (* At minimum, we'll have a branching factor of 2,
@@ -375,10 +374,13 @@ module Make(M : L) = struct
           rule x ()
 
     (* Create a tree from a sequence of instructions. *)
-    let rec sequentialize = function
+    let[@tail_mod_cons] rec sequentialize = function
       | [] -> failwith "sequentialize: empty"
       | [i] -> Tree.leaf i
-      | hd :: tl -> Tree.seq hd @@ sequentialize tl
+      | insn :: rest ->
+        (* NB: we have to mention the constructor directly in order
+           to take advantage of `tail_mod_cons`. *)
+        Seq {insn; next = sequentialize rest}
 
     (* Insert a sequence of instructions into an existing tree.
 
@@ -400,14 +402,16 @@ module Make(M : L) = struct
       | _ :: _, Seq _ ->
         (* Divergence: branch here. *)
         Tree.br t @@ sequentialize p
-      | insn :: _, Br b ->
+      | insn :: rest, Br b ->
         memo_update b.memo insn
           ~nil:(fun () -> b.memo <- merge_alt p b.alts b.memo)
-          ~has:(fun a ->
-              (* We know that the prefix matches at this alternative,
-                 so the root of this subtree should not change. *)
-              let a' = insert p a in
-              assert (phys_equal a a'));
+          ~has:(function
+              | Leaf _ | Br _ -> assert false
+              | Seq s ->
+                (* We know that the prefix matches at this alternative,
+                   so the root of this subtree should not change. *)
+                assert (compatible insn s.insn);
+                s.next <- insert rest s.next);
         t
 
     (* Try to merge the subsequence `p` into one of the `alts` of
@@ -428,18 +432,20 @@ module Make(M : L) = struct
       (* Use first-fit ordering semantics like the paper. We inline
          the prefix check once to see if we can avoid allocating
          a subtree that would be discarded anyway. *)
-      let key = List.hd_exn p in
-      Vec.iter alts ~f:(function
-          | Leaf _ -> ()
-          | Seq s when not (compatible s.insn key) -> ()
-          | Seq s as a ->
-            s.next <- insert (List.tl_exn p) s.next;
-            return @@ Some a
-          | Br _ ->
-            (* We should never end up with a tree structure like
-               this. *)
-            assert false);
-      None
+      match p with
+      | [] -> failwith "find_compatible_alt: empty sequence"
+      | key :: rest ->
+        Vec.iter alts ~f:(function
+            | Leaf _ -> ()
+            | Seq s when not (compatible s.insn key) -> ()
+            | Seq s as a ->
+              s.next <- insert rest s.next;
+              return @@ Some a
+            | Br _ ->
+              (* We should never end up with a tree structure like
+                 this. *)
+              assert false);
+        None
 
     let emit code i =
       let label = Vec.length code in
@@ -476,7 +482,7 @@ module Make(M : L) = struct
           assert (n > 0);
           (* Emit a `choose` instruction for each alternative. *)
           let first = emit_choice code in
-          for i = 1 to n - 1 do ignore @@ emit_choice code done;
+          for _ = 1 to n - 1 do ignore @@ emit_choice code done;
           Vec.iteri b.alts ~f:(fun i a ->
               (* Emit the body of the alternative and make it the
                  `next` for the corresponding `choose`. *)

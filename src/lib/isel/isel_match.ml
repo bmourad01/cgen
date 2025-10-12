@@ -64,8 +64,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let prog, vm =
     (* XXX: don't try this at home! The representations are exactly the
        same, but we need to erase the type constraints on the input. *)
-    let to_untyped p = (Obj.magic p : Matcher.pat) in
-    let pats = List.map rules ~f:(fun (p, cbs) -> to_untyped p, cbs) in
+    let pats : (Matcher.pat * callback list) list = Obj.magic rules in
     let prog = Matcher.compile pats ~commute:true in
     prog, VM.create ()
 
