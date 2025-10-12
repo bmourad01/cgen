@@ -62,9 +62,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   module Y = Matcher.Yield
 
   let prog, vm =
-    let rec to_untyped : type a b. (a, b) P.t -> Matcher.pat = function
-      | P (op, ps) -> P (op, List.map ps ~f:to_untyped)
-      | V x -> V x in
+    (* XXX: don't try this at home! The representations are exactly the
+       same, but we need to erase the type constraints on the input. *)
+    let to_untyped p = (Obj.magic p : Matcher.pat) in
     let pats = List.map rules ~f:(fun (p, cbs) -> to_untyped p, cbs) in
     let prog = Matcher.compile pats ~commute:true in
     prog, VM.create ()
