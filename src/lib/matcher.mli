@@ -131,8 +131,15 @@ module Make(M : L) : sig
     (** Internal VM state. *)
     type state
 
-    (** Create a VM state. *)
-    val create : unit -> state
+    (** Create a VM state.
+
+        [registers] is the initial capacity of the register file,
+        i.e. the number of subterms that the VM will need to keep
+        track of at any given time. The register file will grow
+        as needed, so this number should be informed by the relative
+        size of the patterns for the input program.
+    *)
+    val create : ?registers:int -> unit -> state
 
     (** Reset the VM state.
 

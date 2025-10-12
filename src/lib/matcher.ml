@@ -615,10 +615,10 @@ module Make(M : L) = struct
     let default_lookup _ =
       failwith "VM: term lookup is uninitialized"
 
-    let create () = {
+    let create ?(registers = 9) () = {
       pc = nil;
       lookup = default_lookup;
-      regs = Option_array.create ~len:16;
+      regs = Option_array.create ~len:(max 2 registers);
       cont = Pairing_heap.create ~cmp:frame_order ();
     }
 
@@ -654,8 +654,8 @@ module Make(M : L) = struct
 
     let ensure_regs st need =
       let n = need + 1 in
-      if Option_array.length st.regs < n then
-        let current_len = Option_array.length st.regs in
+      let current_len = Option_array.length st.regs in
+      if current_len < n then
         let new_len = max n (2 * current_len + 1) in
         let bigger = Option_array.create ~len:new_len in
         Option_array.blit
