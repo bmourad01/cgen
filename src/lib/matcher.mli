@@ -148,6 +148,12 @@ module Make(M : L) : sig
     *)
     val reset : state -> unit
 
+    (** The ID of the term that was passed to [init].
+
+        @raise Failure if the VM was uninitialized
+    *)
+    val root : state -> id
+
     (** Initializes the state for incremental execution on a
         single term.
 

@@ -72,6 +72,8 @@ module Make(M : L) = struct
     reg : int
   } [@@unboxed] [@@deriving compare, equal, hash, sexp]
 
+  let r0 = {reg = 0}
+
   let (+$) r i = {reg = r.reg + i} [@@inline]
 
   (* Program label *)
@@ -366,7 +368,7 @@ module Make(M : L) = struct
     let compile_one_rule rule = function
       | P (f, args) ->
         let w = Queue.create ~capacity:7 () in
-        let o = enqueue_children w args 0 in
+        let o = enqueue_children w args 1 in
         Insn.init f :: compile_pat ~rule w o
       | V x ->
         failwithf
@@ -615,7 +617,7 @@ module Make(M : L) = struct
     let default_lookup _ =
       failwith "VM: term lookup is uninitialized"
 
-    let create ?(registers = 9) () = {
+    let create ?(registers = 10) () = {
       pc = nil;
       lookup = default_lookup;
       regs = Option_array.create ~len:(max 2 registers);
@@ -648,6 +650,8 @@ module Make(M : L) = struct
     let (.$[]) st r = match Option_array.get st.regs r.reg with
       | None -> failwithf "VM: register $%d is uninitialized" r.reg ()
       | Some t -> t
+
+    let root st = st.$[r0]
 
     let (.$[]<-) st r x =
       Option_array.set_some st.regs r.reg x
@@ -748,8 +752,9 @@ module Make(M : L) = struct
         assert (equal_op op i.f);
         st.pc <- i.next;
         st.lookup <- lookup;
-        let n = load_args st {reg = 0} t in
-        for i = n to Option_array.length st.regs - 1 do
+        st.$[r0] <- id;
+        let n = load_args st {reg = 1} t in
+        for i = n + 1 to Option_array.length st.regs - 1 do
           Option_array.set_none st.regs i;
         done;
         Pairing_heap.clear st.cont;
