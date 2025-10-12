@@ -5,13 +5,14 @@ open Core
 
 module type L = sig
   type op [@@deriving compare, equal, hash, sexp]
-  type term [@@deriving equal]
+  type term
   type id [@@deriving equal]
 
   val is_commutative : op -> bool
 
   val term_op : term -> op option
   val term_args : term -> id list
+  val term_union : term -> (id * id) option
 
   val pp_id : Format.formatter -> id -> unit
   val pp_op : Format.formatter -> op -> unit
@@ -35,7 +36,7 @@ module Make(M : L) = struct
   type pat =
     | V of string
     | P of op * pat list
-  [@@deriving compare, equal, sexp]
+  [@@deriving compare, equal, hash, sexp]
 
   let rec permute_commutative = function
     | V _ as v -> [v]
@@ -666,13 +667,32 @@ module Make(M : L) = struct
       end;
       len
 
-    type 'a result =
-      | Continue
-      | Yield of 'a yield
-
     let bind st o t next =
       ignore @@ load_args st o t;
       st.pc <- next
+
+    (* Extract the term that `id` represents, handling chains
+       of unions along the way. *)
+    let rec normalize_term st prog r id =
+      let t = st.lookup id in
+      match term_union t with
+      | None -> t
+      | Some (pre, post) ->
+        (* Bookmark the `pre` term for exploration. *)
+        let regs' = snapshot_regs st in
+        Option_array.set_some regs' r.reg pre;
+        Pairing_heap.add st.cont {
+          pc = st.pc;
+          regs = regs';
+          rule = prog.rmin.(st.pc.label);
+        };
+        (* Explore the `post` term, although it may be
+           a union itself, so we need to recurse. *)
+        normalize_term st prog r post
+
+    type 'a result =
+      | Continue
+      | Yield of 'a yield
 
     let step st prog =
       if equal_label st.pc nil then
@@ -682,13 +702,13 @@ module Make(M : L) = struct
         (* NB: this should be done manually at the toplevel *)
         assert false
       | Bind b ->
-        let t = st.lookup st.$[b.i] in
+        let t = normalize_term st prog b.i st.$[b.i] in
         if term_equal_op t b.f
         then bind st b.o t b.next
         else backtrack st;
         Continue
       | Check c ->
-        let t = st.lookup st.$[c.i] in
+        let t = normalize_term st prog c.i st.$[c.i] in
         if is_ground_term t && term_equal_op t c.t
         then st.pc <- c.next
         else backtrack st;

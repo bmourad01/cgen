@@ -14,29 +14,39 @@ type subst = Egraph_subst.t
 
 let empty_subst : subst = String.Map.empty
 
+module Matcher = Matcher.Make(struct
+    type op = Enode.op [@@deriving compare, equal, hash, sexp]
+    type term = enode
+    type id = Id.t [@@deriving equal]
+
+    let is_commutative = Enode.is_commutative
+
+    let term_op : term -> op option = function
+      | N (op, _) -> Some op
+      | U _ -> None
+
+    let term_args : term -> id list = function
+      | N (_, args) -> args
+      | U _ -> []
+
+    let term_union : term -> (id * id) option = function
+      | U {pre; post} -> Some (pre, post)
+      | N _ -> None
+
+    let pp_id = Id.pp
+    let pp_op = Enode.pp_op
+  end)
+
+module Y = Matcher.Yield
+module VM = Matcher.VM
+
 (* Allow rules to call an OCaml function that performs some action
    based on the current substitution. *)
 type 'a callback = subst -> 'a
 
-(* A pattern is either:
+type pattern = Matcher.pat [@@deriving compare, equal, hash, sexp]
 
-   [V x]: a variable [x] which represents a substitution for a
-   unique term.
-
-   [P (o, ps)]: an e-node with an operator [o] and children [ps].
-*)
-type pattern =
-  | V of string
-  | P of Enode.op * pattern list
-[@@deriving compare, equal, hash, sexp]
-
-let rec pp_pattern ppf = function
-  | V x -> Format.fprintf ppf "?%s" x
-  | P (o, []) -> Format.fprintf ppf "%a" Enode.pp_op o
-  | P (o, ps) ->
-    let pp_sep ppf () = Format.fprintf ppf " " in
-    Format.fprintf ppf "(%a %a)" Enode.pp_op o
-      (Format.pp_print_list ~pp_sep pp_pattern) ps
+let pp_pattern = Matcher.pp_pat
 
 (* An action to be taken when a pattern has been successfully
    matched.
@@ -72,10 +82,8 @@ type rule = {
    term as subsuming. *)
 type toplevel = pattern list * formula * bool
 
-(* Map top-level operators to their actions. This helps to
-   cut down the search space as we look to apply rules to
-   a given node. *)
-type rules = (Enode.op, toplevel list) Hashtbl.t
+(* The compiled program for matching `pre` patterns. *)
+type rules = (formula * bool) Matcher.program
 
 (* The actual e-graph data structure.
 
@@ -104,21 +112,14 @@ type t = {
   lval        : id Label.Table.t;      (* Maps labels to IDs. *)
   depth_limit : int;                   (* Maximum rewrite depth. *)
   match_limit : int;                   (* Maximum rewrites per term. *)
-  rules       : rules;                 (* The table of rewrite rules. *)
+  rules       : rules;                 (* The compiled matcher program. *)
 }
 
 type egraph = t
 
-let create_table rules =
-  let t = Hashtbl.create (module struct
-      type t = Enode.op [@@deriving compare, hash, sexp]
-    end) in
-  List.iter rules ~f:(fun r -> match r.pre with
-      | P (o, ps) -> Hashtbl.add_multi t ~key:o ~data:(ps, r.post, r.subsume)
-      | V x ->
-        invalid_argf "Cannot create a rule with a variable \
-                      %s at the top-level" x ());
-  t
+let compile rules =
+  Matcher.compile @@ List.fold rules ~init:[]
+    ~f:(fun acc r -> (r.pre, (r.post, r.subsume)) :: acc)
 
 let find t id = Uf.find t.classes id
 let node t id = Vec.get_exn t.node id

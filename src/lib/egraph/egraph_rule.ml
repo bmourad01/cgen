@@ -1,4 +1,5 @@
 open Egraph_common
+open Matcher
 
 type t = rule
 

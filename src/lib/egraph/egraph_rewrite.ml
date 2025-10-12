@@ -108,96 +108,58 @@ and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
     | U _ -> assert false
     | N _ when d <= 0 -> id
     | N (o, cs) -> with_return @@ fun {return} ->
-      (* Rewriting state. *)
+      let vm = VM.create () in
+      let init = VM.init ~lookup:(node t) vm t.rules id in
+      if not init then return id;
       let rws = {id; budget = t.match_limit} in
-      (* Pending unioned nodes. *)
-      let pending = Stack.create () in
-      (* The e-matching routine. *)
-      let children, pat = search t pending in
-      (* Inserts a rewritten term based on a substitution. *)
-      let apply = rewrite ?ty ~d:(d - 1) t rws return in
-      (* Start by matching the top-level constructor. *)
-      Hashtbl.find t.rules o |> Option.iter ~f:(fun toplevels ->
-          List.iter toplevels ~f:(fun (ps, a, subsume) ->
-              (* Try matching with the children of the top-level node. *)
-              apply a subsume ~f:(fun () -> children ps cs);
-              (* Now process any pending unioned nodes. *)
-              Stack.until_empty pending @@ fun (env, x, xs, id, k) ->
-              apply a subsume ~f:(fun () -> pat env x xs id k)));
+      (* Cap the number of new terms that can be inserted. For large
+         chains of union nodes this helps to keep the running time
+         from exploding. *)
+      let continue = ref true in
+      while !continue && rws.budget > 0 do
+        match VM.one vm t.rules with
+        | None -> continue := false
+        | Some y ->
+          let env = Map.map (Y.subst y) ~f:(subst_info t) in
+          let action, subsume = Y.payload y in
+          rewrite ?ty ~d:(d - 1) t rws return action subsume env
+      done;
       rws.id
 
-and search t pending =
-  (* Produce a substitution for an e-class. *)
-  let rec cls env p id k = match p with
-    | P (x, xs) -> pat env x xs id k
-    | V x -> k @@ Map.update env x ~f:(function
-        | None -> subst_info t id
-        | Some i when i.id = id -> i
-        | Some _ -> raise_notrace Mismatch)
-  (* Match a node with a concrete pattern. *)
-  and pat env x xs id k = match node t id with
-    | N (y, ys) when Enode.equal_op x y -> children env xs ys k
-    | N _ -> raise_notrace Mismatch
-    | U {pre; post} ->
-      (* Bias towards the newer `post` term, but save the
-         current continuation for the older `pre` term so
-         we can try matching it later. *)
-      Stack.push pending (env, x, xs, pre, k);
-      pat env x xs post k
-  (* Match all the children of an e-node. *)
-  and children env ps cs k = match List.zip ps cs with
-    | Unequal_lengths -> raise_notrace Mismatch
-    | Ok l -> child env k l
-  (* Match each child, providing a continuation for
-     matching on the remaining children. *)
-  and child env k = function
-    | [] -> k env
-    | [p, id] -> cls env p id k
-    | (p, id) :: xs ->
-      cls env p id @@ fun env ->
-      child env k xs in
-  (* Return the entry points into the search. *)
-  (fun ps cs -> children empty_subst ps cs Fn.id), pat
-
-and rewrite ?ty ~d t rws return action subsume ~f =
+and rewrite ?ty ~d t rws return action subsume env =
   (* Check that all variables on the RHS are in the substitution,
      so that we don't insert useless terms into the e-graph only
      to run into an uninstantiated variable. *)
-  let rec check env = function
+  let rec check env : pattern -> unit = function
     | V x when Map.mem env x -> ()
     | V _ -> raise_notrace Mismatch
     | P (_, ps) -> List.iter ps ~f:(check env) in
   (* Assemble the RHS of the rule. *)
-  let rec assemble env = function
+  let rec assemble env : pattern -> id = function
     | V x -> (Map.find_exn env x).Subst.id
     | P (o, ps) ->
       let cs = List.map ps ~f:(assemble env) in
       insert ~d t @@ N (o, cs) in
-  (* Cap the number of new terms that can be inserted. For large
-     chains of union nodes this helps to keep the running time
-     from exploding. *)
-  if rws.budget > 0 then try
-      let env = f () in
-      let go env p = check env p; assemble env p in
-      let oid = match action with
-        | Static p -> go env p
-        | Cond (p, k) when k env -> go env p
-        | Cond _ -> raise_notrace Mismatch
-        | Dyn f -> match f env with
-          | Some p -> go env p
-          | None -> raise_notrace Mismatch in
-      if check_union_type ?ty t oid then match rws.id = oid with
-        | false when subsume || Enode.is_const (node t oid) ->
-          (* We've transformed to a constant, or an otherwise optimal
-             term, so we can end the search here. Note that we don't
-             insert a union node in this case, but we still record the
-             equivalence via union-find. All future rewrites w.r.t
-             this e-class will refer only to this new term. *)
-          Uf.union t.classes rws.id oid;
-          return oid
-        | false ->
-          rws.id <- union ?ty t rws.id oid;
-          rws.budget <- rws.budget - 1
-        | true -> () 
-    with Mismatch -> ()
-  else return rws.id
+  try
+    let go env p = check env p; assemble env p in
+    let oid = match action with
+      | Static p -> go env p
+      | Cond (p, k) when k env -> go env p
+      | Cond _ -> raise_notrace Mismatch
+      | Dyn f -> match f env with
+        | Some p -> go env p
+        | None -> raise_notrace Mismatch in
+    if check_union_type ?ty t oid then match rws.id = oid with
+      | false when subsume || Enode.is_const (node t oid) ->
+        (* We've transformed to a constant, or an otherwise optimal
+           term, so we can end the search here. Note that we don't
+           insert a union node in this case, but we still record the
+           equivalence via union-find. All future rewrites w.r.t
+           this e-class will refer only to this new term. *)
+        Uf.union t.classes rws.id oid;
+        return oid
+      | false ->
+        rws.id <- union ?ty t rws.id oid;
+        rws.budget <- rws.budget - 1
+      | true -> ()
+  with Mismatch -> ()

@@ -7,7 +7,7 @@ module type L = sig
 
   (** A term, which is the subject of attempting to match
       against a pattern. *)
-  type term [@@deriving equal]
+  type term
 
   (** An identifier for a term.
 
@@ -31,6 +31,18 @@ module type L = sig
   *)
   val term_args : term -> id list
 
+  (** If this term is a {i union} of two terms (i.e. an equivalence class),
+      then return the pair of node IDs that represents the equivalence.
+
+      The first element is the {i pre} term, and the second element is the
+      {i post} term
+
+      The {i post} term represents the newer term, and will be prioritized
+      in when looking for matches. Meanwhile, the {i pre} term will be
+      bookmarked for later exploration.
+  *)
+  val term_union : term -> (id * id) option
+
   (** Pretty-print a term ID. *)
   val pp_id : Format.formatter -> id -> unit
 
@@ -53,7 +65,7 @@ module Make(M : L) : sig
   type pat =
     | V of string
     | P of op * pat list
-  [@@deriving sexp]
+  [@@deriving compare, equal, hash, sexp]
 
   val pp_pat : Format.formatter -> pat -> unit
 

@@ -43,6 +43,22 @@ let is_const = function
   | N (Osym _, []) -> true
   | N _ | U _ -> false
 
+let is_commutative = function
+  | Obinop b ->
+    begin match b with
+      | `add _
+      | `mul _
+      | `mulh _
+      | `umulh _
+      | `and_ _
+      | `or_ _
+      | `xor _
+      | `eq _
+      | `ne _ -> true
+      | _ -> false
+    end
+  | _ -> false
+
 let commute = function
   | N (Obinop b, [x; y]) ->
     begin match b with

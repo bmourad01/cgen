@@ -51,15 +51,11 @@ type 'a callback = subst -> 'a
 (** A rewrite rule. *)
 type rule
 
-(** A table of rules. *)
+(** The compiled rules. *)
 type rules
 
-(** Creates a table from a list of rules.
-
-    @raise Invalid_argument if there is a rule where the precondition is
-    a variable at the top-level.
-*)
-val create_table : rule list -> rules
+(** Compiles the rules. *)
+val compile : rule list -> rules
 
 (** [run fn tenv rules ?depth_limit ?match_limit] constructs an e-graph
     from a function [fn] and applies the [rules] eagerly to produce a

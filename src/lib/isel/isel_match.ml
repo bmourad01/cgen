@@ -25,7 +25,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   module Matcher = Matcher.Make(struct
       type op = P.op [@@deriving compare, equal, hash, sexp]
-      type term = Rv.t node [@@deriving equal]
+      type term = Rv.t node
       type id = Id.t [@@deriving equal]
 
       let is_commutative = function
@@ -51,6 +51,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let term_args = function
         | N (_, args) -> args
         | Rv _ | Tbl _ | Callargs _ -> []
+
+      let term_union _ = None
 
       let pp_id = Id.pp
       let pp_op = P.pp_op
