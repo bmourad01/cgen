@@ -425,33 +425,27 @@ module Make(M : L) = struct
 
        pre: `hd p` is not a member of `memo`
     *)
-    and merge_alt p alts memo =
-      let e = match find_compatible_alt p alts with
-        | Some e -> e
-        | None ->
-          let a = sequentialize p in
-          Vec.push alts a;
-          a in
-      memo_set_assuming_not_present memo (List.hd_exn p) e
-
-    and find_compatible_alt p alts = with_return @@ fun {return} ->
-      (* Use first-fit ordering semantics like the paper. We inline
-         the prefix check once to see if we can avoid allocating
-         a subtree that would be discarded anyway. *)
-      match p with
-      | [] -> failwith "find_compatible_alt: empty sequence"
+    and merge_alt p alts memo = match p with
+      | [] -> failwith "merge_alt: empty sequence"
       | key :: rest ->
-        Vec.iter alts ~f:(function
-            | Leaf _ -> ()
-            | Seq s when not (compatible s.insn key) -> ()
-            | Seq s as a ->
+        (* Use first-fit ordering semantics like the paper. We inline
+           the prefix check once to see if we can avoid allocating
+           a subtree that would be discarded anyway. *)
+        Vec.find alts ~f:(function
+            | Leaf _ -> false
+            | Seq s when not (compatible s.insn key) -> false
+            | Seq s ->
               s.next <- insert rest s.next;
-              return @@ Some a
+              true
             | Br _ ->
-              (* We should never end up with a tree structure like
-                 this. *)
-              assert false);
-        None
+              (* We should never end up with a tree structure like this. *)
+              assert false) |>
+        (* If no match was found, we need to insert a new alternative. *)
+        Option.value_or_thunk ~default:(fun () ->
+            let a = sequentialize p in
+            Vec.push alts a; a) |>
+        (* Cache the prefix for a subsequent merge. *)
+        memo_set_assuming_not_present memo key
 
     let emit code i =
       let label = Vec.length code in
