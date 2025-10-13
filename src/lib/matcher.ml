@@ -603,7 +603,10 @@ module Make(M : L) = struct
       rule : int;
     }
 
-    let frame_order f1 f2 = Int.compare f1.rule f2.rule
+    let frame_order f1 f2 =
+      match Int.compare f1.rule f2.rule with
+      | 0 -> compare_label f1.pc f2.pc
+      | n -> n
 
     type state = {
       mutable pc : label;
