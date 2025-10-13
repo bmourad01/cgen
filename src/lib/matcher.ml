@@ -3,6 +3,13 @@
 
 open Core
 
+(* At minimum, we'll have a branching factor of 2,
+   but in cases where there is a large amount of
+   sharing it can be in the hundreds. My initial
+   analysis shows that 4 is the average for the
+   kinds of rulesets we're going to be running with. *)
+let branching_factor = 4
+
 module type L = sig
   type op [@@deriving compare, equal, hash, sexp]
   type term
@@ -300,17 +307,13 @@ module Make(M : L) = struct
     Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_tree t
   [@@ocaml.warning "-32"]
 
+
   module Tree = struct
     let leaf insn = Leaf insn
     let seq insn next = Seq {insn; next} [@@ocaml.warning "-32"]
 
     let br t t' =
-      (* At minimum, we'll have a branching factor of 2,
-         but in cases where there is a large amount of
-         sharing it can be in the hundreds. My initial
-         analysis shows that 4 is the average for the
-         kinds of rulesets we're going to be running with. *)
-      let v = Vec.create ~capacity:4 () in
+      let v = Vec.create ~capacity:branching_factor () in
       Vec.push v t;
       Vec.push v t';
       Br {alts = v; memo = M0}
@@ -403,21 +406,25 @@ module Make(M : L) = struct
         Tree.br t @@ sequentialize p
       | insn :: rest, Seq s when compatible insn s.insn ->
         (* Shared prefix: continue downward. *)
-        s.next <- insert rest s.next;
+        let n = insert rest s.next in
+        if not (phys_equal n s.next) then s.next <- n;
         t
       | _ :: _, Seq _ ->
         (* Divergence: branch here. *)
         Tree.br t @@ sequentialize p
       | insn :: rest, Br b ->
         memo_lookup b.memo insn
-          ~nil:(fun () -> b.memo <- merge_alt p b.alts b.memo)
+          ~nil:(fun () ->
+              let m = merge_alt p b.alts b.memo in
+              if not (phys_equal m b.memo) then b.memo <- m)
           ~has:(function
               | Leaf _ | Br _ -> assert false
               | Seq s ->
                 (* We know that the prefix matches at this alternative,
                    so the root of this subtree should not change. *)
                 assert (compatible insn s.insn);
-                s.next <- insert rest s.next);
+                let n = insert rest s.next in
+                if not (phys_equal n s.next) then s.next <- n);
         t
 
     (* Try to merge the subsequence `p` into one of the `alts` of
@@ -435,17 +442,24 @@ module Make(M : L) = struct
             | Leaf _ -> false
             | Seq s when not (compatible s.insn key) -> false
             | Seq s ->
-              s.next <- insert rest s.next;
+              let n = insert rest s.next in
+              if not (phys_equal n s.next) then s.next <- n;
               true
             | Br _ ->
               (* We should never end up with a tree structure like this. *)
-              assert false) |>
-        (* If no match was found, we need to insert a new alternative. *)
-        Option.value_or_thunk ~default:(fun () ->
-            let a = sequentialize p in
-            Vec.push alts a; a) |>
-        (* Cache the prefix for a subsequent merge. *)
-        memo_set_assuming_not_present memo key
+              assert false) |> function
+        | Some _ when Vec.length alts <= branching_factor ->
+          (* We have a hit, but not enough alternatives to make caching
+             worth it over scanning linearly. *)
+          memo
+        | Some a ->
+          (* Worth caching now. *)
+          memo_set_assuming_not_present memo key a
+        | None ->
+          (* If no match was found, we need to insert a new alternative. *)
+          let a = sequentialize p in
+          Vec.push alts a;
+          memo
 
     let emit code i =
       let label = Vec.length code in
