@@ -401,9 +401,13 @@ module Make(M : L) = struct
       | [], t ->
         (* Reached the end of the rule. Return the existing tree. *)
         t
+      | Yield _ :: _ :: _, _ ->
+        failwith "insert: invalid sequence, yield is not the final instruction"
       | _ :: _, Leaf _ ->
         (* Existing leaf: no continuation to descend. *)
         Tree.br t @@ sequentialize p
+      | (Yield _ as y) :: _, Seq _ ->
+        Tree.br t @@ Tree.leaf y
       | insn :: rest, Seq s when compatible insn s.insn ->
         (* Shared prefix: continue downward. *)
         let n = insert rest s.next in
@@ -434,6 +438,9 @@ module Make(M : L) = struct
     *)
     and merge_alt p alts memo = match p with
       | [] -> failwith "merge_alt: empty sequence"
+      | (Yield _ as y) :: _ ->
+        Vec.push alts @@ Tree.leaf y;
+        memo
       | key :: rest ->
         (* Use first-fit ordering semantics like the paper. We inline
            the prefix check once to see if we can avoid allocating
