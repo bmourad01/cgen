@@ -308,10 +308,22 @@ let combinable_binop = function
   | CMP -> true
   | _ -> false
 
+let rset_mem' o l = List.exists l ~f:(Set.mem @@ rset [o])
+
 let collect_mov_op fn =
   Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
+        | (_, Two (MOV, Oreg (r1, _), o1))
+          :: (_, Two (MOV, Oreg (r2, _), o2))
+          :: (l, Two (op, Oreg (r3, r3t), Oreg (r3', _)))
+          :: xs when combinable_binop op
+                     && Rv.(r1 = r3')
+                     && Rv.(r2 = r3)
+                     && not (Set.mem (rset [o1]) r1)
+                     && not (rset_mem' o2 [r1; r2]) ->
+          let i = Two (op, Oreg (r3, r3t), o1) in
+          go (Ltree.set acc ~key:l ~data:i) xs
         | (_, Two (MOV, Oreg (r1, _), o))
           :: (l, Two (op, Oreg (r1', r1t), Oreg (r2', _)))
           :: xs when combinable_binop op
@@ -325,6 +337,22 @@ let collect_mov_op fn =
 let mov_op fn =
   map_insns fn @@ collect_mov_op fn
 
+let collect_mov_to_store fn =
+  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+      let rec go acc = function
+        | [] | [_] -> acc
+        | (_, Two (MOV, Oreg (r1, r1t), (Oreg _ as r)))
+          :: (l, Two (MOV, (Omem _ as o), Oreg (r2, r2t)))
+          :: xs when Rv.(r1 = r2)
+                  && Type.equal_basic r1t r2t ->
+          let i = Two (MOV, o, r) in
+          go (Ltree.set acc ~key:l ~data:i) xs
+        | _ :: xs -> go acc xs in
+      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+
+let mov_to_store fn =
+  map_insns fn @@ collect_mov_to_store fn
+
 let run fn =
   let fn = jump_threading fn in
   let fn = remove_disjoint fn in
@@ -337,4 +365,5 @@ let run fn =
   let fn = and_test fn in
   let fn = lea_mov fn in
   let fn = mov_op fn in
+  let fn = mov_to_store fn in
   fn
