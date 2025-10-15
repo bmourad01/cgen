@@ -123,7 +123,7 @@ let run_process cmd args =
   }
 
 let compile_c_driver asm driver exe =
-  let p = run_process "cc" [asm; driver; "-o"; exe; "-g"] in
+  let p = run_process "cc" [asm; driver; "-o"; exe; "-g"; "-fno-omit-frame-pointer"] in
   match p.code with
   | Shexp_process.Exit_status.Exited n ->
     Context.unless (n = 0) @@ fun () ->
