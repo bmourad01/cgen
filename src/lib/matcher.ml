@@ -134,8 +134,8 @@ module Make(M : L) = struct
     (* Yield a successful match; `regs` will be used to build
        the resulting substitution. *)
     | Yield of {
-        regs : reg Map.M(String).t;
         rule : int;
+        regs : reg Map.M(String).t;
       }
   [@@deriving compare, hash, sexp]
 
@@ -563,9 +563,8 @@ module Make(M : L) = struct
     let compile ?(commute = false) rules =
       let rule = Array.of_list rules in
       let code = Vec.create () in
-      let root = Hashtbl.create (module Op) in
-      let rmin = match rules with
-        | [] -> [||]
+      let rmin, root = match rules with
+        | [] -> [||], Hashtbl.create (module Op)
         | _ ->
           let forest = Hashtbl.create (module Op) in
           if commute then
@@ -575,14 +574,13 @@ module Make(M : L) = struct
           else
             Array.iteri rule ~f:(fun i (pat, _) ->
                 compile_tree forest i pat);
-          Hashtbl.iteri forest ~f:(fun ~key ~data ->
-              let data = linearize code data in
-              Hashtbl.set root ~key ~data);
-          compute_rmin code in
+          let root = Hashtbl.map forest ~f:(linearize code) in
+          compute_rmin code, root in
       {rule; code; root; rmin}
   end
 
   let compile = Compiler.compile
+  let is_empty p = Vec.is_empty p.code
 
   type subst = id String.Map.t
 

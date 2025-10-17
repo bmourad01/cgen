@@ -91,6 +91,9 @@ module Make(M : L) : sig
   *)
   val compile : ?commute:bool -> (pat * 'a) list -> 'a program
 
+  (** Returns [true] is the program is empty. *)
+  val is_empty : 'a program -> bool
+
   (** A substitution.
 
       Keys are substitution variables, and values are the [term]-[id] pairs.

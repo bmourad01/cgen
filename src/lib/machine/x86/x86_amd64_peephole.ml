@@ -318,10 +318,10 @@ let collect_mov_op fn =
           :: (_, Two (MOV, Oreg (r2, _), o2))
           :: (l, Two (op, Oreg (r3, r3t), Oreg (r3', _)))
           :: xs when combinable_binop op
-                     && Rv.(r1 = r3')
-                     && Rv.(r2 = r3)
-                     && not (Set.mem (rset [o1]) r1)
-                     && not (rset_mem' o2 [r1; r2]) ->
+                  && Rv.(r1 = r3')
+                  && Rv.(r2 = r3)
+                  && not (Set.mem (rset [o1]) r1)
+                  && not (rset_mem' o2 [r1; r2]) ->
           let i = Two (op, Oreg (r3, r3t), o1) in
           go (Ltree.set acc ~key:l ~data:i) xs
         | (_, Two (MOV, Oreg (r1, _), o))

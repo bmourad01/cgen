@@ -103,6 +103,7 @@ and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
   | None -> match n with
     | U _ -> assert false
     | N _ when d <= 0 -> id
+    | N _ when Matcher.is_empty t.rules -> id
     | N (o, cs) ->
       let vm = VM.create () in
       let rws = {id; budget = t.match_limit} in
