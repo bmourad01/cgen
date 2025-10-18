@@ -76,85 +76,89 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let pre_assign fn =
     let dict = Func.dict fn in
-    let frame = Dict.mem dict Func.Tag.needs_stack_frame in
-    let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
-    let find, base, size = make_offsets_and_size slots frame in
-    let+ blks =
-      Func.blks ~rev:true fn |>
-      C.Seq.fold ~init:[] ~f:(fun bs b ->
-          let+ insns =
-            Blk.insns ~rev:true b |>
-            C.Seq.fold ~init:[] ~f:(fun is i ->
-                let insn = Insn.insn i in
-                Pre_assign.assign find base insn >>= function
-                | [] ->
-                  C.failf
-                    "In Regalloc_stack_layout.run: assign_slots cannot \
-                     return an empty list" ()
-                | [insn] -> !!(Insn.with_insn i insn :: is)
-                | insn :: insns ->
-                  let i' = Insn.with_insn i insn in
-                  let+ is' = freshen insns in
-                  (i' :: is') @ is) in
-          Blk.with_insns b insns :: bs) in
-    Func.with_slots (Func.with_blks fn blks) [], size
+    if not @@ Dict.mem dict Tags.stack_laid_out then
+      let frame = Dict.mem dict Func.Tag.needs_stack_frame in
+      let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
+      let find, base, size = make_offsets_and_size slots frame in
+      let+ blks =
+        Func.blks ~rev:true fn |>
+        C.Seq.fold ~init:[] ~f:(fun bs b ->
+            let+ insns =
+              Blk.insns ~rev:true b |>
+              C.Seq.fold ~init:[] ~f:(fun is i ->
+                  let insn = Insn.insn i in
+                  Pre_assign.assign find base insn >>= function
+                  | [] ->
+                    C.failf
+                      "In Regalloc_stack_layout.run: assign_slots cannot \
+                       return an empty list" ()
+                  | [insn] -> !!(Insn.with_insn i insn :: is)
+                  | insn :: insns ->
+                    let i' = Insn.with_insn i insn in
+                    let+ is' = freshen insns in
+                    (i' :: is') @ is) in
+            Blk.with_insns b insns :: bs) in
+      Func.with_slots (Func.with_blks fn blks) [], size
+    else !!(fn, 0)
 
   let post_assign fn presize =
     let dict = Func.dict fn in
-    let cfg = Cfg.create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests fn in
-    let frame = Dict.mem dict Func.Tag.needs_stack_frame in
-    let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
-    let find, base, size = make_offsets_and_size ~presize slots frame in
-    let fn = Func.map_blks fn ~f:(fun b ->
-        Blk.map_insns b ~f:(fun i ->
-            Insn.with_insn i @@
-            M.Regalloc.post_assign_slots find base @@
-            Insn.insn i)) in
-    (* Allocate the stack frame and preserve any callee-save registers. *)
-    let regs = callee_saves fn in
-    let entry = Func.entry fn in
-    let prologue, epilogue = if frame
-      then M.Regalloc.(frame_prologue, frame_epilogue)
-      else M.Regalloc.(no_frame_prologue, no_frame_epilogue) in
-    let* blks =
-      let ivec = Vec.create () in
-      Func.blks fn |> C.Seq.map ~f:(fun b ->
-          (* XXX: the last instruction is assumed to be the "return",
-             if the only successor is pseudoexit. This could fall
-             apart on more sophisticated exit sequences. *)
-          let last = match Cfg.Node.succs (Blk.label b) cfg |> Seq.next with
-            | Some (l, rest) when Seq.is_empty rest && Label.(l = pseudoexit) ->
-              Blk.insns b ~rev:true |>
-              Seq.filter ~f:(fun i -> not @@ M.Insn.is_pseudo @@ Insn.insn i) |>
-              Seq.map ~f:Insn.label |> Seq.hd
-            | _ -> None in
-          let insns = Blk.insns b |> Seq.to_list in
-          (* Insert prologue if this is the entry block. *)
-          let* insns =
-            if Blk.has_label b entry then
-              let+ insns' = freshen @@ prologue regs size in
-              insns' @ insns
-            else !!insns in
-          (* Insert epilogue immediately before the return. *)
-          let+ () = match last with
-            | None ->
-              C.return @@ List.iter insns ~f:(Vec.push ivec)
-            | Some l ->
-              let once = ref true in
-              C.List.iter insns ~f:(fun i ->
-                  let+ () = C.when_ (!once && Label.(l = Insn.label i)) @@ fun () ->
-                    let+ insns = freshen @@ epilogue regs size in
-                    once := false;
-                    List.iter insns ~f:(Vec.push ivec) in
-                  Vec.push ivec i) in
-          let b = Blk.with_insns b @@ Vec.to_list ivec in
-          Vec.clear ivec;
-          b)
-      >>| Seq.to_list in
-    (* Update the dict. *)
-    let dict = Dict.remove dict Func.Tag.needs_stack_frame in
-    let dict = Dict.set dict Tags.stack_laid_out () in
-    C.lift_err @@ Func.create () ~dict ~blks
-      ~slots:[] ~name:(Func.name fn)
-      ~rets:(Func.rets fn |> Seq.to_list)
+    if not @@ Dict.mem dict Tags.stack_laid_out then
+      let cfg = Cfg.create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests fn in
+      let frame = Dict.mem dict Func.Tag.needs_stack_frame in
+      let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
+      let find, base, size = make_offsets_and_size ~presize slots frame in
+      let fn = Func.map_blks fn ~f:(fun b ->
+          Blk.map_insns b ~f:(fun i ->
+              Insn.with_insn i @@
+              M.Regalloc.post_assign_slots find base @@
+              Insn.insn i)) in
+      (* Allocate the stack frame and preserve any callee-save registers. *)
+      let regs = callee_saves fn in
+      let entry = Func.entry fn in
+      let prologue, epilogue = if frame
+        then M.Regalloc.(frame_prologue, frame_epilogue)
+        else M.Regalloc.(no_frame_prologue, no_frame_epilogue) in
+      let* blks =
+        let ivec = Vec.create () in
+        Func.blks fn |> C.Seq.map ~f:(fun b ->
+            (* XXX: the last instruction is assumed to be the "return",
+               if the only successor is pseudoexit. This could fall
+               apart on more sophisticated exit sequences. *)
+            let last = match Cfg.Node.succs (Blk.label b) cfg |> Seq.next with
+              | Some (l, rest) when Seq.is_empty rest && Label.(l = pseudoexit) ->
+                Blk.insns b ~rev:true |>
+                Seq.filter ~f:(fun i -> not @@ M.Insn.is_pseudo @@ Insn.insn i) |>
+                Seq.map ~f:Insn.label |> Seq.hd
+              | _ -> None in
+            let insns = Blk.insns b |> Seq.to_list in
+            (* Insert prologue if this is the entry block. *)
+            let* insns =
+              if Blk.has_label b entry then
+                let+ insns' = freshen @@ prologue regs size in
+                insns' @ insns
+              else !!insns in
+            (* Insert epilogue immediately before the return. *)
+            let+ () = match last with
+              | None ->
+                C.return @@ List.iter insns ~f:(Vec.push ivec)
+              | Some l ->
+                let once = ref true in
+                C.List.iter insns ~f:(fun i ->
+                    let+ () = C.when_ (!once && Label.(l = Insn.label i)) @@ fun () ->
+                      let+ insns = freshen @@ epilogue regs size in
+                      once := false;
+                      List.iter insns ~f:(Vec.push ivec) in
+                    Vec.push ivec i) in
+            let b = Blk.with_insns b @@ Vec.to_list ivec in
+            Vec.clear ivec;
+            b)
+        >>| Seq.to_list in
+      (* Update the dict. *)
+      let dict = Dict.remove dict Func.Tag.needs_stack_frame in
+      let dict = Dict.set dict Tags.stack_laid_out () in
+      C.lift_err @@ Func.create () ~dict ~blks
+        ~slots:[] ~name:(Func.name fn)
+        ~rets:(Func.rets fn |> Seq.to_list)
+    else !!fn
 end
