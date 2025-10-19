@@ -200,85 +200,26 @@ module Make(M : L) = struct
         insn : insn;
         mutable next : tree;
       }
-    (* Choose one of a set of [alts]. The [memo] table
-       is here to cache previous results locally. *)
+    (* Choose one of a set of [alts]. *)
     | Br of {
         alts : tree Vec.t;
         mutable memo : memo;
       }
 
+  (* Cache the most recently merged alternative. *)
   and memo =
     | M0
     | M1 of {
         insn : insn;
         tree : tree;
       }
-    | M2 of {
-        insn1 : insn;
-        tree1 : tree;
-        insn2 : insn;
-        tree2 : tree;
-      }
-    | M3 of {
-        insn1 : insn;
-        tree1 : tree;
-        insn2 : insn;
-        tree2 : tree;
-        insn3 : insn;
-        tree3 : tree;
-      }
-    | MN of (insn, tree) Hashtbl.t
 
-  (* Look up the memoized entry. *)
   let memo_lookup m k ~has ~nil = match k with
     | Yield _ -> nil ()
     | _ -> match m with
-      | M1 m when compatible m.insn  k -> has m.tree
-      | M2 m when compatible m.insn1 k -> has m.tree1
-      | M2 m when compatible m.insn2 k -> has m.tree2
-      | M3 m when compatible m.insn1 k -> has m.tree1
-      | M3 m when compatible m.insn2 k -> has m.tree2
-      | M3 m when compatible m.insn3 k -> has m.tree3
-      | MN t ->
-        begin match Hashtbl.find t k with
-          | Some t -> has t
-          | None -> nil ()
-        end
+      | M1 m when compatible m.insn k -> has m.tree
       | _ -> nil ()
-  [@@specialise]
-
-  (* Assuming that `k` is not present in `m`, compute a new `m`
-     with `k` and `v` associated. *)
-  let memo_set_assuming_not_present m k v = match k with
-    | Yield _ -> m
-    | _ -> match m with
-      | M0 -> M1 {insn = k; tree = v}
-      | M1 m ->
-        M2 {
-          insn1 = m.insn;
-          tree1 = m.tree;
-          insn2 = k;
-          tree2 = v;
-        }
-      | M2 m ->
-        M3 {
-          insn1 = m.insn1;
-          tree1 = m.tree1;
-          insn2 = m.insn2;
-          tree2 = m.tree2;
-          insn3 = k;
-          tree3 = v;
-        }
-      | M3 m ->
-        let t = Hashtbl.create (module Insn) in
-        Hashtbl.set t ~key:m.insn1 ~data:m.tree1;
-        Hashtbl.set t ~key:m.insn2 ~data:m.tree2;
-        Hashtbl.set t ~key:m.insn3 ~data:m.tree3;
-        Hashtbl.set t ~key:k ~data:v;
-        MN t
-      | MN t ->
-        Hashtbl.set t ~key:k ~data:v;
-        m
+  [@@inline] [@@specialise]
 
   let rec sexp_of_tree : tree -> Sexp.t = function
     | Leaf l -> List [Atom "Leaf"; sexp_of_insn l]
@@ -306,7 +247,6 @@ module Make(M : L) = struct
   let pp_tree ppf t =
     Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_tree t
   [@@ocaml.warning "-32"]
-
 
   module Tree = struct
     let leaf insn = Leaf insn
@@ -418,9 +358,7 @@ module Make(M : L) = struct
         Tree.br t @@ sequentialize p
       | insn :: rest, Br b ->
         memo_lookup b.memo insn
-          ~nil:(fun () ->
-              let m = merge_alt p b.alts b.memo in
-              if not (phys_equal m b.memo) then b.memo <- m)
+          ~nil:(fun () -> merge_alt p b.alts ~memo:(fun m -> b.memo <- m))
           ~has:(function
               | Leaf _ | Br _ -> assert false
               | Seq s ->
@@ -436,11 +374,9 @@ module Make(M : L) = struct
 
        pre: `hd p` is not a member of `memo`
     *)
-    and merge_alt p alts memo = match p with
+    and merge_alt p alts ~memo = match p with
       | [] -> failwith "merge_alt: empty sequence"
-      | (Yield _ as y) :: _ ->
-        Vec.push alts @@ Tree.leaf y;
-        memo
+      | (Yield _ as y) :: _ -> Vec.push alts @@ Tree.leaf y
       | key :: rest ->
         (* Use first-fit ordering semantics like the paper. We inline
            the prefix check once to see if we can avoid allocating
@@ -455,23 +391,18 @@ module Make(M : L) = struct
             | Br _ ->
               (* We should never end up with a tree structure like this. *)
               assert false) |> function
-        | Some _ when Vec.length alts <= branching_factor ->
-          (* We have a hit, but not enough alternatives to make caching
-             worth it over scanning linearly. *)
-          memo
-        | Some a ->
-          (* Worth caching now. *)
-          memo_set_assuming_not_present memo key a
+        | Some a -> memo @@ M1 {insn = key; tree = a}
         | None ->
           (* If no match was found, we need to insert a new alternative. *)
           let a = sequentialize p in
-          Vec.push alts a;
-          memo
+          Vec.push alts a
+    [@@specialise]
 
     let emit code i =
       let label = Vec.length code in
       Vec.push code i;
       {label}
+    [@@inline]
 
     let emit_choice code =
       emit code @@ Choose {alt = None; next = nil}
@@ -499,8 +430,10 @@ module Make(M : L) = struct
           patch_next_at code label @@ go s.next;
           label
         | Br b ->
+          (* We should always have at least two alternatives to
+             choose from. *)
           let n = Vec.length b.alts in
-          assert (n > 0);
+          assert (n > 1);
           (* Emit a `choose` instruction for each alternative. *)
           let first = emit_choice code in
           for _ = 1 to n - 1 do ignore @@ emit_choice code done;
