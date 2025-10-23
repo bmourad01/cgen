@@ -159,12 +159,10 @@ and rewrite ?ty ~d t rws y =
       | Dyn f -> match f env with
         | Some p -> go env p
         | None -> raise_notrace Mismatch in
-    if rws.id = oid then
-      (* Technically not a mismatch, but there's nothing to do,
-         so we will bail out early. *)
-      raise_notrace Mismatch;
-    if not @@ check_union_type ?ty t oid then
-      raise_notrace Mismatch;
+    (* No change. *)
+    rws.id = oid ||
+    (* Ill-typed. *)
+    not (check_union_type ?ty t oid) ||
     (* Rewrite is OK, integrate with the current e-class. *)
     let continue = not (subsume || Enode.is_const (node t oid)) in
     if continue then default oid else optimal oid;

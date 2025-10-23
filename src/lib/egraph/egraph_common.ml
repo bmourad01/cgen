@@ -121,8 +121,8 @@ let compile rules =
   (* XXX: the previous implementation also reversed the rule order,
      and now the testsuite relies on that behavior. Maybe the real
      fix is in changing how the extractor breaks ties. *)
-  Matcher.compile @@ List.fold rules ~init:[]
-    ~f:(fun acc r -> (r.pre, (r.post, r.subsume)) :: acc)
+  Matcher.compile @@ List.rev_map rules
+    ~f:(fun r -> r.pre, (r.post, r.subsume))
 
 let find t id = Uf.find t.classes id
 let node t id = Vec.get_exn t.node id

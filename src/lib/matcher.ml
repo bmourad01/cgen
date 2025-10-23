@@ -391,11 +391,8 @@ module Make(M : L) = struct
             | Br _ ->
               (* We should never end up with a tree structure like this. *)
               assert false) |> function
-        | Some a -> memo @@ M1 {insn = key; tree = a}
-        | None ->
-          (* If no match was found, we need to insert a new alternative. *)
-          let a = sequentialize p in
-          Vec.push alts a
+        | Some tree -> memo @@ M1 {insn = key; tree}
+        | None -> Vec.push alts @@ sequentialize p
     [@@specialise]
 
     let emit code i =
@@ -592,6 +589,15 @@ module Make(M : L) = struct
         rule = prog.rmin.(pc.label);
       }
 
+    let push_union_frame prog st r id =
+      let regs' = snapshot_regs st in
+      Option_array.set_some regs' r.reg id;
+      Pairing_heap.add st.cont {
+        pc = st.pc;
+        regs = regs';
+        rule = prog.rmin.(st.pc.label);
+      }
+
     let backtrack st = match Pairing_heap.pop st.cont with
       | None ->
         reset st;
@@ -627,11 +633,10 @@ module Make(M : L) = struct
       if len > 0 then begin
         ensure_regs st (r.reg + len);
         List.iteri args ~f:(fun i t -> st.$[r +$ i] <- t)
-      end;
-      len
+      end
 
     let bind st o t next =
-      ignore @@ load_args st o t;
+      load_args st o t;
       st.pc <- next
 
     (* Extract the term that `id` represents, handling chains
@@ -642,18 +647,12 @@ module Make(M : L) = struct
       | None -> t
       | Some (pre, post) ->
         (* Bookmark the `pre` term for exploration. *)
-        let regs' = snapshot_regs st in
-        Option_array.set_some regs' r.reg pre;
-        Pairing_heap.add st.cont {
-          pc = st.pc;
-          regs = regs';
-          rule = prog.rmin.(st.pc.label);
-        };
+        push_union_frame prog st r pre;
         (* Explore the `post` term, although it may be
            a union itself, so we need to recurse. *)
         normalize_term st prog r post
 
-    type 'a result =
+    type 'a step =
       | Continue
       | Yield of 'a yield
 
@@ -697,6 +696,7 @@ module Make(M : L) = struct
       | None -> false
 
     let init ~lookup st prog id =
+      reset st;
       let t = lookup id in
       let- op = term_op t in
       let- r = Hashtbl.find prog.root op in
@@ -706,11 +706,7 @@ module Make(M : L) = struct
         st.pc <- i.next;
         st.lookup <- lookup;
         st.$[r0] <- id;
-        let n = load_args st {reg = 1} t in
-        for i = n + 1 to Option_array.length st.regs - 1 do
-          Option_array.set_none st.regs i;
-        done;
-        Pairing_heap.clear st.cont;
+        load_args st {reg = 1} t;
         true
       | _ -> assert false
 
