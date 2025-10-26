@@ -278,6 +278,7 @@ module Make(K : Patricia_tree_intf.Key) = struct
         | Tip (k, x) -> yield (k, x)
         | Bin (_, l, r) -> aux r >>= fun () -> aux l in
       fun t -> run @@ aux t
+  [@@specialise]
 
   let equal f t1 t2 =
     Seq.equal (fun (k1, v1) (k2, v2) -> K.equal k1 k2 && f v1 v2)
@@ -485,6 +486,7 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
         | Tip k -> yield k
         | Bin (_, l, r) -> aux r >>= fun () -> aux l in
       fun t -> run @@ aux t
+  [@@specialise]
 
   let equal t1 t2 =
     Seq.equal K.equal (to_sequence t1) (to_sequence t2)

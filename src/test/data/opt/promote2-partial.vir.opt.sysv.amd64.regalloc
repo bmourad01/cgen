@@ -2,7 +2,7 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov eax, edi ; @32
+  mov eax, edi ; @29
 @3:
   test esi, esi ; @24
   je @6 ; @25

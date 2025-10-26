@@ -6,7 +6,7 @@ export function $foo { ; returns: rax
   mov rbp, rsp ; @61
   sub rsp, 0x8_l ; @62
   push rbx ; @63
-  mov eax, esi ; @58
+  mov eax, esi ; @56
 @2:
   test edi, edi ; @50
   je @3 ; @51

@@ -20,6 +20,12 @@ module Make(M : Machine_intf.S) = struct
   module Live = Pseudo_passes.Live(M)
   module Loop = Loops.Make(Cfg)
 
+  type copy = {
+    dst : Rv.t;
+    src : Rv.t;
+    loop : int;
+  }
+
   (* Terminology:
 
      - [simplifyWorklist]: list of low-degree non-move-related nodes
@@ -42,7 +48,7 @@ module Make(M : Machine_intf.S) = struct
     adjlist         : Rv.Set.t Rv.Table.t;
     degree          : int Rv.Table.t;
     moves           : Lset.t Rv.Table.t;
-    copies          : (Rv.t * Rv.t) Label.Table.t;
+    copies          : copy Label.Table.t;
     mutable wmoves  : Lset.t; (* worklist moves *)
     mutable amoves  : Lset.t; (* active moves *)
     mutable cmoves  : Lset.t; (* coalesced moves *)

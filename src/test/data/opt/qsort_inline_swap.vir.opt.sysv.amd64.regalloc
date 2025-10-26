@@ -2,8 +2,7 @@ module qsort_inline_swap
 
 function $partition { ; returns: rax
 @2:
-  mov rcx, rdi ; @68
-  mov edi, dword ptr [rcx + rdx*4] ; @6
+  mov ecx, dword ptr [rdi + rdx*4] ; @6
   lea r8, qword ptr [rdx - 0x1] ; @70
   lea rax, qword ptr [rsi - 0x1] ; @71
 @3:
@@ -11,20 +10,20 @@ function $partition { ; returns: rax
   jle @9 ; @105
 @10:
   inc rax ; @73
-  mov edi, dword ptr [rcx + rax*4] ; @34
-  mov esi, dword ptr [rcx + rdx*4] ; @35
-  mov dword ptr [rcx + rax*4], esi ; @36
-  mov dword ptr [rcx + rdx*4], edi ; @37
+  mov esi, dword ptr [rdi + rax*4] ; @34
+  mov ecx, dword ptr [rdi + rdx*4] ; @35
+  mov dword ptr [rdi + rax*4], ecx ; @36
+  mov dword ptr [rdi + rdx*4], esi ; @37
   ret ; @102
 @9:
-  mov r9d, dword ptr [rcx + rsi*4] ; @17
-  cmp r9d, edi ; @95
+  mov r9d, dword ptr [rdi + rsi*4] ; @17
+  cmp r9d, ecx ; @95
   jg @14 ; @96
 @13:
   inc rax ; @80
-  mov r10d, dword ptr [rcx + rax*4] ; @25
-  mov dword ptr [rcx + rax*4], r9d ; @27
-  mov dword ptr [rcx + rsi*4], r10d ; @28
+  mov r10d, dword ptr [rdi + rax*4] ; @25
+  mov dword ptr [rdi + rax*4], r9d ; @27
+  mov dword ptr [rdi + rsi*4], r10d ; @28
 @14:
   inc rsi ; @79
   jmp @3 ; @89

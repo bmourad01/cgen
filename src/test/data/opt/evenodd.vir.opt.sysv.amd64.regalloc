@@ -3,14 +3,11 @@ module evenodd
 function $abs { ; returns: rax
 @2:
   test edi, edi ; @44
-  js @3 ; @45
-@36:
-  mov eax, edi ; @42
-  jmp @21 ; @43
+  jns @21 ; @45
 @3:
   neg edi ; @41
-  mov eax, edi ; @39
 @21:
+  mov eax, edi ; @37
   ret ; @38
 }
 

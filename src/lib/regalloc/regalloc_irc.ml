@@ -55,7 +55,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* if isMoveInstruction(I) then *)
     let+ out = match M.Regalloc.is_copy insn with
       | None -> !!out
-      | Some ((d, s) as p) ->
+      | Some (d, s) ->
         (* This is an invariant that is required of `M.Regalloc.is_copy`; better
            to fail loudly here than silently introduce errors. *)
         let+ () = C.unless (Regs.same_class_node d s) @@ fun () ->
@@ -68,7 +68,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
              moveList[n] := moveList[n] U {I} *)
         add_move t label d;
         add_move t label s;
-        Hashtbl.set t.copies ~key:label ~data:p;
+        Hashtbl.set t.copies ~key:label ~data:{
+          dst = d;
+          src = s;
+          loop = loop_depth;
+        };
         (* worklistMoves := worklistMoves U {I} *)
         t.wmoves <- Lset.add t.wmoves label;
         out in
@@ -252,7 +256,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | None -> vm);
     (* forall t \in Adjacent(v) *)
     adjacent t v |> Set.iter ~f:(combine_edge t u);
-    if (* degree[u] >= K*)
+    if (* degree[u] >= K *)
       degree t u >= Regs.node_k u &&
       (* u \in freezeWorklist *)
       Hash_set.mem t.wfreeze u then begin
@@ -260,17 +264,61 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Hash_set.remove t.wfreeze u;
       (* spillWorklist := spillWorklist U {u} *)
       add_spill t u
-    end      
+    end
+
+  (* P(u,v) = S(u,v) * (W(u,v) / (1 + D'(u) + D'(v)))
+
+     where:
+     - S is the "safety factor"
+     - W is the "weight" of the move
+     - D' is the "effective degree"
+
+     W follows our heuristic for spill priority: 10^loop_depth
+  *)
+  let move_priority t m =
+    let c = Hashtbl.find_exn t.copies m in
+    let pu = exclude_from_coloring t c.dst in
+    let pv = exclude_from_coloring t c.src in
+    if pu && pv then 0.0 else
+      (* Pre-colored nodes don't actually have a degree, so we need to scale
+         the result such that a node with degree > K doesn't outweigh a node
+         that is pre-colored. *)
+      let effective_degree n p =
+        let k = Regs.node_k n in
+        let k' = k * 2 in
+        if p then k' else
+          let d = degree t n in
+          if d <= k then d else
+            (* If `d > K`, then we're OK with scaling off the tail end
+               towards our threshold of 2K, since such nodes are effectively
+               uncolorable until we allow `simplify` to make progress. *)
+            min (k' - 1) (k + ((d - k) / 2)) in
+      let du = effective_degree c.dst pu in
+      let dv = effective_degree c.src pv in
+      let w = Float.of_int @@ Int.pow 10 c.loop in
+      let p = w /. Float.of_int (1 + du + dv) in
+      (* If one of the nodes is pre-colored, then this coalesce will be
+         much riskier. If both are pre-colored, then we should avoid it
+         at all costs (see topmost condition). *)
+      if pu || pv then p *. 0.25 else p
+
+  (* Pick a move from the worklist that would profit the most from
+     coalescing. *)
+  let pick_move t =
+    Lset.to_sequence t.wmoves |>
+    Seq.map ~f:(fun m -> m, move_priority t m) |>
+    Seq.max_elt ~compare:(fun (_, a) (_, b) ->  Float.compare a b) |>
+    Option.value_exn |> fst
 
   (* pre: wmoves is not empty *)
   let coalesce t =
     (* let m_(=copy(x,y)) \in worklistMoves *)
-    let m = Lset.min_elt_exn t.wmoves in
-    let x, y = Hashtbl.find_exn t.copies m in
+    let m = pick_move t in
+    let c = Hashtbl.find_exn t.copies m in
     (* x := GetAlias(x) *)
-    let x = alias t x in
+    let x = alias t c.dst in
     (* y := GetAlias(y) *)
-    let y = alias t y in
+    let y = alias t c.src in
     (* if y \in precolored then
          let (u,v) = (y,x)
        else
@@ -315,9 +363,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      Returns the other node `v` of the copy.
   *)
   let uvcopy t u m =
-    let d, s = Hashtbl.find_exn t.copies m in
-    if Rv.(d = u) then Some s
-    else if Rv.(s = u) then Some d
+    let c = Hashtbl.find_exn t.copies m in
+    if Rv.(c.dst = u) then Some c.src
+    else if Rv.(c.src = u) then Some c.dst
     else None
 
   let freeze_moves t u =
