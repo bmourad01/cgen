@@ -89,14 +89,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         C.failf "In Isel_builder.blkargs: unequal lengths for arguments to \
                  block %a in function $%s: got %d, expected %d"
           Label.pp ld (Func.name t.fn) (List.length args') (List.length args) ()
-      | Ok moves ->
-        (* Check for params that are being passed as params. *)
-        let conflicts =
-          List.fold args' ~init:Var.Set.empty ~f:(fun init x ->
-              List.fold args ~init ~f:(fun acc -> function
-                  | `var y when Var.(x = y) -> Set.add acc x
-                  | _ -> acc)) in
-        !!(moves, conflicts)
+      | Ok moves -> !!moves
 
   (* XXX: can we do better than this kludge?
 
@@ -110,10 +103,67 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | #Virtual.const as c -> ty, constant t c
     | `var x -> ty, new_node ~ty t @@ Rv (Rv.var (regcls ty) x)
 
+  (* From the paper:
+
+     "Tilting at windmills with Coq: formal verification of a
+     compilation algorithm for parallel moves" (2008)
+
+     by L. Rideau, B. P. Serpette, & X. Leroy
+  *)
+  let windmill t l moves =
+    let moves = Array.of_list moves in
+    let n = Array.length moves in
+    let status = Array.create ~len:n `to_move in
+    let subst = Var.Table.create () in
+    let rewrite = function
+      | `var v as default ->
+        Hashtbl.find subst v |>
+        Option.value ~default
+      | src -> src in
+    let emit ?i dst src =
+      let+ ty, id = operand' t @@ rewrite src in
+      let n = N (Omove, [new_var t dst ty; id]) in
+      ignore @@ new_node ~l t n;
+      Option.iter i ~f:(fun i -> status.(i) <- `moved) in
+    let rec move_one i =
+      let dst, src = moves.(i) in
+      match src with
+      | #Virtual.const ->
+        (* Not a var: emit normally. *)
+        emit ~i dst src
+      | `var v when Var.(dst = v) ->
+        (* Ignore redundant moves. *)
+        !!(status.(i) <- `moved)
+      | `var _ ->
+        status.(i) <- `being_moved;
+        let* () = dfs i dst in
+        emit ~i dst src
+    and dfs i dst = Seq.range 0 n |> C.Seq.iter ~f:(fun j ->
+        (* Find a child whose `src` depends on `dst`. *)
+        C.unless (i = j) @@ fun () ->
+        match rewrite @@ snd moves.(j) with
+        | #Virtual.const -> !!()
+        | `var v when Var.(dst <> v) -> !!()
+        | `var v as src' -> match status.(j) with
+          | `moved -> !!()
+          | `to_move -> move_one j
+          | `being_moved ->
+            (* Found a cycle, so we need to use a fresh
+               temporary. *)
+            let* tmp = C.Var.fresh in
+            let+ () = emit tmp src' in
+            (* Any future mention of `v` will refer to `tmp`. *)
+            Hashtbl.set subst ~key:v ~data:(`var tmp)) in
+    (* Entry point: consider all pending moves. *)
+    Seq.range 0 n |> C.Seq.iter ~f:(fun i ->
+        match status.(i) with
+        | `to_move -> move_one i
+        | _ -> !!())
+
   let blkargs ?(br = false) t l ld args =
     zip_blkargs t ld args >>= function
-    | [], _ -> !!None
-    | moves, conflicts ->
+    | [] -> !!None
+    | moves ->
       (* If applicable, make a new administrative block for the
          moves to be inserted into. *)
       let* l', ld' = if br then
@@ -121,24 +171,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           Hashtbl.add_multi t.extra ~key:l ~data:l';
           l', l'
         else !!(l, ld) in
-      let+ todo =
-        C.List.fold moves ~init:[] ~f:(fun acc (x, a) ->
-            let* ty, id = operand' t a in
-            if Set.mem conflicts x then
-              (* Make an administrative copy that we append after
-                 handling the rest of the block parameters. *)
-              let+ x' = C.Var.fresh in
-              let xid' = new_var t x' ty in
-              let n = N (Omove, [xid'; id]) in
-              ignore @@ new_node ~l:l' t n;
-              (xid', x, ty) :: acc
-            else
-              let n = N (Omove, [new_var t x ty; id]) in
-              ignore @@ new_node ~l:l' t n;
-              !!acc) in
-      List.iter todo ~f:(fun (id, x, ty) ->
-          let n = N (Omove, [new_var t x ty; id]) in
-          ignore @@ new_node ~l:l' t n);
+      let+ () = windmill t l' moves in
       if br then begin
         let lid = new_node t @@ N (Olocal ld, []) in
         ignore @@ new_node ~l:l' t @@ N (Ojmp, [lid])

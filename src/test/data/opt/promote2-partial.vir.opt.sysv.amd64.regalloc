@@ -1,0 +1,17 @@
+module foo
+
+export function $foo { ; returns: rax
+@2:
+  mov eax, edi ; @32
+@3:
+  test esi, esi ; @24
+  je @6 ; @25
+@7:
+  cdq ; @21
+  idiv esi ; @22
+  mov eax, esi ; @18
+  mov esi, edx ; @19
+  jmp @3 ; @20
+@6:
+  ret ; @17
+}

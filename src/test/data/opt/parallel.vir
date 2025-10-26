@@ -1,0 +1,24 @@
+module parallel
+
+export function w $foo(w %a, w %b, w %c, w %d) {
+@start:
+  jmp @loop
+@loop:
+  %p = add.w %a, %c
+  %q = add.w %b, %d
+  %done = eq.w %p, %q
+  br %done, @done, @next
+@next:
+  ;; when we've lowered to SSA form and performed
+  ;; copy propagation, there will be two cycles
+  ;; to resolve
+  %tmp = copy.w %a
+  %a = copy.w %b
+  %b = copy.w %tmp
+  %tmp = copy.w %c
+  %c = copy.w %d
+  %d = copy.w %tmp
+  jmp @loop
+@done:
+  ret %p
+}

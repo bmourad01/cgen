@@ -302,6 +302,7 @@ let opt_suite = "Test optimizations" >::: [
     "AND test" >:: test "and_test";
     "No sinking" >:: test "nosink";
     "Spill test 2" >:: test "spill2";
+    "Parallel moves" >:: test "parallel";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -365,6 +366,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64 "collatz_rec";
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64 "ackermann";
     "Quicksort (SysV AMD64)" >:: test_sysv_amd64 "qsort";
+    "Parallel moves (SysV AMD64)" >:: test_sysv_amd64 "parallel";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -405,6 +407,8 @@ let regalloc_suite = "Test register allocation" >::: [
     "No sinking (SysV AMD64)" >:: test_sysv_amd64_regalloc "nosink";
     "Spill test 2 (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill2";
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_regalloc "analyze_array";
+    "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_regalloc "promote2-partial";
+    "Parallel moves (SysV AMD64)" >:: test_sysv_amd64_regalloc "parallel";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -429,6 +433,7 @@ let native_suite = "Test native code" >::: [
     "Spill test 2 (SysV AMD64)" >:: test_sysv_amd64_native "spill2";
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_native "analyze_array";
     "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_native "uremby7";
+    "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_native "promote2-partial";
   ]
 
 let () = run_test_tt_main @@ test_list [
