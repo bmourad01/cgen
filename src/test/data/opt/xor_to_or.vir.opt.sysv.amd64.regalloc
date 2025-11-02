@@ -2,14 +2,14 @@ module xor_to_or
 
 export function $foo { ; returns: rax
 @2:
-  or edi, esi ; @18
-  mov eax, edi ; @14
-  ret ; @15
+  or edi, esi ; @20
+  mov eax, edi ; @16
+  ret ; @17
 }
 
 export function $bar { ; returns: rax
 @6:
-  or edi, esi ; @23
-  mov eax, edi ; @19
-  ret ; @20
+  or edi, esi ; @25
+  mov eax, edi ; @21
+  ret ; @22
 }

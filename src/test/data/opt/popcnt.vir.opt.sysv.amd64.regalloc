@@ -2,26 +2,26 @@ module popcnt
 
 export function $popcnt8 { ; returns: rax
 @2:
-  movzx eax, dil ; @20
-  popcnt eax, eax ; @21
-  ret ; @19
+  movzx eax, dil ; @16
+  popcnt eax, eax ; @17
+  ret ; @15
 }
 
 export function $popcnt16 { ; returns: rax
 @4:
-  movzx eax, di ; @25
-  popcnt eax, eax ; @26
-  ret ; @24
+  movzx eax, di ; @21
+  popcnt eax, eax ; @22
+  ret ; @20
 }
 
 export function $popcnt32 { ; returns: rax
 @6:
-  popcnt eax, edi ; @31
-  ret ; @29
+  popcnt eax, edi ; @27
+  ret ; @25
 }
 
 export function $popcnt64 { ; returns: rax
 @8:
-  popcnt rax, rdi ; @36
-  ret ; @34
+  popcnt rax, rdi ; @32
+  ret ; @30
 }

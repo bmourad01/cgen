@@ -4,16 +4,16 @@ export function sw $foo(l %arr, w %num) {
 @2:
   jmp @3(0x0_w, 0x0_w)
 @3(%s.2, %i.2):
-  %6 = lt.w %i.2, %num ; @21
-  br %6, @6, @7
+  %0 = lt.w %i.2, %num ; @15
+  br %0, @6, @7
 @6:
-  %7 = zext.l %i.2 ; @22
-  %8 = lsl.l %7, 0x2_l ; @23
-  %9 = add.l %8, %arr ; @24
-  %w.1 = ld.w %9 ; @12
-  %10 = add.w %w.1, %s.2 ; @25
-  %11 = add.w %i.2, 0x1_w ; @26
-  jmp @3(%10, %11)
+  %1 = zext.l %i.2 ; @16
+  %2 = lsl.l %1, 0x2_l ; @17
+  %3 = add.l %2, %arr ; @18
+  %w.1 = ld.w %3 ; @12
+  %4 = add.w %w.1, %s.2 ; @19
+  %5 = add.w %i.2, 0x1_w ; @20
+  jmp @3(%4, %5)
 @7:
   ret %s.2
 }

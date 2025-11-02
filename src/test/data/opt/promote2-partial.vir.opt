@@ -4,8 +4,8 @@ export function w $foo(w %a, w %b) {
 @2:
   jmp @3(%b, %a)
 @3(%y.2, %x.2):
-  %1 = eq.w %y.2, 0x0_w ; @15
-  br %1, @6, @7
+  %0 = eq.w %y.2, 0x0_w ; @14
+  br %0, @6, @7
 @7:
   %ax.1 = rem.w %x.2, %y.2 ; @11
   jmp @3(%ax.1, %y.2)

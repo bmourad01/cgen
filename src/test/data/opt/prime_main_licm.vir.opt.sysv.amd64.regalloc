@@ -7,49 +7,49 @@ const data $fmt = {
 
 export function $main { ; returns: rax
 @2:
-  push rbp ; @70
-  mov rbp, rsp ; @71
-  push r12 ; @72
-  push r13 ; @73
-  push r14 ; @74
-  push rbx ; @75
+  push rbp ; @64
+  mov rbp, rsp ; @65
+  push r12 ; @66
+  push r13 ; @67
+  push r14 ; @68
+  push rbx ; @69
   mov rdi, qword ptr [rsi + 0x8] ; @5
-  call $atoi ; rdi ; @66
-  mov r14d, eax ; @62
-  mov r13d, 0x1_w ; @63
-  mov eax, 0x1_w ; @64
+  call $atoi ; rdi ; @60
+  mov r14d, eax ; @56
+  mov r13d, 0x1_w ; @57
+  mov eax, 0x1_w ; @58
 @3:
-  cmp r14d, 0x0_w ; @57
-  jle @9 ; @58
-@33:
-  mov ebx, eax ; @55
+  cmp r14d, 0x0_w ; @51
+  jle @9 ; @52
+@27:
+  mov ebx, eax ; @49
 @10:
   mov edi, ebx ; @14
-  call $is_prime ; rdi ; @53
-  lea r12d, qword ptr [rbx + 0x1] ; @29
-  test eax, eax ; @48
-  jne @13 ; @49
-@34:
-  mov ebx, r12d ; @46
-  jmp @10 ; @47
+  call $is_prime ; rdi ; @47
+  lea r12d, qword ptr [rbx + 0x1] ; @24
+  test eax, eax ; @42
+  jne @13 ; @43
+@28:
+  mov ebx, r12d ; @40
+  jmp @10 ; @41
 @13:
   lea rdi, qword ptr [rip + $fmt] ; @16
-  mov esi, r13d ; @41
-  mov edx, ebx ; @42
-  xor al, al ; @43
-  call $printf ; rax rdi rdx rsi ; @44
-  lea ecx, qword ptr [r14 - 0x1] ; @31
-  lea eax, qword ptr [r13 + 0x1] ; @32
-  mov r14d, ecx ; @37
-  mov r13d, eax ; @38
-  mov eax, r12d ; @39
-  jmp @3 ; @40
+  mov esi, r13d ; @35
+  mov edx, ebx ; @36
+  xor al, al ; @37
+  call $printf ; rax rdi rdx rsi ; @38
+  lea ecx, qword ptr [r14 - 0x1] ; @25
+  lea eax, qword ptr [r13 + 0x1] ; @26
+  mov r14d, ecx ; @31
+  mov r13d, eax ; @32
+  mov eax, r12d ; @33
+  jmp @3 ; @34
 @9:
-  xor eax, eax ; @35
-  pop rbx ; @76
-  pop r14 ; @77
-  pop r13 ; @78
-  pop r12 ; @79
-  leave ; @80
-  ret ; @36
+  xor eax, eax ; @29
+  pop rbx ; @70
+  pop r14 ; @71
+  pop r13 ; @72
+  pop r12 ; @73
+  leave ; @74
+  ret ; @30
 }

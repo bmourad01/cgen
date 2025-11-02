@@ -2,12 +2,12 @@ module foo
 
 export function w $foo(w %x, w %y) {
 @2:
-  %2 = add.w %y, 0x1_w ; @12
-  %3 = eq.w %x, 0x0_w ; @13
-  br %3, @3, @6
+  %0 = eq.w %x, 0x0_w ; @10
+  %1 = add.w %y, 0x1_w ; @11
+  br %0, @3, @6
 @3:
-  call $do_something(%2) ; @8
+  call $do_something(%1) ; @8
   jmp @6
 @6:
-  ret %2
+  ret %1
 }

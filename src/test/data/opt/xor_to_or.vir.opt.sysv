@@ -8,6 +8,6 @@ export function $foo(w %x/rdi, w %y/rsi) {
 
 export function $bar(w %x/rdi, w %y/rsi) {
 @6:
-  %3 = or.w %x, %y ; @13
-  ret rax/%3
+  %5 = or.w %x, %y ; @15
+  ret rax/%5
 }

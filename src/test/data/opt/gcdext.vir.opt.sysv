@@ -3,54 +3,54 @@ module gcdext
 export function $gcd(w %a/rdi, w %b/rsi) {
   %res = slot 16, align 8
   %r = slot 16, align 8
-  %15 = slot 16, align 8
-  %20 = slot 16, align 8
-  %25 = slot 16, align 8
+  %8 = slot 16, align 8
+  %13 = slot 16, align 8
+  %18 = slot 16, align 8
 @2:
-  %8 = add.l %res, 0x4_l ; @37
-  %9 = add.l %res, 0x8_l ; @38
-  %10 = eq.w %a, 0x0_w ; @39
-  br %10, @3, @4
+  %1 = eq.w %a, 0x0_w ; @30
+  %2 = add.l %res, 0x8_l ; @31
+  %3 = add.l %res, 0x4_l ; @32
+  br %1, @3, @4
 @3:
   st.w %b, %res ; @6
-  st.w 0x0_w, %8 ; @8
-  st.w 0x1_w, %9 ; @10
-  %26 = ld.l %res ; @56
-  st.l %26, %25 ; @57
-  %28 = ld.l %9 ; @59
-  %29 = add.l %25, 0x8_l ; @60
-  st.l %28, %29 ; @61
-  jmp @29(%25)
+  st.w 0x0_w, %3 ; @8
+  st.w 0x1_w, %2 ; @10
+  %19 = ld.l %res ; @49
+  st.l %19, %18 ; @50
+  %21 = ld.l %2 ; @52
+  %22 = add.l %18, 0x8_l ; @53
+  st.l %21, %22 ; @54
+  jmp @29(%18)
 @4:
   %m.1 = rem.w %b, %a ; @12
-  %34/l/rax, %35/l/rdx = call $gcd(%m.1/rdi, %a/rsi) ; @13
-  %33 = add.l %15, 0x8_l ; @65
-  st.l %34, %15 ; @66
-  st.l %35, %33 ; @67
-  %16 = ld.l %15 ; @44
-  st.l %16, %r ; @45
-  %18 = ld.l %33 ; @47
-  %19 = add.l %r, 0x8_l ; @48
-  st.l %18, %19 ; @49
+  %27/l/rax, %28/l/rdx = call $gcd(%m.1/rdi, %a/rsi) ; @13
+  %26 = add.l %8, 0x8_l ; @58
+  st.l %27, %8 ; @59
+  st.l %28, %26 ; @60
+  %9 = ld.l %8 ; @37
+  st.l %9, %r ; @38
+  %11 = ld.l %26 ; @40
+  %12 = add.l %r, 0x8_l ; @41
+  st.l %11, %12 ; @42
   %rg.1 = ld.w %r ; @15
-  %11 = add.l %r, 0x4_l ; @40
-  %rx.1 = ld.w %11 ; @17
-  %ry.1 = ld.w %19 ; @19
+  %4 = add.l %r, 0x4_l ; @33
+  %rx.1 = ld.w %4 ; @17
+  %ry.1 = ld.w %12 ; @19
   st.w %rg.1, %res ; @20
   %nx.1 = div.w %b, %a ; @21
-  %13 = mul.w %nx.1, %rx.1 ; @42
-  %14 = sub.w %ry.1, %13 ; @43
-  st.w %14, %8 ; @25
-  st.w %rx.1, %9 ; @27
-  %21 = ld.l %res ; @50
-  st.l %21, %20 ; @51
-  %23 = ld.l %9 ; @53
-  %24 = add.l %20, 0x8_l ; @54
-  st.l %23, %24 ; @55
-  jmp @29(%20)
+  %6 = mul.w %nx.1, %rx.1 ; @35
+  %7 = sub.w %ry.1, %6 ; @36
+  st.w %7, %3 ; @25
+  st.w %rx.1, %2 ; @27
+  %14 = ld.l %res ; @43
+  st.l %14, %13 ; @44
+  %16 = ld.l %2 ; @46
+  %17 = add.l %13, 0x8_l ; @47
+  st.l %16, %17 ; @48
+  jmp @29(%13)
 @29(%0):
-  %30 = ld.l %0 ; @62
-  %31 = add.l %0, 0x8_l ; @63
-  %32 = ld.l %31 ; @64
-  ret rax/%30, rdx/%32
+  %23 = ld.l %0 ; @55
+  %24 = add.l %0, 0x8_l ; @56
+  %25 = ld.l %24 ; @57
+  ret rax/%23, rdx/%25
 }

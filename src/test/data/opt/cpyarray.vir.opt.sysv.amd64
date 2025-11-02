@@ -2,22 +2,22 @@ module foo
 
 export function $foo {
 @2:
-  mov %arr:l, rdi ; @38
-  mov %src:l, rsi ; @39
-  mov %num:w, edx ; @40
-  xor %i.2:w, %i.2:w ; @41
-  jmp @3 ; @42
+  mov %arr:l, rdi ; @32
+  mov %src:l, rsi ; @33
+  mov %num:w, edx ; @34
+  xor %i.2:w, %i.2:w ; @35
+  jmp @3 ; @36
 @3:
-  cmp %i.2:w, %num:w ; @33
-  jb @5 ; @34
-  jmp @6 ; @35
+  cmp %i.2:w, %num:w ; @27
+  jb @5 ; @28
+  jmp @6 ; @29
 @6:
-  ret ; @32
+  ret ; @26
 @5:
-  mov %7:w, %i.2:w ; @24
-  mov %w.1:w, dword ptr [%src + %7*4] ; @11
-  mov dword ptr [%arr + %7*4], %w.1:w ; @15
-  lea %11:w, qword ptr [%i.2 + 0x1] ; @28
-  mov %i.2:w, %11:w ; @29
-  jmp @3 ; @30
+  mov %1:w, %i.2:w ; @18
+  mov %w.1:w, dword ptr [%src + %1*4] ; @11
+  mov dword ptr [%arr + %1*4], %w.1:w ; @15
+  lea %5:w, qword ptr [%i.2 + 0x1] ; @22
+  mov %i.2:w, %5:w ; @23
+  jmp @3 ; @24
 }

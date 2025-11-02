@@ -2,24 +2,24 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %a:w, edi ; @29
-  mov %b:w, esi ; @30
-  mov %y.2:w, %b:w ; @31
-  mov %x.2:w, %a:w ; @32
-  jmp @3 ; @33
+  mov %a:w, edi ; @28
+  mov %b:w, esi ; @29
+  mov %y.2:w, %b:w ; @30
+  mov %x.2:w, %a:w ; @31
+  jmp @3 ; @32
 @3:
-  test %y.2:w, %y.2:w ; @24
-  je @6 ; @25
-  jmp @7 ; @26
+  test %y.2:w, %y.2:w ; @23
+  je @6 ; @24
+  jmp @7 ; @25
 @7:
   mov eax, %x.2:w ; @11
-  cdq ; @21
-  idiv %y.2:w ; @22
-  mov %ax.1:w, edx ; @23
-  mov %x.2:w, %y.2:w ; @18
-  mov %y.2:w, %ax.1:w ; @19
-  jmp @3 ; @20
+  cdq ; @20
+  idiv %y.2:w ; @21
+  mov %ax.1:w, edx ; @22
+  mov %x.2:w, %y.2:w ; @17
+  mov %y.2:w, %ax.1:w ; @18
+  jmp @3 ; @19
 @6:
-  mov eax, %x.2:w ; @16
-  ret ; @17
+  mov eax, %x.2:w ; @15
+  ret ; @16
 }

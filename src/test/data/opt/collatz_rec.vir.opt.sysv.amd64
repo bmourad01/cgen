@@ -2,32 +2,32 @@ module collatz_rec
 
 export function $foo { ; returns: rax
 @18:
-  mov %n:w, edi ; @55
-  mov %steps:w, esi ; @56
-  mov %1:w, %n:w ; @57
-  mov %2:w, %steps:w ; @58
-  jmp @2 ; @59
+  mov %n:w, edi ; @47
+  mov %steps:w, esi ; @48
+  mov %1:w, %n:w ; @49
+  mov %2:w, %steps:w ; @50
+  jmp @2 ; @51
 @2:
-  cmp %1:w, 0x1_w ; @50
-  je @17 ; @51
-  jmp @4 ; @52
+  cmp %1:w, 0x1_w ; @42
+  je @17 ; @43
+  jmp @4 ; @44
 @17:
-  mov eax, %2:w ; @48
-  ret ; @49
+  mov eax, %2:w ; @40
+  ret ; @41
 @4:
-  lea %12:w, qword ptr [%2 + 0x1] ; @28
-  test %1:w, 0x1_w ; @42
-  je @6 ; @43
-  jmp @7 ; @44
+  lea %6:w, qword ptr [%2 + 0x1] ; @22
+  test %1:w, 0x1_w ; @34
+  je @6 ; @35
+  jmp @7 ; @36
 @7:
-  lea %17:w, qword ptr [%1 + %1*2 + 0x1] ; @33
-  mov %1:w, %17:w ; @39
-  mov %2:w, %12:w ; @40
-  jmp @2 ; @41
+  lea %9:w, qword ptr [%1 + %1*2 + 0x1] ; @25
+  mov %1:w, %9:w ; @31
+  mov %2:w, %6:w ; @32
+  jmp @2 ; @33
 @6:
-  mov %18:w, %1:w ; @34
-  shr %18:w, 0x1_b ; @38
-  mov %1:w, %18:w ; @35
-  mov %2:w, %12:w ; @36
-  jmp @2 ; @37
+  mov %10:w, %1:w ; @26
+  shr %10:w, 0x1_b ; @30
+  mov %1:w, %10:w ; @27
+  mov %2:w, %6:w ; @28
+  jmp @2 ; @29
 }

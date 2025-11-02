@@ -2,12 +2,12 @@ module clz_ctz_8
 
 export function $clz8(b %x/rdi) {
 @2:
-  %2 = clz.b %x ; @8
-  ret rax/%2
+  %0 = clz.b %x ; @6
+  ret rax/%0
 }
 
 export function $ctz8(b %x/rdi) {
 @4:
-  %3 = ctz.b %x ; @9
-  ret rax/%3
+  %1 = ctz.b %x ; @7
+  ret rax/%1
 }

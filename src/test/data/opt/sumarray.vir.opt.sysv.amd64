@@ -2,25 +2,25 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %arr:l, rdi ; @39
-  mov %num:w, esi ; @40
-  xor %s.2:w, %s.2:w ; @41
-  xor %i.2:w, %i.2:w ; @42
-  jmp @3 ; @43
+  mov %arr:l, rdi ; @33
+  mov %num:w, esi ; @34
+  xor %s.2:w, %s.2:w ; @35
+  xor %i.2:w, %i.2:w ; @36
+  jmp @3 ; @37
 @3:
-  cmp %i.2:w, %num:w ; @34
-  jb @6 ; @35
-  jmp @7 ; @36
+  cmp %i.2:w, %num:w ; @28
+  jb @6 ; @29
+  jmp @7 ; @30
 @7:
-  movsxd %12:l, %s.2:w ; @27
-  mov rax, %12:l ; @32
-  ret ; @33
+  movsxd %6:l, %s.2:w ; @21
+  mov rax, %6:l ; @26
+  ret ; @27
 @6:
-  mov %7:w, %i.2:w ; @22
-  mov %w.1:w, dword ptr [%arr + %7*4] ; @12
-  lea %10:w, qword ptr [%w.1 + %s.2*1] ; @25
-  lea %11:w, qword ptr [%i.2 + 0x1] ; @26
-  mov %s.2:w, %10:w ; @28
-  mov %i.2:w, %11:w ; @29
-  jmp @3 ; @30
+  mov %1:w, %i.2:w ; @16
+  mov %w.1:w, dword ptr [%arr + %1*4] ; @12
+  lea %4:w, qword ptr [%w.1 + %s.2*1] ; @19
+  lea %5:w, qword ptr [%i.2 + 0x1] ; @20
+  mov %s.2:w, %4:w ; @22
+  mov %i.2:w, %5:w ; @23
+  jmp @3 ; @24
 }

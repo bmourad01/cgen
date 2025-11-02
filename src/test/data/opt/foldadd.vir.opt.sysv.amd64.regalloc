@@ -2,6 +2,6 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  lea eax, qword ptr [rdi + rdi*1 + 0x2] ; @9
+  lea eax, qword ptr [rdi + rdi*1 + 0x2] ; @8
   ret ; @11
 }

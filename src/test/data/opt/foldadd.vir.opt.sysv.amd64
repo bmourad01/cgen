@@ -2,8 +2,8 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %x:w, edi ; @8
-  lea %3:w, qword ptr [%x + %x*1 + 0x2] ; @9
-  mov eax, %3:w ; @10
+  mov %x:w, edi ; @7
+  lea %2:w, qword ptr [%x + %x*1 + 0x2] ; @8
+  mov eax, %2:w ; @10
   ret ; @11
 }

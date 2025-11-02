@@ -3,18 +3,18 @@ module parallel
 export function $foo { ; returns: rax
 @2:
 @3:
-  lea eax, qword ptr [rdi + rdx*1] ; @18
-  lea r8d, qword ptr [rsi + rcx*1] ; @19
-  cmp eax, r8d ; @31
-  je @4 ; @32
-@21:
-  mov eax, edx ; @24
-  mov edx, ecx ; @25
-  mov ecx, eax ; @26
-  mov eax, edi ; @27
-  mov edi, esi ; @28
-  mov esi, eax ; @29
-  jmp @3 ; @30
+  lea eax, qword ptr [rdi + rdx*1] ; @15
+  lea r8d, qword ptr [rsi + rcx*1] ; @16
+  cmp eax, r8d ; @28
+  je @4 ; @29
+@18:
+  mov eax, edx ; @21
+  mov edx, ecx ; @22
+  mov ecx, eax ; @23
+  mov eax, edi ; @24
+  mov edi, esi ; @25
+  mov esi, eax ; @26
+  jmp @3 ; @27
 @4:
-  ret ; @23
+  ret ; @20
 }

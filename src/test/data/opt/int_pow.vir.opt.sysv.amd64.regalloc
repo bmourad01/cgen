@@ -2,74 +2,76 @@ module int_pow
 
 export function $int_pow { ; returns: rax
 @2:
-  mov rax, rdi ; @145
-  mov edx, 0x1_w ; @147
-  mov edi, 0x1_w ; @148
+  mov rcx, rdi ; @119
+  mov rdi, rsi ; @120
+  mov r9d, 0x1_w ; @121
+  mov r8d, 0x1_w ; @122
 @3:
-  test rsi, rsi ; @140
-  jne @9 ; @141
+  test rdi, rdi ; @114
+  jne @9 ; @115
 @10:
-  mov rax, rdx ; @138
-  ret ; @139
+  mov rax, r9 ; @112
+  ret ; @113
 @9:
-  mov rcx, rsi ; @86
-  and rcx, 0x3_l ; @137
-  imul rax, rdi ; @136
-  mov rdi, rax ; @85
-  imul rdi, rax ; @135
-  mov r8, rdx ; @84
-  imul r8, rax ; @134
-  test rcx, rcx ; @123
-  je @103 ; @124
-  dec rcx ; @126
-  cmp rcx, 0x2_l ; @127
-  ja @103 ; @128
-  lea r9, qword ptr [rip + @122] ; @129
-  movsxd rcx, dword ptr [r9 + rcx*4] ; @130
-  add rcx, r9 ; @131
-  jmp rcx ; @132
-  .tbl @122 [@21, @15, @16] ; @133
-@103:
-  mov r8, rdx ; @120
-  jmp @21 ; @121
+  imul rcx, r8 ; @111
+  mov rdx, rcx ; @57
+  imul rdx, rcx ; @110
+  mov r8, rdx ; @58
+  imul r8, rcx ; @109
+  mov rax, rdi ; @59
+  and rax, 0x3_l ; @108
+  mov rsi, r9 ; @60
+  imul rsi, rcx ; @107
+  test rax, rax ; @96
+  je @77 ; @97
+  dec rax ; @99
+  cmp rax, 0x2_l ; @100
+  ja @77 ; @101
+  lea r10, qword ptr [rip + @95] ; @102
+  movsxd rax, dword ptr [r10 + rax*4] ; @103
+  add rax, r10 ; @104
+  jmp rax ; @105
+  .tbl @95 [@21, @15, @16] ; @106
+@77:
+  mov rsi, r9 ; @93
+  jmp @21 ; @94
 @16:
-  imul r8, rdi ; @117
-  jmp @21 ; @116
+  imul rsi, rdx ; @90
+  jmp @21 ; @89
 @15:
-  imul r8, rax ; @114
+  imul rsi, rcx ; @87
 @21:
-  imul rdi, rax ; @111
-  sar rsi, 0x2_b ; @110
-  mov rdx, r8 ; @105
-  jmp @3 ; @109
+  sar rdi, 0x2_b ; @84
+  mov r9, rsi ; @79
+  jmp @3 ; @83
 }
 
 export function $int_pow_alt { ; returns: rax
 @27:
-  sub rsp, 0x28_l ; @174
-  mov qword ptr [rsp], 0x1_l ; @173
+  sub rsp, 0x28_l ; @148
+  mov qword ptr [rsp], 0x1_l ; @147
   mov qword ptr [rsp + 0x8], rdi ; @32
   mov qword ptr [rsp + 0x18], 0x1_l ; @34
-  mov eax, 0x1_w ; @169
+  mov eax, 0x1_w ; @143
 @28:
-  test rsi, rsi ; @164
-  jne @35 ; @165
+  test rsi, rsi ; @138
+  jne @35 ; @139
 @36:
-  add rsp, 0x28_l ; @175
-  ret ; @163
+  add rsp, 0x28_l ; @149
+  ret ; @137
 @35:
-  mov rcx, qword ptr [rsp + 0x8] ; @41
-  imul rcx, qword ptr [rsp + 0x18] ; @161
-  mov qword ptr [rsp + 0x8], rcx ; @44
-  mov rdx, rcx ; @96
-  imul rdx, rcx ; @160
-  mov qword ptr [rsp + 0x10], rdx ; @46
-  imul rdx, rcx ; @159
-  mov qword ptr [rsp + 0x18], rdx ; @48
-  mov rcx, rsi ; @98
-  and rcx, 0x3_l ; @158
+  mov rdx, qword ptr [rsp + 0x8] ; @41
+  imul rdx, qword ptr [rsp + 0x18] ; @135
+  mov qword ptr [rsp + 0x8], rdx ; @44
+  mov rcx, rdx ; @70
+  imul rcx, rdx ; @134
+  mov qword ptr [rsp + 0x10], rcx ; @46
+  imul rcx, rdx ; @133
+  mov qword ptr [rsp + 0x18], rcx ; @48
+  mov rcx, rsi ; @72
+  and rcx, 0x3_l ; @132
   mov rcx, qword ptr [rsp + rcx*8] ; @52
-  imul rax, rcx ; @156
-  sar rsi, 0x2_b ; @155
-  jmp @28 ; @154
+  imul rax, rcx ; @130
+  sar rsi, 0x2_b ; @129
+  jmp @28 ; @128
 }

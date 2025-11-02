@@ -2,15 +2,15 @@ module foo
 
 export function w $foo(l %a, l %i) {
 @2:
-  %7 = sge.l %i, 0x3_l ; @23
-  br %7, @16(0xffffffff_w), @4
+  %3 = sge.l %i, 0x3_l ; @19
+  br %3, @16(0xffffffff_w), @4
 @4:
-  %10 = sge.l %i, 0x0_l ; @26
-  br %10, @11, @16(0xffffffff_w)
+  %7 = sge.l %i, 0x0_l ; @23
+  br %7, @11, @16(0xffffffff_w)
 @11:
-  %8 = lsl.l %i, 0x2_l ; @24
-  %9 = add.l %a, %8 ; @25
-  %v.1 = ld.w %9 ; @15
+  %5 = lsl.l %i, 0x2_l ; @21
+  %6 = add.l %a, %5 ; @22
+  %v.1 = ld.w %6 ; @15
   jmp @16(%v.1)
 @16(%0):
   ret %0

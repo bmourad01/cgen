@@ -4,11 +4,11 @@ export function $foo { ; returns: rax
   %x = slot 8, align 8
   %y = slot 8, align 8
 @2:
-  mov %a:w, edi ; @10
-  mov %b:w, esi ; @16
-  mov %5:w, %b:w ; @11
-  cmp %x:l, %y:l ; @14
-  cmova %5:w, %a:w ; @15
-  mov eax, %5:w ; @12
-  ret ; @13
+  mov %a:w, edi ; @8
+  mov %b:w, esi ; @14
+  mov %3:w, %b:w ; @9
+  cmp %x:l, %y:l ; @12
+  cmova %3:w, %a:w ; @13
+  mov eax, %3:w ; @10
+  ret ; @11
 }

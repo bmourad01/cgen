@@ -2,110 +2,110 @@ module analyze_array
 
 function $max { ; returns: rax
 @2:
-  cmp edi, esi ; @128
-  cmovg esi, edi ; @129
-  mov eax, esi ; @126
-  ret ; @127
+  cmp edi, esi ; @99
+  cmovg esi, edi ; @100
+  mov eax, esi ; @97
+  ret ; @98
 }
 
 function $min { ; returns: rax
 @6:
-  cmp edi, esi ; @136
-  cmovl esi, edi ; @137
-  mov eax, esi ; @134
-  ret ; @135
+  cmp edi, esi ; @107
+  cmovl esi, edi ; @108
+  mov eax, esi ; @105
+  ret ; @106
 }
 
 function $square { ; returns: rax
 @10:
-  imul edi, edi ; @145
-  mov eax, edi ; @142
-  ret ; @143
+  imul edi, edi ; @116
+  mov eax, edi ; @113
+  ret ; @114
 }
 
 export function $analyze_array { ; returns: rax
 @12:
-  push rbp ; @216
-  mov rbp, rsp ; @217
-  sub rsp, 0x18_l ; @218
-  push r12 ; @219
-  push r13 ; @220
-  push r14 ; @221
-  push r15 ; @222
-  push rbx ; @223
+  push rbp ; @187
+  mov rbp, rsp ; @188
+  sub rsp, 0x18_l ; @189
+  push r12 ; @190
+  push r13 ; @191
+  push r14 ; @192
+  push r15 ; @193
+  push rbx ; @194
   mov r15, rdi ; @15
-  mov dword ptr [rbp - 0xc], esi ; @210
-  mov edi, dword ptr [r15] ; @177
-  mov dword ptr [rbp - 0x10], 0x0_w ; @211
-  mov ebx, edi ; @172
-  xor r14d, r14d ; @174
+  mov dword ptr [rbp - 0xc], esi ; @181
+  mov edi, dword ptr [r15] ; @148
+  mov dword ptr [rbp - 0x10], 0x0_w ; @182
+  mov ebx, edi ; @143
+  xor r14d, r14d ; @145
 @13:
-  cmp r14d, dword ptr [rbp - 0xc] ; @166
-  jl @18 ; @167
+  cmp r14d, dword ptr [rbp - 0xc] ; @137
+  jl @18 ; @138
 @19:
-  sub edi, ebx ; @165
-  call $square ; rdi ; @163
-  add eax, dword ptr [rbp - 0x10] ; @102
-  pop rbx ; @224
-  pop r15 ; @225
-  pop r14 ; @226
-  pop r13 ; @227
-  pop r12 ; @228
-  leave ; @229
-  ret ; @162
+  sub edi, ebx ; @136
+  call $square ; rdi ; @134
+  add eax, dword ptr [rbp - 0x10] ; @71
+  pop rbx ; @195
+  pop r15 ; @196
+  pop r14 ; @197
+  pop r13 ; @198
+  pop r12 ; @199
+  leave ; @200
+  ret ; @133
 @18:
-  mov eax, r14d ; @103
+  mov eax, r14d ; @72
   mov r12d, dword ptr [r15 + rax*4] ; @24
-  mov esi, r12d ; @157
-  call $max ; rdi rsi ; @158
-  mov r13d, eax ; @159
+  mov esi, r12d ; @128
+  call $max ; rdi rsi ; @129
+  mov r13d, eax ; @130
   mov edi, ebx ; @26
-  mov esi, r12d ; @154
-  call $min ; rdi rsi ; @155
-  mov ebx, eax ; @156
+  mov esi, r12d ; @125
+  call $min ; rdi rsi ; @126
+  mov ebx, eax ; @127
   mov edi, r12d ; @27
-  call $square ; rdi ; @152
-  mov ecx, r13d ; @107
-  sub ecx, ebx ; @151
-  add eax, dword ptr [rbp - 0x10] ; @106
-  add ecx, eax ; @108
-  lea eax, qword ptr [r14 + 0x1] ; @109
-  mov dword ptr [rbp - 0x10], ecx ; @215
-  mov edi, r13d ; @148
-  mov r14d, eax ; @149
-  jmp @13 ; @150
+  call $square ; rdi ; @123
+  mov ecx, r13d ; @75
+  sub ecx, ebx ; @122
+  add eax, dword ptr [rbp - 0x10] ; @77
+  add ecx, eax ; @78
+  lea eax, qword ptr [r14 + 0x1] ; @79
+  mov dword ptr [rbp - 0x10], ecx ; @186
+  mov edi, r13d ; @119
+  mov r14d, eax ; @120
+  jmp @13 ; @121
 }
 
 export function $analyze_array_inl { ; returns: rax
 @35:
-  mov r8d, esi ; @208
-  mov ecx, dword ptr [rdi] ; @209
-  xor r9d, r9d ; @203
-  mov esi, ecx ; @204
-  xor r10d, r10d ; @206
+  mov r8d, esi ; @179
+  mov ecx, dword ptr [rdi] ; @180
+  xor r9d, r9d ; @174
+  mov esi, ecx ; @175
+  xor r10d, r10d ; @177
 @36:
-  cmp r10d, r8d ; @198
-  jl @41 ; @199
+  cmp r10d, r8d ; @169
+  jl @41 ; @170
 @42:
-  sub ecx, esi ; @197
-  imul ecx, ecx ; @196
-  lea eax, qword ptr [r9 + rcx*1] ; @113
-  ret ; @195
+  sub ecx, esi ; @168
+  imul ecx, ecx ; @167
+  lea eax, qword ptr [r9 + rcx*1] ; @83
+  ret ; @166
 @41:
   mov edx, dword ptr [rdi + r10*4] ; @47
-  mov eax, edx ; @120
-  cmp ecx, edx ; @189
-  cmovg eax, ecx ; @190
-  mov ecx, edx ; @122
-  cmp esi, edx ; @185
-  cmovl ecx, esi ; @186
-  imul edx, edx ; @184
-  mov esi, eax ; @123
-  sub esi, ecx ; @183
-  add edx, r9d ; @118
-  lea r9d, qword ptr [rdx + rsi*1] ; @124
-  inc r10d ; @125
-  mov esi, ecx ; @179
-  mov ecx, eax ; @180
-  jmp @36 ; @182
+  mov eax, edx ; @88
+  cmp ecx, edx ; @160
+  cmovg eax, ecx ; @161
+  mov ecx, edx ; @90
+  cmp esi, edx ; @156
+  cmovl ecx, esi ; @157
+  imul edx, edx ; @155
+  mov esi, eax ; @92
+  sub esi, ecx ; @154
+  add edx, r9d ; @94
+  lea r9d, qword ptr [rdx + rsi*1] ; @95
+  inc r10d ; @96
+  mov esi, ecx ; @150
+  mov ecx, eax ; @151
+  jmp @36 ; @153
 }

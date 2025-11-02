@@ -8,6 +8,6 @@ export function w $foo(w %x, w %y) {
 
 export function w $bar(w %x, w %y) {
 @6:
-  %3 = or.w %x, %y ; @13
-  ret %3
+  %5 = or.w %x, %y ; @15
+  ret %5
 }

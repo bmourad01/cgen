@@ -28,8 +28,12 @@ let new_node ?ty t n =
   let id = Uf.fresh t.classes in
   Vec.push t.node n;
   Vec.push t.typs @@ Uopt.of_option ty;
+  Vec.push t.ilbl Uopt.none;
+  Vec.push t.imoved Lset.empty;
   assert (id = Vec.length t.node - 1);
   assert (id = Vec.length t.typs - 1);
+  assert (id = Vec.length t.ilbl - 1);
+  assert (id = Vec.length t.imoved - 1);
   id
 
 (* Ensure that the term for `id` has type `ty`. *)
@@ -81,11 +85,12 @@ let rec insert ?ty ?l ~d t n =
             | Some _ -> ty in
           let id = new_node ?ty t n in
           Option.iter l ~f:(fun l -> Sched.add t l id n);
-          let oid = optimize ?ty ~d t n id in
+          let oid = optimize ?ty ?l ~d t n id in
           Hashtbl.set t.memo ~key:k ~data:oid;
           oid)
 
-and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
+and optimize ?ty ?l ~d t n id =
+  match Enode.eval ~node:(node t) n with
   | Some c ->
     (* If the term normalizes to a constant then we don't need to
        waste time searching for matches. *)
@@ -114,13 +119,13 @@ and optimize ?ty ~d t n id = match Enode.eval ~node:(node t) n with
         let continue = ref true in
         while !continue && rws.budget > 0 do
           continue := match VM.one vm t.rules with
-            | Some y -> rewrite ?ty ~d:(d - 1) t rws y
+            | Some y -> rewrite ?ty ?l ~d:(d - 1) t rws y
             | None -> false
         done;
       end;
       rws.id
 
-and rewrite ?ty ~d t rws y =
+and rewrite ?ty ?l ~d t rws y =
   let exception Mismatch in
   (* Check that all variables on the RHS are in the substitution,
      so that we don't insert useless terms into the e-graph only
@@ -134,7 +139,7 @@ and rewrite ?ty ~d t rws y =
     | V x -> (Map.find_exn env x).Subst.id
     | P (o, ps) ->
       let cs = List.map ps ~f:(assemble env) in
-      insert ~d t @@ N (o, cs) in
+      insert ?l ~d t @@ N (o, cs) in
   (* Not immediately obvious that this is an optimal term, so make
      a union node to record the equivalence. *)
   let default oid =

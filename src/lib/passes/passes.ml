@@ -38,9 +38,6 @@ let optimize tenv m =
   let m = Module.map_funs m ~f:Remove_disjoint_blks.run in
   let*? m = Module.map_funs_err m ~f:Remove_dead_vars.run in
   let*? m = Module.map_funs_err m ~f:Resolve_constant_blk_args.run in
-  (* For instructions that got sunk, attempt to reschedule them by
-     running the e-graph pass once more with no rules. *)
-  let* m = Cv.Module.map_funs m ~f:(Egraph_opt.run_no_rules tenv) in
   let*? tenv = retype tenv m in
   let m = Module.map_funs m ~f:Remove_disjoint_blks.run in
   let*? m = Module.map_funs_err m ~f:Remove_dead_vars.run in

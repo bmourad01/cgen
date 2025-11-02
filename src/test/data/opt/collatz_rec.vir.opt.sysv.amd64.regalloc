@@ -3,19 +3,19 @@ module collatz_rec
 export function $foo { ; returns: rax
 @18:
 @2:
-  cmp edi, 0x1_w ; @50
-  jne @4 ; @51
+  cmp edi, 0x1_w ; @42
+  jne @4 ; @43
 @17:
-  mov eax, esi ; @48
-  ret ; @49
+  mov eax, esi ; @40
+  ret ; @41
 @4:
-  inc esi ; @28
-  test edi, 0x1_w ; @42
-  je @6 ; @43
+  inc esi ; @22
+  test edi, 0x1_w ; @34
+  je @6 ; @35
 @7:
-  lea edi, qword ptr [rdi + rdi*2 + 0x1] ; @33
-  jmp @2 ; @41
+  lea edi, qword ptr [rdi + rdi*2 + 0x1] ; @25
+  jmp @2 ; @33
 @6:
-  shr edi, 0x1_b ; @38
-  jmp @2 ; @37
+  shr edi, 0x1_b ; @30
+  jmp @2 ; @29
 }

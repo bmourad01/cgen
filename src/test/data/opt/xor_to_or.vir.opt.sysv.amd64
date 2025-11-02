@@ -3,19 +3,19 @@ module xor_to_or
 export function $foo { ; returns: rax
 @2:
   mov %x:w, edi ; @12
-  mov %y:w, esi ; @16
-  mov %2:w, %x:w ; @17
-  or %2:w, %y:w ; @18
-  mov eax, %2:w ; @14
-  ret ; @15
+  mov %y:w, esi ; @18
+  mov %2:w, %x:w ; @19
+  or %2:w, %y:w ; @20
+  mov eax, %2:w ; @16
+  ret ; @17
 }
 
 export function $bar { ; returns: rax
 @6:
-  mov %x:w, edi ; @13
-  mov %y:w, esi ; @21
-  mov %3:w, %x:w ; @22
-  or %3:w, %y:w ; @23
-  mov eax, %3:w ; @19
-  ret ; @20
+  mov %x:w, edi ; @15
+  mov %y:w, esi ; @23
+  mov %5:w, %x:w ; @24
+  or %5:w, %y:w ; @25
+  mov eax, %5:w ; @21
+  ret ; @22
 }

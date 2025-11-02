@@ -2,30 +2,30 @@ module parallel
 
 export function $foo { ; returns: rax
 @2:
-  mov %a:w, edi ; @36
-  mov %b:w, esi ; @37
-  mov %c:w, edx ; @38
-  mov %d:w, ecx ; @39
-  mov %d.1:w, %d:w ; @40
-  mov %c.1:w, %c:w ; @41
-  mov %b.1:w, %b:w ; @42
-  mov %a.1:w, %a:w ; @43
-  jmp @3 ; @44
+  mov %a:w, edi ; @33
+  mov %b:w, esi ; @34
+  mov %c:w, edx ; @35
+  mov %d:w, ecx ; @36
+  mov %d.1:w, %d:w ; @37
+  mov %c.1:w, %c:w ; @38
+  mov %b.1:w, %b:w ; @39
+  mov %a.1:w, %a:w ; @40
+  jmp @3 ; @41
 @3:
-  lea %3:w, qword ptr [%a.1 + %c.1*1] ; @18
-  lea %4:w, qword ptr [%b.1 + %d.1*1] ; @19
-  cmp %3:w, %4:w ; @31
-  je @4 ; @32
-  jmp @21 ; @33
-@21:
-  mov %6:w, %c.1:w ; @24
-  mov %c.1:w, %d.1:w ; @25
-  mov %d.1:w, %6:w ; @26
-  mov %7:w, %a.1:w ; @27
-  mov %a.1:w, %b.1:w ; @28
-  mov %b.1:w, %7:w ; @29
-  jmp @3 ; @30
+  lea %0:w, qword ptr [%a.1 + %c.1*1] ; @15
+  lea %1:w, qword ptr [%b.1 + %d.1*1] ; @16
+  cmp %0:w, %1:w ; @28
+  je @4 ; @29
+  jmp @18 ; @30
+@18:
+  mov %3:w, %c.1:w ; @21
+  mov %c.1:w, %d.1:w ; @22
+  mov %d.1:w, %3:w ; @23
+  mov %4:w, %a.1:w ; @24
+  mov %a.1:w, %b.1:w ; @25
+  mov %b.1:w, %4:w ; @26
+  jmp @3 ; @27
 @4:
-  mov eax, %3:w ; @22
-  ret ; @23
+  mov eax, %0:w ; @19
+  ret ; @20
 }

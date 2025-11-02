@@ -3,8 +3,8 @@ module slotadd1
 export function l $foo() {
   %x = slot 8, align 8
 @2:
-  %2 = sub.l %x, 0x7fffffff_l ; @8
-  %r.2 = call.l $bar(%2) ; @4
-  %3 = add.l %r.2, 0x1_l ; @9
-  ret %3
+  %0 = sub.l %x, 0x7fffffff_l ; @6
+  %r.2 = call.l $bar(%0) ; @4
+  %1 = add.l %r.2, 0x1_l ; @7
+  ret %1
 }

@@ -64,10 +64,10 @@ end
 type cost = Cost.t
 
 type t = {
-  eg     : egraph;
-  table  : (cost * enode) Id.Table.t;
-  memo   : ext Id.Table.t;
-  impure : Id.Hash_set.t;
+  eg             : egraph;
+  table          : (cost * enode) Id.Table.t;
+  memo           : ext Id.Table.t;
+  mutable impure : Z.t;
 }
 
 let rec pp_ext ppf = function
@@ -146,7 +146,7 @@ let init eg =
     eg;
     table = Id.Table.create ();
     memo = Id.Table.create ();
-    impure = Id.Hash_set.create ();
+    impure = Z.zero;
   } in
   Saturation.go t;
   t
@@ -185,11 +185,11 @@ let rec must_remain_fixed op args = match (op : Enode.op) with
 
 let prov t cid id op args =
   if must_remain_fixed op args then begin
-    Hash_set.add t.impure cid;
-    match Hashtbl.find t.eg.ilbl cid with
+    t.impure <- Z.(t.impure lor (one lsl cid));
+    match labelof t.eg cid with
     | Some l -> Label l
     | None when id = cid -> Id {canon = cid; real = id}
-    | None -> match Hashtbl.find t.eg.ilbl id with
+    | None -> match labelof t.eg id with
       | None -> Id {canon = cid; real = id}
       | Some l -> Label l
   end else Id {canon = cid; real = id}

@@ -2,15 +2,15 @@ module clz_ctz_8
 
 export function $clz8 { ; returns: rax
 @2:
-  movzx eax, dil ; @12
-  bsr eax, eax ; @13
-  xor eax, 0x7_w ; @14
-  ret ; @11
+  movzx eax, dil ; @10
+  bsr eax, eax ; @11
+  xor eax, 0x7_w ; @12
+  ret ; @9
 }
 
 export function $ctz8 { ; returns: rax
 @4:
-  movzx eax, dil ; @18
-  bsf eax, eax ; @19
-  ret ; @17
+  movzx eax, dil ; @16
+  bsf eax, eax ; @17
+  ret ; @15
 }

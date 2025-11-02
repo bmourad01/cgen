@@ -2,40 +2,40 @@ module brind
 
 export function $foo {
 @2:
-  mov %x:w, edi ; @13
-  test %x:w, %x:w ; @23
-  js @16 ; @24
-  jmp @3 ; @25
-@16:
-  mov %6:w, 0x1234_w ; @21
-  jmp %6:l ; @22
+  mov %x:w, edi ; @10
+  test %x:w, %x:w ; @20
+  js @13 ; @21
+  jmp @3 ; @22
+@13:
+  mov %3:w, 0x1234_w ; @18
+  jmp %3:l ; @19
 @3:
-  ret ; @20
+  ret ; @17
 }
 
 export function $bar {
 @5:
-  mov %x:w, edi ; @14
-  mov %y:l, rsi ; @34
-  test %x:w, %x:w ; @31
-  js @17 ; @32
-  jmp @6 ; @33
-@17:
-  jmp %y:l ; @30
+  mov %x:w, edi ; @11
+  mov %y:l, rsi ; @31
+  test %x:w, %x:w ; @28
+  js @14 ; @29
+  jmp @6 ; @30
+@14:
+  jmp %y:l ; @27
 @6:
-  ret ; @29
+  ret ; @26
 }
 
 export function $baz {
 @8:
-  mov %x:w, edi ; @15
-  mov %y:l, rsi ; @44
-  test %x:w, %x:w ; @41
-  js @18 ; @42
-  jmp @19 ; @43
-@19:
-  mov %7:w, 0x1234_w ; @39
-  jmp %7:l ; @40
-@18:
-  jmp %y:l ; @38
+  mov %x:w, edi ; @12
+  mov %y:l, rsi ; @41
+  test %x:w, %x:w ; @38
+  js @15 ; @39
+  jmp @16 ; @40
+@16:
+  mov %4:w, 0x1234_w ; @36
+  jmp %4:l ; @37
+@15:
+  jmp %y:l ; @35
 }
