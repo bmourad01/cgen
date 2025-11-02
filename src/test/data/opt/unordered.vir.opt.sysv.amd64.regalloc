@@ -2,11 +2,11 @@ module unordered
 
 export function $foo {
 @2:
-  push rbp ; @14
-  mov rbp, rsp ; @15
-  add edi, 0x2a_w ; @13
-  mov esi, edi ; @11
-  call $bar ; rdi rsi ; @12
-  leave ; @16
-  ret ; @10
+  push rbp ; @13
+  mov rbp, rsp ; @14
+  add edi, 0x2a_w ; @12
+  mov esi, edi ; @10
+  call $bar ; rdi rsi ; @11
+  leave ; @15
+  ret ; @9
 }

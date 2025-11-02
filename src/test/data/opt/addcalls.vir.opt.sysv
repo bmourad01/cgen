@@ -10,12 +10,12 @@ export function $foo() {
   %v.6/w/rax = call $bar() ; @14
   %v.7/w/rax = call $bar() ; @16
   %v.8/w/rax = call $bar() ; @18
-  %7 = add.w %v.2, %v.3 ; @27
-  %8 = add.w %v.4, %v.5 ; @28
-  %9 = add.w %7, %8 ; @29
-  %10 = add.w %v.6, %v.7 ; @30
-  %11 = add.w %10, %v.8 ; @31
-  %12 = add.w %9, %11 ; @32
-  %13 = add.w %v.1, %12 ; @33
-  ret rax/%13
+  %0 = add.w %v.2, %v.3 ; @20
+  %1 = add.w %v.4, %v.5 ; @21
+  %2 = add.w %0, %1 ; @22
+  %3 = add.w %v.6, %v.7 ; @23
+  %4 = add.w %3, %v.8 ; @24
+  %5 = add.w %2, %4 ; @25
+  %6 = add.w %v.1, %5 ; @26
+  ret rax/%6
 }

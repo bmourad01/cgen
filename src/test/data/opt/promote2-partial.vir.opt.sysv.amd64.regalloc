@@ -2,16 +2,16 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov eax, edi ; @29
+  mov eax, edi ; @28
 @3:
-  test esi, esi ; @24
-  je @6 ; @25
+  test esi, esi ; @23
+  je @6 ; @24
 @7:
-  cdq ; @21
-  idiv esi ; @22
-  mov eax, esi ; @18
-  mov esi, edx ; @19
-  jmp @3 ; @20
+  cdq ; @20
+  idiv esi ; @21
+  mov eax, esi ; @17
+  mov esi, edx ; @18
+  jmp @3 ; @19
 @6:
-  ret ; @17
+  ret ; @16
 }

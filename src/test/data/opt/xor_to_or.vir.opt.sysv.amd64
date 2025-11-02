@@ -2,20 +2,20 @@ module xor_to_or
 
 export function $foo { ; returns: rax
 @2:
-  mov %x:w, edi ; @12
-  mov %y:w, esi ; @16
-  mov %2:w, %x:w ; @17
-  or %2:w, %y:w ; @18
-  mov eax, %2:w ; @14
-  ret ; @15
+  mov %x:w, edi ; @10
+  mov %y:w, esi ; @14
+  mov %0:w, %x:w ; @15
+  or %0:w, %y:w ; @16
+  mov eax, %0:w ; @12
+  ret ; @13
 }
 
 export function $bar { ; returns: rax
 @6:
-  mov %x:w, edi ; @13
-  mov %y:w, esi ; @21
-  mov %3:w, %x:w ; @22
-  or %3:w, %y:w ; @23
-  mov eax, %3:w ; @19
-  ret ; @20
+  mov %x:w, edi ; @11
+  mov %y:w, esi ; @19
+  mov %1:w, %x:w ; @20
+  or %1:w, %y:w ; @21
+  mov eax, %1:w ; @17
+  ret ; @18
 }

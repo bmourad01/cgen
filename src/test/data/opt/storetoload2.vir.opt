@@ -4,13 +4,13 @@ function w $foo(l %a, l %b, w %x) {
 @2:
   %y.1 = ld.w %a ; @5
   st.w %x, %a ; @6
-  %3 = add.w %y.1, 0x1_w ; @18
-  st.w %3, %a ; @8
-  %4 = eq.w %y.1, 0x0_w ; @19
-  br %4, @3, @4
+  %0 = add.w %y.1, 0x1_w ; @15
+  st.w %0, %a ; @8
+  %1 = eq.w %y.1, 0x0_w ; @16
+  br %1, @3, @4
 @3:
-  %5 = zext.l %3 ; @20
-  %w.3 = ld.w %5 ; @13
+  %2 = zext.l %0 ; @17
+  %w.3 = ld.w %2 ; @13
   jmp @10(%w.3)
 @4:
   %w.2 = ld.w %b ; @14

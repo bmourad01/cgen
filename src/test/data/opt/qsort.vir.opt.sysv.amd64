@@ -3,87 +3,87 @@ module qsort
 function $swap {
 @2:
   mov %a:l, rdi ; @3
-  mov %b:l, rsi ; @86
-  mov %x.1:w, dword ptr [%a] ; @87
+  mov %b:l, rsi ; @68
+  mov %x.1:w, dword ptr [%a] ; @69
   mov %y.1:w, dword ptr [%b] ; @4
   mov dword ptr [%b], %x.1:w ; @5
   mov dword ptr [%a], %y.1:w ; @6
-  ret ; @85
+  ret ; @67
 }
 
 function $partition { ; returns: rax
 @7:
-  mov %arr:l, rdi ; @67
-  mov %low:l, rsi ; @118
-  mov %high:l, rdx ; @119
-  lea %22:l, qword ptr [%arr + %high*4] ; @68
+  mov %arr:l, rdi ; @49
+  mov %low:l, rsi ; @100
+  mov %high:l, rdx ; @101
+  lea %4:l, qword ptr [%arr + %high*4] ; @50
   mov %pivot.1:w, dword ptr [%arr + %high*4] ; @11
-  lea %23:l, qword ptr [%high - 0x1] ; @69
-  lea %24:l, qword ptr [%low - 0x1] ; @70
-  mov %j.2:l, %low:l ; @115
-  mov %i.2:l, %24:l ; @116
-  jmp @8 ; @117
+  lea %6:l, qword ptr [%low - 0x1] ; @52
+  lea %5:l, qword ptr [%high - 0x1] ; @51
+  mov %j.2:l, %low:l ; @97
+  mov %i.2:l, %6:l ; @98
+  jmp @8 ; @99
 @8:
-  cmp %j.2:l, %23:l ; @110
-  jle @14 ; @111
-  jmp @15 ; @112
+  cmp %j.2:l, %5:l ; @92
+  jle @14 ; @93
+  jmp @15 ; @94
 @15:
-  lea %26:l, qword ptr [%i.2 + 0x1] ; @72
-  lea %28:l, qword ptr [%arr + %26*4] ; @74
-  mov rdi, %28:l ; @36
-  mov rsi, %22:l ; @107
-  call $swap ; rdi rsi ; @108
-  mov rax, %26:l ; @105
-  ret ; @106
+  lea %8:l, qword ptr [%i.2 + 0x1] ; @54
+  lea %10:l, qword ptr [%arr + %8*4] ; @56
+  mov rdi, %10:l ; @36
+  mov rsi, %4:l ; @89
+  call $swap ; rdi rsi ; @90
+  mov rax, %8:l ; @87
+  ret ; @88
 @14:
-  lea %30:l, qword ptr [%arr + %j.2*4] ; @76
+  lea %12:l, qword ptr [%arr + %j.2*4] ; @58
   mov %j_val.1:w, dword ptr [%arr + %j.2*4] ; @22
-  cmp %j_val.1:w, %pivot.1:w ; @99
-  jle @18 ; @100
-  jmp @88 ; @101
-@88:
-  mov %i.3:l, %i.2:l ; @97
-  jmp @19 ; @98
+  cmp %j_val.1:w, %pivot.1:w ; @81
+  jle @18 ; @82
+  jmp @70 ; @83
+@70:
+  mov %i.3:l, %i.2:l ; @79
+  jmp @19 ; @80
 @18:
-  lea %33:l, qword ptr [%i.2 + 0x1] ; @79
-  lea %35:l, qword ptr [%arr + %33*4] ; @81
-  mov rdi, %35:l ; @30
-  mov rsi, %30:l ; @94
-  call $swap ; rdi rsi ; @95
-  mov %i.3:l, %33:l ; @92
-  jmp @19 ; @93
+  lea %15:l, qword ptr [%i.2 + 0x1] ; @61
+  lea %17:l, qword ptr [%arr + %15*4] ; @63
+  mov rdi, %17:l ; @30
+  mov rsi, %12:l ; @76
+  call $swap ; rdi rsi ; @77
+  mov %i.3:l, %15:l ; @74
+  jmp @19 ; @75
 @19:
-  lea %32:l, qword ptr [%j.2 + 0x1] ; @78
-  mov %j.2:l, %32:l ; @89
-  mov %i.2:l, %i.3:l ; @90
-  jmp @8 ; @91
+  lea %14:l, qword ptr [%j.2 + 0x1] ; @60
+  mov %j.2:l, %14:l ; @71
+  mov %i.2:l, %i.3:l ; @72
+  jmp @8 ; @73
 }
 
 export function $qsort {
 @48:
-  mov %arr:l, rdi ; @137
-  mov %low:l, rsi ; @138
-  mov %high:l, rdx ; @139
-  mov %1:l, %low:l ; @140
-  jmp @38 ; @141
+  mov %arr:l, rdi ; @119
+  mov %low:l, rsi ; @120
+  mov %high:l, rdx ; @121
+  mov %1:l, %low:l ; @122
+  jmp @38 ; @123
 @38:
-  cmp %1:l, %high:l ; @132
-  jl @39 ; @133
-  jmp @47 ; @134
+  cmp %1:l, %high:l ; @114
+  jl @39 ; @115
+  jmp @47 ; @116
 @47:
-  ret ; @131
+  ret ; @113
 @39:
   mov rdi, %arr:l ; @42
-  mov rsi, %1:l ; @127
-  mov rdx, %high:l ; @128
-  call $partition ; rdi rdx rsi ; @129
-  mov %p.1:l, rax ; @130
-  lea %37:l, qword ptr [%p.1 - 0x1] ; @83
+  mov rsi, %1:l ; @109
+  mov rdx, %high:l ; @110
+  call $partition ; rdi rdx rsi ; @111
+  mov %p.1:l, rax ; @112
+  lea %19:l, qword ptr [%p.1 - 0x1] ; @65
   mov rdi, %arr:l ; @44
-  mov rsi, %1:l ; @124
-  mov rdx, %37:l ; @125
-  call $qsort ; rdi rdx rsi ; @126
-  lea %38:l, qword ptr [%p.1 + 0x1] ; @84
-  mov %1:l, %38:l ; @122
-  jmp @38 ; @123
+  mov rsi, %1:l ; @106
+  mov rdx, %19:l ; @107
+  call $qsort ; rdi rdx rsi ; @108
+  lea %20:l, qword ptr [%p.1 + 0x1] ; @66
+  mov %1:l, %20:l ; @104
+  jmp @38 ; @105
 }

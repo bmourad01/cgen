@@ -2,12 +2,12 @@ module sw
 
 export function $test {
 @2:
-  lea %3:l, $sym ; @13
-  cmp %3:l, 0x2_l ; @14
-  je @5 ; @15
-  jmp @7 ; @16
+  lea %2:l, $sym ; @12
+  cmp %2:l, 0x2_l ; @13
+  je @5 ; @14
+  jmp @7 ; @15
 @7:
-  ret ; @12
+  ret ; @11
 @5:
-  ud2 ; @11
+  ud2 ; @10
 }

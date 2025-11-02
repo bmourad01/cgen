@@ -2,12 +2,12 @@ module cmpslot
 
 export function $foo { ; returns: rax
 @2:
-  sub rsp, 0x18_l ; @22
-  lea rcx, qword ptr [rsp] ; @14
-  lea rax, qword ptr [rsp + 0x8] ; @20
-  cmp rcx, rax ; @21
-  cmova esi, edi ; @15
-  mov eax, esi ; @12
-  add rsp, 0x18_l ; @23
-  ret ; @13
+  sub rsp, 0x18_l ; @20
+  lea rcx, qword ptr [rsp] ; @12
+  lea rax, qword ptr [rsp + 0x8] ; @18
+  cmp rcx, rax ; @19
+  cmova esi, edi ; @13
+  mov eax, esi ; @10
+  add rsp, 0x18_l ; @21
+  ret ; @11
 }

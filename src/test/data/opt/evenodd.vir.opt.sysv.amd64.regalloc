@@ -2,47 +2,47 @@ module evenodd
 
 function $abs { ; returns: rax
 @2:
-  test edi, edi ; @44
-  jns @21 ; @45
+  test edi, edi ; @38
+  jns @21 ; @39
 @3:
-  neg edi ; @41
+  neg edi ; @35
 @21:
-  mov eax, edi ; @37
-  ret ; @38
+  mov eax, edi ; @31
+  ret ; @32
 }
 
 export function $even { ; returns: rax
 @7:
-  push rbp ; @84
-  mov rbp, rsp ; @85
-  call $abs ; rdi ; @65
-  test eax, eax ; @59
-  jne @9 ; @60
-@50:
-  mov al, 0x1_b ; @57
-  jmp @22 ; @58
+  push rbp ; @78
+  mov rbp, rsp ; @79
+  call $abs ; rdi ; @59
+  test eax, eax ; @53
+  jne @9 ; @54
+@44:
+  mov al, 0x1_b ; @51
+  jmp @22 ; @52
 @9:
-  lea edi, qword ptr [rax - 0x1] ; @33
-  call $odd ; rdi ; @55
+  lea edi, qword ptr [rax - 0x1] ; @27
+  call $odd ; rdi ; @49
 @22:
-  leave ; @86
-  ret ; @52
+  leave ; @80
+  ret ; @46
 }
 
 export function $odd { ; returns: rax
 @14:
-  push rbp ; @87
-  mov rbp, rsp ; @88
-  call $abs ; rdi ; @82
-  test eax, eax ; @76
-  jne @16 ; @77
-@67:
-  xor al, al ; @74
-  jmp @23 ; @75
+  push rbp ; @81
+  mov rbp, rsp ; @82
+  call $abs ; rdi ; @76
+  test eax, eax ; @70
+  jne @16 ; @71
+@61:
+  xor al, al ; @68
+  jmp @23 ; @69
 @16:
-  lea edi, qword ptr [rax - 0x1] ; @35
-  call $even ; rdi ; @72
+  lea edi, qword ptr [rax - 0x1] ; @29
+  call $even ; rdi ; @66
 @23:
-  leave ; @89
-  ret ; @69
+  leave ; @83
+  ret ; @63
 }
