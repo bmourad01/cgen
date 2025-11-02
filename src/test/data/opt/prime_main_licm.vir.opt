@@ -16,14 +16,14 @@ export function w $main(w %argc, l %argv) {
   br %1, @9, @10(%i.2)
 @10(%i.3):
   %b.1 = call.w $is_prime(%i.3) ; @14
-  %3 = eq.w %b.1, 0x0_w ; @24
-  %2 = add.w %i.3, 0x1_w ; @23
-  br %3, @10(%2), @13
+  %2 = eq.w %b.1, 0x0_w ; @23
+  %3 = add.w %i.3, 0x1_w ; @24
+  br %2, @10(%3), @13
 @13:
   %k.1 = call.w $printf($fmt, ..., %m.2, %i.3) ; @16
   %4 = sub.w %n.2, 0x1_w ; @25
   %5 = add.w %m.2, 0x1_w ; @26
-  jmp @3(%4, %5, %2)
+  jmp @3(%4, %5, %3)
 @9:
   ret 0x0_w
 }

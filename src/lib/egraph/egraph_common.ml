@@ -100,19 +100,19 @@ type rules = (formula * bool) Matcher.program
    for examples of how this information gets used.
 *)
 type t = {
-  input       : Input.t;               (* Analyses about the function. *)
-  classes     : Uf.t;                  (* The union-find for all e-classes. *)
-  node        : enode Vec.t;           (* All e-nodes, indexed by ID. *)
-  typs        : Type.t Uopt.t Vec.t;   (* The type of each node. *)
-  memo        : (enode, id) Hashtbl.t; (* The hash-cons for optimized terms. *)
-  lmoved      : Iset.t Label.Table.t;  (* Set of IDs that were moved to a given label. *)
-  imoved      : Lset.t Id.Table.t;     (* Set of labels that were moved for a given ID. *)
-  pinned      : Id.Hash_set.t;         (* IDs that should not be rescheduled. *)
-  ilbl        : Label.t Id.Table.t;    (* Maps IDs to labels. *)
-  lval        : id Label.Table.t;      (* Maps labels to IDs. *)
-  depth_limit : int;                   (* Maximum rewrite depth. *)
-  match_limit : int;                   (* Maximum rewrites per term. *)
-  rules       : rules;                 (* The compiled matcher program. *)
+  input          : Input.t;               (* Analyses about the function. *)
+  classes        : Uf.t;                  (* The union-find for all e-classes. *)
+  node           : enode Vec.t;           (* All e-nodes, indexed by ID. *)
+  typs           : Type.t Uopt.t Vec.t;   (* The type of each node. *)
+  memo           : (enode, id) Hashtbl.t; (* The hash-cons for optimized terms. *)
+  lmoved         : Iset.t Label.Table.t;  (* Set of IDs that were moved to a given label. *)
+  imoved         : Lset.t Vec.t;          (* Set of labels that were moved for a given ID. *)
+  mutable pinned : Z.t;                   (* IDs that should not be rescheduled. *)
+  ilbl           : Label.t Uopt.t Vec.t;  (* Maps IDs to labels. *)
+  lval           : id Label.Table.t;      (* Maps labels to IDs. *)
+  depth_limit    : int;                   (* Maximum rewrite depth. *)
+  match_limit    : int;                   (* Maximum rewrites per term. *)
+  rules          : rules;                 (* The compiled matcher program. *)
 }
 
 type egraph = t
@@ -129,6 +129,19 @@ let node t id = Vec.get_exn t.node id
 let dominates t = t.input.rdom
 let const t id = Enode.const ~node:(node t) @@ node t id
 let typeof t id = Vec.get_exn t.typs id |> Uopt.to_option
+let labelof t id = Vec.get_exn t.ilbl id |> Uopt.to_option
+let set_label t id l = Vec.set_exn t.ilbl id @@ Uopt.some l
+let clear_label t id = Vec.set_exn t.ilbl id Uopt.none
+let movedof t id = Vec.get_exn t.imoved id
+
+let add_moved t id = function
+  | [] -> ()
+  | ls ->
+    let init = Vec.get_exn t.imoved id in
+    Vec.set_exn t.imoved id @@ List.fold ls ~init ~f:Lset.add
+
+let set_pinned t id = t.pinned <- Z.(t.pinned lor (one lsl id))
+let is_pinned t id = Z.testbit t.pinned id
 
 let typeof_var t x =
   Typecheck.Env.typeof_var t.input.fn x t.input.tenv |> Or_error.ok

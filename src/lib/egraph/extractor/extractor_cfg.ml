@@ -20,12 +20,27 @@ type scope = (Var.t * Label.t) Id.Tree.t
 
 let empty_scope : scope = Id.Tree.empty
 
+type placed = {
+  seq : Label.t Ftree.t;
+  ids : Z.t;
+}
+
+let create_placed id l = {
+  seq = Ftree.singleton l;
+  ids = Z.(one lsl id);
+}
+
+let add_placed p id l =
+  assert (not @@ Z.testbit p.ids id); {
+    seq = Ftree.snoc p.seq l;
+    ids = Z.(p.ids lor (one lsl id));
+  }
+
 type env = {
   insn        : Insn.op Label.Table.t;
   ctrl        : ctrl Label.Table.t;
-  news        : Label.t Id.Tree.t Label.Table.t;
+  news        : placed Label.Table.t;
   closure     : Lset.t Label.Table.t;
-  hoisted     : Id.Hash_set.t;
   mutable cur : Label.t;
   mutable scp : scope;
 }
@@ -35,7 +50,6 @@ let init () = {
   ctrl = Label.Table.create ();
   news = Label.Table.create();
   closure = Label.Table.create ();
-  hoisted = Id.Hash_set.create ();
   cur = Label.pseudoentry;
   scp = empty_scope;
 }
@@ -80,10 +94,8 @@ let fresh env canon real =
     let+ l = Context.Label.fresh in
     env.scp <- Id.Tree.set env.scp ~key:canon ~data:(x, l);
     Hashtbl.update env.news env.cur ~f:(function
-        | None -> Id.Tree.singleton real l
-        | Some m -> match Id.Tree.add m ~key:real ~data:l with
-          | `Duplicate -> assert false
-          | `Ok m -> m);
+        | Some p -> add_placed p real l
+        | None -> create_placed real l);
     x, l
 
 let insn t env a f =
@@ -321,6 +333,7 @@ module Hoisting = struct
   let (++) = Lset.union
   let not_pseudo = Fn.non Label.is_pseudo
   let descendants t = Semi_nca.Tree.descendants t.eg.input.dom
+  let dominates t = Semi_nca.Tree.is_descendant_of t.eg.input.dom
   let frontier t = Semi_nca.Frontier.enum t.eg.input.df
   let to_set = Fn.compose Lset.of_sequence @@ Seq.filter ~f:not_pseudo
 
@@ -339,6 +352,10 @@ module Hoisting = struct
           (* A block can be in its own dominance frontier, so
              we need to avoid an infinite loop. *)
           Seq.filter ~f:(Fn.non @@ Label.equal l) |>
+          (* Additionally, we don't want to follow back-edges. This
+             can happen when a node in our frontier is, for example,
+             a loop header. *)
+          Seq.filter ~f:(fun parent -> not @@ dominates t ~parent l) |>
           Seq.map ~f:(closure t env) |>
           Seq.fold ~init:(to_set @@ descendants t l) ~f:(++) in
         Hashtbl.set env.closure ~key:l ~data:c;
@@ -349,13 +366,10 @@ module Hoisting = struct
      happen if we rescheduled a newer term before we unioned it with an older
      term. *)
   let find_moved t id cid =
-    match Hashtbl.find t.eg.imoved id with
-    | Some s -> s
-    | None ->
-      assert (id <> cid);
-      match Hashtbl.find t.eg.imoved cid with
-      | Some s -> s
-      | None -> assert false
+    let s = Common.movedof t.eg id in
+    if Lset.is_empty s then
+      if id = cid then s else Common.movedof t.eg cid
+    else s
 
   let moved_blks t id cid =
     find_moved t id cid |> Lset.map ~f:(fun l ->
@@ -391,39 +405,50 @@ module Hoisting = struct
      see if this is the case. *)
   let is_partial_redundancy t env l id cid =
     (* If this node is deliberately placed here then allow it. *)
-    not (Hash_set.mem t.eg.pinned id) && begin
+    not (Common.is_pinned t.eg id) && begin
       (* Get the blocks associated with the labels that were
          "moved" for this node. *)
+      let l = match Resolver.resolve t.eg.input.reso l with
+        | Some `insn (_, b, _, _) -> Blk.label b
+        | Some `blk _ -> l
+        | None -> assert false in
       let bs = moved_blks t id cid in
-      (* If one of these blocks post-dominates the block that we're
-         moving to, then it is safe to allow the move to happen,
-         since we are inevitably going to compute it. However, this
-         choice has a drawback in that it may extend the live range
-         of this node beyond any benefit from hoisting it. In terms
-         of native code generation, this means added register pressure,
-         which may lead to increased spilling. *)
-      if post_dominated t l bs then
-        (* Check if we can reach the target block via a backedge
-           without visiting any of the blocks we moved from. *)
-        exists_bypass t l bs
-      else
-        (* For each of these blocks, get its reflexive transitive
-           closure in the dominator tree, and union them together. *)
-        let a = Lset.fold bs ~init:Lset.empty
-            ~f:(fun acc l -> acc ++ closure t env l) in
-        (* Get the non-reflexive transitive closure of the block
-           that we moved to. *)
-        let b = closure t env l ~self:false in
-        (* If these sets are not equal, then we have a partial
-           redundancy, and thus need to duplicate code. In the
-           case where the closure includes our target block `l`,
-           we want to exclude it, since the closure for `l` will
-           exclude itself. *)
-        not @@ Lset.equal (Lset.remove a l) b
+      (* An empty set means that nobody uses this value. *)
+      Lset.is_empty bs || begin
+        (* If we're being used in the candidate block then this is trivially
+           not a partial redundancy. *)
+        not (Lset.mem bs l) && begin
+          (* If one of these blocks post-dominates the block that we're
+             moving to, then it is safe to allow the move to happen,
+             since we are inevitably going to compute it. However, this
+             choice has a drawback in that it may extend the live range
+             of this node beyond any benefit from hoisting it. In terms
+             of native code generation, this means added register pressure,
+             which may lead to increased spilling. *)
+          if post_dominated t l bs then
+            (* Check if we can reach the target block via a backedge
+               without visiting any of the blocks we moved from. *)
+            exists_bypass t l bs
+          else
+            (* For each of these blocks, get its reflexive transitive
+               closure in the dominator tree, and union them together. *)
+            let a = Lset.fold bs ~init:Lset.empty
+                ~f:(fun acc l -> acc ++ closure t env l) in
+            (* Get the non-reflexive transitive closure of the block
+               that we moved to. *)
+            let b = closure t env l ~self:false in
+            (* If these sets are not equal, then we have a partial
+               redundancy, and thus need to duplicate code. In the
+               case where the closure includes our target block `l`,
+               we want to exclude it, since the closure for `l` will
+               exclude itself. *)
+            not @@ Lset.equal (Lset.remove a l) b
+        end
+      end
     end
 
   let should_skip t env l id cid =
-    Hash_set.mem t.impure cid ||
+    Z.testbit t.impure cid ||
     is_partial_redundancy t env l id cid
 
   (* If any nodes got moved up to this label, then we should check
@@ -447,7 +472,6 @@ module Hoisting = struct
           | None -> extract_fail l id
           | Some e ->
             Context.unless (should_skip t env l id cid) @@ fun () ->
-            Hash_set.add env.hoisted id;
             pure t env e >>| ignore)
 end
 
@@ -458,7 +482,8 @@ let reify t env l =
   | None -> !!()
   | Some id -> match extract t id with
     | None -> extract_fail l @@ Common.find t.eg id
-    | Some (E (Id {canon; _}, op, args) as e) when not @@ Hash_set.mem t.impure canon ->
+    | Some (E (Id {canon; _}, op, args) as e)
+      when not @@ Z.testbit t.impure canon ->
       (* There may be an opportunity to "sink" this instruction,
          which is the dual of the "hoisting" optimization below.
          Since this is a pure operation, we can wait until it is
@@ -466,7 +491,7 @@ let reify t env l =
          control-flow. *)
       begin match op, args with
         | Oset _, [E (Id {canon; _}, _, _)]
-          when Hash_set.mem t.eg.pinned canon ->
+          when Common.is_pinned t.eg canon ->
           exp t env l e
         | _ -> !!()
       end
@@ -511,17 +536,10 @@ let find_insn env l =
    Note that the ordering is, by default, from oldest to newest ID, but
    this can be reversed for an efficient `rev_append` as seen below. *)
 let find_news ?(rev = false) env l =
-  let order = if rev then `Decreasing_key else `Increasing_key in
-  let seq = Id.Tree.to_sequence ~order in
   Hashtbl.find env.news l |>
-  Option.value_map ~default:[] ~f:(fun m ->
-      seq m |>  Seq.filter_map ~f:(fun (id, l) ->
-          find_insn env l |> Option.map ~f:(fun i -> id, i)) |>
-      Seq.map ~f:(fun (id, i) ->
-          if Hash_set.mem env.hoisted id then
-            let dict = Insn.dict i in
-            Insn.with_dict i @@ Dict.set dict Tags.pinned ()
-          else i) |>
+  Option.value_map ~default:[] ~f:(fun p ->
+      Ftree.enum ~rev p.seq |>
+      Seq.filter_map ~f:(find_insn env) |>
       Seq.to_list)
 
 let move_dict i i' = Insn.(with_dict i' @@ dict i)

@@ -3,15 +3,15 @@ module stkarg
 export function $foo(l %a/rdi, l %b/rsi, l %c/rdx, l %d/rcx, l %e/r8, l %f/r9, w %g/+0, w %h/+8) {
 @2:
   %0 = add.l %a, %b ; @14
-  %1 = add.l %c, %d ; @15
-  %2 = add.l %0, %1 ; @16
-  %3 = add.l %e, %f ; @17
-  %4 = sext.l %g ; @18
-  %5 = sext.l %h ; @19
-  %6 = add.l %4, %5 ; @20
-  %7 = add.l %3, %6 ; @21
-  %8 = add.l %2, %7 ; @22
-  ret rax/%8
+  %2 = add.l %c, %d ; @16
+  %3 = add.l %0, %2 ; @17
+  %6 = add.l %e, %f ; @20
+  %9 = sext.l %g ; @23
+  %13 = sext.l %h ; @27
+  %14 = add.l %9, %13 ; @28
+  %15 = add.l %6, %14 ; @29
+  %16 = add.l %3, %15 ; @30
+  ret rax/%16
 }
 
 export function $bar() {

@@ -75,10 +75,10 @@ export function $foo { ; returns: rax
   mov %24:l, qword ptr [%21 + 0x8] ; @50
   mov qword ptr [%r + 0x8], %24:l ; @52
   movsd %f1.1:d, qword ptr [%r] ; @6
-  movsd %1:d, %f1.1:d ; @14
-  addsd %1:d, qword ptr [rip + @94] ; @95
+  movsd %0:d, %f1.1:d ; @13
+  addsd %0:d, qword ptr [rip + @94] ; @95
   .fp64 @94, 1.234 ; @96
-  cvtsd2si %2:l, %1:d ; @15
+  cvtsd2si %2:l, %0:d ; @15
   lea %3:l, qword ptr [%24 + %2*1] ; @16
   lea %4:l, qword ptr [%3 + %i*1] ; @17
   mov rax, %4:l ; @92

@@ -16,9 +16,9 @@ let init input depth_limit match_limit rules = {
   node = Vec.create ();
   typs = Vec.create ();
   lmoved = Label.Table.create ();
-  imoved = Id.Table.create ();
-  pinned = Id.Hash_set.create ();
-  ilbl = Id.Table.create ();
+  imoved = Vec.create ();
+  pinned = Z.zero;
+  ilbl = Vec.create ();
   lval = Label.Table.create ();
   depth_limit;
   match_limit;

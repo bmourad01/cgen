@@ -2,11 +2,11 @@ module qsort_inline_swap
 
 function $partition { ; returns: rax
 @2:
-  mov ecx, dword ptr [rdi + rdx*4] ; @6
-  lea rax, qword ptr [rsi - 0x1] ; @53
-  lea r8, qword ptr [rdx - 0x1] ; @52
+  mov r8d, dword ptr [rdi + rdx*4] ; @6
+  lea rax, qword ptr [rsi - 0x1] ; @52
+  lea rcx, qword ptr [rdx - 0x1] ; @53
 @3:
-  cmp rsi, r8 ; @86
+  cmp rsi, rcx ; @86
   jle @9 ; @87
 @10:
   inc rax ; @55
@@ -17,7 +17,7 @@ function $partition { ; returns: rax
   ret ; @84
 @9:
   mov r9d, dword ptr [rdi + rsi*4] ; @17
-  cmp r9d, ecx ; @77
+  cmp r9d, r8d ; @77
   jg @14 ; @78
 @13:
   inc rax ; @62

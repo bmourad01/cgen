@@ -2,27 +2,23 @@ module nosink
 
 export function w $foo(w %x) {
 @2:
-  %0 = eq.w %x, 0x0_w ; @16
-  br %0, @3, @4
+  %0 = lsl.w %x, 0x2_w ; @16
+  %1 = add.w %0, %x ; @17
+  %2 = eq.w %x, 0x0_w ; @18
+  br %2, @3, @4
 @3:
-  %9 = lsl.w %x, 0x2_w ; @25
-  %10 = add.w %9, %x ; @26
-  %11 = add.w %10, 0x1_w ; @27
-  jmp @7(%11)
-@4:
-  %2 = eq.w %x, 0x1_w ; @18
-  br %2, @9, @10
-@9:
-  %6 = lsl.w %x, 0x2_w ; @22
-  %7 = add.w %6, %x ; @23
-  %8 = add.w %7, 0x5_w ; @24
+  %8 = add.w %1, 0x1_w ; @24
   jmp @7(%8)
+@4:
+  %5 = eq.w %x, 0x1_w ; @21
+  br %5, @9, @10
+@9:
+  %7 = add.w %1, 0x5_w ; @23
+  jmp @7(%7)
 @10:
-  %3 = lsl.w %x, 0x2_w ; @19
-  %4 = add.w %3, %x ; @20
-  %5 = add.w %4, 0x6_w ; @21
-  jmp @7(%5)
+  %6 = add.w %1, 0x6_w ; @22
+  jmp @7(%6)
 @7(%a.2):
-  %1 = sub.w %a.2, 0x1_w ; @17
-  ret %1
+  %3 = sub.w %a.2, 0x1_w ; @19
+  ret %3
 }

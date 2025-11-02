@@ -2,12 +2,12 @@ module xor_to_or
 
 export function $foo(w %x/rdi, w %y/rsi) {
 @2:
-  %0 = or.w %x, %y ; @10
-  ret rax/%0
+  %2 = or.w %x, %y ; @12
+  ret rax/%2
 }
 
 export function $bar(w %x/rdi, w %y/rsi) {
 @6:
-  %1 = or.w %x, %y ; @11
-  ret rax/%1
+  %5 = or.w %x, %y ; @15
+  ret rax/%5
 }

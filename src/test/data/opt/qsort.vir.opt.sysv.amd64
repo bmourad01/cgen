@@ -18,13 +18,13 @@ function $partition { ; returns: rax
   mov %high:l, rdx ; @101
   lea %4:l, qword ptr [%arr + %high*4] ; @50
   mov %pivot.1:w, dword ptr [%arr + %high*4] ; @11
-  lea %6:l, qword ptr [%low - 0x1] ; @52
-  lea %5:l, qword ptr [%high - 0x1] ; @51
+  lea %5:l, qword ptr [%low - 0x1] ; @51
+  lea %6:l, qword ptr [%high - 0x1] ; @52
   mov %j.2:l, %low:l ; @97
-  mov %i.2:l, %6:l ; @98
+  mov %i.2:l, %5:l ; @98
   jmp @8 ; @99
 @8:
-  cmp %j.2:l, %5:l ; @92
+  cmp %j.2:l, %6:l ; @92
   jle @14 ; @93
   jmp @15 ; @94
 @15:

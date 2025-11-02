@@ -84,8 +84,8 @@ export function $foo(b %11/rax, l %i/rdi, ...) {
   %25 = add.l %r, 0x8_l ; @51
   st.l %24, %25 ; @52
   %f1.1 = ld.d %r ; @6
-  %1 = add.d %f1.1, 1.234_d ; @14
-  %2 = ftosi.d.l %1 ; @15
+  %0 = add.d %f1.1, 1.234_d ; @13
+  %2 = ftosi.d.l %0 ; @15
   %3 = add.l %24, %2 ; @16
   %4 = add.l %3, %i ; @17
   ret rax/%4

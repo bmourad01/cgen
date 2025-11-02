@@ -2,14 +2,14 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  imul rax, rdi, 0x24924925 ; @15
-  shr rax, 0x20_b ; @16
+  imul rax, rdi, 0x24924925 ; @16
+  shr rax, 0x20_b ; @17
   mov ecx, eax ; @5
-  shr ecx, 0x1f_b ; @14
+  shr ecx, 0x1f_b ; @15
   add eax, ecx ; @6
   mov ecx, eax ; @7
-  shl ecx, 0x3_b ; @13
-  sub edi, ecx ; @12
+  shl ecx, 0x3_b ; @14
+  sub edi, ecx ; @13
   add eax, edi ; @9
-  ret ; @11
+  ret ; @12
 }

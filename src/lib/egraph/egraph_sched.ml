@@ -49,17 +49,13 @@ let lca t a b =
 
 (* Note that `id` must be the canonical e-class. *)
 let move t old l id =
-  Hashtbl.update t.imoved id ~f:(function
-      | Some s -> List.fold old ~init:s ~f:Lset.add
-      | None -> Lset.of_list old);
-  Hashtbl.set t.ilbl ~key:id ~data:l;
+  add_moved t id old;
+  set_label t id l;
   Hashtbl.update t.lmoved l ~f:(function
       | None -> Iset.singleton id
       | Some s -> Iset.add s id)
 
-let mark_use t id a = Hashtbl.update t.imoved id ~f:(function
-    | None -> Lset.singleton a
-    | Some s -> Lset.add s a)
+let mark_use t id a = add_moved t id [a]
 
 (* Update when we union two nodes together. Should not be
    called if both IDs are the same. *)
@@ -69,9 +65,9 @@ let merge t a b u =
   (* Link the ID to the label, along with the union ID. *)
   let link ?p l =
     Option.iter p ~f:(mark_use t cid);
-    Hashtbl.set t.ilbl ~key:cid ~data:l;
-    Hashtbl.set t.ilbl ~key:u ~data:l in
-  match Hashtbl.(find t.ilbl a, find t.ilbl b) with
+    set_label t cid l;
+    set_label t u l in
+  match labelof t a, labelof t b with
   | None, None -> ()
   | None, Some pb -> link pb
   | Some pa, None -> link pa
@@ -82,28 +78,43 @@ let merge t a b u =
     let pc = lca t pa pb in
     assert (cid = find t b);
     assert (cid = find t u);
-    Hashtbl.remove t.ilbl a;
-    Hashtbl.remove t.ilbl b;
+    clear_label t a;
+    clear_label t b;
     move t [pa; pb] pc cid
+
+let rec useof t l : enode -> unit = function
+  | U {pre; post} ->
+    mark_use t pre l;
+    mark_use t post l;
+    useof t l @@ node t pre;
+    useof t l @@ node t post
+  | N (_, cs) ->
+    List.iter cs ~f:(fun c ->
+        mark_use t c l;
+        useof t l @@ node t c)
+
+let default_placement t id l n =
+  move t [] l id;
+  useof t l n
 
 (* We've matched on a value that we already hash-consed, so
    figure out which label it should correspond to. *)
 let duplicate t id a =
   let cid = find t id in
-  match Hashtbl.find t.ilbl cid with
+  match labelof t cid with
   | Some b when Label.(b = a) -> ()
   | Some b when dominates t ~parent:b a -> mark_use t cid a
   | Some b when dominates t ~parent:a b ->
     mark_use t cid b;
-    Hashtbl.set t.ilbl ~key:id ~data:a
+    set_label t id a
   | Some b ->
     let c = lca t a b in
-    Hashtbl.remove t.ilbl cid;
+    clear_label t cid;
     move t [a; b] c cid;
   | None ->
     (* This e-class wasn't moved, though it wasn't registered
        to begin with (even though it was hash-consed). *)
-    Hashtbl.set t.ilbl ~key:cid ~data:a
+    default_placement t id a @@ node t id
 
 module Licm = struct
   let header t lp = Loops.(header @@ get t.input.loop lp)
@@ -183,7 +194,7 @@ module Licm = struct
       | n when Enode.is_const n ->
         (* If it's a constant then it is definitely invariant. *)
         false
-      | n -> match Hashtbl.find t.ilbl id with
+      | n -> match labelof t id with
         | Some l ->
           (* Ask if where the node lives is variant with respect to
              the current loop. *)
@@ -219,11 +230,11 @@ module Licm = struct
         | _, ys when exists_in_loop t lp ys ->
           (* Pin at the current label if it's used in one of the
              loops we just hoisted out of. *)
-          Hash_set.add t.pinned id;
+          set_pinned t id;
           l'
         | xs, init :: ys ->
           (* Otherwise, find the common ancestor. *)
-          Hash_set.add t.pinned id;
+          set_pinned t id;
           let init = header_parent t init in
           List.fold ys ~init ~f:(fun acc lp ->
               lca t acc @@ header_parent t lp) |> fun init ->
@@ -244,7 +255,7 @@ module Licm = struct
 
   let licm t l n lp id lhs =
     if Variance.children ~lp t n
-    then Hashtbl.set t.ilbl ~key:id ~data:l
+    then default_placement t id l n
     else licm' t l n lp id lhs
 end
 
@@ -266,12 +277,10 @@ let is_effectful t n i =
    if we can do LICM (loop-invariant code motion). *)
 let add t l id n = match Resolver.resolve t.input.reso l with
   | None -> assert false
-  | Some `blk _ -> Hashtbl.set t.ilbl ~key:id ~data:l
-  | Some `insn (i, _, _, _) when Dict.mem (Insn.dict i) Tags.pinned ->
-    Hash_set.add t.pinned id
+  | Some `blk _ -> default_placement t id l n
   | Some `insn (i, _, _, _) when is_effectful t n i ->
-    Hashtbl.set t.ilbl ~key:id ~data:l
+    default_placement t id l n
   | Some `insn (_, b, lhs, _) ->
     match Licm.find_blk_loop t @@ Blk.label b with
-    | None -> Hashtbl.set t.ilbl ~key:id ~data:l
+    | None -> default_placement t id l n
     | Some lp -> Licm.licm t l n lp id lhs

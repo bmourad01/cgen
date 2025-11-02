@@ -5,17 +5,17 @@ export function $foo() {
   %v.1/w/rax = call $bar() ; @4
   %v.2/w/rax = call $bar() ; @6
   %v.3/w/rax = call $bar() ; @8
+  %1 = add.w %v.2, %v.3 ; @21
   %v.4/w/rax = call $bar() ; @10
   %v.5/w/rax = call $bar() ; @12
+  %5 = add.w %v.4, %v.5 ; @25
+  %7 = add.w %1, %5 ; @27
   %v.6/w/rax = call $bar() ; @14
   %v.7/w/rax = call $bar() ; @16
+  %11 = add.w %v.6, %v.7 ; @31
   %v.8/w/rax = call $bar() ; @18
-  %0 = add.w %v.2, %v.3 ; @20
-  %1 = add.w %v.4, %v.5 ; @21
-  %2 = add.w %0, %1 ; @22
-  %3 = add.w %v.6, %v.7 ; @23
-  %4 = add.w %3, %v.8 ; @24
-  %5 = add.w %2, %4 ; @25
-  %6 = add.w %v.1, %5 ; @26
-  ret rax/%6
+  %15 = add.w %11, %v.8 ; @35
+  %16 = add.w %7, %15 ; @36
+  %17 = add.w %v.1, %16 ; @37
+  ret rax/%17
 }

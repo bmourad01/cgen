@@ -26,7 +26,7 @@ export function $main { ; returns: rax
 @10:
   mov edi, ebx ; @14
   call $is_prime ; rdi ; @47
-  lea r12d, qword ptr [rbx + 0x1] ; @23
+  lea r12d, qword ptr [rbx + 0x1] ; @24
   test eax, eax ; @42
   jne @13 ; @43
 @28:

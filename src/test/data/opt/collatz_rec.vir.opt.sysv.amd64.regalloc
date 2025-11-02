@@ -9,7 +9,7 @@ export function $foo { ; returns: rax
   mov eax, esi ; @40
   ret ; @41
 @4:
-  inc esi ; @20
+  inc esi ; @22
   test edi, 0x1_w ; @34
   je @6 ; @35
 @7:

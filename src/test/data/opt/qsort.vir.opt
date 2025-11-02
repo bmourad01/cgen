@@ -14,11 +14,11 @@ function l $partition(l %arr, l %low, l %high) {
   %3 = lsl.l %high, 0x2_l ; @49
   %4 = add.l %arr, %3 ; @50
   %pivot.1 = ld.w %4 ; @11
-  %6 = sub.l %low, 0x1_l ; @52
-  %5 = sub.l %high, 0x1_l ; @51
-  jmp @8(%low, %6)
+  %5 = sub.l %low, 0x1_l ; @51
+  %6 = sub.l %high, 0x1_l ; @52
+  jmp @8(%low, %5)
 @8(%j.2, %i.2):
-  %7 = sle.l %j.2, %5 ; @53
+  %7 = sle.l %j.2, %6 ; @53
   br %7, @14, @15
 @14:
   %11 = lsl.l %j.2, 0x2_l ; @57

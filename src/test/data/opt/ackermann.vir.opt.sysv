@@ -10,11 +10,11 @@ export function $foo(w %m/rdi, w %n/rsi) {
   %7 = add.w %2, 0x1_w ; @27
   ret rax/%7
 @4:
-  %5 = eq.w %2, 0x0_w ; @25
-  %4 = sub.w %1, 0x1_w ; @24
-  br %5, @2(%4, 0x1_w), @8
+  %4 = eq.w %2, 0x0_w ; @24
+  %5 = sub.w %1, 0x1_w ; @25
+  br %4, @2(%5, 0x1_w), @8
 @8:
   %6 = sub.w %2, 0x1_w ; @26
   %r.1/w/rax = call $foo(%1/rdi, %6/rsi) ; @18
-  jmp @2(%4, %r.1)
+  jmp @2(%5, %r.1)
 }

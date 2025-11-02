@@ -12,12 +12,12 @@ export function $foo { ; returns: rax
   je @3 ; @46
   jmp @4 ; @47
 @4:
-  lea %4:w, qword ptr [%1 - 0x1] ; @24
+  lea %5:w, qword ptr [%1 - 0x1] ; @25
   test %2:w, %2:w ; @40
   je @28 ; @41
   jmp @8 ; @42
 @28:
-  mov %1:w, %4:w ; @37
+  mov %1:w, %5:w ; @37
   mov %2:w, 0x1_w ; @38
   jmp @2 ; @39
 @8:
@@ -26,7 +26,7 @@ export function $foo { ; returns: rax
   mov esi, %6:w ; @34
   call $foo ; rdi rsi ; @35
   mov %r.1:w, eax ; @36
-  mov %1:w, %4:w ; @31
+  mov %1:w, %5:w ; @31
   mov %2:w, %r.1:w ; @32
   jmp @2 ; @33
 @3:

@@ -7,31 +7,23 @@ export function l $int_pow(l %base, l %exponent) {
   %0 = ne.l %exponent.1, 0x0_l ; @55
   br %0, @9, @10
 @9:
-  %1 = and.l %exponent.1, 0x3_l ; @56
-  switch.l %1, @21(%ret.2) [0x1_l -> @14,
+  %1 = mul.l %mul1.2, %mul3.2 ; @56
+  %2 = mul.l %1, %1 ; @57
+  %3 = mul.l %2, %1 ; @58
+  %4 = and.l %exponent.1, 0x3_l ; @59
+  %5 = mul.l %ret.2, %1 ; @60
+  switch.l %4, @21(%ret.2) [0x1_l -> @21(%5),
                             0x2_l -> @15,
                             0x3_l -> @16]
-@14:
-  %13 = mul.l %mul1.2, %mul3.2 ; @68
-  %14 = mul.l %ret.2, %13 ; @69
-  jmp @21(%14)
 @15:
-  %10 = mul.l %mul1.2, %mul3.2 ; @65
-  %11 = mul.l %ret.2, %10 ; @66
-  %12 = mul.l %11, %10 ; @67
-  jmp @21(%12)
-@16:
-  %6 = mul.l %mul1.2, %mul3.2 ; @61
-  %8 = mul.l %6, %6 ; @63
-  %7 = mul.l %ret.2, %6 ; @62
-  %9 = mul.l %7, %8 ; @64
+  %9 = mul.l %5, %1 ; @64
   jmp @21(%9)
+@16:
+  %7 = mul.l %5, %2 ; @62
+  jmp @21(%7)
 @21(%ret.3):
-  %2 = mul.l %mul1.2, %mul3.2 ; @57
-  %3 = mul.l %2, %2 ; @58
-  %4 = mul.l %3, %2 ; @59
-  %5 = asr.l %exponent.1, 0x2_l ; @60
-  jmp @3(%ret.3, %4, %2, %5)
+  %6 = asr.l %exponent.1, 0x2_l ; @61
+  jmp @3(%ret.3, %3, %1, %6)
 @10:
   ret %ret.2
 }
@@ -40,31 +32,31 @@ export function l $int_pow_alt(l %base, l %exponent) {
   %mul = slot 32, align 8
 @27:
   st.l 0x1_l, %mul ; @30
-  %15 = add.l %mul, 0x8_l ; @70
-  st.l %base, %15 ; @32
-  %16 = add.l %mul, 0x18_l ; @71
-  st.l 0x1_l, %16 ; @34
-  %17 = add.l %mul, 0x10_l ; @72
+  %10 = add.l %mul, 0x8_l ; @65
+  st.l %base, %10 ; @32
+  %11 = add.l %mul, 0x18_l ; @66
+  st.l 0x1_l, %11 ; @34
+  %12 = add.l %mul, 0x10_l ; @67
   jmp @28(0x1_l, %exponent)
 @28(%ret.2, %exponent.1):
-  %18 = ne.l %exponent.1, 0x0_l ; @73
-  br %18, @35, @36
+  %13 = ne.l %exponent.1, 0x0_l ; @68
+  br %13, @35, @36
 @35:
-  %mul1.1 = ld.l %15 ; @41
-  %mul3.1 = ld.l %16 ; @42
-  %19 = mul.l %mul1.1, %mul3.1 ; @74
-  st.l %19, %15 ; @44
-  %20 = mul.l %19, %19 ; @75
-  st.l %20, %17 ; @46
-  %21 = mul.l %20, %19 ; @76
-  st.l %21, %16 ; @48
-  %22 = and.l %exponent.1, 0x3_l ; @77
-  %23 = lsl.l %22, 0x3_l ; @78
-  %24 = add.l %mul, %23 ; @79
-  %mule.1 = ld.l %24 ; @52
-  %25 = mul.l %ret.2, %mule.1 ; @80
-  %26 = asr.l %exponent.1, 0x2_l ; @81
-  jmp @28(%25, %26)
+  %mul1.1 = ld.l %10 ; @41
+  %mul3.1 = ld.l %11 ; @42
+  %14 = mul.l %mul1.1, %mul3.1 ; @69
+  st.l %14, %10 ; @44
+  %15 = mul.l %14, %14 ; @70
+  st.l %15, %12 ; @46
+  %16 = mul.l %15, %14 ; @71
+  st.l %16, %11 ; @48
+  %17 = and.l %exponent.1, 0x3_l ; @72
+  %18 = lsl.l %17, 0x3_l ; @73
+  %19 = add.l %mul, %18 ; @74
+  %mule.1 = ld.l %19 ; @52
+  %20 = mul.l %ret.2, %mule.1 ; @75
+  %21 = asr.l %exponent.1, 0x2_l ; @76
+  jmp @28(%20, %21)
 @36:
   ret %ret.2
 }

@@ -2,20 +2,20 @@ module nosink
 
 export function $foo { ; returns: rax
 @2:
-  test edi, edi ; @44
-  je @3 ; @45
+  test edi, edi ; @38
+  je @3 ; @39
 @4:
-  cmp edi, 0x1_w ; @39
-  je @9 ; @40
+  cmp edi, 0x1_w ; @33
+  je @9 ; @34
 @10:
-  lea eax, qword ptr [rdi + rdi*4 + 0x6] ; @21
-  jmp @7 ; @37
+  lea eax, qword ptr [rdi + rdi*4 + 0x6] ; @22
+  jmp @7 ; @32
 @9:
-  lea eax, qword ptr [rdi + rdi*4 + 0x5] ; @24
-  jmp @7 ; @34
+  lea eax, qword ptr [rdi + rdi*4 + 0x5] ; @23
+  jmp @7 ; @30
 @3:
-  lea eax, qword ptr [rdi + rdi*4 + 0x1] ; @27
+  lea eax, qword ptr [rdi + rdi*4 + 0x1] ; @24
 @7:
-  dec eax ; @17
-  ret ; @29
+  dec eax ; @19
+  ret ; @26
 }

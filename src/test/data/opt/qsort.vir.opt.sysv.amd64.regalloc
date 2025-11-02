@@ -23,8 +23,8 @@ function $partition { ; returns: rax
   lea rax, qword ptr [r12 + rdx*4] ; @50
   mov qword ptr [rbp - 0x10], rax ; @124
   mov r14d, dword ptr [r12 + rdx*4] ; @11
-  lea rcx, qword ptr [rsi - 0x1] ; @52
-  lea r15, qword ptr [rdx - 0x1] ; @51
+  lea rcx, qword ptr [rsi - 0x1] ; @51
+  lea r15, qword ptr [rdx - 0x1] ; @52
   mov rbx, rsi ; @97
 @8:
   cmp rbx, r15 ; @92
