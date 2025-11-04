@@ -26,6 +26,9 @@ let retype tenv m =
 
 let optimize tenv m =
   let module Cv = Context.Virtual in
+  (* let* m = Context.Virtual.Module.map_funs m ~f:Sroa.run in *)
+  (* let*? m = Module.map_funs_err m ~f:Remove_dead_vars.run in *)
+  (* let*? tenv = retype tenv m in *)
   let*? m = Module.map_funs_err m ~f:Promote_slots.run in
   let*? tenv = retype tenv m in
   let*? m = Module.map_funs_err m ~f:(Sccp.run tenv) in
