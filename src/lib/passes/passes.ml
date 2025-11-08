@@ -26,9 +26,9 @@ let retype tenv m =
 
 let optimize tenv m =
   let module Cv = Context.Virtual in
-  (* let* m = Context.Virtual.Module.map_funs m ~f:Sroa.run in *)
-  (* let*? m = Module.map_funs_err m ~f:Remove_dead_vars.run in *)
-  (* let*? tenv = retype tenv m in *)
+  let* m = Context.Virtual.Module.map_funs m ~f:Sroa.run in
+  let*? m = Module.map_funs_err m ~f:Remove_dead_vars.run in
+  let*? tenv = retype tenv m in
   let*? m = Module.map_funs_err m ~f:Promote_slots.run in
   let*? tenv = retype tenv m in
   let*? m = Module.map_funs_err m ~f:(Sccp.run tenv) in
@@ -60,6 +60,10 @@ let to_abi tenv m =
     ~data:(Seq.to_list @@ Module.data m)
 
 let optimize_abi m =
+  let* m =
+    Abi.Module.funs m |>
+    Context.Seq.map ~f:Sroa.run_abi >>|
+    Fun.compose (Abi.Module.with_funs m) Seq.to_list in
   let*? m = Abi.Module.map_funs_err m ~f:Promote_slots.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Abi_loadopt.run in
   let m = Abi.Module.map_funs m ~f:Remove_disjoint_blks.run_abi in

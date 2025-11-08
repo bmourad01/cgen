@@ -5,6 +5,8 @@ open Virtual
 
 module E = Monad.Result.Error
 
+let debug = false
+
 open E.Let
 
 module type L = sig
@@ -116,9 +118,18 @@ module Make(M : L) = struct
     Func.slots env.fn |>
     Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
         match Qualify.go env s with
-        | Bad -> acc
-        | Write (_, t) -> Map.set acc ~key:(Slot.var s) ~data:t
+        | Bad ->
+          if debug then
+            Format.eprintf "slot %a is bad\n%!" Var.pp (Slot.var s);
+          acc
+        | Write (_, t) ->
+          if debug then
+            Format.eprintf "promoting %a\n%!" Var.pp (Slot.var s);
+          Map.set acc ~key:(Slot.var s) ~data:t
         | Read _ ->
+          if debug then
+            Format.eprintf "slot %a is read, but never written to\n%!"
+              Var.pp (Slot.var s);
           (* In this case, we read from the slot but never stored anything
              to it. It's undefined behavior, but it's also what the programmer
              intended, so we should cancel this promotion. *)

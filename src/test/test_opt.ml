@@ -430,6 +430,7 @@ let native_suite = "Test native code" >::: [
     "Quicksort, swap inlined (SysV AMD64)" >:: test_sysv_amd64_native "qsort_inline_swap";
     "Spill test 1 (SysV AMD64)" >:: test_sysv_amd64_native "spill1";
     "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64_native "vaarg1";
+    "Variadic function arguments 2 (SysV AMD64)" >:: test_sysv_amd64_native "vaarg2";
     "Palindrome (SysV AMD64)" >:: test_sysv_amd64_native "palindrome";
     "Integer pow (SysV AMD64)" >:: test_sysv_amd64_native "int_pow";
     "AND test (SysV AMD64)" >:: test_sysv_amd64_native "and_test";
