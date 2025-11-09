@@ -41,6 +41,7 @@
   resolver_intf
   sm
   subst_mapper
+  subst_mapper_abi
   tags
   var_internal
   virtual_lexer
