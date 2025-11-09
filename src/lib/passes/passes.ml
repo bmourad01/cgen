@@ -21,8 +21,7 @@ let initialize m =
   !!(tenv, m)
 
 let retype tenv m =
-  Module.funs m |>
-  Seq.to_list |> Typecheck.update_fns tenv
+  Module.funs m |> Seq.to_list |> Typecheck.update_fns tenv
 
 let optimize tenv m =
   let module Cv = Context.Virtual in
