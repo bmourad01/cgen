@@ -171,7 +171,7 @@ module Tag = struct
       "non-tail" (module Unit)
 end
 
-let def i = match i.op with
+let def_of_op = function
   | `bop (x, _, _, _)
   | `uop (x, _, _)
   | `sel (x, _, _, _, _)
@@ -180,3 +180,5 @@ let def i = match i.op with
   | `stkargs x -> Var.Set.singleton x
   | `store _ | `regstore _ | `regassign _ -> Var.Set.empty
   | `call (xs, _, _) -> Var.Set.of_list @@ List.map xs ~f:fst3
+
+let def i = def_of_op i.op
