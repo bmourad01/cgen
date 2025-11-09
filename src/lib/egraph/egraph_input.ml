@@ -12,11 +12,39 @@ module Operands = Set.Make(struct
     type t = operand [@@deriving compare, sexp]
   end)
 
-module Phis = Phi_values.Make(struct
-    type t = Operands.t [@@deriving equal]
-    let one = Operands.singleton
-    let join = Set.union
-  end)
+module Phis_lang = struct
+  module Ctrl = struct
+    type t = ctrl
+
+    let table d ds tbl =
+      Ctrl.Table.enum tbl |> Seq.map ~f:snd |>
+      Seq.map ~f:(fun (`label (l, args)) -> l, args) |>
+      Seq.to_list |> List.cons (d, ds)
+
+    let locals = function
+      | `hlt -> []
+      | `jmp #global -> []
+      | `jmp `label (l, args) -> [l, args]
+      | `br (_, #global, #global) -> []
+      | `br (_, `label (y, ys), #global) -> [y, ys]
+      | `br (_, #global, `label (n, ns)) -> [n, ns]
+      | `br (_, `label (y, ys), `label (n, ns)) -> [y, ys; n, ns]
+      | `ret _ -> []
+      | `sw (_, _, `label (d, ds), tbl) -> table d ds tbl
+  end
+
+  module Blk = Blk
+  module Func = Func
+  module Cfg = Cfg
+end
+
+module Phis_domain = struct
+  type t = Operands.t [@@deriving equal]
+  let one = Operands.singleton
+  let join = Set.union
+end
+
+module Phis = Phi_values.Make(Phis_lang)(Phis_domain)
 
 (* General information about the function we're translating. *)
 type t = {

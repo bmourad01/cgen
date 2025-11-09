@@ -121,6 +121,7 @@ end
 *)
 module Resolve_constant_blk_args : sig
   val run : func -> func Or_error.t
+  val run_abi : Abi.func -> Abi.func Or_error.t
 end
 
 (** Performs the classic Sparse Conditional Constant
