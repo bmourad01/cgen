@@ -142,6 +142,25 @@ module Simplify_cfg : sig
   val run : Typecheck.env -> func -> func Context.t
 end
 
+(** Performs Scalar Replacement of Aggregates (SROA).
+
+    This aims to analyze access patterns of stack slots
+    and break them up into individual (scalar) components.
+
+    An important detail to note is that in the non-ABI pass,
+    slots being referenced in terms of user-defined compound
+    (aggregate) types are treated as opaque, and therefore
+    not optimized, as these are often ABI-dependent.
+
+    When ABI lowering is performed, these references should
+    be desugared into access patterns on primitive types,
+    at which point the algorithm can attempt to process them.
+*)
+module Sroa : sig
+  val run : func -> func Context.t
+  val run_abi : Abi.func -> Abi.func Context.t
+end
+
 (** Transforms a function into semi-pruned SSA form. *)
 module Ssa : sig
   val run : func -> func Or_error.t

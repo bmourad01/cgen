@@ -11,6 +11,7 @@ module Remove_disjoint_blks = Remove_disjoint_blks
 module Resolve_constant_blk_args = Resolve_constant_blk_args
 module Sccp = Sccp
 module Simplify_cfg = Simplify_cfg
+module Sroa = Sroa
 module Ssa = Ssa
 
 let initialize m =
