@@ -14,6 +14,9 @@ open Graphlib.Std
 
 let debug = false
 
+let (@.) = Fn.compose
+let (@<) = Fn.flip
+
 (* A scalar access. *)
 module Scalar = struct
   module T = struct
@@ -40,29 +43,32 @@ type value =
 
 let pp_value ppf = function
   | Top -> Format.fprintf ppf "\u{22a4}"
-  | Offset (slot, offset) -> Format.fprintf ppf "%a+0x%Lx" Var.pp slot offset
+  | Offset (slot, offset) ->
+    let neg = Int64.is_negative offset in
+    let pre, off = if neg then '-', Int64.neg offset else '+', offset in
+    Format.fprintf ppf "%a%c0x%Lx" Var.pp slot pre off
 
 let pp_bot ppf () = Format.fprintf ppf "\u{22a5}" [@@ocaml.warning "-32"]
 
 module Value = struct
   type t = value [@@deriving equal, sexp]
-
-  (* Join two abstract values. *)
   let merge a b = match a, b with
     | Offset s1, Offset s2 when equal_scalar s1 s2 -> a
-    | Offset _, Offset _ -> Top
-    | Top, _  | _, Top -> Top
+    | _ -> Top
 end
 
 type slots = Virtual.slot Var.Map.t
 
 module State : sig
   type t = value Var.Map.t [@@deriving equal, sexp]
+  val empty : t
   val merge : t -> t -> t
   val derive : slots -> t -> Var.t -> int64 -> value option
 end = struct
   (* NB: the keys are the LHS of a given instruction *)
   type t = value Var.Map.t [@@deriving equal, sexp]
+
+  let empty = Var.Map.empty
 
   let merge a b = Map.merge_skewed a b
       ~combine:(fun ~key:_ a b -> Value.merge a b)
@@ -74,6 +80,7 @@ end = struct
       Int64.(offset >= size)
     | None -> false
 
+  (* Normalize the scalar referred to by `ptr` and `offset`. *)
   let derive slots s ptr offset = match Map.find s ptr with
     | (Some Top | None) as v -> v
     | Some Offset (ptr', offset') ->
@@ -89,7 +96,7 @@ type state = State.t [@@deriving equal, sexp]
 
 let pp_state ppf s =
   let pp_sep ppf () = Format.fprintf ppf "@ " in
-  let pp_elt ppf (x, v) = Format.fprintf ppf "%a[%a]" Var.pp x pp_value v in
+  let pp_elt ppf (x, v) = Format.fprintf ppf "(%a@ %a)" Var.pp x pp_value v in
   let pp_elts = Format.pp_print_list ~pp_sep pp_elt in
   Format.fprintf ppf "@[<hov 0>%a@]" pp_elts @@ Map.to_alist s
 [@@ocaml.warning "-32"]
@@ -116,14 +123,14 @@ module type L = sig
     val label : t -> Label.t
 
     (* Used during analysis. *)
-    val lhs : op -> Var.t option
+    val lhs : op -> Var.Set.t
     val offset : op -> scalar option
     val copy_of : op -> Var.t option
     val escapes : op -> Var.Set.t
 
     (* Used during replacement. *)
     val load_or_store_to : op -> (Var.t * Type.basic * load_or_store) option
-    val subst_load_or_store : f:(Var.t -> Var.t) -> op -> op
+    val replace_load_or_store_addr : Var.t -> op -> op
     val with_op : t -> op -> t
     val add : Var.t -> Type.imm_base -> Var.t -> int64 -> op
   end
@@ -131,14 +138,15 @@ module type L = sig
   module Ctrl : sig
     type t
     val escapes : t -> Var.Set.t
+    val locals : t -> (Label.t * Var.t list) list
   end
 
   module Blk : sig
     type t
     val label : t -> Label.t
+    val args : ?rev:bool -> t -> Var.t seq
     val insns : ?rev:bool -> t -> Insn.t seq
     val ctrl : t -> Ctrl.t
-    val map_insns : t -> f:(Label.t -> Insn.op -> Insn.op) -> t
     val with_insns : t -> Insn.t list -> t
   end
 
@@ -147,7 +155,6 @@ module type L = sig
     val slots : ?rev:bool -> t -> Virtual.slot seq
     val blks : ?rev:bool -> t -> Blk.t seq
     val map_of_blks : t -> Blk.t Label.Tree.t
-    val map_blks : t -> f:(Blk.t -> Blk.t) -> t
     val with_blks : t -> Blk.t list -> t Or_error.t
     val insert_slot : t -> Virtual.slot -> t
   end
@@ -163,6 +170,8 @@ module Make(M : L) : sig
 end = struct
   open M
 
+  (* Set all known scalars to `Top` according to `f`, which is the
+     set of variables that escape. *)
   let escaping f x s =
     Set.fold (f x) ~init:s ~f:(fun s v ->
         match Map.find s v with
@@ -170,36 +179,61 @@ end = struct
           Map.set s ~key:ptr ~data:Top
         | Some _ | None -> s)
 
+  (* Transfer function for a single instruction. *)
   let transfer_op slots s op =
     let value = match Insn.offset op with
       | Some (ptr, offset) -> State.derive slots s ptr offset
       | None -> Insn.copy_of op |> Option.bind ~f:(Map.find s) in
-    let s = match value, Insn.lhs op with
-      | Some v, Some lhs -> Map.set s ~key:lhs ~data:v
-      | None, _ | _, None -> s in
+    let s = match value with
+      | None -> s
+      | Some v ->
+        Insn.lhs op |> Set.fold ~init:s
+          ~f:(fun s key -> Map.set s ~key ~data:v) in
     escaping Insn.escapes op s
 
+  let blkargs blks (l, xs) =
+    Label.Tree.find blks l |>
+    Option.value_map ~default:[] ~f:(fun b ->
+        let args = Seq.to_list @@ Blk.args b in
+        match List.zip xs args with
+        | Unequal_lengths -> []
+        | Ok args' -> args')
+
+  (* Transfer for control-flow instruction. *)
+  let transfer_ctrl blks s c =
+    let init = escaping Ctrl.escapes c s in
+    (* Propagate the block parameters we are passing. *)
+    Ctrl.locals c |> List.bind ~f:(blkargs blks) |>
+    List.fold ~init ~f:(fun acc (src, dst) ->
+        if Var.(src = dst) then acc
+        else match Map.find acc src with
+          | Some v -> Map.set acc ~key:dst ~data:v
+          | None -> acc)
+
+  (* Transfer function for a block. *)
   let transfer slots blks l s =
     Label.Tree.find blks l |>
     Option.value_map ~default:s ~f:(fun b ->
         Blk.insns b |> Seq.map ~f:Insn.op |>
         Seq.fold ~init:s ~f:(transfer_op slots) |>
-        escaping Ctrl.escapes (Blk.ctrl b))
+        transfer_ctrl blks @< Blk.ctrl b)
 
+  (* Initial constraints. *)
   let initialize slots blks =
     (* Set all slots to point to their own base address. *)
-    let slots = Map.mapi slots ~f:(fun ~key ~data:_ -> Offset (key, 0L)) in
-    (* Any slot that escapes should immediately be set to `Top`. *)
-    let slots =
-      Label.Tree.fold blks ~init:slots ~f:(fun ~key:_ ~data init ->
-          Blk.insns data |> Seq.fold ~init ~f:(fun s i ->
-              escaping Insn.escapes (Insn.op i) s) |>
-          escaping Ctrl.escapes (Blk.ctrl data)) in
-    (* Start at pseudoentry. *)
-    let nodes = Label.Map.singleton Label.pseudoentry slots in
-    Solution.create nodes Var.Map.empty
+    let init = Map.mapi slots ~f:(fun ~key ~data:_ -> Offset (key, 0L)) in
+    (* Any slot that directly escapes should immediately be set to `Top`. *)
+    Label.Tree.fold blks ~init ~f:(fun ~key:_ ~data init ->
+        Blk.insns data |> Seq.fold ~init ~f:(fun s i ->
+            escaping Insn.escapes (Insn.op i) s) |>
+        escaping Ctrl.escapes (Blk.ctrl data)) |>
+    Label.Map.singleton Label.pseudoentry |>
+    Solution.create @< State.empty
 
-  let analyze slots fn =
+  type solution = (Label.t, state) Solution.t
+
+  (* Run the dataflow analysis. *)
+  let analyze slots fn : solution =
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
     Graphlib.fixpoint (module Cfg) cfg
@@ -209,13 +243,10 @@ end = struct
       ~merge:State.merge
       ~f:(transfer slots blks)
 
+  (* All slots mapped to their names. *)
   let collect_slots fn =
     Func.slots fn |> Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
         Map.set acc ~key:(Virtual.Slot.var s) ~data:s)
-
-  let is_base s offset size = match offset with
-    | 0L -> Virtual.Slot.size s = size
-    | _ -> false
 
   (* A memory access for a slot. *)
   type access = {
@@ -225,16 +256,26 @@ end = struct
     ldst : load_or_store;
   }
 
-  let cmp_access a b = Int64.compare a.off b.off
+  type accesses = access list Var.Map.t
+
+  let basic_size ty = Type.sizeof_basic ty / 8
+  let sizeof_access a = basic_size a.ty
+
+  let cmp_access a b =
+    match Int64.compare a.off b.off with
+    | 0 -> Int.compare (sizeof_access a) (sizeof_access b)
+    | c -> c
 
   let pp_access ppf a =
-    Format.fprintf ppf "%a[%a.%a +0x%Lx]"
+    let neg = Int64.is_negative a.off in
+    let pre, off = if neg then '-', Int64.neg a.off else '+', a.off in
+    Format.fprintf ppf "(%a %a.%a %c0x%Lx)"
       Label.pp (Insn.label a.insn)
       pp_load_or_store a.ldst
       Type.pp_basic a.ty
-      a.off
+      pre off
 
-  let collect_accesses slots fn s : access list Var.Map.t =
+  let collect_accesses slots fn (s : solution) : accesses =
     (* Group all memory accesses by their corresponding slot. *)
     Func.blks fn |> Seq.fold ~init:Var.Map.empty ~f:(fun init b ->
         let s = ref @@ Solution.get s @@ Blk.label b in
@@ -251,15 +292,15 @@ end = struct
     (* Filter out slots that are not splittable. *)
     Map.map ~f:(List.sort ~compare:cmp_access) |>
     Map.filteri ~f:(fun ~key ~data ->
+        let check x y=
+          let sx = sizeof_access x in
+          (* No partial overlaps. *)
+          Int64.(x.off + of_int sx <= y.off) ||
+          (* Allow exact re-use of the same region. *)
+          cmp_access x y = 0 in
         let rec ok = function
-          | [] | [_] -> true
-          | x :: y :: rest ->
-            let sz = Type.sizeof_basic x.ty / 8 in
-            ((* No partial overlaps. *)
-              Int64.(x.off + of_int sz <= y.off) ||
-              (* Allow exact re-use of the same region. *)
-              Int64.(x.off = y.off) && Type.equal_basic x.ty y.ty
-            ) && ok (y :: rest) in
+          | x :: ((y :: _) as xs) -> check x y && ok xs
+          | [] | [_] -> true in
         let res = ok data in
         if debug && not res then
           Format.eprintf "filtering out accesses for %a\n%!" Var.pp key;
@@ -268,31 +309,48 @@ end = struct
   let overlaps oa sa ob sb =
     Int64.(oa < ob + of_int sb && ob < oa + of_int sa)
 
+  let within oa sa ob sb =
+    Int64.(oa >= ob && oa + of_int sa <= ob + of_int sb)
+
+  (* A partition of memory accesses at a particular offset+size range. *)
   type partition = {
     off  : int64;
     size : int;
     mems : access list;
   }
 
+  type partitions = partition list Var.Map.t
+
   let cmp_partition a b = Int64.compare a.off b.off
 
+  (* Check if a partition covers the entire slot `s`. *)
+  let is_entire_slot s p = match p.off with
+    | 0L -> Virtual.Slot.size s = p.size
+    | _ -> false
+
   let pp_partition ppf p =
-    Format.fprintf ppf "0x%Lx:%d: (%a)"
+    Format.fprintf ppf "0x%Lx:%d: @[%a@]"
       p.off p.size
       (Format.pp_print_list
-         ~pp_sep:(fun ppf () -> Format.fprintf ppf ", ")
+         ~pp_sep:(fun ppf () -> Format.fprintf ppf " ")
          pp_access) p.mems
 
-  let partition_acesses m : partition list Var.Map.t =
+  (* Sort the memory accesses into self-contained, non-overlapping
+     partitions, which are the fully-or-partially scalarized sub-objects
+     of the aggregate. *)
+  let partition_acesses m : partitions =
     let rec merge acc c = function
       | [] -> List.sort (c :: acc) ~compare:cmp_partition
       | x :: xs ->
-        let sx = Type.sizeof_basic x.ty / 8 in
-        if overlaps c.off c.size x.off sx then
+        let sx = sizeof_access x in
+        if Int64.(c.off = x.off) && c.size = sx then
+          (* Access exactly matches the current partition. *)
+          merge acc {c with mems = x :: c.mems} xs
+        else if overlaps c.off c.size x.off sx then
+          (* Access overlaps with current partition, so the partition
+             must increase in size. *)
           let o' = Int64.min c.off x.off in
-          let ec = Int64.(c.off + of_int c.size) in
-          let ex = Int64.(x.off + of_int sx) in
-          let e' = Int64.max ec ex in
+          let e' = Int64.(max (c.off + of_int c.size) (x.off + of_int sx)) in
           let s' = Int64.(to_int_exn (e' - o')) in
           merge acc {
             off = o';
@@ -300,151 +358,130 @@ end = struct
             mems = x :: c.mems;
           } xs
         else
+          (* No overlap, so we start a new partition. *)
           merge (c :: acc) {
             off = x.off;
             size = sx;
             mems = [x];
           } xs in
-    Map.map m ~f:(fun (accesses : access list) ->
-        List.sort accesses ~compare:(fun a b ->
-            Int64.compare a.off b.off) |> function
+    (* pre: each access list is sorted *)
+    Map.map m ~f:(function
         | [] -> []
         | (x : access) :: xs ->
           merge [] {
             off = x.off;
-            size = Type.sizeof_basic x.ty / 8;
+            size = sizeof_access x;
             mems = [x];
           } xs)
 
   (* Turn each partition into a concrete slot. *)
-  let materialize_partitions slots m =
+  let materialize_partitions slots parts : scalars Context.t =
+    Map.to_sequence parts |> Seq.filter_map ~f:(fun (base, ps) ->
+        Map.find slots base |> Option.map ~f:(fun s -> base, ps, s)) |>
+    Context.Seq.fold ~init:Scalar.Map.empty ~f:(fun init (base, ps, s) ->
+        Seq.of_list ps |> Seq.filter ~f:(not @. is_entire_slot s) |>
+        Context.Seq.fold ~init ~f:(fun acc p ->
+            let open Context.Syntax in
+            (* TODO: look through `p.mems` and see if there is a store
+               that is larger than other acesses (i.e. `st.l` followed
+               by one or more `ld.w`). If so, this partition could be
+               broken down further if we modify the store instruction(s). *)
+            let* x = Context.Var.fresh in
+            let*? s = Virtual.Slot.create x ~size:p.size ~align:p.size in
+            if debug then
+              Format.eprintf "new slot %a, base=%a, off=0x%Lx, size=%d\n%!"
+                Var.pp x Var.pp base p.off p.size;
+            !!(Map.set acc ~key:(base, p.off) ~data:s)))
+
+  (* Find the corresponding partition for [base+off, base+off+size). *)
+  let find_partition (parts : partitions) base off size =
+    Map.find parts base |>
+    Option.bind ~f:(List.find ~f:(fun p ->
+        within off size p.off p.size))
+
+  (* Exact cover for a scalar at `base + off`. *)
+  let rewrite_insn_exact (m : scalars) i ~exact ~base ~off =
     let open Context.Syntax in
-    Map.to_sequence m |> Context.Seq.fold
-      ~init:Scalar.Map.empty ~f:(fun init (base, ps) ->
-          let s = Map.find_exn slots base in
-          List.filter ps ~f:(fun p ->
-              not @@ is_base s p.off p.size) |>
-          Context.List.fold ~init ~f:(fun acc p ->
-              let* x = Context.Var.fresh in
-              let*? s = Virtual.Slot.create x ~size:p.size ~align:p.size in
-              if debug then
-                Format.eprintf "new slot %a, base=%a, off=0x%Lx, size=%d\n%!"
-                  Var.pp x Var.pp base p.off p.size;
-              !!(Map.set acc ~key:(base, p.off) ~data:s)))
+    if debug then
+      Format.eprintf "exact=0x%Lx, off=0x%Lx, base=%a\n%!"
+        exact off Var.pp base;
+    let op = Insn.op i in
+    let delta = Int64.(off - exact) in
+    match Map.find m (base, exact) with
+    | None ->
+      if debug then
+        Format.eprintf "no slot found\n%!";
+      !![i]
+    | Some s when Int64.(delta = 0L) ->
+      if debug then
+        Format.eprintf "found slot %a (base)\n%!"
+          Var.pp (Virtual.Slot.var s);
+      (* Store to base of new slot. *)
+      let addr = Virtual.Slot.var s in
+      let op' = Insn.replace_load_or_store_addr addr op in
+      !![Insn.with_op i op']
+    | Some s ->
+      if debug then
+        Format.eprintf "found slot %a (delta 0x%Lx)\n%!"
+          Var.pp (Virtual.Slot.var s) delta;
+      (* Compute offset of new slot and store to it. *)
+      let* l = Context.Label.fresh in
+      let* y = Context.Var.fresh in
+      let+ word = Context.target >>| Target.word in
+      let a = Insn.add y word (Virtual.Slot.var s) delta in
+      let op' = Insn.replace_load_or_store_addr y op in
+      [Insn.create ~label:l a; Insn.with_op i op']
 
-  let cover_exact m base off size =
-    Map.find m base |> Option.bind ~f:(fun ps ->
-        let rec go o r acc = function
-          | _ when r <= 0 -> Some (List.rev acc)
-          | [] -> None
-          | p :: ps ->
-            let pe = Int64.(p.off + of_int p.size) in
-            let re = Int64.(o + of_int r) in
-            if Int64.(p.off <= o && re <= pe) then
-              (* Request satisfies entire partition. *)
-              Some (List.rev (p.off :: acc))
-            else if Int64.(p.off = o) && p.size <= r then
-              (* Request is partly covered by the partition. *)
-              let o' = Int64.(o + of_int p.size) in
-              go o' (r - p.size) (p.off :: acc) ps
-            else if Int64.(p.off < o) then
-              (* Partition starts before this request. *)
-              go o r acc ps
-            else None in
-        go off size [] ps)
-
-  (* pre: op is a store *)
-  let split_into_parts op ptr base covers m =
-    List.filter_map covers ~f:(fun o ->
-        Map.find m (base, o) |> Option.map ~f:(fun s ->
-            Insn.subst_load_or_store op
-              ~f:(const @@ Virtual.Slot.var s)))
-
-  let insert_new_slots fn m = Map.fold m ~init:fn
-      ~f:(fun ~key:_ ~data fn -> Func.insert_slot fn data)
-
-  let rewrite_one parts m s i =
+  (* Rewrite an instruction. *)
+  let rewrite_insn parts (m : scalars) (s : state) i =
     let open Context.Syntax in
     let op = Insn.op i in
-    let* word = Context.target >>| Target.word in
     match Insn.load_or_store_to op with
     | None -> !![i]
-    | Some (ptr, ty, load_or_store) ->
+    | Some (ptr, ty, ldst) ->
       if debug then
         Format.eprintf "%a: looking at %a.%a to %a\n%!"
           Label.pp (Insn.label i)
-          pp_load_or_store load_or_store
+          pp_load_or_store ldst
           Type.pp_basic ty
           Var.pp ptr;
-      let sz = Type.sizeof_basic ty / 8 in
-      match Map.find !s ptr with
+      match Map.find s ptr with
       | Some Top | None -> !![i]
       | Some Offset (base, off) ->
-        match cover_exact parts base off sz with
-        | Some [o] ->
-          if debug then
-            Format.eprintf "exact=0x%Lx, off=0x%Lx, base=%a\n%!" o off Var.pp base;
-          let o' = Int64.(off - o) in
-          begin match Map.find m (base, o) with
-            | None -> !![i]
-            | Some s when Int64.(o' = 0L) ->
-              if debug then
-                Format.eprintf "found slot %a\n%!" Var.pp (Virtual.Slot.var s);
-              let op' = Insn.subst_load_or_store op ~f:(const @@ Virtual.Slot.var s) in
-              !![Insn.with_op i op']
-            | Some s ->
-              if debug then
-                Format.eprintf "found slot %a\n%!" Var.pp (Virtual.Slot.var s);
-              let* l = Context.Label.fresh in
-              let* y = Context.Var.fresh in
-              let a = Insn.add y word (Virtual.Slot.var s) o' in
-              let op' = Insn.subst_load_or_store op ~f:(const y) in !![
-                Insn.create ~label:l a;
-                Insn.with_op i op';
-              ]
-          end
-        | Some covers when is_store load_or_store ->
-          if debug then
-            Format.eprintf "%a: splitting\n%!" Label.pp @@ Insn.label i;
-          split_into_parts op ptr base covers m |>
-          Context.List.map ~f:(fun op ->
-              let+ l = Context.Label.fresh in
-              Insn.create ~label:l op)
-        | Some covers ->
-          if debug then
-            Format.eprintf "multi or no-part load: %d\n%!" (List.length covers);
-          !![i]
+        match find_partition parts base off @@ basic_size ty with
+        | Some p -> rewrite_insn_exact m i ~exact:p.off ~base ~off
         | None ->
           if debug then
             Format.eprintf "no parts found\n%!";
           !![i]
 
-  let rewrite_with_partitions slots fn s parts m =
+  let rewrite_with_partitions slots fn (s : solution) parts m =
     let open Context.Syntax in
-    let* blks =
-      Func.blks fn |> Context.Seq.map ~f:(fun b ->
-          let s = ref @@ Solution.get s @@ Blk.label b in
-          let+ insns =
-            Blk.insns b |> Context.Seq.map ~f:(fun i ->
-                let+ is = rewrite_one parts m s i in
-                s := transfer_op slots !s @@ Insn.op i;
-                is)
-            >>| Fn.compose List.concat Seq.to_list in
-          Blk.with_insns b insns) >>| Seq.to_list in
+    let* blks = Func.blks fn |> Context.Seq.map ~f:(fun b ->
+        let s = ref @@ Solution.get s @@ Blk.label b in
+        let+ insns = Blk.insns b |> Context.Seq.map ~f:(fun i ->
+            let+ is = rewrite_insn parts m !s i in
+            s := transfer_op slots !s @@ Insn.op i; is)
+          >>| List.concat @. Seq.to_list in
+        Blk.with_insns b insns) >>| Seq.to_list in
     Context.lift_err @@ Func.with_blks fn blks
+
+  let insert_new_slots fn m = Map.fold m ~init:fn
+      ~f:(fun ~key:_ ~data fn -> Func.insert_slot fn data)
 
   let run fn =
     let open Context.Syntax in
     let slots = collect_slots fn in
-    let s = analyze slots fn in
-    let accs = collect_accesses slots fn s in
-    let parts = partition_acesses accs in
-    if debug then
-      Map.iteri parts ~f:(fun ~key ~data ->
-          Format.eprintf "partitions for %a:\n%!" Var.pp key;
-          List.iter data ~f:(fun p ->
-              Format.eprintf "  %a\n%!" pp_partition p));
-    let* m = materialize_partitions slots parts in
-    let fn = insert_new_slots fn m in
-    rewrite_with_partitions slots fn s parts m
+    if Map.is_empty slots then !!fn else
+      let s = analyze slots fn in
+      let accs = collect_accesses slots fn s in
+      let parts = partition_acesses accs in
+      if debug then
+        Map.iteri parts ~f:(fun ~key ~data ->
+            Format.eprintf "partitions for %a:\n%!" Var.pp key;
+            List.iter data ~f:(fun p ->
+                Format.eprintf "  %a\n%!" pp_partition p));
+      let* m = materialize_partitions slots parts in
+      let fn = insert_new_slots fn m in
+      rewrite_with_partitions slots fn s parts m
 end
