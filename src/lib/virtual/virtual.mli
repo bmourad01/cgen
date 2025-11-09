@@ -693,7 +693,10 @@ module Abi : sig
     (** Transforms the underlying operation. *)
     val map : t -> f:(op -> op) -> t
 
-    (** Returns the set of defined variables of the instruction. *)
+    (** Returns the set of defined variables of the underlying op. *)
+    val def_of_op : op -> Var.Set.t
+
+    (** Equivalent to [def_of_op (op i)] *)
     val def : t -> Var.Set.t
 
     (** Same as [pp_op]. *)
