@@ -413,6 +413,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_regalloc "analyze_array";
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_regalloc "promote2-partial";
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64_regalloc "parallel";
+    "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumphi";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -439,6 +440,7 @@ let native_suite = "Test native code" >::: [
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_native "analyze_array";
     "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_native "uremby7";
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_native "promote2-partial";
+    "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_native "sumphi";
   ]
 
 let () = run_test_tt_main @@ test_list [
