@@ -1,6 +1,7 @@
 open Core
 open Regular.Std
 open Virtual
+open Scalars
 open Sroa_impl
 
 let var_set_of_option = function

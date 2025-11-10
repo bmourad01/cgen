@@ -39,6 +39,7 @@
   patricia_tree_intf
   phi_values
   resolver_intf
+  scalars
   sm
   subst_mapper
   subst_mapper_abi
