@@ -34,13 +34,11 @@ include R
 module Tree = Patricia_tree.Make(struct
     include Int63
     let size = 63
-    let to_int = to_int_trunc
   end)
 
 module Tree_set = Patricia_tree.Make_set(struct
     include Int63
     let size = 63
-    let to_int = to_int_trunc
   end)
 
 module type Graph_s = Graph

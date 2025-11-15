@@ -79,33 +79,33 @@ export function $analyze_array { ; returns: rax
 export function $analyze_array_inl { ; returns: rax
 @35:
   mov r8d, esi ; @179
-  mov ecx, dword ptr [rdi] ; @180
+  mov eax, dword ptr [rdi] ; @180
   xor r9d, r9d ; @174
-  mov esi, ecx ; @175
+  mov esi, eax ; @175
   xor r10d, r10d ; @177
 @36:
   cmp r10d, r8d ; @169
   jl @41 ; @170
 @42:
-  sub ecx, esi ; @168
-  imul ecx, ecx ; @167
-  lea eax, qword ptr [r9 + rcx*1] ; @83
+  sub eax, esi ; @168
+  imul eax, eax ; @167
+  add eax, r9d ; @83
   ret ; @166
 @41:
   mov edx, dword ptr [rdi + r10*4] ; @47
-  mov eax, edx ; @88
-  cmp ecx, edx ; @160
-  cmovg eax, ecx ; @161
-  mov ecx, edx ; @90
+  mov ecx, edx ; @88
+  cmp eax, edx ; @160
+  cmovg ecx, eax ; @161
+  mov eax, edx ; @90
   cmp esi, edx ; @156
-  cmovl ecx, esi ; @157
+  cmovl eax, esi ; @157
   imul edx, edx ; @155
-  mov esi, eax ; @92
-  sub esi, ecx ; @154
+  mov esi, ecx ; @92
+  sub esi, eax ; @154
   add edx, r9d ; @94
   lea r9d, qword ptr [rdx + rsi*1] ; @95
   inc r10d ; @96
-  mov esi, ecx ; @150
-  mov ecx, eax ; @151
+  mov esi, eax ; @150
+  mov eax, ecx ; @151
   jmp @36 ; @153
 }

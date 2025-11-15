@@ -1,15 +1,11 @@
 open Core
 open Regular.Std
 
-(* Ensure that we stay within the allotted bits for the payload. *)
-let payload_mask = Int63.of_int ((1 lsl 57) - 1)
-
 module Make(K : Hashtbl.Key) = struct
   module M = Map.Make(K)
   module P = Patricia_tree.Make(struct
       include Int63
       let size = 63
-      let to_int = to_int_trunc
     end)
 
   type +'a t = 'a M.t P.t
@@ -25,7 +21,7 @@ module Make(K : Hashtbl.Key) = struct
   let empty = P.empty
   let is_empty = P.is_empty
 
-  let hash' k = Int63.(of_int (K.hash k) land payload_mask)
+  let hash' k = Int63.of_int @@ K.hash k
 
   let find_exn t k =
     hash' k |> P.find_exn t |>

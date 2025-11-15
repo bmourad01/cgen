@@ -3,25 +3,24 @@ module int_pow
 export function $int_pow { ; returns: rax
 @2:
   mov rcx, rdi ; @119
-  mov rdi, rsi ; @120
-  mov r9d, 0x1_w ; @121
-  mov r8d, 0x1_w ; @122
+  mov r8d, 0x1_w ; @121
+  mov r9d, 0x1_w ; @122
 @3:
-  test rdi, rdi ; @114
+  test rsi, rsi ; @114
   jne @9 ; @115
 @10:
-  mov rax, r9 ; @112
+  mov rax, r8 ; @112
   ret ; @113
 @9:
-  imul rcx, r8 ; @111
+  imul rcx, r9 ; @111
   mov rdx, rcx ; @57
   imul rdx, rcx ; @110
-  mov r8, rdx ; @58
-  imul r8, rcx ; @109
-  mov rax, rdi ; @59
+  mov r9, rdx ; @58
+  imul r9, rcx ; @109
+  mov rax, rsi ; @59
   and rax, 0x3_l ; @108
-  mov rsi, r9 ; @60
-  imul rsi, rcx ; @107
+  mov rdi, r8 ; @60
+  imul rdi, rcx ; @107
   test rax, rax ; @96
   je @77 ; @97
   dec rax ; @99
@@ -33,16 +32,16 @@ export function $int_pow { ; returns: rax
   jmp rax ; @105
   .tbl @95 [@21, @15, @16] ; @106
 @77:
-  mov rsi, r9 ; @93
+  mov rdi, r8 ; @93
   jmp @21 ; @94
 @16:
-  imul rsi, rdx ; @90
+  imul rdi, rdx ; @90
   jmp @21 ; @89
 @15:
-  imul rsi, rcx ; @87
+  imul rdi, rcx ; @87
 @21:
-  sar rdi, 0x2_b ; @84
-  mov r9, rsi ; @79
+  sar rsi, 0x2_b ; @84
+  mov r8, rdi ; @79
   jmp @3 ; @83
 }
 
