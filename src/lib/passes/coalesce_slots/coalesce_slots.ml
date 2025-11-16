@@ -1,6 +1,5 @@
 open Core
 open Monads.Std
-open Regular.Std
 open Virtual
 open Scalars
 open Coalesce_slots_impl

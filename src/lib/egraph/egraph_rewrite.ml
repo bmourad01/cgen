@@ -109,7 +109,7 @@ and optimize ?ty ?l ~d t n id =
     | U _ -> assert false
     | N _ when d <= 0 -> id
     | N _ when Matcher.is_empty t.rules -> id
-    | N (o, cs) ->
+    | N _ ->
       let vm = VM.create () in
       let rws = {id; budget = t.match_limit} in
       if VM.init ~lookup:(node t) vm t.rules id then begin
