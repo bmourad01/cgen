@@ -117,15 +117,19 @@ module Make(M : L) = struct
     Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
         match Qualify.go env s with
         | Bad ->
-          Logs.debug (fun m -> m "cannot promote %a%!" Var.pp (Slot.var s));
+          Logs.debug (fun m ->
+              m "%s: cannot promote %a%!"
+                __FUNCTION__ Var.pp (Slot.var s));
           acc
         | Write (_, t) ->
-          Logs.debug (fun m -> m "promoting %a%!" Var.pp (Slot.var s));
+          Logs.debug (fun m ->
+              m "%s: promoting %a%!"
+                __FUNCTION__ Var.pp (Slot.var s));
           Map.set acc ~key:(Slot.var s) ~data:t
         | Read _ ->
           Logs.debug (fun m ->
-              m "slot %a is read, but never written to%!"
-                Var.pp (Slot.var s));
+              m "%s: slot %a is read, but never written to%!"
+                __FUNCTION__ Var.pp (Slot.var s));
           (* In this case, we read from the slot but never stored anything
              to it. It's undefined behavior, but it's also what the programmer
              intended, so we should cancel this promotion. *)
