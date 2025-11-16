@@ -3,26 +3,42 @@ open Regular.Std
 open Graphlib.Std
 open Scalars
 
+module Ltree = Label.Tree
+module Lset = Label.Tree_set
 module Slot = Virtual.Slot
 module Allen = Allen_interval_algebra
+
+type tag = Def | Use | Both [@@deriving compare, equal, sexp]
+
+let pp_tag ppf = function
+  | Def -> Format.fprintf ppf "def"
+  | Use -> Format.fprintf ppf "use"
+  | Both -> Format.fprintf ppf "both"
+
+let join_tag a b = if equal_tag a b then a else Both
 
 type range = {
   lo : int;
   hi : int;
+  tg : tag;
 } [@@deriving compare, equal, sexp]
 
 module Range = struct
   type t = range [@@deriving compare, equal, sexp]
 
-  let pp ppf r = Format.fprintf ppf "[%d, %d]" r.lo r.hi
+  let pp ppf r = Format.fprintf ppf "%a[%d, %d]" pp_tag r.tg r.lo r.hi
 
-  let bad = {lo = Int.min_value; hi = Int.max_value}
+  let bad = {lo = Int.min_value; hi = Int.max_value; tg = Both}
   let is_bad = equal bad
 
-  let singleton n = {lo = n; hi = n}
+  let singleton n = {lo = n; hi = n; tg = Def}
 
   (* Extend the upper-bound on the live range. *)
-  let use r n = {r with hi = Int.max r.hi n}
+  let use r n = {
+    r with
+    hi = Int.max r.hi n;
+    tg = join_tag r.tg Use;
+  }
 
   (* Shrink the lower-bound on the live range.
 
@@ -32,6 +48,7 @@ module Range = struct
   let def r n = {
     lo = Int.min r.lo n;
     hi = Int.max r.hi n;
+    tg = join_tag r.tg Def;
   }
 
   module Algebra = Allen.Make(struct
@@ -96,6 +113,19 @@ let make_subst slots p =
       Group.enum g |> Seq.filter ~f:(not @. Var.equal canon) |>
       Seq.fold ~init ~f:(fun acc x -> Map.set acc ~key:x ~data:(`var canon)))
 
+type t = {
+  subst : Subst_mapper.t; (* Map from coalesced to canonical slots *)
+  deads : Lset.t;         (* Stores to dead slots. *)
+}
+
+let empty = {
+  subst = Var.Map.empty;
+  deads = Lset.empty;
+}
+
+let is_empty t =
+  Map.is_empty t.subst && Lset.is_empty t.deads
+
 module Make(M : Scalars.L) = struct
   open M
 
@@ -137,27 +167,49 @@ module Make(M : Scalars.L) = struct
     let acc =
       Graphlib.reverse_postorder_traverse
         (module Cfg) ~start:Label.pseudoentry cfg |>
-      Seq.fold ~init:Var.Map.empty ~f:(fun acc l ->
-          match Label.Tree.find blks l with
-          | None -> acc
-          | Some b ->
-            let s = ref @@ Solution.get s l in
-            let acc = Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
-                let op = Insn.op i in
-                let acc = liveness_insn acc !s !ip i in
-                Vec.push nums (Insn.label i);
-                s := Analysis.transfer_op slots !s op;
-                incr ip;
-                acc) in
-            let acc = liveness_ctrl acc !s !ip @@ Blk.ctrl b in
-            Vec.push nums l;
-            incr ip;
-            acc) in
+      Seq.filter_map ~f:(Ltree.find blks) |>
+      Seq.fold ~init:Var.Map.empty ~f:(fun acc b ->
+          let l = Blk.label b in
+          let s = ref @@ Solution.get s l in
+          let acc = Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
+              let op = Insn.op i in
+              let acc = liveness_insn acc !s !ip i in
+              Vec.push nums (Insn.label i);
+              s := Analysis.transfer_op slots !s op;
+              incr ip;
+              acc) in
+          let acc = liveness_ctrl acc !s !ip @@ Blk.ctrl b in
+          Vec.push nums l;
+          incr ip;
+          acc) in
     acc, nums
+
+  let collect_deads blks slots rs s =
+    Ltree.fold blks ~init:Lset.empty
+      ~f:(fun ~key ~data:b init ->
+          let s = ref @@ Solution.get s key in
+          Blk.insns b |> Seq.fold ~init ~f:(fun acc i ->
+              let op = Insn.op i in
+              let acc = match Insn.load_or_store_to op with
+                | Some (ptr, _, Store) ->
+                  begin match Map.find !s ptr with
+                    | Some Offset (base, _) ->
+                      begin match Map.find rs base with
+                        | Some {tg = Def; _} ->
+                          (* This slot is only ever stored to, so we can
+                             safely remove it. *)
+                          Lset.add acc @@ Insn.label i
+                        | _ -> acc
+                      end
+                    | _ -> acc
+                  end
+                | _ -> acc in
+              s := Analysis.transfer_op slots !s op;
+              acc))
 
   let run fn =
     let slots = Analysis.collect_slots fn in
-    if Map.is_empty slots then Var.Map.empty else
+    if Map.is_empty slots then empty else
       let cfg = Cfg.create fn in
       let blks = Func.map_of_blks fn in
       let s = Analysis.analyze ~cfg ~blks slots fn in
@@ -178,10 +230,18 @@ module Make(M : Scalars.L) = struct
       Logs.debug (fun m ->
           Partition.groups p |> Seq.iter ~f:(fun g ->
               m "%a%!" (Group.pp Var.pp) g));
-      (* TODO: detect singleton ranges: these should be dead stores *)
+      let deads = collect_deads blks slots rs s in
+      Logs.debug (fun m ->
+          if not @@ Lset.is_empty deads then
+            m "dead stores: %a%!"
+              (Format.pp_print_list
+                 ~pp_sep:(fun ppf () -> Format.fprintf ppf ", ")
+                 Label.pp)
+              (Lset.to_list deads));
       let subst = make_subst slots p in
       Logs.debug (fun m ->
           Map.iteri subst ~f:(fun ~key ~data ->
-              m "coalesce slot: %a => %a%!" Var.pp key Virtual.pp_operand data));
-      subst
+              m "coalesce slot: %a => %a%!"
+                Var.pp key Virtual.pp_operand data));
+      {subst; deads}
 end

@@ -1,5 +1,6 @@
 open Core
 open Monads.Std
+open Regular.Std
 open Virtual
 open Scalars
 open Coalesce_slots_impl
@@ -70,18 +71,38 @@ let check_ssa msg n d =
   if Dict.mem d Tags.ssa then Ok ()
   else E.failf "In Coalesce_slots%s: function $%s is not in SSA form" msg n ()
 
+let no_deads f d is = List.filter is ~f:(not @. Lset.mem d @. f)
+
 let run fn =
   let+ () = check_ssa "" (Func.name fn) (Func.dict fn) in
-  let subst = V.run fn in
-  if Map.is_empty subst then fn else
-    Func.map_blks fn ~f:(fun b ->
-        let insns, ctrl = Subst_mapper.map_blk subst b in
-        Blk.with_ctrl (Blk.with_insns b insns) ctrl)
+  let t = V.run fn in
+  if is_empty t then fn else
+    let f =
+      if Map.is_empty t.subst then
+        fun b ->
+          Blk.insns b |> Seq.to_list |>
+          no_deads Insn.label t.deads |>
+          Blk.with_insns b
+      else
+        fun b ->
+          let insns, ctrl = Subst_mapper.map_blk t.subst b in
+          let insns = no_deads Insn.label t.deads insns in
+          Blk.with_ctrl (Blk.with_insns b insns) ctrl in
+    Func.map_blks fn ~f
 
 let run_abi fn =
   let+ () = check_ssa " (ABI)" (Abi.Func.name fn) (Abi.Func.dict fn) in
-  let subst = A.run fn in
-  if Map.is_empty subst then fn else
-    Abi.Func.map_blks fn ~f:(fun b ->
-        let insns, ctrl = Subst_mapper_abi.map_blk subst b in
-        Abi.Blk.with_ctrl (Abi.Blk.with_insns b insns) ctrl)
+  let t = A.run fn in
+  if is_empty t then fn else
+    let f =
+      if Map.is_empty t.subst then
+        fun b ->
+          Abi.Blk.insns b |> Seq.to_list |>
+          no_deads Abi.Insn.label t.deads |>
+          Abi.Blk.with_insns b
+      else
+        fun b ->
+          let insns, ctrl = Subst_mapper_abi.map_blk t.subst b in
+          let insns = no_deads Abi.Insn.label t.deads insns in
+          Abi.Blk.with_ctrl (Abi.Blk.with_insns b insns) ctrl in
+    Abi.Func.map_blks fn ~f
