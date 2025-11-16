@@ -20,6 +20,7 @@
   core_kernel.pairing_heap
   core_kernel.uopt
   graphlib
+  logs
   monads
   regular
   zarith)
