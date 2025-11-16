@@ -1,5 +1,10 @@
 .PHONY: clean install uninstall test doc deps bap-deps
 
+PROFILE = release
+ifeq ($(DEBUG),1)
+	PROFILE = dev
+endif
+
 BAP_DEPS = \
 	bitvec \
 	bitvec-binprot \
@@ -12,7 +17,7 @@ BAP_DEPS = \
 BAP_REPO := git+https://github.com/BinaryAnalysisPlatform/opam-repository\#testing
 
 all:
-	dune build --profile=release
+	dune build --profile=$(PROFILE)
 
 clean:
 	dune clean
@@ -24,7 +29,7 @@ uninstall:
 	dune uninstall
 
 test:
-	dune test --profile=release
+	dune test --profile=$(PROFILE)
 
 doc:
 	dune build @doc
