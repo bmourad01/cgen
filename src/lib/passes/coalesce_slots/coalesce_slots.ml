@@ -1,9 +1,12 @@
 open Core
+open Monads.Std
 open Regular.Std
 open Virtual
 open Scalars
-open Sroa_impl
+open Coalesce_slots_impl
 open Sroa_coalesce_common
+
+module E = Monad.Result.Error
 
 module V = Make(struct
     module Insn = struct
@@ -25,7 +28,7 @@ module V = Make(struct
     module Ctrl = struct
       type t = ctrl
       let free_vars = Ctrl.free_vars
-      let escapes = free_vars
+      let escapes = (escapes_ctrl free_vars :> t -> _)
       let locals = (locals Ctrl.Table.enum :> t -> _)
     end
     module Blk = Blk
@@ -54,7 +57,7 @@ module A = Make(struct
     module Ctrl = struct
       type t = ctrl
       let free_vars = Ctrl.free_vars
-      let escapes = free_vars
+      let escapes = (escapes_ctrl free_vars :> t -> _)
       let locals = (locals Ctrl.Table.enum :> t -> _)
     end
     module Blk = Blk
@@ -62,16 +65,24 @@ module A = Make(struct
     module Cfg = Cfg
   end)
 
-open Context.Syntax
+open E.Let
+
+let check_ssa msg n d =
+  if Dict.mem d Tags.ssa then Ok ()
+  else E.failf "In Coalesce_slots%s: function $%s is not in SSA form" msg n ()
 
 let run fn =
-  let* () = Context.unless (Dict.mem (Func.dict fn) Tags.ssa) @@ fun () ->
-    Context.failf "In SROA: function $%s is not in SSA form"
-      (Func.name fn) () in
-  V.run fn
+  let+ () = check_ssa "" (Func.name fn) (Func.dict fn) in
+  let subst = V.run fn in
+  if Map.is_empty subst then fn else
+    Func.map_blks fn ~f:(fun b ->
+        let insns, ctrl = Subst_mapper.map_blk subst b in
+        Blk.with_ctrl (Blk.with_insns b insns) ctrl)
 
 let run_abi fn =
-  let* () = Context.unless (Dict.mem (Abi.Func.dict fn) Tags.ssa) @@ fun () ->
-    Context.failf "In SROA (ABI): function $%s is not in SSA form"
-      (Abi.Func.name fn) () in
-  A.run fn
+  let+ () = check_ssa " (ABI)" (Abi.Func.name fn) (Abi.Func.dict fn) in
+  let subst = A.run fn in
+  if Map.is_empty subst then fn else
+    Abi.Func.map_blks fn ~f:(fun b ->
+        let insns, ctrl = Subst_mapper_abi.map_blk subst b in
+        Abi.Blk.with_ctrl (Abi.Blk.with_insns b insns) ctrl)
