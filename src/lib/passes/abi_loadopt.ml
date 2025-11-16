@@ -73,6 +73,7 @@ type t = {
   blks         : Abi.blk Label.Table.t;
   mems         : store Mem.Table.t;
   vars         : operand Var.Table.t;
+  nop          : Label.Hash_set.t;
   mutable mem  : Label.t option;
   mutable memo : operand Hashcons.t;
 }
@@ -107,8 +108,9 @@ let init fn =
   let blks = Label.Table.create () in
   let mems = Mem.Table.create () in
   let vars = Var.Table.create () in
+  let nop = Label.Hash_set.create () in
   let mem = None and memo = Hashcons.empty in
-  {reso; dom; rdom; lst; blks; mems; mem; vars; memo}
+  {reso; dom; rdom; lst; blks; mems; mem; vars; memo; nop}
 
 module Optimize = struct
   let var t x = match Hashtbl.find t.vars x with
@@ -151,10 +153,20 @@ module Optimize = struct
         | _ -> `var x in
       t.memo <- Hashcons.set t.memo ~key:op ~data
 
+  let same_store t v v' l l' =
+    equal_operand v v' && t.rdom ~parent:l' l
+
   let store t l ty v a =
     let v = operand t v in
     let a = operand t a in
     let key = {label = l; addr = a; ty} in
+    (* Mark redundant stores only if we can prove that
+       it is storing the same value to the same address. *)
+    Option.iter t.mem ~f:(fun m ->
+        match Hashtbl.find t.mems {key with label = m} with
+        | Some Value (v', l') when same_store t v v' l l' ->
+          Hash_set.add t.nop l
+        | Some _ | None -> ());
     Hashtbl.set t.mems ~key ~data:(Value (v, l));
     t.mem <- Some l;
     `store (ty, v, a)
@@ -279,8 +291,13 @@ let run fn =
         Semi_nca.Tree.children t.dom l |> Seq.iter ~f:(fun l ->
             Stack.push q (l, t.mem, t.memo)));
     Abi.Func.map_blks fn ~f:(fun b ->
-        Abi.Blk.label b |> Hashtbl.find t.blks |>
-        Option.value ~default:b)
+        let b =
+          Abi.Blk.label b |> Hashtbl.find t.blks |>
+          Option.value ~default:b in
+        if Hash_set.is_empty t.nop then b else
+          Abi.Blk.insns b |> Seq.filter ~f:(fun i ->
+              not @@ Hash_set.mem t.nop @@ Abi.Insn.label i) |>
+          Seq.to_list |> Abi.Blk.with_insns b)
   else
     E.failf "In Abi_loadopt: function $%s is not in SSA form"
       (Abi.Func.name fn) ()
