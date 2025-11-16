@@ -78,8 +78,8 @@ let equiv_range slots rs x y =
   let ry = Map.find_exn rs y in
   let a : Allen.t = Range.Algebra.relate rx ry in
   Logs.debug (fun m ->
-      m "%a, %a: %a%!"
-        Var.pp x Var.pp y Sexp.pp (Allen.sexp_of_t a));
+      m "%s: %a, %a: %a%!"
+        __FUNCTION__ Var.pp x Var.pp y Sexp.pp (Allen.sexp_of_t a));
   match a with
   | Before | After -> true
   | _ -> false
@@ -225,15 +225,16 @@ module Make(M : Scalars.L) = struct
                     Range.pp r
                     Label.pp (Vec.get_exn nums r.lo)
                     Label.pp (Vec.get_exn nums r.hi) in
-              m "%a: %a%!" Var.pp x ppr x));
+              m "%s: %a: %a%!" __FUNCTION__ Var.pp x ppr x));
       let p = non_interfering slots rs in
       Logs.debug (fun m ->
           Partition.groups p |> Seq.iter ~f:(fun g ->
-              m "%a%!" (Group.pp Var.pp) g));
+              m "%s: group: %a%!" __FUNCTION__ (Group.pp Var.pp) g));
       let deads = collect_deads blks slots rs s in
       Logs.debug (fun m ->
           if not @@ Lset.is_empty deads then
-            m "dead stores: %a%!"
+            m "%s: dead stores: %a%!"
+              __FUNCTION__
               (Format.pp_print_list
                  ~pp_sep:(fun ppf () -> Format.fprintf ppf ", ")
                  Label.pp)
@@ -241,7 +242,7 @@ module Make(M : Scalars.L) = struct
       let subst = make_subst slots p in
       Logs.debug (fun m ->
           Map.iteri subst ~f:(fun ~key ~data ->
-              m "coalesce slot: %a => %a%!"
-                Var.pp key Virtual.pp_operand data));
+              m "%s: coalesce slot: %a => %a%!"
+                __FUNCTION__ Var.pp key Virtual.pp_operand data));
       {subst; deads}
 end
