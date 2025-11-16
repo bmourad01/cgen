@@ -129,6 +129,7 @@ module type L = sig
 
   module Ctrl : sig
     type t
+    val free_vars : t -> Var.Set.t
     val escapes : t -> Var.Set.t
     val locals : t -> (Label.t * Var.t list) list
   end
@@ -226,9 +227,13 @@ module Make(M : L) = struct
         Map.set acc ~key:(Virtual.Slot.var s) ~data:s)
 
   (* Run the dataflow analysis. *)
-  let analyze slots fn : solution =
-    let cfg = Cfg.create fn in
-    let blks = Func.map_of_blks fn in
+  let analyze ?cfg ?blks slots fn : solution =
+    let cfg = match cfg with
+      | None -> Cfg.create fn
+      | Some cfg -> cfg in
+    let blks = match blks with
+      | None -> Func.map_of_blks fn
+      | Some blks -> blks in
     Graphlib.fixpoint (module Cfg) cfg
       ~init:(initialize slots blks)
       ~start:Label.pseudoentry

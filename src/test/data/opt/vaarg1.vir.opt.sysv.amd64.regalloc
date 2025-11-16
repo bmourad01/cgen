@@ -37,29 +37,29 @@ export function $foo { ; returns: rax
   cmp edx, 0x28_w ; @104
   jbe @64 ; @105
 @65:
-  mov rax, qword ptr [rbp - 0x28] ; @83
-  lea rcx, qword ptr [rax + 0x8] ; @84
-  lea rdx, qword ptr [rax + 0x10] ; @85
+  mov rcx, qword ptr [rbp - 0x28] ; @83
+  lea rax, qword ptr [rcx + 0x8] ; @84
+  lea rdx, qword ptr [rcx + 0x10] ; @85
   mov qword ptr [rbp - 0x28], rdx ; @86
   jmp @66 ; @103
 @64:
-  lea rax, qword ptr [rbp + rsi*1 - 0xe0] ; @75
-  lea rcx, qword ptr [rbp + rdx*1 - 0xe0] ; @77
+  lea rcx, qword ptr [rbp + rsi*1 - 0xe0] ; @75
+  lea rax, qword ptr [rbp + rdx*1 - 0xe0] ; @77
   add esi, 0x10_w ; @78
   add edx, 0x8_w ; @79
   mov dword ptr [rbp - 0x2c], esi ; @80
   mov dword ptr [rbp - 0x30], edx ; @81
 @66:
-  mov rax, qword ptr [rax] ; @87
-  mov rcx, qword ptr [rcx] ; @89
+  mov rcx, qword ptr [rcx] ; @87
+  mov rdx, qword ptr [rax] ; @89
 @61:
-  mov qword ptr [rbp - 0x18], rax ; @48
-  mov qword ptr [rbp - 0x10], rcx ; @52
+  mov qword ptr [rbp - 0x18], rcx ; @48
+  mov qword ptr [rbp - 0x10], rdx ; @52
   movsd xmm0, qword ptr [rbp - 0x18] ; @6
   addsd xmm0, qword ptr [rip + @94] ; @95
   .fp64 @94, 1.234 ; @96
   cvtsd2si rax, xmm0 ; @15
-  add rax, rcx ; @16
+  add rax, rdx ; @16
   add rax, rdi ; @17
   leave ; @127
   ret ; @93

@@ -12,23 +12,18 @@ function $sum { ; returns: rax
 
 export function $sumphi { ; returns: rax
 @8:
-  push rbp ; @59
-  mov rbp, rsp ; @60
-  sub rsp, 0x20_l ; @61
-  mov qword ptr [rbp - 0x20], rdi ; @54
+  push rbp ; @57
+  mov rbp, rsp ; @58
+  sub rsp, 0x10_l ; @59
+  mov qword ptr [rbp - 0x10], rdi ; @54
   test edx, edx ; @47
-  js @9 ; @48
-@10:
-  mov qword ptr [rbp - 0x18], rsi ; @32
-  lea rax, qword ptr [rbp - 0x18] ; @45
-  jmp @14 ; @46
+  jns @14 ; @48
 @9:
-  mov qword ptr [rbp - 0x10], rdi ; @34
-  lea rax, qword ptr [rbp - 0x10] ; @43
+  mov rsi, rdi ; @43
 @14:
-  mov dword ptr [rbp - 0x20], 0x5_w ; @17
-  mov rdi, qword ptr [rax] ; @35
+  mov dword ptr [rbp - 0x10], 0x5_w ; @17
+  mov rdi, rsi ; @18
   call $sum ; rdi ; @41
-  leave ; @62
+  leave ; @60
   ret ; @40
 }

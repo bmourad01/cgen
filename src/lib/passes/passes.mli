@@ -64,6 +64,16 @@ module Abi_loadopt : sig
   val run : Abi.func -> Abi.func Or_error.t
 end
 
+(** Attempts to coalesce slots of compatible size and alignment which
+    do not interfere (i.e. are never live at the same time).
+
+    Assumes the function is in SSA form.
+*)
+module Coalesce_slots : sig
+  val run : func -> func Or_error.t
+  val run_abi : Abi.func -> Abi.func Or_error.t
+end
+
 (** Uses the [Egraph] module to perform a variety of optimizations
     to a function.
 
