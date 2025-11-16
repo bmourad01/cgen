@@ -6,8 +6,6 @@ open Scalars
 module Slot = Virtual.Slot
 module Allen = Allen_interval_algebra
 
-let debug = false
-
 type range = {
   lo : int;
   hi : int;
@@ -62,9 +60,9 @@ let equiv_range slots rs x y =
   let rx = Map.find_exn rs x in
   let ry = Map.find_exn rs y in
   let a : Allen.t = Range.Algebra.relate rx ry in
-  if debug then
-    Format.eprintf "%a, %a: %a\n%!"
-      Var.pp x Var.pp y Sexp.pp (Allen.sexp_of_t a);
+  Logs.debug (fun m ->
+      m "%a, %a: %a%!"
+        Var.pp x Var.pp y Sexp.pp (Allen.sexp_of_t a));
   match a with
   | Before | After -> true
   | _ -> false
@@ -164,28 +162,26 @@ module Make(M : Scalars.L) = struct
       let blks = Func.map_of_blks fn in
       let s = Analysis.analyze ~cfg ~blks slots fn in
       let rs, nums = liveness cfg blks slots s in
-      if debug then
-        Map.iter_keys slots ~f:(fun x ->
-            match Map.find rs x with
-            | None ->
-              Format.eprintf "%a: dead\n%!" Var.pp x
-            | Some r when Range.is_bad r ->
-              Format.eprintf "%a: top\n%!" Var.pp x
-            | Some r ->
-              Format.eprintf "%a: %a (%a to %a)\n%!" Var.pp x Range.pp r
-                Label.pp (Vec.get_exn nums r.lo)
-                Label.pp (Vec.get_exn nums r.hi)
-          );
+      Logs.debug (fun m ->
+          Map.iter_keys slots ~f:(fun x ->
+              let ppr ppf x = match Map.find rs x with
+                | None -> Format.fprintf ppf "dead"
+                | Some r when Range.is_bad r ->
+                  Format.fprintf ppf "top"
+                | Some r ->
+                  Format.fprintf ppf "%a (%a to %a)"
+                    Range.pp r
+                    Label.pp (Vec.get_exn nums r.lo)
+                    Label.pp (Vec.get_exn nums r.hi) in
+              m "%a: %a%!" Var.pp x ppr x));
       let p = non_interfering slots rs in
-      if debug then
-        Partition.groups p |> Seq.iter ~f:(fun g ->
-            Format.eprintf "%a\n%!" (Group.pp Var.pp) g
-          );
+      Logs.debug (fun m ->
+          Partition.groups p |> Seq.iter ~f:(fun g ->
+              m "%a%!" (Group.pp Var.pp) g));
       (* TODO: detect singleton ranges: these should be dead stores *)
       let subst = make_subst slots p in
-      if debug then
-        Map.iteri subst ~f:(fun ~key ~data ->
-            Format.eprintf "%a => %a\n%!"
-              Var.pp key Virtual.pp_operand data);
+      Logs.debug (fun m ->
+          Map.iteri subst ~f:(fun ~key ~data ->
+              m "coalesce slot: %a => %a%!" Var.pp key Virtual.pp_operand data));
       subst
 end

@@ -13,7 +13,7 @@ open Regular.Std
 open Graphlib.Std
 open Scalars
 
-let debug = false
+module Slot = Virtual.Slot
 
 module Make(M : Scalars.L) : sig
   val run : M.Func.t -> M.Func.t Context.t
@@ -76,8 +76,8 @@ end = struct
           | x :: ((y :: _) as xs) -> check x y && ok xs
           | [] | [_] -> true in
         let res = ok data in
-        if debug && not res then
-          Format.eprintf "filtering out accesses for %a\n%!" Var.pp key;
+        if not res then
+          Logs.debug (fun m -> m "filtering out accesses for %a%!" Var.pp key);
         res)
 
   let overlaps oa sa ob sb =
@@ -99,7 +99,7 @@ end = struct
 
   (* Check if a partition covers the entire slot `s`. *)
   let is_entire_slot s p = match p.off with
-    | 0L -> Virtual.Slot.size s = p.size
+    | 0L -> Slot.size s = p.size
     | _ -> false
 
   let pp_partition ppf p =
@@ -161,10 +161,10 @@ end = struct
                by one or more `ld.w`). If so, this partition could be
                broken down further if we modify the store instruction(s). *)
             let* x = Context.Var.fresh in
-            let*? s = Virtual.Slot.create x ~size:p.size ~align:p.size in
-            if debug then
-              Format.eprintf "new slot %a, base=%a, off=0x%Lx, size=%d\n%!"
-                Var.pp x Var.pp base p.off p.size;
+            let*? s = Slot.create x ~size:p.size ~align:p.size in
+            Logs.debug (fun m ->
+                m "new slot %a, base=%a, off=0x%Lx, size=%d%!"
+                  Var.pp x Var.pp base p.off p.size);
             !!(Map.set acc ~key:(base, p.off) ~data:s)))
 
   (* Find the corresponding partition for [base+off, base+off+size). *)
@@ -176,33 +176,28 @@ end = struct
   (* Exact cover for a scalar at `base + off`. *)
   let rewrite_insn_exact (m : scalars) i ~exact ~base ~off =
     let open Context.Syntax in
-    if debug then
-      Format.eprintf "exact=0x%Lx, off=0x%Lx, base=%a\n%!"
-        exact off Var.pp base;
+    Logs.debug (fun m ->
+        m "exact=0x%Lx, off=0x%Lx, base=%a%!"
+          exact off Var.pp base);
     let op = Insn.op i in
     let delta = Int64.(off - exact) in
     match Map.find m (base, exact) with
     | None ->
-      if debug then
-        Format.eprintf "no slot found\n%!";
+      Logs.debug (fun m -> m "no slot found%!");
       !![i]
     | Some s when Int64.(delta = 0L) ->
-      if debug then
-        Format.eprintf "found slot %a (base)\n%!"
-          Var.pp (Virtual.Slot.var s);
+      Logs.debug (fun m -> m "found slot %a (base)%!" Var.pp (Slot.var s));
       (* Store to base of new slot. *)
-      let addr = Virtual.Slot.var s in
+      let addr = Slot.var s in
       let op' = Insn.replace_load_or_store_addr addr op in
       !![Insn.with_op i op']
     | Some s ->
-      if debug then
-        Format.eprintf "found slot %a (delta 0x%Lx)\n%!"
-          Var.pp (Virtual.Slot.var s) delta;
+      Logs.debug (fun m -> m "found slot %a (delta 0x%Lx)%!" Var.pp (Slot.var s) delta);
       (* Compute offset of new slot and store to it. *)
       let* l = Context.Label.fresh in
       let* y = Context.Var.fresh in
       let+ word = Context.target >>| Target.word in
-      let a = Insn.add y word (Virtual.Slot.var s) delta in
+      let a = Insn.add y word (Slot.var s) delta in
       let op' = Insn.replace_load_or_store_addr y op in
       [Insn.create ~label:l a; Insn.with_op i op']
 
@@ -213,20 +208,19 @@ end = struct
     match Insn.load_or_store_to op with
     | None -> !![i]
     | Some (ptr, ty, ldst) ->
-      if debug then
-        Format.eprintf "%a: looking at %a.%a to %a\n%!"
-          Label.pp (Insn.label i)
-          pp_load_or_store ldst
-          Type.pp_basic ty
-          Var.pp ptr;
+      Logs.debug (fun m ->
+          m "%a: looking at %a.%a to %a%!"
+            Label.pp (Insn.label i)
+            pp_load_or_store ldst
+            Type.pp_basic ty
+            Var.pp ptr);
       match Map.find s ptr with
       | Some Top | None -> !![i]
       | Some Offset (base, off) ->
         match find_partition parts base off @@ basic_size ty with
         | Some p -> rewrite_insn_exact m i ~exact:p.off ~base ~off
         | None ->
-          if debug then
-            Format.eprintf "no parts found\n%!";
+          Logs.debug (fun m -> m "no parts found%!");
           !![i]
 
   let rewrite_with_partitions slots fn (s : solution) parts m =
@@ -250,11 +244,15 @@ end = struct
       let s = Analysis.analyze slots fn in
       let accs = collect_accesses slots fn s in
       let parts = partition_acesses accs in
-      if debug then
-        Map.iteri parts ~f:(fun ~key ~data ->
-            Format.eprintf "partitions for %a:\n%!" Var.pp key;
-            List.iter data ~f:(fun p ->
-                Format.eprintf "  %a\n%!" pp_partition p));
+      Logs.debug (fun m ->
+          Map.iteri parts ~f:(fun ~key ~data ->
+              if not @@ List.is_empty data then
+                m "partitions for %a:\n%a%!"
+                  Var.pp key
+                  (Format.pp_print_list
+                     ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n%!")
+                     (fun ppf a -> Format.fprintf ppf "  %a%!" pp_partition a))
+                  data));
       let* m = materialize_partitions slots parts in
       let fn = insert_new_slots fn m in
       rewrite_with_partitions slots fn s parts m

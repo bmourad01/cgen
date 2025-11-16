@@ -100,11 +100,15 @@ module Make(M : S) = struct
     | Some x -> i :: acc, changed, alive -- x ++ Insn.free_vars i
     | None -> i :: acc, changed, alive ++ Insn.free_vars i
 
+  let remove_slot fn x =
+    Logs.debug (fun m -> m "%s: slot %a is dead%!" __FUNCTION__ Var.pp x);
+    Func.remove_slot fn x
+
   let finalize fn blks live =
     let ins = Live.ins live @@ Func.entry fn in
     Func.slots fn |> Seq.map ~f:Slot.var |>
     Seq.filter ~f:(Fn.non @@ Set.mem ins) |>
-    Seq.fold ~init:fn ~f:Func.remove_slot |>
+    Seq.fold ~init:fn ~f:remove_slot |>
     Fn.flip Func.update_blks' blks
 
   let rec run fn blks cfg =
