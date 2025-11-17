@@ -1,0 +1,9 @@
+module sroa
+
+export function w $foo(w %a, w %b, w %c, w %d) {
+@2:
+  %4 = add.w %a, %b ; @18
+  %6 = add.w %c, %d ; @20
+  %7 = add.w %4, %6 ; @21
+  ret %7
+}
