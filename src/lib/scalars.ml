@@ -200,8 +200,10 @@ module Make(M : L) = struct
     List.fold ~init ~f:(fun acc (src, dst) ->
         if Var.(src = dst) then acc
         else match Map.find acc src with
-          | Some v -> Map.set acc ~key:dst ~data:v
-          | None -> acc)
+          | None -> acc
+          | Some v -> Map.update acc dst ~f:(function
+              | Some v' -> Value.merge v v'
+              | None -> v))
 
   (* Transfer function for a block. *)
   let transfer slots blks l s =

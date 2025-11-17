@@ -94,3 +94,4 @@ let escapes_ctrl fv = function
   | `ret _ as c -> fv c
   | `sw (_, `var i, _, _) -> Var.Set.singleton i
   | `sw _ -> Var.Set.empty
+[@@specialise]

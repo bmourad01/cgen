@@ -27,7 +27,7 @@ module V = Make(struct
     module Ctrl = struct
       type t = ctrl
       let free_vars = Ctrl.free_vars
-      let escapes = free_vars
+      let escapes = (escapes_ctrl free_vars :> t -> _)
       let locals = (locals Ctrl.Table.enum :> t -> _)
     end
     module Blk = Blk
@@ -59,7 +59,7 @@ module A = Make(struct
     module Ctrl = struct
       type t = ctrl
       let free_vars = Ctrl.free_vars
-      let escapes = free_vars
+      let escapes = (escapes_ctrl free_vars :> t -> _)
       let locals = (locals Ctrl.Table.enum :> t -> _)
     end
     module Blk = Blk
