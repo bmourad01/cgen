@@ -441,6 +441,7 @@ let native_suite = "Test native code" >::: [
     "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_native "uremby7";
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_native "promote2-partial";
     "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_native "sumphi";
+    "Returning, passing, and dereferencing a struct (SysV AMD64)" >:: test_sysv_amd64_native "unref";
   ]
 
 let () = run_test_tt_main @@ test_list [
