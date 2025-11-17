@@ -66,7 +66,7 @@ end = struct
     (* Filter out slots that are not splittable. *)
     Map.map ~f:(List.sort ~compare:cmp_access) |>
     Map.filteri ~f:(fun ~key ~data ->
-        let check x y=
+        let check x y =
           let sx = sizeof_access x in
           (* No partial overlaps. *)
           Int64.(x.off + of_int sx <= y.off) ||
@@ -111,44 +111,43 @@ end = struct
          ~pp_sep:(fun ppf () -> Format.fprintf ppf " ")
          pp_access) p.mems
 
+  let match_part x c = {c with mems = x :: c.mems}
+  let grow_part off size x c = {off; size; mems = x :: c.mems}
+  let new_part off size x = {off; size; mems = [x]}
+
   (* Sort the memory accesses into self-contained, non-overlapping
      partitions, which are the fully-or-partially scalarized sub-objects
      of the aggregate. *)
-  let partition_acesses m : partitions =
+  let partition_acesses : accesses -> partitions = fun m ->
     let rec merge acc c = function
       | [] -> List.sort (c :: acc) ~compare:cmp_partition
       | x :: xs ->
         let sx = sizeof_access x in
         if Int64.(c.off = x.off) && c.size = sx then
           (* Access exactly matches the current partition. *)
-          merge acc {c with mems = x :: c.mems} xs
+          let p = match_part x c in
+          merge acc p xs
         else if overlaps c.off c.size x.off sx then
           (* Access overlaps with current partition, so the partition
              must increase in size. *)
-          let o' = Int64.min c.off x.off in
-          let e' = Int64.(max (c.off + of_int c.size) (x.off + of_int sx)) in
-          let s' = Int64.(to_int_exn (e' - o')) in
-          merge acc {
-            off = o';
-            size = s';
-            mems = x :: c.mems;
-          } xs
+          let open Int64 in
+          let o' = min c.off x.off in
+          let ec = c.off + of_int c.size in
+          let ex = x.off + of_int sx in
+          let e' = max ec ex in
+          let s' = to_int_exn (e' - o') in
+          let p = grow_part o' s' x c in
+          merge acc p xs
         else
           (* No overlap, so we start a new partition. *)
-          merge (c :: acc) {
-            off = x.off;
-            size = sx;
-            mems = [x];
-          } xs in
+          let p = new_part x.off sx x in
+          merge (c :: acc) p xs in
     (* pre: each access list is sorted *)
-    Map.map m ~f:(function
-        | [] -> []
-        | (x : access) :: xs ->
-          merge [] {
-            off = x.off;
-            size = sizeof_access x;
-            mems = [x];
-          } xs)
+    Map.filter_map m ~f:(function
+        | [] -> None
+        | x :: xs ->
+          let p = new_part x.off (sizeof_access x) x in
+          Some (merge [] p xs))
 
   (* Turn each partition into a concrete slot. *)
   let materialize_partitions slots parts : scalars Context.t =
@@ -207,6 +206,24 @@ end = struct
       let op' = Insn.replace_load_or_store_addr y op in
       [Insn.create ~label:l a; Insn.with_op i op']
 
+  let debug_show_insn i ptr ty ldst =
+    Logs.debug (fun m ->
+        m "%s: %a: looking at %a.%a to %a%!"
+          __FUNCTION__
+          Label.pp (Insn.label i)
+          pp_load_or_store ldst
+          Type.pp_basic ty
+          Var.pp ptr)
+
+  let debug_show_bad_val ptr v =
+    Logs.debug (fun m ->
+        m "%s: cannot rewrite: %a is %a"
+          __FUNCTION__ Var.pp ptr
+          (Format.pp_print_option
+             ~none:pp_bot
+             pp_value)
+          v)
+
   (* Rewrite an instruction. *)
   let rewrite_insn parts (m : scalars) (s : state) i =
     let open Context.Syntax in
@@ -214,15 +231,11 @@ end = struct
     match Insn.load_or_store_to op with
     | None -> !![i]
     | Some (ptr, ty, ldst) ->
-      Logs.debug (fun m ->
-          m "%s: %a: looking at %a.%a to %a%!"
-            __FUNCTION__
-            Label.pp (Insn.label i)
-            pp_load_or_store ldst
-            Type.pp_basic ty
-            Var.pp ptr);
+      debug_show_insn i ptr ty ldst;
       match Map.find s ptr with
-      | Some Top | None -> !![i]
+      | (Some Top | None) as v ->
+        debug_show_bad_val ptr v;
+        !![i]
       | Some Offset (base, off) ->
         match find_partition parts base off @@ basic_size ty with
         | Some p -> rewrite_insn_exact m i ~exact:p.off ~base ~off
@@ -245,20 +258,19 @@ end = struct
       ~f:(fun ~key:_ ~data fn -> Func.insert_slot fn data)
 
   let debug_show_parts parts =
-    if not @@ Map.is_empty parts then
-      Logs.debug (fun m ->
-          m "%s: partitions:\n%a%!"
-            __FUNCTION__
-            (Format.pp_print_list
-               ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n")
-               (fun ppf (key, data) ->
-                  Format.fprintf ppf "%a:\n%a"
-                    Var.pp key
-                    (Format.pp_print_list
-                       ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n")
-                       (fun ppf -> Format.fprintf ppf "  %a" pp_partition))
-                    data))
-            (Map.to_alist parts))
+    Logs.debug (fun m ->
+        m "%s: partitions:\n%a%!"
+          __FUNCTION__
+          (Format.pp_print_list
+             ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n")
+             (fun ppf (key, data) ->
+                Format.fprintf ppf "%a:\n%a"
+                  Var.pp key
+                  (Format.pp_print_list
+                     ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n")
+                     (fun ppf -> Format.fprintf ppf "  %a" pp_partition))
+                  data))
+          (Map.to_alist parts))
 
   let run fn =
     let open Context.Syntax in
@@ -267,8 +279,10 @@ end = struct
       let s = Analysis.analyze slots fn in
       let accs = collect_accesses slots fn s in
       let parts = partition_acesses accs in
-      debug_show_parts parts;
-      let* m = materialize_partitions slots parts in
-      let fn = insert_new_slots fn m in
-      rewrite_with_partitions slots fn s parts m
+      if Map.is_empty parts then !!fn else
+        let () = debug_show_parts parts in
+        let* m = materialize_partitions slots parts in
+        if Map.is_empty m then !!fn else
+          let fn = insert_new_slots fn m in
+          rewrite_with_partitions slots fn s parts m
 end

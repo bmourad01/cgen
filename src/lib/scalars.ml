@@ -5,6 +5,8 @@ open Graphlib.Std
 let (@.) = Fn.compose
 let (@<) = Fn.flip
 
+module Slot = Virtual.Slot
+
 (* A scalar access. *)
 module Scalar = struct
   module T = struct
@@ -16,7 +18,7 @@ module Scalar = struct
 end
 
 type scalar = Scalar.t [@@deriving compare, equal, hash, sexp]
-type scalars = Virtual.slot Scalar.Map.t
+type scalars = Slot.t Scalar.Map.t
 
 (* Lattice of scalar accesses.
 
@@ -45,7 +47,7 @@ module Value = struct
     | _ -> Top
 end
 
-type slots = Virtual.slot Var.Map.t
+type slots = Slot.t Var.Map.t
 
 module State : sig
   type t = value Var.Map.t [@@deriving equal, sexp]
@@ -63,9 +65,7 @@ end = struct
 
   let is_bad slots ptr offset =
     Int64.(offset < 0L) || match Map.find slots ptr with
-    | Some s ->
-      let size = Int64.of_int @@ Virtual.Slot.size s in
-      Int64.(offset >= size)
+    | Some s -> Int64.(offset >= of_int (Slot.size s))
     | None -> false
 
   (* Normalize the scalar referred to by `ptr` and `offset`. *)
@@ -133,7 +133,7 @@ module type L = sig
     type t
     val free_vars : t -> Var.Set.t
     val escapes : t -> Var.Set.t
-    val locals : t -> (Label.t * Var.t list) list
+    val locals : t -> (Label.t * Virtual.operand list) list
   end
 
   module Blk : sig
@@ -147,11 +147,11 @@ module type L = sig
 
   module Func : sig
     type t
-    val slots : ?rev:bool -> t -> Virtual.slot seq
+    val slots : ?rev:bool -> t -> Slot.t seq
     val blks : ?rev:bool -> t -> Blk.t seq
     val map_of_blks : t -> Blk.t Label.Tree.t
     val with_blks : t -> Blk.t list -> t Or_error.t
-    val insert_slot : t -> Virtual.slot -> t
+    val insert_slot : t -> Slot.t -> t
   end
 
   module Cfg : sig
@@ -184,26 +184,34 @@ module Make(M : L) = struct
           ~f:(fun s key -> Map.set s ~key ~data:v) in
     escaping Insn.escapes op s
 
-  let blkargs blks (l, xs) =
+  let merge_blkarg acc src dst = match src with
+    | `var src when Var.(src = dst) -> acc
+    | `var src ->
+      begin match Map.find acc src with
+        | None -> acc
+        | Some v -> Map.update acc dst ~f:(function
+            | Some v' -> Value.merge v v'
+            | None -> v)
+      end
+    | _ -> acc
+
+  let blkargs blks s (l, xs) =
     Label.Tree.find blks l |>
-    Option.value_map ~default:[] ~f:(fun b ->
+    Option.value_map ~default:s ~f:(fun b ->
         let args = Seq.to_list @@ Blk.args b in
-        match List.zip xs args with
-        | Unequal_lengths -> []
-        | Ok args' -> args')
+        List.fold2 xs args ~init:s ~f:merge_blkarg |> function
+        | Ok s -> s
+        | Unequal_lengths ->
+          Logs.warn (fun m ->
+              m "%s: unequal lengths (%d vs %d) for %a%!"
+                __FUNCTION__ (List.length xs) (List.length args) Label.pp l);
+          s)
 
   (* Transfer for control-flow instruction. *)
   let transfer_ctrl blks s c =
     let init = escaping Ctrl.escapes c s in
     (* Propagate the block parameters we are passing. *)
-    Ctrl.locals c |> List.bind ~f:(blkargs blks) |>
-    List.fold ~init ~f:(fun acc (src, dst) ->
-        if Var.(src = dst) then acc
-        else match Map.find acc src with
-          | None -> acc
-          | Some v -> Map.update acc dst ~f:(function
-              | Some v' -> Value.merge v v'
-              | None -> v))
+    Ctrl.locals c |> List.fold ~init ~f:(blkargs blks)
 
   (* Transfer function for a block. *)
   let transfer slots blks l s =
@@ -226,9 +234,8 @@ module Make(M : L) = struct
     Solution.create @< State.empty
 
   (* All slots mapped to their names. *)
-  let collect_slots fn =
-    Func.slots fn |> Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
-        Map.set acc ~key:(Virtual.Slot.var s) ~data:s)
+  let collect_slots fn = Func.slots fn |> Seq.fold ~init:Var.Map.empty
+      ~f:(fun acc s -> Map.set acc ~key:(Slot.var s) ~data:s)
 
   (* Run the dataflow analysis. *)
   let analyze ?cfg ?blks slots fn : solution =
