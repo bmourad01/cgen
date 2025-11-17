@@ -14,16 +14,14 @@ export function $sumphi { ; returns: rax
 @8:
   push rbp ; @57
   mov rbp, rsp ; @58
-  sub rsp, 0x10_l ; @59
-  mov qword ptr [rbp - 0x10], rdi ; @54
+  mov rax, rdi ; @21
+  mov rdi, rsi ; @50
   test edx, edx ; @47
   jns @14 ; @48
 @9:
-  mov rsi, rdi ; @43
+  mov rdi, rax ; @43
 @14:
-  mov dword ptr [rbp - 0x10], 0x5_w ; @17
-  mov rdi, rsi ; @18
   call $sum ; rdi ; @41
-  leave ; @60
+  leave ; @59
   ret ; @40
 }

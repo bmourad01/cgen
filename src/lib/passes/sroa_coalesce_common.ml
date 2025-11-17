@@ -31,7 +31,9 @@ let copy_of = function
 
 let escapes mty fv = function
   | `store (ty, `var x, `var y) when mty ty -> Var.Set.of_list [x; y]
+  | `store (ty, _, `var y) when mty ty -> Var.Set.of_list [y]
   | `store (_, `var x, _) -> Var.Set.singleton x
+  | `store _ -> Var.Set.empty
   | `load (_, ty, `var x) when mty ty -> Var.Set.singleton x
   | `load _ -> Var.Set.empty
   | o when Option.is_some (offset o) -> Var.Set.empty

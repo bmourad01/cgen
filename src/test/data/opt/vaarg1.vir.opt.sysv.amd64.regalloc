@@ -51,15 +51,19 @@ export function $foo { ; returns: rax
   mov dword ptr [rbp - 0x30], edx ; @81
 @66:
   mov rcx, qword ptr [rcx] ; @87
-  mov rdx, qword ptr [rax] ; @89
+  mov qword ptr [rbp - 0x30], rcx ; @88
+  mov rax, qword ptr [rax] ; @89
+  mov qword ptr [rbp - 0x28], rax ; @91
 @61:
-  mov qword ptr [rbp - 0x18], rcx ; @48
-  mov qword ptr [rbp - 0x10], rdx ; @52
+  mov rax, qword ptr [rbp - 0x30] ; @47
+  mov qword ptr [rbp - 0x18], rax ; @48
+  mov rcx, qword ptr [rbp - 0x28] ; @50
+  mov qword ptr [rbp - 0x10], rcx ; @52
   movsd xmm0, qword ptr [rbp - 0x18] ; @6
   addsd xmm0, qword ptr [rip + @94] ; @95
   .fp64 @94, 1.234 ; @96
   cvtsd2si rax, xmm0 ; @15
-  add rax, rdx ; @16
+  add rax, rcx ; @16
   add rax, rdi ; @17
   leave ; @127
   ret ; @93
