@@ -215,17 +215,55 @@ module Optimize = struct
     t.mem <- Some l;
     `call (xs, f, args)
 
+  let eval_bop o a b = match a, b with
+    | `int (a, _), `int (b, _) ->
+      (Abi.Eval.binop_int o a b :> const option)
+    | `float a, `float b ->
+      (Abi.Eval.binop_single o a b :> const option)
+    | `double a, `double b ->
+      (Abi.Eval.binop_double o a b :> const option)
+    | _ -> None
+
+  let eval_uop o = function
+    | `int (a, ty) ->
+      (Abi.Eval.unop_int o a ty :> const option)
+    | `float a ->
+      (Abi.Eval.unop_single o a :> const option)
+    | `double a ->
+      (Abi.Eval.unop_double o a :> const option)
+    | _ -> None
+
+  let bop t l x o a b =
+    let a' = operand t a in
+    let b' = operand t b in
+    let op = `bop (x, o, a', b') in
+    begin match eval_bop o a' b' with
+      | None ->
+        let k = Op.of_insn op in
+        canonicalize t x k;
+        Op.commute k |> Option.iter ~f:(canonicalize t x)
+      | Some c ->
+        Hashtbl.set t.vars ~key:x ~data:(c :> operand);
+        Hash_set.add t.nop l
+    end;
+    op
+
+  let uop t l x o a =
+    let a' = operand t a in
+    let op = `uop (x, o, a') in
+    begin match eval_uop o a' with
+      | None ->
+        let k = Op.of_insn op in
+        canonicalize t x k
+      | Some c ->
+        Hashtbl.set t.vars ~key:x ~data:(c :> operand);
+        Hash_set.add t.nop l
+    end;
+    op
+
   let insn t l : Abi.Insn.op -> Abi.Insn.op = function
-    | `bop (x, o, a, b) ->
-      let op = `bop (x, o, operand t a, operand t b) in
-      let k = Op.of_insn op in
-      canonicalize t x k;
-      Op.commute k |> Option.iter ~f:(canonicalize t x);
-      op
-    | `uop (x, o, a) ->
-      let op = `uop (x, o, operand t a) in
-      canonicalize t x @@ Op.of_insn op;
-      op
+    | `bop (x, o, a, b) -> bop t l x o a b
+    | `uop (x, o, a) -> uop t l x o a
     | `sel (x, ty, c, y, n) -> sel t x ty c y n
     | `call (xs, f, args) -> call t l xs f args
     | `store (ty, v, a) -> store t l ty v a

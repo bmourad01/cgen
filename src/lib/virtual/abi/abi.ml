@@ -15,3 +15,4 @@ module Module = Abi_module
 module Cfg = Abi_cfg
 module Live = Abi_live
 module Resolver = Abi_resolver
+module Eval = Abi_eval

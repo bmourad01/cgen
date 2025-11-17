@@ -101,8 +101,8 @@ let canon_elt slots g =
          just pick the biggest one. *)
       let sx, ax = slot_sa slots x in
       let sy, ay = slot_sa slots y in
-      match Int.compare sy sx with
-      | 0 -> Int.compare ay ax
+      match Int.compare sx sy with
+      | 0 -> Int.compare ax ay
       | c -> c) |>
   Option.value_exn
 
@@ -155,6 +155,9 @@ module Make(M : Scalars.L) = struct
         update acc s ptr ip false
       | None -> match Insn.copy_of op with
         | Some x -> update acc s x ip false
+        | None when Insn.special op ->
+          Insn.free_vars op |> Set.fold ~init:acc
+            ~f:(fun acc x -> Map.set acc ~key:x ~data:Range.bad)
         | None -> acc
 
   let liveness_ctrl acc s ip c =

@@ -12,9 +12,7 @@ function $sum(l %s/rdi) {
 }
 
 export function $sumphi(l %a/rdi, l %b/rsi, w %x/rdx) {
-  %ra = slot 8, align 8
 @8:
-  st.l %a, %ra ; @28
   %2.1 = slt.w %x, 0x0_w ; @21
   br %2.1, @9, @10
 @9:
@@ -22,7 +20,6 @@ export function $sumphi(l %a/rdi, l %b/rsi, w %x/rdx) {
 @10:
   jmp @14(%b)
 @14(%6.3):
-  st.w 0x5_w, %ra ; @17
   %s.1/w/rax = call $sum(%6.3/rdi) ; @18
   ret rax/%s.1
 }

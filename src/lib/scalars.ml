@@ -118,7 +118,9 @@ module type L = sig
     val lhs : op -> Var.Set.t
     val offset : op -> scalar option
     val copy_of : op -> Var.t option
+    val free_vars : op -> Var.Set.t
     val escapes : op -> Var.Set.t
+    val special : op -> bool
 
     (* Used during replacement. *)
     val load_or_store_to : op -> (Var.t * Type.basic * load_or_store) option
@@ -221,7 +223,7 @@ module Make(M : L) = struct
     Label.Map.singleton Label.pseudoentry |>
     Solution.create @< State.empty
 
-    (* All slots mapped to their names. *)
+  (* All slots mapped to their names. *)
   let collect_slots fn =
     Func.slots fn |> Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
         Map.set acc ~key:(Virtual.Slot.var s) ~data:s)
