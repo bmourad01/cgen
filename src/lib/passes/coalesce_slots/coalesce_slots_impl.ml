@@ -210,6 +210,35 @@ module Make(M : Scalars.L) = struct
               s := Analysis.transfer_op slots !s op;
               acc))
 
+  let debug_show slots rs nums deads p subst =
+    Logs.debug (fun m ->
+        Map.iter_keys slots ~f:(fun x ->
+            let ppr ppf x = match Map.find rs x with
+              | None -> Format.fprintf ppf "none"
+              | Some r when Range.is_bad r ->
+                Format.fprintf ppf "escapes"
+              | Some r ->
+                Format.fprintf ppf "%a (%a to %a)"
+                  Range.pp r
+                  Label.pp (Vec.get_exn nums r.lo)
+                  Label.pp (Vec.get_exn nums r.hi) in
+            m "%s: %a: %a%!" __FUNCTION__ Var.pp x ppr x));
+    Logs.debug (fun m ->
+        Partition.groups p |> Seq.iter ~f:(fun g ->
+            m "%s: group: %a%!" __FUNCTION__ (Group.pp Var.pp) g));
+    Logs.debug (fun m ->
+        if not @@ Lset.is_empty deads then
+          m "%s: dead stores: %a%!"
+            __FUNCTION__
+            (Format.pp_print_list
+               ~pp_sep:(fun ppf () -> Format.fprintf ppf ", ")
+               Label.pp)
+            (Lset.to_list deads));
+    Logs.debug (fun m ->
+        Map.iteri subst ~f:(fun ~key ~data ->
+            m "%s: coalesce slot: %a => %a%!"
+              __FUNCTION__ Var.pp key Virtual.pp_operand data))
+
   let run fn =
     let slots = Analysis.collect_slots fn in
     if Map.is_empty slots then empty else
@@ -217,35 +246,9 @@ module Make(M : Scalars.L) = struct
       let blks = Func.map_of_blks fn in
       let s = Analysis.analyze ~cfg ~blks slots fn in
       let rs, nums = liveness cfg blks slots s in
-      Logs.debug (fun m ->
-          Map.iter_keys slots ~f:(fun x ->
-              let ppr ppf x = match Map.find rs x with
-                | None -> Format.fprintf ppf "dead"
-                | Some r when Range.is_bad r ->
-                  Format.fprintf ppf "top"
-                | Some r ->
-                  Format.fprintf ppf "%a (%a to %a)"
-                    Range.pp r
-                    Label.pp (Vec.get_exn nums r.lo)
-                    Label.pp (Vec.get_exn nums r.hi) in
-              m "%s: %a: %a%!" __FUNCTION__ Var.pp x ppr x));
       let p = non_interfering slots rs in
-      Logs.debug (fun m ->
-          Partition.groups p |> Seq.iter ~f:(fun g ->
-              m "%s: group: %a%!" __FUNCTION__ (Group.pp Var.pp) g));
       let deads = collect_deads blks slots rs s in
-      Logs.debug (fun m ->
-          if not @@ Lset.is_empty deads then
-            m "%s: dead stores: %a%!"
-              __FUNCTION__
-              (Format.pp_print_list
-                 ~pp_sep:(fun ppf () -> Format.fprintf ppf ", ")
-                 Label.pp)
-              (Lset.to_list deads));
       let subst = make_subst slots p in
-      Logs.debug (fun m ->
-          Map.iteri subst ~f:(fun ~key ~data ->
-              m "%s: coalesce slot: %a => %a%!"
-                __FUNCTION__ Var.pp key Virtual.pp_operand data));
+      debug_show slots rs nums deads p subst;
       {subst; deads}
 end

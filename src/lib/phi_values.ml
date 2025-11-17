@@ -4,6 +4,23 @@ open Core
 open Regular.Std
 open Graphlib.Std
 
+let table enum d ds tbl =
+  enum tbl |> Seq.map ~f:snd |>
+  Seq.map ~f:(fun (`label (l, args)) -> l, args) |>
+  Seq.to_list |> List.cons (d, ds)
+
+let locals enum =
+  let open Virtual in function
+    | `hlt -> []
+    | `jmp #global -> []
+    | `jmp `label (l, args) -> [l, args]
+    | `br (_, #global, #global) -> []
+    | `br (_, `label (y, ys), #global) -> [y, ys]
+    | `br (_, #global, `label (n, ns)) -> [n, ns]
+    | `br (_, `label (y, ys), `label (n, ns)) -> [y, ys; n, ns]
+    | `ret _ -> []
+    | `sw (_, _, `label (d, ds), tbl) -> table enum d ds tbl
+
 module type Domain = sig
   type t [@@deriving equal]
   val one : Virtual.operand -> t

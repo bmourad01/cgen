@@ -1,22 +1,7 @@
 open Core
 open Regular.Std
 open Virtual
-
-let table enum d ds tbl =
-  enum tbl |> Seq.map ~f:snd |>
-  Seq.map ~f:(fun (`label (l, args)) -> l, args) |>
-  Seq.to_list |> List.cons (d, ds)
-
-let locals enum = function
-  | `hlt -> []
-  | `jmp #global -> []
-  | `jmp `label (l, args) -> [l, args]
-  | `br (_, #global, #global) -> []
-  | `br (_, `label (y, ys), #global) -> [y, ys]
-  | `br (_, #global, `label (n, ns)) -> [n, ns]
-  | `br (_, `label (y, ys), `label (n, ns)) -> [y, ys; n, ns]
-  | `ret _ -> []
-  | `sw (_, _, `label (d, ds), tbl) -> table enum d ds tbl
+open Phi_values
 
 module D = struct
   (* `None` indicates that there may be many values for the phi,
@@ -32,7 +17,7 @@ module D = struct
   let join x y = if equal x y then x else None
 end
 
-module Phis_v = Phi_values.Make(struct
+module V = Make(struct
     module Ctrl = struct
       type t = ctrl
       let locals = (locals Ctrl.Table.enum :> t -> _)
@@ -42,7 +27,7 @@ module Phis_v = Phi_values.Make(struct
     module Cfg = Cfg
   end)(D)
 
-module Phis_a = Phi_values.Make(struct
+module A = Make(struct
     open Abi
     module Ctrl = struct
       type t = ctrl
@@ -53,39 +38,42 @@ module Phis_a = Phi_values.Make(struct
     module Cfg = Cfg
   end)(D)
 
-let run fn =
-  if Dict.mem (Func.dict fn) Tags.ssa then
-    let cfg = Cfg.create fn in
-    let blks = Func.map_of_blks fn in
-    let s =
-      Map.filter_map ~f:Fn.id @@
-      Phis_v.analyze ~blk:(Label.Tree.find blks) cfg in
-    let fn =
-      if not @@ Map.is_empty s then Func.map_blks fn ~f:(fun b ->
-          let is, k = Subst_mapper.map_blk s b in
-          Blk.(with_ctrl (with_insns b is) k))
-      else fn in
-    Ok fn
-  else
+let check_ssa msg n d fn f =
+  if Dict.mem (d fn) Tags.ssa then Ok (f ()) else
     Or_error.errorf
-      "In Resolve_constant_blk_args: function $%s is \
-       not in SSA form" (Func.name fn)
+      "In Resolve_constant_blk_args%s: function $%s is \
+       not in SSA form" msg (n fn)
+
+let apply fn cfg mb analyze map_blks map_blk with_ctrl with_insns =
+  let cfg = cfg fn in
+  let blks = mb fn in
+  let s = Map.filter_map ~f:Fn.id @@
+    analyze ~blk:(Label.Tree.find blks) cfg in
+  if not @@ Map.is_empty s then map_blks fn ~f:(fun b ->
+      let is, k = map_blk s b in
+      with_ctrl (with_insns b is) k)
+  else fn
+[@@specialise]
+
+let run fn =
+  check_ssa "" Func.name Func.dict fn @@ fun () ->
+  apply fn
+    Cfg.create
+    Func.map_of_blks
+    V.analyze
+    Func.map_blks
+    Subst_mapper.map_blk
+    Blk.with_ctrl
+    Blk.with_insns
 
 let run_abi fn =
   let open Abi in
-  if Dict.mem (Func.dict fn) Tags.ssa then
-    let cfg = Cfg.create fn in
-    let blks = Func.map_of_blks fn in
-    let s =
-      Map.filter_map ~f:Fn.id @@
-      Phis_a.analyze ~blk:(Label.Tree.find blks) cfg in
-    let fn =
-      if not @@ Map.is_empty s then Func.map_blks fn ~f:(fun b ->
-          let is, k = Subst_mapper_abi.map_blk s b in
-          Blk.(with_ctrl (with_insns b is) k))
-      else fn in
-    Ok fn
-  else
-    Or_error.errorf
-      "In Resolve_constant_blk_args (ABI): function $%s is \
-       not in SSA form" (Func.name fn)
+  check_ssa " (ABI)" Func.name Func.dict fn @@ fun () ->
+  apply fn
+    Cfg.create
+    Func.map_of_blks
+    A.analyze
+    Func.map_blks
+    Subst_mapper_abi.map_blk
+    Blk.with_ctrl
+    Blk.with_insns

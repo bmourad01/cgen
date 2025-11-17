@@ -60,29 +60,6 @@ let is_named = function
   | `name _ -> true
   | _ -> false
 
-let local l args = l, List.filter_map args ~f:var_of_operand
-
-let table enum d ds tbl =
-  enum tbl |> Seq.map ~f:snd |>
-  Seq.map ~f:(fun (`label (l, args)) -> local l args) |>
-  Seq.to_list |> List.cons (local d ds)
-
-let locals enum = function
-  | `hlt -> []
-  | `jmp #global -> []
-  | `jmp `label (l, args) ->
-    [local l args]
-  | `br (_, #global, #global) -> []
-  | `br (_, `label (y, ys), #global) ->
-    [local y ys]
-  | `br (_, #global, `label (n, ns)) ->
-    [local n ns]
-  | `br (_, `label (y, ys), `label (n, ns)) ->
-    [local y ys; local n ns]
-  | `ret _ -> []
-  | `sw (_, _, `label (d, ds), tbl) ->
-    table enum d ds tbl
-
 let escapes_ctrl fv = function
   | `hlt -> Var.Set.empty
   | `jmp `var x -> Var.Set.singleton x
@@ -120,7 +97,7 @@ module VL = struct
     type t = ctrl
     let free_vars = Ctrl.free_vars
     let escapes = (escapes_ctrl free_vars :> t -> _)
-    let locals = (locals Ctrl.Table.enum :> t -> _)
+    let locals = (Phi_values.locals Ctrl.Table.enum :> t -> _)
   end
   module Blk = Blk
   module Func = Func
@@ -152,7 +129,7 @@ module AL = struct
     type t = ctrl
     let free_vars = Ctrl.free_vars
     let escapes = (escapes_ctrl free_vars :> t -> _)
-    let locals = (locals Ctrl.Table.enum :> t -> _)
+    let locals = (Phi_values.locals Ctrl.Table.enum :> t -> _)
   end
   module Blk = Blk
   module Func = Func
