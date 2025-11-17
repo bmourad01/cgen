@@ -307,6 +307,7 @@ let opt_suite = "Test optimizations" >::: [
     "No sinking" >:: test "nosink";
     "Spill test 2" >:: test "spill2";
     "Parallel moves" >:: test "parallel";
+    "SROA" >:: test "sroa";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
