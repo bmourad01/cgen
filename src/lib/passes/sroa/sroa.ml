@@ -1,6 +1,5 @@
 open Core
 open Virtual
-open Scalars
 open Sroa_impl
 open Sroa_coalesce_common
 

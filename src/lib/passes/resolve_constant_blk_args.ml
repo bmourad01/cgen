@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Virtual
 open Phi_values
 
