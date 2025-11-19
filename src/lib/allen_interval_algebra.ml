@@ -1,3 +1,5 @@
+open Core
+
 (** Allen's Interval Algebra.
 
     {:https://en.wikipedia.org/wiki/Allen%27s_interval_algebra}
@@ -18,6 +20,8 @@ type t =
   | Met_by
   | After
 [@@deriving compare, equal, sexp]
+
+let pp ppf t = Format.fprintf ppf "%a" Sexp.pp @@ sexp_of_t t
 
 (** Returns the converse of the relation. *)
 let converse = function
@@ -58,15 +62,15 @@ module Make(M : S) = struct
 
   let before a b        = hi a < lo b [@@inline]
   let meets a b         = hi a = lo b [@@inline]
-  let overlaps a b      = lo a < lo b && lo b < hi a && hi a < hi b [@@inline]
-  let finished_by a b   = lo b < lo a && hi a = hi b [@@inline]
-  let contains a b      = lo a < lo b && hi b < hi a [@@inline]
+  let overlaps a b      = lo a < lo b && hi a > lo b && hi a < hi b [@@inline]
+  let finished_by a b   = lo a < lo b && hi a = hi b [@@inline]
+  let contains a b      = lo a < lo b && hi a > hi b [@@inline]
   let starts a b        = lo a = lo b && hi a < hi b [@@inline]
   let equal a b         = lo a = lo b && hi a = hi b [@@inline]
   let started_by a b    = lo a = lo b && hi a > hi b [@@inline]
-  let during a b        = lo b < lo a && hi a < hi b [@@inline]
+  let during a b        = lo a > lo b && hi a < hi b [@@inline]
   let finishes a b      = lo a > lo b && hi a = hi b [@@inline]
-  let overlapped_by a b = lo b < lo a && lo a < hi b && hi b < hi a [@@inline]
+  let overlapped_by a b = lo a > lo b && lo a < hi b && hi a > hi b [@@inline]
   let met_by a b        = lo a = hi b [@@inline]
   let after a b         = lo a > hi b [@@inline]
 
