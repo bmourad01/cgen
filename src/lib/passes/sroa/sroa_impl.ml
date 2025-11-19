@@ -63,24 +63,7 @@ end = struct
                 | _ -> acc in
             s := Analysis.transfer_op slots !s op;
             acc)) |>
-    (* Filter out slots that are not splittable. *)
-    Map.map ~f:(List.sort ~compare:cmp_access) |>
-    Map.filteri ~f:(fun ~key ~data ->
-        let check x y =
-          let sx = sizeof_access x in
-          (* No partial overlaps. *)
-          Int64.(x.off + of_int sx <= y.off) ||
-          (* Allow exact re-use of the same region. *)
-          cmp_access x y = 0 in
-        let rec ok = function
-          | x :: ((y :: _) as xs) -> check x y && ok xs
-          | [] | [_] -> true in
-        let res = ok data in
-        if not res then
-          Logs.debug (fun m ->
-              m "%s: filtering out accesses for %a%!"
-                __FUNCTION__ Var.pp key);
-        res)
+    Map.map ~f:(List.sort ~compare:cmp_access)
 
   let overlaps oa sa ob sb =
     Int64.(oa < ob + of_int sb && ob < oa + of_int sa)
