@@ -272,11 +272,23 @@ end = struct
                   data))
           (Map.to_alist parts))
 
+  (* XXX: allowing the analysis to propagate through block parameters
+     could possibly be done, but the current transformation isn't
+     set up to properly handle it.
+
+     The main issue arises from pointers into the slots that get
+     aliased via a block parameter. That dangling reference will
+     currently be left unchanged, leading to garbage values being
+     read from the old slot.
+  *)
+  let analyze slots fn =
+    Analysis.analyze ~blkparam:false slots fn
+
   let run fn =
     let open Context.Syntax in
     let slots = Analysis.collect_slots fn in
     if Map.is_empty slots then !!fn else
-      let s = Analysis.analyze slots fn in
+      let s = analyze slots fn in
       let accs = collect_accesses slots fn s in
       let parts = partition_acesses accs in
       if Map.is_empty parts then !!fn else
