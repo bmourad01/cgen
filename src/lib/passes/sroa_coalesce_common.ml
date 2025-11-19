@@ -73,6 +73,7 @@ let escapes_ctrl fv = function
   | `sw _ -> Var.Set.empty
 [@@specialise]
 
+(* Virtual language *)
 module VL = struct
   module Insn = struct
     type t = Insn.t
@@ -80,9 +81,6 @@ module VL = struct
     let create ~label op = Insn.create op ~label
     let with_op = Insn.with_op
     let op = Insn.op
-    let special = function
-      | #Insn.variadic -> true
-      | _ -> false
     let label = Insn.label
     let lhs = var_set_of_option @. Insn.lhs_of_op
     let offset = (offset :> op -> _)
@@ -104,6 +102,7 @@ module VL = struct
   module Cfg = Cfg
 end
 
+(* Virtual.Abi language *)
 module AL = struct
   open Abi
   module Insn = struct
@@ -112,9 +111,6 @@ module AL = struct
     let create ~label op = Insn.create op ~label
     let with_op = Insn.with_op
     let op = Insn.op
-    let special = function
-      | #Insn.extra -> true
-      | _ -> false
     let label = Insn.label
     let lhs = Insn.def_of_op
     let offset = (offset :> op -> _)

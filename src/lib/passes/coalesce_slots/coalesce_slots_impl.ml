@@ -147,18 +147,14 @@ module Make(M : Scalars.L) = struct
 
   let liveness_insn acc s ip i =
     let op = Insn.op i in
-    match Insn.load_or_store_to op with
-    | Some (ptr, _, ldst) ->
-      update acc s ptr ip @@ is_store ldst
-    | None -> match Insn.offset op with
-      | Some (ptr, _) ->
-        update acc s ptr ip false
-      | None -> match Insn.copy_of op with
-        | Some x -> update acc s x ip false
-        | None when Insn.special op ->
-          Insn.free_vars op |> Set.fold ~init:acc
-            ~f:(fun acc x -> Map.set acc ~key:x ~data:Range.bad)
-        | None -> acc
+    let r = Insn.free_vars op in
+    let r, w = match Insn.load_or_store_to op with
+      | Some (ptr, _, Store) -> Set.remove r ptr, Some ptr
+      | Some _ | None -> r, None in
+    Option.fold w ~init:acc ~f:(fun acc x ->
+        update acc s x ip true) |> fun init ->
+    Set.fold r ~init ~f:(fun acc x ->
+        update acc s x ip false)
 
   let liveness_ctrl acc s ip c =
     Ctrl.free_vars c |> Set.fold ~init:acc
