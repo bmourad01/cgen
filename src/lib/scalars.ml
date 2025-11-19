@@ -206,38 +206,46 @@ module Make(M : L) = struct
                 __FUNCTION__ (List.length xs) (List.length args) Label.pp l);
           s)
 
+  let ctrl_esc blkparam =
+    if blkparam then Ctrl.escapes else Ctrl.free_vars
+  [@@inline]
+
   (* Transfer for control-flow instruction. *)
-  let transfer_ctrl blks s c =
-    let init = escaping Ctrl.escapes c s in
+  let transfer_ctrl ?(blkparam = true) blks s c =
+    let init = escaping (ctrl_esc blkparam) c s in
     (* Propagate the block parameters we are passing. *)
     Ctrl.locals c |> List.fold ~init ~f:(blkargs blks)
+  [@@specialise]
 
   (* Transfer function for a block. *)
-  let transfer slots blks l s =
+  let transfer ?(blkparam = true) slots blks l s =
     Label.Tree.find blks l |>
     Option.value_map ~default:s ~f:(fun b ->
         Blk.insns b |> Seq.map ~f:Insn.op |>
         Seq.fold ~init:s ~f:(transfer_op slots) |>
-        transfer_ctrl blks @< Blk.ctrl b)
+        transfer_ctrl ~blkparam blks @< Blk.ctrl b)
+  [@@specialise]
 
   (* Initial constraints. *)
-  let initialize slots blks =
+  let initialize ?(blkparam = true) slots blks =
     (* Set all slots to point to their own base address. *)
     let init = Map.mapi slots ~f:(fun ~key ~data:_ -> Offset (key, 0L)) in
     (* Any slot that directly escapes should immediately be set to `Top`. *)
+    let k = ctrl_esc blkparam in
     Label.Tree.fold blks ~init ~f:(fun ~key:_ ~data init ->
         Blk.insns data |> Seq.fold ~init ~f:(fun s i ->
             escaping Insn.escapes (Insn.op i) s) |>
-        escaping Ctrl.escapes (Blk.ctrl data)) |>
+        escaping k (Blk.ctrl data)) |>
     Label.Map.singleton Label.pseudoentry |>
     Solution.create @< State.empty
+  [@@specialise]
 
   (* All slots mapped to their names. *)
   let collect_slots fn = Func.slots fn |> Seq.fold ~init:Var.Map.empty
       ~f:(fun acc s -> Map.set acc ~key:(Slot.var s) ~data:s)
 
   (* Run the dataflow analysis. *)
-  let analyze ?cfg ?blks slots fn : solution =
+  let analyze ?(blkparam = true) ?cfg ?blks slots fn : solution =
     let cfg = match cfg with
       | None -> Cfg.create fn
       | Some cfg -> cfg in
@@ -245,9 +253,10 @@ module Make(M : L) = struct
       | None -> Func.map_of_blks fn
       | Some blks -> blks in
     Graphlib.fixpoint (module Cfg) cfg
-      ~init:(initialize slots blks)
+      ~init:(initialize ~blkparam slots blks)
       ~start:Label.pseudoentry
       ~equal:State.equal
       ~merge:State.merge
-      ~f:(transfer slots blks)
+      ~f:(transfer ~blkparam slots blks)
+  [@@specialise]
 end
