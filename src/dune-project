@@ -26,6 +26,7 @@
     graphlib
     menhir
     monads
+    ocamldiff
     ounit2
     ppx_bin_prot
     ppx_compare

@@ -23,12 +23,16 @@ let from_file filename =
 let overwrite = false
 
 let compare_outputs filename' expected p' =
-  let msg = Format.asprintf "Expected:@,@[%s@]@,Got:@,@[%s@]" expected p' in
-  try assert_equal (fmt p') (fmt expected) ~msg ~cmp:String.equal with
-  | _ when overwrite ->
-    (* Assume we're being tested via `dune test`, which runs with
-       "_build/default/test/" as the CWD. *)
-    Out_channel.write_all ("../../../test/" ^ filename') ~data:(p' ^ "\n")
+  if String.(fmt p' <> fmt expected) then
+    if overwrite then
+      (* Assume we're being tested via `dune test`, which runs with
+         "_build/default/test/" as the CWD. *)
+      Out_channel.write_all ("../../../test/" ^ filename') ~data:(p' ^ "\n")
+    else
+      let expected = String.chop_suffix_if_exists expected ~suffix:"\n" in
+      let diff = Odiff.strings_diffs expected p' in
+      let msg = Format.sprintf "Diff:\n\n%s" (Odiff.string_of_diffs diff) in
+      assert_failure msg
 
 let from_file_abi filename =
   let open Context.Syntax in
