@@ -120,7 +120,6 @@ module type L = sig
     val copy_of : op -> Var.t option
     val free_vars : op -> Var.Set.t
     val escapes : op -> Var.Set.t
-    val special : op -> bool
 
     (* Used during replacement. *)
     val load_or_store_to : op -> (Var.t * Type.basic * load_or_store) option
