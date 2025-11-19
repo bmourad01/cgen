@@ -1738,9 +1738,9 @@ end = struct
     let xt' = ftosi_ty xt in
     match tf with
     | `f32 ->
-      !!![I.cvtss2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt))]
     | `f64 ->
-      !!![I.cvtsd2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt))]
     | _ -> !!None
 
   let ftosi_rf32_x_y ti env =
@@ -1769,9 +1769,9 @@ end = struct
     let xt' = ftoui_ty xt in
     match tf with
     | `f32 ->
-      !!![I.cvtss2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt))]
     | `f64 ->
-      !!![I.cvtsd2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt))]
     | _ -> !!None
 
   let ftoui_rf32_x_y ti env =

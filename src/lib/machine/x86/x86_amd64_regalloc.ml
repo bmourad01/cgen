@@ -215,11 +215,13 @@ module Typed_writes = struct
         | BSR
         | CMOVcc _
         | CVTSD2SI
+        | CVTTSD2SI
         | CVTSD2SS
         | CVTSI2SD
         | CVTSI2SS
         | CVTSS2SD
         | CVTSS2SI
+        | CVTTSS2SI
         | DIVSD
         | DIVSS
         | IMUL2

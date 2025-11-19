@@ -47,7 +47,7 @@ export function $foo { ; returns: rax
   movsd xmm0, qword ptr [rbp - 0x10] ; @6
   addsd xmm0, qword ptr [rip + @97] ; @98
   .fp64 @97, 1.234 ; @99
-  cvtsd2si rax, xmm0 ; @15
+  cvttsd2si rax, xmm0 ; @15
   add rax, rcx ; @16
   add rax, rdi ; @17
   leave ; @125
