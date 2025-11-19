@@ -412,11 +412,13 @@ module Insn = struct
     | CMOVcc of cc
     | CMP
     | CVTSD2SI
+    | CVTTSD2SI
     | CVTSD2SS
     | CVTSI2SD
     | CVTSI2SS
     | CVTSS2SD
     | CVTSS2SI
+    | CVTTSS2SI
     | DIVSD
     | DIVSS
     | IMUL2
@@ -463,11 +465,13 @@ module Insn = struct
     | CMOVcc cc -> Format.fprintf ppf "cmov%a" pp_cc cc
     | CMP -> Format.fprintf ppf "cmp"
     | CVTSD2SI -> Format.fprintf ppf "cvtsd2si"
+    | CVTTSD2SI -> Format.fprintf ppf "cvttsd2si"
     | CVTSD2SS -> Format.fprintf ppf "cvtsd2ss"
     | CVTSI2SD -> Format.fprintf ppf "cvtsi2sd"
     | CVTSI2SS -> Format.fprintf ppf "cvtsi2ss"
     | CVTSS2SD -> Format.fprintf ppf "cvtss2sd"
     | CVTSS2SI -> Format.fprintf ppf "cvtss2si"
+    | CVTTSS2SI -> Format.fprintf ppf "cvttss2si"
     | DIVSD -> Format.fprintf ppf "divsd"
     | DIVSS -> Format.fprintf ppf "divss"
     | IMUL2 -> Format.fprintf ppf "imul"
@@ -649,11 +653,13 @@ module Insn = struct
         | BSF
         | BSR
         | CVTSD2SI
+        | CVTTSD2SI
         | CVTSD2SS
         | CVTSI2SD
         | CVTSI2SS
         | CVTSS2SD
         | CVTSS2SI
+        | CVTTSS2SI
         | LEA
         | MOVSX
         | MOVSXD
@@ -753,11 +759,13 @@ module Insn = struct
         | ADDSS
         | CMOVcc _
         | CVTSD2SI
+        | CVTTSD2SI
         | CVTSD2SS
         | CVTSI2SD
         | CVTSI2SS
         | CVTSS2SD
         | CVTSS2SI
+        | CVTTSS2SI
         | DIVSD
         | DIVSS
         | LEA
@@ -873,10 +881,12 @@ module Insn = struct
         | CMOVcc _ (* illegal *)
         | CMP
         | CVTSD2SI (* illegal *)
+        | CVTTSD2SI (* illegal *)
         | CVTSD2SS (* illegal *)
         | CVTSI2SD (* illegal *)
         | CVTSI2SS (* illegal *)
         | CVTSS2SI (* illegal *)
+        | CVTTSS2SI (* illegal *)
         | CVTSS2SD (* illegal *)
         | IMUL2
         | LEA  (* illegal *)
@@ -963,11 +973,13 @@ module Insn = struct
     let cmov cc a b = Two (CMOVcc cc, a, b)
     let cmp a b = Two (CMP, a, b)
     let cvtsd2si a b = Two (CVTSD2SI, a, b)
+    let cvttsd2si a b = Two (CVTTSD2SI, a, b)
     let cvtsd2ss a b = Two (CVTSD2SS, a, b)
     let cvtsi2sd a b = Two (CVTSI2SD, a, b)
     let cvtsi2ss a b = Two (CVTSI2SS, a, b)
     let cvtss2sd a b = Two (CVTSS2SD, a, b)
     let cvtss2si a b = Two (CVTSS2SI, a, b)
+    let cvttss2si a b = Two (CVTTSS2SI, a, b)
     let divsd a b = Two (DIVSD, a, b)
     let divss a b = Two (DIVSS, a, b)
     let imul2 a b = Two (IMUL2, a, b)
