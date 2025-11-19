@@ -308,6 +308,7 @@ let opt_suite = "Test optimizations" >::: [
     "Spill test 2" >:: test "spill2";
     "Parallel moves" >:: test "parallel";
     "SROA" >:: test "sroa";
+    "Sink 1" >:: test "sink1";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -443,6 +444,7 @@ let native_suite = "Test native code" >::: [
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_native "promote2-partial";
     "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_native "sumphi";
     "Returning, passing, and dereferencing a struct (SysV AMD64)" >:: test_sysv_amd64_native "unref";
+    "Sink (SysV AMD64)" >:: test_sysv_amd64_native "sink1";
   ]
 
 let () = run_test_tt_main @@ test_list [

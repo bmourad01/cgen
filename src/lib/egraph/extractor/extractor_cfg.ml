@@ -40,7 +40,6 @@ type env = {
   insn        : Insn.op Label.Table.t;
   ctrl        : ctrl Label.Table.t;
   news        : placed Label.Table.t;
-  closure     : Lset.t Label.Table.t;
   mutable cur : Label.t;
   mutable scp : scope;
 }
@@ -49,7 +48,6 @@ let init () = {
   insn = Label.Table.create ();
   ctrl = Label.Table.create ();
   news = Label.Table.create();
-  closure = Label.Table.create ();
   cur = Label.pseudoentry;
   scp = empty_scope;
 }
@@ -330,38 +328,6 @@ let exp t env l e =
   | E (_, Ovastart _, _) -> invalid l e
 
 module Hoisting = struct
-  let (++) = Lset.union
-  let not_pseudo = Fn.non Label.is_pseudo
-  let descendants t = Semi_nca.Tree.descendants t.eg.input.dom
-  let dominates t = Semi_nca.Tree.is_descendant_of t.eg.input.dom
-  let frontier t = Semi_nca.Frontier.enum t.eg.input.df
-  let to_set = Fn.compose Lset.of_sequence @@ Seq.filter ~f:not_pseudo
-
-  (* Effectively, we are computing the dominator-subtree closure
-     over the iterated dominance frontier of `l`.
-
-     This helps answer the question of where the computation of a
-     given instruction is "available" in the CFG.
-  *)
-  let rec closure ?(self = true) t env l =
-    let c = match Hashtbl.find env.closure l with
-      | Some c -> c
-      | None ->
-        let c =
-          frontier t l |> Seq.filter ~f:not_pseudo |>
-          (* A block can be in its own dominance frontier, so
-             we need to avoid an infinite loop. *)
-          Seq.filter ~f:(Fn.non @@ Label.equal l) |>
-          (* Additionally, we don't want to follow back-edges. This
-             can happen when a node in our frontier is, for example,
-             a loop header. *)
-          Seq.filter ~f:(fun parent -> not @@ dominates t ~parent l) |>
-          Seq.map ~f:(closure t env) |>
-          Seq.fold ~init:(to_set @@ descendants t l) ~f:(++) in
-        Hashtbl.set env.closure ~key:l ~data:c;
-        c in
-    if self then Lset.add c l else Lset.remove c l
-
   (* Try the real ID first before moving on to the canonical ID. This could
      happen if we rescheduled a newer term before we unioned it with an older
      term. *)
@@ -371,12 +337,14 @@ module Hoisting = struct
       if id = cid then s else Common.movedof t.eg cid
     else s
 
+  let resolve_label t l =
+    match Resolver.resolve t.eg.input.reso l with
+    | Some `insn (_, b, _, _) -> Blk.label b
+    | Some `blk b -> Blk.label b
+    | None -> assert false
+
   let moved_blks t id cid =
-    find_moved t id cid |> Lset.map ~f:(fun l ->
-        match Resolver.resolve t.eg.input.reso l with
-        | Some `insn (_, b, _, _) -> Blk.label b
-        | Some `blk b -> Blk.label b
-        | None -> assert false)
+    find_moved t id cid |> Lset.map ~f:(resolve_label t)
 
   let rec post_dominated t l bs =
     match Semi_nca.Tree.parent t.eg.input.pdom l with
@@ -398,25 +366,64 @@ module Hoisting = struct
     Loops.mem t.eg.input.loop l &&
     loop (Stack.singleton (l, Lset.empty))
 
+  (* Given all of the uses we know of, compute the points
+     where the definition will be killed:
+
+     kills = {k | ∃ u ∈ uses s.t. k ∈ succs(u) ∧ k ∉ uses}
+  *)
+  let compute_kills t uses =
+    Lset.fold uses ~init:Lset.empty ~f:(fun init u ->
+        Cfg.Node.succs u t.eg.input.cfg |>
+        Seq.filter ~f:(Fn.non @@ Lset.mem uses) |>
+        Seq.fold ~init ~f:Lset.add)
+
+  (* See if there exists a path, starting from `l`, that avoids
+     touching any block in `uses` and either reaches the end of
+     the function, or one of the blocks in `kills`.
+
+     `kills` is the set of blocks where, if we were to place the
+     instruction at `l`, its live range would end.
+
+     pre: `kills` and `uses` are disjoint
+  *)
+  let is_partial_redundancy_pathwise t l id cid ~uses =
+    let kills = compute_kills t uses in
+    let rec loop q = match Stack.pop q with
+      | None -> false
+      | Some (n, vis) when Lset.mem vis n -> loop q
+      | Some (n, _) when Lset.mem uses n -> loop q
+      | Some (n, _) when Lset.mem kills n -> true
+      | Some (n, _) when Label.(n = pseudoexit) -> true
+      | Some (n, vis) ->
+        let vis = Lset.add vis n in
+        Cfg.Node.succs n t.eg.input.cfg |>
+        Seq.iter ~f:(fun s -> Stack.push q (s, vis));
+        loop q in
+    let res = loop @@ Stack.singleton (l, Lset.empty) in
+    Logs.debug (fun m ->
+        m "%s: l=%a, id=%d cid=%d, uses=%s, kills=%s, res=%b%!"
+          __FUNCTION__ Label.pp l id cid
+          (Lset.to_list uses |> List.to_string ~f:Label.to_string)
+          (Lset.to_list kills |> List.to_string ~f:Label.to_string)
+          res);
+    res
+
   (* When we "move" duplicate nodes up to the LCA (lowest common ancestor)
      in the dominator tree, we might be introducing a partial redundancy.
      This means that, at the LCA, the node is not going to be used on all
      paths that are dominated by it, so we need to do a simple analysis to
      see if this is the case. *)
-  let is_partial_redundancy t env l id cid =
+  let is_partial_redundancy t l id cid =
     (* If this node is deliberately placed here then allow it. *)
     not (Common.is_pinned t.eg id) && begin
       (* Get the blocks associated with the labels that were
          "moved" for this node. *)
-      let l = match Resolver.resolve t.eg.input.reso l with
-        | Some `insn (_, b, _, _) -> Blk.label b
-        | Some `blk _ -> l
-        | None -> assert false in
       let bs = moved_blks t id cid in
       (* An empty set means that nobody uses this value. *)
       Lset.is_empty bs || begin
         (* If we're being used in the candidate block then this is trivially
            not a partial redundancy. *)
+        let l = resolve_label t l in
         not (Lset.mem bs l) && begin
           (* If one of these blocks post-dominates the block that we're
              moving to, then it is safe to allow the move to happen,
@@ -430,26 +437,16 @@ module Hoisting = struct
                without visiting any of the blocks we moved from. *)
             exists_bypass t l bs
           else
-            (* For each of these blocks, get its reflexive transitive
-               closure in the dominator tree, and union them together. *)
-            let a = Lset.fold bs ~init:Lset.empty
-                ~f:(fun acc l -> acc ++ closure t env l) in
-            (* Get the non-reflexive transitive closure of the block
-               that we moved to. *)
-            let b = closure t env l ~self:false in
-            (* If these sets are not equal, then we have a partial
-               redundancy, and thus need to duplicate code. In the
-               case where the closure includes our target block `l`,
-               we want to exclude it, since the closure for `l` will
-               exclude itself. *)
-            not @@ Lset.equal (Lset.remove a l) b
+            (* Check if `bs` intersects on all paths where `id` can
+               be used. *)
+            is_partial_redundancy_pathwise t l id cid ~uses:bs
         end
       end
     end
 
-  let should_skip t env l id cid =
+  let should_skip t l id cid =
     Z.testbit t.impure cid ||
-    is_partial_redundancy t env l id cid
+    is_partial_redundancy t l id cid
 
   (* If any nodes got moved up to this label, then we should check
      to see if it is eligible for this code motion optimization.
@@ -471,7 +468,7 @@ module Hoisting = struct
       Context.Seq.iter ~f:(fun (id, cid) -> match extract t id with
           | None -> extract_fail l id
           | Some e ->
-            Context.unless (should_skip t env l id cid) @@ fun () ->
+            Context.unless (should_skip t l id cid) @@ fun () ->
             pure t env e >>| ignore)
 end
 
