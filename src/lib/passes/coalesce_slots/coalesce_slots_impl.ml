@@ -78,8 +78,7 @@ let equiv_range slots rs x y =
   let ry = Map.find_exn rs y in
   let a : Allen.t = Range.Algebra.relate rx ry in
   Logs.debug (fun m ->
-      m "%s: %a, %a: %a%!"
-        __FUNCTION__ Var.pp x Var.pp y Sexp.pp (Allen.sexp_of_t a));
+      m "%s: %a, %a: %a%!" __FUNCTION__ Var.pp x Var.pp y Allen.pp a);
   match a with
   | Before | After -> true
   | _ -> false

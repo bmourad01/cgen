@@ -1,5 +1,5 @@
 (tests
- (names test_bv_interval test_opt test_type)
+ (names test_allen test_bv_interval test_opt test_type)
  (libraries ocamldiff ounit2 cgen shexp.process)
  (ocamlopt_flags -O2)
  (deps
