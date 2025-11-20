@@ -91,6 +91,9 @@ let fresh env canon real =
     let* x = Context.Var.fresh in
     let+ l = Context.Label.fresh in
     env.scp <- Id.Tree.set env.scp ~key:canon ~data:(x, l);
+    Logs.debug (fun m ->
+        m "%s: placing fresh %a at %a: env.cur=%a canon=%d, real=%d%!"
+          __FUNCTION__ Var.pp x Label.pp l Label.pp env.cur canon real);
     Hashtbl.update env.news env.cur ~f:(function
         | Some p -> add_placed p real l
         | None -> create_placed real l);
@@ -105,20 +108,25 @@ let insn t env a f =
   let+ op = f x in
   upd env.insn l op;
   `var x
+[@@specialise]
 
 let insn' env l f =
   let+ op = f () in
   upd env.insn l op
+[@@specialise]
 
 let ctrl env l f =
   let+ c = f () in
   upd env.ctrl l c
+[@@specialise]
 
 let sel e x ty c y n = match c with
   | `var c -> !!(`sel (x, ty, c, y, n))
   | `bool true -> !!(`uop (x, `copy ty, y))
   | `bool false -> !!(`uop (x, `copy ty, n))
   | _ -> invalid_pure e
+
+let (let@) x f = x f [@@specialise] [@@inline]
 
 let rec pure t env e : operand Context.t =
   let pure = pure t env in
@@ -128,7 +136,7 @@ let rec pure t env e : operand Context.t =
   | E (a, Obinop b, [l; r]) ->
     let* l = pure l in
     let* r = pure r in
-    insn a @@ fun x ->
+    let@ x = insn a in
     !!(`bop (x, b, l, r))
   | E (_, Obool b, []) -> !!(`bool b)
   | E (_, Ocall (x, _), _) -> !!(`var x)
@@ -139,13 +147,13 @@ let rec pure t env e : operand Context.t =
     let* c = pure c in
     let* y = pure y in
     let* n = pure n in
-    insn a @@ fun x ->
+    let@ x = insn a in
     sel e x ty c y n
   | E (_, Osingle s, []) -> !!(`float s)
   | E (_, Osym (s, n), []) -> !!(`sym (s, n))
   | E (a, Ounop u, [y]) ->
     let* y = pure y in
-    insn a @@ fun x ->
+    let@ x = insn a in
     !!(`uop (x, u, y))
   | E (_, Ovaarg (x, _), [_]) -> !!(`var x)
   | E (_, Ovar x, []) -> !!(`var x)
@@ -255,51 +263,51 @@ let exp t env l e =
     let* c = pure c in
     let* y = dst y in
     let* n = dst n in
-    ctrl @@ fun () ->
+    let@ () = ctrl in
     br l e c y n
   | E (_, Ocall0 _, [f; args; vargs]) ->
     let* f = global t env f in
     let* args = callargs t env args in
     let* vargs = callargs t env vargs in
-    insn @@ fun () ->
+    let@ () = insn in
     !!(`call (None, f, args, vargs))
   | E (_, Ocall (x, ty), [f; args; vargs]) ->
     let* f = global t env f in
     let* args = callargs t env args in
     let* vargs = callargs t env vargs in
-    insn @@ fun () ->
+    let@ () = insn in
     !!(`call (Some (x, ty), f, args, vargs))
   | E (_, Oload (x, t), [y]) ->
     let* y = pure y in
-    insn @@ fun () ->
+    let@ () = insn in
     !!(`load (x, t, y))
   | E (_, Ojmp, [d]) ->
     let* d = dst d in
-    ctrl @@ fun () ->
+    let@ () = ctrl in
     !!(`jmp d)
   | E (_, Oret, [x]) ->
     let* x = pure x in
-    ctrl @@ fun () ->
+    let@ () = ctrl in
     !!(`ret (Some x))
   | E (_, Oset _, [y]) -> pure y >>| ignore
   | E (_, Ostore (t, _), [v; x]) ->
     let* v = pure v in
     let* x = pure x in
-    insn @@ fun () ->
+    let@ () = insn in
     !!(`store (t, v, x))
   | E (_, Osw ty, i :: d :: tbl) ->
     let* i = pure i in
     let* d = sw_default t env l d in
     let* tbl = table t env tbl ty in
-    ctrl @@ fun () ->
+    let@ () = ctrl in
     sw l e ty i d tbl
   | E (_, Ovaarg (x, t), [a]) ->
     let* a = pure a in
-    insn @@ fun () ->
+    let@ () = insn in
     vaarg l e x t a
   | E (_, Ovastart _, [a]) ->
     let* a = pure a in
-    insn @@ fun () ->
+    let@ () = insn in
     vastart l e a
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
@@ -353,7 +361,7 @@ module Hoisting = struct
 
   (* See if there exists a cycle starting from `l` that does not intersect
      with `bs`. *)
-  let exists_bypass t l bs =
+  let exists_bypass t l id cid bs =
     let rec loop q = match Stack.pop q with
       | None -> false
       | Some (n, vis) when Lset.mem vis n ->
@@ -363,8 +371,15 @@ module Hoisting = struct
         Cfg.Node.succs n t.eg.input.cfg |>
         Seq.iter ~f:(fun s -> Stack.push q (s, vis));
         loop q in
-    Loops.mem t.eg.input.loop l &&
-    loop (Stack.singleton (l, Lset.empty))
+    let res =
+      Loops.mem t.eg.input.loop l &&
+      loop (Stack.singleton (l, Lset.empty)) in
+    Logs.debug (fun m ->
+        m "%s: %a is post-dominated: bs=%s, id=%d, cid=%d, res=%b%!"
+          __FUNCTION__ Label.pp l
+          (Lset.to_list bs |> List.to_string ~f:Label.to_string)
+          id cid res);
+    res
 
   (* Given all of the uses we know of, compute the points
      where the definition will be killed:
@@ -416,6 +431,9 @@ module Hoisting = struct
   let is_partial_redundancy t l id cid =
     (* If this node is deliberately placed here then allow it. *)
     not (Common.is_pinned t.eg id) && begin
+      Logs.debug (fun m ->
+          m "%s: checking %a, id=%d, cid=%d%!"
+            __FUNCTION__ Label.pp l id cid);
       (* Get the blocks associated with the labels that were
          "moved" for this node. *)
       let bs = moved_blks t id cid in
@@ -435,7 +453,7 @@ module Hoisting = struct
           if post_dominated t l bs then
             (* Check if we can reach the target block via a backedge
                without visiting any of the blocks we moved from. *)
-            exists_bypass t l bs
+            exists_bypass t l id cid bs
           else
             (* Check if `bs` intersects on all paths where `id` can
                be used. *)
@@ -530,8 +548,7 @@ let find_insn env l =
   Hashtbl.find env.insn l |> Option.map ~f:(Insn.create ~label:l)
 
 (* Find any new instructions to be prepended directly before label `l`.
-   Note that the ordering is, by default, from oldest to newest ID, but
-   this can be reversed for an efficient `rev_append` as seen below. *)
+   The order can be reversed for an efficient `rev_append` as seen below. *)
 let find_news ?(rev = false) env l =
   Hashtbl.find env.news l |>
   Option.value_map ~default:[] ~f:(fun p ->

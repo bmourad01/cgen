@@ -165,7 +165,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
        simplifyWorklist := simplifyWorklist \ {n} *)
     let n = take_one t.wsimplify in
     (* push(n, selectStack) *)
-    if can_be_colored t n then Stack.push t.select n;
+    if can_be_colored t n then begin
+      Logs.debug (fun m -> m "%s: selecting %a%!" __FUNCTION__ Rv.pp n);
+      Stack.push t.select n;
+    end;
     (* forall m \in Adjacent(n) *)
     adjacent t n |> Set.iter ~f:(decrement_degree t)
 
@@ -227,7 +230,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      of `u`, leaving the degree of `t` unchanged.
   *)
   let combine_edge t u v =
-    if has_edge t u v then
+    let e = has_edge t u v in
+    Logs.debug (fun m ->
+        m "%s: combining edge u=%a, v=%a, has_edge=%b%!"
+          __FUNCTION__ Rv.pp u Rv.pp v e);
+    if e then
       decrement_degree t v
     else begin
       add_adjlist t u v;
@@ -238,6 +245,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* Combine `v` with `u` in the interference graph, where
      `u` is the destination. *)
   let combine t u v =
+    Logs.debug (fun m ->
+        m "%s: combining u=%a with v=%a%!"
+          __FUNCTION__ Rv.pp u Rv.pp v);
     (* if v \in freezeWorklist *)
     if Hash_set.mem t.wfreeze v then
       (* freezeWorklist := freezeWorklist \ {v} *)
@@ -308,12 +318,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Lset.to_sequence t.wmoves |>
     Seq.map ~f:(fun m -> m, move_priority t m) |>
     Seq.max_elt ~compare:(fun (_, a) (_, b) ->  Float.compare a b) |>
-    Option.value_exn |> fst
+    Option.value_exn
 
   (* pre: wmoves is not empty *)
   let coalesce t =
     (* let m_(=copy(x,y)) \in worklistMoves *)
-    let m = pick_move t in
+    let m, score = pick_move t in
     let c = Hashtbl.find_exn t.copies m in
     (* x := GetAlias(x) *)
     let x = alias t c.dst in
@@ -324,6 +334,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
        else
          let (u,v) = (x,y) *)
     let u, v = if exclude_from_coloring t y then y, x else x, y in
+    Logs.debug (fun m_ ->
+        m_ "%s: looking at move %a, score=%g, u=%a, v=%a%!"
+          __FUNCTION__ Label.pp m score Rv.pp u Rv.pp v);
     (* worklistMoves := worklistMoves \ {m} *)
     t.wmoves <- Lset.remove t.wmoves m;
     (* if u = v then *)
@@ -337,6 +350,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       exclude_from_coloring t v ||
       (* (u,v) \in adjSet *)
       has_edge t u v then begin
+      Logs.debug (fun m_ ->
+          m_ "%s: constraining %a%!" __FUNCTION__ Label.pp m);
       (* constrainedMoves := constrainedMoves U {m} *)
       t.kmoves <- Lset.add t.kmoves m;
       (* addWorkList(u) *)
@@ -381,6 +396,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               (* worklistMoves := worklistMoves \ {m} *)
               t.wmoves <- Lset.remove t.wmoves m;
             (* frozenMoves := frozenMoves U {m} *)
+            Logs.debug (fun m_ ->
+                m_ "%s: freezing move %a, v=%a"
+                  __FUNCTION__ Label.pp m Rv.pp v);
             t.fmoves <- Lset.add t.fmoves m;
             (* if NodeMoves(v) = {} ^ degree[v] < K *)
             if Lset.is_empty (node_moves t v)
@@ -396,6 +414,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* let u \in freezeWorklist
        freezeWorklist := freezeWorklist \ {u} *)
     let u = take_one t.wfreeze in
+    Logs.debug (fun m -> m "%s: frozen node u=%a%!" __FUNCTION__ Rv.pp u);
     (* simplifyWorklist := simplifyWorklist U {u} *)
     Hash_set.add t.wsimplify u;
     (* FreezeMoves(u) *)
@@ -403,6 +422,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let select_spill t =
     Pairing_heap.pop t.wspill |> Option.iter ~f:(fun m ->
+        Logs.debug (fun m_ ->
+            m_ "%s: selecting spill node %a%!"
+              __FUNCTION__ Rv.pp m);
         (* spillWorklist := spillWorklist \ {m} *)
         Hashtbl.remove t.wspill_elts m;
         (* simplifyWorklist := simplifyworklist U {m} *)
@@ -470,9 +492,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             let r = Rv.var GPR v in
             match find_reusable_slot t m n size with
             | Some r' ->
+              Logs.debug (fun m ->
+                  m "%s: re-using slot %a for spilled node %a%!"
+                    __FUNCTION__ Rv.pp r' Rv.pp r);
               Hashtbl.set t.slots ~key:r ~data:r';
               acc, m
             | None ->
+              Logs.debug (fun m ->
+                  m "%s: spilling %a to new slot%!"
+                    __FUNCTION__ Rv.pp r);
               let s = Virtual.Slot.create_exn v ~size ~align:size in
               Hashtbl.set t.slots ~key:r ~data:r;
               s :: acc, Map.add_multi m ~key:size ~data:r) in
@@ -617,6 +645,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* () = C.when_ (round > max_rounds) @@ fun () ->
       C.failf "In Regalloc.main: maximum rounds reached (%d) with no \
                convergence on spilling" max_rounds () in
+    Logs.debug (fun m ->
+        m "%s: $%s: round %d of %d"
+          __FUNCTION__ (Func.name t.fn) round max_rounds);
     (* Build the interference graph. *)
     let live = Live.compute ~keep:t.keep t.fn in
     let* () = build t live in

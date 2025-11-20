@@ -3,14 +3,14 @@ open Egraph_common
 open Monads.Std
 open Virtual
 
-(* We store the canonical and real IDs to help us determine
-   the ordering when reifying back to the CFG representation.
+(* Keep track of the provenance of extracted nodes.
 
-   Canonical IDs help us extract the best term, but the real
-   ID of the term determines the ordering; in particular, we
-   order from oldest to newest. This makes sense since the way
-   we build terms in the e-graph will be such that terms with
-   a newer ID will always depend on an ID that is older.
+   We were previously using the real IDs for determining
+   the order by which we place new instructions, but that
+   is no longer guaranteed. In principle, lower IDs never
+   depend on higher IDs to compute their results, but when
+   we reschedule instructions in the CFG this is no longer
+   useful.
 *)
 type prov =
   | Label of Label.t
