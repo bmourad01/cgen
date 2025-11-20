@@ -152,6 +152,9 @@ module Make(M : Machine_intf.S) = struct
   let add_spill t n =
     if can_be_colored t n && not (Hashtbl.mem t.wspill_elts n) then
       let elt = Pairing_heap.add_removable t.wspill n in
+      Logs.debug (fun m ->
+          m "%s: adding %a to spill worklist%!"
+            __FUNCTION__ Rv.pp n);
       Hashtbl.set t.wspill_elts ~key:n ~data:elt
 
   let remove_spill t n = Hashtbl.change t.wspill_elts n ~f:(function
@@ -228,7 +231,11 @@ module Make(M : Machine_intf.S) = struct
     | Second _ -> Hashtbl.find t.colors n
     | First r -> Regs.reg_color r
 
-  let set_color t n c = Hashtbl.set t.colors ~key:n ~data:c
+  let set_color t n c =
+    Logs.debug (fun m ->
+        m "%s: assigning color %a=%d%!"
+          __FUNCTION__ Rv.pp n c);
+    Hashtbl.set t.colors ~key:n ~data:c
 
   let add_move t label n =
     Hashtbl.update t.moves n ~f:(function
