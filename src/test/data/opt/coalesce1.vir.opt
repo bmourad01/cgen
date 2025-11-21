@@ -2,7 +2,7 @@ module coalesce1
 
 export function w $f(w %x, w %y, w %z) {
   %a = slot 8, align 8
-  %c = slot 8, align 8
+  %b = slot 8, align 8
 @2:
   st.w %x, %a ; @4
   jmp @3
@@ -12,19 +12,19 @@ export function w $f(w %x, w %y, w %z) {
 @5:
   jmp @7
 @7:
-  st.w %y, %a ; @9
+  st.w %y, %b ; @9
   jmp @8
 @8:
-  %u2.1 = ld.w %a ; @11
+  %u2.1 = ld.w %b ; @11
   jmp @10
 @10:
-  st.w %z, %c ; @13
+  st.w %z, %a ; @13
   jmp @12
 @12:
-  %u3.1 = ld.w %c ; @15
+  %u3.1 = ld.w %a ; @15
   jmp @14
 @14:
-  %u4.1 = ld.w %a ; @17
+  %u4.1 = ld.w %b ; @17
   jmp @16
 @16:
   %r.1 = add.w %u1.1, %u2.1 ; @18

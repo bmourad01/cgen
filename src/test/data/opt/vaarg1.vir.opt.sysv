@@ -63,7 +63,6 @@ export function $foo(b %11/rax, l %i/rdi, ...) {
   %50.1 = ld.l %48.1 ; @89
   jmp @61
 @61:
-  st.l %49.1, %52 ; @48
   %f1.1 = ld.d %52 ; @6
   %0.1 = add.d %f1.1, 1.234_d ; @13
   %2.1 = ftosi.d.l %0.1 ; @15
