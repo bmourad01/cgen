@@ -41,19 +41,28 @@ let from_file_abi filename =
   let* () = Context.iter_seq_err (Virtual.Abi.Module.funs m) ~f:Passes.Ssa.check_abi in
   Passes.optimize_abi m
 
-let test name _ =
+let test ?(f = from_file) name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = filename ^ ".opt" in
   let expected = In_channel.read_all filename' in
   Context.init Machine.X86.Amd64_sysv.target |>
   Context.eval begin
     let open Context.Syntax in
-    let* _, m = from_file filename in
+    let* _, m = f filename in
     let* () = Virtual.Module.funs m |> Context.iter_seq_err ~f:Passes.Ssa.check in
     !!(Format.asprintf "%a" Virtual.Module.pp m)
   end |> function
   | Ok p' -> compare_outputs filename' expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
+
+let coalesce_only filename =
+  let open Context.Syntax in
+  let* m = Parse.Virtual.from_file filename in
+  let* tenv, m = Passes.initialize m in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Coalesce_slots.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Resolve_constant_blk_args.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
+  !!(tenv, m)
 
 let test_abi target ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
@@ -309,6 +318,9 @@ let opt_suite = "Test optimizations" >::: [
     "Parallel moves" >:: test "parallel";
     "SROA" >:: test "sroa";
     "Sink 1" >:: test "sink1";
+    "Escape 1" >:: test "esc1";
+    "Slot coalesce 1 (no other opts)" >:: test ~f:coalesce_only "coalesce1";
+    "Slot coalesce 1 (full opts)" >:: test "coalesce1a";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -444,7 +456,7 @@ let native_suite = "Test native code" >::: [
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_native "promote2-partial";
     "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_native "sumphi";
     "Returning, passing, and dereferencing a struct (SysV AMD64)" >:: test_sysv_amd64_native "unref";
-    "Sink (SysV AMD64)" >:: test_sysv_amd64_native "sink1";
+    "Sink 1 (SysV AMD64)" >:: test_sysv_amd64_native "sink1";
   ]
 
 let () = run_test_tt_main @@ test_list [

@@ -10,7 +10,6 @@
 
 open Core
 open Regular.Std
-open Graphlib.Std
 open Scalars
 
 module Slot = Virtual.Slot
@@ -49,15 +48,22 @@ end = struct
       Type.pp_basic a.ty
       pre off
 
-  let collect_accesses slots fn (s : solution) : accesses =
+  let collect_accesses slots fn t : accesses =
     (* Group all memory accesses by their corresponding slot. *)
     Func.blks fn |> Seq.fold ~init:Var.Map.empty ~f:(fun init b ->
-        let s = ref @@ Solution.get s @@ Blk.label b in
+        let s = ref @@ get t @@ Blk.label b in
         Blk.insns b |> Seq.fold ~init ~f:(fun acc i ->
             let op = Insn.op i in
             let acc = match Insn.load_or_store_to op with
               | None -> acc
               | Some (ptr, ty, ldst) -> match Map.find !s ptr with
+                | Some Offset (base, _) when escaped t base ->
+                  (* Any slot that escaped at any time should not
+                     be considered for partitioning. *)
+                  Logs.debug (fun m ->
+                      m "%s: ignoring escaped pointer %a%!"
+                        __FUNCTION__ Var.pp base);
+                  acc
                 | Some Offset (base, off) ->
                   Map.add_multi acc ~key:base ~data:{insn = i; off; ty; ldst}
                 | _ -> acc in
@@ -226,10 +232,10 @@ end = struct
           Logs.debug (fun m -> m "%s: no parts found%!" __FUNCTION__);
           !![i]
 
-  let rewrite_with_partitions slots fn (s : solution) parts m =
+  let rewrite_with_partitions slots fn t parts m =
     let open Context.Syntax in
     let* blks = Func.blks fn |> Context.Seq.map ~f:(fun b ->
-        let s = ref @@ Solution.get s @@ Blk.label b in
+        let s = ref @@ get t @@ Blk.label b in
         let+ insns = Blk.insns b |> Context.Seq.map ~f:(fun i ->
             let+ is = rewrite_insn parts m !s i in
             s := Analysis.transfer_op slots !s @@ Insn.op i; is)
@@ -271,13 +277,13 @@ end = struct
     let open Context.Syntax in
     let slots = Analysis.collect_slots fn in
     if Map.is_empty slots then !!fn else
-      let s = analyze slots fn in
-      let accs = collect_accesses slots fn s in
+      let t = analyze slots fn in
+      let accs = collect_accesses slots fn t in
       let parts = partition_acesses accs in
       if Map.is_empty parts then !!fn else
         let () = debug_show_parts parts in
         let* m = materialize_partitions slots parts in
         if Map.is_empty m then !!fn else
           let fn = insert_new_slots fn m in
-          rewrite_with_partitions slots fn s parts m
+          rewrite_with_partitions slots fn t parts m
 end

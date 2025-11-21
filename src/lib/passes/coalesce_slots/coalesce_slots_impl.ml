@@ -32,6 +32,13 @@ module Range = struct
   let is_bad = equal bad
 
   let singleton n = {lo = n; hi = n; tg = Def}
+  let size r = r.hi - r.lo
+
+  let distance x y =
+    if x.hi < y.lo then y.lo - x.hi
+    else if x.lo > y.hi then x.lo - y.hi
+    else 0
+  [@@ocaml.warning "-32"]
 
   (* Extend the upper-bound on the live range. *)
   let use r n = {
@@ -83,19 +90,43 @@ let equiv_range slots rs x y =
   | Before | After -> true
   | _ -> false
 
+let partition slots rs vs =
+  let pick rem =
+    Set.to_sequence rem |>
+    Seq.min_elt ~compare:(fun x y ->
+        (* Prefer shorter live ranges. *)
+        let rx = Map.find_exn rs x in
+        let ry = Map.find_exn rs y in
+        let c = Int.compare (Range.size rx) (Range.size ry) in
+        if c = 0 then
+          (* Break ties by comparing on the var. This
+             is to give a bit more determinism to the
+             algorithm. *)
+          Var.compare x y
+        else c) in
+  (* Ensure that `x` does not interfere with any of the
+     slots in the group. *)
+  let ok g x = Set.for_all g ~f:(equiv_range slots rs x) in
+  let[@tail_mod_cons] rec go rem = match pick rem with
+    | None -> []
+    | Some seed ->
+      let g = Set.fold rem ~init:(Var.Set.singleton seed)
+          ~f:(fun g x -> if ok g x then Set.add g x else g) in
+      g :: go (Set.diff rem g) in
+  go vs
+
 let non_interfering slots rs =
   Map.to_sequence rs |>
-  (* The results will still be correct if we omit this, but
-     it is more efficient to just not consider them at all. *)
+  (* Do not consider escapees. This would mess up
+     our heuristics for building the groups. *)
   Seq.filter ~f:(not @. Range.is_bad @. snd) |>
   Seq.map ~f:fst |>
   Var.Set.of_sequence |>
-  Partition.trivial |>
-  Partition.refine ~cmp:Var.compare ~equiv:(equiv_range slots rs)
+  partition slots rs
 
 (* invariant: a group is never empty *)
 let canon_elt slots g =
-  Group.enum g |> Seq.max_elt ~compare:(fun x y ->
+  Set.to_sequence g |> Seq.max_elt ~compare:(fun x y ->
       (* Assuming that the sizes and alignments are compatible,
          just pick the biggest one. *)
       let sx, ax = slot_sa slots x in
@@ -106,11 +137,12 @@ let canon_elt slots g =
   Option.value_exn
 
 let make_subst slots p =
-  Partition.groups p |>
-  Seq.fold ~init:Var.Map.empty ~f:(fun init g ->
+  List.fold p ~init:Var.Map.empty ~f:(fun init g ->
       let canon = canon_elt slots g in
-      Group.enum g |> Seq.filter ~f:(not @. Var.equal canon) |>
-      Seq.fold ~init ~f:(fun acc x -> Map.set acc ~key:x ~data:(`var canon)))
+      Set.to_sequence g |>
+      Seq.filter ~f:(not @. Var.equal canon) |>
+      Seq.fold ~init ~f:(fun acc x ->
+          Map.set acc ~key:x ~data:(`var canon)))
 
 type t = {
   subst : Subst_mapper.t; (* Map from coalesced to canonical slots *)
@@ -159,16 +191,19 @@ module Make(M : Scalars.L) = struct
     Ctrl.free_vars c |> Set.fold ~init:acc
       ~f:(fun acc x -> update acc s x ip false)
 
-  let liveness cfg blks slots (s : solution) =
+  let liveness cfg blks slots t =
     let ip = ref 0 in
     let nums = Vec.create () in
+    let init =
+      Hash_set.fold t.esc ~init:Var.Map.empty
+        ~f:(fun acc x -> Map.set acc ~key:x ~data:Range.bad) in
     let acc =
       Graphlib.reverse_postorder_traverse
         (module Cfg) ~start:Label.pseudoentry cfg |>
       Seq.filter_map ~f:(Ltree.find blks) |>
-      Seq.fold ~init:Var.Map.empty ~f:(fun acc b ->
+      Seq.fold ~init ~f:(fun acc b ->
           let l = Blk.label b in
-          let s = ref @@ Solution.get s l in
+          let s = ref @@ get t l in
           let acc = Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
               let op = Insn.op i in
               let acc = liveness_insn acc !s !ip i in
@@ -182,10 +217,10 @@ module Make(M : Scalars.L) = struct
           acc) in
     acc, nums
 
-  let collect_deads blks slots rs s =
+  let collect_deads blks slots rs t =
     Ltree.fold blks ~init:Lset.empty
       ~f:(fun ~key ~data:b init ->
-          let s = ref @@ Solution.get s key in
+          let s = ref @@ get t key in
           Blk.insns b |> Seq.fold ~init ~f:(fun acc i ->
               let op = Insn.op i in
               let acc = match Insn.load_or_store_to op with
@@ -219,8 +254,9 @@ module Make(M : Scalars.L) = struct
                   Label.pp (Vec.get_exn nums r.hi) in
             m "%s: %a: %a%!" __FUNCTION__ Var.pp x ppr x));
     Logs.debug (fun m ->
-        Partition.groups p |> Seq.iter ~f:(fun g ->
-            m "%s: group: %a%!" __FUNCTION__ (Group.pp Var.pp) g));
+        List.iter p ~f:(fun g ->
+            m "%s: group: %s%!" __FUNCTION__
+              (Set.to_list g |> List.to_string ~f:Var.to_string)));
     Logs.debug (fun m ->
         if not @@ Lset.is_empty deads then
           m "%s: dead stores: %a%!"
@@ -239,10 +275,10 @@ module Make(M : Scalars.L) = struct
     if Map.is_empty slots then empty else
       let cfg = Cfg.create fn in
       let blks = Func.map_of_blks fn in
-      let s = Analysis.analyze ~cfg ~blks slots fn in
-      let rs, nums = liveness cfg blks slots s in
+      let t = Analysis.analyze ~cfg ~blks slots fn in
+      let rs, nums = liveness cfg blks slots t in
       let p = non_interfering slots rs in
-      let deads = collect_deads blks slots rs s in
+      let deads = collect_deads blks slots rs t in
       let subst = make_subst slots p in
       debug_show slots rs nums deads p subst;
       {subst; deads}
