@@ -159,20 +159,34 @@ module type L = sig
   end
 end
 
+type t = {
+  soln : solution;       (* Dataflow solution *)
+  esc  : Var.Hash_set.t; (* All slots that escaped, globally *)
+}
+
+let get t l = Solution.get t.soln l
+let escaped t x = Hash_set.mem t.esc x
+
 module Make(M : L) = struct
   open M
 
   (* Set all known scalars to `Top` according to `f`, which is the
      set of variables that escape. *)
-  let escaping f x s =
+  let escaping ?esc f x s =
     Set.fold (f x) ~init:s ~f:(fun s v ->
         match Map.find s v with
         | Some Offset (ptr, _) ->
+          Option.iter esc ~f:(fun t ->
+              Hash_set.strict_add t ptr |>
+              Or_error.iter ~f:(fun () ->
+                  Logs.debug (fun m ->
+                      m "%s: %a escapes via %a%!"
+                        __FUNCTION__ Var.pp ptr Var.pp v)));
           Map.set s ~key:ptr ~data:Top
         | Some _ | None -> s)
 
   (* Transfer function for a single instruction. *)
-  let transfer_op slots s op =
+  let transfer_op ?esc slots s op =
     let value = match Insn.offset op with
       | Some (ptr, offset) -> State.derive slots s ptr offset
       | None -> Insn.copy_of op |> Option.bind ~f:(Map.find s) in
@@ -181,7 +195,7 @@ module Make(M : L) = struct
       | Some v ->
         Insn.lhs op |> Set.fold ~init:s
           ~f:(fun s key -> Map.set s ~key ~data:v) in
-    escaping Insn.escapes op s
+    escaping ?esc Insn.escapes op s
 
   let merge_blkarg acc src dst = match src with
     | `var src when Var.(src = dst) -> acc
@@ -211,32 +225,26 @@ module Make(M : L) = struct
   [@@inline]
 
   (* Transfer for control-flow instruction. *)
-  let transfer_ctrl ?(blkparam = true) blks s c =
-    let init = escaping (ctrl_esc blkparam) c s in
+  let transfer_ctrl ?(blkparam = true) ?esc blks s c =
+    let init = escaping ?esc (ctrl_esc blkparam) c s in
     (* Propagate the block parameters we are passing. *)
     Ctrl.locals c |> List.fold ~init ~f:(blkargs blks)
   [@@specialise]
 
   (* Transfer function for a block. *)
-  let transfer ?(blkparam = true) slots blks l s =
+  let transfer ?(blkparam = true) ?esc slots blks l s =
     Label.Tree.find blks l |>
     Option.value_map ~default:s ~f:(fun b ->
         Blk.insns b |> Seq.map ~f:Insn.op |>
-        Seq.fold ~init:s ~f:(transfer_op slots) |>
-        transfer_ctrl ~blkparam blks @< Blk.ctrl b)
+        Seq.fold ~init:s ~f:(transfer_op ?esc slots) |>
+        transfer_ctrl ~blkparam ?esc blks @< Blk.ctrl b)
   [@@specialise]
 
   (* Initial constraints. *)
-  let initialize ?(blkparam = true) slots blks =
+  let initialize slots blks =
     (* Set all slots to point to their own base address. *)
     let init = Map.mapi slots ~f:(fun ~key ~data:_ -> Offset (key, 0L)) in
-    (* Any slot that directly escapes should immediately be set to `Top`. *)
-    let k = ctrl_esc blkparam in
-    Label.Tree.fold blks ~init ~f:(fun ~key:_ ~data init ->
-        Blk.insns data |> Seq.fold ~init ~f:(fun s i ->
-            escaping Insn.escapes (Insn.op i) s) |>
-        escaping k (Blk.ctrl data)) |>
-    Label.Map.singleton Label.pseudoentry |>
+    Label.Map.singleton Label.pseudoentry init |>
     Solution.create @< State.empty
   [@@specialise]
 
@@ -245,18 +253,21 @@ module Make(M : L) = struct
       ~f:(fun acc s -> Map.set acc ~key:(Slot.var s) ~data:s)
 
   (* Run the dataflow analysis. *)
-  let analyze ?(blkparam = true) ?cfg ?blks slots fn : solution =
+  let analyze ?(blkparam = true) ?cfg ?blks slots fn =
+    let esc = Var.Hash_set.create () in
     let cfg = match cfg with
       | None -> Cfg.create fn
       | Some cfg -> cfg in
     let blks = match blks with
       | None -> Func.map_of_blks fn
       | Some blks -> blks in
-    Graphlib.fixpoint (module Cfg) cfg
-      ~init:(initialize ~blkparam slots blks)
-      ~start:Label.pseudoentry
-      ~equal:State.equal
-      ~merge:State.merge
-      ~f:(transfer ~blkparam slots blks)
+    let s =
+      Graphlib.fixpoint (module Cfg) cfg
+        ~init:(initialize slots blks)
+        ~start:Label.pseudoentry
+        ~equal:State.equal
+        ~merge:State.merge
+        ~f:(transfer ~blkparam ~esc slots blks) in
+    {soln = s; esc}
   [@@specialise]
 end
