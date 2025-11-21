@@ -72,6 +72,7 @@ let optimize_abi m =
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Coalesce_slots.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Resolve_constant_blk_args.run_abi in
+  let*? m = Abi.Module.map_funs_err m ~f:Abi_loadopt.run in
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in
   let* () = Context.iter_seq_err (Abi.Module.funs m) ~f:Ssa.check_abi in
   !!m

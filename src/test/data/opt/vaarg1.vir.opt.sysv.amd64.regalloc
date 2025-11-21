@@ -43,7 +43,6 @@ export function $foo { ; returns: rax
   mov qword ptr [rbp - 0x10], rax ; @88
   mov rcx, qword ptr [rcx] ; @89
 @61:
-  mov qword ptr [rbp - 0x10], rax ; @48
   movsd xmm0, qword ptr [rbp - 0x10] ; @6
   addsd xmm0, qword ptr [rip + @97] ; @98
   .fp64 @97, 1.234 ; @99

@@ -79,7 +79,7 @@ let compat_size_align slots x y =
 
 (* Find compatible slots. Most importantly, their live ranges must
    not interfere. *)
-let equiv_range slots rs x y =
+let compat_range slots rs x y =
   compat_size_align slots x y &&
   let rx = Map.find_exn rs x in
   let ry = Map.find_exn rs y in
@@ -90,59 +90,95 @@ let equiv_range slots rs x y =
   | Before | After -> true
   | _ -> false
 
-let partition slots rs vs =
-  let pick rem =
-    Set.to_sequence rem |>
-    Seq.min_elt ~compare:(fun x y ->
-        (* Prefer shorter live ranges. *)
-        let rx = Map.find_exn rs x in
-        let ry = Map.find_exn rs y in
-        let c = Int.compare (Range.size rx) (Range.size ry) in
-        if c = 0 then
-          (* Break ties by comparing on the var. This
-             is to give a bit more determinism to the
-             algorithm. *)
-          Var.compare x y
-        else c) in
-  (* Ensure that `x` does not interfere with any of the
-     slots in the group. *)
-  let ok g x = Set.for_all g ~f:(equiv_range slots rs x) in
-  let[@tail_mod_cons] rec go rem = match pick rem with
-    | None -> []
-    | Some seed ->
-      let g = Set.fold rem ~init:(Var.Set.singleton seed)
-          ~f:(fun g x -> if ok g x then Set.add g x else g) in
-      g :: go (Set.diff rem g) in
-  go vs
+let range_priority rs x y =
+  (* Prefer shorter live ranges. *)
+  let rx = Map.find_exn rs x in
+  let ry = Map.find_exn rs y in
+  let c = Int.compare (Range.size rx) (Range.size ry) in
+  if c = 0 then
+    (* Break ties by comparing on the var. This
+       is to give a bit more determinism to the
+       algorithm. *)
+    Var.compare x y
+  else c
 
-let non_interfering slots rs =
+let size_priority slots x y =
+  (* Assuming that the sizes and alignments are compatible,
+     just pick the biggest one. *)
+  let sx, ax = slot_sa slots x in
+  let sy, ay = slot_sa slots y in
+  match Int.compare sx sy with
+  | 0 -> Int.compare ax ay
+  | c -> c
+
+let candidates rs =
+  let vs = Vec.create ~capacity:(Map.length rs) () in
   Map.to_sequence rs |>
   (* Do not consider escapees. This would mess up
      our heuristics for building the groups. *)
   Seq.filter ~f:(not @. Range.is_bad @. snd) |>
-  Seq.map ~f:fst |>
-  Var.Set.of_sequence |>
-  partition slots rs
+  Seq.map ~f:fst |> Seq.iter ~f:(Vec.push vs);
+  vs
+
+let is_adjacent slots rs x y =
+  Var.(x <> y) && compat_range slots rs x y
+
+(* Greedy partitioning algorithm. *)
+let partition slots rs =
+  let vs = candidates rs in
+  match Vec.length vs with
+  | 0 -> []
+  | 1 -> [Var.Set.singleton @@ Vec.front_exn vs]
+  | len ->
+    assert (len > 1);
+    let gs = ref [] in
+    let adj = Var.Table.create ~size:len () in
+    let assigned = Var.Hash_set.create ~size:len () in
+    (* Compute the adjacency table. *)
+    Vec.iter vs ~f:(fun x ->
+        Vec.to_sequence_mutable vs |>
+        Seq.filter ~f:(is_adjacent slots rs x) |>
+        Var.Set.of_sequence |> function
+        | s when Set.is_empty s -> ()
+        | s -> Hashtbl.set adj ~key:x ~data:s);
+    (* Use an ascending order. *)
+    Vec.sort vs ~compare:(fun x y -> range_priority rs y x);
+    while not @@ Vec.is_empty vs do
+      let x = Vec.pop_exn vs in
+      Hash_set.strict_add assigned x |>
+      Or_error.iter ~f:(fun () ->
+          Logs.debug (fun m ->
+              m "%s: processing %a%!"
+                __FUNCTION__ Var.pp x);
+          let g = Vec.fold_right vs
+              ~init:(Var.Set.singleton x)
+              ~f:(fun y g ->
+                  (* Ensure that all groups are disjoint. *)
+                  if Hash_set.mem assigned y then g
+                  else match Hashtbl.find adj y with
+                    | Some a when Set.is_subset g ~of_:a ->
+                      (* Freeze `y` to this group. *)
+                      Hash_set.add assigned y;
+                      Set.add g y
+                    | Some _ | None -> g) in
+          gs := g :: !gs)
+    done;
+    !gs
 
 (* invariant: a group is never empty *)
 let canon_elt slots g =
-  Set.to_sequence g |> Seq.max_elt ~compare:(fun x y ->
-      (* Assuming that the sizes and alignments are compatible,
-         just pick the biggest one. *)
-      let sx, ax = slot_sa slots x in
-      let sy, ay = slot_sa slots y in
-      match Int.compare sx sy with
-      | 0 -> Int.compare ax ay
-      | c -> c) |>
+  Set.to_sequence g |>
+  Seq.max_elt ~compare:(size_priority slots) |>
   Option.value_exn
 
 let make_subst slots p =
   List.fold p ~init:Var.Map.empty ~f:(fun init g ->
-      let canon = canon_elt slots g in
-      Set.to_sequence g |>
-      Seq.filter ~f:(not @. Var.equal canon) |>
-      Seq.fold ~init ~f:(fun acc x ->
-          Map.set acc ~key:x ~data:(`var canon)))
+      if Set.length g <= 1 then init else
+        let canon = canon_elt slots g in
+        Set.to_sequence g |>
+        Seq.filter ~f:(not @. Var.equal canon) |>
+        Seq.fold ~init ~f:(fun acc x ->
+            Map.set acc ~key:x ~data:(`var canon)))
 
 type t = {
   subst : Subst_mapper.t; (* Map from coalesced to canonical slots *)
@@ -277,7 +313,7 @@ module Make(M : Scalars.L) = struct
       let blks = Func.map_of_blks fn in
       let t = Analysis.analyze ~cfg ~blks slots fn in
       let rs, nums = liveness cfg blks slots t in
-      let p = non_interfering slots rs in
+      let p = partition slots rs in
       let deads = collect_deads blks slots rs t in
       let subst = make_subst slots p in
       debug_show slots rs nums deads p subst;
