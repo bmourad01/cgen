@@ -325,7 +325,7 @@ module Make(M : Scalars.L) = struct
     if Map.is_empty slots then empty else
       let cfg = Cfg.create fn in
       let blks = Func.map_of_blks fn in
-      let t = Analysis.analyze ~cfg ~blks slots fn in
+      let t = Analysis.analyze cfg blks slots in
       let rs, nums = liveness cfg blks slots t in
       let p = partition slots rs in
       let deads = collect_deads blks slots rs t in

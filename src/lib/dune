@@ -41,6 +41,7 @@
   phi_values
   resolver_intf
   scalars
+  slot_initialization
   sm
   subst_mapper
   subst_mapper_abi
