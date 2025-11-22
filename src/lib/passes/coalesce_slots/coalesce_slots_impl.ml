@@ -202,30 +202,44 @@ module Make(M : Scalars.L) = struct
       | None -> Range.singleton n
       | Some r -> Range.def r n)
 
-  let mkuse s x n = Map.change s x ~f:(function
+  let mkuse f s x n = Map.change s x ~f:(function
       | Some r -> Some (Range.use r n)
-      | None -> None)
+      | None -> f n)
 
-  let update acc s x n def = match Map.find s x with
-    | Some Offset (base, _) ->
-      if def then mkdef acc base n else mkuse acc base n
+  let update acc s x n ldst = match Map.find s x with
     | Some Top -> Map.set acc ~key:x ~data:Range.bad
+    | Some Offset (base, _) ->
+      begin match ldst with
+        | None -> mkuse (const None) acc base n
+        | Some Store -> mkdef acc base n
+        | Some Load ->
+          (* If we end up with a load from an uninitialized slot,
+             then it is UB, and we shouldn't try to coalesce it
+             with anything else. *)
+          let f _ =
+            Logs.debug (fun m ->
+                m "%s: slot %a is loaded before being initialized"
+                  __FUNCTION__ Var.pp base);
+            Some Range.bad in
+          mkuse f acc base n
+      end
     | None -> acc
 
   let liveness_insn acc s ip i =
     let op = Insn.op i in
     let r = Insn.free_vars op in
-    let r, w = match Insn.load_or_store_to op with
-      | Some (ptr, _, Store) -> Set.remove r ptr, Some ptr
-      | Some _ | None -> r, None in
+    let r, w, ldst = match Insn.load_or_store_to op with
+      | None -> r, None, None
+      | Some (ptr, _, ldst) ->
+        Set.remove r ptr, Some ptr, Some ldst in
     Option.fold w ~init:acc ~f:(fun acc x ->
-        update acc s x ip true) |> fun init ->
+        update acc s x ip ldst) |> fun init ->
     Set.fold r ~init ~f:(fun acc x ->
-        update acc s x ip false)
+        update acc s x ip None)
 
   let liveness_ctrl acc s ip c =
     Ctrl.free_vars c |> Set.fold ~init:acc
-      ~f:(fun acc x -> update acc s x ip false)
+      ~f:(fun acc x -> update acc s x ip None)
 
   let liveness cfg blks slots t =
     let ip = ref 0 in
