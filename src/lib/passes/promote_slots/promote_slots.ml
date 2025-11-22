@@ -1,3 +1,4 @@
+open Core
 open Virtual
 open Promote_slots_impl
 
@@ -49,16 +50,29 @@ open E.Syntax
 
 let run fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
-    V.run fn >>= Ssa.run
+    let module S = Slot_initialization.Make(Sroa_coalesce_common.VL) in
+    let slots = S.Analysis.collect_slots fn in
+    let cfg = Cfg.create fn in
+    let blks = Func.map_of_blks fn in
+    let s = S.analyze cfg blks slots in
+    let undef l = Hash_set.mem s.bad l in
+    V.run fn ~undef >>= Ssa.run
   else
     E.failf
       "In Promote_slots: expected SSA form for function $%s"
       (Func.name fn) ()
 
 let run_abi fn =
-  if Dict.mem (Abi.Func.dict fn) Tags.ssa then
-    A.run fn >>= Ssa.run_abi
+  let open Abi in
+  if Dict.mem (Func.dict fn) Tags.ssa then
+    let module S = Slot_initialization.Make(Sroa_coalesce_common.AL) in
+    let slots = S.Analysis.collect_slots fn in
+    let cfg = Cfg.create fn in
+    let blks = Func.map_of_blks fn in
+    let s = S.analyze cfg blks slots in
+    let undef l = Hash_set.mem s.bad l in
+    A.run fn ~undef >>= Ssa.run_abi
   else
     E.failf
       "In Promote_slots (ABI): expected SSA form for function $%s"
-      (Abi.Func.name fn) ()
+      (Func.name fn) ()

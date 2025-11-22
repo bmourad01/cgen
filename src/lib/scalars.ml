@@ -253,14 +253,8 @@ module Make(M : L) = struct
       ~f:(fun acc s -> Map.set acc ~key:(Slot.var s) ~data:s)
 
   (* Run the dataflow analysis. *)
-  let analyze ?(blkparam = true) ?cfg ?blks slots fn =
+  let analyze ?(blkparam = true) cfg blks slots =
     let esc = Var.Hash_set.create () in
-    let cfg = match cfg with
-      | None -> Cfg.create fn
-      | Some cfg -> cfg in
-    let blks = match blks with
-      | None -> Func.map_of_blks fn
-      | Some blks -> blks in
     let s =
       Graphlib.fixpoint (module Cfg) cfg
         ~init:(initialize slots blks)

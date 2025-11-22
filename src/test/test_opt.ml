@@ -321,6 +321,8 @@ let opt_suite = "Test optimizations" >::: [
     "Escape 1" >:: test "esc1";
     "Slot coalesce 1 (no other opts)" >:: test ~f:coalesce_only "coalesce1";
     "Slot coalesce 1 (full opts)" >:: test "coalesce1a";
+    "Bad load 1" >:: test "badload1";
+    "Bad load 2" >:: test "badload2";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [

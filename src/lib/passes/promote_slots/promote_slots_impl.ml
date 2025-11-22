@@ -101,21 +101,23 @@ module Make(M : L) = struct
           | Write (_, t') when not @@ Type.equal_basic t t' -> Bad
           | Read _ | Write _ -> Write (s, t)
 
-    let go env s =
+    let go env s ~undef =
       let x = Slot.var s in
       Resolver.uses env.reso x |>
       List.fold_until ~init:Bad ~finish:Fn.id
         ~f:(fun acc -> function
             |`blk _ -> Stop Bad
-            | `insn (i, _, _, _) -> match infer acc x i with
-              | (Read _ | Write _) as acc -> Continue acc
-              | Bad -> Stop Bad)
+            | `insn (i, _, _, _) ->
+              if undef @@ Insn.label i then Stop Bad
+              else match infer acc x i with
+                | (Read _ | Write _) as acc -> Continue acc
+                | Bad -> Stop Bad)
   end
 
-  let collect env =
+  let collect env ~undef =
     Func.slots env.fn |>
     Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
-        match Qualify.go env s with
+        match Qualify.go env s ~undef with
         | Bad ->
           Logs.debug (fun m ->
               m "%s: cannot promote %a%!"
@@ -162,9 +164,9 @@ module Make(M : L) = struct
               | Some (y, t') -> replace_load env x l y t t'
               | None -> assert false))
 
-  let run fn =
+  let run fn ~undef =
     let+ env = init fn in
-    let xs = collect env in
+    let xs = collect env ~undef in
     if not @@ Map.is_empty xs then
       let fn = remove_slots fn xs in
       replace env xs;

@@ -277,7 +277,9 @@ end = struct
     let open Context.Syntax in
     let slots = Analysis.collect_slots fn in
     if Map.is_empty slots then !!fn else
-      let t = analyze slots fn in
+      let cfg = Cfg.create fn in
+      let blks = Func.map_of_blks fn in
+      let t = analyze cfg blks slots in
       let accs = collect_accesses slots fn t in
       let parts = partition_acesses accs in
       if Map.is_empty parts then !!fn else
