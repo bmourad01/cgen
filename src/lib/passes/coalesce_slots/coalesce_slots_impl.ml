@@ -67,118 +67,123 @@ module Range = struct
     end)
 end
 
-let slot_sa slots x =
-  let sx = Map.find_exn slots x in
-  Slot.(size sx, align sx)
+type candidate = {
+  var : Var.t;
+  size : int;
+  align : int;
+  range : range;
+  mutable adj : Var.Set.t;
+  mutable assigned : bool;
+}
 
-let compat_size_align slots x y =
-  let sx, ax = slot_sa slots x in
-  let sy, ay = slot_sa slots y in
+let create_candidate slots rs v =
+  let slot = Map.find_exn slots v in {
+    var = v;
+    size = Slot.size slot;
+    align = Slot.align slot;
+    range = Map.find_exn rs v;
+    adj = Var.Set.empty;
+    assigned = false;
+  }
+
+let compat_size_align x y =
   (* The smaller slot must not have a higher alignment. *)
-  not ((sx < sy && ax > ay) || (sy < sx && ay > ax))
+  not ((x.size < y.size && x.align > y.align) ||
+       (y.size < x.size && y.align > x.align))
 
 (* Find compatible slots. Most importantly, their live ranges must
    not interfere. *)
-let compat_range slots rs x y =
-  compat_size_align slots x y &&
-  let rx = Map.find_exn rs x in
-  let ry = Map.find_exn rs y in
-  let a : Allen.t = Range.Algebra.relate rx ry in
+let compat_range x y =
+  compat_size_align x y &&
+  let a : Allen.t = Range.Algebra.relate x.range y.range in
   Logs.debug (fun m ->
-      m "%s: %a, %a: %a%!" __FUNCTION__ Var.pp x Var.pp y Allen.pp a);
+      m "%s: %a, %a: %a%!" __FUNCTION__
+        Var.pp x.var Var.pp y.var Allen.pp a);
   match a with
   | Before | After -> true
   | _ -> false
 
-let range_priority rs x y =
+let range_priority x y =
   (* Prefer shorter live ranges. *)
-  let rx = Map.find_exn rs x in
-  let ry = Map.find_exn rs y in
-  let c = Int.compare (Range.size rx) (Range.size ry) in
+  let c = Int.compare (Range.size x.range) (Range.size y.range) in
   if c = 0 then
     (* Break ties by comparing on the var. This
        is to give a bit more determinism to the
        algorithm. *)
-    Var.compare x y
+    Var.compare x.var y.var
   else c
 
-let size_priority slots x y =
+let size_priority x y =
   (* Assuming that the sizes and alignments are compatible,
      just pick the biggest one. *)
-  let sx, ax = slot_sa slots x in
-  let sy, ay = slot_sa slots y in
-  match Int.compare sx sy with
-  | 0 -> Int.compare ax ay
+  match Int.compare x.size y.size with
+  | 0 -> Int.compare x.align y.align
   | c -> c
 
-let candidates rs =
+let candidates slots rs =
   let vs = Vec.create ~capacity:(Map.length rs) () in
   Map.to_sequence rs |>
   (* Do not consider escapees. This would mess up
      our heuristics for building the groups. *)
   Seq.filter ~f:(not @. Range.is_bad @. snd) |>
-  Seq.map ~f:fst |> Seq.iter ~f:(Vec.push vs);
+  Seq.map ~f:(create_candidate slots rs @. fst) |>
+  Seq.iter ~f:(Vec.push vs);
   vs
 
-let is_adjacent slots rs x y =
-  Var.(x <> y) && compat_range slots rs x y
+let is_subset g y = List.for_all g ~f:(fun x -> Set.mem y.adj x.var)
 
 (* Greedy partitioning algorithm. *)
 let partition slots rs =
-  let vs = candidates rs in
+  let vs = candidates slots rs in
   match Vec.length vs with
   | 0 -> []
-  | 1 -> [Var.Set.singleton @@ Vec.front_exn vs]
+  | 1 -> [[Vec.front_exn vs]]
   | len ->
     assert (len > 1);
     let gs = ref [] in
-    let adj = Var.Table.create ~size:len () in
-    let assigned = Var.Hash_set.create ~size:len () in
-    (* Compute the adjacency table. *)
-    Vec.iter vs ~f:(fun x ->
-        Vec.to_sequence_mutable vs |>
-        Seq.filter ~f:(is_adjacent slots rs x) |>
-        Var.Set.of_sequence |> function
-        | s when Set.is_empty s -> ()
-        | s -> Hashtbl.set adj ~key:x ~data:s);
+    (* Compute the adjacency sets. *)
+    for i = 0 to len - 1 do
+      let x = Vec.unsafe_get vs i in
+      for j = 0 to len - 1 do
+        if i <> j then
+          let y = Vec.unsafe_get vs j in
+          if compat_range x y then
+            x.adj <- Set.add x.adj y.var
+      done
+    done;
     (* Use an ascending order. *)
-    Vec.sort vs ~compare:(fun x y -> range_priority rs y x);
+    Vec.sort vs ~compare:(fun x y -> range_priority y x);
     while not @@ Vec.is_empty vs do
       let x = Vec.pop_exn vs in
-      Hash_set.strict_add assigned x |>
-      Or_error.iter ~f:(fun () ->
-          Logs.debug (fun m ->
-              m "%s: processing %a%!"
-                __FUNCTION__ Var.pp x);
-          let g = Vec.fold_right vs
-              ~init:(Var.Set.singleton x)
-              ~f:(fun y g ->
-                  (* Ensure that all groups are disjoint. *)
-                  if Hash_set.mem assigned y then g
-                  else match Hashtbl.find adj y with
-                    | Some a when Set.is_subset g ~of_:a ->
-                      (* Freeze `y` to this group. *)
-                      Hash_set.add assigned y;
-                      Set.add g y
-                    | Some _ | None -> g) in
-          gs := g :: !gs)
+      if not x.assigned then
+        let () = x.assigned <- true in
+        Logs.debug (fun m ->
+            m "%s: processing %a%!"
+              __FUNCTION__ Var.pp x.var);
+        let g = ref [x] in
+        for i = Vec.length vs - 1 downto 0 do
+          let y = Vec.unsafe_get vs i in
+          if not y.assigned && is_subset !g y then
+            let () = y.assigned <- true in
+            g := y :: !g
+        done;
+        gs := !g :: !gs
     done;
     !gs
 
 (* invariant: a group is never empty *)
-let canon_elt slots g =
-  Set.to_sequence g |>
-  Seq.max_elt ~compare:(size_priority slots) |>
-  Option.value_exn
+let canon_elt g = List.max_elt g ~compare:size_priority |> Option.value_exn
 
 let make_subst slots p =
-  List.fold p ~init:Var.Map.empty ~f:(fun init g ->
-      if Set.length g <= 1 then init else
-        let canon = canon_elt slots g in
-        Set.to_sequence g |>
-        Seq.filter ~f:(not @. Var.equal canon) |>
-        Seq.fold ~init ~f:(fun acc x ->
-            Map.set acc ~key:x ~data:(`var canon)))
+  List.fold p ~init:Var.Map.empty
+    ~f:(fun init -> function
+        | [] | [_] -> init
+        | g ->
+          let canon = canon_elt g in
+          let data = `var canon.var in
+          List.fold g ~init ~f:(fun acc x ->
+              if Var.(x.var = canon.var) then acc
+              else Map.set acc ~key:x.var ~data))
 
 type t = {
   subst : Subst_mapper.t; (* Map from coalesced to canonical slots *)
@@ -306,7 +311,8 @@ module Make(M : Scalars.L) = struct
     Logs.debug (fun m ->
         List.iter p ~f:(fun g ->
             m "%s: group: %s%!" __FUNCTION__
-              (Set.to_list g |> List.to_string ~f:Var.to_string)));
+              (List.to_string g ~f:(fun x ->
+                   Var.to_string x.var))));
     Logs.debug (fun m ->
         if not @@ Lset.is_empty deads then
           m "%s: dead stores: %a%!"

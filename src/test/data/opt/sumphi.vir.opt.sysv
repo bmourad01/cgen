@@ -1,11 +1,11 @@
 module sumphi
 
 function $sum(l %s/rdi) {
-  %3 = slot 8, align 8
+  %p = slot 8, align 8
 @2:
-  st.l %s, %3 ; @22
-  %a.1 = ld.w %3 ; @4
-  %0 = add.l %3, 0x4_l ; @19
+  st.l %s, %p ; @22
+  %a.1 = ld.w %p ; @4
+  %0 = add.l %p, 0x4_l ; @19
   %b.1 = ld.w %0 ; @6
   %1 = add.w %a.1, %b.1 ; @20
   ret rax/%1
@@ -19,7 +19,7 @@ export function $sumphi(l %a/rdi, l %b/rsi, w %x/rdx) {
   jmp @14(%a)
 @10:
   jmp @14(%b)
-@14(%5.3):
-  %s.1/w/rax = call $sum(%5.3/rdi) ; @18
+@14(%rb.3):
+  %s.1/w/rax = call $sum(%rb.3/rdi) ; @18
   ret rax/%s.1
 }
