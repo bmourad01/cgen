@@ -261,17 +261,33 @@ let collect_reuse_lea fn =
 let reuse_lea changed fn =
   map_insns changed fn @@ collect_reuse_lea fn
 
+let and_test_cc = function
+  | Ce | Cne | Cs | Cns -> true
+  | _ -> false
+
+let and_test_act = function
+  | Jcc (cc, _)
+  | One (SETcc cc, _)
+  | Two (CMOVcc cc, _, _)
+    -> and_test_cc cc
+  | _ -> false
+
 let collect_and_test fn =
   Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
         | (_, Two (AND, Oreg (r1, _), _))
           :: (l, Two (TEST_, Oreg (r1', _), Oreg (r2', _)))
-          :: xs when Rv.(r1 = r1') && Rv.(r1 = r2') ->
+          :: (_, act)
+          :: xs when Rv.(r1 = r1')
+                  && Rv.(r1 = r2')
+                  && and_test_act act ->
           go (Lset.add acc l) xs
         | (_, Two (AND, Oreg (r1, _), _))
           :: (l, Two (CMP, Oreg (r1', _), Oimm (0L, _)))
-          :: xs when Rv.equal r1 r1' ->
+          :: (_, act)
+          :: xs when Rv.equal r1 r1'
+                  && and_test_act act ->
           go (Lset.add acc l) xs
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
