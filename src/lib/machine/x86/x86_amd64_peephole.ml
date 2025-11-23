@@ -10,20 +10,22 @@ module Lset = Label.Tree_set
 
 let decomp i = Insn.label i, Insn.insn i
 
-let map_insns fn t =
-  if Ltree.is_empty t then fn
-  else Func.map_blks fn ~f:(fun b ->
-      Blk.map_insns b ~f:(fun i ->
-          match Ltree.find t @@ Insn.label i with
-          | Some insn -> Insn.with_insn i insn
-          | None -> i))
+let map_insns changed fn t =
+  if Ltree.is_empty t then fn else
+    let () = changed := true in
+    Func.map_blks fn ~f:(fun b ->
+        Blk.map_insns b ~f:(fun i ->
+            match Ltree.find t @@ Insn.label i with
+            | Some insn -> Insn.with_insn i insn
+            | None -> i))
 
-let filter_not_in fn t =
-  if Lset.is_empty t then fn
-  else Func.map_blks fn ~f:(fun b ->
-      Blk.insns b |> Seq.filter ~f:(fun i ->
-          not @@ Lset.mem t @@ Insn.label i) |>
-      Seq.to_list |> Blk.with_insns b)
+let filter_not_in changed fn t =
+  if Lset.is_empty t then fn else
+    let () = changed := true in
+    Func.map_blks fn ~f:(fun b ->
+        Blk.insns b |> Seq.filter ~f:(fun i ->
+            not @@ Lset.mem t @@ Insn.label i) |>
+        Seq.to_list |> Blk.with_insns b)
 
 (* Blocks that consist of a single instruction of the form:
 
@@ -46,10 +48,10 @@ let collect_singles fn =
         | _ -> acc)
 
 (* Union-find with path compression. *)
-let find_with_compression m l =
+let find_with_compression changed m l =
   let parent l = Ltree.find !m l |> Option.value ~default:l in
-  let l = ref l in
-  let p = ref @@ parent !l in
+  let l = ref l and orig = l in
+  let p = ref @@ parent orig in
   while Label.(!l <> !p) do
     let g = parent !p in
     if Label.(g <> !p) then begin
@@ -58,6 +60,7 @@ let find_with_compression m l =
     end;
     l := g
   done;
+  if Label.(!p <> orig) then changed := true;
   !p
 
 (* For blocks collected in the above analysis, thread them through to
@@ -83,10 +86,10 @@ let find_with_compression m l =
    @3:
      ...
 *)
-let jump_threading fn =
+let jump_threading changed fn =
   let singles = collect_singles fn in
   if not @@ Label.Tree.is_empty singles then
-    let find = find_with_compression @@ ref singles in
+    let find = find_with_compression changed @@ ref singles in
     Func.map_blks fn ~f:(fun b ->
         Blk.map_insns b ~f:(fun i ->
             Insn.with_insn i @@ match Insn.insn i with
@@ -97,7 +100,7 @@ let jump_threading fn =
   else fn
 
 (* Remove blocks that are not reachable from the entry block. *)
-let remove_disjoint fn =
+let remove_disjoint changed fn =
   let reachable = with_return @@ fun {return} ->
     let cfg = Cfg.create ~is_barrier ~dests fn in
     let start = Func.entry fn in
@@ -106,9 +109,12 @@ let remove_disjoint fn =
       ~start_tree:(fun n s ->
           if Label.(n = start) then s else return s)
       ~enter_node:(fun _ n s -> Lset.add s n) in
-  Func.blks fn |> Seq.map ~f:Blk.label |>
-  Seq.filter ~f:(Fn.non @@ Lset.mem reachable) |>
-  Seq.to_list |> Func.remove_blks_exn fn
+  let dead =
+    Func.blks fn |> Seq.map ~f:Blk.label |>
+    Seq.filter ~f:(Fn.non @@ Lset.mem reachable) |>
+    Seq.to_list in
+  if not @@ List.is_empty dead then changed := true;
+  Func.remove_blks_exn fn dead
 
 (* Invert conditional branches based on the block layout.
 
@@ -146,8 +152,8 @@ let collect_invert_branches afters fn =
               ~key:lb ~data:(JMP (Jlbl a))
           | _ -> acc))
 
-let invert_branches afters fn =
-  map_insns fn @@ collect_invert_branches afters fn
+let invert_branches changed afters fn =
+  map_insns changed fn @@ collect_invert_branches afters fn
 
 (* Eliminate useless unconditional jumps where a fallthrough would suffice.
 
@@ -176,8 +182,8 @@ let collect_implicit_fallthroughs afters fn =
             Lset.add acc la
           | _ -> acc))
 
-let implicit_fallthroughs afters fn =
-  filter_not_in fn @@ collect_implicit_fallthroughs afters fn
+let implicit_fallthroughs changed afters fn =
+  filter_not_in changed fn @@ collect_implicit_fallthroughs afters fn
 
 (* Deallocating the stack pointer followed by a LEAVE instruction
    is redundant.
@@ -212,8 +218,8 @@ let collect_dealloc_stack_before_leave fn =
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
-let dealloc_stack_before_leave fn =
-  filter_not_in fn @@ collect_dealloc_stack_before_leave fn
+let dealloc_stack_before_leave changed fn =
+  filter_not_in changed fn @@ collect_dealloc_stack_before_leave fn
 
 let collect_redundant_spill_after_reload fn =
   Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
@@ -229,8 +235,8 @@ let collect_redundant_spill_after_reload fn =
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
-let redundant_spill_after_reload fn =
-  filter_not_in fn @@ collect_redundant_spill_after_reload fn
+let redundant_spill_after_reload changed fn =
+  filter_not_in changed fn @@ collect_redundant_spill_after_reload fn
 
 (* If we have a LEA of the same address as a subsequent load,
    then use the result of the LEA as the address for the load.
@@ -252,8 +258,8 @@ let collect_reuse_lea fn =
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
-let reuse_lea fn =
-  map_insns fn @@ collect_reuse_lea fn
+let reuse_lea changed fn =
+  map_insns changed fn @@ collect_reuse_lea fn
 
 let collect_and_test fn =
   Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
@@ -270,8 +276,8 @@ let collect_and_test fn =
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
-let and_test fn =
-  filter_not_in fn @@ collect_and_test fn
+let and_test changed fn =
+  filter_not_in changed fn @@ collect_and_test fn
 
 let immty = function
   | #Type.imm as imm -> imm
@@ -293,8 +299,8 @@ let collect_lea_mov fn =
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
-let lea_mov fn =
-  map_insns fn @@ collect_lea_mov fn
+let lea_mov changed fn =
+  map_insns changed fn @@ collect_lea_mov fn
 
 (* TODO: fill me in *)
 let combinable_binop = function
@@ -334,8 +340,8 @@ let collect_mov_op fn =
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
-let mov_op fn =
-  map_insns fn @@ collect_mov_op fn
+let mov_op changed fn =
+  map_insns changed fn @@ collect_mov_op fn
 
 let collect_mov_to_store fn =
   Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
@@ -350,20 +356,28 @@ let collect_mov_to_store fn =
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
 
-let mov_to_store fn =
-  map_insns fn @@ collect_mov_to_store fn
+let mov_to_store changed fn =
+  map_insns changed fn @@ collect_mov_to_store fn
+
+let max_rounds = 5
 
 let run fn =
-  let fn = jump_threading fn in
-  let fn = remove_disjoint fn in
-  let afters = Func.collect_afters fn in
-  let fn = invert_branches afters fn in
-  let fn = implicit_fallthroughs afters fn in
-  let fn = dealloc_stack_before_leave fn in
-  let fn = redundant_spill_after_reload fn in
-  let fn = reuse_lea fn in
-  let fn = and_test fn in
-  let fn = lea_mov fn in
-  let fn = mov_op fn in
-  let fn = mov_to_store fn in
-  fn
+  let rec loop i fn =
+    if i > max_rounds then fn else
+      let () = Logs.debug (fun m ->
+          m "%s: peephole round %d%!" __FUNCTION__ i) in
+      let changed = ref false in
+      let fn = jump_threading changed fn in
+      let fn = remove_disjoint changed fn in
+      let afters = Func.collect_afters fn in
+      let fn = invert_branches changed afters fn in
+      let fn = implicit_fallthroughs changed afters fn in
+      let fn = dealloc_stack_before_leave changed fn in
+      let fn = redundant_spill_after_reload changed fn in
+      let fn = reuse_lea changed fn in
+      let fn = and_test changed fn in
+      let fn = lea_mov changed fn in
+      let fn = mov_op changed fn in
+      let fn = mov_to_store changed fn in
+      if !changed then loop (i + 1) fn else fn in
+  loop 1 fn
