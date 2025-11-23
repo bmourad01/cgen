@@ -201,52 +201,48 @@ let is_empty t =
 module Make(M : Scalars.L) = struct
   open M
 
-  module Analysis = Scalars.Make(M)
+  module S = Slot_initialization.Make(M)
 
   let mkdef s x n = Map.update s x ~f:(function
       | None -> Range.singleton n
       | Some r -> Range.def r n)
 
-  let mkuse f s x n = Map.change s x ~f:(function
+  let mkuse s x n = Map.change s x ~f:(function
       | Some r -> Some (Range.use r n)
-      | None -> f n)
+      | None -> None)
 
-  let update acc s x n ldst = match Map.find s x with
-    | Some Top -> Map.set acc ~key:x ~data:Range.bad
-    | Some Offset (base, _) ->
-      begin match ldst with
-        | None -> mkuse (const None) acc base n
-        | Some Store -> mkdef acc base n
-        | Some Load ->
-          (* If we end up with a load from an uninitialized slot,
-             then it is UB, and we shouldn't try to coalesce it
-             with anything else. *)
-          let f _ =
-            Logs.debug (fun m ->
-                m "%s: slot %a is loaded before being initialized"
-                  __FUNCTION__ Var.pp base);
-            Some Range.bad in
-          mkuse f acc base n
-      end
+  let update (si : Slot_initialization.t) acc s x n l ldst =
+    match Map.find s x with
     | None -> acc
+    | Some Top -> Map.set acc ~key:x ~data:Range.bad
+    | Some Offset (base, _) -> match ldst with
+      | Some Store -> mkdef acc base n
+      | Some Load when Hash_set.mem si.bad l ->
+        (* Uninitialized load is UB: forbid this slot as
+           a candidate for coalescing. *)
+        Logs.debug (fun m ->
+            m "%s: uninitialized load at %a from %a: marking bad%!"
+              __FUNCTION__ Label.pp l Var.pp base);
+        Map.set acc ~key:base ~data:Range.bad
+      | Some Load | None -> mkuse acc base n
 
-  let liveness_insn acc s ip i =
-    let op = Insn.op i in
+  let liveness_insn si acc s ip i =
+    let l = Insn.label i and op = Insn.op i in
     let r = Insn.free_vars op in
     let r, w, ldst = match Insn.load_or_store_to op with
       | None -> r, None, None
       | Some (ptr, _, ldst) ->
         Set.remove r ptr, Some ptr, Some ldst in
     Option.fold w ~init:acc ~f:(fun acc x ->
-        update acc s x ip ldst) |> fun init ->
+        update si acc s x ip l ldst) |> fun init ->
     Set.fold r ~init ~f:(fun acc x ->
-        update acc s x ip None)
+        update si acc s x ip l None)
 
-  let liveness_ctrl acc s ip c =
+  let liveness_ctrl si acc s ip l c =
     Ctrl.free_vars c |> Set.fold ~init:acc
-      ~f:(fun acc x -> update acc s x ip None)
+      ~f:(fun acc x -> update si acc s x ip l None)
 
-  let liveness cfg blks slots t =
+  let liveness cfg blks slots t si =
     let ip = ref 0 in
     let nums = Vec.create () in
     let init =
@@ -261,12 +257,12 @@ module Make(M : Scalars.L) = struct
           let s = ref @@ get t l in
           let acc = Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
               let op = Insn.op i in
-              let acc = liveness_insn acc !s !ip i in
+              let acc = liveness_insn si acc !s !ip i in
               Vec.push nums (Insn.label i);
-              s := Analysis.transfer_op slots !s op;
+              s := S.Analysis.transfer_op slots !s op;
               incr ip;
               acc) in
-          let acc = liveness_ctrl acc !s !ip @@ Blk.ctrl b in
+          let acc = liveness_ctrl si acc !s !ip l @@ Blk.ctrl b in
           Vec.push nums l;
           incr ip;
           acc) in
@@ -292,7 +288,7 @@ module Make(M : Scalars.L) = struct
                     | _ -> acc
                   end
                 | _ -> acc in
-              s := Analysis.transfer_op slots !s op;
+              s := S.Analysis.transfer_op slots !s op;
               acc))
 
   let debug_show slots rs nums deads p subst =
@@ -301,7 +297,7 @@ module Make(M : Scalars.L) = struct
             let ppr ppf x = match Map.find rs x with
               | None -> Format.fprintf ppf "none"
               | Some r when Range.is_bad r ->
-                Format.fprintf ppf "escapes"
+                Format.fprintf ppf "bad"
               | Some r ->
                 Format.fprintf ppf "%a (%a to %a)"
                   Range.pp r
@@ -327,12 +323,13 @@ module Make(M : Scalars.L) = struct
               __FUNCTION__ Var.pp key Virtual.pp_operand data))
 
   let run fn =
-    let slots = Analysis.collect_slots fn in
+    let slots = S.Analysis.collect_slots fn in
     if Map.is_empty slots then empty else
       let cfg = Cfg.create fn in
       let blks = Func.map_of_blks fn in
-      let t = Analysis.analyze cfg blks slots in
-      let rs, nums = liveness cfg blks slots t in
+      let t = S.Analysis.analyze cfg blks slots in
+      let si = S.analyze' t cfg blks slots in
+      let rs, nums = liveness cfg blks slots t si in
       let p = partition slots rs in
       let deads = collect_deads blks slots rs t in
       let subst = make_subst slots p in

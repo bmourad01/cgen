@@ -12,7 +12,6 @@ export function w $foo(w %x) {
   st.w 0x5_w, %a ; @8
   jmp @6(0x5_w)
 @6(%v.1):
-  st.w 0x4_w, %a ; @10
   %1 = add.w %v.1, 0x4_w ; @14
   ret %1
 }

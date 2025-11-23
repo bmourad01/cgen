@@ -59,8 +59,7 @@ module Make(M : Scalars.L) = struct
           s := Analysis.transfer_op slots !s op;
           acc)
 
-  let analyze cfg blks slots =
-    let t = Analysis.analyze cfg blks slots in
+  let analyze' t cfg blks slots =
     let bad = Label.Hash_set.create () in
     let s = Graphlib.fixpoint (module Cfg) cfg
         ~init:(Solution.create init_constraints @@ top_state slots)
@@ -79,4 +78,8 @@ module Make(M : Scalars.L) = struct
             m "%s: load at %a is potentially uninitialized%!"
               __FUNCTION__ Label.pp l));
     {soln = s; bad}
+
+  let analyze cfg blks slots =
+    let t = Analysis.analyze cfg blks slots in
+    analyze' t cfg blks slots
 end
