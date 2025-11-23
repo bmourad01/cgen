@@ -128,10 +128,10 @@ end = struct
       !!![I.movsd (Oreg (x, xt)) (Oreg (y, yt))]
     | _ -> !!None
 
-  let move_ri_x_y env =
+  let move_ri_x_y ?(zx = false) env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
-    let*! () = guard @@ Type.equal_basic xt (bty yt) in
+    let*! () = guard (zx || Type.equal_basic xt (bty yt)) in
     if Bv.(y = zero) then
       !!![xor_gpr_self x xt]
     else
@@ -1738,9 +1738,9 @@ end = struct
     let xt' = ftosi_ty xt in
     match tf with
     | `f32 ->
-      !!![I.cvtss2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt))]
     | `f64 ->
-      !!![I.cvtsd2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt))]
     | _ -> !!None
 
   let ftosi_rf32_x_y ti env =
@@ -1769,9 +1769,9 @@ end = struct
     let xt' = ftoui_ty xt in
     match tf with
     | `f32 ->
-      !!![I.cvtss2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt))]
     | `f64 ->
-      !!![I.cvtsd2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt))]
     | _ -> !!None
 
   let ftoui_rf32_x_y ti env =
@@ -2217,7 +2217,7 @@ end = struct
 
     let zext = [
       move_rr_x_y ~zx:true;
-      move_ri_x_y;
+      move_ri_x_y ~zx:true;
     ]
 
     let fext ty = [

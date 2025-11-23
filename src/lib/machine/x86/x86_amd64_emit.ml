@@ -66,36 +66,35 @@ let emit_func ppf (name, lnk) =
   Format.fprintf ppf ".section %s\n" section;
   if Linkage.export lnk then global ppf name;
   Format.fprintf ppf ".p2align 4\n";
-  Format.fprintf ppf "%s:\n" name;
-  Format.fprintf ppf "  endbr64\n"
+  Format.fprintf ppf "%s:\n" name
 
 let emit_blk ppf (l : Label.t) =
   Format.fprintf ppf "%a:\n" label l
 
+let emit_reg t ppf r = match r, t with
+  | (#Reg.sse as r), (#Type.fp | `v128) ->
+    Format.fprintf ppf "%a" Reg.pp_sse r
+  | (#Reg.gpr as r), `i8 ->
+    Format.fprintf ppf "%a" Reg.pp_gpr8 r
+  | (#Reg.gpr as r), `i16 ->
+    Format.fprintf ppf "%a" Reg.pp_gpr16 r
+  | (#Reg.gpr as r), `i32 ->
+    Format.fprintf ppf "%a" Reg.pp_gpr32 r
+  | (#Reg.gpr as r), `i64 ->
+    Format.fprintf ppf "%a" Reg.pp_gpr r
+  | `rip, `i64 ->
+    Format.fprintf ppf "rip"
+  | _ ->
+    invalid_argf "invalid register/type combo: %s/%s"
+      (Format.asprintf "%a" Reg.pp r)
+      (match t with
+       | `v128 -> "v128"
+       | #Type.basic as t ->
+         Format.asprintf "%a" Type.pp_basic t)
+      ()
+
 let emit_regvar t ppf rv = match Regvar.which rv with
-  | First r ->
-    begin match r, t with
-      | (#Reg.sse as r), (#Type.fp | `v128) ->
-        Format.fprintf ppf "%a" Reg.pp_sse r
-      | (#Reg.gpr as r), `i8 ->
-        Format.fprintf ppf "%a" Reg.pp_gpr8 r
-      | (#Reg.gpr as r), `i16 ->
-        Format.fprintf ppf "%a" Reg.pp_gpr16 r
-      | (#Reg.gpr as r), `i32 ->
-        Format.fprintf ppf "%a" Reg.pp_gpr32 r
-      | (#Reg.gpr as r), `i64 ->
-        Format.fprintf ppf "%a" Reg.pp_gpr r
-      | `rip, `i64 ->
-        Format.fprintf ppf "rip"
-      | _ ->
-        invalid_argf "invalid register/type combo: %s/%s"
-          (Format.asprintf "%a" Reg.pp r)
-          (match t with
-           | `v128 -> "v128"
-           | #Type.basic as t ->
-             Format.asprintf "%a" Type.pp_basic t)
-          ()
-    end
+  | First r -> emit_reg t ppf r
   | Second (x, _) ->
     invalid_argf "tried to emit a variable %s"
       (Format.asprintf "%a" Var.pp x) ()

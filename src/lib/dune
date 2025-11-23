@@ -20,6 +20,7 @@
   core_kernel.pairing_heap
   core_kernel.uopt
   graphlib
+  logs
   monads
   regular
   zarith)
@@ -39,8 +40,11 @@
   patricia_tree_intf
   phi_values
   resolver_intf
+  scalars
+  slot_initialization
   sm
   subst_mapper
+  subst_mapper_abi
   tags
   var_internal
   virtual_lexer

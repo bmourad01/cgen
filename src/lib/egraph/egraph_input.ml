@@ -12,27 +12,38 @@ module Operands = Set.Make(struct
     type t = operand [@@deriving compare, sexp]
   end)
 
-module Phis = Phi_values.Make(struct
-    type t = Operands.t [@@deriving equal]
-    let one = Operands.singleton
-    let join = Set.union
-  end)
+module Phis_lang = struct
+  module Ctrl = struct
+    type t = ctrl
+    let locals = (Phi_values.locals Ctrl.Table.enum :> t -> _)
+  end
+  module Blk = Blk
+  module Func = Func
+  module Cfg = Cfg
+end
+
+module Phis_domain = struct
+  type t = Operands.t [@@deriving equal]
+  let one = Operands.singleton
+  let join = Set.union
+end
+
+module Phis = Phi_values.Make(Phis_lang)(Phis_domain)
 
 (* General information about the function we're translating. *)
 type t = {
-  fn   : func;                      (* The function itself. *)
-  loop : loops;                     (* Loops analysis. *)
-  reso : resolver;                  (* Labels to blocks/insns. *)
-  cfg  : Cfg.t;                     (* The CFG. *)
-  dom  : Label.t Semi_nca.tree;     (* Dominator tree. *)
-  domd : int Label.Table.t;         (* Dominator tree depths. *)
-  pdom : Label.t Semi_nca.tree;     (* Post-dominator tree. *)
-  rdom : Dominance.t;               (* Fine-grained dominance relation. *)
-  df   : Label.t Semi_nca.frontier; (* Dominance frontiers. *)
-  lst  : Last_stores.t;             (* Last stores analysis. *)
-  tenv : Typecheck.env;             (* Typing environment. *)
-  phis : Phis.state;                (* Block argument value sets. *)
-  rpo  : Label.t -> int;            (* Reverse post-order number. *)
+  fn   : func;                  (* The function itself. *)
+  loop : loops;                 (* Loops analysis. *)
+  reso : resolver;              (* Labels to blocks/insns. *)
+  cfg  : Cfg.t;                 (* The CFG. *)
+  dom  : Label.t Semi_nca.tree; (* Dominator tree. *)
+  domd : int Label.Table.t;     (* Dominator tree depths. *)
+  pdom : Label.t Semi_nca.tree; (* Post-dominator tree. *)
+  rdom : Dominance.t;           (* Fine-grained dominance relation. *)
+  lst  : Last_stores.t;         (* Last stores analysis. *)
+  tenv : Typecheck.env;         (* Typing environment. *)
+  phis : Phis.state;            (* Block argument value sets. *)
+  rpo  : Label.t -> int;        (* Reverse post-order number. *)
 }
 
 let init_dom_relation reso dom =
@@ -83,10 +94,9 @@ let init fn tenv =
   let loop = Loops.analyze ~name:(Func.name fn) cfg in
   let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
   let pdom = Semi_nca.compute (module Cfg) cfg Label.pseudoexit ~rev:true in
-  let df = Semi_nca.frontier (module Cfg) cfg dom in
   let rdom = init_dom_relation reso dom in
   let lst = init_last_stores cfg reso in
   let domd = dom_depths dom in
   let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
   let rpo = init_rpo cfg in
-  {fn; loop; reso; cfg; dom; domd; pdom; rdom; df; lst; tenv; phis; rpo}
+  {fn; loop; reso; cfg; dom; domd; pdom; rdom; lst; tenv; phis; rpo}

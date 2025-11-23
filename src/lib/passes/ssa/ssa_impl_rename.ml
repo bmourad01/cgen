@@ -15,20 +15,27 @@ end = struct
     | None -> raise_notrace @@ Missing_blk l
     | Some _ as b -> b
 
+  let fresh_version nums base =
+    let i = ref 1 in
+    Hashtbl.update nums base ~f:(function
+        | None -> !i
+        | Some n ->
+          let n = n + 1 in
+          i := n;
+          n);
+    !i
+
   let new_name stk nums x =
-    let key = Var.base x in
-    let default = 1 in
-    let n = ref default in
-    let upd x = n := x + 1; !n in
-    Hashtbl.update nums key ~f:(Option.value_map ~default ~f:upd);
-    let y = Var.with_index x !n in
-    Hashtbl.add_multi stk ~key ~data:y;
+    let base = Var.base x in
+    let idx = fresh_version nums base in
+    let y = Var.with_index x idx in
+    Hashtbl.add_multi stk ~key:base ~data:y;
     y
 
   let rename_args stk nums b =
     Blk.args b |> Seq.map ~f:(new_name stk nums) |> Seq.to_list
 
-  let map_var stk x = match Hashtbl.find stk x with
+  let map_var stk x = match Hashtbl.find stk @@ Var.base x with
     | Some [] | None -> x
     | Some (y :: _) -> y
 

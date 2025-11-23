@@ -1,0 +1,27 @@
+module esc1
+
+export function w $foo(w %x) {
+  %a = slot 8, align 8
+  %b = slot 8, align 8
+@start:
+  %x1 = add.w %x, 1_w
+  %x2 = add.w %x, 2_w
+  %x3 = add.w %x, 3_w
+  st.w %x, %a
+  %a4 = add.l %a, 4_l
+  st.w %x1, %a4
+  st.w %x2, %b
+  %b4 = add.l %b, 4_l
+  st.w %x3, %b4
+  %c = slt.w %x, 0_w
+  br %c, @yes, @no
+@yes:
+  %p = copy.l %b4
+  jmp @done
+@no:
+  %p = copy.l %a4
+  jmp @done
+@done:
+  %r = ld.w %p
+  ret %r
+}

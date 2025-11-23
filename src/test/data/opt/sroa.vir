@@ -1,0 +1,22 @@
+module sroa
+
+export function w $foo(w %a, w %b, w %c, w %d) {
+  %s = slot 16, align 4
+@start:
+  %p1 = add.l %s, 0_l
+  st.w %a, %p1
+  %p2 = add.l %s, 4_l
+  st.w %b, %p2
+  %p3 = add.l %s, 8_l
+  st.w %c, %p3
+  %p4 = add.l %s, 12_l
+  st.w %d, %p4
+  %a = ld.w %p1
+  %b = ld.w %p2
+  %c = ld.w %p3
+  %d = ld.w %p4
+  %x = add.w %a, %b
+  %x = add.w %x, %c
+  %x = add.w %x, %d
+  ret %x
+}

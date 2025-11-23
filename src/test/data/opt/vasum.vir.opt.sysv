@@ -1,79 +1,66 @@
 module vasum
 
 export function $sum(b %9/rax, w %n/rdi, ...) {
-  %ap = slot 24, align 8
   %3 = slot 176, align 16
 @19:
-  %4 = add.l %3, 0x8_l ; @20
-  regstore rsi, %4 ; @21
-  %5 = add.l %3, 0x10_l ; @22
-  regstore rdx, %5 ; @23
-  %6 = add.l %3, 0x18_l ; @24
-  regstore rcx, %6 ; @25
-  %7 = add.l %3, 0x20_l ; @26
-  regstore r8, %7 ; @27
-  %8 = add.l %3, 0x28_l ; @28
-  regstore r9, %8 ; @29
-  %10 = eq.b %9, 0x0_b ; @30
-  br %10, @2, @18
+  %4.1 = add.l %3, 0x8_l ; @20
+  regstore rsi, %4.1 ; @21
+  %5.1 = add.l %3, 0x10_l ; @22
+  regstore rdx, %5.1 ; @23
+  %6.1 = add.l %3, 0x18_l ; @24
+  regstore rcx, %6.1 ; @25
+  %7.1 = add.l %3, 0x20_l ; @26
+  regstore r8, %7.1 ; @27
+  %8.1 = add.l %3, 0x28_l ; @28
+  regstore r9, %8.1 ; @29
+  %10.1 = eq.b %9, 0x0_b ; @30
+  br %10.1, @2, @18
 @18:
-  %11 = add.l %3, 0x30_l ; @31
-  regstore xmm0, %11 ; @32
-  %12 = add.l %3, 0x40_l ; @33
-  regstore xmm1, %12 ; @34
-  %13 = add.l %3, 0x50_l ; @35
-  regstore xmm2, %13 ; @36
-  %14 = add.l %3, 0x60_l ; @37
-  regstore xmm3, %14 ; @38
-  %15 = add.l %3, 0x70_l ; @39
-  regstore xmm4, %15 ; @40
-  %16 = add.l %3, 0x80_l ; @41
-  regstore xmm5, %16 ; @42
-  %17 = add.l %3, 0x90_l ; @43
-  regstore xmm6, %17 ; @44
-  %18 = add.l %3, 0xa0_l ; @45
-  regstore xmm7, %18 ; @46
+  %11.1 = add.l %3, 0x30_l ; @31
+  regstore xmm0, %11.1 ; @32
+  %12.1 = add.l %3, 0x40_l ; @33
+  regstore xmm1, %12.1 ; @34
+  %13.1 = add.l %3, 0x50_l ; @35
+  regstore xmm2, %13.1 ; @36
+  %14.1 = add.l %3, 0x60_l ; @37
+  regstore xmm3, %14.1 ; @38
+  %15.1 = add.l %3, 0x70_l ; @39
+  regstore xmm4, %15.1 ; @40
+  %16.1 = add.l %3, 0x80_l ; @41
+  regstore xmm5, %16.1 ; @42
+  %17.1 = add.l %3, 0x90_l ; @43
+  regstore xmm6, %17.1 ; @44
+  %18.1 = add.l %3, 0xa0_l ; @45
+  regstore xmm7, %18.1 ; @46
   jmp @2
 @2:
-  st.w 0x8_w, %ap ; @47
-  %19 = add.l %ap, 0x4_l ; @48
-  st.w 0x30_w, %19 ; @49
-  %20 = stkargs ; @50
-  %21 = add.l %ap, 0x8_l ; @51
-  st.l %20, %21 ; @52
-  %22 = add.l %ap, 0x10_l ; @53
-  st.l %3, %22 ; @54
-  jmp @3(0x0_w, 0x0_w)
-@3(%x.2, %i.2):
-  %0 = lt.w %i.2, %n ; @15
-  br %0, @7, @8
+  %20.1 = stkargs ; @50
+  jmp @3(%20.1, 0x8_w, 0x0_w, 0x0_w)
+@3(%36.2, %34.2, %x.1, %i.1):
+  %0.1 = lt.w %i.1, %n ; @15
+  br %0.1, @7, @8
 @7:
   jmp @56
 @56:
-  %23 = ld.w %ap ; @60
-  %24 = le.w %23, 0x28_w ; @61
-  br %24, @57, @58
+  %24.1 = le.w %34.2, 0x28_w ; @61
+  br %24.1, @57, @58
 @57:
-  %26 = ld.l %22 ; @63
-  %27 = zext.l %23 ; @64
-  %28 = add.l %26, %27 ; @65
-  %29 = add.w %23, 0x8_w ; @66
-  st.w %29, %ap ; @67
-  jmp @59(%28)
+  %27.1 = zext.l %34.2 ; @64
+  %28.1 = add.l %3, %27.1 ; @65
+  %29.1 = add.w %34.2, 0x8_w ; @66
+  jmp @59(%36.2, %29.1, %28.1)
 @58:
-  %31 = ld.l %21 ; @69
-  %32 = add.l %31, 0x8_l ; @70
-  st.l %32, %21 ; @71
-  jmp @59(%31)
-@59(%33):
-  %y.1 = ld.w %33 ; @72
+  %32.1 = add.l %36.2, 0x8_l ; @70
+  jmp @59(%32.1, %34.2, %36.2)
+@59(%36.3, %34.3, %33.1):
+  %y.1 = ld.w %33.1 ; @72
   jmp @55
 @55:
-  %1 = add.w %x.2, %y.1 ; @16
-  %2 = add.w %i.2, 0x1_w ; @17
-  jmp @3(%1, %2)
+  %1.1 = add.w %x.1, %y.1 ; @16
+  %2.1 = add.w %i.1, 0x1_w ; @17
+  jmp @3(%36.3, %34.3, %1.1, %2.1)
 @8:
-  ret rax/%x.2
+  ret rax/%x.1
 }
 
 export function $twenty_eight() {

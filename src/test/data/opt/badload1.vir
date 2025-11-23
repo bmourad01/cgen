@@ -1,0 +1,21 @@
+module badload1
+
+export function w $foo(w %x) {
+  %a = slot 4, align 4
+  %b = slot 4, align 4
+@start:
+  %c = slt.w %x, 0_w
+  br %c, @neg, @nonneg
+@neg:
+  %v = ld.w %a
+  jmp @stuff
+@nonneg:
+  st.w 5_w, %a
+  %v = ld.w %a
+  jmp @stuff
+@stuff:
+  st.w 4_w, %b
+  %w = ld.w %b
+  %r = add.w %v, %w
+  ret %r
+}

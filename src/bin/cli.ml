@@ -134,7 +134,14 @@ type t = {
   target : Cgen.Target.t;
 }
 
-let go f file output dump nc target =
+let log_env = Cmd.Env.info "CGEN_LOG"
+
+let setup_log level =
+  Logs.set_level level;
+  Logs.set_reporter @@ Logs_fmt.reporter ()
+
+let go f file output dump nc target log_level =
+  setup_log log_level;
   let file = match file with
     | "" -> Istdin
     | _ -> Ifile file in
@@ -149,7 +156,15 @@ let go f file output dump nc target =
     | Some t -> t in
   f {file; output; dump; nc; target}
 
-let t f = Term.(const (go f) $ file $ output $ dump $ dump_no_comment $ target)
+let t f =
+  let open Term in
+  const (go f) $
+  file $
+  output $
+  dump $
+  dump_no_comment $
+  target $
+  Logs_cli.level ~env:log_env ()
 
 let man = List.concat [
     man_dump;

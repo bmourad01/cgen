@@ -1,0 +1,9 @@
+module coalesce1a
+
+export function w $f(w %x, w %y, w %z) {
+@2:
+  %2 = add.w %x, %y ; @21
+  %4 = add.w %z, %y ; @23
+  %5 = add.w %2, %4 ; @24
+  ret %5
+}
