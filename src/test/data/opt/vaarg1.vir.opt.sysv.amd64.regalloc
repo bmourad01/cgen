@@ -26,22 +26,22 @@ export function $foo { ; returns: rax
   mov dword ptr [rbp - 0xc], 0x30_w ; @55
   lea rax, qword ptr [rbp + 0x10] ; @56
 @63:
-  mov edx, dword ptr [rbp - 0x10] ; @70
-  cmp edx, 0x28_w ; @107
+  mov ecx, dword ptr [rbp - 0x10] ; @70
+  cmp ecx, 0x28_w ; @107
   jbe @64 ; @108
 @65:
-  lea rcx, qword ptr [rax + 0x8] ; @84
+  lea rdx, qword ptr [rax + 0x8] ; @84
   jmp @66 ; @106
 @64:
   lea rax, qword ptr [rbp - 0x90] ; @75
-  lea rcx, qword ptr [rbp + rdx*1 - 0xc0] ; @77
-  add edx, 0x8_w ; @79
+  lea rdx, qword ptr [rbp + rcx*1 - 0xc0] ; @77
+  add ecx, 0x8_w ; @79
   mov dword ptr [rbp - 0xc], 0x40_w ; @80
-  mov dword ptr [rbp - 0x10], edx ; @81
+  mov dword ptr [rbp - 0x10], ecx ; @81
 @66:
   mov rax, qword ptr [rax] ; @87
   mov qword ptr [rbp - 0x10], rax ; @88
-  mov rcx, qword ptr [rcx] ; @89
+  mov rcx, qword ptr [rdx] ; @89
 @61:
   movsd xmm0, qword ptr [rbp - 0x10] ; @6
   addsd xmm0, qword ptr [rip + @97] ; @98

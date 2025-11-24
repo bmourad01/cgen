@@ -15,7 +15,7 @@ export function $main { ; returns: rax
   push rbx ; @69
   mov rdi, qword ptr [rsi + 0x8] ; @5
   call $atoi ; rdi ; @60
-  mov r14d, eax ; @56
+  mov r14d, eax ; @61
   mov r13d, 0x1_w ; @57
   mov eax, 0x1_w ; @58
 @3:
@@ -38,10 +38,8 @@ export function $main { ; returns: rax
   mov edx, ebx ; @36
   xor al, al ; @37
   call $printf ; rax rdi rdx rsi ; @38
-  lea ecx, qword ptr [r14 - 0x1] ; @25
-  lea eax, qword ptr [r13 + 0x1] ; @26
-  mov r14d, ecx ; @31
-  mov r13d, eax ; @32
+  dec r14d ; @25
+  inc r13d ; @26
   mov eax, r12d ; @33
   jmp @3 ; @34
 @9:

@@ -38,8 +38,8 @@ export function $qsort {
   push r14 ; @122
   push rbx ; @123
   mov r14, rdi ; @113
+  mov rbx, rsi ; @114
   mov r13, rdx ; @115
-  mov rbx, rsi ; @116
 @39:
   cmp rbx, r13 ; @108
   jl @40 ; @109
@@ -60,7 +60,6 @@ export function $qsort {
   mov rdi, r14 ; @45
   mov rsi, rbx ; @100
   call $qsort ; rdi rdx rsi ; @102
-  lea rax, qword ptr [r12 + 0x1] ; @67
-  mov rbx, rax ; @98
+  lea rbx, qword ptr [r12 + 0x1] ; @67
   jmp @39 ; @99
 }
