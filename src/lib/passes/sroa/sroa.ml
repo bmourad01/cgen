@@ -1,7 +1,7 @@
 open Core
 open Virtual
 open Sroa_impl
-open Sroa_coalesce_common
+open Scalars_common
 
 module V = Make(VL)
 module A = Make(AL)

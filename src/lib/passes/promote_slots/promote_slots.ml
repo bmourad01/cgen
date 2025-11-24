@@ -50,7 +50,7 @@ open E.Syntax
 
 let run fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
-    let module S = Slot_initialization.Make(Sroa_coalesce_common.VL) in
+    let module S = Slot_initialization.Make(Scalars_common.VL) in
     let slots = S.Analysis.collect_slots fn in
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
@@ -65,7 +65,7 @@ let run fn =
 let run_abi fn =
   let open Abi in
   if Dict.mem (Func.dict fn) Tags.ssa then
-    let module S = Slot_initialization.Make(Sroa_coalesce_common.AL) in
+    let module S = Slot_initialization.Make(Scalars_common.AL) in
     let slots = S.Analysis.collect_slots fn in
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in

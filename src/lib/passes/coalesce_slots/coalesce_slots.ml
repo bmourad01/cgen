@@ -4,10 +4,9 @@ open Regular.Std
 open Virtual
 open Scalars
 open Coalesce_slots_impl
-open Sroa_coalesce_common
+open Scalars_common
 
 module E = Monad.Result.Error
-
 module V = Make(VL)
 module A = Make(AL)
 
