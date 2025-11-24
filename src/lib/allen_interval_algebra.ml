@@ -1,9 +1,9 @@
-open Core
-
 (** Allen's Interval Algebra.
 
     {:https://en.wikipedia.org/wiki/Allen%27s_interval_algebra}
 *)
+
+open Core
 
 type t =
   | Before
@@ -44,7 +44,10 @@ module type S = sig
   (** A point in the interval. *)
   type point
 
-  (** An inclusive interval. *)
+  (** An inclusive interval.
+
+      Invariant: [lo t <= hi t]
+  *)
   type t
 
   (** The lower-bound of the interval. *)

@@ -13,6 +13,66 @@ open Regular.Std
 open Scalars
 
 module Slot = Virtual.Slot
+module Allen = Allen_interval_algebra
+
+type range = {
+  lo : int64;
+  hi : int64;
+}
+
+module Range = struct
+  type t = range
+  let lo r = r.lo [@@inline]
+  let hi r = r.hi [@@inline]
+  let size r = Int64.(r.hi - r.lo) [@@inline]
+  let coverage a b = Int64.(b.hi - a.lo) [@@inline]
+  let pp ppf r = Format.fprintf ppf "[0x%Lx, 0x%Lx)" r.lo r.hi
+end
+
+module Algebra = Allen.Make(struct
+    include Range
+    type point = int64
+    include Int64.Replace_polymorphic_compare
+  end)
+
+let basic_size ty = Type.sizeof_basic ty / 8 [@@inline]
+
+(* A partition of elements at a particular offset+size range. *)
+type 'a partition = {
+  off  : int64;
+  size : int64;
+  mems : 'a list;
+}
+
+type 'a partitions = 'a partition list Var.Map.t
+
+module Partition = struct
+  type 'a t = 'a partition
+
+  let cmp a b = Int64.compare a.off b.off
+
+  (* Check if a partition covers the entire slot `s`. *)
+  let is_entire_slot s p = match p.off with
+    | 0L -> Int64.(of_int (Slot.size s) = p.size)
+    | _ -> false
+  [@@inline]
+
+  let range p = {
+    lo = p.off;
+    hi = Int64.(p.off + p.size);
+  } [@@inline]
+
+  let pp ppa ppf p =
+    Format.fprintf ppf "0x%Lx:%Ld: %a"
+      p.off p.size
+      (Format.pp_print_list
+         ~pp_sep:(fun ppf () -> Format.fprintf ppf " ")
+         ppa) p.mems
+
+  let add_member x p = {p with mems = x :: p.mems} [@@inline]
+  let change off size x p = {off; size; mems = x :: p.mems} [@@inline]
+  let singleton off size x = {off; size; mems = [x]} [@@inline]
+end
 
 module Make(M : Scalars.L) : sig
   val run : M.Func.t -> M.Func.t Context.t
@@ -31,29 +91,37 @@ end = struct
 
   type accesses = access list Var.Map.t
 
-  let basic_size ty = Type.sizeof_basic ty / 8
-  let sizeof_access a = basic_size a.ty
+  module Access = struct
+    type t = access
 
-  let cmp_access a b =
-    match Int64.compare a.off b.off with
-    | 0 -> Int.compare (sizeof_access a) (sizeof_access b)
-    | c -> c
+    let sizeof a = basic_size a.ty [@@inline]
 
-  let pp_access ppf a =
-    let neg = Int64.is_negative a.off in
-    let pre, off = if neg then '-', Int64.neg a.off else '+', a.off in
-    Format.fprintf ppf "(%a %a.%a %c0x%Lx)"
-      Label.pp (Insn.label a.insn)
-      pp_load_or_store a.ldst
-      Type.pp_basic a.ty
-      pre off
+    let cmp a b =
+      match Int64.compare a.off b.off with
+      | 0 -> Int.compare (sizeof a) (sizeof b)
+      | c -> c
+
+    let range a = {
+      lo = a.off;
+      hi = Int64.(a.off + of_int (sizeof a));
+    } [@@inline]
+
+    let pp ppf a =
+      let neg = Int64.is_negative a.off in
+      let pre, off = if neg then '-', Int64.neg a.off else '+', a.off in
+      Format.fprintf ppf "(%a %a.%a %c0x%Lx)"
+        Label.pp (Insn.label a.insn)
+        pp_load_or_store a.ldst
+        Type.pp_basic a.ty
+        pre off
+  end
 
   let collect_accesses slots fn t : accesses =
     (* Group all memory accesses by their corresponding slot. *)
     Func.blks fn |> Seq.fold ~init:Var.Map.empty ~f:(fun init b ->
         let s = ref @@ get t @@ Blk.label b in
-        Blk.insns b |> Seq.fold ~init ~f:(fun acc i ->
-            let op = Insn.op i in
+        Blk.insns b |> Seq.fold ~init ~f:(fun acc insn ->
+            let op = Insn.op insn in
             let acc = match Insn.load_or_store_to op with
               | None -> acc
               | Some (ptr, ty, ldst) -> match Map.find !s ptr with
@@ -65,77 +133,49 @@ end = struct
                         __FUNCTION__ Var.pp base);
                   acc
                 | Some Offset (base, off) ->
-                  Map.add_multi acc ~key:base ~data:{insn = i; off; ty; ldst}
+                  Map.add_multi acc ~key:base ~data:{insn; off; ty; ldst}
                 | _ -> acc in
             s := Analysis.transfer_op slots !s op;
             acc)) |>
-    Map.map ~f:(List.sort ~compare:cmp_access)
-
-  let overlaps oa sa ob sb =
-    Int64.(oa < ob + of_int sb && ob < oa + of_int sa)
-
-  let within oa sa ob sb =
-    Int64.(oa >= ob && oa + of_int sa <= ob + of_int sb)
-
-  (* A partition of memory accesses at a particular offset+size range. *)
-  type partition = {
-    off  : int64;
-    size : int;
-    mems : access list;
-  }
-
-  type partitions = partition list Var.Map.t
-
-  let cmp_partition a b = Int64.compare a.off b.off
-
-  (* Check if a partition covers the entire slot `s`. *)
-  let is_entire_slot s p = match p.off with
-    | 0L -> Slot.size s = p.size
-    | _ -> false
-
-  let pp_partition ppf p =
-    Format.fprintf ppf "0x%Lx:%d: %a"
-      p.off p.size
-      (Format.pp_print_list
-         ~pp_sep:(fun ppf () -> Format.fprintf ppf " ")
-         pp_access) p.mems
-
-  let match_part x c = {c with mems = x :: c.mems}
-  let grow_part off size x c = {off; size; mems = x :: c.mems}
-  let new_part off size x = {off; size; mems = [x]}
+    Map.map ~f:(List.sort ~compare:Access.cmp)
 
   (* Sort the memory accesses into self-contained, non-overlapping
      partitions, which are the fully-or-partially scalarized sub-objects
      of the aggregate. *)
-  let partition_acesses : accesses -> partitions = fun m ->
+  let partition_acesses : accesses -> access partitions = fun m ->
     let rec merge acc c = function
-      | [] -> List.sort (c :: acc) ~compare:cmp_partition
+      | [] -> List.sort (c :: acc) ~compare:Partition.cmp
       | x :: xs ->
-        let sx = sizeof_access x in
-        if Int64.(c.off = x.off) && c.size = sx then
-          (* Access exactly matches the current partition. *)
-          let p = match_part x c in
-          merge acc p xs
-        else if overlaps c.off c.size x.off sx then
-          (* Access overlaps with current partition, so the partition
-             must increase in size. *)
-          let open Int64 in
-          let o' = min c.off x.off in
-          let ec = c.off + of_int c.size in
-          let ex = x.off + of_int sx in
-          let e' = max ec ex in
-          let s' = to_int_exn (e' - o') in
-          let p = grow_part o' s' x c in
-          merge acc p xs
-        else
-          (* No overlap, so we start a new partition. *)
-          let p = new_part x.off sx x in
-          merge (c :: acc) p xs in
+        let rc = Partition.range c in
+        let rx = Access.range x in
+        let a = Algebra.relate rc rx in
+        let acc, p = match a with
+          | Equal | Started_by | Finished_by | Contains ->
+            (* Partition subsumes the access. *)
+            acc, Partition.add_member x c
+          | During | Finishes ->
+            (* Access subsumes the partition *)
+            acc, Partition.change rx.lo (Range.size rx) x c
+          | Overlaps | Starts ->
+            (* Extend the upper bound. *)
+            acc, Partition.change rc.lo (Range.coverage rc rx) x c
+          | Overlapped_by ->
+            (* Extend the lower bound. *)
+            acc, Partition.change rx.lo (Range.coverage rx rc) x c
+          | Before | After | Meets | Met_by ->
+            (* No overlap, so we start a new partition. *)
+            let sx = Int64.of_int @@ Access.sizeof x in
+            c :: acc, Partition.singleton x.off sx x in
+        Logs.debug (fun m ->
+            m "%s: partition %a, access %a: %a%!"
+              __FUNCTION__ Range.pp rc Range.pp rx Allen.pp a);
+        merge acc p xs in
     (* pre: each access list is sorted *)
     Map.filter_map m ~f:(function
         | [] -> None
         | x :: xs ->
-          let p = new_part x.off (sizeof_access x) x in
+          let sx = Int64.of_int @@ Access.sizeof x in
+          let p = Partition.singleton x.off sx x in
           Some (merge [] p xs))
 
   (* Turn each partition into a concrete slot. *)
@@ -143,25 +183,34 @@ end = struct
     Map.to_sequence parts |> Seq.filter_map ~f:(fun (base, ps) ->
         Map.find slots base |> Option.map ~f:(fun s -> base, ps, s)) |>
     Context.Seq.fold ~init:Scalar.Map.empty ~f:(fun init (base, ps, s) ->
-        Seq.of_list ps |> Seq.filter ~f:(not @. is_entire_slot s) |>
+        Seq.of_list ps |> Seq.filter ~f:(not @. Partition.is_entire_slot s) |>
         Context.Seq.fold ~init ~f:(fun acc p ->
             let open Context.Syntax in
+            let size = Int64.to_int_exn p.size in
             (* TODO: look through `p.mems` and see if there is a store
                that is larger than other acesses (i.e. `st.l` followed
                by one or more `ld.w`). If so, this partition could be
                broken down further if we modify the store instruction(s). *)
             let* x = Context.Var.fresh in
-            let*? s = Slot.create x ~size:p.size ~align:p.size in
+            let*? s = Slot.create x ~size ~align:size in
             Logs.debug (fun m ->
-                m "%s: new slot %a, base=%a, off=0x%Lx, size=%d%!"
+                m "%s: new slot %a, base=%a, off=0x%Lx, size=%Ld%!"
                   __FUNCTION__ Var.pp x Var.pp base p.off p.size);
             !!(Map.set acc ~key:(base, p.off) ~data:s)))
 
   (* Find the corresponding partition for [base+off, base+off+size). *)
-  let find_partition (parts : partitions) base off size =
-    Map.find parts base |>
-    Option.bind ~f:(List.find ~f:(fun p ->
-        within off size p.off p.size))
+  let find_partition (parts : 'a partitions) base off size =
+    Map.find parts base |> Option.bind ~f:(fun ps ->
+        let r = {lo = off; hi = Int64.(off + of_int size)} in
+        List.find ps ~f:(fun (p : 'a partition) ->
+            let rp = Partition.range p in
+            let a = Algebra.relate r rp in
+            Logs.debug (fun m ->
+                m "%s: relating %a to %a: %a%!"
+                  __FUNCTION__ Range.pp r Range.pp rp Allen.pp a);
+            match a with
+            | Starts | During | Finishes | Equal -> true
+            | _ -> false))
 
   (* Exact cover for a scalar at `base + off`. *)
   let rewrite_insn_exact (m : scalars) i ~exact ~base ~off =
@@ -257,7 +306,8 @@ end = struct
                   Var.pp key
                   (Format.pp_print_list
                      ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n")
-                     (fun ppf -> Format.fprintf ppf "  %a" pp_partition))
+                     (fun ppf -> Format.fprintf ppf "  %a"
+                         (Partition.pp Access.pp)))
                   data))
           (Map.to_alist parts))
 
