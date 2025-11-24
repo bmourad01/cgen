@@ -120,7 +120,7 @@
 %token COMMA
 %token EQUALS
 %token ARROW
-%token ELIPSIS
+%token ELLIPSIS
 %token SB SH SW W L B H S D Z
 %token <Type.basic> ADD DIV MUL SUB NEG
 %token <Type.imm> REM MULH UMULH UDIV UREM AND OR ASR LSL LSR ROL ROR XOR NOT
@@ -268,7 +268,7 @@ func:
     { make_fn slots blks args l name return true }
 
 func_args:
-  | ELIPSIS { !!([], true) }
+  | ELLIPSIS { !!([], true) }
   | t = type_arg x = var { let+ x = x in [x, t], false }
   | t = type_arg x = var COMMA rest = func_args
     {
@@ -456,7 +456,7 @@ call_args:
       let+ a = a and+ rest = rest in
       Arg a :: rest
     }
-  | a = operand COMMA ELIPSIS COMMA vargs = separated_nonempty_list(COMMA, operand)
+  | a = operand COMMA ELLIPSIS COMMA vargs = separated_nonempty_list(COMMA, operand)
     {
       let+ a = a and+ vargs = Context.List.all vargs in
       Arg a :: Core.List.map vargs ~f:(fun a -> Varg a)
