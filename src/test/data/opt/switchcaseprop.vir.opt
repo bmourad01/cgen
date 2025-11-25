@@ -2,9 +2,22 @@ module foo
 
 export function w $foo(w %x) {
 @2:
-  switch.w %x, @10(%x) [0x1_w -> @10(0x2_w),
-                        0x2_w -> @10(0x3_w),
-                        0x3_w -> @10(0x4_w)]
-@10(%0):
+  switch.w %x, @18(%x) [0x1_w -> @18(0x2_w),
+                        0x2_w -> @18(0x3_w),
+                        0x3_w -> @18(0x4_w)]
+@18(%0):
   ret %0
+}
+
+export function w $bar(w %x) {
+@10:
+  switch.w %x, @19(%x) [0x2_w -> @19(0x3_w),
+                        0x3_w -> @19(0x4_w),
+                        0x4_w -> @14,
+                        0x5_w -> @14]
+@14:
+  %2 = add.w %x, 0x1_w ; @20
+  jmp @19(%2)
+@19(%1):
+  ret %1
 }

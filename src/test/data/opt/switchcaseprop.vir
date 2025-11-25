@@ -17,3 +17,22 @@ export function w $foo(w %x) {
   %x = add.w %x, 1_w
   ret %x
 }
+
+export function w $bar(w %x) {
+@start:
+  switch.w %x, @default [0x2_w -> @one,
+                         0x3_w -> @two,
+                         0x4_w -> @three,
+                         0x5_w -> @three]
+@default:
+  ret %x
+@one:
+  %x = add.w %x, 1_w
+  ret %x
+@two:
+  %x = add.w %x, 1_w
+  ret %x
+@three:
+  %x = add.w %x, 1_w
+  ret %x
+}
