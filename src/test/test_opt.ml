@@ -419,6 +419,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_regalloc "promote2-partial";
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64_regalloc "parallel";
     "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumphi";
+    "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_regalloc "vasum";
   ]
 
 let native_suite = "Test native code" >::: [

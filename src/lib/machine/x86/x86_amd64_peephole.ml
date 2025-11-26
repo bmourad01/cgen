@@ -99,6 +99,40 @@ let jump_threading changed fn =
             | insn -> insn))
   else fn
 
+let is_merge_candidate cfg b1 b2 =
+  match Seq.hd @@ Blk.insns ~rev:true b1 with
+  | Some i when is_barrier (Insn.insn i) -> false
+  | Some _ | None ->
+    let l1 = Blk.label b1 and l2 = Blk.label b2 in Seq.(
+      equal Label.equal (Cfg.Node.succs l1 cfg) (singleton l2) &&
+      equal Label.equal (Cfg.Node.preds l2 cfg) (singleton l1))
+
+(* find m l = None ==> no change
+   find m l = Some None ==> delete
+   find m l = Some (Some b) ==> replace *)
+let collect_merge_blks fn =
+  let cfg = Cfg.create ~is_barrier ~dests fn in
+  let rec go m = function
+    | [] | [_] -> m
+    | b1 :: b2 :: rest  when is_merge_candidate cfg b1 b2 ->
+      let label = Blk.label b1 in
+      let insns = Seq.(to_list @@ append (Blk.insns b1) (Blk.insns b2)) in
+      let b1' = Blk.create ~label ~insns in
+      let m = Ltree.add_exn m ~key:label ~data:(Some b1') in
+      let m = Ltree.add_exn m ~key:(Blk.label b2) ~data:None in
+      go m rest
+    | _ :: rest -> go m rest in
+  Func.blks fn |> Seq.to_list |> go Ltree.empty
+
+let merge_blks changed fn =
+  let m = collect_merge_blks fn in
+  if Ltree.is_empty m then fn else
+    let () = changed := true in
+    Func.blks fn |> Seq.filter_map ~f:(fun b ->
+        match Ltree.find m @@ Blk.label b with
+        | None -> Some b | Some b' -> b') |>
+    Seq.to_list |> Func.with_blks fn
+
 (* Remove blocks that are not reachable from the entry block. *)
 let remove_disjoint changed fn =
   let reachable = with_return @@ fun {return} ->
@@ -385,6 +419,7 @@ let run fn =
       let changed = ref false in
       let fn = jump_threading changed fn in
       let fn = remove_disjoint changed fn in
+      let fn = merge_blks changed fn in
       let afters = Func.collect_afters fn in
       let fn = invert_branches changed afters fn in
       let fn = implicit_fallthroughs changed afters fn in

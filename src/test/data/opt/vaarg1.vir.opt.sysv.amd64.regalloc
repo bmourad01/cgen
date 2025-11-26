@@ -25,7 +25,6 @@ export function $foo { ; returns: rax
   mov dword ptr [rbp - 0x10], 0x8_w ; @53
   mov dword ptr [rbp - 0xc], 0x30_w ; @55
   lea rax, qword ptr [rbp + 0x10] ; @56
-@63:
   mov ecx, dword ptr [rbp - 0x10] ; @70
   cmp ecx, 0x28_w ; @107
   jbe @64 ; @108
@@ -42,7 +41,6 @@ export function $foo { ; returns: rax
   mov rax, qword ptr [rax] ; @87
   mov qword ptr [rbp - 0x10], rax ; @88
   mov rcx, qword ptr [rdx] ; @89
-@61:
   movsd xmm0, qword ptr [rbp - 0x10] ; @6
   addsd xmm0, qword ptr [rip + @97] ; @98
   .fp64 @97, 1.234 ; @99
