@@ -2,17 +2,6 @@ open Core
 open OUnit2
 open Cgen
 
-let fmt s =
-  (* Ignore lines starting with a double comment *)
-  let s =
-    String.split_lines s |> List.filter ~f:(fun ln ->
-        not @@ String.is_prefix ln ~prefix:";;") |>
-    String.concat in
-  (* Ignore returns/newlines/tabs/spaces *)
-  String.filter s ~f:(function
-      | '\r' | '\n' | '\t' | ' ' -> false
-      | _ -> true)
-
 let from_file filename =
   let open Context.Syntax in
   let* m = Parse.Virtual.from_file filename in
@@ -23,14 +12,14 @@ let from_file filename =
 let overwrite = false
 
 let compare_outputs filename' expected p' =
-  if String.(fmt p' <> fmt expected) then
+  let expected' = String.chop_suffix_if_exists expected ~suffix:"\n" in
+  if String.(p' <> expected') then
     if overwrite then
       (* Assume we're being tested via `dune test`, which runs with
          "_build/default/test/" as the CWD. *)
       Out_channel.write_all ("../../../test/" ^ filename') ~data:(p' ^ "\n")
     else
-      let expected = String.chop_suffix_if_exists expected ~suffix:"\n" in
-      let diff = Odiff.strings_diffs expected p' in
+      let diff = Odiff.strings_diffs expected' p' in
       let msg = Format.sprintf "Diff:\n\n%s" (Odiff.string_of_diffs diff) in
       assert_failure msg
 
