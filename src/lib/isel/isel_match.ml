@@ -66,7 +66,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* XXX: don't try this at home! The representations are exactly the
        same, but we need to erase the type constraints on the input. *)
     let pats : (Matcher.pat * callback list) list = Obj.magic rules in
-    let prog = Matcher.compile pats ~commute:true in
+    let name = Format.asprintf "%a-isel" Target.pp M.target in
+    let prog = Matcher.compile ~name pats ~commute:true in
     prog, VM.create ()
 
   (* Translate a substitution we got from the matcher

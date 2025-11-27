@@ -37,6 +37,8 @@ module Cost : sig
   val pure : int -> t
   val incr : t -> t
   val add : t -> t -> t
+  val opc : t -> Int63.t
+  val depth : t -> Int63.t
 end = struct
   include Int63
 
@@ -141,6 +143,19 @@ end = struct
           | Some _ | None -> term))
 end
 
+let debug_dump t =
+  Logs.debug (fun m ->
+      let pp ppf (cid, (c, n)) =
+        Format.fprintf ppf
+          "  %d:\n    cost:\n      depth: %a\n      opc: %a\n    node: %a%!"
+          cid Int63.pp (Cost.depth c) Int63.pp (Cost.opc c)
+          (Enode.pp ~node:(node t.eg)) n in
+      m "%s: cost table:\n%a"
+        __FUNCTION__
+        (Format.pp_print_list pp
+           ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n"))
+        (Hashtbl.to_alist t.table))
+
 let init eg =
   let t = {
     eg;
@@ -149,6 +164,7 @@ let init eg =
     impure = Z.zero;
   } in
   Saturation.go t;
+  debug_dump t;
   t
 
 let rec must_remain_fixed op args = match (op : Enode.op) with

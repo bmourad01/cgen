@@ -486,7 +486,10 @@ module Hoisting = struct
       Context.Seq.iter ~f:(fun (id, cid) -> match extract t id with
           | None -> extract_fail l id
           | Some e ->
-            Context.unless (should_skip t l id cid) @@ fun () ->
+            let@ () = Context.unless (should_skip t l id cid) in
+            Logs.debug (fun m ->
+                m "%s: id=%d, cid=%d was moved to l=%a, OK to hoist%!"
+                  __FUNCTION__ id cid Label.pp l);
             pure t env e >>| ignore)
 end
 
@@ -507,10 +510,21 @@ let reify t env l =
       begin match op, args with
         | Oset _, [E (Id {canon; _}, _, _)]
           when Common.is_pinned t.eg canon ->
+          Logs.debug (fun m ->
+              m "%s: pinned: id=%d, l=%a%!"
+                __FUNCTION__ id Label.pp l);
           exp t env l e
-        | _ -> !!()
+        | _ ->
+          Logs.debug (fun m ->
+              m "%s: delaying CFG extraction of id=%d, l=%a%!"
+                __FUNCTION__ id Label.pp l);
+          !!()
       end
-    | Some e -> exp t env l e
+    | Some e ->
+      Logs.debug (fun m ->
+          m "%s: eagerly extracting id=%d to l=%a in CFG%!"
+            __FUNCTION__ id Label.pp l);
+      exp t env l e
 
 (* Rewrite a single instruction. *)
 let step_insn t env i =

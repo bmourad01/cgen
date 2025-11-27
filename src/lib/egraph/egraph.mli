@@ -55,7 +55,7 @@ type rule
 type rules
 
 (** Compiles the rules. *)
-val compile : rule list -> rules
+val compile : name:string -> rule list -> rules
 
 (** [run fn tenv rules ?depth_limit ?match_limit] constructs an e-graph
     from a function [fn] and applies the [rules] eagerly to produce a

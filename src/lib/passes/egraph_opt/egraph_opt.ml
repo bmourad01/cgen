@@ -3,5 +3,5 @@
 
 module Rules = Egraph_opt_rules
 
-let run tenv fn = Egraph.run fn tenv Rules.all
-let run_no_rules tenv fn = Egraph.run fn tenv Rules.none
+let run tenv fn = Egraph.run fn tenv @@ Rules.all ()
+let run_no_rules tenv fn = Egraph.run fn tenv @@ Rules.none ()

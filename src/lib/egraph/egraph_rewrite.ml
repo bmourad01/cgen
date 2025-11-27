@@ -50,6 +50,9 @@ let union ?ty t id oid =
 
 (* Called when a duplicate node is inserted. *)
 let duplicate ?l t id =
+  Logs.debug (fun m ->
+      m "%s: inserted already hash-consed term %d:\n  %a%!"
+        __FUNCTION__ id (Enode.pp ~node:(node t)) (node t id));
   Option.iter l ~f:(Sched.duplicate t id);
   id
 
@@ -154,6 +157,14 @@ and rewrite ?ty ?l ~d t rws y =
     Uf.union t.classes rws.id oid;
     rws.id <- oid in
   try
+    let prev = rws.id in
+    Logs.debug (fun m ->
+        let s = Map.to_alist @@ Y.subst y in
+        m "%s: matched on rule %d for term %d\n  pat: %a\n  subst: %s%!"
+          __FUNCTION__ (Y.rule y) prev
+          Matcher.pp_pat (Y.pat y)
+          (List.to_string s ~f:(fun (x, id) ->
+               Format.asprintf "%s=%d" x id)));
     let env = Map.map (Y.subst y) ~f:(subst_info t) in
     let action, subsume = Y.payload y in
     let go env p = check env p; assemble env p in
@@ -171,5 +182,10 @@ and rewrite ?ty ?l ~d t rws y =
     (* Rewrite is OK, integrate with the current e-class. *)
     let continue = not (subsume || Enode.is_const (node t oid)) in
     if continue then default oid else optimal oid;
+    Logs.debug (fun m ->
+        m "%s: rewrote term %d to %d, continue=%b:\n  prev: %a\n  curr: %a%!"
+          __FUNCTION__ prev oid continue
+          (Enode.pp ~node:(node t)) (node t prev)
+          (Enode.pp ~node:(node t)) (node t oid));
     continue
   with Mismatch -> true

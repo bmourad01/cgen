@@ -2041,5 +2041,14 @@ module Groups = struct
     ]
 end
 
-let all = Egraph.compile Groups.all
-let none = Egraph.compile []
+let thunked name g =
+  let r = ref None in
+  fun () -> match !r with
+    | Some p -> p
+    | None ->
+      let p = Egraph.compile ~name g in
+      r := Some p;
+      p
+
+let all = thunked "egraph-all" Groups.all
+let none = thunked "egraph-none" []

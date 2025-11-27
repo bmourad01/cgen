@@ -98,14 +98,23 @@ let redir changed env cphi =
       | `br (c, y, n) ->
         let y' = brcond env cphi c y ~f:(fun y _ -> changed := true; y) in
         let n' = brcond env cphi c n ~f:(fun _ n -> changed := true; n) in
-        if phys_equal y y' && phys_equal n n' then b
-        else Blk.with_ctrl b @@ `br (c, y', n')
-      | `jmp `label (l, args) ->
+        if phys_equal y y' && phys_equal n n' then b else
+          let () = Logs.debug (fun m ->
+              m "%s: block %a: simplified br c=%a, y=%a, n=%a: y'=%a, n'=%a%!"
+                __FUNCTION__ Label.pp (Blk.label b)
+                Var.pp c pp_dst y pp_dst n
+                pp_dst y' pp_dst n') in
+          Blk.with_ctrl b @@ `br (c, y', n')
+      | `jmp (`label (l, args) as loc) ->
         Option.value ~default:b begin
           let* y, n, i, ne = Label.Tree.find cphi l in
           let* x = List.nth args i >>= var_of_operand in
           let+ c = if ne then Hashtbl.find env.flag x else !!x in
           changed := true;
+          Logs.debug (fun m ->
+              m "%s: block %a: simplified jmp %a: c=%a, y=%a, n=%a%!"
+                __FUNCTION__ Label.pp (Blk.label b)
+                pp_local loc Var.pp c pp_dst y pp_dst n);
           Blk.with_ctrl b @@ `br (c, y, n)
         end
       | _ -> b)

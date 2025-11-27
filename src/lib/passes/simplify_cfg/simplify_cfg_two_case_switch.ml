@@ -17,6 +17,11 @@ let go fn =
             (i :> operand)
             (`int (v, t)) in
         let b = Blk.append_insn b cmp in
+        Logs.debug (fun m ->
+            m "%s: switch at %a collapsed: i=%a, c=%a, k=%a, d=%a%!"
+              __FUNCTION__ Label.pp (Blk.label b)
+              pp_operand (i :> operand)
+              Var.pp c pp_dst (k :> dst) pp_dst (d :> dst));
         Some (Blk.with_ctrl b @@ `br (c, (k :> dst), (d :> dst)))
       | _ -> !!None) >>| Seq.to_list in
   Func.update_blks_exn fn bs

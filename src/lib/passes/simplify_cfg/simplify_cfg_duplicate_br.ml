@@ -75,6 +75,11 @@ let collect env =
         | `br (c, y, n) ->
           Option.merge (true_br env c y n) (false_br env c y n) ~f:merge_br |>
           Option.value_map ~default:acc ~f:(fun br ->
+              Logs.debug (fun m ->
+                  m "%s: block %a, simplifying c=%a, y=%a, n=%a to %a%!"
+                    __FUNCTION__ Label.pp (Blk.label b)
+                    Var.pp c pp_dst y pp_dst n
+                    Ctrl.pp (br :> ctrl));
               Label.Tree.set acc ~key ~data:br)
         | _ -> acc)
 

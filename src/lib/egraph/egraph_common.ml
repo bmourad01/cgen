@@ -117,11 +117,11 @@ type t = {
 
 type egraph = t
 
-let compile rules =
+let compile ~name rules =
   (* XXX: the previous implementation also reversed the rule order,
      and now the testsuite relies on that behavior. Maybe the real
      fix is in changing how the extractor breaks ties. *)
-  Matcher.compile @@ List.rev_map rules
+  Matcher.compile ~name @@ List.rev_map rules
     ~f:(fun r -> r.pre, (r.post, r.subsume))
 
 let find t id = Uf.find t.classes id

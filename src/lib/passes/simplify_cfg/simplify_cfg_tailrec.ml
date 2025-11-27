@@ -75,4 +75,17 @@ let go env fn =
   let* h = new_entry fn e in
   let*? fn = Func.with_blks fn (h :: blks) in
   env.start <- Blk.label h;
+  Logs.debug (fun m ->
+      let pp_call ppf (l, (args, l')) =
+        Format.fprintf ppf "  %a:\n    args: %s\n    l': %a%!"
+          Label.pp l
+          (List.to_string args ~f:(fun a ->
+               Format.asprintf "%a" pp_operand a))
+          Label.pp l' in
+      m "%s: transformed $%s to tailrec, h=%a:\n%a%!"
+        __FUNCTION__ (Func.name fn) Label.pp (Blk.label h)
+        (Format.pp_print_list
+           ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n")
+           pp_call)
+        (Label.Tree.to_list calls));
   !!fn

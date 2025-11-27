@@ -15,6 +15,10 @@ let map_blk tbl rb b = match Hashtbl.find tbl @@ Blk.label b with
 
 let commit env tbl rb fn =
   let key = Blk.label rb in
+  Logs.debug (fun m ->
+      m "%s: merged returns to new block %a: %s%!"
+        __FUNCTION__ Label.pp key
+        (Hashtbl.keys tbl |> List.to_string ~f:Label.to_string));
   Hashtbl.map_inplace env.blks ~f:(map_blk tbl rb);
   Hashtbl.set env.blks ~key ~data:rb;
   env.ret <- Some key;
