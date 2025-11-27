@@ -1,0 +1,13 @@
+found -10 at index 0, value -10
+found -1 at index 2, value -1
+found 0 at index 3, value 0
+found 4 at index 6, value 4
+found 25 at index 9, value 25
+found 100 at index 10, value 100
+-11 not found
+-2 not found
+3 not found
+5 not found
+8 not found
+99 not found
+101 not found

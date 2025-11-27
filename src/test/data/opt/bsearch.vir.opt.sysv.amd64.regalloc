@@ -1,0 +1,65 @@
+module bsearch
+
+export function $intcmp { ; returns: rax
+@2:
+  mov eax, dword ptr [rdi] ; @41
+  sub eax, dword ptr [rsi] ; @39
+  ret ; @38
+}
+
+export function $bsearch { ; returns: rax
+@6:
+  push rbp ; @89
+  mov rbp, rsp ; @90
+  sub rsp, 0x18_l ; @91
+  push r12 ; @92
+  push r13 ; @93
+  push r14 ; @94
+  push r15 ; @95
+  push rbx ; @96
+  mov qword ptr [rbp - 0x18], rdi ; @85
+  mov r15, rsi ; @78
+  mov r13, rdx ; @79
+  mov r14, rcx ; @80
+  mov qword ptr [rbp - 0x10], r8 ; @86
+@7:
+  test r13, r13 ; @72
+  jne @8 ; @73
+@42:
+  xor eax, eax ; @70
+  jmp @26 ; @71
+@8:
+  mov rbx, r13 ; @29
+  shr rbx, 0x1_b ; @69
+  mov rax, r14 ; @30
+  imul rax, rbx ; @68
+  lea r12, qword ptr [r15 + rax*1] ; @31
+  mov rdi, qword ptr [rbp - 0x18] ; @87
+  mov rsi, r12 ; @65
+  call qword ptr [rbp - 0x10] ; rdi rsi ; @66
+  test eax, eax ; @60
+  jns @12 ; @61
+@43:
+  mov r13, rbx ; @58
+  jmp @7 ; @59
+@12:
+  cmp eax, 0x0_w ; @53
+  jg @19 ; @54
+@44:
+  mov rax, r12 ; @51
+@26:
+  pop rbx ; @97
+  pop r15 ; @98
+  pop r14 ; @99
+  pop r13 ; @100
+  pop r12 ; @101
+  leave ; @102
+  ret ; @50
+@19:
+  lea r15, qword ptr [r12 + r14*1] ; @34
+  lea rcx, qword ptr [rbx + 0x1] ; @35
+  mov rax, r13 ; @36
+  sub rax, rcx ; @48
+  mov r13, rax ; @45
+  jmp @7 ; @47
+}

@@ -364,6 +364,15 @@ let combinable_binop = function
   | CMP -> true
   | _ -> false
 
+(* Combine with unary ops that don't write to their operand. *)
+let combinable_unop = function
+  | CALL _
+  | DIV
+  | IDIV
+  | IMUL1
+  | MUL -> true
+  | _ -> false
+
 let rset_mem' o l = List.exists l ~f:(Set.mem @@ rset [o])
 
 let collect_mov_op fn =
@@ -386,6 +395,13 @@ let collect_mov_op fn =
                   && Rv.(r1 = r2')
                   && not (Set.mem (rset [o]) r1) ->
           let i = Two (op, Oreg (r1', r1t), o) in
+          go (Ltree.set acc ~key:l ~data:i) xs
+        | (_, Two (MOV, Oreg (r1, _), o))
+          :: (l, One (op, Oreg (r2', _)))
+          :: xs when combinable_unop op
+                  && Rv.(r1 = r2')
+                  && not (Set.mem (rset [o]) r1) ->
+          let i = One (op, o) in
           go (Ltree.set acc ~key:l ~data:i) xs
         | _ :: xs -> go acc xs in
       go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)

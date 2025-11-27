@@ -11,8 +11,10 @@ let from_file filename =
 (* Toggle this to overwrite cases that differ. *)
 let overwrite = false
 
-let compare_outputs filename' expected p' =
-  let expected' = String.chop_suffix_if_exists expected ~suffix:"\n" in
+let compare_outputs ?(chop_end = true) filename' expected p' =
+  let expected' = if chop_end
+    then String.chop_suffix_if_exists expected ~suffix:"\n"
+    else expected in
   if String.(p' <> expected') then
     if overwrite then
       (* Assume we're being tested via `dune test`, which runs with
@@ -20,7 +22,8 @@ let compare_outputs filename' expected p' =
       Out_channel.write_all ("../../../test/" ^ filename') ~data:(p' ^ "\n")
     else
       let diff = Odiff.strings_diffs expected' p' in
-      let msg = Format.sprintf "Diff:\n\n%s" (Odiff.string_of_diffs diff) in
+      let msg = Format.sprintf "Diff (%s):\n\n%s"
+          filename' (Odiff.string_of_diffs diff) in
       assert_failure msg
 
 let from_file_abi filename =
@@ -173,14 +176,7 @@ let test_native target abi ext name _ =
     end;
     if Shexp_process.(eval @@ file_exists driver_output) then
       let contents = In_channel.read_all driver_output in
-      let msg = Format.asprintf
-          "Unequal output\n\
-           ---------------------------\n\
-           Got:\n%s\n\
-           ---------------------------\n\
-           Expected:\n%s\n"
-          p.stdout contents in
-      assert_bool msg @@ String.(contents = p.stdout)
+      compare_outputs ~chop_end:false driver_output contents p.stdout
 
 (* Specific ABI lowering tests. *)
 let test_sysv = test_abi Machine.X86.Amd64_sysv.target "sysv"
@@ -312,6 +308,7 @@ let opt_suite = "Test optimizations" >::: [
     "Slot coalesce 1 (full opts)" >:: test "coalesce1a";
     "Bad load 1" >:: test "badload1";
     "Bad load 2" >:: test "badload2";
+    "Binary search" >:: test "bsearch";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -344,6 +341,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Collatz recursive (SysV)" >:: test_sysv "collatz_rec";
     "Ackermann (SysV)" >:: test_sysv "ackermann";
     "Quicksort (SysV)" >:: test_sysv "qsort";
+    "Binary search (SysV)" >:: test "bsearch";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -376,6 +374,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64 "ackermann";
     "Quicksort (SysV AMD64)" >:: test_sysv_amd64 "qsort";
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64 "parallel";
+    "Binary search (SysV AMD64)" >:: test_sysv_amd64 "bsearch";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -420,6 +419,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64_regalloc "parallel";
     "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumphi";
     "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_regalloc "vasum";
+    "Binary search (SysV AMD64)" >:: test_sysv_amd64_regalloc "bsearch";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -449,6 +449,7 @@ let native_suite = "Test native code" >::: [
     "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_native "sumphi";
     "Returning, passing, and dereferencing a struct (SysV AMD64)" >:: test_sysv_amd64_native "unref";
     "Sink 1 (SysV AMD64)" >:: test_sysv_amd64_native "sink1";
+    "Binary search (SysV AMD64)" >:: test_sysv_amd64_native "bsearch";
   ]
 
 let () = run_test_tt_main @@ test_list [

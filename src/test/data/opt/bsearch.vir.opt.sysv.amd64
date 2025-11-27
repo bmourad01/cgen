@@ -1,0 +1,66 @@
+module bsearch
+
+export function $intcmp { ; returns: rax
+@2:
+  mov %a:l, rdi ; @3
+  mov %b:l, rsi ; @40
+  mov %ia.1:w, dword ptr [%a] ; @41
+  mov %ib.1:w, dword ptr [%b] ; @4
+  mov %1:w, %ia.1:w ; @27
+  sub %1:w, %ib.1:w ; @39
+  mov eax, %1:w ; @37
+  ret ; @38
+}
+
+export function $bsearch { ; returns: rax
+@6:
+  mov %key:l, rdi ; @77
+  mov %base:l, rsi ; @78
+  mov %nel:l, rdx ; @79
+  mov %width:l, rcx ; @80
+  mov %cmp:l, r8 ; @81
+  mov %nel.1:l, %nel:l ; @82
+  mov %base.1:l, %base:l ; @83
+  jmp @7 ; @84
+@7:
+  test %nel.1:l, %nel.1:l ; @72
+  jne @8 ; @73
+  jmp @42 ; @74
+@42:
+  xor %0:w, %0:w ; @70
+  jmp @26 ; @71
+@8:
+  mov %3:l, %nel.1:l ; @29
+  shr %3:l, 0x1_b ; @69
+  mov %4:l, %width:l ; @30
+  imul %4:l, %3:l ; @68
+  lea %5:l, qword ptr [%base.1 + %4*1] ; @31
+  mov rdi, %key:l ; @16
+  mov rsi, %5:l ; @65
+  call %cmp:l ; rdi rsi ; @66
+  mov %sign.1:w, eax ; @67
+  test %sign.1:w, %sign.1:w ; @60
+  js @43 ; @61
+  jmp @12 ; @62
+@43:
+  mov %nel.1:l, %3:l ; @58
+  jmp @7 ; @59
+@12:
+  cmp %sign.1:w, 0x0_w ; @53
+  jg @19 ; @54
+  jmp @44 ; @55
+@44:
+  mov %0:l, %5:l ; @51
+  jmp @26 ; @52
+@26:
+  mov rax, %0:l ; @49
+  ret ; @50
+@19:
+  lea %8:l, qword ptr [%5 + %width*1] ; @34
+  lea %9:l, qword ptr [%3 + 0x1] ; @35
+  mov %10:l, %nel.1:l ; @36
+  sub %10:l, %9:l ; @48
+  mov %nel.1:l, %10:l ; @45
+  mov %base.1:l, %8:l ; @46
+  jmp @7 ; @47
+}

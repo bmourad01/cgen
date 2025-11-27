@@ -685,7 +685,7 @@ module Insn = struct
   let unop_reads op a = match op with
     | CALL args ->
       Set.union (rset' [`rsp]) @@
-      Set.union (rset_mem [a]) @@
+      Set.union (rset [a]) @@
       Regvar.Set.of_list args
     | DEC
     | INC
