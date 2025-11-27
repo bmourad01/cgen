@@ -1,23 +1,6 @@
 open Cmdliner
 
-(* Why is this here, when we have `Cgen.Target.find`?
-
-   The targets should be getting declared at the toplevel in their
-   respective modules, but the evaluation of these modules is not
-   guaranteed to happen by the time we start parsing command-line
-   arguments.
-
-   It just so happens that, for the front-end executable, we should
-   know all of the out-of-the-box targets provided by the library,
-   so this feels like a tolerable compromise in the design of extending
-   the supported targets.
-*)
-let targets =
-  Core.Map.of_alist_exn (module Core.String) @@
-  Core.List.map ~f:(fun t -> Cgen.Target.name t, t) @@
-  Cgen.Machine.[
-    X86.Amd64_sysv.target;
-  ]
+let () = Cgen.Machine.force_initialization ()
 
 let bail () = exit Cmd.Exit.ok
 
@@ -100,7 +83,8 @@ let dump_no_comment =
 let man_targets =
   `S "TARGET" ::
   `Pre "Supported target platforms" :: begin
-    Core.Map.data targets |>
+    Cgen.Target.enum_targets () |>
+    Core.Sequence.to_list |>
     Core.List.map ~f:(fun t ->
         `P (Format.asprintf "%a" Cgen.Target.pp t))
   end
@@ -151,7 +135,7 @@ let go f file output dump nc target log_level =
   let dump = match dump_of_string_opt dump with
     | None -> fatal "invalid dump option: %s\n%!" dump ()
     | Some d -> d in
-  let target = match Core.Map.find targets target with
+  let target = match Cgen.Target.find target with
     | None -> fatal "invalid target: %s\n%!" target ()
     | Some t -> t in
   f {file; output; dump; nc; target}

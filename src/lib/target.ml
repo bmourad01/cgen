@@ -24,7 +24,7 @@ let declare ~name ~word ~little () =
     targets := m;
     t
 
-let find = Map.find !targets
+let find name = Map.find !targets name
 
 let name t = t.name
 let word t = t.word
