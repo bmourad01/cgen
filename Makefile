@@ -1,6 +1,7 @@
 SRC := ./src/
 
-.PHONY: build clean install uninstall test doc deps indent status-clean check-style
+.PHONY: build	clean	install uninstall test doc deps
+.PHONY: ocaml-indent clang-indent indent status-clean check-style
 
 all: install
 
@@ -25,8 +26,13 @@ doc:
 deps:
 	$(MAKE) deps -C $(SRC)
 
-indent:
+ocaml-indent:
 	sh tools/ocp-indent-all.sh
+
+clang-indent:
+	sh tools/clang-format-all.sh
+
+indent: ocaml-indent clang-indent
 
 status-clean:
 	git diff --quiet --exit-code

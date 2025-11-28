@@ -8,13 +8,15 @@ struct S {
 
 extern struct S gcd(int a, int b);
 
-void test(int a, int b, int x) {
+void
+test(int a, int b, int x) {
   struct S s = gcd(a, b);
   assert(s.gcd == x);
   assert(a * s.x + b * s.y == s.gcd);
 }
 
-int main() {
+int
+main() {
   test(12, 18, 6);
   test(30, 20, 10);
   test(101, 103, 1);

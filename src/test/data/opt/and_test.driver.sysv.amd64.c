@@ -4,7 +4,8 @@ extern int foo(int x, int y);
 extern int bar(int x, int y);
 extern long baz(long x);
 
-int main() {
+int
+main() {
   assert(foo(3, 4) == 3);
   assert(foo(4, 4) == 4);
   assert(foo(1, 4) == 1);

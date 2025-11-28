@@ -9,7 +9,8 @@ extern int sump(struct t *);
 extern struct t mkt(int, int);
 extern int sumt(int, int);
 
-int main() {
+int
+main() {
   struct t t1 = mkt(1, 2);
   struct t t2 = mkt(3, 4);
   struct t t3 = mkt(5, 6);

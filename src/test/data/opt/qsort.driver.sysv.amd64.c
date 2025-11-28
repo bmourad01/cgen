@@ -3,7 +3,8 @@
 
 extern void qsort(int *arr, long low, long high);
 
-int main() {
+int
+main() {
   int arr[] = {10, 7, 8, 9, 1, 5, 22, 59, 6, 17, 54};
   int n = sizeof(arr) / sizeof(arr[0]);
   qsort(arr, 0, n - 1);

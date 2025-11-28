@@ -3,7 +3,8 @@
 // NB: do not call this with 0
 extern int foo(int n);
 
-int main() {
+int
+main() {
   assert(foo(1) == 136);
   assert(foo(2) == 272);
   assert(foo(3) == 408);

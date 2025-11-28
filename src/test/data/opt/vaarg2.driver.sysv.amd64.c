@@ -8,7 +8,8 @@ struct t {
   long l2;
 };
 
-int main() {
+int
+main() {
   struct t s = {10, 32};
   assert(foo(5, s) == 47);
   assert(!bar(0));

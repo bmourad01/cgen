@@ -7,7 +7,8 @@ struct t {
 
 int sumphi(struct t a, struct t b, int x);
 
-int main() {
+int
+main() {
   struct t s1 = {3, 4};
   struct t s2 = {10, -2};
   int res1 = sumphi(s1, s2, -1);

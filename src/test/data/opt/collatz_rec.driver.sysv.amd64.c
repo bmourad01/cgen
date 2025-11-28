@@ -2,11 +2,13 @@
 
 extern int foo(int n, int count);
 
-int bar(int n) {
+int
+bar(int n) {
   return foo(n, 0);
 }
 
-int main() {
+int
+main() {
   assert(bar(1) == 0);
   assert(bar(2) == 1);
   assert(bar(3) == 7);

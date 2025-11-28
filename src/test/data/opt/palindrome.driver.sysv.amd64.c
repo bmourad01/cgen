@@ -3,7 +3,8 @@
 
 bool palindrome(int n);
 
-int main() {
+int
+main() {
   assert(palindrome(0));
   assert(palindrome(1));
   assert(palindrome(12321));

@@ -7,7 +7,8 @@ struct S {
 
 extern long foo(long i, ...);
 
-int main() {
+int
+main() {
   struct S s1 = {0.0, 1};
   assert(foo(1, s1) == 3);
 

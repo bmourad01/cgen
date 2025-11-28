@@ -2,6 +2,7 @@
 
 extern int twenty_eight(void);
 
-int main() {
+int
+main() {
   assert(twenty_eight() == 28);
 }
