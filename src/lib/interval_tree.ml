@@ -13,8 +13,8 @@ module Make(I : Interval) = struct
     end)
 
   type +'a node = {
-    rhs      : 'a node option;
-    lhs      : 'a node option;
+    rhs      : 'a t;
+    lhs      : 'a t;
     key      : key;
     data     : 'a;
     height   : int;
@@ -22,7 +22,7 @@ module Make(I : Interval) = struct
     least    : point;
   } [@@deriving fields, sexp]
 
-  type +'a t = 'a node option [@@deriving sexp]
+  and +'a t = 'a node option [@@deriving sexp]
 
   let height = Option.value_map ~default:0 ~f:height
   let least = Option.map ~f:least

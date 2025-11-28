@@ -201,7 +201,7 @@ let is_empty t =
 module Make(M : Scalars.L) = struct
   open M
 
-  module S = Slot_initialization.Make(M)
+  module Sinit = Slot_initialization.Make(M)
 
   let mkdef s x n = Map.update s x ~f:(function
       | None -> Range.singleton n
@@ -259,7 +259,7 @@ module Make(M : Scalars.L) = struct
               let op = Insn.op i in
               let acc = liveness_insn si acc !s !ip i in
               Vec.push nums (Insn.label i);
-              s := S.Analysis.transfer_op slots !s op;
+              s := Sinit.S.transfer_op slots !s op;
               incr ip;
               acc) in
           let acc = liveness_ctrl si acc !s !ip l @@ Blk.ctrl b in
@@ -288,7 +288,7 @@ module Make(M : Scalars.L) = struct
                     | _ -> acc
                   end
                 | _ -> acc in
-              s := S.Analysis.transfer_op slots !s op;
+              s := Sinit.S.transfer_op slots !s op;
               acc))
 
   let debug_show slots rs nums deads p subst =
@@ -323,12 +323,12 @@ module Make(M : Scalars.L) = struct
               __FUNCTION__ Var.pp key Virtual.pp_operand data))
 
   let run fn =
-    let slots = S.Analysis.collect_slots fn in
+    let slots = Sinit.S.collect_slots fn in
     if Map.is_empty slots then empty else
       let cfg = Cfg.create fn in
       let blks = Func.map_of_blks fn in
-      let t = S.Analysis.analyze cfg blks slots in
-      let si = S.analyze' t cfg blks slots in
+      let t = Sinit.S.analyze cfg blks slots in
+      let si = Sinit.analyze' t cfg blks slots in
       let rs, nums = liveness cfg blks slots t si in
       let p = partition slots rs in
       let deads = collect_deads blks slots rs t in
