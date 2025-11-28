@@ -31,6 +31,8 @@
   hashmap
   hashmap_intf
   isel_internal
+  interval_tree
+  interval_tree_intf
   last_stores
   live_intf
   loops
