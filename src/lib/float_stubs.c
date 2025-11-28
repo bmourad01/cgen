@@ -73,10 +73,12 @@ value
 cgen_float_of_float32(value x) {
   return caml_copy_double(Float_val(x));
 }
+
 value
 cgen_float32_is_zero(value x) {
   return Val_bool(Float_val(x) == 0.0f);
 }
+
 value
 cgen_float32_is_inf(value x) {
   return Val_bool(isinf(Float_val(x)));
@@ -165,6 +167,7 @@ value
 cgen_int8_of_float32(value x) {
   return Val_int((int8_t)Float_val(x));
 }
+
 value
 cgen_int16_of_float32(value x) {
   return Val_int((int16_t)Float_val(x));
@@ -329,6 +332,7 @@ value
 cgen_int8_of_float(value x) {
   return Val_int((int8_t)Double_val(x));
 }
+
 value
 cgen_int16_of_float(value x) {
   return Val_int((int16_t)Double_val(x));

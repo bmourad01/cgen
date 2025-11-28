@@ -1,6 +1,25 @@
 (tests
- (names test_allen test_bv_interval test_opt test_type)
+ (names test_allen test_opt test_type)
  (libraries ocamldiff ounit2 cgen shexp.process)
+ (modules test_allen test_opt test_type)
  (ocamlopt_flags -O2)
  (deps
   (glob_files_rec data/*)))
+
+(library
+ (name test_float32)
+ (modules test_float32)
+ (libraries cgen)
+ (ocamlopt_flags -O2)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name test_bv_interval)
+ (modules test_bv_interval)
+ (libraries cgen)
+ (ocamlopt_flags -O2)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
