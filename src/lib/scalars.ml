@@ -241,7 +241,7 @@ module Make(M : L) = struct
   [@@specialise]
 
   (* Initial constraints. *)
-  let initialize slots blks =
+  let initialize slots _blks =
     (* Set all slots to point to their own base address. *)
     let init = Map.mapi slots ~f:(fun ~key ~data:_ -> Offset (key, 0L)) in
     Label.Map.singleton Label.pseudoentry init |>

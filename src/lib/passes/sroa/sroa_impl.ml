@@ -92,7 +92,7 @@ end = struct
   type accesses = access list Var.Map.t
 
   module Access = struct
-    type t = access
+    type t = access [@@ocaml.warning "-34"]
 
     let sizeof a = basic_size a.ty [@@inline]
 

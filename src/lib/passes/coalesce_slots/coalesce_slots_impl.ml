@@ -174,7 +174,7 @@ let partition slots rs =
 (* invariant: a group is never empty *)
 let canon_elt g = List.max_elt g ~compare:size_priority |> Option.value_exn
 
-let make_subst slots p =
+let make_subst _slots p =
   List.fold p ~init:Var.Map.empty
     ~f:(fun init -> function
         | [] | [_] -> init

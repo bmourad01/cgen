@@ -438,21 +438,21 @@ module Post_assign_slots = struct
     | Some o -> Abd (base, Int32.of_int_exn o)
     | None -> a
 
-  let assign_abd find base a b _d = match find b with
+  let assign_abd find _base a b _d = match find b with
     | None -> a
     | Some _ -> assert false
 
-  let assign_abis find base a b i _s = match find b, find i with
+  let assign_abis find _base a b i _s = match find b, find i with
     | None, None -> a
     | Some _, None -> assert false
     | None, Some _ -> assert false
     | Some _, Some _ -> assert false
 
-  let assign_aisd find base a i _s _d = match find i with
+  let assign_aisd find _base a i _s _d = match find i with
     | None -> a
     | Some _ -> assert false
 
-  let assign_abisd find base a b i _s _d = match find b, find i with
+  let assign_abisd find _base a b i _s _d = match find b, find i with
     | None, None -> a
     | None, Some _ -> assert false
     | Some _, Some _ -> assert false
