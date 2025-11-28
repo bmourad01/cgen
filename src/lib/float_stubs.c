@@ -7,7 +7,6 @@
 
 #include <float.h>
 #include <math.h>
-#include <stdlib.h>
 
 #define MAX_FLOAT_DIGITS 24
 

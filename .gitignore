@@ -2,3 +2,5 @@ _build/
 compile_flags.txt
 .dumbjump
 .dir-locals.el
+.clangd
+compile_commands.json

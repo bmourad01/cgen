@@ -36,3 +36,6 @@ bap-deps:
 	for dep in $(BAP_DEPS); do \
 		opam repository add $$dep $(BAP_REPO); \
 	done
+
+compile_commands.json:
+	dune rules | dune-compiledb
