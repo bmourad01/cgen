@@ -1,5 +1,7 @@
 .PHONY: clean install uninstall test doc deps bap-deps
 
+UPDATE_EXPECT ?= 0
+
 PROFILE = release
 ifeq ($(DEBUG),1)
 	PROFILE = dev
@@ -29,7 +31,7 @@ uninstall:
 	dune uninstall
 
 test:
-	dune test --profile=$(PROFILE)
+	UPDATE_EXPECT=$(UPDATE_EXPECT) dune test --profile=$(PROFILE)
 
 doc:
 	dune build @doc

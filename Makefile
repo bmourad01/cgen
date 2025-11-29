@@ -5,6 +5,8 @@ SRC := ./src/
 
 all: install
 
+export UPDATE_EXPECT
+
 build:
 	$(MAKE) -C $(SRC)
 

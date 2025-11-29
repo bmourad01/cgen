@@ -16,6 +16,7 @@ depends: [
   "cmdliner"
   "core" {>= "v0.15"}
   "core_kernel" {>= "v0.15"}
+  "core_unix" {>= "v0.15"}
   "dune" {>= "3.15"}
   "fmt"
   "graphlib"
