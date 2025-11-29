@@ -59,7 +59,7 @@ module Partition = struct
 
   let range p = {
     lo = p.off;
-    hi = Int64.(p.off + p.size);
+    hi = Int64.(p.off + max 1L p.size);
   } [@@inline]
 
   let pp ppa ppf p =
@@ -103,7 +103,7 @@ end = struct
 
     let range a = {
       lo = a.off;
-      hi = Int64.(a.off + of_int (sizeof a));
+      hi = Int64.(a.off + max 1L (of_int (sizeof a)));
     } [@@inline]
 
     let pp ppf a =

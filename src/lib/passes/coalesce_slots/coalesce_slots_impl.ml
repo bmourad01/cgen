@@ -31,7 +31,7 @@ module Range = struct
   let bad = {lo = Int.min_value; hi = Int.max_value; tg = Both}
   let is_bad = equal bad
 
-  let singleton n = {lo = n; hi = n; tg = Def}
+  let singleton n = {lo = n; hi = n + 1; tg = Def}
   let size r = r.hi - r.lo
 
   let distance x y =
@@ -43,7 +43,7 @@ module Range = struct
   (* Extend the upper-bound on the live range. *)
   let use r n = {
     r with
-    hi = Int.max r.hi n;
+    hi = Int.max r.hi (n + 1);
     tg = join_tag r.tg Use;
   }
 
@@ -54,7 +54,7 @@ module Range = struct
   *)
   let def r n = {
     lo = Int.min r.lo n;
-    hi = Int.max r.hi n;
+    hi = Int.max r.hi (n + 1);
     tg = join_tag r.tg Def;
   }
 
@@ -100,7 +100,7 @@ let compat_range x y =
       m "%s: %a, %a: %a%!" __FUNCTION__
         Var.pp x.var Var.pp y.var Allen.pp a);
   match a with
-  | Before | After -> true
+  | Before | After | Meets | Met_by -> true
   | _ -> false
 
 let range_priority x y =

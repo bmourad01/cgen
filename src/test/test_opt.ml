@@ -2,29 +2,18 @@ open Core
 open OUnit2
 open Cgen
 
+let compare_outputs ?(chop_end = true) expected_file actual =
+  Golden.compare_or_update ()
+    ~chop_end
+    ~expected_file
+    ~actual
+    ~fail:assert_failure
+
 let from_file filename =
   let open Context.Syntax in
   let* m = Parse.Virtual.from_file filename in
   let* tenv, m = Passes.initialize m in
   Passes.optimize tenv m
-
-(* Toggle this to overwrite cases that differ. *)
-let overwrite = false
-
-let compare_outputs ?(chop_end = true) filename' expected p' =
-  let expected' = if chop_end
-    then String.chop_suffix_if_exists expected ~suffix:"\n"
-    else expected in
-  if String.(p' <> expected') then
-    if overwrite then
-      (* Assume we're being tested via `dune test`, which runs with
-         "_build/default/test/" as the CWD. *)
-      Out_channel.write_all ("../../../test/" ^ filename') ~data:(p' ^ "\n")
-    else
-      let diff = Odiff.strings_diffs expected' p' in
-      let msg = Format.sprintf "Diff (%s):\n\n%s"
-          filename' (Odiff.string_of_diffs diff) in
-      assert_failure msg
 
 let from_file_abi filename =
   let open Context.Syntax in
@@ -36,7 +25,6 @@ let from_file_abi filename =
 let test ?(f = from_file) name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = filename ^ ".opt" in
-  let expected = In_channel.read_all filename' in
   Context.init Machine.X86.Amd64_sysv.target |>
   Context.eval begin
     let open Context.Syntax in
@@ -44,7 +32,7 @@ let test ?(f = from_file) name _ =
     let* () = Virtual.Module.funs m |> Context.iter_seq_err ~f:Passes.Ssa.check in
     !!(Format.asprintf "%a" Virtual.Module.pp m)
   end |> function
-  | Ok p' -> compare_outputs filename' expected p'
+  | Ok p' -> compare_outputs filename' p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
 let coalesce_only filename =
@@ -59,20 +47,18 @@ let coalesce_only filename =
 let test_abi target ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = Format.sprintf "%s.opt.%s" filename ext in
-  let expected = In_channel.read_all filename' in
   Context.init target |>
   Context.eval begin
     let open Context.Syntax in
     let* m = from_file_abi filename in
     !!(Format.asprintf "%a" Virtual.Abi.Module.pp m)
   end |> function
-  | Ok p' -> compare_outputs filename' expected p'
+  | Ok p' -> compare_outputs filename' p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
 let test_isel target abi ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = Format.sprintf "%s.opt.%s.%s" filename abi ext in
-  let expected = In_channel.read_all filename' in
   Context.init target |>
   Context.eval begin
     let open Context.Syntax in
@@ -83,13 +69,12 @@ let test_isel target abi ext name _ =
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
   end |> function
-  | Ok p' -> compare_outputs filename' expected p'
+  | Ok p' -> compare_outputs filename' p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
 let test_regalloc target abi ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = Format.sprintf "%s.opt.%s.%s.regalloc" filename abi ext in
-  let expected = In_channel.read_all filename' in
   Context.init target |>
   Context.eval begin
     let open Context.Syntax in
@@ -103,32 +88,11 @@ let test_regalloc target abi ext name _ =
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)
   end |> function
-  | Ok p' -> compare_outputs filename' expected p'
+  | Ok p' -> compare_outputs filename' p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
-type proc = {
-  code   : Shexp_process.Exit_status.t;
-  stdout : string;
-  stderr : string;
-}
-
-let run_process cmd args =
-  let open Shexp_process in
-  let open Shexp_process.Infix in
-  eval @@
-  with_temp_file ~prefix:"stdout" ~suffix:".log" @@ fun stdout_file ->
-  with_temp_file ~prefix:"stderr" ~suffix:".log" @@ fun stderr_file ->
-  stdout_to stdout_file @@
-  stderr_to stderr_file @@
-  run_exit_status cmd args >>= fun code ->
-  return {
-    code;
-    stdout = In_channel.read_all stdout_file;
-    stderr = In_channel.read_all stderr_file;
-  }
-
 let compile_c_driver asm driver exe =
-  let p = run_process "cc" [asm; driver; "-o"; exe; "-g"; "-fno-omit-frame-pointer"] in
+  let p = Process.run "cc" [asm; driver; "-o"; exe; "-g"; "-fno-omit-frame-pointer"] in
   match p.code with
   | Shexp_process.Exit_status.Exited n ->
     Context.unless (n = 0) @@ fun () ->
@@ -159,7 +123,7 @@ let test_native target abi ext name _ =
     let* m = from_file_abi filename in
     let* () = output_asm m asm in
     let+ () = compile_c_driver asm driver_c exe in
-    run_process exe []
+    Process.run exe []
   end |> function
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
   | Ok p ->
@@ -175,8 +139,7 @@ let test_native target abi ext name _ =
            STDERR:\n:%s\n" n p.stderr
     end;
     if Shexp_process.(eval @@ file_exists driver_output) then
-      let contents = In_channel.read_all driver_output in
-      compare_outputs ~chop_end:false driver_output contents p.stdout
+      compare_outputs ~chop_end:false driver_output p.stdout
 
 (* Specific ABI lowering tests. *)
 let test_sysv = test_abi Machine.X86.Amd64_sysv.target "sysv"

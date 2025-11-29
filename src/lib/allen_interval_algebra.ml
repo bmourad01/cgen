@@ -46,7 +46,7 @@ module type S = sig
 
   (** An inclusive interval.
 
-      Invariant: [lo t <= hi t]
+      Invariant: [lo t < hi t]
   *)
   type t
 
