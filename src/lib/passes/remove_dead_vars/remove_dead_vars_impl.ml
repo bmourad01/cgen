@@ -16,6 +16,7 @@ module type S = sig
 
   module Insn : sig
     type t
+    val label : t -> Label.t
     val check_div_rem : t -> bool
     val is_effectful : t -> bool
     val lhs : t -> Var.t option
@@ -96,15 +97,23 @@ module Make(M : S) = struct
      function is in SSA form then keeping in them in the alive set
      shouldn't affect the results. *)
   let insn (acc, changed, alive) i = match Insn.lhs i with
-    | Some x when not @@ keep i x alive -> acc, true, alive
+    | Some x when not @@ keep i x alive ->
+      Logs.debug (fun m ->
+          m "%s: %a: %a is dead%!" __FUNCTION__
+            Label.pp (Insn.label i) Var.pp x);
+      acc, true, alive
     | Some x -> i :: acc, changed, alive -- x ++ Insn.free_vars i
     | None -> i :: acc, changed, alive ++ Insn.free_vars i
+
+  let remove_slot fn x =
+    Logs.debug (fun m -> m "%s: slot %a is dead%!" __FUNCTION__ Var.pp x);
+    Func.remove_slot fn x
 
   let finalize fn blks live =
     let ins = Live.ins live @@ Func.entry fn in
     Func.slots fn |> Seq.map ~f:Slot.var |>
     Seq.filter ~f:(Fn.non @@ Set.mem ins) |>
-    Seq.fold ~init:fn ~f:Func.remove_slot |>
+    Seq.fold ~init:fn ~f:remove_slot |>
     Fn.flip Func.update_blks' blks
 
   let rec run fn blks cfg =

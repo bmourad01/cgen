@@ -1,0 +1,72 @@
+module vasum
+
+export function $sum { ; returns: rax
+@19:
+  push rbp ; @127
+  mov rbp, rsp ; @128
+  sub rsp, 0xc0_l ; @129
+  mov r10d, edi ; @111
+  mov qword ptr [rbp - 0xa8], rsi ; @21
+  mov qword ptr [rbp - 0xa0], rdx ; @23
+  mov qword ptr [rbp - 0x98], rcx ; @25
+  mov qword ptr [rbp - 0x90], r8 ; @27
+  mov qword ptr [rbp - 0x88], r9 ; @29
+  test al, al ; @106
+  je @2 ; @107
+@18:
+  movdqa xmmword ptr [rbp - 0x80], xmm0 ; @32
+  movdqa xmmword ptr [rbp - 0x70], xmm1 ; @34
+  movdqa xmmword ptr [rbp - 0x60], xmm2 ; @36
+  movdqa xmmword ptr [rbp - 0x50], xmm3 ; @38
+  movdqa xmmword ptr [rbp - 0x40], xmm4 ; @40
+  movdqa xmmword ptr [rbp - 0x30], xmm5 ; @42
+  movdqa xmmword ptr [rbp - 0x20], xmm6 ; @44
+  movdqa xmmword ptr [rbp - 0x10], xmm7 ; @46
+@2:
+  lea rax, qword ptr [rbp + 0x10] ; @50
+  mov r8d, 0x8_w ; @101
+  xor edx, edx ; @102
+  xor ecx, ecx ; @103
+@3:
+  cmp ecx, r10d ; @95
+  jb @56 ; @96
+@8:
+  mov eax, edx ; @93
+  leave ; @130
+  ret ; @94
+@56:
+  cmp r8d, 0x28_w ; @87
+  jbe @57 ; @88
+@58:
+  lea rsi, qword ptr [rax + 0x8] ; @70
+  mov rdi, rax ; @85
+  jmp @59 ; @86
+@57:
+  lea rdi, qword ptr [rbp + r8*1 - 0xb0] ; @65
+  add r8d, 0x8_w ; @66
+  mov rsi, rax ; @79
+@59:
+  add edx, dword ptr [rdi] ; @16
+  inc ecx ; @17
+  mov rax, rsi ; @73
+  jmp @3 ; @77
+}
+
+export function $twenty_eight { ; returns: rax
+@13:
+  push rbp ; @131
+  mov rbp, rsp ; @132
+  mov edi, 0x7_w ; @14
+  mov esi, 0x1_w ; @115
+  mov edx, 0x2_w ; @116
+  mov ecx, 0x3_w ; @117
+  mov r8d, 0x4_w ; @118
+  mov r9d, 0x5_w ; @119
+  sub rsp, 0x10_l ; @120
+  mov dword ptr [rsp], 0x6_w ; @121
+  mov dword ptr [rsp + 0x8], 0x7_w ; @122
+  xor al, al ; @123
+  call $sum ; r8 r9 rax rcx rdi rdx rsi ; @124
+  leave ; @133
+  ret ; @114
+}

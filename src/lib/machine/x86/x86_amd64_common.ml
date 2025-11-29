@@ -412,11 +412,13 @@ module Insn = struct
     | CMOVcc of cc
     | CMP
     | CVTSD2SI
+    | CVTTSD2SI
     | CVTSD2SS
     | CVTSI2SD
     | CVTSI2SS
     | CVTSS2SD
     | CVTSS2SI
+    | CVTTSS2SI
     | DIVSD
     | DIVSS
     | IMUL2
@@ -463,11 +465,13 @@ module Insn = struct
     | CMOVcc cc -> Format.fprintf ppf "cmov%a" pp_cc cc
     | CMP -> Format.fprintf ppf "cmp"
     | CVTSD2SI -> Format.fprintf ppf "cvtsd2si"
+    | CVTTSD2SI -> Format.fprintf ppf "cvttsd2si"
     | CVTSD2SS -> Format.fprintf ppf "cvtsd2ss"
     | CVTSI2SD -> Format.fprintf ppf "cvtsi2sd"
     | CVTSI2SS -> Format.fprintf ppf "cvtsi2ss"
     | CVTSS2SD -> Format.fprintf ppf "cvtss2sd"
     | CVTSS2SI -> Format.fprintf ppf "cvtss2si"
+    | CVTTSS2SI -> Format.fprintf ppf "cvttss2si"
     | DIVSD -> Format.fprintf ppf "divsd"
     | DIVSS -> Format.fprintf ppf "divss"
     | IMUL2 -> Format.fprintf ppf "imul"
@@ -608,107 +612,109 @@ module Insn = struct
     Regvar.Set.of_list @@
     List.map regs ~f:Regvar.reg
 
+  let binop_reads op a b = match op with
+    | ADD
+    | ADDSD
+    | ADDSS
+    | AND
+    | CMP
+    | DIVSD
+    | DIVSS
+    | IMUL2
+    | MULSD
+    | MULSS
+    | OR
+    | ROL
+    | ROR
+    | SAR
+    | SHL
+    | SHR
+    | SUB
+    | SUBSD
+    | SUBSS
+    | TEST_
+    | UCOMISD
+    | UCOMISS
+      -> rset [a; b]
+    | CMOVcc _
+      (* We introduce a dependency on `a` so that any previous
+         writes to it will be preserved.
+
+         This is morally equivalent to:
+
+         `x := cc ? b : a`
+      *)
+      ->
+      Set.union (rset' [`rflags])
+        (Set.union (rset_reg [a]) (rset [b]))
+    | BSF
+    | BSR
+    | CVTSD2SI
+    | CVTTSD2SI
+    | CVTSD2SS
+    | CVTSI2SD
+    | CVTSI2SS
+    | CVTSS2SD
+    | CVTSS2SI
+    | CVTTSS2SI
+    | LEA
+    | MOVSX
+    | MOVSXD
+    | MOVZX
+    | POPCNT
+      -> rset [b]
+    | MOV
+    | MOV_
+    | MOVD
+    | MOVDQA
+    | MOVQ
+    | MOVSD
+    | MOVSS
+      -> Set.union (rset_mem [a]) (rset [b])
+    | XOR
+    | XORPD
+    | XORPS ->
+      begin match a, b with
+        | Oreg (a, _), Oreg (b, _) when Regvar.(a = b)
+          (* Special case for XORing with self: this isn't really a use
+             of the register, since we're just assigning 0. *)
+          -> Regvar.Set.empty
+        | _ -> rset [a; b]
+      end
+
+  let unop_reads op a = match op with
+    | CALL args ->
+      Set.union (rset' [`rsp]) @@
+      Set.union (rset [a]) @@
+      Regvar.Set.of_list args
+    | DEC
+    | INC
+    | NEG
+    | NOT
+      -> rset [a]
+    | DIV
+    | IDIV ->
+      begin match a with
+        | Oreg (_, `i8)
+          -> Set.union (rset' [`rax]) (rset [a])
+        | _
+          -> Set.union (rset' [`rax; `rdx]) (rset [a])
+      end
+    | IMUL1
+    | MUL
+      -> Set.union (rset' [`rax]) (rset [a])
+    | SETcc _
+      (* SETcc will "read" the destination in the sense that
+         only the lower 8 bits are changed. *)
+      -> Set.union (rset' [`rflags]) (rset [a])
+    | POP
+    | PUSH
+      -> Set.union (rset' [`rsp]) (rset_mem [a])
+
   (* Registers read by an instruction. *)
   let reads = function
-    | Two (op, a, b) ->
-      begin match op with
-        | ADD
-        | ADDSD
-        | ADDSS
-        | AND
-        | CMP
-        | DIVSD
-        | DIVSS
-        | IMUL2
-        | MULSD
-        | MULSS
-        | OR
-        | ROL
-        | ROR
-        | SAR
-        | SHL
-        | SHR
-        | SUB
-        | SUBSD
-        | SUBSS
-        | TEST_
-        | UCOMISD
-        | UCOMISS
-          -> rset [a; b]
-        | CMOVcc _
-          (* We introduce a dependency on `a` so that any previous
-             writes to it will be preserved.
-
-             This is morally equivalent to:
-
-             `x := cc ? b : a`
-          *)
-          ->
-          Set.union (rset' [`rflags])
-            (Set.union (rset_reg [a]) (rset [b]))
-        | BSF
-        | BSR
-        | CVTSD2SI
-        | CVTSD2SS
-        | CVTSI2SD
-        | CVTSI2SS
-        | CVTSS2SD
-        | CVTSS2SI
-        | LEA
-        | MOVSX
-        | MOVSXD
-        | MOVZX
-        | POPCNT
-          -> rset [b]
-        | MOV
-        | MOV_
-        | MOVD
-        | MOVDQA
-        | MOVQ
-        | MOVSD
-        | MOVSS
-          -> Set.union (rset_mem [a]) (rset [b])
-        | XOR
-        | XORPD
-        | XORPS ->
-          begin match a, b with
-            | Oreg (a, _), Oreg (b, _) when Regvar.(a = b)
-              (* Special case for XORing with self: this isn't really a use
-                 of the register, since we're just assigning 0. *)
-              -> Regvar.Set.empty
-            | _ -> rset [a; b]
-          end
-      end
-    | One (op, a) ->
-      begin match op with
-        | CALL args ->
-          Set.union (rset' [`rsp]) @@
-          Set.union (rset_mem [a]) @@
-          Regvar.Set.of_list args
-        | DEC
-        | INC
-        | NEG
-        | NOT
-          -> rset [a]
-        | DIV
-        | IDIV ->
-          begin match a with
-            | Oreg (_, `i8)
-              -> Set.union (rset' [`rax]) (rset [a])
-            | _ 
-              -> Set.union (rset' [`rax; `rdx]) (rset [a])
-          end
-        | IMUL1
-        | MUL
-          -> Set.union (rset' [`rax]) (rset [a])
-        | SETcc _
-          (* SETcc will "read" the destination in the sense that
-             only the lower 8 bits are changed. *)
-          -> Set.union (rset' [`rflags]) (rset [a])
-        | POP
-        | PUSH
-          -> Set.union (rset' [`rsp]) (rset_mem [a])
-      end
+    | Two (op, a, b) -> binop_reads op a b
+    | One (op, a) -> unop_reads op a
     | JMP (Jind a) -> rset [a]
     | CDQ
     | CQO
@@ -730,86 +736,88 @@ module Insn = struct
     | FP64 _
       -> Regvar.Set.empty
 
+  let binop_writes op a _b = match op with
+    | ADD
+    | AND
+    | BSF
+    | BSR
+    | IMUL2
+    | OR
+    | POPCNT
+    | ROL
+    | ROR
+    | SAR
+    | SHL
+    | SHR
+    | SUB
+    | XOR
+      -> Set.union (rset' [`rflags]) (rset_reg [a])
+    | ADDSD
+    | ADDSS
+    | CMOVcc _
+    | CVTSD2SI
+    | CVTTSD2SI
+    | CVTSD2SS
+    | CVTSI2SD
+    | CVTSI2SS
+    | CVTSS2SD
+    | CVTSS2SI
+    | CVTTSS2SI
+    | DIVSD
+    | DIVSS
+    | LEA
+    | MOV
+    | MOV_
+    | MOVD
+    | MOVDQA
+    | MOVQ
+    | MOVSD
+    | MOVSS
+    | MOVSX
+    | MOVSXD
+    | MOVZX
+    | MULSD
+    | MULSS
+    | SUBSD
+    | SUBSS
+    | XORPD
+    | XORPS
+      -> rset_reg [a]
+    | CMP
+    | TEST_
+    | UCOMISD
+    | UCOMISS
+      -> rset' [`rflags]
+
+  let unop_writes call op a = match op with
+    | DEC
+    | INC
+    | NEG
+    | NOT
+      -> Set.union (rset' [`rflags]) (rset_reg [a])
+    | SETcc _
+      -> rset_reg [a]
+    | CALL _
+      -> Set.union (rset' [`rsp; `rflags]) call
+    | PUSH
+      -> rset' [`rsp]
+    | DIV
+    | IDIV
+    | IMUL1
+    | MUL ->
+      begin match a with
+        | Oreg (_, `i8)
+          -> rset' [`rax; `rflags]
+        | _
+          -> rset' [`rax; `rdx; `rflags]
+      end
+    | POP
+      -> Set.union (rset' [`rsp]) (rset_reg [a])
+
   (* Registers written to by an instruction. *)
   let writes call = function
-    | Two (op, a, _) ->
-      begin match op with
-        | ADD
-        | AND
-        | BSF
-        | BSR
-        | IMUL2
-        | OR
-        | POPCNT
-        | ROL
-        | ROR
-        | SAR
-        | SHL
-        | SHR
-        | SUB
-        | XOR
-          -> Set.union (rset' [`rflags]) (rset_reg [a])
-        | ADDSD
-        | ADDSS
-        | CMOVcc _
-        | CVTSD2SI
-        | CVTSD2SS
-        | CVTSI2SD
-        | CVTSI2SS
-        | CVTSS2SD
-        | CVTSS2SI
-        | DIVSD
-        | DIVSS
-        | LEA
-        | MOV
-        | MOV_
-        | MOVD
-        | MOVDQA
-        | MOVQ
-        | MOVSD
-        | MOVSS
-        | MOVSX
-        | MOVSXD
-        | MOVZX
-        | MULSD
-        | MULSS
-        | SUBSD
-        | SUBSS
-        | XORPD
-        | XORPS
-          -> rset_reg [a]
-        | CMP
-        | TEST_
-        | UCOMISD
-        | UCOMISS
-          -> rset' [`rflags]
-      end
-    | One (op, a) ->
-      begin match op with
-        | DEC
-        | INC
-        | NEG
-        | NOT
-          -> Set.union (rset' [`rflags]) (rset_reg [a])
-        | SETcc _
-          -> rset_reg [a]
-        | CALL _
-          -> Set.union (rset' [`rsp; `rflags]) call
-        | PUSH
-          -> rset' [`rsp]
-        | DIV
-        | IDIV
-        | IMUL1
-        | MUL ->
-          begin match a with
-            | Oreg (_, `i8)
-              -> rset' [`rax; `rflags]
-            | _
-              -> rset' [`rax; `rdx; `rflags]
-          end
-        | POP
-          -> Set.union (rset' [`rsp]) (rset_reg [a])
-      end
+    | Two (op, a, b) -> binop_writes op a b
+    | One (op, a) -> unop_writes call op a
     | IMUL3 (a, _, _)
       -> Set.union (rset' [`rflags]) (rset_reg [a])
     | RET
@@ -837,78 +845,80 @@ module Insn = struct
     | Omem _ -> true
     | _ -> false
 
+  let binop_writes_to_memory op a _b = match op with
+    | ADD
+    | ADDSD
+    | ADDSS
+    | AND
+    | DIVSD
+    | DIVSS
+    | MOV
+    | MOV_
+    | MOVD
+    | MOVDQA
+    | MOVQ
+    | MOVSD
+    | MOVSS
+    | MULSD
+    | MULSS
+    | OR
+    | ROL
+    | ROR
+    | SAR
+    | SHL
+    | SHR
+    | SUB
+    | SUBSD
+    | SUBSS
+    | XOR
+      -> is_mem a
+    | BSF (* illegal *)
+    | BSR (* illegal *)
+    | CMOVcc _ (* illegal *)
+    | CMP
+    | CVTSD2SI (* illegal *)
+    | CVTTSD2SI (* illegal *)
+    | CVTSD2SS (* illegal *)
+    | CVTSI2SD (* illegal *)
+    | CVTSI2SS (* illegal *)
+    | CVTSS2SI (* illegal *)
+    | CVTTSS2SI (* illegal *)
+    | CVTSS2SD (* illegal *)
+    | IMUL2
+    | LEA  (* illegal *)
+    | MOVSX (* illegal *)
+    | MOVZX (* illegal *)
+    | MOVSXD (* illegal *)
+    | POPCNT (* illegal *)
+    | TEST_
+    | UCOMISD
+    | UCOMISS
+    | XORPD (* illegal *)
+    | XORPS (* illegal *)
+      -> false
+
+  let unop_writes_to_memory op a = match op with
+    | DEC
+    | INC
+    | NEG
+    | NOT
+    | POP
+    | SETcc _
+      -> is_mem a
+    | CALL _ (* writes to stack *)
+    | PUSH (* writes to stack *)
+      -> true
+    | DIV
+    | IDIV
+    | IMUL1
+    | MUL
+      -> false
+
   (* "illegal" here means that it is illegal to have a memory
      operand in the destination. *)
   let writes_to_memory = function
-    | Two (op, a, _) ->
-      begin match op with
-        | ADD
-        | ADDSD
-        | ADDSS
-        | AND
-        | DIVSD
-        | DIVSS
-        | MOV
-        | MOV_
-        | MOVD
-        | MOVDQA
-        | MOVQ
-        | MOVSD
-        | MOVSS
-        | MULSD
-        | MULSS
-        | OR
-        | ROL
-        | ROR
-        | SAR
-        | SHL
-        | SHR
-        | SUB
-        | SUBSD
-        | SUBSS
-        | XOR
-          -> is_mem a
-        | BSF (* illegal *)
-        | BSR (* illegal *)
-        | CMOVcc _ (* illegal *)
-        | CMP
-        | CVTSD2SI (* illegal *)
-        | CVTSD2SS (* illegal *)
-        | CVTSI2SD (* illegal *)
-        | CVTSI2SS (* illegal *)
-        | CVTSS2SI (* illegal *)
-        | CVTSS2SD (* illegal *)
-        | IMUL2
-        | LEA  (* illegal *)
-        | MOVSX (* illegal *)
-        | MOVZX (* illegal *)
-        | MOVSXD (* illegal *)
-        | POPCNT (* illegal *)
-        | TEST_
-        | UCOMISD
-        | UCOMISS
-        | XORPD (* illegal *)
-        | XORPS (* illegal *)
-          -> false
-      end
-    | One (op, a) ->
-      begin match op with
-        | DEC
-        | INC
-        | NEG
-        | NOT
-        | POP
-        | SETcc _
-          -> is_mem a
-        | CALL _ (* writes to stack *)
-        | PUSH (* writes to stack *)
-          -> true
-        | DIV
-        | IDIV
-        | IMUL1
-        | MUL
-          -> false
-      end
+    | Two (op, a, b) -> binop_writes_to_memory op a b
+    | One (op, a) -> unop_writes_to_memory op a
     | CDQ
     | CQO
     | CWD
@@ -963,11 +973,13 @@ module Insn = struct
     let cmov cc a b = Two (CMOVcc cc, a, b)
     let cmp a b = Two (CMP, a, b)
     let cvtsd2si a b = Two (CVTSD2SI, a, b)
+    let cvttsd2si a b = Two (CVTTSD2SI, a, b)
     let cvtsd2ss a b = Two (CVTSD2SS, a, b)
     let cvtsi2sd a b = Two (CVTSI2SD, a, b)
     let cvtsi2ss a b = Two (CVTSI2SS, a, b)
     let cvtss2sd a b = Two (CVTSS2SD, a, b)
     let cvtss2si a b = Two (CVTSS2SI, a, b)
+    let cvttss2si a b = Two (CVTTSS2SI, a, b)
     let divsd a b = Two (DIVSD, a, b)
     let divss a b = Two (DIVSS, a, b)
     let imul2 a b = Two (IMUL2, a, b)

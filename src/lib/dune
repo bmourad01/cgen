@@ -20,6 +20,7 @@
   core_kernel.pairing_heap
   core_kernel.uopt
   graphlib
+  logs
   monads
   regular
   zarith)
@@ -30,6 +31,8 @@
   hashmap
   hashmap_intf
   isel_internal
+  interval_tree
+  interval_tree_intf
   last_stores
   live_intf
   loops
@@ -39,8 +42,11 @@
   patricia_tree_intf
   phi_values
   resolver_intf
+  scalars
+  slot_initialization
   sm
   subst_mapper
+  subst_mapper_abi
   tags
   var_internal
   virtual_lexer

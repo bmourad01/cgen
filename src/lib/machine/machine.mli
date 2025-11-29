@@ -7,3 +7,6 @@ module X86 : sig
     val target : Target.t
   end
 end
+
+(** Ensures that all targets are registered. *)
+val force_initialization : unit -> unit

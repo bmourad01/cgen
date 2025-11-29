@@ -22,25 +22,24 @@ let empty_scope : scope = Id.Tree.empty
 
 type placed = {
   seq : Label.t Ftree.t;
-  ids : Z.t;
+  ids : Bitset.Id.t;
 }
 
 let create_placed id l = {
   seq = Ftree.singleton l;
-  ids = Z.(one lsl id);
+  ids = Bitset.Id.singleton id;
 }
 
 let add_placed p id l =
-  assert (not @@ Z.testbit p.ids id); {
+  assert (not @@ Bitset.Id.mem p.ids id); {
     seq = Ftree.snoc p.seq l;
-    ids = Z.(p.ids lor (one lsl id));
+    ids = Bitset.Id.set p.ids id;
   }
 
 type env = {
   insn        : Insn.op Label.Table.t;
   ctrl        : ctrl Label.Table.t;
   news        : placed Label.Table.t;
-  closure     : Lset.t Label.Table.t;
   mutable cur : Label.t;
   mutable scp : scope;
 }
@@ -49,7 +48,6 @@ let init () = {
   insn = Label.Table.create ();
   ctrl = Label.Table.create ();
   news = Label.Table.create();
-  closure = Label.Table.create ();
   cur = Label.pseudoentry;
   scp = empty_scope;
 }
@@ -93,6 +91,9 @@ let fresh env canon real =
     let* x = Context.Var.fresh in
     let+ l = Context.Label.fresh in
     env.scp <- Id.Tree.set env.scp ~key:canon ~data:(x, l);
+    Logs.debug (fun m ->
+        m "%s: placing fresh %a at %a: env.cur=%a canon=%d, real=%d%!"
+          __FUNCTION__ Var.pp x Label.pp l Label.pp env.cur canon real);
     Hashtbl.update env.news env.cur ~f:(function
         | Some p -> add_placed p real l
         | None -> create_placed real l);
@@ -107,20 +108,25 @@ let insn t env a f =
   let+ op = f x in
   upd env.insn l op;
   `var x
+[@@specialise]
 
 let insn' env l f =
   let+ op = f () in
   upd env.insn l op
+[@@specialise]
 
 let ctrl env l f =
   let+ c = f () in
   upd env.ctrl l c
+[@@specialise]
 
 let sel e x ty c y n = match c with
   | `var c -> !!(`sel (x, ty, c, y, n))
   | `bool true -> !!(`uop (x, `copy ty, y))
   | `bool false -> !!(`uop (x, `copy ty, n))
   | _ -> invalid_pure e
+
+let (let@) x f = x f [@@specialise] [@@inline]
 
 let rec pure t env e : operand Context.t =
   let pure = pure t env in
@@ -130,7 +136,7 @@ let rec pure t env e : operand Context.t =
   | E (a, Obinop b, [l; r]) ->
     let* l = pure l in
     let* r = pure r in
-    insn a @@ fun x ->
+    let@ x = insn a in
     !!(`bop (x, b, l, r))
   | E (_, Obool b, []) -> !!(`bool b)
   | E (_, Ocall (x, _), _) -> !!(`var x)
@@ -141,13 +147,13 @@ let rec pure t env e : operand Context.t =
     let* c = pure c in
     let* y = pure y in
     let* n = pure n in
-    insn a @@ fun x ->
+    let@ x = insn a in
     sel e x ty c y n
   | E (_, Osingle s, []) -> !!(`float s)
   | E (_, Osym (s, n), []) -> !!(`sym (s, n))
   | E (a, Ounop u, [y]) ->
     let* y = pure y in
-    insn a @@ fun x ->
+    let@ x = insn a in
     !!(`uop (x, u, y))
   | E (_, Ovaarg (x, _), [_]) -> !!(`var x)
   | E (_, Ovar x, []) -> !!(`var x)
@@ -257,51 +263,51 @@ let exp t env l e =
     let* c = pure c in
     let* y = dst y in
     let* n = dst n in
-    ctrl @@ fun () ->
+    let@ () = ctrl in
     br l e c y n
   | E (_, Ocall0 _, [f; args; vargs]) ->
     let* f = global t env f in
     let* args = callargs t env args in
     let* vargs = callargs t env vargs in
-    insn @@ fun () ->
+    let@ () = insn in
     !!(`call (None, f, args, vargs))
   | E (_, Ocall (x, ty), [f; args; vargs]) ->
     let* f = global t env f in
     let* args = callargs t env args in
     let* vargs = callargs t env vargs in
-    insn @@ fun () ->
+    let@ () = insn in
     !!(`call (Some (x, ty), f, args, vargs))
   | E (_, Oload (x, t), [y]) ->
     let* y = pure y in
-    insn @@ fun () ->
+    let@ () = insn in
     !!(`load (x, t, y))
   | E (_, Ojmp, [d]) ->
     let* d = dst d in
-    ctrl @@ fun () ->
+    let@ () = ctrl in
     !!(`jmp d)
   | E (_, Oret, [x]) ->
     let* x = pure x in
-    ctrl @@ fun () ->
+    let@ () = ctrl in
     !!(`ret (Some x))
   | E (_, Oset _, [y]) -> pure y >>| ignore
   | E (_, Ostore (t, _), [v; x]) ->
     let* v = pure v in
     let* x = pure x in
-    insn @@ fun () ->
+    let@ () = insn in
     !!(`store (t, v, x))
   | E (_, Osw ty, i :: d :: tbl) ->
     let* i = pure i in
     let* d = sw_default t env l d in
     let* tbl = table t env tbl ty in
-    ctrl @@ fun () ->
+    let@ () = ctrl in
     sw l e ty i d tbl
   | E (_, Ovaarg (x, t), [a]) ->
     let* a = pure a in
-    insn @@ fun () ->
+    let@ () = insn in
     vaarg l e x t a
   | E (_, Ovastart _, [a]) ->
     let* a = pure a in
-    insn @@ fun () ->
+    let@ () = insn in
     vastart l e a
   (* The rest are rejected. *)
   | E (_, Oaddr _, _)
@@ -330,38 +336,6 @@ let exp t env l e =
   | E (_, Ovastart _, _) -> invalid l e
 
 module Hoisting = struct
-  let (++) = Lset.union
-  let not_pseudo = Fn.non Label.is_pseudo
-  let descendants t = Semi_nca.Tree.descendants t.eg.input.dom
-  let dominates t = Semi_nca.Tree.is_descendant_of t.eg.input.dom
-  let frontier t = Semi_nca.Frontier.enum t.eg.input.df
-  let to_set = Fn.compose Lset.of_sequence @@ Seq.filter ~f:not_pseudo
-
-  (* Effectively, we are computing the dominator-subtree closure
-     over the iterated dominance frontier of `l`.
-
-     This helps answer the question of where the computation of a
-     given instruction is "available" in the CFG.
-  *)
-  let rec closure ?(self = true) t env l =
-    let c = match Hashtbl.find env.closure l with
-      | Some c -> c
-      | None ->
-        let c =
-          frontier t l |> Seq.filter ~f:not_pseudo |>
-          (* A block can be in its own dominance frontier, so
-             we need to avoid an infinite loop. *)
-          Seq.filter ~f:(Fn.non @@ Label.equal l) |>
-          (* Additionally, we don't want to follow back-edges. This
-             can happen when a node in our frontier is, for example,
-             a loop header. *)
-          Seq.filter ~f:(fun parent -> not @@ dominates t ~parent l) |>
-          Seq.map ~f:(closure t env) |>
-          Seq.fold ~init:(to_set @@ descendants t l) ~f:(++) in
-        Hashtbl.set env.closure ~key:l ~data:c;
-        c in
-    if self then Lset.add c l else Lset.remove c l
-
   (* Try the real ID first before moving on to the canonical ID. This could
      happen if we rescheduled a newer term before we unioned it with an older
      term. *)
@@ -371,12 +345,14 @@ module Hoisting = struct
       if id = cid then s else Common.movedof t.eg cid
     else s
 
+  let resolve_label t l =
+    match Resolver.resolve t.eg.input.reso l with
+    | Some `insn (_, b, _, _) -> Blk.label b
+    | Some `blk b -> Blk.label b
+    | None -> assert false
+
   let moved_blks t id cid =
-    find_moved t id cid |> Lset.map ~f:(fun l ->
-        match Resolver.resolve t.eg.input.reso l with
-        | Some `insn (_, b, _, _) -> Blk.label b
-        | Some `blk b -> Blk.label b
-        | None -> assert false)
+    find_moved t id cid |> Lset.map ~f:(resolve_label t)
 
   let rec post_dominated t l bs =
     match Semi_nca.Tree.parent t.eg.input.pdom l with
@@ -385,7 +361,7 @@ module Hoisting = struct
 
   (* See if there exists a cycle starting from `l` that does not intersect
      with `bs`. *)
-  let exists_bypass t l bs =
+  let exists_bypass t l id cid bs =
     let rec loop q = match Stack.pop q with
       | None -> false
       | Some (n, vis) when Lset.mem vis n ->
@@ -395,28 +371,77 @@ module Hoisting = struct
         Cfg.Node.succs n t.eg.input.cfg |>
         Seq.iter ~f:(fun s -> Stack.push q (s, vis));
         loop q in
-    Loops.mem t.eg.input.loop l &&
-    loop (Stack.singleton (l, Lset.empty))
+    let res =
+      Loops.mem t.eg.input.loop l &&
+      loop (Stack.singleton (l, Lset.empty)) in
+    Logs.debug (fun m ->
+        m "%s: %a is post-dominated: bs=%s, id=%d, cid=%d, res=%b%!"
+          __FUNCTION__ Label.pp l
+          (Lset.to_list bs |> List.to_string ~f:Label.to_string)
+          id cid res);
+    res
+
+  (* Given all of the uses we know of, compute the points
+     where the definition will be killed:
+
+     kills = {k | ∃ u ∈ uses s.t. k ∈ succs(u) ∧ k ∉ uses}
+  *)
+  let compute_kills t uses =
+    Lset.fold uses ~init:Lset.empty ~f:(fun init u ->
+        Cfg.Node.succs u t.eg.input.cfg |>
+        Seq.filter ~f:(Fn.non @@ Lset.mem uses) |>
+        Seq.fold ~init ~f:Lset.add)
+
+  (* See if there exists a path, starting from `l`, that avoids
+     touching any block in `uses` and either reaches the end of
+     the function, or one of the blocks in `kills`.
+
+     `kills` is the set of blocks where, if we were to place the
+     instruction at `l`, its live range would end.
+
+     pre: `kills` and `uses` are disjoint
+  *)
+  let is_partial_redundancy_pathwise t l id cid ~uses =
+    let kills = compute_kills t uses in
+    let rec loop q = match Stack.pop q with
+      | None -> false
+      | Some (n, vis) when Lset.mem vis n -> loop q
+      | Some (n, _) when Lset.mem uses n -> loop q
+      | Some (n, _) when Lset.mem kills n -> true
+      | Some (n, _) when Label.(n = pseudoexit) -> true
+      | Some (n, vis) ->
+        let vis = Lset.add vis n in
+        Cfg.Node.succs n t.eg.input.cfg |>
+        Seq.iter ~f:(fun s -> Stack.push q (s, vis));
+        loop q in
+    let res = loop @@ Stack.singleton (l, Lset.empty) in
+    Logs.debug (fun m ->
+        m "%s: l=%a, id=%d cid=%d, uses=%s, kills=%s, res=%b%!"
+          __FUNCTION__ Label.pp l id cid
+          (Lset.to_list uses |> List.to_string ~f:Label.to_string)
+          (Lset.to_list kills |> List.to_string ~f:Label.to_string)
+          res);
+    res
 
   (* When we "move" duplicate nodes up to the LCA (lowest common ancestor)
      in the dominator tree, we might be introducing a partial redundancy.
      This means that, at the LCA, the node is not going to be used on all
      paths that are dominated by it, so we need to do a simple analysis to
      see if this is the case. *)
-  let is_partial_redundancy t env l id cid =
+  let is_partial_redundancy t l id cid =
     (* If this node is deliberately placed here then allow it. *)
     not (Common.is_pinned t.eg id) && begin
+      Logs.debug (fun m ->
+          m "%s: checking %a, id=%d, cid=%d%!"
+            __FUNCTION__ Label.pp l id cid);
       (* Get the blocks associated with the labels that were
          "moved" for this node. *)
-      let l = match Resolver.resolve t.eg.input.reso l with
-        | Some `insn (_, b, _, _) -> Blk.label b
-        | Some `blk _ -> l
-        | None -> assert false in
       let bs = moved_blks t id cid in
       (* An empty set means that nobody uses this value. *)
       Lset.is_empty bs || begin
         (* If we're being used in the candidate block then this is trivially
            not a partial redundancy. *)
+        let l = resolve_label t l in
         not (Lset.mem bs l) && begin
           (* If one of these blocks post-dominates the block that we're
              moving to, then it is safe to allow the move to happen,
@@ -428,28 +453,18 @@ module Hoisting = struct
           if post_dominated t l bs then
             (* Check if we can reach the target block via a backedge
                without visiting any of the blocks we moved from. *)
-            exists_bypass t l bs
+            exists_bypass t l id cid bs
           else
-            (* For each of these blocks, get its reflexive transitive
-               closure in the dominator tree, and union them together. *)
-            let a = Lset.fold bs ~init:Lset.empty
-                ~f:(fun acc l -> acc ++ closure t env l) in
-            (* Get the non-reflexive transitive closure of the block
-               that we moved to. *)
-            let b = closure t env l ~self:false in
-            (* If these sets are not equal, then we have a partial
-               redundancy, and thus need to duplicate code. In the
-               case where the closure includes our target block `l`,
-               we want to exclude it, since the closure for `l` will
-               exclude itself. *)
-            not @@ Lset.equal (Lset.remove a l) b
+            (* Check if `bs` intersects on all paths where `id` can
+               be used. *)
+            is_partial_redundancy_pathwise t l id cid ~uses:bs
         end
       end
     end
 
-  let should_skip t env l id cid =
-    Z.testbit t.impure cid ||
-    is_partial_redundancy t env l id cid
+  let should_skip t l id cid =
+    Bitset.Id.mem t.impure cid ||
+    is_partial_redundancy t l id cid
 
   (* If any nodes got moved up to this label, then we should check
      to see if it is eligible for this code motion optimization.
@@ -471,7 +486,10 @@ module Hoisting = struct
       Context.Seq.iter ~f:(fun (id, cid) -> match extract t id with
           | None -> extract_fail l id
           | Some e ->
-            Context.unless (should_skip t env l id cid) @@ fun () ->
+            let@ () = Context.unless (should_skip t l id cid) in
+            Logs.debug (fun m ->
+                m "%s: id=%d, cid=%d was moved to l=%a, OK to hoist%!"
+                  __FUNCTION__ id cid Label.pp l);
             pure t env e >>| ignore)
 end
 
@@ -483,7 +501,7 @@ let reify t env l =
   | Some id -> match extract t id with
     | None -> extract_fail l @@ Common.find t.eg id
     | Some (E (Id {canon; _}, op, args) as e)
-      when not @@ Z.testbit t.impure canon ->
+      when not @@ Bitset.Id.mem t.impure canon ->
       (* There may be an opportunity to "sink" this instruction,
          which is the dual of the "hoisting" optimization below.
          Since this is a pure operation, we can wait until it is
@@ -492,10 +510,21 @@ let reify t env l =
       begin match op, args with
         | Oset _, [E (Id {canon; _}, _, _)]
           when Common.is_pinned t.eg canon ->
+          Logs.debug (fun m ->
+              m "%s: pinned: id=%d, l=%a%!"
+                __FUNCTION__ id Label.pp l);
           exp t env l e
-        | _ -> !!()
+        | _ ->
+          Logs.debug (fun m ->
+              m "%s: delaying CFG extraction of id=%d, l=%a%!"
+                __FUNCTION__ id Label.pp l);
+          !!()
       end
-    | Some e -> exp t env l e
+    | Some e ->
+      Logs.debug (fun m ->
+          m "%s: eagerly extracting id=%d to l=%a in CFG%!"
+            __FUNCTION__ id Label.pp l);
+      exp t env l e
 
 (* Rewrite a single instruction. *)
 let step_insn t env i =
@@ -533,8 +562,7 @@ let find_insn env l =
   Hashtbl.find env.insn l |> Option.map ~f:(Insn.create ~label:l)
 
 (* Find any new instructions to be prepended directly before label `l`.
-   Note that the ordering is, by default, from oldest to newest ID, but
-   this can be reversed for an efficient `rev_append` as seen below. *)
+   The order can be reversed for an efficient `rev_append` as seen below. *)
 let find_news ?(rev = false) env l =
   Hashtbl.find env.news l |>
   Option.value_map ~default:[] ~f:(fun p ->

@@ -1,3 +1,4 @@
+open Core
 open Virtual
 open Promote_slots_impl
 
@@ -47,18 +48,31 @@ module A = Make(struct
 
 open E.Syntax
 
+let apply
+    (type fn)
+    (module M : Scalars.L with type Func.t = fn)
+    run ssa (fn : fn) =
+  let module Sinit = Slot_initialization.Make(M) in
+  let slots = Sinit.S.collect_slots fn in
+  let cfg = M.Cfg.create fn in
+  let blks = M.Func.map_of_blks fn in
+  let s = Sinit.analyze cfg blks slots in
+  let undef l = Hash_set.mem s.bad l in
+  run fn ~undef >>= ssa
+
 let run fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
-    V.run fn >>= Ssa.run
+    apply (module Scalars_common.VL) V.run Ssa.run fn
   else
     E.failf
       "In Promote_slots: expected SSA form for function $%s"
       (Func.name fn) ()
 
 let run_abi fn =
-  if Dict.mem (Abi.Func.dict fn) Tags.ssa then
-    A.run fn >>= Ssa.run_abi
+  let open Abi in
+  if Dict.mem (Func.dict fn) Tags.ssa then
+    apply (module Scalars_common.AL) A.run Ssa.run_abi fn
   else
     E.failf
       "In Promote_slots (ABI): expected SSA form for function $%s"
-      (Abi.Func.name fn) ()
+      (Func.name fn) ()

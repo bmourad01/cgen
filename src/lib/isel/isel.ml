@@ -34,12 +34,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       fn;
       node = Vec.create ();
       typs = Vec.create ();
+      id2r = Vec.create ();
       cfg;
       dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry;
       rpo = init_rpo cfg;
       blks = Func.map_of_blks fn;
       v2id = Var.Table.create ();
-      id2r = Id.Table.create ();
       insn = Label.Table.create ();
       extra = Label.Table.create ();
       frame = needs_stack_frame fn;

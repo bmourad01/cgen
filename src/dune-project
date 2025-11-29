@@ -23,7 +23,9 @@
     (core (>= v0.15))
     (core_kernel (>= v0.15))
     dune
+    fmt
     graphlib
+    logs
     menhir
     monads
     ocamldiff

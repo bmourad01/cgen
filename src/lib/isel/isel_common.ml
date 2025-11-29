@@ -23,12 +23,12 @@ type 'r t = {
   fn    : func;
   node  : 'r node Vec.t;
   typs  : ty Uopt.t Vec.t;
+  id2r  : 'r Uopt.t Vec.t;
   cfg   : Cfg.t;
   dom   : Label.t Semi_nca.tree;
   rpo   : Label.t -> int;
   blks  : blk Label.Tree.t;
   v2id  : Id.t Var.Table.t;
-  id2r  : 'r Id.Table.t;
   insn  : Id.t list Label.Table.t;
   extra : Label.t list Label.Table.t;
   frame : bool;
@@ -41,12 +41,24 @@ let new_node ?l ?ty t n : Id.t =
   assert (id = Vec.length t.typs);
   Vec.push t.node n;
   Vec.push t.typs @@ Uopt.of_option ty;
+  Vec.push t.id2r Uopt.none;
   Option.iter l ~f:(fun key ->
       Hashtbl.add_multi t.insn ~key ~data:id);
   id
 
 let node t id = Vec.get_exn t.node id
 let typeof t id = Uopt.to_option @@ Vec.get_exn t.typs id
+let setvar t x id = Hashtbl.set t.v2id ~key:x ~data:id
+let getvar t x = Hashtbl.find t.v2id x
+let setrv t id r = Vec.set_exn t.id2r id @@ Uopt.some r
+let getrv t id = Uopt.to_option @@ Vec.get_exn t.id2r id
+let addextra t key data = Hashtbl.add_multi t.extra ~key ~data
+
+let newvar ~f t x ty = Hashtbl.find_or_add t.v2id x ~default:(fun () ->
+    let v = f (regcls ty) x in
+    let id = new_node ~ty t @@ Rv v in
+    setrv t id v;
+    id)
 
 let rec pp_node t ppr ppf id = match node t id with
   | Rv r -> Format.fprintf ppf "%a" ppr r

@@ -1,25 +1,13 @@
 module retmem
 
 export function $foo(l %3/rdi, l %a/rsi, l %b/rdx, l %c/rcx, l %d/r8) {
-  %x = slot 32, align 8
 @2:
-  st.l %a, %x ; @3
-  %0 = add.l %x, 0x8_l ; @11
-  st.l %b, %0 ; @5
-  %1 = add.l %x, 0x10_l ; @12
-  st.l %c, %1 ; @7
-  %2 = add.l %x, 0x18_l ; @13
-  st.l %d, %2 ; @9
-  %4 = ld.l %x ; @14
-  st.l %4, %3 ; @15
-  %6 = ld.l %0 ; @17
-  %7 = add.l %3, 0x8_l ; @18
-  st.l %6, %7 ; @19
-  %9 = ld.l %1 ; @21
-  %10 = add.l %3, 0x10_l ; @22
-  st.l %9, %10 ; @23
-  %12 = ld.l %2 ; @25
-  %13 = add.l %3, 0x18_l ; @26
-  st.l %12, %13 ; @27
+  st.l %a, %3 ; @15
+  %7.1 = add.l %3, 0x8_l ; @18
+  st.l %b, %7.1 ; @19
+  %10.1 = add.l %3, 0x10_l ; @22
+  st.l %c, %10.1 ; @23
+  %13.1 = add.l %3, 0x18_l ; @26
+  st.l %d, %13.1 ; @27
   ret rax/%3
 }

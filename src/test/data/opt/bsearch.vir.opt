@@ -1,0 +1,34 @@
+module bsearch
+
+export function w $intcmp(l %a, l %b) {
+@2:
+  %ia.1 = ld.w %a ; @3
+  %ib.1 = ld.w %b ; @4
+  %1 = sub.w %ia.1, %ib.1 ; @27
+  ret %1
+}
+
+export function l $bsearch(l %key, l %base, l %nel, l %width, l %cmp) {
+@6:
+  jmp @7(%nel, %base)
+@7(%nel.1, %base.1):
+  %2 = ne.l %nel.1, 0x0_l ; @28
+  br %2, @8, @26(0x0_l)
+@8:
+  %3 = lsr.l %nel.1, 0x1_l ; @29
+  %4 = mul.l %width, %3 ; @30
+  %5 = add.l %base.1, %4 ; @31
+  %sign.1 = call.w %cmp(%key, %5) ; @16
+  %6 = slt.w %sign.1, 0x0_w ; @32
+  br %6, @7(%3, %base.1), @12
+@12:
+  %7 = sgt.w %sign.1, 0x0_w ; @33
+  br %7, @19, @26(%5)
+@19:
+  %8 = add.l %5, %width ; @34
+  %9 = add.l %3, 0x1_l ; @35
+  %10 = sub.l %nel.1, %9 ; @36
+  jmp @7(%10, %8)
+@26(%0):
+  ret %0
+}

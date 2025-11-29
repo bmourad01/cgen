@@ -1,0 +1,36 @@
+module coalesce1
+
+;; %a can coalesce with either %b or %c, but not both
+export function w $f(w %x, w %y, w %z) {
+  %a = slot 8, align 8
+  %b = slot 8, align 8
+  %c = slot 8, align 8
+@start:
+  st.w %x, %a
+  jmp @b1
+@b1:
+  %u1 = ld.w %a
+  jmp @b2
+@b2:
+  jmp @b3
+@b3:
+  st.w %y, %b
+  jmp @b4
+@b4:
+  %u2 = ld.w %b
+  jmp @b5
+@b5:
+  st.w %z, %c
+  jmp @b6
+@b6:
+  %u3 = ld.w %c
+  jmp @b7
+@b7:
+  %u4 = ld.w %b
+  jmp @b8
+@b8:
+  %r = add.w %u1, %u2
+  %r = add.w %r, %u3
+  %r = add.w %r, %u4
+  ret %r
+}

@@ -48,7 +48,10 @@ module Make(M : Machine_intf.S) = struct
     adjlist         : Rv.Set.t Rv.Table.t;
     degree          : int Rv.Table.t;
     moves           : Lset.t Rv.Table.t;
+    insn_blks       : (Label.t * int) Label.Table.t;
     copies          : copy Label.Table.t;
+    nuse            : int Rv.Table.t;
+    defs            : Lset.t Rv.Table.t;
     mutable wmoves  : Lset.t; (* worklist moves *)
     mutable amoves  : Lset.t; (* active moves *)
     mutable cmoves  : Lset.t; (* coalesced moves *)
@@ -72,6 +75,7 @@ module Make(M : Machine_intf.S) = struct
     loop            : Loop.t;
     spill_cost      : int Rv.Table.t;
     dom             : Label.t Semi_nca.tree;
+    mutable live    : Live.t option;
   }
 
   (* Explicit registers and variables that correspond to stack slots
@@ -123,7 +127,10 @@ module Make(M : Machine_intf.S) = struct
       adjlist = Rv.Table.create ();
       degree;
       moves = Rv.Table.create ();
+      insn_blks = Label.Table.create ();
       copies = Label.Table.create ();
+      nuse = Rv.Table.create ();
+      defs = Rv.Table.create ();
       wmoves = Lset.empty;
       amoves = Lset.empty;
       cmoves = Lset.empty;
@@ -147,11 +154,15 @@ module Make(M : Machine_intf.S) = struct
       loop;
       spill_cost;
       dom;
+      live = None;
     }
 
   let add_spill t n =
     if can_be_colored t n && not (Hashtbl.mem t.wspill_elts n) then
       let elt = Pairing_heap.add_removable t.wspill n in
+      Logs.debug (fun m ->
+          m "%s: adding %a to spill worklist%!"
+            __FUNCTION__ Rv.pp n);
       Hashtbl.set t.wspill_elts ~key:n ~data:elt
 
   let remove_spill t n = Hashtbl.change t.wspill_elts n ~f:(function
@@ -216,6 +227,19 @@ module Make(M : Machine_intf.S) = struct
   let move_related t n =
     not @@ Lset.is_empty @@ node_moves t n
 
+  let inc_use t n =
+    Hashtbl.update t.nuse n ~f:(function
+        | Some n -> n + 1
+        | None -> 1)
+
+  let num_uses t n =
+    Hashtbl.find t.nuse n |> Option.value ~default:0
+
+  let add_def t n l =
+    Hashtbl.update t.defs n ~f:(function
+        | None -> Lset.singleton l
+        | Some s -> Lset.add s l)
+
   (* if n \in coalescedNodes then
        GetAlias(alias[n])
      else n *)
@@ -228,7 +252,11 @@ module Make(M : Machine_intf.S) = struct
     | Second _ -> Hashtbl.find t.colors n
     | First r -> Regs.reg_color r
 
-  let set_color t n c = Hashtbl.set t.colors ~key:n ~data:c
+  let set_color t n c =
+    Logs.debug (fun m ->
+        m "%s: assigning color %a=%d%!"
+          __FUNCTION__ Rv.pp n c);
+    Hashtbl.set t.colors ~key:n ~data:c
 
   let add_move t label n =
     Hashtbl.update t.moves n ~f:(function

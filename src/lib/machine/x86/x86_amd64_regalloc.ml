@@ -100,46 +100,46 @@ let substitute_operand f = function
   | Osym _ as s -> s
   | Oah -> Oah
 
+(* Attempt some peephole optimizations after the substitution.
+   XXX: what if the FLAGS register is live? *)
+let substitute_binop' o a b op = match o, op a, op b with
+  | LEA, Oreg (x, ty), Omem (Abd (y, d), _) when Regvar.(x = y) ->
+    (* lea x, [x+d] => add x, d or sub x, -d *)
+    if Int32.(d < 0l) then
+      let d = Int32.neg d in
+      let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
+      if Int64.(d' = 1L) then
+        One (DEC, Oreg (x, ty))
+      else
+        Two (SUB, Oreg (x, ty), Oimm (d', immty ty))
+    else
+      let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
+      if Int64.(d' = 1L) then
+        One (INC, Oreg (x, ty))
+      else
+        Two (ADD, Oreg (x, ty), Oimm (d', immty ty))
+  | LEA, Oreg (x, ty), Omem (Abis (y, z, S1), _) when Regvar.(x = y) ->
+    (* lea x, [x+y*1] => add x, y *)
+    Two (ADD, Oreg (x, ty), Oreg (z, ty))
+  | LEA, Oreg (x, ty), Omem (Abis (y, z, S1), _) when Regvar.(x = z) ->
+    (* lea x, [y+x*1] => add x, y *)
+    Two (ADD, Oreg (x, ty), Oreg (y, ty))
+  | LEA, Oreg (x, ty), Omem (Aisd (y, S2, 0l), _) when Regvar.(x = y) ->
+    (* lea x, [x*2] => shl x, 1 *)
+    Two (SHL, Oreg (x, ty), Oimm (1L, `i8))
+  | LEA, Oreg (x, ty), Omem (Aisd (y, S4, 0l), _) when Regvar.(x = y) ->
+    (* lea x, [x*4] => shl x, 2 *)
+    Two (SHL, Oreg (x, ty), Oimm (2L, `i8))
+  | LEA, Oreg (x, ty), Omem (Aisd (y, S8, 0l), _) when Regvar.(x = y) ->
+    (* lea x, [x*8] => shl x, 3 *)
+    Two (SHL, Oreg (x, ty), Oimm (3L, `i8))
+  | o, a, b ->
+    (* Default case. *)
+    Two (o, a, b)
+
 let substitute' i op = match i with
   | One (o, a) -> One (o, op a)
-  | Two (o, a, b) ->
-    (* Attempt some peephole optimizations after the substitution.
-       XXX: what if the FLAGS register is live? *)
-    begin match o, op a, op b with
-      | LEA, Oreg (x, ty), Omem (Abd (y, d), _) when Regvar.(x = y) ->
-        (* lea x, [x+d] => add x, d or sub x, -d *)
-        if Int32.(d < 0l) then
-          let d = Int32.neg d in
-          let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
-          if Int64.(d' = 1L) then
-            One (DEC, Oreg (x, ty))
-          else
-            Two (SUB, Oreg (x, ty), Oimm (d', immty ty))
-        else
-          let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
-          if Int64.(d' = 1L) then
-            One (INC, Oreg (x, ty))
-          else
-            Two (ADD, Oreg (x, ty), Oimm (d', immty ty))
-      | LEA, Oreg (x, ty), Omem (Abis (y, z, S1), _) when Regvar.(x = y) ->
-        (* lea x, [x+y*1] => add x, y *)
-        Two (ADD, Oreg (x, ty), Oreg (z, ty))
-      | LEA, Oreg (x, ty), Omem (Abis (y, z, S1), _) when Regvar.(x = z) ->
-        (* lea x, [y+x*1] => add x, y *)
-        Two (ADD, Oreg (x, ty), Oreg (y, ty))
-      | LEA, Oreg (x, ty), Omem (Aisd (y, S2, 0l), _) when Regvar.(x = y) ->
-        (* lea x, [x*2] => shl x, 1 *)
-        Two (SHL, Oreg (x, ty), Oimm (1L, `i8))
-      | LEA, Oreg (x, ty), Omem (Aisd (y, S4, 0l), _) when Regvar.(x = y) ->
-        (* lea x, [x*4] => shl x, 2 *)
-        Two (SHL, Oreg (x, ty), Oimm (2L, `i8))
-      | LEA, Oreg (x, ty), Omem (Aisd (y, S8, 0l), _) when Regvar.(x = y) ->
-        (* lea x, [x*8] => shl x, 3 *)
-        Two (SHL, Oreg (x, ty), Oimm (3L, `i8))
-      | o, a, b ->
-        (* Default case. *)
-        Two (o, a, b)
-    end
+  | Two (o, a, b) -> substitute_binop' o a b op
   | IMUL3 (a, b, c) -> IMUL3 (op a, op b, c)
   | JMP (Jind a) -> JMP (Jind (op a))
   | CDQ
@@ -203,88 +203,90 @@ module Typed_writes = struct
     Regvar.Map.of_alist_reduce ~f:reduce @@
     List.map l ~f:(fun (r, t) -> Regvar.reg r, t)
 
+  let binop_writes o a _b = match o with
+    | ADD
+    | ADDSD
+    | ADDSS
+    | AND
+    | BSF
+    | BSR
+    | CMOVcc _
+    | CVTSD2SI
+    | CVTTSD2SI
+    | CVTSD2SS
+    | CVTSI2SD
+    | CVTSI2SS
+    | CVTSS2SD
+    | CVTSS2SI
+    | CVTTSS2SI
+    | DIVSD
+    | DIVSS
+    | IMUL2
+    | LEA
+    | MOV
+    | MOV_
+    | MOVD
+    | MOVDQA
+    | MOVQ
+    | MOVSD
+    | MOVSS
+    | MOVSX
+    | MOVSXD
+    | MOVZX
+    | MULSD
+    | MULSS
+    | OR
+    | POPCNT
+    | ROL
+    | ROR
+    | SAR
+    | SHL
+    | SHR
+    | SUB
+    | SUBSD
+    | SUBSS
+    | XOR
+    | XORPD
+    | XORPS
+      -> rmap_reg [a]
+    | CMP
+    | TEST_
+    | UCOMISD
+    | UCOMISS
+      -> Regvar.Map.empty
+
+  let unop_writes call o a = match o with
+    | CALL _
+      -> call
+    | DEC
+    | INC
+    | NEG
+    | NOT
+    | SETcc _
+    | POP
+      -> rmap_reg [a]
+    | PUSH
+      -> Regvar.Map.empty
+    | DIV
+    | IDIV
+    | IMUL1
+    | MUL ->
+      begin match a with
+        | Oreg (_, `i8)
+          -> rmap' [`rax, `i8]
+        | Oreg (_, t)
+          -> rmap' [`rax, wty t; `rdx, wty t]
+        | Omem (_, t)
+          -> rmap' [`rax, wty t; `rdx, wty t]
+        | _
+          (* invalid forms *)
+          -> Regvar.Map.empty
+      end
+
   (* Registers written to by an instruction. *)
   let writes call = function
-    | Two (o, a, _) ->
-      begin match o with
-        | ADD
-        | ADDSD
-        | ADDSS
-        | AND
-        | BSF
-        | BSR
-        | CMOVcc _
-        | CVTSD2SI
-        | CVTSD2SS
-        | CVTSI2SD
-        | CVTSI2SS
-        | CVTSS2SD
-        | CVTSS2SI
-        | DIVSD
-        | DIVSS
-        | IMUL2
-        | LEA
-        | MOV
-        | MOV_
-        | MOVD
-        | MOVDQA
-        | MOVQ
-        | MOVSD
-        | MOVSS
-        | MOVSX
-        | MOVSXD
-        | MOVZX
-        | MULSD
-        | MULSS
-        | OR
-        | POPCNT
-        | ROL
-        | ROR
-        | SAR
-        | SHL
-        | SHR
-        | SUB
-        | SUBSD
-        | SUBSS
-        | XOR
-        | XORPD
-        | XORPS
-          -> rmap_reg [a]
-        | CMP
-        | TEST_
-        | UCOMISD
-        | UCOMISS
-          -> Regvar.Map.empty
-      end
-    | One (o, a) ->
-      begin match o with
-        | CALL _
-          -> call
-        | DEC
-        | INC
-        | NEG
-        | NOT
-        | SETcc _
-        | POP
-          -> rmap_reg [a]
-        | PUSH
-          -> Regvar.Map.empty
-        | DIV
-        | IDIV
-        | IMUL1
-        | MUL ->
-          begin match a with
-            | Oreg (_, `i8)
-              -> rmap' [`rax, `i8]
-            | Oreg (_, t)
-              -> rmap' [`rax, wty t; `rdx, wty t]
-            | Omem (_, t)
-              -> rmap' [`rax, wty t; `rdx, wty t]
-            | _
-              (* invalid forms *)
-              -> Regvar.Map.empty
-          end
-      end
+    | Two (o, a, b) -> binop_writes o a b
+    | One (o, a) -> unop_writes call o a
     | IMUL3 (a, _, _)
       -> rmap_reg [a]
     | Jcc _
@@ -318,65 +320,65 @@ module Pre_assign_slots(C : Context_intf.S) = struct
     let off' = Int32.of_int_exn off in
     let d' = Int32.(d + off') in
     if (off > 0 && Int32.(d' < d)) ||
-       (off < 0 && Int32.(d' > d)) then begin
+       (off < 0 && Int32.(d' > d)) then
       let+ x, is = freshen base off' in
       Second (x, is)
-    end else !!(First d')
+    else !!(First d')
+
+  let assign_ab find base a b = match find b with
+    | Some 0 -> !!(Ab base, [])
+    | Some o -> !!(Abd (base, Int32.of_int_exn o), [])
+    | None -> !!(a, [])
+
+  let assign_abd find base a b d = match find b with
+    | None -> !!(a, [])
+    | Some o -> add_disp base o d >>| function
+      | First d' -> Abd (base, d'), []
+      | Second (b', bi) -> Abd (b', d), bi
+
+  let assign_abis find base a b i s = match find b, find i with
+    | None, None -> !!(a, [])
+    | Some 0, None -> !!(Abis (base, i, s), [])
+    | Some o, None -> !!(Abisd (base, i, s, Int32.of_int_exn o), [])
+    | None, Some o ->
+      let+ i', ii = freshen base (Int32.of_int_exn o) in
+      Abis (b, i', s), ii
+    | Some ob, Some oi ->
+      let+ i', ii = freshen base (Int32.of_int_exn oi) in
+      Abisd (base, i', s, Int32.of_int_exn ob), ii
+
+  let assign_aisd find base a i s d = match find i with
+    | None -> !!(a, [])
+    | Some o ->
+      let+ i', ii = freshen base (Int32.of_int_exn o) in
+      Aisd (i', s, d), ii
 
   let rec assign_amode find base a = match a with
     | Albl _ | Asym _ -> !!(a, [])
-    | Ab b ->
-      begin match find b with
-        | Some 0 -> !!(Ab base, [])
-        | Some o -> !!(Abd (base, Int32.of_int_exn o), [])
-        | None -> !!(a, [])
-      end
-    | Abd (b, d) ->
-      begin match find b with
-        | None -> !!(a, [])
-        | Some o -> add_disp base o d >>| function
-          | First d' -> Abd (base, d'), []
-          | Second (b', bi) -> Abd (b', d), bi
-      end
-    | Abis (b, i, s) ->
-      begin match find b, find i with
-        | None, None -> !!(a, [])
-        | Some 0, None -> !!(Abis (base, i, s), [])
-        | Some o, None -> !!(Abisd (base, i, s, Int32.of_int_exn o), [])
-        | None, Some o ->
-          let+ i', ii = freshen base (Int32.of_int_exn o) in
-          Abis (b, i', s), ii
-        | Some ob, Some oi ->
-          let+ i', ii = freshen base (Int32.of_int_exn oi) in
-          Abisd (base, i', s, Int32.of_int_exn ob), ii
-      end
+    | Ab b -> assign_ab find base a b
+    | Abd (b, d) -> assign_abd find base a b d
+    | Abis (b, i, s) -> assign_abis find base a b i s
     | Aisd (i, S1, d) -> assign_amode find base @@ Abd (i, d)
-    | Aisd (i, s, d) ->
-      begin match find i with
-        | None -> !!(a, [])
-        | Some o ->
-          let+ i', ii = freshen base (Int32.of_int_exn o) in
-          Aisd (i', s, d), ii
+    | Aisd (i, s, d) -> assign_aisd find base a i s d
+    | Abisd (b, i, s, d) -> assign_abisd find base a b i s d
+
+  and assign_abisd find base a b i s d = match find b, find i with
+    | None, None -> !!(a, [])
+    | None, Some _ when equal_scale s S1 ->
+      assign_amode find base @@ Abisd (i, b, S1, d)
+    | None, Some o ->
+      let+ i', ii = freshen base (Int32.of_int_exn o) in
+      Abisd (b, i', s, d), ii
+    | Some o, None ->
+      begin add_disp base o d >>| function
+        | First d' -> Abisd (base, i, s, d'), []
+        | Second (b', bi) -> Abisd (b', i, s, d), bi
       end
-    | Abisd (b, i, s, d) ->
-      begin match find b, find i with
-        | None, None -> !!(a, [])
-        | None, Some _ when equal_scale s S1 ->
-          assign_amode find base @@ Abisd (i, b, S1, d)
-        | None, Some o ->
-          let+ i', ii = freshen base (Int32.of_int_exn o) in
-          Abisd (b, i', s, d), ii
-        | Some o, None ->
-          begin add_disp base o d >>| function
-            | First d' -> Abisd (base, i, s, d'), []
-            | Second (b', bi) -> Abisd (b', i, s, d), bi
-          end
-        | Some ob, Some oi ->
-          let* i', ii = freshen base (Int32.of_int_exn oi) in
-          add_disp base ob d >>| function
-          | First d' -> Abisd (base, i', s, d'), ii
-          | Second (b', bi) -> Abisd (b', i', s, d), bi @ ii
-      end
+    | Some ob, Some oi ->
+      let* i', ii = freshen base (Int32.of_int_exn oi) in
+      add_disp base ob d >>| function
+      | First d' -> Abisd (base, i', s, d'), ii
+      | Second (b', bi) -> Abisd (b', i', s, d), bi @ ii
 
   let assign_operand find base op = match op with
     | Oreg (r, t) ->
@@ -428,41 +430,41 @@ module Pre_assign_slots(C : Context_intf.S) = struct
     | FP64 _ -> !![i]
 end
 
+(* NB: this makes assumptions based on the results of `Pre_assign_slots`. *)
 module Post_assign_slots = struct
-  (* NB: this makes assumptions based on the results of `Pre_assign_slots`. *)
+  (* All spills/reloads should be using this form. *)
+  let assign_ab find base a b = match find b with
+    | Some 0 -> Ab base
+    | Some o -> Abd (base, Int32.of_int_exn o)
+    | None -> a
+
+  let assign_abd find _base a b _d = match find b with
+    | None -> a
+    | Some _ -> assert false
+
+  let assign_abis find _base a b i _s = match find b, find i with
+    | None, None -> a
+    | Some _, None -> assert false
+    | None, Some _ -> assert false
+    | Some _, Some _ -> assert false
+
+  let assign_aisd find _base a i _s _d = match find i with
+    | None -> a
+    | Some _ -> assert false
+
+  let assign_abisd find _base a b i _s _d = match find b, find i with
+    | None, None -> a
+    | None, Some _ -> assert false
+    | Some _, Some _ -> assert false
+    | Some _, None -> assert false
+
   let assign_amode find base a = match a with
     | Albl _ | Asym _ -> a
-    | Ab b ->
-      (* All spills/reloads should be using this form. *)
-      begin match find b with
-        | Some 0 -> Ab base
-        | Some o -> Abd (base, Int32.of_int_exn o)
-        | None -> a
-      end
-    | Abd (b, _d) ->
-      begin match find b with
-        | None -> a
-        | Some _ -> assert false
-      end
-    | Abis (b, i, _s) ->
-      begin match find b, find i with
-        | None, None -> a
-        | Some _, None -> assert false
-        | None, Some _ -> assert false
-        | Some _, Some _ -> assert false
-      end
-    | Aisd (i, _s, _d) ->
-      begin match find i with
-        | None -> a
-        | Some _ -> assert false
-      end
-    | Abisd (b, i, _s, _d) ->
-      begin match find b, find i with
-        | None, None -> a
-        | None, Some _ -> assert false
-        | Some _, Some _ -> assert false
-        | Some _, None -> assert false
-      end
+    | Ab b -> assign_ab find base a b
+    | Abd (b, d) -> assign_abd find base a b d
+    | Abis (b, i, s) -> assign_abis find base a b i s
+    | Aisd (i, s, d) -> assign_aisd find base a i s d
+    | Abisd (b, i, s, d) -> assign_abisd find base a b i s d
 
   let assign_operand find base op = match op with
     | Oreg (r, _) ->

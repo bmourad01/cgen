@@ -58,8 +58,15 @@ let collect tenv env fn =
 let run tenv env fn =
   let xs = collect tenv env fn in
   let+ () = Context.List.iter xs ~f:(fun (b, c, l, args) ->
+      Logs.debug (fun m ->
+          m "%s: block %a, simplifying br on %a to %a%!"
+            __FUNCTION__ Label.pp (Blk.label b)
+            Var.pp c Label.pp l);
       let+ sels = Context.List.map args ~f:(fun (ty, y, n) ->
           let+ x, sel = Context.Virtual.sel ty c y n in
+          Logs.debug (fun m ->
+              m "%s: inserting %a%!" __FUNCTION__
+                Insn.pp_op (Insn.op sel));
           Hashtbl.set env.typs ~key:x ~data:(ty :> Type.t);
           `var x, sel) in
       let args, sels = List.unzip sels in

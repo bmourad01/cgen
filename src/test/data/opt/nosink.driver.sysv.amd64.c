@@ -2,7 +2,8 @@
 
 extern int foo(int x);
 
-int main() {
+int
+main() {
   assert(foo(0) == 0);
   assert(foo(1) == 9);
   assert(foo(2) == 15);

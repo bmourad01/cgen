@@ -260,11 +260,14 @@ module Make(M : L) = struct
   end
 
   type 'a program = {
+    name : string;
     rule : (pat * 'a) array;
     code : insn Vec.t;
     root : (op, label) Hashtbl.t;
     rmin : int array;
   }
+
+  let name p = p.name
 
   let pp_program ppf p = Vec.iteri p.code ~f:(fun l i ->
       Format.fprintf ppf "@%d: %a\n" l pp_insn i)
@@ -490,7 +493,8 @@ module Make(M : L) = struct
       | [] ->
         failwithf "compile_tree: empty sequence at rule %d" i ()
 
-    let compile ?(commute = false) rules =
+    let compile ?(commute = false) ~name rules =
+      let[@alert "-deprecated"] t0 = Time.now () in
       let rule = Array.of_list rules in
       let code = Vec.create () in
       let rmin, root = match rules with
@@ -506,7 +510,12 @@ module Make(M : L) = struct
                 compile_tree forest i pat);
           let root = Hashtbl.map forest ~f:(linearize code) in
           compute_rmin code, root in
-      {rule; code; root; rmin}
+      let[@alert "-deprecated"] t = Time.now () in
+      let[@alert "-deprecated"] elapsed = Time.(Span.to_sec (diff t t0)) in
+      Logs.debug (fun m ->
+          m "%s: ruleset %s: compiled %d rules to %d instructions in %g seconds, commute=%b%!"
+            __FUNCTION__ name (Array.length rule) (Vec.length code) elapsed commute);
+      {name; rule; code; root; rmin}
   end
 
   let compile = Compiler.compile

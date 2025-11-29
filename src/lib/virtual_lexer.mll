@@ -2,8 +2,6 @@
   open Lexing
   open Virtual_parser
 
-  let string_buff = Buffer.create 256
-
   let char_for_backslash = function
     | 'n' -> '\010'
     | 'r' -> '\013'
@@ -56,7 +54,7 @@ let exp = ('E' | 'e') (integer | ninteger)
 let inf = ("INF" | "inf" | "INFINITY" | "infinity")
 let nan = ("NAN" | "NaN" | "nan")
 let flt = ('-'? digit+ '.' digit+ exp?) | ('-'? inf) | ('-'? nan)
-let backslash_escapes = ['\\' '\'' '"' 'n' 't' 'b' 'r' ' ']
+let backslash_escapes = ['\\' '\'' '"' 'n' 't' 'b' 'r']
 let imm = ['w' 'l' 'b' 'h']
 let imm_base = ['w' 'l']
 let fp = ['s' 'd']
@@ -65,6 +63,7 @@ let special = ['m' 'f']
 let typ = (basic | special)
 
 rule token = parse
+  | "(;" { block_comment 0 lexbuf; token lexbuf }
   | ';' { line_comment lexbuf; token lexbuf }
   | '\n' { newline lexbuf; token lexbuf }
   | space { token lexbuf }
@@ -72,13 +71,13 @@ rule token = parse
   | '-' { MINUS }
   | ':' (ident as id) { TYPENAME id }
   | ':' { COLON }
+  | '@' (integer as id) { LABEL id }
   | '$' (ident as id) { SYM id }
   | '@' (ident as id) { LABEL id }
-  | '@' (integer as id) { LABEL id }
-  | '%' (ident as id) '.' (integer as i) { VAR (id, int_of_string i) }
-  | '%' (ident as id) { IDENT id }
   | '%' (integer as id) { TEMP id }
   | '%' (integer as id) '.' (integer as i) { TEMPI (id, int_of_string i) }
+  | '%' (ident as id) '.' (integer as i) { VAR (id, int_of_string i) }
+  | '%' (ident as id) { IDENT id }
   | "module" space+ (ident as id) { MODULE id }
   | "align" { ALIGN }
   | "const" { CONST () }
@@ -92,7 +91,7 @@ rule token = parse
   | ',' { COMMA }
   | '=' { EQUALS }
   | "->" { ARROW }
-  | "..." { ELIPSIS }
+  | "..." { ELLIPSIS }
   | "sb" { SB }
   | "sh" { SH }
   | "sw" { SW }
@@ -184,9 +183,9 @@ rule token = parse
   | "section" { SECTION }
   | "noreturn" { NORETURN }
   | '"' {
-    Buffer.clear string_buff;
-    string lexbuf;
-    STRING (Buffer.contents string_buff)
+    let buf = Buffer.create 64 in
+    string buf lexbuf;
+    STRING (Buffer.contents buf)
   }
   | eof { EOF }
   | (posints as i) '_' (imm as t) {
@@ -204,17 +203,26 @@ rule token = parse
   | "false" { BOOL false }
   | _ { raise Error }
 
-and string = parse
+and string buf = parse
   | '"' { () }
   | '\\' (backslash_escapes as c) {
-    Buffer.add_char string_buff (char_for_backslash c);
-    string lexbuf
+    Buffer.add_char buf (char_for_backslash c);
+    string buf lexbuf
   }
+  | eof { raise Error }
   | _ as c {
-    Buffer.add_char string_buff c;
-    string lexbuf
+    Buffer.add_char buf c;
+    string buf lexbuf
   }
 
+and block_comment depth = parse
+  | "(;" { block_comment (depth + 1) lexbuf }
+  | ";)" { if depth > 0 then block_comment (depth - 1) lexbuf }
+  | '\n' { newline lexbuf; block_comment depth lexbuf }
+  | eof { raise Error }
+  | _ { block_comment depth lexbuf }
+
 and line_comment = parse
-  | '\n' { () }
+  | '\n' { newline lexbuf }
+  | eof { () }
   | _ { line_comment lexbuf }

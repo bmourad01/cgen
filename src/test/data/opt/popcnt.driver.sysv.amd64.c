@@ -5,7 +5,8 @@ extern unsigned short popcnt16(unsigned short n);
 extern unsigned int popcnt32(unsigned int n);
 extern unsigned long popcnt64(unsigned long n);
 
-int main() {
+int
+main() {
   assert(popcnt8(0xFF) == 8);
   assert(popcnt8(0x0F) == 4);
 

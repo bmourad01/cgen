@@ -2,17 +2,6 @@ open Core
 open OUnit2
 open Cgen
 
-let fmt s =
-  (* Ignore lines starting with a double comment *)
-  let s =
-    String.split_lines s |> List.filter ~f:(fun ln ->
-        not @@ String.is_prefix ln ~prefix:";;") |>
-    String.concat in
-  (* Ignore returns/newlines/tabs/spaces *)
-  String.filter s ~f:(function
-      | '\r' | '\n' | '\t' | ' ' -> false
-      | _ -> true)
-
 let from_file filename =
   let open Context.Syntax in
   let* m = Parse.Virtual.from_file filename in
@@ -22,16 +11,19 @@ let from_file filename =
 (* Toggle this to overwrite cases that differ. *)
 let overwrite = false
 
-let compare_outputs filename' expected p' =
-  if String.(fmt p' <> fmt expected) then
+let compare_outputs ?(chop_end = true) filename' expected p' =
+  let expected' = if chop_end
+    then String.chop_suffix_if_exists expected ~suffix:"\n"
+    else expected in
+  if String.(p' <> expected') then
     if overwrite then
       (* Assume we're being tested via `dune test`, which runs with
          "_build/default/test/" as the CWD. *)
       Out_channel.write_all ("../../../test/" ^ filename') ~data:(p' ^ "\n")
     else
-      let expected = String.chop_suffix_if_exists expected ~suffix:"\n" in
-      let diff = Odiff.strings_diffs expected p' in
-      let msg = Format.sprintf "Diff:\n\n%s" (Odiff.string_of_diffs diff) in
+      let diff = Odiff.strings_diffs expected' p' in
+      let msg = Format.sprintf "Diff (%s):\n\n%s"
+          filename' (Odiff.string_of_diffs diff) in
       assert_failure msg
 
 let from_file_abi filename =
@@ -41,19 +33,28 @@ let from_file_abi filename =
   let* () = Context.iter_seq_err (Virtual.Abi.Module.funs m) ~f:Passes.Ssa.check_abi in
   Passes.optimize_abi m
 
-let test name _ =
+let test ?(f = from_file) name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
   let filename' = filename ^ ".opt" in
   let expected = In_channel.read_all filename' in
   Context.init Machine.X86.Amd64_sysv.target |>
   Context.eval begin
     let open Context.Syntax in
-    let* _, m = from_file filename in
+    let* _, m = f filename in
     let* () = Virtual.Module.funs m |> Context.iter_seq_err ~f:Passes.Ssa.check in
     !!(Format.asprintf "%a" Virtual.Module.pp m)
   end |> function
   | Ok p' -> compare_outputs filename' expected p'
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
+
+let coalesce_only filename =
+  let open Context.Syntax in
+  let* m = Parse.Virtual.from_file filename in
+  let* tenv, m = Passes.initialize m in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Coalesce_slots.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Resolve_constant_blk_args.run in
+  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
+  !!(tenv, m)
 
 let test_abi target ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
@@ -175,14 +176,7 @@ let test_native target abi ext name _ =
     end;
     if Shexp_process.(eval @@ file_exists driver_output) then
       let contents = In_channel.read_all driver_output in
-      let msg = Format.asprintf
-          "Unequal output\n\
-           ---------------------------\n\
-           Got:\n%s\n\
-           ---------------------------\n\
-           Expected:\n%s\n"
-          p.stdout contents in
-      assert_bool msg @@ String.(contents = p.stdout)
+      compare_outputs ~chop_end:false driver_output contents p.stdout
 
 (* Specific ABI lowering tests. *)
 let test_sysv = test_abi Machine.X86.Amd64_sysv.target "sysv"
@@ -307,6 +301,14 @@ let opt_suite = "Test optimizations" >::: [
     "No sinking" >:: test "nosink";
     "Spill test 2" >:: test "spill2";
     "Parallel moves" >:: test "parallel";
+    "SROA" >:: test "sroa";
+    "Sink 1" >:: test "sink1";
+    "Escape 1" >:: test "esc1";
+    "Slot coalesce 1 (no other opts)" >:: test ~f:coalesce_only "coalesce1";
+    "Slot coalesce 1 (full opts)" >:: test "coalesce1a";
+    "Bad load 1" >:: test "badload1";
+    "Bad load 2" >:: test "badload2";
+    "Binary search" >:: test "bsearch";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -339,6 +341,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Collatz recursive (SysV)" >:: test_sysv "collatz_rec";
     "Ackermann (SysV)" >:: test_sysv "ackermann";
     "Quicksort (SysV)" >:: test_sysv "qsort";
+    "Binary search (SysV)" >:: test "bsearch";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -371,6 +374,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64 "ackermann";
     "Quicksort (SysV AMD64)" >:: test_sysv_amd64 "qsort";
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64 "parallel";
+    "Binary search (SysV AMD64)" >:: test_sysv_amd64 "bsearch";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -413,6 +417,9 @@ let regalloc_suite = "Test register allocation" >::: [
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_regalloc "analyze_array";
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_regalloc "promote2-partial";
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64_regalloc "parallel";
+    "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumphi";
+    "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_regalloc "vasum";
+    "Binary search (SysV AMD64)" >:: test_sysv_amd64_regalloc "bsearch";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -430,6 +437,7 @@ let native_suite = "Test native code" >::: [
     "Quicksort, swap inlined (SysV AMD64)" >:: test_sysv_amd64_native "qsort_inline_swap";
     "Spill test 1 (SysV AMD64)" >:: test_sysv_amd64_native "spill1";
     "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64_native "vaarg1";
+    "Variadic function arguments 2 (SysV AMD64)" >:: test_sysv_amd64_native "vaarg2";
     "Palindrome (SysV AMD64)" >:: test_sysv_amd64_native "palindrome";
     "Integer pow (SysV AMD64)" >:: test_sysv_amd64_native "int_pow";
     "AND test (SysV AMD64)" >:: test_sysv_amd64_native "and_test";
@@ -438,6 +446,10 @@ let native_suite = "Test native code" >::: [
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_native "analyze_array";
     "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_native "uremby7";
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_native "promote2-partial";
+    "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_native "sumphi";
+    "Returning, passing, and dereferencing a struct (SysV AMD64)" >:: test_sysv_amd64_native "unref";
+    "Sink 1 (SysV AMD64)" >:: test_sysv_amd64_native "sink1";
+    "Binary search (SysV AMD64)" >:: test_sysv_amd64_native "bsearch";
   ]
 
 let () = run_test_tt_main @@ test_list [

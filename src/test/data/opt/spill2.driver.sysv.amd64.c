@@ -2,7 +2,8 @@
 
 extern int foo(int *a, int *b, int *c, int *d, int n);
 
-int main() {
+int
+main() {
   int a0[] = {};
   int b0[] = {};
   int c0[] = {};

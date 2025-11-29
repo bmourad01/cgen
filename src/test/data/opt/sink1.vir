@@ -1,0 +1,15 @@
+module sink1
+
+export function w $foo(w %x) {
+@start:
+  %y = add.w %x, 1_w
+  %c = eq.w %x, 0_w
+  br %c, @zero, @notzero
+@zero:
+  %c = eq.w %y, 1_w
+  br %c, @one, @notzero
+@one:
+  ret 1_w
+@notzero:
+  ret 0_w
+}

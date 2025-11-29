@@ -84,20 +84,29 @@ let find_loc env s : local -> local option = function
     | #global -> assert false
     | #local as l -> l
 
-let map_dst changed env s d = match find_dst env s d with
+let map_dst key changed env s d = match find_dst env s d with
   | Some x when equal_dst d x -> x
-  | Some x -> changed := true; x
+  | Some x ->
+    Logs.debug (fun m ->
+        m "%s: block %a: contracted %a to %a%!"
+          __FUNCTION__ Label.pp key pp_dst d pp_dst x);
+    changed := true; x
   | None -> d
 
-let map_loc changed env s l = match find_loc env s l with
+let map_loc key changed env s l = match find_loc env s l with
   | Some x when equal_local l x -> x
-  | Some x -> changed := true; x
+  | Some x ->
+    Logs.debug (fun m ->
+        m "%s: block %a: contracted %a to %a%!"
+          __FUNCTION__ Label.pp key pp_local l pp_local x);
+    changed := true; x
   | None -> l
 
 let contract_blks changed env (s : singles) =
   Hashtbl.map_inplace env.blks ~f:(fun b ->
-      let dst = map_dst changed env s in
-      let loc = map_loc changed env s in
+      let key = Blk.label b in
+      let dst = map_dst key changed env s in
+      let loc = map_loc key changed env s in
       Blk.map_ctrl b ~f:(function
           | (`hlt | `ret _) as x -> x
           | `jmp d -> `jmp (dst d)

@@ -49,6 +49,9 @@ and merge subst env l l' b b' =
   env.cfg <- Cfg.Node.remove l' env.cfg;
   List.iter es ~f:(fun e ->
       env.cfg <- Cfg.Edge.insert e env.cfg);
+  Logs.debug (fun m ->
+      m "%s: merged block %a into %a%!"
+        __FUNCTION__ Label.pp l' Label.pp l);
   try_merge ~child:l' subst env l
 
 let run env =

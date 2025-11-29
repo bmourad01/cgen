@@ -16,6 +16,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let wordi = (word :> Type.imm)
   let wordb = (word :> Type.basic)
 
+  type subst = Rv.t S.t
   type rule = (Rv.t, M.Insn.t) R.t
   type callback = (Rv.t, M.Insn.t) R.callback
 
@@ -65,18 +66,23 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* XXX: don't try this at home! The representations are exactly the
        same, but we need to erase the type constraints on the input. *)
     let pats : (Matcher.pat * callback list) list = Obj.magic rules in
-    let prog = Matcher.compile pats ~commute:true in
+    let name = Format.asprintf "%a-isel" Target.pp M.target in
+    let prog = Matcher.compile ~name pats ~commute:true in
     prog, VM.create ()
 
   (* Translate a substitution we got from the matcher
      into one that our rule callbacks can understand. *)
-  let map_subst_terms t (s : Matcher.subst) : Rv.t S.t =
+  let map_subst_terms t (s : Matcher.subst) : subst =
     let open S in
     let regvar id r = match typeof t id with
       | Some (#Type.basic as ty) -> Regvar (r, ty)
       | Some `v128 -> Regvar_v r
       | Some `flag -> Regvar (r, wordb)
-      | None -> raise_notrace Mismatch in
+      | None ->
+        Logs.debug (fun m ->
+            m "%s: no regvar for term %d: %a%!"
+              __FUNCTION__ id (pp_node t) id);
+        raise_notrace Mismatch in
     Map.map s ~f:(fun id ->
         let tm = match node t id with
           | N (Oaddr a, []) -> Imm (a, wordi)
@@ -89,9 +95,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           | Callargs rs -> Callargs rs
           | Tbl (d, tbl) -> Table (d, tbl)
           | Rv r -> regvar id r
-          | N _ -> match Hashtbl.find t.id2r id with
-            | None -> raise_notrace Mismatch
-            | Some r -> regvar id r in
+          | N _ -> match getrv t id with
+            | Some r -> regvar id r
+            | None ->
+              Logs.debug (fun m ->
+                  m "%s: no regvar for term %d: %a%!"
+                    __FUNCTION__ id (pp_node t) id);
+              raise_notrace Mismatch
+        in
         S.{id; tm})
 
   let fail_init_matcher t l id =
@@ -112,13 +123,19 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      result of computing ?y because future instructions may want to match on
      it.
   *)
-  let check_blank_move s n (p : Matcher.pat) = match n, p with
+  let check_blank_move t (s : subst) id (p : Matcher.pat) =
+    match node t id, p with
     | N (Omove, [_; _]),
       P (Omove, [V x; V y]) ->
       begin match Map.(find s x, find s y) with
         | Some x, Some y
-          when x.S.id = y.S.id
+          when x.id = y.id
             || S.equal_term Rv.equal x.tm y.tm ->
+          Logs.debug (fun m ->
+              m "%s: term %d: blank move to x=%d: %a from y=%d: %a%!"
+                __FUNCTION__ id
+                x.id (pp_node t) x.id
+                y.id (pp_node t) y.id);
           raise_notrace Mismatch
         | _ -> ()
       end
@@ -129,13 +146,23 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* () = C.unless init @@ fail_init_matcher t l id in
     let rec loop () = match VM.one vm prog with
       | None -> !!None
-      | Some y ->
-        try
+      | Some y -> try
+          Logs.debug (fun m ->
+              let s = Map.to_alist @@ Y.subst y in
+              m "%s: insn %a, term %d, yielded:\n  rule: %d\n  subst: %s\n  pat: %a%!"
+                __FUNCTION__ Label.pp l id (Y.rule y)
+                (List.to_string s ~f:(fun (x, id) ->
+                     Format.asprintf "%s=%d" x id))
+                Matcher.pp_pat (Y.pat y));
           let s = map_subst_terms t @@ Y.subst y in
-          check_blank_move s (node t id) @@ Y.pat y;
+          check_blank_move t s id @@ Y.pat y;
           R.try_ s (Y.payload y) >>= function
           | Some _ as is -> !!is
-          | None -> loop ()
+          | None ->
+            Logs.debug (fun m ->
+                m "%s: no callbacks succeeded, looping again%!"
+                  __FUNCTION__);
+            loop ()
         with Mismatch -> loop () in
     loop () >>= function
     | None -> fail_match t l id ()
@@ -200,8 +227,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     >>| List.dedup_and_sort ~compare:M.Reg.compare
 
   let run t =
-    let* blks = transl_blks t in
     let* rets = transl_rets t in
+    let* blks = transl_blks t in
     let dict = Func.dict t.fn in
     let dict = if not t.frame then dict
       else Dict.set dict Pseudo.Func.Tag.needs_stack_frame () in

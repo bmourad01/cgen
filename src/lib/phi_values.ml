@@ -3,43 +3,68 @@
 open Core
 open Regular.Std
 open Graphlib.Std
-open Virtual
+
+let table enum d ds tbl =
+  enum tbl |> Seq.map ~f:snd |>
+  Seq.map ~f:(fun (`label (l, args)) -> l, args) |>
+  Seq.to_list |> List.cons (d, ds)
+
+let locals enum =
+  let open Virtual in function
+    | `hlt -> []
+    | `jmp #global -> []
+    | `jmp `label (l, args) -> [l, args]
+    | `br (_, #global, #global) -> []
+    | `br (_, `label (y, ys), #global) -> [y, ys]
+    | `br (_, #global, `label (n, ns)) -> [n, ns]
+    | `br (_, `label (y, ys), `label (n, ns)) -> [y, ys; n, ns]
+    | `ret _ -> []
+    | `sw (_, _, `label (d, ds), tbl) -> table enum d ds tbl
 
 module type Domain = sig
   type t [@@deriving equal]
-  val one : operand -> t
+  val one : Virtual.operand -> t
   val join : t -> t -> t
 end
 
-module Make(D : Domain) = struct
+module type L = sig
+  module Ctrl : sig
+    type t
+    val locals : t -> (Label.t * Virtual.operand list) list
+  end
+  module Blk : sig
+    type t
+    val args : ?rev:bool -> t -> Var.t seq
+    val ctrl : t -> Ctrl.t
+  end
+  module Func : sig
+    type t
+  end
+  module Cfg : sig
+    include Label.Graph_s
+    val create : Func.t -> t
+  end
+end
+
+module Make(M : L)(D : Domain) = struct
+  open M
+
   type state = D.t Var.Map.t [@@deriving equal]
 
-  let local ~blk s : local -> state = function
-    | `label (l, vs) ->
-      blk l |> Option.value_map ~default:s ~f:(fun b ->
-          let args = Seq.to_list @@ Blk.args b in
-          match List.zip args vs with
-          | Unequal_lengths -> assert false
-          | Ok xs -> List.fold xs ~init:s ~f:(fun s (x, v) ->
-              Map.update s x ~f:(function
-                  | Some vs -> D.(join vs @@ one v)
-                  | None -> D.one v)))
-
-  let dst ~blk s : dst -> state = function
-    | #local as l -> local ~blk s l
-    | #global -> s
+  let local ~blk s (l, vs) : state =
+    blk l |> Option.value_map ~default:s ~f:(fun b ->
+        let args = Seq.to_list @@ Blk.args b in
+        match List.zip args vs with
+        | Unequal_lengths -> assert false
+        | Ok xs -> List.fold xs ~init:s ~f:(fun s (x, v) ->
+            Map.update s x ~f:(function
+                | Some vs -> D.(join vs @@ one v)
+                | None -> D.one v)))
 
   let transfer ~blk l s =
     blk l |> Option.value_map ~default:s ~f:(fun b ->
-        match Blk.ctrl b with
-        | `hlt | `ret _ -> s
-        | `jmp d -> dst ~blk s d
-        | `br (_, y, n) ->
-          dst ~blk (dst ~blk s y) n
-        | `sw (_, _, d, tbl) ->
-          let init = local ~blk s d in
-          Ctrl.Table.enum tbl |> Seq.fold ~init
-            ~f:(fun s (_, l') -> local ~blk s l'))
+        Blk.ctrl b |> Ctrl.locals |>
+        List.fold ~init:s ~f:(local ~blk))
 
   let merge = Map.merge_skewed ~combine:(fun ~key:_ -> D.join)
 

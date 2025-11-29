@@ -3,7 +3,8 @@
 extern int analyze_array(int *arr, int n);
 extern int analyze_array_inl(int *arr, int n);
 
-int main() {
+int
+main() {
   int arr1[] = {3, 1, 4, 1, 5, 9, 2};
   assert(analyze_array(arr1, 7) == 229);
   assert(analyze_array_inl(arr1, 7) == 229);

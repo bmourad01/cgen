@@ -347,43 +347,36 @@ let sext t ~size =
     else create ~lo:(sext t.lo) ~hi:(sext t.hi) ~size
 
 let trunc t ~size =
-  (* This semantics is relaxed. A truncate to the same size should
-     just be a no-op. *)
+  (* Same width: no-op. *)
   if t.size = size then t
   else if t.size < size then
-    invalid_arg "trunc: `size` is not strictly less than `t.size`"
+    invalid_argf
+      "trunc: `size` %d is not strictly less than `size t` %d"
+      size t.size ()
+  else if is_empty t then
+    create_empty ~size
+  else if is_full t then
+    create_full ~size
+  else if is_wrapped_hi t then
+    (* XXX: this could be more precise *)
+    create_full ~size
   else
-    let module B = (val Bitvec.modular t.size) in
-    let default un lower_div upper_div =
-      let lower_div, upper_div =
-        let lz = bv_clz lower_div t.size in
-        if t.size - lz > size then
-          let adj = B.(lower_div land pred (one lsl int Int.(size - 1))) in
-          B.(lower_div - adj), B.(upper_div - adj)
-        else lower_div, upper_div in
-      let w = t.size - bv_clz upper_div t.size in
-      if w <= size then union (create ~lo:lower_div ~hi:upper_div ~size) un
-      else if w = size + 1 then
-        let upper_div = B.(upper_div land (lnot (one lsl int size))) in
-        if Bv.(upper_div < lower_div)
-        then union (create ~lo:lower_div ~hi:upper_div ~size) un
-        else create_full ~size
-      else create_full ~size in
-    if is_empty t then create_empty ~size
-    else if is_full t then create_full ~size
-    else if is_wrapped_hi t then
-      let lz = bv_clz t.hi t.size in
-      if t.size - lz > size
-      || bv_cto t.hi t.size = size
-      then create_full ~size
-      else
-        let un = create
-            ~lo:Bv.(max_unsigned_value size)
-            ~hi:(Bv.extract ~hi:(size - 1) ~lo:0 t.hi)
-            ~size in
-        let upper_div = Bv.max_unsigned_value t.size in
-        if Bv.(t.lo = upper_div) then un else default un t.lo upper_div
-    else default (create_empty ~size) t.lo t.hi
+    let lo_big = Bv.to_bigint t.lo in
+    let hi_big = Bv.to_bigint t.hi in
+    let modulus_dst = Z.shift_left Z.one size in
+    let span = Z.sub hi_big lo_big in
+    if Z.geq span modulus_dst then
+      create_full ~size
+    else
+      let block_lo = Z.div lo_big modulus_dst in
+      let block_hi_minus1 = Z.div (Z.pred hi_big) modulus_dst in
+      if Z.equal block_lo block_hi_minus1 then
+        let lo_mod = Bv.extract ~hi:(size - 1) ~lo:0 t.lo in
+        let hi_mod = Bv.extract ~hi:(size - 1) ~lo:0 t.hi in
+        if Bv.(lo_mod = hi_mod)
+        then create_full ~size
+        else create ~lo:lo_mod ~hi:hi_mod ~size
+      else create_full ~size
 
 let add t1 t2 =
   if t1.size <> t2.size then
@@ -417,9 +410,9 @@ let sub t1 t2 =
     else if is_full t1 || is_full t2 then
       create_full ~size
     else
-      let m = Bv.modulus size in
-      let lo = Bv.(succ ((t1.lo - t2.hi) mod m) mod m) in
-      let hi = Bv.((t1.hi - t2.lo) mod m) in
+      let module B = (val Bv.modular size) in
+      let lo = B.(t1.lo - t2.hi + one) in
+      let hi = B.(t1.hi - t2.lo) in
       if Bv.(lo = hi)
       then create_full ~size
       else
@@ -429,6 +422,14 @@ let sub t1 t2 =
         then create_full ~size
         else x
 
+let mul_single t1 t2 =
+  let size = t1.size in
+  match single_of t1 with
+  | Some s when Bv.(s = one) -> Some t2
+  | Some s when Bv.(s = (ones mod modulus size)) ->
+    Some (sub (create_single ~value:Bv.zero ~size) t2)
+  | _ -> None
+
 let mul t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "mul: sizes must be equal"
@@ -436,42 +437,46 @@ let mul t1 t2 =
     let size = t1.size in
     if is_empty t1 || is_empty t2 then
       create_empty ~size
-    else
-      let min1 = unsigned_min t1 in
-      let max1 = unsigned_max t1 in
-      let min2 = unsigned_min t2 in
-      let max2 = unsigned_max t2 in
-      let m2 = Bv.modulus (size * 2) in
-      let result = create
-          ~lo:Bv.(min1 * min2 mod m2)
-          ~hi:Bv.(succ (max1 * max2 mod m2) mod m2)
-          ~size:(size * 2) in
-      let ur = trunc result ~size in
-      let m = Bv.modulus size in
-      if not (is_wrapped_hi ur)
-      && (Bv.(signed_compare ur.hi zero m) >= 0 ||
-          Bv.(ur.hi = min_signed_value size))
-      then ur
-      else
-        let min1 = signed_min t1 in
-        let max1 = signed_max t1 in
-        let min2 = signed_min t2 in
-        let max2 = signed_max t2 in
-        let p = [|
-          Bv.(min1 * min2 mod m2);
-          Bv.(min1 * max2 mod m2);
-          Bv.(max1 * min2 mod m2);
-          Bv.(max1 * max2 mod m2);
-        |] in
-        let compare x y = Bv.signed_compare x y m2 in
-        let lo = Array.min_elt p ~compare in
-        let hi = Array.max_elt p ~compare in
-        let lo, hi = match lo, hi with
-          | None, _ | _, None -> assert false
-          | Some lo, Some hi -> (lo, Bv.(succ hi mod m2)) in
-        let result = create ~lo ~hi ~size:(size * 2) in
-        let sr = trunc result ~size in
-        if is_strictly_smaller_than ur sr then ur else sr
+    else match mul_single t1 t2 with
+      | Some t -> t
+      | None -> match mul_single t2 t1 with
+        | Some t -> t
+        | None ->
+          let min1 = unsigned_min t1 in
+          let max1 = unsigned_max t1 in
+          let min2 = unsigned_min t2 in
+          let max2 = unsigned_max t2 in
+          let m2 = Bv.modulus (size * 2) in
+          let result = create
+              ~lo:Bv.(min1 * min2 mod m2)
+              ~hi:Bv.(succ (max1 * max2 mod m2) mod m2)
+              ~size:(size * 2) in
+          let ur = trunc result ~size in
+          let m = Bv.modulus size in
+          if not (is_wrapped_hi ur)
+          && (Bv.(signed_compare ur.hi zero m) >= 0 ||
+              Bv.(ur.hi = min_signed_value size))
+          then ur
+          else
+            let min1 = signed_min t1 in
+            let max1 = signed_max t1 in
+            let min2 = signed_min t2 in
+            let max2 = signed_max t2 in
+            let p = [|
+              Bv.(min1 * min2 mod m2);
+              Bv.(min1 * max2 mod m2);
+              Bv.(max1 * min2 mod m2);
+              Bv.(max1 * max2 mod m2);
+            |] in
+            let compare x y = Bv.signed_compare x y m2 in
+            let lo = Array.min_elt p ~compare in
+            let hi = Array.max_elt p ~compare in
+            let lo, hi = match lo, hi with
+              | None, _ | _, None -> assert false
+              | Some lo, Some hi -> (lo, Bv.(succ hi mod m2)) in
+            let result = create ~lo ~hi ~size:(size * 2) in
+            let sr = trunc result ~size in
+            if is_strictly_smaller_than ur sr then ur else sr
 
 let smax t1 t2 =
   if t1.size <> t2.size then
@@ -848,8 +853,8 @@ let logical_shift_right t1 t2 =
       let max2 = unsigned_max t2 in
       let min1 = unsigned_min t1 in
       let min2 = unsigned_min t2 in
-      let lo = Bv.(succ ((max1 lsr min2) mod m) mod m) in
-      let hi = Bv.((min1 lsr max2) mod m) in
+      let hi = Bv.(succ ((max1 lsr min2) mod m) mod m) in
+      let lo = Bv.((min1 lsr max2) mod m) in
       create ~lo ~hi ~size
 
 let arithmetic_shift_right t1 t2 =
@@ -982,7 +987,7 @@ let ctz_range lo hi size =
     else if Bv.(lo = zero) then
       create ~lo:Bv.zero ~hi:(B.int (size + 1)) ~size
     else
-      let len = bv_clz B.(lo lxor succ hi) size in
+      let len = bv_clz B.(lo lxor pred hi) size in
       let hi = B.int (max (size - len - 1) (bv_ctz lo size) + 1) in
       create ~size ~lo:Bv.zero ~hi
 

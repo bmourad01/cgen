@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# a regex for files to indent
+# OCaml sources
 files_to_indent='.*\.\(ml\|mli\)$'
 
 VERSION=$(ocp-indent --version)

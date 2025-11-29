@@ -50,7 +50,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let label = Insn.label i in 
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
-    Set.iter use ~f:(update_cost ~loop_depth t);
+    Set.iter use ~f:(fun u ->
+        update_cost ~loop_depth t u;
+        inc_use t u);
     let def = M.Insn.writes insn in
     (* if isMoveInstruction(I) then *)
     let+ out = match M.Regalloc.is_copy insn with
@@ -82,14 +84,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Set.iter def ~f:(fun d ->
         (* forall l \in live
              AddEdge(l,d) *)
+        add_def t d label;
         Set.iter out ~f:(fun o -> add_edge t o d));
     (* live := use(I) U (live\def(I)) *)
     Set.union use (Set.diff out def)
 
   (* Build the interference graph and other initial state for the
      algorithm. *)
-  let build t live =
+  let build t =
     (* forall b \in blocks in program *)
+    let live = Option.value_exn t.live in
     Func.blks t.fn |> C.Seq.iter ~f:(fun b ->
         let l = Blk.label b in
         let loop_depth = match Loop.blk t.loop l with
@@ -98,12 +102,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             (* NB: levels start at 0 *)
             (Loop.(level (get t.loop lp)) :> int) + 1 in
         (* live := liveOut(b) *)
-        let out = Live.outs live l in
+        let out = ref @@ Live.outs live l in
         (* forall I \in instructions(b) in reverse order *)
-        let+ _out =
-          Blk.insns b ~rev:true |>
-          C.Seq.fold ~init:out ~f:(build_insn ~loop_depth t) in
-        ())
+        let insns = Blk.insns b ~rev:true |> Seq.to_list in
+        let ord = ref (List.length insns - 1) in
+        C.List.iter insns ~f:(fun i ->
+            Hashtbl.set t.insn_blks ~key:(Insn.label i) ~data:(l, !ord);
+            let+ out' = build_insn ~loop_depth t !out i in
+            out := out';
+            decr ord))
 
   (* Initialize the worklists. *)
   let make_worklist t =
@@ -127,6 +134,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         node_moves t n |> Lset.iter ~f:(fun m ->
             (* if m \in activeMoves then *)
             if Lset.mem t.amoves m then begin
+              Logs.debug (fun m_ ->
+                  m_ "%s: enabling move %a for node %a%!"
+                    __FUNCTION__ Label.pp m Rv.pp n);
               (* activeMoves := activeMoves \ {m} *)
               t.amoves <- Lset.remove t.amoves m;
               (* worklistMoves := worklistMoves U {m} *)
@@ -165,7 +175,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
        simplifyWorklist := simplifyWorklist \ {n} *)
     let n = take_one t.wsimplify in
     (* push(n, selectStack) *)
-    if can_be_colored t n then Stack.push t.select n;
+    if can_be_colored t n then begin
+      Logs.debug (fun m -> m "%s: selecting %a%!" __FUNCTION__ Rv.pp n);
+      Stack.push t.select n;
+    end;
     (* forall m \in Adjacent(n) *)
     adjacent t n |> Set.iter ~f:(decrement_degree t)
 
@@ -185,12 +198,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     end
 
   let ok t a r =
-    (* t \in precolored *)
-    exclude_from_coloring t a ||
-    (* degree[t] < K *)
-    degree t a < Regs.node_k a ||
-    (* (a,r) \in adjSet *)
-    has_edge t a r
+    let res =
+      (* t \in precolored *)
+      exclude_from_coloring t a ||
+      (* degree[t] < K *)
+      degree t a < Regs.node_k a ||
+      (* (a,r) \in adjSet *)
+      has_edge t a r in
+    Logs.debug (fun m ->
+        m "%s: %a, %a: %b%!"
+          __FUNCTION__ Rv.pp a Rv.pp r res);
+    res
 
   (* forall t \in Adjacent(v), OK(t,u)  *)
   let all_adjacent_ok t u v =
@@ -203,16 +221,20 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
        if degree[n] >= k then k := k + 1
      return (k < K)
   *)
-  let conservative t nk nodes =
-    let k = Set.fold nodes ~init:0 ~f:(fun k n ->
-        if degree t n >= Regs.node_k n then k + 1 else k) in
-    k < nk
+  let conservative t nodes =
+    Set.fold nodes ~init:0 ~f:(fun k n ->
+        if degree t n >= Regs.node_k n then k + 1 else k)
 
   (* Conservative(Adjacent(u) U Adjacent(v)) *)
   let conservative_adj t u v =
     assert (Regs.same_class_node u v);
     let nodes = Set.union (adjacent t u) (adjacent t v) in
-    conservative t (Regs.node_k u) nodes
+    let nk = Regs.node_k u in
+    let k = conservative t nodes in
+    Logs.debug (fun m ->
+        m "%s: u=%a, v=%a, k=%d, nk=%d%!"
+          __FUNCTION__ Rv.pp u Rv.pp v k nk);
+    k < nk
 
   (* XXX: the algorithm in the paper does:
 
@@ -227,7 +249,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      of `u`, leaving the degree of `t` unchanged.
   *)
   let combine_edge t u v =
-    if has_edge t u v then
+    let e = has_edge t u v in
+    Logs.debug (fun m ->
+        m "%s: combining edge u=%a, v=%a, has_edge=%b%!"
+          __FUNCTION__ Rv.pp u Rv.pp v e);
+    if e then
       decrement_degree t v
     else begin
       add_adjlist t u v;
@@ -238,6 +264,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* Combine `v` with `u` in the interference graph, where
      `u` is the destination. *)
   let combine t u v =
+    Logs.debug (fun m ->
+        m "%s: combining u=%a with v=%a%!"
+          __FUNCTION__ Rv.pp u Rv.pp v);
     (* if v \in freezeWorklist *)
     if Hash_set.mem t.wfreeze v then
       (* freezeWorklist := freezeWorklist \ {v} *)
@@ -259,12 +288,43 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     if (* degree[u] >= K *)
       degree t u >= Regs.node_k u &&
       (* u \in freezeWorklist *)
-      Hash_set.mem t.wfreeze u then begin
+      Hash_set.mem t.wfreeze u
+    then
       (* freezeWorklist := freezeWorklist \ {u} *)
-      Hash_set.remove t.wfreeze u;
+      let () = Hash_set.remove t.wfreeze u in
       (* spillWorklist := spillWorklist U {u} *)
       add_spill t u
-    end
+
+  (* We can bypass the Briggs conservative heuristic if this
+     move is trivially coalescable.
+
+     Criteria:
+
+     1. The source node is not precolored.
+     2. This move is its only use.
+     3. All definitions dominate the use.
+     4. The source node is not live-out.
+  *)
+  let is_trivial_du t m v =
+    can_be_colored t v && num_uses t v = 1 &&
+    match Hashtbl.find t.insn_blks m with
+    | None -> false
+    | Some (bm, om) ->
+      let live = Option.value_exn t.live in
+      let out = Live.outs live bm in
+      not (Set.mem out v) &&
+      Hashtbl.find t.defs v |>
+      Option.value ~default:Lset.empty |>
+      Lset.to_sequence |> Seq.for_all ~f:(fun d ->
+          match Hashtbl.find t.insn_blks d with
+          | None -> false
+          | Some (bd, od) when Label.(bm = bd) ->
+            Logs.debug (fun m ->
+                m "%s: bm=%a, om=%d, bd=%a, od=%d%!"
+                  __FUNCTION__ Label.pp bm om Label.pp bd od);
+            od < om
+          | Some (bd, _) ->
+            Semi_nca.Tree.is_descendant_of t.dom ~parent:bd bm)
 
   (* P(u,v) = S(u,v) * (W(u,v) / (1 + D'(u) + D'(v)))
 
@@ -297,6 +357,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let dv = effective_degree c.src pv in
       let w = Float.of_int @@ Int.pow 10 c.loop in
       let p = w /. Float.of_int (1 + du + dv) in
+      (* If if this move is trivially coalescable, then bump the weight a
+         bit so that it can coalesce earlier. *)
+      let p = if is_trivial_du t m c.src then p *. 2.0 else p in
       (* If one of the nodes is pre-colored, then this coalesce will be
          much riskier. If both are pre-colored, then we should avoid it
          at all costs (see topmost condition). *)
@@ -308,12 +371,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Lset.to_sequence t.wmoves |>
     Seq.map ~f:(fun m -> m, move_priority t m) |>
     Seq.max_elt ~compare:(fun (_, a) (_, b) ->  Float.compare a b) |>
-    Option.value_exn |> fst
+    Option.value_exn
 
   (* pre: wmoves is not empty *)
   let coalesce t =
     (* let m_(=copy(x,y)) \in worklistMoves *)
-    let m = pick_move t in
+    let m, score = pick_move t in
     let c = Hashtbl.find_exn t.copies m in
     (* x := GetAlias(x) *)
     let x = alias t c.dst in
@@ -324,39 +387,48 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
        else
          let (u,v) = (x,y) *)
     let u, v = if exclude_from_coloring t y then y, x else x, y in
+    Logs.debug (fun m_ ->
+        m_ "%s: looking at move %a, score=%g, u=%a, v=%a%!"
+          __FUNCTION__ Label.pp m score Rv.pp u Rv.pp v);
     (* worklistMoves := worklistMoves \ {m} *)
     t.wmoves <- Lset.remove t.wmoves m;
     (* if u = v then *)
-    if Rv.(u = v) then begin
+    if Rv.(u = v) then
       (* coalescedMoves := coalescedMoves U {m} *)
-      t.cmoves <- Lset.add t.cmoves m;
+      let () = t.cmoves <- Lset.add t.cmoves m in
+      Logs.debug (fun m -> m "%s: already coalesced%!" __FUNCTION__);
       (* AddWorkList(u) *)
       add_worklist t u
-    end else if
+    else if
       (* v \in precolored *)
       exclude_from_coloring t v ||
       (* (u,v) \in adjSet *)
-      has_edge t u v then begin
+      has_edge t u v
+    then
       (* constrainedMoves := constrainedMoves U {m} *)
-      t.kmoves <- Lset.add t.kmoves m;
+      let () = t.kmoves <- Lset.add t.kmoves m in
+      Logs.debug (fun m_ ->
+          m_ "%s: constraining %a%!" __FUNCTION__ Label.pp m);
       (* addWorkList(u) *)
       add_worklist t u;
       (* addWorkList(v) *)
       add_worklist t v
-    end else if
+    else if
       (* u \in precolored ^ (\forall t \in Adjacent(v), OK(t,u)) *)
       (exclude_from_coloring t u && all_adjacent_ok t u v) ||
       (* u \notin precolored ^ Conservative(Adjacent(u), Adjacent(v)) *)
-      (can_be_colored t u && conservative_adj t u v) then begin
+      (can_be_colored t u && (is_trivial_du t m v || conservative_adj t u v))
+    then
       (* coalescedMoves := coalescedMoves U {m} *)
-      t.cmoves <- Lset.add t.cmoves m;
+      let () = t.cmoves <- Lset.add t.cmoves m in
       (* Combine(u,v) *)
       combine t u v;
       (* AddWorkList(u) *)
       add_worklist t u
-    end else
+    else
       (* activeMoves := activeMoves U {m} *)
-      t.amoves <- Lset.add t.amoves m
+      let () = t.amoves <- Lset.add t.amoves m in
+      Logs.debug (fun m -> m "%s: adding to active moves%!" __FUNCTION__)
 
   (* pre: m \in copies
 
@@ -381,6 +453,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               (* worklistMoves := worklistMoves \ {m} *)
               t.wmoves <- Lset.remove t.wmoves m;
             (* frozenMoves := frozenMoves U {m} *)
+            Logs.debug (fun m_ ->
+                m_ "%s: freezing move %a, v=%a"
+                  __FUNCTION__ Label.pp m Rv.pp v);
             t.fmoves <- Lset.add t.fmoves m;
             (* if NodeMoves(v) = {} ^ degree[v] < K *)
             if Lset.is_empty (node_moves t v)
@@ -396,6 +471,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* let u \in freezeWorklist
        freezeWorklist := freezeWorklist \ {u} *)
     let u = take_one t.wfreeze in
+    Logs.debug (fun m -> m "%s: frozen node u=%a%!" __FUNCTION__ Rv.pp u);
     (* simplifyWorklist := simplifyWorklist U {u} *)
     Hash_set.add t.wsimplify u;
     (* FreezeMoves(u) *)
@@ -403,6 +479,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let select_spill t =
     Pairing_heap.pop t.wspill |> Option.iter ~f:(fun m ->
+        Logs.debug (fun m_ ->
+            m_ "%s: selecting spill node %a%!"
+              __FUNCTION__ Rv.pp m);
         (* spillWorklist := spillWorklist \ {m} *)
         Hashtbl.remove t.wspill_elts m;
         (* simplifyWorklist := simplifyworklist U {m} *)
@@ -419,7 +498,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Seq.filter ~f:(fun w -> Rv.is_reg w || Hash_set.mem t.colored w) |>
     (* okColors := okColors \ {color[GetAlias(w)]} *)
     Seq.filter_map ~f:(color t) |>
-    Seq.iter ~f:(fun c -> cs := Z.(!cs land ~!(one lsl c)))
+    Seq.iter ~f:(fun c -> cs := Bitset.Id.clear !cs c)
 
   let assign_colors t =
     (* while SelectStack is not empty
@@ -428,19 +507,19 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         assert (can_be_colored t n);
         (* okColors := {0,...,K-1} *)
         let k = Regs.node_k n in
-        let cs = ref Z.(pred (one lsl k)) in
+        let cs = ref @@ Bitset.Id.init k in
         eliminate_colors t n cs;
         (* if okColors = {} then *)
-        if Z.(equal !cs zero) then
+        match Bitset.Id.min_elt !cs with
+        | None ->
           (* spilledNodes := spilledNodes U {n} *)
           t.spilled <- Set.add t.spilled n
-        else begin
+        | Some c ->
           (* coloredNodes := coloredNodes U {n} *)
           Hash_set.add t.colored n;
           (* let c \in okColors
              color[n] := c *)
-          set_color t n @@ Z.trailing_zeros !cs
-        end);
+          set_color t n c);
     (* forall n \in coalescedNodes *)
     Hash_set.iter t.coalesced ~f:(fun n ->
         (* color[n] := color[GetAlias(n)] *)
@@ -470,9 +549,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             let r = Rv.var GPR v in
             match find_reusable_slot t m n size with
             | Some r' ->
+              Logs.debug (fun m ->
+                  m "%s: re-using slot %a for spilled node %a%!"
+                    __FUNCTION__ Rv.pp r' Rv.pp r);
               Hashtbl.set t.slots ~key:r ~data:r';
               acc, m
             | None ->
+              Logs.debug (fun m ->
+                  m "%s: spilling %a to new slot%!"
+                    __FUNCTION__ Rv.pp r);
               let s = Virtual.Slot.create_exn v ~size ~align:size in
               Hashtbl.set t.slots ~key:r ~data:r;
               s :: acc, Map.add_multi m ~key:size ~data:r) in
@@ -599,10 +684,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Clear the relevant state for the next round. *)
   let new_round t =
+    t.live <- None;
     Hashtbl.clear t.adjlist;
     Hashtbl.clear t.degree;
     Hashtbl.clear t.copies;
+    Hashtbl.clear t.nuse;
+    Hashtbl.clear t.defs;
     Hashtbl.clear t.moves;
+    Hashtbl.clear t.insn_blks;
     Hashtbl.clear t.spill_cost;
     (* This doesn't seem to happen in the paper, but we should discard
        the previous coloring since we introduced new spill/reload code.
@@ -617,9 +706,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* () = C.when_ (round > max_rounds) @@ fun () ->
       C.failf "In Regalloc.main: maximum rounds reached (%d) with no \
                convergence on spilling" max_rounds () in
+    Logs.debug (fun m ->
+        m "%s: $%s: round %d of %d"
+          __FUNCTION__ (Func.name t.fn) round max_rounds);
     (* Build the interference graph. *)
-    let live = Live.compute ~keep:t.keep t.fn in
-    let* () = build t live in
+    t.live <- Some (Live.compute ~keep:t.keep t.fn);
+    let* () = build t in
     make_worklist t;
     (* Process the worklists. *)
     let continue = ref true in

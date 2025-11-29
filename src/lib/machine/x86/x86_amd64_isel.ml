@@ -58,6 +58,14 @@ let can_lea_ty = function
   | `i16 | `i32 | `i64 -> true
   | _ -> false
 
+let compare_u a b =
+  Int64.(compare (a lxor min_value) (b lxor min_value))
+
+let lt_u a b = compare_u a b <  0 [@@inline] [@@ocaml.warning "-32"]
+let le_u a b = compare_u a b <= 0 [@@inline] [@@ocaml.warning "-32"]
+let gt_u a b = compare_u a b >  0 [@@inline] [@@ocaml.warning "-32"]
+let ge_u a b = compare_u a b >= 0 [@@inline] [@@ocaml.warning "-32"]
+
 (* pre: `tbl` is non-empty
 
    TODO:
@@ -75,9 +83,10 @@ let adjust_table d tbl =
   let acc = Vec.create () in
   let _ = List.fold tbl ~init:lowest ~f:(fun p (v, l) ->
       let diff = Int64.(v - p) in
-      for _ = 0 to Int64.to_int_trunc diff - 1 do
-        Vec.push acc d;
-      done;
+      let rec loop i = if lt_u i diff then
+          let () = Vec.push acc d in
+          loop @@ Int64.succ i in
+      loop 0L;
       Vec.push acc l;
       Int64.succ v) in
   Vec.to_list acc, lowest, highest
@@ -128,10 +137,10 @@ end = struct
       !!![I.movsd (Oreg (x, xt)) (Oreg (y, yt))]
     | _ -> !!None
 
-  let move_ri_x_y env =
+  let move_ri_x_y ?(zx = false) env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
-    let*! () = guard @@ Type.equal_basic xt (bty yt) in
+    let*! () = guard (zx || Type.equal_basic xt (bty yt)) in
     if Bv.(y = zero) then
       !!![xor_gpr_self x xt]
     else
@@ -1738,9 +1747,9 @@ end = struct
     let xt' = ftosi_ty xt in
     match tf with
     | `f32 ->
-      !!![I.cvtss2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt))]
     | `f64 ->
-      !!![I.cvtsd2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt))]
     | _ -> !!None
 
   let ftosi_rf32_x_y ti env =
@@ -1769,9 +1778,9 @@ end = struct
     let xt' = ftoui_ty xt in
     match tf with
     | `f32 ->
-      !!![I.cvtss2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt))]
     | `f64 ->
-      !!![I.cvtsd2si (Oreg (x, xt')) (Oreg (y, yt))]
+      !!![I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt))]
     | _ -> !!None
 
   let ftoui_rf32_x_y ti env =
@@ -1935,10 +1944,15 @@ end = struct
       ]
     | _ -> !!None
 
-  let call_sym_x env =
+  let call_sym_x_y env =
     let*! args = S.callargs env "x" in
     let*! s, o = S.sym env "y" in
     !!![I.call args (Osym (s, o))]
+
+  let call_r_x_y env =
+    let*! args = S.callargs env "x" in
+    let*! y, yt = S.regvar env "y" in
+    !!![I.call args (Oreg (y, yt))]
 
   let jmp_tbl_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -1954,6 +1968,10 @@ end = struct
       let tbl, lowest, highest = adjust_table d tbl in
       let highest' = Int64.(highest - lowest) in
       let diff = Int64.(highest - highest') in
+      let diff_fits = fits_int32_pos diff in
+      let* tdiff = if diff_fits then !!None else
+          let+ r = C.Var.fresh >>| Rv.var GPR in
+          Some r in
       let* tl, tladdr = fresh_label_addr in
       let* tbase = C.Var.fresh >>| Rv.var GPR in
       let* tidx = C.Var.fresh >>| Rv.var GPR in
@@ -1981,11 +1999,16 @@ end = struct
             I.mov (Oreg (tidx, xt)) (Oreg (x, xt))
         ];
         (* Subtract the difference from the index if needed. *)
-        ( if Int64.(diff = 1L)
-          then [I.dec (Oreg (tidx, `i64))]
-          else if Int64.(diff > 0L)
-          then [I.sub (Oreg (tidx, `i64)) (Oimm (diff, `i64))]
-          else []
+        ( match diff with
+          | 0L -> []
+          | 1L -> [I.dec (Oreg (tidx, `i64))]
+          | _ when diff_fits ->
+            [I.sub (Oreg (tidx, `i64)) (Oimm (diff, `i64))]
+          | _ ->
+            let tdiff = Option.value_exn tdiff in [
+              I.mov (Oreg (tdiff, `i64)) (Oimm (diff, `i64));
+              I.sub (Oreg (tidx, `i64)) (Oreg (tdiff, `i64));
+            ]
         );
         [ (* Compare against highest value. *)
           I.cmp (Oreg (tidx, `i64)) (Oimm (highest', `i64));
@@ -2217,7 +2240,7 @@ end = struct
 
     let zext = [
       move_rr_x_y ~zx:true;
-      move_ri_x_y;
+      move_ri_x_y ~zx:true;
     ]
 
     let fext ty = [
@@ -2318,7 +2341,8 @@ end = struct
     ]
 
     let call = [
-      call_sym_x;
+      call_sym_x_y;
+      call_r_x_y;
     ]
   end
 

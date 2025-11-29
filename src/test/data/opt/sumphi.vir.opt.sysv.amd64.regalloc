@@ -1,0 +1,27 @@
+module sumphi
+
+function $sum { ; returns: rax
+@2:
+  sub rsp, 0x8_l ; @55
+  mov qword ptr [rsp], rdi ; @38
+  mov eax, dword ptr [rsp + 0x4] ; @6
+  add eax, dword ptr [rsp] ; @20
+  add rsp, 0x8_l ; @56
+  ret ; @37
+}
+
+export function $sumphi { ; returns: rax
+@8:
+  push rbp ; @57
+  mov rbp, rsp ; @58
+  mov rax, rdi ; @21
+  mov rdi, rsi ; @50
+  test edx, edx ; @47
+  jns @14 ; @48
+@9:
+  mov rdi, rax ; @43
+@14:
+  call $sum ; rdi ; @41
+  leave ; @59
+  ret ; @40
+}

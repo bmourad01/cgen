@@ -73,6 +73,7 @@ type t = {
   blks         : Abi.blk Label.Table.t;
   mems         : store Mem.Table.t;
   vars         : operand Var.Table.t;
+  nop          : Label.Hash_set.t;
   mutable mem  : Label.t option;
   mutable memo : operand Hashcons.t;
 }
@@ -107,8 +108,9 @@ let init fn =
   let blks = Label.Table.create () in
   let mems = Mem.Table.create () in
   let vars = Var.Table.create () in
+  let nop = Label.Hash_set.create () in
   let mem = None and memo = Hashcons.empty in
-  {reso; dom; rdom; lst; blks; mems; mem; vars; memo}
+  {reso; dom; rdom; lst; blks; mems; mem; vars; memo; nop}
 
 module Optimize = struct
   let var t x = match Hashtbl.find t.vars x with
@@ -151,10 +153,20 @@ module Optimize = struct
         | _ -> `var x in
       t.memo <- Hashcons.set t.memo ~key:op ~data
 
+  let same_store t v v' l l' =
+    equal_operand v v' && t.rdom ~parent:l' l
+
   let store t l ty v a =
     let v = operand t v in
     let a = operand t a in
     let key = {label = l; addr = a; ty} in
+    (* Mark redundant stores only if we can prove that
+       it is storing the same value to the same address. *)
+    Option.iter t.mem ~f:(fun m ->
+        match Hashtbl.find t.mems {key with label = m} with
+        | Some Value (v', l') when same_store t v v' l l' ->
+          Hash_set.add t.nop l
+        | Some _ | None -> ());
     Hashtbl.set t.mems ~key ~data:(Value (v, l));
     t.mem <- Some l;
     `store (ty, v, a)
@@ -203,17 +215,55 @@ module Optimize = struct
     t.mem <- Some l;
     `call (xs, f, args)
 
+  let eval_bop o a b = match a, b with
+    | `int (a, _), `int (b, _) ->
+      (Abi.Eval.binop_int o a b :> const option)
+    | `float a, `float b ->
+      (Abi.Eval.binop_single o a b :> const option)
+    | `double a, `double b ->
+      (Abi.Eval.binop_double o a b :> const option)
+    | _ -> None
+
+  let eval_uop o = function
+    | `int (a, ty) ->
+      (Abi.Eval.unop_int o a ty :> const option)
+    | `float a ->
+      (Abi.Eval.unop_single o a :> const option)
+    | `double a ->
+      (Abi.Eval.unop_double o a :> const option)
+    | _ -> None
+
+  let bop t l x o a b =
+    let a' = operand t a in
+    let b' = operand t b in
+    let op = `bop (x, o, a', b') in
+    begin match eval_bop o a' b' with
+      | None ->
+        let k = Op.of_insn op in
+        canonicalize t x k;
+        Op.commute k |> Option.iter ~f:(canonicalize t x)
+      | Some c ->
+        Hashtbl.set t.vars ~key:x ~data:(c :> operand);
+        Hash_set.add t.nop l
+    end;
+    op
+
+  let uop t l x o a =
+    let a' = operand t a in
+    let op = `uop (x, o, a') in
+    begin match eval_uop o a' with
+      | None ->
+        let k = Op.of_insn op in
+        canonicalize t x k
+      | Some c ->
+        Hashtbl.set t.vars ~key:x ~data:(c :> operand);
+        Hash_set.add t.nop l
+    end;
+    op
+
   let insn t l : Abi.Insn.op -> Abi.Insn.op = function
-    | `bop (x, o, a, b) ->
-      let op = `bop (x, o, operand t a, operand t b) in
-      let k = Op.of_insn op in
-      canonicalize t x k;
-      Op.commute k |> Option.iter ~f:(canonicalize t x);
-      op
-    | `uop (x, o, a) ->
-      let op = `uop (x, o, operand t a) in
-      canonicalize t x @@ Op.of_insn op;
-      op
+    | `bop (x, o, a, b) -> bop t l x o a b
+    | `uop (x, o, a) -> uop t l x o a
     | `sel (x, ty, c, y, n) -> sel t x ty c y n
     | `call (xs, f, args) -> call t l xs f args
     | `store (ty, v, a) -> store t l ty v a
@@ -279,8 +329,13 @@ let run fn =
         Semi_nca.Tree.children t.dom l |> Seq.iter ~f:(fun l ->
             Stack.push q (l, t.mem, t.memo)));
     Abi.Func.map_blks fn ~f:(fun b ->
-        Abi.Blk.label b |> Hashtbl.find t.blks |>
-        Option.value ~default:b)
+        let b =
+          Abi.Blk.label b |> Hashtbl.find t.blks |>
+          Option.value ~default:b in
+        if Hash_set.is_empty t.nop then b else
+          Abi.Blk.insns b |> Seq.filter ~f:(fun i ->
+              not @@ Hash_set.mem t.nop @@ Abi.Insn.label i) |>
+          Seq.to_list |> Abi.Blk.with_insns b)
   else
     E.failf "In Abi_loadopt: function $%s is not in SSA form"
       (Abi.Func.name fn) ()

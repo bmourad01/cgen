@@ -68,11 +68,10 @@ export function $analyze_array { ; returns: rax
   mov ecx, r13d ; @75
   sub ecx, ebx ; @122
   add eax, dword ptr [rbp - 0x10] ; @77
-  add ecx, eax ; @78
-  lea eax, qword ptr [r14 + 0x1] ; @79
-  mov dword ptr [rbp - 0x10], ecx ; @186
+  add eax, ecx ; @78
+  inc r14d ; @79
+  mov dword ptr [rbp - 0x10], eax ; @186
   mov edi, r13d ; @119
-  mov r14d, eax ; @120
   jmp @13 ; @121
 }
 

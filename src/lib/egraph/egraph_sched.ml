@@ -49,13 +49,23 @@ let lca t a b =
 
 (* Note that `id` must be the canonical e-class. *)
 let move t old l id =
+  Logs.debug (fun m ->
+      let pp_old ppf old =
+        if List.is_empty old
+        then Format.fprintf ppf ""
+        else Format.fprintf ppf "from %s "
+            (List.to_string ~f:Label.to_string old) in
+      m "%s: moving term %d %ato %a%!"
+        __FUNCTION__ id pp_old old Label.pp l);
   add_moved t id old;
   set_label t id l;
   Hashtbl.update t.lmoved l ~f:(function
       | None -> Iset.singleton id
       | Some s -> Iset.add s id)
 
-let mark_use t id a = add_moved t id [a]
+let mark_use t id a =
+  Logs.debug (fun m -> m "%s: id=%d, a=%a%!" __FUNCTION__ id Label.pp a);
+  add_moved t id [a]
 
 (* Update when we union two nodes together. Should not be
    called if both IDs are the same. *)
@@ -63,19 +73,30 @@ let merge t a b u =
   assert (a <> b);
   let cid = find t a in
   (* Link the ID to the label, along with the union ID. *)
-  let link ?p l =
+  let link ?p dir l =
+    Logs.debug (fun m ->
+        m "%s: merge dominated %s: a=%d, b=%d, cid=%d, u=%d, l=%a, p=%a%!"
+          __FUNCTION__
+          (match dir with `left -> "left" | `right -> "right")
+          a b cid u Label.pp l
+          (Format.pp_print_option
+             ~none:(fun ppf () -> Format.fprintf ppf "<none>")
+             Label.pp) p);
     Option.iter p ~f:(mark_use t cid);
     set_label t cid l;
     set_label t u l in
   match labelof t a, labelof t b with
   | None, None -> ()
-  | None, Some pb -> link pb
-  | Some pa, None -> link pa
+  | None, Some pb -> link `right pb
+  | Some pa, None -> link `left pa
   | Some pa, Some pb when Label.(pa = pb) -> ()
-  | Some pa, Some pb when dominates t ~parent:pb pa -> link pb ~p:pa
-  | Some pa, Some pb when dominates t ~parent:pa pb -> link pa ~p:pb
+  | Some pa, Some pb when dominates t ~parent:pb pa -> link `right pb ~p:pa
+  | Some pa, Some pb when dominates t ~parent:pa pb -> link `left pa ~p:pb
   | Some pa, Some pb ->
     let pc = lca t pa pb in
+    Logs.debug (fun m ->
+        m "%s: merge LCA: a=%d, b=%d, cid=%d, u=%d, pa=%a, pb=%a, pc=%a%!"
+          __FUNCTION__ a b cid u Label.pp pa Label.pp pb Label.pp pc);
     assert (cid = find t b);
     assert (cid = find t u);
     clear_label t a;
@@ -94,6 +115,10 @@ let rec useof t l : enode -> unit = function
         useof t l @@ node t c)
 
 let default_placement t id l n =
+  Logs.debug (fun m ->
+      m "%s: placing term %d at %a:\n  node: %a%!"
+        __FUNCTION__ id Label.pp l
+        (Enode.pp ~node:(node t)) n);
   move t [] l id;
   useof t l n
 
@@ -103,15 +128,28 @@ let duplicate t id a =
   let cid = find t id in
   match labelof t cid with
   | Some b when Label.(b = a) -> ()
-  | Some b when dominates t ~parent:b a -> mark_use t cid a
+  | Some b when dominates t ~parent:b a ->
+    Logs.debug (fun m ->
+        m "%s: %d at %a dominated by previous term %d at %a%!"
+          __FUNCTION__ id Label.pp a cid Label.pp b);
+    mark_use t cid a
   | Some b when dominates t ~parent:a b ->
+    Logs.debug (fun m ->
+        m "%s: %d at %a dominates previous term %d at %a%!"
+          __FUNCTION__ id Label.pp a cid Label.pp b);
     mark_use t cid b;
     set_label t id a
   | Some b ->
     let c = lca t a b in
+    Logs.debug (fun m ->
+        m "%s: %d at %a LCA with previous term %d at %a: %a%!"
+          __FUNCTION__ id Label.pp a cid Label.pp b Label.pp c);
     clear_label t cid;
     move t [a; b] c cid;
   | None ->
+    Logs.debug (fun m ->
+        m "%s: %d at %a has no previous term, cid=%d%!"
+          __FUNCTION__ id Label.pp a cid);
     (* This e-class wasn't moved, though it wasn't registered
        to begin with (even though it was hash-consed). *)
     default_placement t id a @@ node t id
@@ -220,6 +258,11 @@ module Licm = struct
   let exists_in_loop t parent = List.exists ~f:(is_child_loop ~parent t)
 
   let licm_move t l l' lp id lhs =
+    Logs.debug (fun m ->
+        m "%s: LICM for term %d: l=%a, l'=%a:\n  loop: %a\n  node: %a%!"
+          __FUNCTION__ id Label.pp l Label.pp l'
+          Loops.pp_data (Loops.get t.input.loop lp)
+          (Enode.pp ~node:(node t)) (node t id));
     let l' = match lhs with
       | None -> l'
       | Some x -> match partition_uses t x with

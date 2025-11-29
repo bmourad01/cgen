@@ -3,14 +3,14 @@ open Egraph_common
 open Monads.Std
 open Virtual
 
-(* We store the canonical and real IDs to help us determine
-   the ordering when reifying back to the CFG representation.
+(* Keep track of the provenance of extracted nodes.
 
-   Canonical IDs help us extract the best term, but the real
-   ID of the term determines the ordering; in particular, we
-   order from oldest to newest. This makes sense since the way
-   we build terms in the e-graph will be such that terms with
-   a newer ID will always depend on an ID that is older.
+   We were previously using the real IDs for determining
+   the order by which we place new instructions, but that
+   is no longer guaranteed. In principle, lower IDs never
+   depend on higher IDs to compute their results, but when
+   we reschedule instructions in the CFG this is no longer
+   useful.
 *)
 type prov =
   | Label of Label.t
@@ -37,28 +37,41 @@ module Cost : sig
   val pure : int -> t
   val incr : t -> t
   val add : t -> t -> t
+  val opc : t -> Int63.t
+  val depth : t -> Int63.t
+  val pp : Format.formatter -> t -> unit
 end = struct
-  include Int63
+  open Int63
+
+  type nonrec t = t
+
+  (* We want an unsigned comparison *)
+  let compare_u a b = compare (a lxor min_value) (b lxor min_value) [@@inline]
+  let (<) a b = Int.(compare_u a b < 0) [@@inline]
 
   let depth_bits = 12
   let depth_mask = pred (one lsl depth_bits)
   let opc_mask = lnot depth_mask
 
-  let opc c = c lsr depth_bits
-  let depth c = c land depth_mask
-  let create o d = (o lsl depth_bits) lor (d land depth_mask)
-  let pure o = of_int o lsl depth_bits
+  let opc c = c lsr depth_bits [@@inline]
+  let depth c = c land depth_mask [@@inline]
+  let create o d = (o lsl depth_bits) lor (d land depth_mask) [@@inline]
+  let pure o = of_int o lsl depth_bits [@@inline]
 
   (* Make sure the increment doesn't wrap around. *)
   let incr c =
     let d = depth c in
     (c land opc_mask) lor
     (if d = depth_mask then d else succ d)
+  [@@inline]
 
   let add x y =
     let o = opc x + opc y in
     let d = max (depth x) (depth y) in
     create o d
+  [@@inline]
+
+  let pp = pp
 end
 
 type cost = Cost.t
@@ -67,7 +80,7 @@ type t = {
   eg             : egraph;
   table          : (cost * enode) Id.Table.t;
   memo           : ext Id.Table.t;
-  mutable impure : Z.t;
+  mutable impure : Bitset.Id.t;
 }
 
 let rec pp_ext ppf = function
@@ -141,14 +154,28 @@ end = struct
           | Some _ | None -> term))
 end
 
+let debug_dump t =
+  Logs.debug (fun m ->
+      let pp ppf (cid, (c, n)) =
+        Format.fprintf ppf
+          "  %d:\n    cost: %a\n      depth: %a\n      opc: %a\n    node: %a%!"
+          cid Cost.pp c Int63.pp (Cost.depth c) Int63.pp (Cost.opc c)
+          (Enode.pp ~node:(node t.eg)) n in
+      m "%s: $%s cost table:\n%a"
+        __FUNCTION__ (Func.name t.eg.input.fn)
+        (Format.pp_print_list pp
+           ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n"))
+        (Hashtbl.to_alist t.table))
+
 let init eg =
   let t = {
     eg;
     table = Id.Table.create ();
     memo = Id.Table.create ();
-    impure = Z.zero;
+    impure = Bitset.Id.empty;
   } in
   Saturation.go t;
+  debug_dump t;
   t
 
 let rec must_remain_fixed op args = match (op : Enode.op) with
@@ -184,15 +211,15 @@ let rec must_remain_fixed op args = match (op : Enode.op) with
   | _ -> false
 
 let prov t cid id op args =
-  if must_remain_fixed op args then begin
-    t.impure <- Z.(t.impure lor (one lsl cid));
+  if must_remain_fixed op args then
+    let () = t.impure <- Bitset.Id.set t.impure cid in
     match labelof t.eg cid with
     | Some l -> Label l
     | None when id = cid -> Id {canon = cid; real = id}
     | None -> match labelof t.eg id with
       | None -> Id {canon = cid; real = id}
       | Some l -> Label l
-  end else Id {canon = cid; real = id}
+  else Id {canon = cid; real = id}
 
 module O = Monad.Option
 

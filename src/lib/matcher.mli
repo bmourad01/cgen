@@ -72,6 +72,9 @@ module Make(M : L) : sig
   (** A compiled VM program. *)
   type 'a program
 
+  (** The name of the ruleset that produced the program. *)
+  val name : 'a program -> string
+
   (** Pretty-print the program. *)
   val pp_program : Format.formatter -> 'a program -> unit
 
@@ -89,7 +92,7 @@ module Make(M : L) : sig
       and the [VM] (see below) will prioritize yielding matches in
       this order.
   *)
-  val compile : ?commute:bool -> (pat * 'a) list -> 'a program
+  val compile : ?commute:bool -> name:string -> (pat * 'a) list -> 'a program
 
   (** Returns [true] is the program is empty. *)
   val is_empty : 'a program -> bool

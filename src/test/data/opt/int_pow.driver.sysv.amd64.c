@@ -4,7 +4,8 @@
 extern int64_t int_pow(int64_t base, int64_t exponent);
 extern int64_t int_pow_alt(int64_t base, int64_t exponent);
 
-int main() {
+int
+main() {
   assert(int_pow(2, 10) == 1024);
   assert(int_pow(5, 3) == 125);
   assert(int_pow(7, 0) == 1);

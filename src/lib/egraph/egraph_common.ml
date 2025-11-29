@@ -107,7 +107,7 @@ type t = {
   memo           : (enode, id) Hashtbl.t; (* The hash-cons for optimized terms. *)
   lmoved         : Iset.t Label.Table.t;  (* Set of IDs that were moved to a given label. *)
   imoved         : Lset.t Vec.t;          (* Set of labels that were moved for a given ID. *)
-  mutable pinned : Z.t;                   (* IDs that should not be rescheduled. *)
+  mutable pinned : Bitset.Id.t;           (* IDs that should not be rescheduled. *)
   ilbl           : Label.t Uopt.t Vec.t;  (* Maps IDs to labels. *)
   lval           : id Label.Table.t;      (* Maps labels to IDs. *)
   depth_limit    : int;                   (* Maximum rewrite depth. *)
@@ -117,11 +117,11 @@ type t = {
 
 type egraph = t
 
-let compile rules =
+let compile ~name rules =
   (* XXX: the previous implementation also reversed the rule order,
      and now the testsuite relies on that behavior. Maybe the real
      fix is in changing how the extractor breaks ties. *)
-  Matcher.compile @@ List.rev_map rules
+  Matcher.compile ~name @@ List.rev_map rules
     ~f:(fun r -> r.pre, (r.post, r.subsume))
 
 let find t id = Uf.find t.classes id
@@ -140,8 +140,8 @@ let add_moved t id = function
     let init = Vec.get_exn t.imoved id in
     Vec.set_exn t.imoved id @@ List.fold ls ~init ~f:Lset.add
 
-let set_pinned t id = t.pinned <- Z.(t.pinned lor (one lsl id))
-let is_pinned t id = Z.testbit t.pinned id
+let set_pinned t id = t.pinned <- Bitset.Id.set t.pinned id
+let is_pinned t id = Bitset.Id.mem t.pinned id
 
 let typeof_var t x =
   Typecheck.Env.typeof_var t.input.fn x t.input.tenv |> Or_error.ok

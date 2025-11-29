@@ -21,20 +21,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         "In Isel_builder.reg: invalid register %s in function $%s"
         r (Func.name t.fn) ()
 
-  let var t x = match Hashtbl.find t.v2id x with
+  let var t x = match getvar t x with
     | Some id -> !!id
     | None ->
       C.failf
         "In Isel_builder.var: unbound variable %a in function $%s"
         Var.pp x (Func.name t.fn) ()
 
-  let new_var t x ty = Hashtbl.find_or_add t.v2id x ~default:(fun () ->
-      let v = Rv.var (regcls ty) x in
-      let id = new_node ~ty t @@ Rv v in
-      Hashtbl.set t.v2id ~key:x ~data:id;
-      Hashtbl.set t.id2r ~key:id ~data:v;
-      id)
-
+  let newvar = newvar ~f:Rv.var
   let word = (Target.word M.target :> ty)
 
   let typeof_operand t : Virtual.operand -> ty C.t = function
@@ -122,7 +116,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | src -> src in
     let emit ?i dst src =
       let+ ty, id = operand' t @@ rewrite src in
-      let n = N (Omove, [new_var t dst ty; id]) in
+      let n = N (Omove, [newvar t dst ty; id]) in
       ignore @@ new_node ~l t n;
       Option.iter i ~f:(fun i -> status.(i) <- `moved) in
     let rec move_one i =
@@ -168,7 +162,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
          moves to be inserted into. *)
       let* l', ld' = if br then
           let+ l' = C.Label.fresh in
-          Hashtbl.add_multi t.extra ~key:l ~data:l';
+          addextra t l l';
           l', l'
         else !!(l, ld) in
       let+ () = windmill t l' moves in
@@ -189,17 +183,38 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | #Virtual.global as g -> global t g
     | #Virtual.local as loc -> local ~br t l loc >>| snd
 
+  let eval_binop o a b = match a, b with
+    | `int (a, _), `int (b, _) ->
+      (Eval.binop_int o a b :> Virtual.const option)
+    | `float a, `float b ->
+      (Eval.binop_single o a b :> Virtual.const option)
+    | `double a, `double b ->
+      (Eval.binop_double o a b :> Virtual.const option)
+    | _ -> None
+
+  let eval_unop o = function
+    | `int (a, ty) ->
+      (Eval.unop_int o a ty :> Virtual.const option)
+    | `float a ->
+      (Eval.unop_single o a :> Virtual.const option)
+    | `double a ->
+      (Eval.unop_double o a :> Virtual.const option)
+    | _ -> None
+
   let binop t l x o a b =
-    let* a = operand t a in
-    let+ b = operand t b in
-    let n = N (Obinop o, [a; b]) in
     let ty = infer_ty_binop o in
-    let id = new_node ~ty t n in
+    let+ id = match eval_binop o a b with
+      | Some c -> !!(constant t c)
+      | None ->
+        let* a = operand t a in
+        let+ b = operand t b in
+        let n = N (Obinop o, [a; b]) in
+        new_node ~ty t n in
     let r = Rv.var (regcls ty) x in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
-    Hashtbl.set t.v2id ~key:x ~data:id;
-    Hashtbl.set t.id2r ~key:id ~data:r
+    setvar t x id;
+    setrv t id r
 
   let unop t l x o a =
     let* () = match o with
@@ -208,19 +223,20 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           "In Isel_builder.unop: uitof is not supported by target %a"
           Target.pp M.target ()
       | _ -> !!() in
-    let+ a = operand t a in
     let ty = infer_ty_unop o in
-    (* Copy propagation *)
-    let id = match o with
-      | `copy _ -> a
-      | _ ->
-        let n = N (Ounop o, [a]) in
-        new_node ~ty t n in
+    let+ id = match eval_unop o a with
+      | Some c -> !!(constant t c)
+      | None -> match o with
+        | `copy _ -> operand t a (* copy propagation *)
+        | _ ->
+          let+ a = operand t a in
+          let n = N (Ounop o, [a]) in
+          new_node ~ty t n in
     let r = Rv.var (regcls ty) x in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
-    Hashtbl.set t.v2id ~key:x ~data:id;
-    Hashtbl.set t.id2r ~key:id ~data:r
+    setvar t x id;
+    setrv t id r
 
   let sel t l x ty c y n =
     let* c = var t c in
@@ -232,8 +248,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let r = Rv.var (regcls ty) x in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
-    Hashtbl.set t.v2id ~key:x ~data:id;
-    Hashtbl.set t.id2r ~key:id ~data:r
+    setvar t x id;
+    setrv t id r
 
   let call_args_stack_size t l f args =
     C.List.fold args ~init:0 ~f:(fun sz -> function
@@ -282,7 +298,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let+ r = reg t r in
     let ty = (ty :> ty) in
     let rid = new_node ~ty t @@ Rv (Rv.reg r) in
-    let xid = new_var t x ty in
+    let xid = newvar t x ty in
     let n = N (Omove, [xid; rid]) in
     ignore @@ new_node ~l t n
 
@@ -317,7 +333,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let ty' = (ty :> ty) in
     let n = N (Oload ty, [a]) in
     let lid = new_node ~ty:ty' t n in
-    let vid = new_var t x ty' in
+    let vid = newvar t x ty' in
     (* TODO: see if we can do a pessimistic alias analysis to forward
        the `Oload` node where this var appears, where possible. *)
     ignore @@ new_node ~l t @@ N (Omove, [vid; lid])
@@ -333,7 +349,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let+ r = reg t r in
     let ty = (ty :> ty) in
     let rid = new_node ~ty t @@ Rv (Rv.reg r) in
-    let xid = new_var t x ty in
+    let xid = newvar t x ty in
     let n = N (Omove, [xid; rid]) in
     ignore @@ new_node ~l t n
 
@@ -356,7 +372,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let stkargs t l x =
     assert t.frame;
     let rid = new_node ~ty:word t @@ Rv (Rv.reg R.fp) in
-    let xid = new_var t x word in
+    let xid = newvar t x word in
     let w = Target.word M.target in
     let off = Bv.(int M.stack_args_offset mod modulus (Type.sizeof_imm_base w)) in
     let oid = new_node ~ty:word t @@ N (Oint (off, (w :> Type.imm)), []) in
@@ -402,7 +418,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let sw t l ty i d tbl =
     let ty' = (ty :> ty) in
     let i = match i with
-      | `var x -> new_var t x ty'
+      | `var x -> newvar t x ty'
       | `sym (s, o) -> new_node ~ty:ty' t @@ N (Osym (s, o), []) in
     let* d, _ = local ~br:true t l d in
     let+ tbl =
@@ -423,7 +439,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let+ r = reg t r in
     let ty = (ty :> ty) in
     let rid = new_node ~ty t @@ Rv (Rv.reg r) in
-    let xid = new_var t x ty in
+    let xid = newvar t x ty in
     ignore @@ new_node ~l t @@ N (Omove, [xid; rid])
 
   let stkparam t l (x, o, ty) =
@@ -431,7 +447,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let w = Target.word M.target in
     let wi = (w :> Type.imm) in
     let wb = (w :> Type.basic) in
-    let xid = new_var t x ty' in
+    let xid = newvar t x ty' in
     (* Use the frame pointer. It will make our lives much easier. *)
     let rid = new_node ~ty:word t @@ Rv (Rv.reg R.fp) in
     let o' = o + M.stack_args_offset in
@@ -449,7 +465,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      at that point we will have more information on how to lay out the stack.
   *)
   let slot t _l s =
-    let _sid = new_var t (Slot.var s) word in
+    let _sid = newvar t (Slot.var s) word in
     ()
 
   let step t l = match Label.Tree.find t.blks l with

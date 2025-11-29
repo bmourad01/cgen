@@ -64,6 +64,16 @@ module Abi_loadopt : sig
   val run : Abi.func -> Abi.func Or_error.t
 end
 
+(** Attempts to coalesce slots of compatible size and alignment which
+    do not interfere (i.e. are never live at the same time).
+
+    Assumes the function is in SSA form.
+*)
+module Coalesce_slots : sig
+  val run : func -> func Or_error.t
+  val run_abi : Abi.func -> Abi.func Or_error.t
+end
+
 (** Uses the [Egraph] module to perform a variety of optimizations
     to a function.
 
@@ -121,6 +131,7 @@ end
 *)
 module Resolve_constant_blk_args : sig
   val run : func -> func Or_error.t
+  val run_abi : Abi.func -> Abi.func Or_error.t
 end
 
 (** Performs the classic Sparse Conditional Constant
@@ -139,6 +150,25 @@ end
 *)
 module Simplify_cfg : sig
   val run : Typecheck.env -> func -> func Context.t
+end
+
+(** Performs Scalar Replacement of Aggregates (SROA).
+
+    This aims to analyze access patterns of stack slots
+    and break them up into individual (scalar) components.
+
+    An important detail to note is that in the non-ABI pass,
+    slots being referenced in terms of user-defined compound
+    (aggregate) types are treated as opaque, and therefore
+    not optimized, as these are often ABI-dependent.
+
+    When ABI lowering is performed, these references should
+    be desugared into access patterns on primitive types,
+    at which point the algorithm can attempt to process them.
+*)
+module Sroa : sig
+  val run : func -> func Context.t
+  val run_abi : Abi.func -> Abi.func Context.t
 end
 
 (** Transforms a function into semi-pruned SSA form. *)
