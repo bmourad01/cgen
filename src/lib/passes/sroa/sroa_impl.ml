@@ -109,7 +109,7 @@ end = struct
     let pp ppf a =
       let neg = Int64.is_negative a.off in
       let pre, off = if neg then '-', Int64.neg a.off else '+', a.off in
-      Format.fprintf ppf "(%a %a.%a %c0x%Lx)"
+      Format.fprintf ppf "%a[%a.%a,%c0x%Lx]"
         Label.pp (Insn.label a.insn)
         pp_load_or_store a.ldst
         Type.pp_basic a.ty
