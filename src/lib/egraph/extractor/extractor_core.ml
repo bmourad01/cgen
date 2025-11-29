@@ -39,28 +39,39 @@ module Cost : sig
   val add : t -> t -> t
   val opc : t -> Int63.t
   val depth : t -> Int63.t
+  val pp : Format.formatter -> t -> unit
 end = struct
-  include Int63
+  open Int63
+
+  type nonrec t = t
+
+  (* We want an unsigned comparison *)
+  let compare_u a b = compare (a lxor min_value) (b lxor min_value) [@@inline]
+  let (<) a b = Int.(compare_u a b < 0) [@@inline]
 
   let depth_bits = 12
   let depth_mask = pred (one lsl depth_bits)
   let opc_mask = lnot depth_mask
 
-  let opc c = c lsr depth_bits
-  let depth c = c land depth_mask
-  let create o d = (o lsl depth_bits) lor (d land depth_mask)
-  let pure o = of_int o lsl depth_bits
+  let opc c = c lsr depth_bits [@@inline]
+  let depth c = c land depth_mask [@@inline]
+  let create o d = (o lsl depth_bits) lor (d land depth_mask) [@@inline]
+  let pure o = of_int o lsl depth_bits [@@inline]
 
   (* Make sure the increment doesn't wrap around. *)
   let incr c =
     let d = depth c in
     (c land opc_mask) lor
     (if d = depth_mask then d else succ d)
+  [@@inline]
 
   let add x y =
     let o = opc x + opc y in
     let d = max (depth x) (depth y) in
     create o d
+  [@@inline]
+
+  let pp = pp
 end
 
 type cost = Cost.t
@@ -147,11 +158,11 @@ let debug_dump t =
   Logs.debug (fun m ->
       let pp ppf (cid, (c, n)) =
         Format.fprintf ppf
-          "  %d:\n    cost:\n      depth: %a\n      opc: %a\n    node: %a%!"
-          cid Int63.pp (Cost.depth c) Int63.pp (Cost.opc c)
+          "  %d:\n    cost: %a\n      depth: %a\n      opc: %a\n    node: %a%!"
+          cid Cost.pp c Int63.pp (Cost.depth c) Int63.pp (Cost.opc c)
           (Enode.pp ~node:(node t.eg)) n in
-      m "%s: cost table:\n%a"
-        __FUNCTION__
+      m "%s: $%s cost table:\n%a"
+        __FUNCTION__ (Func.name t.eg.input.fn)
         (Format.pp_print_list pp
            ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n"))
         (Hashtbl.to_alist t.table))
