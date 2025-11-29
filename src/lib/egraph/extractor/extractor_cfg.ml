@@ -22,18 +22,18 @@ let empty_scope : scope = Id.Tree.empty
 
 type placed = {
   seq : Label.t Ftree.t;
-  ids : Z.t;
+  ids : Bitset.Id.t;
 }
 
 let create_placed id l = {
   seq = Ftree.singleton l;
-  ids = Z.(one lsl id);
+  ids = Bitset.Id.singleton id;
 }
 
 let add_placed p id l =
-  assert (not @@ Z.testbit p.ids id); {
+  assert (not @@ Bitset.Id.mem p.ids id); {
     seq = Ftree.snoc p.seq l;
-    ids = Z.(p.ids lor (one lsl id));
+    ids = Bitset.Id.set p.ids id;
   }
 
 type env = {
@@ -463,7 +463,7 @@ module Hoisting = struct
     end
 
   let should_skip t l id cid =
-    Z.testbit t.impure cid ||
+    Bitset.Id.mem t.impure cid ||
     is_partial_redundancy t l id cid
 
   (* If any nodes got moved up to this label, then we should check
@@ -501,7 +501,7 @@ let reify t env l =
   | Some id -> match extract t id with
     | None -> extract_fail l @@ Common.find t.eg id
     | Some (E (Id {canon; _}, op, args) as e)
-      when not @@ Z.testbit t.impure canon ->
+      when not @@ Bitset.Id.mem t.impure canon ->
       (* There may be an opportunity to "sink" this instruction,
          which is the dual of the "hoisting" optimization below.
          Since this is a pure operation, we can wait until it is

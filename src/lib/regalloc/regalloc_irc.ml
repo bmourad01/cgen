@@ -498,7 +498,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Seq.filter ~f:(fun w -> Rv.is_reg w || Hash_set.mem t.colored w) |>
     (* okColors := okColors \ {color[GetAlias(w)]} *)
     Seq.filter_map ~f:(color t) |>
-    Seq.iter ~f:(fun c -> cs := Z.(!cs land ~!(one lsl c)))
+    Seq.iter ~f:(fun c -> cs := Bitset.Id.clear !cs c)
 
   let assign_colors t =
     (* while SelectStack is not empty
@@ -507,19 +507,19 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         assert (can_be_colored t n);
         (* okColors := {0,...,K-1} *)
         let k = Regs.node_k n in
-        let cs = ref Z.(pred (one lsl k)) in
+        let cs = ref @@ Bitset.Id.init k in
         eliminate_colors t n cs;
         (* if okColors = {} then *)
-        if Z.(equal !cs zero) then
+        match Bitset.Id.min_elt !cs with
+        | None ->
           (* spilledNodes := spilledNodes U {n} *)
           t.spilled <- Set.add t.spilled n
-        else begin
+        | Some c ->
           (* coloredNodes := coloredNodes U {n} *)
           Hash_set.add t.colored n;
           (* let c \in okColors
              color[n] := c *)
-          set_color t n @@ Z.trailing_zeros !cs
-        end);
+          set_color t n c);
     (* forall n \in coalescedNodes *)
     Hash_set.iter t.coalesced ~f:(fun n ->
         (* color[n] := color[GetAlias(n)] *)

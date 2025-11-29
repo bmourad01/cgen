@@ -80,7 +80,7 @@ type t = {
   eg             : egraph;
   table          : (cost * enode) Id.Table.t;
   memo           : ext Id.Table.t;
-  mutable impure : Z.t;
+  mutable impure : Bitset.Id.t;
 }
 
 let rec pp_ext ppf = function
@@ -172,7 +172,7 @@ let init eg =
     eg;
     table = Id.Table.create ();
     memo = Id.Table.create ();
-    impure = Z.zero;
+    impure = Bitset.Id.empty;
   } in
   Saturation.go t;
   debug_dump t;
@@ -211,15 +211,15 @@ let rec must_remain_fixed op args = match (op : Enode.op) with
   | _ -> false
 
 let prov t cid id op args =
-  if must_remain_fixed op args then begin
-    t.impure <- Z.(t.impure lor (one lsl cid));
+  if must_remain_fixed op args then
+    let () = t.impure <- Bitset.Id.set t.impure cid in
     match labelof t.eg cid with
     | Some l -> Label l
     | None when id = cid -> Id {canon = cid; real = id}
     | None -> match labelof t.eg id with
       | None -> Id {canon = cid; real = id}
       | Some l -> Label l
-  end else Id {canon = cid; real = id}
+  else Id {canon = cid; real = id}
 
 module O = Monad.Option
 
