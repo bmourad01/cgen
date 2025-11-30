@@ -84,16 +84,16 @@ val single_missing_of : t -> Bv.t option
 (** Returns [true] if the interval consists of a single value. *)
 val is_single : t -> bool
 
-(** [is_strictly_smaller_than t1 t2] returns [true] if [t1] is strictly
+(** [is_size_strictly_smaller_than t1 t2] returns [true] if [t1] is strictly
     smaller than [t2].
 
     @raise Invalid_argument if [size t1 <> size t2]
 *)
-val is_strictly_smaller_than : t -> t -> bool
+val is_size_strictly_smaller_than : t -> t -> bool
 
-(** [is_larger_than t v] if the possible range of values in [t] is larger
+(** [is_size_larger_than t v] if the possible range of values in [t] is larger
     than [v]. *)
-val is_larger_than : t -> Bv.t -> bool
+val is_size_larger_than : t -> Bv.t -> bool
 
 (** Returns [true] if all the possible values are signed-less-than zero. *)
 val is_all_negative : t -> bool

@@ -52,10 +52,11 @@ let popcnt x n =
   let x = Bv.to_bigint x in
   Bv.(int (Z.popcount x) mod modulus n)
 
-let imod t = Bv.modulus @@ Type.sizeof_imm t
+let immsz t = Type.sizeof_imm t
+let imod t = Bv.modulus @@ immsz t
 
 let umulh t a b =
-  let sz = Type.sizeof_imm t in
+  let sz = immsz t in
   let m = Bv.modulus sz in
   let m2 = Bv.modulus (sz * 2) in
   let sh = Bv.(int sz mod m) in
@@ -69,7 +70,7 @@ let mulh t a b =
   Bv.((((c - s1) mod m) - s2) mod m)
 
 let rol t a b =
-  let sz = Type.sizeof_imm t in
+  let sz = immsz t in
   let m = Bv.modulus sz in
   let sh = Bv.(((int sz mod m) - b) mod m) in
   let lsh = Bv.((a lsl b) mod m) in
@@ -77,7 +78,7 @@ let rol t a b =
   Bv.((lsh lor rsh) mod m)
 
 let ror t a b =
-  let sz = Type.sizeof_imm t in
+  let sz = immsz t in
   let m = Bv.modulus sz in
   let sh = Bv.(((int sz mod m) - b) mod m) in
   let lsh = Bv.((a lsl sh) mod m) in
@@ -85,7 +86,7 @@ let ror t a b =
   Bv.((lsh lor rsh) mod m)
 
 let sext t a ta =
-  let sz' = Type.sizeof_imm ta in
+  let sz' = immsz ta in
   let m' = Bv.modulus sz' in
   if Bv.(msb a mod m') then
     let m = imod t in
@@ -94,7 +95,7 @@ let sext t a ta =
   else a
 
 let shift_fits t s =
-  let sz = Type.sizeof_imm t in
+  let sz = immsz t in
   let m = Bv.modulus sz in
   Bv.(s < int sz mod m)
 
@@ -126,10 +127,10 @@ let binop_int o a b = match (o : Insn.binop) with
   | `le #Type.imm -> Some (`bool Bv.(a <= b))
   | `lt #Type.imm -> Some (`bool Bv.(a <  b))
   | `ne #Type.imm -> Some (`bool Bv.(a <> b))
-  | `sge t -> Some (`bool (Bv.signed_compare a b (imod t) >= 0))
-  | `sgt t -> Some (`bool (Bv.signed_compare a b (imod t) >  0))
-  | `sle t -> Some (`bool (Bv.signed_compare a b (imod t) <= 0))
-  | `slt t -> Some (`bool (Bv.signed_compare a b (imod t) <  0))
+  | `sge t -> Some (`bool (Bv.signed_compare a b (immsz t) >= 0))
+  | `sgt t -> Some (`bool (Bv.signed_compare a b (immsz t) >  0))
+  | `sle t -> Some (`bool (Bv.signed_compare a b (immsz t) <= 0))
+  | `slt t -> Some (`bool (Bv.signed_compare a b (immsz t) <  0))
   | _ -> None
 
 (* NaN will compare not equal, not greater than, and not less than
@@ -174,20 +175,20 @@ let unop_int o a ty = match (o : Insn.unop) with
   | `neg (#Type.imm as t) ->
     Some (`int (Bv.(neg a mod imod t), t))
   | `clz t when Bv.(a <> zero) ->
-    Some (`int (clz a @@ Type.sizeof_imm t, t))
+    Some (`int (clz a @@ immsz t, t))
   | `ctz t when Bv.(a <> zero) ->
-    Some (`int (ctz a @@ Type.sizeof_imm t, t))
+    Some (`int (ctz a @@ immsz t, t))
   | `not_ t ->
     Some (`int (Bv.(lnot a mod imod t), t))
   | `popcnt t ->
-    Some (`int (popcnt a @@ Type.sizeof_imm t, t))
+    Some (`int (popcnt a @@ immsz t, t))
   | `fibits `f32 ->
     Some (`float (Float32.of_bits @@ Bv.to_int32 a))
   | `fibits `f64 ->
     Some (`double (float_of_bits @@ Bv.to_int64 a))
   | `itrunc t when Type.equal_imm t ty -> Some (`int (a, t))
   | `itrunc t ->
-    let hi = Type.sizeof_imm t - 1 in
+    let hi = immsz t - 1 in
     Some (`int (Bv.extract ~hi ~lo:0 a, t))
   | `sext t when Type.equal_imm t ty -> Some (`int (a, t))
   | `sext t -> Some (`int (sext t a ty, t))

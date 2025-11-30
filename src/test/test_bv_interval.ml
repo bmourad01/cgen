@@ -3,42 +3,65 @@ open Cgen
 
 module I = Bv_interval
 module Q = Quickcheck
+module G = Q.Generator
 
 let gen_size =
-  Q.Generator.small_positive_int |>
-  Q.Generator.filter ~f:(fun n -> n > 0 && n <= 64)
+  G.small_positive_int |>
+  G.filter ~f:(fun n -> n > 0 && n <= 64)
 
 let gen_small_size =
-  Q.Generator.small_positive_int |>
-  Q.Generator.filter ~f:(fun n -> n > 0 && n <= 8)
+  G.small_positive_int |>
+  G.filter ~f:(fun n -> n > 0 && n <= 8)
 
 let gen_bv size =
-  Q.Generator.map Int64.quickcheck_generator ~f:(fun x ->
+  G.map Int64.quickcheck_generator ~f:(fun x ->
       Bv.(int64 x mod modulus size))
 
 let gen_interval size =
-  Q.Generator.map (gen_bv size) ~f:(fun bv ->
-      I.create_single ~value:bv ~size)
+  let gen_bv = gen_bv size in
+  G.union [
+    (* Singletons *)
+    G.map gen_bv ~f:(fun v -> I.create_single ~value:v ~size);
+    (* Non-wrapped *)
+    G.map2 gen_bv gen_bv ~f:(fun a b ->
+        if Bv.(a = b) then I.create_full ~size
+        else if Bv.(a < b) then I.create ~lo:a ~hi:b ~size
+        else I.create ~lo:b ~hi:a ~size);
+    (* Wrapped ranges *)
+    G.map2 gen_bv gen_bv ~f:(fun a b ->
+        if Bv.(a = b) then I.create_full ~size
+        else I.create ~lo:b ~hi:a ~size);
+    (* Explicit full *)
+    G.return (I.create_full ~size);
+    (* Explicit empty *)
+    G.return (I.create_empty ~size);
+  ]
 
 let gen_sized_interval =
-  Q.Generator.bind gen_size ~f:(fun size ->
-      gen_interval size |> Q.Generator.map
-        ~f:(fun t -> size, t))
+  G.bind gen_size ~f:(fun size ->
+      gen_interval size |>
+      G.map ~f:(fun t -> size, t))
 
 let gen_interval_pair =
-  Q.Generator.bind gen_size ~f:(fun size ->
-      Q.Generator.both (gen_interval size) (gen_interval size) |>
-      Q.Generator.map ~f:(fun p -> size, p))
+  G.bind gen_size ~f:(fun size ->
+      G.both (gen_interval size) (gen_interval size) |>
+      G.map ~f:(fun p -> size, p))
 
 let gen_small_sized_interval =
-  Q.Generator.bind gen_small_size ~f:(fun size ->
-      gen_interval size |> Q.Generator.map
+  G.bind gen_small_size ~f:(fun size ->
+      gen_interval size |> G.map
         ~f:(fun t -> size, t))
 
+let gen_small_sized_interval_size2 =
+  G.bind gen_small_size ~f:(fun size ->
+      gen_interval size |> G.map
+        ~f:(fun t -> size, t)) |>
+  G.map2 gen_small_size ~f:(fun k (size, t) -> size, t, k)
+
 let gen_small_interval_pair =
-  Q.Generator.bind gen_small_size ~f:(fun size ->
-      Q.Generator.both (gen_interval size) (gen_interval size) |>
-      Q.Generator.map ~f:(fun p -> size, p))
+  G.bind gen_small_size ~f:(fun size ->
+      G.both (gen_interval size) (gen_interval size) |>
+      G.map ~f:(fun p -> size, p))
 
 let all_bvs size =
   List.init (1 lsl size) ~f:(fun n -> Bv.(int n mod modulus size))
@@ -46,29 +69,40 @@ let all_bvs size =
 let concrete_values size t =
   all_bvs size |> List.filter ~f:(I.contains_value t)
 
-let oracle_sound_binop ~size ~interval_op ~concrete_op t1 t2 =
+let oracle_sound_binop name ~size ~interval_op ~concrete_op t1 t2 =
+  let r_int = interval_op t1 t2 in
+  (* underdefined or overdefined result: just skip it *)
+  I.is_empty r_int || I.is_full r_int ||
   let vs1 = concrete_values size t1 in
   let vs2 = concrete_values size t2 in
   let results = List.bind vs1 ~f:(fun a ->
-      let ia = Bv.to_int a in
       List.filter_map vs2 ~f:(fun b ->
-          let ib = Bv.to_int b in
-          concrete_op size ia ib |>
-          Option.map ~f:(fun n ->
-              Bv.(int n mod modulus size)))) in
-  List.is_empty results ||
-  let r_int = interval_op t1 t2 in
-  List.for_all results ~f:(I.contains_value r_int)
+          match concrete_op size (Bv.to_int a) (Bv.to_int b) with
+          | None -> None   (* undefined: ignore *)
+          | Some n -> Some (a,b, Bv.(int n mod modulus size)))) in
+  List.for_all results ~f:(fun (a,b,r) ->
+      let res = I.contains_value r_int r in
+      if not res then
+        Format.eprintf "%s(%a,%a) = %a: not in %a\n%!"
+          name Bv.pp a Bv.pp b Bv.pp r I.pp r_int;
+      res)
 
-let oracle_sound_unop ~size ~interval_op ~concrete_op t =
+let oracle_sound_unop name ~size ~interval_op ~concrete_op t =
+  let t_int = interval_op t in
+  (* underdefined or overdefined result: just skip it *)
+  I.is_empty t_int || I.is_full t_int ||
   let vs = concrete_values size t in
   let results = List.filter_map vs ~f:(fun v ->
       let i = Bv.to_int v in
       concrete_op size i |> Option.map ~f:(fun r ->
-          Bv.(int r mod modulus size))) in
+          v, Bv.(int r mod modulus size))) in
   List.is_empty results ||
-  let t_int = interval_op t in
-  List.for_all results ~f:(I.contains_value t_int)
+  List.for_all results ~f:(fun (v, r) ->
+      let res = I.contains_value t_int r in
+      if not res then
+        Format.eprintf "%s(%a): %a not in %a\n%!"
+          name Bv.pp v Bv.pp r I.pp t_int;
+      res)
 
 let prop_size_preserved (size, t) = Int.equal size (I.size t)
 
@@ -174,15 +208,11 @@ let srem_opt size a b =
     let sa = to_signed size a in
     let sb = to_signed size b in
     if sb = 0 then None else
-      let m = Bv.modulus size in
-      let ba = Bv.(int sa mod m) in
-      let bb = Bv.(int sb mod m) in
-      let r = Bv.(srem ba bb mod m) in
-      Some (Bv.to_int r)
+      Some (Int.rem sa sb)
 
-let logand_mod _size a b = a land b
-let logor_mod  _size a b = a lor b
-let logxor_mod _size a b = a lxor b
+let logand_mod size a b = (a land b) land mask_of_size size
+let logor_mod  size a b = (a lor  b) land mask_of_size size
+let logxor_mod size a b = (a lxor b) land mask_of_size size
 
 let shl_opt size a b =
   if b >= size then None else Some ((a lsl b) land mask_of_size size)
@@ -196,155 +226,144 @@ let ashr_opt size a b =
     let shifted = sa asr b in
     Some (shifted land mask_of_size size)
 
-let popcount size a =
-  let a = a land mask_of_size size in
-  let rec loop x acc = if x = 0 then acc
-    else loop (x land (x - 1)) (acc + 1) in
-  loop a 0
-
-let bv_clz x n =
-  let x = Bv.to_bigint x in
-  let rec aux i =
-    if i < 0 then n
-    else if Z.testbit x i then n - i - 1
-    else aux (i - 1) in
-  aux (n - 1)
-
-let bv_ctz x n =
-  let x = Bv.to_bigint x in
-  let rec aux i =
-    if i >= n then n
-    else if Z.testbit x i then i + 1
-    else aux (i + 1) in
-  aux 0
-
-let clz size a = bv_clz Bv.(int a mod modulus size) size
-let ctz size a = bv_ctz Bv.(int a mod modulus size) size
+let popcount size a = Bv.(popcnt (int a mod modulus size))
+let clz size a = Bv.clz Bv.(int a mod modulus size) size
+let ctz size a = Bv.ctz Bv.(int a mod modulus size) size
 
 let prop_add_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "add"
     ~size
     ~interval_op:I.add
     ~concrete_op:(fun size a b -> Some (add_mod size a b))
     t1 t2
 
 let prop_sub_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "sub"
     ~size
     ~interval_op:I.sub
     ~concrete_op:(fun size a b -> Some (sub_mod size a b))
     t1 t2
 
 let prop_mul_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "mul"
     ~size
     ~interval_op:I.mul
     ~concrete_op:(fun size a b -> Some (mul_mod size a b))
     t1 t2
 
 let prop_udiv_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "udiv"
     ~size
     ~interval_op:I.udiv
     ~concrete_op:udiv_opt
     t1 t2
 
 let prop_urem_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "urem"
     ~size
     ~interval_op:I.urem
     ~concrete_op:urem_opt
     t1 t2
 
 let prop_sdiv_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "sdiv"
     ~size
     ~interval_op:I.sdiv
     ~concrete_op:sdiv_opt
     t1 t2
 
 let prop_srem_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "srem"
     ~size
     ~interval_op:I.srem
     ~concrete_op:srem_opt
     t1 t2
 
 let prop_logand_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "logand"
     ~size
     ~interval_op:I.logand
     ~concrete_op:(fun size a b -> Some (logand_mod size a b))
     t1 t2
 
 let prop_logor_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "logor"
     ~size
     ~interval_op:I.logor
     ~concrete_op:(fun size a b -> Some (logor_mod size a b))
     t1 t2
 
 let prop_logxor_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "logxor"
     ~size
     ~interval_op:I.logxor
     ~concrete_op:(fun size a b -> Some (logxor_mod size a b))
     t1 t2
 
 let prop_lsl_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "lsl"
     ~size
     ~interval_op:I.logical_shift_left
     ~concrete_op:shl_opt
     t1 t2
 
 let prop_lsr_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "lsr"
     ~size
     ~interval_op:I.logical_shift_right
     ~concrete_op:lshr_opt
     t1 t2
 
 let prop_asr_sound (size, (t1, t2)) =
-  oracle_sound_binop
+  oracle_sound_binop "asr"
     ~size
     ~interval_op:I.arithmetic_shift_right
     ~concrete_op:ashr_opt
     t1 t2
 
 let prop_lnot_sound (size, t) =
-  oracle_sound_unop
+  oracle_sound_unop "lnot"
     ~size
     ~interval_op:I.lnot
     ~concrete_op:(fun size a -> Some ((lnot a) land mask_of_size size))
     t
 
 let prop_neg_sound (size, t) =
-  oracle_sound_unop
+  oracle_sound_unop "neg"
     ~size
     ~interval_op:I.neg
     ~concrete_op:(fun size a -> Some ((0 - a) land ((1 lsl size) - 1)))
     t
 
 let prop_clz_sound (size, t) =
-  oracle_sound_unop
+  oracle_sound_unop "clz"
     ~size
     ~interval_op:(I.clz ~zero_is_poison:false)
     ~concrete_op:(fun size a -> Some (clz size a))
     t
 
 let prop_ctz_sound (size, t) =
-  oracle_sound_unop
+  oracle_sound_unop "ctz"
     ~size
     ~interval_op:(I.ctz ~zero_is_poison:false)
     ~concrete_op:(fun size a -> Some (ctz size a))
     t
 
 let prop_popcnt_sound (size, t) =
-  oracle_sound_unop
+  oracle_sound_unop "popcnt"
     ~size
     ~interval_op:I.popcnt
     ~concrete_op:(fun size a -> Some (popcount size a))
+    t
+
+let prop_truncate_sound (size, t, k) =
+  k < 0 || k >= size ||
+  oracle_sound_unop "trunc"
+    ~size:k
+    ~interval_op:(fun _ -> I.trunc t ~size:k)
+    ~concrete_op:(fun _size a ->
+        let modulus = 1 lsl k in
+        Some (a land (modulus - 1)))
     t
 
 let qc1 sexp name gen prop =
@@ -358,6 +377,7 @@ let qc1 sexp name gen prop =
 
 let sexp_binop x = [%sexp (x : int * (I.t * I.t))]
 let sexp_unop x = [%sexp (x : int * I.t)]
+let sexp_unop_size x = [%sexp (x : int * I.t * int)]
 
 let%test_unit "add preserves size" =
   qc1 sexp_binop "add-size" gen_interval_pair (prop_binop_size_stable I.add)
@@ -445,3 +465,6 @@ let%test_unit "ctz sound" =
 
 let%test_unit "popcnt sound" =
   qc1 sexp_unop "bv-popcnt" gen_small_sized_interval prop_popcnt_sound
+
+let%test_unit "trunc sound" =
+  qc1 sexp_unop_size "bv-trunc" gen_small_sized_interval_size2 prop_truncate_sound

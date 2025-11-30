@@ -41,7 +41,7 @@ let bool_ge a b = match I.(single_of a, single_of b) with
   | Some a, Some b -> I.boolean Bv.(a >= b)
   | _ -> greater Bv.(>=) a b
 
-let scmp t a b = Bv.(signed_compare a b @@ modulus @@ Type.sizeof_imm t)
+let scmp t a b = Bv.(signed_compare a b @@ Type.sizeof_imm t)
 
 let scmplt t a b = scmp t a b <  0
 let scmple t a b = scmp t a b <= 0

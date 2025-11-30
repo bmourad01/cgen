@@ -57,8 +57,8 @@ let is_sgt_one x env =
   Option.value ~default:false begin
     Subst.find env x >>= Subst.const >>= function
     | `int (i, ty) ->
-      let m = Bv.modulus @@ Type.sizeof_imm ty in
-      !!(Bv.signed_compare i Bv.one m > 0)
+      let sz = Type.sizeof_imm ty in
+      !!(Bv.signed_compare i Bv.one sz > 0)
     | _ -> None
   end
 
@@ -67,8 +67,8 @@ let is_slt_zero x env =
   Option.value ~default:false begin
     Subst.find env x >>= Subst.const >>= function
     | `int (i, ty) ->
-      let m = Bv.modulus @@ Type.sizeof_imm ty in
-      !!(Bv.signed_compare i Bv.zero m < 0)
+      let sz = Type.sizeof_imm ty in
+      !!(Bv.signed_compare i Bv.zero sz < 0)
     | _ -> None
   end
 
