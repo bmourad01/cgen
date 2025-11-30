@@ -1,5 +1,4 @@
 open Core
-open OUnit2
 open Cgen
 
 let c1 : Type.compound = `compound ("c1", Some 4, [
@@ -134,55 +133,31 @@ let test_sizeof_compound (t : Type.compound) ~expected =
   let l = Type.layout_exn gamma t in
   let name = Type.compound_name t in
   let l_expected = gamma name in
-  let layout_msg = Format.asprintf
-      "expected layout %a, got %a"
-      Type.pp_layout l_expected
-      Type.pp_layout l in
-  assert_bool layout_msg @@ Type.equal_layout l l_expected;
+  if not (Type.equal_layout l l_expected) then
+    failwithf "expected layout %s, got %s"
+      (Format.asprintf "%a" Type.pp_layout l_expected)
+      (Format.asprintf "%a" Type.pp_layout l)
+      ();
   let s = Type.sizeof_layout l in
-  let size_msg = Format.asprintf
-      "expected size %d in bytes for type %a, got %d"
-      expected Type.pp_compound t s in
-  assert_bool size_msg (s = expected)
+  if s <> expected then
+    failwithf "expected size %d in bytes for type :%s, got %d"
+      expected name s ()
 
-let test_c1 _ = test_sizeof_compound c1 ~expected:20
-let test_c2 _ = test_sizeof_compound c2 ~expected:28
-let test_c3 _ = test_sizeof_compound c3 ~expected:0
-let test_c4 _ = test_sizeof_compound c4 ~expected:4
-let test_c5 _ = test_sizeof_compound c5 ~expected:8
-let test_c6 _ = test_sizeof_compound c6 ~expected:0
-let test_c7 _ = test_sizeof_compound c7 ~expected:16
-let test_c8 _ = test_sizeof_compound c8 ~expected:0
-let test_c9 _ = test_sizeof_compound c9 ~expected:12
-let test_c10 _ = test_sizeof_compound c10 ~expected:40
-let test_c11 _ = test_sizeof_compound c11 ~expected:12
-let test_c12 _ = test_sizeof_compound c12 ~expected:8
-let test_c13 _ = test_sizeof_compound c13 ~expected:3
-let test_c14 _ = test_sizeof_compound c14 ~expected:8
-let test_c15 _ = test_sizeof_compound c15 ~expected:16
-let test_opaque4 _ = test_sizeof_compound opaque4 ~expected:4
-let test_c16 _ = test_sizeof_compound c16 ~expected:8
-let test_c1arr _ = test_sizeof_compound c1arr ~expected:60
-
-let suite = "Test types" >::: [
-    "Test sizeof compound 1" >:: test_c1;
-    "Test sizeof compound 2" >:: test_c2;
-    "Test sizeof compound 3" >:: test_c3;
-    "Test sizeof compound 4" >:: test_c4;
-    "Test sizeof compound 5" >:: test_c5;
-    "Test sizeof compound 6" >:: test_c6;
-    "Test sizeof compound 7" >:: test_c7;
-    "Test sizeof compound 8" >:: test_c8;
-    "Test sizeof compound 9" >:: test_c9;
-    "Test sizeof compound 10" >:: test_c10;
-    "Test sizeof compound 11" >:: test_c11;
-    "Test sizeof compound 12" >:: test_c12;
-    "Test sizeof compound 13" >:: test_c13;
-    "Test sizeof compound 14" >:: test_c14;
-    "Test sizeof compound 15" >:: test_c15;
-    "Test sizeof compound opaque4" >:: test_opaque4;
-    "Test sizeof compound 16" >:: test_c16;
-    "Test sizeof compound 1 (array)" >:: test_c1arr;
-  ]
-
-let () = run_test_tt_main suite
+let%test_unit "sizeof c1"      = test_sizeof_compound c1      ~expected:20
+let%test_unit "sizeof c2"      = test_sizeof_compound c2      ~expected:28
+let%test_unit "sizeof c3"      = test_sizeof_compound c3      ~expected:0
+let%test_unit "sizeof c4"      = test_sizeof_compound c4      ~expected:4
+let%test_unit "sizeof c5"      = test_sizeof_compound c5      ~expected:8
+let%test_unit "sizeof c6"      = test_sizeof_compound c6      ~expected:0
+let%test_unit "sizeof c7"      = test_sizeof_compound c7      ~expected:16
+let%test_unit "sizeof c8"      = test_sizeof_compound c8      ~expected:0
+let%test_unit "sizeof c9"      = test_sizeof_compound c9      ~expected:12
+let%test_unit "sizeof c10"     = test_sizeof_compound c10     ~expected:40
+let%test_unit "sizeof c11"     = test_sizeof_compound c11     ~expected:12
+let%test_unit "sizeof c12"     = test_sizeof_compound c12     ~expected:8
+let%test_unit "sizeof c13"     = test_sizeof_compound c13     ~expected:3
+let%test_unit "sizeof c14"     = test_sizeof_compound c14     ~expected:8
+let%test_unit "sizeof c15"     = test_sizeof_compound c15     ~expected:16
+let%test_unit "sizeof opaque4" = test_sizeof_compound opaque4 ~expected:4
+let%test_unit "sizeof c16"     = test_sizeof_compound c16     ~expected:8
+let%test_unit "sizeof c1arr"   = test_sizeof_compound c1arr   ~expected:60

@@ -6,11 +6,14 @@
  (deps
   (glob_files_rec data/*)))
 
-(test
+(library
  (name test_type)
- (libraries cgen ounit2)
+ (libraries cgen)
  (modules test_type)
- (ocamlopt_flags -O2))
+ (ocamlopt_flags -O2)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
 
 (library
  (name test_allen)
