@@ -367,6 +367,32 @@ let prop_truncate_sound (size, t, k) =
         Some (a land (modulus - 1)))
     t
 
+let oracle_sound_extension name ~from_size ~to_size ~concrete_op ~interval_op t =
+  let t' = interval_op t in
+  I.is_empty t' || I.is_full t' ||
+  let vs = concrete_values from_size t in
+  List.is_empty vs || List.for_all vs ~f:(fun v ->
+      let w = concrete_op v from_size to_size in
+      let res = I.contains_value t' w in
+      if not res then
+        Format.eprintf "%s(%a) = %a: not in %a\n%!"
+          name Bv.pp v Bv.pp w I.pp t';
+      res)
+
+let prop_sext_sound (size, t, k) =
+  k < 0 || k <= size ||
+  oracle_sound_extension "sext" ~from_size:size ~to_size:k
+    ~interval_op:(fun t -> I.sext t ~size:k)
+    ~concrete_op:Bv.sext
+    t
+
+let prop_zext_sound (size, t, k) =
+  k < 0 || k <= size ||
+  oracle_sound_extension "zext" ~from_size:size ~to_size:k
+    ~interval_op:(fun t -> I.zext t ~size:k)
+    ~concrete_op:(fun v _ _ -> v)
+    t
+
 let qc1 sexp name gen prop =
   match
     Q.test_or_error gen
@@ -469,3 +495,9 @@ let%test_unit "popcnt sound" =
 
 let%test_unit "trunc sound" =
   qc1 sexp_unop_size "bv-trunc" gen_small_sized_interval_size2 prop_truncate_sound
+
+let%test_unit "sext sound" =
+  qc1 sexp_unop_size "bv-sext" gen_small_sized_interval_size2 prop_sext_sound
+
+let%test_unit "zext sound" =
+  qc1 sexp_unop_size "bv-zext" gen_small_sized_interval_size2 prop_zext_sound

@@ -112,6 +112,24 @@ let bits_set_from n lo =
   let mask = pred bit mod m in
   lnot mask mod m
 
+let high_bits_set n h =
+  if Int.(h = 0) then zero
+  else if Int.(h >= n) then max_unsigned_value n
+  else
+    let m = modulus n in
+    let sh = setbit zero h m in
+    let lo = (sh - one) mod m in
+    let d = int Int.(n - h) mod m in
+    (lo lsl d) mod m
+
+let low_bits_set n l =
+  if Int.(l = 0) then zero
+  else if Int.(l >= n) then max_unsigned_value n
+  else
+    let m = modulus n in
+    let sh = setbit zero l m in
+    (sh - one) mod m
+
 let sext v size size' =
   let m = modulus size' in
   let nb = int Int.(size - 1) mod m in

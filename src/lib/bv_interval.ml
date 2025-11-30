@@ -271,20 +271,19 @@ let sext t ~size =
     create_empty ~size
   else if t.size >= size then
     invalid_arg "sext: `size` is not strictly greater than `t.size`"
+  else if Bv.(t.hi = min_signed_value t.size) then
+    let lo = Bv.sext t.lo t.size size in
+    let hi = Bv.sext t.hi t.size size in
+    create ~lo ~hi ~size
+  else if is_full t || is_sign_wrapped t then
+    let lo = Bv.high_bits_set size (size - t.size + 1) in
+    let hi = Bv.low_bits_set size (t.size - 1) in
+    let hi = Bv.(succ hi mod modulus size) in
+    create ~lo ~hi ~size
   else
-    let module B = (val Bv.modular size) in
-    let sext v =
-      let mask = B.(one lsl int Int.(t.size - 1)) in
-      B.((v lxor mask) - mask) in
-    if Bv.(t.hi = min_signed_value t.size) then
-      create ~lo:(sext t.lo) ~hi:(sext t.hi) ~size
-    else if is_full t || is_sign_wrapped_hi t then
-      let sh = Int.(size - (size - t.size + 1)) in
-      create
-        ~lo:B.(lnot @@ pred (one lsl int sh))
-        ~hi:B.(one lsl int Int.(t.size - 1))
-        ~size
-    else create ~lo:(sext t.lo) ~hi:(sext t.hi) ~size
+    let lo = Bv.sext t.lo t.size size in
+    let hi = Bv.sext t.hi t.size size in
+    create ~lo ~hi ~size
 
 let trunc t ~size =
   if t.size = size then t
