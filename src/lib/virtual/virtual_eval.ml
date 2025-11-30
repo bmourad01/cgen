@@ -34,23 +34,17 @@ external float_of_uint64 : int64 -> float = "cgen_float_of_uint64"
 
 (* pre: x is nonzero *)
 let clz x n =
-  let i = Bv.to_int64 x in
-  let i = match n with
-    | (8|16|32|64) -> Int64.(clz (i lsl Int.(64 - n)))
-    | _ -> assert false in
+  let i = Bv.clz x n in
   Bv.(int i mod modulus n)
 
 (* pre: x is nonzero *)
 let ctz x n =
-  let i = Bv.to_int64 x in
-  let i = match n with
-    | (8|16|32|64) -> Int64.ctz i
-    | _ -> assert false in
+  let i = Bv.ctz x n in
   Bv.(int i mod modulus n)
 
 let popcnt x n =
-  let x = Bv.to_bigint x in
-  Bv.(int (Z.popcount x) mod modulus n)
+  let i = Bv.popcnt x in
+  Bv.(int i mod modulus n)
 
 let immsz t = Type.sizeof_imm t
 let imod t = Bv.modulus @@ immsz t

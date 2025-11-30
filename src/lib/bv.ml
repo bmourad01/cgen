@@ -55,11 +55,8 @@ let clrbit x n m =
 
 let clz x n =
   let x = to_bigint x in
-  let rec aux i =
-    if Int.(i < 0) then n
-    else if Z.testbit x i then Int.(n - i - 1)
-    else aux Int.(i - 1) in
-  aux Int.(n - 1)
+  if Z.equal x Z.zero then n
+  else Int.(n - Z.numbits x)
 
 let ctz x n =
   let x = to_bigint x in
@@ -67,20 +64,12 @@ let ctz x n =
   else Z.trailing_zeros x
 
 let clo x n =
-  let x = to_bigint x in
-  let rec aux i =
-    if Int.(i < 0) then n
-    else if not (Z.testbit x i) then Int.(n - i - 1)
-    else aux Int.(i - 1) in
-  aux Int.(n - 1)
+  let m = modulus n in
+  clz (lnot x mod m) n
 
 let cto x n =
-  let x = to_bigint x in
-  let rec aux i =
-    if Int.(i >= n) then n
-    else if not (Z.testbit x i) then i
-    else aux Int.(i + 1) in
-  aux 0
+  let m = modulus n in
+  ctz (lnot x mod m) n
 
 let popcnt x = Z.popcount @@ to_bigint x [@@inline]
 
@@ -88,22 +77,19 @@ let popcnt x = Z.popcount @@ to_bigint x [@@inline]
    stuff like this. *)
 let must_be_zeros, must_be_ones =
   let must_be cmp lo hi size =
-    let module B = (val modular size) in
+    let m = modulus size in
     let res = ref zero in
     for k = 0 to Int.(size - 1) do
-      let open B in
-      let bit1 = one lsl (int Int.(k + 1)) in
-      let lo_block = lo / bit1 in
-      let hi_block = hi / bit1 in
-      if lo_block = hi_block then
-        let bit = one lsl (int k) in
-        let lo_bit = cmp (lo land bit) in
-        let hi_bit = cmp (hi land bit) in
-        if lo_bit && hi_bit then res := !res lor bit
+      let k1 = int Int.(k + 1) mod m in
+      let blo = (lo lsr k1) mod m in
+      let bhi = (hi lsr k1) mod m in
+      if blo = bhi && cmp lo k && cmp hi k then
+        res := setbit !res k m
     done;
     !res in
-  must_be ((=)  zero),
-  must_be ((<>) zero)
+  let one x k = Z.testbit (to_bigint x) k in
+  let zero x k = not (one x k) in
+  must_be zero, must_be one
 
 let active_bits x n =
   let z = clz x n in
