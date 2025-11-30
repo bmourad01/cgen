@@ -393,6 +393,17 @@ let prop_zext_sound (size, t, k) =
     ~concrete_op:(fun v _ _ -> v)
     t
 
+let prop_abs_sound (size, t) =
+  oracle_sound_unop "abs"
+    ~size
+    ~interval_op:I.abs
+    ~concrete_op:(fun size a ->
+        let m = Bv.modulus size in
+        let a = Bv.(int a mod m) in
+        let b = Bv.(abs a mod m) in
+        Some (Bv.to_int b))
+    t
+
 let qc1 sexp name gen prop =
   match
     Q.test_or_error gen
@@ -492,6 +503,9 @@ let%test_unit "ctz sound" =
 
 let%test_unit "popcnt sound" =
   qc1 sexp_unop "bv-popcnt" gen_small_sized_interval prop_popcnt_sound
+
+let%test_unit "abs sound" =
+  qc1 sexp_unop "bv-abs" gen_small_sized_interval prop_abs_sound
 
 let%test_unit "trunc sound" =
   qc1 sexp_unop_size "bv-trunc" gen_small_sized_interval_size2 prop_truncate_sound
