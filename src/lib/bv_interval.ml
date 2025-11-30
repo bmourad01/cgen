@@ -570,55 +570,68 @@ let urem t1 t2 =
 
 let abs ?(int_min_is_poison = false) t =
   let size = t.size in
-  let m = Bv.modulus size in
-  if is_empty t then create_empty ~size
-  else if is_sign_wrapped_hi t then
+  let smv = Bv.min_signed_value size in
+  let module B = (val Bv.modular size) in
+  if is_empty t then t
+  else if is_sign_wrapped t then
     let lo =
-      if Bv.(signed_compare t.hi zero size) > 0
-      || Bv.(signed_compare t.lo zero size) <= 0
+      if Bv.signed_compare t.hi B.zero size > 0 ||
+         Bv.signed_compare t.lo B.zero size <= 0
       then Bv.zero
-      else Bv.(min t.lo (succ (~-(t.hi) mod m) mod m)) in
+      else Bv.min t.lo B.(succ (neg t.hi)) in
     if int_min_is_poison
-    then create ~lo ~hi:Bv.(min_signed_value size) ~size
-    else create ~lo ~hi:Bv.(succ (min_signed_value size) mod m) ~size
-  else
-    let smin' = signed_min t in
-    let smax' = signed_max t in
-    let tst = int_min_is_poison && Bv.(smin' = min_signed_value size) in
-    if tst && Bv.(smax' = min_signed_value size)
-    then create_empty ~size
+    then create ~lo ~hi:smv ~size
+    else create ~lo ~hi:(B.succ smv) ~size
+  else with_return @@ fun {return} ->
+    let smin = signed_min t and smax = signed_max t in
+    let smin =
+      if int_min_is_poison && Bv.(smin = smv) then
+        if Bv.(smax = smv) then return @@ create_empty ~size
+        else B.succ smin
+      else smin in
+    if not (B.msb smin) then
+      create ~lo:smin ~hi:(B.succ smax) ~size
+    else if B.msb smax then
+      create ~lo:(B.neg smax) ~hi:B.(succ (neg smin)) ~size
     else
-      let smin' = Bv.(succ smin' mod m) in
-      if Bv.(signed_compare smin' zero size) >= 0 then t
-      else if Bv.(signed_compare smax' zero size) < 0 then
-        create ~size
-          ~lo:Bv.(~-smax' mod m)
-          ~hi:Bv.(succ (~-smin' mod m) mod m)
-      else
-        create ~size ~lo:Bv.zero
-          ~hi:Bv.(succ (max (~-smin' mod m) smax') mod m)
+      let hi = B.succ @@ Bv.max (B.neg smin) smax in
+      create ~lo:Bv.zero ~hi ~size
 
 let srem t1 t2 =
   let size = t1.size in
-  if size <> t2.size then
-    invalid_arg "srem: size mismatch";
+  if size <> t2.size then invalid_arg "srem: size mismatch";
   if is_empty t1 then t1
   else if is_empty t2 then t2
-  else if contains_value t2 Bv.zero then
-    (* XXX: imprecise *)
-    create_empty ~size
-  else 
+  else
     let module B = (val Bv.modular size) in
-    let min2 = signed_min t2 in
-    let max2 = signed_max t2 in
-    let abs_min2 = B.abs min2 in
-    let abs_max2 = B.abs max2 in
-    let max_abs = if Bv.(abs_min2 >= abs_max2) then abs_min2 else abs_max2 in
-    if Bv.(max_abs = B.zero) then create_empty ~size else
-      let bound = B.pred max_abs in
-      let lo = B.neg bound in
-      let hi = B.succ bound in
-      create_non_empty ~lo ~hi ~size
+    match single_of t1, single_of t2 with
+    | _, Some s2 when Bv.(s2 = zero) ->
+      create_empty ~size
+    | Some s1, Some s2 ->
+      create_single ~size ~value:(Bv.srem' s1 s2 size)
+    | _ ->
+      let abs_rhs = abs t2 in
+      let min_abs_rhs = unsigned_min abs_rhs in
+      let max_abs_rhs = unsigned_max abs_rhs in
+      if Bv.(max_abs_rhs = zero)
+      then create_empty ~size
+      else
+        let min_abs_rhs = if Bv.(min_abs_rhs = zero)
+          then B.succ min_abs_rhs else min_abs_rhs in
+        let min_lhs = signed_min t1 in
+        let max_lhs = signed_max t1 in
+        if not @@ B.msb min_lhs then
+          if Bv.(max_lhs < min_abs_rhs) then t1 else
+            let u = B.succ @@ Bv.min max_lhs @@ B.pred max_abs_rhs in
+            create ~lo:Bv.zero ~hi:u ~size
+        else if B.msb max_lhs then
+          if Bv.(min_lhs > B.neg min_abs_rhs) then t1 else
+            let lo = Bv.max min_lhs @@ B.succ @@ B.neg max_abs_rhs in
+            create ~lo ~hi:B.one ~size
+        else
+          let lo = Bv.max min_lhs @@ B.succ @@ B.neg max_abs_rhs in
+          let hi = B.succ @@ Bv.min max_lhs @@ B.pred max_abs_rhs in
+          create ~lo ~hi ~size
 
 let lnot t =
   let size = t.size in

@@ -204,11 +204,12 @@ let sdiv_opt size a b =
       Some res
 
 let srem_opt size a b =
-  if b = 0 then None else
-    let sa = to_signed size a in
-    let sb = to_signed size b in
-    if sb = 0 then None else
-      Some (Int.rem sa sb)
+  if a = 0 || b = 0 then None else
+    let m = Bv.modulus size in
+    let a = Bv.(int a mod m) in
+    let b = Bv.(int b mod m) in
+    let r = Bv.srem' a b size in
+    Some (Bv.to_int r)
 
 let logand_mod size a b = (a land b) land mask_of_size size
 let logor_mod  size a b = (a lor  b) land mask_of_size size

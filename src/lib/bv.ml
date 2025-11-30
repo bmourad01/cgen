@@ -131,3 +131,9 @@ let sext v size size' =
   let nb = int Int.(size - 1) mod m in
   let bit = one lsl nb mod m in
   ((v lxor bit mod m) - bit) mod m
+
+let srem' x y size =
+  let m = modulus size in
+  let ax = abs x mod m and ay = abs y mod m in
+  let r = rem ax ay mod m in
+  if msb x mod m then neg r mod m else r
