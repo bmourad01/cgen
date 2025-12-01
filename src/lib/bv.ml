@@ -53,6 +53,27 @@ let clrbit x n m =
   x land (lnot (one lsl (int n mod m) mod m) mod m) mod m
 [@@inline]
 
+let bits_set_until n ~bit =
+  if Int.(bit <= 0) then zero
+  else if Int.(bit >= n) then max_unsigned_value n
+  else
+    let m = modulus n in
+    pred (setbit zero bit m) mod m
+
+let bits_set_from n ~bit =
+  if Int.(bit >= n) then zero
+  else if Int.(bit <= 0) then max_unsigned_value n
+  else
+    let m = modulus n in
+    lnot (pred (setbit zero bit m) mod m) mod m
+
+let high_bits_set n ~bit =
+  let lo = bits_set_until n ~bit in
+  if lo = zero || lo = max_unsigned_value n then lo else
+    let m = modulus n in
+    let d = int Int.(n - bit) mod m in
+    (lo lsl d) mod m
+
 let clz x n =
   let x = to_bigint x in
   if Z.equal x Z.zero then n
@@ -97,43 +118,16 @@ let active_bits x n =
 [@@inline]
 
 let num_sign_bits x n =
-  let m = modulus n in
-  if msb x mod m then clo x n else clz x n
+  if msb x mod modulus n then clo x n else clz x n
 
 let significant_bits x n =
   let s = num_sign_bits x n in
   Int.(n - s + 1)
 [@@inline]
 
-let bits_set_from n lo =
-  let m = modulus n in
-  let nb = int lo mod m in
-  let bit = one lsl nb mod m in
-  let mask = pred bit mod m in
-  lnot mask mod m
-
-let high_bits_set n h =
-  if Int.(h = 0) then zero
-  else if Int.(h >= n) then max_unsigned_value n
-  else
-    let m = modulus n in
-    let sh = setbit zero h m in
-    let lo = (sh - one) mod m in
-    let d = int Int.(n - h) mod m in
-    (lo lsl d) mod m
-
-let low_bits_set n l =
-  if Int.(l = 0) then zero
-  else if Int.(l >= n) then max_unsigned_value n
-  else
-    let m = modulus n in
-    let sh = setbit zero l m in
-    (sh - one) mod m
-
 let sext v size size' =
   let m = modulus size' in
-  let nb = int Int.(size - 1) mod m in
-  let bit = one lsl nb mod m in
+  let bit = setbit zero Int.(size - 1) m in
   ((v lxor bit mod m) - bit) mod m
 
 let srem' x y size =

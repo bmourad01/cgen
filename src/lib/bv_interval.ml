@@ -65,13 +65,12 @@ let single_missing_of t = Option.some_if (is_single_missing t) t.hi
 let is_size_strictly_smaller_than t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "is_size_strictly_smaller_than: sizes must be equal";
-  if is_full t1 then false
-  else if is_full t2 then true
-  else
-    let m = Bv.modulus t1.size in
-    let s1 = Bv.((t1.hi - t1.lo) mod m) in
-    let s2 = Bv.((t2.hi - t2.lo) mod m) in
-    Bv.(s1 < s2)
+  not (is_full t1) && begin
+    is_full t2 ||
+    let open Bv in
+    let m = modulus t1.size in
+    (t1.hi - t1.lo) mod m < (t2.hi - t2.lo) mod m
+  end
 
 let is_size_larger_than t max_size =
   let m = Bv.modulus t.size in
@@ -257,18 +256,16 @@ let inverse t =
 let difference t1 t2 = intersect t1 @@ inverse t2 [@@inline]
 
 let zext t ~size =
-  if not @@ is_empty t then begin
-    if t.size >= size then
-      invalid_arg "zext: `size` is not strictly greater than `t.size`"
-    else if is_full t || is_wrapped_hi t then
-      let lo = if Bv.(t.hi = zero) then t.lo else Bv.zero in
-      create ~lo ~hi:(Bv.setbit Bv.zero t.size (Bv.modulus size)) ~size
-    else create ~lo:t.lo ~hi:t.hi ~size
-  end else create_empty ~size
+  if is_empty t then t
+  else if t.size >= size then
+    invalid_arg "zext: `size` is not strictly greater than `t.size`"
+  else if is_full t || is_wrapped_hi t then
+    let lo = if Bv.(t.hi = zero) then t.lo else Bv.zero in
+    create ~lo ~hi:(Bv.setbit Bv.zero t.size (Bv.modulus size)) ~size
+  else create ~lo:t.lo ~hi:t.hi ~size
 
 let sext t ~size =
-  if is_empty t then
-    create_empty ~size
+  if is_empty t then t
   else if t.size >= size then
     invalid_arg "sext: `size` is not strictly greater than `t.size`"
   else if Bv.(t.hi = min_signed_value t.size) then
@@ -276,8 +273,8 @@ let sext t ~size =
     let hi = Bv.sext t.hi t.size size in
     create ~lo ~hi ~size
   else if is_full t || is_sign_wrapped t then
-    let lo = Bv.high_bits_set size (size - t.size + 1) in
-    let hi = Bv.low_bits_set size (t.size - 1) in
+    let lo = Bv.high_bits_set size ~bit:(size - t.size + 1) in
+    let hi = Bv.bits_set_until size ~bit:(t.size - 1) in
     let hi = Bv.(succ hi mod modulus size) in
     create ~lo ~hi ~size
   else
@@ -291,10 +288,8 @@ let trunc t ~size =
     invalid_argf
       "trunc: `size` %d is not strictly less than `size t` %d"
       size t.size ()
-  else if is_empty t then
-    create_empty ~size
-  else if is_full t then
-    create_full ~size
+  else if is_empty t then t
+  else if is_full t then t
   else with_return @@ fun {return} ->
     let u = ref @@ create_empty ~size
     and ud = ref t.hi 
@@ -313,7 +308,7 @@ let trunc t ~size =
         if Bv.(t.lo = !ud) then return !u
     end;
     if Bv.active_bits !ld t.size > size then begin
-      let bs = Bv.bits_set_from t.size size in
+      let bs = Bv.bits_set_from t.size ~bit:size in
       let adj = Bv.((!ld land bs) mod m) in
       ld := Bv.((!ld - adj) mod m);
       ud := Bv.((!ud - adj) mod m)
@@ -337,12 +332,12 @@ let trunc t ~size =
 let add t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "add: sizes must be equal";
-  let size = t1.size in
-  if is_empty t1 || is_empty t2 then
-    create_empty ~size
-  else if is_full t1 || is_full t2 then
-    create_full ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
+  else if is_full t1 then t1
+  else if is_full t2 then t2
   else
+    let size = t1.size in
     let m = Bv.modulus size in
     let lo = Bv.((t1.lo + t2.lo) mod m) in
     let hi = Bv.(pred ((t1.hi + t2.hi) mod m) mod m) in
@@ -358,12 +353,12 @@ let add t1 t2 =
 let sub t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "sub: sizes must be equal";
-  let size = t1.size in
-  if is_empty t1 || is_empty t2 then
-    create_empty ~size
-  else if is_full t1 || is_full t2 then
-    create_full ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
+  else if is_full t1 then t1
+  else if is_full t2 then t2
   else
+    let size = t1.size in
     let module B = (val Bv.modular size) in
     let lo = B.(t1.lo - t2.hi + one) in
     let hi = B.(t1.hi - t2.lo) in
@@ -388,8 +383,8 @@ let mul t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "mul: sizes must be equal";
   let size = t1.size in
-  if is_empty t1 || is_empty t2 then
-    create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else match mul_single t1 t2 with
     | Some t -> t
     | None -> match mul_single t2 t1 with
@@ -435,10 +430,10 @@ let mul t1 t2 =
 let smax t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "smax: sizes must be equal";
-  let size = t1.size in
-  if is_empty t1 || is_empty t2 then
-    create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else
+    let size = t1.size in
     let m = Bv.modulus size in
     let min1 = signed_min t1 in
     let max1 = signed_max t1 in
@@ -453,8 +448,8 @@ let umax t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "umax: sizes must be equal";
   let size = t1.size in
-  if is_empty t1 || is_empty t2 then
-    create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else
     let m = Bv.modulus size in
     let min1 = unsigned_min t1 in
@@ -470,8 +465,8 @@ let smin t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "smin: sizes must be equal";
   let size = t1.size in
-  if is_empty t1 || is_empty t2 then
-    create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else
     let m = Bv.modulus size in
     let min1 = signed_min t1 in
@@ -487,8 +482,8 @@ let umin t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "umin: sizes must be equal";
   let size = t1.size in
-  if is_empty t1 || is_empty t2 then
-    create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else
     let m = Bv.modulus size in
     let min1 = unsigned_min t1 in
@@ -504,10 +499,10 @@ let udiv t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "udiv: sizes must be equal";
   let size = t1.size in
-  if is_empty t1
-  || is_empty t2
-  || Bv.(unsigned_max t2 = zero)
-  then create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
+  else if Bv.(unsigned_max t2 = zero) then
+    create_empty ~size
   else
     let m = Bv.modulus size in
     let lo = Bv.(unsigned_min t1 / unsigned_max t2 mod m) in
@@ -559,9 +554,9 @@ let urem t1 t2 =
   let size = t1.size in
   let m = Bv.modulus size in
   let um1 = unsigned_max t1 in
-  if is_empty t1
-  || is_empty t2
-  || Bv.(unsigned_max t2 = zero) then create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
+  else if Bv.(unsigned_max t2 = zero) then create_empty ~size
   else if Bv.(um1 < unsigned_min t2) then t1
   else
     let hi = Bv.(succ (min um1 (pred (unsigned_max t2) mod m)) mod m) in
@@ -656,8 +651,8 @@ let logand t1 t2 =
     invalid_arg "logand: sizes must be equal";
   let size = t1.size in
   let module B = (val Bv.modular size) in
-  if is_empty t1 || is_empty t2
-  then create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else match single_of t1, single_of t2 with
     | Some v1, Some v2 ->
       create_single ~value:B.(v1 land v2) ~size
@@ -681,8 +676,8 @@ let logor t1 t2 =
     invalid_arg "logor: sizes must be equal";
   let size = t1.size in
   let module B = (val Bv.modular size) in
-  if is_empty t1 || is_empty t2
-  then create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else match single_of t1, single_of t2 with
     | Some v1, Some v2 ->
       create_single ~value:B.(v1 lor v2) ~size
@@ -706,8 +701,8 @@ let logxor t1 t2 =
     invalid_arg "logxor: sizes must be equal";
   let size = t1.size in
   let module B = (val Bv.modular size) in
-  if is_empty t1 || is_empty t2
-  then create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else match single_of t1, single_of t2 with
     | Some v1, Some v2 ->
       create_single ~value:B.(v1 lxor v2) ~size
@@ -733,8 +728,8 @@ let logical_shift_left t1 t2 =
     invalid_arg "logical_shift_left: sizes must be equal";
   let size = t1.size in
   let m = Bv.modulus size in
-  if is_empty t1 || is_empty t2
-  then create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else
     let max1 = unsigned_max t1 in
     let max2 = unsigned_max t2 in
@@ -753,8 +748,8 @@ let logical_shift_right t1 t2 =
     invalid_arg "logical_shift_right: sizes must be equal";
   let size = t1.size in
   let m = Bv.modulus size in
-  if is_empty t1 || is_empty t2
-  then create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else
     let max1 = unsigned_max t1 in
     let max2 = unsigned_max t2 in
@@ -769,8 +764,8 @@ let arithmetic_shift_right t1 t2 =
     invalid_arg "arithmetic_shift_right: sizes must be equal";
   let size = t1.size in
   let m = Bv.modulus size in
-  if is_empty t1 || is_empty t2
-  then create_empty ~size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
   else
     let max1 = signed_max t1 in
     let max2 = unsigned_max t2 in
@@ -816,39 +811,51 @@ let concat t1 t2 =
 let umulh t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "umulh: sizes must be equal";
-  let size = t1.size in
-  let size2 = size * 2 in
-  let a = zext t1 ~size:size2 in
-  let b = zext t2 ~size:size2 in
-  extract (mul a b) ~hi:(size2 - 1) ~lo:size
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
+  else
+    let size = t1.size in
+    let size2 = size * 2 in
+    let a = zext t1 ~size:size2 in
+    let b = zext t2 ~size:size2 in
+    extract (mul a b) ~hi:(size2 - 1) ~lo:size
 
 let mulh t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "mulh: sizes must be equal";
-  let size = t1.size in
-  let size2 = size * 2 in
-  let a = zext t1 ~size:size2 in
-  let b = zext t2 ~size:size2 in
-  let t3 = extract (mul a b) ~hi:(size2 - 1) ~lo:size in
-  let n = create_negative ~size in
-  let z = create_single ~value:Bv.zero ~size in
-  let s1 = if is_empty @@ intersect t1 n then z else t2 in
-  let s2 = if is_empty @@ intersect t2 n then z else t1 in
-  sub (sub t3 s1) s2
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
+  else
+    let size = t1.size in
+    let size2 = size * 2 in
+    let a = zext t1 ~size:size2 in
+    let b = zext t2 ~size:size2 in
+    let t3 = extract (mul a b) ~hi:(size2 - 1) ~lo:size in
+    let n = create_negative ~size in
+    let z = create_single ~value:Bv.zero ~size in
+    let s1 = if is_empty @@ intersect t1 n then z else t2 in
+    let s2 = if is_empty @@ intersect t2 n then z else t1 in
+    sub (sub t3 s1) s2
 
 let rotate_left t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "rotate_left: sizes must be equal";
-  let size = t1.size in
-  let sh = create_single ~value:Bv.(int size mod modulus size) ~size in
-  logor (logical_shift_left t1 t2) (logical_shift_right t1 (sub sh t2))
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
+  else
+    let size = t1.size in
+    let sh = create_single ~value:Bv.(int size mod modulus size) ~size in
+    logor (logical_shift_left t1 t2) (logical_shift_right t1 (sub sh t2))
 
 let rotate_right t1 t2 =
   if t1.size <> t2.size then
     invalid_arg "rotate_right: sizes must be equal";
-  let size = t1.size in
-  let sh = create_single ~value:Bv.(int size mod modulus size) ~size in
-  logor (logical_shift_right t1 t2) (logical_shift_left t1 (sub sh t2))
+  if is_empty t1 then t1
+  else if is_empty t2 then t2
+  else
+    let size = t1.size in
+    let sh = create_single ~value:Bv.(int size mod modulus size) ~size in
+    logor (logical_shift_right t1 t2) (logical_shift_left t1 (sub sh t2))
 
 let clz ?(zero_is_poison = true) t =
   if is_empty t then t else
@@ -976,8 +983,7 @@ let inverse_predicate = function
   | SGT -> SLE
 
 let allowed_icmp_region i p =
-  if is_empty i then i
-  else
+  if is_empty i then i else
     let size = i.size in
     match p with
     | EQ -> i
