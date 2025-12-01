@@ -95,11 +95,23 @@ let%test_unit "singleton has exactly one element" =
         (Seq.to_list (B.enum (B.singleton k)))
         ~expect:[k])
 
+let%test_unit "singleton has exactly one element (reversed)" =
+  T.run_exn (module Key) ~f:(fun k ->
+      [%test_result : int list]
+        (Seq.to_list (B.enum ~rev:true (B.singleton k)))
+        ~expect:[k])
+
 let%test_unit "init n = [0..n-1]" =
   T.run_exn (module Key) ~f:(fun n ->
       [%test_result : int list]
         (Seq.to_list (B.enum (B.init n)))
         ~expect:(List.init n ~f:Fn.id))
+
+let%test_unit "rev init n = [n-1..0]" =
+  T.run_exn (module Key) ~f:(fun n ->
+      [%test_result : int list]
+        (Seq.to_list (B.enum ~rev:true (B.init n)))
+        ~expect:(List.rev @@ List.init n ~f:Fn.id))
 
 let%test_unit "min_elt matches smallest element in enum" =
   T.run_exn (module Single) ~f:(fun s ->

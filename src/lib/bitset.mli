@@ -46,6 +46,43 @@ val min_elt_exn : t -> key
     the set is empty. *)
 val min_elt : t -> key option
 
+(** Returns the greatest element of the set.
+
+    @raise Invalid_argument if the set is empty
+*)
+val max_elt_exn : t -> key
+
+(** Same as [max_elt_exn], but returns [None] if
+    the set is empty. *)
+val max_elt : t -> key option
+
+(** Pops the least element of the set, returning the
+    element and the updated set.
+
+    @raise Invalid_argument if the set is empty
+*)
+val pop_min_elt_exn : t -> key * t
+
+(** Same as [pop_min_elt_exn], but returns [None] if
+    the set is empty. *)
+val pop_min_elt : t -> (key * t) option
+
+(** Pops the greatest element of the set, returning the
+    element and the updated set.
+
+    @raise Invalid_argument if the set is empty
+*)
+val pop_max_elt_exn : t -> key * t
+
+(** Same as [pop_max_elt_exn], but returns [None] if
+    the set is empty. *)
+val pop_max_elt : t -> (key * t) option
+
 (** Produces the sequence of elements in the set,
-    from lowest to highest. *)
-val enum : t -> key seq
+    according to [rev].
+
+    If [rev] is [true], then the order is descending,
+    otherwise, the order is ascending. The default is
+    [false].
+*)
+val enum : ?rev:bool -> t -> key seq
