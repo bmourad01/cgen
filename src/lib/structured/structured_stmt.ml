@@ -20,7 +20,7 @@ let rec pp ppf : t -> unit = function
   |`nop ->
     Format.fprintf ppf "nop"
   | `seq (t1, t2) ->
-    Format.fprintf ppf "%a@;%a" pp t1 pp t2
+    Format.fprintf ppf "%a;@;%a" pp t1 pp t2
   | `ite (c, y, n) ->
     Format.fprintf ppf "if %a {@;@[<v 2>  %a@]@;} else {@;@[<v 2>  %a@]@;}"
       Var.pp c pp y pp n

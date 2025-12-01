@@ -3,3 +3,4 @@ module Func = Structured_func
 
 type stmt = Stmt.t [@@deriving bin_io, compare, equal, sexp]
 type slot = Virtual.Slot.t [@@deriving bin_io, compare, equal, sexp]
+type func = Func.t [@@deriving bin_io, compare, equal, sexp]

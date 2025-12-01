@@ -1,14 +1,13 @@
 %{
-    (*
     type elt =
-      | Func of Virtual.func
+      | Func of Structured.func
       | Typ  of Type.compound
       | Data of Virtual.data
 
     type call_arg =
       | Arg  of Virtual.operand
       | Varg of Virtual.operand
-     *)
+
     module Env = struct
       (* Since we allow a nicer surface syntax over the internal
          representation of the IR, we need to do some bookkeeping.
@@ -41,9 +40,9 @@
 
     (* Each time parse a new function, reset the context, since
        labels do not have scope outside of a function body. *)
-    let _reset = setenv Env.empty
+    let reset = setenv Env.empty
     
-    let _label_of_name name =
+    let label_of_name name =
       let* env = curenv in
       match Core.Map.find env.labels name with
       | Some l -> !!l
@@ -65,6 +64,22 @@
       match index with
       | Some i -> Var.with_index v i
       | None -> v
+
+    let make_data l align c name elts =
+      let module Tag = Virtual.Data.Tag in
+      let dict = Dict.empty in
+      let dict = match l with
+        | Some linkage -> Dict.set dict Tag.linkage linkage
+        | None -> dict in
+      let dict = match align with
+        | Some align -> Dict.set dict Tag.align align
+        | None -> dict in
+      let dict = match c with
+        | Some k -> Dict.set dict Tag.const k
+        | None -> dict in
+      match Virtual.Data.create () ~name ~elts ~dict with
+      | Error err -> Context.fail err
+      | Ok d -> !!d
 
     let make_fn slots body args l name return noreturn =
       let* slots = Context.List.all slots in
@@ -91,6 +106,7 @@
 %token <string> SYM
 %token <string> LABEL
 %token COLON
+%token SEMI
 %token ALIGN
 %token <unit> CONST
 %token TYPE
@@ -103,7 +119,7 @@
 %token COMMA
 %token EQUALS
 %token ARROW
-%token ELIPSIS
+%token ELLIPSIS
 %token SB SH SW W L B H S D Z
 %token <Type.basic> ADD DIV MUL SUB NEG
 %token NOP
@@ -125,7 +141,7 @@
 %token VASTART
 %token HLT
 %token GOTO
-%token IF
+%token IF ELSE
 %token WHILE
 %token DO
 %token RET
@@ -147,31 +163,104 @@
 %token <string> TEMP
 %token <string * int> TEMPI
 
+%left SEMI
+
 %start module_
 
-%type<unit> module_
+%type<unit Context.t> module_
+%type <elt Context.t> module_elt
+%type <Virtual.Data.elt> data_elt
+%type <Type.compound> typ
+%type <[`opaque of int | `fields of Type.field list]> typ_fields_or_opaque
+%type <Type.field> typ_field
+%type <Structured.func Context.t> func
+%type <((Var.t * Type.arg) list * bool) Context.t> func_args
+%type <Type.basic> type_basic
+%type <Type.arg> type_arg
+%type <Type.ret> type_ret
+%type <Linkage.t> linkage
+%type <string> section
+%type <Virtual.slot Context.t> slot
+%type <Structured.stmt Context.t> stmt
+%type <call_arg list Context.t> call_args
+%type <Virtual.Insn.binop> insn_binop
+%type <Virtual.Insn.unop> insn_unop
+%type <Virtual.Insn.arith_binop> insn_arith_binop
+%type <Virtual.Insn.bitwise_binop> insn_bitwise_binop
+%type <Virtual.Insn.cmp> insn_cmp
+%type <Virtual.Insn.arith_unop> insn_arith_unop
+%type <Virtual.Insn.bitwise_unop> insn_bitwise_unop
+%type <Virtual.Insn.cast> insn_cast
+%type <Virtual.Insn.copy> insn_copy
+%type <Virtual.global Context.t> global
+%type <Virtual.operand Context.t> operand
+%type <Virtual.const> const
+%type <Var.t Context.t> var
 
 %%
 
 module_:
   | name = MODULE elts = list(module_elt) EOF
     {
+      let* funs, typs, data =
+        let init = [], [], [] in
+        Context.List.fold elts ~init ~f:(fun (funs, typs, data) x ->
+            reset >>= fun () -> x >>| function
+            | Func f -> f :: funs, typs, data
+            | Typ  t -> funs, t :: typs, data
+            | Data d -> funs, typs, d :: data) in
       let _ = name in
-      let _ = elts in
+      let+ () = Context.Local.erase tag in
       ()
     }
 
 module_elt:
-  | f = func { f }
+  | f = func { let+ f = f in Func f }
+  | t = typ { !!(Typ t) }
+  | d = data { let+ d = d in Data d }
+
+data:
+  | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS ALIGN align = NUM LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
+    {
+      make_data l (Some (Bv.to_int align)) c name elts
+    }
+  | l = option(linkage) c = option(CONST) DATA name = SYM EQUALS LBRACE elts = separated_nonempty_list(COMMA, data_elt) RBRACE
+    {
+      make_data l None c name elts
+    }
+
+data_elt:
+  | c = const { (c :> Virtual.Data.elt) }
+  | s = STRING { `string s }
+  | Z n = NUM { `zero (Bv.to_int n) }
+
+typ:
+  | TYPE name = TYPENAME EQUALS LBRACE fields = separated_list(COMMA, typ_field) RBRACE
+    { `compound (name, None, fields) }
+  | TYPE name = TYPENAME EQUALS ALIGN align = NUM LBRACE t = typ_fields_or_opaque RBRACE
+    {
+      let align = Bv.to_int align in
+      match t with
+      | `opaque n -> `opaque (name, align, n)
+      | `fields f -> `compound (name, Some align, f)
+    }
+
+typ_fields_or_opaque:
+  | n = NUM { `opaque (Bv.to_int n) }
+  | fs = separated_list(COMMA, typ_field) { `fields fs }
+
+typ_field:
+  | b = type_basic n = option(NUM) { `elt (b, Core.Option.value_map n ~default:1 ~f:Bv.to_int) }
+  | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value_map n ~default:1 ~f:Bv.to_int) }
 
 func:
-  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) body = stmt RBRACE
+  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) start = LABEL COLON body = stmt RBRACE
     { make_fn slots body args l name return false }
-  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) body = stmt RBRACE
+  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) start = LABEL COLON body = stmt RBRACE
     { make_fn slots body args l name return true }
 
 func_args:
-  | ELIPSIS { !!([], true) }
+  | ELLIPSIS { !!([], true) }
   | t = type_arg x = var { let+ x = x in [x, t], false }
   | t = type_arg x = var COMMA rest = func_args
     {
@@ -217,6 +306,231 @@ slot:
 
 stmt:
   | NOP { !!(`nop) }
+  | s1 = stmt SEMI s2 = stmt
+    {
+      let* s1 = s1 in
+      let+ s2 = s2 in
+      `seq (s1, s2)
+    }
+  | IF x = var LBRACE t = stmt RBRACE ELSE LBRACE e = stmt RBRACE
+    {
+      let* x = x in
+      let* t = t in
+      let+ e = e in
+      `ite (x, t, e)
+    }
+  | WHILE x = var LBRACE b = stmt RBRACE
+    {
+      let* x = x in
+      let+ b = b in
+      `while_ (x, b)
+    }
+  | DO LBRACE b = stmt RBRACE WHILE x = var
+    {
+      let* b = b in
+      let+ x = x in
+      `dowhile (b, x)
+    }
+  | l = LABEL COLON
+    {
+      let+ l = label_of_name l in
+      `label l
+    }
+  | GOTO l = LABEL
+    {
+      let+ l = label_of_name l in
+      `goto l
+    }
+  | HLT { !!`hlt }
+  | RET a = option(operand)
+    {
+      match a with
+      | None -> !!(`ret None)
+      | Some a -> let+ a = a in `ret (Some a)
+    }
+  | x = var EQUALS b = insn_binop l = operand COMMA r = operand
+    {
+      let+ x = x and+ l = l and+ r = r in
+      `bop (x, b, l, r)
+    }
+  | x = var EQUALS u = insn_unop a = operand
+    {
+      let+ x = x and+ a = a in
+      `uop (x, u, a)
+    }
+  | x = var EQUALS t = SEL c = var COMMA l = operand COMMA r = operand
+    {
+      let+ x = x and+ c = c and+ l = l and+ r = r in
+      `sel (x, t, c, l, r)
+    }
+  | x = var EQUALS t = ACALL f = global LPAREN args = call_args RPAREN
+    {
+      let+ x = x and+ f = f and+ args = args in
+      let args, vargs =
+        Core.List.partition_map args ~f:(function
+            | Arg a -> First a
+            | Varg a -> Second a) in
+      `call (Some (x, t), f, args, vargs)
+    }
+  | CALL f = global LPAREN args = call_args RPAREN
+    {
+      let+ f = f and+ args = args in
+      let args, vargs =
+        Core.List.partition_map args ~f:(function
+            | Arg a -> First a
+            | Varg a -> Second a) in
+      `call (None, f, args, vargs)
+    }
+  | x = var EQUALS t = VAARG y = var
+    {
+      let+ x = x and+ y = y in
+      `vaarg (x, t, `var y)
+    }
+  | x = var EQUALS t = VAARG y = NUM
+    {
+      let+ x = x in
+      `vaarg (x, t, `addr y)
+    }
+  | x = var EQUALS t = VAARG y = SYM
+    {
+      let+ x = x in
+      `vaarg (x, t, `sym (y, 0))
+    }
+  | x = var EQUALS t = VAARG y = SYM PLUS i = NUM
+    {
+      let+ x = x in
+      `vaarg (x, t, `sym (y, Bv.to_int i))
+    }
+  | x = var EQUALS t = VAARG y = SYM MINUS i = NUM
+    {
+      let+ x = x in
+      `vaarg (x, t, `sym (y, -(Bv.to_int i)))
+    }
+  | VASTART x = var { let+ x = x in `vastart (`var x) }
+  | VASTART x = NUM { !!(`vastart (`addr x)) }
+  | VASTART x = SYM { !!(`vastart (`sym (x, 0))) }
+  | VASTART x = SYM PLUS i = NUM { !!(`vastart (`sym (x, Bv.to_int i))) }
+  | VASTART x = SYM MINUS i = NUM { !!(`vastart (`sym (x, -(Bv.to_int i)))) }
+  | x = var EQUALS t = LOAD a = operand
+    {
+      let+ x = x and+ a = a in
+      `load (x, t, a)
+    }
+  | t = STORE v = operand COMMA a = operand
+    {
+      let+ v = v and+ a = a in
+      `store (t, v, a)
+    }
+
+call_args:
+  | a = option(operand)
+    {
+      match a with
+      | None -> !![]
+      | Some a -> let+ a = a in [Arg a]
+    }
+  | a = operand COMMA rest = call_args
+    {
+      let+ a = a and+ rest = rest in
+      Arg a :: rest
+    }
+  | a = operand COMMA ELLIPSIS COMMA vargs = separated_nonempty_list(COMMA, operand)
+    {
+      let+ a = a and+ vargs = Context.List.all vargs in
+      Arg a :: Core.List.map vargs ~f:(fun a -> Varg a)
+    }
+
+insn_binop:
+  | a = insn_arith_binop { (a :> Virtual.Insn.binop) }
+  | b = insn_bitwise_binop { (b :> Virtual.Insn.binop) }
+  | c = insn_cmp { (c :> Virtual.Insn.binop) }
+
+insn_unop:
+  | a = insn_arith_unop { (a :> Virtual.Insn.unop) }
+  | b = insn_bitwise_unop { (b :> Virtual.Insn.unop) }
+  | c = insn_cast { (c :> Virtual.Insn.unop) }
+  | c = insn_copy { (c :> Virtual.Insn.unop) }
+
+insn_arith_binop:
+  | t = ADD { `add t }
+  | t = DIV { `div t }
+  | t = MUL { `mul t }
+  | t = MULH { `mulh t }
+  | t = REM { `rem t }
+  | t = SUB { `sub t }
+  | t = UDIV { `udiv t }
+  | t = UMULH { `umulh t }
+  | t = UREM { `urem t }
+
+insn_bitwise_binop:
+  | t = AND { `and_ t }
+  | t = OR { `or_ t }
+  | t = ASR { `asr_ t }
+  | t = LSL { `lsl_ t }
+  | t = LSR { `lsr_ t }
+  | t = ROL { `rol t }
+  | t = ROR { `ror t }
+  | t = XOR { `xor t }
+
+insn_cmp:
+  | t = EQ { `eq t }
+  | t = GE { `ge t }
+  | t = GT { `gt t }
+  | t = LE { `le t }
+  | t = LT { `lt t }
+  | t = NE { `ne t }
+  | t = O { `o t }
+  | t = SGE { `sge t }
+  | t = SGT { `sgt t }
+  | t = SLE { `sle t }
+  | t = SLT { `slt t }
+  | t = UO { `uo t }
+
+insn_arith_unop:
+  | t = NEG { `neg t }
+
+insn_bitwise_unop:
+  | t = CLZ { `clz t }
+  | t = CTZ { `ctz t }
+  | t = NOT { `not_ t }
+  | t = POPCNT { `popcnt t }
+
+insn_cast:
+  | t = FEXT { `fext t }
+  | t = FIBITS { `fibits t }
+  | t = FLAG { `flag t }
+  | t = FTOSI { `ftosi (fst t, snd t) }
+  | t = FTOUI { `ftoui (fst t, snd t) }
+  | t = FTRUNC { `ftrunc t }
+  | t = IFBITS { `ifbits t }
+  | t = ITRUNC { `itrunc t }
+  | t = SEXT { `sext t }
+  | t = SITOF { `sitof (fst t, snd t) }
+  | t = UITOF { `uitof (fst t, snd t) }
+  | t = ZEXT { `zext t }
+
+insn_copy:
+  | t = COPY { `copy t }
+
+global:
+  | i = NUM { !!(`addr i) }
+  | s = SYM { !!(`sym (s, 0)) }
+  | s = SYM PLUS i = NUM { !!(`sym (s, Bv.to_int i)) }
+  | s = SYM MINUS i = NUM { !!(`sym (s, -(Bv.to_int i))) }
+  | x = var { let+ x = x in `var x }
+
+operand:
+  | c = const { !!(c :> Virtual.operand) }
+  | x = var { let+ x = x in `var x }
+
+const:
+  | b = BOOL { `bool b }
+  | i = INT { `int i }
+  | s = SINGLE { `float s }
+  | d = DOUBLE { `double d }
+  | s = SYM { `sym (s, 0) }
+  | s = SYM PLUS i = NUM { `sym (s, Bv.to_int i) }
+  | s = SYM MINUS i = NUM { `sym (s, -(Bv.to_int i)) }
 
 var:
   | x = VAR { !!Var.(with_index (create (fst x)) (snd x)) }

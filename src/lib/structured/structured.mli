@@ -113,3 +113,5 @@ module Func : sig
 
   include Regular.S with type t := t
 end
+
+type func = Func.t [@@deriving bin_io, compare, equal, sexp]
