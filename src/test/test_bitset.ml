@@ -1,8 +1,7 @@
 open Core
-open Cgen
 
 module Seq = Sequence
-module B = Bitset.Id
+module B = Cgen.Bitset
 module Q = Quickcheck
 module G = Q.Generator
 module S = Q.Shrinker
