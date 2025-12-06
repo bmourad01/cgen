@@ -167,7 +167,7 @@
 
 %start module_
 
-%type<unit Context.t> module_
+%type<Structured.module_ Context.t> module_
 %type <elt Context.t> module_elt
 %type <Virtual.Data.elt> data_elt
 %type <Type.compound> typ
@@ -209,9 +209,11 @@ module_:
             | Func f -> f :: funs, typs, data
             | Typ  t -> funs, t :: typs, data
             | Data d -> funs, typs, d :: data) in
-      let _ = name in
       let+ () = Context.Local.erase tag in
-      ()
+      Structured.Module.create () ~name
+        ~funs:(List.rev funs)
+        ~typs:(List.rev typs)
+        ~data:(List.rev data)
     }
 
 module_elt:

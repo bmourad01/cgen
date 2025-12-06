@@ -41,3 +41,22 @@ module Virtual : S with type t := Virtual.module_ = struct
         Virtual_parser.module_ Virtual_lexer.token lexbuf)
       ~filename:"<stdin>"
 end
+
+module Structured : S with type t := Structured.module_ = struct
+  let from_string s =
+    let lexbuf = Lexing.from_string s in
+    try_parse lexbuf ~f:(fun () ->
+        Structured_parser.module_ Structured_lexer.token lexbuf)
+
+  let from_file name = with_file name ~f:(fun chan ->
+      let lexbuf = Lexing.from_channel chan in
+      try_parse lexbuf ~f:(fun () ->
+          Structured_parser.module_ Structured_lexer.token lexbuf)
+        ~filename:name)
+
+  let from_stdin () =
+    let lexbuf = Lexing.from_channel In_channel.stdin in
+    try_parse lexbuf ~f:(fun () ->
+        Structured_parser.module_ Structured_lexer.token lexbuf)
+      ~filename:"<stdin>"
+end

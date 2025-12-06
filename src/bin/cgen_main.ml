@@ -2,7 +2,7 @@ open Core
 open Regular.Std
 open Cgen
 
-let comp (opts : Cli.t) =
+let comp_virtual (opts : Cli.t) =
   let open Context.Syntax in
   let* m = match opts.file with
     | Ifile file -> Parse.Virtual.from_file file
@@ -69,6 +69,29 @@ let comp (opts : Cli.t) =
   let module Emit = Pseudo_passes.Emit(Machine) in
   Format.fprintf ppf "%a%!" Emit.emit m;
   !!(close ())
+
+let comp_structured (opts : Cli.t) =
+  let open Context.Syntax in
+  let* m = match opts.file with
+    | Ifile file -> Parse.Structured.from_file file
+    | Istdin -> Parse.Structured.from_stdin () in
+  let ppf, close = match opts.output with
+    | Ostdout -> Format.std_formatter, Fn.id
+    | Ofile file ->
+      let oc = Out_channel.create file in
+      Format.formatter_of_out_channel oc,
+      (fun () -> Out_channel.close oc) in
+  let bail () = close (); Cli.bail () in
+  if Cli.equal_dump opts.dump Dparse then begin
+    if not opts.nc then Format.fprintf ppf ";; After parsing\n\n%!";
+    Format.fprintf ppf "%a\n%!" Structured.Module.pp m;
+    bail ();
+  end;
+  !!(close ())
+
+let comp (opts : Cli.t) = match opts.ifmt with
+  | IFvirtual -> comp_virtual opts
+  | IFstructured -> comp_structured opts
 
 let () =
   Cli.run @@ fun opts ->
