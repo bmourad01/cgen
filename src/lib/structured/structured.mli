@@ -10,13 +10,17 @@ module Stmt : sig
       - [`seq (a, b)]: executes the statement [a], then [b]
       - [`ite (c, y, n)]: if the condition [c] is true, then [y] is executed,
         otherwise [n] is executed
+      - [`loop b]: execute [b] repeatedly with no head or tail guard; equivalent
+        to a [while (1) { ... }] in C
       - [`while_ (c, b)]: while the condition [c] is true, [b] is executed
       - [`dowhile (b, c)]: [b] is executed until [c] is not true; note that [b]
         will always execute at least once
-      - [`sw (i, ty, cs)]: based on the index [i] of type [ty], branch to the case
-        in [cs] where [i] is equal to the key, and execute the body
-      - [`label l]: marks a label [l] as a target for a [goto]
-      - [`goto l]: jumps to a label [l]
+      - [`sw (i, ty, cs, d)]: based on the index [i] of type [ty], branch to the
+        case in [cs] where [i] is equal to the key, and execute the body. If no
+        such case matches, execute [d] (the default).
+      - [`label (l, args)]: marks a label [l] as a target for a [goto], with
+        arguments [args].
+      - [`goto d]: jumps to a destination [d]
       - [`hlt]: halts execution of the program
       - [`ret x]: return from the function, with an optional value [x]
   *)
@@ -25,11 +29,12 @@ module Stmt : sig
     | `nop
     | `seq of t * t
     | `ite of Var.t * t * t
+    | `loop of t
     | `while_ of Var.t * t
     | `dowhile of t * Var.t
-    | `sw of Var.t * Type.imm * (Bv.t * t) list
-    | `label of Label.t
-    | `goto of Label.t
+    | `sw of Var.t * Type.imm * (Bv.t * t) list * t
+    | `label of Label.t * Var.t list * t
+    | `goto of Virtual.dst
     | `hlt
     | `ret of Virtual.operand option
   ] [@@deriving bin_io, compare, equal, sexp]
@@ -43,8 +48,11 @@ type slot = Virtual.Slot.t [@@deriving bin_io, compare, equal, sexp]
 module Func : sig
   type t [@@deriving bin_io, compare, equal, sexp]
 
-  (** Creates a function. *)
-  val create :
+  (** Creates a function.
+
+      @raise Invalid_argument if [body] is not a [`label _] form.
+  *)
+  val create_exn :
     ?dict:Dict.t ->
     ?slots:slot list ->
     name:string ->
@@ -52,6 +60,19 @@ module Func : sig
     args:(Var.t * Type.arg) list ->
     unit ->
     t
+
+  (** Creates a function.
+
+      @return [Error _] if [body] is not a [`label _] form.
+  *)
+  val create :
+    ?dict:Dict.t ->
+    ?slots:slot list ->
+    name:string ->
+    body:stmt ->
+    args:(Var.t * Type.arg) list ->
+    unit ->
+    t Or_error.t
 
   (** Returns the name of the function. *)
   val name : t -> string

@@ -16,19 +16,32 @@ include T
 
 module Tag = Virtual.Func.Tag
 
+let create_exn
+    ?(dict = Dict.empty)
+    ?(slots = [])
+    ~name
+    ~body
+    ~args
+    () = match body with
+  | `label _ -> {
+      name;
+      slots = Ftree.of_list slots;
+      args = Ftree.of_list args;
+      body;
+      dict;
+    }
+  | _ ->
+    invalid_arg "Function body must start with a label statement"
+
 let create
     ?(dict = Dict.empty)
     ?(slots = [])
     ~name
     ~body
     ~args
-    () = {
-  name;
-  slots = Ftree.of_list slots;
-  args = Ftree.of_list args;
-  body;
-  dict;
-}
+    () =
+  try Ok (create_exn ~dict ~slots ~name ~body ~args ()) with
+  | Invalid_argument msg -> Or_error.error_string msg
 
 let name fn = fn.name
 let slots ?(rev = false) fn = Ftree.enum fn.slots ~rev
@@ -99,7 +112,7 @@ let pp ppf fn =
     let sep ppf = Format.fprintf ppf "@;  " in
     Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp Virtual.Slot.pp sep) fn.slots
   end;
-  Format.fprintf ppf "@[<v 0>%a@]@;}" Structured_stmt.pp fn.body
+  Format.fprintf ppf "%a@;}" Structured_stmt.pp fn.body
 
 include Regular.Make(struct
     include T

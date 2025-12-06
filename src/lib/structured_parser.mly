@@ -84,7 +84,7 @@
     let make_fn slots body args l name return noreturn =
       let* slots = Context.List.all slots in
       let* body = body in
-      let+ args, variadic = match args with
+      let* args, variadic = match args with
         | None -> !!([], false)
         | Some a -> a in
       let linkage = Core.Option.value l ~default:Linkage.default_static in
@@ -96,7 +96,8 @@
         | Some t -> Dict.set dict Tag.return t
         | None -> dict in
       let dict = Dict.set dict Tag.linkage linkage in
-      Structured.Func.create () ~name ~body ~args ~slots ~dict
+      let*? fn = Structured.Func.create () ~name ~body ~args ~slots ~dict in
+      !!fn
 %}
 
 %token EOF
@@ -114,11 +115,8 @@
 %token RBRACE
 %token LPAREN
 %token RPAREN
-%token LSQUARE
-%token RSQUARE
 %token COMMA
 %token EQUALS
-%token ARROW
 %token ELLIPSIS
 %token SB SH SW W L B H S D Z
 %token <Type.basic> ADD DIV MUL SUB NEG
@@ -142,10 +140,12 @@
 %token HLT
 %token GOTO
 %token IF ELSE
+%token LOOP
 %token WHILE
 %token DO
 %token RET
 %token <Type.imm> SWITCH
+%token CASE DEFAULT
 %token <string> MODULE
 %token FUNCTION
 %token DATA
@@ -163,8 +163,6 @@
 %token <string> TEMP
 %token <string * int> TEMPI
 
-%left SEMI
-
 %start module_
 
 %type<Structured.module_ Context.t> module_
@@ -181,7 +179,10 @@
 %type <Linkage.t> linkage
 %type <string> section
 %type <Virtual.slot Context.t> slot
+%type <((Bv.t * Type.imm) * Structured.stmt) Context.t> switch_case
+%type <Structured.stmt Context.t> label_stmt
 %type <Structured.stmt Context.t> stmt
+%type <Structured.stmt Context.t> non_label_stmt
 %type <call_arg list Context.t> call_args
 %type <Virtual.Insn.binop> insn_binop
 %type <Virtual.Insn.unop> insn_unop
@@ -192,6 +193,8 @@
 %type <Virtual.Insn.bitwise_unop> insn_bitwise_unop
 %type <Virtual.Insn.cast> insn_cast
 %type <Virtual.Insn.copy> insn_copy
+%type <Virtual.dst Context.t> dst
+%type <Virtual.local Context.t> local
 %type <Virtual.global Context.t> global
 %type <Virtual.operand Context.t> operand
 %type <Virtual.const> const
@@ -256,9 +259,9 @@ typ_field:
   | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value_map n ~default:1 ~f:Bv.to_int) }
 
 func:
-  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) start = LABEL COLON body = stmt RBRACE
+  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) body = label_stmt RBRACE
     { make_fn slots body args l name return false }
-  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) start = LABEL COLON body = stmt RBRACE
+  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) body = label_stmt RBRACE
     { make_fn slots body args l name return true }
 
 func_args:
@@ -306,42 +309,59 @@ slot:
       | Ok s -> !!s
     }
 
-stmt:
-  | NOP { !!(`nop) }
-  | s1 = stmt SEMI s2 = stmt
+switch_case:
+  | CASE i = INT COLON b = stmt { let+ b = b in i, b }
+
+%inline label_stmt:
+  | l = LABEL COLON s = stmt
     {
-      let* s1 = s1 in
-      let+ s2 = s2 in
+      let+ l = label_of_name l and+ s = s in
+      `label (l, [], s)
+    }
+  | l = LABEL LPAREN args = separated_nonempty_list(COMMA, var) RPAREN COLON s = stmt
+    {
+      let+ l = label_of_name l and+ args = Context.List.all args and+ s = s in
+      `label (l, args, s)
+    }
+
+stmt:
+  | s = non_label_stmt { s }
+  | s1 = non_label_stmt SEMI s2 = stmt
+    {
+      let+ s1 = s1 and+ s2 = s2 in
       `seq (s1, s2)
     }
+  | lab = label_stmt { lab }
+
+non_label_stmt:
+  | NOP { !!(`nop) }
   | IF x = var LBRACE t = stmt RBRACE ELSE LBRACE e = stmt RBRACE
     {
-      let* x = x in
-      let* t = t in
-      let+ e = e in
+      let+ x = x and+ t = t and+ e = e in
       `ite (x, t, e)
     }
+  | LOOP LBRACE b = stmt RBRACE { let+ b = b in `loop b }
   | WHILE x = var LBRACE b = stmt RBRACE
     {
-      let* x = x in
-      let+ b = b in
+      let+ x = x and+ b = b in
       `while_ (x, b)
     }
   | DO LBRACE b = stmt RBRACE WHILE x = var
     {
-      let* b = b in
-      let+ x = x in
+      let+ b = b and+ x = x in
       `dowhile (b, x)
     }
-  | l = LABEL COLON
+  | GOTO d = dst { let+ d = d in `goto d }
+  | t = SWITCH i = var LBRACE cs = list(switch_case) DEFAULT COLON d = stmt RBRACE
     {
-      let+ l = label_of_name l in
-      `label l
-    }
-  | GOTO l = LABEL
-    {
-      let+ l = label_of_name l in
-      `goto l
+      let* i = i and* cs = Context.List.all cs and* d = d in
+      let+ cs = Context.List.map cs ~f:(fun ((i, t'), b) ->
+          if not @@ Type.equal_imm t t' then
+            Context.failf
+              "Invalid switch value %a_%a, expected size %a"
+              Bv.pp i Type.pp_imm t' Type.pp_imm t ()
+          else !!(i, b)) in
+      `sw (i, t, cs, d)
     }
   | HLT { !!`hlt }
   | RET a = option(operand)
@@ -514,12 +534,28 @@ insn_cast:
 insn_copy:
   | t = COPY { `copy t }
 
+dst:
+  | g = global { let+ g = g in (g :> Virtual.dst) }
+  | l = local { let+ l = l in (l :> Virtual.dst) }
+
 global:
   | i = NUM { !!(`addr i) }
   | s = SYM { !!(`sym (s, 0)) }
   | s = SYM PLUS i = NUM { !!(`sym (s, Bv.to_int i)) }
   | s = SYM MINUS i = NUM { !!(`sym (s, -(Bv.to_int i))) }
   | x = var { let+ x = x in `var x }
+
+local:
+  | l = LABEL
+    {
+      let+ l = label_of_name l in
+      `label (l, [])
+    }
+  | l = LABEL LPAREN args = separated_nonempty_list(COMMA, operand) RPAREN
+    {
+      let+ args = Context.List.all args and+ l = label_of_name l in
+      `label (l, args)
+    }
 
 operand:
   | c = const { !!(c :> Virtual.operand) }

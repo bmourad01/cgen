@@ -89,11 +89,8 @@ rule token = parse
   | '}' { RBRACE }
   | '(' { LPAREN }
   | ')' { RPAREN }
-  | '[' { LSQUARE }
-  | ']' { RSQUARE }
   | ',' { COMMA }
   | '=' { EQUALS }
-  | "->" { ARROW }
   | "..." { ELLIPSIS }
   | "sb" { SB }
   | "sh" { SH }
@@ -181,9 +178,12 @@ rule token = parse
   | "if" { IF }
   | "else" { ELSE }
   | "ret" { RET }
+  | "loop" { LOOP }
   | "while" { WHILE }
   | "do" { DO }
   | "switch" '.' (imm as t) { SWITCH (imm_of_char t) }
+  | "case" { CASE }
+  | "default" { DEFAULT }
   | "function" { FUNCTION }
   | "data" { DATA }
   | "export" { EXPORT }
