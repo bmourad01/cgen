@@ -393,8 +393,8 @@ module Hoisting = struct
         Seq.fold ~init ~f:Lset.add)
 
   (* See if there exists a path, starting from `l`, that avoids
-     touching any block in `uses` and either reaches the end of
-     the function, or one of the blocks in `kills`.
+     touching any block in `uses` and reaches one of the blocks
+     in `kills`.
 
      `kills` is the set of blocks where, if we were to place the
      instruction at `l`, its live range would end.
@@ -403,18 +403,21 @@ module Hoisting = struct
   *)
   let is_partial_redundancy_pathwise t l id cid ~uses =
     let kills = compute_kills t uses in
-    let rec loop q = match Stack.pop q with
-      | None -> false
-      | Some (n, vis) when Lset.mem vis n -> loop q
-      | Some (n, _) when Lset.mem uses n -> loop q
-      | Some (n, _) when Lset.mem kills n -> true
-      | Some (n, _) when Label.(n = pseudoexit) -> true
-      | Some (n, vis) ->
-        let vis = Lset.add vis n in
-        Cfg.Node.succs n t.eg.input.cfg |>
-        Seq.iter ~f:(fun s -> Stack.push q (s, vis));
-        loop q in
-    let res = loop @@ Stack.singleton (l, Lset.empty) in
+    let res = with_return @@ fun {return} ->
+      let r = Label.Hash_set.create () in
+      let q = Stack.create () in
+      Lset.iter kills ~f:(fun k ->
+          Hash_set.add r k;
+          Stack.push q k);
+      Stack.until_empty q (fun n ->
+          Cfg.Node.preds n t.eg.input.cfg |>
+          Seq.filter ~f:(Fn.non @@ Lset.mem uses) |>
+          Seq.iter ~f:(fun p ->
+              if Label.(p = l) then return true
+              else match Hash_set.strict_add r p with
+                | Ok () -> Stack.push q p
+                | Error _ -> ()));
+      false in
     Logs.debug (fun m ->
         m "%s: l=%a, id=%d cid=%d, uses=%s, kills=%s, res=%b%!"
           __FUNCTION__ Label.pp l id cid
