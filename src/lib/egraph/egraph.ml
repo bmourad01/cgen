@@ -43,7 +43,8 @@ let debug_dump t =
       m "%s: $%s lmoved:\n%a%!"
         __FUNCTION__ (Func.name t.input.fn)
         (Format.pp_print_list ~pp_sep pp_lmoved)
-        (Hashtbl.to_alist t.lmoved));
+        (Hashtbl.to_alist t.lmoved |>
+         List.filter ~f:(fun (_, s) -> not (Iset.is_empty s))));
   Logs.debug (fun m ->
       let pp_lmoved ppf (id, s) =
         Format.fprintf ppf "  %d: %s%!" id
@@ -55,19 +56,19 @@ let debug_dump t =
         (Format.pp_print_list ~pp_sep pp_lmoved)
         (Vec.to_sequence_mutable t.imoved |>
          Seq.mapi ~f:Tuple2.create |>
+         Seq.filter ~f:(fun (_, s) -> not (Lset.is_empty s)) |>
          Seq.to_list));
   Logs.debug (fun m ->
       let pp_ilbl ppf (id, l) =
-        Format.fprintf ppf "  %d: %a%!" id
-          (Format.pp_print_option
-             ~none:(fun ppf () -> Format.fprintf ppf "<none>")
-             Label.pp) (Uopt.to_option l) in
+        Format.fprintf ppf "  %d: %a%!" id Label.pp l in
       let pp_sep ppf () = Format.fprintf ppf "\n" in
       m "%s: $%s ilbl:\n%a%!"
         __FUNCTION__ (Func.name t.input.fn)
         (Format.pp_print_list ~pp_sep pp_ilbl)
         (Vec.to_sequence_mutable t.ilbl |>
          Seq.mapi ~f:Tuple2.create |>
+         Seq.filter_map ~f:(fun (id, l) ->
+             Uopt.to_option l |> Option.map ~f:(fun l -> id, l)) |>
          Seq.to_list))
 
 let run ?(depth_limit = 6) ?(match_limit = 20) fn tenv rules =

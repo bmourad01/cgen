@@ -101,4 +101,7 @@ let init fn tenv =
   let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
   let rpo = init_rpo cfg in
   let scc = Graphlib.strong_components (module Cfg) cfg in
+  Logs.debug (fun m ->
+      m "%s: SCCs of $%s: %a%!"
+        __FUNCTION__ (Func.name fn) (Partition.pp Label.pp) scc);
   {fn; loop; reso; cfg; dom; domd; pdom; rdom; lst; tenv; phis; rpo; scc}

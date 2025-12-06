@@ -158,7 +158,7 @@ let debug_dump t =
   Logs.debug (fun m ->
       let pp ppf (cid, (c, n)) =
         Format.fprintf ppf
-          "  %d:\n    cost: %a\n      depth: %a\n      opc: %a\n    node: %a%!"
+          "  %d:\n    cost: %a (depth = %a, opc = %a)\n    node: %a%!"
           cid Cost.pp c Int63.pp (Cost.depth c) Int63.pp (Cost.opc c)
           (Enode.pp ~node:(node t.eg)) n in
       m "%s: $%s cost table:\n%a"
