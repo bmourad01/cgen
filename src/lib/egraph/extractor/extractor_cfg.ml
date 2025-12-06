@@ -2,6 +2,7 @@
 
 open Core
 open Extractor_core
+open Graphlib.Std
 open Regular.Std
 open Virtual
 
@@ -362,18 +363,27 @@ module Hoisting = struct
   (* See if there exists a cycle starting from `l` that does not intersect
      with `bs`. *)
   let exists_bypass t l id cid bs =
-    let rec loop q = match Stack.pop q with
+    let res = match Partition.group t.eg.input.scc l with
       | None -> false
-      | Some (n, vis) when Lset.mem vis n ->
-        (Label.(n = l) && Lset.disjoint vis bs) || loop q
-      | Some (n, vis) ->
-        let vis = Lset.add vis n in
-        Cfg.Node.succs n t.eg.input.cfg |>
-        Seq.iter ~f:(fun s -> Stack.push q (s, vis));
-        loop q in
-    let res =
-      Loops.mem t.eg.input.loop l &&
-      loop (Stack.singleton (l, Lset.empty)) in
+      | Some g ->
+        Logs.debug (fun m ->
+            m "%s: SCC of %a: %a%!"
+              __FUNCTION__ Label.pp l (Group.pp Label.pp) g);
+        (* This is just a DFS search, but we will restrict it to the SCC
+           that `l` belongs to, so we can avoid state explosion. *)
+        with_return @@ fun {return} ->
+        let r = Label.Hash_set.create () in
+        let q = Stack.singleton l in
+        Stack.until_empty q (fun n ->
+            match Hash_set.strict_add r n with
+            | Error _ when Label.(n = l) -> return true
+            | Error _ -> ()
+            | Ok () ->
+              Cfg.Node.succs n t.eg.input.cfg |>
+              Seq.filter ~f:(Group.mem g) |>
+              Seq.filter ~f:(Fn.non @@ Lset.mem bs) |>
+              Seq.iter ~f:(Stack.push q));
+        false in
     Logs.debug (fun m ->
         m "%s: %a is post-dominated: bs=%s, id=%d, cid=%d, res=%b%!"
           __FUNCTION__ Label.pp l

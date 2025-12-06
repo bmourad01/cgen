@@ -44,6 +44,7 @@ type t = {
   tenv : Typecheck.env;         (* Typing environment. *)
   phis : Phis.state;            (* Block argument value sets. *)
   rpo  : Label.t -> int;        (* Reverse post-order number. *)
+  scc  : Label.t partition;     (* Strongly-connected components. *)
 }
 
 let init_dom_relation reso dom =
@@ -99,4 +100,5 @@ let init fn tenv =
   let domd = dom_depths dom in
   let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
   let rpo = init_rpo cfg in
-  {fn; loop; reso; cfg; dom; domd; pdom; rdom; lst; tenv; phis; rpo}
+  let scc = Graphlib.strong_components (module Cfg) cfg in
+  {fn; loop; reso; cfg; dom; domd; pdom; rdom; lst; tenv; phis; rpo; scc}
