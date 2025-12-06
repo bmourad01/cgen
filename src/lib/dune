@@ -45,6 +45,8 @@
   scalars
   slot_initialization
   sm
+  structured_lexer
+  structured_parser
   subst_mapper
   subst_mapper_abi
   tags

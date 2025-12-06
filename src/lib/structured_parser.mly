@@ -83,8 +83,8 @@
 
     let make_fn slots body args l name return noreturn =
       let* slots = Context.List.all slots in
-      let* body = body in
-      let* args, variadic = match args with
+      let* start, body = body in
+      let+ args, variadic = match args with
         | None -> !!([], false)
         | Some a -> a in
       let linkage = Core.Option.value l ~default:Linkage.default_static in
@@ -96,8 +96,7 @@
         | Some t -> Dict.set dict Tag.return t
         | None -> dict in
       let dict = Dict.set dict Tag.linkage linkage in
-      let*? fn = Structured.Func.create () ~name ~body ~args ~slots ~dict in
-      !!fn
+      Structured.Func.create () ~name ~start ~body ~args ~slots ~dict
 %}
 
 %token EOF
@@ -180,7 +179,8 @@
 %type <string> section
 %type <Virtual.slot Context.t> slot
 %type <((Bv.t * Type.imm) * Structured.stmt) Context.t> switch_case
-%type <Structured.stmt Context.t> label_stmt
+%type <(Label.t * Structured.stmt) Context.t> label_stmt
+%type <Structured.stmt Context.t> label_stmt_full
 %type <Structured.stmt Context.t> stmt
 %type <Structured.stmt Context.t> non_label_stmt
 %type <call_arg list Context.t> call_args
@@ -314,8 +314,12 @@ switch_case:
 
 %inline label_stmt:
   | l = LABEL COLON s = stmt
+    { let+ l = label_of_name l and+ s = s in l, s }
+
+%inline label_stmt_full:
+  | s = label_stmt
     {
-      let+ l = label_of_name l and+ s = s in
+      let+ l, s = s in
       `label (l, [], s)
     }
   | l = LABEL LPAREN args = separated_nonempty_list(COMMA, var) RPAREN COLON s = stmt
@@ -331,7 +335,7 @@ stmt:
       let+ s1 = s1 and+ s2 = s2 in
       `seq (s1, s2)
     }
-  | lab = label_stmt { lab }
+  | lab = label_stmt_full { lab }
 
 non_label_stmt:
   | NOP { !!(`nop) }

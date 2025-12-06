@@ -7,6 +7,7 @@ module T = struct
     name  : string;
     slots : Virtual.Slot.t ftree;
     args  : (Var.t * Type.arg) ftree;
+    start : Label.t;
     body  : Structured_stmt.t;
     dict  : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
@@ -16,34 +17,24 @@ include T
 
 module Tag = Virtual.Func.Tag
 
-let create_exn
-    ?(dict = Dict.empty)
-    ?(slots = [])
-    ~name
-    ~body
-    ~args
-    () = match body with
-  | `label _ -> {
-      name;
-      slots = Ftree.of_list slots;
-      args = Ftree.of_list args;
-      body;
-      dict;
-    }
-  | _ ->
-    invalid_arg "Function body must start with a label statement"
-
 let create
     ?(dict = Dict.empty)
     ?(slots = [])
     ~name
+    ~start
     ~body
     ~args
-    () =
-  try Ok (create_exn ~dict ~slots ~name ~body ~args ()) with
-  | Invalid_argument msg -> Or_error.error_string msg
+    () = {
+  name;
+  slots = Ftree.of_list slots;
+  args = Ftree.of_list args;
+  start;
+  body;
+  dict;
+}
 
 let name fn = fn.name
+let start fn = fn.start
 let slots ?(rev = false) fn = Ftree.enum fn.slots ~rev
 let body fn = fn.body
 let args ?(rev = false) fn = Ftree.enum fn.args ~rev
@@ -112,7 +103,7 @@ let pp ppf fn =
     let sep ppf = Format.fprintf ppf "@;  " in
     Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp Virtual.Slot.pp sep) fn.slots
   end;
-  Format.fprintf ppf "%a@;}" Structured_stmt.pp fn.body
+  Format.fprintf ppf "%a@;}" Structured_stmt.pp @@ `label (fn.start, [], fn.body)
 
 include Regular.Make(struct
     include T

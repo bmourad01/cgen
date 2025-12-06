@@ -50,32 +50,25 @@ module Func : sig
 
   (** Creates a function.
 
-      @raise Invalid_argument if [body] is not a [`label _] form.
-  *)
-  val create_exn :
-    ?dict:Dict.t ->
-    ?slots:slot list ->
-    name:string ->
-    body:stmt ->
-    args:(Var.t * Type.arg) list ->
-    unit ->
-    t
-
-  (** Creates a function.
-
-      @return [Error _] if [body] is not a [`label _] form.
+      [start] is the label of the function's entry point, and [body]
+      is the actual function body. Thus, the function implicitly takes
+      the form of [`label (start, [], body)].
   *)
   val create :
     ?dict:Dict.t ->
     ?slots:slot list ->
     name:string ->
+    start:Label.t ->
     body:stmt ->
     args:(Var.t * Type.arg) list ->
     unit ->
-    t Or_error.t
+    t
 
   (** Returns the name of the function. *)
   val name : t -> string
+
+  (** The label of the function's entry point. *)
+  val start : t -> Label.t
 
   (** Returns the slots of the function. *)
   val slots : ?rev:bool -> t -> slot seq
