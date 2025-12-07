@@ -1,3 +1,18 @@
+(** The Structured IR
+
+    This is essentially a view of a Virtual IR program with constructs
+    for expressing structured control flow, and indeed shares some
+    infrastructure with the existing types in [Virtual].
+
+    The primary use case for this should be to serve as a middle-ground
+    between the Virtual IR and a higher-level language (such as a C
+    frontend), making the reification of structured-to-unstructured
+    control flow "automatic".
+
+    Another use case could be the re-discovering of structured control-flow
+    constructs from Virtual IR's CFG-based representation.
+*)
+
 open Core
 open Regular.Std
 
