@@ -18,6 +18,19 @@ open Regular.Std
 
 (** A statement. *)
 module Stmt : sig
+
+  (** A condition for a control flow statement.
+
+      - [`var x]: [x] is evaluated for its truthiness
+      - [`cmp (k, l, r)]: [l] is compared to [r] according to [k]
+  *)
+  type cond = [
+    | `var of Var.t
+    | `cmp of Virtual.Insn.cmp * Virtual.operand * Virtual.operand
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  val pp_cond : Format.formatter -> cond -> unit
+
   (** A statement includes:
 
       - Normal operations (see [Virtual.Insn])
@@ -46,12 +59,12 @@ module Stmt : sig
     | Virtual.Insn.op
     | `nop
     | `seq of t * t
-    | `ite of Var.t * t * t
-    | `when_ of Var.t * t
-    | `unless of Var.t * t
+    | `ite of cond * t * t
+    | `when_ of cond * t
+    | `unless of cond * t
     | `loop of t
-    | `while_ of Var.t * t
-    | `dowhile of t * Var.t
+    | `while_ of cond * t
+    | `dowhile of t * cond
     | `break
     | `continue
     | `sw of Var.t * Type.imm * swcase list

@@ -1,15 +1,20 @@
 open Core
 
+type cond = [
+  | `var of Var.t
+  | `cmp of Virtual.Insn.cmp * Virtual.operand * Virtual.operand
+] [@@deriving bin_io, compare, equal, sexp]
+
 type t = [
   | Virtual.Insn.op
   | `nop
   | `seq of t * t
-  | `ite of Var.t * t * t
-  | `when_ of Var.t * t
-  | `unless of Var.t * t
+  | `ite of cond * t * t
+  | `when_ of cond * t
+  | `unless of cond * t
   | `loop of t
-  | `while_ of Var.t * t
-  | `dowhile of t * Var.t
+  | `while_ of cond * t
+  | `dowhile of t * cond
   | `break
   | `continue
   | `sw of Var.t * Type.imm * swcase list
@@ -24,6 +29,15 @@ and swcase = [
   | `default of t
 ] [@@deriving bin_io, compare, equal, sexp]
 
+let pp_cond ppf : cond -> unit = function
+  | `var v ->
+    Format.fprintf ppf "%a" Var.pp v
+  | `cmp (k, l, r) ->
+    Format.fprintf ppf "%a %a, %a"
+      Virtual.Insn.pp_cmp k
+      Virtual.pp_operand l
+      Virtual.pp_operand r
+
 let rec pp ppf : t -> unit = function
   | #Virtual.Insn.op as op ->
     Format.fprintf ppf "%a" Virtual.Insn.pp_op op
@@ -33,19 +47,19 @@ let rec pp ppf : t -> unit = function
     Format.fprintf ppf "%a;@;%a" pp t1 pp t2
   | `ite (c, y, n) ->
     Format.fprintf ppf "if %a {@;@[<v 2>  %a@]@;} else {@;@[<v 2>  %a@]@;}"
-      Var.pp c pp y pp n
+      pp_cond c pp y pp n
   | `when_ (c, b) ->
-    Format.fprintf ppf "when %a [@;@[<v 2>  %a@]@;}" Var.pp c pp b
+    Format.fprintf ppf "when %a [@;@[<v 2>  %a@]@;}" pp_cond c pp b
   | `unless (c, b) ->
-    Format.fprintf ppf "unless %a [@;@[<v 2>  %a@]@;}" Var.pp c pp b
+    Format.fprintf ppf "unless %a [@;@[<v 2>  %a@]@;}" pp_cond c pp b
   | `loop b ->
     Format.fprintf ppf "loop {@;@[<v 2>  %a@]@;}" pp b
   | `while_ (c, b) ->
     Format.fprintf ppf "while %a {@;@[<v 2>  %a@]@;}"
-      Var.pp c pp b
+      pp_cond c pp b
   | `dowhile (b, c) ->
     Format.fprintf ppf "do {@;@[<v 2>  %a@]@;} while %a"
-      pp b Var.pp c
+      pp b pp_cond c
   | `break ->
     Format.fprintf ppf "break"
   | `continue ->

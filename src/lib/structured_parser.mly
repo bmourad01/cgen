@@ -190,6 +190,7 @@
 %type <Structured.stmt Context.t> stmt
 %type <Structured.stmt Context.t> non_label_stmt
 %type <call_arg list Context.t> call_args
+%type <Structured.Stmt.cond Context.t> stmt_cond
 %type <Virtual.Insn.binop> insn_binop
 %type <Virtual.Insn.unop> insn_unop
 %type <Virtual.Insn.arith_binop> insn_arith_binop
@@ -344,25 +345,33 @@ stmt:
     }
   | lab = label_stmt_full { lab }
 
+stmt_cond:
+  | x = var { let+ x = x in `var x }
+  | k = insn_cmp l = operand COMMA r = operand
+    {
+      let+ l = l and+ r = r in
+      `cmp (k, l, r)
+    }
+
 non_label_stmt:
   | NOP { !!`nop }
   | BREAK { !!`break }
-  | IF x = var LBRACE t = stmt RBRACE ELSE LBRACE e = stmt RBRACE
+  | IF x = stmt_cond LBRACE t = stmt RBRACE ELSE LBRACE e = stmt RBRACE
     {
       let+ x = x and+ t = t and+ e = e in
       `ite (x, t, e)
     }
-  | WHEN x = var LBRACE b = stmt RBRACE
+  | WHEN x = stmt_cond LBRACE b = stmt RBRACE
     { let+ x = x and+ b = b in `when_ (x, b) }
-  | UNLESS x = var LBRACE b = stmt RBRACE
+  | UNLESS x = stmt_cond LBRACE b = stmt RBRACE
     { let+ x = x and+ b = b in `unless (x, b) }
   | LOOP LBRACE b = stmt RBRACE { let+ b = b in `loop b }
-  | WHILE x = var LBRACE b = stmt RBRACE
+  | WHILE x = stmt_cond LBRACE b = stmt RBRACE
     {
       let+ x = x and+ b = b in
       `while_ (x, b)
     }
-  | DO LBRACE b = stmt RBRACE WHILE x = var
+  | DO LBRACE b = stmt RBRACE WHILE x = stmt_cond
     {
       let+ b = b and+ x = x in
       `dowhile (b, x)
