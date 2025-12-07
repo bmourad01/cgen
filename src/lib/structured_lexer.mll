@@ -175,7 +175,10 @@ rule token = parse
   | "vastart" { VASTART }
   | "hlt" { HLT }
   | "goto" { GOTO }
+  | "break" { BREAK }
   | "if" { IF }
+  | "unless" { UNLESS }
+  | "when" { WHEN }
   | "else" { ELSE }
   | "ret" { RET }
   | "loop" { LOOP }

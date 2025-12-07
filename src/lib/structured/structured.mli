@@ -5,19 +5,22 @@ open Regular.Std
 module Stmt : sig
   (** A statement includes:
 
-      - Normal operations
+      - Normal operations (see [Virtual.Insn])
       - [`nop]: no-op (does nothing)
+      - [`break]: exit the current loop or switch statement
+      - [`continue]: skip to the next iteration of the current loop
       - [`seq (a, b)]: executes the statement [a], then [b]
       - [`ite (c, y, n)]: if the condition [c] is true, then [y] is executed,
         otherwise [n] is executed
-      - [`loop b]: execute [b] repeatedly with no head or tail guard; equivalent
+      - [`when_ (c, b)]: equivalent to [`ite (c, b, `nop)]
+      - [`unless (c, b)]: equivalent to [`ife (c, `nop, b)]
+      - [`loop b]: execute [b] in a loop with no head or tail guard; equivalent
         to a [while (1) { ... }] in C
       - [`while_ (c, b)]: while the condition [c] is true, [b] is executed
       - [`dowhile (b, c)]: [b] is executed until [c] is not true; note that [b]
         will always execute at least once
-      - [`sw (i, ty, cs, d)]: based on the index [i] of type [ty], branch to the
-        case in [cs] where [i] is equal to the key, and execute the body. If no
-        such case matches, execute [d] (the default).
+      - [`sw (i, ty, cs)]: based on the index [i] of type [ty], branch to the
+        matching case in [cs]
       - [`label (l, args)]: marks a label [l] as a target for a [goto], with
         arguments [args].
       - [`goto d]: jumps to a destination [d]
@@ -29,17 +32,33 @@ module Stmt : sig
     | `nop
     | `seq of t * t
     | `ite of Var.t * t * t
+    | `when_ of Var.t * t
+    | `unless of Var.t * t
     | `loop of t
     | `while_ of Var.t * t
     | `dowhile of t * Var.t
-    | `sw of Var.t * Type.imm * (Bv.t * t) list * t
+    | `break
+    | `continue
+    | `sw of Var.t * Type.imm * swcase list
     | `label of Label.t * Var.t list * t
     | `goto of Virtual.dst
     | `hlt
     | `ret of Virtual.operand option
   ] [@@deriving bin_io, compare, equal, sexp]
 
+  (** A case for a [sw] (switch) statement.
+
+      - [`case (i, b)]: execute [b] if the index matches [i]
+      - [`default d]: execude [d] if the index does not match
+        any other case
+  *)
+  and swcase = [
+    | `case of Bv.t * t
+    | `default of t
+  ] [@@deriving bin_io, compare, equal, sexp]
+
   val pp : Format.formatter -> t -> unit
+  val pp_swcase : Type.imm -> Format.formatter -> swcase -> unit
 end
 
 type stmt = Stmt.t [@@deriving bin_io, compare, equal, sexp]

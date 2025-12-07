@@ -8,6 +8,10 @@
       | Arg  of Virtual.operand
       | Varg of Virtual.operand
 
+    type swcase =
+      | Case    of Bv.t * Type.imm * Structured.stmt
+      | Default of Structured.stmt
+
     module Env = struct
       (* Since we allow a nicer surface syntax over the internal
          representation of the IR, we need to do some bookkeeping.
@@ -139,9 +143,11 @@
 %token HLT
 %token GOTO
 %token IF ELSE
+%token WHEN UNLESS
 %token LOOP
 %token WHILE
 %token DO
+%token BREAK
 %token RET
 %token <Type.imm> SWITCH
 %token CASE DEFAULT
@@ -178,7 +184,7 @@
 %type <Linkage.t> linkage
 %type <string> section
 %type <Virtual.slot Context.t> slot
-%type <((Bv.t * Type.imm) * Structured.stmt) Context.t> switch_case
+%type <swcase Context.t> switch_case
 %type <(Label.t * Structured.stmt) Context.t> label_stmt
 %type <Structured.stmt Context.t> label_stmt_full
 %type <Structured.stmt Context.t> stmt
@@ -310,7 +316,8 @@ slot:
     }
 
 switch_case:
-  | CASE i = INT COLON b = stmt { let+ b = b in i, b }
+  | CASE i = INT COLON b = stmt { let+ b = b in Case (fst i, snd i, b) }
+  | DEFAULT COLON d = stmt { let+ d = d in Default d }
 
 %inline label_stmt:
   | l = LABEL COLON s = stmt
@@ -329,7 +336,7 @@ switch_case:
     }
 
 stmt:
-  | s = non_label_stmt { s }
+  | s = non_label_stmt option(SEMI) { s }
   | s1 = non_label_stmt SEMI s2 = stmt
     {
       let+ s1 = s1 and+ s2 = s2 in
@@ -338,12 +345,17 @@ stmt:
   | lab = label_stmt_full { lab }
 
 non_label_stmt:
-  | NOP { !!(`nop) }
+  | NOP { !!`nop }
+  | BREAK { !!`break }
   | IF x = var LBRACE t = stmt RBRACE ELSE LBRACE e = stmt RBRACE
     {
       let+ x = x and+ t = t and+ e = e in
       `ite (x, t, e)
     }
+  | WHEN x = var LBRACE b = stmt RBRACE
+    { let+ x = x and+ b = b in `when_ (x, b) }
+  | UNLESS x = var LBRACE b = stmt RBRACE
+    { let+ x = x and+ b = b in `unless (x, b) }
   | LOOP LBRACE b = stmt RBRACE { let+ b = b in `loop b }
   | WHILE x = var LBRACE b = stmt RBRACE
     {
@@ -356,16 +368,18 @@ non_label_stmt:
       `dowhile (b, x)
     }
   | GOTO d = dst { let+ d = d in `goto d }
-  | t = SWITCH i = var LBRACE cs = list(switch_case) DEFAULT COLON d = stmt RBRACE
+  | t = SWITCH i = var LBRACE cs = list(switch_case) RBRACE
     {
-      let* i = i and* cs = Context.List.all cs and* d = d in
-      let+ cs = Context.List.map cs ~f:(fun ((i, t'), b) ->
-          if not @@ Type.equal_imm t t' then
+      let* i = i and* cs = Context.List.all cs in
+      let+ cs = Context.List.map cs ~f:(function
+          | Default d -> !!(`default d)
+          | Case (i, t', b) when Type.equal_imm t t' ->
+            !!(`case (i, b))
+          | Case (i, t', _) ->
             Context.failf
               "Invalid switch value %a_%a, expected size %a"
-              Bv.pp i Type.pp_imm t' Type.pp_imm t ()
-          else !!(i, b)) in
-      `sw (i, t, cs, d)
+              Bv.pp i Type.pp_imm t' Type.pp_imm t ()) in
+      `sw (i, t, cs)
     }
   | HLT { !!`hlt }
   | RET a = option(operand)
