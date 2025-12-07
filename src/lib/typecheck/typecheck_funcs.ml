@@ -93,6 +93,17 @@ let check_entry_inc fn cfg =
       Label.pp l (Func.name fn) n ()
   | _ -> !!()
 
+let check_entry_args fn blks =
+  let l = Func.entry fn in
+  let* b = match Label.Tree.find blks l with
+    | Some b -> !!b
+    | None ->
+      M.failf "Entry block %a for function $%s not found"
+        Label.pp l (Func.name fn) () in
+  M.unless (Seq.is_empty @@ Blk.args b) @@ fun () ->
+  M.failf "Entry block %a for function $%s must not have any arguments"
+    Label.pp l (Func.name fn) ()
+
 let add m =
   let* init = getenv in
   let* env = Module.funs m |> M.Seq.fold ~init ~f:(fun env fn ->
@@ -109,6 +120,7 @@ let check fn =
     | Invalid_argument msg -> Or_error.error_string msg in
   let cfg = Cfg.create fn in
   let* () = check_entry_inc fn cfg in
+  let* () = check_entry_args fn blks in
   let start = Label.pseudoentry in
   (* We will traverse the blocks according to the dominator tree
      so that we get the right ordering for definitions. *)
