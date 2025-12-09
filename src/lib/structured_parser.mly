@@ -200,8 +200,7 @@
 %type <Virtual.Insn.bitwise_unop> insn_bitwise_unop
 %type <Virtual.Insn.cast> insn_cast
 %type <Virtual.Insn.copy> insn_copy
-%type <Virtual.dst Context.t> dst
-%type <Virtual.local Context.t> local
+%type <Structured.Stmt.goto Context.t> goto
 %type <Virtual.global Context.t> global
 %type <Virtual.operand Context.t> operand
 %type <Virtual.const> const
@@ -328,12 +327,7 @@ switch_case:
   | s = label_stmt
     {
       let+ l, s = s in
-      `label (l, [], s)
-    }
-  | l = LABEL LPAREN args = separated_nonempty_list(COMMA, var) RPAREN COLON s = stmt
-    {
-      let+ l = label_of_name l and+ args = Context.List.all args and+ s = s in
-      `label (l, args, s)
+      `label (l, s)
     }
 
 stmt:
@@ -362,21 +356,21 @@ non_label_stmt:
       `ite (x, t, e)
     }
   | WHEN x = stmt_cond LBRACE b = stmt RBRACE
-    { let+ x = x and+ b = b in `when_ (x, b) }
+    { let+ x = x and+ b = b in Structured.Stmt.when_ x b }
   | UNLESS x = stmt_cond LBRACE b = stmt RBRACE
-    { let+ x = x and+ b = b in `unless (x, b) }
+    { let+ x = x and+ b = b in Structured.Stmt.unless x b }
   | LOOP LBRACE b = stmt RBRACE { let+ b = b in `loop b }
   | WHILE x = stmt_cond LBRACE b = stmt RBRACE
     {
       let+ x = x and+ b = b in
-      `while_ (x, b)
+      Structured.Stmt.while_ x b
     }
   | DO LBRACE b = stmt RBRACE WHILE x = stmt_cond
     {
       let+ b = b and+ x = x in
-      `dowhile (b, x)
+      Structured.Stmt.dowhile b x
     }
-  | GOTO d = dst { let+ d = d in `goto d }
+  | GOTO g = goto { let+ g = g in `goto g }
   | t = SWITCH i = var LBRACE cs = list(switch_case) RBRACE
     {
       let* i = i and* cs = Context.List.all cs in
@@ -561,9 +555,9 @@ insn_cast:
 insn_copy:
   | t = COPY { `copy t }
 
-dst:
-  | g = global { let+ g = g in (g :> Virtual.dst) }
-  | l = local { let+ l = l in (l :> Virtual.dst) }
+goto:
+  | g = global { let+ g = g in (g :> Structured.Stmt.goto) }
+  | l = LABEL { let+ l = label_of_name l in `label l }
 
 global:
   | i = NUM { !!(`addr i) }
@@ -571,18 +565,6 @@ global:
   | s = SYM PLUS i = NUM { !!(`sym (s, Bv.to_int i)) }
   | s = SYM MINUS i = NUM { !!(`sym (s, -(Bv.to_int i))) }
   | x = var { let+ x = x in `var x }
-
-local:
-  | l = LABEL
-    {
-      let+ l = label_of_name l in
-      `label (l, [])
-    }
-  | l = LABEL LPAREN args = separated_nonempty_list(COMMA, operand) RPAREN
-    {
-      let+ args = Context.List.all args and+ l = label_of_name l in
-      `label (l, args)
-    }
 
 operand:
   | c = const { !!(c :> Virtual.operand) }

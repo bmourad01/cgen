@@ -18,6 +18,13 @@ open Regular.Std
 
 (** A statement. *)
 module Stmt : sig
+  (** A destination of a [goto] statement. *)
+  type goto = [
+    | Virtual.global
+    | `label of Label.t
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  val pp_goto : Format.formatter -> goto -> unit
 
   (** A condition for a control flow statement.
 
@@ -40,18 +47,12 @@ module Stmt : sig
       - [`seq (a, b)]: executes the statement [a], then [b]
       - [`ite (c, y, n)]: if the condition [c] is true, then [y] is executed,
         otherwise [n] is executed
-      - [`when_ (c, b)]: equivalent to [`ite (c, b, `nop)]
-      - [`unless (c, b)]: equivalent to [`ife (c, `nop, b)]
-      - [`loop b]: execute [b] in a loop with no head or tail guard; equivalent
-        to a [while (1) { ... }] in C
-      - [`while_ (c, b)]: while the condition [c] is true, [b] is executed
-      - [`dowhile (b, c)]: [b] is executed until [c] is not true; note that [b]
-        will always execute at least once
+      - [`loop b]: execute [b] in a loop
       - [`sw (i, ty, cs)]: based on the index [i] of type [ty], branch to the
         matching case in [cs]
-      - [`label (l, args)]: marks a label [l] as a target for a [goto], with
-        arguments [args].
-      - [`goto d]: jumps to a destination [d]
+      - [`label (l, b)]: marks a label [l] as a target for a [goto], with
+        a body [b] to be executed.
+      - [`goto g]: jumps to a destination [g]
       - [`hlt]: halts execution of the program
       - [`ret x]: return from the function, with an optional value [x]
   *)
@@ -60,16 +61,12 @@ module Stmt : sig
     | `nop
     | `seq of t * t
     | `ite of cond * t * t
-    | `when_ of cond * t
-    | `unless of cond * t
     | `loop of t
-    | `while_ of cond * t
-    | `dowhile of t * cond
     | `break
     | `continue
     | `sw of Var.t * Type.imm * swcase list
-    | `label of Label.t * Var.t list * t
-    | `goto of Virtual.dst
+    | `label of Label.t * t
+    | `goto of goto
     | `hlt
     | `ret of Virtual.operand option
   ] [@@deriving bin_io, compare, equal, sexp]
@@ -87,6 +84,30 @@ module Stmt : sig
 
   val pp : Format.formatter -> t -> unit
   val pp_swcase : Type.imm -> Format.formatter -> swcase -> unit
+
+  (** Helper for constructing a "when" statement.
+
+      Equivalent to [`ite (cond, body, `nop)]
+  *)
+  val when_ : cond -> t -> t
+
+  (** Helper for constructing an "unless" statement.
+
+      Equivalent to [`ite (cond, `nop, body)]
+  *)
+  val unless : cond -> t -> t
+
+  (** Helper for constructing a simple "while" loop.
+
+      Equivalent to [`loop (`seq (unless cond `break, body))]
+  *)
+  val while_ : cond -> t -> t
+
+  (** Helper for constructing a simple "do while" loop.
+
+      Equivalent to [`loop (`seq (body, unless cond `break))]
+  *)
+  val dowhile : t -> cond -> t
 end
 
 type stmt = Stmt.t [@@deriving bin_io, compare, equal, sexp]
