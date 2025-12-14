@@ -113,20 +113,15 @@ end
 type stmt = Stmt.t [@@deriving bin_io, compare, equal, sexp]
 type slot = Virtual.Slot.t [@@deriving bin_io, compare, equal, sexp]
 
+(** A function. *)
 module Func : sig
   type t [@@deriving bin_io, compare, equal, sexp]
 
-  (** Creates a function.
-
-      [start] is the label of the function's entry point, and [body]
-      is the actual function body. Thus, the function implicitly takes
-      the form of [`label (start, [], body)].
-  *)
+  (** Creates a function. *)
   val create :
     ?dict:Dict.t ->
     ?slots:slot list ->
     name:string ->
-    start:Label.t ->
     body:stmt ->
     args:(Var.t * Type.arg) list ->
     unit ->
@@ -134,9 +129,6 @@ module Func : sig
 
   (** Returns the name of the function. *)
   val name : t -> string
-
-  (** The label of the function's entry point. *)
-  val start : t -> Label.t
 
   (** Returns the slots of the function. *)
   val slots : ?rev:bool -> t -> slot seq
@@ -199,6 +191,7 @@ end
 
 type func = Func.t [@@deriving bin_io, compare, equal, sexp]
 
+(** A module. *)
 module Module : sig
   type t [@@deriving bin_io, compare, equal, sexp]
 

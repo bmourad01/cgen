@@ -87,7 +87,7 @@
 
     let make_fn slots body args l name return noreturn =
       let* slots = Context.List.all slots in
-      let* start, body = body in
+      let* body = body in
       let+ args, variadic = match args with
         | None -> !!([], false)
         | Some a -> a in
@@ -100,7 +100,7 @@
         | Some t -> Dict.set dict Tag.return t
         | None -> dict in
       let dict = Dict.set dict Tag.linkage linkage in
-      Structured.Func.create () ~name ~start ~body ~args ~slots ~dict
+      Structured.Func.create () ~name ~body ~args ~slots ~dict
 %}
 
 %token EOF
@@ -140,6 +140,7 @@
 %token CALL
 %token <Type.arg> VAARG
 %token VASTART
+%token START
 %token HLT
 %token GOTO
 %token IF ELSE
@@ -265,9 +266,9 @@ typ_field:
   | s = TYPENAME n = option(NUM) { `name (s, Core.Option.value_map n ~default:1 ~f:Bv.to_int) }
 
 func:
-  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) body = label_stmt RBRACE
+  | l = option(linkage) FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) START COLON body = stmt RBRACE
     { make_fn slots body args l name return false }
-  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) body = label_stmt RBRACE
+  | l = option(linkage) NORETURN FUNCTION return = option(type_ret) name = SYM LPAREN args = option(func_args) RPAREN LBRACE slots = list(slot) START COLON body = stmt RBRACE
     { make_fn slots body args l name return true }
 
 func_args:

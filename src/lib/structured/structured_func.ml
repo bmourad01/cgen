@@ -7,7 +7,6 @@ module T = struct
     name  : string;
     slots : Virtual.Slot.t ftree;
     args  : (Var.t * Type.arg) ftree;
-    start : Label.t;
     body  : Structured_stmt.t;
     dict  : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
@@ -21,20 +20,17 @@ let create
     ?(dict = Dict.empty)
     ?(slots = [])
     ~name
-    ~start
     ~body
     ~args
     () = {
   name;
   slots = Ftree.of_list slots;
   args = Ftree.of_list args;
-  start;
   body;
   dict;
 }
 
 let name fn = fn.name
-let start fn = fn.start
 let slots ?(rev = false) fn = Ftree.enum fn.slots ~rev
 let body fn = fn.body
 let args ?(rev = false) fn = Ftree.enum fn.args ~rev
@@ -103,7 +99,7 @@ let pp ppf fn =
     let sep ppf = Format.fprintf ppf "@;  " in
     Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp Virtual.Slot.pp sep) fn.slots
   end;
-  Format.fprintf ppf "%a@;}" Structured_stmt.pp @@ `label (fn.start, fn.body)
+  Format.fprintf ppf "start:@;@[<v 2>  %a@]@;}" Structured_stmt.pp fn.body
 
 include Regular.Make(struct
     include T
