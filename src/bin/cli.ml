@@ -49,6 +49,7 @@ let file =
 
 type dump =
   | Dparse
+  | Ddestructure
   | Dssa
   | Dmiddle
   | Dabi
@@ -61,6 +62,7 @@ type dump =
 
 let string_of_dump = function
   | Dparse -> "parse"
+  | Ddestructure -> "destructure"
   | Dssa -> "ssa"
   | Dmiddle -> "middle"
   | Dabi -> "abi"
@@ -72,6 +74,7 @@ let string_of_dump = function
 
 let dump_of_string_opt = function
   | "parse" -> Some Dparse
+  | "destructure" -> Some Ddestructure
   | "ssa" -> Some Dssa
   | "middle" -> Some Dmiddle
   | "abi" -> Some Dabi
@@ -88,6 +91,7 @@ let man_dump =
     Core.List.map ~f:(fun (d, desc) ->
         `I (string_of_dump d ^ ":", desc)) [
       Dparse, "dump the IR after parsing";
+      Ddestructure, "dump the IR after destructuring (for .sir)";
       Dssa, "dump the IR after SSA transformation";
       Dmiddle, "dump the IR after middle-end optimizations";
       Dabi, "dump the IR after ABI lowering";

@@ -4,6 +4,7 @@ open Context.Syntax
 
 module Abi_loadopt = Abi_loadopt
 module Coalesce_slots = Coalesce_slots
+module Destructure = Structured.Destructure(Context)
 module Egraph_opt = Egraph_opt
 module Lower_abi = Lower_abi
 module Promote_slots = Promote_slots
@@ -14,6 +15,17 @@ module Sccp = Sccp
 module Simplify_cfg = Simplify_cfg
 module Sroa = Sroa
 module Ssa = Ssa
+
+let destructure m =
+  let+ funs =
+    Structured.Module.funs m |>
+    Context.Seq.map ~f:Destructure.run >>|
+    Seq.to_list in
+  Virtual.Module.create () ~funs
+    ~dict:(Structured.Module.dict m)
+    ~typs:(Structured.Module.typs m |> Seq.to_list)
+    ~data:(Structured.Module.data m |> Seq.to_list)
+    ~name:(Structured.Module.name m)
 
 let initialize m =
   let* target = Context.target in
@@ -59,7 +71,7 @@ let to_abi tenv m =
   Abi.Module.create () ~funs
     ~name:(Module.name m)
     ~dict:(Module.dict m)
-    ~data:(Seq.to_list @@ Module.data m)
+    ~data:(Module.data m |> Seq.to_list)
 
 let optimize_abi m =
   let*? m = Abi.Module.map_funs_err m ~f:Coalesce_slots.run_abi in

@@ -137,3 +137,42 @@ let dowhile b c =
       unless c `break
     )
   )
+
+let seq = function
+  | [] -> `nop
+  | [s] -> s
+  | ss -> match List.rev ss with
+    | [] -> assert false (* guarded above *)
+    | init :: ss ->
+      List.fold ss ~init ~f:(fun acc s -> `seq (s, acc))
+
+let[@tail_mod_cons] rec normalize (s : t) : t = match s with
+  (* Leaf case: nothing to do here. *)
+  | #Virtual.Insn.op
+  | `nop
+  | `break
+  | `continue
+  | `hlt
+  | `goto _
+  | `ret _
+    -> s
+  (* Useless nop. *)
+  | `seq (`nop, s)
+  | `seq (s, `nop)
+    -> normalize s
+  (* Associate sequences to the right. *)
+  | `seq (`seq (s1, s2), s3) ->
+    normalize @@ `seq (s1, `seq (s2, s3))
+  (* The rest of these are just boring tree traversals. *)
+  | `seq (s1, s2) ->
+    `seq ((normalize [@tailcall false]) s1, (normalize [@tailcall]) s2)
+  | `ite (c, y, n) ->
+    `ite (c, (normalize [@tailcall false]) y, (normalize [@tailcall]) n)
+  | `loop b -> `loop (normalize b)
+  | `sw (i, ty, cs) ->
+    `sw (i, ty, List.map cs ~f:normalize_swcase)
+  | `label (l, b) -> `label (l, normalize b)
+
+and normalize_swcase : swcase -> swcase = function
+  | `case (v, c) -> `case (v, normalize c)
+  | `default d -> `default (normalize d)

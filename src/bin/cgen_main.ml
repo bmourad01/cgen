@@ -2,23 +2,8 @@ open Core
 open Regular.Std
 open Cgen
 
-let comp_virtual (opts : Cli.t) =
+let comp_virtual' (opts : Cli.t) ppf close bail m =
   let open Context.Syntax in
-  let* m = match opts.file with
-    | Ifile file -> Parse.Virtual.from_file file
-    | Istdin -> Parse.Virtual.from_stdin () in
-  let ppf, close = match opts.output with
-    | Ostdout -> Format.std_formatter, Fn.id
-    | Ofile file ->
-      let oc = Out_channel.create file in
-      Format.formatter_of_out_channel oc,
-      (fun () -> Out_channel.close oc) in
-  let bail () = close (); Cli.bail () in
-  if Cli.equal_dump opts.dump Dparse then begin
-    if not opts.nc then Format.fprintf ppf ";; After parsing\n\n%!";
-    Format.fprintf ppf "%a\n%!" Virtual.Module.pp m;
-    bail ();
-  end;
   let* tenv, m = Passes.initialize m in
   if Cli.equal_dump opts.dump Dssa then begin
     if not opts.nc then Format.fprintf ppf ";; After SSA transformation:\n\n%!";
@@ -70,6 +55,25 @@ let comp_virtual (opts : Cli.t) =
   Format.fprintf ppf "%a%!" Emit.emit m;
   !!(close ())
 
+let comp_virtual (opts : Cli.t) =
+  let open Context.Syntax in
+  let* m = match opts.file with
+    | Ifile file -> Parse.Virtual.from_file file
+    | Istdin -> Parse.Virtual.from_stdin () in
+  let ppf, close = match opts.output with
+    | Ostdout -> Format.std_formatter, Fn.id
+    | Ofile file ->
+      let oc = Out_channel.create file in
+      Format.formatter_of_out_channel oc,
+      (fun () -> Out_channel.close oc) in
+  let bail () = close (); Cli.bail () in
+  if Cli.equal_dump opts.dump Dparse then begin
+    if not opts.nc then Format.fprintf ppf ";; After parsing\n\n%!";
+    Format.fprintf ppf "%a\n%!" Virtual.Module.pp m;
+    bail ();
+  end;
+  comp_virtual' opts ppf close bail m
+
 let comp_structured (opts : Cli.t) =
   let open Context.Syntax in
   let* m = match opts.file with
@@ -87,7 +91,13 @@ let comp_structured (opts : Cli.t) =
     Format.fprintf ppf "%a\n%!" Structured.Module.pp m;
     bail ();
   end;
-  !!(close ())
+  let* m = Passes.destructure m in
+  if Cli.equal_dump opts.dump Ddestructure then begin
+    if not opts.nc then Format.fprintf ppf ";; After destructuring\n\n%!";
+    Format.fprintf ppf "%a\n%!" Virtual.Module.pp m;
+    bail ();
+  end;
+  comp_virtual' opts ppf close bail m
 
 let comp (opts : Cli.t) = match opts.ifmt with
   | IFvirtual -> comp_virtual opts

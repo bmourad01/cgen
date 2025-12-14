@@ -108,6 +108,12 @@ module Stmt : sig
       Equivalent to [`loop (`seq (body, unless cond `break))]
   *)
   val dowhile : t -> cond -> t
+
+  (** Sequences a list of statements. *)
+  val seq : t list -> t
+
+  (** Normalizes a statement. *)
+  val normalize : t -> t
 end
 
 type stmt = Stmt.t [@@deriving bin_io, compare, equal, sexp]
@@ -276,3 +282,8 @@ module Module : sig
 end
 
 type module_ = Module.t [@@deriving bin_io, compare, equal, sexp]
+
+(** Lowering to [Virtual]. *)
+module Destructure(C : Context_intf.S_virtual) : sig
+  val run : func -> Virtual.func C.t
+end
