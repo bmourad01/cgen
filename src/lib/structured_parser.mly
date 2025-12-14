@@ -317,8 +317,20 @@ slot:
     }
 
 switch_case:
-  | CASE i = INT COLON b = stmt { let+ b = b in Case (fst i, snd i, b) }
-  | DEFAULT COLON d = stmt { let+ d = d in Default d }
+  | CASE i = INT COLON b = option(stmt)
+    {
+      let+ b = match b with
+        | None -> !!`nop
+        | Some b -> b in
+      Case (fst i, snd i, b)
+    }
+  | DEFAULT COLON d = option(stmt)
+    {
+      let+ d = match d with
+        | None -> !!`nop
+        | Some d -> d in
+      Default d
+    }
 
 %inline label_stmt:
   | l = LABEL COLON s = stmt
