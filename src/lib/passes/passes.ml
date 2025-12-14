@@ -15,6 +15,19 @@ module Simplify_cfg = Simplify_cfg
 module Sroa = Sroa
 module Ssa = Ssa
 
+let destructure m =
+  let module D = Structured.Destructure(Context) in
+  let+ funs =
+    Structured.Module.funs m |>
+    Context.Seq.map ~f:D.run >>|
+    Seq.to_list in
+  Virtual.Module.create ()
+    ~dict:(Structured.Module.dict m)
+    ~typs:(Structured.Module.typs m |> Seq.to_list)
+    ~data:(Structured.Module.data m |> Seq.to_list)
+    ~name:(Structured.Module.name m)
+    ~funs
+
 let initialize m =
   let* target = Context.target in
   let m = Module.map_funs m ~f:Remove_disjoint_blks.run in

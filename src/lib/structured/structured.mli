@@ -276,3 +276,8 @@ module Module : sig
 end
 
 type module_ = Module.t [@@deriving bin_io, compare, equal, sexp]
+
+(** Lowering to [Virtual]. *)
+module Destructure(C : Context_intf.S_virtual) : sig
+  val run : func -> Virtual.func C.t
+end
