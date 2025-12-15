@@ -4,6 +4,7 @@ open Structured_common
 
 module Func = Structured_func
 module Stmt = Structured_stmt
+module Ltree = Label.Tree
 
 type ctx = {
   name     : string;
@@ -11,19 +12,24 @@ type ctx = {
   continue : Label.t option; (* `continue` continuation *)
 }
 
-type blks = Virtual.blk Label.Tree.t
+type op = Virtual.Insn.op
+type blks = Virtual.blk Ltree.t
 
 module Make(C : Context_intf.S_virtual) = struct
   open C.Syntax
 
-  type k = Virtual.Insn.op list -> blks -> (Label.t * blks) C.t
+  type k = {
+    apply : op list -> blks -> (Label.t * blks) C.t;
+  }
+
+  let mk f = {apply = f}
 
   (* pre: `ops` is accumulated in reverse order *)
   let add_blk label ops ctrl blks =
     let+ insns = C.List.fold ops ~init:[] ~f:(fun acc op ->
         C.Virtual.insn op >>| Fn.flip List.cons acc) in
     let data = Virtual.Blk.create ~label ~insns ~ctrl () in
-    Label.Tree.set blks ~key:label ~data
+    Ltree.set blks ~key:label ~data
 
   module Lower = struct
     type case = Bv.t * Virtual.local
@@ -35,78 +41,91 @@ module Make(C : Context_intf.S_virtual) = struct
     }
 
     let local l : Virtual.local = `label (l, [])
-    let ldst l = (local l :> Virtual.dst)
+    let dst g = (g :> Virtual.dst)
+    let dlocal l = dst@@local l
 
     let cond c = match (c : Stmt.cond) with
-      | `var x -> !!(x, [])
+      | `var x -> !!(x, None)
       | `cmp (k, l, r) ->
         let+ x = C.Var.fresh in
         let op = `bop (x, (k :> Virtual.Insn.binop), l, r) in
-        x, [op]
+        x, Some op
 
     let ctrl ct ops blks =
       let* l = C.Label.fresh in
       let+ blks = add_blk l ops ct blks in
       l, blks
 
-    let goto dst ops blks = match ops with
-      | _ :: _ -> ctrl (`jmp (ldst dst)) ops blks
-      | [] -> !!(dst, blks)
+    let goto l ops blks = match ops with
+      | _ :: _ -> ctrl (`jmp (dlocal l)) ops blks
+      | [] -> !!(l, blks)
 
-    let rec go ~ctx s (k : k) : k = match (s : Stmt.t) with
+    (* Main entry point for lowering a statement. Produces a
+       continuation. *)
+    let rec cont ~ctx s (k : k) : k = match (s : Stmt.t) with
       | #Virtual.Insn.op as op ->
         (* Accumulate a plain instruction. *)
-        fun ops blks -> k (op :: ops) blks
+        mk@@fun ops blks -> k.apply (op :: ops) blks
       | `nop -> k
-      | `seq (s1, s2) -> go ~ctx s1 @@ go ~ctx s2 k
+      | `seq (s1, s2) -> cont ~ctx s1 @@ cont ~ctx s2 k
       | `ite (c, y, n) -> ite ~ctx c y n k
       | `loop b -> loop ~ctx b k
       | `break -> break ~ctx
       | `continue -> continue ~ctx
       | `sw (i, ty, cs) -> switch ~ctx i ty cs k
       | `label (l, b) -> label ~ctx l b k
-      | `goto (#Virtual.global as g) ->
-        ctrl @@ `jmp (g :> Virtual.dst)
-      | `goto (`label l) -> goto l
-      | `hlt -> ctrl `hlt
-      | `ret _ as r -> ctrl r
+      | `goto (#Virtual.global as g) -> mk@@ctrl (`jmp (dst g))
+      | `goto (`label l) -> mk@@goto l
+      | `hlt -> mk@@ctrl `hlt
+      | `ret _ as r -> mk@@ctrl r
 
-    and ite ~ctx c y n (k : k) : k = fun ops blks ->
-      let* c, ci = cond c in
-      let* ly, blks = go ~ctx y k [] blks in
-      let* ln, blks = go ~ctx n k [] blks in
-      let ct = `br (c, ldst ly, ldst ln) in
-      ctrl ct (ci @ ops) blks
+    (* Same as `cont`, but we force the continuation right away. *)
+    and go ~ctx s k ops blks = (cont ~ctx s k).apply ops blks
 
-    and loop ~ctx b (k : k) : k = fun ops blks ->
+    and ite ~ctx c y n (k : k) : k = mk@@fun ops blks ->
+      let* c, ops = cond c >>| function
+        | c, Some i -> c, i :: ops
+        | c, None -> c, ops in
+      (* Join point continuation. *)
+      let* join, blks = k.apply [] blks in
+      (* Lower each branch. *)
+      let* ly, blks = go ~ctx y (mk@@goto join) [] blks in
+      let* ln, blks = go ~ctx n (mk@@goto join) [] blks in
+      (* Branch to either arm. *)
+      let ct = `br (c, dlocal ly, dlocal ln) in
+      ctrl ct ops blks
+
+    and loop ~ctx b (k : k) : k = mk@@fun ops blks ->
       (* Loop header continuation. *)
       let* h = C.Label.fresh in
       (* Loop exit continuation. *)
-      let* break, blks = k [] blks in
+      let* break, blks = k.apply [] blks in
       (* Loop body. *)
       let ctx = {ctx with break = Some break; continue = Some h} in
-      let* lb, blks = go ~ctx b (goto h) [] blks in
+      let* lb, blks = go ~ctx b (mk@@goto h) [] blks in
+      let* blks = add_blk h [] (`jmp (dlocal lb)) blks in
       (* Jump to the loop header. *)
-      let* blks = add_blk h [] (`jmp (ldst lb)) blks in
       goto h ops blks
 
-    and break ~ctx : k = fun ops blks -> match ctx.break with
+    and break ~ctx : k = mk@@fun ops blks ->
+      match ctx.break with
       | Some b -> goto b ops blks
       | None ->
         C.failf
           "Destructure: invalid break in function $%s"
           ctx.name ()
 
-    and continue ~ctx : k = fun ops blks -> match ctx.continue with
+    and continue ~ctx : k = mk@@fun ops blks ->
+      match ctx.continue with
       | Some c -> goto c ops blks
       | None ->
         C.failf
           "Destructure: invalid continue in function $%s"
           ctx.name ()
 
-    and switch ~ctx i ty cs (k : k) : k = fun ops blks ->
+    and switch ~ctx i ty cs (k : k) : k = mk@@fun ops blks ->
       (* Switch exit continuation. *)
-      let* break, blks = k [] blks in
+      let* break, blks = k.apply [] blks in
       let* blks, sw =
         (* Start from the last case so that we can maintain the correct
            fallthrough continuation. *)
@@ -128,18 +147,20 @@ module Make(C : Context_intf.S_virtual) = struct
       | `case (v, c) -> switch_acc_case ~ctx v c acc
       | `default d -> switch_acc_default ~ctx d acc
 
+    (* Normal switch case. *)
     and switch_acc_case ~ctx v c (blks, sw) =
-      let+ l, blks = go ~ctx c (goto sw.fallthrough) [] blks in
+      let+ l, blks = go ~ctx c (mk@@goto sw.fallthrough) [] blks in
       blks, {
         sw with
         fallthrough = l;
         arms = (v, local l) :: sw.arms;
       }
 
+    (* "default" switch case. *)
     and switch_acc_default ~ctx d (blks, sw) =
       match sw.default with
       | None ->
-        let+ l, blks = go ~ctx d (goto sw.fallthrough) [] blks in
+        let+ l, blks = go ~ctx d (mk@@goto sw.fallthrough) [] blks in
         blks, {
           sw with
           fallthrough = l;
@@ -150,9 +171,11 @@ module Make(C : Context_intf.S_virtual) = struct
           "Destructure: duplicate default switch case in function $%s"
           ctx.name ()
 
-    and label ~ctx l b (k : k) : k = fun ops blks ->
-      let* lk, blks = go ~ctx b k [] blks in
-      let* blks = add_blk l [] (`jmp (ldst lk)) blks in
+    and label ~ctx l b (k : k) : k = mk@@fun ops blks ->
+      let* lb, blks = go ~ctx b k [] blks in
+      (* Create a block that immediately jumps to the body. *)
+      let* blks = add_blk l [] (`jmp (dlocal lb)) blks in
+      (* Jump to the label. *)
       goto l ops blks
   end
 
@@ -160,19 +183,22 @@ module Make(C : Context_intf.S_virtual) = struct
     let name = Func.name fn
     and dict = Func.dict fn
     and body = Func.body fn in
-    let finish = match Dict.find dict Func.Tag.return with
+    (* If we reach the end of the function and no value is returned,
+       then we will emit a trap. Otherwise, it's safe to just emit a
+       void return. *)
+    let finish = mk@@match Dict.find dict Func.Tag.return with
       | None -> Lower.ctrl @@ `ret None
       | Some _ -> Lower.ctrl `hlt in
     let ctx = {name; break = None; continue = None} in
-    let* start, blks = Lower.go ~ctx body finish [] Label.Tree.empty in
+    let* start, blks = Lower.go ~ctx body finish [] Ltree.empty in
     (* Ensure that the entry block comes first. *)
-    let* sb = match Label.Tree.find blks start with
+    let* sb = match Ltree.find blks start with
       | Some b -> !!b
       | None ->
         C.failf
           "Destructure: missing entry block in function $%s"
           name () in
-    let blks = sb :: Label.Tree.(data @@ remove blks start) in
+    let blks = sb :: Ltree.(data @@ remove blks start) in
     C.lift_err @@ Virtual.Func.create () ~dict ~blks ~name
       ~slots:(Func.slots fn |> Seq.to_list)
       ~args:(Func.args fn |> Seq.to_list)
