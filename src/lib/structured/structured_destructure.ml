@@ -190,6 +190,7 @@ module Make(C : Context_intf.S_virtual) = struct
       | None -> Lower.ctrl @@ `ret None
       | Some _ -> Lower.ctrl `hlt in
     let ctx = {name; break = None; continue = None} in
+    let body = Stmt.normalize body in
     let* start, blks = Lower.go ~ctx body finish [] Ltree.empty in
     (* Ensure that the entry block comes first. *)
     let* sb = match Ltree.find blks start with

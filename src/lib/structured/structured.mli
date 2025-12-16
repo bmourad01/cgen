@@ -108,6 +108,12 @@ module Stmt : sig
       Equivalent to [`loop (`seq (body, unless cond `break))]
   *)
   val dowhile : t -> cond -> t
+
+  (** Sequences a list of statements. *)
+  val seq : t list -> t
+
+  (** Normalizes a statement. *)
+  val normalize : t -> t
 end
 
 type stmt = Stmt.t [@@deriving bin_io, compare, equal, sexp]
