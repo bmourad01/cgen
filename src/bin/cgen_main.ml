@@ -5,6 +5,11 @@ open Cgen
 let comp_virtual' (opts : Cli.t) ppf close bail m =
   let open Context.Syntax in
   let* tenv, m = Passes.initialize m in
+  Virtual.Module.funs m |> Seq.iter ~f:(fun fn ->
+      let fn' = Structured.Restructure.run ~tenv fn in
+      Format.eprintf "%a\n%!" Structured.Func.pp fn'
+    );
+  bail ();
   if Cli.equal_dump opts.dump Dssa then begin
     if not opts.nc then Format.fprintf ppf ";; After SSA transformation:\n\n%!";
     Format.fprintf ppf "%a\n%!" Virtual.Module.pp m;
