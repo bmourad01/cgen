@@ -214,6 +214,12 @@ val to_list : 'a t -> 'a list
 (** Returns a list of every element, in reverse order. *)
 val to_list_rev : 'a t -> 'a list
 
+(** Returns a copy of the vector in reverse order. *)
+val rev : 'a t -> 'a t
+
+(** Reverses the order of the vector. *)
+val rev_inplace : 'a t -> unit
+
 (** Returns a lazy sequence of every element in the array.
 
     Any modifications to the array are shared with the resulting sequence.

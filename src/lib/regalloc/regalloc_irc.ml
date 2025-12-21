@@ -654,15 +654,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let blks = Label.Table.create () in
     Func.blks t.fn |> Seq.iter ~f:(fun b ->
         Hashtbl.set blks ~key:(Blk.label b) ~data:b);
-    let rec loop q = match Stack.pop q with
-      | None -> !!()
-      | Some l ->
-        let* () = match Hashtbl.find blks l with
+    let+ () =
+      Semi_nca.Tree.preorder t.dom |>
+      C.Seq.iter ~f:(fun l ->
+          match Hashtbl.find blks l with
           | Some b -> rewrite_blk t b blks ivec
-          | None -> !!() in
-        Semi_nca.Tree.children t.dom l |> Seq.iter ~f:(Stack.push q);
-        loop q in
-    let+ () = loop @@ Stack.singleton Label.pseudoentry in
+          | None -> !!()) in
     let fn = Func.map_blks t.fn ~f:(fun b ->
         Blk.label b |> Hashtbl.find blks |>
         Option.value ~default:b) in
