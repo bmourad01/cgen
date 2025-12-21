@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Structured_common
 
 module Func = Structured_func
 module Stmt = Structured_stmt
