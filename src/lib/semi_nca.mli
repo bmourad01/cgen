@@ -17,6 +17,8 @@ module Tree : sig
   val descendants : 'a t -> 'a -> 'a seq
   val ancestors : 'a t -> 'a -> 'a seq
   val is_descendant_of : 'a t -> parent:'a -> 'a -> bool
+  val postorder : 'a t -> 'a seq
+  val preorder : 'a t -> 'a seq
 end
 
 (** The dominance frontier *)
@@ -51,7 +53,6 @@ val frontier :
     with type t = 't
      and type edge = 'e
      and type node = 'n) ->
-  ?rev:bool ->
   't ->
   'n tree ->
   'n frontier
