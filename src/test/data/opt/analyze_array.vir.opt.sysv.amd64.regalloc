@@ -70,7 +70,7 @@ export function $analyze_array { ; returns: rax
   add eax, dword ptr [rbp - 0x10] ; @77
   add eax, ecx ; @78
   inc r14d ; @79
-  mov dword ptr [rbp - 0x10], eax ; @186
+  mov dword ptr [rbp - 0x10], eax ; @185
   mov edi, r13d ; @119
   jmp @13 ; @121
 }
