@@ -94,13 +94,15 @@ module Make(Context : Context_intf.S_virtual) = struct
 
   (* Lower the `ret` instructions. *)
   let lower env =
-    let go f = iter_blks env ~f:(fun b -> match Blk.ctrl b with
-        | `ret Some x -> f (Blk.label b) x
-        | `ret None ->
-          Context.failf
-            "Expected return value in block %a of function $%s"
-            Label.pp (Blk.label b) (Func.name env.fn) ()
-        | _ -> !!()) in
+    let go f =
+      Func.blks env.fn |>
+      Context.Seq.iter ~f:(fun b -> match Blk.ctrl b with
+          | `ret Some x -> f (Blk.label b) x
+          | `ret None ->
+            Context.failf
+              "Expected return value in block %a of function $%s"
+              Label.pp (Blk.label b) (Func.name env.fn) ()
+          | _ -> !!()) in
     match Func.return env.fn with
     | None -> !!()
     | Some #Type.imm -> go @@ intret env

@@ -222,19 +222,20 @@ module Make(Context : Context_intf.S_virtual) = struct
       let+ k = type_cls env n in
       k.size = 0 && k.align = 8
 
-  let lower env = iter_blks env ~f:(fun b ->
-      Blk.insns b |> Context.Seq.iter ~f:(fun i ->
-          match Insn.op i with
-          | `vaarg (x, t, ap) ->
-            begin check_empty env t >>= function
-              | true -> !!()
-              | false ->
-                let ap = Sysv_vastart.ap_oper ap in
-                let* vacont = Context.Label.fresh in
-                let+ vablks = fetch env x t ap vacont in
-                Hashtbl.set env.vaarg
-                  ~key:(Insn.label i)
-                  ~data:{vablks; vacont}
-            end
-          | _ -> !!()))
+  let lower env =
+    Func.blks env.fn |> Context.Seq.iter ~f:(fun b ->
+        Blk.insns b |> Context.Seq.iter ~f:(fun i ->
+            match Insn.op i with
+            | `vaarg (x, t, ap) ->
+              begin check_empty env t >>= function
+                | true -> !!()
+                | false ->
+                  let ap = Sysv_vastart.ap_oper ap in
+                  let* vacont = Context.Label.fresh in
+                  let+ vablks = fetch env x t ap vacont in
+                  Hashtbl.set env.vaarg
+                    ~key:(Insn.label i)
+                    ~data:{vablks; vacont}
+              end
+            | _ -> !!()))
 end

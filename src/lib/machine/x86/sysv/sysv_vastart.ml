@@ -34,33 +34,34 @@ module Make(Context : Context_intf.S_virtual) = struct
   *)
   let lower env = match env.rsave with
     | None -> !!()
-    | Some rs -> iter_blks env ~f:(fun b ->
-        Blk.insns b |> Context.Seq.iter ~f:(fun i ->
-            match Insn.op i with
-            | `vastart ap ->
-              let ap = ap_oper ap in
-              (* Compute `gp_offset` and `fp_offset`. *)
-              let gp, fp =
-                Vec.fold env.params ~init:(0, 48) ~f:(fun (gp, fp) p ->
-                    match p.pvar, p.pty with
-                    | `reg _, #Type.imm -> gp + 8, fp
-                    | `reg _, #Type.fp -> gp, fp + 16
-                    | `stk _, _ -> gp, fp) in
-              (* Initialize `gp_offset`. *)
-              let* gpi = Cv.Abi.store `i32 (i32 gp) ap in
-              (* Initialize `fp_offset`. *)
-              let* o, oi1 = Cv.Abi.binop (`add `i64) ap (i64 4) in
-              let* fpi = Cv.Abi.store `i32 (i32 fp) (`var o) in
-              (* Initialize `overflow_arg_area`. *)
-              let* r, ri = Cv.Abi.stkargs () in
-              let* o, oi2 = Cv.Abi.binop (`add `i64) ap (i64 8) in
-              let* ofi = Cv.Abi.store `i64 (`var r) (`var o) in
-              (* Initialize `reg_save_area`. *)
-              let* o, oi3 = Cv.Abi.binop (`add `i64) ap (i64 16) in
-              let+ rs = Cv.Abi.store `i64 (`var rs.rsslot) (`var o) in
-              (* Store the result. *)
-              Hashtbl.set env.vastart ~key:(Insn.label i) ~data:[
-                gpi; oi1; fpi; ri; oi2; ofi; oi3; rs;
-              ]
-            | _ -> !!()))
+    | Some rs ->
+      Func.blks env.fn |> Context.Seq.iter ~f:(fun b ->
+          Blk.insns b |> Context.Seq.iter ~f:(fun i ->
+              match Insn.op i with
+              | `vastart ap ->
+                let ap = ap_oper ap in
+                (* Compute `gp_offset` and `fp_offset`. *)
+                let gp, fp =
+                  Vec.fold env.params ~init:(0, 48) ~f:(fun (gp, fp) p ->
+                      match p.pvar, p.pty with
+                      | `reg _, #Type.imm -> gp + 8, fp
+                      | `reg _, #Type.fp -> gp, fp + 16
+                      | `stk _, _ -> gp, fp) in
+                (* Initialize `gp_offset`. *)
+                let* gpi = Cv.Abi.store `i32 (i32 gp) ap in
+                (* Initialize `fp_offset`. *)
+                let* o, oi1 = Cv.Abi.binop (`add `i64) ap (i64 4) in
+                let* fpi = Cv.Abi.store `i32 (i32 fp) (`var o) in
+                (* Initialize `overflow_arg_area`. *)
+                let* r, ri = Cv.Abi.stkargs () in
+                let* o, oi2 = Cv.Abi.binop (`add `i64) ap (i64 8) in
+                let* ofi = Cv.Abi.store `i64 (`var r) (`var o) in
+                (* Initialize `reg_save_area`. *)
+                let* o, oi3 = Cv.Abi.binop (`add `i64) ap (i64 16) in
+                let+ rs = Cv.Abi.store `i64 (`var rs.rsslot) (`var o) in
+                (* Store the result. *)
+                Hashtbl.set env.vastart ~key:(Insn.label i) ~data:[
+                  gpi; oi1; fpi; ri; oi2; ofi; oi3; rs;
+                ]
+              | _ -> !!()))
 end

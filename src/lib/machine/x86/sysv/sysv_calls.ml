@@ -189,41 +189,42 @@ module Make(Context : Context_intf.S_virtual) = struct
     | Rnone, _ | _, Rnone -> assert false
 
   (* Lower the `call` instructions. *)
-  let lower env = iter_blks env ~f:(fun b ->
-      Blk.insns b |> Context.Seq.iter ~f:(fun i ->
-          match Insn.op i with
-          | `call (ret, _, args, vargs) ->
-            let key = Insn.label i in
-            let ofs = ref 0 in
-            let qi = int_arg_queue () in
-            let qs = sse_arg_queue () in
-            let reg = alloc_onereg ~qi ~qs in
-            let reg2 = alloc_tworeg ~qi ~qs in
-            (* See if we're returning a compound type. *)
-            let* kret = match ret with
-              | Some (x, `name n) ->
-                (* Check for implicit first parameter. *)
-                let* lk = type_cls env n in
-                begin match lk.cls with
-                  | Kmem when lk.size > 0 -> ignore (Stack.pop_exn qi)
-                  | _ -> ()
-                end;
-                !!(`compound (x, lk))
-              | Some (x, t) -> !!(`basic (x, t))
-              | None -> !!`none in
-            (* Process each argument. *)
-            let acls = classify_call_arg ~ofs ~reg ~reg2 env key in
-            let* k = Context.List.fold args ~init:empty_call ~f:acls in
-            let* k = Context.List.fold vargs ~init:k ~f:acls in
-            (* If this is a variadic call, then RAX must hold the number
-               of SSE registers that were used to pass parameters. *)
-            let k = match vargs with
-              | [] -> k
-              | _ ->
-                let n = Array.length sse_args - Stack.length qs in
-                {k with callar = k.callar @> `reg (i8 n, reg_str `rax)} in
-            (* Process the return value. *)
-            let+ k = lower_call_ret env kret k in
-            Hashtbl.set env.calls ~key ~data:k
-          | _ -> !!()))
+  let lower env =
+    Func.blks env.fn |> Context.Seq.iter ~f:(fun b ->
+        Blk.insns b |> Context.Seq.iter ~f:(fun i ->
+            match Insn.op i with
+            | `call (ret, _, args, vargs) ->
+              let key = Insn.label i in
+              let ofs = ref 0 in
+              let qi = int_arg_queue () in
+              let qs = sse_arg_queue () in
+              let reg = alloc_onereg ~qi ~qs in
+              let reg2 = alloc_tworeg ~qi ~qs in
+              (* See if we're returning a compound type. *)
+              let* kret = match ret with
+                | Some (x, `name n) ->
+                  (* Check for implicit first parameter. *)
+                  let* lk = type_cls env n in
+                  begin match lk.cls with
+                    | Kmem when lk.size > 0 -> ignore (Stack.pop_exn qi)
+                    | _ -> ()
+                  end;
+                  !!(`compound (x, lk))
+                | Some (x, t) -> !!(`basic (x, t))
+                | None -> !!`none in
+              (* Process each argument. *)
+              let acls = classify_call_arg ~ofs ~reg ~reg2 env key in
+              let* k = Context.List.fold args ~init:empty_call ~f:acls in
+              let* k = Context.List.fold vargs ~init:k ~f:acls in
+              (* If this is a variadic call, then RAX must hold the number
+                 of SSE registers that were used to pass parameters. *)
+              let k = match vargs with
+                | [] -> k
+                | _ ->
+                  let n = Array.length sse_args - Stack.length qs in
+                  {k with callar = k.callar @> `reg (i8 n, reg_str `rax)} in
+              (* Process the return value. *)
+              let+ k = lower_call_ret env kret k in
+              Hashtbl.set env.calls ~key ~data:k
+            | _ -> !!()))
 end

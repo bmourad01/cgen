@@ -65,7 +65,7 @@ module Make(Context : Context_intf.S_virtual) = struct
 
   let lower env =
     let mrs = collect_mem_rets env in
-    iter_blks env ~f:(fun b ->
+    Func.blks env.fn |> Context.Seq.iter ~f:(fun b ->
         let* () =
           Blk.args b |> Context.Seq.iter ~f:(fun x ->
               typeof_var env x >>| function
