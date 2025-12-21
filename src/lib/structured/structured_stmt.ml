@@ -33,7 +33,7 @@ type t = [
   | `loop of t
   | `break
   | `continue
-  | `sw of Var.t * Type.imm * swcase list
+  | `sw of Virtual.Ctrl.swindex * Type.imm * swcase list
   | `label of Label.t * t
   | `goto of goto
   | `hlt
@@ -62,7 +62,7 @@ let rec pp ppf : t -> unit = function
     let pp_sep ppf () = Format.fprintf ppf "@;" in
     Format.fprintf ppf
       "switch.%a %a {@;@[<v 0>%a@]@;}"
-      Var.pp i Type.pp_imm ty
+      Virtual.Ctrl.pp_swindex i Type.pp_imm ty
       (Format.pp_print_list ~pp_sep (pp_swcase ty))
       cs
   | `label (l, b) ->
@@ -138,7 +138,7 @@ let dowhile b c =
     )
   )
 
-let seq = function
+let seq : t list -> t = function
   | [] -> `nop
   | [s] -> s
   | ss -> match List.rev ss with
