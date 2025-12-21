@@ -134,7 +134,7 @@ let compute
           Hashtbl.update children v ~f:(function
               | None -> G.Node.Set.singleton u
               | Some s -> Set.add s u)));
-  let rec descendants n acc = function
+  let rec descendants acc = function
     | [] -> Set.to_sequence acc
     | x :: rest ->
       let acc, rest = match Hashtbl.find children x with
@@ -142,7 +142,7 @@ let compute
         | Some s ->
           Set.union acc s,
           Set.fold s ~init:rest ~f:(Fn.flip List.cons) in
-      descendants n acc rest in
+      descendants acc rest in
   let rec is_descendant_of ~parent n = match Hashtbl.find t n with
     | Some p -> G.Node.(parent = p) || is_descendant_of ~parent p
     | None -> false in
@@ -153,7 +153,7 @@ let compute
     | Some s -> Set.to_sequence s
     | None -> Seq.empty in
   let ancestors n = ancestors G.Node.Set.empty n in
-  let descendants n = descendants n G.Node.Set.empty [n] in
+  let descendants n = descendants G.Node.Set.empty [n] in
   {parent; children; descendants; ancestors; is_descendant_of}
 
 let frontier
