@@ -11,6 +11,7 @@ module Promote_slots = Promote_slots
 module Remove_dead_vars = Remove_dead_vars
 module Remove_disjoint_blks = Remove_disjoint_blks
 module Resolve_constant_blk_args = Resolve_constant_blk_args
+module Restructure = Structured.Restructure(Context)
 module Sccp = Sccp
 module Simplify_cfg = Simplify_cfg
 module Sroa = Sroa
@@ -26,6 +27,17 @@ let destructure m =
     ~typs:(Structured.Module.typs m |> Seq.to_list)
     ~data:(Structured.Module.data m |> Seq.to_list)
     ~name:(Structured.Module.name m)
+
+let restructure ~tenv m =
+  let+ funs =
+    Module.funs m |>
+    Context.Seq.map ~f:(Restructure.run ~tenv) >>|
+    Seq.to_list in
+  Structured.Module.create () ~funs
+    ~dict:(Module.dict m)
+    ~typs:(Module.typs m |> Seq.to_list)
+    ~data:(Module.data m |> Seq.to_list)
+    ~name:(Module.name m)
 
 let initialize m =
   let* target = Context.target in

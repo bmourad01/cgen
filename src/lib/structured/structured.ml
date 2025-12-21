@@ -2,6 +2,7 @@ module Stmt = Structured_stmt
 module Func = Structured_func
 module Module = Structured_module
 module Destructure = Structured_destructure.Make
+module Restructure = Structured_restructure.Make
 
 type stmt = Stmt.t [@@deriving bin_io, compare, equal, sexp]
 type slot = Virtual.Slot.t [@@deriving bin_io, compare, equal, sexp]

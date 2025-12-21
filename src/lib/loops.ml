@@ -174,9 +174,11 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
           while_top q ~f:(fun n -> assign_loop_level t q @@ get t n);
         end)
 
-  let analyze ~name cfg =
+  let analyze ?dom ~name cfg =
     let t = init name in
-    let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
+    let dom = match dom with
+      | Some dom -> dom
+      | None -> Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
     find_headers t cfg dom;
     find_loop_blks t cfg dom;
     assign_levels t;

@@ -139,7 +139,7 @@ module Make(C : Context_intf.S_virtual) = struct
       | arms ->
         (* Jump to the switch. *)
         let*? tbl = Virtual.Ctrl.Table.create arms ty in
-        let ct = `sw (ty, `var i, local d, tbl) in
+        let ct = `sw (ty, i, local d, tbl) in
         ctrl ct ops blks
 
     and switch_acc ~ctx c acc = match c with

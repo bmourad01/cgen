@@ -52,7 +52,8 @@
   tags
   var_internal
   virtual_lexer
-  virtual_parser)
+  virtual_parser
+  windmill)
  (foreign_stubs
   (language c)
   (names float_stubs))

@@ -1,3 +1,5 @@
+open Regular.Std
+
 (** Reducibility of a CFG (control flow graph).
 
     A CFG [G] is reducible iff every cycle in [G] has a unique
@@ -41,13 +43,14 @@
 
 open Graphlib.Std
 
-(** [check (module G) g entry] determines if graph [g] is reducible
+(** [check (module G) ?dom g entry] determines if graph [g] is reducible
     when starting from the [entry] node. *)
 val check :
   (module Graph
     with type t = 't
      and type edge = 'e
      and type node = 'n) ->
+  ?dom:'n Semi_nca.tree ->
   't ->
   'n ->
   bool

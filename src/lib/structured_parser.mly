@@ -185,6 +185,7 @@
 %type <Linkage.t> linkage
 %type <string> section
 %type <Virtual.slot Context.t> slot
+%type <Virtual.Ctrl.swindex Context.t> ctrl_index
 %type <swcase Context.t> switch_case
 %type <(Label.t * Structured.stmt) Context.t> label_stmt
 %type <Structured.stmt Context.t> label_stmt_full
@@ -384,7 +385,7 @@ non_label_stmt:
       Structured.Stmt.dowhile b x
     }
   | GOTO g = goto { let+ g = g in `goto g }
-  | t = SWITCH i = var LBRACE cs = list(switch_case) RBRACE
+  | t = SWITCH i = ctrl_index LBRACE cs = list(switch_case) RBRACE
     {
       let* i = i and* cs = Context.List.all cs in
       let+ cs = Context.List.map cs ~f:(function
@@ -597,3 +598,9 @@ var:
   | x = IDENT { !!(Var.create x) }
   | x = TEMP { temp_of_name x }
   | x = TEMPI { temp_of_name (fst x) ~index:(snd x) }
+
+ctrl_index:
+  | x = var { let+ x = x in `var x }
+  | s = SYM { !!(`sym (s, 0)) }
+  | s = SYM PLUS i = NUM { !!(`sym (s, Bv.to_int i)) }
+  | s = SYM MINUS i = NUM { !!(`sym (s, -(Bv.to_int i))) }

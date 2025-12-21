@@ -120,7 +120,7 @@ module Make(M : Machine_intf.S) = struct
   let create fn =
     let cfg = Pseudo.Cfg.create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests fn in
     let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in
-    let loop = Loop.analyze ~name:(Pseudo.Func.name fn) cfg in
+    let loop = Loop.analyze ~dom ~name:(Pseudo.Func.name fn) cfg in
     let spill_cost = Rv.Table.create () in
     let degree = Rv.Table.create () in {
       fn;

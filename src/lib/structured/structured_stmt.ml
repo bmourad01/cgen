@@ -33,7 +33,7 @@ type t = [
   | `loop of t
   | `break
   | `continue
-  | `sw of Var.t * Type.imm * swcase list
+  | `sw of Virtual.Ctrl.swindex * Type.imm * swcase list
   | `label of Label.t * t
   | `goto of goto
   | `hlt
@@ -62,7 +62,7 @@ let rec pp ppf : t -> unit = function
     let pp_sep ppf () = Format.fprintf ppf "@;" in
     Format.fprintf ppf
       "switch.%a %a {@;@[<v 0>%a@]@;}"
-      Var.pp i Type.pp_imm ty
+      Virtual.Ctrl.pp_swindex i Type.pp_imm ty
       (Format.pp_print_list ~pp_sep (pp_swcase ty))
       cs
   | `label (l, b) ->
@@ -97,7 +97,12 @@ and pp_dowhile ppf b c =
     pp b pp_cond c
 
 and pp_loop ppf = function
-  | `seq (`ite (c, `nop, `break), b) -> pp_while ppf c b
+  | `seq (`ite (c, `nop, `break), b)
+  | `ite (c, b, `break)
+    -> pp_while ppf c b
+  | `ite (`cmp (k, l, r), `break, b) ->
+    let k = Virtual.Insn.negate_cmp k in
+    pp_while ppf (`cmp (k, l, r)) b
   | `seq (b, `ite (c, `nop, `break)) -> pp_dowhile ppf b c
   | b ->  Format.fprintf ppf "loop {@;@[<v 2>  %a@]@;}" pp b
 
@@ -138,7 +143,7 @@ let dowhile b c =
     )
   )
 
-let seq = function
+let seq : t list -> t = function
   | [] -> `nop
   | [s] -> s
   | ss -> match List.rev ss with
@@ -160,12 +165,21 @@ let[@tail_mod_cons] rec normalize (s : t) : t = match s with
   | `seq (`nop, s)
   | `seq (s, `nop)
     -> normalize s
+  (* Terminated sequence *)
+  | `seq (
+      (`ret _ | `goto _ | `hlt | `break | `continue as s1),
+      _
+    ) -> s1
   (* Associate sequences to the right. *)
   | `seq (`seq (s1, s2), s3) ->
     normalize @@ `seq (s1, `seq (s2, s3))
   (* The rest of these are just boring tree traversals. *)
   | `seq (s1, s2) ->
-    `seq ((normalize [@tailcall false]) s1, (normalize [@tailcall]) s2)
+    begin match normalize s1, normalize s2 with
+      | `nop, s -> s
+      | s, `nop -> s
+      | s1, s2 -> `seq (s1, s2)
+    end
   | `ite (c, y, n) ->
     `ite (c, (normalize [@tailcall false]) y, (normalize [@tailcall]) n)
   | `loop b -> `loop (normalize b)

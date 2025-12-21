@@ -61,6 +61,8 @@ module type S = sig
     | `sym of string * int
   ] [@@deriving bin_io, compare, equal, sexp]
 
+  val pp_swindex : Format.formatter -> swindex -> unit
+
   (** A control-flow instruction.
 
       [`hlt] terminates execution of the program. This is typically used

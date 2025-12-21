@@ -99,7 +99,7 @@ let pp ppf fn =
     let sep ppf = Format.fprintf ppf "@;  " in
     Format.fprintf ppf "@[<v 0>  %a@]@;" (Ftree.pp Virtual.Slot.pp sep) fn.slots
   end;
-  Format.fprintf ppf "start:@;@[<v 2>  %a@]@;}" Structured_stmt.pp fn.body
+  Format.fprintf ppf "@[<v 0>start:@;@[<v 2>  %a@]@]@;}" Structured_stmt.pp fn.body
 
 include Regular.Make(struct
     include T

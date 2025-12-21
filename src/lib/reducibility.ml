@@ -7,8 +7,11 @@ let check
     (module G : Graph
       with type t = t
        and type edge = e
-       and type node = n) g entry = with_return @@ fun {return} ->
-  let dom = Semi_nca.compute (module G) g entry in
+       and type node = n) ?dom g entry =
+  with_return @@ fun {return} ->
+  let dom = match dom with
+    | None -> Semi_nca.compute (module G) g entry
+    | Some dom -> dom in
   let (#>) parent n =
     G.Node.(parent = n) ||
     Semi_nca.Tree.is_descendant_of dom ~parent n in

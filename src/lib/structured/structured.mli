@@ -64,7 +64,7 @@ module Stmt : sig
     | `loop of t
     | `break
     | `continue
-    | `sw of Var.t * Type.imm * swcase list
+    | `sw of Virtual.Ctrl.swindex * Type.imm * swcase list
     | `label of Label.t * t
     | `goto of goto
     | `hlt
@@ -286,4 +286,9 @@ type module_ = Module.t [@@deriving bin_io, compare, equal, sexp]
 (** Lowering to [Virtual]. *)
 module Destructure(C : Context_intf.S_virtual) : sig
   val run : func -> Virtual.func C.t
+end
+
+(** Restructure the control flow of a [Virtual] function. *)
+module Restructure(C : Context_intf.S) : sig
+  val run : tenv:Typecheck.env -> Virtual.func -> func C.t
 end

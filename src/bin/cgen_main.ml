@@ -10,12 +10,22 @@ let comp_virtual' (opts : Cli.t) ppf close bail m =
     Format.fprintf ppf "%a\n%!" Virtual.Module.pp m;
     bail ();
   end;
+  let* () = Context.when_ (Cli.equal_dump opts.dump Drestructure_preopt) @@ fun () ->
+    if not opts.nc then Format.fprintf ppf ";; After restructuring (pre-optimizations):\n\n%!";
+    let+ m = Passes.restructure ~tenv m in
+    Format.fprintf ppf "%a\n%!" Structured.Module.pp m;
+    bail () in
   let* tenv, m = Passes.optimize tenv m in
   if Cli.equal_dump opts.dump Dmiddle then begin
     if not opts.nc then Format.fprintf ppf ";; After middle-end-optimizations:\n\n%!";
     Format.fprintf ppf "%a\n%!" Virtual.Module.pp m;
     bail ();
   end;
+  let* () = Context.when_ (Cli.equal_dump opts.dump Drestructure) @@ fun () ->
+    if not opts.nc then Format.fprintf ppf ";; After restructuring (post-optimizations):\n\n%!";
+    let+ m = Passes.restructure ~tenv m in
+    Format.fprintf ppf "%a\n%!" Structured.Module.pp m;
+    bail () in
   let* m = Passes.to_abi tenv m in
   let* m = Passes.optimize_abi m in
   if Cli.equal_dump opts.dump Dabi then begin
