@@ -34,7 +34,7 @@ test:
 	UPDATE_EXPECT=$(UPDATE_EXPECT) dune test --profile=$(PROFILE)
 
 doc:
-	dune build @doc
+	dune build @doc --profile=$(PROFILE)
 
 deps: bap-deps
 	opam install . --deps-only
