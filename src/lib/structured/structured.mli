@@ -288,6 +288,7 @@ module Destructure(C : Context_intf.S_virtual) : sig
   val run : func -> Virtual.func C.t
 end
 
-module Restructure : sig
-  val run : tenv:Typecheck.env -> Virtual.func -> func
+(** Restructure the control flow of a [Virtual] function. *)
+module Restructure(C : Context_intf.S) : sig
+  val run : tenv:Typecheck.env -> Virtual.func -> func C.t
 end
