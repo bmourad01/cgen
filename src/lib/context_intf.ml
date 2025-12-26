@@ -56,7 +56,7 @@ module type S = sig
       If it is [Ok x], then [x] is returned, otherwise the computation fails
       with the error.
   *)
-  val lift_err : 'a Or_error.t -> 'a t
+  val lift_err : ?prefix:string -> 'a Or_error.t -> 'a t
 
   (** Terminates the computation with an error. *)
   val fail : Error.t -> 'a t
@@ -92,19 +92,19 @@ module type S = sig
 
   (** Same as [List.map], but [f] is allowed to fail early. In this case,
       the error is lifted into the context. *)
-  val map_list_err : 'a list -> f:('a -> 'b Or_error.t) -> 'b list t
+  val map_list_err : ?prefix:string -> 'a list -> f:('a -> 'b Or_error.t) -> 'b list t
 
   (** Same as [List.iter], but [f] is allowed to fail early. In this case,
       the error is lifted into the context. *)
-  val iter_list_err : 'a list -> f:('a -> unit Or_error.t) -> unit t
+  val iter_list_err : ?prefix:string -> 'a list -> f:('a -> unit Or_error.t) -> unit t
 
   (** Same as [Seq.map], but [f] is allowed to fail early. In this case,
       the error is lifted into the context. *)
-  val map_seq_err : 'a seq -> f:('a -> 'b Or_error.t) -> 'b seq t
+  val map_seq_err : ?prefix:string -> 'a seq -> f:('a -> 'b Or_error.t) -> 'b seq t
 
   (** Same as [Seq.iter], but [f] is allowed to fail early. In this case,
       the error is lifted into the context. *)
-  val iter_seq_err : 'a seq -> f:('a -> unit Or_error.t) -> unit t
+  val iter_seq_err : ?prefix:string -> 'a seq -> f:('a -> unit Or_error.t) -> unit t
 end
 
 (** Extension of the Context interface, with helpers for generating

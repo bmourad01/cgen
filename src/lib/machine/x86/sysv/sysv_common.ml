@@ -243,7 +243,8 @@ module Make0(Context : Context_intf.S) = struct
   let i64 i = `int (Bv.M64.int i, `i64)
 
   let typeof_var env x =
-    Context.lift_err @@ Typecheck.Env.typeof_var env.fn x env.tenv
+    Context.lift_err ~prefix:"Sysv" @@
+    Typecheck.Env.typeof_var env.fn x env.tenv
 
   let word env = (Target.word (Typecheck.Env.target env.tenv) :> Type.t)
 

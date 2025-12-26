@@ -6,6 +6,9 @@ open Virtual
 (** Lowers from [Structured] to [Virtual]. *)
 val destructure : Structured.module_ -> Virtual.module_ Context.t
 
+(** Lifts from [Virtual] to [Structured]. *)
+val restructure : tenv:Typecheck.env -> Virtual.module_ -> Structured.module_ Context.t
+
 (** Runs type-checking and SSA transformation. *)
 val initialize : module_ -> (Typecheck.env * module_) Context.t
 
