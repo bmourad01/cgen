@@ -130,8 +130,14 @@ module Region = struct
   let empty = {frames = []}
 
   let push_loop h lp ctx = {frames = Loop (h, lp) :: ctx.frames}
-  let push_join j ctx = {frames = Join j :: ctx.frames}
-  let push_switch s ctx = {frames = Switch s :: ctx.frames}
+
+  let push_switch s ctx = match ctx.frames with
+    | Switch s0 :: _ when Label.(s = s0) -> ctx
+    | _ -> {frames = Switch s :: ctx.frames}
+
+  let push_join j ctx = match ctx.frames with
+    | Join j0 :: _ when Label.(j = j0) -> ctx
+    | _ -> {frames = Join j :: ctx.frames}
 
   let innermost_loop ctx =
     List.find_map ctx.frames ~f:(function
@@ -144,6 +150,8 @@ module Region = struct
       not (Loops.is_in_loop t.loop j lp)
     | Join _ :: Loop (_, lp) :: _ ->
       not (Loops.is_in_loop t.loop j lp)
+    | Switch _ :: Loop (_, lp) :: _ ->
+      not (Loops.is_in_loop t.loop j lp)
     | _ -> false
 end
 
@@ -151,25 +159,16 @@ end
 
    [in_progress]: the nodes that we're currently emitting
    [scheduled]: the nodes that have been made the target of a goto
-   [pending]: pending goto targets to be emitted
 *)
 type state = {
   in_progress : Label.Hash_set.t;
   scheduled   : Label.Hash_set.t;
-  pending     : Label.t Vec.t;
 }
 
-module State = struct
-  let create () = {
-    in_progress = Label.Hash_set.create ();
-    scheduled = Label.Hash_set.create ();
-    pending = Vec.create ();
-  }
-
-  let schedule st n =
-    Hash_set.strict_add st.scheduled n |>
-    Or_error.iter ~f:(fun () -> Vec.push st.pending n)
-end
+let create_state () = {
+  in_progress = Label.Hash_set.create ();
+  scheduled = Label.Hash_set.create ();
+}
 
 (* Classification of a jump. *)
 type jmpcls =
@@ -249,17 +248,20 @@ let op i = (Insn.op i :> Stmt.t)
 (* See if this block has a single-use comparison that we
    can fold into the `ite` statement. *)
 let find_cond t n =
-  Ltree.find t.blks n |>
-  Option.bind ~f:(fun b ->
+  let ok x c =
+    (* Same condition var. *)
+    Var.(x = c) &&
+    (* Not needed after this block. *)
+    not (Set.mem (Live.outs t.live n) x) in
+  Ltree.find t.blks n |> Option.bind ~f:(fun b ->
       match Blk.ctrl b with
       | `br (c, _, _) ->
         Blk.insns ~rev:true b |> Seq.hd |>
-        Option.bind ~f:(fun i ->
-            let op = Insn.op i in
-            match op with
-            | `bop (x, (#Insn.cmp as k), l, r) ->
-              if Var.(x = c) && not (Set.mem (Live.outs t.live n) x)
-              then Some (Insn.label i, `cmp (k, l, r)) else None
+        Option.bind ~f:(fun i -> match Insn.op i with
+            | `bop (x, (#Insn.cmp as cmp), l, r) when ok x c ->
+              let label = Insn.label i
+              and k = `cmp (cmp, l, r) in
+              Some (label, k)
             | _ -> None)
       | _ -> None)
 
@@ -267,7 +269,8 @@ module Make(C : Context_intf.S) = struct
   open C.Syntax
 
   let typeof_var t x =
-    Typecheck.Env.typeof_var t.fn x t.tenv |> C.lift_err
+    Typecheck.Env.typeof_var t.fn x t.tenv |>
+    C.lift_err ~prefix:"Restructure"
 
   module W = Windmill.Make(C)
 
@@ -337,10 +340,10 @@ module Make(C : Context_intf.S) = struct
     and br ?k t n c yes no ~ctx ~st =
       let j = possible_join t n in
       let ctx' = match j with
-        | Some j -> Region.push_join j ctx
-        | None -> ctx in
-      let* yes = dest t n yes ~ctx:ctx' ~st >>| Stmt.normalize in
-      let* no = dest t n no ~ctx:ctx' ~st >>| Stmt.normalize in
+        | None -> ctx
+        | Some j -> Region.push_join j ctx in
+      let* yes = dest t n yes ~ctx:ctx' ~st in
+      let* no = dest t n no ~ctx:ctx' ~st in
       let ite = match k with
         | None -> `ite (`var c, yes, no)
         | Some k -> `ite (k, yes, no) in
@@ -385,61 +388,50 @@ module Make(C : Context_intf.S) = struct
         | `sw (ty, i, `label (d, dargs), tbl) ->
           sw t n ty i d dargs tbl ~ctx ~st
 
-    (* Flush the current set of shared continuation points. *)
-    and shared t ~ctx ~st =
-      let+ shared =
-        Vec.to_sequence_mutable st.pending |>
-        C.Seq.map ~f:(fun l ->
-            let+ b = plain t l ~ctx ~st in
-            `label (l, b)) >>| Seq.to_list in
-      Vec.clear st.pending;
-      Stmt.seq shared
-
     (* Loop region. *)
     and loop t n ~ctx ~st =
       let lp = Option.value_exn @@ Loops.blk t.loop n in
       let ctx' = Region.push_loop n lp ctx in
       let* body = plain t n ~ctx:ctx' ~st in
-      let* shared = shared t ~ctx:ctx' ~st in
       match loop_exit t lp with
-      | None -> !!(`loop (`seq (body, shared)))
+      | None -> !!(`loop body)
       | Some j ->
         let+ j = node t j ~ctx ~st in
-        `seq (`loop (`seq (body, shared)), j)
+        `seq (`loop body, j)
 
     (* Plain body and terminator. *)
     and plain t n ~ctx ~st =
       let k = find_cond t n in
-      let* body = match k with
-        | None -> body t n
-        | Some (k, _) -> body ~k t n in
-      let+ term = match k with
-        | None -> term t n ~ctx ~st
-        | Some (_, k) -> term ~k t n ~ctx ~st in
+      let kb = Option.map k ~f:fst in
+      let kt = Option.map k ~f:snd in
+      let* body = body ?k:kb t n in
+      let+ term = term ?k:kt t n ~ctx ~st in
       `seq (body, term)
 
     (* Main entry point. *)
     and node t n ~ctx ~st =
-      match Hash_set.strict_add st.in_progress n with
-      | Error _ ->
-        State.schedule st n;
+      if Hash_set.mem st.scheduled n then
         !!(`goto (`label n))
-      | Ok () ->
-        let+ body =
-          if Loops.is_header t.loop n
-          then loop t n ~ctx ~st
-          else plain t n ~ctx ~st in
-        Hash_set.remove st.in_progress n;
-        body
+      else match Hash_set.strict_add st.in_progress n with
+        | Error _ ->
+          Hash_set.add st.scheduled n;
+          !!(`goto (`label n))
+        | Ok () ->
+          let+ body =
+            if Loops.is_header t.loop n
+            then loop t n ~ctx ~st
+            else plain t n ~ctx ~st in
+          Hash_set.remove st.in_progress n;
+          if Hash_set.mem st.scheduled n
+          then `label (n, body) else body
   end
 
   let run ~tenv fn =
     let t = init ~tenv fn in
-    let st = State.create () in
+    let st = create_state () in
     let ctx = Region.empty in
-    let* body = Emit.plain t (Func.entry fn) ~ctx ~st in
-    let+ shared = Emit.shared t ~ctx ~st in
-    let body = Stmt.normalize @@ `seq (body, shared) in
+    let+ body = Emit.plain t (Func.entry fn) ~ctx ~st in
+    let body = Stmt.normalize body in
     Structured_func.create () ~body
       ~dict:(Func.dict fn)
       ~name:(Func.name fn)

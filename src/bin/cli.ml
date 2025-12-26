@@ -51,7 +51,9 @@ type dump =
   | Dparse
   | Ddestructure
   | Dssa
+  | Drestructure_preopt
   | Dmiddle
+  | Drestructure
   | Dabi
   | Disel
   | Disel_dce
@@ -64,7 +66,9 @@ let string_of_dump = function
   | Dparse -> "parse"
   | Ddestructure -> "destructure"
   | Dssa -> "ssa"
+  | Drestructure_preopt -> "restructure-preopt"
   | Dmiddle -> "middle"
+  | Drestructure -> "restructure"
   | Dabi -> "abi"
   | Disel -> "isel"
   | Disel_dce -> "isel-dce"
@@ -76,7 +80,9 @@ let dump_of_string_opt = function
   | "parse" -> Some Dparse
   | "destructure" -> Some Ddestructure
   | "ssa" -> Some Dssa
+  | "restructure-preopt" -> Some Drestructure_preopt
   | "middle" -> Some Dmiddle
+  | "restructure" -> Some Drestructure
   | "abi" -> Some Dabi
   | "isel" -> Some Disel
   | "isel-dce" -> Some Disel_dce
@@ -93,7 +99,10 @@ let man_dump =
       Dparse, "dump the IR after parsing";
       Ddestructure, "dump the IR after destructuring (for .sir)";
       Dssa, "dump the IR after SSA transformation";
+      Drestructure_preopt, "dump the IR in structured (.sir) form, after SSA transformation, \
+                            but before middle-end optimizations";
       Dmiddle, "dump the IR after middle-end optimizations";
+      Drestructure, "dump the IR in structured (.sir) form, after middle-end optimizations";
       Dabi, "dump the IR after ABI lowering";
       Disel, "dump the IR after instruction selection";
       Disel_dce, "dump the IR after dead code elimination (after instruction selection)";
