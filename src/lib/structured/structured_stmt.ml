@@ -165,7 +165,11 @@ let[@tail_mod_cons] rec normalize (s : t) : t = match s with
     normalize @@ `seq (s1, `seq (s2, s3))
   (* The rest of these are just boring tree traversals. *)
   | `seq (s1, s2) ->
-    `seq ((normalize [@tailcall false]) s1, (normalize [@tailcall]) s2)
+    begin match normalize s1, normalize s2 with
+      | `nop, s -> s
+      | s, `nop -> s
+      | s1, s2 -> `seq (s1, s2)
+    end
   | `ite (c, y, n) ->
     `ite (c, (normalize [@tailcall false]) y, (normalize [@tailcall]) n)
   | `loop b -> `loop (normalize b)
