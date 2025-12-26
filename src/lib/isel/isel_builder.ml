@@ -104,7 +104,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         let+ ty, id = operand' t src in
         let n = N (Omove, [newvar t dst ty; id]) in
         ignore @@ new_node ~l t n)
-  
+
   let blkargs ?(br = false) t l ld args =
     zip_blkargs t ld args >>= function
     | [] -> !!None

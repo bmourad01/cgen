@@ -182,7 +182,9 @@ let pp_jmpcls ppf cls =
   Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_jmpcls cls
 [@@ocaml.warning "-32"]
 
-module Classify = struct
+module Classify : sig
+  val jmp : t -> ctx:ctx -> src:Label.t -> dst:Label.t -> jmpcls
+end = struct
   let continue t ~ctx ~dst =
     let rec find = function
       | Loop (h, _) :: _ ->
@@ -226,16 +228,16 @@ module Classify = struct
     | Some j when fallthrough t ~ctx ~dst:j -> Fallthrough
     | Some _ | None -> Continue
 
-  let debug_jmp ctx src dst =
+  let debug_jmp t ctx src dst =
     Logs.debug (fun m ->
-        m "%s: src=%a, dst=%a, stack:@;@[<v 0>%a@]%!"
-          __FUNCTION__ Label.pp src Label.pp dst
+        m "%s: $%s: src=%a, dst=%a, stack:@;@[<v 0>%a@]%!"
+          __FUNCTION__ (Func.name t.fn) Label.pp src Label.pp dst
           (Format.pp_print_list
              ~pp_sep:(fun ppf () -> Format.fprintf ppf "@;")
              pp_frame) ctx.frames)
 
   let jmp t ~ctx ~src ~dst =
-    debug_jmp ctx src dst;
+    debug_jmp t ctx src dst;
     if continue t ~ctx ~dst then continue_or_fallthrough t ~ctx ~dst
     else if break_switch t ~ctx ~dst then Break
     else if break_loop t ~ctx ~dst then Break
@@ -295,15 +297,16 @@ module Make(C : Context_intf.S) = struct
         Seq.map s ~f:op |> Seq.to_list |> Stmt.seq |> C.return
       | None ->
         C.failf
-          "Restructure: cannot emit body for non-existent block %a"
-          Label.pp n ()
+          "Restructure: cannot emit body for non-existent \
+           block %a in function $%s" Label.pp n (Func.name t.fn) ()
 
     (* Branch to a block. *)
     let rec branch t ~ctx ~st ~src ~dst =
       let cls = Classify.jmp t ~ctx ~src ~dst in
       Logs.debug (fun m ->
-          m "%s: src=%a, dst=%a, cls=%a%!"
-            __FUNCTION__ Label.pp src Label.pp dst pp_jmpcls cls);
+          m "%s: $%s: src=%a, dst=%a, cls=%a%!"
+            __FUNCTION__ (Func.name t.fn) Label.pp src
+            Label.pp dst pp_jmpcls cls);
       match cls with
       | Fallthrough -> !!`nop
       | Continue -> !!`continue
@@ -315,15 +318,17 @@ module Make(C : Context_intf.S) = struct
       match Ltree.find t.blks l with
       | None ->
         C.failf
-          "Restructure: invalid destination %a in block %a"
-          Label.pp l Label.pp n ()
+          "Restructure: invalid destination %a in block %a of function $%s"
+          Label.pp l Label.pp n (Func.name t.fn) ()
       | Some b ->
         let params = Seq.to_list @@ Blk.args b in
         match List.zip params args with
         | Unequal_lengths ->
           C.failf
-            "Restructure: jump from %a to %a: arity mismatch (got %d, expected %d)"
-            Label.pp n Label.pp l (List.length args) (List.length params) ()
+            "Restructure: jump from %a to %a in function $%s: \
+             arity mismatch (got %d, expected %d)"
+            Label.pp n Label.pp l (Func.name t.fn)
+            (List.length args) (List.length params) ()
         | Ok moves ->
           (* Emit parallel moves, which removes us from SSA form. *)
           let out = Vec.create () in
@@ -378,8 +383,8 @@ module Make(C : Context_intf.S) = struct
       match Ltree.find t.blks n with
       | None ->
         C.failf
-          "Restructure: cannot emit terminator for non-existent block %a"
-          Label.pp n ()
+          "Restructure: cannot emit terminator for non-existent block \
+           %a in function $%s" Label.pp n (Func.name t.fn) ()
       | Some b -> match Blk.ctrl b with
         | `ret _ as r -> !!r
         | `hlt -> !!`hlt

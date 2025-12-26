@@ -15,6 +15,7 @@ type unop = Insn.unop [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type basic = Insn.basic [@@deriving bin_io, compare, equal, sexp_poly]
 
 let free_vars_of_basic = Insn.free_vars_of_basic
+let negate_cmp = Insn.negate_cmp
 
 let pp_arith_binop = Insn.pp_arith_binop
 let pp_arith_unop = Insn.pp_arith_unop
