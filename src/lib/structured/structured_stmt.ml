@@ -97,7 +97,12 @@ and pp_dowhile ppf b c =
     pp b pp_cond c
 
 and pp_loop ppf = function
-  | `seq (`ite (c, `nop, `break), b) -> pp_while ppf c b
+  | `seq (`ite (c, `nop, `break), b)
+  | `ite (c, b, `break)
+    -> pp_while ppf c b
+  | `ite (`cmp (k, l, r), `break, b) ->
+    let k = Virtual.Insn.negate_cmp k in
+    pp_while ppf (`cmp (k, l, r)) b
   | `seq (b, `ite (c, `nop, `break)) -> pp_dowhile ppf b c
   | b ->  Format.fprintf ppf "loop {@;@[<v 2>  %a@]@;}" pp b
 
@@ -160,6 +165,11 @@ let[@tail_mod_cons] rec normalize (s : t) : t = match s with
   | `seq (`nop, s)
   | `seq (s, `nop)
     -> normalize s
+  (* Terminated sequence *)
+  | `seq (
+      (`ret _ | `goto _ | `hlt | `break | `continue as s1),
+      _
+    ) -> s1
   (* Associate sequences to the right. *)
   | `seq (`seq (s1, s2), s3) ->
     normalize @@ `seq (s1, `seq (s2, s3))
