@@ -13,6 +13,8 @@ type 'a tree
 module Tree : sig
   type 'a t = 'a tree
 
+  exception Not_found
+
   (** The root of the tree.
 
       Invariant: [parent t (root t) = None].
@@ -21,6 +23,25 @@ module Tree : sig
 
   (** Immediate parent of a node. *)
   val parent : 'a t -> 'a -> 'a option
+
+  (** Returns [true] if the node is a member of the tree. *)
+  val mem : 'a t -> 'a -> bool
+
+  (** Immediate parent of a node.
+
+      @raise Not_found if no parent exists
+  *)
+  val parent_exn : 'a t -> 'a -> 'a
+
+  (** Depth of a node in the tree. *)
+  val depth : 'a t -> 'a -> int option
+
+  (** Depth of a node in the tree.
+
+      @raise Not_found if the node is not
+      a member of the tree.
+  *)
+  val depth_exn : 'a t -> 'a -> int
 
   (** Immediate children of a node. *)
   val children : 'a t -> 'a -> 'a seq
@@ -41,6 +62,17 @@ module Tree : sig
 
   (** Equivalent to [descendants t (root t)]. *)
   val preorder : 'a t -> 'a seq
+
+  (** Returns the lowest common ancestor (LCA) of two nodes
+      in the tree. *)
+  val lca : 'a t -> 'a -> 'a -> 'a option
+
+  (** Returns the lowest common ancestor (LCA) of two nodes
+      in the tree.
+
+      @raise Not_found if the LCA does not exist
+  *)
+  val lca_exn : 'a t -> 'a -> 'a -> 'a
 end
 
 (** The dominance frontier *)

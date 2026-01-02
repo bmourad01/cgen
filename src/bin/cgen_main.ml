@@ -2,6 +2,13 @@ open Core
 open Regular.Std
 open Cgen
 
+let dump_ok (opts : Cli.t) = match opts.ifmt with
+  | IFstructured -> true
+  | IFvirtual -> match opts.dump with
+    | Dparse | Dssa | Drestructure_preopt | Dmiddle | Drestructure
+    | Dabi | Disel | Disel_dce | Dregalloc | Dpeephole | Dasm -> true
+    | Ddestructure -> false
+
 let comp_virtual' (opts : Cli.t) ppf close bail m =
   let open Context.Syntax in
   let* tenv, m = Passes.initialize m in
@@ -11,8 +18,8 @@ let comp_virtual' (opts : Cli.t) ppf close bail m =
     bail ();
   end;
   let* () = Context.when_ (Cli.equal_dump opts.dump Drestructure_preopt) @@ fun () ->
-    if not opts.nc then Format.fprintf ppf ";; After restructuring (pre-optimizations):\n\n%!";
     let+ m = Passes.restructure ~tenv m in
+    if not opts.nc then Format.fprintf ppf ";; After restructuring (pre-optimizations):\n\n%!";
     Format.fprintf ppf "%a\n%!" Structured.Module.pp m;
     bail () in
   let* tenv, m = Passes.optimize tenv m in
@@ -22,8 +29,8 @@ let comp_virtual' (opts : Cli.t) ppf close bail m =
     bail ();
   end;
   let* () = Context.when_ (Cli.equal_dump opts.dump Drestructure) @@ fun () ->
-    if not opts.nc then Format.fprintf ppf ";; After restructuring (post-optimizations):\n\n%!";
     let+ m = Passes.restructure ~tenv m in
+    if not opts.nc then Format.fprintf ppf ";; After restructuring (post-optimizations):\n\n%!";
     Format.fprintf ppf "%a\n%!" Structured.Module.pp m;
     bail () in
   let* m = Passes.to_abi tenv m in
@@ -109,9 +116,13 @@ let comp_structured (opts : Cli.t) =
   end;
   comp_virtual' opts ppf close bail m
 
-let comp (opts : Cli.t) = match opts.ifmt with
-  | IFvirtual -> comp_virtual opts
-  | IFstructured -> comp_structured opts
+let comp (opts : Cli.t) =
+  if dump_ok opts then match opts.ifmt with
+    | IFvirtual -> comp_virtual opts
+    | IFstructured -> comp_structured opts
+  else
+    Context.failf "input/dump combination %S and %S is invalid"
+      (Cli.string_of_input_fmt opts.ifmt) (Cli.string_of_dump opts.dump) ()
 
 let () =
   Cli.run @@ fun opts ->

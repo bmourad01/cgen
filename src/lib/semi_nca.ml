@@ -8,6 +8,7 @@ type 'a tree = {
   equal    : 'a -> 'a -> bool;
   parent   : 'a -> 'a option;
   children : 'a -> 'a seq;
+  depth    : 'a -> int option;
 }
 
 let preorder ~children n =
@@ -21,10 +22,22 @@ let preorder ~children n =
 module Tree = struct
   type 'a t = 'a tree
 
+  exception Not_found
+
   let root t = t.root
   let parent t n = t.parent n
   let children t n = t.children n
+  let depth t n = t.depth n
   let descendants t n = preorder ~children:t.children n
+  let mem t n = t.equal n t.root || Option.is_some (t.parent n)
+
+  let parent_exn t n = match t.parent n with
+    | None -> raise Not_found
+    | Some p -> p
+
+  let depth_exn t n = match t.depth n with
+    | None -> raise Not_found
+    | Some d -> d
 
   let rec is_descendant_of t ~parent n = match t.parent n with
     | Some p -> t.equal p parent || is_descendant_of t ~parent p
@@ -47,6 +60,31 @@ module Tree = struct
       | None -> return ()
       | Some p -> yield p >>= fun () -> walk p in
     run @@ walk n
+
+  let lca_exn t a b =
+    let ra = ref a
+    and rb = ref b
+    and da = ref (depth_exn t a)
+    and db = ref (depth_exn t b) in
+    (* While `a` is deeper than `b`, go up the tree. *)
+    while !da > !db do
+      ra := parent_exn t !ra;
+      decr da;
+    done;
+    (* While `b` is deeper than `a`, go up the tree. *)
+    while !db > !da do
+      rb := parent_exn t !rb;
+      decr db;
+    done;
+    (* Find the common ancestor. *)
+    while not (t.equal !ra !rb) do
+      ra := parent_exn t !ra;
+      rb := parent_exn t !rb;
+    done;
+    !ra
+
+  let lca t a b = try Some (lca_exn t a b) with
+    | Not_found -> None
 end
 
 type 'a frontier = {
@@ -202,13 +240,18 @@ let compute
       t end in
     fun n -> match Hashtbl.find (Lazy.force t) n with
       | Some s -> Set.to_sequence s
-      | None -> Seq.empty in {
-    rev;
-    root = entry;
-    equal = G.Node.equal;
-    parent;
-    children;
-  }
+      | None -> Seq.empty in
+  let depth =
+    let t = lazy begin
+      let t = G.Node.Table.create () in
+      let q = Stack.singleton (entry, 0) in
+      Stack.until_empty q (fun (n, d) ->
+          Hashtbl.set t ~key:n ~data:d;
+          children n |> Seq.iter ~f:(fun c ->
+              Stack.push q (c, d + 1)));
+      t end in
+    fun n -> Hashtbl.find (Lazy.force t) n in
+  {rev; root = entry; equal = G.Node.equal; parent; children; depth}
 
 (* Based on the paper "Efficiently Computing Static Single Assignment
    Form and the Control Dependence Graph" by Cytron et al. *)
