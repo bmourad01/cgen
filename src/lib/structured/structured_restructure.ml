@@ -1,3 +1,17 @@
+(* Implementation of an algorithm to re-discover structured
+   control flow from a CFG.
+
+   Ideas are taken from the following papers:
+
+   - "On the Capabilities of While, Repeat, and Exit Statements"
+     (1973) by Peterson, Takami, and Tokura
+   - "Beyond Relooper: Recursive Translation of Unstructured Control
+     Flow to Structured Control Flow" (2022) by N. Ramsey
+
+   In the case of irreducible CFGs, we will emit `goto` statements
+   as needed for minimizing code duplication.
+*)
+
 open Core
 open Regular.Std
 open Graphlib.Std
@@ -6,27 +20,22 @@ open Virtual
 module Ltree = Label.Tree
 module Stmt = Structured_stmt
 
-type blks = blk Ltree.t
+(* Info about the function + global state.
 
+   [work]: the nodes that are currently in progress of being emitted
+   [labl]: nodes that require a label (i.e. due to irreducible control flow)
+*)
 type t = {
-  fn    : func;
-  tenv  : Typecheck.env;
-  blks  : blks;
-  cfg   : Cfg.t;
-  pdom  : Label.t Semi_nca.tree;
-  pdomd : Label.t -> int;
-  loop  : Loops.t;
-  live  : Live.t;
+  fn   : func;
+  tenv : Typecheck.env;
+  blks : blk Ltree.t;
+  cfg  : cfg;
+  pdom : Label.t Semi_nca.tree;
+  loop : loops;
+  live : live;
+  work : Label.Hash_set.t;
+  labl : Label.Hash_set.t;
 }
-
-let init_domd tree start =
-  let t = Label.Table.create () in
-  let q = Stack.singleton (start, 0) in
-  Stack.until_empty q (fun (l, d) ->
-      Hashtbl.set t ~key:l ~data:d;
-      Semi_nca.Tree.children tree l |>
-      Seq.iter ~f:(fun c -> Stack.push q (c, d + 1)));
-  Hashtbl.find_exn t
 
 let init ~tenv fn =
   let cfg = Cfg.create fn in
@@ -34,46 +43,12 @@ let init ~tenv fn =
   let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
   let loop = Loops.analyze ~dom ~name:(Func.name fn) cfg in
   let pdom = Semi_nca.compute (module Cfg) ~rev:true cfg Label.pseudoexit in
-  let pdomd = init_domd pdom Label.pseudoexit in
   let live = Live.compute' cfg blks in
-  {fn; tenv; blks; cfg; pdom; pdomd; loop; live}
+  let work = Label.Hash_set.create () in
+  let labl = Label.Hash_set.create () in
+  {fn; tenv; blks; cfg; pdom; loop; live; work; labl}
 
-(* Lowest common ancestor of a tree. *)
-let lca ~idom ~depth a b =
-  let ra = ref a
-  and rb = ref b
-  and da = ref (depth a)
-  and db = ref (depth b) in
-  (* While `a` is deeper than `b`, go up the tree. *)
-  while !da > !db do
-    ra := idom !ra;
-    decr da;
-  done;
-  (* While `b` is deeper than `a`, go up the tree. *)
-  while !db > !da do
-    rb := idom !rb;
-    decr db;
-  done;
-  (* Find the common ancestor. *)
-  while Label.(!ra <> !rb) do
-    ra := idom !ra;
-    rb := idom !rb;
-  done;
-  !ra
-
-(* Lowest common ancestor of the post-dominator tree. *)
-let lca_pdom t a b =
-  let idom l = match Semi_nca.Tree.parent t.pdom l with
-    | None -> assert false
-    | Some p -> p in
-  lca a b ~idom ~depth:t.pdomd
-
-let lca_pdom_list t = function
-  | [] -> None
-  | [s] -> Some s
-  | s :: rest ->
-    Some (List.fold rest ~init:s ~f:(lca_pdom t))
-
+(* Find the lowest post-dominator that is outside of the loop. *)
 let loop_exit t lp =
   let rec climb j =
     if Loops.is_in_loop t.loop j lp then
@@ -84,28 +59,17 @@ let loop_exit t lp =
     else None in
   climb Loops.(header @@ get t.loop lp)
 
+(* If this loop is nested, find the header of its parent. *)
 let parent_loop_header t lp =
   Loops.get t.loop lp |> Loops.parent |>
-  Option.map ~f:(fun p -> Loops.(header @@ get t.loop p))
+  Option.map ~f:(Loops.get t.loop) |>
+  Option.map ~f:Loops.header
 
-let possible_join t n =
-  Cfg.Node.succs n t.cfg |> Seq.to_list |>
-  lca_pdom_list t |> Option.bind ~f:(fun j ->
-      Option.some_if begin
-        (* The block exists (i.e. not a pseudo label) *)
-        Ltree.mem t.blks j &&
-        (* If this join point is in any stack of loops,
-           then `n` (our source node) is within all of
-           them. *)
-        Loops.loops_of t.loop j |>
-        Seq.for_all ~f:(Loops.is_in_loop t.loop n)
-      end j)
+(* A "region" that we're exploring.
 
-(* A current "region" that we're exploring.
-
-   [Loop h]: a loop with header label [h]
+   [Loop (h, lp)]: a loop [lp] with header label [h]
    [Join j]: a region with join point label [j]
-   [Switch s]: a switch region with a join point label [s]
+   [Switch s]: same as [Join s], but specialized to a switch
 *)
 type frame =
   | Loop of Label.t * Loops.loop
@@ -121,14 +85,15 @@ let pp_frame ppf = function
     Format.fprintf ppf "switch(%a)" Label.pp s
 [@@ocaml.warning "-32"]
 
-(* The current stack of regions. *)
 type ctx = {
-  frames : frame list;
+  frames : frame list; (* The current stack of regions *)
 } [@@unboxed]
 
-module Region = struct
-  let empty = {frames = []}
+let empty_ctx = {
+  frames = [];
+}
 
+module Region = struct
   let push_loop h lp ctx = {frames = Loop (h, lp) :: ctx.frames}
 
   let push_switch s ctx = match ctx.frames with
@@ -144,31 +109,26 @@ module Region = struct
         | Loop (h, lp) -> Some (h, lp)
         | _ -> None)
 
-  let outside_current_loop t j ~ctx =
-    match ctx.frames with
-    | Loop (_, lp) :: _ ->
-      not (Loops.is_in_loop t.loop j lp)
-    | Join _ :: Loop (_, lp) :: _ ->
-      not (Loops.is_in_loop t.loop j lp)
-    | Switch _ :: Loop (_, lp) :: _ ->
-      not (Loops.is_in_loop t.loop j lp)
-    | _ -> false
+  let join_is_active j ctx =
+    List.exists ctx.frames ~f:(function
+        | Join l | Switch l -> Label.(l = j)
+        | _ -> false)
 end
 
-(* Shared state for the whole transformation.
-
-   [in_progress]: the nodes that we're currently emitting
-   [scheduled]: the nodes that have been made the target of a goto
-*)
-type state = {
-  in_progress : Label.Hash_set.t;
-  scheduled   : Label.Hash_set.t;
-}
-
-let create_state () = {
-  in_progress = Label.Hash_set.create ();
-  scheduled = Label.Hash_set.create ();
-}
+let possible_join t n ~ctx =
+  Cfg.Node.succs n t.cfg |>
+  Seq.reduce ~f:(Semi_nca.Tree.lca_exn t.pdom) |>
+  Option.bind ~f:(fun j -> Option.some_if begin
+      (* The join point is a valid block. *)
+      Ltree.mem t.blks j &&
+      (* If this join point is in any stack of loops,
+         then `n` (our source node) is within all of
+         them. *)
+      Loops.loops_of t.loop j |>
+      Seq.for_all ~f:(Loops.is_in_loop t.loop n) &&
+      (* Skip if this join is an active region. *)
+      not (Region.join_is_active j ctx)
+    end j)
 
 (* Classification of a jump. *)
 type jmpcls =
@@ -182,10 +142,8 @@ let pp_jmpcls ppf cls =
   Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_jmpcls cls
 [@@ocaml.warning "-32"]
 
-module Classify : sig
-  val jmp : t -> ctx:ctx -> src:Label.t -> dst:Label.t -> jmpcls
-end = struct
-  let continue t ~ctx ~dst =
+module Classify = struct
+  let continue ctx ~dst =
     let rec find = function
       | Loop (h, _) :: _ ->
         (* Jumping back to current loop header. *)
@@ -210,12 +168,12 @@ end = struct
 
   (* Like `fallthrough` below, but specialized for a `Switch`
      join point. *)
-  let break_switch t ~ctx ~dst = match ctx.frames with
+  let break_switch ctx ~dst = match ctx.frames with
     | Switch s :: _ -> Label.(s = dst)
     | _ -> false
 
   (* Jumps to nearest join point. *)
-  let fallthrough t ~ctx ~dst = match ctx.frames with
+  let fallthrough ctx ~dst = match ctx.frames with
     | Join j :: _ -> Label.(j = dst)
     | _ -> false
 
@@ -225,31 +183,20 @@ end = struct
   let continue_or_fallthrough t ~ctx ~dst =
     let lp = Option.value_exn @@ Loops.blk t.loop dst in
     match loop_exit t lp with
-    | Some j when fallthrough t ~ctx ~dst:j -> Fallthrough
+    | Some j when fallthrough ctx ~dst:j -> Fallthrough
     | Some _ | None -> Continue
 
-  let debug_jmp t ctx src dst =
-    Logs.debug (fun m ->
-        m "%s: $%s: src=%a, dst=%a, stack:@;@[<v 0>%a@]%!"
-          __FUNCTION__ (Func.name t.fn) Label.pp src Label.pp dst
-          (Format.pp_print_list
-             ~pp_sep:(fun ppf () -> Format.fprintf ppf "@;")
-             pp_frame) ctx.frames)
-
   let jmp t ~ctx ~src ~dst =
-    debug_jmp t ctx src dst;
-    if continue t ~ctx ~dst then continue_or_fallthrough t ~ctx ~dst
-    else if break_switch t ~ctx ~dst then Break
+    if continue ctx ~dst then continue_or_fallthrough t ~ctx ~dst
+    else if break_switch ctx ~dst then Break
     else if break_loop t ~ctx ~dst then Break
-    else if fallthrough t ~ctx ~dst then Fallthrough
+    else if fallthrough ctx ~dst then Fallthrough
     else Inline
 end
 
-let op i = (Insn.op i :> Stmt.t)
-
 (* See if this block has a single-use comparison that we
    can fold into the `ite` statement. *)
-let find_cond t n =
+let find_single_use_cond t n =
   let ok x c =
     (* Same condition var. *)
     Var.(x = c) &&
@@ -261,11 +208,22 @@ let find_cond t n =
         Blk.insns ~rev:true b |> Seq.hd |>
         Option.bind ~f:(fun i -> match Insn.op i with
             | `bop (x, (#Insn.cmp as cmp), l, r) when ok x c ->
-              let label = Insn.label i
-              and k = `cmp (cmp, l, r) in
+              let label = Insn.label i in
+              let k = `cmp (cmp, l, r) in
               Some (label, k)
             | _ -> None)
       | _ -> None)
+
+type term = {
+  stmt : Stmt.t;
+  join : Label.t option;
+}
+
+let terminate ?join ctx stmt =
+  let join = Option.bind join ~f:(fun j ->
+      let active = Region.join_is_active j ctx in
+      Option.some_if (not active) j) in
+  {stmt; join}
 
 module Make(C : Context_intf.S) = struct
   open C.Syntax
@@ -291,30 +249,37 @@ module Make(C : Context_intf.S) = struct
       | Some b ->
         let s = match k with
           | None -> Blk.insns b
-          | Some k ->
-            Blk.insns b |> Seq.filter ~f:(fun i ->
-                not @@ Label.equal k @@ Insn.label i) in
-        Seq.map s ~f:op |> Seq.to_list |> Stmt.seq |> C.return
+          | Some k -> Blk.insns b |> Seq.filter ~f:(fun i ->
+              not @@ Label.equal k @@ Insn.label i) in
+        Seq.map s ~f:(fun i -> (Insn.op i :> Stmt.t)) |>
+        Seq.to_list |> Stmt.seq |> C.return
       | None ->
         C.failf
           "Restructure: cannot emit body for non-existent \
            block %a in function $%s" Label.pp n (Func.name t.fn) ()
 
     (* Branch to a block. *)
-    let rec branch t ~ctx ~st ~src ~dst =
+    let rec branch t ~ctx ~src ~dst =
       let cls = Classify.jmp t ~ctx ~src ~dst in
       Logs.debug (fun m ->
-          m "%s: $%s: src=%a, dst=%a, cls=%a%!"
+          m "%s: $%s:@;\
+             src=%a,@;\
+             dst=%a,@;\
+             cls=%a,@;\
+             frames=%a%!"
             __FUNCTION__ (Func.name t.fn) Label.pp src
-            Label.pp dst pp_jmpcls cls);
+            Label.pp dst pp_jmpcls cls
+            (Format.pp_print_list
+               ~pp_sep:(fun ppf () -> Format.fprintf ppf " ")
+               pp_frame) ctx.frames);
       match cls with
       | Fallthrough -> !!`nop
       | Continue -> !!`continue
       | Break -> !!`break
-      | Inline -> node t dst ~ctx ~st
+      | Inline -> node t dst ~ctx
 
     (* Local control-flow destination. *)
-    and local t n l args ~ctx ~st =
+    and local t n l args ~ctx =
       match Ltree.find t.blks l with
       | None ->
         C.failf
@@ -333,113 +298,116 @@ module Make(C : Context_intf.S) = struct
           (* Emit parallel moves, which removes us from SSA form. *)
           let out = Vec.create () in
           let* () = windmill out t n moves in
-          let+ b = branch t ~ctx ~st ~src:n ~dst:l in
+          let+ b = branch t ~ctx ~src:n ~dst:l in
           Vec.push out b;
           Stmt.seq @@ Vec.to_list out
 
     (* Control-flow destination. *)
-    and dest t n d ~ctx ~st = match d with
+    and dest t n d ~ctx = match d with
       | #global as g -> !!(`goto g)
-      | `label (l, args) -> local t n l args ~ctx ~st
+      | `label (l, args) -> local t n l args ~ctx
 
-    and br ?k t n c yes no ~ctx ~st =
-      let j = possible_join t n in
+    and br ?k t n c yes no ~ctx =
+      let j = possible_join t n ~ctx in
       let ctx' = match j with
-        | None -> ctx
-        | Some j -> Region.push_join j ctx in
-      let* yes = dest t n yes ~ctx:ctx' ~st in
-      let* no = dest t n no ~ctx:ctx' ~st in
-      let ite = match k with
-        | None -> `ite (`var c, yes, no)
-        | Some k -> `ite (k, yes, no) in
-      match j with
-      | None -> !!ite
-      | Some j when Region.outside_current_loop t j ~ctx -> !!ite
-      | Some j ->
-        let+ j = node t j ~ctx ~st in
-        `seq (ite, j)
+        | Some j -> Region.push_join j ctx
+        | None -> ctx in
+      let* syes = dest t n yes ~ctx:ctx' in
+      let+ sno = dest t n no ~ctx:ctx' in
+      terminate ?join:j ctx @@ match k with
+      | Some k -> `ite (k, syes, sno)
+      | None -> `ite (`var c, syes, sno)
 
-    and sw t n ty i d dargs tbl ~ctx ~st =
-      let j = possible_join t n in
+    and sw t n ty i d dargs tbl ~ctx =
+      let j = possible_join t n ~ctx in
       let ctx' = match j with
         | Some j -> Region.push_switch j ctx
         | None -> ctx in
       let* cs =
         Ctrl.Table.enum tbl |>
         C.Seq.map ~f:(fun (i, `label (l, args)) ->
-            let+ c = local t n l args ~ctx:ctx' ~st in
+            let+ c = local t n l args ~ctx:ctx' in
             `case (i, c)) >>| Seq.to_list in
-      let* d = local t n d dargs ~ctx:ctx' ~st in
-      let sw = `sw (i, ty, cs @ [`default d]) in
-      match j with
-      | None -> !!sw
-      | Some j when Region.outside_current_loop t j ~ctx -> !!sw
-      | Some j ->
-        let+ j = node t j ~ctx ~st in
-        `seq (sw, j)
+      let+ d = local t n d dargs ~ctx:ctx' in
+      terminate ?join:j ctx @@ `sw (i, ty, cs @ [`default d])
 
     (* Terminator instruction. *)
-    and term ?k t n ~ctx ~st =
+    and term ?k t n ~ctx =
       match Ltree.find t.blks n with
       | None ->
         C.failf
           "Restructure: cannot emit terminator for non-existent block \
            %a in function $%s" Label.pp n (Func.name t.fn) ()
       | Some b -> match Blk.ctrl b with
-        | `ret _ as r -> !!r
-        | `hlt -> !!`hlt
-        | `jmp d -> dest t n d ~ctx ~st
-        | `br (c, yes, no) -> br ?k t n c yes no ~ctx ~st
+        | `ret _ as r -> !!(terminate ctx r)
+        | `hlt -> !!(terminate ctx `hlt)
+        | `jmp d -> dest t n d ~ctx >>| terminate ctx
+        | `br (c, yes, no) -> br ?k t n c yes no ~ctx
         | `sw (ty, i, `label (d, dargs), tbl) ->
-          sw t n ty i d dargs tbl ~ctx ~st
+          sw t n ty i d dargs tbl ~ctx
 
-    (* Loop region. *)
-    and loop t n ~ctx ~st =
+    (* Loop region.
+
+       pre: `n` is a loop header
+    *)
+    and loop t n ~ctx =
       let lp = Option.value_exn @@ Loops.blk t.loop n in
+      let j = loop_exit t lp in
       let ctx' = Region.push_loop n lp ctx in
-      let* body = plain t n ~ctx:ctx' ~st in
-      match loop_exit t lp with
+      let ctx' = match j with
+        | None -> ctx'
+        | Some j -> Region.push_join j ctx' in
+      let* body = plain t n ~ctx:ctx' in
+      match j with
       | None -> !!(`loop body)
       | Some j ->
-        let+ j = node t j ~ctx ~st in
+        (* XXX: we emit the join point (loop exit) eagerly, but can
+           we skip this if it is an active region? *)
+        let+ j = node t j ~ctx in
         `seq (`loop body, j)
 
     (* Plain body and terminator. *)
-    and plain t n ~ctx ~st =
-      let k = find_cond t n in
+    and plain t n ~ctx =
+      let k = find_single_use_cond t n in
       let kb = Option.map k ~f:fst in
       let kt = Option.map k ~f:snd in
       let* body = body ?k:kb t n in
-      let+ term = term ?k:kt t n ~ctx ~st in
-      `seq (body, term)
+      let* term = term ?k:kt t n ~ctx in
+      match term.join with
+      | None -> !!(`seq (body, term.stmt))
+      | Some j ->
+        let+ sj = node t j ~ctx in
+        `seq (body, `seq (term.stmt, sj))
 
     (* Main entry point. *)
-    and node t n ~ctx ~st =
-      if Hash_set.mem st.scheduled n then
+    and node t n ~ctx =
+      if Hash_set.mem t.labl n then
+        (* Re-entering a node that already has a label, so
+           insert a goto. *)
         !!(`goto (`label n))
-      else match Hash_set.strict_add st.in_progress n with
+      else match Hash_set.strict_add t.work n with
         | Error _ ->
-          Hash_set.add st.scheduled n;
+          (* We're in the middle of emitting this node, and we
+             re-entered it, so ensure that it will be enclosed
+             within an explicit label. *)
+          Hash_set.add t.labl n;
           !!(`goto (`label n))
         | Ok () ->
           let+ body =
             if Loops.is_header t.loop n
-            then loop t n ~ctx ~st
-            else plain t n ~ctx ~st in
-          Hash_set.remove st.in_progress n;
-          if Hash_set.mem st.scheduled n
-          then `label (n, body) else body
+            then loop t n ~ctx
+            else plain t n ~ctx in
+          Hash_set.remove t.work n;
+          if Hash_set.mem t.labl n then `label (n, body) else body
   end
 
   let run ~tenv fn =
     let t = init ~tenv fn in
-    let st = create_state () in
-    let ctx = Region.empty in
-    let+ body = Emit.plain t (Func.entry fn) ~ctx ~st in
+    let start = Func.entry fn in
+    let+ body = Emit.plain t start ~ctx:empty_ctx in
     let body = Stmt.normalize body in
     Structured_func.create () ~body
-      ~dict:(Func.dict fn)
-      ~name:(Func.name fn)
+      ~dict:(Func.dict fn) ~name:(Func.name fn)
       ~args:(Seq.to_list @@ Func.args fn)
       ~slots:(Seq.to_list @@ Func.slots fn)
 end

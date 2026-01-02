@@ -37,7 +37,6 @@ type t = {
   reso : resolver;              (* Labels to blocks/insns. *)
   cfg  : Cfg.t;                 (* The CFG. *)
   dom  : Label.t Semi_nca.tree; (* Dominator tree. *)
-  domd : int Label.Table.t;     (* Dominator tree depths. *)
   pdom : Label.t Semi_nca.tree; (* Post-dominator tree. *)
   rdom : Dominance.t;           (* Fine-grained dominance relation. *)
   lst  : Last_stores.t;         (* Last stores analysis. *)
@@ -68,15 +67,6 @@ let init_last_stores cfg reso =
     end) in
   Lst.analyze cfg
 
-let dom_depths dom =
-  let t = Label.Table.create () in
-  let q = Stack.singleton (Label.pseudoentry, 0) in
-  Stack.until_empty q (fun (l, d) ->
-      Hashtbl.set t ~key:l ~data:d;
-      Semi_nca.Tree.children dom l |> Seq.iter ~f:(fun l' ->
-          Stack.push q (l', d + 1)));
-  t
-
 let init_rpo cfg =
   let nums = Label.Table.create () in
   Graphlib.reverse_postorder_traverse
@@ -97,11 +87,10 @@ let init fn tenv =
   let pdom = Semi_nca.compute (module Cfg) cfg Label.pseudoexit ~rev:true in
   let rdom = init_dom_relation reso dom in
   let lst = init_last_stores cfg reso in
-  let domd = dom_depths dom in
   let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
   let rpo = init_rpo cfg in
   let scc = Graphlib.strong_components (module Cfg) cfg in
   Logs.debug (fun m ->
       m "%s: SCCs of $%s: %a%!"
         __FUNCTION__ (Func.name fn) (Partition.pp Label.pp) scc);
-  {fn; loop; reso; cfg; dom; domd; pdom; rdom; lst; tenv; phis; rpo; scc}
+  {fn; loop; reso; cfg; dom; pdom; rdom; lst; tenv; phis; rpo; scc}

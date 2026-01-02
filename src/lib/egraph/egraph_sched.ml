@@ -6,37 +6,6 @@ open Core
 open Egraph_common
 open Virtual
 
-(* Immediate dominator. *)
-let idom t l = match Semi_nca.Tree.parent t.input.dom l with
-  | Some l' -> l'
-  | None ->
-    (* The root is pseudoentry, which we should never reach. *)
-    assert false
-
-(* Lowest common ancestor in the dominator tree. Note that this
-   should always be a block label. *)
-let lca' t a b =
-  let ra = ref a
-  and rb = ref b
-  and da = ref (Hashtbl.find_exn t.input.domd a)
-  and db = ref (Hashtbl.find_exn t.input.domd b) in
-  (* While `a` is deeper than `b`, go up the tree. *)
-  while !da > !db do
-    ra := idom t !ra;
-    decr da;
-  done;
-  (* While `b` is deeper than `a`, go up the tree. *)
-  while !db > !da do
-    rb := idom t !rb;
-    decr db;
-  done;
-  (* Find the common ancestor. *)
-  while Label.(!ra <> !rb) do
-    ra := idom t !ra;
-    rb := idom t !rb;
-  done;
-  !ra
-
 (* Resolve both labels to their corresponding blocks before we
    walk up the tree. *)
 let lca t a b =
@@ -45,7 +14,7 @@ let lca t a b =
   | None, _ | _, None -> assert false
   | Some (`insn (_, ba, _, _) | `blk ba),
     Some (`insn (_, bb, _, _) | `blk bb) ->
-    lca' t (Blk.label ba) (Blk.label bb)
+    Semi_nca.Tree.lca_exn t.input.dom (Blk.label ba) (Blk.label bb)
 
 (* Note that `id` must be the canonical e-class. *)
 let move t old l id =
