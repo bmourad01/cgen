@@ -31,8 +31,8 @@ function $partition { ; returns: rax
   cmp rbx, r15 ; @92
   jle @14 ; @93
 @15:
-  lea rbx, qword ptr [rax + 0x1] ; @54
-  lea rdi, qword ptr [r12 + rbx*4] ; @56
+  lea rbx, qword ptr [rax + 0x1] ; @61
+  lea rdi, qword ptr [r12 + rbx*4] ; @63
   mov rsi, qword ptr [rbp - 0x10] ; @125
   call $swap ; rdi rsi ; @90
   mov rax, rbx ; @87
@@ -44,17 +44,17 @@ function $partition { ; returns: rax
   leave ; @139
   ret ; @88
 @14:
-  lea rsi, qword ptr [r12 + rbx*4] ; @58
+  lea rsi, qword ptr [r12 + rbx*4] ; @55
   mov ecx, dword ptr [rsi] ; @22
   cmp ecx, r14d ; @81
   jg @19 ; @82
 @18:
-  lea r13, qword ptr [rax + 0x1] ; @61
-  lea rdi, qword ptr [r12 + r13*4] ; @63
+  lea r13, qword ptr [rax + 0x1] ; @58
+  lea rdi, qword ptr [r12 + r13*4] ; @60
   call $swap ; rdi rsi ; @77
   mov rax, r13 ; @74
 @19:
-  inc rbx ; @60
+  inc rbx ; @57
   jmp @8 ; @73
 }
 

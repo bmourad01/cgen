@@ -9,6 +9,7 @@ type 'a tree = {
   parent   : 'a -> 'a option;
   children : 'a -> 'a seq;
   depth    : 'a -> int option;
+  rpo      : 'a -> int option;
 }
 
 let preorder ~children n =
@@ -16,7 +17,7 @@ let preorder ~children n =
   let rec gen u =
     yield u >>= fun () ->
     children u |> Seq.fold ~init:(return ())
-      ~f:(fun acc c ->  acc >>= fun () -> gen c) in
+      ~f:(fun acc c -> acc >>= fun () -> gen c) in
   run @@ gen n
 
 module Tree = struct
@@ -24,10 +25,12 @@ module Tree = struct
 
   exception Not_found
 
+  let is_reversed t = t.rev
   let root t = t.root
   let parent t n = t.parent n
   let children t n = t.children n
   let depth t n = t.depth n
+  let rpo t n = t.rpo n
   let descendants t n = preorder ~children:t.children n
   let mem t n = t.equal n t.root || Option.is_some (t.parent n)
 
@@ -39,9 +42,15 @@ module Tree = struct
     | None -> raise Not_found
     | Some d -> d
 
+  let rpo_exn t n = match t.rpo n with
+    | None -> raise Not_found
+    | Some o -> o
+
   let rec is_descendant_of t ~parent n = match t.parent n with
     | Some p -> t.equal p parent || is_descendant_of t ~parent p
     | None -> false
+
+  let dominates t a b = t.equal a b || is_descendant_of t ~parent:a b
 
   let postorder t =
     let open Seq.Generator in
@@ -147,15 +156,27 @@ module Impl = struct
 
   let ( .!() ) t i = Vec.unsafe_get t i
 
+  type 'a frame =
+    | Enter of 'a * int
+    | Exit of 'a
+
   (* Initialize the DFS spanning tree. *)
-  let dfs g nums preord entry dir =
-    let q = Stack.singleton (entry, 0) in
-    let not_visited n = not @@ Hashtbl.mem nums n in
-    Stack.until_empty q @@ fun (u, p) -> if not_visited u then
+  let dfs g nums postord preord entry dir =
+    let q = Stack.singleton @@ Enter (entry, 0) in
+    Stack.until_empty q @@ function
+    | Exit u -> Vec.push postord u
+    | Enter (u, _) when Hashtbl.mem nums u -> ()
+    | Enter (u, p) ->
+      Stack.push q @@ Exit u;
       let n = Vec.length preord in
       Hashtbl.set nums ~key:u ~data:n;
       Vec.push preord @@ create_node p n u;
-      dir u g |> Seq.iter ~f:(fun v -> Stack.push q (v, n))
+      (* Explore the children according to the ordering
+         prescribed by `g`. *)
+      dir u g |> Seq.filter ~f:(fun v ->
+          not @@ Hashtbl.mem nums v) |>
+      Seq.to_list_rev |> List.iter ~f:(fun v ->
+          Stack.push q @@ Enter (v, n))
 
   (* Compute the path containing v's ancestors. *)
   let rec ancestor_path ~stop path preord v =
@@ -213,20 +234,29 @@ let compute
       with type t = t
        and type edge = e
        and type node = n) ?(rev = false) g entry =
-  (* The algorithm itself *)
   let dfs_dir = if rev then G.Node.preds else G.Node.succs in
   let sdom_dir = if rev then G.Node.succs else G.Node.preds in
   (* Map nodes to preorder numbers *)
   let nums = G.Node.Table.create () in
   (* Preorder spanning tree *)
+  let postord = Vec.create () in
   let preord = Vec.create () in
-  Impl.dfs g nums preord entry dfs_dir;
+  Impl.dfs g nums postord preord entry dfs_dir;
   (* Ancestor path. *)
   let path = Stack.create () in
   Impl.semi g path nums preord sdom_dir;
   (* Immediate dominators *)
   let idom = G.Node.Table.create () in
   Impl.idom idom preord;
+  (* Reverse postorder numbering *)
+  let rpo =
+    let t = lazy begin
+      let t = G.Node.Table.create () in
+      let n = Vec.length postord in
+      Vec.iteri postord ~f:(fun i key ->
+          Hashtbl.set t ~key ~data:(n - 1 - i));
+      t end in
+    fun n -> Hashtbl.find (Lazy.force t) n in
   (* The resulting tree methods *)
   let parent u = Hashtbl.find idom u in
   let children =
@@ -234,12 +264,16 @@ let compute
       let t = G.Node.Table.create () in
       G.nodes g |> Seq.iter ~f:(fun u ->
           parent u |> Option.iter ~f:(fun v ->
-              Hashtbl.update t v ~f:(function
-                  | None -> G.Node.Set.singleton u
-                  | Some s -> Set.add s u)));
+              Hashtbl.add_multi t ~key:v ~data:u));
+      (* Sort children by RPO number *)
+      Hashtbl.map_inplace t
+        ~f:(List.dedup_and_sort ~compare:(fun a b ->
+            let na = Option.value_exn (rpo a) in
+            let nb = Option.value_exn (rpo b) in
+            Int.compare na nb));
       t end in
     fun n -> match Hashtbl.find (Lazy.force t) n with
-      | Some s -> Set.to_sequence s
+      | Some s -> Seq.of_list s
       | None -> Seq.empty in
   let depth =
     let t = lazy begin
@@ -251,7 +285,8 @@ let compute
               Stack.push q (c, d + 1)));
       t end in
     fun n -> Hashtbl.find (Lazy.force t) n in
-  {rev; root = entry; equal = G.Node.equal; parent; children; depth}
+  let root = entry and equal = G.Node.equal in
+  {rev; root; equal; parent; children; depth; rpo}
 
 (* Based on the paper "Efficiently Computing Static Single Assignment
    Form and the Control Dependence Graph" by Cytron et al. *)

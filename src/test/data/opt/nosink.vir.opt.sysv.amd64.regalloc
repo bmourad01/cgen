@@ -8,13 +8,13 @@ export function $foo { ; returns: rax
   cmp edi, 0x1_w ; @33
   je @9 ; @34
 @10:
-  lea eax, qword ptr [rdi + rdi*4 + 0x6] ; @22
+  lea eax, qword ptr [rdi + rdi*4 + 0x6] ; @24
   jmp @7 ; @32
 @9:
   lea eax, qword ptr [rdi + rdi*4 + 0x5] ; @23
   jmp @7 ; @30
 @3:
-  lea eax, qword ptr [rdi + rdi*4 + 0x1] ; @24
+  lea eax, qword ptr [rdi + rdi*4 + 0x1] ; @20
 @7:
   dec eax ; @19
   ret ; @26

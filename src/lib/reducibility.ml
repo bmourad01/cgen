@@ -12,9 +12,7 @@ let check
   let dom = match dom with
     | None -> Semi_nca.compute (module G) g entry
     | Some dom -> dom in
-  let (#>) parent n =
-    G.Node.(parent = n) ||
-    Semi_nca.Tree.is_descendant_of dom ~parent n in
+  let (#>) a b = Semi_nca.Tree.dominates dom a b in
   Graphlib.depth_first_search (module G) g
     ~start:entry ~init:()
     ~start_tree:(fun n () ->

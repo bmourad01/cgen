@@ -42,7 +42,6 @@ type t = {
   lst  : Last_stores.t;         (* Last stores analysis. *)
   tenv : Typecheck.env;         (* Typing environment. *)
   phis : Phis.state;            (* Block argument value sets. *)
-  rpo  : Label.t -> int;        (* Reverse post-order number. *)
   scc  : Label.t partition;     (* Strongly-connected components. *)
 }
 
@@ -67,13 +66,6 @@ let init_last_stores cfg reso =
     end) in
   Lst.analyze cfg
 
-let init_rpo cfg =
-  let nums = Label.Table.create () in
-  Graphlib.reverse_postorder_traverse
-    ~start:Label.pseudoentry (module Cfg) cfg |>
-  Seq.iteri ~f:(fun i l -> Hashtbl.set nums ~key:l ~data:i);
-  Hashtbl.find_exn nums
-
 let resolve_blk reso l =
   match Resolver.resolve reso l with
   | Some `blk b -> Some b
@@ -88,9 +80,8 @@ let init fn tenv =
   let rdom = init_dom_relation reso dom in
   let lst = init_last_stores cfg reso in
   let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
-  let rpo = init_rpo cfg in
   let scc = Graphlib.strong_components (module Cfg) cfg in
   Logs.debug (fun m ->
       m "%s: SCCs of $%s: %a%!"
         __FUNCTION__ (Func.name fn) (Partition.pp Label.pp) scc);
-  {fn; loop; reso; cfg; dom; pdom; rdom; lst; tenv; phis; rpo; scc}
+  {fn; loop; reso; cfg; dom; pdom; rdom; lst; tenv; phis; scc}

@@ -11,7 +11,7 @@ export function $foo { ; returns: rax
   test edi, edi ; @45
   je @3 ; @46
 @4:
-  lea ebx, qword ptr [rdi - 0x1] ; @25
+  lea ebx, qword ptr [rdi - 0x1] ; @26
   test eax, eax ; @40
   jne @8 ; @41
 @28:
@@ -19,12 +19,12 @@ export function $foo { ; returns: rax
   mov eax, 0x1_w ; @38
   jmp @2 ; @39
 @8:
-  lea esi, qword ptr [rax - 0x1] ; @26
+  lea esi, qword ptr [rax - 0x1] ; @27
   call $foo ; rdi rsi ; @35
   mov edi, ebx ; @31
   jmp @2 ; @33
 @3:
-  inc eax ; @27
+  inc eax ; @24
   pop rbx ; @59
   leave ; @60
   ret ; @30
