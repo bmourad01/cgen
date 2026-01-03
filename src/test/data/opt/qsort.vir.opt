@@ -21,26 +21,26 @@ function l $partition(l %arr, l %low, l %high) {
   %7 = sle.l %j.2, %6 ; @53
   br %7, @14, @15
 @14:
-  %11 = lsl.l %j.2, 0x2_l ; @57
-  %12 = add.l %arr, %11 ; @58
-  %j_val.1 = ld.w %12 ; @22
-  %13 = sle.w %j_val.1, %pivot.1 ; @59
-  br %13, @18, @19(%i.2)
+  %8 = lsl.l %j.2, 0x2_l ; @54
+  %9 = add.l %arr, %8 ; @55
+  %j_val.1 = ld.w %9 ; @22
+  %10 = sle.w %j_val.1, %pivot.1 ; @56
+  br %10, @18, @19(%i.2)
 @19(%i.3):
-  %14 = add.l %j.2, 0x1_l ; @60
-  jmp @8(%14, %i.3)
+  %11 = add.l %j.2, 0x1_l ; @57
+  jmp @8(%11, %i.3)
 @18:
+  %12 = add.l %i.2, 0x1_l ; @58
+  %13 = lsl.l %12, 0x2_l ; @59
+  %14 = add.l %arr, %13 ; @60
+  call $swap(%14, %9) ; @30
+  jmp @19(%12)
+@15:
   %15 = add.l %i.2, 0x1_l ; @61
   %16 = lsl.l %15, 0x2_l ; @62
   %17 = add.l %arr, %16 ; @63
-  call $swap(%17, %12) ; @30
-  jmp @19(%15)
-@15:
-  %8 = add.l %i.2, 0x1_l ; @54
-  %9 = lsl.l %8, 0x2_l ; @55
-  %10 = add.l %arr, %9 ; @56
-  call $swap(%10, %4) ; @36
-  ret %8
+  call $swap(%17, %4) ; @36
+  ret %15
 }
 
 export function $qsort(l %arr, l %low, l %high) {

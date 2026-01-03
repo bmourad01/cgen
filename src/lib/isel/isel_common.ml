@@ -26,15 +26,12 @@ type 'r t = {
   id2r  : 'r Uopt.t Vec.t;
   cfg   : Cfg.t;
   dom   : Label.t Semi_nca.tree;
-  rpo   : Label.t -> int;
   blks  : blk Label.Tree.t;
   v2id  : Id.t Var.Table.t;
   insn  : Id.t list Label.Table.t;
   extra : Label.t list Label.Table.t;
   frame : bool;
 }
-
-exception Missing_rpo of Label.t
 
 let new_node ?l ?ty t n : Id.t =
   let id = Vec.length t.node in

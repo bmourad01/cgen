@@ -25,7 +25,7 @@ let blk_args =
              !!(Set.add seen x)) in
   updenv env
 
-let rec check_blk doms rpo blks seen l =
+let rec check_blk doms blks seen l =
   let* blk = match Label.Tree.find blks l with
     | Some blk -> !!blk
     | None ->
@@ -36,16 +36,8 @@ let rec check_blk doms rpo blks seen l =
   let* () = blk_args in
   let* () = Insns.go seen in
   let* () = Ctrls.go blks @@ Blk.ctrl blk in
-  let rpn = Hashtbl.find_exn rpo in
-  Semi_nca.Tree.children doms l |> Seq.filter ~f:not_pseudo |> Seq.to_list |>
-  List.sort ~compare:(fun a b -> compare (rpn a) (rpn b)) |>
-  M.List.iter ~f:(check_blk doms rpo blks seen)
-
-let make_rpo cfg start =
-  let rpo = Label.Table.create () in
-  Graphlib.reverse_postorder_traverse (module Cfg) cfg ~start |>
-  Seq.iteri ~f:(fun i l -> Hashtbl.set rpo ~key:l ~data:i);
-  rpo
+  Semi_nca.Tree.children doms l |> Seq.filter ~f:not_pseudo |>
+  M.Seq.iter ~f:(check_blk doms blks seen)
 
 let typ_of_typ_arg env = function
   | #Type.basic as b -> Ok (b :> Type.t)
@@ -123,8 +115,7 @@ let check fn =
   let* () = check_entry_args fn blks in
   let start = Label.pseudoentry in
   (* We will traverse the blocks according to the dominator tree
-     so that we get the right ordering for definitions. *)
+     so that we get the right ordering for definitions. The API
+     here guarantees that children are sorted by RPO number. *)
   let doms = Semi_nca.compute (module Cfg) cfg start in
-  (* However, it requires us to visit children of each node in
-     the tree according to the reverse postorder traversal. *)
-  check_blk doms (make_rpo cfg start) blks seen @@ Func.entry fn
+  check_blk doms blks seen @@ Func.entry fn

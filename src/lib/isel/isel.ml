@@ -4,15 +4,6 @@ open Graphlib.Std
 open Virtual.Abi
 open Isel_common
 
-let init_rpo cfg =
-  let nums = Label.Table.create () in
-  Graphlib.reverse_postorder_traverse
-    ~start:Label.pseudoentry (module Cfg) cfg |>
-  Seq.iteri ~f:(fun i l -> Hashtbl.set nums ~key:l ~data:i);
-  fun l -> match Hashtbl.find nums l with
-    | None -> raise @@ Missing_rpo l
-    | Some i -> i
-
 let needs_stack_frame fn =
   (* Takes variadic args. *)
   Func.variadic fn ||
@@ -37,7 +28,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       id2r = Vec.create ();
       cfg;
       dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry;
-      rpo = init_rpo cfg;
       blks = Func.map_of_blks fn;
       v2id = Var.Table.create ();
       insn = Label.Table.create ();

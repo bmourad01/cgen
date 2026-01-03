@@ -40,24 +40,24 @@ export function $foo { ; returns: rax
   cmp eax, r11d ; @74
   jl @21 ; @75
 @22:
-  lea eax, qword ptr [rsi + rdi*1] ; @48
-  lea ecx, qword ptr [r8 + r9*1] ; @49
+  lea eax, qword ptr [rsi + rdi*1] ; @59
+  lea ecx, qword ptr [r8 + r9*1] ; @60
   imul eax, ecx ; @73
-  add eax, r12d ; @51
-  inc r13d ; @52
+  add eax, r12d ; @62
+  inc r13d ; @63
   jmp @3 ; @72
 @21:
-  lea ecx, qword ptr [rsi + rax*1] ; @53
-  lea edx, qword ptr [rdi + rax*1] ; @54
-  lea ebx, qword ptr [r8 + rax*1] ; @55
-  lea r10d, qword ptr [r9 + rax*1] ; @56
+  lea ecx, qword ptr [rsi + rax*1] ; @48
+  lea edx, qword ptr [rdi + rax*1] ; @49
+  lea ebx, qword ptr [r8 + rax*1] ; @50
+  lea r10d, qword ptr [r9 + rax*1] ; @51
   imul ecx, edx ; @69
-  mov edx, ebx ; @58
+  mov edx, ebx ; @53
   imul edx, r10d ; @68
-  add ecx, ebx ; @59
-  add edx, r10d ; @60
+  add ecx, ebx ; @54
+  add edx, r10d ; @55
   xor ecx, edx ; @67
-  add r12d, ecx ; @62
-  inc eax ; @63
+  add r12d, ecx ; @57
+  inc eax ; @58
   jmp @9 ; @66
 }

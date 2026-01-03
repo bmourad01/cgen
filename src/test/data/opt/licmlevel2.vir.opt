@@ -11,12 +11,12 @@ export function w $foo(w %x) {
   %2 = lt.w %j.2, 0xa_w ; @20
   br %2, @11, @12
 @11:
-  %4 = add.w %z.3, %0 ; @22
-  %5 = add.w %j.2, 0x1_w ; @23
-  jmp @9(%4, %5)
+  %3 = add.w %z.3, %0 ; @21
+  %4 = add.w %j.2, 0x1_w ; @22
+  jmp @9(%3, %4)
 @12:
-  %3 = add.w %i.2, 0x1_w ; @21
-  jmp @3(%z.3, %3)
+  %5 = add.w %i.2, 0x1_w ; @23
+  jmp @3(%z.3, %5)
 @7:
   ret %z.2
 }

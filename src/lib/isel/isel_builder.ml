@@ -429,15 +429,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let* () = Blk.insns b |> C.Seq.iter ~f:(insn t) in
       ctrl t (Blk.label b) (Blk.ctrl b)
 
-  let enqueue t l q = try C.return @@
-      let cmp a b = compare (t.rpo b) (t.rpo a) in
-      Semi_nca.Tree.children t.dom l |>
-      Seq.to_list |> List.sort ~compare:cmp |>
-      List.iter ~f:(Stack.push q)
-    with Missing_rpo l ->
-      C.failf "In Isel_builder.enqueue: missing RPO number for label %a in function $%s"
-        Label.pp l (Func.name t.fn) ()
-
   let initial t =
     let entry = Func.entry t.fn in
     let b = Label.Tree.find_exn t.blks entry in
@@ -454,12 +445,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Func.slots t.fn |> Seq.iter ~f:(fun s -> slot t l s)
 
   let run t =
-    let rec loop q = match Stack.pop q with
-      | None -> !!()
-      | Some l ->
-        let* () = step t l in
-        let* () = enqueue t l q in
-        loop q in
     let* () = initial t in
-    loop @@ Stack.singleton Label.pseudoentry
+    Semi_nca.Tree.preorder t.dom |> C.Seq.iter ~f:(step t)
 end

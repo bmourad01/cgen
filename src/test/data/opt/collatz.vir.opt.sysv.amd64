@@ -18,13 +18,13 @@ export function $foo { ; returns: rax
   je @10 ; @44
   jmp @11 ; @45
 @11:
-  lea %6:w, qword ptr [%x.2 + %x.2*2 + 0x1] ; @33
-  mov %x.3:w, %6:w ; @41
+  lea %7:w, qword ptr [%x.2 + %x.2*2 + 0x1] ; @34
+  mov %x.3:w, %7:w ; @41
   jmp @15 ; @42
 @10:
-  mov %7:w, %x.2:w ; @34
-  shr %7:w, 0x1_b ; @40
-  mov %x.3:w, %7:w ; @38
+  mov %4:w, %x.2:w ; @31
+  shr %4:w, 0x1_b ; @40
+  mov %x.3:w, %4:w ; @38
   jmp @15 ; @39
 @15:
   lea %3:w, qword ptr [%count.2 + 0x1] ; @30

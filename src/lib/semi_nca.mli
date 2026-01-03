@@ -1,7 +1,7 @@
 (** Implements the SEMI-NCA algorithm.
 
-    This is a known efficient algorithm for computing the
-    dominator tree of a graph.
+    This is a known efficient, linear-time algorithm for computing
+    the dominator tree of a graph.
 *)
 
 open Regular.Std
@@ -14,6 +14,15 @@ module Tree : sig
   type 'a t = 'a tree
 
   exception Not_found
+
+  (** Returns [true] if this tree was computed via a graph
+      with edges reversed.
+
+      This affects downstream methods such as [rpo], as these
+      will reflect a DFS traversal that started from the exit
+      node and walked backwards via incoming edges.
+  *)
+  val is_reversed : 'a t -> bool
 
   (** The root of the tree.
 
@@ -38,12 +47,21 @@ module Tree : sig
 
   (** Depth of a node in the tree.
 
-      @raise Not_found if the node is not
-      a member of the tree.
+      @raise Not_found if the node is not a member of the tree.
   *)
   val depth_exn : 'a t -> 'a -> int
 
-  (** Immediate children of a node. *)
+  (** Returns the reverse postorder numbering of the node,
+      if it exists in the tree. *)
+  val rpo : 'a t -> 'a -> int option
+
+  (** Returns the reverse postorder numbering of the node.
+
+      @raise Not_found if the node is not a member of the tree.
+  *)
+  val rpo_exn : 'a t -> 'a -> int
+
+  (** Immediate children of a node, in reverse postorder. *)
   val children : 'a t -> 'a -> 'a seq
 
   (** All descendants of a node in preorder. *)
@@ -53,8 +71,15 @@ module Tree : sig
   val ancestors : 'a t -> 'a -> 'a seq
 
   (** [is_descendant_of t ~parent n] returns [true] if [n]
-      is a descendant of [parent] in [t]. *)
+      is a descendant of [parent] in [t].
+
+      This encodes the relation of whether [parent] strictly
+      dominates [n].
+  *)
   val is_descendant_of : 'a t -> parent:'a -> 'a -> bool
+
+  (** Same as [is_descendant_of], but adds reflexivity to the relation. *)
+  val dominates : 'a t -> 'a -> 'a -> bool
 
   (** Returns a postorder traversal of the tree, starting from
       the root. *)

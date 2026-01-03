@@ -9,7 +9,7 @@ function $partition { ; returns: rax
   cmp rsi, r8 ; @86
   jle @9 ; @87
 @10:
-  inc rax ; @55
+  inc rax ; @62
   mov esi, dword ptr [rdi + rax*4] ; @34
   mov ecx, dword ptr [rdi + rdx*4] ; @35
   mov dword ptr [rdi + rax*4], ecx ; @36
@@ -20,12 +20,12 @@ function $partition { ; returns: rax
   cmp r9d, ecx ; @77
   jg @14 ; @78
 @13:
-  inc rax ; @62
+  inc rax ; @59
   mov r10d, dword ptr [rdi + rax*4] ; @25
   mov dword ptr [rdi + rax*4], r9d ; @27
   mov dword ptr [rdi + rsi*4], r10d ; @28
 @14:
-  inc rsi ; @61
+  inc rsi ; @58
   jmp @3 ; @71
 }
 
