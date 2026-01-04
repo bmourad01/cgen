@@ -34,7 +34,9 @@ let man_input_fmt =
   end
 
 let input_fmt =
-  let doc = "The type of input program. Defaults to 'virtual'" in
+  let doc =
+    "The type of input program. cgen will attempt to infer this \
+     from the file extension. Failing that, it will default to 'virtual'" in
   Arg.(value &
        opt (some string) None
          (info ["i"; "input-fmt"] ~docv:"INPUTFMT" ~doc))
