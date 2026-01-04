@@ -154,7 +154,7 @@ let pp_cast ppf : cast -> unit = function
     Format.fprintf ppf "zext.%a" Type.pp_imm t
 
 type copy = [
-  | `copy  of Type.basic
+  | `copy of Type.basic
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_copy ppf : copy -> unit = function

@@ -207,7 +207,7 @@ module type S = sig
       [`copy t]: move to a destination of type [t].
   *)
   type copy = [
-    | `copy  of Type.basic
+    | `copy of Type.basic
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints a copy operation. *)

@@ -35,6 +35,7 @@ type t = {
   live : live;
   work : Label.Hash_set.t;
   labl : Label.Hash_set.t;
+  slot : Virtual.slot Vec.t;
 }
 
 let init ~tenv fn =
@@ -46,7 +47,9 @@ let init ~tenv fn =
   let live = Live.compute' cfg blks in
   let work = Label.Hash_set.create () in
   let labl = Label.Hash_set.create () in
-  {fn; tenv; blks; cfg; pdom; loop; live; work; labl}
+  let slot = Vec.create () in
+  Func.slots fn |> Seq.iter ~f:(Vec.push slot);
+  {fn; tenv; blks; cfg; pdom; loop; live; work; labl; slot}
 
 (* Find the lowest post-dominator that is outside of the loop. *)
 let loop_exit t lp =
@@ -232,16 +235,34 @@ module Make(C : Context_intf.S) = struct
     Typecheck.Env.typeof_var t.fn x t.tenv |>
     C.lift_err ~prefix:"Restructure"
 
+  let layout t name =
+    Typecheck.Env.layout name t.tenv |>
+    C.lift_err ~prefix:"Restructure"
+
   module W = Windmill.Make(C)
 
-  let windmill out t l moves =
+  let windmill t l moves out =
     W.windmill t l moves ~emit:(fun dst src ->
         typeof_var t dst >>= function
         | #Type.basic as b ->
           C.return @@ Vec.push out @@ `uop (dst, `copy b, src)
-        | _t ->
-          (* TODO: fix this *)
-          assert false)
+        | `compound (name, _, _)
+        | `opaque (name, _, _) ->
+          let* lt = layout t name in
+          let* s = C.Var.fresh in
+          let size = Type.Layout.sizeof lt in
+          let align = Type.Layout.align lt in
+          let*? slot = Virtual.Slot.create s ~size ~align in
+          Vec.push t.slot slot;
+          C.return begin
+            Vec.push out @@ `store (`name name, src, `var s);
+            Vec.push out @@ `load (dst, `name name, `var s)
+          end
+        | `flag ->
+          let+ f = C.Var.fresh in
+          let zero = `int (Bv.zero, `i8) in
+          Vec.push out @@ `uop (f, `flag `i8, src);
+          Vec.push out @@ `bop (dst, `ne `i8, `var f, zero))
 
   module Emit = struct
     (* Plain sequence of instructions. *)
@@ -297,7 +318,7 @@ module Make(C : Context_intf.S) = struct
         | Ok moves ->
           (* Emit parallel moves, which removes us from SSA form. *)
           let out = Vec.create () in
-          let* () = windmill out t n moves in
+          let* () = windmill t n moves out in
           let+ b = branch t ~ctx ~src:n ~dst:l in
           Vec.push out b;
           Stmt.seq @@ Vec.to_list out
@@ -409,5 +430,5 @@ module Make(C : Context_intf.S) = struct
     Structured_func.create () ~body
       ~dict:(Func.dict fn) ~name:(Func.name fn)
       ~args:(Seq.to_list @@ Func.args fn)
-      ~slots:(Seq.to_list @@ Func.slots fn)
+      ~slots:(Vec.to_list t.slot)
 end
