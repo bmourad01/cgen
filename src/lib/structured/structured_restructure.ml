@@ -13,9 +13,12 @@
 *)
 
 open Core
+open Monads.Std
 open Regular.Std
 open Virtual
 
+module O = Monad.Option
+module DT = Semi_nca.Tree
 module Ltree = Label.Tree
 module Stmt = Structured_stmt
 
@@ -29,7 +32,7 @@ type t = {
   tenv : Typecheck.env;
   blks : blk Ltree.t;
   cfg  : cfg;
-  pdom : Label.t Semi_nca.tree;
+  pdom : Label.t DT.t;
   loop : loops;
   live : live;
   work : Label.Hash_set.t;
@@ -54,7 +57,7 @@ let init ~tenv fn =
 let loop_exit t lp =
   let rec climb j =
     if Loops.is_in_loop t.loop j lp then
-      match Semi_nca.Tree.parent t.pdom j with
+      match DT.parent t.pdom j with
       | Some p -> climb p
       | None -> None
     else if Ltree.mem t.blks j then Some j
@@ -63,9 +66,9 @@ let loop_exit t lp =
 
 (* If this loop is nested, find the header of its parent. *)
 let parent_loop_header t lp =
-  Loops.get t.loop lp |> Loops.parent |>
-  Option.map ~f:(Loops.get t.loop) |>
-  Option.map ~f:Loops.header
+  let open O.Let in
+  let+ p = Loops.get t.loop lp |> Loops.parent in
+  Loops.(header @@ get t.loop p)
 
 (* A "region" that we're exploring.
 
@@ -118,19 +121,24 @@ module Region = struct
 end
 
 let possible_join t n ~ctx =
-  Cfg.Node.succs n t.cfg |>
-  Seq.reduce ~f:(Semi_nca.Tree.lca_exn t.pdom) |>
-  Option.bind ~f:(fun j -> Option.some_if begin
-      (* The join point is a valid block. *)
-      Ltree.mem t.blks j &&
-      (* If this join point is in any stack of loops,
-         then `n` (our source node) is within all of
-         them. *)
-      Loops.loops_of t.loop j |>
-      Seq.for_all ~f:(Loops.is_in_loop t.loop n) &&
-      (* Skip if this join is an active region. *)
-      not (Region.join_is_active j ctx)
-    end j)
+  let open O.Let in
+  (* Find the nearest common post-dominator of the
+     successors. *)
+  let* j = try
+      Cfg.Node.succs n t.cfg |>
+      Seq.reduce ~f:(DT.lca_exn t.pdom)
+    with DT.Not_found -> None in
+  (* The join point is a valid block. *)
+  let* () = O.guard @@ Ltree.mem t.blks j in
+  (* If this join point is in any stack of loops,
+     then `n` (our source node) is within all of
+     them. *)
+  let loops = Loops.loops_of t.loop j in
+  let* () = O.guard @@ Seq.for_all loops
+      ~f:(Loops.is_in_loop t.loop n) in
+  (* Skip if this join is an active region. *)
+  let+ () = O.guard @@ not @@ Region.join_is_active j ctx in
+  j
 
 (* Classification of a jump. *)
 type jmpcls =
@@ -199,22 +207,20 @@ end
 (* See if this block has a single-use comparison that we
    can fold into the `ite` statement. *)
 let find_single_use_cond t n =
-  let ok x c =
-    (* Same condition var. *)
-    Var.(x = c) &&
-    (* Not needed after this block. *)
-    not (Set.mem (Live.outs t.live n) x) in
-  Ltree.find t.blks n |> Option.bind ~f:(fun b ->
-      match Blk.ctrl b with
-      | `br (c, _, _) ->
-        Blk.insns ~rev:true b |> Seq.hd |>
-        Option.bind ~f:(fun i -> match Insn.op i with
-            | `bop (x, (#Insn.cmp as cmp), l, r) when ok x c ->
-              let label = Insn.label i in
-              let k = `cmp (cmp, l, r) in
-              Some (label, k)
-            | _ -> None)
-      | _ -> None)
+  let open O.Let in
+  let* b = Ltree.find t.blks n in
+  let* i = Seq.hd @@ Blk.insns ~rev:true b in
+  match Blk.ctrl b with
+  | `br (c, _, _) ->
+    begin match Insn.op i with
+      | `bop (x, (#Insn.cmp as k), l, r) ->
+        let* () = O.guard Var.(x = c) in
+        let out = Live.outs t.live n in
+        let+ () = O.guard @@ not @@ Set.mem out x in
+        Insn.label i, `cmp (k, l, r)
+      | _ -> None
+    end
+  | _ -> None
 
 type term = {
   stmt : Stmt.t;
