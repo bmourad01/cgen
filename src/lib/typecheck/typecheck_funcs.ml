@@ -1,7 +1,6 @@
 (* Checking function definitions. *)
 
 open Core
-open Graphlib.Std
 open Regular.Std
 open Virtual
 open Typecheck_common

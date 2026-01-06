@@ -14,7 +14,6 @@
 
 open Core
 open Regular.Std
-open Graphlib.Std
 open Virtual
 
 module Ltree = Label.Tree
@@ -143,7 +142,6 @@ type jmpcls =
 
 let pp_jmpcls ppf cls =
   Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_jmpcls cls
-[@@ocaml.warning "-32"]
 
 module Classify = struct
   let continue ctx ~dst =
@@ -160,7 +158,7 @@ module Classify = struct
   let break_loop t ~ctx ~dst =
     match Region.innermost_loop ctx with
     | None -> false
-    | Some (h, lp) ->
+    | Some (_, lp) ->
       (* We're not jumping back to the current loop header. *)
       not (Loops.is_in_loop t.loop dst lp) && begin
         (* We're jumping to the exit of the current loop. *)
@@ -242,8 +240,8 @@ module Make(C : Context_intf.S) = struct
 
   module W = Windmill.Make(C)
 
-  let windmill t l moves out =
-    W.windmill t l moves ~emit:(fun dst src ->
+  let windmill t moves out =
+    W.windmill moves ~emit:(fun dst src ->
         typeof_var t dst >>= function
         | #Type.basic as b ->
           C.return @@ Vec.push out @@ `uop (dst, `copy b, src)
@@ -319,7 +317,7 @@ module Make(C : Context_intf.S) = struct
         | Ok moves ->
           (* Emit parallel moves, which removes us from SSA form. *)
           let out = Vec.create () in
-          let* () = windmill t n moves out in
+          let* () = windmill t moves out in
           let+ b = branch t ~ctx ~src:n ~dst:l in
           Vec.push out b;
           Stmt.seq @@ Vec.to_list out

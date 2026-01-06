@@ -1,5 +1,3 @@
-open Regular.Std
-
 (** Reducibility of a CFG (control flow graph).
 
     A CFG [G] is reducible iff every cycle in [G] has a unique

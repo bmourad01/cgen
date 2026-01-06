@@ -7,13 +7,12 @@
 *)
 
 open Core
-open Monads.Std
 open Regular.Std
 
 module Make(C : Context_intf.S) = struct
   open C.Syntax
 
-  let windmill t l moves ~emit =
+  let windmill moves ~emit =
     let moves = Array.of_list moves in
     let n = Array.length moves in
     let status = Array.create ~len:n `to_move in

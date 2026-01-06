@@ -100,7 +100,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   module W = Windmill.Make(C)
 
   let windmill t l moves =
-    W.windmill t l moves ~emit:(fun dst src ->
+    W.windmill moves ~emit:(fun dst src ->
         let+ ty, id = operand' t src in
         let n = N (Omove, [newvar t dst ty; id]) in
         ignore @@ new_node ~l t n)

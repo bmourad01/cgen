@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 open Virtual.Abi
 open Isel_common
 
