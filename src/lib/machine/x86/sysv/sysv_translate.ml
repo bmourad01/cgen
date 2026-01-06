@@ -309,9 +309,7 @@ module Make(Context : Context_intf.S_virtual) = struct
     let blks = match env.rsave with
       | Some r -> r.rsint :: r.rssse :: blks
       | None -> blks in
-    let*? fn =
-      Abi.Func.create () ~slots ~args ~blks
-        ~name:(Func.name env.fn)
-        ~dict:(make_dict env) in
-    !!fn
+    let name = Func.name env.fn and dict = make_dict env in
+    Context.lift_err @@ Abi.Func.create ()
+      ~slots ~args ~blks ~name ~dict
 end

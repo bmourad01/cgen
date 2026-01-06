@@ -41,8 +41,8 @@ let coalesce_only filename =
   let* tenv, m = Passes.initialize m in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Coalesce_slots.run in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Resolve_constant_blk_args.run in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-  !!(tenv, m)
+  let+? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
+  tenv, m
 
 let test_abi target ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in

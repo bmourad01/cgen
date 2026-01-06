@@ -80,8 +80,8 @@ let typeof_arg fn env : operand -> Type.t t = function
 let typeof_type_arg env : Type.arg -> Type.t t = function
   | #Type.basic as t -> !!(t :> Type.t)
   | `name n ->
-    let*? t = Env.typeof_typ n env in
-    !!(t :> Type.t)
+    let+? t = Env.typeof_typ n env in
+    (t :> Type.t)
 
 let typeof_type_ret env : Type.ret -> Type.t t = function
   | #Type.basic as t -> !!(t :> Type.t)
@@ -89,5 +89,5 @@ let typeof_type_ret env : Type.ret -> Type.t t = function
   | `si16 -> !!`i16
   | `si32 -> !!`i32
   | `name n ->
-    let*? t = Env.typeof_typ n env in
-    !!(t :> Type.t)
+    let+? t = Env.typeof_typ n env in
+    (t :> Type.t)

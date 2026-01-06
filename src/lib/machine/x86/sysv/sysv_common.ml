@@ -220,9 +220,9 @@ module Make0(Context : Context_intf.S) = struct
 
   let new_slot env size align =
     let* x = Context.Var.fresh in
-    let*? s = Slot.create x ~size ~align in
+    let+? s = Slot.create x ~size ~align in
     Vec.push env.slots s;
-    !!x
+    x
 
   let find_ref env x = match Hashtbl.find env.refs x with
     | Some y -> y
@@ -233,10 +233,10 @@ module Make0(Context : Context_intf.S) = struct
   let type_cls env s = match Hashtbl.find env.layout s with
     | Some k -> !!k
     | None ->
-      let*? lt = Typecheck.Env.layout s env.tenv in
+      let+? lt = Typecheck.Env.layout s env.tenv in
       let k = classify_layout lt in
       Hashtbl.set env.layout ~key:s ~data:k;
-      !!k
+      k
 
   let i8 i = `int (Bv.M8.int i, `i8)
   let i32 i = `int (Bv.M32.int i, `i32)

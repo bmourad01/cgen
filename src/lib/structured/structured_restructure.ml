@@ -37,7 +37,7 @@ type t = {
   live : live;
   work : Label.Hash_set.t;
   labl : Label.Hash_set.t;
-  slot : Virtual.slot Vec.t;
+  slot : slot Vec.t;
 }
 
 let init ~tenv fn =
@@ -251,18 +251,15 @@ module Make(C : Context_intf.S) = struct
         typeof_var t dst >>= function
         | #Type.basic as b ->
           C.return @@ Vec.push out @@ `uop (dst, `copy b, src)
-        | `compound (name, _, _)
-        | `opaque (name, _, _) ->
+        | `compound (name, _, _) | `opaque (name, _, _) ->
           let* lt = layout t name in
           let* s = C.Var.fresh in
           let size = Type.Layout.sizeof lt in
           let align = Type.Layout.align lt in
-          let*? slot = Virtual.Slot.create s ~size ~align in
+          let+? slot = Slot.create s ~size ~align in
           Vec.push t.slot slot;
-          C.return begin
-            Vec.push out @@ `store (`name name, src, `var s);
-            Vec.push out @@ `load (dst, `name name, `var s)
-          end
+          Vec.push out @@ `store (`name name, src, `var s);
+          Vec.push out @@ `load (dst, `name name, `var s)
         | `flag ->
           let+ f = C.Var.fresh in
           let zero = `int (Bv.zero, `i8) in

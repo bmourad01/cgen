@@ -192,11 +192,11 @@ end = struct
                by one or more `ld.w`). If so, this partition could be
                broken down further if we modify the store instruction(s). *)
             let* x = Context.Var.fresh in
-            let*? s = Slot.create x ~size ~align:size in
+            let+? s = Slot.create x ~size ~align:size in
             Logs.debug (fun m ->
                 m "%s: new slot %a, base=%a, off=0x%Lx, size=%Ld%!"
                   __FUNCTION__ Var.pp x Var.pp base p.off p.size);
-            !!(Map.set acc ~key:(base, p.off) ~data:s)))
+            Map.set acc ~key:(base, p.off) ~data:s))
 
   (* Find the corresponding partition for [base+off, base+off+size). *)
   let find_partition (parts : 'a partitions) base off size =

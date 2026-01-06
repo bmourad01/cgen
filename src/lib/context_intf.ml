@@ -79,11 +79,23 @@ module type S = sig
     include Monad.Syntax.Let.S with type 'a t := 'a t
 
     (** Attempts to unwrap an [Or_error] computation into the context, and
-        fails if it is an error. *)
+        fails if it is an error.
+
+        Equivalent to [lift_err x >>= f].
+    *)
     val (>>?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
+
+    (** Same as [(>>?)], but with a [map] instead of [bind].
+
+        Equivalent to [lift_err x >>| f].
+    *)
+    val (>|?) : 'a Or_error.t -> ('a -> 'b) -> 'b t
 
     (** Same as the [(>>?)] infix notation. *)
     val (let*?) : 'a Or_error.t -> ('a -> 'b t) -> 'b t
+
+    (** Same as the [(>|?)] infix notation. *)
+    val (let+?) : 'a Or_error.t -> ('a -> 'b) -> 'b t
   end
 
   include Monad.S

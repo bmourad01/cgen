@@ -62,7 +62,9 @@ module Make(M : S) = struct
     include SM.Let
 
     let (>>?) x f = lift_err x >>= f
+    let (>|?) x f = lift_err x >>| f
     let (let*?) x f = x >>? f
+    let (let+?) x f = x >|? f
 
     let (and+) x y = {
       run = fun ~reject ~accept s ->
