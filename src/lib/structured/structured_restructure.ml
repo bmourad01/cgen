@@ -186,10 +186,11 @@ module Classify = struct
   let continue_or_fallthrough t ~ctx ~dst =
     let lp = Option.value_exn @@ Loops.blk t.loop dst in
     match loop_exit t lp with
-    | Some j when fallthrough ctx ~dst:j -> Fallthrough
+    | Some dst when fallthrough ctx ~dst -> Fallthrough
+    | Some dst when break_switch ctx ~dst -> Break
     | Some _ | None -> Continue
 
-  let jmp t ~ctx ~src ~dst =
+  let jmp t ~ctx ~dst =
     if continue ctx ~dst then continue_or_fallthrough t ~ctx ~dst
     else if break_switch ctx ~dst then Break
     else if break_loop t ~ctx ~dst then Break
@@ -281,7 +282,7 @@ module Make(C : Context_intf.S) = struct
 
     (* Branch to a block. *)
     let rec branch t ~ctx ~src ~dst =
-      let cls = Classify.jmp t ~ctx ~src ~dst in
+      let cls = Classify.jmp t ~ctx ~dst in
       Logs.debug (fun m ->
           m "%s: $%s:@;\
              src=%a,@;\
