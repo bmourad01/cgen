@@ -62,7 +62,7 @@ let rec pp ppf : t -> unit = function
     let pp_sep ppf () = Format.fprintf ppf "@;" in
     Format.fprintf ppf
       "switch.%a %a {@;@[<v 0>%a@]@;}"
-      Virtual.Ctrl.pp_swindex i Type.pp_imm ty
+      Type.pp_imm ty Virtual.Ctrl.pp_swindex i
       (Format.pp_print_list ~pp_sep (pp_swcase ty))
       cs
   | `label (l, b) ->
