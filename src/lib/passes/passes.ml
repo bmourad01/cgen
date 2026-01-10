@@ -21,8 +21,9 @@ let destructure m =
   let+ funs =
     Structured.Module.funs m |>
     Context.Seq.map ~f:Destructure.run >>|
-    Seq.to_list in
-  Virtual.Module.create () ~funs
+    Seq.map ~f:Remove_disjoint_blks.run in
+  Module.create ()
+    ~funs:(Seq.to_list funs)
     ~dict:(Structured.Module.dict m)
     ~typs:(Structured.Module.typs m |> Seq.to_list)
     ~data:(Structured.Module.data m |> Seq.to_list)

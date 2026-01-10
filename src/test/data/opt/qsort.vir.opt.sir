@@ -1,0 +1,56 @@
+module qsort
+
+function $swap(l %a, l %b) {
+start:
+  %x.1 = ld.w %a;
+  %y.1 = ld.w %b;
+  st.w %x.1, %b;
+  st.w %y.1, %a;
+  ret
+}
+
+function l $partition(l %arr, l %low, l %high) {
+start:
+  %3 = lsl.l %high, 0x2_l;
+  %4 = add.l %arr, %3;
+  %pivot.1 = ld.w %4;
+  %5 = sub.l %low, 0x1_l;
+  %6 = sub.l %high, 0x1_l;
+  %j.2 = copy.l %low;
+  %i.2 = copy.l %5;
+  while sle.l %j.2, %6 {
+    %8 = lsl.l %j.2, 0x2_l;
+    %9 = add.l %arr, %8;
+    %j_val.1 = ld.w %9;
+    if sle.w %j_val.1, %pivot.1 {
+      %12 = add.l %i.2, 0x1_l;
+      %13 = lsl.l %12, 0x2_l;
+      %14 = add.l %arr, %13;
+      call $swap(%14, %9);
+      %i.3 = copy.l %12
+    } else {
+      %i.3 = copy.l %i.2
+    };
+    %11 = add.l %j.2, 0x1_l;
+    %j.2 = copy.l %11;
+    %i.2 = copy.l %i.3
+  };
+  %15 = add.l %i.2, 0x1_l;
+  %16 = lsl.l %15, 0x2_l;
+  %17 = add.l %arr, %16;
+  call $swap(%17, %4);
+  ret %15
+}
+
+export function $qsort(l %arr, l %low, l %high) {
+start:
+  %1 = copy.l %low;
+  while slt.l %1, %high {
+    %p.1 = call.l $partition(%arr, %1, %high);
+    %19 = sub.l %p.1, 0x1_l;
+    call $qsort(%arr, %1, %19);
+    %20 = add.l %p.1, 0x1_l;
+    %1 = copy.l %20
+  };
+  ret
+}

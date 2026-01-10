@@ -1,0 +1,49 @@
+module switch1
+
+export function w $foo(w %x, w %y) {
+@28:
+  %acc = copy.w 0x0_w ; @29
+  switch.w %x, @5 [0x0_w -> @26,
+                   0x1_w -> @24,
+                   0x2_w -> @21,
+                   0x3_w -> @17,
+                   0x4_w -> @8]
+@2:
+  ret %acc
+@3:
+  %acc = sub.w %acc, 0x1_w ; @4
+  jmp @2
+@5:
+  %acc = copy.w 0xffffffff_w ; @7
+  %0 = slt.w %x, 0xfffffff6_w ; @6
+  br %0, @3, @2
+@8:
+  %acc = xor.w %acc, %y ; @9
+  jmp @2
+@10:
+  jmp @15
+@11:
+  %acc = add.w %acc, %y ; @14
+  %y = sub.w %y, 0x1_w ; @13
+  %2 = eq.w %y, 0x2_w ; @12
+  br %2, @8, @10
+@15:
+  %1 = sgt.w %y, 0x0_w ; @16
+  br %1, @11, @8
+@17:
+  %acc = copy.w 0xa_w ; @18
+  jmp @10
+@19:
+  %acc = add.w %acc, 0x4_w ; @20
+  jmp @2
+@21:
+  %acc = add.w %acc, 0x3_w ; @23
+  %3 = slt.w %y, 0x0_w ; @22
+  br %3, @2, @19
+@24:
+  %acc = mul.w %y, 0x2_w ; @25
+  jmp @21
+@26:
+  %acc = add.w %y, 0x1_w ; @27
+  jmp @2
+}

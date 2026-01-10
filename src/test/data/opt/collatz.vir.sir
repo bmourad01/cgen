@@ -1,0 +1,33 @@
+module foo
+
+export function w $foo(w %n) {
+  %count = slot 4, align 4
+  %x = slot 4, align 4
+start:
+  st.w 0x0_w, %count;
+  st.w %n, %x;
+  loop {
+    %a.1 = ld.w %x;
+    if gt.w %a.1, 0x1_w {
+      %a.2 = ld.w %x;
+      %r.1 = urem.w %a.2, 0x2_w;
+      if eq.w %r.1, 0x0_w {
+        %a.3 = ld.w %x;
+        %d.1 = udiv.w %a.3, 0x2_w;
+        st.w %d.1, %x
+      } else {
+        %a.4 = ld.w %x;
+        %m.1 = mul.w %a.4, 0x3_w;
+        %m.2 = add.w %m.1, 0x1_w;
+        st.w %m.2, %x
+      };
+      %k.1 = ld.w %count;
+      %k.2 = add.w %k.1, 0x1_w;
+      st.w %k.2, %count
+    } else {
+      break
+    }
+  };
+  %k.3 = ld.w %count;
+  ret %k.3
+}

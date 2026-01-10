@@ -1,0 +1,22 @@
+module collatz_rec
+
+export function w $foo(w %n, w %steps) {
+start:
+  if eq.w %n, 0x1_w {
+    ret %steps
+  } else {
+    %a.1 = urem.w %n, 0x2_w;
+    if eq.w %a.1, 0x0_w {
+      %steps.1 = add.w %steps, 0x1_w;
+      %n.1 = udiv.w %n, 0x2_w;
+      %r.1 = call.w $foo(%n.1, %steps.1);
+      ret %r.1
+    } else {
+      %steps.2 = add.w %steps, 0x1_w;
+      %n.2 = mul.w %n, 0x3_w;
+      %n.3 = add.w %n.2, 0x1_w;
+      %r.2 = call.w $foo(%n.3, %steps.2);
+      ret %r.2
+    }
+  }
+}
