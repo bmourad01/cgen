@@ -114,10 +114,9 @@ module Region = struct
         | Loop (h, lp) -> Some (h, lp)
         | _ -> None)
 
-  let join_is_active j ctx =
+  let is_active j ctx =
     List.exists ctx.frames ~f:(function
-        | Join l | Switch l -> Label.(l = j)
-        | _ -> false)
+        | Join l | Switch l | Loop (l, _) -> Label.(l = j))
 end
 
 let possible_join t n ~ctx =
@@ -137,7 +136,7 @@ let possible_join t n ~ctx =
   let* () = O.guard @@ Seq.for_all loops
       ~f:(Loops.is_in_loop t.loop n) in
   (* Skip if this join is an active region. *)
-  let+ () = O.guard @@ not @@ Region.join_is_active j ctx in
+  let+ () = O.guard @@ not @@ Region.is_active j ctx in
   j
 
 (* Classification of a jump. *)
@@ -229,7 +228,7 @@ type term = {
 
 let terminate ?join ctx stmt =
   let join = Option.bind join ~f:(fun j ->
-      let active = Region.join_is_active j ctx in
+      let active = Region.is_active j ctx in
       Option.some_if (not active) j) in
   {stmt; join}
 
@@ -399,6 +398,9 @@ module Make(C : Context_intf.S) = struct
       match term.join with
       | None -> !!(`seq (body, term.stmt))
       | Some j ->
+        Logs.debug (fun m ->
+            m "%s: %a joining at %a%!"
+              __FUNCTION__ Label.pp n Label.pp j);
         let+ sj = node t j ~ctx in
         `seq (body, `seq (term.stmt, sj))
 

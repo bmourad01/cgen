@@ -4,25 +4,21 @@ export function w $foo(w %n, w %steps) {
 start:
   %1 = copy.w %n;
   %2 = copy.w %steps;
-  @2:
-    while ne.w %1, 0x1_w {
-      %4 = and.w %1, 0x1_w;
-      %5 = eq.w %4, 0x0_w;
-      %6 = add.w %2, 0x1_w;
-      if %5 {
-        %7 = lsr.w %1, 0x1_w;
-        %1 = copy.w %7;
-        %2 = copy.w %6;
-        continue
-      } else {
-        %8 = lsl.w %1, 0x1_w;
-        %9 = add.w %8, %1;
-        %10 = add.w %9, 0x1_w;
-        %1 = copy.w %10;
-        %2 = copy.w %6;
-        continue
-      };
-      goto @2
-    };
-    ret %2
+  while ne.w %1, 0x1_w {
+    %4 = and.w %1, 0x1_w;
+    %5 = eq.w %4, 0x0_w;
+    %6 = add.w %2, 0x1_w;
+    if %5 {
+      %7 = lsr.w %1, 0x1_w;
+      %1 = copy.w %7;
+      %2 = copy.w %6
+    } else {
+      %8 = lsl.w %1, 0x1_w;
+      %9 = add.w %8, %1;
+      %10 = add.w %9, 0x1_w;
+      %1 = copy.w %10;
+      %2 = copy.w %6
+    }
+  };
+  ret %2
 }
