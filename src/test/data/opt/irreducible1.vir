@@ -1,0 +1,24 @@
+module irreducible1
+
+export function w $foo(w %x) {
+@start:
+  %i = copy.w 0_w
+  jmp @header
+@header:
+  %c = slt.w %i, %x
+  br %c, @less, @greater
+@less:
+  %i = add.w %i, 1_w
+  %c = eq.w %i, %x
+  br %c, @done, @greater
+@greater:
+  %i = sub.w %i, 1_w
+  %c = eq.w %i, 0_w
+  br %c, @done, @less
+@done:
+  %a = and.w %x, 1_w
+  %c = eq.w %a, 0_w
+  br %c, @exit, @header
+@exit:
+  ret %i
+}

@@ -114,6 +114,11 @@ module Region = struct
         | Loop (h, lp) -> Some (h, lp)
         | _ -> None)
 
+  (* Is this label an active region?
+
+     There is an invariant that we should not emit any active
+     region as a join-point continuation.
+  *)
   let is_active j ctx =
     List.exists ctx.frames ~f:(function
         | Join l | Switch l | Loop (l, _) -> Label.(l = j))
@@ -139,6 +144,12 @@ let possible_join t n ~ctx =
   let+ () = O.guard @@ not @@ Region.is_active j ctx in
   j
 
+let possible_loop_exit t lp ~ctx =
+  let open O.Let in
+  let* e = loop_exit t lp in
+  let+ () = O.guard @@ not @@ Region.is_active e ctx in
+  e
+
 (* Classification of a jump. *)
 type jmpcls =
   | Fallthrough
@@ -151,16 +162,9 @@ let pp_jmpcls ppf cls =
   Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_jmpcls cls
 
 module Classify = struct
-  let continue ctx ~dst =
-    let rec find = function
-      | Loop (h, _) :: _ ->
-        (* Jumping back to current loop header. *)
-        Label.(h = dst)
-      | (Switch _ | Join _) :: rest ->
-        (* Skip join points. *)
-        find rest
-      | _ -> false in
-    find ctx.frames
+  let continue ctx ~dst = match Region.innermost_loop ctx with
+    | Some (h, _) -> Label.(h = dst)
+    | _ -> false
 
   let break_loop t ~ctx ~dst =
     match Region.innermost_loop ctx with
@@ -374,7 +378,7 @@ module Make(C : Context_intf.S) = struct
     *)
     and loop t n ~ctx =
       let lp = Option.value_exn @@ Loops.blk t.loop n in
-      let j = loop_exit t lp in
+      let j = possible_loop_exit t lp ~ctx in
       let ctx' = Region.push_loop n lp ctx in
       let ctx' = match j with
         | None -> ctx'
@@ -383,8 +387,9 @@ module Make(C : Context_intf.S) = struct
       match j with
       | None -> !!(`loop body)
       | Some j ->
-        (* XXX: we emit the join point (loop exit) eagerly, but can
-           we skip this if it is an active region? *)
+        Logs.debug (fun m ->
+            m "%s: loop %a at %a exiting to %a%!"
+              __FUNCTION__ Loops.pp_loop lp Label.pp n Label.pp j);
         let+ j = node t j ~ctx in
         `seq (`loop body, j)
 

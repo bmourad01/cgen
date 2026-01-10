@@ -1,0 +1,52 @@
+module foo
+
+export function w $foo(w %n) {
+start:
+  if le.w %n, 0x1_w {
+    %0 = copy.w 0x0_w
+  } else {
+    if le.w %n, 0x3_w {
+      %0 = copy.w 0x1_w
+    } else {
+      %3 = and.w %n, 0x1_w;
+      if eq.w %3, 0x0_w {
+        %0 = copy.w 0x0_w
+      } else {
+        %5 = umulh.w %n, 0x55555556_w;
+        %6 = lsl.w %5, 0x1_w;
+        %7 = add.w %6, %5;
+        %8 = sub.w %n, %7;
+        if eq.w %8, 0x0_w {
+          %0 = copy.w 0x0_w
+        } else {
+          %i.2 = copy.w 0x5_w;
+          loop {
+            %10 = mul.w %i.2, %i.2;
+            if le.w %10, %n {
+              %r.3 = urem.w %n, %i.2;
+              if eq.w %r.3, 0x0_w {
+                %0 = copy.w 0x0_w;
+                break
+              } else {
+                %13 = add.w %i.2, 0x2_w;
+                %r.4 = urem.w %n, %13;
+                if eq.w %r.4, 0x0_w {
+                  %0 = copy.w 0x0_w;
+                  break
+                } else {
+                  %15 = add.w %i.2, 0x6_w;
+                  %i.2 = copy.w %15;
+                  continue
+                }
+              }
+            } else {
+              %0 = copy.w 0x1_w;
+              break
+            }
+          }
+        }
+      }
+    }
+  };
+  ret %0
+}

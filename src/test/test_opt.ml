@@ -197,6 +197,9 @@ let to_restructure = [
   "Collatz (recursive)", "collatz_rec";
   "Binary search", "bsearch";
   "Quicksort", "qsort";
+  "Prime", "prime";
+  "Prime driver", "prime_main_licm";
+  "Irreducible 1", "irreducible1";
 ]
 
 (* Restructuring tests (without optimizations) *)

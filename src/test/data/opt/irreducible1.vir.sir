@@ -1,0 +1,42 @@
+module irreducible1
+
+export function w $foo(w %x) {
+start:
+  %i.1 = copy.w 0x0_w;
+  %i.2 = copy.w %i.1;
+  loop {
+    if slt.w %i.2, %x {
+      %i.6 = copy.w %i.2;
+      @5:
+        %i.7 = add.w %i.6, 0x1_w;
+        if eq.w %i.7, %x {
+          %i.3 = copy.w %i.7
+        } else {
+          %i.4 = copy.w %i.7;
+          %i.5 = sub.w %i.4, 0x1_w;
+          if eq.w %i.5, 0x0_w {
+            %i.3 = copy.w %i.5
+          } else {
+            %i.6 = copy.w %i.5;
+            goto @5
+          }
+        }
+    } else {
+      %i.4 = copy.w %i.2;
+      %i.5 = sub.w %i.4, 0x1_w;
+      if eq.w %i.5, 0x0_w {
+        %i.3 = copy.w %i.5
+      } else {
+        %i.6 = copy.w %i.5;
+        goto @5
+      }
+    };
+    %a.1 = and.w %x, 0x1_w;
+    if eq.w %a.1, 0x0_w {
+      break
+    } else {
+      %i.2 = copy.w %i.3
+    }
+  };
+  ret %i.3
+}

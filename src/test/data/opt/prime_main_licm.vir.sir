@@ -1,0 +1,38 @@
+module prime_main_licm
+
+const data $fmt = {
+  "prime(%d) = %d\n",
+  0x0_b
+}
+
+export function w $main(w %argc, l %argv) {
+start:
+  %p.1 = add.l %argv, 0x8_l;
+  %p.2 = ld.l %p.1;
+  %n.1 = call.w $atoi(%p.2);
+  %m.1 = copy.w 0x1_w;
+  %i.1 = copy.w 0x1_w;
+  %n.2 = copy.w %n.1;
+  %m.2 = copy.w %m.1;
+  %i.2 = copy.w %i.1;
+  while sgt.w %n.2, 0x0_w {
+    %i.3 = copy.w %i.2;
+    loop {
+      %b.1 = call.w $is_prime(%i.3);
+      if eq.w %b.1, 0x0_w {
+        %i.4 = add.w %i.3, 0x1_w;
+        %i.3 = copy.w %i.4
+      } else {
+        break
+      }
+    };
+    %k.1 = call.w $printf($fmt, ..., %m.2, %i.3);
+    %n.3 = sub.w %n.2, 0x1_w;
+    %i.5 = add.w %i.3, 0x1_w;
+    %m.3 = add.w %m.2, 0x1_w;
+    %n.2 = copy.w %n.3;
+    %m.2 = copy.w %m.3;
+    %i.2 = copy.w %i.5
+  };
+  ret 0x0_w
+}
