@@ -4,23 +4,47 @@ open Context.Syntax
 
 module Abi_loadopt = Abi_loadopt
 module Coalesce_slots = Coalesce_slots
+module Destructure = Structured.Destructure(Context)
 module Egraph_opt = Egraph_opt
 module Lower_abi = Lower_abi
 module Promote_slots = Promote_slots
 module Remove_dead_vars = Remove_dead_vars
 module Remove_disjoint_blks = Remove_disjoint_blks
 module Resolve_constant_blk_args = Resolve_constant_blk_args
+module Restructure = Structured.Restructure(Context)
 module Sccp = Sccp
 module Simplify_cfg = Simplify_cfg
 module Sroa = Sroa
 module Ssa = Ssa
 
+let destructure m =
+  let+ funs =
+    Structured.Module.funs m |>
+    Context.Seq.map ~f:Destructure.run in
+  Module.create ()
+    ~funs:(Seq.to_list funs)
+    ~dict:(Structured.Module.dict m)
+    ~typs:(Structured.Module.typs m |> Seq.to_list)
+    ~data:(Structured.Module.data m |> Seq.to_list)
+    ~name:(Structured.Module.name m)
+
+let restructure ~tenv m =
+  let+ funs =
+    Module.funs m |>
+    Context.Seq.map ~f:(Restructure.run ~tenv) >>|
+    Seq.to_list in
+  Structured.Module.create () ~funs
+    ~dict:(Module.dict m)
+    ~typs:(Module.typs m |> Seq.to_list)
+    ~data:(Module.data m |> Seq.to_list)
+    ~name:(Module.name m)
+
 let initialize m =
   let* target = Context.target in
   let m = Module.map_funs m ~f:Remove_disjoint_blks.run in
   let*? tenv = Typecheck.run m ~target in
-  let*? m = Module.map_funs_err m ~f:Ssa.run in
-  !!(tenv, m)
+  let+? m = Module.map_funs_err m ~f:Ssa.run in
+  tenv, m
 
 let retype tenv m =
   Module.funs m |> Seq.to_list |> Typecheck.update_fns tenv
@@ -49,8 +73,8 @@ let optimize tenv m =
   let* m = Cv.Module.map_funs m ~f:(Simplify_cfg.run tenv) in
   let*? tenv = retype tenv m in
   let*? m = Module.map_funs_err m ~f:Remove_dead_vars.run in
-  let*? tenv = retype tenv m in
-  !!(tenv, m)
+  let+? tenv = retype tenv m in
+  tenv, m
 
 let to_abi tenv m =
   let+ funs =
@@ -59,7 +83,7 @@ let to_abi tenv m =
   Abi.Module.create () ~funs
     ~name:(Module.name m)
     ~dict:(Module.dict m)
-    ~data:(Seq.to_list @@ Module.data m)
+    ~data:(Module.data m |> Seq.to_list)
 
 let optimize_abi m =
   let*? m = Abi.Module.map_funs_err m ~f:Coalesce_slots.run_abi in
@@ -74,8 +98,8 @@ let optimize_abi m =
   let*? m = Abi.Module.map_funs_err m ~f:Resolve_constant_blk_args.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Abi_loadopt.run in
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in
-  let* () = Context.iter_seq_err (Abi.Module.funs m) ~f:Ssa.check_abi in
-  !!m
+  let+ () = Context.iter_seq_err (Abi.Module.funs m) ~f:Ssa.check_abi in
+  m
 
 let assert_same_target msg t' =
   let* t = Context.target in

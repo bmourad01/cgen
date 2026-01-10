@@ -156,19 +156,8 @@ type rv = Regvar.t [@@deriving bin_io, compare, equal, hash, sexp]
 
 module Insn = struct
   (* SIB scale. Only 1, 2, 4, and 8 are valid. *)
-  type scale =
-    | S1
-    | S2
-    | S4
-    | S8
-  [@@deriving bin_io, compare, equal, sexp]
-
-  let int_of_scale = function
-    | S1 -> 1
-    | S2 -> 2
-    | S4 -> 4
-    | S8 -> 8
-
+  type scale = S1 | S2 | S4 | S8 [@@deriving bin_io, compare, equal, sexp]
+  let int_of_scale (s : scale) = 1 lsl (Obj.magic s : int)
   let pp_scale ppf s = Format.fprintf ppf "%d" @@ int_of_scale s
 
   (* Memory addressing modes. *)

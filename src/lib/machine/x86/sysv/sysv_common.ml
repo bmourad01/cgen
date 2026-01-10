@@ -165,7 +165,6 @@ type vaarg = {
 type env = {
   fn            : func;                        (* The original function. *)
   blks          : blk Label.Tree.t;            (* Map of basic blocks. *)
-  doms          : Label.t Semi_nca.tree;       (* Dominator tree. *)
   tenv          : Typecheck.env;               (* Typing environment. *)
   rets          : ret Label.Table.t;           (* Lowered `ret` instructions. *)
   calls         : call Label.Table.t;          (* Lowered `call` instructions. *)
@@ -197,12 +196,9 @@ let align_slots fn =
   List.fold ~init:fn ~f:Virtual.Func.insert_slot
 
 let init_env tenv fn =
-  let fn = align_slots fn in
-  let cfg = Cfg.create fn in
-  let doms = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in {
+  let fn = align_slots fn in {
     fn;
     blks = Func.map_of_blks fn;
-    doms;
     tenv;
     rets = Label.Table.create ();
     calls = Label.Table.create ();
@@ -222,24 +218,11 @@ let init_env tenv fn =
 module Make0(Context : Context_intf.S) = struct
   open Context.Syntax
 
-  (* Iterate over the dominator tree. *)
-  let iter_blks env ~f =
-    let rec loop q = match Stack.pop q with
-      | None -> !!()
-      | Some l ->
-        let* () = match Label.Tree.find env.blks l with
-          | None -> !!()
-          | Some b -> f b in
-        Semi_nca.Tree.children env.doms l |>
-        Seq.iter ~f:(Stack.push q);
-        loop q in
-    loop @@ Stack.singleton @@ Func.entry env.fn
-
   let new_slot env size align =
     let* x = Context.Var.fresh in
-    let*? s = Slot.create x ~size ~align in
+    let+? s = Slot.create x ~size ~align in
     Vec.push env.slots s;
-    !!x
+    x
 
   let find_ref env x = match Hashtbl.find env.refs x with
     | Some y -> y
@@ -250,17 +233,18 @@ module Make0(Context : Context_intf.S) = struct
   let type_cls env s = match Hashtbl.find env.layout s with
     | Some k -> !!k
     | None ->
-      let*? lt = Typecheck.Env.layout s env.tenv in
+      let+? lt = Typecheck.Env.layout s env.tenv in
       let k = classify_layout lt in
       Hashtbl.set env.layout ~key:s ~data:k;
-      !!k
+      k
 
   let i8 i = `int (Bv.M8.int i, `i8)
   let i32 i = `int (Bv.M32.int i, `i32)
   let i64 i = `int (Bv.M64.int i, `i64)
 
   let typeof_var env x =
-    Context.lift_err @@ Typecheck.Env.typeof_var env.fn x env.tenv
+    Context.lift_err ~prefix:"Sysv" @@
+    Typecheck.Env.typeof_var env.fn x env.tenv
 
   let word env = (Target.word (Typecheck.Env.target env.tenv) :> Type.t)
 

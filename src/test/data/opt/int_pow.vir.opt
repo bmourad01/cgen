@@ -15,16 +15,16 @@ export function l $int_pow(l %base, l %exponent) {
                             0x2_l -> @15,
                             0x3_l -> @16]
 @14:
-  %11 = mul.l %ret.2, %1 ; @66
-  jmp @21(%11)
-@15:
-  %9 = mul.l %ret.2, %1 ; @64
-  %10 = mul.l %9, %1 ; @65
-  jmp @21(%10)
-@16:
   %6 = mul.l %ret.2, %1 ; @61
-  %7 = mul.l %6, %2 ; @62
-  jmp @21(%7)
+  jmp @21(%6)
+@15:
+  %7 = mul.l %ret.2, %1 ; @62
+  %8 = mul.l %7, %1 ; @63
+  jmp @21(%8)
+@16:
+  %9 = mul.l %ret.2, %1 ; @64
+  %10 = mul.l %9, %2 ; @65
+  jmp @21(%10)
 @21(%ret.3):
   %5 = asr.l %exponent.1, 0x2_l ; @60
   jmp @3(%ret.3, %3, %1, %5)

@@ -45,7 +45,7 @@ export function $analyze_array { ; returns: rax
 @19:
   sub edi, ebx ; @136
   call $square ; rdi ; @134
-  add eax, dword ptr [rbp - 0x10] ; @71
+  add eax, dword ptr [rbp - 0x10] ; @79
   pop rbx ; @195
   pop r15 ; @196
   pop r14 ; @197
@@ -54,7 +54,7 @@ export function $analyze_array { ; returns: rax
   leave ; @200
   ret ; @133
 @18:
-  mov eax, r14d ; @72
+  mov eax, r14d ; @70
   mov r12d, dword ptr [r15 + rax*4] ; @24
   mov esi, r12d ; @128
   call $max ; rdi rsi ; @129
@@ -65,11 +65,11 @@ export function $analyze_array { ; returns: rax
   mov ebx, eax ; @127
   mov edi, r12d ; @27
   call $square ; rdi ; @123
-  mov ecx, r13d ; @75
+  mov ecx, r13d ; @73
   sub ecx, ebx ; @122
-  add eax, dword ptr [rbp - 0x10] ; @77
-  add eax, ecx ; @78
-  inc r14d ; @79
+  add eax, dword ptr [rbp - 0x10] ; @75
+  add eax, ecx ; @76
+  inc r14d ; @77
   mov dword ptr [rbp - 0x10], eax ; @186
   mov edi, r13d ; @119
   jmp @13 ; @121
@@ -88,22 +88,22 @@ export function $analyze_array_inl { ; returns: rax
 @42:
   sub eax, esi ; @168
   imul eax, eax ; @167
-  add eax, r9d ; @83
+  add eax, r9d ; @96
   ret ; @166
 @41:
   mov edx, dword ptr [rdi + r10*4] ; @47
-  mov ecx, edx ; @88
+  mov ecx, edx ; @85
   cmp eax, edx ; @160
   cmovg ecx, eax ; @161
-  mov eax, edx ; @90
+  mov eax, edx ; @87
   cmp esi, edx ; @156
   cmovl eax, esi ; @157
   imul edx, edx ; @155
-  mov esi, ecx ; @92
+  mov esi, ecx ; @89
   sub esi, eax ; @154
-  add edx, r9d ; @94
-  lea r9d, qword ptr [rdx + rsi*1] ; @95
-  inc r10d ; @96
+  add edx, r9d ; @91
+  lea r9d, qword ptr [rdx + rsi*1] ; @92
+  inc r10d ; @93
   mov esi, eax ; @150
   mov eax, ecx ; @151
   jmp @36 ; @153

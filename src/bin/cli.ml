@@ -10,9 +10,40 @@ let fatal fmt =
     exit Cmd.Exit.internal_error in
   Format.kfprintf kon Format.err_formatter fmt
 
+type input_fmt =
+  | IFvirtual
+  | IFstructured
+
+let string_of_input_fmt = function
+  | IFvirtual -> "virtual"
+  | IFstructured -> "structured"
+
+let input_fmt_of_string_opt = function
+  | "virtual" -> Some IFvirtual
+  | "structured" -> Some IFstructured
+  | _ -> None
+
+let man_input_fmt =
+  `S "INPUTFMT" ::
+  `Pre "Input program formats" :: begin
+    Core.List.map ~f:(fun (i, desc) ->
+        `I (string_of_input_fmt i ^ ":", desc)) [
+      IFvirtual, "Virtual IR (.vir)";
+      IFstructured, "Structured IR (.sir)";
+    ]
+  end
+
+let input_fmt =
+  let doc =
+    "The type of input program. cgen will attempt to infer this \
+     from the file extension. Failing that, it will default to 'virtual'" in
+  Arg.(value &
+       opt (some string) None
+         (info ["i"; "input-fmt"] ~docv:"INPUTFMT" ~doc))
+
 let file =
   let doc =
-    "The input .vir program. If no file is provided, then the \
+    "The input program. If no file is provided, then the \
      program is read from stdin." in
   Arg.(value &
        pos 0 file "" &
@@ -20,8 +51,11 @@ let file =
 
 type dump =
   | Dparse
+  | Ddestructure
   | Dssa
+  | Drestructure_preopt
   | Dmiddle
+  | Drestructure
   | Dabi
   | Disel
   | Disel_dce
@@ -32,8 +66,11 @@ type dump =
 
 let string_of_dump = function
   | Dparse -> "parse"
+  | Ddestructure -> "destructure"
   | Dssa -> "ssa"
+  | Drestructure_preopt -> "restructure-preopt"
   | Dmiddle -> "middle"
+  | Drestructure -> "restructure"
   | Dabi -> "abi"
   | Disel -> "isel"
   | Disel_dce -> "isel-dce"
@@ -43,8 +80,11 @@ let string_of_dump = function
 
 let dump_of_string_opt = function
   | "parse" -> Some Dparse
+  | "destructure" -> Some Ddestructure
   | "ssa" -> Some Dssa
+  | "restructure-preopt" -> Some Drestructure_preopt
   | "middle" -> Some Dmiddle
+  | "restructure" -> Some Drestructure
   | "abi" -> Some Dabi
   | "isel" -> Some Disel
   | "isel-dce" -> Some Disel_dce
@@ -59,8 +99,12 @@ let man_dump =
     Core.List.map ~f:(fun (d, desc) ->
         `I (string_of_dump d ^ ":", desc)) [
       Dparse, "dump the IR after parsing";
+      Ddestructure, "dump the IR after destructuring (for .sir)";
       Dssa, "dump the IR after SSA transformation";
+      Drestructure_preopt, "dump the IR in structured (.sir) form, after SSA transformation, \
+                            but before middle-end optimizations";
       Dmiddle, "dump the IR after middle-end optimizations";
+      Drestructure, "dump the IR in structured (.sir) form, after middle-end optimizations";
       Dabi, "dump the IR after ABI lowering";
       Disel, "dump the IR after instruction selection";
       Disel_dce, "dump the IR after dead code elimination (after instruction selection)";
@@ -116,6 +160,7 @@ type t = {
   dump   : dump;
   nc     : bool;
   target : Cgen.Target.t;
+  ifmt   : input_fmt;
 }
 
 let log_env = Cmd.Env.info "CGEN_LOG"
@@ -124,7 +169,10 @@ let setup_log level =
   Logs.set_level level;
   Logs.set_reporter @@ Logs_fmt.reporter ()
 
-let go f file output dump nc target log_level =
+let is_vir = Core.String.is_suffix ~suffix:".vir" [@@ocaml.warning "-32"]
+let is_sir = Core.String.is_suffix ~suffix:".sir"
+
+let go f file output dump nc target ifmt log_level =
   setup_log log_level;
   let file = match file with
     | "" -> Istdin
@@ -138,7 +186,16 @@ let go f file output dump nc target log_level =
   let target = match Cgen.Target.find target with
     | None -> fatal "invalid target: %s\n%!" target ()
     | Some t -> t in
-  f {file; output; dump; nc; target}
+  let ifmt = match ifmt with
+    | Some i ->
+      begin match input_fmt_of_string_opt i with
+        | None -> fatal "invalid input format: %s\n%!" i ()
+        | Some i -> i
+      end
+    | None -> match file with
+      | Ifile f when is_sir f -> IFstructured
+      | Ifile _ | Istdin -> IFvirtual in
+  f {file; output; dump; nc; target; ifmt}
 
 let t f =
   let open Term in
@@ -148,11 +205,13 @@ let t f =
   dump $
   dump_no_comment $
   target $
+  input_fmt $
   Logs_cli.level ~env:log_env ()
 
 let man = List.concat [
     man_dump;
     man_targets;
+    man_input_fmt;
   ]
 
 let info =

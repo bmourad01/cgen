@@ -1,0 +1,23 @@
+module foo
+
+export function w $foo(w %n) {
+start:
+  %x.2 = copy.w %n;
+  %count.2 = copy.w 0x0_w;
+  while gt.w %x.2, 0x1_w {
+    %1 = and.w %x.2, 0x1_w;
+    if eq.w %1, 0x0_w {
+      %4 = lsr.w %x.2, 0x1_w;
+      %x.3 = copy.w %4
+    } else {
+      %5 = lsl.w %x.2, 0x1_w;
+      %6 = add.w %5, %x.2;
+      %7 = add.w %6, 0x1_w;
+      %x.3 = copy.w %7
+    };
+    %3 = add.w %count.2, 0x1_w;
+    %x.2 = copy.w %x.3;
+    %count.2 = copy.w %3
+  };
+  ret %count.2
+}

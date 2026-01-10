@@ -14,11 +14,11 @@ export function w $bar(w %x, w %y) {
   %3 = eq.w %2, 0x0_w ; @32
   br %3, @11, @12
 @11:
-  %5 = add.w %y, 0x1_w ; @34
-  jmp @15(%5)
-@12:
-  %4 = add.w %x, 0x1_w ; @33
+  %4 = add.w %y, 0x1_w ; @33
   jmp @15(%4)
+@12:
+  %5 = add.w %x, 0x1_w ; @34
+  jmp @15(%5)
 @15(%r.1):
   ret %r.1
 }
@@ -30,17 +30,17 @@ export function l $baz(l %x) {
                     0x2_l -> @21,
                     0x3_l -> @22]
 @19:
-  %10 = add.l %x, 0x1_l ; @39
-  jmp @24(%10)
-@20:
-  %9 = add.l %x, 0x2_l ; @38
-  jmp @24(%9)
-@21:
-  %8 = add.l %x, 0x3_l ; @37
-  jmp @24(%8)
-@22:
-  %7 = add.l %x, 0x4_l ; @36
+  %7 = add.l %x, 0x1_l ; @36
   jmp @24(%7)
+@20:
+  %8 = add.l %x, 0x2_l ; @37
+  jmp @24(%8)
+@21:
+  %9 = add.l %x, 0x3_l ; @38
+  jmp @24(%9)
+@22:
+  %10 = add.l %x, 0x4_l ; @39
+  jmp @24(%10)
 @24(%r.1):
   ret %r.1
 }

@@ -294,6 +294,22 @@ let to_list_rev t =
   done;
   !l
 
+let rev_inplace t =
+  let i = ref 0 in
+  let j = ref (length t - 1) in
+  while !i < !j do
+    let tmp = unsafe_get t !i in
+    unsafe_set t !i (unsafe_get t !j);
+    unsafe_set t !j tmp;
+    incr i;
+    decr j
+  done
+
+let rev t =
+  let t' = copy t in
+  rev_inplace t';
+  t'
+
 let to_sequence_mutable t =
   let open Seq.Generator in
   let rec aux t = function

@@ -7,14 +7,14 @@ export function $foo(w %m/rdi, w %n/rsi) {
   %3 = eq.w %1, 0x0_w ; @23
   br %3, @3, @4
 @3:
-  %7 = add.w %2, 0x1_w ; @27
-  ret rax/%7
+  %4 = add.w %2, 0x1_w ; @24
+  ret rax/%4
 @4:
-  %4 = eq.w %2, 0x0_w ; @24
-  %5 = sub.w %1, 0x1_w ; @25
-  br %4, @2(%5, 0x1_w), @8
+  %5 = eq.w %2, 0x0_w ; @25
+  %6 = sub.w %1, 0x1_w ; @26
+  br %5, @2(%6, 0x1_w), @8
 @8:
-  %6 = sub.w %2, 0x1_w ; @26
-  %r.1/w/rax = call $foo(%1/rdi, %6/rsi) ; @18
-  jmp @2(%5, %r.1)
+  %7 = sub.w %2, 0x1_w ; @27
+  %r.2/w/rax = call $foo(%1/rdi, %7/rsi) ; @18
+  jmp @2(%6, %r.2)
 }

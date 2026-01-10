@@ -84,6 +84,20 @@ type cmp = [
   | `uo  of Type.fp
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+let negate_cmp : cmp -> cmp = function
+  | `eq t -> `ne t
+  | `ne t -> `eq t
+  | `gt t -> `le t
+  | `ge t -> `lt t
+  | `lt t -> `ge t
+  | `le t -> `gt t
+  | `o t -> `uo t
+  | `uo t -> `o t
+  | `sge t -> `slt t
+  | `sgt t -> `sle t
+  | `sle t -> `sgt t
+  | `slt t -> `sge t
+
 let pp_cmp ppf : cmp -> unit = function
   | `eq  t -> Format.fprintf ppf "eq.%a"  Type.pp_basic t
   | `ge  t -> Format.fprintf ppf "ge.%a"  Type.pp_basic t
@@ -140,7 +154,7 @@ let pp_cast ppf : cast -> unit = function
     Format.fprintf ppf "zext.%a" Type.pp_imm t
 
 type copy = [
-  | `copy  of Type.basic
+  | `copy of Type.basic
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_copy ppf : copy -> unit = function

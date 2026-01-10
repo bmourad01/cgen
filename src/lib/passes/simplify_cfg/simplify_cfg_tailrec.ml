@@ -73,7 +73,7 @@ let go env fn =
       assert (Seq.is_empty @@ Blk.args e);
       List.fold args ~init:e ~f:Blk.prepend_arg :: rest in
   let* h = new_entry fn e in
-  let*? fn = Func.with_blks fn (h :: blks) in
+  let+? fn = Func.with_blks fn (h :: blks) in
   env.start <- Blk.label h;
   Logs.debug (fun m ->
       let pp_call ppf (l, (args, l')) =
@@ -88,4 +88,4 @@ let go env fn =
            ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n")
            pp_call)
         (Label.Tree.to_list calls));
-  !!fn
+  fn

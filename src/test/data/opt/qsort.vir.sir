@@ -1,0 +1,67 @@
+module qsort
+
+function $swap(l %a, l %b) {
+start:
+  %x.1 = ld.w %a;
+  %y.1 = ld.w %b;
+  st.w %x.1, %b;
+  st.w %y.1, %a;
+  ret
+}
+
+function l $partition(l %arr, l %low, l %high) {
+start:
+  %pivot_idx.1 = mul.l %high, 0x4_l;
+  %pivot_idx.2 = add.l %arr, %pivot_idx.1;
+  %pivot.1 = ld.w %pivot_idx.2;
+  %i.1 = sub.l %low, 0x1_l;
+  %j.1 = copy.l %low;
+  %j.2 = copy.l %j.1;
+  %i.2 = copy.l %i.1;
+  loop {
+    %h1.1 = sub.l %high, 0x1_l;
+    if sle.l %j.2, %h1.1 {
+      %j_ptr.1 = mul.l %j.2, 0x4_l;
+      %j_ptr.2 = add.l %arr, %j_ptr.1;
+      %j_val.1 = ld.w %j_ptr.2;
+      if sle.w %j_val.1, %pivot.1 {
+        %i.4 = add.l %i.2, 0x1_l;
+        %i_ptr.1 = mul.l %i.4, 0x4_l;
+        %i_ptr.2 = add.l %arr, %i_ptr.1;
+        %j_ptr.3 = mul.l %j.2, 0x4_l;
+        %j_ptr.4 = add.l %arr, %j_ptr.3;
+        call $swap(%i_ptr.2, %j_ptr.4);
+        %i.3 = copy.l %i.4
+      } else {
+        %i.3 = copy.l %i.2
+      };
+      %j.3 = add.l %j.2, 0x1_l;
+      %j.2 = copy.l %j.3;
+      %i.2 = copy.l %i.3
+    } else {
+      break
+    }
+  };
+  %high_ptr.1 = mul.l %high, 0x4_l;
+  %high_ptr.2 = add.l %arr, %high_ptr.1;
+  %i1.1 = add.l %i.2, 0x1_l;
+  %i_ptr.3 = mul.l %i1.1, 0x4_l;
+  %i_ptr.4 = add.l %arr, %i_ptr.3;
+  call $swap(%i_ptr.4, %high_ptr.2);
+  %i1.2 = add.l %i.2, 0x1_l;
+  ret %i1.2
+}
+
+export function $qsort(l %arr, l %low, l %high) {
+start:
+  if slt.l %low, %high {
+    %p.1 = call.l $partition(%arr, %low, %high);
+    %ph.1 = sub.l %p.1, 0x1_l;
+    call $qsort(%arr, %low, %ph.1);
+    %pl.1 = add.l %p.1, 0x1_l;
+    call $qsort(%arr, %pl.1, %high);
+    ret
+  } else {
+    ret
+  }
+}

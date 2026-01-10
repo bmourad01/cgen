@@ -41,8 +41,39 @@ let coalesce_only filename =
   let* tenv, m = Passes.initialize m in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Coalesce_slots.run in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Resolve_constant_blk_args.run in
-  let*? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
-  !!(tenv, m)
+  let+? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
+  tenv, m
+
+let test_destructure name _ =
+  let filename = Format.sprintf "data/opt/%s.sir" name in
+  let filename' = Format.sprintf "%s.vir" filename in
+  Context.init Machine.X86.Amd64_sysv.target |>
+  Context.eval begin
+    let open Context.Syntax in
+    let* m = Parse.Structured.from_file filename in
+    let* m = Passes.destructure m in
+    !!(Format.asprintf "%a" Virtual.Module.pp m)
+  end |> function
+  | Ok p' -> compare_outputs filename' p'
+  | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
+
+let test_restructure ?(opt = false) name _ =
+  let filename = Format.sprintf "data/opt/%s.vir" name in
+  let filename' = Format.sprintf "%s%s.sir" filename
+      (if opt then ".opt" else "") in
+  Context.init Machine.X86.Amd64_sysv.target |>
+  Context.eval begin
+    let open Context.Syntax in
+    let* m = Parse.Virtual.from_file filename in
+    let* tenv, m = Passes.initialize m in
+    let* tenv, m = if opt
+      then Passes.optimize tenv m
+      else !!(tenv, m) in
+    let* m = Passes.restructure ~tenv m in
+    !!(Format.asprintf "%a" Structured.Module.pp m)
+  end |> function
+  | Ok p' -> compare_outputs filename' p'
+  | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
 let test_abi target ext name _ =
   let filename = Format.sprintf "data/opt/%s.vir" name in
@@ -153,7 +184,34 @@ let test_sysv_amd64_regalloc = test_regalloc Machine.X86.Amd64_sysv.target "sysv
 (* Specific native tests. *)
 let test_sysv_amd64_native = test_native Machine.X86.Amd64_sysv.target "sysv" "amd64"
 
-(*  General optimization tests *)
+(* Destructuring tests *)
+let destructure_suite = "Test destructure" >::: [
+    "Fibonacci" >:: test_destructure "fib";
+    "Switch 1" >:: test_destructure "switch1";
+    "Goto 1" >:: test_destructure "goto1";
+    "GCD" >:: test_destructure "gcd";
+  ]
+
+let to_restructure = [
+  "Collatz", "collatz";
+  "Collatz (recursive)", "collatz_rec";
+  "Binary search", "bsearch";
+  "Quicksort", "qsort";
+]
+
+(* Restructuring tests (without optimizations) *)
+let restructure_suite = "Test restructure (without optimizations)" >::: begin
+    List.map to_restructure ~f:(fun (n, f) ->
+        n >:: test_restructure f)
+  end
+
+(* Restructuring tests (with optimizations) *)
+let restructure_opt_suite = "Test restructure (with optimizations)" >::: begin
+    List.map to_restructure ~f:(fun (n, f) ->
+        n >:: test_restructure ~opt:true f)
+  end
+
+(* General optimization tests *)
 let opt_suite = "Test optimizations" >::: [
     "Multiply by 1" >:: test "mulby1";
     "Multiply by 2" >:: test "mulby2";
@@ -416,6 +474,9 @@ let native_suite = "Test native code" >::: [
   ]
 
 let () = run_test_tt_main @@ test_list [
+    destructure_suite;
+    restructure_suite;
+    restructure_opt_suite;
     opt_suite;
     abi_suite;
     isel_suite;

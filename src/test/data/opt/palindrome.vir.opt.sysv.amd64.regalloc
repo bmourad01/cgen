@@ -9,22 +9,22 @@ export function $palindrome { ; returns: rax
   test edx, edx ; @45
   jne @6 ; @46
 @7:
-  xor edx, edx ; @16
+  xor edx, edx ; @32
   cmp ecx, eax ; @43
   sete dl ; @44
   mov al, dl ; @41
   ret ; @42
 @6:
-  imul rsi, rdx, 0x1999999a ; @18
+  imul rsi, rdx, 0x1999999a ; @16
   shr rsi, 0x20_b ; @40
-  mov edi, esi ; @19
+  mov edi, esi ; @17
   shr edi, 0x1f_b ; @39
-  add esi, edi ; @20
-  imul edi, esi, 0xa ; @21
+  add esi, edi ; @18
+  imul edi, esi, 0xa ; @19
   sub edx, edi ; @38
-  lea edi, qword ptr [rax + rax*1] ; @29
-  lea eax, qword ptr [rdi + rax*8] ; @30
-  add eax, edx ; @31
+  lea edi, qword ptr [rax + rax*1] ; @27
+  lea eax, qword ptr [rdi + rax*8] ; @28
+  add eax, edx ; @29
   mov edx, esi ; @35
   jmp @3 ; @36
 }

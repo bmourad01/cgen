@@ -1,0 +1,31 @@
+module fib
+
+export function w $fib_rec(w %n) {
+start:
+  when le.w %n, 1_w {
+    ret %n
+  };
+  %n1 = sub.w %n, 1_w;
+  %n2 = sub.w %n, 2_w;
+  %a1 = call.w $fib_rec(%n1);
+  %a2 = call.w $fib_rec(%n2);
+  %r = add.w %a1, %a2;
+  ret %r
+}
+
+export function w $fib_iter(w %n) {
+start:
+  when le.w %n, 1_w {
+    ret %n
+  };
+  %p = copy.w 0_w;
+  %c = copy.w 1_w;
+  %i = copy.w 2_w;
+  while le.w %i, %n {
+    %x = add.w %p, %c;
+    %p = copy.w %c;
+    %c = copy.w %x;
+    %i = add.w %i, 1_w
+  };
+  ret %c
+}

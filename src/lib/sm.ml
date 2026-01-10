@@ -51,16 +51,20 @@ module Make(M : S) = struct
 
   include SM
 
-  let lift_err : 'a Or_error.t -> 'a m = function
-    | Error err -> failf "%a" Error.pp err ()
+  let lift_err ?prefix : 'a Or_error.t -> 'a m = function
     | Ok x -> return x
+    | Error err -> match prefix with
+      | None -> failf "%a" Error.pp err ()
+      | Some p -> failf "%s: %a" p Error.pp err ()
 
   module Syntax = struct
     include SM.Syntax
     include SM.Let
 
     let (>>?) x f = lift_err x >>= f
+    let (>|?) x f = lift_err x >>| f
     let (let*?) x f = x >>? f
+    let (let+?) x f = x >|? f
 
     let (and+) x y = {
       run = fun ~reject ~accept s ->
@@ -121,8 +125,8 @@ module Make(M : S) = struct
     let all = map ~f:Base.Fn.id
   end
 
-  let map_list_err l ~f = List.map l ~f:(Base.Fn.compose lift_err f)
-  let iter_list_err l ~f = List.iter l ~f:(Base.Fn.compose lift_err f)
-  let map_seq_err s ~f = Seq.map s ~f:(Base.Fn.compose lift_err f)
-  let iter_seq_err s ~f = Seq.iter s ~f:(Base.Fn.compose lift_err f)
+  let map_list_err ?prefix l ~f = List.map l ~f:(Base.Fn.compose (lift_err ?prefix) f)
+  let iter_list_err ?prefix l ~f = List.iter l ~f:(Base.Fn.compose (lift_err ?prefix) f)
+  let map_seq_err ?prefix s ~f = Seq.map s ~f:(Base.Fn.compose (lift_err ?prefix) f)
+  let iter_seq_err ?prefix s ~f = Seq.iter s ~f:(Base.Fn.compose (lift_err ?prefix) f)
 end

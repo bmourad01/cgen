@@ -1,0 +1,41 @@
+module switch1
+
+export function w $foo(w %x, w %y) {
+start:
+  %acc = copy.w 0_w;
+  switch.w %x {
+  case 0_w:
+    %acc = add.w %y, 1_w;
+    break
+  case 1_w:
+    %acc = mul.w %y, 2_w;
+    // FALLTHROUGH
+  case 2_w:
+    %acc = add.w %acc, 3_w;
+    when slt.w %y, 0_w {
+      break
+    };
+    %acc = add.w %acc, 4_w;
+    break
+  case 3_w:
+    %acc = copy.w 10_w;
+    while sgt.w %y, 0_w {
+      %acc = add.w %acc, %y;
+      %y = sub.w %y, 1_w;
+      when eq.w %y, 2_w {
+        break
+      }
+    }
+    // FALLTHROUGH
+  case 4_w:
+    %acc = xor.w %acc, %y;
+    break
+  default:
+    %acc = copy.w 0xffffffff_w;
+    when slt.w %x, 0xfffffff6_w {
+      %acc = sub.w %acc, 1_w
+    };
+    break
+  };
+  ret %acc
+}

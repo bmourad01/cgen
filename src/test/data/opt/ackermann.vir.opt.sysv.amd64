@@ -12,25 +12,25 @@ export function $foo { ; returns: rax
   je @3 ; @46
   jmp @4 ; @47
 @4:
-  lea %5:w, qword ptr [%1 - 0x1] ; @25
+  lea %6:w, qword ptr [%1 - 0x1] ; @26
   test %2:w, %2:w ; @40
   je @28 ; @41
   jmp @8 ; @42
 @28:
-  mov %1:w, %5:w ; @37
+  mov %1:w, %6:w ; @37
   mov %2:w, 0x1_w ; @38
   jmp @2 ; @39
 @8:
-  lea %6:w, qword ptr [%2 - 0x1] ; @26
+  lea %7:w, qword ptr [%2 - 0x1] ; @27
   mov edi, %1:w ; @18
-  mov esi, %6:w ; @34
+  mov esi, %7:w ; @34
   call $foo ; rdi rsi ; @35
-  mov %r.1:w, eax ; @36
-  mov %1:w, %5:w ; @31
-  mov %2:w, %r.1:w ; @32
+  mov %r.2:w, eax ; @36
+  mov %1:w, %6:w ; @31
+  mov %2:w, %r.2:w ; @32
   jmp @2 ; @33
 @3:
-  lea %7:w, qword ptr [%2 + 0x1] ; @27
-  mov eax, %7:w ; @29
+  lea %4:w, qword ptr [%2 + 0x1] ; @24
+  mov eax, %4:w ; @29
   ret ; @30
 }

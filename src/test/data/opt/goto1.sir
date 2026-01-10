@@ -1,0 +1,20 @@
+module goto1
+
+export function w $foo(w %x) {
+start:
+  %a = copy.w 0_w;
+@L0:
+  when eq.w %x, 0_w {
+    goto @L2
+  };
+  %a = add.w %a, 1_w;
+  when slt.w %x, 0_w {
+    goto @L1
+  };
+  goto @L0;
+@L1:
+  %a = sub.w %a, 1_w;
+  goto @L2;
+@L2:
+  ret %a
+}

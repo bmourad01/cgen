@@ -206,7 +206,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* Traverse the blocks in pseudo-postorder, which ends up accumulating
      in reverse postoder. *)
   let transl_blks t =
-    Func.blks t.fn |> Seq.map ~f:(fun b -> b, t.rpo (Blk.label b)) |>
+    Func.blks t.fn |> Seq.map ~f:(fun b ->
+        let l = Blk.label b in
+        let o = Semi_nca.Tree.rpo_exn t.dom l in
+        b, o) |>
     Seq.to_list |> List.sort ~compare:(fun (_, a) (_, b) -> compare b a) |>
     C.List.fold ~init:[] ~f:(fun acc (b, _) ->
         let+ bs = step t b in

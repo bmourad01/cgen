@@ -1,6 +1,5 @@
 open Core
 open Monads.Std
-open Regular.Std
 open Graphlib.Std
 open Virtual
 
@@ -37,13 +36,11 @@ type t = {
   reso : resolver;              (* Labels to blocks/insns. *)
   cfg  : Cfg.t;                 (* The CFG. *)
   dom  : Label.t Semi_nca.tree; (* Dominator tree. *)
-  domd : int Label.Table.t;     (* Dominator tree depths. *)
   pdom : Label.t Semi_nca.tree; (* Post-dominator tree. *)
   rdom : Dominance.t;           (* Fine-grained dominance relation. *)
   lst  : Last_stores.t;         (* Last stores analysis. *)
   tenv : Typecheck.env;         (* Typing environment. *)
   phis : Phis.state;            (* Block argument value sets. *)
-  rpo  : Label.t -> int;        (* Reverse post-order number. *)
   scc  : Label.t partition;     (* Strongly-connected components. *)
 }
 
@@ -68,22 +65,6 @@ let init_last_stores cfg reso =
     end) in
   Lst.analyze cfg
 
-let dom_depths dom =
-  let t = Label.Table.create () in
-  let q = Stack.singleton (Label.pseudoentry, 0) in
-  Stack.until_empty q (fun (l, d) ->
-      Hashtbl.set t ~key:l ~data:d;
-      Semi_nca.Tree.children dom l |> Seq.iter ~f:(fun l' ->
-          Stack.push q (l', d + 1)));
-  t
-
-let init_rpo cfg =
-  let nums = Label.Table.create () in
-  Graphlib.reverse_postorder_traverse
-    ~start:Label.pseudoentry (module Cfg) cfg |>
-  Seq.iteri ~f:(fun i l -> Hashtbl.set nums ~key:l ~data:i);
-  Hashtbl.find_exn nums
-
 let resolve_blk reso l =
   match Resolver.resolve reso l with
   | Some `blk b -> Some b
@@ -92,16 +73,14 @@ let resolve_blk reso l =
 let init fn tenv =
   let+ reso = Resolver.create fn in
   let cfg = Cfg.create fn in
-  let loop = Loops.analyze ~name:(Func.name fn) cfg in
   let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
+  let loop = Loops.analyze ~dom ~name:(Func.name fn) cfg in
   let pdom = Semi_nca.compute (module Cfg) cfg Label.pseudoexit ~rev:true in
   let rdom = init_dom_relation reso dom in
   let lst = init_last_stores cfg reso in
-  let domd = dom_depths dom in
   let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
-  let rpo = init_rpo cfg in
   let scc = Graphlib.strong_components (module Cfg) cfg in
   Logs.debug (fun m ->
       m "%s: SCCs of $%s: %a%!"
         __FUNCTION__ (Func.name fn) (Partition.pp Label.pp) scc);
-  {fn; loop; reso; cfg; dom; domd; pdom; rdom; lst; tenv; phis; rpo; scc}
+  {fn; loop; reso; cfg; dom; pdom; rdom; lst; tenv; phis; scc}

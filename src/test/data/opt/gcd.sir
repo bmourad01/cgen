@@ -1,0 +1,18 @@
+module gcd
+
+export function w $gcd(w %a, w %b) {
+start:
+  when slt.w %a, 0_w {
+    %a = neg.w %a
+  };
+  when slt.w %b, 0_w {
+    %b = neg.w %b
+  };
+  %d = copy.w 1_w;
+  while ne.w %b, 0_w {
+    %d = copy.w %b;
+    %b = rem.w %a, %b;
+    %a = copy.w %d
+  };
+  ret %d
+}

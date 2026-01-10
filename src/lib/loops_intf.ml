@@ -28,7 +28,7 @@ module type S = sig
   val level : data -> level
 
   (** [analyze ~name cfg] performs the loop analysis of [cfg] for function [name]. *)
-  val analyze : name:string -> cfg -> t
+  val analyze : ?dom:Label.t Semi_nca.tree -> name:string -> cfg -> t
 
   (** [get t x] returns the data for loop [x].
 

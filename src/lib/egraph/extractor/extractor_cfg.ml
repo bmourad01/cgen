@@ -217,8 +217,7 @@ let table_elt t env : ext -> (Bv.t * local) Context.t = function
 
 let table t env tbl ty =
   let* tbl = Context.List.map tbl ~f:(table_elt t env) in
-  let*? x = Ctrl.Table.create tbl ty in
-  !!x
+  Context.lift_err @@ Ctrl.Table.create tbl ty
 
 let table_dst tbl i d =
   Ctrl.Table.find tbl i |>

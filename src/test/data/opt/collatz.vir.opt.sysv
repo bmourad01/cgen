@@ -11,13 +11,13 @@ export function $foo(w %n/rdi) {
   %2 = eq.w %1, 0x0_w ; @29
   br %2, @10, @11
 @10:
-  %7 = lsr.w %x.2, 0x1_w ; @34
-  jmp @15(%7)
+  %4 = lsr.w %x.2, 0x1_w ; @31
+  jmp @15(%4)
 @11:
-  %4 = lsl.w %x.2, 0x1_w ; @31
-  %5 = add.w %4, %x.2 ; @32
-  %6 = add.w %5, 0x1_w ; @33
-  jmp @15(%6)
+  %5 = lsl.w %x.2, 0x1_w ; @32
+  %6 = add.w %5, %x.2 ; @33
+  %7 = add.w %6, 0x1_w ; @34
+  jmp @15(%7)
 @15(%x.3):
   %3 = add.w %count.2, 0x1_w ; @30
   jmp @3(%x.3, %3)

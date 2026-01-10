@@ -303,12 +303,11 @@ let try_ f = try Ok (f ()) with
 
 let run eg = try_ @@ fun () ->
   let env = init () in
-  (* Note that we compare in pseudo-postorder because we are pushing
-     onto the stack, which will maintain reverse postorder. *)
-  let cmp a b = compare (eg.input.rpo b) (eg.input.rpo a) in
   let q = Stack.singleton (Label.pseudoentry, env.mem) in
   Stack.until_empty q @@ fun (l, lst) ->
   step env eg l lst;
   Semi_nca.Tree.children eg.input.dom l |>
-  Seq.to_list |> List.sort ~compare:cmp |>
-  List.iter ~f:(fun l -> Stack.push q (l, env.mem))
+  (* `children` will be sorted by RPO numbers, but we reverse
+     this since we're using a stack to do the traversal, so
+     this ensures that we will visit each block by RPO. *)
+  Seq.to_list_rev |> List.iter ~f:(fun l -> Stack.push q (l, env.mem))

@@ -145,6 +145,9 @@ module type S = sig
     | `uo  of Type.fp
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 
+  (** Negates the comparison operator. *)
+  val negate_cmp : cmp -> cmp
+
   (** Pretty-prints a comparison operation. *)
   val pp_cmp : Format.formatter -> cmp -> unit
 
@@ -204,7 +207,7 @@ module type S = sig
       [`copy t]: move to a destination of type [t].
   *)
   type copy = [
-    | `copy  of Type.basic
+    | `copy of Type.basic
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 
   (** Pretty-prints a copy operation. *)
