@@ -14,6 +14,11 @@ type ctx = {
 type op = Virtual.Insn.op
 type blks = Virtual.blk Ltree.t
 
+let rec is_straightline : Stmt.t -> bool = function
+  | #Virtual.Insn.op | `nop -> true
+  | `seq (s1, s2) -> is_straightline s1 && is_straightline s2
+  | _ -> false
+
 module Make(C : Context_intf.S_virtual) = struct
   open C.Syntax
 
@@ -66,7 +71,7 @@ module Make(C : Context_intf.S_virtual) = struct
         (* Accumulate a plain instruction. *)
         mk@@fun ops blks -> k.apply (op :: ops) blks
       | `nop -> k
-      | `seq (s1, s2) -> cont ~ctx s1 @@ cont ~ctx s2 k
+      | `seq (s1, s2) -> seq ~ctx s1 s2 k
       | `ite (c, y, n) -> ite ~ctx c y n k
       | `loop b -> loop ~ctx b k
       | `break -> break ~ctx
@@ -80,6 +85,15 @@ module Make(C : Context_intf.S_virtual) = struct
 
     (* Same as `cont`, but we force the continuation right away. *)
     and go ~ctx s k ops blks = (cont ~ctx s k).apply ops blks
+
+    and seq ~ctx s1 s2 (k : k) : k =
+      if is_straightline s1 then
+        (* Ideal case: continue emitting in the same block. *)
+        cont ~ctx s1 @@ cont ~ctx s2 k
+      else mk@@fun ops blks ->
+        (* Fall back to the naiive lowering. *)
+        let* l2, blks = go ~ctx s2 k [] blks in
+        go ~ctx s1 (mk@@goto l2) ops blks
 
     and ite ~ctx c y n (k : k) : k = mk@@fun ops blks ->
       let* c, ops = cond c >>| function

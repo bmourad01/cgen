@@ -1,0 +1,25 @@
+module goto1
+
+export function w $foo(w %x) {
+@13:
+  %a = copy.w 0x0_w ; @14
+  jmp @2
+@2:
+  jmp @11
+@3:
+  jmp @5
+@4:
+  jmp @6
+@5:
+  ret %a
+@6:
+  %a = sub.w %a, 0x1_w ; @7
+  jmp @3
+@8:
+  %a = add.w %a, 0x1_w ; @10
+  %0 = slt.w %x, 0x0_w ; @9
+  br %0, @4, @2
+@11:
+  %1 = eq.w %x, 0x0_w ; @12
+  br %1, @3, @8
+}

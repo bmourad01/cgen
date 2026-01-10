@@ -25,11 +25,11 @@ export function w $foo(w %x, w %y) {
 @11:
   %acc = add.w %acc, %y ; @14
   %y = sub.w %y, 0x1_w ; @13
-  %2 = eq.w %y, 0x2_w ; @12
-  br %2, @8, @10
+  %1 = eq.w %y, 0x2_w ; @12
+  br %1, @8, @10
 @15:
-  %1 = sgt.w %y, 0x0_w ; @16
-  br %1, @11, @8
+  %2 = sgt.w %y, 0x0_w ; @16
+  br %2, @11, @8
 @17:
   %acc = copy.w 0xa_w ; @18
   jmp @10

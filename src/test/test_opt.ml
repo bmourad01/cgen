@@ -188,6 +188,7 @@ let test_sysv_amd64_native = test_native Machine.X86.Amd64_sysv.target "sysv" "a
 let destructure_suite = "Test destructure" >::: [
     "Fibonacci" >:: test_destructure "fib";
     "Switch 1" >:: test_destructure "switch1";
+    "Goto 1" >:: test_destructure "goto1";
   ]
 
 let to_restructure = [

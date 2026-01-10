@@ -17,26 +17,26 @@ export function w $fib_rec(w %n) {
 
 export function w $fib_iter(w %n) {
 @25:
-  %1 = le.w %n, 0x1_w ; @26
-  br %1, @24, @20
+  %2 = le.w %n, 0x1_w ; @26
+  br %2, @24, @20
 @11:
-  jmp @18
-@12:
   ret %c
+@12:
+  jmp @18
 @13:
   %x = add.w %p, %c ; @17
   %p = copy.w %c ; @16
   %c = copy.w %x ; @15
   %i = add.w %i, 0x1_w ; @14
-  jmp @11
+  jmp @12
 @18:
-  %2 = le.w %i, %n ; @19
-  br %2, @13, @12
+  %1 = le.w %i, %n ; @19
+  br %1, @13, @11
 @20:
   %p = copy.w 0x0_w ; @23
   %c = copy.w 0x1_w ; @22
   %i = copy.w 0x2_w ; @21
-  jmp @11
+  jmp @12
 @24:
   ret %n
 }

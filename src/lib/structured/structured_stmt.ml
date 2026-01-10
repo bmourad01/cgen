@@ -165,11 +165,6 @@ let[@tail_mod_cons] rec normalize (s : t) : t = match s with
   | `seq (`nop, s)
   | `seq (s, `nop)
     -> normalize s
-  (* Terminated sequence *)
-  | `seq (
-      (`ret _ | `goto _ | `hlt | `break | `continue as s1),
-      _
-    ) -> s1
   (* Associate sequences to the right. *)
   | `seq (`seq (s1, s2), s3) ->
     normalize @@ `seq (s1, `seq (s2, s3))
