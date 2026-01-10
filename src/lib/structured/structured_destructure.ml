@@ -1,5 +1,6 @@
 open Core
 open Regular.Std
+open Graphlib.Std
 
 module Func = Structured_func
 module Stmt = Structured_stmt
@@ -212,8 +213,14 @@ module Make(C : Context_intf.S_virtual) = struct
         C.failf
           "Destructure: missing entry block in function $%s"
           name () in
-    let blks = sb :: Ltree.(data @@ remove blks start) in
-    C.lift_err @@ Virtual.Func.create () ~dict ~blks ~name
-      ~slots:(Func.slots fn |> Seq.to_list)
-      ~args:(Func.args fn |> Seq.to_list)
+    let*? fn = Virtual.Func.create () ~dict ~name
+        ~blks:(sb :: Ltree.(data @@ remove blks start))
+        ~slots:(Func.slots fn |> Seq.to_list)
+        ~args:(Func.args fn |> Seq.to_list) in
+    (* Clean up the ordering of the blocks; RPO is fairly intuitive
+       to the user. *)
+    let cfg = Virtual.Cfg.create fn in
+    Graphlib.reverse_postorder_traverse (module Virtual.Cfg) cfg ~start |>
+    Seq.filter_map ~f:(Label.Tree.find blks) |> Seq.to_list |>
+    Virtual.Func.with_blks fn |> C.lift_err
 end

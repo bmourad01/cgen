@@ -189,6 +189,7 @@ let destructure_suite = "Test destructure" >::: [
     "Fibonacci" >:: test_destructure "fib";
     "Switch 1" >:: test_destructure "switch1";
     "Goto 1" >:: test_destructure "goto1";
+    "GCD" >:: test_destructure "gcd";
   ]
 
 let to_restructure = [

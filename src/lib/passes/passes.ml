@@ -20,8 +20,7 @@ module Ssa = Ssa
 let destructure m =
   let+ funs =
     Structured.Module.funs m |>
-    Context.Seq.map ~f:Destructure.run >>|
-    Seq.map ~f:Remove_disjoint_blks.run in
+    Context.Seq.map ~f:Destructure.run in
   Module.create ()
     ~funs:(Seq.to_list funs)
     ~dict:(Structured.Module.dict m)

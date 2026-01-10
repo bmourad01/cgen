@@ -4,6 +4,8 @@ export function w $fib_rec(w %n) {
 @9:
   %0 = le.w %n, 0x1_w ; @10
   br %0, @8, @2
+@8:
+  ret %n
 @2:
   %n1 = sub.w %n, 0x1_w ; @7
   %n2 = sub.w %n, 0x2_w ; @6
@@ -11,32 +13,30 @@ export function w $fib_rec(w %n) {
   %a2 = call.w $fib_rec(%n2) ; @4
   %r = add.w %a1, %a2 ; @3
   ret %r
-@8:
-  ret %n
 }
 
 export function w $fib_iter(w %n) {
 @25:
   %2 = le.w %n, 0x1_w ; @26
   br %2, @24, @20
-@11:
-  ret %c
+@24:
+  ret %n
+@20:
+  %p = copy.w 0x0_w ; @23
+  %c = copy.w 0x1_w ; @22
+  %i = copy.w 0x2_w ; @21
+  jmp @12
 @12:
   jmp @18
+@18:
+  %1 = le.w %i, %n ; @19
+  br %1, @13, @11
 @13:
   %x = add.w %p, %c ; @17
   %p = copy.w %c ; @16
   %c = copy.w %x ; @15
   %i = add.w %i, 0x1_w ; @14
   jmp @12
-@18:
-  %1 = le.w %i, %n ; @19
-  br %1, @13, @11
-@20:
-  %p = copy.w 0x0_w ; @23
-  %c = copy.w 0x1_w ; @22
-  %i = copy.w 0x2_w ; @21
-  jmp @12
-@24:
-  ret %n
+@11:
+  ret %c
 }
