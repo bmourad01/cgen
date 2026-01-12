@@ -148,7 +148,7 @@
 %token LOOP
 %token WHILE
 %token DO
-%token BREAK
+%token BREAK CONTINUE
 %token RET
 %token <Type.imm> SWITCH
 %token CASE DEFAULT
@@ -364,6 +364,7 @@ stmt_cond:
 non_label_stmt:
   | NOP { !!`nop }
   | BREAK { !!`break }
+  | CONTINUE { !!`continue }
   | IF x = stmt_cond LBRACE t = stmt RBRACE ELSE LBRACE e = stmt RBRACE
     {
       let+ x = x and+ t = t and+ e = e in

@@ -177,6 +177,7 @@ rule token = parse
   | "hlt" { HLT }
   | "goto" { GOTO }
   | "break" { BREAK }
+  | "continue" { CONTINUE }
   | "if" { IF }
   | "unless" { UNLESS }
   | "when" { WHEN }
