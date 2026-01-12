@@ -218,9 +218,16 @@ module Make(C : Context_intf.S_virtual) = struct
         ~slots:(Func.slots fn |> Seq.to_list)
         ~args:(Func.args fn |> Seq.to_list) in
     (* Clean up the ordering of the blocks; RPO is fairly intuitive
-       to the user. *)
+       to the user. A small note here: we need to also filter out
+       any blocks that were unreachable from the entry, as they
+       could end up taking the place of the entry in the ordering. *)
     let cfg = Virtual.Cfg.create fn in
-    Graphlib.reverse_postorder_traverse (module Virtual.Cfg) cfg ~start |>
-    Seq.filter_map ~f:(Label.Tree.find blks) |> Seq.to_list |>
+    let rpo = with_return @@ fun {return} ->
+      Graphlib.depth_first_search
+        (module Virtual.Cfg) cfg ~start ~init:[]
+        ~start_tree:(fun n s ->
+            if Label.(n = start) then s else return s)
+        ~leave_node:(fun _ n ns -> n :: ns) in
+    List.filter_map rpo ~f:(Ltree.find blks) |>
     Virtual.Func.with_blks fn |> C.lift_err
 end
