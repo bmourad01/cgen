@@ -2,37 +2,34 @@ module evenodd
 
 function w $abs(w %n) {
 @2:
-  %3 = slt.w %n, 0x0_w ; @24
-  br %3, @3, @21(%n)
-@3:
-  %4 = neg.w %n ; @25
-  jmp @21(%4)
-@21(%0):
-  ret %0
+  %4 = slt.w %n, 0x0_w ; @25
+  %5 = neg.w %n ; @26
+  %6 = sel.w %4, %5, %n ; @27
+  ret %6
 }
 
 export function b $even(w %n) {
 @7:
   %n.1 = call.w $abs(%n) ; @10
-  %5 = eq.w %n.1, 0x0_w ; @26
-  br %5, @22(0x1_b), @9
+  %7 = eq.w %n.1, 0x0_w ; @28
+  br %7, @23(0x1_b), @9
 @9:
-  %6 = sub.w %n.1, 0x1_w ; @27
-  %b.1 = call.b $odd(%6) ; @13
-  jmp @22(%b.1)
-@22(%1):
-  ret %1
+  %8 = sub.w %n.1, 0x1_w ; @29
+  %b.1 = call.b $odd(%8) ; @13
+  jmp @23(%b.1)
+@23(%2):
+  ret %2
 }
 
 export function b $odd(w %n) {
 @14:
   %n.1 = call.w $abs(%n) ; @17
-  %7 = eq.w %n.1, 0x0_w ; @28
-  br %7, @23(0x0_b), @16
+  %9 = eq.w %n.1, 0x0_w ; @30
+  br %9, @24(0x0_b), @16
 @16:
-  %8 = sub.w %n.1, 0x1_w ; @29
-  %b.1 = call.b $even(%8) ; @20
-  jmp @23(%b.1)
-@23(%2):
-  ret %2
+  %10 = sub.w %n.1, 0x1_w ; @31
+  %b.1 = call.b $even(%10) ; @20
+  jmp @24(%b.1)
+@24(%3):
+  ret %3
 }

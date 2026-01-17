@@ -1,0 +1,37 @@
+module ifc1
+
+export function w $foo(w %x) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, @neg, @pos
+@neg:
+  %y = add.w %x, 5_w
+  jmp @join
+@pos:
+  %y = sub.w %x, 5_w
+  jmp @join
+@join:
+  ret %y
+}
+
+export function w $bar(w %x) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, @join, @pos
+@pos:
+  %x = sub.w %x, 5_w
+  jmp @join
+@join:
+  ret %x
+}
+
+export function w $baz(w %x) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, @neg, @join
+@neg:
+  %x = add.w %x, 5_w
+  jmp @join
+@join:
+  ret %x
+}

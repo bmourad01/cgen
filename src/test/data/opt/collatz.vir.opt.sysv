@@ -4,23 +4,18 @@ export function $foo(w %n/rdi) {
 @2:
   jmp @3(%n, 0x0_w)
 @3(%x.2, %count.2):
-  %0 = gt.w %x.2, 0x1_w ; @27
-  br %0, @6, @7
+  %1 = gt.w %x.2, 0x1_w ; @28
+  br %1, @6, @7
 @6:
-  %1 = and.w %x.2, 0x1_w ; @28
-  %2 = eq.w %1, 0x0_w ; @29
-  br %2, @10, @11
-@10:
+  %2 = and.w %x.2, 0x1_w ; @29
+  %3 = eq.w %2, 0x0_w ; @30
   %4 = lsr.w %x.2, 0x1_w ; @31
-  jmp @15(%4)
-@11:
   %5 = lsl.w %x.2, 0x1_w ; @32
   %6 = add.w %5, %x.2 ; @33
   %7 = add.w %6, 0x1_w ; @34
-  jmp @15(%7)
-@15(%x.3):
-  %3 = add.w %count.2, 0x1_w ; @30
-  jmp @3(%x.3, %3)
+  %8 = sel.w %3, %4, %7 ; @35
+  %9 = add.w %count.2, 0x1_w ; @36
+  jmp @3(%8, %9)
 @7:
   ret rax/%count.2
 }

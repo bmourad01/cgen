@@ -1,0 +1,26 @@
+module ifc1
+
+export function w $foo(w %x) {
+@2:
+  %3 = slt.w %x, 0x0_w ; @22
+  %4 = add.w %x, 0x5_w ; @23
+  %5 = sub.w %x, 0x5_w ; @24
+  %6 = sel.w %3, %4, %5 ; @25
+  ret %6
+}
+
+export function w $bar(w %x) {
+@9:
+  %7 = slt.w %x, 0x0_w ; @26
+  %8 = sub.w %x, 0x5_w ; @27
+  %9 = sel.w %7, %x, %8 ; @28
+  ret %9
+}
+
+export function w $baz(w %x) {
+@14:
+  %10 = slt.w %x, 0x0_w ; @29
+  %11 = add.w %x, 0x5_w ; @30
+  %12 = sel.w %10, %11, %x ; @31
+  ret %12
+}
