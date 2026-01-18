@@ -2,50 +2,48 @@ module and_test
 
 export function $foo { ; returns: rax
 @2:
-  mov eax, edi ; @48
-  and eax, 0x3_w ; @49
-  cmove edi, esi ; @44
-  mov eax, edi ; @41
-  ret ; @42
+  mov eax, edi ; @51
+  and eax, 0x3_w ; @52
+  cmove edi, esi ; @47
+  mov eax, edi ; @44
+  ret ; @45
 }
 
 export function $bar { ; returns: rax
 @10:
-  test edi, 0x3_w ; @56
-  je @11 ; @57
-@12:
-  lea eax, qword ptr [rdi + 0x1] ; @34
-  jmp @15 ; @55
-@11:
-  lea eax, qword ptr [rsi + 0x1] ; @33
-@15:
-  ret ; @51
+  mov ecx, edi ; @60
+  and ecx, 0x3_w ; @61
+  lea edx, qword ptr [rsi + 0x1] ; @36
+  lea eax, qword ptr [rdi + 0x1] ; @37
+  cmp ecx, 0x0_w ; @55
+  cmove eax, edx ; @56
+  ret ; @54
 }
 
 export function $baz { ; returns: rax
 @18:
-  mov rax, rdi ; @86
-  and rax, 0x3_l ; @87
-  je @19 ; @76
-  dec rax ; @78
-  cmp rax, 0x2_l ; @79
-  ja @19 ; @80
-  lea rcx, qword ptr [rip + @74] ; @81
-  movsxd rax, dword ptr [rcx + rax*4] ; @82
-  add rax, rcx ; @83
-  jmp rax ; @84
-  .tbl @74 [@20, @21, @22] ; @85
+  mov rax, rdi ; @84
+  and rax, 0x3_l ; @85
+  je @19 ; @74
+  dec rax ; @76
+  cmp rax, 0x2_l ; @77
+  ja @19 ; @78
+  lea rcx, qword ptr [rip + @72] ; @79
+  movsxd rax, dword ptr [rcx + rax*4] ; @80
+  add rax, rcx ; @81
+  jmp rax ; @82
+  .tbl @72 [@20, @21, @22] ; @83
 @22:
-  lea rax, qword ptr [rdi + 0x4] ; @39
-  jmp @24 ; @73
-@21:
-  lea rax, qword ptr [rdi + 0x3] ; @38
+  lea rax, qword ptr [rdi + 0x4] ; @43
   jmp @24 ; @71
-@20:
-  lea rax, qword ptr [rdi + 0x2] ; @37
+@21:
+  lea rax, qword ptr [rdi + 0x3] ; @42
   jmp @24 ; @69
+@20:
+  lea rax, qword ptr [rdi + 0x2] ; @41
+  jmp @24 ; @67
 @19:
-  lea rax, qword ptr [rdi + 0x1] ; @36
+  lea rax, qword ptr [rdi + 0x1] ; @40
 @24:
-  ret ; @65
+  ret ; @63
 }

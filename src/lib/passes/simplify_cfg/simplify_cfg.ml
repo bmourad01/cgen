@@ -2,6 +2,7 @@ open Core
 open Virtual
 open Simplify_cfg_common
 
+module Ifc = Simplify_cfg_ifc
 module Brsel = Simplify_cfg_brsel
 module Merge_blks = Simplify_cfg_merge_blks
 module Contract = Simplify_cfg_contract
@@ -26,6 +27,7 @@ let run tenv fn =
       || Contract.run env
       || Short_circ.run env
       || Duplicate_br.run env
+      || Ifc.run tenv env fn
       || brsel
       then loop @@ recompute_cfg env @@ update_fn env fn
       else !!fn in

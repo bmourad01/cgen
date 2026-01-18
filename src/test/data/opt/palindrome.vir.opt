@@ -7,18 +7,19 @@ export function b $palindrome(w %n) {
   %0 = ne.w %n.1, 0x0_w ; @15
   br %0, @6, @7
 @6:
-  %1 = mulh.w %n.1, 0x1999999a_w ; @16
-  %2 = lsr.w %1, 0x1f_w ; @17
-  %3 = add.w %1, %2 ; @18
-  %4 = mul.w %3, 0xa_w ; @19
-  %5 = sub.w %n.1, %4 ; @20
-  %11 = lsl.w %rev.2, 0x3_w ; @26
-  %12 = lsl.w %rev.2, 0x1_w ; @27
-  %13 = add.w %11, %12 ; @28
-  %14 = add.w %13, %5 ; @29
-  jmp @3(%14, %3)
+  %1 = mulh.w %n.1, 0x66666667_w ; @16
+  %2 = asr.w %1, 0x2_w ; @17
+  %3 = lsr.w %1, 0x1f_w ; @18
+  %4 = add.w %2, %3 ; @19
+  %5 = mul.w %4, 0xa_w ; @20
+  %6 = sub.w %n.1, %5 ; @21
+  %12 = lsl.w %rev.2, 0x3_w ; @27
+  %13 = lsl.w %rev.2, 0x1_w ; @28
+  %14 = add.w %12, %13 ; @29
+  %15 = add.w %14, %6 ; @30
+  jmp @3(%15, %4)
 @7:
-  %17 = eq.w %n, %rev.2 ; @32
-  %18 = flag.b %17 ; @33
-  ret %18
+  %18 = eq.w %n, %rev.2 ; @33
+  %19 = flag.b %18 ; @34
+  ret %19
 }

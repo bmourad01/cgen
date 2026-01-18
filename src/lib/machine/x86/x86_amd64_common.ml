@@ -631,7 +631,7 @@ module Insn = struct
 
          This is morally equivalent to:
 
-         `x := cc ? b : a`
+         `a := cc ? b : a`
       *)
       ->
       Set.union (rset' [`rflags])

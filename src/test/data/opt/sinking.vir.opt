@@ -2,13 +2,10 @@ module foo
 
 export function w $foo(w %x, w %y) {
 @2:
-  %0 = add.w %x, 0x1_w ; @11
-  %3 = slt.w %x, 0x0_w ; @14
-  br %3, @3, @8(%y)
-@3:
-  %4 = lsl.w %0, 0x1_w ; @15
-  %5 = add.w %4, %y ; @16
-  jmp @8(%5)
-@8(%b.1):
-  ret %b.1
+  %1 = add.w %x, 0x1_w ; @12
+  %2 = lsl.w %1, 0x1_w ; @13
+  %5 = slt.w %x, 0x0_w ; @16
+  %6 = add.w %2, %y ; @17
+  %8 = sel.w %5, %6, %y ; @19
+  ret %8
 }

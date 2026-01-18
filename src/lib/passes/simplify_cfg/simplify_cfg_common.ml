@@ -42,14 +42,9 @@ let is_ret env l = match env.ret with
   | None -> false
 
 let update_fn env fn =
-  Func.blks fn |>
-  Seq.fold ~init:[] ~f:(fun acc b ->
-      let l = Blk.label b in
-      if Hashtbl.mem env.blks l then acc
-      else l :: acc) |>
-  Func.remove_blks_exn fn |>
-  Func.map_blks ~f:(fun b ->
-      Hashtbl.find_exn env.blks @@ Blk.label b)
+  Func.blks fn |> Seq.filter_map ~f:(fun b ->
+      Hashtbl.find env.blks @@ Blk.label b) |>
+  Seq.to_list |> Func.with_blks_exn fn
 
 let not_pseudo = Fn.non Label.is_pseudo
 

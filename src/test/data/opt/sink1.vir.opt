@@ -2,13 +2,10 @@ module sink1
 
 export function w $foo(w %x) {
 @2:
-  %2 = eq.w %x, 0x0_w ; @11
-  br %2, @3, @9(0x0_w)
-@3:
   %3 = add.w %x, 0x1_w ; @12
-  %4 = eq.w %3, 0x1_w ; @13
-  %5 = flag.w %4 ; @14
-  jmp @9(%5)
-@9(%0):
-  ret %0
+  %4 = eq.w %x, 0x0_w ; @13
+  %5 = eq.w %3, 0x1_w ; @14
+  %6 = flag.w %5 ; @15
+  %7 = sel.w %4, %6, 0x0_w ; @16
+  ret %7
 }

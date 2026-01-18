@@ -333,6 +333,7 @@ let opt_suite = "Test optimizations" >::: [
     "Bad load 1" >:: test "badload1";
     "Bad load 2" >:: test "badload2";
     "Binary search" >:: test "bsearch";
+    "If-conversion 1" >:: test "ifc1";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
