@@ -67,10 +67,11 @@ let signed d t =
         then B.(q2 + one, r2 - ad)
         else q2, r2 in
       let delta = B.(ad - r2) in
-      if Bv.(q1 < delta || (q1 = delta && r1 = zero)) then
+      if Bv.(q1 < delta || (q1 = delta && r1 = zero))
+      then loop p q1 r1 q2 r2
+      else
         let m = B.(q2 + one) in
-        (if B.msb d then B.neg m else m), p - sz
-      else loop p q1 r1 q2 r2 in
+        (if B.msb d then B.neg m else m), p - sz in
     let q1 = B.(mins / anc) in
     let r1 = B.(mins - q1 * anc) in
     let q2 = B.(mins / ad) in

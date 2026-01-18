@@ -91,6 +91,13 @@ let rec pp_ext ppf = function
     Format.fprintf ppf "(%a %a %a)" pp_prov p Enode.pp_op op
       (Format.pp_print_list ~pp_sep pp_ext) args
 
+(* Pure cost of an operation.
+
+   It's important to note that some of these costs are relative
+   to what we can rewrite the operation into. For example,
+   integer division/remainder has an enormous cost because we
+   want to incentivize rewrites a la Hacker's Delight.
+*)
 let op_cost : Enode.op -> cost = function
   | Oint (i, t) ->
     (* In practice, a negative constant might need some work to
@@ -116,7 +123,7 @@ let op_cost : Enode.op -> cost = function
   | Ovastart _ -> Cost.pure 0
   | Obr | Ovar _ -> Cost.pure 2
   | Osw _ | Obinop #Insn.bitwise_binop | Ounop _ -> Cost.pure 3
-  | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> Cost.pure 90
+  | Obinop (`div _ | `udiv _ | `rem _ | `urem _) -> Cost.pure 97
   | Obinop (`mul _) -> Cost.pure 42
   | Obinop (`mulh _ | `umulh _) -> Cost.pure 11
   | Obinop _ -> Cost.pure 4

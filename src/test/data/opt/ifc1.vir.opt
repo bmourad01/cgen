@@ -2,25 +2,46 @@ module ifc1
 
 export function w $foo(w %x) {
 @2:
-  %3 = slt.w %x, 0x0_w ; @22
-  %4 = add.w %x, 0x5_w ; @23
-  %5 = sub.w %x, 0x5_w ; @24
-  %6 = sel.w %3, %4, %5 ; @25
+  %3 = slt.w %x, 0x0_w ; @31
+  %4 = add.w %x, 0x5_w ; @32
+  %5 = sub.w %x, 0x5_w ; @33
+  %6 = sel.w %3, %4, %5 ; @34
   ret %6
 }
 
 export function w $bar(w %x) {
 @9:
-  %7 = slt.w %x, 0x0_w ; @26
-  %8 = sub.w %x, 0x5_w ; @27
-  %9 = sel.w %7, %x, %8 ; @28
+  %7 = slt.w %x, 0x0_w ; @35
+  %8 = sub.w %x, 0x5_w ; @36
+  %9 = sel.w %7, %x, %8 ; @37
   ret %9
 }
 
 export function w $baz(w %x) {
 @14:
-  %10 = slt.w %x, 0x0_w ; @29
-  %11 = add.w %x, 0x5_w ; @30
-  %12 = sel.w %10, %11, %x ; @31
+  %10 = slt.w %x, 0x0_w ; @38
+  %11 = add.w %x, 0x5_w ; @39
+  %12 = sel.w %10, %11, %x ; @40
   ret %12
+}
+
+export function w $quux(w %x) {
+@19:
+  %13 = slt.w %x, 0x0_w ; @41
+  br %13, @20, @21
+@20:
+  %14 = add.w %x, 0x5_w ; @42
+  %15 = lsl.w %14, 0x4_w ; @43
+  %16 = lsl.w %14, 0x1_w ; @44
+  %17 = sub.w %15, %16 ; @45
+  %18 = sub.w %17, %14 ; @46
+  jmp @23(%18)
+@21:
+  %20 = sub.w %x, 0x5_w ; @48
+  %21 = mulh.w %20, 0x55555556_w ; @49
+  %22 = lsr.w %21, 0x1f_w ; @50
+  %23 = add.w %21, %22 ; @51
+  jmp @23(%23)
+@23(%y.1):
+  ret %y.1
 }
