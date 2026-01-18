@@ -1,7 +1,7 @@
 module ifc1
 
-;; diamond
-export function w $foo(w %x) {
+;; a simple diamond where both blocks are cheap
+export function w $simple_diamond(w %x) {
 @start:
   %c = slt.w %x, 0_w
   br %c, @neg, @pos
@@ -15,8 +15,8 @@ export function w $foo(w %x) {
   ret %y
 }
 
-;; right-leaning triangle
-export function w $bar(w %x) {
+;; simple triangle
+export function w $right_triangle(w %x) {
 @start:
   %c = slt.w %x, 0_w
   br %c, @join, @pos
@@ -27,8 +27,8 @@ export function w $bar(w %x) {
   ret %x
 }
 
-;; left-leaning triangle
-export function w $baz(w %x) {
+;; other case of a simple triangle
+export function w $left_triangle(w %x) {
 @start:
   %c = slt.w %x, 0_w
   br %c, @neg, @join
@@ -39,8 +39,8 @@ export function w $baz(w %x) {
   ret %x
 }
 
-;; diamond that is too expensive to hoist
-export function w $quux(w %x) {
+;; diamond where both blocks are too expensive
+export function w $expensive_diamond(w %x) {
 @start:
   %c = slt.w %x, 0_w
   br %c, @neg, @pos
@@ -51,6 +51,151 @@ export function w $quux(w %x) {
 @pos:
   %y = sub.w %x, 5_w
   %y = div.w %y, 3_w
+  jmp @join
+@join:
+  ret %y
+}
+
+;; diamond with one cheap block and one expensive block
+export function w $mixed_cost(w %x) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, @cheap, @expensive
+@cheap:
+  %y = add.w %x, 1_w
+  jmp @join
+@expensive:
+  %y = mul.w %x, 97_w
+  %y = div.w %y, 7_w
+  jmp @join
+@join:
+  ret %y
+}
+
+;; TODO: only inner triangle should canonicalize,
+;; but currently @join1 has more than two predecessors
+export function w $nested_tri(w %x) {
+@start:
+  %c1 = slt.w %x, 0_w
+  br %c1, @join1, @mid
+@mid:
+  %c2 = eq.w %x, 10_w
+  br %c2, @join1, @body
+@body:
+  %x = add.w %x, 1_w
+  jmp @join1
+@join1:
+  ret %x
+}
+
+;; back-to-back diamonds: make sure that
+;; the canonicalization happens in the
+;; correct order
+export function w $chain(w %x) {
+@start:
+  %c1 = slt.w %x, 0_w
+  br %c1, @neg1, @pos1
+@neg1:
+  %x = add.w %x, 1_w
+  jmp @mid
+@pos1:
+  %x = sub.w %x, 1_w
+  jmp @mid
+@mid:
+  %c2 = slt.w %x, 10_w
+  br %c2, @neg2, @pos2
+@neg2:
+  %x = add.w %x, 2_w
+  jmp @join
+@pos2:
+  %x = sub.w %x, 2_w
+  jmp @join
+@join:
+  ret %x
+}
+
+;; GVN should collapse %y to %x
+export function w $redundant_phi(w %x) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, @neg, @pos
+@neg:
+  %y = add.w %x, 0_w
+  jmp @join
+@pos:
+  %y = add.w %x, 0_w
+  jmp @join
+@join:
+  ret %y
+}
+
+;; this should canonicalize to a triangle
+;; before if-conversion happens
+export function w $dead_arm(w %x) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, @neg, @pos
+@neg:
+  jmp @join
+@pos:
+  %x = add.w %x, 1_w
+  jmp @join
+@join:
+  ret %x
+}
+
+;; TODO: the @loop header has more than two
+;; prececessors, so we don't canonicalize
+export function w $loop_if(w %x) {
+@start:
+  jmp @loop
+@loop:
+  %c1 = slt.w %x, 100_w
+  br %c1, @body, @exit
+@body:
+  %c2 = slt.w %x, 0_w
+  br %c2, @neg, @pos
+@neg:
+  %x = add.w %x, 1_w
+  jmp @join
+@pos:
+  %x = sub.w %x, 1_w
+  jmp @join
+@join:
+  jmp @loop
+@exit:
+  ret %x
+}
+
+;; %y's dominance of %z must be preserved
+export function w $dominance(w %x) {
+@start:
+  %c = slt.w %x, 0_w
+  br %c, @neg, @pos
+@neg:
+  %y = add.w %x, 1_w
+  jmp @join
+@pos:
+  %y = add.w %x, 2_w
+  jmp @join
+@join:
+  %z = mul.w %y, %x
+  ret %z
+}
+
+;; TODO: handle switch?
+export function w $switch_like(w %x) {
+@start:
+  switch.w %x, @dflt [0_w -> @c0,
+                      1_w -> @c1]
+@c0:
+  %y = add.w %x, 1_w
+  jmp @join
+@c1:
+  %y = sub.w %x, 1_w
+  jmp @join
+@dflt:
+  %y = mul.w %x, 2_w
   jmp @join
 @join:
   ret %y
