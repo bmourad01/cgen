@@ -1,6 +1,6 @@
 module foo
 
-function w $foo(w %x) {
+export function w $foo(w %x) {
 @2:
   %0 = sgt.w %x, 0x2a_w ; @14
   %1 = slt.w %x, 0x0_w ; @15

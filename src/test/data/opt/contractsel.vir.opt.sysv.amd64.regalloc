@@ -1,10 +1,10 @@
 module foo
 
-function $foo { ; returns: rax
+export function $foo { ; returns: rax
 @2:
   mov ecx, 0x3_w ; @16
-  cmp edi, 0x0_w ; @22
-  cmovge ecx, edi ; @23
+  test edi, edi ; @22
+  cmovns ecx, edi ; @23
   mov eax, 0x5_w ; @17
   cmp edi, 0x2a_w ; @20
   cmovle eax, ecx ; @21

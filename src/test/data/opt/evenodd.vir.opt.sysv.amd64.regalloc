@@ -4,8 +4,8 @@ function $abs { ; returns: rax
 @2:
   mov eax, edi ; @26
   neg eax ; @36
-  cmp edi, 0x0_w ; @34
-  cmovl edi, eax ; @35
+  test edi, edi ; @34
+  cmovs edi, eax ; @35
   mov eax, edi ; @32
   ret ; @33
 }

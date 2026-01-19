@@ -15,7 +15,7 @@ export function $bar { ; returns: rax
   and ecx, 0x3_w ; @61
   lea edx, qword ptr [rsi + 0x1] ; @36
   lea eax, qword ptr [rdi + 0x1] ; @37
-  cmp ecx, 0x0_w ; @55
+  test ecx, ecx ; @55
   cmove eax, edx ; @56
   ret ; @54
 }

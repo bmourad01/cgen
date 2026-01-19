@@ -475,6 +475,8 @@ let native_suite = "Test native code" >::: [
     "Returning, passing, and dereferencing a struct (SysV AMD64)" >:: test_sysv_amd64_native "unref";
     "Sink 1 (SysV AMD64)" >:: test_sysv_amd64_native "sink1";
     "Binary search (SysV AMD64)" >:: test_sysv_amd64_native "bsearch";
+    "Naiive even-odd test (SysV AMD64)" >:: test_sysv_amd64_native "evenodd";
+    "Edge contraction and select (SysV AMD64)" >:: test_sysv_amd64_native "contractsel";
   ]
 
 let () = run_test_tt_main @@ test_list [

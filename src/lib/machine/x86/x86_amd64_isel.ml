@@ -827,6 +827,71 @@ end = struct
         I.cmov cc (Oreg (x, xt)) (Oreg (tmp_yes, xt));
       ]
 
+  let sel_rr_zero_x_y ?(neg = false) ?(eq = true) env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! yes, yes_t = S.regvar env "yes" in
+    let*! no, no_t = S.regvar env "no" in
+    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
+    let*! () = guard @@ Type.equal_basic xt (bty no_t) in
+    let* tmp_yes = C.Var.fresh >>| Rv.var GPR in
+    let xt = sel_i8_ty xt in
+    let cc = if eq then if neg then Cne else Ce
+      else if neg then Cns else Cs in !!![
+      I.mov (Oreg (x, xt)) (Oreg (no, no_t));
+      I.test (Oreg (y, yt)) (Oreg (y, yt));
+      I.cmov cc (Oreg (x, xt)) (Oreg (yes, xt));
+    ]
+
+  let sel_ri_zero_x_y ?(neg = false) ?(eq = true) env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! yes, yes_t = S.regvar env "yes" in
+    let*! no, no_t = S.imm env "no" in
+    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
+    let*! () = guard @@ Type.equal_basic xt (bty no_t) in
+    let* tmp_yes = C.Var.fresh >>| Rv.var GPR in
+    let xt = sel_i8_ty xt in
+    let cc = if eq then if neg then Cne else Ce
+      else if neg then Cns else Cs in !!![
+      I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 no, no_t));
+      I.test (Oreg (y, yt)) (Oreg (y, yt));
+      I.cmov cc (Oreg (x, xt)) (Oreg (yes, xt));
+    ]
+
+  let sel_ir_zero_x_y ?(neg = false) ?(eq = true) env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! yes, yes_t = S.imm env "yes" in
+    let*! no, no_t = S.regvar env "no" in
+    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
+    let*! () = guard @@ Type.equal_basic xt (bty no_t) in
+    let* tmp_yes = C.Var.fresh >>| Rv.var GPR in
+    let xt = sel_i8_ty xt in
+    let cc = if eq then if neg then Ce else Cne
+      else if neg then Cs else Cns in !!![
+      I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 yes, yes_t));
+      I.test (Oreg (y, yt)) (Oreg (y, yt));
+      I.cmov cc (Oreg (x, xt)) (Oreg (no, xt));
+    ]
+
+  let sel_ii_zero_x_y ?(neg = false) ?(eq = true) env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! yes, yes_t = S.imm env "yes" in
+    let*! no, no_t = S.imm env "no" in
+    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
+    let*! () = guard @@ Type.equal_basic xt (bty no_t) in
+    let* tmp_yes = C.Var.fresh >>| Rv.var GPR in
+    let xt = sel_i8_ty xt in
+    let cc = if eq then if neg then Cne else Ce
+      else if neg then Cns else Cs in !!![
+      I.mov (Oreg (tmp_yes, xt)) (Oimm (Bv.to_int64 yes, yes_t));
+      I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 no, no_t));
+      I.test (Oreg (y, yt)) (Oreg (y, yt));
+      I.cmov cc (Oreg (x, xt)) (Oreg (tmp_yes, xt));
+    ]
+
   let load_add_mul_rr_scale_imm_x_y_z_w s env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
@@ -2185,6 +2250,13 @@ end = struct
       sel_riii_x_y_z cc;
     ]
 
+    let sel_zero ?(neg = false) ?(eq = true) () = [
+      sel_rr_zero_x_y ~neg ~eq;
+      sel_ri_zero_x_y ~neg ~eq;
+      sel_ir_zero_x_y ~neg ~eq;
+      sel_ii_zero_x_y ~neg ~eq;
+    ]
+
     let load = [
       load_rr_x_y;
     ]
@@ -2702,6 +2774,21 @@ end = struct
           move x (uo ty y z) =>* f Cp;
           move x (o ty y z) =>* f Cnp;
         ]
+
+    let sel_zero =
+      [`i8,  i8  0;
+       `i16, i16 0;
+       `i32, i32 0l;
+       `i64, i64 0L;
+      ] >* fun (tyc, zero) ->
+        [`i8; `i16; `i32; `i64] >* fun tys ->
+          let tys' = bty tys in
+          let tyc' = bty tyc in [
+            move x (sel tys' (eq tyc' y zero) yes no) =>* Group.sel_zero ();
+            move x (sel tys' (ne tyc' y zero) yes no) =>* Group.sel_zero ~neg:true ();
+            move x (sel tys' (slt tyc y zero) yes no) =>* Group.sel_zero ~eq:false ();
+            move x (sel tys' (sge tyc y zero) yes no) =>* Group.sel_zero ~neg:true ~eq:false ();
+          ]
 
     (* x = sel (cmp y z) yes no *)
     let sel_ibasic =
@@ -3224,6 +3311,7 @@ end = struct
     setcc_zero @
     setcc_ibasic @
     setcc_fbasic @
+    sel_zero @
     sel_ibasic @
     load_add_mul_disp @
     load_add_mul_disp_neg @

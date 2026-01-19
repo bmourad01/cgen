@@ -6,8 +6,8 @@ function $abs { ; returns: rax
   mov %5:w, %n:w ; @26
   neg %5:w ; @36
   mov %6:w, %n:w ; @27
-  cmp %n:w, 0x0_w ; @34
-  cmovl %6:w, %5:w ; @35
+  test %n:w, %n:w ; @34
+  cmovs %6:w, %5:w ; @35
   mov eax, %6:w ; @32
   ret ; @33
 }

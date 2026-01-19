@@ -20,7 +20,7 @@ export function $foo { ; returns: rax
   shr %4:w, 0x1_b ; @42
   lea %7:w, qword ptr [%x.2 + %x.2*2 + 0x1] ; @34
   mov %8:w, %7:w ; @35
-  cmp %2:w, 0x0_w ; @40
+  test %2:w, %2:w ; @40
   cmove %8:w, %4:w ; @41
   lea %9:w, qword ptr [%count.2 + 0x1] ; @36
   mov %x.2:w, %8:w ; @37
