@@ -36,9 +36,9 @@ let clobbered_map = X86_amd64_regalloc.Typed_writes.rmap' [
 (* Conservative set of registers that will be clobbered by a
    function call. *)
 let clobbered =
-  Regvar.Set.of_list @@
-  List.map ~f:fst @@
-  Map.to_alist clobbered_map
+  Regvar.Set.of_sequence @@
+  Sequence.map ~f:fst @@
+  Map.to_sequence clobbered_map
 
 module Machine = struct
   let target = target
