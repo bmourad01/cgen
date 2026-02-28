@@ -59,10 +59,11 @@ val to_asm : Format.formatter -> Abi.module_ -> unit Context.t
     This is a similar optimization to what happens in [Egraph_opt], but
     with less overhead.
 
-    The lowering applied in [Lower_abi] may generate excessive loads and
-    stores, as well as additional stack slots that these operations are
-    applied to (especially in the presence of compound types). This pass
-    aims to simplify that generated code.
+    The motivation for this pass follows from the fact that transformations
+    applied in [Lower_abi] may generate excessive loads and stores, as well as
+    additional stack slots that these operations are applied to (especially
+    in the presence of compound types). This pass aims to simplify that
+    generated code.
 
     The function must be in SSA form.
 *)
@@ -73,6 +74,9 @@ end
 (** Attempts to coalesce slots of compatible size and alignment which
     do not interfere (i.e. are never live at the same time).
 
+    As a result of analyzing access patterns of slots, this pass is
+    also able to delete slots that are only ever stored to.
+
     Assumes the function is in SSA form.
 *)
 module Coalesce_slots : sig
@@ -81,7 +85,15 @@ module Coalesce_slots : sig
 end
 
 (** Uses the [Egraph] module to perform a variety of optimizations
-    to a function.
+    to a function, namely:
+
+    - Instruction rewriting/simplification/canonicalization via rewrite rules
+    - Global value numbering (GVN)
+    - Global code motion (GCM)
+    - Loop-invariant code motion (LICM)
+    - Store-to-load forwarding
+    - Redundant load elimination (RLE)
+    - Resolving constant block parameters
 
     The function is assumed to be in SSA form.
 *)
@@ -124,7 +136,10 @@ module Remove_dead_vars : sig
 end
 
 (** Removes all the blocks from a function that are unreachable
-    from the entry block. *)
+    from the entry block.
+
+    This transformation, among others, is also performed by [Simplify_cfg].
+*)
 module Remove_disjoint_blks : sig
   val run : func -> func
   val run_abi : Abi.func -> Abi.func
@@ -132,6 +147,9 @@ end
 
 (** Runs a data-flow analysis to determine block arguments
     that are constant.
+
+    This is also performed by [Egraph_opt], with additional information
+    from global value numbering (GVN).
 
     The function must be in SSA form.
 *)
@@ -149,8 +167,17 @@ module Sccp : sig
   val run : Typecheck.env -> func -> func Or_error.t
 end
 
-(** Performs block merging, edge contraction, and other
-    control-flow simplifications.
+(** Performs the following control-flow transformations:
+
+    - Merge all `ret` instructions to a single block
+    - If-conversion
+    - Straight-line block merging
+    - Edge contraction/jump tunneling
+    - Short-circuiting AND/OR simplification
+    - Eliminate redundant conditional branches in empty blocks
+    - Collapse simple `switch` instructions into branches
+    - Tail-recursion elimination
+    - Remove disjoint/unreachable blocks
 
     The function must be in SSA form.
 *)
