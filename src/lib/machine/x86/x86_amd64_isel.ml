@@ -3307,66 +3307,68 @@ end = struct
 
   let rules =
     let open Rules in
-    add_mul_lea_imm @
-    add_mul_lea_neg_imm @
-    add_mul_lea @
-    mul_lea_add_imm @
-    add_basic @
-    sub_basic @
-    and_basic @
-    or_basic @
-    xor_basic @
-    lsl_basic @
-    lsr_basic @
-    asr_basic @
-    rol_basic @
-    ror_basic @
-    mul_basic @
-    mulh_basic @
-    umulh_basic @
-    div_basic @
-    rem_basic @
-    urem_basic @
-    setcc_zero @
-    setcc_ibasic @
-    setcc_fbasic @
-    sel_zero @
-    sel_ibasic @
-    load_add_mul_disp @
-    load_add_mul_disp_neg @
-    load_add_mul @
-    load_add @
-    load_basic @
-    neg_basic @
-    not_basic @
-    clz_basic @
-    ctz_basic @
-    popcnt_basic @
-    sext_basic @
-    zext_basic @
-    fext_basic @
-    fibits_basic @
-    ftosi_basic @
-    ftoui_basic @
-    ftrunc_basic @
-    ifbits_basic @
-    itrunc_basic @
-    sitof_basic @
-    flag_basic @
-    move_basic @
-    store_vec_add @
-    store_vec_basic @
-    store_add_mul_disp @
-    store_add_mul_disp_neg @
-    store_add_mul @
-    store_add @
-    store_basic @
-    jmp_basic @
-    br_zero @
-    br_icmp @
-    br_fcmp @
-    call_basic @
-    sw_basic @
-    hlt @
-    ret
+    List.concat [
+      add_mul_lea_imm;
+      add_mul_lea_neg_imm;
+      add_mul_lea;
+      mul_lea_add_imm;
+      add_basic;
+      sub_basic;
+      and_basic;
+      or_basic;
+      xor_basic;
+      lsl_basic;
+      lsr_basic;
+      asr_basic;
+      rol_basic;
+      ror_basic;
+      mul_basic;
+      mulh_basic;
+      umulh_basic;
+      div_basic;
+      rem_basic;
+      urem_basic;
+      setcc_zero;
+      setcc_ibasic;
+      setcc_fbasic;
+      sel_zero;
+      sel_ibasic;
+      load_add_mul_disp;
+      load_add_mul_disp_neg;
+      load_add_mul;
+      load_add;
+      load_basic;
+      neg_basic;
+      not_basic;
+      clz_basic;
+      ctz_basic;
+      popcnt_basic;
+      sext_basic;
+      zext_basic;
+      fext_basic;
+      fibits_basic;
+      ftosi_basic;
+      ftoui_basic;
+      ftrunc_basic;
+      ifbits_basic;
+      itrunc_basic;
+      sitof_basic;
+      flag_basic;
+      move_basic;
+      store_vec_add;
+      store_vec_basic;
+      store_add_mul_disp;
+      store_add_mul_disp_neg;
+      store_add_mul;
+      store_add;
+      store_basic;
+      jmp_basic;
+      br_zero;
+      br_icmp;
+      br_fcmp;
+      call_basic;
+      sw_basic;
+      hlt;
+      ret;
+    ]
 end
