@@ -127,7 +127,10 @@ end = struct
     | (#Type.imm as xi), (#Type.imm as yi)
       when Type.sizeof_imm xi > Type.sizeof_imm yi ->
       (* Assume zero-extension is desired. *)
-      !!![I.movzx (Oreg (x, xt)) (Oreg (y, yt))]
+      let xt' = match xt, yt with
+        | `i64, (`i16 | `i8) -> `i32
+        | _ -> xt in
+      !!![I.movzx (Oreg (x, xt')) (Oreg (y, yt))]
     | #Type.imm, #Type.imm ->
       (* Assume the width of the destination register. *)
       !!![I.mov (Oreg (x, xt)) (Oreg (y, xt))]
