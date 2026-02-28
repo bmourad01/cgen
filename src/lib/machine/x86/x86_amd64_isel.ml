@@ -66,27 +66,35 @@ let le_u a b = compare_u a b <= 0 [@@inline] [@@ocaml.warning "-32"]
 let gt_u a b = compare_u a b >  0 [@@inline] [@@ocaml.warning "-32"]
 let ge_u a b = compare_u a b >= 0 [@@inline] [@@ocaml.warning "-32"]
 
+let array_of_list_map l ~f = match l with
+  | [] -> [||]
+  | [x] -> [|f x|]
+  | x :: rest ->
+    let len = List.length rest + 1 in
+    let a = Array.create ~len (f x) in
+    List.iteri rest ~f:(fun i x -> a.(i + 1) <- f x);
+    a
+
 (* pre: `tbl` is non-empty
 
    TODO:
 
-   - Is int64 the right thing? Negative numbers could burn us.
    - What do we do about huge tables?
    - What is a good threshold for the lower-bound on the table?
 *)
 let adjust_table d tbl =
-  let tbl = List.map tbl ~f:(fun (v, l) -> Bv.to_int64 v, l) in
+  let tbl = array_of_list_map tbl ~f:(fun (v, l) -> Bv.to_int64 v, l) in
   (* Assume that it's sorted. *)
-  let lowest = fst @@ List.hd_exn tbl in
-  let highest = fst @@ List.last_exn tbl in
+  let lowest = fst tbl.(0) in
+  let highest = fst @@ Array.last tbl in
   (* Pad the table with missing elements. *)
   let acc = Vec.create () in
-  let _ = List.fold tbl ~init:lowest ~f:(fun p (v, l) ->
-      let diff = Int64.(v - p) in
-      let rec loop i = if lt_u i diff then
-          let () = Vec.push acc d in
-          loop @@ Int64.succ i in
-      loop 0L;
+  let _ = Array.fold tbl ~init:lowest ~f:(fun p (v, l) ->
+      let diff = Int64.(v - p) and i = ref 0L in
+      while lt_u !i diff do
+        Vec.push acc d;
+        Int64.incr i;
+      done;
       Vec.push acc l;
       Int64.succ v) in
   Vec.to_list acc, lowest, highest
