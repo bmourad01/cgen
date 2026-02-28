@@ -18,7 +18,7 @@ export function $int_pow { ; returns: rax
   mov rsi, rcx ; @58
   imul rsi, rdi ; @112
   mov rax, rdx ; @59
-  and rax, 0x3_l ; @111
+  and eax, 0x3_w ; @111
   je @21 ; @101
   dec rax ; @103
   cmp rax, 0x2_l ; @104
@@ -66,7 +66,7 @@ export function $int_pow_alt { ; returns: rax
   imul rcx, rdx ; @136
   mov qword ptr [rsp + 0x18], rcx ; @48
   mov rcx, rsi ; @74
-  and rcx, 0x3_l ; @135
+  and ecx, 0x3_w ; @135
   mov rcx, qword ptr [rsp + rcx*8] ; @52
   imul rax, rcx ; @133
   sar rsi, 0x2_b ; @132

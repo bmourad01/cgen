@@ -34,7 +34,7 @@ export function $cgen_strspn { ; returns: rax
   mov rax, rcx ; @87
   shr rax, 0x6_b ; @147
   mov r8, qword ptr [rsp + rax*8] ; @39
-  and rcx, 0x3f_l ; @145
+  and ecx, 0x3f_w ; @145
   mov esi, 0x1_w ; @91
   shl rsi, cl ; @144
   or rsi, r8 ; @142
@@ -56,7 +56,7 @@ export function $cgen_strspn { ; returns: rax
   mov rdx, rcx ; @78
   shr rdx, 0x6_b ; @127
   mov rdx, qword ptr [rsp + rdx*8] ; @57
-  and rcx, 0x3f_l ; @125
+  and ecx, 0x3f_w ; @125
   mov esi, 0x1_w ; @82
   shl rsi, cl ; @124
   test rsi, rdx ; @117

@@ -23,7 +23,7 @@ export function $bar { ; returns: rax
 export function $baz { ; returns: rax
 @18:
   mov rax, rdi ; @84
-  and rax, 0x3_l ; @85
+  and eax, 0x3_w ; @85
   je @19 ; @74
   dec rax ; @76
   cmp rax, 0x2_l ; @77

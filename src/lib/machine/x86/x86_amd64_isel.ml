@@ -348,9 +348,13 @@ end = struct
   let and_ri_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in !!![
+    let*! z, zt = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let xt', zt' = match xt with
+      | `i64 when fits_int32 z -> `i32, `i32
+      | _ -> xt, zt in !!![
       I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.and_ (Oreg (x, xt)) (Oimm (Bv.to_int64 z, zt));
+      I.and_ (Oreg (x, xt')) (Oimm (z, zt'));
     ]
 
   let or_rr_x_y_z env =
