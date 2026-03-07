@@ -36,9 +36,9 @@ The library API that is provided can be seen in the generated documentation.
 There are four IRs used by the compiler:
 
 1. **Structured**: structured control-flow represenation of a **Virtual** program. It is a thin wrapper over
-   a regular **Virtual** program supporting basic C-like constrol-flow constructs, such as loops, if-then-else,
+   a regular **Virtual** program supporting basic C-like control-flow constructs, such as loops, if-then-else,
    and `switch`.
-2. **Virtual**: CFG-based, platform-agnostic intermetiate language. Similar to LLVM IR, but smaller in scale.
+2. **Virtual**: CFG-based, platform-agnostic intermediate language. Similar to LLVM IR, but smaller in scale.
 3. **Virtual ABI**: almost the same as Virtual, but with explicit mentioning of registers, stack locations,
    and with platform-specific instructions (such as `va_arg` and `va_start`) desugared, and with the target
    ABI implemented for function calling.
