@@ -165,7 +165,72 @@ We then run:
 $ cgen fibdemo.vir -o fibdemo.S
 ```
 
-This will be our completed assembly program. Next, we produce the executable using the system's C compiler (assumed to be GCC or Clang):
+This will be our completed assembly program. We can verify that the assembly is what we expected:
+
+```
+$ cat fibdemo.S
+/* module fibdemo */
+.intel_syntax noprefix
+
+.section .rodata
+fmt:
+  .ascii "fib(%d) = %d\n"
+  .byte 0x0
+
+.section .text
+.p2align 4
+fib:
+.L2:
+  push rbp
+  mov rbp, rsp
+  push r12
+  push rbx
+  mov ebx, edi
+  test ebx, ebx
+  je .L19
+.L4:
+  cmp ebx, 0x1
+  je .L19
+.L6:
+  lea edi, qword ptr [rbx - 0x1]
+  call fib
+  mov r12d, eax
+  lea edi, qword ptr [rbx - 0x2]
+  call fib
+  lea ebx, qword ptr [r12 + rax*1]
+.L19:
+  mov eax, ebx
+  pop rbx
+  pop r12
+  leave
+  ret
+
+.section .text
+.global main
+.p2align 4
+main:
+.L13:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 0x8
+  push rbx
+  mov rdi, qword ptr [rsi + 0x8]
+  call atoi
+  mov ebx, eax
+  mov edi, ebx
+  call fib
+  mov edx, eax
+  lea rdi, qword ptr [rip + fmt]
+  mov esi, ebx
+  xor al, al
+  call printf
+  xor eax, eax
+  pop rbx
+  leave
+  ret
+```
+
+Next, we produce the executable using the system's C compiler (assumed to be GCC or Clang):
 
 ```
 $ cc fibdemo.S -o fibdemo
