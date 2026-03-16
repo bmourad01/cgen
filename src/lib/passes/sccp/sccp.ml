@@ -7,6 +7,10 @@ module Intervals = Sccp_intervals
 
 type cursor = Blk | Insn
 
+let pp_cursor ppf = function
+  | Blk -> Format.fprintf ppf "blk"
+  | Insn -> Format.fprintf ppf "insn"
+
 type env = {
   mutable cur : cursor;
   mutable pos : Label.t;
@@ -32,7 +36,12 @@ let var env x =
   let s = match env.cur with
     | Blk -> Intervals.input env.intv env.pos
     | Insn -> Intervals.insn env.intv env.pos in
-  Intervals.find_var s x
+  let i = Intervals.find_var s x in
+  Option.iter i ~f:(fun i ->
+      Logs.debug (fun m ->
+          m "%s: var %a has interval %a at %a %a"
+            __FUNCTION__ Var.pp x I.pp i pp_cursor env.cur Label.pp env.pos));
+  i
 
 let word env = Target.word @@ Typecheck.Env.target env.tenv
 
