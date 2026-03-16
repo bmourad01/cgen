@@ -31,7 +31,7 @@ let from_file_abi filename =
   Passes.optimize_abi m
 
 let test ?(f = from_file) name _ =
-  let filename = Format.sprintf "data/opt/%s.vir" name in
+  let filename = vir_or_sir name in
   let filename' = filename ^ ".opt" in
   Context.init Machine.X86.Amd64_sysv.target |>
   Context.eval begin
@@ -199,6 +199,7 @@ let destructure_suite = "Test destructure" >::: [
     "Goto 1" >:: test_destructure "goto1";
     "GCD" >:: test_destructure "gcd";
     "strspn" >:: test_destructure "strspn";
+    "strcspn" >:: test_destructure "strcspn";
   ]
 
 let to_restructure = [
@@ -343,6 +344,7 @@ let opt_suite = "Test optimizations" >::: [
     "Bad load 2" >:: test "badload2";
     "Binary search" >:: test "bsearch";
     "If-conversion 1" >:: test "ifc1";
+    "strcspn" >:: test "strcspn";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -455,6 +457,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_regalloc "vasum";
     "Binary search (SysV AMD64)" >:: test_sysv_amd64_regalloc "bsearch";
     "strspn (SysV AMD64)" >:: test_sysv_amd64_regalloc "strspn";
+    "strcspn (SysV AMD64)" >:: test_sysv_amd64_regalloc "strcspn";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -488,6 +491,7 @@ let native_suite = "Test native code" >::: [
     "Naiive even-odd test (SysV AMD64)" >:: test_sysv_amd64_native "evenodd";
     "Edge contraction and select (SysV AMD64)" >:: test_sysv_amd64_native "contractsel";
     "strspn (SysV AMD64)" >:: test_sysv_amd64_native "strspn";
+    "strcspn (SysV AMD64)" >:: test_sysv_amd64_native "strcspn";
   ]
 
 let () = run_test_tt_main @@ test_list [

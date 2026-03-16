@@ -1,0 +1,88 @@
+module strcspn
+
+export function l $cgen_strcspn(l %s, l %c) {
+  %byteset = slot 32, align 8
+start:
+  %a = copy.l %s;
+  %dc0 = ld.b %c;
+  when eq.b %dc0, 0_b {
+    goto @strchrnul
+  };
+  %c1 = add.l %c, 1_l;
+  %dc1 = ld.b %c1;
+  when eq.b %dc1, 0_b {
+    goto @strchrnul
+  }; 
+  st.l 0_l, %byteset;
+  %byteset8 = add.l %byteset, 8_l;
+  st.l 0_l, %byteset8;
+  %byteset16 = add.l %byteset, 16_l;
+  st.l 0_l, %byteset16;
+  %byteset24 = add.l %byteset, 24_l;
+  st.l 0_l, %byteset24;
+  loop {
+    %dc = ld.b %c;
+    when eq.b %dc, 0_b {
+      break
+    };
+    %idx0 = ld.b %c;
+    %idx = zext.l %idx0;
+    %p = udiv.l %idx, 64_l;
+    %p = mul.l %p, 8_l;
+    %p = add.l %byteset, %p;
+    %b = ld.l %p;
+    %o = urem.l %idx, 64_l;
+    %o = lsl.l 1_l, %o;
+    %o = or.l %o, %b;
+    st.l %o, %p;
+    when eq.l %o, 0_l {
+      break
+    };
+    %c = add.l %c, 1_l
+  };
+  loop {
+    %ds = ld.b %s;
+    when eq.b %ds, 0_b {
+      break
+    };
+    %idx0 = ld.b %s;
+    %idx = zext.l %idx0;
+    %p = udiv.l %idx, 64_l;
+    %p = mul.l %p, 8_l;
+    %p = add.l %byteset, %p;
+    %b = ld.l %p;
+    %n = urem.l %idx, 64_l;
+    %n = lsl.l 1_l, %n;
+    %n = and.l %n, %b;
+    when ne.l %n, 0_l {
+      break
+    };
+    %s = add.l %s, 1_l
+  };
+  %r = sub.l %s, %a;
+  ret %r;
+@strchrnul:
+  %p = copy.l %s;
+  if eq.b %dc0, 0_b {
+    loop {
+      %dc = ld.b %p;
+      when eq.b %dc, 0_b {
+        break
+      };
+      %p = add.l %p, 1_l
+    }
+  } else {
+    loop {
+      %dp = ld.b %p;
+      when eq.b %dp, 0_b {
+        break;
+      };
+      when eq.b %dp, %dc0 {
+        break;
+      };
+      %p = add.l %p, 1_l
+    }
+  };
+  %r = sub.l %p, %s;
+  ret %r
+}

@@ -1,0 +1,100 @@
+module strcspn
+
+export function l $cgen_strcspn(l %s, l %c) {
+  %byteset = slot 32, align 8
+@71:
+  %a = copy.l %s ; @74
+  %dc0 = ld.b %c ; @73
+  %9 = eq.b %dc0, 0x0_b ; @72
+  br %9, @2, @67
+@67:
+  %c1 = add.l %c, 0x1_l ; @70
+  %dc1 = ld.b %c1 ; @69
+  %8 = eq.b %dc1, 0x0_b ; @68
+  br %8, @2, @59
+@59:
+  st.l 0x0_l, %byteset ; @66
+  %byteset8 = add.l %byteset, 0x8_l ; @65
+  st.l 0x0_l, %byteset8 ; @64
+  %byteset16 = add.l %byteset, 0x10_l ; @63
+  st.l 0x0_l, %byteset16 ; @62
+  %byteset24 = add.l %byteset, 0x18_l ; @61
+  st.l 0x0_l, %byteset24 ; @60
+  jmp @41
+@41:
+  jmp @56
+@56:
+  %dc = ld.b %c ; @58
+  %7 = eq.b %dc, 0x0_b ; @57
+  br %7, @24, @44
+@44:
+  %idx0 = ld.b %c ; @55
+  %idx = zext.l %idx0 ; @54
+  %p = udiv.l %idx, 0x40_l ; @53
+  %p = mul.l %p, 0x8_l ; @52
+  %p = add.l %byteset, %p ; @51
+  %b = ld.l %p ; @50
+  %o = urem.l %idx, 0x40_l ; @49
+  %o = lsl.l 0x1_l, %o ; @48
+  %o = or.l %o, %b ; @47
+  st.l %o, %p ; @46
+  %6 = eq.l %o, 0x0_l ; @45
+  br %6, @24, @42
+@42:
+  %c = add.l %c, 0x1_l ; @43
+  jmp @41
+@24:
+  jmp @38
+@38:
+  %ds = ld.b %s ; @40
+  %5 = eq.b %ds, 0x0_b ; @39
+  br %5, @22, @27
+@27:
+  %idx0 = ld.b %s ; @37
+  %idx = zext.l %idx0 ; @36
+  %p = udiv.l %idx, 0x40_l ; @35
+  %p = mul.l %p, 0x8_l ; @34
+  %p = add.l %byteset, %p ; @33
+  %b = ld.l %p ; @32
+  %n = urem.l %idx, 0x40_l ; @31
+  %n = lsl.l 0x1_l, %n ; @30
+  %n = and.l %n, %b ; @29
+  %4 = ne.l %n, 0x0_l ; @28
+  br %4, @22, @25
+@25:
+  %s = add.l %s, 0x1_l ; @26
+  jmp @24
+@22:
+  %r = sub.l %s, %a ; @23
+  ret %r
+@2:
+  jmp @19
+@19:
+  %p = copy.l %s ; @21
+  %0 = eq.b %dc0, 0x0_b ; @20
+  br %0, @5, @11
+@11:
+  jmp @16
+@16:
+  %dp = ld.b %p ; @18
+  %3 = eq.b %dp, 0x0_b ; @17
+  br %3, @3, @14
+@14:
+  %2 = eq.b %dp, %dc0 ; @15
+  br %2, @3, @12
+@12:
+  %p = add.l %p, 0x1_l ; @13
+  jmp @11
+@5:
+  jmp @8
+@8:
+  %dc = ld.b %p ; @10
+  %1 = eq.b %dc, 0x0_b ; @9
+  br %1, @3, @6
+@6:
+  %p = add.l %p, 0x1_l ; @7
+  jmp @5
+@3:
+  %r = sub.l %p, %s ; @4
+  ret %r
+}
