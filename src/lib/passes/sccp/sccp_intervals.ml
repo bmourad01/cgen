@@ -21,6 +21,9 @@ let find_var = find_var
 
 module Interp = Sccp_intervals_interp
 
+let is_safe_to_narrow ctx l =
+  Cfg.Node.degree ~dir:`In l ctx.cfg < 2
+
 let step ctx visits l _ s =
   (* Widening for block args. *)
   let s = match Label.Tree.find ctx.blks l with
@@ -37,9 +40,11 @@ let step ctx visits l _ s =
             | None -> s)
       else s in
   (* Narrowing for constraints. *)
-  match Hashtbl.find ctx.narrow l with
-  | Some s' -> meet_state s s'
-  | None -> s
+  if is_safe_to_narrow ctx l then
+    match Hashtbl.find ctx.narrow l with
+    | Some s' -> meet_state s s'
+    | None -> s
+  else s
 
 let init_state ctx fn =
   let init =
@@ -91,7 +96,7 @@ let analyze ?steps fn ~word ~typeof =
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
     let cycloc = cyclomatic_complexity cfg in
-    let ctx = create_ctx cycloc ~blks ~word ~typeof in
+    let ctx = create_ctx cycloc ~blks ~word ~typeof ~cfg in
     let input = Graphlib.fixpoint (module Cfg) cfg ?steps
         ~step:(step ctx)
         ~init:(init_state ctx fn)

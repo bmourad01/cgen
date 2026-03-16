@@ -33,9 +33,10 @@ type ctx = {
   word   : Type.imm_base;       (* Word size. *)
   typeof : Var.t -> Type.t;     (* Typing of variables. *)
   cycloc : int;                 (* Cyclomatic complexity. *)
+  cfg    : Cfg.t;               (* Control-flow graph *)
 }
 
-let create_ctx cycloc ~blks ~word ~typeof = {
+let create_ctx cycloc ~blks ~word ~typeof ~cfg = {
   insns = Label.Table.create ();
   narrow = Label.Table.create ();
   cond = Var.Table.create ();
@@ -43,6 +44,7 @@ let create_ctx cycloc ~blks ~word ~typeof = {
   word;
   typeof;
   cycloc;
+  cfg;
 }
 
 let narrow ctx l x i = Hashtbl.update ctx.narrow l ~f:(function

@@ -14,7 +14,12 @@ export function $foo(w %m/rdi, w %n/rsi) {
   %6 = sub.w %1, 0x1_w ; @26
   br %5, @2(%6, 0x1_w), @8
 @8:
-  %7 = sub.w %2, 0x1_w ; @27
-  %r.2/w/rax = call $foo(%1/rdi, %7/rsi) ; @18
+  %7 = ne.w %2, 0x0_w ; @27
+  br %7, @14, @15
+@14:
+  %8 = sub.w %2, 0x1_w ; @28
+  %r.2/w/rax = call $foo(%1/rdi, %8/rsi) ; @18
   jmp @2(%6, %r.2)
+@15:
+  hlt
 }
