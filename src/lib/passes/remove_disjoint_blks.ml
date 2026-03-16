@@ -10,6 +10,7 @@ module type L = sig
 
   module Func : sig
     type t
+    val name : t -> string
     val entry : t -> Label.t
     val blks : ?rev:bool -> t -> Blk.t seq
     val remove_blks_exn : t -> Label.t list -> t
@@ -33,9 +34,15 @@ module Make(M : L) = struct
         ~start_tree:(fun n s ->
             if Label.(n = start) then s else return s)
         ~enter_node:(fun _ n s -> Label.Tree_set.add s n) in
-    Func.blks fn |> Seq.map ~f:Blk.label |>
-    Seq.filter ~f:(Fn.non @@ Label.Tree_set.mem reachable) |>
-    Seq.to_list |> Func.remove_blks_exn fn
+    let blks =
+      Func.blks fn |> Seq.map ~f:Blk.label |>
+      Seq.filter ~f:(Fn.non @@ Label.Tree_set.mem reachable) |>
+      Seq.to_list in
+    List.iter blks ~f:(fun l ->
+        Logs.debug (fun m ->
+            m "%s: removing unreachable block %a in function %s"
+              __FUNCTION__ Label.pp l (Func.name fn)));
+    Func.remove_blks_exn fn blks
 end
 
 open Virtual
