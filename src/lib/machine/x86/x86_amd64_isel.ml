@@ -1499,17 +1499,17 @@ end = struct
       I.fp64 l z;
     ]
 
-  let lsl_rr_x_y_z env =
+  let shift_rr_x_y_z i env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, _ = S.regvar env "z" in
     let rcx = Rv.reg `rcx in !!![
       I.mov (Oreg (x, xt)) (Oreg (y, yt));
       I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      I.shl (Oreg (x, xt)) (Oreg (rcx, `i8));
+      i (Oreg (x, xt)) (Oreg (rcx, `i8));
     ]
 
-  let lsl_ir_x_y_z env =
+  let shift_ir_x_y_z i env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
     let*! z, _ = S.regvar env "z" in
@@ -1520,10 +1520,22 @@ end = struct
     let rcx = Rv.reg `rcx in !!![
       I.mov (Oreg (x, xt')) (Oimm (y, yt'));
       I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      I.shl (Oreg (x, xt)) (Oreg (rcx, `i8));
+      i (Oreg (x, xt)) (Oreg (rcx, `i8));
     ]
 
-  (* The shift value is ANDed with 0x3F or 0x1F by the hardware. *)
+  let shift_ri_x_y_z i env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in !!![
+      I.mov (Oreg (x, xt)) (Oreg (y, yt));
+      i (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
+    ]
+
+  let lsl_rr_x_y_z = shift_rr_x_y_z I.shl
+  let lsl_ir_x_y_z = shift_ir_x_y_z I.shl
+
+  (* `lsr` is specialized because it can be a `lea` instruction *)
   let lsl_ri_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -1538,83 +1550,18 @@ end = struct
         I.shl (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
       ]
 
-  let lsr_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let rcx = Rv.reg `rcx in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      I.shr (Oreg (x, xt)) (Oreg (rcx, `i8));
-    ]
-
-  (* The shift value is ANDed with 0x3F or 0x1F by the hardware. *)
-  let lsr_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
-    let z = Bv.to_int64 z in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.shr (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
-    ]
-
-  let asr_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let rcx = Rv.reg `rcx in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      I.sar (Oreg (x, xt)) (Oreg (rcx, `i8));
-    ]
-
-  (* The shift value is ANDed with 0x3F or 0x1F by the hardware. *)
-  let asr_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
-    let z = Bv.to_int64 z in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.sar (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
-    ]
-
-  let rol_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let rcx = Rv.reg `rcx in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      I.rol (Oreg (x, xt)) (Oreg (rcx, `i8));
-    ]
-
-  let rol_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
-    let z = Bv.to_int64 z in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.rol (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
-    ]
-
-  let ror_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let rcx = Rv.reg `rcx in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      I.ror (Oreg (x, xt)) (Oreg (rcx, `i8));
-    ]
-
-  let ror_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
-    let z = Bv.to_int64 z in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.ror (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
-    ]
+  let lsr_rr_x_y_z = shift_rr_x_y_z I.shr
+  let lsr_ir_x_y_z = shift_ir_x_y_z I.shr
+  let lsr_ri_x_y_z = shift_ri_x_y_z I.shr
+  let asr_rr_x_y_z = shift_rr_x_y_z I.sar
+  let asr_ir_x_y_z = shift_ir_x_y_z I.sar
+  let asr_ri_x_y_z = shift_ri_x_y_z I.sar
+  let rol_rr_x_y_z = shift_rr_x_y_z I.rol
+  let rol_ir_x_y_z = shift_ir_x_y_z I.rol
+  let rol_ri_x_y_z = shift_ri_x_y_z I.rol
+  let ror_rr_x_y_z = shift_rr_x_y_z I.ror
+  let ror_ir_x_y_z = shift_ir_x_y_z I.ror
+  let ror_ri_x_y_z = shift_ri_x_y_z I.ror
 
   let neg_r_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -2159,21 +2106,25 @@ end = struct
 
     let lsr_ = [
       lsr_rr_x_y_z;
+      lsr_ir_x_y_z;
       lsr_ri_x_y_z;
     ]
 
     let asr_ = [
       asr_rr_x_y_z;
+      asr_ir_x_y_z;
       asr_ri_x_y_z;
     ]
 
     let rol = [
       rol_rr_x_y_z;
+      rol_ir_x_y_z;
       rol_ri_x_y_z;
     ]
 
     let ror = [
       ror_rr_x_y_z;
+      ror_ir_x_y_z;
       ror_ri_x_y_z;
     ]
 
