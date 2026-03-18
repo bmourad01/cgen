@@ -31,6 +31,7 @@ type 'r t = {
   insn  : Id.t list Label.Table.t;
   extra : Label.t list Label.Table.t;
   frame : bool;
+  mutable phi : Var.Set.t;
 }
 
 let new_node ?l ?ty t n : Id.t =

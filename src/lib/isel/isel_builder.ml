@@ -103,6 +103,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     W.windmill moves ~emit:(fun dst src ->
         let+ ty, id = operand' t src in
         let n = N (Omove, [newvar t dst ty; id]) in
+        t.phi <- Set.add t.phi dst;
         ignore @@ new_node ~l t n)
 
   let blkargs ?(br = false) t l ld args =

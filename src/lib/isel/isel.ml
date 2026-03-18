@@ -32,6 +32,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       insn = Label.Table.create ();
       extra = Label.Table.create ();
       frame = needs_stack_frame fn;
+      phi = Var.Set.empty;
     }
 
   open C.Syntax

@@ -233,6 +233,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* rets = transl_rets t in
     let* blks = transl_blks t in
     let dict = Func.dict t.fn in
+    let dict = Dict.set dict Tags.phi_var t.phi in
     let dict = if not t.frame then dict
       else Dict.set dict Pseudo.Func.Tag.needs_stack_frame () in
     C.lift_err @@ Pseudo.Func.create ()

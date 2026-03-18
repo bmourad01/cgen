@@ -107,9 +107,9 @@ module Make(M : Machine_intf.S) = struct
 
   let weighted_spill_cost loop_depth = Int.pow 10 loop_depth
 
-  let update_cost ~loop_depth t u =
+  let update_cost ?(factor = 1) ~loop_depth t u =
     if can_be_colored t u then
-      let w = weighted_spill_cost loop_depth in
+      let w = weighted_spill_cost loop_depth * factor in
       Hashtbl.update t.spill_cost u ~f:(function
           | Some c -> c + w
           | None -> w)
@@ -269,6 +269,12 @@ module Make(M : Machine_intf.S) = struct
   let update_types t insn =
     let types = M.Regalloc.writes_with_types insn in
     t.types <- Map.merge_skewed t.types types ~combine:(fun ~key:_  -> reduce)
+
+  let is_phi_var t rv = match Rv.which rv with
+    | First _ -> false
+    | Second (v, _) -> match Dict.find (Func.dict t.fn) Tags.phi_var with
+      | None -> false
+      | Some p -> Set.mem p v
 
   (* initial: temporary registers, not preassigned a color and not yet
      processed by the algorithm. *)

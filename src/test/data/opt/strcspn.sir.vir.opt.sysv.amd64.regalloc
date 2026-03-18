@@ -3,13 +3,13 @@ module strcspn
 export function $cgen_strcspn { ; returns: rax
 @2:
   sub rsp, 0x28_l ; @210
-  mov rdx, rsi ; @208
-  mov sil, byte ptr [rdx] ; @209
-  test sil, sil ; @203
+  mov rax, rsi ; @208
+  mov dl, byte ptr [rax] ; @209
+  test dl, dl ; @203
   je @3 ; @204
 @4:
-  mov al, byte ptr [rdx + 0x1] ; @10
-  test al, al ; @198
+  mov cl, byte ptr [rax + 0x1] ; @10
+  test cl, cl ; @198
   je @3 ; @199
 @8:
   mov qword ptr [rsp], 0x0_l ; @13
@@ -17,30 +17,30 @@ export function $cgen_strcspn { ; returns: rax
   mov qword ptr [rsp + 0x10], 0x0_l ; @17
   mov qword ptr [rsp + 0x18], 0x0_l ; @19
 @12:
-  mov al, byte ptr [rdx] ; @23
-  test al, al ; @191
+  mov cl, byte ptr [rax] ; @23
+  test cl, cl ; @191
   jne @22 ; @192
 @109:
   mov rax, rdi ; @189
   jmp @21 ; @190
 @22:
-  mov al, byte ptr [rdx] ; @26
-  movzx ecx, al ; @100
-  mov rax, rcx ; @101
-  shr rax, 0x6_b ; @188
-  mov r8, qword ptr [rsp + rax*8] ; @31
+  mov cl, byte ptr [rax] ; @26
+  movzx ecx, cl ; @100
+  mov rdx, rcx ; @101
+  shr rdx, 0x6_b ; @188
+  mov r8, qword ptr [rsp + rdx*8] ; @31
   and ecx, 0x3f_w ; @186
   mov esi, 0x1_w ; @105
   shl rsi, cl ; @185
   or rsi, r8 ; @183
-  mov qword ptr [rsp + rax*8], rsi ; @35
+  mov qword ptr [rsp + rdx*8], rsi ; @35
   test rsi, rsi ; @178
   jne @25 ; @179
 @110:
   mov rax, rdi ; @176
   jmp @21 ; @177
 @25:
-  inc rdx ; @108
+  inc rax ; @108
   jmp @12 ; @175
 @21:
   mov cl, byte ptr [rax] ; @41
@@ -63,7 +63,7 @@ export function $cgen_strcspn { ; returns: rax
   sub rax, rdi ; @155
   jmp @75 ; @154
 @3:
-  test sil, sil ; @150
+  test dl, dl ; @150
   jne @112 ; @151
 @111:
   mov rax, rdi ; @148
@@ -75,7 +75,7 @@ export function $cgen_strcspn { ; returns: rax
   test cl, cl ; @141
   je @62 ; @142
 @63:
-  cmp cl, sil ; @134
+  cmp cl, dl ; @134
   je @62 ; @135
 @66:
   inc rax ; @82

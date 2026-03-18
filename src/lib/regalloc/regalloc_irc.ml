@@ -15,6 +15,11 @@ let take_one hs =
   Hash_set.remove hs e;
   e
 
+let take_one_max hs ~compare =
+  let e = Option.value_exn (Hash_set.max_elt hs ~compare) in
+  Hash_set.remove hs e;
+  e
+
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
   open Regalloc_irc_state.Make(M)
@@ -54,6 +59,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         update_cost ~loop_depth t u;
         inc_use t u);
     let def = M.Insn.writes insn in
+    Set.iter def ~f:(fun d ->
+        if is_phi_var t d then
+          update_cost ~factor:2 ~loop_depth t d);
     (* if isMoveInstruction(I) then *)
     let+ out = match M.Regalloc.is_copy insn with
       | None -> !!out
@@ -466,11 +474,22 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               Hash_set.add t.wsimplify v;
             end))
 
+  let freeze_score t u =
+    let moves = node_moves t u in
+    let total_moves = Lset.length moves in
+    let phi_score =
+      Lset.to_sequence moves |>
+      Seq.filter_map ~f:(Hashtbl.find t.copies) |>
+      Seq.sum (module Int) ~f:(fun c ->
+          Bool.to_int (is_phi_var t c.dst) * (c.loop + 1)) in
+    total_moves - (5 * phi_score)
+
   (* pre: wfreeze is not empty *)
   let freeze t =
     (* let u \in freezeWorklist
        freezeWorklist := freezeWorklist \ {u} *)
-    let u = take_one t.wfreeze in
+    let u = take_one_max t.wfreeze ~compare:(fun a b ->
+        Int.compare (freeze_score t a) (freeze_score t b)) in
     Logs.debug (fun m -> m "%s: frozen node u=%a%!" __FUNCTION__ Rv.pp u);
     (* simplifyWorklist := simplifyWorklist U {u} *)
     Hash_set.add t.wsimplify u;

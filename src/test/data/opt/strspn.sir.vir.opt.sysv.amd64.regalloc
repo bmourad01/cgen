@@ -3,49 +3,49 @@ module strspn
 export function $cgen_strspn { ; returns: rax
 @2:
   sub rsp, 0x28_l ; @173
-  mov rdx, rsi ; @171
+  mov rax, rsi ; @171
   mov qword ptr [rsp], 0x0_l ; @172
   mov qword ptr [rsp + 0x8], 0x0_l ; @8
   mov qword ptr [rsp + 0x10], 0x0_l ; @10
   mov qword ptr [rsp + 0x18], 0x0_l ; @12
-  mov sil, byte ptr [rdx] ; @13
-  test sil, sil ; @166
+  mov dl, byte ptr [rax] ; @13
+  test dl, dl ; @166
   jne @4 ; @167
 @95:
   xor eax, eax ; @164
   jmp @64 ; @165
 @4:
-  mov al, byte ptr [rdx + 0x1] ; @18
-  test al, al ; @159
+  mov cl, byte ptr [rax + 0x1] ; @18
+  test cl, cl ; @159
   jne @16 ; @160
 @96:
   mov rax, rdi ; @157
   jmp @15 ; @158
 @16:
-  mov al, byte ptr [rdx] ; @31
-  test al, al ; @150
+  mov cl, byte ptr [rax] ; @31
+  test cl, cl ; @150
   jne @30 ; @151
 @98:
   mov rax, rdi ; @148
   jmp @29 ; @149
 @30:
-  mov al, byte ptr [rdx] ; @34
-  movzx ecx, al ; @86
-  mov rax, rcx ; @87
-  shr rax, 0x6_b ; @147
-  mov r8, qword ptr [rsp + rax*8] ; @39
+  mov cl, byte ptr [rax] ; @34
+  movzx ecx, cl ; @86
+  mov rdx, rcx ; @87
+  shr rdx, 0x6_b ; @147
+  mov r8, qword ptr [rsp + rdx*8] ; @39
   and ecx, 0x3f_w ; @145
   mov esi, 0x1_w ; @91
   shl rsi, cl ; @144
   or rsi, r8 ; @142
-  mov qword ptr [rsp + rax*8], rsi ; @43
+  mov qword ptr [rsp + rdx*8], rsi ; @43
   test rsi, rsi ; @137
   jne @33 ; @138
 @99:
   mov rax, rdi ; @135
   jmp @29 ; @136
 @33:
-  inc rdx ; @94
+  inc rax ; @94
   jmp @16 ; @134
 @29:
   mov cl, byte ptr [rax] ; @49
@@ -69,7 +69,7 @@ export function $cgen_strspn { ; returns: rax
   jmp @64 ; @113
 @15:
   mov cl, byte ptr [rax] ; @23
-  cmp cl, sil ; @107
+  cmp cl, dl ; @107
   je @21 ; @108
 @22:
   sub rax, rdi ; @106
