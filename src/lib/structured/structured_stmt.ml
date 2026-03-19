@@ -143,13 +143,10 @@ let dowhile b c =
     )
   )
 
-let seq : t list -> t = function
+let[@tail_mod_cons] rec seq : t list -> t = function
   | [] -> `nop
   | [s] -> s
-  | ss -> match List.rev ss with
-    | [] -> assert false (* guarded above *)
-    | init :: ss ->
-      List.fold ss ~init ~f:(fun acc s -> `seq (s, acc))
+  | s :: ss -> `seq (s, seq ss)
 
 let[@tail_mod_cons] rec normalize (s : t) : t = match s with
   (* Leaf case: nothing to do here. *)
