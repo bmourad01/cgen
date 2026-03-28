@@ -200,6 +200,7 @@ let destructure_suite = "Test destructure" >::: [
     "GCD" >:: test_destructure "gcd";
     "strspn" >:: test_destructure "strspn";
     "strcspn" >:: test_destructure "strcspn";
+    "Magic division" >:: test_destructure "magic_div";
   ]
 
 let to_restructure = [
@@ -345,6 +346,8 @@ let opt_suite = "Test optimizations" >::: [
     "Binary search" >:: test "bsearch";
     "If-conversion 1" >:: test "ifc1";
     "strcspn" >:: test "strcspn";
+    "Benchmark" >:: test "bench";
+    "Magic division" >:: test "magic_div";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -377,7 +380,8 @@ let abi_suite = "Test ABI lowering" >::: [
     "Collatz recursive (SysV)" >:: test_sysv "collatz_rec";
     "Ackermann (SysV)" >:: test_sysv "ackermann";
     "Quicksort (SysV)" >:: test_sysv "qsort";
-    "Binary search (SysV)" >:: test "bsearch";
+    "Binary search (SysV)" >:: test_sysv "bsearch";
+    "Magic division (SysV)" >:: test_sysv "magic_div";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -459,6 +463,8 @@ let regalloc_suite = "Test register allocation" >::: [
     "Binary search (SysV AMD64)" >:: test_sysv_amd64_regalloc "bsearch";
     "strspn (SysV AMD64)" >:: test_sysv_amd64_regalloc "strspn";
     "strcspn (SysV AMD64)" >:: test_sysv_amd64_regalloc "strcspn";
+    "Benchmark (SysV AMD64)" >:: test_sysv_amd64_regalloc "bench";
+    "Magic division (SysV AMD64)" >:: test_sysv_amd64_regalloc "magic_div";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -506,6 +512,8 @@ let native_suite = "Test native code" >::: [
     "Edge contraction and select (SysV AMD64)" >:: test_sysv_amd64_native "contractsel";
     "strspn (SysV AMD64)" >:: test_sysv_amd64_native "strspn";
     "strcspn (SysV AMD64)" >:: test_sysv_amd64_native "strcspn";
+    "Benchmark (SysV AMD64)" >:: test_sysv_amd64_native "bench";
+    "Magic division (SysV AMD64)" >:: test_sysv_amd64_native "magic_div";
   ]
 
 let () = run_test_tt_main @@ test_list [

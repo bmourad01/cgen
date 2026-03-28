@@ -1,0 +1,472 @@
+module bench
+
+export function w $fnv1a(l %data, l %len) {
+@start:
+  %hash = copy.w 2166136261_w
+  %i = copy.l 0_l
+  jmp @loop
+@loop:
+  %c = slt.l %i, %len
+  br %c, @body, @done
+@body:
+  %ptr = add.l %data, %i
+  %byte = ld.b %ptr
+  %bw = zext.w %byte
+  %hash = xor.w %hash, %bw
+  %hash = mul.w %hash, 16777619_w
+  %i = add.l %i, 1_l
+  jmp @loop
+@done:
+  ret %hash
+}
+
+export function w $popcount32(w %x) {
+@start:
+  ; x -= (x >> 1) & 0x55555555
+  %t0 = lsr.w %x, 1_w
+  %t1 = and.w %t0, 0x55555555_w
+  %x = sub.w %x, %t1
+  ; x = (x & 0x33333333) + ((x >> 2) & 0x33333333)
+  %t2 = and.w %x, 0x33333333_w
+  %t3 = lsr.w %x, 2_w
+  %t4 = and.w %t3, 0x33333333_w
+  %x = add.w %t2, %t4
+  ; x = (x + (x >> 4)) & 0x0f0f0f0f
+  %t5 = lsr.w %x, 4_w
+  %t6 = add.w %x, %t5
+  %x = and.w %t6, 0x0f0f0f0f_w
+  ; return (x * 0x01010101) >> 24
+  %t7 = mul.w %x, 0x01010101_w
+  %r = lsr.w %t7, 24_w
+  ret %r
+}
+
+export function w $dot_product(l %a, l %b, w %n) {
+@start:
+  %sum = copy.w 0_w
+  %i = copy.w 0_w
+  jmp @loop
+@loop:
+  %c = slt.w %i, %n
+  br %c, @body, @done
+@body:
+  %off = zext.l %i
+  %off = mul.l %off, 4_l
+  %pa = add.l %a, %off
+  %pb = add.l %b, %off
+  %va = ld.w %pa
+  %vb = ld.w %pb
+  %prod = mul.w %va, %vb
+  %sum = add.w %sum, %prod
+  %i = add.w %i, 1_w
+  jmp @loop
+@done:
+  ret %sum
+}
+
+export function w $nested_licm(w %x, w %n, w %m) {
+@start:
+  %acc = copy.w 0_w
+  %i = copy.w 0_w
+  jmp @outer
+@outer:
+  %ci = slt.w %i, %n
+  br %ci, @outer_body, @done
+@outer_body:
+  %inv_outer = mul.w %x, 3_w
+  %inv_outer = add.w %inv_outer, %i
+  %j = copy.w 0_w
+  jmp @inner
+@inner:
+  %cj = slt.w %j, %m
+  br %cj, @inner_body, @outer_next
+@inner_body:
+  %inv_inner = add.w %x, 7_w
+  %prod = mul.w %inv_outer, %inv_inner
+  %acc = add.w %acc, %prod
+  %j = add.w %j, 1_w
+  jmp @inner
+@outer_next:
+  %i = add.w %i, 1_w
+  jmp @outer
+@done:
+  ret %acc
+}
+
+export function $transform_array(l %dst, l %src, w %n) {
+@start:
+  %i = copy.w 0_w
+  jmp @loop
+@loop:
+  %c = slt.w %i, %n
+  br %c, @body, @done
+@body:
+  %off = zext.l %i
+  %off = mul.l %off, 4_l
+  %ps = add.l %src, %off
+  %pd = add.l %dst, %off
+  %v = ld.w %ps
+  %t1 = mul.w %v, 3_w
+  %t2 = add.w %t1, 7_w
+  %t3 = asr.w %v, 1_w
+  %r = xor.w %t2, %t3
+  st.w %r, %pd
+  %i = add.w %i, 1_w
+  jmp @loop
+@done:
+  ret
+}
+
+export function w $div_chain_w(w %x) {
+@start:
+  %a = udiv.w %x, 3_w
+  %b = urem.w %x, 7_w
+  %c = udiv.w %x, 11_w
+  %d = urem.w %x, 13_w
+  %e = udiv.w %x, 6_w
+  %f = rem.w %x, 5_w
+  %g = udiv.w %x, 9_w
+  %h = rem.w %x, 7_w
+  %r = add.w %a, %b
+  %r = add.w %r, %c
+  %r = add.w %r, %d
+  %r = add.w %r, %e
+  %r = add.w %r, %f
+  %r = add.w %r, %g
+  %r = add.w %r, %h
+  ret %r
+}
+
+export function l $div_chain_l(l %x) {
+@start:
+  %a = udiv.l %x, 7_l
+  %b = urem.l %x, 11_l
+  %c = udiv.l %x, 13_l
+  %d = rem.l %x, 5_l
+  %e = udiv.l %x, 9_l
+  %f = udiv.l %x, 3_l
+  %r = add.l %a, %b
+  %r = add.l %r, %c
+  %r = add.l %r, %d
+  %r = add.l %r, %e
+  %r = add.l %r, %f
+  ret %r
+}
+
+export function l $binary_search(l %key, l %base, l %nel, l %width, l %cmp) {
+@start:
+  jmp @loop
+@loop:
+  %c = sgt.l %nel, 0_l
+  br %c, @body, @null
+@body:
+  %half = udiv.l %nel, 2_l
+  %off = mul.l %width, %half
+  %mid = add.l %base, %off
+  %sign = call.w %cmp(%key, %mid)
+  %lt = slt.w %sign, 0_w
+  br %lt, @less, @notless
+@less:
+  %nel = udiv.l %nel, 2_l
+  jmp @loop
+@notless:
+  %gt = sgt.w %sign, 0_w
+  br %gt, @greater, @equal
+@greater:
+  %base = add.l %mid, %width
+  %half2 = udiv.l %nel, 2_l
+  %half2 = add.l %half2, 1_l
+  %nel = sub.l %nel, %half2
+  jmp @loop
+@equal:
+  ret %mid
+@null:
+  ret 0_l
+}
+
+export function w $spill_stress(w %n) {
+@start:
+  %a0 = copy.w 1_w
+  %a1 = copy.w 2_w
+  %a2 = copy.w 3_w
+  %a3 = copy.w 4_w
+  %a4 = copy.w 5_w
+  %a5 = copy.w 6_w
+  %a6 = copy.w 7_w
+  %a7 = copy.w 8_w
+  %a8 = copy.w 9_w
+  %a9 = copy.w 10_w
+  %aa = copy.w 11_w
+  %ab = copy.w 12_w
+  %ac = copy.w 13_w
+  %ad = copy.w 14_w
+  %ae = copy.w 15_w
+  %af = copy.w 16_w
+  %cnt = copy.w %n
+  jmp @loop
+@loop:
+  %a0 = add.w %a0, %a1
+  %a1 = add.w %a1, %a2
+  %a2 = add.w %a2, %a3
+  %a3 = add.w %a3, %a4
+  %a4 = add.w %a4, %a5
+  %a5 = add.w %a5, %a6
+  %a6 = add.w %a6, %a7
+  %a7 = add.w %a7, %a8
+  %a8 = add.w %a8, %a9
+  %a9 = add.w %a9, %aa
+  %aa = add.w %aa, %ab
+  %ab = add.w %ab, %ac
+  %ac = add.w %ac, %ad
+  %ad = add.w %ad, %ae
+  %ae = add.w %ae, %af
+  %af = add.w %af, %a0
+  %cnt = sub.w %cnt, 1_w
+  %c = ne.w %cnt, 0_w
+  br %c, @loop, @done
+@done:
+  %r = add.w %a0, %a8
+  %r = add.w %r, %a4
+  %r = add.w %r, %ac
+  ret %r
+}
+
+export function w $cse_diamond(w %x, w %y, w %z) {
+@start:
+  %c = sgt.w %x, 0_w
+  br %c, @pos, @neg
+@pos:
+  %t1 = mul.w %y, %z
+  %t2 = add.w %t1, %x
+  %t3 = udiv.w %x, 4_w
+  %t4 = mul.w %t1, %t3
+  %r = add.w %t2, %t4
+  jmp @done
+@neg:
+  %t1 = mul.w %y, %z
+  %t2 = add.w %t1, %x
+  %t3 = udiv.w %x, 4_w
+  %t5 = sub.w %t2, %t3
+  %r = xor.w %t5, %t1
+  jmp @done
+@done:
+  ret %r
+}
+
+export function w $cse_multi(w %a, w %b, w %c, w %d) {
+@start:
+  %base = mul.w %a, %b
+  %c1 = sgt.w %c, 0_w
+  br %c1, @p1, @n1
+@p1:
+  %r1 = add.w %base, %c
+  jmp @merge1
+@n1:
+  %r1 = sub.w %base, %c
+  jmp @merge1
+@merge1:
+  %c2 = sgt.w %d, 0_w
+  br %c2, @p2, @n2
+@p2:
+  %t1 = mul.w %a, %b
+  %r2 = add.w %t1, %d
+  jmp @merge2
+@n2:
+  %t1 = mul.w %a, %b
+  %r2 = sub.w %t1, %d
+  jmp @merge2
+@merge2:
+  %c3 = sgt.w %r1, %r2
+  br %c3, @p3, @n3
+@p3:
+  %t2 = mul.w %a, %b
+  %r = add.w %t2, %r1
+  jmp @done
+@n3:
+  %t2 = mul.w %a, %b
+  %r = add.w %t2, %r2
+  jmp @done
+@done:
+  ret %r
+}
+
+export function w $identities(w %x, w %y) {
+@start:
+  %a = add.w %x, 0_w
+  %b = mul.w %a, 1_w
+  %c = sub.w %b, 0_w
+  %d = xor.w %c, 0_w
+  %e = and.w %d, 0xffffffff_w
+  %f = or.w %e, 0_w
+  %g = lsl.w %f, 0_w
+  %h = lsr.w %g, 0_w
+  %i = mul.w %h, 0_w
+  %j = add.w %i, %y
+  %k = xor.w %j, %j
+  %l = add.w %k, %x
+  ret %l
+}
+
+export function l $fib(l %n) {
+@start:
+  %c = slt.l %n, 2_l
+  br %c, @base, @rec
+@base:
+  ret %n
+@rec:
+  %n1 = sub.l %n, 1_l
+  %r1 = call.l $fib(%n1)
+  %n2 = sub.l %n, 2_l
+  %r2 = call.l $fib(%n2)
+  %r = add.l %r1, %r2
+  ret %r
+}
+
+export function d $fsum(l %arr, w %n) {
+@start:
+  %sum = copy.d 0.0_d
+  %i = copy.w 0_w
+  jmp @loop
+@loop:
+  %c = slt.w %i, %n
+  br %c, @body, @done
+@body:
+  %off = zext.l %i
+  %off = mul.l %off, 8_l
+  %ptr = add.l %arr, %off
+  %v = ld.d %ptr
+  %sum = add.d %sum, %v
+  %i = add.w %i, 1_w
+  jmp @loop
+@done:
+  ret %sum
+}
+
+export function w $sroa_sum(w %a, w %b, w %c, w %d, w %e, w %f) {
+  %s = slot 24, align 4
+@start:
+  %p0 = add.l %s, 0_l
+  %p1 = add.l %s, 4_l
+  %p2 = add.l %s, 8_l
+  %p3 = add.l %s, 12_l
+  %p4 = add.l %s, 16_l
+  %p5 = add.l %s, 20_l
+  st.w %a, %p0
+  st.w %b, %p1
+  st.w %c, %p2
+  st.w %d, %p3
+  st.w %e, %p4
+  st.w %f, %p5
+  %va = ld.w %p0
+  %vb = ld.w %p1
+  %vc = ld.w %p2
+  %vd = ld.w %p3
+  %ve = ld.w %p4
+  %vf = ld.w %p5
+  %r = add.w %va, %vb
+  %r = add.w %r, %vc
+  %r = add.w %r, %vd
+  %r = add.w %r, %ve
+  %r = add.w %r, %vf
+  ret %r
+}
+
+export function w $bitops(w %x, w %shift) {
+@start:
+  %ls = and.w %shift, 31_w
+  %rs = sub.w 32_w, %ls
+  %hi = lsl.w %x, %ls
+  %lo = lsr.w %x, %rs
+  %rot = or.w %hi, %lo
+  %t1 = and.w %rot, 0x55555555_w
+  %t2 = lsr.w %rot, 1_w
+  %t3 = and.w %t2, 0x55555555_w
+  %t4 = add.w %t1, %t3
+  %t5 = not.w %t4
+  %t6 = neg.w %t5
+  %t7 = clz.w %x
+  %t8 = ctz.w %x
+  %r = add.w %t6, %t7
+  %r = add.w %r, %t8
+  ret %r
+}
+
+export function l $cgen_strlen(l %s) {
+@start:
+  %p = copy.l %s
+  jmp @loop
+@loop:
+  %c = ld.b %p
+  %nz = ne.b %c, 0_b
+  br %nz, @next, @done
+@next:
+  %p = add.l %p, 1_l
+  jmp @loop
+@done:
+  %len = sub.l %p, %s
+  ret %len
+}
+
+export function l $int_pow(l %base, l %exp) {
+@start:
+  %result = copy.l 1_l
+  jmp @loop
+@loop:
+  %c = sgt.l %exp, 0_l
+  br %c, @body, @done
+@body:
+  %odd = and.l %exp, 1_l
+  %c2 = ne.l %odd, 0_l
+  br %c2, @mul, @skip
+@mul:
+  %result = mul.l %result, %base
+  jmp @skip
+@skip:
+  %base = mul.l %base, %base
+  %exp = asr.l %exp, 1_l
+  jmp @loop
+@done:
+  ret %result
+}
+
+function w $store_to_load(l %a, l %b, w %x) {
+@start:
+  %y = ld.w %a
+  st.w %x, %a
+  %z = add.w %y, 1_w
+  st.w %z, %a
+  %c = eq.w %y, 0_w
+  br %c, @yes, @no
+@yes:
+  %y = ld.w %a
+  %d = zext.l %y
+  %w = ld.w %d
+  jmp @done
+@no:
+  %w = ld.w %b
+  jmp @done
+@done:
+  ret %w
+}
+
+export function w $ackermann(w %m, w %n) {
+@start:
+  %c = eq.w %m, 0_w
+  br %c, @m0, @mgt
+@m0:
+  %r = add.w %n, 1_w
+  ret %r
+@mgt:
+  %c = eq.w %n, 0_w
+  br %c, @n0, @both
+@n0:
+  %m1 = sub.w %m, 1_w
+  %r = call.w $ackermann(%m1, 1_w)
+  ret %r
+@both:
+  %n1 = sub.w %n, 1_w
+  %r1 = call.w $ackermann(%m, %n1)
+  %m1 = sub.w %m, 1_w
+  %r = call.w $ackermann(%m1, %r1)
+  ret %r
+}

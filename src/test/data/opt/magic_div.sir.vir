@@ -1,0 +1,178 @@
+module magic_div
+
+type :magic_s = {
+  w,
+  w
+}
+
+type :magic_u = {
+  w,
+  w,
+  w
+}
+
+export function :magic_s $magic_signed(w %d) {
+  %res = slot 8, align 4
+@56:
+  %ad = copy.w %d ; @58
+  %7 = slt.w %d, 0x0_w ; @57
+  br %7, @54, @50
+@54:
+  %ad = neg.w %d ; @55
+  jmp @50
+@50:
+  %mins = lsl.w 0x1_w, 0x1f_w ; @53
+  %msb = copy.w 0x0_w ; @52
+  %6 = slt.w %d, 0x0_w ; @51
+  br %6, @48, @36
+@48:
+  %msb = copy.w 0x1_w ; @49
+  jmp @36
+@36:
+  %t = add.w %mins, %msb ; @47
+  %t1 = sub.w %t, 0x1_w ; @46
+  %trem = urem.w %t, %ad ; @45
+  %anc = sub.w %t1, %trem ; @44
+  %q1 = udiv.w %mins, %anc ; @43
+  %q1anc = mul.w %q1, %anc ; @42
+  %r1 = sub.w %mins, %q1anc ; @41
+  %q2 = udiv.w %mins, %ad ; @40
+  %q2ad = mul.w %q2, %ad ; @39
+  %r2 = sub.w %mins, %q2ad ; @38
+  %p = copy.w 0x1f_w ; @37
+  jmp @13
+@13:
+  jmp @31
+@31:
+  %p = add.w %p, 0x1_w ; @35
+  %q1 = mul.w %q1, 0x2_w ; @34
+  %r1 = mul.w %r1, 0x2_w ; @33
+  %5 = ge.w %r1, %anc ; @32
+  br %5, @28, @24
+@28:
+  %q1 = add.w %q1, 0x1_w ; @30
+  %r1 = sub.w %r1, %anc ; @29
+  jmp @24
+@24:
+  %q2 = mul.w %q2, 0x2_w ; @27
+  %r2 = mul.w %r2, 0x2_w ; @26
+  %4 = ge.w %r2, %ad ; @25
+  br %4, @21, @18
+@21:
+  %q2 = add.w %q2, 0x1_w ; @23
+  %r2 = sub.w %r2, %ad ; @22
+  jmp @18
+@18:
+  %delta = sub.w %ad, %r2 ; @20
+  %1 = lt.w %q1, %delta ; @19
+  br %1, @13, @16
+@16:
+  %3 = eq.w %q1, %delta ; @17
+  br %3, @14, @10
+@14:
+  %2 = ne.w %r1, 0x0_w ; @15
+  br %2, @10, @13
+@10:
+  %m = add.w %q2, 0x1_w ; @12
+  %0 = slt.w %d, 0x0_w ; @11
+  br %0, @8, @2
+@8:
+  %m = neg.w %m ; @9
+  jmp @2
+@2:
+  %sh = sub.w %p, 0x20_w ; @7
+  %off4 = add.l %res, 0x4_l ; @6
+  st.w %m, %res ; @5
+  st.w %sh, %off4 ; @4
+  %result = ld:magic_s %res ; @3
+  ret %result
+}
+
+export function :magic_u $magic_unsigned(w %d) {
+  %res = slot 12, align 4
+@113:
+  %neg_d = neg.w %d ; @126
+  %rem_nc = urem.w %neg_d, %d ; @125
+  %nc = not.w %rem_nc ; @124
+  %mins = lsl.w 0x1_w, 0x1f_w ; @123
+  %maxs = sub.w %mins, 0x1_w ; @122
+  %q1 = udiv.w %mins, %nc ; @121
+  %q1nc = mul.w %q1, %nc ; @120
+  %r1 = sub.w %mins, %q1nc ; @119
+  %q2 = udiv.w %maxs, %d ; @118
+  %q2d = mul.w %q2, %d ; @117
+  %r2 = sub.w %maxs, %q2d ; @116
+  %a = copy.w 0x0_w ; @115
+  %p = copy.w 0x1f_w ; @114
+  jmp @68
+@68:
+  jmp @109
+@109:
+  %p = add.w %p, 0x1_w ; @112
+  %nc_r1 = sub.w %nc, %r1 ; @111
+  %15 = ge.w %r1, %nc_r1 ; @110
+  br %15, @101, @106
+@106:
+  %q1 = mul.w %q1, 0x2_w ; @108
+  %r1 = mul.w %r1, 0x2_w ; @107
+  jmp @97
+@101:
+  %q1 = mul.w %q1, 0x2_w ; @105
+  %q1 = add.w %q1, 0x1_w ; @104
+  %r1 = mul.w %r1, 0x2_w ; @103
+  %r1 = sub.w %r1, %nc ; @102
+  jmp @97
+@97:
+  %r21 = add.w %r2, 0x1_w ; @100
+  %d_r2 = sub.w %d, %r2 ; @99
+  %12 = ge.w %r21, %d_r2 ; @98
+  br %12, @87, @95
+@95:
+  %14 = ge.w %q2, %mins ; @96
+  br %14, @93, @89
+@93:
+  %a = copy.w 0x1_w ; @94
+  jmp @89
+@89:
+  %q2 = mul.w %q2, 0x2_w ; @92
+  %r2 = mul.w %r2, 0x2_w ; @91
+  %r2 = add.w %r2, 0x1_w ; @90
+  jmp @75
+@87:
+  %13 = ge.w %q2, %maxs ; @88
+  br %13, @85, @79
+@85:
+  %a = copy.w 0x1_w ; @86
+  jmp @79
+@79:
+  %q2 = mul.w %q2, 0x2_w ; @84
+  %q2 = add.w %q2, 0x1_w ; @83
+  %r2 = mul.w %r2, 0x2_w ; @82
+  %r2 = add.w %r2, 0x1_w ; @81
+  %r2 = sub.w %r2, %d ; @80
+  jmp @75
+@75:
+  %delta = sub.w %d, 0x1_w ; @78
+  %delta = sub.w %delta, %r2 ; @77
+  %8 = lt.w %p, 0x40_w ; @76
+  br %8, @73, @68
+@73:
+  %9 = lt.w %q1, %delta ; @74
+  br %9, @68, @71
+@71:
+  %11 = eq.w %q1, %delta ; @72
+  br %11, @69, @59
+@69:
+  %10 = ne.w %r1, 0x0_w ; @70
+  br %10, @59, @68
+@59:
+  %m = add.w %q2, 0x1_w ; @67
+  %sh = sub.w %p, 0x20_w ; @66
+  %off4 = add.l %res, 0x4_l ; @65
+  %off8 = add.l %res, 0x8_l ; @64
+  st.w %m, %res ; @63
+  st.w %a, %off4 ; @62
+  st.w %sh, %off8 ; @61
+  %result = ld:magic_u %res ; @60
+  ret %result
+}
