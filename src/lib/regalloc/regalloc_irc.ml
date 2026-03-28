@@ -11,6 +11,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
   open Regalloc_irc_state.Make(M)
 
+  module RA = M.Regalloc
+
   (* Adds an edge between `u` and `v` in the interference graph. *)
   let add_edge t u v =
     (* A node cannot interfere with itself, nor a node with a different
@@ -41,11 +43,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         if is_phi_var t d then
           update_cost ~factor:2 ~loop_depth t d);
     (* if isMoveInstruction(I) then *)
-    let+ out = match M.Regalloc.is_copy insn with
+    let+ out = match RA.is_copy insn with
       | None -> !!out
       | Some (drv, srv) ->
         let d = t.$[drv] and s = t.$[srv] in
-        (* This is an invariant that is required of `M.Regalloc.is_copy`; better
+        (* This is an invariant that is required of `RA.is_copy`; better
            to fail loudly here than silently introduce errors. *)
         let+ () = C.unless (Regs.same_class_node drv srv) @@ fun () ->
           C.failf "In Regalloc.build_insn: got a copy instruction `%a` between \
@@ -62,6 +64,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           src = s;
           loop = loop_depth;
         };
+        (* Persist phi-copy relationships for cross-round slot coalescing.
+           t.copies is cleared each round, but phi_pairs survives. *)
+        if is_phi_var t d || is_phi_var t s then
+          add_phi_pair t drv srv;
         (* worklistMoves := worklistMoves ∪ {I} *)
         t.wmoves <- Lset.add t.wmoves label;
         out in
@@ -506,6 +512,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Seq.filter_map ~f:(color t) |>
     Seq.fold ~init:(Bitset.init k) ~f:Bitset.clear
 
+  (* If a copy-related neighbor is already colored with a color in `cs`,
+     return that color. This is known as move biasing: by reusing the
+     neighbor's color we eliminate the copy instruction. *)
+  let preferred_color t id cs =
+    moves t id |> Lset.to_sequence |>
+    Seq.filter_map ~f:(Hashtbl.find t.copies) |>
+    Seq.filter_map ~f:(fun c ->
+        let other = if c.dst = id then c.src else c.dst in
+        color t (alias t other)) |>
+    Seq.find ~f:(Bitset.mem cs)
+
   let assign_colors t =
     (* while SelectStack is not empty
        let n = pop(SelectStack) *)
@@ -519,11 +536,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | None ->
           (* spilledNodes := spilledNodes ∪ {n} *)
           t.spilled <- Bitset.set t.spilled id
-        | Some c ->
+        | Some default ->
           (* coloredNodes := coloredNodes ∪ {n} *)
           t.colored <- Bitset.set t.colored id;
-          (* let c ∈ okColors
-             color[n] := c *)
+          (* Prefer a color that eliminates a copy (move biasing),
+             falling back to the minimum available color. *)
+          let c = Option.value (preferred_color t id cs) ~default in
           set_color t id c);
     (* ∀ n ∈ coalescedNodes *)
     Bitset.enum t.coalesced |> Seq.iter ~f:(fun id ->
@@ -540,6 +558,27 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Map.find m size |> Option.bind ~f:(fun rvs ->
         List.find rvs ~f:(fun rv -> not (has_edge t id t.$[rv])))
 
+  (* Find the slot already assigned to a copy-related spilled node, if any,
+     preferring it to eliminate the slot-to-slot copy in the admin block.
+     This is the stack-slot analogue of move biasing in assign_colors. *)
+  let preferred_slot t id =
+    let rv = t.![id] in
+    let try_slot partner =
+      Hashtbl.find t.slots partner |> Option.bind ~f:(fun slot ->
+          Option.some_if (not (has_edge t id t.$[slot])) slot) in
+    (* Cross-round: check persistent phi-copy partners. *)
+    phi_pair_partners t rv |> Set.to_sequence |>
+    Seq.filter_map ~f:try_slot |> Seq.hd |> function
+    | Some _ as phi -> phi
+    | None ->
+      (* Same-round fallback: check current-round copies. *)
+      moves t id |> Lset.to_sequence |>
+      Seq.filter_map ~f:(Hashtbl.find t.copies) |>
+      Seq.filter_map ~f:(fun c ->
+          let other = if c.dst = id then c.src else c.dst in
+          if not (Bitset.mem t.spilled other) then None
+          else try_slot t.![other]) |> Seq.hd
+
   (* Create slots for spilled nodes. *)
   let make_slots t =
     let+ slots, _ =
@@ -553,53 +592,41 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               | `v128 -> 16 in
             let r = Rv.var GPR v in
             let rid = t.$[r] in
-            match find_reusable_slot t m id size with
-            | Some r' ->
+            let reuse r' =
               Logs.debug (fun m ->
                   m "%s: re-using slot %a for spilled node %a%!"
                     __FUNCTION__ Rv.pp r' Rv.pp r);
               Hashtbl.set t.slots ~key:r ~data:r';
               t.slot_bits <- Bitset.set t.slot_bits rid;
-              acc, m
+              acc, m in
+            match preferred_slot t id with
+            | Some r' -> reuse r'
             | None ->
-              Logs.debug (fun m ->
-                  m "%s: spilling %a to new slot%!"
-                    __FUNCTION__ Rv.pp r);
-              let s = Virtual.Slot.create_exn v ~size ~align:size in
-              Hashtbl.set t.slots ~key:r ~data:r;
-              t.slot_bits <- Bitset.set t.slot_bits rid;
-              s :: acc, Map.add_multi m ~key:size ~data:r) in
+              match find_reusable_slot t m id size with
+              | Some r' -> reuse r'
+              | None ->
+                Logs.debug (fun m ->
+                    m "%s: spilling %a to new slot%!"
+                      __FUNCTION__ Rv.pp r);
+                let s = Virtual.Slot.create_exn v ~size ~align:size in
+                Hashtbl.set t.slots ~key:r ~data:r;
+                t.slot_bits <- Bitset.set t.slot_bits rid;
+                s :: acc, Map.add_multi m ~key:size ~data:r) in
     t.fn <- Func.insert_slots t.fn slots
 
-  (* Rewrite a single instruction to spill and reload variables.
+  (* If both sides of a copy are spilled to the same slot, the copy is a
+     no-op: the source slot already holds the correct value for the dest.
+     Skip the instruction entirely rather than generating load+copy+store. *)
+  let same_slot_copy t insn = match RA.is_copy insn with
+    | Some (drv, srv) ->
+      Bitset.mem t.spilled t.$[drv] &&
+      Bitset.mem t.spilled t.$[srv] &&
+      Option.equal Rv.equal
+        (Hashtbl.find t.slots drv)
+        (Hashtbl.find t.slots srv)
+    | _ -> false
 
-     Suppose we have:
-
-       mov v, [v+16]
-
-     We will transform this code to:
-
-       mov v_i, [v]
-       mov v_i, [v_i+16]
-       mov [v], v_i
-
-     Again suppose:
-
-       mov v, [a+16]
-       ...
-       add a, v
-
-     We get:
-
-       mov v_i, [a+16]
-       mov [v], v_i
-       ...
-       mov v_i', [v]
-       add a, v_i'
-
-     NB: `acc` is accumulated in reverse, and we populate `initial`
-     with the fresh temporaries (`newTemps`) here.
-  *)
+  (* Rewrite a single instruction to spill and reload variables. *)
   let rewrite_insn t reload ivec i =
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
@@ -618,15 +645,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           let* f', rl = if Set.mem use v then
               let+ label = C.Label.fresh in
               let insn = match Map.find reload v with
-                | None -> M.Regalloc.load_from_slot ty ~dst:v' ~src:slot
-                | Some v'' -> M.Regalloc.move ty ~dst:v' ~src:v'' in
+                | None -> RA.load_from_slot ty ~dst:v' ~src:slot
+                | Some v'' -> RA.move ty ~dst:v' ~src:v'' in
               Insn.create ~label ~insn :: f,
               Map.set rl ~key:v ~data:v'
             else !!(f, rl) in
           (* Insert a store after each definition of a v_i, *)
           let+ s', rl = if Set.mem def v then
               let+ label = C.Label.fresh in
-              let insn = M.Regalloc.store_to_slot ty insn ~src:v' ~dst:slot in
+              let insn = RA.store_to_slot ty insn ~src:v' ~dst:slot in
               Insn.create ~label ~insn :: s,
               Map.set rl ~key:v ~data:v'
             else !!(s, rl) in
@@ -638,7 +665,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           f', s', m', rl) in
     (* Apply the substitution to the existing instruction. *)
     let subst n = Map.find subst n |> Option.value ~default:n in
-    let i' = Insn.with_insn i @@ M.Regalloc.substitute insn subst in
+    let i' = Insn.with_insn i @@ RA.substitute insn subst in
     List.iter fetch ~f:(Vec.push ivec);
     Vec.push ivec i';
     List.iter store ~f:(Vec.push ivec);
@@ -649,9 +676,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Blk.insns b |> C.Seq.fold
         ~init:Rv.Map.empty ~f:(fun rl i ->
             let insn = Insn.insn i in
-            let rl = if M.Regalloc.is_call insn
+            let rl = if RA.is_call insn
               then Rv.Map.empty else rl in
-            rewrite_insn t rl ivec i) in
+            if same_slot_copy t insn then !!rl
+            else rewrite_insn t rl ivec i) in
     let data = Blk.with_insns b @@ Vec.to_list ivec in
     Hashtbl.set blks ~key:(Blk.label b) ~data;
     Vec.clear ivec
@@ -747,9 +775,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Func.map_blks t.fn ~f:(fun b ->
         Blk.insns b |> Seq.filter_map ~f:(fun i ->
             let insn = Insn.insn i in
-            let insn' = M.Regalloc.substitute insn subst in
+            let insn' = RA.substitute insn subst in
             (* Now we can remove useless copies. *)
-            match M.Regalloc.is_copy insn' with
+            match RA.is_copy insn' with
             | Some (d, s) when Rv.(d = s) -> None
             | Some _ | None -> Some (Insn.with_insn i insn')) |>
         Seq.to_list |> Blk.with_insns b)

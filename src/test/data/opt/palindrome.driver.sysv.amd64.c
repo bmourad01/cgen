@@ -9,4 +9,11 @@ main() {
   assert(palindrome(1));
   assert(palindrome(12321));
   assert(!palindrome(1234));
+  assert(palindrome(-1));
+  assert(palindrome(-11));
+  assert(palindrome(-121));
+  assert(palindrome(-12321));
+  assert(!palindrome(-12));
+  assert(!palindrome(-1234));
+  assert(!palindrome(-10));
 }

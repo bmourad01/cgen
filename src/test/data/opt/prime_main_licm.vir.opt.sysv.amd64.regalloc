@@ -17,12 +17,12 @@ export function $main { ; returns: rax
   call $atoi ; rdi ; @60
   mov r14d, eax ; @61
   mov r13d, 0x1_w ; @57
-  mov eax, 0x1_w ; @58
+  mov r12d, 0x1_w ; @58
 @3:
   cmp r14d, 0x0_w ; @51
   jle @9 ; @52
 @27:
-  mov ebx, eax ; @49
+  mov ebx, r12d ; @49
 @10:
   mov edi, ebx ; @14
   call $is_prime ; rdi ; @47
@@ -40,7 +40,6 @@ export function $main { ; returns: rax
   call $printf ; rax rdi rdx rsi ; @38
   dec r14d ; @25
   inc r13d ; @26
-  mov eax, r12d ; @33
   jmp @3 ; @34
 @9:
   xor eax, eax ; @29

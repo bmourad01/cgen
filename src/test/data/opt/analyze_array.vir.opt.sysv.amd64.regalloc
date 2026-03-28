@@ -54,9 +54,8 @@ export function $analyze_array { ; returns: rax
   leave ; @199
   ret ; @133
 @18:
-  mov eax, r13d ; @70
-  mov rcx, qword ptr [rbp - 0x10] ; @185
-  mov r12d, dword ptr [rcx + rax*4] ; @24
+  mov rax, qword ptr [rbp - 0x10] ; @185
+  mov r12d, dword ptr [rax + r13*4] ; @24
   mov esi, r12d ; @128
   call $max ; rdi rsi ; @129
   mov r14d, eax ; @130

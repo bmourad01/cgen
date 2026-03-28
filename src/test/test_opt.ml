@@ -418,6 +418,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "LEA arithmetic with negative disp (SysV AMD64)" >:: test_sysv_amd64_regalloc "lea1";
     "Test prime numbers (SysV AMD64)" >:: test_sysv_amd64_regalloc "prime";
     "Spill test 1 (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill1";
+    "Phi slot coalescing (SysV AMD64)" >:: test_sysv_amd64_regalloc "phi_coalesce";
     "Copy an array of words (SysV AMD64)" >:: test_sysv_amd64_regalloc "cpyarray";
     "Folding addition (SysV AMD64)" >:: test_sysv_amd64_regalloc "foldadd";
     "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_regalloc "uremby7";

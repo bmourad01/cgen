@@ -20,12 +20,11 @@ function $partition { ; returns: rax
   push r15 ; @132
   push rbx ; @133
   mov r12, rdi ; @49
-  mov rcx, rdx ; @101
-  lea rax, qword ptr [r12 + rcx*4] ; @50
+  lea rax, qword ptr [r12 + rdx*4] ; @50
   mov qword ptr [rbp - 0x10], rax ; @124
-  mov r15d, dword ptr [r12 + rcx*4] ; @11
+  mov r15d, dword ptr [r12 + rdx*4] ; @11
   lea rax, qword ptr [rsi - 0x1] ; @51
-  lea r14, qword ptr [rcx - 0x1] ; @52
+  lea r14, qword ptr [rdx - 0x1] ; @52
   mov rbx, rsi ; @97
 @8:
   cmp rbx, r14 ; @92

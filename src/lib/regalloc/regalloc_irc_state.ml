@@ -70,6 +70,7 @@ module Make(M : Machine_intf.S) = struct
     copies              : copy Label.Table.t;
     insn_blks           : (Label.t * id) Label.Table.t;
     slots               : Rv.t Rv.Table.t;
+    phi_pairs           : Rv.Set.t Rv.Table.t;
     mutable types       : [Type.basic | `v128] Rv.Map.t;
     cfg                 : Pseudo.Cfg.t;
     loop                : Loop.t;
@@ -182,6 +183,15 @@ module Make(M : Machine_intf.S) = struct
 
   let add_move t label id =
     t.node_moves.(id) <- Lset.add t.node_moves.(id) label
+
+  let add_phi_pair t a b =
+    let add rv partner =
+      Hashtbl.update t.phi_pairs rv ~f:(fun s ->
+          Set.add (Option.value s ~default:Rv.Set.empty) partner) in
+    add a b; add b a
+
+  let phi_pair_partners t rv =
+    Hashtbl.find t.phi_pairs rv |> Option.value ~default:Rv.Set.empty
 
   let inc_use t id = t.nuse.(id) <- t.nuse.(id) + 1
   let num_uses t id = t.nuse.(id)
@@ -305,6 +315,7 @@ module Make(M : Machine_intf.S) = struct
       copies = Label.Table.create ();
       insn_blks = Label.Table.create ();
       slots = Rv.Table.create ();
+      phi_pairs = Rv.Table.create ();
       types = Rv.Map.empty;
       cfg;
       loop;

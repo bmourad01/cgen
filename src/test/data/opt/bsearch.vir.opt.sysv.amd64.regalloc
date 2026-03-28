@@ -57,9 +57,7 @@ export function $bsearch { ; returns: rax
   ret ; @50
 @19:
   lea r13, qword ptr [r14 + r15*1] ; @34
-  lea rcx, qword ptr [r12 + 0x1] ; @35
-  mov rax, rbx ; @36
-  sub rax, rcx ; @48
-  mov rbx, rax ; @45
+  lea rax, qword ptr [r12 + 0x1] ; @35
+  sub rbx, rax ; @48
   jmp @7 ; @47
 }
