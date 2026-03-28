@@ -307,6 +307,16 @@ end = struct
         I.sub (Oreg (x, xt)) (Oimm (z, zt));
       ]
 
+  let sub_ir_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! () = guard @@ Type.equal_basic xt zt in
+    let y = Bv.to_int64 y in !!![
+      I.mov (Oreg (x, xt)) (Oimm (y, yt));
+      I.sub (Oreg (x, xt)) (Oreg (z, zt));
+    ]
+
   let sub_rf32_x_y_z = arith_float_x_y_z I.movss I.subss I.fp32 S.single `f32
   let sub_rf64_x_y_z = arith_float_x_y_z I.movsd I.subsd I.fp64 S.double `f64
 
@@ -1248,6 +1258,18 @@ end = struct
       I.fp64 l z;
     ]
 
+  let idiv_rem_ir_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      I.mov (Oreg (rax, bty yt)) (Oimm (Bv.to_int64 y, yt));
+      cwd_cdq_cqo (bty yt);
+      I.idiv (Oreg (z, zt));
+      I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
+    ]
+
   let idiv_rem_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -1298,6 +1320,17 @@ end = struct
       I.mov (Oreg (x, xt)) (Oreg (rax, xt));
     ]
 
+  let idiv_ir_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in !!![
+      I.mov (Oreg (rax, bty yt)) (Oimm (Bv.to_int64 y, yt));
+      cwd_cdq_cqo (bty yt);
+      I.idiv (Oreg (z, zt));
+      I.mov (Oreg (x, xt)) (Oreg (rax, xt));
+    ]
+
   let idiv8_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -1322,6 +1355,19 @@ end = struct
       I.mov (Oreg (x, xt)) (Oreg (rax, `i8));
     ]
 
+  let idiv8_ir_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
+    let rax = Rv.reg `rax in !!![
+      I.mov (Oreg (tmp, bty yt)) (Oimm (Bv.to_int64 y, yt));
+      I.movzx (Oreg (rax, `i16)) (Oreg (tmp, bty yt));
+      I.cwd;
+      I.idiv (Oreg (z, zt));
+      I.mov (Oreg (x, xt)) (Oreg (rax, `i8));
+    ]
+
   let idiv8_rem_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -1343,6 +1389,19 @@ end = struct
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.cwd;
       I.idiv (Oreg (tmp, bty zt));
+      I.mov (Oreg (x, xt)) Oah;
+    ]
+
+  let idiv8_rem_ir_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
+    let rax = Rv.reg `rax in !!![
+      I.mov (Oreg (tmp, bty yt)) (Oimm (Bv.to_int64 y, yt));
+      I.movzx (Oreg (rax, `i16)) (Oreg (tmp, bty yt));
+      I.cwd;
+      I.idiv (Oreg (z, zt));
       I.mov (Oreg (x, xt)) Oah;
     ]
 
@@ -1372,6 +1431,20 @@ end = struct
       I.mov (Oreg (x, xt)) Oah;
     ]
 
+  let div8_rem_ir_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      I.mov (Oreg (tmp, bty yt)) (Oimm (Bv.to_int64 y, yt));
+      I.movzx (Oreg (rax, `i16)) (Oreg (tmp, bty yt));
+      I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32));
+      I.div (Oreg (z, zt));
+      I.mov (Oreg (x, xt)) Oah;
+    ]
+
   let div_rem_rr_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -1396,6 +1469,56 @@ end = struct
       I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32));
       I.div (Oreg (tmp, bty zt));
       I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
+    ]
+
+  let div_rem_ir_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      I.mov (Oreg (rax, bty yt)) (Oimm (Bv.to_int64 y, yt));
+      I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32));
+      I.div (Oreg (z, zt));
+      I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
+    ]
+
+  let udiv_rr_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      I.mov (Oreg (rax, yt)) (Oreg (y, yt));
+      I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32));
+      I.div (Oreg (z, zt));
+      I.mov (Oreg (x, xt)) (Oreg (rax, xt));
+    ]
+
+  let udiv_ri_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.imm env "z" in
+    let* tmp = C.Var.fresh >>| Rv.var GPR in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      I.mov (Oreg (tmp, bty zt)) (Oimm (Bv.to_int64 z, zt));
+      I.mov (Oreg (rax, yt)) (Oreg (y, yt));
+      I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32));
+      I.div (Oreg (tmp, bty zt));
+      I.mov (Oreg (x, xt)) (Oreg (rax, xt));
+    ]
+
+  let udiv_ir_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let rax = Rv.reg `rax in
+    let rdx = Rv.reg `rdx in !!![
+      I.mov (Oreg (rax, bty yt)) (Oimm (Bv.to_int64 y, yt));
+      I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32));
+      I.div (Oreg (z, zt));
+      I.mov (Oreg (x, xt)) (Oreg (rax, xt));
     ]
 
   let fdiv_rr_x_y_z env =
@@ -2015,6 +2138,7 @@ end = struct
     let sub = [
       sub_rr_x_y_z;
       sub_ri_x_y_z;
+      sub_ir_x_y_z;
       sub_rf32_x_y_z;
       sub_rf64_x_y_z;
     ]
@@ -2102,6 +2226,7 @@ end = struct
     let div = [
       idiv_rr_x_y_z;
       idiv_ri_x_y_z;
+      idiv_ir_x_y_z;
     ]
 
     let fdiv = [
@@ -2113,26 +2238,37 @@ end = struct
     let div8 = [
       idiv8_rr_x_y_z;
       idiv8_ri_x_y_z;
+      idiv8_ir_x_y_z;
     ]
 
     let rem = [
       idiv_rem_rr_x_y_z;
       idiv_rem_ri_x_y_z;
+      idiv_rem_ir_x_y_z;
     ]
 
     let rem8 = [
       idiv8_rem_rr_x_y_z;
       idiv8_rem_ri_x_y_z;
+      idiv8_rem_ir_x_y_z;
+    ]
+
+    let udiv = [
+      udiv_rr_x_y_z;
+      udiv_ri_x_y_z;
+      udiv_ir_x_y_z;
     ]
 
     let urem = [
       div_rem_rr_x_y_z;
       div_rem_ri_x_y_z;
+      div_rem_ir_x_y_z;
     ]
 
     let urem8 = [
       div8_rem_rr_x_y_z;
       div8_rem_ri_x_y_z;
+      div8_rem_ir_x_y_z;
     ]
 
     let setcc_test ?(neg = false) () = [
@@ -2626,6 +2762,13 @@ end = struct
       move x (rem `i16 y z) =>* Group.rem;
       move x (rem `i32 y z) =>* Group.rem;
       move x (rem `i64 y z) =>* Group.rem;
+    ]
+
+    (* x = udiv y, z *)
+    let udiv_basic = [
+      move x (udiv `i16 y z) =>* Group.udiv;
+      move x (udiv `i32 y z) =>* Group.udiv;
+      move x (udiv `i64 y z) =>* Group.udiv;
     ]
 
     (* x = urem y, z *)
@@ -3225,6 +3368,7 @@ end = struct
       umulh_basic;
       div_basic;
       rem_basic;
+      udiv_basic;
       urem_basic;
       setcc_zero;
       setcc_ibasic;
