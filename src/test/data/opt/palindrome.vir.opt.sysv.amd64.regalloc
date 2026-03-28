@@ -15,11 +15,11 @@ export function $palindrome { ; returns: rax
   mov al, dl ; @43
   ret ; @44
 @6:
-  imul rdi, rdx, 0x66666667 ; @16
-  shr rdi, 0x20_b ; @42
-  mov esi, edi ; @17
-  sar esi, 0x2_b ; @41
-  shr edi, 0x1f_b ; @40
+  imul rsi, rdx, 0x66666667 ; @16
+  shr rsi, 0x20_b ; @42
+  mov edi, esi ; @17
+  sar edi, 0x2_b ; @41
+  shr esi, 0x1f_b ; @40
   add esi, edi ; @19
   imul edi, esi, 0xa ; @20
   sub edx, edi ; @39

@@ -7,28 +7,12 @@ open Pseudo
 
 module Lset = Label.Tree_set
 
-(* Pick the first element we encounter in the set and remove it. *)
-let take_one hs =
-  let e = with_return @@ fun {return} ->
-    Hash_set.iter hs ~f:return;
-    assert false in
-  Hash_set.remove hs e;
-  e
-
-let take_one_max hs ~compare =
-  let e = Option.value_exn (Hash_set.max_elt hs ~compare) in
-  Hash_set.remove hs e;
-  e
-
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
   open Regalloc_irc_state.Make(M)
 
-  let ensure_degree t n =
-    if can_be_colored t n then
-      Hashtbl.update t.degree n ~f:(function
-          | None -> 0
-          | Some d -> d)
+  let mkset t rvs = Set.fold rvs ~init:Bitset.empty
+      ~f:(fun bs rv -> Bitset.set bs t.$[rv])
 
   (* Adds an edge between `u` and `v` in the interference graph. *)
   let add_edge t u v =
@@ -36,44 +20,40 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
        register class. Nodes that correspond to slots are excluded. *)
     ensure_degree t u;
     ensure_degree t v;
-    if Rv.(u <> v)
-    && Regs.same_class_node u v
-    && not (Hashtbl.mem t.slots u)
-    && not (Hashtbl.mem t.slots v) then begin
-      (* We're going to combine the `adjList` and `adjSet`. *)
+    if u <> v
+    && Regs.same_class_node t.![u] t.![v]
+    && not (Bitset.mem t.slot_bits u)
+    && not (Bitset.mem t.slot_bits v) then begin
       add_adjlist t u v;
       add_adjlist t v u;
-      (* if u \notin precolored then
-           degree[u] := degree[u]+1 *)
       if can_be_colored t u then inc_degree t u;
-      (* if v \notin precolored then
-           degree[v] := degree[v]+1 *)
       if can_be_colored t v then inc_degree t v
     end
 
   let build_insn ~loop_depth t out i =
-    let label = Insn.label i in 
+    let label = Insn.label i in
     let insn = Insn.insn i in
-    let use = M.Insn.reads insn in
-    Set.iter use ~f:(fun u ->
+    let use = mkset t @@ M.Insn.reads insn in
+    let def = mkset t @@ M.Insn.writes insn in
+    Bitset.enum use |> Seq.iter ~f:(fun u ->
         update_cost ~loop_depth t u;
         inc_use t u);
-    let def = M.Insn.writes insn in
-    Set.iter def ~f:(fun d ->
+    Bitset.enum def |> Seq.iter ~f:(fun d ->
         if is_phi_var t d then
           update_cost ~factor:2 ~loop_depth t d);
     (* if isMoveInstruction(I) then *)
     let+ out = match M.Regalloc.is_copy insn with
       | None -> !!out
-      | Some (d, s) ->
+      | Some (drv, srv) ->
+        let d = t.$[drv] and s = t.$[srv] in
         (* This is an invariant that is required of `M.Regalloc.is_copy`; better
            to fail loudly here than silently introduce errors. *)
-        let+ () = C.unless (Regs.same_class_node d s) @@ fun () ->
+        let+ () = C.unless (Regs.same_class_node drv srv) @@ fun () ->
           C.failf "In Regalloc.build_insn: got a copy instruction `%a` between \
                    between two different register classes (%a, %a)"
-            (Insn.pp M.Insn.pp) i Rv.pp d Rv.pp s () in
+            (Insn.pp M.Insn.pp) i Rv.pp drv Rv.pp srv () in
         (* live := live\use(I) *)
-        let out = Set.diff out use in
+        let out = Bitset.diff out use in
         (* forall n \in def(I) U use(I)
              moveList[n] := moveList[n] U {I} *)
         add_move t label d;
@@ -87,15 +67,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         t.wmoves <- Lset.add t.wmoves label;
         out in
     (* live := live U def(I) *)
-    let out = Set.union out def in
+    let out = Bitset.union out def in
     (* forall d \in def(I) *)
-    Set.iter def ~f:(fun d ->
+    Bitset.enum def |> Seq.iter ~f:(fun d ->
         (* forall l \in live
              AddEdge(l,d) *)
         add_def t d label;
-        Set.iter out ~f:(fun o -> add_edge t o d));
+        Bitset.enum out |> Seq.iter ~f:(fun o -> add_edge t o d));
     (* live := use(I) U (live\def(I)) *)
-    Set.union use (Set.diff out def)
+    Bitset.union use (Bitset.diff out def)
 
   (* Build the interference graph and other initial state for the
      algorithm. *)
@@ -110,7 +90,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             (* NB: levels start at 0 *)
             (Loop.(level (get t.loop lp)) :> int) + 1 in
         (* live := liveOut(b) *)
-        let out = ref @@ Live.outs live l in
+        let out = ref @@ mkset t @@ Live.outs live l in
         (* forall I \in instructions(b) in reverse order *)
         let insns = Blk.insns b ~rev:true |> Seq.to_list in
         let ord = ref (List.length insns - 1) in
@@ -122,87 +102,88 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Initialize the worklists. *)
   let make_worklist t =
-    Hash_set.iter t.initial ~f:(fun n ->
-        (* If we introduced `n` during spilling, but later removed
+    Bitset.enum t.initial |> Seq.iter ~f:(fun id ->
+        (* If we introduced [id] during spilling, but later removed
            its definition during dead code elimination, then it
            won't have a degree. *)
-        degree' t n |> Option.iter ~f:(fun d ->
-            if d >= Regs.node_k n then
-              add_spill t n
-            else if move_related t n then
-              Hash_set.add t.wfreeze n
+        degree' t id |> Option.iter ~f:(fun d ->
+            if d >= Regs.node_k t.![id] then
+              add_spill t id
+            else if move_related t id then
+              t.wfreeze <- Bitset.set t.wfreeze id
             else
-              Hash_set.add t.wsimplify n));
-    Hash_set.clear t.initial
+              t.wsimplify <- Bitset.set t.wsimplify id));
+    t.initial <- Bitset.empty
 
   let enable_moves t nodes =
     (* forall n \in nodes *)
-    Set.iter nodes ~f:(fun n ->
+    Bitset.enum nodes |> Seq.iter ~f:(fun id ->
         (* forall m \in NodeMoves(m) *)
-        node_moves t n |> Lset.iter ~f:(fun m ->
+        node_moves t id |> Lset.iter ~f:(fun m ->
             (* if m \in activeMoves then *)
             if Lset.mem t.amoves m then begin
               Logs.debug (fun m_ ->
                   m_ "%s: enabling move %a for node %a%!"
-                    __FUNCTION__ Label.pp m Rv.pp n);
+                    __FUNCTION__ Label.pp m Rv.pp t.![id]);
               (* activeMoves := activeMoves \ {m} *)
               t.amoves <- Lset.remove t.amoves m;
               (* worklistMoves := worklistMoves U {m} *)
               t.wmoves <- Lset.add t.wmoves m;
             end))
 
-  (* Simulate removing a node grom the interference graph (this is what
+  (* Simulate removing a node from the interference graph (this is what
      the `degree` table is for). *)
-  let decrement_degree t m =
-    match degree' t m with
+  let decrement_degree t id =
+    match degree' t id with
     | None ->
-      assert (exclude_from_coloring t m)
+      assert (exclude_from_coloring t id)
     | Some d ->
-      assert (can_be_colored t m);
+      assert (can_be_colored t id);
       (* let d = degree[m]
          degree[m] := d-1 *)
-      dec_degree t m;
+      dec_degree t id;
       (* if d = K then *)
-      if d = Regs.node_k m then begin
+      if d = Regs.node_k t.![id] then begin
         (* EnableMoves({m} U Adjacent(m)) *)
-        enable_moves t @@ Set.add (adjacent t m) m;
-        (* spillWorklist := splillWorklist \ {m} *)
-        remove_spill t m;
+        enable_moves t (Bitset.set (adjacent t id) id);
+        (* spillWorklist := spillWorklist \ {m} *)
+        remove_spill t id;
         (* if MoveRelated(m) then
              freezeWorklist := freezeWorklist U {m}
            else
              simplifyWorklist := simplifyWorklist U {m} *)
-        if move_related t m
-        then Hash_set.add t.wfreeze m
-        else Hash_set.add t.wsimplify m
+        if move_related t id
+        then t.wfreeze <- Bitset.set t.wfreeze id
+        else t.wsimplify <- Bitset.set t.wsimplify id
       end
 
   (* pre: wsimplify is not empty *)
   let simplify t =
     (* let n \in simplifyWorklist
        simplifyWorklist := simplifyWorklist \ {n} *)
-    let n = take_one t.wsimplify in
+    let id, wsimplify' = Bitset.pop_min_elt_exn t.wsimplify in
+    t.wsimplify <- wsimplify';
     (* push(n, selectStack) *)
-    if can_be_colored t n then begin
-      Logs.debug (fun m -> m "%s: selecting %a%!" __FUNCTION__ Rv.pp n);
-      Stack.push t.select n;
+    if can_be_colored t id then begin
+      Logs.debug (fun m -> m "%s: selecting %a%!" __FUNCTION__ Rv.pp t.![id]);
+      Stack.push t.select id
     end;
     (* forall m \in Adjacent(n) *)
-    adjacent t n |> Set.iter ~f:(decrement_degree t)
+    adjacent t id |> Bitset.enum |> Seq.iter ~f:(decrement_degree t)
 
-  let should_add_to_worklist t u =
+  let should_add_to_worklist t id =
     (* u \notin precolored *)
-    can_be_colored t u &&
+    can_be_colored t id &&
     (* not(MoveRelated(u)) *)
-    not (move_related t u) &&
+    not (move_related t id) &&
     (* degree[u] < K *)
-    degree t u < Regs.node_k u 
+    degree t id < Regs.node_k t.![id]
 
-  let add_worklist t u = if should_add_to_worklist t u then begin
+  let add_worklist t id = if should_add_to_worklist t id then begin
       (* freezeWorklist := freezeWorklist \ {u} *)
-      Hash_set.remove t.wfreeze u;
+      t.wfreeze <- Bitset.clear t.wfreeze id;
       (* simplifyWorklist := simplifyWorklist U {u} *)
-      Hash_set.add t.wsimplify u;
+      t.wsimplify <- Bitset.set t.wsimplify id;
     end
 
   let ok t a r =
@@ -210,17 +191,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* t \in precolored *)
       exclude_from_coloring t a ||
       (* degree[t] < K *)
-      degree t a < Regs.node_k a ||
+      degree t a < Regs.node_k t.![a] ||
       (* (a,r) \in adjSet *)
       has_edge t a r in
     Logs.debug (fun m ->
         m "%s: %a, %a: %b%!"
-          __FUNCTION__ Rv.pp a Rv.pp r res);
+          __FUNCTION__ Rv.pp t.![a] Rv.pp t.![r] res);
     res
 
   (* forall t \in Adjacent(v), OK(t,u)  *)
   let all_adjacent_ok t u v =
-    adjacent t v |> Set.for_all ~f:(fun a -> ok t a u)
+    adjacent t v |> Bitset.enum |> Seq.for_all ~f:(fun a -> ok t a u)
 
   (* Briggs conservative coalescing heuristic.
 
@@ -230,18 +211,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      return (k < K)
   *)
   let conservative t nodes =
-    Set.fold nodes ~init:0 ~f:(fun k n ->
-        if degree t n >= Regs.node_k n then k + 1 else k)
+    Bitset.enum nodes |> Seq.fold ~init:0 ~f:(fun k id ->
+        if degree t id >= Regs.node_k t.![id] then k + 1 else k)
 
   (* Conservative(Adjacent(u) U Adjacent(v)) *)
   let conservative_adj t u v =
-    assert (Regs.same_class_node u v);
-    let nodes = Set.union (adjacent t u) (adjacent t v) in
-    let nk = Regs.node_k u in
+    assert (Regs.same_class_node t.![u] t.![v]);
+    let nodes = Bitset.union (adjacent t u) (adjacent t v) in
+    let nk = Regs.node_k t.![u] in
     let k = conservative t nodes in
     Logs.debug (fun m ->
         m "%s: u=%a, v=%a, k=%d, nk=%d%!"
-          __FUNCTION__ Rv.pp u Rv.pp v k nk);
+          __FUNCTION__ Rv.pp t.![u] Rv.pp t.![v] k nk);
     k < nk
 
   (* XXX: the algorithm in the paper does:
@@ -260,7 +241,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let e = has_edge t u v in
     Logs.debug (fun m ->
         m "%s: combining edge u=%a, v=%a, has_edge=%b%!"
-          __FUNCTION__ Rv.pp u Rv.pp v e);
+          __FUNCTION__ Rv.pp t.![u] Rv.pp t.![v] e);
     if e then
       decrement_degree t v
     else begin
@@ -274,32 +255,29 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let combine t u v =
     Logs.debug (fun m ->
         m "%s: combining u=%a with v=%a%!"
-          __FUNCTION__ Rv.pp u Rv.pp v);
+          __FUNCTION__ Rv.pp t.![u] Rv.pp t.![v]);
     (* if v \in freezeWorklist *)
-    if Hash_set.mem t.wfreeze v then
+    if Bitset.mem t.wfreeze v then
       (* freezeWorklist := freezeWorklist \ {v} *)
-      Hash_set.remove t.wfreeze v
+      t.wfreeze <- Bitset.clear t.wfreeze v
     else
       (* spillWorklist := spillWorklist \ {v} *)
       remove_spill t v;
     (* coalescedNodes := coalescedNodes U {v} *)
-    Hash_set.add t.coalesced v;
+    t.coalesced <- Bitset.set t.coalesced v;
     (* alias[v] := u *)
-    Hashtbl.set t.alias ~key:v ~data:u;
+    t.alias.(v) <- u;
     (* nodeMoves[u] := nodeMoves[u] U nodeMoves[v] *)
-    let vm = moves t v in
-    Hashtbl.update t.moves u ~f:(function
-        | Some um -> Lset.union um vm
-        | None -> vm);
+    t.node_moves.(u) <- Lset.union t.node_moves.(u) t.node_moves.(v);
     (* forall t \in Adjacent(v) *)
-    adjacent t v |> Set.iter ~f:(combine_edge t u);
+    adjacent t v |> Bitset.enum |> Seq.iter ~f:(combine_edge t u);
     if (* degree[u] >= K *)
-      degree t u >= Regs.node_k u &&
+      degree t u >= Regs.node_k t.![u] &&
       (* u \in freezeWorklist *)
-      Hash_set.mem t.wfreeze u
+      Bitset.mem t.wfreeze u
     then
       (* freezeWorklist := freezeWorklist \ {u} *)
-      let () = Hash_set.remove t.wfreeze u in
+      let () = t.wfreeze <- Bitset.clear t.wfreeze u in
       (* spillWorklist := spillWorklist U {u} *)
       add_spill t u
 
@@ -319,11 +297,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | None -> false
     | Some (bm, om) ->
       let live = Option.value_exn t.live in
-      let out = Live.outs live bm in
-      not (Set.mem out v) &&
-      Hashtbl.find t.defs v |>
-      Option.value ~default:Lset.empty |>
-      Lset.to_sequence |> Seq.for_all ~f:(fun d ->
+      let out = mkset t @@ Live.outs live bm in
+      not (Bitset.mem out v) &&
+      t.defs.(v) |> Lset.to_sequence |>
+      Seq.for_all ~f:(fun d ->
           match Hashtbl.find t.insn_blks d with
           | None -> false
           | Some (bd, od) when Label.(bm = bd) ->
@@ -351,11 +328,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* Pre-colored nodes don't actually have a degree, so we need to scale
          the result such that a node with degree > K doesn't outweigh a node
          that is pre-colored. *)
-      let effective_degree n p =
-        let k = Regs.node_k n in
+      let effective_degree id p =
+        let k = Regs.node_k t.![id] in
         let k' = k * 2 in
         if p then k' else
-          let d = degree t n in
+          let d = degree t id in
           if d <= k then d else
             (* If `d > K`, then we're OK with scaling off the tail end
                towards our threshold of 2K, since such nodes are effectively
@@ -377,9 +354,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      coalescing. *)
   let pick_move t =
     Lset.to_sequence t.wmoves |>
-    Seq.map ~f:(fun m -> m, move_priority t m) |>
-    Seq.max_elt ~compare:(fun (_, a) (_, b) ->  Float.compare a b) |>
-    Option.value_exn
+    Seq.fold ~init:None ~f:(fun acc m ->
+        let p = move_priority t m in
+        match acc with
+        | None -> Some (m, p)
+        | Some (_, p0) when Float.(p > p0) -> Some (m, p)
+        | acc -> acc) |> Option.value_exn
 
   (* pre: wmoves is not empty *)
   let coalesce t =
@@ -397,11 +377,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let u, v = if exclude_from_coloring t y then y, x else x, y in
     Logs.debug (fun m_ ->
         m_ "%s: looking at move %a, score=%g, u=%a, v=%a%!"
-          __FUNCTION__ Label.pp m score Rv.pp u Rv.pp v);
+          __FUNCTION__ Label.pp m score Rv.pp t.![u] Rv.pp t.![v]);
     (* worklistMoves := worklistMoves \ {m} *)
     t.wmoves <- Lset.remove t.wmoves m;
     (* if u = v then *)
-    if Rv.(u = v) then
+    if u = v then
       (* coalescedMoves := coalescedMoves U {m} *)
       let () = t.cmoves <- Lset.add t.cmoves m in
       Logs.debug (fun m -> m "%s: already coalesced%!" __FUNCTION__);
@@ -444,8 +424,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   *)
   let uvcopy t u m =
     let c = Hashtbl.find_exn t.copies m in
-    if Rv.(c.dst = u) then Some c.src
-    else if Rv.(c.src = u) then Some c.dst
+    if c.dst = u then Some c.src
+    else if c.src = u then Some c.dst
     else None
 
   let freeze_moves t u =
@@ -456,29 +436,29 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             (* if m \in activeMoves *)
             if Lset.mem t.amoves m then
               (* activeMoves := activeMoves \ {m} *)
-              t.amoves <- Lset.remove t.amoves m 
+              t.amoves <- Lset.remove t.amoves m
             else
               (* worklistMoves := worklistMoves \ {m} *)
               t.wmoves <- Lset.remove t.wmoves m;
             (* frozenMoves := frozenMoves U {m} *)
             Logs.debug (fun m_ ->
                 m_ "%s: freezing move %a, v=%a"
-                  __FUNCTION__ Label.pp m Rv.pp v);
+                  __FUNCTION__ Label.pp m Rv.pp t.![v]);
             t.fmoves <- Lset.add t.fmoves m;
             (* if NodeMoves(v) = {} ^ degree[v] < K *)
             if Lset.is_empty (node_moves t v)
-            && degree t v < Regs.node_k v then begin
+            && degree t v < Regs.node_k t.![v] then begin
               (* freezeWorklist := freezeWorklist \ {v} *)
-              Hash_set.remove t.wfreeze v;
+              t.wfreeze <- Bitset.clear t.wfreeze v;
               (* simplifyWorklist := simplifyWorklist U {v} *)
-              Hash_set.add t.wsimplify v;
+              t.wsimplify <- Bitset.set t.wsimplify v;
             end))
 
   let freeze_score t u =
-    let moves = node_moves t u in
-    let total_moves = Lset.length moves in
+    let mvs = node_moves t u in
+    let total_moves = Lset.length mvs in
     let phi_score =
-      Lset.to_sequence moves |>
+      Lset.to_sequence mvs |>
       Seq.filter_map ~f:(Hashtbl.find t.copies) |>
       Seq.sum (module Int) ~f:(fun c ->
           Bool.to_int (is_phi_var t c.dst) * (c.loop + 1)) in
@@ -488,90 +468,98 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let freeze t =
     (* let u \in freezeWorklist
        freezeWorklist := freezeWorklist \ {u} *)
-    let u = take_one_max t.wfreeze ~compare:(fun a b ->
-        Int.compare (freeze_score t a) (freeze_score t b)) in
-    Logs.debug (fun m -> m "%s: frozen node u=%a%!" __FUNCTION__ Rv.pp u);
+    let u, _ =
+      Bitset.enum t.wfreeze |>
+      Seq.fold ~init:None ~f:(fun acc id ->
+          let s = freeze_score t id in
+          match acc with
+          | None -> Some (id, s)
+          | Some (_, s0) when s > s0 -> Some (id, s)
+          | acc -> acc) |> Option.value_exn in
+    t.wfreeze <- Bitset.clear t.wfreeze u;
+    Logs.debug (fun m -> m "%s: frozen node u=%a%!" __FUNCTION__ Rv.pp t.![u]);
     (* simplifyWorklist := simplifyWorklist U {u} *)
-    Hash_set.add t.wsimplify u;
+    t.wsimplify <- Bitset.set t.wsimplify u;
     (* FreezeMoves(u) *)
     freeze_moves t u
 
   let select_spill t =
-    Pairing_heap.pop t.wspill |> Option.iter ~f:(fun m ->
+    Pairing_heap.pop t.wspill |> Option.iter ~f:(fun id ->
         Logs.debug (fun m_ ->
             m_ "%s: selecting spill node %a%!"
-              __FUNCTION__ Rv.pp m);
+              __FUNCTION__ Rv.pp t.![id]);
         (* spillWorklist := spillWorklist \ {m} *)
-        Hashtbl.remove t.wspill_elts m;
-        (* simplifyWorklist := simplifyworklist U {m} *)
-        Hash_set.add t.wsimplify m;
+        clear_wspill_elt t id;
+        (* simplifyWorklist := simplifyWorklist U {m} *)
+        t.wsimplify <- Bitset.set t.wsimplify id;
         (* FreezeMoves(m) *)
-        freeze_moves t m)
+        freeze_moves t id)
 
-  (* For all neighbors of `n` that have a color, remove them from the
+  (* For all neighbors of `id` that have a color, remove them from the
      set of his available colors. *)
-  let eliminate_colors t n cs =
+  let free_colors t id k =
     (* forall w \in adjList[n] *)
-    adjlist t n |> Set.to_sequence |> Seq.map ~f:(alias t) |>
+    adjlist t id |> Bitset.enum |> Seq.map ~f:(alias t) |>
     (* if GetAlias(w) \in (coloredNodes U precolored) then *)
-    Seq.filter ~f:(fun w -> Rv.is_reg w || Hash_set.mem t.colored w) |>
+    Seq.filter ~f:(fun w -> Bitset.(mem t.reg_bits w || mem t.colored w)) |>
     (* okColors := okColors \ {color[GetAlias(w)]} *)
     Seq.filter_map ~f:(color t) |>
-    Seq.iter ~f:(fun c -> cs := Bitset.clear !cs c)
+    Seq.fold ~init:(Bitset.init k) ~f:Bitset.clear
 
   let assign_colors t =
     (* while SelectStack is not empty
        let n = pop(SelectStack) *)
-    Stack.until_empty t.select (fun n ->
-        assert (can_be_colored t n);
+    Stack.until_empty t.select (fun id ->
+        assert (can_be_colored t id);
         (* okColors := {0,...,K-1} *)
-        let k = Regs.node_k n in
-        let cs = ref @@ Bitset.init k in
-        eliminate_colors t n cs;
+        let k = Regs.node_k t.![id] in
+        let cs = free_colors t id k in
         (* if okColors = {} then *)
-        match Bitset.min_elt !cs with
+        match Bitset.min_elt cs with
         | None ->
           (* spilledNodes := spilledNodes U {n} *)
-          t.spilled <- Set.add t.spilled n
+          t.spilled <- Bitset.set t.spilled id
         | Some c ->
           (* coloredNodes := coloredNodes U {n} *)
-          Hash_set.add t.colored n;
+          t.colored <- Bitset.set t.colored id;
           (* let c \in okColors
              color[n] := c *)
-          set_color t n c);
+          set_color t id c);
     (* forall n \in coalescedNodes *)
-    Hash_set.iter t.coalesced ~f:(fun n ->
+    Bitset.enum t.coalesced |> Seq.iter ~f:(fun id ->
         (* color[n] := color[GetAlias(n)] *)
-        alias t n |> color t |> Option.iter ~f:(set_color t n))
+        alias t id |> color t |> Option.iter ~f:(set_color t id))
 
   let typeof t v = match Map.find t.types v with
     | None -> C.failf "no type available for spilled node %a" Rv.pp v ()
     | Some ty -> !!ty
 
   (* Find an existing slot of comparable size that doesn't interfere
-     with `n`. *)
-  let find_reusable_slot t m n size =
-    Map.find m size |> Option.bind ~f:(fun vs ->
-        List.find vs ~f:(Fn.non @@ has_edge t n))
+     with `id`. *)
+  let find_reusable_slot t m id size =
+    Map.find m size |> Option.bind ~f:(fun rvs ->
+        List.find rvs ~f:(fun rv -> not (has_edge t id t.$[rv])))
 
   (* Create slots for spilled nodes. *)
   let make_slots t =
     let+ slots, _ =
-      Set.to_sequence t.spilled |>
-      C.Seq.fold ~init:([], Int.Map.empty) ~f:(fun (acc, m) n ->
-          match Rv.which n with
+      Bitset.enum t.spilled |>
+      C.Seq.fold ~init:([], Int.Map.empty) ~f:(fun (acc, m) id ->
+          match Rv.which t.![id] with
           | First _ -> assert false
           | Second (v, _) ->
-            let+ size = typeof t n >>| function
+            let+ size = typeof t t.![id] >>| function
               | #Type.basic as b -> Type.sizeof_basic b / 8
               | `v128 -> 16 in
             let r = Rv.var GPR v in
-            match find_reusable_slot t m n size with
+            let rid = t.$[r] in
+            match find_reusable_slot t m id size with
             | Some r' ->
               Logs.debug (fun m ->
                   m "%s: re-using slot %a for spilled node %a%!"
                     __FUNCTION__ Rv.pp r' Rv.pp r);
               Hashtbl.set t.slots ~key:r ~data:r';
+              t.slot_bits <- Bitset.set t.slot_bits rid;
               acc, m
             | None ->
               Logs.debug (fun m ->
@@ -579,6 +567,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                     __FUNCTION__ Rv.pp r);
               let s = Virtual.Slot.create_exn v ~size ~align:size in
               Hashtbl.set t.slots ~key:r ~data:r;
+              t.slot_bits <- Bitset.set t.slot_bits rid;
               s :: acc, Map.add_multi m ~key:size ~data:r) in
     t.fn <- Func.insert_slots t.fn slots
 
@@ -617,7 +606,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let def = M.Insn.writes insn in
     let+ fetch, store, subst, reload =
       let init = [], [], Rv.Map.empty, reload in
-      Set.union use def |> Set.inter t.spilled |> Set.to_sequence |>
+      Set.union use def |> Set.to_sequence |>
+      Seq.filter ~f:(fun rv -> Bitset.mem t.spilled t.$[rv]) |>
       C.Seq.fold ~init ~f:(fun (f, s, m, rl) v ->
           let* ty = typeof t v in
           let slot = Hashtbl.find_exn t.slots v in
@@ -643,7 +633,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           (* Update the substitution. *)
           let m' = Map.set m ~key:v ~data:v' in
           (* initial := initial U newTemps *)
-          Hash_set.add t.initial v';
+          add_initial t v';
           t.types <- Map.set t.types ~key:v' ~data:ty;
           f', s', m', rl) in
     (* Apply the substitution to the existing instruction. *)
@@ -689,34 +679,25 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* () = make_slots t in
     let+ () = rewrite_function t in
     (* spilledNodes := {} *)
-    t.spilled <- Rv.Set.empty;
+    t.spilled <- Bitset.empty;
     (* initial := coloredNodes U coalescedNodes *)
-    Hash_set.iter t.colored ~f:(Hash_set.add t.initial);
-    Hash_set.iter t.coalesced ~f:(Hash_set.add t.initial);
+    t.initial <- Bitset.union t.initial (Bitset.union t.colored t.coalesced);
     (* coloredNodes := {} *)
-    Hash_set.clear t.colored;
+    t.colored <- Bitset.empty;
     (* coalescedNodes := {} *)
-    Hash_set.clear t.coalesced
+    t.coalesced <- Bitset.empty
 
   (* Clear the relevant state for the next round. *)
   let new_round t =
     t.live <- None;
-    Hashtbl.clear t.adjlist;
-    Hashtbl.clear t.degree;
     Hashtbl.clear t.copies;
-    Hashtbl.clear t.nuse;
-    Hashtbl.clear t.defs;
-    Hashtbl.clear t.moves;
     Hashtbl.clear t.insn_blks;
-    Hashtbl.clear t.spill_cost;
-    (* This doesn't seem to happen in the paper, but we should discard
-       the previous coloring since we introduced new spill/reload code.
-
-       Since `rewrite_program` will add the colored and coalesced nodes
-       to the `initial` set, this should be safe as some if not all of
-       them can make their way to `simplify`.
-    *)
-    Hashtbl.clear t.colors
+    t.wmoves <- Lset.empty;
+    t.amoves <- Lset.empty;
+    t.cmoves <- Lset.empty;
+    t.kmoves <- Lset.empty;
+    t.fmoves <- Lset.empty;
+    alloc_arrays t
 
   let rec main t ~round ~max_rounds =
     let* () = C.when_ (round > max_rounds) @@ fun () ->
@@ -732,11 +713,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Process the worklists. *)
     let continue = ref true in
     while !continue do
-      if not @@ Hash_set.is_empty t.wsimplify then
+      if not @@ Bitset.is_empty t.wsimplify then
         simplify t
       else if not @@ Lset.is_empty t.wmoves then
         coalesce t
-      else if not @@ Hash_set.is_empty t.wfreeze then
+      else if not @@ Bitset.is_empty t.wfreeze then
         freeze t
       else if not @@ Pairing_heap.is_empty t.wspill then
         select_spill t
@@ -746,18 +727,21 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Assign colors or spill. *)
     assign_colors t;
     (* Rewrite according to the spilled nodes. *)
-    C.unless (Set.is_empty t.spilled) @@ fun () ->
+    C.unless (Bitset.is_empty t.spilled) @@ fun () ->
     let* () = spill_and_reload t in
     new_round t;
     main t ~round:(round + 1) ~max_rounds
 
   let apply_alloc t =
-    let subst n = match Hashtbl.find t.colors n with
-      | None ->
-        assert (exclude_from_coloring t n); n
-      | Some c ->
-        assert (can_be_colored t n);
-        Rv.reg @@ match Regs.classof n with
+    let subst rv =
+      let id = t.$[rv] in
+      match t.colors.(id) with
+      | -1 ->
+        assert (exclude_from_coloring t id);
+        rv
+      | c ->
+        assert (can_be_colored t id);
+        Rv.reg @@ match Regs.classof rv with
         | GPR -> Regs.allocatable.(c)
         | FP -> Regs.allocatable_fp.(c) in
     Func.map_blks t.fn ~f:(fun b ->

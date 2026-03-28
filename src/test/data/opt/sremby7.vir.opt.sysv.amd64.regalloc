@@ -6,10 +6,10 @@ export function $foo { ; returns: rax
   mov ecx, 0x92492493_w ; @18
   imul rcx, edi ; @19
   shr rcx, 0x20_b ; @20
-  lea edx, qword ptr [rcx + rax*1] ; @5
-  mov ecx, edx ; @6
-  sar ecx, 0x2_b ; @17
-  shr edx, 0x1f_b ; @16
+  add ecx, eax ; @5
+  mov edx, ecx ; @6
+  sar edx, 0x2_b ; @17
+  shr ecx, 0x1f_b ; @16
   add ecx, edx ; @8
   imul ecx, ecx, 0x7 ; @9
   sub eax, ecx ; @15

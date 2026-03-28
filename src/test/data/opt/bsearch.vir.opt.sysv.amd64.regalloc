@@ -17,11 +17,11 @@ export function $bsearch { ; returns: rax
   push r14 ; @94
   push r15 ; @95
   push rbx ; @96
-  mov qword ptr [rbp - 0x18], rdi ; @85
+  mov qword ptr [rbp - 0x10], rdi ; @85
   mov r13, rsi ; @78
   mov rbx, rdx ; @79
   mov r15, rcx ; @80
-  mov qword ptr [rbp - 0x10], r8 ; @86
+  mov qword ptr [rbp - 0x18], r8 ; @86
 @7:
   test rbx, rbx ; @72
   jne @8 ; @73
@@ -34,9 +34,9 @@ export function $bsearch { ; returns: rax
   mov rax, r15 ; @30
   imul rax, r12 ; @68
   lea r14, qword ptr [r13 + rax*1] ; @31
-  mov rdi, qword ptr [rbp - 0x18] ; @87
+  mov rdi, qword ptr [rbp - 0x10] ; @87
   mov rsi, r14 ; @65
-  call qword ptr [rbp - 0x10] ; rdi rsi ; @66
+  call qword ptr [rbp - 0x18] ; rdi rsi ; @66
   test eax, eax ; @60
   jns @12 ; @61
 @43:

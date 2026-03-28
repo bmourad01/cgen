@@ -9,11 +9,11 @@ export function $foo { ; returns: rax
   add rsi, rdi ; @41
   add rcx, rdx ; @16
   add rsi, rcx ; @17
-  lea rcx, qword ptr [r8 + r9*1] ; @20
-  movsxd rax, eax ; @23
-  movsxd rdx, r10d ; @27
-  add rax, rdx ; @28
-  add rax, rcx ; @29
+  lea rdx, qword ptr [r8 + r9*1] ; @20
+  movsxd rcx, eax ; @23
+  movsxd rax, r10d ; @27
+  add rax, rcx ; @28
+  add rax, rdx ; @29
   add rax, rsi ; @30
   leave ; @57
   ret ; @33

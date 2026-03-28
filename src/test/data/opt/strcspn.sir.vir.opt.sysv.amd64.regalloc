@@ -50,11 +50,11 @@ export function $cgen_strcspn { ; returns: rax
   movzx ecx, cl ; @91
   mov rdx, rcx ; @92
   shr rdx, 0x6_b ; @168
-  mov rdx, qword ptr [rsp + rdx*8] ; @49
+  mov rsi, qword ptr [rsp + rdx*8] ; @49
   and ecx, 0x3f_w ; @166
-  mov esi, 0x1_w ; @96
-  shl rsi, cl ; @165
-  test rsi, rdx ; @158
+  mov edx, 0x1_w ; @96
+  shl rdx, cl ; @165
+  test rdx, rsi ; @158
   jne @39 ; @159
 @43:
   inc rax ; @99
