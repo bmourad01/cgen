@@ -7,16 +7,6 @@ module Id = Int
 
 type id = Id.t
 
-let reduce a b = match a, b with
-  | (#Type.imm as ia), (#Type.imm as ib)
-    when Type.sizeof_imm ia < Type.sizeof_imm ib -> b
-  | #Type.imm, #Type.imm -> a
-  | (#Type.fp as fa), (#Type.fp as fb)
-    when Type.sizeof_fp fa < Type.sizeof_fp fb -> b
-  | #Type.fp, #Type.fp -> a
-  | `v128, `v128 -> `v128
-  | _ -> assert false
-
 module Make(M : Machine_intf.S) = struct
   module Rv = M.Regvar
   module Regs = Regalloc_regs.Make(M)
@@ -45,6 +35,8 @@ module Make(M : Machine_intf.S) = struct
      - [frozenMoves]: moves that will no longer be considered for coalescing
      - [worklistMoves]: moves enabled for possible coalescing
      - [activeMoves]: moves not yet ready for coalescing
+     - [initial]: temporary registers, not preassigned a color and not yet
+       processed by the algorithm
   *)
   type t = {
     mutable fn          : (M.Insn.t, M.Reg.t) func;
@@ -86,13 +78,10 @@ module Make(M : Machine_intf.S) = struct
   }
 
   let intern t rv =
-    match Hashtbl.find t.rv2id rv with
-    | Some id -> id
-    | None ->
-      let id = Vec.length t.id2rv in
-      Hashtbl.set t.rv2id ~key:rv ~data:id;
-      Vec.push t.id2rv rv;
-      id
+    Hashtbl.find_or_add t.rv2id rv ~default:(fun () ->
+        let id = Vec.length t.id2rv in
+        Vec.push t.id2rv rv;
+        id)
 
   let (.$[]) t rv = Hashtbl.find_exn t.rv2id rv
   let (.![]) t id = Vec.get_exn t.id2rv id
@@ -218,14 +207,32 @@ module Make(M : Machine_intf.S) = struct
           __FUNCTION__ Rv.pp t.![id] c);
     t.colors.(id) <- c
 
-  let add_initial t rv =
-    let id = intern t rv in
+  let add_initial_id t id =
     if can_be_colored t id then
       t.initial <- Bitset.set t.initial id
 
+  let add_initial t rv = add_initial_id t @@ intern t rv
+
+  let reduce_type ~key a b = match a, b with
+    | (#Type.imm as ia), (#Type.imm as ib)
+      when Type.sizeof_imm ia < Type.sizeof_imm ib -> b
+    | #Type.imm, #Type.imm -> a
+    | (#Type.fp as fa), (#Type.fp as fb)
+      when Type.sizeof_fp fa < Type.sizeof_fp fb -> b
+    | #Type.fp, #Type.fp -> a
+    | `v128, `v128 -> `v128
+    | _ ->
+      let sk = Format.asprintf "%a" Rv.pp key in
+      let st t = match t with
+        | #Type.basic as b ->
+          Format.asprintf "%a" Type.pp_basic b
+        | `v128 -> "v" in
+      failwithf "type mismatch for var %s: %s is not compatible with %s"
+        sk (st a) (st b) ()
+
   let update_types t insn =
     let types = M.Regalloc.writes_with_types insn in
-    t.types <- Map.merge_skewed t.types types ~combine:(fun ~key:_ -> reduce)
+    t.types <- Map.merge_skewed t.types types ~combine:reduce_type
 
   let is_phi_var t id =
     match Rv.which t.![id] with
@@ -305,17 +312,12 @@ module Make(M : Machine_intf.S) = struct
       live = None;
     }
 
-  (* Before we can populate the `initial` set, we have to intern all
-     of the regvars in the function. This should only happen once
-     at startup. Newly introduced spill temporaries will be lazily
-     interned for the next round. *)
-  let init_initial_intern t =
+  let initialize t =
     Func.blks t.fn |> Seq.iter ~f:(fun b ->
         Blk.insns b |> Seq.iter ~f:(fun i ->
             let insn = Insn.insn i in
-            let f rv = ignore @@ intern t rv in
-            M.Insn.reads insn |> Set.iter ~f;
-            M.Insn.writes insn |> Set.iter ~f;
+            M.Insn.reads insn |> Set.iter ~f:(add_initial t);
+            M.Insn.writes insn |> Set.iter ~f:(add_initial t);
             update_types t insn));
     let sp = Rv.reg M.Reg.sp in
     t.keep <- Set.add t.keep sp;
@@ -329,14 +331,4 @@ module Make(M : Machine_intf.S) = struct
         if Rv.is_reg rv then
           t.reg_bits <- Bitset.set t.reg_bits t.$[rv]);
     alloc_arrays t
-
-  (* initial: temporary registers, not preassigned a color and not yet
-     processed by the algorithm. *)
-  let init_initial t =
-    init_initial_intern t;
-    Func.blks t.fn |> Seq.iter ~f:(fun b ->
-        Blk.insns b |> Seq.iter ~f:(fun i ->
-            let insn = Insn.insn i in
-            Set.iter (M.Insn.reads insn) ~f:(add_initial t);
-            Set.iter (M.Insn.writes insn) ~f:(add_initial t)))
 end

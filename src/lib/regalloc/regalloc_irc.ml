@@ -761,7 +761,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     assert (Seq.is_empty @@ Func.slots fn);
     let t = create fn in
     t.fn <- fn;
-    init_initial t;
+    initialize t;
     let* () = main t ~round:1 ~max_rounds in
     let fn = apply_alloc t in
     Layout.post_assign fn presize
