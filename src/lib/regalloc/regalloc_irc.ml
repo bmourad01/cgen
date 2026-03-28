@@ -11,9 +11,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
   open Regalloc_irc_state.Make(M)
 
-  let mkset t rvs = Set.fold rvs ~init:Bitset.empty
-      ~f:(fun bs rv -> Bitset.set bs t.$[rv])
-
   (* Adds an edge between `u` and `v` in the interference graph. *)
   let add_edge t u v =
     (* A node cannot interfere with itself, nor a node with a different
@@ -33,12 +30,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let build_insn ~loop_depth t out i =
     let label = Insn.label i in
     let insn = Insn.insn i in
-    let use = mkset t @@ M.Insn.reads insn in
-    let def = mkset t @@ M.Insn.writes insn in
-    Bitset.enum use |> Seq.iter ~f:(fun u ->
+    let use = M.Insn.reads insn in
+    let def = M.Insn.writes insn in
+    Set.iter use ~f:(fun rv ->
+        let u = t.$[rv] in
         update_cost ~loop_depth t u;
         inc_use t u);
-    Bitset.enum def |> Seq.iter ~f:(fun d ->
+    Set.iter def ~f:(fun rv ->
+        let d = t.$[rv] in
         if is_phi_var t d then
           update_cost ~factor:2 ~loop_depth t d);
     (* if isMoveInstruction(I) then *)
@@ -53,7 +52,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                    between two different register classes (%a, %a)"
             (Insn.pp M.Insn.pp) i Rv.pp drv Rv.pp srv () in
         (* live := live ∖ use(I) *)
-        let out = Bitset.diff out use in
+        let out = Set.diff out use in
         (* ∀ n ∈ def(I) ∪ use(I)
              moveList[n] := moveList[n] ∪ {I} *)
         add_move t label d;
@@ -67,15 +66,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         t.wmoves <- Lset.add t.wmoves label;
         out in
     (* live := live ∪ def(I) *)
-    let out = Bitset.union out def in
+    let out = Set.union out def in
     (* ∀ d ∈ def(I) *)
-    Bitset.enum def |> Seq.iter ~f:(fun d ->
+    Set.iter def ~f:(fun rv ->
         (* ∀ l ∈ live
              AddEdge(l,d) *)
+        let d = t.$[rv] in
         add_def t d label;
-        Bitset.enum out |> Seq.iter ~f:(fun o -> add_edge t o d));
+        Set.iter out ~f:(fun rv -> add_edge t t.$[rv] d));
     (* live := use(I) ∪ (live ∖ def(I)) *)
-    Bitset.union use (Bitset.diff out def)
+    Set.union use (Set.diff out def)
 
   (* Build the interference graph and other initial state for the
      algorithm. *)
@@ -90,7 +90,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             (* NB: levels start at 0 *)
             (Loop.(level (get t.loop lp)) :> int) + 1 in
         (* live := liveOut(b) *)
-        let out = ref @@ mkset t @@ Live.outs live l in
+        let out = ref @@ Live.outs live l in
         (* ∀ I ∈ instructions(b) in reverse order *)
         let insns = Blk.insns b ~rev:true |> Seq.to_list in
         let ord = ref (List.length insns - 1) in
@@ -297,8 +297,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | None -> false
     | Some (bm, om) ->
       let live = Option.value_exn t.live in
-      let out = mkset t @@ Live.outs live bm in
-      not (Bitset.mem out v) &&
+      let out = Live.outs live bm in
+      not (Set.mem out t.![v]) &&
       t.defs.(v) |> Lset.to_sequence |>
       Seq.for_all ~f:(fun d ->
           match Hashtbl.find t.insn_blks d with
