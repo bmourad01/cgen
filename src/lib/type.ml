@@ -41,7 +41,7 @@ type fp = [
 
 let sizeof_fp : fp -> int = function
   | `f32 -> 32
-  | `f64 -> 32
+  | `f64 -> 64
 
 let pp_fp ppf : fp -> unit = function
   | `f32 -> Format.fprintf ppf "s"
