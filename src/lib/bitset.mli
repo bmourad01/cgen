@@ -78,6 +78,9 @@ val pop_max_elt_exn : t -> key * t
     the set is empty. *)
 val pop_max_elt : t -> (key * t) option
 
+(** Set difference. *)
+val diff : t -> t -> t
+
 (** Produces the sequence of elements in the set,
     according to [rev].
 

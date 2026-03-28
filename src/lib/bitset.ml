@@ -17,6 +17,7 @@ let is_empty t = Z.equal t empty [@@inline]
 let singleton k = Z.(one lsl k) [@@inline]
 let union = Z.logor
 let inter = Z.logand
+let diff a b = Z.logand a (Z.lognot b) [@@inline]
 let set t k = union t @@ singleton k [@@inline]
 let clear t k = inter t @@ Z.lognot @@ singleton k [@@inline]
 let mem t k = Z.testbit t k [@@inline]
