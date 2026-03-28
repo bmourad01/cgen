@@ -1113,16 +1113,11 @@ end = struct
     let rax = Rv.reg `rax in
     let rdx = Rv.reg `rdx in
     match xt with
-    | `i32 when fits_int32 z && Int64.(z land 0x8000_0000L = 0L) ->
+    | `i32 when fits_int32_pos z ->
       !!![
-        I.imul3 (Oreg (x, `i64)) (Oreg (y, `i64)) (Int64.to_int32_trunc z);
-        I.shr (Oreg (x, `i64)) (Oimm (32L, `i8));
-      ]
-    | `i32 when fits_int32 z ->
-      !!![
-        I.mov (Oreg (x, `i32)) (Oimm (z, `i32));
-        I.imul2 (Oreg (x, `i64)) (Oreg (y, `i64));
-        I.shr (Oreg (x, `i64)) (Oimm (32L, `i8));
+        I.movsxd (Oreg (x, `i64)) (Oreg (y, yt));
+        I.imul3 (Oreg (x, `i64)) (Oreg (x, `i64)) (Int64.to_int32_trunc z);
+        I.sar (Oreg (x, `i64)) (Oimm (32L, `i8));
       ]
     | _ ->
       !!![
