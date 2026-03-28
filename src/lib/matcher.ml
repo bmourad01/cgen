@@ -25,6 +25,8 @@ module type L = sig
   val pp_op : Format.formatter -> op -> unit
 end
 
+let (let@) f x = f x
+
 module Make(M : L) = struct
   open M
 
@@ -44,25 +46,27 @@ module Make(M : L) = struct
     | P of op * pat list
   [@@deriving compare, equal, hash, sexp]
 
-  let rec permute_commutative = function
-    | V _ as v -> [v]
-    | P (_, []) as p -> [p]
-    | P (f, [a; b]) when is_commutative f ->
-      (* Assume that all commutative ops are binary, this way
-         we can specialize. *)
-      let pa = permute_commutative a in
-      let pb = permute_commutative b in
-      List.bind pa ~f:(fun a' ->
-          List.bind pb ~f:(fun b' ->
-              if equal_pat a' b'
-              then [P (f, [a'; b'])]
-              else [P (f, [a'; b']); P (f, [b'; a'])]))
-    | P (f, args) ->
-      List.rev_map args ~f:permute_commutative |>
-      List.fold ~init:[[]] ~f:(fun acc xs ->
-          List.bind xs ~f:(fun x ->
-              List.map acc ~f:(List.cons x))) |>
-      List.map ~f:(fun args' -> P (f, args'))
+  (* Enumerate all permutations of commutative subterms in `pat`,
+     calling `f` once per permutation. *)
+  let iter_permutations pat ~f =
+    let rec go pat k = match pat with
+      | V _ -> k pat
+      | P (_, []) -> k pat
+      | P (op, [a; b]) when is_commutative op ->
+        let@ a' = go a in
+        let@ b' = go b in
+        k (P (op, [a'; b']));
+        if not (equal_pat a' b') then
+          k (P (op, [b'; a']))
+      | P (op, args) ->
+        let rec walk acc = function
+          | [] -> k (P (op, List.rev acc))
+          | arg :: rest ->
+            let@ arg' = go arg in
+            walk (arg' :: acc) rest in
+        walk [] args in
+    go pat f
+  [@@specialise]
 
   let rec pp_pat ppf = function
     | V x -> Format.fprintf ppf "?%s" x
@@ -94,6 +98,23 @@ module Make(M : L) = struct
 
   let pp_reg ppf {reg} = Format.fprintf ppf "$%d" reg
   let pp_label ppf {label} = Format.fprintf ppf "@%d" label
+
+  (* Environment mapping pattern variables to VM registers. *)
+  module Varenv = struct
+    (* These environments are typically very small, so we can
+       get away with using an association list. *)
+    type t = (string * reg) list [@@deriving compare, hash, sexp]
+
+    let empty = []
+    let find v x = List.Assoc.find v ~equal:String.equal x
+    let add v x r = (x, r) :: v
+
+    let to_subst v ~lookup =
+      List.fold v ~init:String.Map.empty ~f:(fun acc (x, r) ->
+          Map.add_exn acc ~key:x ~data:(lookup r))
+  end
+
+  type varenv = Varenv.t [@@deriving compare, hash, sexp]
 
   (* A VM instruction. *)
   type insn =
@@ -135,7 +156,7 @@ module Make(M : L) = struct
        the resulting substitution. *)
     | Yield of {
         rule : int;
-        regs : reg Map.M(String).t;
+        regs : varenv;
       }
   [@@deriving compare, hash, sexp]
 
@@ -188,7 +209,7 @@ module Make(M : L) = struct
         (Format.pp_print_list
            (fun ppf (x, r) -> Format.fprintf ppf "%a:?%s" pp_reg r x)
            ~pp_sep:(fun ppf () -> Format.fprintf ppf ", "))
-        (Map.to_alist y.regs) y.rule
+        y.regs y.rule
 
   (* A tree of code sequences. *)
   type tree =
@@ -202,24 +223,9 @@ module Make(M : L) = struct
       }
     (* Choose one of a set of [alts]. *)
     | Br of {
-        alts : tree Vec.t;
-        mutable memo : memo;
+        alts  : tree Vec.t;
+        index : (insn, int) Hashtbl.t;
       }
-
-  (* Cache the most recently merged alternative. *)
-  and memo =
-    | M0
-    | M1 of {
-        insn : insn;
-        tree : tree;
-      }
-
-  let memo_lookup m k ~has ~nil = match k with
-    | Yield _ -> nil ()
-    | _ -> match m with
-      | M1 m when compatible m.insn k -> has m.tree
-      | _ -> nil ()
-  [@@inline] [@@specialise]
 
   let rec sexp_of_tree : tree -> Sexp.t = function
     | Leaf l -> List [Atom "Leaf"; sexp_of_insn l]
@@ -254,9 +260,15 @@ module Make(M : L) = struct
 
     let br t t' =
       let v = Vec.create ~capacity:branching_factor () in
+      let index = Hashtbl.create (module Insn) ~size:branching_factor in
+      let[@inline] init_index i = function
+        | Seq s -> Hashtbl.set index ~key:s.insn ~data:i
+        | _ -> () in
       Vec.push v t;
       Vec.push v t';
-      Br {alts = v; memo = M0}
+      init_index 0 t;
+      init_index 1 t';
+      Br {alts = v; index}
   end
 
   type 'a program = {
@@ -289,50 +301,51 @@ module Make(M : L) = struct
     *)
     let compile_pat ~rule w o =
       let[@tail_mod_cons] rec go v o =
-        (* Pop from the worklist. *)
         match Queue.dequeue w with
         | None ->
           (* Worklist is empty. Yield the registers. *)
-          [Insn.yield v rule]
+          Tree.leaf @@ Insn.yield v rule
         | Some (i, p) ->
           match p with
           | P (t, []) ->
             (* Ground term. *)
-            Insn.check {reg = i} t :: go v o
+            Seq {
+              insn = Insn.check {reg = i} t;
+              next = go v o;
+            }
           | P (f, args) ->
             (* Bind each argument to a new register and
                continue. *)
             let o' = enqueue_children w args o in
-            Insn.bind {reg = i} f {reg = o} :: go v o'
+            Seq {
+              insn = Insn.bind {reg = i} f {reg = o};
+              next = go v o';
+            }
           | V x ->
-            match Map.find v x with
+            match Varenv.find v x with
             | Some j ->
               (* Recurrence of variable, emit a comparison
                  to verify that they point to the same term. *)
-              Insn.compare_ {reg = i} j :: go v o
+              Seq {
+                insn = Insn.compare_ {reg = i} j;
+                next = go v o;
+              }
             | None ->
               (* New variable, continue processing. *)
-              go (Map.set v ~key:x ~data:{reg = i}) o in
-      go String.Map.empty o
+              go (Varenv.add v x {reg = i}) o in
+      go Varenv.empty o
 
-    let compile_one_rule rule = function
+    let compile_one_rule w rule = function
       | P (f, args) ->
-        let w = Queue.create ~capacity:7 () in
         let o = enqueue_children w args 1 in
-        Insn.init f :: compile_pat ~rule w o
+        Seq {
+          insn = Insn.init f;
+          next = compile_pat ~rule w o;
+        }
       | V x ->
         failwithf
           "compile_one_rule: in rule %d, variable ?%s is at the toplevel"
           rule x ()
-
-    (* Create a tree from a sequence of instructions. *)
-    let[@tail_mod_cons] rec sequentialize = function
-      | [] -> failwith "sequentialize: empty"
-      | [i] -> Tree.leaf i
-      | insn :: rest ->
-        (* NB: we have to mention the constructor directly in order
-           to take advantage of `tail_mod_cons`. *)
-        Seq {insn; next = sequentialize rest}
 
     (* Insert a sequence of instructions into an existing tree.
 
@@ -341,62 +354,42 @@ module Make(M : L) = struct
        during execution.
     *)
     let rec insert p t = match p, t with
-      | [], t ->
-        (* Reached the end of the rule. Return the existing tree. *)
+      | Leaf (Yield _ as y), Br b ->
+        Vec.push b.alts @@ Tree.leaf y;
         t
-      | Yield _ :: _ :: _, _ ->
-        failwith "insert: invalid sequence, yield is not the final instruction"
-      | _ :: _, Leaf _ ->
-        (* Existing leaf: no continuation to descend. *)
-        Tree.br t @@ sequentialize p
-      | (Yield _ as y) :: _, Seq _ ->
+      | Leaf (Yield _ as y), _ ->
         Tree.br t @@ Tree.leaf y
-      | insn :: rest, Seq s when compatible insn s.insn ->
+      | Leaf _, _ -> assert false
+      | Seq {insn = Yield _; _}, _ -> assert false
+      | Seq _, Leaf _ ->
+        (* Existing leaf (a Yield): new pattern diverges. *)
+        Tree.br t p
+      | Seq {insn; next}, Seq s when compatible insn s.insn ->
         (* Shared prefix: continue downward. *)
-        let n = insert rest s.next in
+        let n = insert next s.next in
         if not (phys_equal n s.next) then s.next <- n;
         t
-      | _ :: _, Seq _ ->
+      | Seq _, Seq _ ->
         (* Divergence: branch here. *)
-        Tree.br t @@ sequentialize p
-      | insn :: rest, Br b ->
-        memo_lookup b.memo insn
-          ~nil:(fun () -> merge_alt p b.alts ~memo:(fun m -> b.memo <- m))
-          ~has:(function
-              | Leaf _ | Br _ -> assert false
-              | Seq s ->
-                (* We know that the prefix matches at this alternative,
-                   so the root of this subtree should not change. *)
-                assert (compatible insn s.insn);
-                let n = insert rest s.next in
-                if not (phys_equal n s.next) then s.next <- n);
+        Tree.br t p
+      | Seq {insn; next}, Br b ->
+        merge_alt insn next b.alts b.index;
         t
+      | Br _, _ -> assert false
 
-    (* Try to merge the subsequence `p` into one of the `alts` of
-       a branch.
-
-       pre: `hd p` is not a member of `memo`
-    *)
-    and merge_alt p alts ~memo = match p with
-      | [] -> failwith "merge_alt: empty sequence"
-      | (Yield _ as y) :: _ -> Vec.push alts @@ Tree.leaf y
-      | key :: rest ->
-        (* Use first-fit ordering semantics like the paper. We inline
-           the prefix check once to see if we can avoid allocating
-           a subtree that would be discarded anyway. *)
-        Vec.find alts ~f:(function
-            | Leaf _ -> false
-            | Seq s when not (compatible s.insn key) -> false
-            | Seq s ->
-              let n = insert rest s.next in
-              if not (phys_equal n s.next) then s.next <- n;
-              true
-            | Br _ ->
-              (* We should never end up with a tree structure like this. *)
-              assert false) |> function
-        | Some tree -> memo @@ M1 {insn = key; tree}
-        | None -> Vec.push alts @@ sequentialize p
-    [@@specialise]
+    (* Try to merge the subsequence `p` into one of the `alts`
+       of a branch. *)
+    and merge_alt key rest alts index =
+      match Hashtbl.find index key with
+      | None ->
+        let i = Vec.length alts in
+        Vec.push alts @@ Seq {insn = key; next = rest};
+        Hashtbl.set index ~key ~data:i
+      | Some i -> match Vec.get_exn alts i with
+        | Seq s ->
+          let n = insert rest s.next in
+          if not (phys_equal n s.next) then s.next <- n
+        | _ -> assert false
 
     let emit code i =
       let label = Vec.length code in
@@ -481,33 +474,31 @@ module Make(M : L) = struct
                 Int.min rmin.(s1.label) rmin.(s2.label));
       rmin
 
-    let compile_tree forest i pat =
-      match compile_one_rule i pat with
-      | (Init i :: _) as p ->
+    let compile_tree forest w i pat =
+      match compile_one_rule w i pat with
+      | Seq {insn = Init {f; _}; _} as t ->
         (* Trees that share the same root can be merged together. *)
-        Hashtbl.update forest i.f ~f:(function
-            | Some t -> insert p t
-            | None -> sequentialize p)
-      | _ :: _ ->
+        Hashtbl.update forest f ~f:(function
+            | Some existing -> insert t existing
+            | None -> t)
+      | _ ->
         failwithf "compile_tree: invalid root at rule %d" i ()
-      | [] ->
-        failwithf "compile_tree: empty sequence at rule %d" i ()
 
     let compile ?(commute = false) ~name rules =
       let[@alert "-deprecated"] t0 = Time.now () in
       let rule = Array.of_list rules in
       let code = Vec.create () in
+      let w = Queue.create ~capacity:7 () in
       let rmin, root = match rules with
         | [] -> [||], Hashtbl.create (module Op)
         | _ ->
           let forest = Hashtbl.create (module Op) in
           if commute then
             Array.iteri rule ~f:(fun i (pat, _) ->
-                permute_commutative pat |>
-                List.iter ~f:(compile_tree forest i))
+                iter_permutations pat ~f:(compile_tree forest w i))
           else
             Array.iteri rule ~f:(fun i (pat, _) ->
-                compile_tree forest i pat);
+                compile_tree forest w i pat);
           let root = Hashtbl.map forest ~f:(linearize code) in
           compute_rmin code, root in
       let[@alert "-deprecated"] t = Time.now () in
@@ -569,6 +560,7 @@ module Make(M : L) = struct
     type state = {
       mutable pc : label;
       mutable regs : regs;
+      mutable max_written : int;
       mutable lookup : id -> term;
       cont : frame Pairing_heap.t;
     }
@@ -580,14 +572,20 @@ module Make(M : L) = struct
       pc = nil;
       lookup = default_lookup;
       regs = Option_array.create ~len:(max 2 registers);
+      max_written = 0;
       cont = Pairing_heap.create ~cmp:frame_order ();
     }
 
-    let snapshot_regs st = Option_array.copy st.regs
+    let snapshot_regs st =
+      let n = st.max_written + 1 in
+      let copy = Option_array.create ~len:n in
+      Option_array.blit ~src:st.regs ~src_pos:0 ~dst:copy ~dst_pos:0 ~len:n;
+      copy
 
     let reset st =
       st.pc <- nil;
       st.lookup <- default_lookup;
+      st.max_written <- 0;
       Option_array.clear st.regs;
       Pairing_heap.clear st.cont
 
@@ -613,6 +611,7 @@ module Make(M : L) = struct
         raise_notrace Finished
       | Some f ->
         st.regs <- f.regs;
+        st.max_written <- Option_array.length f.regs - 1;
         st.pc <- f.pc
 
     let (.$[]) st r = match Option_array.get st.regs r.reg with
@@ -622,7 +621,8 @@ module Make(M : L) = struct
     let root st = st.$[r0]
 
     let (.$[]<-) st r x =
-      Option_array.set_some st.regs r.reg x
+      Option_array.set_some st.regs r.reg x;
+      if r.reg > st.max_written then st.max_written <- r.reg
 
     let ensure_regs st need =
       let n = need + 1 in
@@ -696,7 +696,7 @@ module Make(M : L) = struct
         else backtrack st;
         Continue
       | Yield y ->
-        let subst = Map.map y.regs ~f:(fun r -> st.$[r]) in
+        let subst = Varenv.to_subst y.regs ~lookup:(fun r -> st.$[r]) in
         let pat, payload = prog.rule.(y.rule) in
         Yield {subst; payload; rule = y.rule; pat}
 
