@@ -113,6 +113,7 @@ type t = {
   depth_limit    : int;                   (* Maximum rewrite depth. *)
   match_limit    : int;                   (* Maximum rewrites per term. *)
   rules          : rules;                 (* The compiled matcher program. *)
+  vms            : VM.state array;        (* Pre-allocated VMs, indexed by depth_limit - d. *)
 }
 
 type egraph = t
