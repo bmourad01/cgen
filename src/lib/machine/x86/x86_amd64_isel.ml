@@ -788,7 +788,6 @@ end = struct
     let*! no, no_t = S.regvar env "no" in
     let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
     let*! () = guard @@ Type.equal_basic xt (bty no_t) in
-    let* tmp_yes = C.Var.fresh >>| Rv.var GPR in
     let xt = sel_i8_ty xt in
     let cc = if eq then if neg then Cne else Ce
       else if neg then Cns else Cs in !!![
@@ -804,7 +803,6 @@ end = struct
     let*! no, no_t = S.imm env "no" in
     let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
     let*! () = guard @@ Type.equal_basic xt (bty no_t) in
-    let* tmp_yes = C.Var.fresh >>| Rv.var GPR in
     let xt = sel_i8_ty xt in
     let cc = if eq then if neg then Cne else Ce
       else if neg then Cns else Cs in !!![
@@ -820,7 +818,6 @@ end = struct
     let*! no, no_t = S.regvar env "no" in
     let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
     let*! () = guard @@ Type.equal_basic xt (bty no_t) in
-    let* tmp_yes = C.Var.fresh >>| Rv.var GPR in
     let xt = sel_i8_ty xt in
     let cc = if eq then if neg then Ce else Cne
       else if neg then Cs else Cns in !!![
