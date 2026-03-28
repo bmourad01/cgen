@@ -12,7 +12,10 @@ open O.Syntax
 (* Canonicalize the node according to union-find. *)
 let canon t : enode -> enode = function
   | N (_, []) as n -> n
-  | N (op, cs) -> N (op, List.map cs ~f:(find t))
+  | N (op, cs) as n ->
+    (* Avoid allocating if the node is already canonical. *)
+    if List.for_all cs ~f:(fun c -> Id.equal c (find t c)) then n
+    else N (op, List.map cs ~f:(find t))
   | U _ -> assert false
 
 (* See if the node is commutative, and if so, swap the arguments
