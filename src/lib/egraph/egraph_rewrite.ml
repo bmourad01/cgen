@@ -78,19 +78,20 @@ type rws = {
    be called from the algorithm in `Egraph_builder` (i.e.
    in depth-first dominator tree order). *)
 let rec insert ?ty ?l ~d t n =
-  canon t n |> Hashtbl.find_and_call t.memo
-    ~if_found:(duplicate ?l t)
-    ~if_not_found:(fun k -> match commute t k with
-        | Some id -> duplicate ?l t id
-        | None ->
-          let ty = match ty with
-            | None -> infer_ty t n
-            | Some _ -> ty in
-          let id = new_node ?ty t n in
-          Option.iter l ~f:(fun l -> Sched.add t l id n);
-          let oid = optimize ?ty ?l ~d t n id in
-          Hashtbl.set t.memo ~key:k ~data:oid;
-          oid)
+  let k = canon t n in
+  match Hashtbl.find t.memo k with
+  | Some id -> duplicate ?l t id
+  | None -> match commute t k with
+    | Some id -> duplicate ?l t id
+    | None ->
+      let ty = match ty with
+        | None -> infer_ty t n
+        | Some _ -> ty in
+      let id = new_node ?ty t n in
+      Option.iter l ~f:(fun l -> Sched.add t l id n);
+      let oid = optimize ?ty ?l ~d t n id in
+      Hashtbl.set t.memo ~key:k ~data:oid;
+      oid
 
 and optimize ?ty ?l ~d t n id =
   match Enode.eval ~node:(node t) n with
