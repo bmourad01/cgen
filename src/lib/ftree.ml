@@ -355,56 +355,45 @@ module Generic = struct
       Vcons (last_digit sf, vcons)
   [@@specialise]
 
-  let rec find t ~f ~measure =
-    match view_left t ~measure with
-    | Vnil -> None
-    | Vcons (x, _) when f x -> Some x
-    | Vcons (_, t) -> find t ~f ~measure
+  let find t ~f ~measure:_ =
+    with_return @@ fun {return} ->
+    fold_left t ~init:None ~f:(fun acc x ->
+        if f x then return @@ Some x;
+        acc)
   [@@specialise]
 
-  let findi t ~f ~measure =
-    let rec aux t i ~f ~measure =
-      match view_left t ~measure with
-      | Vnil -> None
-      | Vcons (x, _) when f i x -> Some (i, x)
-      | Vcons (_, t) -> aux t (i + 1) ~f ~measure in
-    aux t 0 ~f ~measure
+  let findi t ~f ~measure:_ =
+    with_return @@ fun {return} ->
+    let _i = fold_left t ~init:0 ~f:(fun i x ->
+        if f i x then return @@ Some (i, x);
+        i + 1) in
+    None
   [@@specialise]
 
-  let index t ~f ~measure =
-    let rec aux t i ~f ~measure =
-      match view_left t ~measure with
-      | Vnil -> None
-      | Vcons (x, _) when f x -> Some i
-      | Vcons (_, t) -> aux t (i + 1) ~f ~measure in
-    aux t 0 ~f ~measure
+  let index t ~f ~measure:_ =
+    with_return @@ fun {return} ->
+    let _i = fold_left t ~init:0 ~f:(fun i x ->
+        if f x then return @@ Some i;
+        i + 1) in
+    None
   [@@specialise]
 
-  let rec exists t ~f ~measure =
-    match view_left t ~measure with
-    | Vnil -> false
-    | Vcons (x, t) -> f x || exists t ~f ~measure
+  let rec exists t ~f ~measure:_ =
+    with_return @@ fun {return} ->
+    fold_left t ~init:false ~f:(fun acc x ->
+        if f x then return true;
+        acc)
   [@@specialise]
 
-  let to_sequence t ~measure =
+  let to_sequence t ~measure:_ =
     let open Seq.Generator in
-    let rec aux t ~measure =
-      match view_left t ~measure with
-      | Vnil -> return ()
-      | Vcons (x, t) ->
-        yield x >>= fun () -> aux t ~measure in
-    run @@ aux t ~measure
-  [@@specialise]
+    run @@ fold_right t ~init:(return ()) ~f:(fun x acc ->
+        yield x >>= fun () -> acc)
 
-  let to_sequence_rev t ~measure =
+  let to_sequence_rev t ~measure:_ =
     let open Seq.Generator in
-    let rec aux t ~measure =
-      match view_right t ~measure with
-      | Vnil -> return ()
-      | Vcons (x, t) ->
-        yield x >>= fun () -> aux t ~measure in
-    run @@ aux t ~measure
-  [@@specialise]
+    run @@ fold_left t ~init:(return ()) ~f:(fun acc x ->
+        yield x >>= fun () -> acc)
 
   let head_exn = function
     | Nil -> invalid_arg "head_exn: Nil"
