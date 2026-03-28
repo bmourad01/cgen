@@ -176,7 +176,7 @@ module Make(M : Machine_intf.S) = struct
     then t.adjlist.(id)
     else Bitset.empty
 
-  (* adjList[n] \ (selectStack U coalescedNodes) *)
+  (* adjList[n] ∖ (selectStack ∪ coalescedNodes) *)
   let adjacent t id =
     let a = adjlist t id in
     if Bitset.is_empty a then a else
@@ -185,7 +185,7 @@ module Make(M : Machine_intf.S) = struct
 
   let moves t id = t.node_moves.(id)
 
-  (* moveList[n] /\ (activeMoves U worklistMoves) *)
+  (* moveList[n] ∩ (activeMoves ∪ worklistMoves) *)
   let node_moves t id =
     Lset.inter (moves t id) (Lset.union t.amoves t.wmoves)
 
@@ -200,7 +200,7 @@ module Make(M : Machine_intf.S) = struct
   let add_def t id label =
     t.defs.(id) <- Lset.add t.defs.(id) label
 
-  (* if n \in coalescedNodes then GetAlias(alias[n]) else n *)
+  (* if n ∈ coalescedNodes then GetAlias(alias[n]) else n *)
   let rec alias t id =
     if Bitset.mem t.coalesced id
     then alias t t.alias.(id)
@@ -243,7 +243,7 @@ module Make(M : Machine_intf.S) = struct
       let arr = !(t.spill_cost) in
       arr.(id) <- arr.(id) + w
 
-  (* cost(v) = (Sigma_{u \in uses(v)} weight(u)) / degree(v)
+  (* cost(v) = (Σ_{u ∈ uses(v)} weight(u)) / degree(v)
 
      Here, the weighted cost of a use is 10^loop_depth(u).
   *)
