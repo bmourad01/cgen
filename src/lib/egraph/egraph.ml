@@ -71,6 +71,7 @@ let debug_dump t =
          Seq.filter_map ~f:(fun (id, l) ->
              Uopt.to_option l |> Option.map ~f:(fun l -> id, l)) |>
          Seq.to_list))
+[@@ocaml.warning "-32"]
 
 let run ?(depth_limit = 6) ?(match_limit = 20) fn tenv rules =
   let open Context.Syntax in
@@ -78,6 +79,5 @@ let run ?(depth_limit = 6) ?(match_limit = 20) fn tenv rules =
   let*? input = Input.init fn tenv in
   let t = init input depth_limit match_limit rules in
   let*? () = Builder.run t in
-  debug_dump t;
   let ex = Extractor.init t in
   Extractor.cfg ex

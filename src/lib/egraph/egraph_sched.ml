@@ -32,9 +32,7 @@ let move t old l id =
       | None -> Iset.singleton id
       | Some s -> Iset.add s id)
 
-let mark_use t id a =
-  Logs.debug (fun m -> m "%s: id=%d, a=%a%!" __FUNCTION__ id Label.pp a);
-  add_moved t id [a]
+let mark_use t id a = add_moved t id [a]
 
 (* Update when we union two nodes together. Should not be
    called if both IDs are the same. *)
@@ -86,8 +84,7 @@ let rec useof t l : enode -> unit = function
 let default_placement t id l n =
   Logs.debug (fun m ->
       m "%s: placing term %d at %a:\n  node: %a%!"
-        __FUNCTION__ id Label.pp l
-        (Enode.pp ~node:(node t)) n);
+        __FUNCTION__ id Label.pp l Enode.pp n);
   move t [] l id;
   useof t l n
 
@@ -231,7 +228,7 @@ module Licm = struct
         m "%s: LICM for term %d: l=%a, l'=%a:\n  loop: %a\n  node: %a%!"
           __FUNCTION__ id Label.pp l Label.pp l'
           Loops.pp_data (Loops.get t.input.loop lp)
-          (Enode.pp ~node:(node t)) (node t id));
+          Enode.pp (node t id));
     let l' = match lhs with
       | None -> l'
       | Some x -> match partition_uses t x with

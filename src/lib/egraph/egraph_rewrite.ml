@@ -55,7 +55,7 @@ let union ?ty t id oid =
 let duplicate ?l t id =
   Logs.debug (fun m ->
       m "%s: inserted already hash-consed term %d:\n  %a%!"
-        __FUNCTION__ id (Enode.pp ~node:(node t)) (node t id));
+        __FUNCTION__ id Enode.pp (node t id));
   Option.iter l ~f:(Sched.duplicate t id);
   id
 
@@ -189,7 +189,7 @@ and rewrite ?ty ?l ~d t rws y =
     Logs.debug (fun m ->
         m "%s: rewrote term %d to %d, continue=%b:\n  prev: %a\n  curr: %a%!"
           __FUNCTION__ prev oid continue
-          (Enode.pp ~node:(node t)) (node t prev)
-          (Enode.pp ~node:(node t)) (node t oid));
+          Enode.pp (node t prev)
+          Enode.pp (node t oid));
     continue
   with Mismatch -> true

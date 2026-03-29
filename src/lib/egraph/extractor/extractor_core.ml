@@ -166,8 +166,7 @@ let debug_dump t =
       let pp ppf (cid, (c, n)) =
         Format.fprintf ppf
           "  %d:\n    cost: %a (depth = %a, opc = %a)\n    node: %a%!"
-          cid Cost.pp c Int63.pp (Cost.depth c) Int63.pp (Cost.opc c)
-          (Enode.pp ~node:(node t.eg)) n in
+          cid Cost.pp c Int63.pp (Cost.depth c) Int63.pp (Cost.opc c) Enode.pp n in
       m "%s: $%s cost table:\n%a"
         __FUNCTION__ (Func.name t.eg.input.fn)
         (Format.pp_print_list pp

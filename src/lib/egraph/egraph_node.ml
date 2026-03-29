@@ -299,11 +299,19 @@ let pp_op ppf = function
   | Ovastart _ ->
     Format.fprintf ppf "vastart"
 
-let rec pp ?node ppf n =
-  let pp_child = match node with
-    | None -> Id.pp
-    | Some f -> fun ppf id ->
-      pp ?node ppf @@ f id in
+let rec pp ppf n =
+  let pp_child = Id.pp in
+  match n with
+  | N (op, []) -> Format.fprintf ppf "%a" pp_op op
+  | N (op, cs) ->
+    let pp_sep ppf () = Format.fprintf ppf " " in
+    Format.fprintf ppf "(%a %a)" pp_op op
+      (Format.pp_print_list ~pp_sep pp_child) cs
+  | U {pre; post} ->
+    Format.fprintf ppf "(union %a %a)" pp_child pre pp_child post
+
+let rec pp_full ~f ppf n =
+  let pp_child ppf id = pp ppf @@ f id in
   match n with
   | N (op, []) -> Format.fprintf ppf "%a" pp_op op
   | N (op, cs) ->
