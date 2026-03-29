@@ -2,11 +2,11 @@ module evenodd
 
 function $abs { ; returns: rax
 @2:
-  mov eax, edi ; @26
-  neg eax ; @36
-  test edi, edi ; @34
-  cmovs edi, eax ; @35
-  mov eax, edi ; @32
+  mov eax, edi ; @25
+  mov ecx, eax ; @26
+  neg ecx ; @36
+  test eax, eax ; @34
+  cmovs eax, ecx ; @35
   ret ; @33
 }
 

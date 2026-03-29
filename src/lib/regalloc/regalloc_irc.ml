@@ -21,8 +21,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     ensure_degree t v;
     if u <> v
     && Regs.same_class_node t.![u] t.![v]
-    && not (Bitset.mem t.slot_bits u)
-    && not (Bitset.mem t.slot_bits v) then begin
+    && not (is_slot t u)
+    && not (is_slot t v) then begin
       add_adjlist t u v;
       add_adjlist t v u;
       if can_be_colored t u then inc_degree t u;
@@ -57,19 +57,19 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         let out = Set.diff out use in
         (* ∀ n ∈ def(I) ∪ use(I)
              moveList[n] := moveList[n] ∪ {I} *)
-        add_move t label d;
-        add_move t label s;
+        Wmoves.add_move t label d;
+        Wmoves.add_move t label s;
         Hashtbl.set t.copies ~key:label ~data:{
           dst = d;
           src = s;
           loop = loop_depth;
         };
         (* Persist phi-copy relationships for cross-round slot coalescing.
-           t.copies is cleared each round, but phi_pairs survives. *)
+           `t.copies` is cleared each round, but `phi_pairs` survives. *)
         if is_phi_var t d || is_phi_var t s then
           add_phi_pair t drv srv;
         (* worklistMoves := worklistMoves ∪ {I} *)
-        t.wmoves <- Lset.add t.wmoves label;
+        Wmoves.add t label;
         out in
     (* live := live ∪ def(I) *)
     let out = Set.union out def in
@@ -87,7 +87,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      algorithm. *)
   let build t =
     (* ∀ b ∈ blocks in program *)
-    let live = Option.value_exn t.live in
+    let live = Option.value_exn t.data.live in
     Func.blks t.fn |> C.Seq.iter ~f:(fun b ->
         let l = Blk.label b in
         let loop_depth = match Loop.blk t.loop l with
@@ -114,9 +114,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
            won't have a degree. *)
         degree' t id |> Option.iter ~f:(fun d ->
             if d >= Regs.node_k t.![id] then
-              add_spill t id
-            else if move_related t id then
-              t.wfreeze <- Bitset.set t.wfreeze id
+              Wspill.add t id
+            else if Wmoves.move_related t id then
+              Wfreeze.add t id
             else
               t.wsimplify <- Bitset.set t.wsimplify id));
     t.initial <- Bitset.empty
@@ -125,16 +125,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* ∀ n ∈ nodes *)
     Bitset.enum nodes |> Seq.iter ~f:(fun id ->
         (* ∀ m ∈ NodeMoves(m) *)
-        node_moves t id |> Lset.iter ~f:(fun m ->
+        Wmoves.node_moves t id |> Lset.iter ~f:(fun m ->
             (* if m ∈ activeMoves then *)
-            if Lset.mem t.amoves m then begin
+            if Lset.mem t.data.amoves m then begin
               Logs.debug (fun m_ ->
                   m_ "%s: enabling move %a for node %a%!"
                     __FUNCTION__ Label.pp m Rv.pp t.![id]);
               (* activeMoves := activeMoves ∖ {m} *)
-              t.amoves <- Lset.remove t.amoves m;
+              t.data.amoves <- Lset.remove t.data.amoves m;
               (* worklistMoves := worklistMoves ∪ {m} *)
-              t.wmoves <- Lset.add t.wmoves m;
+              Wmoves.add t m;
+              Wfreeze.update_for_move t m;
             end))
 
   (* Simulate removing a node from the interference graph (this is what
@@ -153,13 +154,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         (* EnableMoves({m} ∪ Adjacent(m)) *)
         enable_moves t (Bitset.set (adjacent t id) id);
         (* spillWorklist := spillWorklist ∖ {m} *)
-        remove_spill t id;
+        Wspill.remove t id;
         (* if MoveRelated(m) then
              freezeWorklist := freezeWorklist ∪ {m}
            else
              simplifyWorklist := simplifyWorklist ∪ {m} *)
-        if move_related t id
-        then t.wfreeze <- Bitset.set t.wfreeze id
+        if Wmoves.move_related t id
+        then Wfreeze.add t id
         else t.wsimplify <- Bitset.set t.wsimplify id
       end
 
@@ -181,13 +182,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* u ∉ precolored *)
     can_be_colored t id &&
     (* not(MoveRelated(u)) *)
-    not (move_related t id) &&
+    not (Wmoves.move_related t id) &&
     (* degree[u] < K *)
     degree t id < Regs.node_k t.![id]
 
   let add_worklist t id = if should_add_to_worklist t id then begin
       (* freezeWorklist := freezeWorklist ∖ {u} *)
-      t.wfreeze <- Bitset.clear t.wfreeze id;
+      Wfreeze.remove t id;
       (* simplifyWorklist := simplifyWorklist ∪ {u} *)
       t.wsimplify <- Bitset.set t.wsimplify id;
     end
@@ -263,114 +264,35 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         m "%s: combining u=%a with v=%a%!"
           __FUNCTION__ Rv.pp t.![u] Rv.pp t.![v]);
     (* if v ∈ freezeWorklist *)
-    if Bitset.mem t.wfreeze v then
+    if Wfreeze.has t v then
       (* freezeWorklist := freezeWorklist ∖ {v} *)
-      t.wfreeze <- Bitset.clear t.wfreeze v
+      Wfreeze.remove t v
     else
       (* spillWorklist := spillWorklist ∖ {v} *)
-      remove_spill t v;
+      Wspill.remove t v;
     (* coalescedNodes := coalescedNodes ∪ {v} *)
     t.coalesced <- Bitset.set t.coalesced v;
     (* alias[v] := u *)
     t.alias.(v) <- u;
     (* nodeMoves[u] := nodeMoves[u] ∪ nodeMoves[v] *)
-    t.node_moves.(u) <- Lset.union t.node_moves.(u) t.node_moves.(v);
+    t.data.node_moves.(u) <- Lset.union t.data.node_moves.(u) t.data.node_moves.(v);
+    Wfreeze.update t u;
     (* ∀ t ∈ Adjacent(v) *)
     adjacent t v |> Bitset.enum |> Seq.iter ~f:(combine_edge t u);
     if (* degree[u] >= K *)
       degree t u >= Regs.node_k t.![u] &&
       (* u ∈ freezeWorklist *)
-      Bitset.mem t.wfreeze u
+      Wfreeze.has t u
     then
       (* freezeWorklist := freezeWorklist ∖ {u} *)
-      let () = t.wfreeze <- Bitset.clear t.wfreeze u in
+      let () = Wfreeze.remove t u in
       (* spillWorklist := spillWorklist ∪ {u} *)
-      add_spill t u
-
-  (* We can bypass the Briggs conservative heuristic if this
-     move is trivially coalescable.
-
-     Criteria:
-
-     1. The source node is not precolored.
-     2. This move is its only use.
-     3. All definitions dominate the use.
-     4. The source node is not live-out.
-  *)
-  let is_trivial_du t m v =
-    can_be_colored t v && num_uses t v = 1 &&
-    match Hashtbl.find t.insn_blks m with
-    | None -> false
-    | Some (bm, om) ->
-      let live = Option.value_exn t.live in
-      let out = Live.outs live bm in
-      not (Set.mem out t.![v]) &&
-      t.defs.(v) |> Lset.to_sequence |>
-      Seq.for_all ~f:(fun d ->
-          match Hashtbl.find t.insn_blks d with
-          | None -> false
-          | Some (bd, od) when Label.(bm = bd) ->
-            Logs.debug (fun m ->
-                m "%s: bm=%a, om=%d, bd=%a, od=%d%!"
-                  __FUNCTION__ Label.pp bm om Label.pp bd od);
-            od < om
-          | Some (bd, _) ->
-            Semi_nca.Tree.is_descendant_of t.dom ~parent:bd bm)
-
-  (* P(u,v) = S(u,v) * (W(u,v) / (1 + D'(u) + D'(v)))
-
-     where:
-     - S is the "safety factor"
-     - W is the "weight" of the move
-     - D' is the "effective degree"
-
-     W follows our heuristic for spill priority: 10^loop_depth
-  *)
-  let move_priority t m =
-    let c = Hashtbl.find_exn t.copies m in
-    let pu = exclude_from_coloring t c.dst in
-    let pv = exclude_from_coloring t c.src in
-    if pu && pv then 0.0 else
-      (* Pre-colored nodes don't actually have a degree, so we need to scale
-         the result such that a node with degree > K doesn't outweigh a node
-         that is pre-colored. *)
-      let effective_degree id p =
-        let k = Regs.node_k t.![id] in
-        let k' = k * 2 in
-        if p then k' else
-          let d = degree t id in
-          if d <= k then d else
-            (* If `d > K`, then we're OK with scaling off the tail end
-               towards our threshold of 2K, since such nodes are effectively
-               uncolorable until we allow `simplify` to make progress. *)
-            min (k' - 1) (k + ((d - k) / 2)) in
-      let du = effective_degree c.dst pu in
-      let dv = effective_degree c.src pv in
-      let w = Float.of_int @@ Int.pow 10 c.loop in
-      let p = w /. Float.of_int (1 + du + dv) in
-      (* If if this move is trivially coalescable, then bump the weight a
-         bit so that it can coalesce earlier. *)
-      let p = if is_trivial_du t m c.src then p *. 2.0 else p in
-      (* If one of the nodes is pre-colored, then this coalesce will be
-         much riskier. If both are pre-colored, then we should avoid it
-         at all costs (see topmost condition). *)
-      if pu || pv then p *. 0.25 else p
-
-  (* Pick a move from the worklist that would profit the most from
-     coalescing. *)
-  let pick_move t =
-    Lset.to_sequence t.wmoves |>
-    Seq.fold ~init:None ~f:(fun acc m ->
-        let p = move_priority t m in
-        match acc with
-        | None -> Some (m, p)
-        | Some (_, p0) when Float.(p > p0) -> Some (m, p)
-        | acc -> acc) |> Option.value_exn
+      Wspill.add t u
 
   (* pre: wmoves is not empty *)
   let coalesce t =
     (* let m_(=copy(x,y)) ∈ worklistMoves *)
-    let m, score = pick_move t in
+    let m = Wmoves.pop_exn t in
     let c = Hashtbl.find_exn t.copies m in
     (* x := GetAlias(x) *)
     let x = alias t c.dst in
@@ -383,16 +305,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let u, v = if exclude_from_coloring t y then y, x else x, y in
     Logs.debug (fun m_ ->
         m_ "%s: looking at move %a, score=%g, u=%a, v=%a%!"
-          __FUNCTION__ Label.pp m score Rv.pp t.![u] Rv.pp t.![v]);
-    (* worklistMoves := worklistMoves ∖ {m} *)
-    t.wmoves <- Lset.remove t.wmoves m;
+          __FUNCTION__ Label.pp m (Wmoves.priority t m) Rv.pp t.![u] Rv.pp t.![v]);
     (* if u = v then *)
     if u = v then
       (* coalescedMoves := coalescedMoves ∪ {m} *)
       let () = t.cmoves <- Lset.add t.cmoves m in
       Logs.debug (fun m -> m "%s: already coalesced%!" __FUNCTION__);
       (* AddWorkList(u) *)
-      add_worklist t u
+      add_worklist t u;
+      (* m is no longer active; update freeze priority for u *)
+      Wfreeze.update t u
     else if
       (* v ∈ precolored *)
       exclude_from_coloring t v ||
@@ -406,12 +328,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* addWorkList(u) *)
       add_worklist t u;
       (* addWorkList(v) *)
-      add_worklist t v
+      add_worklist t v;
+      (* m is no longer active; update freeze priorities for u and v *)
+      Wfreeze.update t u;
+      Wfreeze.update t v
     else if
       (* u ∈ precolored ∧ (∀ t ∈ Adjacent(v), OK(t,u)) *)
       (exclude_from_coloring t u && all_adjacent_ok t u v) ||
       (* u ∉ precolored ∧ Conservative(Adjacent(u), Adjacent(v)) *)
-      (can_be_colored t u && (is_trivial_du t m v || conservative_adj t u v))
+      (can_be_colored t u && (Wmoves.is_trivial_du t m v || conservative_adj t u v))
     then
       (* coalescedMoves := coalescedMoves ∪ {m} *)
       let () = t.cmoves <- Lset.add t.cmoves m in
@@ -421,7 +346,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       add_worklist t u
     else
       (* activeMoves := activeMoves ∪ {m} *)
-      let () = t.amoves <- Lset.add t.amoves m in
+      let () = t.data.amoves <- Lset.add t.data.amoves m in
       Logs.debug (fun m -> m "%s: adding to active moves%!" __FUNCTION__)
 
   (* pre: m ∈ copies
@@ -436,53 +361,36 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let freeze_moves t u =
     (* ∀ m(= copy(u,v) or copy(v,u)) ∈ NodeMoves(u) *)
-    node_moves t u |> Lset.iter ~f:(fun m ->
+    Wmoves.node_moves t u |> Lset.iter ~f:(fun m ->
         (* Check that the copy fits the schema above. *)
         uvcopy t u m |> Option.iter ~f:(fun v ->
             (* if m ∈ activeMoves *)
-            if Lset.mem t.amoves m then
+            if Lset.mem t.data.amoves m then
               (* activeMoves := activeMoves ∖ {m} *)
-              t.amoves <- Lset.remove t.amoves m
+              t.data.amoves <- Lset.remove t.data.amoves m
             else
               (* worklistMoves := worklistMoves ∖ {m} *)
-              t.wmoves <- Lset.remove t.wmoves m;
+              Wmoves.remove t m;
             (* frozenMoves := frozenMoves ∪ {m} *)
             Logs.debug (fun m_ ->
                 m_ "%s: freezing move %a, v=%a"
                   __FUNCTION__ Label.pp m Rv.pp t.![v]);
             t.fmoves <- Lset.add t.fmoves m;
             (* if NodeMoves(v) = {} ∧ degree[v] < K *)
-            if Lset.is_empty (node_moves t v)
+            if Lset.is_empty (Wmoves.node_moves t v)
             && degree t v < Regs.node_k t.![v] then begin
               (* freezeWorklist := freezeWorklist ∖ {v} *)
-              t.wfreeze <- Bitset.clear t.wfreeze v;
+              Wfreeze.remove t v;
               (* simplifyWorklist := simplifyWorklist ∪ {v} *)
               t.wsimplify <- Bitset.set t.wsimplify v;
-            end))
-
-  let freeze_score t u =
-    let mvs = node_moves t u in
-    let total_moves = Lset.length mvs in
-    let phi_score =
-      Lset.to_sequence mvs |>
-      Seq.filter_map ~f:(Hashtbl.find t.copies) |>
-      Seq.sum (module Int) ~f:(fun c ->
-          Bool.to_int (is_phi_var t c.dst) * (c.loop + 1)) in
-    total_moves - (5 * phi_score)
+            end else
+              Wfreeze.update t (alias t v)))
 
   (* pre: wfreeze is not empty *)
   let freeze t =
     (* let u ∈ freezeWorklist
        freezeWorklist := freezeWorklist ∖ {u} *)
-    let u, _ =
-      Bitset.enum t.wfreeze |>
-      Seq.fold ~init:None ~f:(fun acc id ->
-          let s = freeze_score t id in
-          match acc with
-          | None -> Some (id, s)
-          | Some (_, s0) when s > s0 -> Some (id, s)
-          | acc -> acc) |> Option.value_exn in
-    t.wfreeze <- Bitset.clear t.wfreeze u;
+    let u = Wfreeze.pop_exn t in
     Logs.debug (fun m -> m "%s: frozen node u=%a%!" __FUNCTION__ Rv.pp t.![u]);
     (* simplifyWorklist := simplifyWorklist ∪ {u} *)
     t.wsimplify <- Bitset.set t.wsimplify u;
@@ -495,7 +403,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             m_ "%s: selecting spill node %a%!"
               __FUNCTION__ Rv.pp t.![id]);
         (* spillWorklist := spillWorklist ∖ {m} *)
-        clear_wspill_elt t id;
+        Wspill.clear t id;
         (* simplifyWorklist := simplifyWorklist ∪ {m} *)
         t.wsimplify <- Bitset.set t.wsimplify id;
         (* FreezeMoves(m) *)
@@ -507,7 +415,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* ∀ w ∈ adjList[n] *)
     adjlist t id |> Bitset.enum |> Seq.map ~f:(alias t) |>
     (* if GetAlias(w) ∈ (coloredNodes ∪ precolored) then *)
-    Seq.filter ~f:(fun w -> Bitset.(mem t.reg_bits w || mem t.colored w)) |>
+    Seq.filter ~f:(fun w -> Bitset.(mem t.data.reg_bits w || mem t.colored w)) |>
     (* okColors := okColors ∖ {color[GetAlias(w)]} *)
     Seq.filter_map ~f:(color t) |>
     Seq.fold ~init:(Bitset.init k) ~f:Bitset.clear
@@ -516,7 +424,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      return that color. This is known as move biasing: by reusing the
      neighbor's color we eliminate the copy instruction. *)
   let preferred_color t id cs =
-    moves t id |> Lset.to_sequence |>
+    Wmoves.moves t id |> Lset.to_sequence |>
     Seq.filter_map ~f:(Hashtbl.find t.copies) |>
     Seq.filter_map ~f:(fun c ->
         let other = if c.dst = id then c.src else c.dst in
@@ -572,7 +480,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | Some _ as phi -> phi
     | None ->
       (* Same-round fallback: check current-round copies. *)
-      moves t id |> Lset.to_sequence |>
+      Wmoves.moves t id |> Lset.to_sequence |>
       Seq.filter_map ~f:(Hashtbl.find t.copies) |>
       Seq.filter_map ~f:(fun c ->
           let other = if c.dst = id then c.src else c.dst in
@@ -597,7 +505,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                   m "%s: re-using slot %a for spilled node %a%!"
                     __FUNCTION__ Rv.pp r' Rv.pp r);
               Hashtbl.set t.slots ~key:r ~data:r';
-              t.slot_bits <- Bitset.set t.slot_bits rid;
+              t.data.slot_bits <- Bitset.set t.data.slot_bits rid;
               acc, m in
             match preferred_slot t id with
             | Some r' -> reuse r'
@@ -610,7 +518,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                       __FUNCTION__ Rv.pp r);
                 let s = Virtual.Slot.create_exn v ~size ~align:size in
                 Hashtbl.set t.slots ~key:r ~data:r;
-                t.slot_bits <- Bitset.set t.slot_bits rid;
+                t.data.slot_bits <- Bitset.set t.data.slot_bits rid;
                 s :: acc, Map.add_multi m ~key:size ~data:r) in
     t.fn <- Func.insert_slots t.fn slots
 
@@ -717,11 +625,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Clear the relevant state for the next round. *)
   let new_round t =
-    t.live <- None;
+    t.data.live <- None;
     Hashtbl.clear t.copies;
     Hashtbl.clear t.insn_blks;
-    t.wmoves <- Lset.empty;
-    t.amoves <- Lset.empty;
+    Wmoves.reset t;
+    Wfreeze.reset t;
+    t.data.amoves <- Lset.empty;
     t.cmoves <- Lset.empty;
     t.kmoves <- Lset.empty;
     t.fmoves <- Lset.empty;
@@ -735,7 +644,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         m "%s: $%s: round %d of %d"
           __FUNCTION__ (Func.name t.fn) round max_rounds);
     (* Build the interference graph. *)
-    t.live <- Some (Live.compute ~keep:t.keep t.fn);
+    t.data.live <- Some (Live.compute ~keep:t.keep t.fn);
     let* () = build t in
     make_worklist t;
     (* Process the worklists. *)
@@ -743,11 +652,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     while !continue do
       if not @@ Bitset.is_empty t.wsimplify then
         simplify t
-      else if not @@ Lset.is_empty t.wmoves then
+      else if not @@ Wmoves.is_empty t then
         coalesce t
-      else if not @@ Bitset.is_empty t.wfreeze then
+      else if not @@ Wfreeze.is_empty t then
         freeze t
-      else if not @@ Pairing_heap.is_empty t.wspill then
+      else if not @@ Wspill.is_empty t then
         select_spill t
       else
         continue := false

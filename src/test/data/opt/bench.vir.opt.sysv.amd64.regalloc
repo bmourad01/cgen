@@ -61,26 +61,26 @@ export function $nested_licm { ; returns: rax
   mov r10d, esi ; @705
   lea r8d, qword ptr [rdi + 0x7] ; @707
   lea r9d, qword ptr [rdi + rdi*2] ; @387
-  xor esi, esi ; @702
-  xor edi, edi ; @703
+  xor edi, edi ; @702
+  xor ecx, ecx ; @703
 @45:
-  cmp esi, r10d ; @697
+  cmp edi, r10d ; @697
   jl @48 ; @698
 @49:
-  mov eax, edi ; @695
+  mov eax, ecx ; @695
   ret ; @696
 @48:
-  lea ecx, qword ptr [r9 + rsi*1] ; @389
-  imul ecx, r8d ; @694
+  lea esi, qword ptr [r9 + rdi*1] ; @389
+  imul esi, r8d ; @694
   xor eax, eax ; @691
 @51:
   cmp eax, edx ; @686
   jl @55 ; @687
 @56:
-  inc esi ; @394
+  inc edi ; @394
   jmp @45 ; @685
 @55:
-  add edi, ecx ; @392
+  add ecx, esi ; @392
   inc eax ; @393
   jmp @51 ; @682
 }
@@ -475,12 +475,12 @@ export function $int_pow { ; returns: rax
 @296:
   ret ; @988
 @295:
-  mov rcx, rsi ; @619
-  and ecx, 0x1_w ; @986
-  mov rdx, rax ; @621
-  imul rdx, rdi ; @983
-  test rcx, rcx ; @981
-  cmovne rax, rdx ; @982
+  mov rdx, rsi ; @619
+  and edx, 0x1_w ; @986
+  mov rcx, rax ; @621
+  imul rcx, rdi ; @983
+  test rdx, rdx ; @981
+  cmovne rax, rcx ; @982
   imul rdi, rdi ; @980
   sar rsi, 0x1_b ; @979
   jmp @293 ; @978

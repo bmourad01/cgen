@@ -2,10 +2,10 @@ module and_test
 
 export function $foo { ; returns: rax
 @2:
-  mov eax, edi ; @51
-  and eax, 0x3_w ; @52
-  cmove edi, esi ; @47
-  mov eax, edi ; @44
+  mov eax, edi ; @31
+  mov ecx, eax ; @51
+  and ecx, 0x3_w ; @52
+  cmove eax, esi ; @47
   ret ; @45
 }
 

@@ -9,13 +9,13 @@ export function $foo { ; returns: rax
 @7:
   ret ; @47
 @6:
-  mov edx, edi ; @29
-  and edx, 0x1_w ; @45
-  mov ecx, edi ; @31
-  shr ecx, 0x1_b ; @42
+  mov ecx, edi ; @29
+  and ecx, 0x1_w ; @45
+  mov edx, edi ; @31
+  shr edx, 0x1_b ; @42
   lea edi, qword ptr [rdi + rdi*2 + 0x1] ; @34
-  test edx, edx ; @40
-  cmove edi, ecx ; @41
+  test ecx, ecx ; @40
+  cmove edi, edx ; @41
   inc eax ; @36
   jmp @3 ; @39
 }
