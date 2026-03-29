@@ -104,20 +104,27 @@ let substitute_operand f = function
    XXX: what if the FLAGS register is live? *)
 let substitute_binop' o a b op = match o, op a, op b with
   | LEA, Oreg (x, ty), Omem (Abd (y, d), _) when Regvar.(x = y) ->
-    (* lea x, [x+d] => add x, d or sub x, -d *)
-    if Int32.(d < 0l) then
+    (* lea x, [x+d] => add x, d or sub x, -d
+
+       d = Int32.min_value (-2^31) can't be negated in Int32 without
+       overflow, which would produce a SUB with immediate 0x80000000
+       that sign-extends to the wrong value in 64-bit mode.
+    *)
+    if Int32.(d < 0l) && Int32.(d <> min_value) then
       let d = Int32.neg d in
       let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
       if Int64.(d' = 1L) then
         One (DEC, Oreg (x, ty))
       else
         Two (SUB, Oreg (x, ty), Oimm (d', immty ty))
-    else
+    else if Int32.(d > 0l) then
       let d' = Int64.(of_int32 d land 0xFFFFFFFFL) in
       if Int64.(d' = 1L) then
         One (INC, Oreg (x, ty))
       else
         Two (ADD, Oreg (x, ty), Oimm (d', immty ty))
+    else
+      Two (o, a, b)
   | LEA, Oreg (x, ty), Omem (Abis (y, z, S1), _) when Regvar.(x = y) ->
     (* lea x, [x+y*1] => add x, y *)
     Two (ADD, Oreg (x, ty), Oreg (z, ty))

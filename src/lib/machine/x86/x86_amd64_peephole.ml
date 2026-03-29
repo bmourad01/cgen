@@ -333,6 +333,18 @@ let immty = function
   | #Type.imm as imm -> imm
   | _ -> assert false
 
+(* True if `o` can be directly encoded as an immediate operand for a
+   combinable binop applied to an `r1t`-typed destination.
+
+   In 64-bit mode, binary instructions (ADD, SUB, CMP, TEST, AND, OR,
+   XOR, IMUL2) only support sign-extended imm32 immediates. A 64-bit
+   immediate that doesn't fit in that range must stay in a register.
+*)
+let combinable_imm r1t o = match o with
+  | Oimm (i, `i64) when Type.equal_basic r1t `i64 ->
+    Int64.(i >= -0x80000000L && i <= 0x7FFFFFFFL)
+  | _ -> true
+
 let collect_lea_mov fn =
   Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
       let rec go acc = function
@@ -387,7 +399,8 @@ let collect_mov_op fn =
                   && Rv.(r2 = r3)
                   && Rv.(r3 <> r3')
                   && not (Set.mem (rset [o1]) r1)
-                  && not (rset_mem' o2 [r1; r2]) ->
+                  && not (rset_mem' o2 [r1; r2])
+                  && combinable_imm r3t o1 ->
           let i = Two (op, Oreg (r3, r3t), o1) in
           go (Ltree.set acc ~key:l ~data:i) xs
         | (_, Two (MOV, Oreg (r1, _), o))
@@ -395,7 +408,8 @@ let collect_mov_op fn =
           :: xs when combinable_binop op
                   && Rv.(r1 = r2')
                   && Rv.(r1' <> r2')
-                  && not (Set.mem (rset [o]) r1) ->
+                  && not (Set.mem (rset [o]) r1)
+                  && combinable_imm r1t o ->
           let i = Two (op, Oreg (r1', r1t), o) in
           go (Ltree.set acc ~key:l ~data:i) xs
         | (_, Two (MOV, Oreg (r1, _), o))

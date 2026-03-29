@@ -415,6 +415,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Quicksort (SysV AMD64)" >:: test_sysv_amd64 "qsort";
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64 "parallel";
     "Binary search (SysV AMD64)" >:: test_sysv_amd64 "bsearch";
+    "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64 "imm32_boundary";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -465,6 +466,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "strcspn (SysV AMD64)" >:: test_sysv_amd64_regalloc "strcspn";
     "Benchmark (SysV AMD64)" >:: test_sysv_amd64_regalloc "bench";
     "Magic division (SysV AMD64)" >:: test_sysv_amd64_regalloc "magic_div";
+    "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64_regalloc "imm32_boundary";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -514,6 +516,7 @@ let native_suite = "Test native code" >::: [
     "strcspn (SysV AMD64)" >:: test_sysv_amd64_native "strcspn";
     "Benchmark (SysV AMD64)" >:: test_sysv_amd64_native "bench";
     "Magic division (SysV AMD64)" >:: test_sysv_amd64_native "magic_div";
+    "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64_native "imm32_boundary";
   ]
 
 let () = run_test_tt_main @@ test_list [

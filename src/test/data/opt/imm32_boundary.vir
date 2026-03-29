@@ -1,0 +1,159 @@
+module imm32_boundary
+
+export function w $sge_branch(l %x) {
+@start:
+  %c = sge.l %x, 2147483648_l
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $sgt_branch(l %x) {
+@start:
+  %c = sgt.l %x, 2147483648_l
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $sle_branch(l %x) {
+@start:
+  %c = sle.l %x, 2147483648_l
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $slt_branch(l %x) {
+@start:
+  %c = slt.l %x, 2147483648_l
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $eq_branch(l %x) {
+@start:
+  %c = eq.l %x, 2147483648_l
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $ne_branch(l %x) {
+@start:
+  %c = ne.l %x, 2147483648_l
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $sge_flag(l %x) {
+@start:
+  %c = sge.l %x, 2147483648_l
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $eq_flag(l %x) {
+@start:
+  %c = eq.l %x, 2147483648_l
+  %r = flag.w %c
+  ret %r
+}
+
+export function l $sel_sge(l %x, l %yes, l %no) {
+@start:
+  %c = sge.l %x, 2147483648_l
+  %r = sel.l %c, %yes, %no
+  ret %r
+}
+
+;; --- imul_ri (multiply by immediate > INT32_MAX) ---
+
+export function l $mul_boundary(l %x) {
+@start:
+  %r = mul.l %x, 2147483648_l
+  ret %r
+}
+
+export function l $add_ptr_hi(l %base) {
+@start:
+  %r = add.l %base, 2147483648_l
+  ret %r
+}
+
+export function l $sub_ptr_hi(l %base) {
+@start:
+  %r = sub.l %base, 2147483649_l
+  ret %r
+}
+
+export function l $add_ptr_max32(l %base) {
+@start:
+  %r = add.l %base, 2147483647_l
+  ret %r
+}
+
+export function l $or_hi(l %x) {
+@start:
+  %r = or.l %x, 2147483648_l
+  ret %r
+}
+
+export function l $xor_hi(l %x) {
+@start:
+  %r = xor.l %x, 2147483648_l
+  ret %r
+}
+
+export function l $and_hi(l %x) {
+@start:
+  %r = and.l %x, 2147483648_l
+  ret %r
+}
+
+export function w $test_branch(l %x) {
+@start:
+  %masked = and.l %x, 2147483648_l
+  %c = ne.l %masked, 0_l
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $test_flag(l %x) {
+@start:
+  %masked = and.l %x, 2147483648_l
+  %c = ne.l %masked, 0_l
+  %r = flag.w %c
+  ret %r
+}
+
+export function l $load_with_disp(l %base) {
+@start:
+  %addr = add.l %base, 8_l
+  %r = ld.l %addr
+  ret %r
+}
+
+export function $store_with_disp(l %val, l %base) {
+@start:
+  %addr = add.l %base, 8_l
+  st.l %val, %addr
+  ret
+}

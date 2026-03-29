@@ -1,0 +1,164 @@
+module imm32_boundary
+
+export function $sge_branch { ; returns: rax
+@2:
+  mov rcx, 0x80000000_l ; @113
+  xor eax, eax ; @114
+  cmp rdi, rcx ; @115
+  setge al ; @116
+  ret ; @112
+}
+
+export function $sgt_branch { ; returns: rax
+@6:
+  mov rcx, 0x80000000_l ; @119
+  xor eax, eax ; @120
+  cmp rdi, rcx ; @121
+  setg al ; @122
+  ret ; @118
+}
+
+export function $sle_branch { ; returns: rax
+@10:
+  mov rcx, 0x80000000_l ; @125
+  xor eax, eax ; @126
+  cmp rdi, rcx ; @127
+  setle al ; @128
+  ret ; @124
+}
+
+export function $slt_branch { ; returns: rax
+@14:
+  mov rcx, 0x80000000_l ; @131
+  xor eax, eax ; @132
+  cmp rdi, rcx ; @133
+  setl al ; @134
+  ret ; @130
+}
+
+export function $eq_branch { ; returns: rax
+@18:
+  mov rcx, 0x80000000_l ; @137
+  xor eax, eax ; @138
+  cmp rdi, rcx ; @139
+  sete al ; @140
+  ret ; @136
+}
+
+export function $ne_branch { ; returns: rax
+@22:
+  mov rcx, 0x80000000_l ; @143
+  xor eax, eax ; @144
+  cmp rdi, rcx ; @145
+  setne al ; @146
+  ret ; @142
+}
+
+export function $sge_flag { ; returns: rax
+@26:
+  mov rcx, 0x80000000_l ; @149
+  xor eax, eax ; @150
+  cmp rdi, rcx ; @151
+  setge al ; @152
+  ret ; @148
+}
+
+export function $eq_flag { ; returns: rax
+@29:
+  mov rcx, 0x80000000_l ; @155
+  xor eax, eax ; @156
+  cmp rdi, rcx ; @157
+  sete al ; @158
+  ret ; @154
+}
+
+export function $sel_sge { ; returns: rax
+@32:
+  mov rax, 0x80000000_l ; @95
+  cmp rdi, rax ; @162
+  cmovge rdx, rsi ; @163
+  mov rax, rdx ; @159
+  ret ; @160
+}
+
+export function $mul_boundary { ; returns: rax
+@35:
+  shl rdi, 0x1f_b ; @173
+  mov rax, rdi ; @170
+  ret ; @171
+}
+
+export function $add_ptr_hi { ; returns: rax
+@37:
+  mov rax, 0x80000000_l ; @176
+  add rdi, rax ; @178
+  mov rax, rdi ; @174
+  ret ; @175
+}
+
+export function $sub_ptr_hi { ; returns: rax
+@39:
+  mov rax, 0x80000001_l ; @181
+  sub rdi, rax ; @183
+  mov rax, rdi ; @179
+  ret ; @180
+}
+
+export function $add_ptr_max32 { ; returns: rax
+@41:
+  lea rax, qword ptr [rdi + 0x7fffffff] ; @186
+  ret ; @185
+}
+
+export function $or_hi { ; returns: rax
+@43:
+  mov rax, 0x80000000_l ; @189
+  or rdi, rax ; @191
+  mov rax, rdi ; @187
+  ret ; @188
+}
+
+export function $xor_hi { ; returns: rax
+@45:
+  mov rax, 0x80000000_l ; @194
+  xor rdi, rax ; @196
+  mov rax, rdi ; @192
+  ret ; @193
+}
+
+export function $and_hi { ; returns: rax
+@47:
+  and edi, 0x80000000_w ; @200
+  mov rax, rdi ; @197
+  ret ; @198
+}
+
+export function $test_branch { ; returns: rax
+@49:
+  mov rcx, 0x80000000_l ; @104
+  xor eax, eax ; @203
+  test rdi, rcx ; @204
+  setne al ; @205
+  ret ; @202
+}
+
+export function $test_flag { ; returns: rax
+@54:
+  mov rcx, 0x80000000_l ; @107
+  xor eax, eax ; @210
+  test rdi, rcx ; @211
+  setne al ; @212
+  ret ; @209
+}
+
+export function $load_with_disp { ; returns: rax
+@58:
+  mov rax, qword ptr [rdi + 0x8] ; @60
+  ret ; @216
+}
+
+export function $store_with_disp {
+@61:
+  mov qword ptr [rsi + 0x8], rdi ; @63
+  ret ; @218
+}
