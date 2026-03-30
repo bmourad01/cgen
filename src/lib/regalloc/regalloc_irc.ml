@@ -403,16 +403,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     freeze_moves t u
 
   let select_spill t =
-    Pairing_heap.pop t.wspill |> Option.iter ~f:(fun id ->
-        Logs.debug (fun m_ ->
-            m_ "%s: selecting spill node %a%!"
-              __FUNCTION__ Rv.pp t.![id]);
-        (* spillWorklist := spillWorklist ∖ {m} *)
-        Wspill.clear t id;
-        (* simplifyWorklist := simplifyWorklist ∪ {m} *)
-        t.wsimplify <- Bitset.set t.wsimplify id;
-        (* FreezeMoves(m) *)
-        freeze_moves t id)
+    let m = Wspill.pop_exn t in
+    Logs.debug (fun m_ ->
+        m_ "%s: selecting spill node %a%!"
+          __FUNCTION__ Rv.pp t.![m]);
+    (* spillWorklist := spillWorklist ∖ {m} *)
+    Wspill.clear t m;
+    (* simplifyWorklist := simplifyWorklist ∪ {m} *)
+    t.wsimplify <- Bitset.set t.wsimplify m;
+    (* FreezeMoves(m) *)
+    freeze_moves t m
 
   (* For all neighbors of `id` that have a color, remove them from the
      set of his available colors. *)

@@ -291,6 +291,11 @@ module Make(M : Machine_intf.S) = struct
     let update t id =
       elt t id |> Option.iter ~f:(fun e ->
           set t id (H.update t.wspill e id))
+
+    let pop_exn t =
+      let id = H.pop_exn t.wspill in
+      clear t id;
+      id
   end
 
   module Wmoves = struct
