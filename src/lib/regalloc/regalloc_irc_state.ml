@@ -127,6 +127,7 @@ module Make(M : Machine_intf.S) = struct
 
   let num_nodes t = Vec.length t.id2rv
 
+  (* Setup the state for a new round. *)
   let alloc_arrays t =
     let n = num_nodes t in
     t.data.degree <- Array.create ~len:n Int.max_value;
@@ -550,12 +551,19 @@ module Make(M : Machine_intf.S) = struct
     }
 
   let initialize t =
-    Func.blks t.fn |> Seq.iter ~f:(fun b ->
+    (* Intern all variables mentioned in the function
+       and add them to `initial`. *)
+    let blks = Func.map_of_blks t.fn in
+    Semi_nca.Tree.preorder t.dom |>
+    Seq.filter_map ~f:(Label.Tree.find blks) |>
+    Seq.iter ~f:(fun b ->
         Blk.insns b |> Seq.iter ~f:(fun i ->
             let insn = Insn.insn i in
             M.Insn.reads insn |> Set.iter ~f:(add_initial t);
             M.Insn.writes insn |> Set.iter ~f:(add_initial t);
             update_types t insn));
+    (* Intern `sp` and the return registers. These are also
+       "initially live", which seeds the liveness analysis. *)
     let sp = Rv.reg M.Reg.sp in
     t.keep <- Set.add t.keep sp;
     t.data.reg_bits <- Bitset.set t.data.reg_bits (intern t sp);
@@ -564,9 +572,11 @@ module Make(M : Machine_intf.S) = struct
         let id = intern t rv in
         t.keep <- Set.add t.keep rv;
         t.data.reg_bits <- Bitset.set t.data.reg_bits id);
+    (* Record which nodes are precolored (hardcoded registers). *)
     Vec.iter t.id2rv ~f:(fun rv ->
         if Rv.is_reg rv then
           t.data.reg_bits <- Bitset.set t.data.reg_bits t.$[rv]);
+    (* Setup the remaining state for the first round. *)
     alloc_arrays t
 
   (* Verify the paper's stated invariants, adapted for our `combine_edge`
