@@ -438,25 +438,33 @@ module Make(M : Machine_intf.S) = struct
     let clear t id = Option_array.set_none t.wfreeze_elts id
     let is_empty t = H.is_empty t.wfreeze
 
-    let priority data ~wmoves_elts ~copies ~id2rv ~phi_var id =
+    let phi_weight_coeff = 5
+
+    let cost data ~wmoves_elts ~copies ~id2rv ~phi_var id =
       let mvs = Lset.fold data.node_moves.(id) ~init:Lset.empty ~f:(fun acc m ->
           if Lset.mem data.amoves m || Hashtbl.mem wmoves_elts m
           then Lset.add acc m else acc) in
-      let total_moves = Lset.length mvs in
-      let phi_score =
+      (* Freeze the node whose freezing loses the least loop-weighted value.
+         Each active move contributes its loop depth to the cost of freezing
+         this node. Phi-related moves (back-edge copies where the destination
+         is a phi var) are weighted by an additional coefficient to defer
+         freezing of phi vars. Coalescing those moves eliminates loop-carried
+         register shuffles, so losing them is much more expensive than losing
+         an ordinary copy. *)
+      let non_phi_weight, phi_weight =
         Lset.to_sequence mvs |>
         Seq.filter_map ~f:(Hashtbl.find copies) |>
-        Seq.sum (module Int) ~f:(fun c ->
-            match Rv.which (Vec.get_exn id2rv c.dst) with
-            | First _ -> 0
-            | Second (v, _) ->
-              Bool.to_int (Set.mem phi_var v) * (c.loop + 1)) in
-      total_moves - (5 * phi_score)
+        Seq.fold ~init:(0, 0) ~f:(fun (np, pw) (copy : copy) ->
+            let w = copy.loop in
+            match Rv.which (Vec.get_exn id2rv copy.dst) with
+            | Second (v, _) when Set.mem phi_var v -> np, pw + w
+            | _ -> np + w, pw) in
+      non_phi_weight + phi_weight_coeff * phi_weight
 
     let cmp data ~wmoves_elts ~copies ~id2rv ~phi_var a b =
-      let pa = priority data ~wmoves_elts ~copies ~id2rv ~phi_var a in
-      let pb = priority data ~wmoves_elts ~copies ~id2rv ~phi_var b in
-      let c = Int.compare pb pa in
+      let ca = cost data ~wmoves_elts ~copies ~id2rv ~phi_var a in
+      let cb = cost data ~wmoves_elts ~copies ~id2rv ~phi_var b in
+      let c = Int.compare ca cb in
       (* Break ties by node ID. *)
       if c <> 0 then c else Int.compare a b
 

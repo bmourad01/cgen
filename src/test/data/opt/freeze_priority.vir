@@ -1,0 +1,76 @@
+module freeze_priority
+
+;; Tests that Wfreeze.priority correctly uses loop-weighted costs when
+;; choosing which node to freeze.
+;;
+;; The outer loop has 12 phi vars (%p0..%pb) plus a loop counter, filling
+;; most of the K=14 integer registers and creating register pressure.
+;; The inner loop adds one more phi var (%q, loop depth 2) whose back-edge
+;; copy should have the highest freeze cost (5 * (depth+1) = 15) and
+;; therefore be frozen last if freeze fires at all.
+;;
+;; If the priority is wrong (e.g. phi vars look free to freeze because
+;; their phi moves contribute 0 weight), %q gets frozen first and its
+;; back-edge copy is abandoned, producing an extra mov in the inner loop.
+;; With the correct formula, %q survives long enough to coalesce and the
+;; inner loop body contains only an in-place add.
+export function w $freeze_test(w %a, w %b, w %n, w %m) {
+@entry:
+  %p0 = copy.w 0_w
+  %p1 = copy.w 0_w
+  %p2 = copy.w 0_w
+  %p3 = copy.w 0_w
+  %p4 = copy.w 0_w
+  %p5 = copy.w 0_w
+  %p6 = copy.w 0_w
+  %p7 = copy.w 0_w
+  %p8 = copy.w 0_w
+  %p9 = copy.w 0_w
+  %pa = copy.w 0_w
+  %pb = copy.w 0_w
+  %q = copy.w 0_w
+  %cnt = copy.w %n
+  jmp @outer
+@outer:
+  %co = ne.w %cnt, 0_w
+  br %co, @inner_init, @end
+@inner_init:
+  %icnt = copy.w %m
+  jmp @inner
+@inner:
+  %ci = ne.w %icnt, 0_w
+  br %ci, @inner_body, @body
+@inner_body:
+  %q = add.w %q, %b
+  %icnt = sub.w %icnt, 1_w
+  jmp @inner
+@body:
+  %p0 = add.w %p0, %a
+  %p1 = add.w %p1, %a
+  %p2 = add.w %p2, %a
+  %p3 = add.w %p3, %a
+  %p4 = add.w %p4, %a
+  %p5 = add.w %p5, %a
+  %p6 = add.w %p6, %a
+  %p7 = add.w %p7, %a
+  %p8 = add.w %p8, %a
+  %p9 = add.w %p9, %a
+  %pa = add.w %pa, %a
+  %pb = add.w %pb, %a
+  %cnt = sub.w %cnt, 1_w
+  jmp @outer
+@end:
+  %s0 = add.w %p0, %p1
+  %s1 = add.w %s0, %p2
+  %s2 = add.w %s1, %p3
+  %s3 = add.w %s2, %p4
+  %s4 = add.w %s3, %p5
+  %s5 = add.w %s4, %p6
+  %s6 = add.w %s5, %p7
+  %s7 = add.w %s6, %p8
+  %s8 = add.w %s7, %p9
+  %s9 = add.w %s8, %pa
+  %sa = add.w %s9, %pb
+  %sb = add.w %sa, %q
+  ret %sb
+}
