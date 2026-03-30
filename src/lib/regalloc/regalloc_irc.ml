@@ -37,12 +37,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let def = M.Insn.writes insn in
     Set.iter use ~f:(fun rv ->
         let u = t.$[rv] in
-        update_cost ~loop_depth t u;
+        Wspill.update_cost ~loop_depth t u;
         inc_use t u);
     Set.iter def ~f:(fun rv ->
         let d = t.$[rv] in
         if is_phi_var t d then
-          update_cost ~factor:2 ~loop_depth t d);
+          Wspill.update_cost ~factor:2 ~loop_depth t d);
     (* if isMoveInstruction(I) then *)
     let+ out = match RA.is_copy insn with
       | None -> !!out
@@ -110,7 +110,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* Initialize the worklists. *)
   let make_worklist t =
     Bitset.enum t.initial |> Seq.iter ~f:(fun id ->
-        (* If we introduced [id] during spilling, but later removed
+        (* If we introduced `id` during spilling, but later removed
            its definition during dead code elimination, then it
            won't have a degree. *)
         degree' t id |> Option.iter ~f:(fun d ->
@@ -196,7 +196,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       t.wsimplify <- Bitset.set t.wsimplify id;
     end
 
-  let ok t a r =
+  let george_ok t a r =
     let res =
       (* t ∈ precolored *)
       exclude_from_coloring t a ||
@@ -209,9 +209,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           __FUNCTION__ Rv.pp t.![a] Rv.pp t.![r] res);
     res
 
-  (* ∀ t ∈ Adjacent(v), OK(t,u)  *)
+  (* George's conservative coalescing criterion: all high-degree neighbors
+     of `v` are neighbors of `u`. *)
   let all_adjacent_ok t u v =
-    adjacent t v |> Bitset.enum |> Seq.for_all ~f:(fun a -> ok t a u)
+    (* ∀ t ∈ Adjacent(v), OK(t,u)  *)
+    adjacent t v |> Bitset.enum |> Seq.for_all ~f:(fun a -> george_ok t a u)
 
   (* Briggs conservative coalescing heuristic.
 
@@ -418,7 +420,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* ∀ w ∈ adjList[n] *)
     adjlist t id |> Bitset.enum |> Seq.map ~f:(alias t) |>
     (* if GetAlias(w) ∈ (coloredNodes ∪ precolored) then *)
-    Seq.filter ~f:(fun w -> Bitset.(mem t.data.reg_bits w || mem t.colored w)) |>
+    Seq.filter ~f:(fun w -> is_register t w || is_colored t w) |>
     (* okColors := okColors ∖ {color[GetAlias(w)]} *)
     Seq.filter_map ~f:(color t) |>
     Seq.fold ~init:(Bitset.init k) ~f:Bitset.clear
@@ -480,7 +482,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Map.change m size ~f:(function
         | None -> None
         | Some rvs ->
-          let rvs' = List.filter rvs ~f:(fun rv -> not (Rv.equal rv r')) in
+          let rvs' = List.filter rvs ~f:(Rv.((<>)) r') in
           if List.is_empty rvs' then None else Some rvs')
 
   (* Find the slot already assigned to a copy-related spilled node, if any,
@@ -605,8 +607,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                spilling them in `assign_colors` and creating an infinite cascade.
                Infinite spill cost forces original variables to be simplified
                first, dropping the reload temps below K so they move to
-               wsimplify and get colored rather than actually spilled. *)
-            t.reload_bits <- Bitset.set t.reload_bits (t.$[v']);
+               `wsimplify` and get colored rather than actually spilled. *)
+            t.reload_bits <- Bitset.set t.reload_bits t.$[v'];
             t.types <- Map.set t.types ~key:v' ~data:ty;
             f', s', m', rl) in
     (* Apply the substitution to the existing instruction. *)
@@ -684,7 +686,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Build the interference graph. *)
     t.data.live <- Some (Live.compute ~keep:t.keep t.fn);
     let* () = build t in
-    (* Override spill costs for reload temporaries.  After build computes
+    (* Override spill costs for reload temporaries. After build computes
        costs from use counts, pin every reload temp to max so `select_spill`
        never picks them preferentially over original variables. *)
     Bitset.enum t.reload_bits |> Seq.iter ~f:(fun id ->

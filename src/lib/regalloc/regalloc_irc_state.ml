@@ -66,6 +66,9 @@ module Make(M : Machine_intf.S) = struct
     mutable amoves     : Lset.t;        (* active moves *)
   }
 
+  let is_register' data id = Bitset.mem data.reg_bits id
+  let is_slot' data id = Bitset.mem data.slot_bits id
+
   let create_data () = {
     degree = [||];
     spill_cost = [||];
@@ -137,8 +140,9 @@ module Make(M : Machine_intf.S) = struct
     t.wspill_elts <- Option_array.create ~len:n;
     t.wfreeze_elts <- Option_array.create ~len:n
 
-  let is_register t id = Bitset.mem t.data.reg_bits id
-  let is_slot t id = Bitset.mem t.data.slot_bits id
+  let is_register t id = is_register' t.data id
+  let is_slot t id = is_slot' t.data id
+  let is_colored t id = Bitset.mem t.colored id
 
   (* Explicit registers and variables that correspond to stack slots should
      be excluded from consideration. *)
@@ -230,13 +234,6 @@ module Make(M : Machine_intf.S) = struct
       | None -> false
       | Some p -> Set.mem p v
 
-  let weighted_spill_cost loop_depth = Int.pow 10 loop_depth
-
-  let update_cost ?(factor = 1) ~loop_depth t id =
-    if can_be_colored t id then
-      let w = weighted_spill_cost loop_depth * factor in
-      t.data.spill_cost.(id) <- t.data.spill_cost.(id) + w
-
   let inc_use t id = t.data.nuse.(id) <- t.data.nuse.(id) + 1
   let num_uses t id = t.data.nuse.(id)
 
@@ -253,6 +250,18 @@ module Make(M : Machine_intf.S) = struct
     Hashtbl.find t.phi_pairs rv |> Option.value ~default:Rv.Set.empty
 
   module Wspill = struct
+    (* Loop-weighted cost of a single use/def at `loop_depth`. *)
+    let weight loop_depth = Int.pow 10 loop_depth
+
+    (* Accumulate spill cost for node `id`. *)
+    let update_cost ?(factor = 1) ~loop_depth t id =
+      if can_be_colored t id then
+        let w = weight loop_depth * factor in
+        (* Use a saturating add to avoid signed overflow. *)
+        let cur = t.data.spill_cost.(id) in
+        t.data.spill_cost.(id) <-
+          if w > Int.max_value - cur then Int.max_value else cur + w
+
     (* cost(v) = (Σ_{u ∈ uses(v)} weight(u)) / degree(v) *)
     let cost data id =
       let d = data.degree.(id) in
@@ -313,8 +322,8 @@ module Make(M : Machine_intf.S) = struct
        4. The source node is not live-out.
     *)
     let is_trivial_du_impl data ~insn_blks ~id2rv ~dom m v =
-      not (Bitset.mem data.reg_bits v) &&
-      not (Bitset.mem data.slot_bits v) &&
+      not (is_register' data v) &&
+      not (is_slot' data v) &&
       data.nuse.(v) = 1 &&
       match Hashtbl.find insn_blks m with
       | None -> false
@@ -344,7 +353,7 @@ module Make(M : Machine_intf.S) = struct
     *)
     let priority_impl data ~copies ~id2rv ~insn_blks ~dom m =
       let c = Hashtbl.find_exn copies m in
-      let exclude id = Bitset.mem data.reg_bits id || Bitset.mem data.slot_bits id in
+      let exclude id = is_register' data id || is_slot' data id in
       let pu = exclude c.dst in
       let pv = exclude c.src in
       if pu && pv then 0.0 else
@@ -368,8 +377,8 @@ module Make(M : Machine_intf.S) = struct
         let p = w /. Float.of_int (1 + du + dv) in
         (* If this move is trivially coalescable, bump the weight so that
            it can coalesce earlier. *)
-        let p = if is_trivial_du_impl data ~insn_blks ~id2rv ~dom m c.src
-          then p *. 2.0 else p in
+        let trivial = is_trivial_du_impl data ~insn_blks ~id2rv ~dom m c.src in
+        let p = if trivial then p *. 2.0 else p in
         (* If one of the nodes is pre-colored, this coalesce will be much
            riskier. If both are pre-colored, avoid at all costs (see
            topmost condition). *)
