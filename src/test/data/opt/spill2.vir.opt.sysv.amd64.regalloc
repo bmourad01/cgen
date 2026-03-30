@@ -12,14 +12,13 @@ export function $foo { ; returns: rax
   mov qword ptr [rsp], rsi ; @99
   mov r15, rdx ; @92
   mov r14, rcx ; @93
-  mov r12d, r8d ; @94
-  xor ecx, ecx ; @95
+  xor r9d, r9d ; @95
   xor r13d, r13d ; @96
 @3:
-  cmp r13d, r12d ; @85
+  cmp r13d, r8d ; @85
   jl @6 ; @86
 @7:
-  mov eax, ecx ; @83
+  mov eax, r9d ; @83
   add rsp, 0x10_l ; @108
   pop rbx ; @109
   pop r15 ; @110
@@ -29,34 +28,34 @@ export function $foo { ; returns: rax
   ret ; @84
 @6:
   mov rax, qword ptr [rsp + 0x8] ; @100
-  mov edi, dword ptr [rax + r13*4] ; @16
+  mov r12d, dword ptr [rax + r13*4] ; @16
   mov rax, qword ptr [rsp] ; @101
-  mov r8d, dword ptr [rax + r13*4] ; @17
-  mov r9d, dword ptr [r15 + r13*4] ; @18
-  mov r11d, dword ptr [r14 + r13*4] ; @19
-  xor eax, eax ; @80
+  mov ebx, dword ptr [rax + r13*4] ; @17
+  mov r11d, dword ptr [r15 + r13*4] ; @18
+  mov r10d, dword ptr [r14 + r13*4] ; @19
+  xor edi, edi ; @80
 @9:
-  cmp eax, r12d ; @74
+  cmp edi, r8d ; @74
   jl @21 ; @75
 @22:
-  lea eax, qword ptr [rdi + r8*1] ; @59
-  lea edx, qword ptr [r9 + r11*1] ; @60
-  imul eax, edx ; @73
-  add ecx, eax ; @62
+  lea eax, qword ptr [r12 + rbx*1] ; @59
+  lea ecx, qword ptr [r11 + r10*1] ; @60
+  imul eax, ecx ; @73
+  add r9d, eax ; @62
   inc r13d ; @63
   jmp @3 ; @72
 @21:
-  lea edx, qword ptr [rdi + rax*1] ; @48
-  lea esi, qword ptr [r8 + rax*1] ; @49
-  lea ebx, qword ptr [r9 + rax*1] ; @50
-  lea r10d, qword ptr [r11 + rax*1] ; @51
-  imul edx, esi ; @69
-  mov esi, ebx ; @53
-  imul esi, r10d ; @68
-  add edx, ebx ; @54
-  add esi, r10d ; @55
-  xor edx, esi ; @67
-  add ecx, edx ; @57
-  inc eax ; @58
+  lea ecx, qword ptr [r12 + rdi*1] ; @48
+  lea eax, qword ptr [rbx + rdi*1] ; @49
+  lea esi, qword ptr [r11 + rdi*1] ; @50
+  lea edx, qword ptr [r10 + rdi*1] ; @51
+  imul ecx, eax ; @69
+  mov eax, esi ; @53
+  imul eax, edx ; @68
+  add ecx, esi ; @54
+  add eax, edx ; @55
+  xor ecx, eax ; @67
+  add r9d, ecx ; @57
+  inc edi ; @58
   jmp @9 ; @66
 }

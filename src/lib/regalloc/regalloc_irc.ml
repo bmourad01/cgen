@@ -20,6 +20,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     ensure_degree t u;
     ensure_degree t v;
     if u <> v
+    && not (has_edge t u v)
     && Regs.same_class_node t.![u] t.![v]
     && not (is_slot t u)
     && not (is_slot t v) then begin
@@ -121,22 +122,24 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               t.wsimplify <- Bitset.set t.wsimplify id));
     t.initial <- Bitset.empty
 
+  let enable_moves_one t n =
+    (* ∀ m ∈ NodeMoves(n) *)
+    Wmoves.node_moves t n |> Lset.iter ~f:(fun m ->
+        (* if m ∈ activeMoves then *)
+        if Lset.mem t.data.amoves m then begin
+          Logs.debug (fun m_ ->
+              m_ "%s: enabling move %a for node %a%!"
+                __FUNCTION__ Label.pp m Rv.pp t.![n]);
+          (* activeMoves := activeMoves ∖ {m} *)
+          t.data.amoves <- Lset.remove t.data.amoves m;
+          (* worklistMoves := worklistMoves ∪ {m} *)
+          Wmoves.add t m;
+          Wfreeze.update_for_move t m;
+        end)
+
   let enable_moves t nodes =
     (* ∀ n ∈ nodes *)
-    Bitset.enum nodes |> Seq.iter ~f:(fun id ->
-        (* ∀ m ∈ NodeMoves(m) *)
-        Wmoves.node_moves t id |> Lset.iter ~f:(fun m ->
-            (* if m ∈ activeMoves then *)
-            if Lset.mem t.data.amoves m then begin
-              Logs.debug (fun m_ ->
-                  m_ "%s: enabling move %a for node %a%!"
-                    __FUNCTION__ Label.pp m Rv.pp t.![id]);
-              (* activeMoves := activeMoves ∖ {m} *)
-              t.data.amoves <- Lset.remove t.data.amoves m;
-              (* worklistMoves := worklistMoves ∪ {m} *)
-              Wmoves.add t m;
-              Wfreeze.update_for_move t m;
-            end))
+    Bitset.enum nodes |> Seq.iter ~f:(enable_moves_one t)
 
   (* Simulate removing a node from the interference graph (this is what
      the `degree` table is for). *)
@@ -279,6 +282,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Wfreeze.update t u;
     (* ∀ t ∈ Adjacent(v) *)
     adjacent t v |> Bitset.enum |> Seq.iter ~f:(combine_edge t u);
+    (* Appel book erratum: since our `combine_edge` does not call
+       DecrementDegree on new-edge neighbors (to avoid spurious
+       EnableMoves), v's active moves would otherwise remain in
+       activeMoves indefinitely, keeping their partner nodes
+       falsely move-related. *)
+    enable_moves_one t v;
     if (* degree[u] >= K *)
       degree t u >= Regs.node_k t.![u] &&
       (* u ∈ freezeWorklist *)
@@ -349,42 +358,36 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let () = t.data.amoves <- Lset.add t.data.amoves m in
       Logs.debug (fun m -> m "%s: adding to active moves%!" __FUNCTION__)
 
-  (* pre: m ∈ copies
-
-     Returns the other node `v` of the copy.
-  *)
-  let uvcopy t u m =
-    let c = Hashtbl.find_exn t.copies m in
-    if c.dst = u then Some c.src
-    else if c.src = u then Some c.dst
-    else None
-
   let freeze_moves t u =
-    (* ∀ m(= copy(u,v) or copy(v,u)) ∈ NodeMoves(u) *)
+    let u' = alias t u in
+    (* ∀ m ∈ NodeMoves(u) *)
     Wmoves.node_moves t u |> Lset.iter ~f:(fun m ->
-        (* Check that the copy fits the schema above. *)
-        uvcopy t u m |> Option.iter ~f:(fun v ->
-            (* if m ∈ activeMoves *)
-            if Lset.mem t.data.amoves m then
-              (* activeMoves := activeMoves ∖ {m} *)
-              t.data.amoves <- Lset.remove t.data.amoves m
-            else
-              (* worklistMoves := worklistMoves ∖ {m} *)
-              Wmoves.remove t m;
-            (* frozenMoves := frozenMoves ∪ {m} *)
-            Logs.debug (fun m_ ->
-                m_ "%s: freezing move %a, v=%a"
-                  __FUNCTION__ Label.pp m Rv.pp t.![v]);
-            t.fmoves <- Lset.add t.fmoves m;
-            (* if NodeMoves(v) = {} ∧ degree[v] < K *)
-            if Lset.is_empty (Wmoves.node_moves t v)
-            && degree t v < Regs.node_k t.![v] then begin
-              (* freezeWorklist := freezeWorklist ∖ {v} *)
-              Wfreeze.remove t v;
-              (* simplifyWorklist := simplifyWorklist ∪ {v} *)
-              t.wsimplify <- Bitset.set t.wsimplify v;
-            end else
-              Wfreeze.update t (alias t v)))
+        let c = Hashtbl.find_exn t.copies m in
+        (* GetAlias(src); if it equals GetAlias(u), v is the dst side. *)
+        let y = alias t c.src in
+        let v = if y = u' then alias t c.dst else y in
+        (* if m ∈ activeMoves *)
+        if Lset.mem t.data.amoves m then
+          (* activeMoves := activeMoves ∖ {m} *)
+          t.data.amoves <- Lset.remove t.data.amoves m
+        else
+          (* worklistMoves := worklistMoves ∖ {m} *)
+          Wmoves.remove t m;
+        (* frozenMoves := frozenMoves ∪ {m} *)
+        Logs.debug (fun m_ ->
+            m_ "%s: freezing move %a, v=%a"
+              __FUNCTION__ Label.pp m Rv.pp t.![v]);
+        t.fmoves <- Lset.add t.fmoves m;
+        (* if NodeMoves(v) = {} ∧ degree[v] < K ∧ v not precolored *)
+        if Lset.is_empty (Wmoves.node_moves t v)
+        && degree t v < Regs.node_k t.![v]
+        && not (exclude_from_coloring t v) then begin
+          (* freezeWorklist := freezeWorklist ∖ {v} *)
+          Wfreeze.remove t v;
+          (* simplifyWorklist := simplifyWorklist ∪ {v} *)
+          t.wsimplify <- Bitset.set t.wsimplify v;
+        end else
+          Wfreeze.update t v)
 
   (* pre: wfreeze is not empty *)
   let freeze t =
@@ -466,15 +469,34 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Map.find m size |> Option.bind ~f:(fun rvs ->
         List.find rvs ~f:(fun rv -> not (has_edge t id t.$[rv])))
 
+  (* Remove `r'` from m so it can't be assigned to a third variable.
+     The slot now has two occupants (the original owner and `r`).
+     `find_reusable_slot` only checks interference with the original
+     owner, so a third variable that doesn't interfere with the
+     original owner could incorrectly reuse the slot, but the
+     second occupant (`r`) may be live at the exit and need the slot.
+     Removing `r'` prevents this triple aliasing. *)
+  let update_slot_map m size r' =
+    Map.change m size ~f:(function
+        | None -> None
+        | Some rvs ->
+          let rvs' = List.filter rvs ~f:(fun rv -> not (Rv.equal rv r')) in
+          if List.is_empty rvs' then None else Some rvs')
+
   (* Find the slot already assigned to a copy-related spilled node, if any,
      preferring it to eliminate the slot-to-slot copy in the admin block.
      This is the stack-slot analogue of move biasing in assign_colors. *)
   let preferred_slot t id =
     let rv = t.![id] in
     let try_slot partner =
-      Hashtbl.find t.slots partner |> Option.bind ~f:(fun slot ->
-          Option.some_if (not (has_edge t id t.$[slot])) slot) in
-    (* Cross-round: check persistent phi-copy partners. *)
+      (* Only use a partner's slot when the partner is being spilled
+         in this same round. `alloc_arrays` clears `t.adjlist` between
+         rounds, so `has_edge` returns `false` for genuine interferences
+         that now correspond to old slots, and coalescing to an old slot
+         aliases live ranges. *)
+      if not (Bitset.mem t.spilled t.$[partner]) then None else
+        Hashtbl.find t.slots partner |> Option.bind ~f:(fun slot ->
+            Option.some_if (not (has_edge t id t.$[slot])) slot) in
     phi_pair_partners t rv |> Set.to_sequence |>
     Seq.filter_map ~f:try_slot |> Seq.hd |> function
     | Some _ as phi -> phi
@@ -484,8 +506,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Seq.filter_map ~f:(Hashtbl.find t.copies) |>
       Seq.filter_map ~f:(fun c ->
           let other = if c.dst = id then c.src else c.dst in
-          if not (Bitset.mem t.spilled other) then None
-          else try_slot t.![other]) |> Seq.hd
+          try_slot t.![other]) |> Seq.hd
 
   (* Create slots for spilled nodes. *)
   let make_slots t =
@@ -506,7 +527,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                     __FUNCTION__ Rv.pp r' Rv.pp r);
               Hashtbl.set t.slots ~key:r ~data:r';
               t.data.slot_bits <- Bitset.set t.data.slot_bits rid;
-              acc, m in
+              acc, update_slot_map m size r' in
             match preferred_slot t id with
             | Some r' -> reuse r'
             | None ->
@@ -546,31 +567,48 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       C.Seq.fold ~init ~f:(fun (f, s, m, rl) v ->
           let* ty = typeof t v in
           let slot = Hashtbl.find_exn t.slots v in
-          (* Create a new temporary v_i for each definition and
-             each use. *)
-          let* v' = C.Var.fresh >>| Rv.var (Regs.classof v) in
-          (* a fetch before each use of a v_i *)
-          let* f', rl = if Set.mem use v then
-              let+ label = C.Label.fresh in
-              let insn = match Map.find reload v with
-                | None -> RA.load_from_slot ty ~dst:v' ~src:slot
-                | Some v'' -> RA.move ty ~dst:v' ~src:v'' in
-              Insn.create ~label ~insn :: f,
-              Map.set rl ~key:v ~data:v'
-            else !!(f, rl) in
-          (* Insert a store after each definition of a v_i, *)
-          let+ s', rl = if Set.mem def v then
-              let+ label = C.Label.fresh in
-              let insn = RA.store_to_slot ty insn ~src:v' ~dst:slot in
-              Insn.create ~label ~insn :: s,
-              Map.set rl ~key:v ~data:v'
-            else !!(s, rl) in
-          (* Update the substitution. *)
-          let m' = Map.set m ~key:v ~data:v' in
-          (* initial := initial ∪ newTemps *)
-          add_initial t v';
-          t.types <- Map.set t.types ~key:v' ~data:ty;
-          f', s', m', rl) in
+          let is_use = Set.mem use v and is_def = Set.mem def v in
+          (* Optimization: if `v` is a pure use and we already loaded it
+             earlier in this block (it's in the reload cache `rl`), reuse
+             the existing temp without emitting another load. *)
+          match Map.find rl v with
+          | Some v' when is_use && not is_def ->
+            let m' = Map.set m ~key:v ~data:v' in
+            !!(f, s, m', rl)
+          | _ ->
+            (* Create a new temporary v_i for each definition and each use
+               not already satisfied by the reload cache. *)
+            let* v' = C.Var.fresh >>| Rv.var (Regs.classof v) in
+            (* a fetch before each use of a v_i; cache it for later uses *)
+            let* f', rl = if is_use then
+                let+ label = C.Label.fresh in
+                let insn = RA.load_from_slot ty ~dst:v' ~src:slot in
+                Insn.create ~label ~insn :: f,
+                Map.set rl ~key:v ~data:v'
+              else !!(f, rl) in
+            (* Insert a store after each definition of a v_i; invalidate cache *)
+            let+ s', rl = if is_def then
+                let+ label = C.Label.fresh in
+                let insn = RA.store_to_slot ty insn ~src:v' ~dst:slot in
+                Insn.create ~label ~insn :: s,
+                Map.remove rl v
+              else !!(s, rl) in
+            (* Update the substitution. *)
+            let m' = Map.set m ~key:v ~data:v' in
+            (* initial := initial ∪ newTemps *)
+            add_initial t v';
+            (* Mark `v'` as a reload temporary so `select_spill` avoids it.
+               Reload temps introduced here have short live ranges but can
+               interfere with all K surviving registers at a loop use point,
+               giving them cost/degree < original variables. Without this
+               flag their low cost causes `select_spill` to pick them first,
+               spilling them in `assign_colors` and creating an infinite cascade.
+               Infinite spill cost forces original variables to be simplified
+               first, dropping the reload temps below K so they move to
+               wsimplify and get colored rather than actually spilled. *)
+            t.reload_bits <- Bitset.set t.reload_bits (t.$[v']);
+            t.types <- Map.set t.types ~key:v' ~data:ty;
+            f', s', m', rl) in
     (* Apply the substitution to the existing instruction. *)
     let subst n = Map.find subst n |> Option.value ~default:n in
     let i' = Insn.with_insn i @@ RA.substitute insn subst in
@@ -636,7 +674,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     t.fmoves <- Lset.empty;
     alloc_arrays t
 
-  let rec main t ~round ~max_rounds =
+  let rec main t ~round ~max_rounds ~invariants =
     let* () = C.when_ (round > max_rounds) @@ fun () ->
       C.failf "In Regalloc.main: maximum rounds reached (%d) with no \
                convergence on spilling" max_rounds () in
@@ -646,10 +684,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Build the interference graph. *)
     t.data.live <- Some (Live.compute ~keep:t.keep t.fn);
     let* () = build t in
+    (* Override spill costs for reload temporaries.  After build computes
+       costs from use counts, pin every reload temp to max so `select_spill`
+       never picks them preferentially over original variables. *)
+    Bitset.enum t.reload_bits |> Seq.iter ~f:(fun id ->
+        t.data.spill_cost.(id) <- Int.max_value);
     make_worklist t;
     (* Process the worklists. *)
     let continue = ref true in
     while !continue do
+      if invariants then check_invariants t;
       if not @@ Bitset.is_empty t.wsimplify then
         simplify t
       else if not @@ Wmoves.is_empty t then
@@ -667,7 +711,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     C.unless (Bitset.is_empty t.spilled) @@ fun () ->
     let* () = spill_and_reload t in
     new_round t;
-    main t ~round:(round + 1) ~max_rounds
+    main t ~round:(round + 1) ~max_rounds ~invariants
 
   let apply_alloc t =
     let subst rv =
@@ -693,13 +737,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   module Layout = Regalloc_stack_layout.Make(M)(C)
 
-  let run ?(max_rounds = 40) fn =
+  let run ?(max_rounds = 40) ?(invariants = false) fn =
     let* fn, presize = Layout.pre_assign fn in
     assert (Seq.is_empty @@ Func.slots fn);
     let t = create fn in
     t.fn <- fn;
     initialize t;
-    let* () = main t ~round:1 ~max_rounds in
+    let* () = main t ~round:1 ~max_rounds ~invariants in
     let fn = apply_alloc t in
     Layout.post_assign fn presize
 end

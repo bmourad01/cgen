@@ -124,6 +124,10 @@ let dump_no_comment =
   let doc = "Don't include a descriptive comment when dumping" in
   Arg.(value & flag (info ["dump-no-comment"] ~doc))
 
+let check_invariants =
+  let doc = "Enable internal invariant checking (slow; intended for development)" in
+  Arg.(value & flag (info ["check-invariants"] ~doc))
+
 let man_targets =
   `S "TARGET" ::
   `Pre "Supported target platforms" :: begin
@@ -155,12 +159,13 @@ type output =
   | Ostdout
 
 type t = {
-  file   : input;
-  output : output;
-  dump   : dump;
-  nc     : bool;
-  target : Cgen.Target.t;
-  ifmt   : input_fmt;
+  file       : input;
+  output     : output;
+  dump       : dump;
+  nc         : bool;
+  target     : Cgen.Target.t;
+  ifmt       : input_fmt;
+  invariants : bool;
 }
 
 let log_env = Cmd.Env.info "CGEN_LOG"
@@ -172,7 +177,7 @@ let setup_log level =
 let is_vir = Core.String.is_suffix ~suffix:".vir" [@@ocaml.warning "-32"]
 let is_sir = Core.String.is_suffix ~suffix:".sir"
 
-let go f file output dump nc target ifmt log_level =
+let go f file output dump nc target ifmt invariants log_level =
   setup_log log_level;
   let file = match file with
     | "" -> Istdin
@@ -195,7 +200,7 @@ let go f file output dump nc target ifmt log_level =
     | None -> match file with
       | Ifile f when is_sir f -> IFstructured
       | Ifile _ | Istdin -> IFvirtual in
-  f {file; output; dump; nc; target; ifmt}
+  f {file; output; dump; nc; target; ifmt; invariants}
 
 let t f =
   let open Term in
@@ -206,6 +211,7 @@ let t f =
   dump_no_comment $
   target $
   input_fmt $
+  check_invariants $
   Logs_cli.level ~env:log_env ()
 
 let man = List.concat [

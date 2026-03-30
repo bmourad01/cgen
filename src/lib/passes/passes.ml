@@ -85,7 +85,7 @@ let to_abi tenv m =
     ~dict:(Module.dict m)
     ~data:(Module.data m |> Seq.to_list)
 
-let optimize_abi m =
+let optimize_abi ?(invariants = false) m =
   let*? m = Abi.Module.map_funs_err m ~f:Coalesce_slots.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Resolve_constant_blk_args.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in
@@ -98,8 +98,9 @@ let optimize_abi m =
   let*? m = Abi.Module.map_funs_err m ~f:Resolve_constant_blk_args.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Abi_loadopt.run in
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in
-  let+ () = Context.iter_seq_err (Abi.Module.funs m) ~f:Ssa.check_abi in
-  m
+  let* () = Context.when_ invariants @@ fun () ->
+    Context.iter_seq_err (Abi.Module.funs m) ~f:Ssa.check_abi in
+  !!m
 
 let assert_same_target msg t' =
   let* t = Context.target in
@@ -123,6 +124,7 @@ let isel
     ~name:(Abi.Module.name m) ~funs
 
 let regalloc
+    ?(invariants = false)
     (type i r)
     (module M : Machine_intf.S with type Reg.t = r and type Insn.t = i)
     (m : (i, r) Pseudo.module_) : (i, r) Pseudo.module_ Context.t =
@@ -130,7 +132,7 @@ let regalloc
   let module RA = Regalloc.IRC(M)(Context) in
   let+ funs =
     Pseudo.Module.funs m |>
-    Context.Seq.map ~f:RA.run >>|
+    Context.Seq.map ~f:(RA.run ~invariants) >>|
     Seq.to_list in
   Pseudo.Module.with_funs m funs
 

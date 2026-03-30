@@ -99,6 +99,7 @@ module Make(M : Machine_intf.S) = struct
     mutable adjlist      : Bitset.t array; (* adjacency list of the interference graph *)
     mutable colors       : int array;      (* node colors, -1 = not yet colored *)
     mutable alias        : id array;       (* node aliases (from combine/coalesce) *)
+    mutable reload_bits  : Bitset.t;       (* IDs of reload temporaries from `rewrite_insn` *)
     wspill               : id_heap;
     mutable wspill_elts  : id_elt oarray;
     select               : id Stack.t;
@@ -525,6 +526,7 @@ module Make(M : Machine_intf.S) = struct
       adjlist = [||];
       colors = [||];
       alias = [||];
+      reload_bits = Bitset.empty;
       wspill = H.create ~cmp:wspill_cmp ();
       wspill_elts = Option_array.empty;
       select = Stack.create ();
@@ -557,4 +559,80 @@ module Make(M : Machine_intf.S) = struct
         if Rv.is_reg rv then
           t.data.reg_bits <- Bitset.set t.data.reg_bits t.$[rv]);
     alloc_arrays t
+
+  (* Verify the paper's stated invariants, adapted for our `combine_edge`
+     deviation (no spurious DecrementDegree on new-edge neighbours).
+
+     Strictness:
+     - Partition invariant: every colorable node is in exactly one set.
+     - Degree invariant: degree[u] counts active neighbours exactly.
+     - `wfreeze`: degree < K AND move-related (strict per paper).
+     - `wspill`:  degree >= K (strict per paper).
+     - `wsimplify`: classification relaxed, `combine_edge` can leave
+       nodes move-related (from inherited copies) or high-degree (from
+       `select_spill`) in `wsimplify`, which is benign.
+  *)
+  let check_invariants t =
+    let n = num_nodes t in
+    let wfreeze_set = H.fold t.wfreeze ~init:Bitset.empty ~f:Bitset.set in
+    let wspill_set = H.fold t.wspill ~init:Bitset.empty ~f:Bitset.set in
+    let active =
+      Bitset.union t.wsimplify
+        (Bitset.union wfreeze_set
+           (Bitset.union wspill_set t.data.reg_bits)) in
+    (* Degree invariant *)
+    let check_degree id =
+      let expected =
+        Bitset.enum t.adjlist.(id) |>
+        Seq.count ~f:(Bitset.mem active) in
+      let actual = t.data.degree.(id) in
+      if actual <> expected then
+        failwithf "degree invariant violated for id %d: degree=%d expected=%d"
+          id actual expected () in
+    Bitset.enum t.wsimplify |> Seq.iter ~f:check_degree;
+    H.iter t.wfreeze ~f:check_degree;
+    H.iter t.wspill ~f:check_degree;
+    (* wfreeze invariant: degree < K and move-related *)
+    H.iter t.wfreeze ~f:(fun id ->
+        let d = t.data.degree.(id) in
+        let k = Regs.node_k t.![id] in
+        if d >= k then
+          failwithf "wfreeze invariant: id %d degree=%d >= K=%d" id d k ();
+        if not (Wmoves.move_related t id) then
+          failwithf "wfreeze invariant: id %d not move-related" id ());
+    (* wspill invariant: degree >= K *)
+    H.iter t.wspill ~f:(fun id ->
+        let d = t.data.degree.(id) in
+        let k = Regs.node_k t.![id] in
+        if d < k then
+          failwithf "wspill invariant: id %d degree=%d < K=%d" id d k ());
+    (* Partition invariant: each colorable node in exactly one set *)
+    let select_set = Stack.fold t.select ~init:Bitset.empty ~f:Bitset.set in
+    let partitions = [
+      ("wsimplify", t.wsimplify);
+      ("wfreeze",   wfreeze_set);
+      ("wspill",    wspill_set);
+      ("coalesced", t.coalesced);
+      ("colored",   t.colored);
+      ("select",    select_set);
+      ("initial",   t.initial);
+    ] in
+    let partition_members id =
+      List.filter_map partitions ~f:(fun (name, s) ->
+          Option.some_if (Bitset.mem s id) name) in
+    for id = 0 to n - 1 do
+      if can_be_colored t id then
+        match partition_members id with
+        | [] | [_] -> ()
+        | names ->
+          failwithf "partition invariant: id %d in %s"
+            id (String.concat ~sep:", " names) ()
+    done;
+    (* Adjacency symmetry *)
+    for u = 0 to n - 1 do
+      Bitset.enum t.adjlist.(u) |> Seq.iter ~f:(fun v ->
+          if not (Bitset.mem t.adjlist.(v) u) then
+            failwithf "adjacency symmetry: (%d,%d) present but (%d,%d) absent"
+              u v v u ())
+    done
 end

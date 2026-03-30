@@ -34,7 +34,7 @@ let comp_virtual' (opts : Cli.t) ppf close bail m =
     Format.fprintf ppf "%a\n%!" Structured.Module.pp m;
     bail () in
   let* m = Passes.to_abi tenv m in
-  let* m = Passes.optimize_abi m in
+  let* m = Passes.optimize_abi ~invariants:opts.invariants m in
   if Cli.equal_dump opts.dump Dabi then begin
     if not opts.nc then Format.fprintf ppf ";; After ABI lowering\n\n%!";
     Format.fprintf ppf "%a\n%!" Virtual.Abi.Module.pp m;
@@ -54,7 +54,7 @@ let comp_virtual' (opts : Cli.t) ppf close bail m =
     Format.fprintf ppf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;
     bail ();
   end;
-  let* m = Passes.regalloc (module Machine) m in
+  let* m = Passes.regalloc ~invariants:opts.invariants (module Machine) m in
   if Cli.equal_dump opts.dump Dregalloc then begin
     if not opts.nc then Format.fprintf ppf ";; After register allocation:\n\n%!";
     Format.fprintf ppf "%a\n%!" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m;

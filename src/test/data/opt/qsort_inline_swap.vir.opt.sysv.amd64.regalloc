@@ -2,11 +2,11 @@ module qsort_inline_swap
 
 function $partition { ; returns: rax
 @2:
-  mov r8d, dword ptr [rdi + rdx*4] ; @6
+  mov r9d, dword ptr [rdi + rdx*4] ; @6
   lea rax, qword ptr [rsi - 0x1] ; @52
-  lea rcx, qword ptr [rdx - 0x1] ; @53
+  lea r8, qword ptr [rdx - 0x1] ; @53
 @3:
-  cmp rsi, rcx ; @86
+  cmp rsi, r8 ; @86
   jle @9 ; @87
 @10:
   inc rax ; @62
@@ -17,13 +17,13 @@ function $partition { ; returns: rax
   ret ; @84
 @9:
   mov r10d, dword ptr [rdi + rsi*4] ; @17
-  cmp r10d, r8d ; @77
+  cmp r10d, r9d ; @77
   jg @14 ; @78
 @13:
   inc rax ; @59
-  mov r9d, dword ptr [rdi + rax*4] ; @25
+  mov ecx, dword ptr [rdi + rax*4] ; @25
   mov dword ptr [rdi + rax*4], r10d ; @27
-  mov dword ptr [rdi + rsi*4], r9d ; @28
+  mov dword ptr [rdi + rsi*4], ecx ; @28
 @14:
   inc rsi ; @58
   jmp @3 ; @71
@@ -37,11 +37,11 @@ export function $qsort {
   push r13 ; @121
   push r14 ; @122
   push rbx ; @123
-  mov r14, rdi ; @113
-  mov rbx, rsi ; @114
-  mov r13, rdx ; @115
+  mov r13, rdi ; @113
+  mov r12, rsi ; @114
+  mov r14, rdx ; @115
 @39:
-  cmp rbx, r13 ; @108
+  cmp r12, r14 ; @108
   jl @40 ; @109
 @48:
   pop rbx ; @124
@@ -51,15 +51,15 @@ export function $qsort {
   leave ; @128
   ret ; @107
 @40:
-  mov rdi, r14 ; @43
-  mov rsi, rbx ; @103
-  mov rdx, r13 ; @104
+  mov rdi, r13 ; @43
+  mov rsi, r12 ; @103
+  mov rdx, r14 ; @104
   call $partition ; rdi rdx rsi ; @105
-  mov r12, rax ; @106
-  lea rdx, qword ptr [r12 - 0x1] ; @66
-  mov rdi, r14 ; @45
-  mov rsi, rbx ; @100
+  mov rbx, rax ; @106
+  lea rdx, qword ptr [rbx - 0x1] ; @66
+  mov rdi, r13 ; @45
+  mov rsi, r12 ; @100
   call $qsort ; rdi rdx rsi ; @102
-  lea rbx, qword ptr [r12 + 0x1] ; @67
+  lea r12, qword ptr [rbx + 0x1] ; @67
   jmp @39 ; @99
 }

@@ -19,8 +19,12 @@ val optimize : Typecheck.env -> module_ -> (Typecheck.env * module_) Context.t
 val to_abi : Typecheck.env -> module_ -> Abi.module_ Context.t
 
 (** Runs the middle-end optimizations in the recommended order, for an
-    ABI-lowered module. *)
-val optimize_abi : Abi.module_ -> Abi.module_ Context.t
+    ABI-lowered module.
+
+    When [invariants] is [true], SSA invariants are verified after the
+    pass completes. Defaults to [false].
+*)
+val optimize_abi : ?invariants:bool -> Abi.module_ -> Abi.module_ Context.t
 
 (** Runs instruction selection on the ABI-lowered module according to the
     provided machine implementation.
@@ -40,8 +44,13 @@ val isel :
 
     Will fail if the provided machine interface is not the same target
     as that of the current context (see [Context.target]).
+
+    When [invariants] is [true], internal invariant checking is enabled
+    during register allocation. This is expensive and intended for
+    development and testing; it defaults to [false].
 *)
 val regalloc :
+  ?invariants:bool ->
   (module Machine_intf.S
     with type Reg.t = 'r
      and type Insn.t = 'i) ->

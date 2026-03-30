@@ -28,7 +28,7 @@ let from_file_abi filename =
   let* tenv, m = from_file filename in
   let* m = Passes.to_abi tenv m in
   let* () = Context.iter_seq_err (Virtual.Abi.Module.funs m) ~f:Passes.Ssa.check_abi in
-  Passes.optimize_abi m
+  Passes.optimize_abi ~invariants:true m
 
 let test ?(f = from_file) name _ =
   let filename = vir_or_sir name in
@@ -122,7 +122,7 @@ let test_regalloc target abi ext name _ =
     let* m = Passes.isel (module Machine) m in
     let module Remove_deads = Pseudo_passes.Remove_dead_insns(Machine) in
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
-    let* m = Passes.regalloc (module Machine) m in
+    let* m = Passes.regalloc ~invariants:true (module Machine) m in
     let m = Pseudo.Module.map_funs m ~f:Machine.Peephole.run in
     let m = Pseudo.Module.map_funs m ~f:Remove_deads.run in
     !!(Format.asprintf "%a" (Pseudo.Module.pp Machine.Insn.pp Machine.Reg.pp) m)

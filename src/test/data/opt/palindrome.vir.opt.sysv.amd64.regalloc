@@ -2,30 +2,29 @@ module palindrome
 
 export function $palindrome { ; returns: rax
 @2:
-  xor eax, eax ; @54
-  mov ecx, edi ; @55
+  xor esi, esi ; @54
+  mov eax, edi ; @55
 @3:
-  test ecx, ecx ; @48
+  test eax, eax ; @48
   jne @6 ; @49
 @7:
-  xor ecx, ecx ; @33
-  cmp edi, eax ; @46
-  sete cl ; @47
-  mov al, cl ; @44
+  xor eax, eax ; @33
+  cmp edi, esi ; @46
+  sete al ; @47
   ret ; @45
 @6:
-  movsxd rdx, ecx ; @16
-  imul rdx, rdx, 0x66666667 ; @42
-  sar rdx, 0x20_b ; @43
-  mov esi, edx ; @17
-  sar esi, 0x2_b ; @41
-  shr edx, 0x1f_b ; @40
-  add edx, esi ; @19
-  imul esi, edx, 0xa ; @20
-  sub ecx, esi ; @39
-  lea esi, qword ptr [rax + rax*1] ; @28
-  lea eax, qword ptr [rsi + rax*8] ; @29
-  add eax, ecx ; @30
-  mov ecx, edx ; @36
+  movsxd rcx, eax ; @16
+  imul rcx, rcx, 0x66666667 ; @42
+  sar rcx, 0x20_b ; @43
+  mov edx, ecx ; @17
+  sar edx, 0x2_b ; @41
+  shr ecx, 0x1f_b ; @40
+  add ecx, edx ; @19
+  imul edx, ecx, 0xa ; @20
+  sub eax, edx ; @39
+  lea edx, qword ptr [rsi + rsi*1] ; @28
+  lea edx, qword ptr [rdx + rsi*8] ; @29
+  lea esi, qword ptr [rdx + rax*1] ; @30
+  mov eax, ecx ; @36
   jmp @3 ; @37
 }
