@@ -299,7 +299,7 @@ let pp_op ppf = function
   | Ovastart _ ->
     Format.fprintf ppf "vastart"
 
-let rec pp ppf n =
+let pp ppf n =
   let pp_child = Id.pp in
   match n with
   | N (op, []) -> Format.fprintf ppf "%a" pp_op op
@@ -311,7 +311,7 @@ let rec pp ppf n =
     Format.fprintf ppf "(union %a %a)" pp_child pre pp_child post
 
 let rec pp_full ~f ppf n =
-  let pp_child ppf id = pp ppf @@ f id in
+  let pp_child ppf id = pp_full ~f ppf @@ f id in
   match n with
   | N (op, []) -> Format.fprintf ppf "%a" pp_op op
   | N (op, cs) ->

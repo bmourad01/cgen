@@ -378,7 +378,7 @@ module Generic = struct
     None
   [@@specialise]
 
-  let rec exists t ~f ~measure:_ =
+  let exists t ~f ~measure:_ =
     with_return @@ fun {return} ->
     fold_left t ~init:false ~f:(fun acc x ->
         if f x then return true;
