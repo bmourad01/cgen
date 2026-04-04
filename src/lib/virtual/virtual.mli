@@ -101,15 +101,19 @@ module Insn : sig
 
   (** A call instruction.
 
-      [`call (a, f, args, vargs)]: call to [f] with arguments [args] and
-      [vargs], where [vargs] is the list of variadic arguments. If [a]
-      is [Some (x, t)], then the function returns a value of type [t],
+      [`call (a, f, args, vargs, non_tail)]: call to [f] with arguments
+      [args] and [vargs], where [vargs] is the list of variadic arguments.
+
+      If [a] is [Some (x, t)], then the function returns a value of type [t],
       which is assigned to variable [x].
+
+      If [non_tail = true], then tail-call optimization for this function will
+      be skipped.
 
       Note that variadic calls require at least one non-variadic argument.
   *)
   type call = [
-    | `call of (Var.t * Type.ret) option * global * operand list * operand list
+    | `call of (Var.t * Type.ret) option * global * operand list * operand list * bool
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the call. *)
@@ -234,11 +238,37 @@ type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
 module Eval : Virtual_eval_intf.S
 
 (** Control-flow-effectful instructions. *)
-module Ctrl : Virtual_ctrl_intf.S
-  with type operand := operand
-   and type local := local
-   and type dst := dst
-   and type ret := operand option
+module Ctrl : sig
+  include Virtual_ctrl_intf.Pre with type local := local
+
+  (** A control-flow instruction.
+
+      [`hlt] terminates execution of the program. This is typically used
+      to mark certain program locations as unreachable.
+
+      [`jmp dst] is an unconditional jump to the destination [dst].
+
+      [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
+      is non-zero. Otherwise, the destination is [no].
+
+      [`ret x] returns from a function. If the function returns a value,
+      then [x] holds the value (and must not be [None]).
+
+      [`sw (typ, index, default, table)] implements a jump table.
+      For a variable [index] of type [typ], it will find the associated
+      label of [index] in [table] and jump to it, if it exists. If not,
+      then the destination of the jump is [default].
+  *)
+  type t = [
+    | `hlt
+    | `jmp of dst
+    | `br  of Var.t * dst * dst
+    | `ret of operand option
+    | `sw  of Type.imm * swindex * local * table
+  ] [@@deriving bin_io, compare, equal, sexp]
+
+  include Virtual_ctrl_intf.S with type t := t
+end
 
 type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 
@@ -656,22 +686,48 @@ module Abi : sig
     (** Same as [pp_op]. *)
     val pp : Format.formatter -> t -> unit
 
-    (** Tags for various information about the instruction. *)
-    module Tag : sig
-      (** Do not attempt to transform this call into a tail call. *)
-      val non_tail : unit Dict.tag
-    end
   end
 
   type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
 
   module Eval : Virtual_eval_intf.S
 
-  module Ctrl : Virtual_ctrl_intf.S
-    with type operand := operand
-     and type local := local
-     and type dst := dst
-     and type ret := (string * operand) list
+  module Ctrl : sig
+    include Virtual_ctrl_intf.Pre with type local := local
+
+    (** A control-flow instruction.
+
+        [`hlt] terminates execution of the program. This is typically used
+        to mark certain program locations as unreachable.
+
+        [`jmp dst] is an unconditional jump to the destination [dst].
+
+        [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
+        is non-zero. Otherwise, the destination is [no].
+
+        [`ret x] returns from a function. If the function returns a value,
+        then [x] holds the value (and must not be [None]).
+
+        [`sw (typ, index, default, table)] implements a jump table.
+        For a variable [index] of type [typ], it will find the associated
+        label of [index] in [table] and jump to it, if it exists. If not,
+        then the destination of the jump is [default].
+
+        [`tailcall (f, args)] is a [`call] instruction in tail-position.
+        [f] will be called with [args] and the function will not return
+        to the direct caller.
+    *)
+    type t = [
+      | `hlt
+      | `jmp      of dst
+      | `br       of Var.t * dst * dst
+      | `ret      of (string * operand) list
+      | `sw       of Type.imm * swindex * local * table
+      | `tailcall of global * Insn.callarg list
+    ] [@@deriving bin_io, compare, equal, sexp]
+
+    include Virtual_ctrl_intf.S with type t := t
+  end
 
   type ctrl = Ctrl.t [@@deriving bin_io, compare, equal, sexp]
 

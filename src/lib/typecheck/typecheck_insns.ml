@@ -385,14 +385,14 @@ let check_call env t args vargs : global -> unit t = function
   | `sym _ -> !!() (* No guarantees for a symbol with a non-zero offset. *)
 
 let op_call env : Insn.call -> env t = function
-  | `call (Some (v, t), g, args, vargs) ->
+  | `call (Some (v, t), g, args, vargs, _) ->
     let* () =
       let t = Some (t :> Type.ret) in
       check_call env t args vargs g in
     let* fn = getfn in
     let* t = typeof_type_ret env t in
     M.lift_err @@ Env.add_var fn v t env
-  | `call (None, g, args, vargs) ->
+  | `call (None, g, args, vargs, _) ->
     let+ () = check_call env None args vargs g in
     env
 

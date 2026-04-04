@@ -172,6 +172,8 @@ let emit_insn ppf (_l, i, s) =
   let s = Option.value s ~default:".text" in
   let op = emit_operand in
   match (i : Insn.t) with
+  | One (CALLtail _, a) ->
+    Format.fprintf ppf "  jmp %a\n" op a
   | One (o, a) ->
     Format.fprintf ppf "  %a %a\n" Insn.pp_unop o op a
   | Two (o, a, b) ->

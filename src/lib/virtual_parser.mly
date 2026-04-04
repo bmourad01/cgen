@@ -137,6 +137,7 @@
 %token <Type.basic> COPY SEL
 %token <Type.ret> ACALL
 %token CALL
+%token NONTAIL
 %token <Type.arg> VAARG
 %token VASTART
 %token HLT
@@ -392,7 +393,16 @@ insn:
         Core.List.partition_map args ~f:(function
             | Arg a -> First a
             | Varg a -> Second a) in
-      `call (Some (x, t), f, args, vargs)
+      `call (Some (x, t), f, args, vargs, false)
+    }
+  | x = var EQUALS t = ACALL NONTAIL f = global LPAREN args = call_args RPAREN
+    {
+      let+ x = x and+ f = f and+ args = args in
+      let args, vargs =
+        Core.List.partition_map args ~f:(function
+            | Arg a -> First a
+            | Varg a -> Second a) in
+      `call (Some (x, t), f, args, vargs, true)
     }
   | CALL f = global LPAREN args = call_args RPAREN
     {
@@ -401,7 +411,16 @@ insn:
         Core.List.partition_map args ~f:(function
             | Arg a -> First a
             | Varg a -> Second a) in
-      `call (None, f, args, vargs)
+      `call (None, f, args, vargs, false)
+    }
+  | CALL NONTAIL f = global LPAREN args = call_args RPAREN
+    {
+      let+ f = f and+ args = args in
+      let args, vargs =
+        Core.List.partition_map args ~f:(function
+            | Arg a -> First a
+            | Varg a -> Second a) in
+      `call (None, f, args, vargs, true)
     }
   | x = var EQUALS t = VAARG y = var
     {

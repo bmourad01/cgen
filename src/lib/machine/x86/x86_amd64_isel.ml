@@ -1758,6 +1758,16 @@ end = struct
     let*! y, yt = S.regvar env "y" in
     !!![I.call args (Oreg (y, yt))]
 
+  let tailcall_sym_x_y env =
+    let*! args = S.callargs env "x" in
+    let*! s, o = S.sym env "y" in
+    !!![I.tailcall args (Osym (s, o))]
+
+  let tailcall_r_x_y env =
+    let*! args = S.callargs env "x" in
+    let*! y, yt = S.regvar env "y" in
+    !!![I.tailcall args (Oreg (y, yt))]
+
   let jmp_tbl_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! d, tbl = S.table env "y" in
@@ -2172,6 +2182,11 @@ end = struct
     let call = [
       call_sym_x_y;
       call_r_x_y;
+    ]
+
+    let tailcall = [
+      tailcall_sym_x_y;
+      tailcall_r_x_y;
     ]
   end
 
@@ -3031,6 +3046,11 @@ end = struct
       call x y =>* Group.call;
     ]
 
+    (* tailcall x *)
+    let tailcall_basic = [
+      tailcall x y =>* Group.tailcall;
+    ]
+
     (* sw x tbl *)
     let sw_basic = [
       sw `i8  x y => jmp_tbl_x_y;
@@ -3113,6 +3133,7 @@ end = struct
       br_icmp;
       br_fcmp;
       call_basic;
+      tailcall_basic;
       sw_basic;
       hlt;
       ret;

@@ -94,11 +94,11 @@ let map_op env (op : Insn.op) =
     `bop (x, b, operand l, operand r)
   | `uop (x, u, a) -> `uop (x, u, operand a)
   | `sel (x, t, c, l, r) -> map_sel env x t c l r
-  | `call (x, f, args, vargs) ->
+  | `call (x, f, args, vargs, nt) ->
     let f = map_global env f in
-    let args = List.map args ~f:operand in 
+    let args = List.map args ~f:operand in
     let vargs = List.map vargs ~f:operand in
-    `call (x, f, args, vargs)
+    `call (x, f, args, vargs, nt)
   | `load (x, t, a) -> `load (x, t, operand a)
   | `store (t, v, a) -> `store (t, operand v, operand a)
   | `vastart a -> `vastart (map_global env a)

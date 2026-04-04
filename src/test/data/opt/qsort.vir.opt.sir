@@ -44,11 +44,13 @@ start:
 
 export function $qsort(l %arr, l %low, l %high) {
 start:
+  %0 = copy.l %arr;
   %1 = copy.l %low;
-  while slt.l %1, %high {
-    %p.1 = call.l $partition(%arr, %1, %high);
+  %2 = copy.l %high;
+  while slt.l %1, %2 {
+    %p.1 = call.l $partition(%0, %1, %2);
     %19 = sub.l %p.1, 0x1_l;
-    call $qsort(%arr, %1, %19);
+    call $qsort(%0, %1, %19);
     %20 = add.l %p.1, 0x1_l;
     %1 = copy.l %20
   };

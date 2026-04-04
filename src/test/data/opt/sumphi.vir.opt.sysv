@@ -20,6 +20,5 @@ export function $sumphi(l %a/rdi, l %b/rsi, w %x/rdx) {
 @10:
   jmp @14(%b)
 @14(%rb.3):
-  %s.1/w/rax = call $sum(%rb.3/rdi) ; @18
-  ret rax/%s.1
+  tailcall $sum(%rb.3/rdi)
 }

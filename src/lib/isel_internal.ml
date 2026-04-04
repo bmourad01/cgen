@@ -12,6 +12,7 @@ module Pattern = struct
     | Obool   of bool
     | Obr
     | Ocall
+    | Otailcall
     | Odouble of float
     | Ohlt
     | Ojmp
@@ -44,6 +45,7 @@ module Pattern = struct
     | Obool b -> Format.fprintf ppf "%b" b
     | Obr -> Format.fprintf ppf "br"
     | Ocall -> Format.fprintf ppf "call"
+    | Otailcall -> Format.fprintf ppf "tailcall"
     | Odouble d -> Format.fprintf ppf "%a_d" Float.pp d
     | Ohlt -> Format.fprintf ppf "hlt"
     | Ojmp -> Format.fprintf ppf "jmp"

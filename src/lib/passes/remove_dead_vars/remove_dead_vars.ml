@@ -108,7 +108,11 @@ module A = Make(struct
     module Live = Live
     module Cfg = Cfg
 
-    let map_ctrl = map_ctrl Ctrl.Table.map_exn
+    let map_ctrl unused (c : Ctrl.t) : Ctrl.t * bool = match c with
+      | `tailcall _ -> c, false
+      | (`hlt | `jmp _ | `br _ | `ret _ | `sw _) as c ->
+        let c, b = map_ctrl Ctrl.Table.map_exn unused c in
+        (c :> Ctrl.t), b
   end)
 
 let run fn =

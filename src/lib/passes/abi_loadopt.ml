@@ -299,12 +299,18 @@ module Optimize = struct
         `jmp (d :> dst)
       | _ -> assert false
 
+  let tailcall t f args =
+    let f = global t f in
+    let args = callargs t args in
+    `tailcall (f, args)
+
   let ctrl t : Abi.ctrl -> Abi.ctrl = function
     | `hlt -> `hlt
     | `jmp d -> `jmp (dst t d)
     | `br (c, y, n) -> br t c y n
     | `ret rs -> `ret (List.map rs ~f:(fun (r, o) -> r, operand t o))
     | `sw (ty, i, d, tbl) -> sw t ty i d tbl
+    | `tailcall (f, args) -> tailcall t f args
 
   let setmem t l m =
     t.mem <- Option.merge (Solution.get t.lst l) m ~f:Fn.const
@@ -320,22 +326,23 @@ module Optimize = struct
       Hashtbl.set t.blks ~key:l ~data:b
 end
 
+let run0 fn =
+  let+ t = init fn in
+  let q = Stack.singleton (Label.pseudoentry, t.mem, t.memo) in
+  Stack.until_empty q (fun (l, lst, memo) ->
+      Optimize.step t l lst memo;
+      Semi_nca.Tree.children t.dom l |> Seq.iter ~f:(fun l ->
+          Stack.push q (l, t.mem, t.memo)));
+  Abi.Func.map_blks fn ~f:(fun b ->
+      let b =
+        Abi.Blk.label b |> Hashtbl.find t.blks |>
+        Option.value ~default:b in
+      if Hash_set.is_empty t.nop then b else
+        Abi.Blk.insns b |> Seq.filter ~f:(fun i ->
+            not @@ Hash_set.mem t.nop @@ Abi.Insn.label i) |>
+        Seq.to_list |> Abi.Blk.with_insns b)
+
 let run fn =
-  if Dict.mem (Abi.Func.dict fn) Tags.ssa then
-    let+ t = init fn in
-    let q = Stack.singleton (Label.pseudoentry, t.mem, t.memo) in
-    Stack.until_empty q (fun (l, lst, memo) ->
-        Optimize.step t l lst memo;
-        Semi_nca.Tree.children t.dom l |> Seq.iter ~f:(fun l ->
-            Stack.push q (l, t.mem, t.memo)));
-    Abi.Func.map_blks fn ~f:(fun b ->
-        let b =
-          Abi.Blk.label b |> Hashtbl.find t.blks |>
-          Option.value ~default:b in
-        if Hash_set.is_empty t.nop then b else
-          Abi.Blk.insns b |> Seq.filter ~f:(fun i ->
-              not @@ Hash_set.mem t.nop @@ Abi.Insn.label i) |>
-          Seq.to_list |> Abi.Blk.with_insns b)
-  else
+  if Dict.mem (Abi.Func.dict fn) Tags.ssa then run0 fn else
     E.failf "In Abi_loadopt: function $%s is not in SSA form"
       (Abi.Func.name fn) ()

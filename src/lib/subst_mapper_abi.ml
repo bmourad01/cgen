@@ -53,6 +53,10 @@ let map_ctrl subst : ctrl -> ctrl = function
   | `br (c, y, n) -> map_br subst c y n
   | `ret xs -> `ret (List.map xs ~f:(fun (r, a) -> r, map_arg subst a))
   | `sw (t, i, d, tbl) -> map_sw subst t i d tbl
+  | `tailcall (f, args) ->
+    let f = map_global subst f in
+    let args = List.map args ~f:(map_callarg subst) in
+    `tailcall (f, args)
 
 let map_blk subst b =
   let insns = Blk.insns b |> Seq.map ~f:(map_insn subst) in

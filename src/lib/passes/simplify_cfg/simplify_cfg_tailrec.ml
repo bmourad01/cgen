@@ -13,7 +13,7 @@ let collect_calls env fn =
       match Seq.hd @@ Blk.insns ~rev:true b with
       | None -> acc
       | Some i -> match Insn.op i with
-        | `call (r, `sym (f, 0), args, []) when String.(f = name) ->
+        | `call (r, `sym (f, 0), args, [], false) when String.(f = name) ->
           begin match r, Blk.ctrl b with
             | None, `ret Some _ | Some _, `ret None -> acc
             (* The result of the function isn't used as the return value. *)
@@ -43,8 +43,11 @@ let subst_args subst b =
   let insns, ctrl = Subst_mapper.map_blk subst b in
   insns |> Blk.with_insns b |> Fn.flip Blk.with_ctrl ctrl
 
-let redir_entry e calls b = match Label.Tree.find calls @@ Blk.label b with
+let redir_entry subst e calls b = match Label.Tree.find calls @@ Blk.label b with
   | Some (args, l) ->
+    (* `args` was captured before substitution; apply `subst` so they reference
+       the fresh parameter variables rather than the original function args. *)
+    let args = List.map args ~f:(Subst_mapper.map_arg subst) in
     Blk.remove_insn b l |>
     Fn.flip Blk.with_ctrl (`jmp (`label (e, args)))
   | None -> b
@@ -66,7 +69,7 @@ let go env fn =
   let e = Func.entry fn in
   let blks =
     Func.blks fn |> Seq.map ~f:(subst_args subst) |>
-    Seq.map ~f:(redir_entry e calls) |>
+    Seq.map ~f:(redir_entry subst e calls) |>
     Seq.to_list |> function
     | [] -> assert false
     | e :: rest ->

@@ -35,6 +35,9 @@ module Pattern : sig
     (** [call args x]: call to function [x] with [args] (see [Subst.callargs]).  *)
     val call : sub -> sub -> toplevel
 
+    (** [tailcall args x]: tail call to function [x] with [args] (see [Subst.callargs]).  *)
+    val tailcall : sub -> sub -> toplevel
+
     (** [hlt]: halt the program. *)
     val hlt : toplevel
 

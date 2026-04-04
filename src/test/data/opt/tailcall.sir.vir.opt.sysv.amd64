@@ -1,0 +1,197 @@
+module tailcall
+
+export function $ping { ; returns: rax
+@2:
+  mov %n:w, edi ; @69
+  cmp %n:w, 0x0_w ; @95
+  jle @60 ; @96
+  jmp @4 ; @97
+@60:
+  xor eax, eax ; @93
+  ret ; @94
+@4:
+  lea %19:w, qword ptr [%n - 0x1] ; @70
+  mov edi, %19:w ; @91
+  tailcall $pong ; rdi ; @92
+}
+
+export function $pong { ; returns: rax
+@8:
+  mov %n:w, edi ; @71
+  cmp %n:w, 0x0_w ; @105
+  jle @61 ; @106
+  jmp @10 ; @107
+@61:
+  mov eax, 0x1_w ; @103
+  ret ; @104
+@10:
+  lea %21:w, qword ptr [%n - 0x1] ; @72
+  mov edi, %21:w ; @101
+  tailcall $ping ; rdi ; @102
+}
+
+export function $ping_nontail { ; returns: rax
+@14:
+  mov %n:w, edi ; @73
+  cmp %n:w, 0x0_w ; @120
+  jle @111 ; @121
+  jmp @16 ; @122
+@111:
+  xor %10:w, %10:w ; @118
+  jmp @62 ; @119
+@16:
+  lea %23:w, qword ptr [%n - 0x1] ; @74
+  mov edi, %23:w ; @19
+  call $pong ; rdi ; @116
+  mov %r.1:w, eax ; @117
+  mov %10:w, %r.1:w ; @114
+  jmp @62 ; @115
+@62:
+  mov eax, %10:w ; @112
+  ret ; @113
+}
+
+export function $call_and_ignore { ; returns: rax
+@20:
+  mov %n:w, edi ; @75
+  cmp %n:w, 0x0_w ; @131
+  jle @63 ; @132
+  jmp @22 ; @133
+@22:
+  lea %25:w, qword ptr [%n - 0x1] ; @76
+  mov edi, %25:w ; @25
+  call $pong ; rdi ; @129
+  jmp @63 ; @128
+@63:
+  mov eax, %n:w ; @126
+  ret ; @127
+}
+
+export function $dispatch {
+@26:
+  mov %x:w, edi ; @77
+  mov %y:w, esi ; @144
+  cmp %x:w, %y:w ; @141
+  jl @27 ; @142
+  jmp @28 ; @143
+@28:
+  mov edi, %y:w ; @139
+  tailcall $pong ; rdi ; @140
+@27:
+  mov edi, %x:w ; @137
+  tailcall $ping ; rdi ; @138
+}
+
+export function $mixed_tail { ; returns: rax
+@32:
+  mov %x:w, edi ; @78
+  mov %y:w, esi ; @158
+  test %x:w, %x:w ; @155
+  je @33 ; @156
+  jmp @34 ; @157
+@34:
+  lea %28:w, qword ptr [%x - 0x1] ; @79
+  mov edi, %28:w ; @153
+  tailcall $ping ; rdi ; @154
+@33:
+  mov edi, %y:w ; @36
+  call $pong ; rdi ; @151
+  mov %r.1:w, eax ; @152
+  jmp @65 ; @150
+@65:
+  mov eax, %r.1:w ; @148
+  ret ; @149
+}
+
+export function $gcd_tc { ; returns: rax
+@67:
+  mov %a:w, edi ; @175
+  mov %b:w, esi ; @176
+  mov %15:w, %a:w ; @177
+  mov %16:w, %b:w ; @178
+  jmp @39 ; @179
+@39:
+  test %16:w, %16:w ; @170
+  je @66 ; @171
+  jmp @41 ; @172
+@66:
+  mov eax, %15:w ; @168
+  ret ; @169
+@41:
+  mov eax, %15:w ; @43
+  cdq ; @165
+  idiv %16:w ; @166
+  mov %r.1:w, edx ; @167
+  mov %15:w, %16:w ; @162
+  mov %16:w, %r.1:w ; @163
+  jmp @39 ; @164
+}
+
+export function $sum7 { ; returns: rax
+@45:
+  mov %g:w, dword ptr [rbp + 0x10] ; @81
+  mov %a:w, edi ; @182
+  mov %b:w, esi ; @183
+  mov %c:w, edx ; @184
+  mov %d:w, ecx ; @185
+  mov %e:w, r8d ; @186
+  mov %f:w, r9d ; @187
+  lea %30:w, qword ptr [%a + %b*1] ; @188
+  lea %31:w, qword ptr [%c + %d*1] ; @82
+  lea %32:w, qword ptr [%e + %f*1] ; @83
+  lea %33:w, qword ptr [%30 + %31*1] ; @84
+  lea %36:w, qword ptr [%32 + %g*1] ; @87
+  lea %37:w, qword ptr [%33 + %36*1] ; @88
+  mov eax, %37:w ; @180
+  ret ; @181
+}
+
+export function $tail_sum7_stk { ; returns: rax
+@52:
+  mov %g:w, dword ptr [rbp + 0x10] ; @53
+  mov %a:w, edi ; @191
+  mov %b:w, esi ; @192
+  mov %c:w, edx ; @193
+  mov %d:w, ecx ; @194
+  mov %e:w, r8d ; @195
+  mov %f:w, r9d ; @196
+  mov edi, %a:w ; @197
+  mov esi, %b:w ; @198
+  mov edx, %c:w ; @199
+  mov ecx, %d:w ; @200
+  mov r8d, %e:w ; @201
+  mov r9d, %f:w ; @202
+  sub rsp, 0x10_l ; @203
+  mov dword ptr [rsp], %g:w ; @204
+  call $sum7 ; r8 r9 rcx rdi rdx rsi ; @205
+  add rsp, 0x10_l ; @206
+  mov %r.1:w, eax ; @207
+  mov eax, %r.1:w ; @189
+  ret ; @190
+}
+
+export function $gcd_nt { ; returns: rax
+@54:
+  mov %a:w, edi ; @90
+  mov %b:w, esi ; @224
+  test %b:w, %b:w ; @221
+  je @208 ; @222
+  jmp @56 ; @223
+@208:
+  mov %17:w, %a:w ; @219
+  jmp @68 ; @220
+@56:
+  mov eax, %a:w ; @58
+  cdq ; @216
+  idiv %b:w ; @217
+  mov %r.1:w, edx ; @218
+  mov edi, %b:w ; @59
+  mov esi, %r.1:w ; @213
+  call $gcd_nt ; rdi rsi ; @214
+  mov %s.1:w, eax ; @215
+  mov %17:w, %s.1:w ; @211
+  jmp @68 ; @212
+@68:
+  mov eax, %17:w ; @209
+  ret ; @210
+}

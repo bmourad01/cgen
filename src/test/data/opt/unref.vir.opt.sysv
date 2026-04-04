@@ -14,8 +14,7 @@ function $sum(l %s/rdi) {
 export function $sump(l %p/rdi) {
 @8:
   %6.1 = ld.l %p ; @25
-  %sum.1/w/rax = call $sum(%6.1/rdi) ; @10
-  ret rax/%sum.1
+  tailcall $sum(%6.1/rdi)
 }
 
 export function $mkt(w %a/rdi, w %b/rsi) {
@@ -32,6 +31,5 @@ export function $mkt(w %a/rdi, w %b/rsi) {
 export function $sumt(w %a/rdi, w %b/rsi) {
 @16:
   %12.1/l/rax = call $mkt(%a/rdi, %b/rsi) ; @17
-  %sum.1/w/rax = call $sum(%12.1/rdi) ; @18
-  ret rax/%sum.1
+  tailcall $sum(%12.1/rdi)
 }

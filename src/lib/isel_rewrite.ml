@@ -10,6 +10,7 @@ module Pattern = struct
     let bool b = exp (Obool b)
     let br c y n = Obr & [c; y; n]
     let call a f = Ocall & [a; f]
+    let tailcall a f = Otailcall & [a; f]
     let double d = exp (Odouble d)
     let int i t = exp (Oint (i, t))
     let i8 n = int Bv.(int n mod m8) `i8

@@ -123,7 +123,10 @@ module AL = struct
   module Ctrl = struct
     type t = ctrl
     let free_vars = Ctrl.free_vars
-    let escapes = (escapes_ctrl free_vars :> t -> _)
+    let escapes (c : t) = match c with
+      | `tailcall _ -> free_vars c
+      | (`hlt | `jmp _ | `br _ | `ret _ | `sw _) as c ->
+        escapes_ctrl free_vars c
     let locals = (Phi_values.locals Ctrl.Table.enum :> t -> _)
   end
   module Blk = Blk

@@ -140,7 +140,7 @@ let rec pure t env e : operand Context.t =
     let@ x = insn a in
     !!(`bop (x, b, l, r))
   | E (_, Obool b, []) -> !!(`bool b)
-  | E (_, Ocall (x, _), _) -> !!(`var x)
+  | E (_, Ocall (x, _, _), _) -> !!(`var x)
   | E (_, Odouble d, []) -> !!(`double d)
   | E (_, Oint (i, t), []) -> !!(`int (i, t))
   | E (_, Oload (x, _), _) -> !!(`var x)
@@ -265,18 +265,18 @@ let exp t env l e =
     let* n = dst n in
     let@ () = ctrl in
     br l e c y n
-  | E (_, Ocall0 _, [f; args; vargs]) ->
+  | E (_, Ocall0 (_, nt), [f; args; vargs]) ->
     let* f = global t env f in
     let* args = callargs t env args in
     let* vargs = callargs t env vargs in
     let@ () = insn in
-    !!(`call (None, f, args, vargs))
-  | E (_, Ocall (x, ty), [f; args; vargs]) ->
+    !!(`call (None, f, args, vargs, nt))
+  | E (_, Ocall (x, ty, nt), [f; args; vargs]) ->
     let* f = global t env f in
     let* args = callargs t env args in
     let* vargs = callargs t env vargs in
     let@ () = insn in
-    !!(`call (Some (x, ty), f, args, vargs))
+    !!(`call (Some (x, ty), f, args, vargs, nt))
   | E (_, Oload (x, t), [y]) ->
     let* y = pure y in
     let@ () = insn in

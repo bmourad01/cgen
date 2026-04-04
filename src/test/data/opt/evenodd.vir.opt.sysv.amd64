@@ -15,47 +15,35 @@ function $abs { ; returns: rax
 export function $even { ; returns: rax
 @7:
   mov %n:w, edi ; @10
-  mov edi, %n:w ; @54
-  call $abs ; rdi ; @55
-  mov %n.1:w, eax ; @56
-  test %n.1:w, %n.1:w ; @49
-  je @40 ; @50
-  jmp @9 ; @51
-@40:
-  mov %2:b, 0x1_b ; @47
-  jmp @23 ; @48
+  mov edi, %n:w ; @49
+  call $abs ; rdi ; @50
+  mov %n.1:w, eax ; @51
+  test %n.1:w, %n.1:w ; @44
+  je @23 ; @45
+  jmp @9 ; @46
+@23:
+  mov al, 0x1_b ; @42
+  ret ; @43
 @9:
   lea %8:w, qword ptr [%n.1 - 0x1] ; @29
-  mov edi, %8:w ; @13
-  call $odd ; rdi ; @45
-  mov %b.1:b, al ; @46
-  mov %2:b, %b.1:b ; @43
-  jmp @23 ; @44
-@23:
-  mov al, %2:b ; @41
-  ret ; @42
+  mov edi, %8:w ; @40
+  tailcall $odd ; rdi ; @41
 }
 
 export function $odd { ; returns: rax
 @14:
   mov %n:w, edi ; @17
-  mov edi, %n:w ; @71
-  call $abs ; rdi ; @72
-  mov %n.1:w, eax ; @73
-  test %n.1:w, %n.1:w ; @66
-  je @57 ; @67
-  jmp @16 ; @68
-@57:
-  xor %3:b, %3:b ; @64
-  jmp @24 ; @65
+  mov edi, %n:w ; @61
+  call $abs ; rdi ; @62
+  mov %n.1:w, eax ; @63
+  test %n.1:w, %n.1:w ; @56
+  je @24 ; @57
+  jmp @16 ; @58
+@24:
+  xor al, al ; @54
+  ret ; @55
 @16:
   lea %10:w, qword ptr [%n.1 - 0x1] ; @31
-  mov edi, %10:w ; @20
-  call $even ; rdi ; @62
-  mov %b.1:b, al ; @63
-  mov %3:b, %b.1:b ; @60
-  jmp @24 ; @61
-@24:
-  mov al, %3:b ; @58
-  ret ; @59
+  mov edi, %10:w ; @52
+  tailcall $even ; rdi ; @53
 }

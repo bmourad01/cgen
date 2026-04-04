@@ -254,6 +254,33 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let n = N (Omove, [xid; rid]) in
     ignore @@ new_node ~l t n
 
+  let is_stkarg = function
+    | `stk _ -> true
+    | _ -> false
+
+  let tailcall t l f args =
+    let* () =
+      C.when_ (List.exists args ~f:is_stkarg) @@ C.failf
+        "In Isel_builder.tailcall: \
+         tail call to %a in function $%s: \
+         stack arguments are currently unsupported"
+        Virtual.pp_global f (Func.name t.fn) in
+    let rargs, iargs = List.partition_map args ~f:(function
+        | `reg (a, r) ->
+          if M.Reg.(is_arg @@ of_string_exn r)
+          then First (a, r)
+          else Second (a, r)
+        | `stk _ -> assert false) in
+    let* () = C.List.iter rargs ~f:(call_arg_reg t l) in
+    let* () = C.List.iter iargs ~f:(call_arg_reg t l) in
+    let* f = global t f in
+    let callargs =
+      List.map (rargs @ iargs) ~f:(fun (_, r) ->
+          Rv.reg @@ M.Reg.of_string_exn r) |>
+      List.dedup_and_sort ~compare:Rv.compare in
+    let ca = new_node t @@ Callargs callargs in
+    !!(ignore @@ new_node ~l t @@ N (Otailcall, [ca; f]))
+
   let call t l ret f args =
     let rargs, sargs, iargs = List.partition3_map args ~f:(function
         | `reg (a, r) ->
@@ -386,6 +413,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | `br (c, y, n) -> br t l c y n
     | `ret rets -> ret t l rets
     | `sw (ty, i, d, tbl) -> sw t l ty i d tbl
+    | `tailcall (f, args) -> tailcall t l f args
 
   let regparam t l (x, r, ty) =
     let+ r = reg t r in

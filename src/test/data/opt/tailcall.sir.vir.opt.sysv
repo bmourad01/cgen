@@ -1,0 +1,114 @@
+module tailcall
+
+export function $ping(w %n/rdi) {
+@2:
+  %18 = sle.w %n, 0x0_w ; @69
+  br %18, @60, @4
+@4:
+  %19 = sub.w %n, 0x1_w ; @70
+  tailcall $pong(%19/rdi)
+@60:
+  ret rax/0x0_w
+}
+
+export function $pong(w %n/rdi) {
+@8:
+  %20 = sle.w %n, 0x0_w ; @71
+  br %20, @61, @10
+@10:
+  %21 = sub.w %n, 0x1_w ; @72
+  tailcall $ping(%21/rdi)
+@61:
+  ret rax/0x1_w
+}
+
+export function $ping_nontail(w %n/rdi) {
+@14:
+  %22 = sle.w %n, 0x0_w ; @73
+  br %22, @62(0x0_w), @16
+@16:
+  %23 = sub.w %n, 0x1_w ; @74
+  %r.1/w/rax = call $pong(%23/rdi) ; @19
+  jmp @62(%r.1)
+@62(%10):
+  ret rax/%10
+}
+
+export function $call_and_ignore(w %n/rdi) {
+@20:
+  %24 = sle.w %n, 0x0_w ; @75
+  br %24, @63, @22
+@22:
+  %25 = sub.w %n, 0x1_w ; @76
+  %ignored.1/w/rax = call $pong(%25/rdi) ; @25
+  jmp @63
+@63:
+  ret rax/%n
+}
+
+export function $dispatch(w %x/rdi, w %y/rsi) {
+@26:
+  %26 = slt.w %x, %y ; @77
+  br %26, @27, @28
+@27:
+  tailcall $ping(%x/rdi)
+@28:
+  tailcall $pong(%y/rdi)
+}
+
+export function $mixed_tail(w %x/rdi, w %y/rsi) {
+@32:
+  %27 = eq.w %x, 0x0_w ; @78
+  br %27, @33, @34
+@33:
+  %r.1/w/rax = call $pong(%y/rdi) ; @36
+  jmp @65
+@34:
+  %28 = sub.w %x, 0x1_w ; @79
+  tailcall $ping(%28/rdi)
+@65:
+  ret rax/%r.1
+}
+
+export function $gcd_tc(w %a/rdi, w %b/rsi) {
+@67:
+  jmp @39(%a, %b)
+@39(%15, %16):
+  %29 = eq.w %16, 0x0_w ; @80
+  br %29, @66, @41
+@41:
+  %r.1 = rem.w %15, %16 ; @43
+  jmp @39(%16, %r.1)
+@66:
+  ret rax/%15
+}
+
+export function $sum7(w %a/rdi, w %b/rsi, w %c/rdx, w %d/rcx, w %e/r8, w %f/r9, w %g/+0) {
+@45:
+  %30 = add.w %a, %b ; @81
+  %31 = add.w %c, %d ; @82
+  %32 = add.w %e, %f ; @83
+  %33 = add.w %30, %31 ; @84
+  %36 = add.w %32, %g ; @87
+  %37 = add.w %33, %36 ; @88
+  ret rax/%37
+}
+
+export function $tail_sum7_stk(w %a/rdi, w %b/rsi, w %c/rdx, w %d/rcx, w %e/r8, w %f/r9, w %g/+0) {
+@52:
+  %r.1/w/rax = call $sum7(%a/rdi, %b/rsi, %c/rdx, %d/rcx, %e/r8, %f/r9, %g/+0)
+  ; @53
+  ret rax/%r.1
+}
+
+export function $gcd_nt(w %a/rdi, w %b/rsi) {
+@54:
+  %39 = eq.w %b, 0x0_w ; @90
+  br %39, @68(%a), @56
+@56:
+  %r.1 = rem.w %a, %b ; @58
+  %s.1/w/rax = call $gcd_nt(%b/rdi, %r.1/rsi) ; @59
+  jmp @68(%s.1)
+@68(%17):
+  ret rax/%17
+}

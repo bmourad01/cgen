@@ -225,8 +225,8 @@ let make_top s x = function
   | `name _ -> s
 
 let interp_call _ctx s : Insn.call -> state = function
-  | `call (Some (x, t), _, _, _) -> make_top s x t
-  | `call (None, _, _, _) -> s
+  | `call (Some (x, t), _, _, _, _) -> make_top s x t
+  | `call (None, _, _, _, _) -> s
 
 (* TODO: maybe model memory? *)
 let interp_mem _ctx s : Insn.mem -> state = function

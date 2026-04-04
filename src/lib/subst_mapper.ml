@@ -51,11 +51,11 @@ let map_op subst (op : Insn.op) =
   | `bop (x, b, l, r) -> `bop (x, b, arg l, arg r)
   | `uop (x, u, a) -> `uop (x, u, arg a)
   | `sel (x, t, c, l, r) -> map_sel subst x t c l r
-  | `call (x, f, args, vargs) ->
+  | `call (x, f, args, vargs, nt) ->
     let f = map_global subst f in
     let args = List.map args ~f:arg in
     let vargs = List.map vargs ~f:arg in
-    `call (x, f, args, vargs)
+    `call (x, f, args, vargs, nt)
   | `load (x, t, a) -> `load (x, t, arg a)
   | `store (t, v, a) -> `store (t, arg v, arg a)
   | `vastart a -> `vastart (map_global subst a)

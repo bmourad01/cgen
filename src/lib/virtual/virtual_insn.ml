@@ -207,18 +207,18 @@ let pp_basic ppf : basic -> unit = function
       Var.pp x Type.pp_basic t Var.pp c pp_operand l pp_operand r
 
 type call = [
-  | `call of (Var.t * Type.ret) option * global * operand list * operand list
+  | `call of (Var.t * Type.ret) option * global * operand list * operand list * bool
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars_of_call : call -> Var.Set.t = function
-  | `call (_, f, args, vargs) ->
+  | `call (_, f, args, vargs, _) ->
     let f = var_of_global f |> var_set_of_option in
     let args = List.filter_map args ~f:var_of_operand |> Var.Set.of_list in
     let vargs = List.filter_map vargs ~f:var_of_operand |> Var.Set.of_list in
     Var.Set.union_list [f; args; vargs]
 
 let is_variadic : call -> bool = function
-  | `call (_, _, _, vargs) -> not @@ List.is_empty vargs
+  | `call (_, _, _, vargs, _) -> not @@ List.is_empty vargs
 
 let pp_call_args ppf args =
   let pp_sep ppf () = Format.fprintf ppf ", " in
@@ -230,19 +230,21 @@ let pp_call_vargs args ppf = function
     if not (List.is_empty args) then Format.fprintf ppf ", ";
     Format.fprintf ppf "..., %a" pp_call_args vargs
 
-let pp_call_res ppf = function
-  | None -> Format.fprintf ppf "call "
+let pp_call_res ppf (res, non_tail) =
+  let nt = if non_tail then "nontail " else "" in
+  match res with
+  | None -> Format.fprintf ppf "call %s" nt
   | Some (x, `name n) ->
-    Format.fprintf ppf "%a = call:%s " Var.pp x n
+    Format.fprintf ppf "%a = call:%s %s" Var.pp x n nt
   | Some (x, ((#Type.basic | `si8 | `si16 | `si32) as t)) ->
-    Format.fprintf ppf "%a = call.%a " Var.pp x Type.pp_ret t
+    Format.fprintf ppf "%a = call.%a %s" Var.pp x Type.pp_ret t nt
 
 let pp_call ppf c =
-  let res, dst, args, vargs = match c with
-    | `call (Some (v, t), d, a, va) -> Some (v, t), d, a, va
-    | `call (None, d, a, va) -> None, d, a, va in
+  let res, dst, args, vargs, non_tail = match c with
+    | `call (Some (v, t), d, a, va, nt) -> Some (v, t), d, a, va, nt
+    | `call (None, d, a, va, nt) -> None, d, a, va, nt in
   Format.fprintf ppf "%a%a(%a%a)"
-    pp_call_res res
+    pp_call_res (res, non_tail)
     pp_global dst
     pp_call_args args
     (pp_call_vargs args) vargs
@@ -306,7 +308,7 @@ let lhs_of_op : op -> Var.t option = function
   | `bop     (x, _, _, _)
   | `uop     (x, _, _)
   | `sel     (x, _, _, _, _)
-  | `call    (Some (x, _), _, _, _)
+  | `call    (Some (x, _), _, _, _, _)
   | `load    (x, _, _)
   | `vaarg   (x, _, _) -> Some x
   | `call    _ -> None

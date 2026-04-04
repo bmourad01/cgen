@@ -169,6 +169,7 @@ rule token = parse
   | "call" '.' "sw" { ACALL `si32 }
   | "call" ':' (ident as id) { ACALL (`name id) }
   | "call" { CALL }
+  | "nontail" { NONTAIL }
   | "vaarg" '.' (basic as t) { VAARG (basic_of_char t :> Type.arg) }
   | "vaarg" ':' (ident as id) { VAARG (`name id) }
   | "vastart" { VASTART }

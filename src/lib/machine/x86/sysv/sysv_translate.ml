@@ -67,19 +67,26 @@ module Make(Context : Context_intf.S_virtual) = struct
       Hashtbl.find env.blits l |>
       Option.iter ~f:(List.iter ~f:(Vec.push ivec))
 
-  let transl_call env ivec l f =
+  let transl_call env t l f =
     let k = Hashtbl.find_exn env.calls l in
     (* Instructions before the call. *)
-    Ftree.iter k.callai ~f:(Vec.push ivec);
-    (* Register and memory arguments. *)
-    let args = Ftree.to_list k.callar in
-    (* The call itself. *)
-    let c = `call (k.callrr, transl_global env f, args) in
-    Vec.push ivec @@ Abi.Insn.create ~label:l c;
-    (* Instructions after the call. *)
-    Ftree.iter k.callri ~f:(Vec.push ivec)
+    Ftree.iter k.callai ~f:(Vec.push t.ivec);
+    if Hash_set.mem env.tailcalls l then
+      (* Tail call should override the `ctrl` for this block;
+         remember that `transl_ctrl` is called first. *)
+      let args = Ftree.to_list k.callar in
+      t.cins <- [];
+      t.ctrl <- `tailcall (transl_global env f, args)
+    else
+      (* Register and memory arguments. *)
+      let args = Ftree.to_list k.callar in
+      (* The call itself. *)
+      let c = `call (k.callrr, transl_global env f, args) in
+      Vec.push t.ivec @@ Abi.Insn.create ~label:l c;
+      (* Instructions after the call. *)
+      Ftree.iter k.callri ~f:(Vec.push t.ivec)
 
-  let transl_insn env ivec i =
+  let transl_insn env t ivec i =
     let l = Insn.label i in
     let ins = Abi.Insn.create ~label:l in
     match Insn.op i with
@@ -90,8 +97,8 @@ module Make(Context : Context_intf.S_virtual) = struct
     | `vastart _ ->
       Hashtbl.find_exn env.vastart l |>
       List.iter ~f:(Vec.push ivec)
-    | `call (_, f, _, _) ->
-      transl_call env ivec l f
+    | `call (_, f, _, _, _) ->
+      transl_call env t l f
     | `vaarg _ ->
       (* Should be handled in `transl_blk`. *)
       assert false
@@ -182,7 +189,7 @@ module Make(Context : Context_intf.S_virtual) = struct
         transl_uitof t env label ti tf x a rest
       | _ ->
         (* No splitting needed. *)
-        transl_insn env t.ivec i;
+        transl_insn env t t.ivec i;
         transl_blk t env label rest
 
   (* Translate a `vaarg` instruction in the middle of a block. This is

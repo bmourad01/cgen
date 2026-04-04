@@ -168,6 +168,7 @@ type env = {
   tenv          : Typecheck.env;               (* Typing environment. *)
   rets          : ret Label.Table.t;           (* Lowered `ret` instructions. *)
   calls         : call Label.Table.t;          (* Lowered `call` instructions. *)
+  tailcalls     : Label.Hash_set.t;            (* Labels of tail-call-eligible calls. *)
   refs          : Var.t Var.Table.t;           (* Struct var to its slot. *)
   unrefs        : Abi.insn list Var.Table.t;   (* `unref` to blit. *)
   blits         : Abi.insn list Label.Table.t; (* Stores of structs. *)
@@ -202,6 +203,7 @@ let init_env tenv fn =
     tenv;
     rets = Label.Table.create ();
     calls = Label.Table.create ();
+    tailcalls = Label.Hash_set.create ();
     refs = Var.Table.create ();
     unrefs = Var.Table.create ();
     blits = Label.Table.create ();

@@ -89,24 +89,26 @@ module type S = sig
      and type memty := Type.arg
      and type 'a context := 'a context
 
-  (** [call0 f args vargs ?dict] constructs a void [`call] instruction
+  (** [call0 f args vargs ?dict ?non_tail] constructs a void [`call] instruction
       with a fresh label. *)
   val call0 :
     ?dict:Dict.t ->
+    ?non_tail:bool ->
     Virtual.global ->
     Virtual.operand list ->
     Virtual.operand list ->
     Virtual.insn context
 
-  (** [call t f args vargs ?dict] constructs a [`call] instruction with a
+  (** [call t f args vargs ?dict ?non_tail] constructs a [`call] instruction with a
       fresh label and variable containing the destination. *)
   val call :
     ?dict:Dict.t ->
+    ?non_tail:bool ->
     Type.ret ->
     Virtual.global ->
     Virtual.operand list ->
     Virtual.operand list ->
-    (var * Virtual.insn) context 
+    (var * Virtual.insn) context
 
   (** [vaarg t a ?dict] constructs a [`vaarg] instruction with a fresh label
       and variable containing the destination. *)
