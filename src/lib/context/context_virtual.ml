@@ -25,12 +25,12 @@ let sel ?(dict = Dict.empty) t c y n =
   let+ i = insn (`sel (var, t, c, y, n)) ~dict in
   var, i
 
-let call0 ?(dict = Dict.empty) f args vargs =
-  insn (`call (None, f, args, vargs)) ~dict
+let call0 ?(dict = Dict.empty) ?(non_tail = false) f args vargs =
+  insn (`call (None, f, args, vargs, non_tail)) ~dict
 
-let call ?(dict = Dict.empty) t f args vargs =
+let call ?(dict = Dict.empty) ?(non_tail = false) t f args vargs =
   let* var = Var.fresh in
-  let+ i = insn (`call (Some (var, t), f, args, vargs)) ~dict in
+  let+ i = insn (`call (Some (var, t), f, args, vargs, non_tail)) ~dict in
   var, i
 
 let load ?(dict = Dict.empty) t a =

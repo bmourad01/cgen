@@ -1,0 +1,115 @@
+module tailcall
+
+export function w $ping(w %n) {
+@6:
+  %0 = sle.w %n, 0x0_w ; @7
+  br %0, @5, @2
+@5:
+  ret 0x0_w
+@2:
+  %n1 = sub.w %n, 0x1_w ; @4
+  %r = call.w $pong(%n1) ; @3
+  ret %r
+}
+
+export function w $pong(w %n) {
+@12:
+  %1 = sle.w %n, 0x0_w ; @13
+  br %1, @11, @8
+@11:
+  ret 0x1_w
+@8:
+  %n1 = sub.w %n, 0x1_w ; @10
+  %r = call.w $ping(%n1) ; @9
+  ret %r
+}
+
+export function w $ping_nontail(w %n) {
+@18:
+  %2 = sle.w %n, 0x0_w ; @19
+  br %2, @17, @14
+@17:
+  ret 0x0_w
+@14:
+  %n1 = sub.w %n, 0x1_w ; @16
+  %r = call.w nontail $pong(%n1) ; @15
+  ret %r
+}
+
+export function w $call_and_ignore(w %n) {
+@24:
+  %3 = sle.w %n, 0x0_w ; @25
+  br %3, @23, @20
+@23:
+  ret %n
+@20:
+  %n1 = sub.w %n, 0x1_w ; @22
+  %ignored = call.w $pong(%n1) ; @21
+  ret %n
+}
+
+export function w $dispatch(w %x, w %y) {
+@30:
+  %4 = slt.w %x, %y ; @31
+  br %4, @28, @26
+@28:
+  %r = call.w $ping(%x) ; @29
+  ret %r
+@26:
+  %r = call.w $pong(%y) ; @27
+  ret %r
+}
+
+export function w $mixed_tail(w %x, w %y) {
+@37:
+  %5 = eq.w %x, 0x0_w ; @38
+  br %5, @35, @32
+@35:
+  %r = call.w nontail $pong(%y) ; @36
+  ret %r
+@32:
+  %x1 = sub.w %x, 0x1_w ; @34
+  %r = call.w $ping(%x1) ; @33
+  ret %r
+}
+
+export function w $gcd_tc(w %a, w %b) {
+@43:
+  %6 = eq.w %b, 0x0_w ; @44
+  br %6, @42, @39
+@42:
+  ret %a
+@39:
+  %r = rem.w %a, %b ; @41
+  %s = call.w $gcd_tc(%b, %r) ; @40
+  ret %s
+}
+
+export function w $sum7(w %a, w %b, w %c, w %d, w %e, w %f, w %g) {
+@45:
+  %ab = add.w %a, %b ; @51
+  %cd = add.w %c, %d ; @50
+  %ef = add.w %e, %f ; @49
+  %abcd = add.w %ab, %cd ; @48
+  %abcdef = add.w %abcd, %ef ; @47
+  %r = add.w %abcdef, %g ; @46
+  ret %r
+}
+
+export function w $tail_sum7_stk(w %a, w %b, w %c, w %d, w %e, w %f, w %g) {
+@52:
+  %r = call.w $sum7(%a, %b, %c, %d, %e, %f, %g) ; @53
+  ret %r
+}
+
+export function w $gcd_nt(w %a, w %b) {
+@58:
+  %7 = eq.w %b, 0x0_w ; @59
+  br %7, @57, @54
+@57:
+  ret %a
+@54:
+  %r = rem.w %a, %b ; @56
+  %s = call.w nontail $gcd_nt(%b, %r) ; @55
+  ret %s
+}

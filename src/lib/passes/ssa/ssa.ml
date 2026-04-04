@@ -85,12 +85,12 @@ module V = Make(struct
       let opnd = rename_operand ~stk in
       let args = List.map ~f:opnd in
       match (op : Insn.op) with
-      | `call (r, f, a, va) ->
+      | `call (r, f, a, va, nt) ->
         let f = glo f in
         let a = args a in
         let va = args va in
         let r = acall ~rename r in
-        `call (r, f, a, va)
+        `call (r, f, a, va, nt)
       | `vaarg (x, t, y) ->
         let y = glo y in
         let x = rename x in
@@ -139,7 +139,10 @@ module A = Make(struct
     module Live = Abi.Live
     module Resolver = Abi.Resolver
 
-    let argify_ctrl = argify_ctrl Ctrl.Table.map_exn
+    let argify_ctrl ~inc (c : Ctrl.t) : Ctrl.t = match c with
+      | `tailcall _ -> c
+      | (`hlt | `jmp _ | `br _ | `ret _ | `sw _) as c ->
+        (argify_ctrl Ctrl.Table.map_exn ~inc c :> Ctrl.t)
 
     let acall ~rename =
       List.map ~f:(fun (x, t, r) -> rename x, t, r)
@@ -187,9 +190,13 @@ module A = Make(struct
       | `stkargs x ->
         `stkargs (rename x)
 
-    let rename_ctrl ~stk = rename_ctrl ~stk
-        (List.map ~f:(fun (r, a) -> r, rename_operand ~stk a))
-        Ctrl.Table.map_exn
+    let rename_ctrl ~stk (c : Ctrl.t) : Ctrl.t = match c with
+      | `tailcall (f, args) ->
+        `tailcall (rename_global ~stk f, callargs ~stk args)
+      | (`hlt | `jmp _ | `br _ | `ret _ | `sw _) as c ->
+        (rename_ctrl ~stk
+           (List.map ~f:(fun (r, a) -> r, rename_operand ~stk a))
+           Ctrl.Table.map_exn c :> Ctrl.t)
   end)
 
 let run = V.run

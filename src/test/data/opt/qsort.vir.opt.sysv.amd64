@@ -64,22 +64,24 @@ export function $qsort {
   mov %arr:l, rdi ; @119
   mov %low:l, rsi ; @120
   mov %high:l, rdx ; @121
-  mov %1:l, %low:l ; @122
-  jmp @38 ; @123
+  mov %0:l, %arr:l ; @122
+  mov %1:l, %low:l ; @123
+  mov %2:l, %high:l ; @124
+  jmp @38 ; @125
 @38:
-  cmp %1:l, %high:l ; @114
+  cmp %1:l, %2:l ; @114
   jl @39 ; @115
   jmp @47 ; @116
 @47:
   ret ; @113
 @39:
-  mov rdi, %arr:l ; @42
+  mov rdi, %0:l ; @42
   mov rsi, %1:l ; @109
-  mov rdx, %high:l ; @110
+  mov rdx, %2:l ; @110
   call $partition ; rdi rdx rsi ; @111
   mov %p.1:l, rax ; @112
   lea %19:l, qword ptr [%p.1 - 0x1] ; @65
-  mov rdi, %arr:l ; @44
+  mov rdi, %0:l ; @44
   mov rsi, %1:l ; @106
   mov rdx, %19:l ; @107
   call $qsort ; rdi rdx rsi ; @108

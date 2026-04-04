@@ -31,35 +31,35 @@ function $partition { ; returns: rax
 
 export function $qsort {
 @49:
-  push rbp ; @118
-  mov rbp, rsp ; @119
-  push r12 ; @120
-  push r13 ; @121
-  push r14 ; @122
-  push rbx ; @123
+  push rbp ; @120
+  mov rbp, rsp ; @121
+  push r12 ; @122
+  push r13 ; @123
+  push r14 ; @124
+  push rbx ; @125
   mov r13, rdi ; @113
   mov r12, rsi ; @114
-  mov r14, rdx ; @115
+  mov rbx, rdx ; @115
 @39:
-  cmp r12, r14 ; @108
+  cmp r12, rbx ; @108
   jl @40 ; @109
 @48:
-  pop rbx ; @124
-  pop r14 ; @125
-  pop r13 ; @126
-  pop r12 ; @127
-  leave ; @128
+  pop rbx ; @126
+  pop r14 ; @127
+  pop r13 ; @128
+  pop r12 ; @129
+  leave ; @130
   ret ; @107
 @40:
   mov rdi, r13 ; @43
   mov rsi, r12 ; @103
-  mov rdx, r14 ; @104
+  mov rdx, rbx ; @104
   call $partition ; rdi rdx rsi ; @105
-  mov rbx, rax ; @106
-  lea rdx, qword ptr [rbx - 0x1] ; @66
+  mov r14, rax ; @106
+  lea rdx, qword ptr [r14 - 0x1] ; @66
   mov rdi, r13 ; @45
   mov rsi, r12 ; @100
   call $qsort ; rdi rdx rsi ; @102
-  lea r12, qword ptr [rbx + 0x1] ; @67
+  lea r12, qword ptr [r14 + 0x1] ; @67
   jmp @39 ; @99
 }

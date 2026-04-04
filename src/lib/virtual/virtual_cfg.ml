@@ -18,6 +18,7 @@ let accum tbl g b : _ -> G.t = function
     G.Edge.(insert (create b l ()) g)
   | `br _ -> g
   | `ret _ -> g
+  | `tailcall _ -> g
   | `sw (_, _, `label (d, _), t) ->
     let init = G.Edge.(insert (create b d ()) g) in
     tbl t |> Seq.fold ~init

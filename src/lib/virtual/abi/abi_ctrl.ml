@@ -11,10 +11,11 @@ let var_of_swindex = Virtual_ctrl.var_of_swindex
 
 type t = [
   | `hlt
-  | `jmp of dst
-  | `br  of Var.t * dst * dst
-  | `ret of (string * operand) list
-  | `sw  of Type.imm * swindex * local * table
+  | `jmp      of dst
+  | `br       of Var.t * dst * dst
+  | `ret      of (string * operand) list
+  | `sw       of Type.imm * swindex * local * table
+  | `tailcall of global * Abi_insn.callarg list
 ] [@@deriving bin_io, compare, equal, sexp]
 
 let free_vars : t -> Var.Set.t = function
@@ -36,6 +37,10 @@ let free_vars : t -> Var.Set.t = function
       free_vars_of_local d;
       Table.free_vars tbl;
     ]
+  | `tailcall (f, args) ->
+    let fv = var_of_global f |> var_set_of_option in
+    let av = List.map args ~f:Abi_insn.free_vars_of_callarg |> Var.Set.union_list in
+    Set.union fv av
 
 let pp ppf : t -> unit = function
   | `hlt -> Format.fprintf ppf "hlt"
@@ -53,3 +58,6 @@ let pp ppf : t -> unit = function
   | `sw (t, x, ld, tbl) ->
     Format.fprintf ppf "switch.%a %a, %a [@[<v 0>%a@]]"
       Type.pp_imm t pp_swindex x pp_local ld Table.pp tbl
+  | `tailcall (f, args) ->
+    Format.fprintf ppf "tailcall %a(%a)"
+      pp_global f Abi_insn.pp_call_args args

@@ -20,6 +20,7 @@ let locals enum =
     | `br (_, `label (y, ys), `label (n, ns)) -> [y, ys; n, ns]
     | `ret _ -> []
     | `sw (_, _, `label (d, ds), tbl) -> table enum d ds tbl
+    | `tailcall _ -> []
 
 module type Domain = sig
   type t [@@deriving equal]

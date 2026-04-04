@@ -1,0 +1,99 @@
+module tailcall
+
+export function w $ping(w %n) {
+start:
+  when sle.w %n, 0_w {
+    ret 0_w
+  };
+  %n1 = sub.w %n, 1_w;
+  %r = call.w $pong(%n1);
+  ret %r
+}
+
+export function w $pong(w %n) {
+start:
+  when sle.w %n, 0_w {
+    ret 1_w
+  };
+  %n1 = sub.w %n, 1_w;
+  %r = call.w $ping(%n1);
+  ret %r
+}
+
+export function w $ping_nontail(w %n) {
+start:
+  when sle.w %n, 0_w {
+    ret 0_w
+  };
+  %n1 = sub.w %n, 1_w;
+  %r = call.w nontail $pong(%n1);
+  ret %r
+}
+
+export function w $call_and_ignore(w %n) {
+start:
+  when sle.w %n, 0_w {
+    ret %n
+  };
+  %n1 = sub.w %n, 1_w;
+  %ignored = call.w $pong(%n1);
+  ret %n
+}
+
+export function w $dispatch(w %x, w %y) {
+start:
+  when slt.w %x, %y {
+    %r = call.w $ping(%x);
+    ret %r
+  };
+  %r = call.w $pong(%y);
+  ret %r
+}
+
+export function w $mixed_tail(w %x, w %y) {
+start:
+  when eq.w %x, 0_w {
+    %r = call.w nontail $pong(%y);
+    ret %r
+  };
+  %x1 = sub.w %x, 1_w;
+  %r = call.w $ping(%x1);
+  ret %r
+}
+
+export function w $gcd_tc(w %a, w %b) {
+start:
+  when eq.w %b, 0_w {
+    ret %a
+  };
+  %r = rem.w %a, %b;
+  %s = call.w $gcd_tc(%b, %r);
+  ret %s
+}
+
+export function w $sum7(w %a, w %b, w %c, w %d, w %e, w %f, w %g) {
+start:
+  %ab = add.w %a, %b;
+  %cd = add.w %c, %d;
+  %ef = add.w %e, %f;
+  %abcd = add.w %ab, %cd;
+  %abcdef = add.w %abcd, %ef;
+  %r = add.w %abcdef, %g;
+  ret %r
+}
+
+export function w $tail_sum7_stk(w %a, w %b, w %c, w %d, w %e, w %f, w %g) {
+start:
+  %r = call.w $sum7(%a, %b, %c, %d, %e, %f, %g);
+  ret %r
+}
+
+export function w $gcd_nt(w %a, w %b) {
+start:
+  when eq.w %b, 0_w {
+    ret %a
+  };
+  %r = rem.w %a, %b;
+  %s = call.w nontail $gcd_nt(%b, %r);
+  ret %s
+}

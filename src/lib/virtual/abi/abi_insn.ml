@@ -166,11 +166,6 @@ let can_load t = can_load_op t.op
 let pp ppf d =
   Format.fprintf ppf "@[%a@ @[; %a@]@]" pp_op d.op Label.pp d.label
 
-module Tag = struct
-  let non_tail = Dict.register
-      ~uuid:"3d94ecfb-36c4-4218-abc7-96c2200b4e04"
-      "non-tail" (module Unit)
-end
 
 let def_of_op = function
   | `bop (x, _, _, _)

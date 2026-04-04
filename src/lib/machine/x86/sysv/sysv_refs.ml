@@ -79,7 +79,7 @@ module Make(Context : Context_intf.S_virtual) = struct
             | `store (`name s, v, a) ->
               make_store env (Insn.label i) s v a
             | `vaarg (x, `name s, _)
-            | `call (Some (x, `name s), _, _, _) ->
+            | `call (Some (x, `name s), _, _, _, _) ->
               let* k = type_cls env s in
               let+ y = new_slot env k.size k.align in
               Hashtbl.set env.refs ~key:x ~data:y

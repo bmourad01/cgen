@@ -1,11 +1,8 @@
 open Core
 open Regular.Std
 
-module type S = sig
-  type operand
+module type Pre = sig
   type local
-  type dst
-  type ret
 
   (** A switch table. *)
   module Table : sig
@@ -62,32 +59,10 @@ module type S = sig
   ] [@@deriving bin_io, compare, equal, sexp]
 
   val pp_swindex : Format.formatter -> swindex -> unit
+end
 
-  (** A control-flow instruction.
-
-      [`hlt] terminates execution of the program. This is typically used
-      to mark certain program locations as unreachable.
-
-      [`jmp dst] is an unconditional jump to the destination [dst].
-
-      [`br (cond, yes, no)] evaluates [cond] and jumps to [yes] if it
-      is non-zero. Otherwise, the destination is [no].
-
-      [`ret x] returns from a function. If the function returns a value,
-      then [x] holds the value (and must not be [None]).
-
-      [`sw (typ, index, default, table)] implements a jump table.
-      For a variable [index] of type [typ], it will find the associated
-      label of [index] in [table] and jump to it, if it exists. If not,
-      then the destination of the jump is [default].
-  *)
-  type t = [
-    | `hlt
-    | `jmp of dst
-    | `br  of Var.t * dst * dst
-    | `ret of ret
-    | `sw  of Type.imm * swindex * local * table
-  ] [@@deriving bin_io, compare, equal, sexp]
+module type S = sig
+  type t
 
   (** Returns the set of free variables in the control-flow instruction. *)
   val free_vars : t -> Var.Set.t

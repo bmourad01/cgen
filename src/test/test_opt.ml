@@ -201,6 +201,7 @@ let destructure_suite = "Test destructure" >::: [
     "strspn" >:: test_destructure "strspn";
     "strcspn" >:: test_destructure "strcspn";
     "Magic division" >:: test_destructure "magic_div";
+    "Tail call" >:: test_destructure "tailcall";
   ]
 
 let to_restructure = [
@@ -348,6 +349,7 @@ let opt_suite = "Test optimizations" >::: [
     "strcspn" >:: test "strcspn";
     "Benchmark" >:: test "bench";
     "Magic division" >:: test "magic_div";
+    "Tail call" >:: test "tailcall";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -382,6 +384,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Quicksort (SysV)" >:: test_sysv "qsort";
     "Binary search (SysV)" >:: test_sysv "bsearch";
     "Magic division (SysV)" >:: test_sysv "magic_div";
+    "Tail call (SysV)" >:: test_sysv "tailcall";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -416,6 +419,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64 "parallel";
     "Binary search (SysV AMD64)" >:: test_sysv_amd64 "bsearch";
     "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64 "imm32_boundary";
+    "Tail call (SysV AMD64)" >:: test_sysv_amd64 "tailcall";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -468,6 +472,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Benchmark (SysV AMD64)" >:: test_sysv_amd64_regalloc "bench";
     "Magic division (SysV AMD64)" >:: test_sysv_amd64_regalloc "magic_div";
     "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64_regalloc "imm32_boundary";
+    "Tail call (SysV AMD64)" >:: test_sysv_amd64_regalloc "tailcall";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -518,6 +523,7 @@ let native_suite = "Test native code" >::: [
     "Benchmark (SysV AMD64)" >:: test_sysv_amd64_native "bench";
     "Magic division (SysV AMD64)" >:: test_sysv_amd64_native "magic_div";
     "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64_native "imm32_boundary";
+    "Tail call (SysV AMD64)" >:: test_sysv_amd64_native "tailcall";
   ]
 
 let () = run_test_tt_main @@ test_list [

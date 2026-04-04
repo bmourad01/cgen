@@ -1,4 +1,5 @@
 open Core
+open Regular.Std
 open Virtual
 open Sysv_common
 
@@ -188,12 +189,51 @@ module Make(Context : Context_intf.S_virtual) = struct
       else None
     | Rnone, _ | _, Rnone -> assert false
 
+  let is_stkarg = function
+    | `stk _ -> true
+    | _ -> false
+
+  let is_tailcall_eligible k ~vargs =
+    List.is_empty vargs &&
+    Ftree.is_empty k.callri &&
+    not (Ftree.exists k.callar ~f:is_stkarg)
+
+  (* Check if the return of the call is passed via a block parameter. *)
+  let passthrough_ret env dst jargs r =
+    match Label.Tree.find env.blks dst with
+    | None -> false
+    | Some b' ->
+      Seq.is_empty (Blk.insns b') &&
+      match Blk.ctrl b', r with
+      | `ret None, None -> List.is_empty jargs
+      | `ret Some (`var y), Some xr ->
+        let params = Seq.to_list @@ Blk.args b' in
+        List.findi params ~f:(fun _ p -> Var.equal p y) |>
+        Option.value_map ~default:false ~f:(fun (i, _) ->
+            match List.nth jargs i with
+            | Some `var v -> Var.equal v xr
+            | _ -> false)
+      | _ -> false
+
+  let is_tail_ctrl env b key ret =
+    (* The call must be the last instruction in the block. *)
+    Blk.insns b ~rev:true |> Seq.map ~f:Insn.label |>
+    Seq.hd |> Option.exists ~f:(Label.equal key) &&
+    match Blk.ctrl b, ret with
+    | `ret None, None -> true
+    | `ret Some `var xr, Some (xr', _) -> Var.equal xr xr'
+    | `ret _, _ -> false
+    | `jmp `label (dst, jargs), _ ->
+      let call_ret = Option.map ret ~f:fst in
+      passthrough_ret env dst jargs call_ret
+    | _ -> false
+
   (* Lower the `call` instructions. *)
   let lower env =
     Func.blks env.fn |> Context.Seq.iter ~f:(fun b ->
         Blk.insns b |> Context.Seq.iter ~f:(fun i ->
             match Insn.op i with
-            | `call (ret, _, args, vargs) ->
+            | `call (ret, _, args, vargs, non_tail) ->
               let key = Insn.label i in
               let ofs = ref 0 in
               let qi = int_arg_queue () in
@@ -225,6 +265,10 @@ module Make(Context : Context_intf.S_virtual) = struct
                   {k with callar = k.callar @> `reg (i8 n, reg_str `rax)} in
               (* Process the return value. *)
               let+ k = lower_call_ret env kret k in
-              Hashtbl.set env.calls ~key ~data:k
+              Hashtbl.set env.calls ~key ~data:k;
+              if not non_tail
+              && is_tailcall_eligible k ~vargs
+              && is_tail_ctrl env b key ret
+              then Hash_set.add env.tailcalls key
             | _ -> !!()))
 end

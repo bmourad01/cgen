@@ -364,6 +364,7 @@ module Insn = struct
 
   type unop =
     | CALL of Regvar.t list (* arguments *)
+    | CALLtail of Regvar.t list (* tail-call arguments *)
     | DEC
     | DIV
     | IDIV
@@ -379,6 +380,7 @@ module Insn = struct
 
   let pp_unop ppf = function
     | CALL _ -> Format.fprintf ppf "call"
+    | CALLtail _ -> Format.fprintf ppf "tailcall"
     | DEC -> Format.fprintf ppf "dec"
     | DIV -> Format.fprintf ppf "div"
     | IDIV -> Format.fprintf ppf "idiv"
@@ -517,8 +519,8 @@ module Insn = struct
     | One (op, a) ->
       Format.fprintf ppf "%a %a" pp_unop op pp_operand a;
       begin match op with
-        | CALL [] -> ()
-        | CALL args ->
+        | CALL [] | CALLtail [] -> ()
+        | CALL args | CALLtail args ->
           let pp_sep ppf () = Format.fprintf ppf " " in
           Format.fprintf ppf " ; %a"
             (Format.pp_print_list ~pp_sep Regvar.pp)
@@ -676,6 +678,10 @@ module Insn = struct
       Set.union (rset' [`rsp]) @@
       Set.union (rset [a]) @@
       Regvar.Set.of_list args
+    | CALLtail args ->
+      Set.union (rset' [`rsp]) @@
+      Set.union (rset [a]) @@
+      Regvar.Set.of_list args
     | DEC
     | INC
     | NEG
@@ -779,6 +785,10 @@ module Insn = struct
       -> rset' [`rflags]
 
   let unop_writes call op a = match op with
+    | CALLtail _
+      (* Tail call: no registers are written by the call itself since
+         we are exiting the function. Equivalent to `JMP`. *)
+      -> Regvar.Set.empty
     | DEC
     | INC
     | NEG
@@ -887,6 +897,7 @@ module Insn = struct
       -> false
 
   let unop_writes_to_memory op a = match op with
+    | CALLtail _ -> false
     | DEC
     | INC
     | NEG
@@ -927,6 +938,7 @@ module Insn = struct
     | Jcc _
     | JMP _
     | One (CALL _, _)
+    | One (CALLtail _, _)
     | One (PUSH, _)
     | One (POP, _)
     | RET
@@ -949,6 +961,7 @@ module Insn = struct
     | JMP _
     | UD2
     | RET
+    | One (CALLtail _, _)
       -> true
     | i -> is_pseudo i
 
@@ -1003,6 +1016,7 @@ module Insn = struct
     let xorps a b = Two (XORPS, a, b)
 
     let call args a = One (CALL args, a)
+    let tailcall args a = One (CALLtail args, a)
     let dec a = One (DEC, a)
     let div a = One (DIV, a)
     let idiv a = One (IDIV, a)

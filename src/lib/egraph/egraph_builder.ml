@@ -148,17 +148,17 @@ let load env eg l x ty a =
         Hashtbl.set env.mems ~key ~data:(Value (id, l));
         id)
 
-let callop x l : Enode.op * Var.t option = match x with
-  | Some (x, t) -> Ocall (x, t), Some x
-  | None -> Ocall0 l, None
+let callop x l nt : Enode.op * Var.t option = match x with
+  | Some (x, t) -> Ocall (x, t, nt), Some x
+  | None -> Ocall0 (l, nt), None
 
 let callargs env eg args =
   node eg Ocallargs @@ operands env eg args
 
 (* Our analysis is intraprocedural, so assume that a function call
    can do any arbitrary effects to memory. *)
-let call env eg l x f args vargs =
-  let op, x = callop x l in
+let call env eg l x f args vargs nt =
+  let op, x = callop x l nt in
   env.mem <- Some l;
   sched ?x env eg l op [
     global env eg f;
@@ -203,8 +203,8 @@ let insn env eg l : Insn.op -> unit = function
       operand env eg y;
       operand env eg n;
     ] ~f:(set x)
-  | `call (x, f, args, vargs) ->
-    call env eg l x f args vargs
+  | `call (x, f, args, vargs, nt) ->
+    call env eg l x f args vargs nt
   | `load (x, ty, a) ->
     load env eg l x ty a
   | `store (ty, v, a) ->

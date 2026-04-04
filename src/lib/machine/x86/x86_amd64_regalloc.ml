@@ -265,6 +265,8 @@ module Typed_writes = struct
   let unop_writes call o a = match o with
     | CALL _
       -> call
+    | CALLtail _
+      -> Regvar.Map.empty
     | DEC
     | INC
     | NEG
