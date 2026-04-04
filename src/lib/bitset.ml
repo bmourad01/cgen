@@ -64,5 +64,5 @@ let enum =
   let _ = Z.numbits in
   fun ?(rev = false) t ->
     let f = if rev then pop_max_elt else pop_min_elt in
-    run @@ (go[@specialised]) f t
+    run @@ go f t
 
