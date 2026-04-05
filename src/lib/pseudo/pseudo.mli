@@ -340,6 +340,7 @@ module Cfg : sig
   *)
   val create :
     is_barrier:('a -> bool) ->
+    is_pseudo:('a -> bool) ->
     dests:('a -> Label.Set.t) ->
     ('a, 'b) func -> t
 end

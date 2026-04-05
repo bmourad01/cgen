@@ -60,6 +60,7 @@ module Make(M : Machine_intf.S_insn) = struct
     let keep = init_keep fn in
     let cfg = Cfg.create fn
         ~is_barrier:M.Insn.is_barrier
+        ~is_pseudo:M.Insn.is_pseudo
         ~dests:M.Insn.dests in
     let blks = Func.map_of_blks fn in
     Func.update_blks' fn @@ run ~keep blks cfg
