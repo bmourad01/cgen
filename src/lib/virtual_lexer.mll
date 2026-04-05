@@ -142,7 +142,7 @@ rule token = parse
   | "slt" '.' (imm as t) { SLT (imm_of_char t) }
   | "uo" '.' (fp as t) { UO (fp_of_char t) }
   | "fext" '.' (fp as t) { FEXT (fp_of_char t) }
-  | "fibits" '.' (fp as t) { FEXT (fp_of_char t) }
+  | "fibits" '.' (fp as t) { FIBITS (fp_of_char t) }
   | "flag" '.' (imm as t) { FLAG (imm_of_char t) }
   | "ftosi" '.' (fp as t) '.' (imm as i) {
     FTOSI (fp_of_char t, imm_of_char i)
