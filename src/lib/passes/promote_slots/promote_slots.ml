@@ -32,7 +32,7 @@ module V = Make(struct
   end)
 
 module A = Make(struct
-    type lhs = Var.Set.t
+    type lhs = Var.Tree_set.t
     module Insn = struct
       include Abi.Insn
       let store = store op

@@ -54,7 +54,7 @@ module type L = sig
 
   module Live : Live_intf.S
     with type var := Var.t
-     and type var_comparator := Var.comparator_witness
+     and type var_set := Var.Tree_set.t
      and type func := Func.t
      and type blk := Blk.t
      and type cfg := Cfg.t

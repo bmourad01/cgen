@@ -6,7 +6,7 @@ open Virtual
 open Abi
 open Subst_mapper
 
-type t = operand Var.Map.t
+type t = operand Var.Tree.t
 
 let map_callarg subst : Insn.callarg -> Insn.callarg = function
   | `reg (a, r) -> `reg (map_arg subst a, r)
@@ -39,7 +39,7 @@ let map_sw subst t i d tbl =
   let tbl = Ctrl.Table.map_exn tbl ~f:(map_tbl_entry subst) in
   match i with
   | `sym _ -> `sw (t, i, d, tbl)
-  | `var x -> match Map.find subst x with
+  | `var x -> match Var.Tree.find subst x with
     | Some (#Ctrl.swindex as i) -> `sw (t, i, d, tbl)
     | Some `int (i, _) ->
       let d = Ctrl.Table.find tbl i |> Option.value ~default:d in
@@ -74,5 +74,5 @@ let blk_extend subst b b' =
   Blk.label b' |> map_blk_args subst b |> Option.bind ~f:(fun args ->
       Blk.args b' |> Seq.to_list |> List.zip args |> function
       | Ok l -> Option.some @@ List.fold l ~init:subst
-          ~f:(fun subst (o, x) -> Map.set subst ~key:x ~data:o)
+          ~f:(fun subst (o, x) -> Var.Tree.set subst ~key:x ~data:o)
       | Unequal_lengths -> None)

@@ -213,6 +213,9 @@ module type Set = sig
   (** Combines two sets together. *)
   val union : t -> t -> t
 
+  (** [diff s1 s2] returns the elements in [s1] that are not in [s2]. *)
+  val diff : t -> t -> t
+
   (** Intersects two sets (i.e. returns the set that has elements of both). *)
   val inter : t -> t -> t
 
@@ -252,4 +255,7 @@ module type Set = sig
 
   (** Returns a set from a sequence. *)
   val of_sequence : key seq -> t
+
+  (** Computes the union of a list of sets. *)
+  val union_list : t list -> t
 end

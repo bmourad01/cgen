@@ -2,9 +2,11 @@ open Core
 open Virtual
 open Scalars
 
+module Vset = Var.Tree_set
+
 let var_set_of_option = function
-  | Some x -> Var.Set.singleton x
-  | None -> Var.Set.empty
+  | Some x -> Vset.singleton x
+  | None -> Vset.empty
 
 (* Instructions that can produce a scalar `Offset` value. *)
 let offset = function
@@ -29,14 +31,14 @@ let copy_of = function
   | _ -> None
 
 let escapes mty fv = function
-  | `store (ty, `var x, `var y) when mty ty -> Var.Set.of_list [x; y]
-  | `store (ty, _, `var y) when mty ty -> Var.Set.of_list [y]
-  | `store (_, `var x, _) -> Var.Set.singleton x
-  | `store _ -> Var.Set.empty
-  | `load (_, ty, `var x) when mty ty -> Var.Set.singleton x
-  | `load _ -> Var.Set.empty
-  | o when Option.is_some (offset o) -> Var.Set.empty
-  | o when Option.is_some (copy_of o) -> Var.Set.empty
+  | `store (ty, `var x, `var y) when mty ty -> Vset.of_list [x; y]
+  | `store (ty, _, `var y) when mty ty -> Vset.of_list [y]
+  | `store (_, `var x, _) -> Vset.singleton x
+  | `store _ -> Vset.empty
+  | `load (_, ty, `var x) when mty ty -> Vset.singleton x
+  | `load _ -> Vset.empty
+  | o when Option.is_some (offset o) -> Vset.empty
+  | o when Option.is_some (copy_of o) -> Vset.empty
   | o -> fv o
 [@@specialise]
 
@@ -60,16 +62,16 @@ let is_named = function
   | _ -> false
 
 let escapes_ctrl fv = function
-  | `hlt -> Var.Set.empty
-  | `jmp `var x -> Var.Set.singleton x
-  | `jmp _ -> Var.Set.empty
-  | `br (c, `var y, `var n) -> Var.Set.of_list [c; y; n]
-  | `br (c, _, `var n) -> Var.Set.of_list [c; n]
-  | `br (c, `var y, _) -> Var.Set.of_list [c; y]
-  | `br (c, _, _) -> Var.Set.singleton c
+  | `hlt -> Vset.empty
+  | `jmp `var x -> Vset.singleton x
+  | `jmp _ -> Vset.empty
+  | `br (c, `var y, `var n) -> Vset.of_list [c; y; n]
+  | `br (c, _, `var n) -> Vset.of_list [c; n]
+  | `br (c, `var y, _) -> Vset.of_list [c; y]
+  | `br (c, _, _) -> Vset.singleton c
   | `ret _ as c -> fv c
-  | `sw (_, `var i, _, _) -> Var.Set.singleton i
-  | `sw _ -> Var.Set.empty
+  | `sw (_, `var i, _, _) -> Vset.singleton i
+  | `sw _ -> Vset.empty
 [@@specialise]
 
 (* Virtual language *)

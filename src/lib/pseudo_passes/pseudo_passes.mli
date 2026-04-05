@@ -3,7 +3,7 @@ open Pseudo
 (** Liveness analysis of a function. *)
 module Live(M : Machine_intf.S_insn) : Live_intf.S
   with type var := M.Regvar.t
-   and type var_comparator := M.Regvar.Set.Elt.comparator_witness
+   and type var_set := (M.Regvar.t, M.Regvar.Set.Elt.comparator_witness) Core.Set.t
    and type func := (M.Insn.t, M.Reg.t) func
    and type blk := M.Insn.t blk
    and type cfg := Cfg.t

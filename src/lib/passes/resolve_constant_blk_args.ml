@@ -46,9 +46,13 @@ let check_ssa msg n d fn f =
 let apply fn cfg mb analyze map_blks map_blk with_ctrl with_insns =
   let cfg = cfg fn in
   let blks = mb fn in
-  let s = Map.filter_map ~f:Fn.id @@
-    analyze ~blk:(Label.Tree.find blks) cfg in
-  if not @@ Map.is_empty s then map_blks fn ~f:(fun b ->
+  let s =
+    analyze ~blk:(Label.Tree.find blks) cfg |>
+    Var.Tree.fold ~init:Var.Tree.empty
+      ~f:(fun ~key ~data acc -> match data with
+          | Some v -> Var.Tree.set acc ~key ~data:v
+          | None -> acc) in
+  if not @@ Var.Tree.is_empty s then map_blks fn ~f:(fun b ->
       let is, k = map_blk s b in
       with_ctrl (with_insns b is) k)
   else fn

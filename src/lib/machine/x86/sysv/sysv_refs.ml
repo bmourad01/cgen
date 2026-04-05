@@ -7,12 +7,12 @@ open Sysv_common
 open Virtual
 
 let collect_mem_rets env = match env.rmem with
-  | None -> Var.Set.empty
+  | None -> Var.Tree_set.empty
   | Some _ ->
     Func.blks env.fn |>
-    Seq.fold ~init:Var.Set.empty
+    Seq.fold ~init:Var.Tree_set.empty
       ~f:(fun acc b -> match Blk.ctrl b with
-          | `ret Some `var x -> Set.add acc x
+          | `ret Some `var x -> Var.Tree_set.add acc x
           | _ -> acc)
 
 module Make(Context : Context_intf.S_virtual) = struct
@@ -37,7 +37,7 @@ module Make(Context : Context_intf.S_virtual) = struct
     (* Re-use the implicit first parameter instead of allocating
        a new stack slot. *)
     let* y = match env.rmem with
-      | Some y when Set.mem mrs x -> !!y
+      | Some y when Var.Tree_set.mem mrs x -> !!y
       | Some _ | None -> new_slot env k.size k.align in
     let* src, srci = match a with
       | `var x -> !!(x, [])

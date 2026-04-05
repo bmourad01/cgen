@@ -10,7 +10,7 @@ let set_constraint ctx x y i = match (y : operand) with
   | `var y ->
     let i = Lazy.force i in
     Hashtbl.update ctx.cond x ~f:(function
-        | None -> Var.Map.singleton y i
+        | None -> Var.Tree.singleton y i
         | Some s -> update s y i)
   | _ -> ()
 

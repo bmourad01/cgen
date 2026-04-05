@@ -125,11 +125,11 @@ module V = Make(struct
   end)
 
 module A = Make(struct
-    type lhs = Var.Set.t
+    type lhs = Var.Tree_set.t
 
     module Insn = struct
       include Abi.Insn
-      let lhs = Fn.compose Set.to_list def
+      let lhs = Fn.compose Var.Tree_set.to_list def
     end
 
     module Ctrl = Abi.Ctrl

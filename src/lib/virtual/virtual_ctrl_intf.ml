@@ -37,7 +37,7 @@ module type Pre = sig
     val map_exn : t -> f:(Bv.t -> local -> Bv.t * local) -> t
 
     (** Returns the set of free variables in the table. *)
-    val free_vars : t -> Var.Set.t
+    val free_vars : t -> Var.Tree_set.t
 
     (** Same as [map_exn], but returns [Error _] if [f] produces a
         duplicate key. *)
@@ -65,7 +65,7 @@ module type S = sig
   type t
 
   (** Returns the set of free variables in the control-flow instruction. *)
-  val free_vars : t -> Var.Set.t
+  val free_vars : t -> Var.Tree_set.t
 
   (** Pretty-prints a control-flow instruction. *)
   val pp : Format.formatter -> t -> unit

@@ -1,6 +1,7 @@
 open Core
 open Virtual_common
 
+module Vset = Var.Tree_set
 module Table = Virtual_ctrl.Table
 
 type table = Table.t [@@deriving bin_io, compare, equal, sexp]
@@ -18,29 +19,29 @@ type t = [
   | `tailcall of global * Abi_insn.callarg list
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars : t -> Var.Set.t = function
-  | `hlt -> Var.Set.empty
+let free_vars : t -> Vset.t = function
+  | `hlt -> Vset.empty
   | `jmp d -> free_vars_of_dst d
   | `br (x, y, n) ->
-    Var.Set.union_list [
-      Var.Set.singleton x;
+    Vset.union_list [
+      Vset.singleton x;
       free_vars_of_dst y;
       free_vars_of_dst n;
     ]
   | `ret xs ->
     List.filter_map xs
       ~f:(Fn.compose var_of_operand snd) |>
-    Var.Set.of_list
+    Vset.of_list
   | `sw (_, x, d, tbl) ->
-    Var.Set.union_list [
+    Vset.union_list [
       var_set_of_option @@ var_of_swindex x;
       free_vars_of_local d;
       Table.free_vars tbl;
     ]
   | `tailcall (f, args) ->
     let fv = var_of_global f |> var_set_of_option in
-    let av = List.map args ~f:Abi_insn.free_vars_of_callarg |> Var.Set.union_list in
-    Set.union fv av
+    let av = List.map args ~f:Abi_insn.free_vars_of_callarg |> Vset.union_list in
+    Vset.union fv av
 
 let pp ppf : t -> unit = function
   | `hlt -> Format.fprintf ppf "hlt"

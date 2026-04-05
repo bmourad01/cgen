@@ -2,10 +2,11 @@ open Core
 open Regular.Std
 
 module Slot = Virtual.Slot
+module Vset = Var.Tree_set
 
 let (@/) i s = not @@ Set.mem s i
-let (--) = Set.remove
-let (++) = Set.union
+let (--) = Vset.remove
+let (++) = Vset.union
 let noti s i _ = i @/ s
 
 type unused = Int.Set.t Label.Tree.t
@@ -20,13 +21,13 @@ module type S = sig
     val check_div_rem : t -> bool
     val is_effectful : t -> bool
     val lhs : t -> Var.t option
-    val free_vars : t -> Var.Set.t
+    val free_vars : t -> Vset.t
   end
 
   module Ctrl : sig
     type t
     type table
-    val free_vars : t -> Var.Set.t
+    val free_vars : t -> Vset.t
   end
 
   module Blk : sig
@@ -68,10 +69,10 @@ module type S = sig
 
   module Live : sig
     type t
-    val ins : t -> Label.t -> Var.Set.t
-    val outs : t -> Label.t -> Var.Set.t
-    val uses : t -> Label.t -> Var.Set.t
-    val compute' : ?keep:Var.Set.t -> Cfg.t -> Blk.t Label.Tree.t -> t
+    val ins : t -> Label.t -> Vset.t
+    val outs : t -> Label.t -> Vset.t
+    val uses : t -> Label.t -> Vset.t
+    val compute' : ?keep:Vset.t -> Cfg.t -> Blk.t Label.Tree.t -> t
   end
 
   val map_ctrl : unused -> Ctrl.t -> Ctrl.t * bool
@@ -90,14 +91,16 @@ module Make(M : S) = struct
               Blk.fold_args b
                 ~init:(0, Int.Set.empty)
                 ~f:(fun (i, acc) x ->
-                    let acc = if x @/ needed then Set.add acc i else acc in
+                    let acc =
+                      if Vset.mem needed x then acc
+                      else Set.add acc i in
                     i + 1, acc) |> snd in
             if Set.is_empty args then acc
             else Label.Tree.set acc ~key:l ~data:args)
 
   let keep i x alive =
     Insn.is_effectful i ||
-    Set.mem alive x ||
+    Vset.mem alive x ||
     Insn.check_div_rem i
 
   (* Note that we don't always kill defined variables here. If the
@@ -120,7 +123,7 @@ module Make(M : S) = struct
     let ins = Live.ins live @@ Func.entry fn in
     Func.fold_slots fn ~init:fn ~f:(fun acc s ->
         let x = Slot.var s in
-        if not (Set.mem ins x) then remove_slot acc x else acc) |>
+        if Vset.mem ins x then acc else remove_slot acc x) |>
     Fn.flip Func.update_blks' blks
 
   let filter_args b s =

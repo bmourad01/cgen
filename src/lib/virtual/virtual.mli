@@ -74,7 +74,7 @@ type local = [
 ] [@@deriving bin_io, compare, equal, sexp]
 
 (** Returns the free variables in the local destination. *)
-val free_vars_of_local : local -> Var.Set.t
+val free_vars_of_local : local -> Var.Tree_set.t
 
 (** Pretty-prints the local destination. *)
 val pp_local : Format.formatter -> local -> unit
@@ -86,7 +86,7 @@ type dst = [
 ] [@@deriving bin_io, compare, equal, sexp]
 
 (** Returns the free variables in the destination. *)
-val free_vars_of_dst : dst -> Var.Set.t
+val free_vars_of_dst : dst -> Var.Tree_set.t
 
 (** Pretty-prints a control-flow destination. *)
 val pp_dst : Format.formatter -> dst -> unit
@@ -117,7 +117,7 @@ module Insn : sig
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the call. *)
-  val free_vars_of_call : call -> Var.Set.t
+  val free_vars_of_call : call -> Var.Tree_set.t
 
   (** Pretty-prints a call instruction. *)
   val pp_call : Format.formatter -> call -> unit
@@ -145,7 +145,7 @@ module Insn : sig
 
   (** Returns the set of free variables in the variadic argument
       instruction. *)
-  val free_vars_of_variadic : variadic -> Var.Set.t
+  val free_vars_of_variadic : variadic -> Var.Tree_set.t
 
   (** Pretty-prints a variadic argument instruction. *)
   val pp_variadic : Format.formatter -> variadic -> unit
@@ -159,7 +159,7 @@ module Insn : sig
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the data operation. *)
-  val free_vars_of_op : op -> Var.Set.t
+  val free_vars_of_op : op -> Var.Tree_set.t
 
   (** Pretty-prints a data operation. *)
   val pp_op : Format.formatter -> op -> unit
@@ -192,7 +192,7 @@ module Insn : sig
   val has_label : t -> Label.t -> bool
 
   (** Same as [free_vars_of_op (op i)]. *)
-  val free_vars : t -> Var.Set.t
+  val free_vars : t -> Var.Tree_set.t
 
   (** Same as [lhs_of_op (op i)]. *)
   val lhs : t -> Var.t option
@@ -390,7 +390,7 @@ type cfg = Cfg.t
 (** Helpers for computing liveness of a function. *)
 module Live : Live_intf.S
   with type var := Var.t
-   and type var_comparator := Var.comparator_witness
+   and type var_set := Var.Tree_set.t
    and type func := func
    and type blk := blk
    and type cfg := cfg
@@ -569,7 +569,7 @@ module Abi : sig
       | `stk of operand * int
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    val free_vars_of_callarg : callarg -> Var.Set.t
+    val free_vars_of_callarg : callarg -> Var.Tree_set.t
 
     val pp_callarg : Format.formatter -> callarg -> unit
 
@@ -584,7 +584,7 @@ module Abi : sig
       | `call of (Var.t * Type.basic * string) list * global * callarg list
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    val free_vars_of_call : call -> Var.Set.t
+    val free_vars_of_call : call -> Var.Tree_set.t
 
     val pp_call : Format.formatter -> call -> unit
 
@@ -608,7 +608,7 @@ module Abi : sig
       | `stkargs of Var.t
     ] [@@deriving bin_io, compare, equal, sexp]
 
-    val free_vars_of_extra : extra -> Var.Set.t
+    val free_vars_of_extra : extra -> Var.Tree_set.t
 
     val pp_extra : Format.formatter -> extra -> unit
 
@@ -621,7 +621,7 @@ module Abi : sig
     ] [@@deriving bin_io, compare, equal, sexp]
 
     (** Returns the set of free variables in the data operation. *)
-    val free_vars_of_op : op -> Var.Set.t
+    val free_vars_of_op : op -> Var.Tree_set.t
 
     (** Pretty-prints a data operation. *)
     val pp_op : Format.formatter -> op -> unit
@@ -654,7 +654,7 @@ module Abi : sig
     val has_label : t -> Label.t -> bool
 
     (** Same as [free_vars_of_op (op i)]. *)
-    val free_vars : t -> Var.Set.t
+    val free_vars : t -> Var.Tree_set.t
 
     (** Returns [true] for instructions that have side effects. *)
     val is_effectful_op : op -> bool
@@ -678,10 +678,10 @@ module Abi : sig
     val map : t -> f:(op -> op) -> t
 
     (** Returns the set of defined variables of the underlying op. *)
-    val def_of_op : op -> Var.Set.t
+    val def_of_op : op -> Var.Tree_set.t
 
     (** Equivalent to [def_of_op (op i)] *)
-    val def : t -> Var.Set.t
+    val def : t -> Var.Tree_set.t
 
     (** Same as [pp_op]. *)
     val pp : Format.formatter -> t -> unit
@@ -824,7 +824,7 @@ module Abi : sig
 
   module Live : Live_intf.S
     with type var := Var.t
-     and type var_comparator := Var.comparator_witness
+     and type var_set := Var.Tree_set.t
      and type func := func
      and type blk := blk
      and type cfg := cfg
@@ -832,7 +832,7 @@ module Abi : sig
   type live = Live.t
 
   module Resolver : Resolver_intf.S
-    with type lhs := Var.Set.t
+    with type lhs := Var.Tree_set.t
      and type insn := insn
      and type blk := blk
      and type func := func

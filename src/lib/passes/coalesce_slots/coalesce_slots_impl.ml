@@ -5,6 +5,8 @@ open Scalars
 
 module Ltree = Label.Tree
 module Lset = Label.Tree_set
+module Vtree = Var.Tree
+module Vset = Var.Tree_set
 module Slot = Virtual.Slot
 module Allen = Allen_interval_algebra
 
@@ -72,17 +74,17 @@ type candidate = {
   size : int;
   align : int;
   range : range;
-  mutable adj : Var.Set.t;
+  mutable adj : Vset.t;
   mutable assigned : bool;
 }
 
 let create_candidate slots rs v =
-  let slot = Map.find_exn slots v in {
+  let slot = Vtree.find_exn slots v in {
     var = v;
     size = Slot.size slot;
     align = Slot.align slot;
-    range = Map.find_exn rs v;
-    adj = Var.Set.empty;
+    range = Vtree.find_exn rs v;
+    adj = Vset.empty;
     assigned = false;
   }
 
@@ -121,8 +123,8 @@ let size_priority x y =
   | c -> c
 
 let candidates slots rs =
-  let vs = Vec.create ~capacity:(Map.length rs) () in
-  Map.to_sequence rs |>
+  let vs = Vec.create ~capacity:(Vtree.length rs) () in
+  Vtree.to_sequence rs |>
   (* Do not consider escapees. This would mess up
      our heuristics for building the groups. *)
   Seq.filter ~f:(not @. Range.is_bad @. snd) |>
@@ -130,7 +132,7 @@ let candidates slots rs =
   Seq.iter ~f:(Vec.push vs);
   vs
 
-let is_subset g y = List.for_all g ~f:(fun x -> Set.mem y.adj x.var)
+let is_subset g y = List.for_all g ~f:(fun x -> Vset.mem y.adj x.var)
 
 (* Greedy partitioning algorithm. *)
 let partition slots rs =
@@ -148,7 +150,7 @@ let partition slots rs =
         if i <> j then
           let y = Vec.unsafe_get vs j in
           if compat_range x y then
-            x.adj <- Set.add x.adj y.var
+            x.adj <- Vset.add x.adj y.var
       done
     done;
     (* Use an ascending order. *)
@@ -175,7 +177,7 @@ let partition slots rs =
 let canon_elt g = List.max_elt g ~compare:size_priority |> Option.value_exn
 
 let make_subst _slots p =
-  List.fold p ~init:Var.Map.empty
+  List.fold p ~init:Vtree.empty
     ~f:(fun init -> function
         | [] | [_] -> init
         | g ->
@@ -183,7 +185,7 @@ let make_subst _slots p =
           let data = `var canon.var in
           List.fold g ~init ~f:(fun acc x ->
               if Var.(x.var = canon.var) then acc
-              else Map.set acc ~key:x.var ~data))
+              else Vtree.set acc ~key:x.var ~data))
 
 type t = {
   subst : Subst_mapper.t; (* Map from coalesced to canonical slots *)
@@ -191,30 +193,30 @@ type t = {
 }
 
 let empty = {
-  subst = Var.Map.empty;
+  subst = Vtree.empty;
   deads = Lset.empty;
 }
 
 let is_empty t =
-  Map.is_empty t.subst && Lset.is_empty t.deads
+  Vtree.is_empty t.subst && Lset.is_empty t.deads
 
 module Make(M : Scalars.L) = struct
   open M
 
   module Sinit = Slot_initialization.Make(M)
 
-  let mkdef s x n = Map.update s x ~f:(function
+  let mkdef s x n = Vtree.update s x ~f:(function
       | None -> Range.singleton n
       | Some r -> Range.def r n)
 
-  let mkuse s x n = Map.change s x ~f:(function
+  let mkuse s x n = Vtree.change s x ~f:(function
       | Some r -> Some (Range.use r n)
       | None -> None)
 
   let update (si : Slot_initialization.t) acc s x n l ldst =
-    match Map.find s x with
+    match Vtree.find s x with
     | None -> acc
-    | Some Top -> Map.set acc ~key:x ~data:Range.bad
+    | Some Top -> Vtree.set acc ~key:x ~data:Range.bad
     | Some Offset (base, _) -> match ldst with
       | Some Store -> mkdef acc base n
       | Some Load when Hash_set.mem si.bad l ->
@@ -223,7 +225,7 @@ module Make(M : Scalars.L) = struct
         Logs.debug (fun m ->
             m "%s: uninitialized load at %a from %a: marking bad%!"
               __FUNCTION__ Label.pp l Var.pp base);
-        Map.set acc ~key:base ~data:Range.bad
+        Vtree.set acc ~key:base ~data:Range.bad
       | Some Load | None -> mkuse acc base n
 
   let liveness_insn si acc s ip i =
@@ -232,22 +234,22 @@ module Make(M : Scalars.L) = struct
     let r, w, ldst = match Insn.load_or_store_to op with
       | None -> r, None, None
       | Some (ptr, _, ldst) ->
-        Set.remove r ptr, Some ptr, Some ldst in
+        Vset.remove r ptr, Some ptr, Some ldst in
     Option.fold w ~init:acc ~f:(fun acc x ->
         update si acc s x ip l ldst) |> fun init ->
-    Set.fold r ~init ~f:(fun acc x ->
+    Vset.fold r ~init ~f:(fun acc x ->
         update si acc s x ip l None)
 
   let liveness_ctrl si acc s ip l c =
-    Ctrl.free_vars c |> Set.fold ~init:acc
+    Ctrl.free_vars c |> Vset.fold ~init:acc
       ~f:(fun acc x -> update si acc s x ip l None)
 
   let liveness cfg blks slots t si =
     let ip = ref 0 in
     let nums = Vec.create () in
     let init =
-      Hash_set.fold t.esc ~init:Var.Map.empty
-        ~f:(fun acc x -> Map.set acc ~key:x ~data:Range.bad) in
+      Hash_set.fold t.esc ~init:Vtree.empty
+        ~f:(fun acc x -> Vtree.set acc ~key:x ~data:Range.bad) in
     let acc =
       Graphlib.reverse_postorder_traverse
         (module Cfg) ~start:Label.pseudoentry cfg |>
@@ -276,9 +278,9 @@ module Make(M : Scalars.L) = struct
               let op = Insn.op i in
               let acc = match Insn.load_or_store_to op with
                 | Some (ptr, _, Store) ->
-                  begin match Map.find !s ptr with
+                  begin match Vtree.find !s ptr with
                     | Some Offset (base, _) ->
-                      begin match Map.find rs base with
+                      begin match Vtree.find rs base with
                         | Some {tg = Def; _} ->
                           (* This slot is only ever stored to, so we can
                              safely remove it. *)
@@ -293,8 +295,8 @@ module Make(M : Scalars.L) = struct
 
   let debug_show slots rs nums deads p subst =
     Logs.debug (fun m ->
-        Map.iter_keys slots ~f:(fun x ->
-            let ppr ppf x = match Map.find rs x with
+        Vtree.iter slots ~f:(fun ~key:x ~data:_ ->
+            let ppr ppf x = match Vtree.find rs x with
               | None -> Format.fprintf ppf "none"
               | Some r when Range.is_bad r ->
                 Format.fprintf ppf "bad"
@@ -318,13 +320,13 @@ module Make(M : Scalars.L) = struct
                Label.pp)
             (Lset.to_list deads));
     Logs.debug (fun m ->
-        Map.iteri subst ~f:(fun ~key ~data ->
+        Vtree.iter subst ~f:(fun ~key ~data ->
             m "%s: coalesce slot: %a => %a%!"
               __FUNCTION__ Var.pp key Virtual.pp_operand data))
 
   let run fn =
     let slots = Sinit.S.collect_slots fn in
-    if Map.is_empty slots then empty else
+    if Vtree.is_empty slots then empty else
       let cfg = Cfg.create fn in
       let blks = Func.map_of_blks fn in
       let t = Sinit.S.analyze cfg blks slots in

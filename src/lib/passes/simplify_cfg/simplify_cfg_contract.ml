@@ -63,12 +63,17 @@ let init_subst env l args =
   let args' = Seq.to_list @@ Blk.args b in
   match List.zip args' args with
   | Unequal_lengths -> None
-  | Ok xs -> match Var.Map.of_alist xs with
-    | `Ok m -> !!m
-    | `Duplicate_key x ->
-      (* This shouldn't happen if we passed the type checker. *)
-      failwithf "Couldn't create substitution for block %a: \
-                 duplicate var %a" Label.pps l Var.pps x ()
+  | Ok xs ->
+    Option.some @@ List.fold xs
+      ~init:Var.Tree.empty
+      ~f:(fun acc (key, data) ->
+          match Var.Tree.add acc ~key ~data with
+          | `Ok m -> m
+          | `Duplicate ->
+            (* This shouldn't happen if we passed the type checker. *)
+            failwithf
+              "Couldn't create substitution for block %a: \
+               duplicate var %a" Label.pps l Var.pps key ())
 
 let find_dst env s : dst -> dst option = function
   | #global -> None

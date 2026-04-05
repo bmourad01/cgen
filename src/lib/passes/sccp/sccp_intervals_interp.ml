@@ -262,7 +262,7 @@ let assign_blk_args ctx s l args =
 module Narrow_branch = struct
   let has_info i = not I.(is_full i || is_empty i)
 
-  let default s x i = match Map.find s x with
+  let default s x i = match Var.Tree.find s x with
     | None -> I.create_full ~size:(I.size i)
     | Some i -> i
 
@@ -295,20 +295,20 @@ let interp_ctrl ctx s = function
     narrow ctx y c I.boolean_true;
     narrow ctx n c I.boolean_false;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
-        Map.iteri s' ~f:(fun ~key:x ~data:i ->
+        Var.Tree.iter s' ~f:(fun ~key:x ~data:i ->
             Narrow_branch.both ctx s y n x i));
     let s = assign_blk_args ctx s y yargs in
     assign_blk_args ctx s n nargs
   | `br (c, `label (y, yargs), _) ->
     narrow ctx y c I.boolean_true;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
-        Map.iteri s' ~f:(fun ~key:x ~data:i ->
+        Var.Tree.iter s' ~f:(fun ~key:x ~data:i ->
             Narrow_branch.yes ctx s y x i));
     assign_blk_args ctx s y yargs
   | `br (c, _, `label (n, nargs)) ->
     narrow ctx n c I.boolean_false;
     Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
-        Map.iteri s' ~f:(fun ~key:x ~data:i ->
+        Var.Tree.iter s' ~f:(fun ~key:x ~data:i ->
             Narrow_branch.no ctx s n x i));
     assign_blk_args ctx s n nargs
   | `sw (t, `var x, `label (d, args), tbl) ->

@@ -11,7 +11,7 @@ type t = {
   denv   : Type.compound String.Map.t;
   fenv   : Type.proto String.Map.t;
   tenv   : Type.compound String.Map.t;
-  venv   : Type.t Var.Map.t String.Map.t;
+  venv   : Type.t Var.Tree.t String.Map.t;
   genv   : Type.layout String.Map.t;
 }
 
@@ -86,7 +86,7 @@ let typeof_var fn v env =
     Or_error.errorf
       "No function $%s in environment for variable %a"
       fname Var.pps v
-  | Some m -> match Map.find m v with
+  | Some m -> match Var.Tree.find m v with
     | Some t -> Ok t
     | None ->
       Or_error.errorf
@@ -97,8 +97,8 @@ exception Unify_fail of Type.t
 
 let add_var fn v t env = try
     let venv = Map.update env.venv (Func.name fn) ~f:(function
-        | None -> Var.Map.singleton v t
-        | Some m -> Map.update m v ~f:(function
+        | None -> Var.Tree.singleton v t
+        | Some m -> Var.Tree.update m v ~f:(function
             | Some t' when Type.(t <> t') ->
               raise_notrace @@ Unify_fail t'
             | Some _ -> t

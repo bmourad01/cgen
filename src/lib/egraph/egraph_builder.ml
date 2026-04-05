@@ -265,7 +265,7 @@ let add_phi_value r env eg acc = function
 
 let approximate_phis env eg b =
   Blk.iter_args b ~f:(fun x ->
-      Map.find eg.input.phis x |> Option.iter
+      Var.Tree.find eg.input.phis x |> Option.iter
         ~f:(fun vs -> with_return @@ fun {return} ->
              (* Translate the values for `x` into terms
                 that the e-graph knows about. *)

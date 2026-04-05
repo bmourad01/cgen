@@ -17,12 +17,12 @@ module type L = sig
     type t
     val label : t -> Label.t
     val lhs : t -> lhs
-    val free_vars : t -> Var.Set.t
+    val free_vars : t -> Var.Tree_set.t
   end
 
   module Ctrl : sig
     type t
-    val free_vars : t -> Var.Set.t
+    val free_vars : t -> Var.Tree_set.t
   end
 
   module Blk : sig
@@ -109,10 +109,10 @@ module Make(M : L) : S
             let* () = insert lbl key data ~err:(duplicate_label key) in
             let+ () = vars_of_lhs lhs |> E.List.iter ~f:(fun x ->
                 insert def x data ~err:(duplicate_def x)) in
-            Insn.free_vars i |> Set.iter ~f:(fun key ->
+            Insn.free_vars i |> Var.Tree_set.iter ~f:(fun key ->
                 Hashtbl.add_multi use ~key ~data);
             ord + 1) in
-        Blk.ctrl b |> Ctrl.free_vars |> Set.iter ~f:(fun key ->
+        Blk.ctrl b |> Ctrl.free_vars |> Var.Tree_set.iter ~f:(fun key ->
             Hashtbl.add_multi use ~key ~data:blk)) in
     let+ () = verify_uses use def in
     {lbl; use; def}

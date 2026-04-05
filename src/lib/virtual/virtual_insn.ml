@@ -1,6 +1,8 @@
 open Core
 open Virtual_common
 
+module Vset = Var.Tree_set
+
 type arith_binop = [
   | `add   of Type.basic
   | `div   of Type.basic
@@ -190,12 +192,12 @@ type basic = [
   | `sel of Var.t * Type.basic * Var.t * operand * operand
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_basic : basic -> Var.Set.t = function
+let free_vars_of_basic : basic -> Vset.t = function
   | `bop (_, _, l, r) ->
-    List.filter_map [l; r] ~f:var_of_operand |> Var.Set.of_list
+    List.filter_map [l; r] ~f:var_of_operand |> Vset.of_list
   | `uop (_, _, a) -> var_set_of_option @@ var_of_operand a
   | `sel (_, _, x, t, f) ->
-    List.filter_map [t; f] ~f:var_of_operand |> List.cons x |> Var.Set.of_list
+    List.filter_map [t; f] ~f:var_of_operand |> List.cons x |> Vset.of_list
 
 let pp_basic ppf : basic -> unit = function
   | `bop (x, b, l, r) ->
@@ -210,12 +212,12 @@ type call = [
   | `call of (Var.t * Type.ret) option * global * operand list * operand list * bool
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_call : call -> Var.Set.t = function
+let free_vars_of_call : call -> Vset.t = function
   | `call (_, f, args, vargs, _) ->
     let f = var_of_global f |> var_set_of_option in
-    let args = List.filter_map args ~f:var_of_operand |> Var.Set.of_list in
-    let vargs = List.filter_map vargs ~f:var_of_operand |> Var.Set.of_list in
-    Var.Set.union_list [f; args; vargs]
+    let args = List.filter_map args ~f:var_of_operand |> Vset.of_list in
+    let vargs = List.filter_map vargs ~f:var_of_operand |> Vset.of_list in
+    Vset.union_list [f; args; vargs]
 
 let is_variadic : call -> bool = function
   | `call (_, _, _, vargs, _) -> not @@ List.is_empty vargs
@@ -254,10 +256,10 @@ type mem = [
   | `store of Type.arg * operand * operand
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_mem : mem -> Var.Set.t = function
+let free_vars_of_mem : mem -> Vset.t = function
   | `load  (_, _, a) -> var_of_operand a |> var_set_of_option
   | `store (_, v, a) ->
-    List.filter_map [v; a] ~f:var_of_operand |> Var.Set.of_list
+    List.filter_map [v; a] ~f:var_of_operand |> Vset.of_list
 
 let pp_mem ppf : mem -> unit = function
   | `load (x, `name n, a) ->
@@ -282,10 +284,10 @@ type variadic = [
   | `vastart of alist
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_variadic : variadic -> Var.Set.t = function
+let free_vars_of_variadic : variadic -> Vset.t = function
   | `vaarg (_, _, `var x)
-  | `vastart `var x -> Var.Set.singleton x
-  | _ -> Var.Set.empty
+  | `vastart `var x -> Vset.singleton x
+  | _ -> Vset.empty
 
 let pp_variadic ppf : variadic -> unit = function
   | `vaarg (x, (#Type.basic as t), y) ->
@@ -319,7 +321,7 @@ let op_has_lhs d v = match lhs_of_op d with
   | Some x -> Var.(x = v)
   | None -> false
 
-let free_vars_of_op : op -> Var.Set.t = function
+let free_vars_of_op : op -> Vset.t = function
   | #basic    as b -> free_vars_of_basic b
   | #call     as c -> free_vars_of_call c
   | #mem      as m -> free_vars_of_mem m

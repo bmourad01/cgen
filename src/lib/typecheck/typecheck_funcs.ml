@@ -7,21 +7,22 @@ open Typecheck_common
 
 module Insns = Typecheck_insns
 module Ctrls = Typecheck_ctrls
+module Vset = Var.Tree_set
 
 let not_pseudo = Fn.non Label.is_pseudo
 
 let blk_args =
   let* fn = getfn and* blk = getblk and* env = getenv in
   let* _ =
-    Blk.args blk |> M.Seq.fold ~init:Var.Set.empty
-      ~f:(fun seen x -> if Set.mem seen x then
+    Blk.args blk |> M.Seq.fold ~init:Vset.empty
+      ~f:(fun seen x -> if Vset.mem seen x then
              M.failf "Duplicate argument %a for block %a in function $%s"
                Var.pp x Label.pp (Blk.label blk) (Func.name fn) ()
            else
              (* NB: `x` should be present in the environment due to the order
                 in which we traverse the domtree (see `Ctrls.check_label_dst`) *)
              let*? _ = Env.typeof_var fn x env in
-             !!(Set.add seen x)) in
+             !!(Vset.add seen x)) in
   updenv env
 
 let rec check_blk doms blks seen l =
@@ -47,30 +48,30 @@ let typ_of_typ_arg env = function
 let args =
   let* env = getenv and* fn = getfn in
   let* env, _ =
-    let init = env, Var.Set.empty in
+    let init = env, Vset.empty in
     Func.args fn |> M.Seq.fold ~init ~f:(fun (env, seen) (x, t) ->
-        if Set.mem seen x then
+        if Vset.mem seen x then
           M.failf "Duplicate argument %a for function $%s"
             Var.pp x (Func.name fn) ()
         else
           let*? t = typ_of_typ_arg env t in
           let*? env = Env.add_var fn x t env in
-          !!(env, Set.add seen x)) in
+          !!(env, Vset.add seen x)) in
   updenv env
 
 let slots =
   let* env = getenv and* fn = getfn in
   let t = (Target.word (Env.target env) :> Type.t) in
   let* env, _ =
-    let init = env, Var.Set.empty in
+    let init = env, Vset.empty in
     Func.slots fn |> Seq.map ~f:Slot.var |>
     M.Seq.fold ~init ~f:(fun (env, seen) x ->
-        if Set.mem seen x then
+        if Vset.mem seen x then
           M.failf "Duplicate slot %a in function $%s"
             Var.pp x (Func.name fn) ()
         else
           let*? env = Env.add_var fn x t env in
-          !!(env, Set.add seen x)) in
+          !!(env, Vset.add seen x)) in
   updenv env
 
 let check_entry_inc fn cfg =

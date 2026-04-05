@@ -358,6 +358,20 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       | RIR -> Bin (p2, b2, l2, union t1 r2)
       | DJ -> join t1 p1 t2 p2
 
+  let rec diff t1 t2 = match t1, t2 with
+    | Nil, _ -> Nil
+    | t, Nil -> t
+    | Tip k, t -> if mem t k then Nil else t1
+    | t, Tip k -> remove t k
+    | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
+      match order2 p1 b1 p2 b2 with
+      | EQ -> of_key p1 b1 (diff l1 l2) (diff r1 r2)
+      | LIL -> of_key p1 b1 (diff l1 t2) r1
+      | LIR -> of_key p1 b1 l1 (diff r1 t2)
+      | RIL -> diff t1 l2
+      | RIR -> diff t1 r2
+      | DJ -> t1
+
   let rec inter t1 t2 = match t1, t2 with
     | Nil, _ | _, Nil -> Nil
     | Tip k, t when mem t k -> t1
@@ -452,4 +466,5 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       | Bin _, _ -> -1
 
   let of_sequence = Seq.fold ~init:empty ~f:add
+  let union_list = List.fold ~init:empty ~f:union
 end

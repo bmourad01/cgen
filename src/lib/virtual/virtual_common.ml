@@ -1,8 +1,10 @@
 open Core
 
+module Vset = Var.Tree_set
+
 let var_set_of_option = function
-  | Some x -> Var.Set.singleton x
-  | None -> Var.Set.empty
+  | Some x -> Vset.singleton x
+  | None -> Vset.empty
 
 type 'a ftree = 'a Ftree.t [@@deriving bin_io, sexp]
 
@@ -60,10 +62,10 @@ type local = [
   | `label of Label.t * operand list
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_local : local -> Var.Set.t = function
+let free_vars_of_local : local -> Vset.t = function
   | `label (_, args) ->
-    List.fold args ~init:Var.Set.empty ~f:(fun s -> function
-        | `var v -> Set.add s v
+    List.fold args ~init:Vset.empty ~f:(fun s -> function
+        | `var v -> Vset.add s v
         | _ -> s)
 
 let pp_local ppf : local -> unit = function
@@ -78,10 +80,10 @@ type dst = [
   | local
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_dst : dst -> Var.Set.t = function
-  | `var x -> Var.Set.singleton x
+let free_vars_of_dst : dst -> Vset.t = function
+  | `var x -> Vset.singleton x
   | #local as l -> free_vars_of_local l
-  | _ -> Var.Set.empty
+  | _ -> Vset.empty
 
 let pp_dst ppf : dst -> unit = function
   | #global as g -> Format.fprintf ppf "%a" pp_global g

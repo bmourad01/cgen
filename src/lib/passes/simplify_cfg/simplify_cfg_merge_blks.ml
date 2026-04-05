@@ -36,7 +36,7 @@ let rec try_merge ?child subst env l =
     | None -> next ()
 
 and merge subst env l l' b b' =
-  let insns', c = if Map.is_empty subst
+  let insns', c = if Var.Tree.is_empty subst
     then Seq.to_list (Blk.insns b'), Blk.ctrl b'
     else Subst_mapper.map_blk subst b' in
   let new_insns =
@@ -56,9 +56,9 @@ and merge subst env l l' b b' =
 
 let run env =
   let orig_len = Hashtbl.length env.blks in
-  let q = Stack.singleton (Label.pseudoentry, Var.Map.empty) in
+  let q = Stack.singleton (Label.pseudoentry, Var.Tree.empty) in
   Stack.until_empty q (fun (l, subst) ->
-      if not @@ Map.is_empty subst then
+      if not @@ Var.Tree.is_empty subst then
         Hashtbl.change env.blks l ~f:(O.map ~f:(fun b ->
             let is, c = Subst_mapper.map_blk subst b in
             Blk.(with_insns (with_ctrl b c) is)));

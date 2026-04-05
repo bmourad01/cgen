@@ -48,12 +48,12 @@ let map_of_insns b =
           Label.pps key Label.pps b.label ())
 
 let free_vars b =
-  let (++) = Set.union and (--) = Set.diff in
+  let (++) = Var.Tree_set.union and (--) = Var.Tree_set.diff in
   let init = Abi_ctrl.free_vars b.ctrl in
   Ftree.fold_right b.insns ~init ~f:(fun i inc ->
       inc -- Abi_insn.def i ++ Abi_insn.free_vars i)
 
-let uses_var b x = Set.mem (free_vars b) x
+let uses_var b x = Var.Tree_set.mem (free_vars b) x
 
 let map_args b ~f = {
   b with args = Ftree.map b.args ~f:(fun x -> f x);
@@ -115,7 +115,7 @@ let remove_insn b l = {
 let has_arg b x = Ftree.exists b.args ~f:(Var.equal x)
 
 let has_lhs b y = Ftree.exists b.insns
-    ~f:(fun i -> Set.mem (Abi_insn.def i) y)
+    ~f:(fun i -> Var.Tree_set.mem (Abi_insn.def i) y)
 
 let defines_var b x = has_arg b x || has_lhs b x
 let has_any_insns b = not (Ftree.is_empty b.insns)

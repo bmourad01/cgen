@@ -2,6 +2,8 @@ open Core
 open Regular.Std
 open Virtual_common
 
+module Vset = Var.Tree_set
+
 module Table = struct
   type t = {
     tbl : local Map.M(Bv).t;
@@ -37,8 +39,8 @@ module Table = struct
     | Invalid_argument msg -> Or_error.error_string msg
 
   let free_vars t =
-    Map.fold t.tbl ~init:Var.Set.empty ~f:(fun ~key:_ ~data s ->
-        Set.union s @@ free_vars_of_local data)
+    Map.fold t.tbl ~init:Vset.empty ~f:(fun ~key:_ ~data s ->
+        Vset.union s @@ free_vars_of_local data)
 
   let pp_elt t ppl ppf (v, l) =
     Format.fprintf ppf "%a_%a -> %a" Bv.pp v Type.pp_imm t ppl l
@@ -74,17 +76,17 @@ type t = [
   | `sw  of Type.imm * swindex * local * table
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars : t -> Var.Set.t = function
-  | `hlt -> Var.Set.empty
+let free_vars : t -> Vset.t = function
+  | `hlt -> Vset.empty
   | `jmp d -> free_vars_of_dst d
-  | `br (x, y, n) -> Var.Set.union_list [
-      Var.Set.singleton x;
+  | `br (x, y, n) -> Vset.union_list [
+      Vset.singleton x;
       free_vars_of_dst y;
       free_vars_of_dst n;
     ]
-  | `ret None -> Var.Set.empty
+  | `ret None -> Vset.empty
   | `ret (Some a) -> var_set_of_option @@ var_of_operand a
-  | `sw (_, x, d, tbl) -> Var.Set.union_list [
+  | `sw (_, x, d, tbl) -> Vset.union_list [
       var_set_of_option @@ var_of_swindex x;
       free_vars_of_local d;
       Table.free_vars tbl;
