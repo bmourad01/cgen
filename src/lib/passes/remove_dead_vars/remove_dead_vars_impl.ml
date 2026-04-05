@@ -31,11 +31,14 @@ module type S = sig
 
   module Blk : sig
     type t
-    val args : ?rev:bool -> t -> Var.t seq
-    val insns : ?rev:bool -> t -> Insn.t seq
     val label : t -> Label.t
     val ctrl : t -> Ctrl.t
     val dict : t -> Dict.t
+    val has_any_args : t -> bool
+    val args_to_list : t -> Var.t list
+    val num_args : t -> int
+    val fold_args : ?rev:bool -> t -> init:'a -> f:('a -> Var.t -> 'a) -> 'a
+    val fold_insns : ?rev:bool -> t -> init:'a -> f:('a -> Insn.t -> 'a) -> 'a
 
     val create :
       ?dict:Dict.t ->
@@ -52,6 +55,7 @@ module type S = sig
     val entry : t -> Label.t
     val blks : ?rev:bool -> t -> Blk.t seq
     val slots : ?rev:bool -> t -> Slot.t seq
+    val fold_slots : ?rev:bool -> t -> init:'a -> f:('a -> Slot.t -> 'a) -> 'a
     val remove_slot : t -> Var.t -> t
     val update_blks' : t -> Blk.t Label.Tree.t -> t
     val map_of_blks : t -> Blk.t Label.Tree.t
@@ -79,14 +83,17 @@ module Make(M : S) = struct
   let collect_unused_args live blks : unused =
     Label.Tree.fold blks ~init:Label.Tree.empty
       ~f:(fun ~key:_ ~data:b acc ->
-          let l = Blk.label b in
-          let needed = Live.uses live l ++ Live.outs live l in
-          let args =
-            Blk.args b |> Seq.filter_mapi ~f:(fun i x ->
-                Option.some_if (x @/ needed) i) |>
-            Int.Set.of_sequence in
-          if Set.is_empty args then acc
-          else Label.Tree.set acc ~key:l ~data:args)
+          if not (Blk.has_any_args b) then acc else
+            let l = Blk.label b in
+            let needed = Live.uses live l ++ Live.outs live l in
+            let args =
+              Blk.fold_args b
+                ~init:(0, Int.Set.empty)
+                ~f:(fun (i, acc) x ->
+                    let acc = if x @/ needed then Set.add acc i else acc in
+                    i + 1, acc) |> snd in
+            if Set.is_empty args then acc
+            else Label.Tree.set acc ~key:l ~data:args)
 
   let keep i x alive =
     Insn.is_effectful i ||
@@ -111,29 +118,34 @@ module Make(M : S) = struct
 
   let finalize fn blks live =
     let ins = Live.ins live @@ Func.entry fn in
-    Func.slots fn |> Seq.map ~f:Slot.var |>
-    Seq.filter ~f:(Fn.non @@ Set.mem ins) |>
-    Seq.fold ~init:fn ~f:remove_slot |>
+    Func.fold_slots fn ~init:fn ~f:(fun acc s ->
+        let x = Slot.var s in
+        if not (Set.mem ins x) then remove_slot acc x else acc) |>
     Fn.flip Func.update_blks' blks
+
+  let filter_args b s =
+    Blk.fold_args ~rev:true b
+      ~init:(Blk.num_args b - 1, [])
+      ~f:(fun (i, acc) a ->
+          let acc = if i @/ s then a :: acc else acc in
+          i - 1, acc) |> snd
 
   let rec run fn blks cfg =
     let live = Live.compute' cfg blks in
     let unused = collect_unused_args live blks in
-    Label.Tree.to_sequence blks |>
-    Seq.filter_map ~f:(fun (label, b) ->
+    Label.Tree.fold blks ~init:[] ~f:(fun ~key:label ~data:b acc ->
         let ctrl, cc = map_ctrl unused @@ Blk.ctrl b in
-        let args = Blk.args b in
-        let args, ca = match Label.Tree.find unused label with
-          | Some s -> Seq.filteri args ~f:(noti s), true
-          | None -> args, false in
+        let unused_s = Label.Tree.find unused label in
+        let ca = Option.is_some unused_s in
         let alive = Live.outs live label ++ Ctrl.free_vars ctrl in
         let insns, changed, _ =
-          Blk.insns b ~rev:true |>
-          Seq.fold ~init:([], ca || cc, alive) ~f:insn in
+          Blk.fold_insns b ~rev:true ~init:([], ca || cc, alive) ~f:insn in
         if changed then
-          Option.some @@ Blk.create () ~insns ~ctrl ~label
-            ~args:(Seq.to_list args) ~dict:(Blk.dict b)
-        else None) |> Seq.to_list |> function
+          let args = match unused_s with
+            | Some s -> filter_args b s
+            | None -> Blk.args_to_list b in
+          Blk.create () ~insns ~ctrl ~label ~args ~dict:(Blk.dict b) :: acc
+        else acc) |> function
     | [] -> finalize fn blks live
     | bs ->
       let blks = List.fold bs ~init:blks ~f:(fun acc b ->

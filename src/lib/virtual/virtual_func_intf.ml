@@ -46,11 +46,25 @@ module type S = sig
   (** Returns the number of slots of the function. *)
   val num_slots : t -> int
 
+  (** [fold_slots ?rev fn ~init ~f] folds [f] over the slots of [fn].
+      Bypasses the [Seq] layer; prefer over [Func.slots fn |> Seq.fold]. *)
+  val fold_slots : ?rev:bool -> t -> init:'a -> f:('a -> slot -> 'a) -> 'a
+
+  (** [iter_slots ?rev fn ~f] applies [f] to each slot of [fn]. *)
+  val iter_slots : ?rev:bool -> t -> f:(slot -> unit) -> unit
+
   (** Returns the basic blocks of the function. *)
   val blks : ?rev:bool -> t -> blk seq
 
   (** Returns the number of basic blocks of the function. *)
   val num_blks : t -> int
+
+  (** [fold_blks ?rev fn ~init ~f] folds [f] over the blocks of [fn].
+      Bypasses the [Seq] layer; prefer over [Func.blks fn |> Seq.fold]. *)
+  val fold_blks : ?rev:bool -> t -> init:'a -> f:('a -> blk -> 'a) -> 'a
+
+  (** [iter_blks ?rev fn ~f] applies [f] to each block of [fn]. *)
+  val iter_blks : ?rev:bool -> t -> f:(blk -> unit) -> unit
 
   (** Returns the label of the entry block. *)
   val entry : t -> Label.t

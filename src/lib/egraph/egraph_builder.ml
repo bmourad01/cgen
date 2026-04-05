@@ -264,7 +264,7 @@ let add_phi_value r env eg acc = function
       r ()
 
 let approximate_phis env eg b =
-  Blk.args b |> Seq.iter ~f:(fun x ->
+  Blk.iter_args b ~f:(fun x ->
       Map.find eg.input.phis x |> Option.iter
         ~f:(fun vs -> with_return @@ fun {return} ->
              (* Translate the values for `x` into terms
@@ -282,7 +282,7 @@ let step env eg l lst =
   | Some `blk b ->
     setmem env eg l lst;
     approximate_phis env eg b;
-    Blk.insns b |> Seq.iter ~f:(fun i ->
+    Blk.iter_insns b ~f:(fun i ->
         let l = Insn.label i in
         env.cur <- l;
         insn env eg l (Insn.op i));

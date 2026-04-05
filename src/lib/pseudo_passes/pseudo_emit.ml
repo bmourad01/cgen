@@ -21,9 +21,9 @@ module Make(M : Machine_intf.S) = struct
         let lnk = Func.linkage fn in
         let section = Linkage.section lnk in
         M.Emit.emit_func ppf (Func.name fn, lnk);
-        Func.blks fn |> Seq.iter ~f:(fun b ->
+        Func.iter_blks fn ~f:(fun b ->
             M.Emit.emit_blk ppf @@ Blk.label b;
-            Blk.insns b |> Seq.iter ~f:(fun i ->
+            Blk.iter_insns b ~f:(fun i ->
                 let insn = Insn.insn i in
                 let label = Insn.label i in
                 M.Emit.emit_insn ppf (label, insn, section)));

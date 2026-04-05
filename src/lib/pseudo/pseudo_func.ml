@@ -53,9 +53,32 @@ let name t = t.name
 let slots ?(rev = false) t = Ftree.enum ~rev t.slots
 let has_any_slots t = not (Ftree.is_empty t.slots)
 let num_slots t = Ftree.length t.slots
+
+let fold_slots ?(rev = false) t ~init ~f =
+  if rev then Ftree.fold_right t.slots ~init ~f:(fun x acc -> f acc x)
+  else Ftree.fold t.slots ~init ~f
+
+let iter_slots ?(rev = false) t ~f =
+  if rev then Ftree.iter_rev t.slots ~f
+  else Ftree.iter t.slots ~f
+
 let blks ?(rev = false) t = Ftree.enum ~rev t.blks
 let num_blks t = Ftree.length t.blks
+
+let fold_blks ?(rev = false) t ~init ~f =
+  if rev then Ftree.fold_right t.blks ~init ~f:(fun x acc -> f acc x)
+  else Ftree.fold t.blks ~init ~f
+
+let iter_blks ?(rev = false) t ~f =
+  if rev then Ftree.iter_rev t.blks ~f
+  else Ftree.iter t.blks ~f
+
 let rets ?(rev = false) t = Ftree.enum ~rev t.rets
+
+let fold_rets ?(rev = false) t ~init ~f =
+  if rev then Ftree.fold_right t.rets ~init ~f:(fun x acc -> f acc x)
+  else Ftree.fold t.rets ~init ~f
+
 let dict t = t.dict
 let start t = Pseudo_blk.label @@ Ftree.head_exn t.blks
 

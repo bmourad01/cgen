@@ -26,7 +26,7 @@ let accum tbl g b : _ -> G.t = function
           G.Edge.(insert (create b l ()) g))
 
 let create fn =
-  Func.blks fn |> Seq.fold ~init:G.empty ~f:(fun g b ->
+  Func.fold_blks fn ~init:G.empty ~f:(fun g b ->
       let l = Blk.label b and c = Blk.ctrl b in
       accum Ctrl.Table.enum (G.Node.insert l g) l c) |> Pseudo.add
 

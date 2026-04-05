@@ -123,6 +123,24 @@ let has_any_insns b = not (Ftree.is_empty b.insns)
 let has_any_args b = not (Ftree.is_empty b.args)
 let num_insns b = Ftree.length b.insns
 let num_args b = Ftree.length b.args
+
+let fold_insns ?(rev = false) b ~init ~f =
+  if rev then Ftree.fold_right b.insns ~init ~f:(fun x acc -> f acc x)
+  else Ftree.fold b.insns ~init ~f
+
+let iter_insns ?(rev = false) b ~f =
+  if rev then Ftree.iter_rev b.insns ~f
+  else Ftree.iter b.insns ~f
+
+let fold_args ?(rev = false) b ~init ~f =
+  if rev then Ftree.fold_right b.args ~init ~f:(fun x acc -> f acc x)
+  else Ftree.fold b.args ~init ~f
+
+let iter_args ?(rev = false) b ~f =
+  if rev then Ftree.iter_rev b.args ~f
+  else Ftree.iter b.args ~f
+
+let args_to_list b = Ftree.to_list b.args
 let defines_var b x = has_arg b x || has_lhs b x
 let has_insn b l = Ftree.exists b.insns ~f:(Fn.flip Insn.has_label l)
 let find_insn b l = Ftree.find b.insns ~f:(Fn.flip Insn.has_label l)

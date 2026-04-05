@@ -39,13 +39,12 @@ module Make(M : Machine_intf.S_insn) = struct
 
   let rec run ~keep blks cfg =
     let live = Live.compute' ~keep cfg blks in
-    Label.Tree.to_sequence blks |>
-    Seq.filter_map ~f:(fun (label, b) ->
+    Label.Tree.fold blks ~init:[] ~f:(fun ~key:label ~data:b acc ->
         let insns, changed, _ =
-          Blk.insns b ~rev:true |>
-          Seq.fold ~init:([], false, Live.outs live label) ~f:insn in
-        if changed then Some (Blk.create ~label ~insns)
-        else None) |> Seq.to_list |> function
+          Blk.fold_insns b ~rev:true ~f:insn
+            ~init:([], false, Live.outs live label) in
+        if changed then Blk.create ~label ~insns :: acc
+        else acc) |> function
     | [] -> blks
     | bs ->
       let blks = List.fold bs ~init:blks ~f:(fun acc b ->
@@ -55,7 +54,7 @@ module Make(M : Machine_intf.S_insn) = struct
   (* Set of registers that should always be live at the exit. *)
   let init_keep fn =
     let init = Rv.Set.singleton @@ Rv.reg M.Reg.sp in
-    Func.rets fn |> Seq.map ~f:Rv.reg |> Seq.fold ~init ~f:Set.add
+    Func.fold_rets fn ~init ~f:(fun acc r -> Set.add acc (Rv.reg r))
 
   let run fn =
     let keep = init_keep fn in

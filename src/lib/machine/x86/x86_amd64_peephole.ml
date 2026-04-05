@@ -34,7 +34,7 @@ let filter_not_in changed fn t =
 *)
 let collect_singles fn =
   let start = Func.start fn in
-  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       let key = Blk.label b in
       if Label.(key = start) then acc
       else
@@ -175,7 +175,7 @@ let remove_disjoint changed fn =
      ...
 *)
 let collect_invert_branches afters fn =
-  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       Blk.label b |> Ltree.find afters |>
       Option.value_map ~default:acc ~f:(fun after ->
           Blk.insns b ~rev:true |> Seq.map ~f:decomp |>
@@ -207,7 +207,7 @@ let invert_branches changed afters fn =
      ...
 *)
 let collect_implicit_fallthroughs afters fn =
-  Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
       Blk.label b |> Ltree.find afters |>
       Option.value_map ~default:acc ~f:(fun after ->
           Blk.insns b ~rev:true |>
@@ -241,7 +241,7 @@ let implicit_fallthroughs changed afters fn =
    because LEAVE will overwrite RSP anyway
 *)
 let collect_dealloc_stack_before_leave fn =
-  Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
         | (l, Two (ADD, Oreg (r, `i64), Oimm _))
@@ -256,7 +256,7 @@ let dealloc_stack_before_leave changed fn =
   filter_not_in changed fn @@ collect_dealloc_stack_before_leave fn
 
 let collect_redundant_spill_after_reload fn =
-  Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
         | (_, Two (MOV, Oreg (r2, _), Omem (a2, t2)))
@@ -280,7 +280,7 @@ let redundant_spill_after_reload changed fn =
    recognized as dead code).
 *)
 let collect_reuse_lea fn =
-  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
         | (_, Two (LEA, Oreg (r1, _), Omem (a1, _)))
@@ -307,7 +307,7 @@ let and_test_act = function
   | _ -> false
 
 let collect_and_test fn =
-  Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
         | (_, Two (AND, Oreg (r1, _), _))
@@ -346,7 +346,7 @@ let combinable_imm r1t o = match o with
   | _ -> true
 
 let collect_lea_mov fn =
-  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
         | (_, Two (LEA, Oreg (r1, _), Omem (Abd (b, d), _)))
@@ -388,7 +388,7 @@ let combinable_unop = function
 let rset_mem' o l = List.exists l ~f:(Set.mem @@ rset [o])
 
 let collect_mov_op fn =
-  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
         | (_, Two (MOV, Oreg (r1, _), o1))
@@ -426,7 +426,7 @@ let mov_op changed fn =
   map_insns changed fn @@ collect_mov_op fn
 
 let collect_mov_to_store fn =
-  Func.blks fn |> Seq.fold ~init:Ltree.empty ~f:(fun acc b ->
+  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
         | (_, Two (MOV, Oreg (r1, r1t), (Oreg _ as r)))
@@ -453,13 +453,13 @@ let albl_of_insn = function
 
 let collect_dead_fp_pseudos fn =
   let refs =
-    Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
+    Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
         Blk.insns b |> Seq.map ~f:Insn.insn |>
         Seq.fold ~init:acc ~f:(fun acc -> function
             | FP32 _ | FP64 _ | FP32V _ | FP64V _ -> acc
             | i -> albl_of_insn i |> List.fold ~init:acc ~f:Lset.add)) in
-  Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
-      Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
+  Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
+      Blk.fold_insns b ~init:acc ~f:(fun acc i ->
           match Insn.insn i with
           | FP32 (l, _) | FP64 (l, _) | FP32V (l, _) | FP64V (l, _)
             when not (Lset.mem refs l) -> Lset.add acc (Insn.label i)

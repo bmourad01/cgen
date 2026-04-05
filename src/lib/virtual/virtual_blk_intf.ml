@@ -181,5 +181,25 @@ module type S = sig
   (** Returns the number of arguments of the block. *)
   val num_args : t -> int
 
+  (** [fold_insns ?rev b ~init ~f] folds [f] over the data instructions
+      of [b], accumulating from [init]. If [rev] is [true], folds in
+      reverse order. Bypasses the [Seq] layer; prefer over
+      [Blk.insns b |> Seq.fold]. *)
+  val fold_insns : ?rev:bool -> t -> init:'a -> f:('a -> insn -> 'a) -> 'a
+
+  (** [iter_insns ?rev b ~f] applies [f] to each data instruction of [b].
+      If [rev] is [true], iterates in reverse order. *)
+  val iter_insns : ?rev:bool -> t -> f:(insn -> unit) -> unit
+
+  (** [fold_args ?rev b ~init ~f] folds [f] over the arguments of [b]. *)
+  val fold_args : ?rev:bool -> t -> init:'a -> f:('a -> Var.t -> 'a) -> 'a
+
+  (** [iter_args ?rev b ~f] applies [f] to each argument of [b]. *)
+  val iter_args : ?rev:bool -> t -> f:(Var.t -> unit) -> unit
+
+  (** Returns the arguments of the block as a list. Prefer over
+      [Blk.args b |> Seq.to_list]. *)
+  val args_to_list : t -> Var.t list
+
   include Regular.S with type t := t
 end

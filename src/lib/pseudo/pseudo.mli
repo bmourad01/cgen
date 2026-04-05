@@ -55,6 +55,14 @@ module Blk : sig
   (** Returns the number of instructions in the block. *)
   val num_insns : 'a t -> int
 
+  (** [fold_insns ?rev b ~init ~f] folds over instructions without
+      allocating a [Seq]. *)
+  val fold_insns : ?rev:bool -> 'a t -> init:'b -> f:('b -> 'a insn -> 'b) -> 'b
+
+  (** [iter_insns ?rev b ~f] iterates over instructions without
+      allocating a [Seq]. *)
+  val iter_insns : ?rev:bool -> 'a t -> f:('a insn -> unit) -> unit
+
   val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
 end
 
@@ -120,8 +128,17 @@ module Func : sig
   (** Returns the number of basic blocks of the function. *)
   val num_blks : ('a, 'b) t -> int
 
+  (** [fold_blks ?rev fn ~init ~f] folds over blocks without allocating a [Seq]. *)
+  val fold_blks : ?rev:bool -> ('a, 'b) t -> init:'c -> f:('c -> 'a blk -> 'c) -> 'c
+
+  (** [iter_blks ?rev fn ~f] iterates over blocks without allocating a [Seq]. *)
+  val iter_blks : ?rev:bool -> ('a, 'b) t -> f:('a blk -> unit) -> unit
+
   (** The return registers of the function. *)
   val rets : ?rev:bool -> ('a, 'b) t -> 'b seq
+
+  (** Fold over return registers without allocating a sequence. *)
+  val fold_rets : ?rev:bool -> ('a, 'b) t -> init:'c -> f:('c -> 'b -> 'c) -> 'c
 
   (** The attributes of the function. *)
   val dict : ('a, 'b) t -> Dict.t
@@ -134,6 +151,12 @@ module Func : sig
 
   (** Returns the number of slots of the function. *)
   val num_slots : ('a, 'b) t -> int
+
+  (** [fold_slots ?rev fn ~init ~f] folds over slots without allocating a [Seq]. *)
+  val fold_slots : ?rev:bool -> ('a, 'b) t -> init:'c -> f:('c -> Virtual.slot -> 'c) -> 'c
+
+  (** [iter_slots ?rev fn ~f] iterates over slots without allocating a [Seq]. *)
+  val iter_slots : ?rev:bool -> ('a, 'b) t -> f:(Virtual.slot -> unit) -> unit
 
   (** Returns the label of the entry block. *)
   val start : ('a, 'b) t -> Label.t

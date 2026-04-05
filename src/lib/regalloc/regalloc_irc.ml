@@ -99,9 +99,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         (* live := liveOut(b) *)
         let out = ref @@ Live.outs live l in
         (* ∀ I ∈ instructions(b) in reverse order *)
-        let insns = Blk.insns b ~rev:true |> Seq.to_list in
-        let ord = ref (List.length insns - 1) in
-        C.List.iter insns ~f:(fun i ->
+        let ord = ref (Blk.num_insns b - 1) in
+        Blk.insns b ~rev:true |> C.Seq.iter ~f:(fun i ->
             Hashtbl.set t.insn_blks ~key:(Insn.label i) ~data:(l, !ord);
             let+ out' = build_insn ~loop_depth t !out i in
             out := out';
@@ -109,7 +108,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* Initialize the worklists. *)
   let make_worklist t =
-    Bitset.enum t.initial |> Seq.iter ~f:(fun id ->
+    Bitset.iter t.initial ~f:(fun id ->
         (* If we introduced `id` during spilling, but later removed
            its definition during dead code elimination, then it
            won't have a degree. *)
@@ -139,7 +138,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let enable_moves t nodes =
     (* ∀ n ∈ nodes *)
-    Bitset.enum nodes |> Seq.iter ~f:(enable_moves_one t)
+    Bitset.iter nodes ~f:(enable_moves_one t)
 
   (* Simulate removing a node from the interference graph (this is what
      the `degree` table is for). *)
@@ -179,7 +178,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Stack.push t.select id
     end;
     (* ∀ m ∈ Adjacent(n) *)
-    adjacent t id |> Bitset.enum |> Seq.iter ~f:(decrement_degree t)
+    Bitset.iter (adjacent t id) ~f:(decrement_degree t)
 
   let should_add_to_worklist t id =
     (* u ∉ precolored *)
@@ -213,7 +212,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      of `v` are neighbors of `u`. *)
   let all_adjacent_ok t u v =
     (* ∀ t ∈ Adjacent(v), OK(t,u)  *)
-    adjacent t v |> Bitset.enum |> Seq.for_all ~f:(fun a -> george_ok t a u)
+    Bitset.for_all (adjacent t v) ~f:(fun a -> george_ok t a u)
 
   (* Briggs conservative coalescing heuristic.
 
@@ -223,7 +222,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      return (k < K)
   *)
   let conservative t nodes =
-    Bitset.enum nodes |> Seq.fold ~init:0 ~f:(fun k id ->
+    Bitset.fold nodes ~init:0 ~f:(fun k id ->
         if degree t id >= Regs.node_k t.![id] then k + 1 else k)
 
   (* Conservative(Adjacent(u) ∪ Adjacent(v)) *)
@@ -283,7 +282,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     t.data.node_moves.(u) <- Lset.union t.data.node_moves.(u) t.data.node_moves.(v);
     Wfreeze.update t u;
     (* ∀ t ∈ Adjacent(v) *)
-    adjacent t v |> Bitset.enum |> Seq.iter ~f:(combine_edge t u);
+    Bitset.iter (adjacent t v) ~f:(combine_edge t u);
     (* Appel book erratum: since our `combine_edge` does not call
        DecrementDegree on new-edge neighbors (to avoid spurious
        EnableMoves), v's active moves would otherwise remain in
@@ -457,7 +456,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           let c = Option.value (preferred_color t id cs) ~default in
           set_color t id c);
     (* ∀ n ∈ coalescedNodes *)
-    Bitset.enum t.coalesced |> Seq.iter ~f:(fun id ->
+    Bitset.iter t.coalesced ~f:(fun id ->
         (* color[n] := color[GetAlias(n)] *)
         alias t id |> color t |> Option.iter ~f:(set_color t id))
 
@@ -689,7 +688,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Override spill costs for reload temporaries. After build computes
        costs from use counts, pin every reload temp to max so `select_spill`
        never picks them preferentially over original variables. *)
-    Bitset.enum t.reload_bits |> Seq.iter ~f:(fun id ->
+    Bitset.iter t.reload_bits ~f:(fun id ->
         t.data.spill_cost.(id) <- Int.max_value);
     make_worklist t;
     (* Process the worklists. *)
@@ -728,14 +727,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         | GPR -> Regs.allocatable.(c)
         | FP -> Regs.allocatable_fp.(c) in
     Func.map_blks t.fn ~f:(fun b ->
-        Blk.insns b |> Seq.filter_map ~f:(fun i ->
+        Blk.fold_insns ~rev:true b ~init:[] ~f:(fun acc i ->
             let insn = Insn.insn i in
             let insn' = RA.substitute insn subst in
             (* Now we can remove useless copies. *)
             match RA.is_copy insn' with
-            | Some (d, s) when Rv.(d = s) -> None
-            | Some _ | None -> Some (Insn.with_insn i insn')) |>
-        Seq.to_list |> Blk.with_insns b)
+            | Some (d, s) when Rv.(d = s) -> acc
+            | Some _ | None -> Insn.with_insn i insn' :: acc) |>
+        Blk.with_insns b)
 
   module Layout = Regalloc_stack_layout.Make(M)(C)
 

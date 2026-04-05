@@ -615,13 +615,13 @@ module Make(M : Machine_intf.S) = struct
     (* Degree invariant *)
     let check_degree id =
       let expected =
-        Bitset.enum t.adjlist.(id) |>
-        Seq.count ~f:(Bitset.mem active) in
+        Bitset.fold t.adjlist.(id) ~init:0
+          ~f:(fun acc k -> if Bitset.mem active k then acc + 1 else acc) in
       let actual = t.data.degree.(id) in
       if actual <> expected then
         failwithf "degree invariant violated for id %d: degree=%d expected=%d"
           id actual expected () in
-    Bitset.enum t.wsimplify |> Seq.iter ~f:check_degree;
+    Bitset.iter t.wsimplify ~f:check_degree;
     H.iter t.wfreeze ~f:check_degree;
     H.iter t.wspill ~f:check_degree;
     (* wfreeze invariant: degree < K and move-related *)
@@ -662,7 +662,7 @@ module Make(M : Machine_intf.S) = struct
     done;
     (* Adjacency symmetry *)
     for u = 0 to n - 1 do
-      Bitset.enum t.adjlist.(u) |> Seq.iter ~f:(fun v ->
+      Bitset.iter t.adjlist.(u) ~f:(fun v ->
           if not (Bitset.mem t.adjlist.(v) u) then
             failwithf "adjacency symmetry: (%d,%d) present but (%d,%d) absent"
               u v v u ())

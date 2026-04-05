@@ -61,7 +61,7 @@ module Make(M : Machine_intf.S_insn) = struct
     Format.pp_close_box ppf ()
 
   let blk_defs b =
-    Blk.insns b |> Seq.fold ~init:Rv.Set.empty
+    Blk.fold_insns b ~init:Rv.Set.empty
       ~f:(fun acc i -> acc ++ M.Insn.writes (Insn.insn i))
 
   let update l trans ~f = Label.Tree.update_with trans l
@@ -70,28 +70,23 @@ module Make(M : Machine_intf.S_insn) = struct
   let free_vars_of_blk b =
     let (++) = Set.union and (--) = Set.diff in
     let init = Rv.Set.empty in
-    Blk.insns b ~rev:true |> Seq.fold ~init ~f:(fun inc i ->
+    Blk.fold_insns b ~rev:true ~init ~f:(fun inc i ->
         let insn = Insn.insn i in
         inc -- M.Insn.writes insn ++ M.Insn.reads insn)
 
-  let block_transitions g blks =
+  let block_transitions blks =
     Label.Tree.fold blks ~init:Label.Tree.empty ~f:(fun ~key ~data:b fs ->
         Label.Tree.add_exn fs ~key ~data:{
           defs = blk_defs b;
           uses = free_vars_of_blk b;
-        }) |> fun init ->
-    Label.Tree.fold blks ~init ~f:(fun ~key ~data:_ init ->
-        Cfg.Node.preds key g |>
-        Seq.filter ~f:(Label.Tree.mem blks) |>
-        Seq.fold ~init ~f:(fun fs p -> update p fs ~f:(fun x ->
-            {x with defs = x.defs})))
+        })
 
   let init keep =
     let s = Label.(Map.singleton pseudoexit keep) in
     Solution.create s Rv.Set.empty
 
   let compute' ?(keep = Rv.Set.empty) g blks =
-    let blks = block_transitions g blks in {
+    let blks = block_transitions blks in {
       blks;
       outs = Graphlib.fixpoint (module Cfg) g
           ~init:(init keep) ~rev:true

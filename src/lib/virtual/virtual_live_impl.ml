@@ -32,9 +32,10 @@ module type L = sig
 
   module Blk : sig
     type t
-    val args : ?rev:bool -> t -> Var.t seq
-    val insns : ?rev:bool -> t -> Insn.t seq
     val free_vars : t -> Var.Set.t
+    val has_any_args : t -> bool
+    val fold_insns : ?rev:bool -> t -> init:'a -> f:('a -> Insn.t -> 'a) -> 'a
+    val fold_args : ?rev:bool -> t -> init:'a -> f:('a -> Var.t -> 'a) -> 'a
   end
 
   module Func : sig
@@ -90,7 +91,7 @@ module Make(M : L) : S
     Format.pp_close_box ppf ()
 
   let blk_defs b =
-    Blk.insns b |> Seq.fold ~init:Var.Set.empty
+    Blk.fold_insns b ~init:Var.Set.empty
       ~f:(fun acc i -> acc ++ Insn.lhs i)
 
   let update l trans ~f = Label.Tree.update_with trans l
@@ -103,11 +104,12 @@ module Make(M : L) : S
           uses = Blk.free_vars b;
         }) |> fun init ->
     Label.Tree.fold blks ~init ~f:(fun ~key ~data:b init ->
-        let args = Blk.args b |> Seq.fold ~init:Var.Set.empty ~f:Set.add in
-        Cfg.Node.preds key g |>
-        Seq.filter ~f:(Label.Tree.mem blks) |>
-        Seq.fold ~init ~f:(fun fs p -> update p fs ~f:(fun x ->
-            {x with defs = Set.union x.defs args})))
+        if not (Blk.has_any_args b) then init else
+          let args = Blk.fold_args b ~init:Var.Set.empty ~f:Set.add in
+          Cfg.Node.preds key g |>
+          Seq.filter ~f:(Label.Tree.mem blks) |>
+          Seq.fold ~init ~f:(fun fs p -> update p fs ~f:(fun x ->
+              {x with defs = Set.union x.defs args})))
 
   let init keep =
     let s = Label.(Map.singleton pseudoexit keep) in

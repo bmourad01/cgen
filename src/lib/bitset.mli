@@ -89,3 +89,15 @@ val diff : t -> t -> t
     [false].
 *)
 val enum : ?rev:bool -> t -> key seq
+
+(** [fold ?rev t ~init ~f] folds over elements in ascending (or descending if
+    [rev]) order without allocating a sequence. *)
+val fold : ?rev:bool -> t -> init:'a -> f:('a -> key -> 'a) -> 'a
+
+(** [iter ?rev t ~f] iterates over elements in ascending (or descending if
+    [rev]) order without allocating a sequence. *)
+val iter : ?rev:bool -> t -> f:(key -> unit) -> unit
+
+(** [for_all t ~f] returns [true] iff [f] holds for every element (ascending
+    order, short-circuits on first [false]). *)
+val for_all : t -> f:(key -> bool) -> bool

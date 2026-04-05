@@ -18,6 +18,14 @@ let insns ?(rev = false) t = Ftree.enum ~rev t.insns
 let has_any_insns t = not (Ftree.is_empty t.insns)
 let num_insns t = Ftree.length t.insns
 
+let fold_insns ?(rev = false) t ~init ~f =
+  if rev then Ftree.fold_right t.insns ~init ~f:(fun x acc -> f acc x)
+  else Ftree.fold t.insns ~init ~f
+
+let iter_insns ?(rev = false) t ~f =
+  if rev then Ftree.iter_rev t.insns ~f
+  else Ftree.iter t.insns ~f
+
 let map_insns t ~f = {
   t with insns = Ftree.map t.insns ~f;
 }

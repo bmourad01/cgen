@@ -66,3 +66,23 @@ let enum =
     let f = if rev then pop_max_elt else pop_min_elt in
     run @@ go f t
 
+let fold ?(rev = false) t ~init ~f =
+  let pop = if rev then pop_max_elt else pop_min_elt in
+  let rec go t acc = match pop t with
+    | None -> acc
+    | Some (k, t') -> go t' (f acc k) in
+  go t init
+
+let iter ?(rev = false) t ~f =
+  let pop = if rev then pop_max_elt else pop_min_elt in
+  let rec go t = match pop t with
+    | None -> ()
+    | Some (k, t') -> f k; go t' in
+  go t
+
+let for_all t ~f =
+  let rec go t = match pop_min_elt t with
+    | None -> true
+    | Some (k, t') -> f k && go t' in
+  go t
+
