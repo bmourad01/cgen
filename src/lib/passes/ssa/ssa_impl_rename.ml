@@ -6,7 +6,7 @@ open Ssa_impl_common
    and rename variables in each block according to their use-def
    chains. *)
 module Make(M : L) : sig
-  val go : (M.Live.t, M.Cfg.t, M.Blk.t) env -> unit
+  val go : (M.Live.t, M.Cfg.t, M.Blk.t) env -> alloc:(unit -> Var.t) -> unit
 end = struct
   open M
 
@@ -15,39 +15,27 @@ end = struct
     | None -> raise_notrace @@ Missing_blk l
     | Some _ as b -> b
 
-  let fresh_version nums base =
-    let i = ref 1 in
-    Hashtbl.update nums base ~f:(function
-        | None -> !i
-        | Some n ->
-          let n = n + 1 in
-          i := n;
-          n);
-    !i
-
-  let new_name stk nums x =
-    let base = Var.base x in
-    let idx = fresh_version nums base in
-    let y = Var.with_index x idx in
-    Hashtbl.add_multi stk ~key:base ~data:y;
+  let new_name stk alloc x =
+    let y = alloc () in
+    Hashtbl.add_multi stk ~key:x ~data:y;
     y
 
-  let rename_args stk nums b =
-    Blk.args b |> Seq.map ~f:(new_name stk nums) |> Seq.to_list
+  let rename_args stk alloc b =
+    Blk.args b |> Seq.map ~f:(new_name stk alloc) |> Seq.to_list
 
-  let map_var stk x = match Hashtbl.find stk @@ Var.base x with
+  let map_var stk x = match Hashtbl.find stk x with
     | Some [] | None -> x
     | Some (y :: _) -> y
 
-  let rename_insns stk nums b =
-    let rename = new_name stk nums in
+  let rename_insns stk alloc b =
+    let rename = new_name stk alloc in
     let stk = map_var stk in
     Blk.insns b |> Seq.map ~f:(fun i ->
         Insn.op i |> rename_op ~stk ~rename |> Insn.with_op i) |>
     Seq.to_list
 
   let pop_var stk x =
-    Var.base x |> Hashtbl.change stk ~f:(function
+    Hashtbl.change stk x ~f:(function
         | Some ([] | [_]) | None -> None
         | Some (_ :: xs) -> Some xs)
 
@@ -61,12 +49,12 @@ end = struct
     | Visit of Label.t
     | Pop of Blk.t
 
-  let visit q env nums stk l =
+  let visit q env stk alloc l =
     find_blk env l |> Option.iter ~f:(fun b ->
         (* Rename the variables in the block. *)
         let dict = Blk.dict b in
-        let args = rename_args stk nums b in
-        let insns = rename_insns stk nums b in
+        let args = rename_args stk alloc b in
+        let insns = rename_insns stk alloc b in
         let ctrl = rename_ctrl ~stk:(map_var stk) @@ Blk.ctrl b in
         let b' = Blk.create ~dict ~args ~insns ~ctrl ~label:l () in
         Hashtbl.set env.blks ~key:l ~data:b';
@@ -76,13 +64,10 @@ end = struct
     Semi_nca.Tree.children env.dom l |> Seq.iter
       ~f:(fun l -> Stack.push q @@ Visit l)
 
-  let go env =
-    (* Current version of each variable. *)
+  let go env ~alloc =
     let stk = Var.Table.create () in
-    (* Freshener for variable versions. *)
-    let nums = Var.Table.create () in
     let q = Stack.singleton @@ Visit Label.pseudoentry in
     Stack.until_empty q @@ function
-    | Visit l -> visit q env nums stk l
+    | Visit l -> visit q env stk alloc l
     | Pop b -> pop_defs stk b
 end

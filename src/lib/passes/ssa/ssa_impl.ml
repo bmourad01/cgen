@@ -3,7 +3,7 @@ open Regular.Std
 open Ssa_impl_common
 
 module Make(M : L) : sig
-  val run : M.Func.t -> M.Func.t Or_error.t
+  val run : M.Func.t -> M.Func.t Context.t
   val check : M.Func.t -> unit Or_error.t
 end = struct
   open M
@@ -30,13 +30,15 @@ end = struct
     | Invalid_argument msg | Failure msg ->
       Or_error.errorf "SSA: %s" msg
 
-  let run fn = try_ fn @@ fun () ->
+  let run fn =
+    Context.Var.with_allocator @@ fun ~alloc ->
+    try_ fn @@ fun () ->
     if Dict.mem (Func.dict fn) Tags.ssa
     then fn
     else
       let env = init fn in
       Phi.go env;
-      Rename.go env;
+      Rename.go env ~alloc;
       let fn =
         Hashtbl.data env.blks |>
         Func.update_blks_exn fn in

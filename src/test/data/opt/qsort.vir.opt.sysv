@@ -1,60 +1,60 @@
 module qsort
 
-function $swap(l %a/rdi, l %b/rsi) {
+function $swap(l %1/rdi, l %3/rsi) {
 @2:
-  %x.1 = ld.w %a ; @3
-  %y.1 = ld.w %b ; @4
-  st.w %x.1, %b ; @5
-  st.w %y.1, %a ; @6
+  %25 = ld.w %1 ; @3
+  %26 = ld.w %3 ; @4
+  st.w %25, %3 ; @5
+  st.w %26, %1 ; @6
   ret
 }
 
-function $partition(l %arr/rdi, l %low/rsi, l %high/rdx) {
+function $partition(l %6/rdi, l %9/rsi, l %5/rdx) {
 @7:
-  %3 = lsl.l %high, 0x2_l ; @49
-  %4 = add.l %arr, %3 ; @50
-  %pivot.1 = ld.w %4 ; @11
-  %5 = sub.l %low, 0x1_l ; @51
-  %6 = sub.l %high, 0x1_l ; @52
-  jmp @8(%low, %5)
-@8(%j.2, %i.2):
-  %7 = sle.l %j.2, %6 ; @53
-  br %7, @14, @15
+  %60 = lsl.l %5, 0x2_l ; @49
+  %61 = add.l %6, %60 ; @50
+  %29 = ld.w %61 ; @11
+  %62 = sub.l %9, 0x1_l ; @51
+  %63 = sub.l %5, 0x1_l ; @52
+  jmp @8(%9, %62)
+@8(%32, %33):
+  %64 = sle.l %32, %63 ; @53
+  br %64, @14, @15
 @14:
-  %8 = lsl.l %j.2, 0x2_l ; @54
-  %9 = add.l %arr, %8 ; @55
-  %j_val.1 = ld.w %9 ; @22
-  %10 = sle.w %j_val.1, %pivot.1 ; @56
-  br %10, @18, @19(%i.2)
-@19(%i.3):
-  %11 = add.l %j.2, 0x1_l ; @57
-  jmp @8(%11, %i.3)
+  %65 = lsl.l %32, 0x2_l ; @54
+  %66 = add.l %6, %65 ; @55
+  %38 = ld.w %66 ; @22
+  %67 = sle.w %38, %29 ; @56
+  br %67, @18, @19(%33)
+@19(%40):
+  %68 = add.l %32, 0x1_l ; @57
+  jmp @8(%68, %40)
 @18:
-  %12 = add.l %i.2, 0x1_l ; @58
-  %13 = lsl.l %12, 0x2_l ; @59
-  %14 = add.l %arr, %13 ; @60
-  call $swap(%14/rdi, %9/rsi) ; @30
-  jmp @19(%12)
+  %69 = add.l %33, 0x1_l ; @58
+  %70 = lsl.l %69, 0x2_l ; @59
+  %71 = add.l %6, %70 ; @60
+  call $swap(%71/rdi, %66/rsi) ; @30
+  jmp @19(%69)
 @15:
-  %15 = add.l %i.2, 0x1_l ; @61
-  %16 = lsl.l %15, 0x2_l ; @62
-  %17 = add.l %arr, %16 ; @63
-  call $swap(%17/rdi, %4/rsi) ; @36
-  ret rax/%15
+  %72 = add.l %33, 0x1_l ; @61
+  %73 = lsl.l %72, 0x2_l ; @62
+  %74 = add.l %6, %73 ; @63
+  call $swap(%74/rdi, %61/rsi) ; @36
+  ret rax/%72
 }
 
-export function $qsort(l %arr/rdi, l %low/rsi, l %high/rdx) {
+export function $qsort(l %22/rdi, l %19/rsi, l %20/rdx) {
 @48:
-  jmp @38(%arr, %low, %high)
-@38(%0, %1, %2):
-  %18 = slt.l %1, %2 ; @64
-  br %18, @39, @47
+  jmp @38(%22, %19, %20)
+@38(%57, %58, %59):
+  %75 = slt.l %58, %59 ; @64
+  br %75, @39, @47
 @39:
-  %p.1/l/rax = call $partition(%0/rdi, %1/rsi, %2/rdx) ; @42
-  %19 = sub.l %p.1, 0x1_l ; @65
-  call $qsort(%0/rdi, %1/rsi, %19/rdx) ; @44
-  %20 = add.l %p.1, 0x1_l ; @66
-  jmp @38(%0, %20, %2)
+  %54/l/rax = call $partition(%57/rdi, %58/rsi, %59/rdx) ; @42
+  %76 = sub.l %54, 0x1_l ; @65
+  call $qsort(%57/rdi, %58/rsi, %76/rdx) ; @44
+  %77 = add.l %54, 0x1_l ; @66
+  jmp @38(%57, %77, %59)
 @47:
   ret
 }

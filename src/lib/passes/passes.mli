@@ -131,8 +131,8 @@ end
     Assumes the function is in SSA form.
 *)
 module Promote_slots : sig
-  val run : func -> func Or_error.t
-  val run_abi : Abi.func -> Abi.func Or_error.t
+  val run : func -> func Context.t
+  val run_abi : Abi.func -> Abi.func Context.t
 end
 
 (** Removes assignments to variables that are never used.
@@ -215,8 +215,8 @@ end
 
 (** Transforms a function into semi-pruned SSA form. *)
 module Ssa : sig
-  val run : func -> func Or_error.t
-  val run_abi : Abi.func -> Abi.func Or_error.t
+  val run : func -> func Context.t
+  val run_abi : Abi.func -> Abi.func Context.t
 
   (** Verify that the function satisfies the invariants
       of SSA form. *)

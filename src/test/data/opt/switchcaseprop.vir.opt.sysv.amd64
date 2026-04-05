@@ -2,63 +2,63 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %x:w, edi ; @36
-  test %x:w, %x:w ; @37
+  mov %0:w, edi ; @36
+  test %0:w, %0:w ; @37
   je @21 ; @38
-  mov %4:w, %x:w ; zx ; @39
-  dec %4:l ; @40
-  cmp %4:l, 0x2_l ; @41
+  mov %12:w, %0:w ; zx ; @39
+  dec %12:l ; @40
+  cmp %12:l, 0x2_l ; @41
   ja @21 ; @42
-  lea %3:l, qword ptr [rip + @35] ; @43
-  movsxd %5:l, dword ptr [%3 + %4*4] ; @44
-  add %5:l, %3:l ; @45
-  jmp %5:l ; @46
+  lea %11:l, qword ptr [rip + @35] ; @43
+  movsxd %13:l, dword ptr [%11 + %12*4] ; @44
+  add %13:l, %11:l ; @45
+  jmp %13:l ; @46
   .tbl @35 [@22, @23, @24] ; @47
 @21:
-  mov %0:w, %x:w ; @33
+  mov %8:w, %0:w ; @33
   jmp @18 ; @34
 @22:
-  mov %0:w, 0x2_w ; @31
+  mov %8:w, 0x2_w ; @31
   jmp @18 ; @32
 @23:
-  mov %0:w, 0x3_w ; @29
+  mov %8:w, 0x3_w ; @29
   jmp @18 ; @30
 @24:
-  mov %0:w, 0x4_w ; @27
+  mov %8:w, 0x4_w ; @27
   jmp @18 ; @28
 @18:
-  mov eax, %0:w ; @25
+  mov eax, %8:w ; @25
   ret ; @26
 }
 
 export function $bar { ; returns: rax
 @10:
-  mov %x:w, edi ; @62
-  cmp %x:w, 0x2_w ; @63
+  mov %1:w, edi ; @62
+  cmp %1:w, 0x2_w ; @63
   jb @48 ; @64
-  mov %7:w, %x:w ; zx ; @65
-  sub %7:l, 0x2_l ; @66
-  cmp %7:l, 0x3_l ; @67
+  mov %15:w, %1:w ; zx ; @65
+  sub %15:l, 0x2_l ; @66
+  cmp %15:l, 0x3_l ; @67
   ja @48 ; @68
-  lea %6:l, qword ptr [rip + @61] ; @69
-  movsxd %8:l, dword ptr [%6 + %7*4] ; @70
-  add %8:l, %6:l ; @71
-  jmp %8:l ; @72
+  lea %14:l, qword ptr [rip + @61] ; @69
+  movsxd %16:l, dword ptr [%14 + %15*4] ; @70
+  add %16:l, %14:l ; @71
+  jmp %16:l ; @72
   .tbl @61 [@49, @50, @14, @14] ; @73
 @48:
-  mov %1:w, %x:w ; @59
+  mov %9:w, %1:w ; @59
   jmp @19 ; @60
 @49:
-  mov %1:w, 0x3_w ; @57
+  mov %9:w, 0x3_w ; @57
   jmp @19 ; @58
 @50:
-  mov %1:w, 0x4_w ; @55
+  mov %9:w, 0x4_w ; @55
   jmp @19 ; @56
 @14:
-  lea %2:w, qword ptr [%x + 0x1] ; @20
-  mov %1:w, %2:w ; @53
+  lea %10:w, qword ptr [%1 + 0x1] ; @20
+  mov %9:w, %10:w ; @53
   jmp @19 ; @54
 @19:
-  mov eax, %1:w ; @51
+  mov eax, %9:w ; @51
   ret ; @52
 }

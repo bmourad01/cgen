@@ -1,8 +1,8 @@
 module foo
 
-export function w $foo(w %x) {
+export function w $foo(w %1) {
 @2:
-  %3 = ne.w %x, 0x0_w ; @10
-  %4 = flag.w %3 ; @11
-  ret %4
+  %8 = ne.w %1, 0x0_w ; @10
+  %9 = flag.w %8 ; @11
+  ret %9
 }

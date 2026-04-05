@@ -1,9 +1,9 @@
 module foo
 
-export function w $foo(w %x) {
+export function w $foo(w %0) {
 @2:
-  %2 = eq.w %x, 0x1_w ; @9
-  %3 = sub.w %x, 0x1_w ; @10
-  %4 = sel.w %2, 0x2_w, %3 ; @11
-  ret %4
+  %6 = eq.w %0, 0x1_w ; @9
+  %7 = sub.w %0, 0x1_w ; @10
+  %8 = sel.w %6, 0x2_w, %7 ; @11
+  ret %8
 }

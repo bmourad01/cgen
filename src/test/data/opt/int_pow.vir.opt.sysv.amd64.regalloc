@@ -2,29 +2,29 @@ module int_pow
 
 export function $int_pow { ; returns: rax
 @2:
-  mov eax, 0x1_w ; @124
-  mov r8d, 0x1_w ; @125
+  mov edx, 0x1_w ; @125
+  mov eax, 0x1_w ; @127
 @3:
   test rsi, rsi ; @117
   jne @9 ; @118
 @10:
   ret ; @116
 @9:
-  imul rdi, r8 ; @114
+  imul rdi, rdx ; @114
   mov rcx, rdi ; @57
   imul rcx, rdi ; @113
-  mov r8, rcx ; @58
-  imul r8, rdi ; @112
-  mov rdx, rsi ; @59
-  and edx, 0x3_w ; @111
+  mov rdx, rcx ; @58
+  imul rdx, rdi ; @112
+  mov r8, rsi ; @59
+  and r8d, 0x3_w ; @111
   je @21 ; @101
-  dec rdx ; @103
-  cmp rdx, 0x2_l ; @104
+  dec r8 ; @103
+  cmp r8, 0x2_l ; @104
   ja @21 ; @105
   lea r9, qword ptr [rip + @99] ; @106
-  movsxd rdx, dword ptr [r9 + rdx*4] ; @107
-  add rdx, r9 ; @108
-  jmp rdx ; @109
+  movsxd r8, dword ptr [r9 + r8*4] ; @107
+  add r8, r9 ; @108
+  jmp r8 ; @109
   .tbl @99 [@14, @15, @16] ; @110
 @16:
   imul rax, rdi ; @96
@@ -47,7 +47,7 @@ export function $int_pow_alt { ; returns: rax
   mov qword ptr [rsp], 0x1_l ; @150
   mov qword ptr [rsp + 0x8], rdi ; @32
   mov qword ptr [rsp + 0x18], 0x1_l ; @34
-  mov eax, 0x1_w ; @146
+  mov eax, 0x1_w ; @147
 @28:
   test rsi, rsi ; @141
   jne @35 ; @142

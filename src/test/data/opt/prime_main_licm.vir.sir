@@ -5,34 +5,34 @@ const data $fmt = {
   0x0_b
 }
 
-export function w $main(w %argc, l %argv) {
+export function w $main(w %8, l %1) {
 start:
-  %p.1 = add.l %argv, 0x8_l;
-  %p.2 = ld.l %p.1;
-  %n.1 = call.w $atoi(%p.2);
-  %m.1 = copy.w 0x1_w;
-  %i.1 = copy.w 0x1_w;
-  %n.2 = copy.w %n.1;
-  %m.2 = copy.w %m.1;
-  %i.2 = copy.w %i.1;
-  while sgt.w %n.2, 0x0_w {
-    %i.3 = copy.w %i.2;
+  %9 = add.l %1, 0x8_l;
+  %10 = ld.l %9;
+  %11 = call.w $atoi(%10);
+  %12 = copy.w 0x1_w;
+  %13 = copy.w 0x1_w;
+  %14 = copy.w %13;
+  %15 = copy.w %12;
+  %16 = copy.w %11;
+  while sgt.w %16, 0x0_w {
+    %18 = copy.w %14;
     loop {
-      %b.1 = call.w $is_prime(%i.3);
-      if eq.w %b.1, 0x0_w {
-        %i.4 = add.w %i.3, 0x1_w;
-        %i.3 = copy.w %i.4
+      %19 = call.w $is_prime(%18);
+      if eq.w %19, 0x0_w {
+        %21 = add.w %18, 0x1_w;
+        %18 = copy.w %21
       } else {
         break
       }
     };
-    %k.1 = call.w $printf($fmt, ..., %m.2, %i.3);
-    %n.3 = sub.w %n.2, 0x1_w;
-    %i.5 = add.w %i.3, 0x1_w;
-    %m.3 = add.w %m.2, 0x1_w;
-    %n.2 = copy.w %n.3;
-    %m.2 = copy.w %m.3;
-    %i.2 = copy.w %i.5
+    %22 = call.w $printf($fmt, ..., %15, %18);
+    %23 = sub.w %16, 0x1_w;
+    %24 = add.w %18, 0x1_w;
+    %25 = add.w %15, 0x1_w;
+    %14 = copy.w %24;
+    %15 = copy.w %25;
+    %16 = copy.w %23
   };
   ret 0x0_w
 }

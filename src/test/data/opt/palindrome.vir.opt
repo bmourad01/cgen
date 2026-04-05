@@ -1,25 +1,25 @@
 module palindrome
 
-export function b $palindrome(w %n) {
+export function b $palindrome(w %2) {
 @2:
-  jmp @3(0x0_w, %n)
-@3(%rev.2, %n.1):
-  %0 = ne.w %n.1, 0x0_w ; @15
-  br %0, @6, @7
+  jmp @3(%2, 0x0_w)
+@3(%8, %9):
+  %17 = ne.w %8, 0x0_w ; @15
+  br %17, @6, @7
 @6:
-  %1 = mulh.w %n.1, 0x66666667_w ; @16
-  %2 = asr.w %1, 0x2_w ; @17
-  %3 = lsr.w %1, 0x1f_w ; @18
-  %4 = add.w %2, %3 ; @19
-  %5 = mul.w %4, 0xa_w ; @20
-  %6 = sub.w %n.1, %5 ; @21
-  %12 = lsl.w %rev.2, 0x3_w ; @27
-  %13 = lsl.w %rev.2, 0x1_w ; @28
-  %14 = add.w %12, %13 ; @29
-  %15 = add.w %14, %6 ; @30
-  jmp @3(%15, %4)
+  %18 = mulh.w %8, 0x66666667_w ; @16
+  %19 = asr.w %18, 0x2_w ; @17
+  %20 = lsr.w %18, 0x1f_w ; @18
+  %21 = add.w %19, %20 ; @19
+  %22 = mul.w %21, 0xa_w ; @20
+  %23 = sub.w %8, %22 ; @21
+  %29 = lsl.w %9, 0x3_w ; @27
+  %30 = lsl.w %9, 0x1_w ; @28
+  %31 = add.w %29, %30 ; @29
+  %32 = add.w %31, %23 ; @30
+  jmp @3(%21, %32)
 @7:
-  %18 = eq.w %n, %rev.2 ; @33
-  %19 = flag.b %18 ; @34
-  ret %19
+  %35 = eq.w %2, %9 ; @33
+  %36 = flag.b %35 ; @34
+  ret %36
 }

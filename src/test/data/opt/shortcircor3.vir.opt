@@ -1,17 +1,17 @@
 module foo
 
-export function w $foo(l %a, l %i) {
+export function w $foo(l %5, l %1) {
 @2:
-  %3 = slt.l %i, 0x3_l ; @19
-  br %3, @3, @16(0xffffffff_w)
+  %20 = slt.l %1, 0x3_l ; @19
+  br %20, @3, @16(0xffffffff_w)
 @3:
-  %7 = slt.l %i, 0x0_l ; @23
-  br %7, @16(0xffffffff_w), @10
+  %24 = slt.l %1, 0x0_l ; @23
+  br %24, @16(0xffffffff_w), @10
 @10:
-  %5 = lsl.l %i, 0x2_l ; @21
-  %6 = add.l %a, %5 ; @22
-  %v.1 = ld.w %6 ; @15
-  jmp @16(%v.1)
-@16(%0):
-  ret %0
+  %22 = lsl.l %1, 0x2_l ; @21
+  %23 = add.l %5, %22 ; @22
+  %14 = ld.w %23 ; @15
+  jmp @16(%14)
+@16(%17):
+  ret %17
 }

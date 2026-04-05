@@ -12,9 +12,9 @@ export function w $foo(w %a, w %b) {
 @1:
   %by = ld.w %y
   %c = eq.w %by, 0x0_w
-  br %c.1, @4, @5
+  br %c, @4, @5
 @5:
-  st.w %by.1, %t
+  st.w %by, %t
   %ax = ld.w %x
   %ax = rem.w %ax, %by
   st.w %ax, %y

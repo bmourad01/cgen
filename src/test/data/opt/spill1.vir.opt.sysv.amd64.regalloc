@@ -26,12 +26,12 @@ export function $foo { ; returns: rax
   mov dword ptr [rsp + 0x44], 0x0_w ; @214
   mov dword ptr [rsp + 0x40], edi ; @215
 @3:
-  mov edi, dword ptr [rsp + 0x44] ; @217
+  mov edi, dword ptr [rsp + 0x44] ; @216
   inc edi ; @57
-  mov dword ptr [rsp + 0x3c], edi ; @216
-  mov edi, dword ptr [rsp + 0x48] ; @219
+  mov dword ptr [rsp + 0x3c], edi ; @217
+  mov edi, dword ptr [rsp + 0x48] ; @218
   add edi, 0x2_w ; @58
-  mov dword ptr [rsp + 0x38], edi ; @218
+  mov dword ptr [rsp + 0x38], edi ; @219
   lea edi, qword ptr [r15 + 0x3] ; @59
   mov dword ptr [rsp + 0x34], edi ; @220
   lea edi, qword ptr [r14 + 0x4] ; @60
@@ -61,9 +61,9 @@ export function $foo { ; returns: rax
   mov dword ptr [rsp + 0x4], edi ; @232
   lea edi, qword ptr [r13 + 0x10] ; @72
   mov dword ptr [rsp], edi ; @233
-  mov edi, dword ptr [rsp + 0x40] ; @235
+  mov edi, dword ptr [rsp + 0x40] ; @234
   dec edi ; @73
-  mov dword ptr [rsp + 0x40], edi ; @234
+  mov dword ptr [rsp + 0x40], edi ; @235
   mov edi, dword ptr [rsp + 0x40] ; @236
   test edi, edi ; @189
   je @21 ; @190
@@ -83,17 +83,17 @@ export function $foo { ; returns: rax
   mov eax, dword ptr [rsp + 0x2c] ; @248
   mov r14d, dword ptr [rsp + 0x30] ; @249
   mov r15d, dword ptr [rsp + 0x34] ; @250
-  mov edi, dword ptr [rsp + 0x38] ; @251
-  mov dword ptr [rsp + 0x48], edi ; @252
-  mov edi, dword ptr [rsp + 0x3c] ; @253
-  mov dword ptr [rsp + 0x44], edi ; @254
+  mov edi, dword ptr [rsp + 0x38] ; @252
+  mov dword ptr [rsp + 0x48], edi ; @251
+  mov edi, dword ptr [rsp + 0x3c] ; @254
+  mov dword ptr [rsp + 0x44], edi ; @253
   jmp @3 ; @188
 @21:
   lea edi, qword ptr [r14 + r15*1] ; @82
   add ecx, eax ; @93
-  mov eax, dword ptr [rsp + 0x48] ; @256
-  mov r14d, dword ptr [rsp + 0x44] ; @255
-  lea r14d, qword ptr [rax + r14*1 + 0x15] ; @95
+  mov eax, dword ptr [rsp + 0x44] ; @256
+  mov r14d, dword ptr [rsp + 0x48] ; @255
+  lea r14d, qword ptr [r14 + rax*1 + 0x15] ; @95
   mov eax, dword ptr [rsp + 0x4c] ; @260
   add eax, edx ; @106
   lea edi, qword ptr [r14 + rdi*1 + 0xf] ; @109

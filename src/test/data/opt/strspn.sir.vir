@@ -1,83 +1,83 @@
 module strspn
 
-export function l $cgen_strspn(l %s, l %c) {
-  %byteset = slot 32, align 8
+export function l $cgen_strspn(l %2, l %7) {
+  %0 = slot 32, align 8
 @53:
-  %a = copy.l %s ; @63
-  st.l 0x0_l, %byteset ; @62
-  %byteset8 = add.l %byteset, 0x8_l ; @61
-  st.l 0x0_l, %byteset8 ; @60
-  %byteset16 = add.l %byteset, 0x10_l ; @59
-  st.l 0x0_l, %byteset16 ; @58
-  %byteset24 = add.l %byteset, 0x18_l ; @57
-  st.l 0x0_l, %byteset24 ; @56
-  %dc0 = ld.b %c ; @55
-  %6 = eq.b %dc0, 0x0_b ; @54
-  br %6, @52, @48
+  %1 = copy.l %2 ; @63
+  st.l 0x0_l, %0 ; @62
+  %3 = add.l %0, 0x8_l ; @61
+  st.l 0x0_l, %3 ; @60
+  %4 = add.l %0, 0x10_l ; @59
+  st.l 0x0_l, %4 ; @58
+  %5 = add.l %0, 0x18_l ; @57
+  st.l 0x0_l, %5 ; @56
+  %6 = ld.b %7 ; @55
+  %25 = eq.b %6, 0x0_b ; @54
+  br %25, @52, @48
 @52:
   ret 0x0_l
 @48:
-  %c1 = add.l %c, 0x1_l ; @51
-  %dc1 = ld.b %c1 ; @50
-  %4 = eq.b %dc1, 0x0_b ; @49
-  br %4, @41, @21
+  %8 = add.l %7, 0x1_l ; @51
+  %9 = ld.b %8 ; @50
+  %23 = eq.b %9, 0x0_b ; @49
+  br %23, @41, @21
 @41:
   jmp @44
 @44:
-  %ds = ld.b %s ; @47
-  %dc = ld.b %c ; @46
-  %5 = eq.b %ds, %dc ; @45
-  br %5, @42, @39
+  %10 = ld.b %2 ; @47
+  %11 = ld.b %7 ; @46
+  %24 = eq.b %10, %11 ; @45
+  br %24, @42, @39
 @42:
-  %s = add.l %s, 0x1_l ; @43
+  %2 = add.l %2, 0x1_l ; @43
   jmp @41
 @39:
-  %r = sub.l %s, %a ; @40
-  ret %r
+  %12 = sub.l %2, %1 ; @40
+  ret %12
 @21:
   jmp @36
 @36:
-  %dc = ld.b %c ; @38
-  %3 = eq.b %dc, 0x0_b ; @37
-  br %3, @4, @24
+  %11 = ld.b %7 ; @38
+  %22 = eq.b %11, 0x0_b ; @37
+  br %22, @4, @24
 @24:
-  %idx0 = ld.b %c ; @35
-  %idx = zext.l %idx0 ; @34
-  %p = udiv.l %idx, 0x40_l ; @33
-  %p = mul.l %p, 0x8_l ; @32
-  %p = add.l %byteset, %p ; @31
-  %b = ld.l %p ; @30
-  %o = urem.l %idx, 0x40_l ; @29
-  %o = lsl.l 0x1_l, %o ; @28
-  %o = or.l %o, %b ; @27
-  st.l %o, %p ; @26
-  %2 = eq.l %o, 0x0_l ; @25
-  br %2, @4, @22
+  %13 = ld.b %7 ; @35
+  %14 = zext.l %13 ; @34
+  %15 = udiv.l %14, 0x40_l ; @33
+  %15 = mul.l %15, 0x8_l ; @32
+  %15 = add.l %0, %15 ; @31
+  %16 = ld.l %15 ; @30
+  %17 = urem.l %14, 0x40_l ; @29
+  %17 = lsl.l 0x1_l, %17 ; @28
+  %17 = or.l %17, %16 ; @27
+  st.l %17, %15 ; @26
+  %21 = eq.l %17, 0x0_l ; @25
+  br %21, @4, @22
 @22:
-  %c = add.l %c, 0x1_l ; @23
+  %7 = add.l %7, 0x1_l ; @23
   jmp @21
 @4:
   jmp @18
 @18:
-  %ds = ld.b %s ; @20
-  %1 = eq.b %ds, 0x0_b ; @19
-  br %1, @2, @7
+  %10 = ld.b %2 ; @20
+  %20 = eq.b %10, 0x0_b ; @19
+  br %20, @2, @7
 @7:
-  %idx0 = ld.b %s ; @17
-  %idx = zext.l %idx0 ; @16
-  %p = udiv.l %idx, 0x40_l ; @15
-  %p = mul.l %p, 0x8_l ; @14
-  %p = add.l %byteset, %p ; @13
-  %b = ld.l %p ; @12
-  %n = urem.l %idx, 0x40_l ; @11
-  %n = lsl.l 0x1_l, %n ; @10
-  %n = and.l %n, %b ; @9
-  %0 = eq.l %n, 0x0_l ; @8
-  br %0, @2, @5
+  %13 = ld.b %2 ; @17
+  %14 = zext.l %13 ; @16
+  %15 = udiv.l %14, 0x40_l ; @15
+  %15 = mul.l %15, 0x8_l ; @14
+  %15 = add.l %0, %15 ; @13
+  %16 = ld.l %15 ; @12
+  %18 = urem.l %14, 0x40_l ; @11
+  %18 = lsl.l 0x1_l, %18 ; @10
+  %18 = and.l %18, %16 ; @9
+  %19 = eq.l %18, 0x0_l ; @8
+  br %19, @2, @5
 @5:
-  %s = add.l %s, 0x1_l ; @6
+  %2 = add.l %2, 0x1_l ; @6
   jmp @4
 @2:
-  %r = sub.l %s, %a ; @3
-  ret %r
+  %12 = sub.l %2, %1 ; @3
+  ret %12
 }

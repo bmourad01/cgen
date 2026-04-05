@@ -1,10 +1,10 @@
 module cmpslot
 
-export function w $foo(w %a, w %b) {
-  %x = slot 4, align 4
-  %y = slot 4, align 4
+export function w $foo(w %3, w %4) {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
 @2:
-  %2 = gt.l %x, %y ; @8
-  %3 = sel.w %2, %a, %b ; @9
-  ret %3
+  %8 = gt.l %0, %1 ; @8
+  %9 = sel.w %8, %3, %4 ; @9
+  ret %9
 }

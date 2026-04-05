@@ -1,46 +1,46 @@
 module foo
 
-export function w $foo(w %n) {
+export function w $foo(w %1) {
 start:
-  if le.w %n, 0x1_w {
-    %0 = copy.w 0x0_w
+  if le.w %1, 0x1_w {
+    %22 = copy.w 0x0_w
   } else {
-    if le.w %n, 0x3_w {
-      %0 = copy.w 0x1_w
+    if le.w %1, 0x3_w {
+      %22 = copy.w 0x1_w
     } else {
-      %3 = and.w %n, 0x1_w;
-      if eq.w %3, 0x0_w {
-        %0 = copy.w 0x0_w
+      %25 = and.w %1, 0x1_w;
+      if eq.w %25, 0x0_w {
+        %22 = copy.w 0x0_w
       } else {
-        %5 = umulh.w %n, 0x55555556_w;
-        %6 = lsl.w %5, 0x1_w;
-        %7 = add.w %6, %5;
-        %8 = sub.w %n, %7;
-        if eq.w %8, 0x0_w {
-          %0 = copy.w 0x0_w
+        %27 = umulh.w %1, 0x55555556_w;
+        %28 = lsl.w %27, 0x1_w;
+        %29 = add.w %28, %27;
+        %30 = sub.w %1, %29;
+        if eq.w %30, 0x0_w {
+          %22 = copy.w 0x0_w
         } else {
-          %i.2 = copy.w 0x5_w;
+          %13 = copy.w 0x5_w;
           loop {
-            %10 = mul.w %i.2, %i.2;
-            if le.w %10, %n {
-              %r.3 = urem.w %n, %i.2;
-              if eq.w %r.3, 0x0_w {
-                %0 = copy.w 0x0_w;
+            %32 = mul.w %13, %13;
+            if le.w %32, %1 {
+              %16 = urem.w %1, %13;
+              if eq.w %16, 0x0_w {
+                %22 = copy.w 0x0_w;
                 break
               } else {
-                %13 = add.w %i.2, 0x2_w;
-                %r.4 = urem.w %n, %13;
-                if eq.w %r.4, 0x0_w {
-                  %0 = copy.w 0x0_w;
+                %35 = add.w %13, 0x2_w;
+                %19 = urem.w %1, %35;
+                if eq.w %19, 0x0_w {
+                  %22 = copy.w 0x0_w;
                   break
                 } else {
-                  %15 = add.w %i.2, 0x6_w;
-                  %i.2 = copy.w %15;
+                  %37 = add.w %13, 0x6_w;
+                  %13 = copy.w %37;
                   continue
                 }
               }
             } else {
-              %0 = copy.w 0x1_w;
+              %22 = copy.w 0x1_w;
               break
             }
           }
@@ -48,5 +48,5 @@ start:
       }
     }
   };
-  ret %0
+  ret %22
 }

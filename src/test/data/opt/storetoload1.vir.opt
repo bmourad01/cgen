@@ -1,12 +1,12 @@
 module foo
 
 export function $foo() {
-  %x = slot 16, align 16
+  %0 = slot 16, align 16
 @2:
-  %0 = add.l %x, 0x8_l ; @9
-  %1 = and.l %0, 0xf_l ; @10
-  %2 = itrunc.w %1 ; @11
-  st.w %2, %0 ; @6
-  st.w %2, $a ; @8
+  %9 = add.l %0, 0x8_l ; @9
+  %10 = and.l %9, 0xf_l ; @10
+  %11 = itrunc.w %10 ; @11
+  st.w %11, %9 ; @6
+  st.w %11, $a ; @8
   ret
 }

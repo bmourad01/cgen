@@ -1,10 +1,10 @@
 module foo
 
-export function w $foo(w %x) {
+export function w $foo(w %0) {
 @2:
-  %0 = mulh.w %x, 0x2e8ba2e9_w ; @4
-  %1 = asr.w %0, 0x1_w ; @5
-  %2 = lsr.w %0, 0x1f_w ; @6
-  %3 = add.w %1, %2 ; @7
-  ret %3
+  %2 = mulh.w %0, 0x2e8ba2e9_w ; @4
+  %3 = asr.w %2, 0x1_w ; @5
+  %4 = lsr.w %2, 0x1f_w ; @6
+  %5 = add.w %3, %4 ; @7
+  ret %5
 }

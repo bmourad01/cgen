@@ -1,25 +1,25 @@
 module popcnt
 
-export function $popcnt8(b %n/rdi) {
+export function $popcnt8(b %1/rdi) {
 @2:
-  %0 = popcnt.b %n ; @10
-  ret rax/%0
+  %12 = popcnt.b %1 ; @10
+  ret rax/%12
 }
 
-export function $popcnt16(h %n/rdi) {
+export function $popcnt16(h %3/rdi) {
 @4:
-  %1 = popcnt.h %n ; @11
-  ret rax/%1
+  %13 = popcnt.h %3 ; @11
+  ret rax/%13
 }
 
-export function $popcnt32(w %n/rdi) {
+export function $popcnt32(w %5/rdi) {
 @6:
-  %2 = popcnt.w %n ; @12
-  ret rax/%2
+  %14 = popcnt.w %5 ; @12
+  ret rax/%14
 }
 
-export function $popcnt64(l %n/rdi) {
+export function $popcnt64(l %7/rdi) {
 @8:
-  %3 = popcnt.l %n ; @13
-  ret rax/%3
+  %15 = popcnt.l %7 ; @13
+  ret rax/%15
 }

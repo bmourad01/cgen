@@ -75,8 +75,6 @@ rule token = parse
   | '$' (ident as id) { SYM id }
   | '@' (ident as id) { LABEL id }
   | '%' (integer as id) { TEMP id }
-  | '%' (integer as id) '.' (integer as i) { TEMPI (id, int_of_string i) }
-  | '%' (ident as id) '.' (integer as i) { VAR (id, int_of_string i) }
   | '%' (ident as id) { IDENT id }
   | "module" space+ (ident as id) { MODULE id }
   | "align" { ALIGN }

@@ -1,13 +1,13 @@
 module xor_to_or
 
-export function $foo(w %x/rdi, w %y/rsi) {
+export function $foo(w %1/rdi, w %2/rsi) {
 @2:
-  %2 = or.w %x, %y ; @12
-  ret rax/%2
+  %18 = or.w %1, %2 ; @12
+  ret rax/%18
 }
 
-export function $bar(w %x/rdi, w %y/rsi) {
+export function $bar(w %6/rdi, w %7/rsi) {
 @6:
-  %5 = or.w %x, %y ; @15
-  ret rax/%5
+  %21 = or.w %6, %7 ; @15
+  ret rax/%21
 }

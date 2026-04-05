@@ -1,20 +1,20 @@
 module foo
 
-export function $foo(l %arr, l %src, w %num) {
+export function $foo(l %6, l %4, w %2) {
 @2:
   jmp @3(0x0_w)
-@3(%i.2):
-  %0 = lt.w %i.2, %num ; @17
-  br %0, @5, @6
+@3(%8):
+  %18 = lt.w %8, %2 ; @17
+  br %18, @5, @6
 @5:
-  %1 = zext.l %i.2 ; @18
-  %2 = lsl.l %1, 0x2_l ; @19
-  %3 = add.l %2, %src ; @20
-  %w.1 = ld.w %3 ; @11
-  %4 = add.l %2, %arr ; @21
-  st.w %w.1, %4 ; @15
-  %5 = add.w %i.2, 0x1_w ; @22
-  jmp @3(%5)
+  %19 = zext.l %8 ; @18
+  %20 = lsl.l %19, 0x2_l ; @19
+  %21 = add.l %20, %4 ; @20
+  %13 = ld.w %21 ; @11
+  %22 = add.l %20, %6 ; @21
+  st.w %13, %22 ; @15
+  %23 = add.w %8, 0x1_w ; @22
+  jmp @3(%23)
 @6:
   ret
 }

@@ -1,38 +1,38 @@
 module bsearch
 
-export function w $intcmp(l %a, l %b) {
+export function w $intcmp(l %1, l %3) {
 start:
-  %ia.1 = ld.w %a;
-  %ib.1 = ld.w %b;
-  %k.1 = sub.w %ia.1, %ib.1;
-  ret %k.1
+  %16 = ld.w %1;
+  %17 = ld.w %3;
+  %18 = sub.w %16, %17;
+  ret %18
 }
 
-export function l $bsearch(l %key, l %base, l %nel, l %width, l %cmp) {
+export function l $bsearch(l %14, l %11, l %6, l %9, l %13) {
 start:
-  %nel.1 = copy.l %nel;
-  %base.1 = copy.l %base;
+  %19 = copy.l %11;
+  %20 = copy.l %6;
   loop {
-    if gt.l %nel.1, 0x0_l {
-      %nel2.1 = udiv.l %nel.1, 0x2_l;
-      %off.1 = mul.l %width, %nel2.1;
-      %try.1 = add.l %base.1, %off.1;
-      %sign.1 = call.w %cmp(%key, %try.1);
-      if slt.w %sign.1, 0x0_w {
-        %nel.2 = udiv.l %nel.1, 0x2_l;
-        %nel.1 = copy.l %nel.2;
+    if gt.l %20, 0x0_l {
+      %22 = udiv.l %20, 0x2_l;
+      %23 = mul.l %9, %22;
+      %24 = add.l %19, %23;
+      %25 = call.w %13(%14, %24);
+      if slt.w %25, 0x0_w {
+        %27 = udiv.l %20, 0x2_l;
+        %20 = copy.l %27;
         continue
       } else {
-        if sgt.w %sign.1, 0x0_w {
-          %base.2 = add.l %try.1, %width;
-          %ne2.1 = udiv.l %nel.1, 0x2_l;
-          %ne2.2 = add.l %ne2.1, 0x1_l;
-          %nel.3 = sub.l %nel.1, %ne2.2;
-          %nel.1 = copy.l %nel.3;
-          %base.1 = copy.l %base.2;
+        if sgt.w %25, 0x0_w {
+          %29 = add.l %24, %9;
+          %30 = udiv.l %20, 0x2_l;
+          %31 = add.l %30, 0x1_l;
+          %32 = sub.l %20, %31;
+          %19 = copy.l %29;
+          %20 = copy.l %32;
           continue
         } else {
-          ret %try.1
+          ret %24
         }
       }
     } else {

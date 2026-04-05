@@ -2,13 +2,13 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %x:w, edi ; @14
-  mov %2:w, 0x3_w ; @16
-  test %x:w, %x:w ; @22
-  cmovns %2:w, %x:w ; @23
-  mov %3:w, 0x5_w ; @17
-  cmp %x:w, 0x2a_w ; @20
-  cmovle %3:w, %2:w ; @21
-  mov eax, %3:w ; @18
+  mov %1:w, edi ; @14
+  mov %11:w, 0x3_w ; @16
+  test %1:w, %1:w ; @22
+  cmovns %11:w, %1:w ; @23
+  mov %12:w, 0x5_w ; @17
+  cmp %1:w, 0x2a_w ; @20
+  cmovle %12:w, %11:w ; @21
+  mov eax, %12:w ; @18
   ret ; @19
 }

@@ -1,23 +1,23 @@
 module brind
 
-export function $foo(w %x) {
+export function $foo(w %1) {
 @2:
-  %0 = slt.w %x, 0x0_w ; @10
-  br %0, 0x1234, @3
+  %11 = slt.w %1, 0x0_w ; @10
+  br %11, 0x1234, @3
 @3:
   ret
 }
 
-export function $bar(w %x, l %y) {
+export function $bar(w %3, l %4) {
 @5:
-  %1 = slt.w %x, 0x0_w ; @11
-  br %1, %y, @6
+  %12 = slt.w %3, 0x0_w ; @11
+  br %12, %4, @6
 @6:
   ret
 }
 
-export function $baz(w %x, l %y) {
+export function $baz(w %6, l %7) {
 @8:
-  %2 = slt.w %x, 0x0_w ; @12
-  br %2, %y, 0x1234
+  %13 = slt.w %6, 0x0_w ; @12
+  br %13, %7, 0x1234
 }

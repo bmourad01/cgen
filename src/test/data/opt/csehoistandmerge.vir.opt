@@ -1,11 +1,11 @@
 module foo
 
-export function w $foo(w %x) {
+export function w $foo(w %1) {
 @2:
-  %1 = slt.w %x, 0x0_w ; @12
-  %2 = add.w %x, 0x3_w ; @13
-  %3 = sel.w %1, %2, %x ; @14
-  %4 = asr.w %3, 0x2_w ; @15
-  %5 = add.w %4, 0x1_w ; @16
-  ret %5
+  %11 = slt.w %1, 0x0_w ; @12
+  %12 = add.w %1, 0x3_w ; @13
+  %13 = sel.w %11, %12, %1 ; @14
+  %14 = asr.w %13, 0x2_w ; @15
+  %15 = add.w %14, 0x1_w ; @16
+  ret %15
 }

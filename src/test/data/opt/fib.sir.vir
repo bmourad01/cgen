@@ -1,42 +1,42 @@
 module fib
 
-export function w $fib_rec(w %n) {
+export function w $fib_rec(w %0) {
 @9:
-  %0 = le.w %n, 0x1_w ; @10
-  br %0, @8, @2
+  %11 = le.w %0, 0x1_w ; @10
+  br %11, @8, @2
 @8:
-  ret %n
+  ret %0
 @2:
-  %n1 = sub.w %n, 0x1_w ; @7
-  %n2 = sub.w %n, 0x2_w ; @6
-  %a1 = call.w $fib_rec(%n1) ; @5
-  %a2 = call.w $fib_rec(%n2) ; @4
-  %r = add.w %a1, %a2 ; @3
-  ret %r
+  %1 = sub.w %0, 0x1_w ; @7
+  %2 = sub.w %0, 0x2_w ; @6
+  %3 = call.w $fib_rec(%1) ; @5
+  %4 = call.w $fib_rec(%2) ; @4
+  %5 = add.w %3, %4 ; @3
+  ret %5
 }
 
-export function w $fib_iter(w %n) {
+export function w $fib_iter(w %6) {
 @25:
-  %2 = le.w %n, 0x1_w ; @26
-  br %2, @24, @20
+  %13 = le.w %6, 0x1_w ; @26
+  br %13, @24, @20
 @24:
-  ret %n
+  ret %6
 @20:
-  %p = copy.w 0x0_w ; @23
-  %c = copy.w 0x1_w ; @22
-  %i = copy.w 0x2_w ; @21
+  %7 = copy.w 0x0_w ; @23
+  %8 = copy.w 0x1_w ; @22
+  %9 = copy.w 0x2_w ; @21
   jmp @12
 @12:
   jmp @18
 @18:
-  %1 = le.w %i, %n ; @19
-  br %1, @13, @11
+  %12 = le.w %9, %6 ; @19
+  br %12, @13, @11
 @13:
-  %x = add.w %p, %c ; @17
-  %p = copy.w %c ; @16
-  %c = copy.w %x ; @15
-  %i = add.w %i, 0x1_w ; @14
+  %10 = add.w %7, %8 ; @17
+  %7 = copy.w %8 ; @16
+  %8 = copy.w %10 ; @15
+  %9 = add.w %9, 0x1_w ; @14
   jmp @12
 @11:
-  ret %c
+  ret %8
 }

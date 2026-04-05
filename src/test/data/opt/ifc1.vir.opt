@@ -1,145 +1,145 @@
 module ifc1
 
-export function w $simple_diamond(w %x) {
+export function w $simple_diamond(w %1) {
 @2:
-  %8 = slt.w %x, 0x0_w ; @104
-  %9 = add.w %x, 0x5_w ; @105
-  %10 = sub.w %x, 0x5_w ; @106
-  %11 = sel.w %8, %9, %10 ; @107
-  ret %11
+  %96 = slt.w %1, 0x0_w ; @104
+  %97 = add.w %1, 0x5_w ; @105
+  %98 = sub.w %1, 0x5_w ; @106
+  %99 = sel.w %96, %97, %98 ; @107
+  ret %99
 }
 
-export function w $right_triangle(w %x) {
+export function w $right_triangle(w %4) {
 @9:
-  %12 = slt.w %x, 0x0_w ; @108
-  %13 = sub.w %x, 0x5_w ; @109
-  %14 = sel.w %12, %x, %13 ; @110
-  ret %14
+  %100 = slt.w %4, 0x0_w ; @108
+  %101 = sub.w %4, 0x5_w ; @109
+  %102 = sel.w %100, %4, %101 ; @110
+  ret %102
 }
 
-export function w $left_triangle(w %x) {
+export function w $left_triangle(w %6) {
 @14:
-  %15 = slt.w %x, 0x0_w ; @111
-  %16 = add.w %x, 0x5_w ; @112
-  %17 = sel.w %15, %16, %x ; @113
-  ret %17
+  %103 = slt.w %6, 0x0_w ; @111
+  %104 = add.w %6, 0x5_w ; @112
+  %105 = sel.w %103, %104, %6 ; @113
+  ret %105
 }
 
-export function w $expensive_diamond(w %x) {
+export function w $expensive_diamond(w %8) {
 @19:
-  %18 = slt.w %x, 0x0_w ; @114
-  br %18, @20, @21
+  %106 = slt.w %8, 0x0_w ; @114
+  br %106, @20, @21
 @20:
-  %19 = add.w %x, 0x5_w ; @115
-  %20 = lsl.w %19, 0x4_w ; @116
-  %21 = lsl.w %19, 0x1_w ; @117
-  %22 = sub.w %20, %21 ; @118
-  %23 = sub.w %22, %19 ; @119
-  jmp @23(%23)
+  %107 = add.w %8, 0x5_w ; @115
+  %108 = lsl.w %107, 0x4_w ; @116
+  %109 = lsl.w %107, 0x1_w ; @117
+  %110 = sub.w %108, %109 ; @118
+  %111 = sub.w %110, %107 ; @119
+  jmp @23(%111)
 @21:
-  %25 = sub.w %x, 0x5_w ; @121
-  %26 = mulh.w %25, 0x55555556_w ; @122
-  %27 = lsr.w %26, 0x1f_w ; @123
-  %28 = add.w %26, %27 ; @124
-  jmp @23(%28)
-@23(%y.1):
-  ret %y.1
+  %113 = sub.w %8, 0x5_w ; @121
+  %114 = mulh.w %113, 0x55555556_w ; @122
+  %115 = lsr.w %114, 0x1f_w ; @123
+  %116 = add.w %114, %115 ; @124
+  jmp @23(%116)
+@23(%44):
+  ret %44
 }
 
-export function w $mixed_cost(w %x) {
+export function w $mixed_cost(w %11) {
 @28:
-  %29 = slt.w %x, 0x0_w ; @125
-  br %29, @29, @30
+  %117 = slt.w %11, 0x0_w ; @125
+  br %117, @29, @30
 @29:
-  %30 = add.w %x, 0x1_w ; @126
-  jmp @32(%30)
+  %118 = add.w %11, 0x1_w ; @126
+  jmp @32(%118)
 @30:
-  %31 = lsl.w %x, 0x7_w ; @127
-  %32 = lsl.w %x, 0x5_w ; @128
-  %33 = sub.w %32, %x ; @129
-  %34 = sub.w %31, %33 ; @130
-  %35 = div.w %34, 0x7_w ; @131
-  jmp @32(%35)
-@32(%y.1):
-  ret %y.1
+  %119 = lsl.w %11, 0x7_w ; @127
+  %120 = lsl.w %11, 0x5_w ; @128
+  %121 = sub.w %120, %11 ; @129
+  %122 = sub.w %119, %121 ; @130
+  %123 = div.w %122, 0x7_w ; @131
+  jmp @32(%123)
+@32(%50):
+  ret %50
 }
 
-export function w $nested_tri(w %x) {
+export function w $nested_tri(w %14) {
 @36:
-  %41 = slt.w %x, 0x0_w ; @137
-  br %41, @37(%x), @38
+  %129 = slt.w %14, 0x0_w ; @137
+  br %129, @37(%14), @38
 @38:
-  %42 = eq.w %x, 0xa_w ; @138
-  br %42, @37(%x), @40
+  %130 = eq.w %14, 0xa_w ; @138
+  br %130, @37(%14), @40
 @40:
-  %43 = add.w %x, 0x1_w ; @139
-  jmp @37(%43)
-@37(%x.1):
-  ret %x.1
-}
-
-export function w $chain(w %x) {
-@43:
-  %44 = slt.w %x, 0x0_w ; @140
-  %45 = add.w %x, 0x1_w ; @141
-  %46 = sub.w %x, 0x1_w ; @142
-  %47 = sel.w %44, %45, %46 ; @143
-  %48 = slt.w %47, 0xa_w ; @144
-  %49 = add.w %47, 0x2_w ; @145
-  %50 = sub.w %47, 0x2_w ; @146
-  %51 = sel.w %48, %49, %50 ; @147
-  ret %51
-}
-
-export function w $redundant_phi(w %x) {
-@56:
-  ret %x
-}
-
-export function w $dead_arm(w %x) {
-@63:
-  %53 = slt.w %x, 0x0_w ; @149
-  %54 = add.w %x, 0x1_w ; @150
-  %55 = sel.w %53, %x, %54 ; @151
+  %131 = add.w %14, 0x1_w ; @139
+  jmp @37(%131)
+@37(%55):
   ret %55
 }
 
-export function w $loop_if(w %x) {
+export function w $chain(w %17) {
+@43:
+  %132 = slt.w %17, 0x0_w ; @140
+  %133 = add.w %17, 0x1_w ; @141
+  %134 = sub.w %17, 0x1_w ; @142
+  %135 = sel.w %132, %133, %134 ; @143
+  %136 = slt.w %135, 0xa_w ; @144
+  %137 = add.w %135, 0x2_w ; @145
+  %138 = sub.w %135, 0x2_w ; @146
+  %139 = sel.w %136, %137, %138 ; @147
+  ret %139
+}
+
+export function w $redundant_phi(w %20) {
+@56:
+  ret %20
+}
+
+export function w $dead_arm(w %23) {
+@63:
+  %141 = slt.w %23, 0x0_w ; @149
+  %142 = add.w %23, 0x1_w ; @150
+  %143 = sel.w %141, %23, %142 ; @151
+  ret %143
+}
+
+export function w $loop_if(w %25) {
 @69:
-  jmp @70(%x)
-@70(%x.1):
-  %56 = slt.w %x.1, 0x64_w ; @152
-  br %56, @71, @72
+  jmp @70(%25)
+@70(%73):
+  %144 = slt.w %73, 0x64_w ; @152
+  br %144, @71, @72
 @71:
-  %57 = slt.w %x.1, 0x0_w ; @153
-  br %57, @74, @75
+  %145 = slt.w %73, 0x0_w ; @153
+  br %145, @74, @75
 @74:
-  %58 = add.w %x.1, 0x1_w ; @154
-  jmp @70(%58)
+  %146 = add.w %73, 0x1_w ; @154
+  jmp @70(%146)
 @75:
-  %59 = sub.w %x.1, 0x1_w ; @155
-  jmp @70(%59)
+  %147 = sub.w %73, 0x1_w ; @155
+  jmp @70(%147)
 @72:
-  ret %x.1
+  ret %73
 }
 
-export function w $dominance(w %x) {
+export function w $dominance(w %28) {
 @80:
-  %60 = slt.w %x, 0x0_w ; @156
-  %61 = add.w %x, 0x1_w ; @157
-  %62 = add.w %x, 0x2_w ; @158
-  %63 = sel.w %60, %61, %62 ; @159
-  %64 = mul.w %63, %x ; @160
-  ret %64
+  %148 = slt.w %28, 0x0_w ; @156
+  %149 = add.w %28, 0x1_w ; @157
+  %150 = add.w %28, 0x2_w ; @158
+  %151 = sel.w %148, %149, %150 ; @159
+  %152 = mul.w %151, %28 ; @160
+  ret %152
 }
 
-export function w $switch_like(w %x) {
+export function w $switch_like(w %31) {
 @88:
-  switch.w %x, @89 [0x0_w -> @92(0x1_w),
-                    0x1_w -> @92(0x0_w)]
+  switch.w %31, @89 [0x0_w -> @92(0x1_w),
+                     0x1_w -> @92(0x0_w)]
 @89:
-  %65 = lsl.w %x, 0x1_w ; @161
-  jmp @92(%65)
-@92(%y.1):
-  ret %y.1
+  %153 = lsl.w %31, 0x1_w ; @161
+  jmp @92(%153)
+@92(%84):
+  ret %84
 }

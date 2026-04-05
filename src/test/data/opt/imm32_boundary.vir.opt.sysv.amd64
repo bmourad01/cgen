@@ -2,215 +2,215 @@ module imm32_boundary
 
 export function $sge_branch { ; returns: rax
 @2:
-  mov %x:l, rdi ; @78
-  mov %47:l, 0x80000000_l ; @113
-  xor %14:w, %14:w ; @114
-  cmp %x:l, %47:l ; @115
-  setge %14:b ; @116
-  mov %15:w, %14:w ; @79
-  mov eax, %15:w ; @111
+  mov %1:l, rdi ; @78
+  mov %124:l, 0x80000000_l ; @113
+  xor %91:w, %91:w ; @114
+  cmp %1:l, %124:l ; @115
+  setge %91:b ; @116
+  mov %92:w, %91:w ; @79
+  mov eax, %92:w ; @111
   ret ; @112
 }
 
 export function $sgt_branch { ; returns: rax
 @6:
-  mov %x:l, rdi ; @80
-  mov %48:l, 0x80000000_l ; @119
-  xor %16:w, %16:w ; @120
-  cmp %x:l, %48:l ; @121
-  setg %16:b ; @122
-  mov %17:w, %16:w ; @81
-  mov eax, %17:w ; @117
+  mov %3:l, rdi ; @80
+  mov %125:l, 0x80000000_l ; @119
+  xor %93:w, %93:w ; @120
+  cmp %3:l, %125:l ; @121
+  setg %93:b ; @122
+  mov %94:w, %93:w ; @81
+  mov eax, %94:w ; @117
   ret ; @118
 }
 
 export function $sle_branch { ; returns: rax
 @10:
-  mov %x:l, rdi ; @82
-  mov %49:l, 0x80000000_l ; @125
-  xor %18:w, %18:w ; @126
-  cmp %x:l, %49:l ; @127
-  setle %18:b ; @128
-  mov %19:w, %18:w ; @83
-  mov eax, %19:w ; @123
+  mov %5:l, rdi ; @82
+  mov %126:l, 0x80000000_l ; @125
+  xor %95:w, %95:w ; @126
+  cmp %5:l, %126:l ; @127
+  setle %95:b ; @128
+  mov %96:w, %95:w ; @83
+  mov eax, %96:w ; @123
   ret ; @124
 }
 
 export function $slt_branch { ; returns: rax
 @14:
-  mov %x:l, rdi ; @84
-  mov %50:l, 0x80000000_l ; @131
-  xor %20:w, %20:w ; @132
-  cmp %x:l, %50:l ; @133
-  setl %20:b ; @134
-  mov %21:w, %20:w ; @85
-  mov eax, %21:w ; @129
+  mov %7:l, rdi ; @84
+  mov %127:l, 0x80000000_l ; @131
+  xor %97:w, %97:w ; @132
+  cmp %7:l, %127:l ; @133
+  setl %97:b ; @134
+  mov %98:w, %97:w ; @85
+  mov eax, %98:w ; @129
   ret ; @130
 }
 
 export function $eq_branch { ; returns: rax
 @18:
-  mov %x:l, rdi ; @86
-  mov %51:l, 0x80000000_l ; @137
-  xor %22:w, %22:w ; @138
-  cmp %x:l, %51:l ; @139
-  sete %22:b ; @140
-  mov %23:w, %22:w ; @87
-  mov eax, %23:w ; @135
+  mov %9:l, rdi ; @86
+  mov %128:l, 0x80000000_l ; @137
+  xor %99:w, %99:w ; @138
+  cmp %9:l, %128:l ; @139
+  sete %99:b ; @140
+  mov %100:w, %99:w ; @87
+  mov eax, %100:w ; @135
   ret ; @136
 }
 
 export function $ne_branch { ; returns: rax
 @22:
-  mov %x:l, rdi ; @88
-  mov %52:l, 0x80000000_l ; @143
-  xor %24:w, %24:w ; @144
-  cmp %x:l, %52:l ; @145
-  setne %24:b ; @146
-  mov %25:w, %24:w ; @89
-  mov eax, %25:w ; @141
+  mov %11:l, rdi ; @88
+  mov %129:l, 0x80000000_l ; @143
+  xor %101:w, %101:w ; @144
+  cmp %11:l, %129:l ; @145
+  setne %101:b ; @146
+  mov %102:w, %101:w ; @89
+  mov eax, %102:w ; @141
   ret ; @142
 }
 
 export function $sge_flag { ; returns: rax
 @26:
-  mov %x:l, rdi ; @90
-  mov %53:l, 0x80000000_l ; @149
-  xor %26:w, %26:w ; @150
-  cmp %x:l, %53:l ; @151
-  setge %26:b ; @152
-  mov %27:w, %26:w ; @91
-  mov eax, %27:w ; @147
+  mov %13:l, rdi ; @90
+  mov %130:l, 0x80000000_l ; @149
+  xor %103:w, %103:w ; @150
+  cmp %13:l, %130:l ; @151
+  setge %103:b ; @152
+  mov %104:w, %103:w ; @91
+  mov eax, %104:w ; @147
   ret ; @148
 }
 
 export function $eq_flag { ; returns: rax
 @29:
-  mov %x:l, rdi ; @92
-  mov %54:l, 0x80000000_l ; @155
-  xor %28:w, %28:w ; @156
-  cmp %x:l, %54:l ; @157
-  sete %28:b ; @158
-  mov %29:w, %28:w ; @93
-  mov eax, %29:w ; @153
+  mov %16:l, rdi ; @92
+  mov %131:l, 0x80000000_l ; @155
+  xor %105:w, %105:w ; @156
+  cmp %16:l, %131:l ; @157
+  sete %105:b ; @158
+  mov %106:w, %105:w ; @93
+  mov eax, %106:w ; @153
   ret ; @154
 }
 
 export function $sel_sge { ; returns: rax
 @32:
-  mov %x:l, rdi ; @94
-  mov %yes:l, rsi ; @164
-  mov %no:l, rdx ; @165
-  mov %55:l, 0x80000000_l ; @95
-  mov %31:l, %no:l ; @161
-  cmp %x:l, %55:l ; @162
-  cmovge %31:l, %yes:l ; @163
-  mov rax, %31:l ; @159
+  mov %19:l, rdi ; @94
+  mov %21:l, rsi ; @164
+  mov %22:l, rdx ; @165
+  mov %132:l, 0x80000000_l ; @95
+  mov %108:l, %22:l ; @161
+  cmp %19:l, %132:l ; @162
+  cmovge %108:l, %21:l ; @163
+  mov rax, %108:l ; @159
   ret ; @160
 }
 
 export function $mul_boundary { ; returns: rax
 @35:
-  mov %x:l, rdi ; @96
-  mov %32:l, %x:l ; @172
-  shl %32:l, 0x1f_b ; @173
-  mov rax, %32:l ; @170
+  mov %24:l, rdi ; @96
+  mov %109:l, %24:l ; @172
+  shl %109:l, 0x1f_b ; @173
+  mov rax, %109:l ; @170
   ret ; @171
 }
 
 export function $add_ptr_hi { ; returns: rax
 @37:
-  mov %base:l, rdi ; @97
-  mov %57:l, 0x80000000_l ; @176
-  mov %33:l, %base:l ; @177
-  add %33:l, %57:l ; @178
-  mov rax, %33:l ; @174
+  mov %26:l, rdi ; @97
+  mov %134:l, 0x80000000_l ; @176
+  mov %110:l, %26:l ; @177
+  add %110:l, %134:l ; @178
+  mov rax, %110:l ; @174
   ret ; @175
 }
 
 export function $sub_ptr_hi { ; returns: rax
 @39:
-  mov %base:l, rdi ; @98
-  mov %58:l, 0x80000001_l ; @181
-  mov %34:l, %base:l ; @182
-  sub %34:l, %58:l ; @183
-  mov rax, %34:l ; @179
+  mov %28:l, rdi ; @98
+  mov %135:l, 0x80000001_l ; @181
+  mov %111:l, %28:l ; @182
+  sub %111:l, %135:l ; @183
+  mov rax, %111:l ; @179
   ret ; @180
 }
 
 export function $add_ptr_max32 { ; returns: rax
 @41:
-  mov %base:l, rdi ; @99
-  lea %35:l, qword ptr [%base + 0x7fffffff] ; @186
-  mov rax, %35:l ; @184
+  mov %30:l, rdi ; @99
+  lea %112:l, qword ptr [%30 + 0x7fffffff] ; @186
+  mov rax, %112:l ; @184
   ret ; @185
 }
 
 export function $or_hi { ; returns: rax
 @43:
-  mov %x:l, rdi ; @100
-  mov %59:l, 0x80000000_l ; @189
-  mov %36:l, %x:l ; @190
-  or %36:l, %59:l ; @191
-  mov rax, %36:l ; @187
+  mov %32:l, rdi ; @100
+  mov %136:l, 0x80000000_l ; @189
+  mov %113:l, %32:l ; @190
+  or %113:l, %136:l ; @191
+  mov rax, %113:l ; @187
   ret ; @188
 }
 
 export function $xor_hi { ; returns: rax
 @45:
-  mov %x:l, rdi ; @101
-  mov %60:l, 0x80000000_l ; @194
-  mov %37:l, %x:l ; @195
-  xor %37:l, %60:l ; @196
-  mov rax, %37:l ; @192
+  mov %34:l, rdi ; @101
+  mov %137:l, 0x80000000_l ; @194
+  mov %114:l, %34:l ; @195
+  xor %114:l, %137:l ; @196
+  mov rax, %114:l ; @192
   ret ; @193
 }
 
 export function $and_hi { ; returns: rax
 @47:
-  mov %x:l, rdi ; @102
-  mov %38:l, %x:l ; @199
-  and %38:w, 0x80000000_w ; @200
-  mov rax, %38:l ; @197
+  mov %36:l, rdi ; @102
+  mov %115:l, %36:l ; @199
+  and %115:w, 0x80000000_w ; @200
+  mov rax, %115:l ; @197
   ret ; @198
 }
 
 export function $test_branch { ; returns: rax
 @49:
-  mov %x:l, rdi ; @103
-  mov %61:l, 0x80000000_l ; @104
-  xor %40:w, %40:w ; @203
-  test %x:l, %61:l ; @204
-  setne %40:b ; @205
-  mov %41:w, %40:w ; @105
-  mov eax, %41:w ; @201
+  mov %38:l, rdi ; @103
+  mov %138:l, 0x80000000_l ; @104
+  xor %117:w, %117:w ; @203
+  test %38:l, %138:l ; @204
+  setne %117:b ; @205
+  mov %118:w, %117:w ; @105
+  mov eax, %118:w ; @201
   ret ; @202
 }
 
 export function $test_flag { ; returns: rax
 @54:
-  mov %x:l, rdi ; @106
-  mov %62:l, 0x80000000_l ; @107
-  xor %43:w, %43:w ; @210
-  test %x:l, %62:l ; @211
-  setne %43:b ; @212
-  mov %44:w, %43:w ; @108
-  mov eax, %44:w ; @208
+  mov %41:l, rdi ; @106
+  mov %139:l, 0x80000000_l ; @107
+  xor %120:w, %120:w ; @210
+  test %41:l, %139:l ; @211
+  setne %120:b ; @212
+  mov %121:w, %120:w ; @108
+  mov eax, %121:w ; @208
   ret ; @209
 }
 
 export function $load_with_disp { ; returns: rax
 @58:
-  mov %base:l, rdi ; @109
-  mov %r.1:l, qword ptr [%base + 0x8] ; @60
-  mov rax, %r.1:l ; @215
+  mov %45:l, rdi ; @109
+  mov %75:l, qword ptr [%45 + 0x8] ; @60
+  mov rax, %75:l ; @215
   ret ; @216
 }
 
 export function $store_with_disp {
 @61:
-  mov %val:l, rdi ; @110
-  mov %base:l, rsi ; @219
-  mov qword ptr [%base + 0x8], %val:l ; @63
+  mov %49:l, rdi ; @110
+  mov %48:l, rsi ; @219
+  mov qword ptr [%48 + 0x8], %49:l ; @63
   ret ; @218
 }

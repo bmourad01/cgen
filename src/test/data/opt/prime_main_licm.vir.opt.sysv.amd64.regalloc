@@ -15,11 +15,11 @@ export function $main { ; returns: rax
   push rbx ; @69
   mov rdi, qword ptr [rsi + 0x8] ; @5
   call $atoi ; rdi ; @60
-  mov r13d, eax ; @61
-  mov r14d, 0x1_w ; @57
-  mov ebx, 0x1_w ; @58
+  mov r14d, eax ; @61
+  mov ebx, 0x1_w ; @56
+  mov r13d, 0x1_w ; @57
 @3:
-  cmp r13d, 0x0_w ; @51
+  cmp r14d, 0x0_w ; @51
   jle @9 ; @52
 @27:
   mov r12d, ebx ; @49
@@ -34,12 +34,12 @@ export function $main { ; returns: rax
   jmp @10 ; @41
 @13:
   lea rdi, qword ptr [rip + $fmt] ; @16
-  mov esi, r14d ; @35
+  mov esi, r13d ; @35
   mov edx, r12d ; @36
   xor al, al ; @37
   call $printf ; rax rdi rdx rsi ; @38
-  dec r13d ; @25
-  inc r14d ; @26
+  dec r14d ; @25
+  inc r13d ; @26
   jmp @3 ; @34
 @9:
   xor eax, eax ; @29

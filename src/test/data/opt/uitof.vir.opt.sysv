@@ -1,33 +1,33 @@
 module foo
 
-export function $foo(w %x/rdi) {
+export function $foo(w %1/rdi) {
 @2:
-  %3 = zext.l %x ; @11
-  %0 = sitof.l.s %3 ; @12
-  ret xmm0/%0
+  %12 = zext.l %1 ; @11
+  %9 = sitof.l.s %12 ; @12
+  ret xmm0/%9
 }
 
-export function $bar(l %x/rdi) {
+export function $bar(l %3/rdi) {
 @4:
-  %4 = slt.l %x, 0x0_l ; @16
-  br %4, @13, @14
+  %13 = slt.l %3, 0x0_l ; @16
+  br %13, @13, @14
 @13:
-  %5 = lsr.l %x, 0x1_l ; @17
-  %6 = and.l %x, 0x1_l ; @18
-  %7 = or.l %5, %6 ; @19
-  %8 = sitof.l.s %7 ; @20
-  %9 = add.s %8, %8 ; @21
-  jmp @15(%9)
+  %14 = lsr.l %3, 0x1_l ; @17
+  %15 = and.l %3, 0x1_l ; @18
+  %16 = or.l %14, %15 ; @19
+  %17 = sitof.l.s %16 ; @20
+  %18 = add.s %17, %17 ; @21
+  jmp @15(%18)
 @14:
-  %10 = sitof.l.s %x ; @22
-  jmp @15(%10)
-@15(%11):
-  ret xmm0/%11
+  %19 = sitof.l.s %3 ; @22
+  jmp @15(%19)
+@15(%20):
+  ret xmm0/%20
 }
 
-export function $baz(h %x/rdi) {
+export function $baz(h %5/rdi) {
 @6:
-  %12 = zext.w %x ; @24
-  %2 = sitof.w.s %12 ; @25
-  ret xmm0/%2
+  %21 = zext.w %5 ; @24
+  %11 = sitof.w.s %21 ; @25
+  ret xmm0/%11
 }

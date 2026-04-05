@@ -1,6 +1,7 @@
 open Core
 open Virtual
 open Promote_slots_impl
+open Context.Syntax
 
 let store op i = match op i with
   | `store ((#Type.basic as t), v, `var a) -> Some (v, a, t)
@@ -46,8 +47,6 @@ module A = Make(struct
     module Resolver = Abi.Resolver
   end)
 
-open E.Syntax
-
 let apply
     (type fn)
     (module M : Scalars.L with type Func.t = fn)
@@ -58,13 +57,14 @@ let apply
   let blks = M.Func.map_of_blks fn in
   let s = Sinit.analyze cfg blks slots in
   let undef l = Hash_set.mem s.bad l in
-  run fn ~undef >>= ssa
+  let*? fn' = run fn ~undef in
+  ssa fn'
 
 let run fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
     apply (module Scalars_common.VL) V.run Ssa.run fn
   else
-    E.failf
+    Context.failf
       "In Promote_slots: expected SSA form for function $%s"
       (Func.name fn) ()
 
@@ -73,6 +73,6 @@ let run_abi fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
     apply (module Scalars_common.AL) A.run Ssa.run_abi fn
   else
-    E.failf
+    Context.failf
       "In Promote_slots (ABI): expected SSA form for function $%s"
       (Func.name fn) ()

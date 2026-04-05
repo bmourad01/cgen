@@ -2,48 +2,48 @@ module evenodd
 
 function $abs { ; returns: rax
 @2:
-  mov %n:w, edi ; @25
-  mov %5:w, %n:w ; @26
-  neg %5:w ; @36
-  mov %6:w, %n:w ; @27
-  test %n:w, %n:w ; @34
-  cmovs %6:w, %5:w ; @35
-  mov eax, %6:w ; @32
+  mov %1:w, edi ; @25
+  mov %23:w, %1:w ; @26
+  neg %23:w ; @36
+  mov %24:w, %1:w ; @27
+  test %1:w, %1:w ; @34
+  cmovs %24:w, %23:w ; @35
+  mov eax, %24:w ; @32
   ret ; @33
 }
 
 export function $even { ; returns: rax
 @7:
-  mov %n:w, edi ; @10
-  mov edi, %n:w ; @49
+  mov %2:w, edi ; @10
+  mov edi, %2:w ; @49
   call $abs ; rdi ; @50
-  mov %n.1:w, eax ; @51
-  test %n.1:w, %n.1:w ; @44
+  mov %10:w, eax ; @51
+  test %10:w, %10:w ; @44
   je @23 ; @45
   jmp @9 ; @46
 @23:
   mov al, 0x1_b ; @42
   ret ; @43
 @9:
-  lea %8:w, qword ptr [%n.1 - 0x1] ; @29
-  mov edi, %8:w ; @40
+  lea %26:w, qword ptr [%10 - 0x1] ; @29
+  mov edi, %26:w ; @40
   tailcall $odd ; rdi ; @41
 }
 
 export function $odd { ; returns: rax
 @14:
-  mov %n:w, edi ; @17
-  mov edi, %n:w ; @61
+  mov %5:w, edi ; @17
+  mov edi, %5:w ; @61
   call $abs ; rdi ; @62
-  mov %n.1:w, eax ; @63
-  test %n.1:w, %n.1:w ; @56
+  mov %14:w, eax ; @63
+  test %14:w, %14:w ; @56
   je @24 ; @57
   jmp @16 ; @58
 @24:
   xor al, al ; @54
   ret ; @55
 @16:
-  lea %10:w, qword ptr [%n.1 - 0x1] ; @31
-  mov edi, %10:w ; @52
+  lea %28:w, qword ptr [%14 - 0x1] ; @31
+  mov edi, %28:w ; @52
   tailcall $even ; rdi ; @53
 }

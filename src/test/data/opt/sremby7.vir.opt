@@ -1,13 +1,13 @@
 module foo
 
-export function w $foo(w %x) {
+export function w $foo(w %0) {
 @2:
-  %0 = mulh.w %x, 0x92492493_w ; @4
-  %1 = add.w %0, %x ; @5
-  %2 = asr.w %1, 0x2_w ; @6
-  %3 = lsr.w %1, 0x1f_w ; @7
-  %4 = add.w %2, %3 ; @8
-  %5 = mul.w %4, 0x7_w ; @9
-  %6 = sub.w %x, %5 ; @10
-  ret %6
+  %2 = mulh.w %0, 0x92492493_w ; @4
+  %3 = add.w %2, %0 ; @5
+  %4 = asr.w %3, 0x2_w ; @6
+  %5 = lsr.w %3, 0x1f_w ; @7
+  %6 = add.w %4, %5 ; @8
+  %7 = mul.w %6, 0x7_w ; @9
+  %8 = sub.w %0, %7 ; @10
+  ret %8
 }
