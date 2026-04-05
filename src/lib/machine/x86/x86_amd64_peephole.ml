@@ -441,6 +441,33 @@ let collect_mov_to_store fn =
 let mov_to_store changed fn =
   map_insns changed fn @@ collect_mov_to_store fn
 
+let albl_of_op = function
+  | Omem (Albl (l, _), _) -> Some l
+  | _ -> None
+
+let albl_of_insn = function
+  | Two (_, a, b) -> List.filter_map [a; b] ~f:albl_of_op
+  | One (_, a) -> Option.to_list (albl_of_op a)
+  | JMP (Jind a) -> Option.to_list (albl_of_op a)
+  | _ -> []
+
+let collect_dead_fp_pseudos fn =
+  let refs =
+    Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
+        Blk.insns b |> Seq.map ~f:Insn.insn |>
+        Seq.fold ~init:acc ~f:(fun acc -> function
+            | FP32 _ | FP64 _ | FP32V _ | FP64V _ -> acc
+            | i -> albl_of_insn i |> List.fold ~init:acc ~f:Lset.add)) in
+  Func.blks fn |> Seq.fold ~init:Lset.empty ~f:(fun acc b ->
+      Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
+          match Insn.insn i with
+          | FP32 (l, _) | FP64 (l, _) | FP32V (l, _) | FP64V (l, _)
+            when not (Lset.mem refs l) -> Lset.add acc (Insn.label i)
+          | _ -> acc))
+
+let remove_dead_fp_pseudos changed fn =
+  filter_not_in changed fn @@ collect_dead_fp_pseudos fn
+
 let max_rounds = 5
 
 let run fn =
@@ -462,5 +489,6 @@ let run fn =
       let fn = lea_mov changed fn in
       let fn = mov_op changed fn in
       let fn = mov_to_store changed fn in
+      let fn = remove_dead_fp_pseudos changed fn in
       if !changed then loop (i + 1) fn else fn in
   loop 1 fn

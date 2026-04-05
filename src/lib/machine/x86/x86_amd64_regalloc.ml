@@ -159,7 +159,9 @@ let substitute' i op = match i with
   | LEAVE
   | JMPtbl _
   | FP32 _
-  | FP64 _ -> i
+  | FP64 _
+  | FP32V _
+  | FP64V _ -> i
 
 let substitute i f = substitute' i @@ substitute_operand f
 
@@ -215,9 +217,15 @@ module Typed_writes = struct
     | ADDSD
     | ADDSS
     | AND
+    | ANDNPD
+    | ANDNPS
+    | ANDPD
+    | ANDPS
     | BSF
     | BSR
     | CMOVcc _
+    | CMPSD _
+    | CMPSS _
     | CVTSD2SI
     | CVTTSD2SI
     | CVTSD2SS
@@ -243,6 +251,8 @@ module Typed_writes = struct
     | MULSD
     | MULSS
     | OR
+    | ORPD
+    | ORPS
     | POPCNT
     | ROL
     | ROR
@@ -303,6 +313,8 @@ module Typed_writes = struct
     | JMPtbl _
     | FP32 _
     | FP64 _
+    | FP32V _
+    | FP64V _
     | RET
     | UD2
       -> Regvar.Map.empty
@@ -436,7 +448,9 @@ module Pre_assign_slots(C : Context_intf.S) = struct
     | LEAVE
     | JMPtbl _
     | FP32 _
-    | FP64 _ -> !![i]
+    | FP64 _
+    | FP32V _
+    | FP64V _ -> !![i]
 end
 
 (* NB: this makes assumptions based on the results of `Pre_assign_slots`. *)

@@ -221,12 +221,12 @@ module Insn = struct
   ] [@@deriving bin_io, compare, equal, sexp]
 
   let pp_memty ppf = function
-    | `i8 -> Format.fprintf ppf "byte ptr"
-    | `i16 -> Format.fprintf ppf "word ptr"
-    | `i32 -> Format.fprintf ppf "dword ptr"
-    | `i64 -> Format.fprintf ppf "qword ptr"
-    | `f32 -> Format.fprintf ppf "dword ptr"
-    | `f64 -> Format.fprintf ppf "qword ptr"
+    | `i8   -> Format.fprintf ppf "byte ptr"
+    | `i16  -> Format.fprintf ppf "word ptr"
+    | `i32  -> Format.fprintf ppf "dword ptr"
+    | `i64  -> Format.fprintf ppf "qword ptr"
+    | `f32  -> Format.fprintf ppf "dword ptr"
+    | `f64  -> Format.fprintf ppf "qword ptr"
     | `v128 -> Format.fprintf ppf "xmmword ptr"
 
   (* An argument to an instruction. *)
@@ -278,6 +278,28 @@ module Insn = struct
       Format.fprintf ppf "$%s" s
     | Oah ->
       Format.fprintf ppf "ah"
+
+  (* SSE comparison predicates for CMPSS/CMPSD. *)
+  type fpcmp =
+    | FEQ    (* ordered, equal *)
+    | FLT    (* ordered, less-than *)
+    | FLE    (* ordered, less-or-equal *)
+    | FUNORD (* unordered *)
+    | FNEQ   (* unordered, not-equal *)
+    | FNLT   (* unordered, not-less-than *)
+    | FNLE   (* unordered, not-less-or-equal *)
+    | FORD   (* ordered *)
+  [@@deriving bin_io, compare, equal, sexp]
+
+  let pp_fpcmp ppf = function
+    | FEQ    -> Format.fprintf ppf "eq"
+    | FLT    -> Format.fprintf ppf "lt"
+    | FLE    -> Format.fprintf ppf "le"
+    | FUNORD -> Format.fprintf ppf "unord"
+    | FNEQ   -> Format.fprintf ppf "neq"
+    | FNLT   -> Format.fprintf ppf "nlt"
+    | FNLE   -> Format.fprintf ppf "nle"
+    | FORD   -> Format.fprintf ppf "ord"
 
   (* Condition codes. *)
   type cc =
@@ -398,7 +420,13 @@ module Insn = struct
     | ADDSD
     | ADDSS
     | AND
+    | ANDPD
+    | ANDPS
+    | ANDNPD
+    | ANDNPS
     | BSF
+    | CMPSD of fpcmp
+    | CMPSS of fpcmp
     | BSR
     | CMOVcc of cc
     | CMP
@@ -426,6 +454,8 @@ module Insn = struct
     | MULSD
     | MULSS
     | OR
+    | ORPD
+    | ORPS
     | POPCNT
     | ROL
     | ROR
@@ -451,7 +481,13 @@ module Insn = struct
     | ADDSD -> Format.fprintf ppf "addsd"
     | ADDSS -> Format.fprintf ppf "addss"
     | AND -> Format.fprintf ppf "and"
+    | ANDPD -> Format.fprintf ppf "andpd"
+    | ANDPS -> Format.fprintf ppf "andps"
+    | ANDNPD -> Format.fprintf ppf "andnpd"
+    | ANDNPS -> Format.fprintf ppf "andnps"
     | BSF -> Format.fprintf ppf "bsf"
+    | CMPSD p -> Format.fprintf ppf "cmp%asd" pp_fpcmp p
+    | CMPSS p -> Format.fprintf ppf "cmp%ass" pp_fpcmp p
     | BSR -> Format.fprintf ppf "bsr"
     | CMOVcc cc -> Format.fprintf ppf "cmov%a" pp_cc cc
     | CMP -> Format.fprintf ppf "cmp"
@@ -479,6 +515,8 @@ module Insn = struct
     | MULSD -> Format.fprintf ppf "mulsd"
     | MULSS -> Format.fprintf ppf "mulss"
     | OR -> Format.fprintf ppf "or"
+    | ORPD -> Format.fprintf ppf "orpd"
+    | ORPS -> Format.fprintf ppf "orps"
     | POPCNT -> Format.fprintf ppf "popcnt"
     | ROL -> Format.fprintf ppf "rol"
     | ROR -> Format.fprintf ppf "ror"
@@ -493,7 +531,7 @@ module Insn = struct
     | UCOMISS -> Format.fprintf ppf "ucomiss"
     | XOR -> Format.fprintf ppf "xor"
     | XORPD -> Format.fprintf ppf "xorpd"
-    | XORPS -> Format.fprintf ppf "xorpss"
+    | XORPS -> Format.fprintf ppf "xorps"
     | MOV_ -> Format.fprintf ppf "mov"
 
   type t =
@@ -513,6 +551,9 @@ module Insn = struct
     (* Pseudo instructions for floating-point constants. *)
     | FP32 of Label.t * Float32.t
     | FP64 of Label.t * float
+    (* 16-byte (xmmword) FP constants for packed SSE ops. *)
+    | FP32V of Label.t * Float32.t
+    | FP64V of Label.t * float
   [@@deriving bin_io, compare, equal, sexp]
 
   let pp ppf = function
@@ -564,6 +605,10 @@ module Insn = struct
       Format.fprintf ppf ".fp32 %a, %s" Label.pp l (Float32.to_string f)
     | FP64 (l, f) ->
       Format.fprintf ppf ".fp64 %a, %a" Label.pp l Float.pp f
+    | FP32V (l, f) ->
+      Format.fprintf ppf ".fp32v %a, %s" Label.pp l (Float32.to_string f)
+    | FP64V (l, f) ->
+      Format.fprintf ppf ".fp64v %a, %a" Label.pp l Float.pp f
 
   (* Helper for registers mentioned in an addressing mode. *)
   let rv_of_amode = function
@@ -608,13 +653,21 @@ module Insn = struct
     | ADDSD
     | ADDSS
     | AND
+    | ANDNPD
+    | ANDNPS
+    | ANDPD
+    | ANDPS
     | CMP
+    | CMPSD _
+    | CMPSS _
     | DIVSD
     | DIVSS
     | IMUL2
     | MULSD
     | MULSS
     | OR
+    | ORPD
+    | ORPS
     | ROL
     | ROR
     | SAR
@@ -729,6 +782,8 @@ module Insn = struct
     | JMPtbl _
     | FP32 _
     | FP64 _
+    | FP32V _
+    | FP64V _
       -> Regvar.Set.empty
 
   let binop_writes op a _b = match op with
@@ -749,7 +804,13 @@ module Insn = struct
       -> Set.union (rset' [`rflags]) (rset_reg [a])
     | ADDSD
     | ADDSS
+    | ANDNPD
+    | ANDNPS
+    | ANDPD
+    | ANDPS
     | CMOVcc _
+    | CMPSD _
+    | CMPSS _
     | CVTSD2SI
     | CVTTSD2SI
     | CVTSD2SS
@@ -773,6 +834,8 @@ module Insn = struct
     | MOVZX
     | MULSD
     | MULSS
+    | ORPD
+    | ORPS
     | SUBSD
     | SUBSS
     | XORPD
@@ -829,6 +892,8 @@ module Insn = struct
     | JMPtbl _
     | FP32 _
     | FP64 _
+    | FP32V _
+    | FP64V _
       -> Regvar.Set.empty
     | CDQ
     | CQO
@@ -871,10 +936,16 @@ module Insn = struct
     | SUBSS
     | XOR
       -> is_mem a
+    | ANDNPD (* illegal *)
+    | ANDNPS (* illegal *)
+    | ANDPD (* illegal *)
+    | ANDPS (* illegal *)
     | BSF (* illegal *)
     | BSR (* illegal *)
     | CMOVcc _ (* illegal *)
     | CMP
+    | CMPSD _ (* illegal *)
+    | CMPSS _ (* illegal *)
     | CVTSD2SI (* illegal *)
     | CVTTSD2SI (* illegal *)
     | CVTSD2SS (* illegal *)
@@ -888,6 +959,8 @@ module Insn = struct
     | MOVSX (* illegal *)
     | MOVZX (* illegal *)
     | MOVSXD (* illegal *)
+    | ORPD (* illegal *)
+    | ORPS (* illegal *)
     | POPCNT (* illegal *)
     | TEST_
     | UCOMISD
@@ -929,6 +1002,8 @@ module Insn = struct
     | JMPtbl _ (* fake *)
     | FP32 _ (* fake *)
     | FP64 _ (* fake *)
+    | FP32V _ (* fake *)
+    | FP64V _ (* fake *)
     | IMUL3 _
       -> false
     | LEAVE
@@ -947,6 +1022,8 @@ module Insn = struct
     | JMPtbl _
     | FP32 _
     | FP64 _
+    | FP32V _
+    | FP64V _
       -> true
     | i -> writes_to_memory i
 
@@ -954,6 +1031,8 @@ module Insn = struct
     | JMPtbl _
     | FP32 _
     | FP64 _
+    | FP32V _
+    | FP64V _
       -> true
     | _ -> false
 
@@ -970,10 +1049,16 @@ module Insn = struct
     let addsd a b = Two (ADDSD, a, b)
     let addss a b = Two (ADDSS, a, b)
     let and_ a b = Two (AND, a, b)
+    let andnpd a b = Two (ANDNPD, a, b)
+    let andnps a b = Two (ANDNPS, a, b)
+    let andpd a b = Two (ANDPD, a, b)
+    let andps a b = Two (ANDPS, a, b)
     let bsf a b = Two (BSF, a, b)
     let bsr a b = Two (BSR, a, b)
     let cmov cc a b = Two (CMOVcc cc, a, b)
     let cmp a b = Two (CMP, a, b)
+    let cmpsd p a b = Two (CMPSD p, a, b)
+    let cmpss p a b = Two (CMPSS p, a, b)
     let cvtsd2si a b = Two (CVTSD2SI, a, b)
     let cvttsd2si a b = Two (CVTTSD2SI, a, b)
     let cvtsd2ss a b = Two (CVTSD2SS, a, b)
@@ -999,6 +1084,8 @@ module Insn = struct
     let mulsd a b = Two (MULSD, a, b)
     let mulss a b = Two (MULSS, a, b)
     let or_ a b = Two (OR, a, b)
+    let orpd a b = Two (ORPD, a, b)
+    let orps a b = Two (ORPS, a, b)
     let popcnt a b = Two (POPCNT, a, b)
     let rol a b = Two (ROL, a, b)
     let ror a b = Two (ROR, a, b)
@@ -1041,5 +1128,7 @@ module Insn = struct
     let jmptbl l ls = JMPtbl (l, ls)
     let fp32 l f = FP32 (l, f)
     let fp64 l f = FP64 (l, f)
+    let fp32v l f = FP32V (l, f)
+    let fp64v l f = FP64V (l, f)
   end
 end

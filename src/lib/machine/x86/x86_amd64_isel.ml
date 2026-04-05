@@ -151,6 +151,13 @@ end = struct
       let+ result = f (Oreg (tmp, `i64)) in
       Option.map result ~f:(List.cons (I.mov (Oreg (tmp, `i64)) (Oimm (z, zt))))
 
+  let extbh ?(signed = false) x xt' xt f =
+    let i = if signed then I.movsx else I.movzx in
+    let suffix = match xt with
+      | `i8 | `i16 -> [i (Oreg (x, xt')) (Oreg (x, xt))]
+      | _ -> [] in
+    f suffix
+
   (* Rule callbacks. *)
 
   let mov_typed xt dst src = match xt with
@@ -302,6 +309,18 @@ end = struct
     ]
   [@@specialise]
 
+  let arith_float_fr_x_y_z i1 i2 f s t env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = s env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! () = guard @@ Type.equal_basic xt zt in
+    let* l, addr = fresh_label_addr in !!![
+      i1 (Oreg (x, xt)) (Omem (addr, t));
+      i2 (Oreg (x, xt)) (Oreg (z, zt));
+      f l y;
+    ]
+  [@@specialise]
+
   let add_rf32_x_y_z = arith_float_x_y_z I.movss I.addss I.fp32 S.single `f32
   let add_rf64_x_y_z = arith_float_x_y_z I.movsd I.addsd I.fp64 S.double `f64
 
@@ -359,6 +378,8 @@ end = struct
 
   let sub_rf32_x_y_z = arith_float_x_y_z I.movss I.subss I.fp32 S.single `f32
   let sub_rf64_x_y_z = arith_float_x_y_z I.movsd I.subsd I.fp64 S.double `f64
+  let sub_fr32_x_y_z = arith_float_fr_x_y_z I.movss I.subss I.fp32 S.single `f32
+  let sub_fr64_x_y_z = arith_float_fr_x_y_z I.movsd I.subsd I.fp64 S.double `f64
 
   let bitwise_rr_x_y_z i env =
     let*! x, xt = S.regvar env "x" in
@@ -485,6 +506,58 @@ end = struct
   let jcc_rr_f32_x_y = jcc_rr_cmp I.ucomiss
   let jcc_rr_f64_x_y = jcc_rr_cmp I.ucomisd
 
+  let jcc_rf32_x_y cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.single env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let*! () = guard @@ Type.equal_basic xt `f32 in
+    let* l, addr = fresh_label_addr in !!![
+      I.ucomiss (Oreg (x, xt)) (Omem (addr, `f32));
+      I.jcc cc yes;
+      I.jmp (Jlbl no);
+      I.fp32 l y;
+    ]
+
+  let jcc_fr32_x_y cc env =
+    let*! x = S.single env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let*! () = guard @@ Type.equal_basic yt `f32 in
+    let* l, addr = fresh_label_addr in !!![
+      I.ucomiss (Oreg (y, yt)) (Omem (addr, `f32));
+      I.jcc (flip_cc cc) yes;
+      I.jmp (Jlbl no);
+      I.fp32 l x;
+    ]
+
+  let jcc_rf64_x_y cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.double env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let*! () = guard @@ Type.equal_basic xt `f64 in
+    let* l, addr = fresh_label_addr in !!![
+      I.ucomisd (Oreg (x, xt)) (Omem (addr, `f64));
+      I.jcc cc yes;
+      I.jmp (Jlbl no);
+      I.fp64 l y;
+    ]
+
+  let jcc_fr64_x_y cc env =
+    let*! x = S.double env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let*! () = guard @@ Type.equal_basic yt `f64 in
+    let* l, addr = fresh_label_addr in !!![
+      I.ucomisd (Oreg (y, yt)) (Omem (addr, `f64));
+      I.jcc (flip_cc cc) yes;
+      I.jmp (Jlbl no);
+      I.fp64 l x;
+    ]
+
   let jcc_ri_x_y cc env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
@@ -592,6 +665,54 @@ end = struct
   let setcc_rr_x_y_z     = setcc_rr_cmp I.cmp
   let setcc_rr_f32_x_y_z = setcc_rr_cmp I.ucomiss
   let setcc_rr_f64_x_y_z = setcc_rr_cmp I.ucomisd
+
+  let setcc_rf32_x_y_z cc env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z = S.single env "z" in
+    let*! () = guard @@ Type.equal_basic yt `f32 in
+    let* l, addr = fresh_label_addr in !!![
+      I.xor    (Oreg (x, `i32)) (Oreg (x, `i32));
+      I.ucomiss (Oreg (y, yt)) (Omem (addr, `f32));
+      I.setcc cc (Oreg (x, `i8));
+      I.fp32 l z;
+    ]
+
+  let setcc_rf64_x_y_z cc env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z = S.double env "z" in
+    let*! () = guard @@ Type.equal_basic yt `f64 in
+    let* l, addr = fresh_label_addr in !!![
+      I.xor    (Oreg (x, `i32)) (Oreg (x, `i32));
+      I.ucomisd (Oreg (y, yt)) (Omem (addr, `f64));
+      I.setcc cc (Oreg (x, `i8));
+      I.fp64 l z;
+    ]
+
+  let setcc_fr32_x_y_z cc env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y = S.single env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! () = guard @@ Type.equal_basic zt `f32 in
+    let* l, addr = fresh_label_addr in !!![
+      I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
+      I.ucomiss (Oreg (z, zt)) (Omem (addr, `f32));
+      I.setcc (flip_cc cc) (Oreg (x, `i8));
+      I.fp32 l y;
+    ]
+
+  let setcc_fr64_x_y_z cc env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y = S.double env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! () = guard @@ Type.equal_basic zt `f64 in
+    let* l, addr = fresh_label_addr in !!![
+      I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
+      I.ucomisd (Oreg (z, zt)) (Omem (addr, `f64));
+      I.setcc (flip_cc cc) (Oreg (x, `i8));
+      I.fp64 l y;
+    ]
 
   let setcc_rsym_x_y_z cc env =
     let*! x, _ = S.regvar env "x" in
@@ -730,6 +851,75 @@ end = struct
   let sel_ri_zero_x_y = sel_zero_x_y sel_yn_ri
   let sel_ir_zero_x_y = sel_zero_x_y sel_yn_ir
   let sel_ii_zero_x_y = sel_zero_x_y sel_yn_ii
+
+  let f32_reg rv f = f (Oreg (rv, `f32), [])
+  let f64_reg rv f = f (Oreg (rv, `f64), [])
+
+  let f32_const fv f =
+    let* l, a = fresh_label_addr in
+    f (Omem (a, `f32), [I.fp32 l fv])
+
+  let f32v_const fv f =
+    let* l, a = fresh_label_addr in
+    f (Omem (a, `v128), [I.fp32v l fv])
+
+  let f64_const fv f =
+    let* l, a = fresh_label_addr in
+    f (Omem (a, `f64), [I.fp64 l fv])
+
+  let f64v_const fv f =
+    let* l, a = fresh_label_addr in
+    f (Omem (a, `v128), [I.fp64v l fv])
+
+  let sel_fcore32 p x with_y with_z with_yes with_no =
+    let* tmp = C.Var.fresh >>| Rv.var FP in
+    let@ y_op, y_ps = with_y in
+    let@ z_op, z_ps = with_z in
+    let@ yes_op, yes_ps = with_yes in
+    let@ no_op, no_ps = with_no in [
+      I.movss (Oreg (tmp, `f32)) y_op;
+      I.cmpss p (Oreg (tmp, `f32)) z_op;
+      I.movss (Oreg (x, `f32)) yes_op;
+      I.andps (Oreg (x, `f32)) (Oreg (tmp, `f32));
+      I.andnps (Oreg (tmp, `f32)) no_op;
+      I.orps (Oreg (x, `f32)) (Oreg (tmp, `f32));
+    ] @!! (y_ps @ z_ps @ yes_ps @ no_ps)
+
+  let sel_fcore64 p x with_y with_z with_yes with_no =
+    let* tmp = C.Var.fresh >>| Rv.var FP in
+    let@ y_op, y_ps = with_y in
+    let@ z_op, z_ps = with_z in
+    let@ yes_op, yes_ps = with_yes in
+    let@ no_op, no_ps = with_no in [
+      I.movsd (Oreg (tmp, `f64)) y_op;
+      I.cmpsd p (Oreg (tmp, `f64)) z_op;
+      I.movsd (Oreg (x, `f64)) yes_op;
+      I.andpd (Oreg (x, `f64)) (Oreg (tmp, `f64));
+      I.andnpd (Oreg (tmp, `f64)) no_op;
+      I.orpd (Oreg (x, `f64)) (Oreg (tmp, `f64));
+    ] @!! (y_ps @ z_ps @ yes_ps @ no_ps)
+
+  let regvar_or env v fl sr fr = match S.regvar env v with
+    | None -> sr env v |> Option.map ~f:fr
+    | Some (v, _) -> Some (fl v)
+
+  let sel_f32_x_y_z p env =
+    let*! x, _ = S.regvar env "x" in
+    let*! with_y = regvar_or env "y" f32_reg S.single f32_const in
+    let*! with_z = regvar_or env "z" f32_reg S.single f32_const in
+    let*! with_yes = regvar_or env "yes" f32_reg S.single f32_const in
+    let*! with_no = regvar_or env "no" f32_reg S.single f32v_const in
+    sel_fcore32 p x with_y with_z with_yes with_no
+  [@@specialise]
+
+  let sel_f64_x_y_z p env =
+    let*! x, _ = S.regvar env "x" in
+    let*! with_y = regvar_or env "y" f64_reg S.double f64_const in
+    let*! with_z = regvar_or env "z" f64_reg S.double f64_const in
+    let*! with_yes = regvar_or env "yes" f64_reg S.double f64_const in
+    let*! with_no = regvar_or env "no" f64_reg S.double f64v_const in
+    sel_fcore64 p x with_y with_z with_yes with_no
+  [@@specialise]
 
   let load_add_mul_rr_scale_imm_x_y_z_w s env =
     let*! x, xt = S.regvar env "x" in
@@ -1261,6 +1451,8 @@ end = struct
 
   let fdiv_rf32_x_y_z = arith_float_x_y_z I.movss I.divss I.fp32 S.single `f32
   let fdiv_rf64_x_y_z = arith_float_x_y_z I.movsd I.divsd I.fp64 S.double `f64
+  let fdiv_fr32_x_y_z = arith_float_fr_x_y_z I.movss I.divss I.fp32 S.single `f32
+  let fdiv_fr64_x_y_z = arith_float_fr_x_y_z I.movsd I.divsd I.fp64 S.double `f64
 
   let shift_rr_x_y_z i env =
     let*! x, xt = S.regvar env "x" in
@@ -1351,15 +1543,15 @@ end = struct
       let f = Float32.of_bits 0x8000_0000l in
       let* l, addr = fresh_label_addr in !!![
         I.movss (Oreg (x, xt)) (Oreg (y, yt));
-        I.xorps (Oreg (x, xt)) (Omem (addr, `f32));
-        I.fp32 l f;
+        I.xorps (Oreg (x, xt)) (Omem (addr, `v128));
+        I.fp32v l f;
       ]
     | `f64 ->
       let f = float_of_bits 0x8000_0000_0000_0000L in
       let* l, addr = fresh_label_addr in !!![
         I.movsd (Oreg (x, xt)) (Oreg (y, yt));
-        I.xorpd (Oreg (x, xt)) (Omem (addr, `f64));
-        I.fp64 l f;
+        I.xorpd (Oreg (x, xt)) (Omem (addr, `v128));
+        I.fp64v l f;
       ]
     | _ -> !!None
 
@@ -1551,9 +1743,11 @@ end = struct
     let xt' = ftosi_ty xt in
     match tf with
     | `f32 ->
-      !!![I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt))]
+      let@ sext = extbh ~signed:true x xt' xt in
+      !!!(I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt)) :: sext)
     | `f64 ->
-      !!![I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt))]
+      let@ sext = extbh ~signed:true x xt' xt in
+      !!!(I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt)) :: sext)
     | _ -> !!None
 
   let ftosi_rf32_x_y ti env =
@@ -1574,17 +1768,45 @@ end = struct
       !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt))]
     | _ -> !!None
 
+  (* Handles the 64-bit integer case where 2^63 would saturate cvttss2si/cvttsd2si. *)
+  let ftoui_rr_i64 cvtts movf subf ucomif embed x y yt =
+    let* l, addr = fresh_label_addr in
+    let* tmp_r = C.Var.fresh >>| Rv.var GPR in
+    let* tmp_fp = C.Var.fresh >>| Rv.var FP in
+    let* tmp_r2 = C.Var.fresh >>| Rv.var GPR in
+    let@ oz = with_imm `i64 Int64.min_value `i64 in !!![
+      cvtts (Oreg (tmp_r, `i64)) (Oreg (y, yt));
+      movf (Oreg (tmp_fp, yt)) (Oreg (y, yt));
+      subf (Oreg (tmp_fp, yt)) (Omem (addr, mty yt));
+      cvtts (Oreg (tmp_r2, `i64)) (Oreg (tmp_fp, yt));
+      I.xor (Oreg (tmp_r2, `i64)) oz;
+      ucomif (Oreg (y, yt)) (Omem (addr, mty yt));
+      I.cmov Cae (Oreg (tmp_r, `i64)) (Oreg (tmp_r2, `i64));
+      I.mov (Oreg (x, `i64)) (Oreg (tmp_r, `i64));
+      embed l;
+    ]
+
   let ftoui_rr_x_y tf ti env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
     let*! () = guard (Type.equal_basic (tf :> Type.basic) yt) in
     let xt' = ftoui_ty xt in
-    match tf with
-    | `f32 ->
-      !!![I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt))]
-    | `f64 ->
-      !!![I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt))]
+    match tf, xt with
+    | `f32, `i64 ->
+      let threshold = Float32.of_float (2.0 ** 63.0) in
+      ftoui_rr_i64 I.cvttss2si I.movss I.subss I.ucomiss
+        (fun l -> I.fp32 l threshold) x y yt
+    | `f64, `i64 ->
+      let threshold = 2.0 ** 63.0 in
+      ftoui_rr_i64 I.cvttsd2si I.movsd I.subsd I.ucomisd
+        (fun l -> I.fp64 l threshold) x y yt
+    | `f32, _ ->
+      let@ zext = extbh x xt' xt in
+      !!!(I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt)) :: zext)
+    | `f64, _ ->
+      let@ zext = extbh x xt' xt in
+      !!!(I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt)) :: zext)
     | _ -> !!None
 
   let ftoui_rf32_x_y ti env =
@@ -1699,15 +1921,13 @@ end = struct
     match ti, tf with
     | (`i8 | `i16), `f32 ->
       let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
-        I.movzx (Oreg (tmp, `i32)) (Oreg (y, yt));
+        I.movsx (Oreg (tmp, `i32)) (Oreg (y, yt));
         I.xorps (Oreg (x, xt)) (Oreg (x, xt));
         I.cvtsi2ss (Oreg (x, xt)) (Oreg (tmp, `i32));
       ]
-    | `i32, `f32 ->
-      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
-        I.mov (Oreg (tmp, `i32)) (Oreg (y, yt));
+    | `i32, `f32 -> !!![
         I.xorps (Oreg (x, xt)) (Oreg (x, xt));
-        I.cvtsi2ss (Oreg (x, xt)) (Oreg (tmp, `i64));
+        I.cvtsi2ss (Oreg (x, xt)) (Oreg (y, yt));
       ]
     | `i64, `f32 -> !!![
         I.xorps (Oreg (x, xt)) (Oreg (x, xt));
@@ -1715,15 +1935,13 @@ end = struct
       ]
     | (`i8 | `i16), `f64 ->
       let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
-        I.movzx (Oreg (tmp, `i32)) (Oreg (y, yt));
+        I.movsx (Oreg (tmp, `i32)) (Oreg (y, yt));
         I.xorpd (Oreg (x, xt)) (Oreg (x, xt));
         I.cvtsi2sd (Oreg (x, xt)) (Oreg (tmp, `i32));
       ]
-    | `i32, `f64 ->
-      let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
-        I.mov (Oreg (tmp, `i32)) (Oreg (y, yt));
+    | `i32, `f64 -> !!![
         I.xorpd (Oreg (x, xt)) (Oreg (x, xt));
-        I.cvtsi2sd (Oreg (x, xt)) (Oreg (tmp, `i64));
+        I.cvtsi2sd (Oreg (x, xt)) (Oreg (y, yt));
       ]
     | `i64, `f64 -> !!![
         I.xorpd (Oreg (x, xt)) (Oreg (x, xt));
@@ -1855,6 +2073,8 @@ end = struct
       sub_ir_x_y_z;
       sub_rf32_x_y_z;
       sub_rf64_x_y_z;
+      sub_fr32_x_y_z;
+      sub_fr64_x_y_z;
     ]
 
     let and_ = [
@@ -1947,6 +2167,8 @@ end = struct
       fdiv_rr_x_y_z;
       fdiv_rf32_x_y_z;
       fdiv_rf64_x_y_z;
+      fdiv_fr32_x_y_z;
+      fdiv_fr64_x_y_z;
     ]
 
     let div8 = [
@@ -1998,12 +2220,24 @@ end = struct
       setcc_symi_x_y_z cc;
     ]
 
+    let sel_f32 p = [
+      sel_f32_x_y_z p
+    ]
+
+    let sel_f64 p = [
+      sel_f64_x_y_z p
+    ]
+
     let setcc_f32 cc = [
       setcc_rr_f32_x_y_z cc;
+      setcc_rf32_x_y_z cc;
+      setcc_fr32_x_y_z cc;
     ]
 
     let setcc_f64 cc = [
       setcc_rr_f64_x_y_z cc;
+      setcc_rf64_x_y_z cc;
+      setcc_fr64_x_y_z cc;
     ]
 
     let sel cc = [
@@ -2037,7 +2271,8 @@ end = struct
       move_ri_x_y;
     ]
 
-    let move = move_ri @ [
+    let move =
+      move_ri @ [
         move_rb_x_y;
         move_rsym_x_y;
         move_rf32_x_y;
@@ -2173,10 +2408,14 @@ end = struct
 
     let br_fcmp32 cc = [
       jcc_rr_f32_x_y cc;
+      jcc_rf32_x_y cc;
+      jcc_fr32_x_y cc;
     ]
 
     let br_fcmp64 cc = [
       jcc_rr_f64_x_y cc;
+      jcc_rf64_x_y cc;
+      jcc_fr64_x_y cc;
     ]
 
     let call = [
@@ -2445,7 +2684,7 @@ end = struct
       move x (mul `i16 y z) =>* Group.mul;
       move x (mul `i32 y z) =>* Group.mul;
       move x (mul `i64 y z) =>* Group.mul;
-      move x (mul `f64 y z) =>* Group.fmul;
+      move x (mul `f32 y z) =>* Group.fmul;
       move x (mul `f64 y z) =>* Group.fmul;
     ]
 
@@ -2471,7 +2710,7 @@ end = struct
       move x (div `i16 y z) =>* Group.div;
       move x (div `i32 y z) =>* Group.div;
       move x (div `i64 y z) =>* Group.div;
-      move x (div `f64 y z) =>* Group.fdiv;
+      move x (div `f32 y z) =>* Group.fdiv;
       move x (div `f64 y z) =>* Group.fdiv;
     ]
 
@@ -2568,6 +2807,22 @@ end = struct
             move x (sel tys' (slt tyc y zero) yes no) =>* Group.sel_zero ~eq:false ();
             move x (sel tys' (sge tyc y zero) yes no) =>* Group.sel_zero ~neg:true ~eq:false ();
           ]
+
+    (* x = sel (fcmp y z) yes no  [f32/f64 comparison, f32/f64 select value] *)
+    let sel_fbasic =
+      [`f32, Group.sel_f32;
+       `f64, Group.sel_f64;
+      ] >* fun (ty, f) ->
+        let ty' = bty ty in [
+          move x (sel ty' (eq ty' y z) yes no) =>* f FEQ;
+          move x (sel ty' (ne ty' y z) yes no) =>* f FNEQ;
+          move x (sel ty' (lt ty' y z) yes no) =>* f FLT;
+          move x (sel ty' (le ty' y z) yes no) =>* f FLE;
+          move x (sel ty' (gt ty' y z) yes no) =>* f FNLT;
+          move x (sel ty' (ge ty' y z) yes no) =>* f FNLE;
+          move x (sel ty' (uo ty  y z) yes no) =>* f FUNORD;
+          move x (sel ty' (o ty   y z) yes no) =>* f FORD;
+        ]
 
     (* x = sel (cmp y z) yes no *)
     let sel_ibasic =
@@ -2807,7 +3062,7 @@ end = struct
 
     (* x = ifbits y *)
     let ifbits_basic = [
-      move x (ifbits `i32 y) =>* Group.ifbits `i64;
+      move x (ifbits `i32 y) =>* Group.ifbits `i32;
       move x (ifbits `i64 y) =>* Group.ifbits `i64;
     ]
 
@@ -3099,6 +3354,7 @@ end = struct
       setcc_fbasic;
       sel_zero;
       sel_ibasic;
+      sel_fbasic;
       load_add_mul_disp;
       load_add_mul_disp_neg;
       load_add_mul;

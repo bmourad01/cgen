@@ -11,6 +11,8 @@ open Core
 open Regular.Std
 open X86_amd64_common
 
+external float_to_bits : float -> int64 = "cgen_bits_of_float"
+
 module Data = Virtual.Data
 
 let label ppf (l : Label.t) =
@@ -35,9 +37,9 @@ let emit_data_elt ppf : Data.elt -> unit = function
   | `int (i, `i64) ->
     Format.fprintf ppf "  .quad %a\n" Bv.pp i
   | `float f ->
-    Format.fprintf ppf "  .single %s\n" @@ Float32.to_string f
+    Format.fprintf ppf "  .long 0x%lx\n" (Float32.bits f)
   | `double d ->
-    Format.fprintf ppf "  .double %a\n" Float.pp d
+    Format.fprintf ppf "  .quad 0x%Lx\n" (float_to_bits d)
   | `sym (s, o) ->
     Format.fprintf ppf "  .quad %s" s;
     if o < 0 then Format.fprintf ppf "-%d" (-o)
@@ -206,10 +208,16 @@ let emit_insn ppf (_l, i, s) =
     List.iter ls ~f:(emit_tblentry l ppf);
     Format.fprintf ppf ".section %s\n" s;
   | FP32 (l, f) ->
-    Format.fprintf ppf ".section .rodata\n.p2align 2\n%a:\n  .float %s\n.section %s\n"
-      label l (Float32.to_string f) s
+    Format.fprintf ppf ".section .rodata\n.p2align 2\n%a:\n  .long 0x%lx\n.section %s\n"
+      label l (Float32.bits f) s
   | FP64 (l, f) ->
-    Format.fprintf ppf ".section .rodata\n.p2align 3\n%a:\n  .double %a\n.section %s\n"
-      label l Float.pp f s
+    Format.fprintf ppf ".section .rodata\n.p2align 3\n%a:\n  .quad 0x%Lx\n.section %s\n"
+      label l (float_to_bits f) s
+  | FP32V (l, f) ->
+    Format.fprintf ppf ".section .rodata\n.p2align 4\n%a:\n  .long 0x%lx\n  .space 12\n.section %s\n"
+      label l (Float32.bits f) s
+  | FP64V (l, f) ->
+    Format.fprintf ppf ".section .rodata\n.p2align 4\n%a:\n  .quad 0x%Lx\n  .space 8\n.section %s\n"
+      label l (float_to_bits f) s
 
 let emit_separator ppf () = Format.fprintf ppf "\n"

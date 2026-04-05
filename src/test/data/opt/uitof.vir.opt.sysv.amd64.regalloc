@@ -1,0 +1,32 @@
+module foo
+
+export function $foo { ; returns: xmm0
+@2:
+  cvtsi2ss xmm0, rdi ; @28
+  ret ; @27
+}
+
+export function $bar { ; returns: xmm0
+@4:
+  test rdi, rdi ; @42
+  js @13 ; @43
+@14:
+  cvtsi2ss xmm0, rdi ; @41
+  jmp @15 ; @40
+@13:
+  mov rax, rdi ; @17
+  shr rax, 0x1_b ; @38
+  and edi, 0x1_w ; @37
+  or rax, rdi ; @36
+  cvtsi2ss xmm0, rax ; @35
+  addss xmm0, xmm0 ; @34
+@15:
+  ret ; @31
+}
+
+export function $baz { ; returns: xmm0
+@6:
+  movzx eax, di ; @51
+  cvtsi2ss xmm0, eax ; @50
+  ret ; @49
+}

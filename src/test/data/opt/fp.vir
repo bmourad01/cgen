@@ -1,0 +1,645 @@
+module fp
+
+;; arithmetic
+
+export function s $fadd_f32(s %x, s %y) {
+@start:
+  %r = add.s %x, %y
+  ret %r
+}
+
+export function d $fadd_f64(d %x, d %y) {
+@start:
+  %r = add.d %x, %y
+  ret %r
+}
+
+export function s $fsub_f32(s %x, s %y) {
+@start:
+  %r = sub.s %x, %y
+  ret %r
+}
+
+export function d $fsub_f64(d %x, d %y) {
+@start:
+  %r = sub.d %x, %y
+  ret %r
+}
+
+export function s $fmul_f32(s %x, s %y) {
+@start:
+  %r = mul.s %x, %y
+  ret %r
+}
+
+export function d $fmul_f64(d %x, d %y) {
+@start:
+  %r = mul.d %x, %y
+  ret %r
+}
+
+export function s $fdiv_f32(s %x, s %y) {
+@start:
+  %r = div.s %x, %y
+  ret %r
+}
+
+export function d $fdiv_f64(d %x, d %y) {
+@start:
+  %r = div.d %x, %y
+  ret %r
+}
+
+export function s $fneg_f32(s %x) {
+@start:
+  %r = neg.s %x
+  ret %r
+}
+
+export function d $fneg_f64(d %x) {
+@start:
+  %r = neg.d %x
+  ret %r
+}
+
+;; arithmetic with constant operands (constant as RHS)
+
+export function s $fadd_f32_const(s %x) {
+@start:
+  %r = add.s %x, 1.5_s
+  ret %r
+}
+
+export function d $fadd_f64_const(d %x) {
+@start:
+  %r = add.d %x, 1.5_d
+  ret %r
+}
+
+export function s $fsub_f32_const(s %x) {
+@start:
+  %r = sub.s %x, 1.5_s
+  ret %r
+}
+
+export function d $fsub_f64_const(d %x) {
+@start:
+  %r = sub.d %x, 1.5_d
+  ret %r
+}
+
+export function s $fmul_f32_const(s %x) {
+@start:
+  %r = mul.s %x, 2.0_s
+  ret %r
+}
+
+export function d $fmul_f64_const(d %x) {
+@start:
+  %r = mul.d %x, 2.0_d
+  ret %r
+}
+
+export function s $fdiv_f32_const(s %x) {
+@start:
+  %r = div.s %x, 2.0_s
+  ret %r
+}
+
+export function d $fdiv_f64_const(d %x) {
+@start:
+  %r = div.d %x, 2.0_d
+  ret %r
+}
+
+export function s $fneg_f32_const() {
+@start:
+  %r = neg.s 1.5_s
+  ret %r
+}
+
+export function d $fneg_f64_const() {
+@start:
+  %r = neg.d 1.5_d
+  ret %r
+}
+
+;; arithmetic with constant operands (constant as LHS)
+
+export function s $fadd_f32_const_lhs(s %x) {
+@start:
+  %r = add.s 1.5_s, %x
+  ret %r
+}
+
+export function d $fadd_f64_const_lhs(d %x) {
+@start:
+  %r = add.d 1.5_d, %x
+  ret %r
+}
+
+export function s $fsub_f32_const_lhs(s %x) {
+@start:
+  %r = sub.s 1.5_s, %x
+  ret %r
+}
+
+export function d $fsub_f64_const_lhs(d %x) {
+@start:
+  %r = sub.d 1.5_d, %x
+  ret %r
+}
+
+export function s $fmul_f32_const_lhs(s %x) {
+@start:
+  %r = mul.s 2.0_s, %x
+  ret %r
+}
+
+export function d $fmul_f64_const_lhs(d %x) {
+@start:
+  %r = mul.d 2.0_d, %x
+  ret %r
+}
+
+export function s $fdiv_f32_const_lhs(s %x) {
+@start:
+  %r = div.s 2.0_s, %x
+  ret %r
+}
+
+export function d $fdiv_f64_const_lhs(d %x) {
+@start:
+  %r = div.d 2.0_d, %x
+  ret %r
+}
+
+;; comparisons
+
+export function w $flt_f32(s %x, s %y) {
+@start:
+  %c = lt.s %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $flt_f64(d %x, d %y) {
+@start:
+  %c = lt.d %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $fle_f32(s %x, s %y) {
+@start:
+  %c = le.s %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $fle_f64(d %x, d %y) {
+@start:
+  %c = le.d %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $feq_f32(s %x, s %y) {
+@start:
+  %c = eq.s %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $feq_f64(d %x, d %y) {
+@start:
+  %c = eq.d %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $fne_f32(s %x, s %y) {
+@start:
+  %c = ne.s %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $fne_f64(d %x, d %y) {
+@start:
+  %c = ne.d %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $fuo_f32(s %x, s %y) {
+@start:
+  %c = uo.s %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $fo_f64(d %x, d %y) {
+@start:
+  %c = o.d %x, %y
+  %r = flag.w %c
+  ret %r
+}
+
+;; comparisons with constants (constant as RHS)
+
+export function w $flt_f32_const(s %x) {
+@start:
+  %c = lt.s %x, 0.0_s
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $flt_f64_const(d %x) {
+@start:
+  %c = lt.d %x, 0.0_d
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $feq_f32_const(s %x) {
+@start:
+  %c = eq.s %x, 1.0_s
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $feq_f64_const(d %x) {
+@start:
+  %c = eq.d %x, 1.0_d
+  %r = flag.w %c
+  ret %r
+}
+
+;; comparisons with constants (constant as LHS)
+
+export function w $flt_f32_const_lhs(s %x) {
+@start:
+  %c = lt.s 0.0_s, %x
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $flt_f64_const_lhs(d %x) {
+@start:
+  %c = lt.d 0.0_d, %x
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $feq_f32_const_lhs(s %x) {
+@start:
+  %c = eq.s 1.0_s, %x
+  %r = flag.w %c
+  ret %r
+}
+
+export function w $feq_f64_const_lhs(d %x) {
+@start:
+  %c = eq.d 1.0_d, %x
+  %r = flag.w %c
+  ret %r
+}
+
+;; branch on FP comparison
+
+export function w $br_flt_f32(s %x, s %y) {
+@start:
+  %c = lt.s %x, %y
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $br_flt_f64(d %x, d %y) {
+@start:
+  %c = lt.d %x, %y
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $br_flt_f32_const(s %x) {
+@start:
+  %c = lt.s %x, 0.0_s
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $br_flt_f64_const(d %x) {
+@start:
+  %c = lt.d %x, 0.0_d
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $br_flt_f32_const_lhs(s %x) {
+@start:
+  %c = lt.s 0.0_s, %x
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+export function w $br_flt_f64_const_lhs(d %x) {
+@start:
+  %c = lt.d 0.0_d, %x
+  br %c, @yes, @no
+@yes:
+  ret 1_w
+@no:
+  ret 0_w
+}
+
+;; conversion
+
+export function b $ftosi_f32_i8(s %x) {
+@start:
+  %r = ftosi.s.b %x
+  ret %r
+}
+
+export function h $ftosi_f32_i16(s %x) {
+@start:
+  %r = ftosi.s.h %x
+  ret %r
+}
+
+export function w $ftosi_f32_i32(s %x) {
+@start:
+  %r = ftosi.s.w %x
+  ret %r
+}
+
+export function l $ftosi_f32_i64(s %x) {
+@start:
+  %r = ftosi.s.l %x
+  ret %r
+}
+
+export function b $ftosi_f64_i8(d %x) {
+@start:
+  %r = ftosi.d.b %x
+  ret %r
+}
+
+export function h $ftosi_f64_i16(d %x) {
+@start:
+  %r = ftosi.d.h %x
+  ret %r
+}
+
+export function w $ftosi_f64_i32(d %x) {
+@start:
+  %r = ftosi.d.w %x
+  ret %r
+}
+
+export function l $ftosi_f64_i64(d %x) {
+@start:
+  %r = ftosi.d.l %x
+  ret %r
+}
+
+export function b $ftoui_f32_i8(s %x) {
+@start:
+  %r = ftoui.s.b %x
+  ret %r
+}
+
+export function h $ftoui_f32_i16(s %x) {
+@start:
+  %r = ftoui.s.h %x
+  ret %r
+}
+
+export function w $ftoui_f32_i32(s %x) {
+@start:
+  %r = ftoui.s.w %x
+  ret %r
+}
+
+export function l $ftoui_f32_i64(s %x) {
+@start:
+  %r = ftoui.s.l %x
+  ret %r
+}
+
+export function b $ftoui_f64_i8(d %x) {
+@start:
+  %r = ftoui.d.b %x
+  ret %r
+}
+
+export function h $ftoui_f64_i16(d %x) {
+@start:
+  %r = ftoui.d.h %x
+  ret %r
+}
+
+export function w $ftoui_f64_i32(d %x) {
+@start:
+  %r = ftoui.d.w %x
+  ret %r
+}
+
+export function l $ftoui_f64_i64(d %x) {
+@start:
+  %r = ftoui.d.l %x
+  ret %r
+}
+
+export function s $sitof_i8_f32(b %x) {
+@start:
+  %r = sitof.b.s %x
+  ret %r
+}
+
+export function d $sitof_i8_f64(b %x) {
+@start:
+  %r = sitof.b.d %x
+  ret %r
+}
+
+export function s $sitof_i16_f32(h %x) {
+@start:
+  %r = sitof.h.s %x
+  ret %r
+}
+
+export function d $sitof_i16_f64(h %x) {
+@start:
+  %r = sitof.h.d %x
+  ret %r
+}
+
+export function s $sitof_i32_f32(w %x) {
+@start:
+  %r = sitof.w.s %x
+  ret %r
+}
+
+export function d $sitof_i32_f64(w %x) {
+@start:
+  %r = sitof.w.d %x
+  ret %r
+}
+
+export function s $sitof_i64_f32(l %x) {
+@start:
+  %r = sitof.l.s %x
+  ret %r
+}
+
+export function d $sitof_i64_f64(l %x) {
+@start:
+  %r = sitof.l.d %x
+  ret %r
+}
+
+export function s $uitof_i8_f32(b %x) {
+@start:
+  %r = uitof.b.s %x
+  ret %r
+}
+
+export function d $uitof_i8_f64(b %x) {
+@start:
+  %r = uitof.b.d %x
+  ret %r
+}
+
+export function s $uitof_i16_f32(h %x) {
+@start:
+  %r = uitof.h.s %x
+  ret %r
+}
+
+export function d $uitof_i16_f64(h %x) {
+@start:
+  %r = uitof.h.d %x
+  ret %r
+}
+
+export function s $uitof_i32_f32(w %x) {
+@start:
+  %r = uitof.w.s %x
+  ret %r
+}
+
+export function d $uitof_i32_f64(w %x) {
+@start:
+  %r = uitof.w.d %x
+  ret %r
+}
+
+export function s $uitof_i64_f32(l %x) {
+@start:
+  %r = uitof.l.s %x
+  ret %r
+}
+
+export function d $uitof_i64_f64(l %x) {
+@start:
+  %r = uitof.l.d %x
+  ret %r
+}
+
+export function d $fext_f32_f64(s %x) {
+@start:
+  %r = fext.d %x
+  ret %r
+}
+
+export function s $ftrunc_f64_f32(d %x) {
+@start:
+  %r = ftrunc.s %x
+  ret %r
+}
+
+;; conditional move
+
+export function s $sel_f32(s %x, s %y, s %yes, s %no) {
+@start:
+  %c = lt.s %x, %y
+  %r = sel.s %c, %yes, %no
+  ret %r
+}
+
+export function d $sel_f64(d %x, d %y, d %yes, d %no) {
+@start:
+  %c = lt.d %x, %y
+  %r = sel.d %c, %yes, %no
+  ret %r
+}
+
+export function s $sel_f32_const_cmp(s %x, s %yes, s %no) {
+@start:
+  %c = lt.s %x, 0.0_s
+  %r = sel.s %c, %yes, %no
+  ret %r
+}
+
+export function s $sel_f32_const_cmp_lhs(s %x, s %yes, s %no) {
+@start:
+  %c = lt.s 0.0_s, %x
+  %r = sel.s %c, %yes, %no
+  ret %r
+}
+
+export function d $sel_f64_const_val(d %x, d %y, d %yes) {
+@start:
+  %c = lt.d %x, %y
+  %r = sel.d %c, %yes, 0.0_d
+  ret %r
+}
+
+export function d $sel_f64_const_cmp_lhs(d %x, d %yes, d %no) {
+@start:
+  %c = lt.d 0.0_d, %x
+  %r = sel.d %c, %yes, %no
+  ret %r
+}
+
+;; bit representation
+
+export function w $ifbits_f32(s %x) {
+@start:
+  %r = ifbits.w %x
+  ret %r
+}
+
+export function l $ifbits_f64(d %x) {
+@start:
+  %r = ifbits.l %x
+  ret %r
+}
+
+export function s $fibits_f32(w %x) {
+@start:
+  %r = fibits.s %x
+  ret %r
+}
+
+export function d $fibits_f64(l %x) {
+@start:
+  %r = fibits.d %x
+  ret %r
+}

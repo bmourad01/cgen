@@ -257,8 +257,20 @@ module Make(Context : Context_intf.S_virtual) = struct
       Vec.push t.ivec cpyi;
       t.args <- [arg];
       transl_blk t env l3 rest
-    | _ ->
-      let* ki = Cv.Abi.insn (`uop (x, `sitof (ti, tf), a)) in
+    | `i32 ->
+      (* Zero-extend `w` to `l` so cvtsi2ss/cvtsi2sd treats the value as
+         unsigned. If we used `sitof.w` directly, the hardware would
+         sign-extend, giving wrong results for values >= 2^31. *)
+      let* z, zi = Cv.Abi.unop (`zext `i64) a in
+      let* ki = Cv.Abi.insn (`uop (x, `sitof (`i64, tf), `var z)) in
+      Vec.push t.ivec zi;
+      Vec.push t.ivec ki;
+      transl_blk t env label rest
+    | `i8 | `i16 ->
+      (* Zero-extend to `w` to preserve unsigned semantics. *)
+      let* z, zi = Cv.Abi.unop (`zext `i32) a in
+      let* ki = Cv.Abi.insn (`uop (x, `sitof (`i32, tf), `var z)) in
+      Vec.push t.ivec zi;
       Vec.push t.ivec ki;
       transl_blk t env label rest
 

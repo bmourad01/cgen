@@ -385,6 +385,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Binary search (SysV)" >:: test_sysv "bsearch";
     "Magic division (SysV)" >:: test_sysv "magic_div";
     "Tail call (SysV)" >:: test_sysv "tailcall";
+    "Floating point (SysV)" >:: test_sysv "fp";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -400,6 +401,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Folding addition (SysV AMD64)" >:: test_sysv_amd64 "foldadd";
     "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64 "uremby7";
     "Edge contraction and select (SysV AMD64)" >:: test_sysv_amd64 "contractsel";
+    "Unsigned integer to float (SysV AMD64)" >:: test_sysv_amd64 "uitof";
     "Naiive even-odd test (SysV AMD64)" >:: test_sysv_amd64 "evenodd";
     "Trivial infinite loop (SysV AMD64)" >:: test_sysv_amd64 "forever";
     "Tail-recursive infinite loop (SysV AMD64)" >:: test_sysv_amd64 "forever2";
@@ -420,6 +422,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Binary search (SysV AMD64)" >:: test_sysv_amd64 "bsearch";
     "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64 "imm32_boundary";
     "Tail call (SysV AMD64)" >:: test_sysv_amd64 "tailcall";
+    "Floating point (SysV AMD64)" >:: test_sysv_amd64 "fp";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -438,6 +441,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Signed remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_regalloc "sremby7";
     "Signed division by -5 (SysV AMD64)" >:: test_sysv_amd64_regalloc "sdivbyn5";
     "Scalar arguments passed on the stack (SysV AMD64)" >:: test_sysv_amd64_regalloc "stkarg";
+    "Unsigned integer to float (SysV AMD64)" >:: test_sysv_amd64_regalloc "uitof";
     "Naiive even-odd test (SysV AMD64)" >:: test_sysv_amd64_regalloc "evenodd";
     "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64_regalloc "vaarg1";
     "Trivial infinite loop (SysV AMD64)" >:: test_sysv_amd64_regalloc "forever";
@@ -473,6 +477,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Magic division (SysV AMD64)" >:: test_sysv_amd64_regalloc "magic_div";
     "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64_regalloc "imm32_boundary";
     "Tail call (SysV AMD64)" >:: test_sysv_amd64_regalloc "tailcall";
+    "Floating point (SysV AMD64)" >:: test_sysv_amd64_regalloc "fp";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -524,6 +529,7 @@ let native_suite = "Test native code" >::: [
     "Magic division (SysV AMD64)" >:: test_sysv_amd64_native "magic_div";
     "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64_native "imm32_boundary";
     "Tail call (SysV AMD64)" >:: test_sysv_amd64_native "tailcall";
+    "Floating point (SysV AMD64)" >:: test_sysv_amd64_native "fp";
   ]
 
 let () = run_test_tt_main @@ test_list [
