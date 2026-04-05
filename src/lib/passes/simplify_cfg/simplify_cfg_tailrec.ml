@@ -9,27 +9,18 @@ open Context.Syntax
 
 let collect_calls env fn =
   let name = Func.name fn in
+  let is_tail f b r =
+    String.(f = name) &&
+    Tailcall.is_tail_ctrl
+      ~blk:(Hashtbl.find env.blks)
+      ~ctrl:(Blk.ctrl b)
+      ~ret:(Option.map r ~f:fst) in
   Func.blks fn |> Seq.fold ~init:Label.Tree.empty ~f:(fun acc b ->
       match Seq.hd @@ Blk.insns ~rev:true b with
       | None -> acc
       | Some i -> match Insn.op i with
-        | `call (r, `sym (f, 0), args, [], false) when String.(f = name) ->
-          begin match r, Blk.ctrl b with
-            | None, `ret Some _ | Some _, `ret None -> acc
-            (* The result of the function isn't used as the return value. *)
-            | Some (x, _), `ret Some `var y when Var.(x <> y) -> acc
-            | Some (x, _), `jmp (`label (l, [`var y]))
-              when is_ret env l && Var.(x <> y) -> acc
-            (* Normal case. *)
-            | Some _, `ret Some `var _
-            | None, `ret None ->
-              Label.Tree.set acc ~key:(Blk.label b) ~data:(args, Insn.label i)
-            (* Accounting for the case where we merged all `ret`s. *)
-            | Some _, `jmp `label (l, [_])
-            | None, `jmp `label (l, []) when is_ret env l ->
-              Label.Tree.set acc ~key:(Blk.label b) ~data:(args, Insn.label i)
-            | _ -> acc
-          end
+        | `call (r, `sym (f, 0), args, [], false) when is_tail f b r ->
+          Label.Tree.set acc ~key:(Blk.label b) ~data:(args, Insn.label i)
         | _ -> acc)
 
 let fresh_args fn =

@@ -198,35 +198,14 @@ module Make(Context : Context_intf.S_virtual) = struct
     Ftree.is_empty k.callri &&
     not (Ftree.exists k.callar ~f:is_stkarg)
 
-  (* Check if the return of the call is passed via a block parameter. *)
-  let passthrough_ret env dst jargs r =
-    match Label.Tree.find env.blks dst with
-    | None -> false
-    | Some b' ->
-      Seq.is_empty (Blk.insns b') &&
-      match Blk.ctrl b', r with
-      | `ret None, None -> List.is_empty jargs
-      | `ret Some (`var y), Some xr ->
-        let params = Seq.to_list @@ Blk.args b' in
-        List.findi params ~f:(fun _ p -> Var.equal p y) |>
-        Option.value_map ~default:false ~f:(fun (i, _) ->
-            match List.nth jargs i with
-            | Some `var v -> Var.equal v xr
-            | _ -> false)
-      | _ -> false
-
-  let is_tail_ctrl env b key ret =
+  let is_tail env b key ret =
     (* The call must be the last instruction in the block. *)
     Blk.insns b ~rev:true |> Seq.map ~f:Insn.label |>
     Seq.hd |> Option.exists ~f:(Label.equal key) &&
-    match Blk.ctrl b, ret with
-    | `ret None, None -> true
-    | `ret Some `var xr, Some (xr', _) -> Var.equal xr xr'
-    | `ret _, _ -> false
-    | `jmp `label (dst, jargs), _ ->
-      let call_ret = Option.map ret ~f:fst in
-      passthrough_ret env dst jargs call_ret
-    | _ -> false
+    Tailcall.is_tail_ctrl
+      ~blk:(Label.Tree.find env.blks)
+      ~ctrl:(Blk.ctrl b)
+      ~ret:(Option.map ret ~f:fst)
 
   (* Lower the `call` instructions. *)
   let lower env =
@@ -268,7 +247,7 @@ module Make(Context : Context_intf.S_virtual) = struct
               Hashtbl.set env.calls ~key ~data:k;
               if not non_tail
               && is_tailcall_eligible k ~vargs
-              && is_tail_ctrl env b key ret
+              && is_tail env b key ret
               then Hash_set.add env.tailcalls key
             | _ -> !!()))
 end
