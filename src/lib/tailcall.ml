@@ -12,7 +12,7 @@ let is_tail_ctrl ~blk ~ctrl ~ret =
     | _ -> false
   and follow vis dst jargs = match blk dst with
     | None -> false
-    | Some b' when not (Seq.is_empty (Blk.insns b')) -> false
+    | Some b' when Blk.has_any_insns b' -> false
     | Some b' ->
       let vis' = Label.Tree_set.add vis dst in
       let ret' = Option.bind ret ~f:(fun xr ->

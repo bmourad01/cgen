@@ -118,6 +118,10 @@ let has_lhs b y = Ftree.exists b.insns
     ~f:(fun i -> Set.mem (Abi_insn.def i) y)
 
 let defines_var b x = has_arg b x || has_lhs b x
+let has_any_insns b = not (Ftree.is_empty b.insns)
+let has_any_args b = not (Ftree.is_empty b.args)
+let num_insns b = Ftree.length b.insns
+let num_args b = Ftree.length b.args
 let has_insn b l = Ftree.exists b.insns ~f:(Fn.flip Abi_insn.has_label l)
 let find_insn b l = Ftree.find b.insns ~f:(Fn.flip Abi_insn.has_label l)
 let next_insn b l = Ftree.next b.insns ~f:(Fn.flip Abi_insn.has_label l)

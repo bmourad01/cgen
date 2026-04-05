@@ -19,7 +19,7 @@ type chain =
 
 let can_be_single env l b =
   Label.(l <> env.start) &&
-  Seq.is_empty (Blk.insns b)
+  not (Blk.has_any_insns b)
 
 let singles env : singles =
   Hashtbl.fold env.blks ~init:Label.Tree.empty

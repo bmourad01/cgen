@@ -15,6 +15,9 @@ let label t = t.label
 let has_label t l = Label.equal l t.label
 let insns ?(rev = false) t = Ftree.enum ~rev t.insns
 
+let has_any_insns t = not (Ftree.is_empty t.insns)
+let num_insns t = Ftree.length t.insns
+
 let map_insns t ~f = {
   t with insns = Ftree.map t.insns ~f;
 }

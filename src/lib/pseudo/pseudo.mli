@@ -49,6 +49,12 @@ module Blk : sig
   (** Replaces the instructions of the block. *)
   val with_insns : 'a t -> 'a insn list -> 'a t
 
+  (** Returns [true] if the block has at least one instruction. *)
+  val has_any_insns : 'a t -> bool
+
+  (** Returns the number of instructions in the block. *)
+  val num_insns : 'a t -> int
+
   val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
 end
 
@@ -111,6 +117,9 @@ module Func : sig
   (** The blocks of the function. *)
   val blks : ?rev:bool -> ('a, 'b) t -> 'a blk seq
 
+  (** Returns the number of basic blocks of the function. *)
+  val num_blks : ('a, 'b) t -> int
+
   (** The return registers of the function. *)
   val rets : ?rev:bool -> ('a, 'b) t -> 'b seq
 
@@ -119,6 +128,12 @@ module Func : sig
 
   (** The stack slots of the function. *)
   val slots : ?rev:bool -> ('a, 'b) t -> Virtual.slot seq
+
+  (** Returns [true] if the function has at least one slot. *)
+  val has_any_slots : ('a, 'b) t -> bool
+
+  (** Returns the number of slots of the function. *)
+  val num_slots : ('a, 'b) t -> int
 
   (** Returns the label of the entry block. *)
   val start : ('a, 'b) t -> Label.t

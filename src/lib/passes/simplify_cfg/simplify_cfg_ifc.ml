@@ -92,9 +92,9 @@ let check_blk env l j = match env.?[l] with
            We have an invariant that, in its canonical
            form, the only time a block can have parameters
            is if it exists as a join point. *)
-        Seq.is_empty (Blk.args b) &&
+        not (Blk.has_any_args b) &&
         (* Ensure correct arity *)
-        Seq.length (Blk.args env.![j]) = List.length args &&
+        Blk.num_args env.![j] = List.length args &&
         (* Ensure that the block isn't too expensive to copy
            to the header. *)
         blk_cost b <= max_pred_cost

@@ -169,5 +169,17 @@ module type S = sig
       [x]. *)
   val has_lhs : t -> Var.t -> bool
 
+  (** Returns [true] if the block has at least one data instruction. *)
+  val has_any_insns : t -> bool
+
+  (** Returns [true] if the block has at least one argument. *)
+  val has_any_args : t -> bool
+
+  (** Returns the number of data instructions in the block. *)
+  val num_insns : t -> int
+
+  (** Returns the number of arguments of the block. *)
+  val num_args : t -> int
+
   include Regular.S with type t := t
 end

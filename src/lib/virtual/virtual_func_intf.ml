@@ -40,14 +40,29 @@ module type S = sig
   (** Returns the slots of the function. *)
   val slots : ?rev:bool -> t -> slot seq
 
+  (** Returns [true] if the function has at least one slot. *)
+  val has_any_slots : t -> bool
+
+  (** Returns the number of slots of the function. *)
+  val num_slots : t -> int
+
   (** Returns the basic blocks of the function. *)
   val blks : ?rev:bool -> t -> blk seq
+
+  (** Returns the number of basic blocks of the function. *)
+  val num_blks : t -> int
 
   (** Returns the label of the entry block. *)
   val entry : t -> Label.t
 
   (** Returns the arguments of the function, along with their types. *)
   val args : ?rev:bool -> t -> (arg * argt) seq
+
+  (** Returns [true] if the function has at least one argument. *)
+  val has_any_args : t -> bool
+
+  (** Returns the number of arguments of the function. *)
+  val num_args : t -> int
 
   (** Returns the dictionary of the function. *)
   val dict : t -> Dict.t

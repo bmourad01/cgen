@@ -119,6 +119,10 @@ let remove_insn b l = {
 
 let has_arg b x = Ftree.exists b.args ~f:(Var.equal x)
 let has_lhs b x = Ftree.exists b.insns ~f:(fun i -> Insn.(has_lhs i) x)
+let has_any_insns b = not (Ftree.is_empty b.insns)
+let has_any_args b = not (Ftree.is_empty b.args)
+let num_insns b = Ftree.length b.insns
+let num_args b = Ftree.length b.args
 let defines_var b x = has_arg b x || has_lhs b x
 let has_insn b l = Ftree.exists b.insns ~f:(Fn.flip Insn.has_label l)
 let find_insn b l = Ftree.find b.insns ~f:(Fn.flip Insn.has_label l)

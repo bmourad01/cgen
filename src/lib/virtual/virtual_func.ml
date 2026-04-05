@@ -65,9 +65,14 @@ let create
 
 let name fn = fn.name
 let slots ?(rev = false) fn = Ftree.enum fn.slots ~rev
+let has_any_slots fn = not (Ftree.is_empty fn.slots)
+let num_slots fn = Ftree.length fn.slots
 let blks ?(rev = false) fn = Ftree.enum fn.blks ~rev
+let num_blks fn = Ftree.length fn.blks
 let entry fn = Blk.label @@ Ftree.head_exn fn.blks
 let args ?(rev = false) fn = Ftree.enum fn.args ~rev
+let has_any_args fn = not (Ftree.is_empty fn.args)
+let num_args fn = Ftree.length fn.args
 let return fn = Dict.find fn.dict Tag.return
 let variadic fn = Dict.mem fn.dict Tag.variadic
 let noreturn fn = Dict.mem fn.dict Tag.noreturn

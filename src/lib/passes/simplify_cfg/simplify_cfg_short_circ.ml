@@ -17,7 +17,7 @@ module O = Monad.Option
 open O.Let
 open O.Syntax
 
-let is_empty = Fn.compose Seq.is_empty Blk.insns
+let is_empty b = not (Blk.has_any_insns b)
 
 let cmp_true b = match Seq.next @@ Blk.insns b with
   | Some (i, is) when Seq.is_empty is ->

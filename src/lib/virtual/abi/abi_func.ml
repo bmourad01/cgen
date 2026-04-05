@@ -59,9 +59,14 @@ let create
 
 let name fn = fn.name
 let slots ?(rev = false) fn = Ftree.enum fn.slots ~rev
+let has_any_slots fn = not (Ftree.is_empty fn.slots)
+let num_slots fn = Ftree.length fn.slots
 let blks ?(rev = false) fn = Ftree.enum fn.blks ~rev
+let num_blks fn = Ftree.length fn.blks
 let entry fn = Abi_blk.label @@ Ftree.head_exn fn.blks
 let args ?(rev = false) fn = Ftree.enum fn.args ~rev
+let has_any_args fn = not (Ftree.is_empty fn.args)
+let num_args fn = Ftree.length fn.args
 let dict fn = fn.dict
 let with_dict fn dict = {fn with dict}
 let with_tag fn tag x = {fn with dict = Dict.set fn.dict tag x}

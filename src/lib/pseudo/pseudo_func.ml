@@ -51,7 +51,10 @@ let create
 
 let name t = t.name
 let slots ?(rev = false) t = Ftree.enum ~rev t.slots
+let has_any_slots t = not (Ftree.is_empty t.slots)
+let num_slots t = Ftree.length t.slots
 let blks ?(rev = false) t = Ftree.enum ~rev t.blks
+let num_blks t = Ftree.length t.blks
 let rets ?(rev = false) t = Ftree.enum ~rev t.rets
 let dict t = t.dict
 let start t = Pseudo_blk.label @@ Ftree.head_exn t.blks

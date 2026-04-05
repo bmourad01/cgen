@@ -91,7 +91,7 @@ let check_entry_args fn blks =
     | None ->
       M.failf "Entry block %a for function $%s not found"
         Label.pp l (Func.name fn) () in
-  M.unless (Seq.is_empty @@ Blk.args b) @@ fun () ->
+  M.unless (not @@ Blk.has_any_args b) @@ fun () ->
   M.failf "Entry block %a for function $%s must not have any arguments"
     Label.pp l (Func.name fn) ()
 

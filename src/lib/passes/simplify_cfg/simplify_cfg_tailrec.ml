@@ -64,7 +64,7 @@ let go env fn =
     Seq.to_list |> function
     | [] -> assert false
     | e :: rest ->
-      assert (Seq.is_empty @@ Blk.args e);
+      assert (not @@ Blk.has_any_args e);
       List.fold args ~init:e ~f:Blk.prepend_arg :: rest in
   let* h = new_entry fn e in
   let+? fn = Func.with_blks fn (h :: blks) in
