@@ -108,7 +108,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let fail_init_matcher t l id =
     C.failf "In Isel_match.match_one: at label %a in function $%s: \
              failed to initialize matcher for node %a (id %d)"
-      Label.pp l (Func.name t.fn) (pp_node t) id id
+      Label.pp l (Func.name t.fn) (pp_node t) id id ()
 
   let fail_match t l id =
     C.failf "In Isel_match.match_one: at label %a in function $%s: \
@@ -143,7 +143,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let match_one t l id =
     let init = VM.init ~lookup:(node t) vm prog id in
-    let* () = C.unless init @@ fail_init_matcher t l id in
+    let* () = C.unless init @@ fun () -> fail_init_matcher t l id in
     let rec loop () = match VM.one vm prog with
       | None -> !!None
       | Some y -> try

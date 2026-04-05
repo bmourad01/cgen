@@ -258,13 +258,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | `stk _ -> true
     | _ -> false
 
+  let unsupported_tailcall_stkarg t f =
+    C.failf "In Isel_builder.tailcall: \
+             tail call to %a in function $%s: \
+             stack arguments are currently unsupported"
+      Virtual.pp_global f (Func.name t.fn) ()
+
   let tailcall t l f args =
     let* () =
-      C.when_ (List.exists args ~f:is_stkarg) @@ C.failf
-        "In Isel_builder.tailcall: \
-         tail call to %a in function $%s: \
-         stack arguments are currently unsupported"
-        Virtual.pp_global f (Func.name t.fn) in
+      C.when_ (List.exists args ~f:is_stkarg) @@ fun () ->
+      unsupported_tailcall_stkarg t f in
     let rargs, iargs = List.partition_map args ~f:(function
         | `reg (a, r) ->
           if M.Reg.(is_arg @@ of_string_exn r)
