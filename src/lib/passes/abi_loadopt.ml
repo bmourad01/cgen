@@ -185,7 +185,12 @@ module Optimize = struct
       | Some l -> l in
     let key = {label = mem; addr = a; ty} in
     match alias t key l with
-    | None -> `load (x, ty, a)
+    | None ->
+      (* Register the loaded value so that subsequent loads from the same
+         address can be forwarded (RLE), and so that a store of the same
+         value back to the same address can be recognised as redundant. *)
+      Hashtbl.set t.mems ~key ~data:(Value (`var x, l));
+      `load (x, ty, a)
     | Some v ->
       let op = `uop (x, `copy ty, v) in
       canonicalize t x @@ Op.of_insn op;

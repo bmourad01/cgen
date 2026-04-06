@@ -52,7 +52,6 @@ export function $magic_signed(w %2/rdi) {
   st.w %218, %0 ; @56
   st.w %219, %220 ; @57
   %262 = ld.l %0 ; @215
-  st.l %262, %0 ; @216
   ret rax/%262
 }
 

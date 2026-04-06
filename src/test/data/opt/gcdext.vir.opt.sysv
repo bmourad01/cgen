@@ -20,11 +20,9 @@ export function $gcd(w %3/rdi, w %4/rsi) {
   %83/l/rax, %84/l/rdx = call $gcd(%82/rdi, %3/rsi) ; @13
   st.l %83, %58 ; @44
   st.l %84, %61 ; @48
-  %92 = ld.w %58 ; @15
   %94 = add.l %58, 0x4_l ; @62
   %95 = ld.w %94 ; @17
   %97 = ld.w %61 ; @19
-  st.w %92, %58 ; @20
   %98 = div.w %4, %3 ; @21
   %99 = mul.w %98, %95 ; @35
   %100 = sub.w %97, %99 ; @36

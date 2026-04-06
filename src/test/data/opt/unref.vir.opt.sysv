@@ -24,7 +24,6 @@ export function $mkt(w %10/rdi, w %12/rsi) {
   %30 = add.l %9, 0x4_l ; @21
   st.w %12, %30 ; @14
   %37 = ld.l %9 ; @28
-  st.l %37, %9 ; @29
   ret rax/%37
 }
 
