@@ -549,6 +549,7 @@ module Make(M : L) = struct
     type frame = {
       pc : label;
       regs : regs;
+      max_written : int;
       rule : int;
     }
 
@@ -562,7 +563,8 @@ module Make(M : L) = struct
       mutable regs : regs;
       mutable max_written : int;
       mutable lookup : id -> term;
-      cont : frame Pairing_heap.t;
+      mutable spare : regs option;
+      cont : frame Vec.t;
     }
 
     let default_lookup _ =
@@ -573,12 +575,32 @@ module Make(M : L) = struct
       lookup = default_lookup;
       regs = Option_array.create ~len:(max 2 registers);
       max_written = 0;
-      cont = Pairing_heap.create ~cmp:frame_order ();
+      spare = None;
+      cont = Vec.create ~capacity:branching_factor ();
     }
+
+    let (.![]) v i = Vec.unsafe_get v i
+
+    let pop_min cont =
+      let n = Vec.length cont in
+      if n = 0 then None else
+        let mi = ref 0 in
+        for i = 1 to n - 1 do
+          if frame_order cont.![i] cont.![!mi] < 0 then mi := i
+        done;
+        let f = cont.![!mi] in
+        let last = n - 1 in
+        if !mi < last then Vec.set_exn cont !mi cont.![last];
+        ignore (Vec.pop_exn cont);
+        Some f
 
     let snapshot_regs st =
       let n = st.max_written + 1 in
-      let copy = Option_array.create ~len:n in
+      let copy = match st.spare with
+        | Some arr when Option_array.length arr >= n ->
+          st.spare <- None;
+          arr
+        | _ -> Option_array.create ~len:n in
       Option_array.blit ~src:st.regs ~src_pos:0 ~dst:copy ~dst_pos:0 ~len:n;
       copy
 
@@ -587,31 +609,34 @@ module Make(M : L) = struct
       st.lookup <- default_lookup;
       st.max_written <- 0;
       Option_array.clear st.regs;
-      Pairing_heap.clear st.cont
+      Vec.clear st.cont
 
     let push_frame prog st pc =
-      Pairing_heap.add st.cont {
+      Vec.push st.cont {
         pc;
         regs = snapshot_regs st;
+        max_written = st.max_written;
         rule = prog.rmin.(pc.label);
       }
 
     let push_union_frame prog st r id =
       let regs' = snapshot_regs st in
       Option_array.set_some regs' r.reg id;
-      Pairing_heap.add st.cont {
+      Vec.push st.cont {
         pc = st.pc;
         regs = regs';
+        max_written = st.max_written;
         rule = prog.rmin.(st.pc.label);
       }
 
-    let backtrack st = match Pairing_heap.pop st.cont with
+    let backtrack st = match pop_min st.cont with
       | None ->
         reset st;
         raise_notrace Finished
       | Some f ->
+        st.spare <- Some st.regs;
         st.regs <- f.regs;
-        st.max_written <- Option_array.length f.regs - 1;
+        st.max_written <- f.max_written;
         st.pc <- f.pc
 
     let (.$[]) st r = match Option_array.get st.regs r.reg with
