@@ -1,11 +1,19 @@
 open Core
 open Regular.Std
 
+let ctz x =
+  let x = Int.(to_int64 (lnot x land pred x)) in
+  Int64.popcount x
+
+let size = Sys.int_size_in_bits
+let branching_size = ctz @@ Int.ceil_pow2 size
+let payload_mask = (-1) lsr branching_size
+
 module Make(K : Hashtbl.Key) = struct
   module M = Map.Make(K)
   module P = Patricia_tree.Make(struct
       include Int
-      let size = Sys.int_size_in_bits
+      let size = size
     end)
 
   type +'a t = 'a M.t P.t
@@ -21,8 +29,10 @@ module Make(K : Hashtbl.Key) = struct
   let empty = P.empty
   let is_empty = P.is_empty
 
+  let hash' k = K.hash k land payload_mask
+
   let find_exn t k =
-    K.hash k |> P.find_exn t |>
+    hash' k |> P.find_exn t |>
     Fn.flip Map.find k |> function
     | None -> raise Not_found
     | Some v -> v
@@ -33,17 +43,17 @@ module Make(K : Hashtbl.Key) = struct
   let mem t k = try ignore (find_exn t k); true with
     | Not_found -> false
 
-  let singleton k v = P.singleton (K.hash k) (M.singleton k v)
+  let singleton k v = P.singleton (hash' k) (M.singleton k v)
 
-  let set t ~key ~data = P.update t (K.hash key) ~f:(function
+  let set t ~key ~data = P.update t (hash' key) ~f:(function
       | Some m -> Map.set m ~key ~data
       | None -> M.singleton key data)
 
-  let add_multi t ~key ~data = P.update t (K.hash key) ~f:(function
+  let add_multi t ~key ~data = P.update t (hash' key) ~f:(function
       | Some m -> Map.add_multi m ~key ~data
       | None -> M.singleton key [data])
 
-  let add_exn t ~key ~data = P.update t (K.hash key) ~f:(function
+  let add_exn t ~key ~data = P.update t (hash' key) ~f:(function
       | None -> M.singleton key data
       | Some m -> match Map.add m ~key ~data with
         | `Duplicate -> raise Duplicate
@@ -52,23 +62,23 @@ module Make(K : Hashtbl.Key) = struct
   let add t ~key ~data = try `Ok (add_exn t ~key ~data) with
     | Duplicate -> `Duplicate
 
-  let remove t k = P.change t (K.hash k)
+  let remove t k = P.change t (hash' k)
       ~f:(Option.bind ~f:(fun m ->
           let m' = Map.remove m k in
           Option.some_if (not @@ Map.is_empty m') m'))
 
-  let update t k ~f = P.update t (K.hash k) ~f:(function
+  let update t k ~f = P.update t (hash' k) ~f:(function
       | None -> M.singleton k @@ f None
       | Some m -> Map.update m k ~f)
 
   let update_with t k ~has ~nil =
-    P.update_with t (K.hash k)
+    P.update_with t (hash' k)
       ~nil:(fun () -> M.singleton k @@ nil ())
       ~has:(fun m -> Map.update m k ~f:(function
           | Some v -> has v
           | None -> nil ()))
 
-  let change t k ~f = P.change t (K.hash k) ~f:(function
+  let change t k ~f = P.change t (hash' k) ~f:(function
       | None -> f None |> Option.map ~f:(fun v -> M.singleton k v)
       | Some m ->
         let m' = Map.change m k ~f in
