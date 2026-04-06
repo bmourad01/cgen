@@ -262,11 +262,19 @@ module Pseudo(G : Graph_s) = struct
     g
 
   let add g =
-    G.nodes g |> Seq.fold ~init:g ~f:connect_unreachable |> fun g ->
-    Graphlib.depth_first_search (module G) g
-      ~init:g ~start:pseudoentry
-      ~start_tree:connect_with_entry |> fun g ->
-    Graphlib.depth_first_search (module G) g
-      ~rev:true ~init:g ~start:pseudoexit
-      ~start_tree:connect_with_exit
+    let[@inline] propagate g v q = Stack.until_empty q @@ fun n ->
+      if not (Tree_set.mem !v n) then
+        let () = v := Tree_set.add !v n in
+        G.Node.preds n g |> Seq.iter ~f:(Stack.push q) in
+    let g0 = G.nodes g |> Seq.fold ~init:g ~f:connect_unreachable in
+    let v = ref (Tree_set.singleton pseudoexit) in
+    let q = Stack.create () in
+    G.Node.preds pseudoexit g0 |> Seq.iter ~f:(Stack.push q);
+    propagate g0 v q;
+    G.nodes g |> Seq.fold ~init:g0 ~f:(fun g n ->
+        if Tree_set.mem !v n then g else
+          let () = v := Tree_set.add !v n in
+          G.Node.preds n g |> Seq.iter ~f:(Stack.push q);
+          propagate g0 v q;
+          connect_with_exit n g)
 end
