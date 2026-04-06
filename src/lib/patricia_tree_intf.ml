@@ -21,11 +21,17 @@ module type Key = sig
   (** The maximum bit capacity of [t]. *)
   val size : int
 
+  (** Conversion to OCaml [int]. *)
+  val to_int : t -> int
+
   (** Conversion from OCaml [int]. *)
   val of_int : int -> t
 
   (** Logical shift left. *)
   val (lsl) : t -> int -> t
+
+  (** Logical shift right. *)
+  val (lsr) : t -> int -> t
 
   (** Logical AND. *)
   val (land) : t -> t -> t

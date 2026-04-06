@@ -10,7 +10,8 @@ module Make_helpers(K : Patricia_tree_intf.Key) = struct
 
   let is_neg x = compare x zero < 0 [@@inline]
   let zero_bit x ~bit = equal (x land bit) zero [@@inline]
-  let highest_bit x = one lsl Int.(pred size - K.clz x) [@@inline]
+  let remaining_bits x = Int.(pred size - K.clz x) [@@inline]
+  let highest_bit x = one lsl remaining_bits x [@@inline]
   let branching_bit a b = highest_bit (a lxor b) [@@inline]
   let mask x ~bit = x land (neg (bit lsl 1)) [@@inline]
   let match_prefix x ~prefix ~bit = equal (mask x ~bit) prefix [@@inline]
@@ -48,13 +49,43 @@ module Make_helpers(K : Patricia_tree_intf.Key) = struct
       if zero_bit p1 ~bit:b2 then RIL else RIR
     else DJ
   [@@inline]
+
+  (* We use a packed representation of the payload and branching bit.
+
+     Let's say `K.t = Int63.t`: we then have the bottom 57 bits for
+     the payload, and the remaining upper 6 bits for the branching bit.
+
+     This saves us an extra word of allocation per `Bin` constructor,
+     but it does reduce the range of integers that can be present in
+     the tree. We're careful to only use this with sequential IDs (i.e.
+     always starting from 0), so in any normal execution we should
+     never encounter this problem.
+  *)
+
+  let ctz x =
+    let x = Int.(to_int64 (lnot x land pred x)) in
+    Int64.popcount x
+
+  let branching_size = ctz @@ Int.ceil_pow2 size
+  let payload_size = size - branching_size
+  let payload_mask = (neg one) lsr branching_size
+  
+  let pack ~prefix ~bit =
+    let idx = of_int (remaining_bits bit) in
+    (idx lsl payload_size) lxor (prefix land payload_mask)
+  [@@inline]
+
+  let unpack k =
+    let idx = to_int (k lsr payload_size) in
+    let prefix = k land payload_mask in
+    let bit = one lsl idx in
+    prefix, bit
+  [@@inline]
 end
 
 (* Implementation of a PATRICIA tree, adapted from BAP:
 
    https://github.com/BinaryAnalysisPlatform/bap/blob/517db3d15ee98e914cd970ab4a9bf4d17b65ee35/lib/knowledge/bap_knowledge.ml#L82
-
-   Except without the compressed prefix and branching bit optimization.
 *)
 module Make(K : Patricia_tree_intf.Key) = struct
   type key = K.t
@@ -62,7 +93,7 @@ module Make(K : Patricia_tree_intf.Key) = struct
   open Make_helpers(K)
 
   type +'a t =
-    | Bin of key * key * 'a t * 'a t
+    | Bin of key * 'a t * 'a t
     | Tip of key * 'a
     | Nil
 
@@ -85,7 +116,9 @@ module Make(K : Patricia_tree_intf.Key) = struct
     | Nil -> raise Not_found
     | Tip (k', v) when K.equal k k' -> v
     | Tip _ -> raise Not_found
-    | Bin (p, b, l, r) -> match order k ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order k ~prefix:p ~bit:b with
       | NA -> raise Not_found
       | LB -> find_exn l k
       | RB -> find_exn r k
@@ -98,7 +131,7 @@ module Make(K : Patricia_tree_intf.Key) = struct
 
   let of_key p b l r = match l, r with
     | Nil, o | o, Nil -> o
-    | _ -> Bin (p, b, l, r)
+    | _ -> Bin (pack ~prefix:p ~bit:b, l, r)
 
   let join t1 p1 t2 p2 =
     let bit = branching_bit p1 p2 in
@@ -113,20 +146,24 @@ module Make(K : Patricia_tree_intf.Key) = struct
     | Nil -> Tip (k, nil ())
     | Tip (k', v') when K.equal k k' -> Tip (k, has v')
     | Tip (k', _) -> join t k' (Tip (k, nil ())) k
-    | Bin (p, b, l, r) -> match order k ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order k ~prefix:p ~bit:b with
       | NA -> join (Tip (k, nil ())) k t p
-      | LB -> Bin (p, b, update_with l k ~has ~nil, r)
-      | RB -> Bin (p, b, l, update_with r k ~has ~nil)
+      | LB -> Bin (pk, update_with l k ~has ~nil, r)
+      | RB -> Bin (pk, l, update_with r k ~has ~nil)
   [@@specialise]
 
   let rec update t k ~f = match t with
     | Nil -> Tip (k, f None)
     | Tip (k', v') when K.equal k k' -> Tip (k, f (Some v'))
     | Tip (k', _) -> join t k' (Tip (k, f None)) k
-    | Bin (p, b, l, r) -> match order k ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order k ~prefix:p ~bit:b with
       | NA -> join (Tip (k, f None)) k t p
-      | LB -> Bin (p, b, update l k ~f, r)
-      | RB -> Bin (p, b, l, update r k ~f)
+      | LB -> Bin (pk, update l k ~f, r)
+      | RB -> Bin (pk, l, update r k ~f)
   [@@specialise]
 
   let change_aux k v f =
@@ -137,38 +174,46 @@ module Make(K : Patricia_tree_intf.Key) = struct
     | Nil -> change_aux k None f
     | Tip (k', v') when K.equal k k' -> change_aux k (Some v') f
     | Tip (k', _) -> join t k' (change_aux k None f) k
-    | Bin (p, b, l, r) -> match order k ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order k ~prefix:p ~bit:b with
       | NA -> join (change_aux k None f) k t p
-      | LB -> Bin (p, b, change l k ~f, r)
-      | RB -> Bin (p, b, l, change r k ~f)
+      | LB -> Bin (pk, change l k ~f, r)
+      | RB -> Bin (pk, l, change r k ~f)
   [@@specialise]
 
   let rec set t ~key ~data = match t with
     | Nil -> Tip (key, data)
     | Tip (k', _) when K.equal key k' -> Tip (key, data)
     | Tip (k', _) -> join t k' (Tip (key, data)) key
-    | Bin (p, b, l, r) -> match order key ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order key ~prefix:p ~bit:b with
       | NA -> join (Tip (key, data)) key t p
-      | LB -> Bin (p, b, set l ~key ~data, r)
-      | RB -> Bin (p, b, l, set r ~key ~data)
+      | LB -> Bin (pk, set l ~key ~data, r)
+      | RB -> Bin (pk, l, set r ~key ~data)
 
   let rec add_multi t ~key ~data = match t with
     | Nil -> Tip (key, [data])
     | Tip (k', xs) when K.equal key k' -> Tip (key, data :: xs)
     | Tip (k', _) -> join t k' (Tip (key, [data])) key
-    | Bin (p, b, l, r) -> match order key ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order key ~prefix:p ~bit:b with
       | NA -> join (Tip (key, [data])) key t p
-      | LB -> Bin (p, b, add_multi l ~key ~data, r)
-      | RB -> Bin (p, b, l, add_multi r ~key ~data)
+      | LB -> Bin (pk, add_multi l ~key ~data, r)
+      | RB -> Bin (pk, l, add_multi r ~key ~data)
 
   let rec add_exn t ~key ~data = match t with
     | Nil -> Tip (key, data)
     | Tip (k', _) when K.equal key k' -> raise Duplicate
     | Tip (k', _) -> join t k' (Tip (key, data)) key
-    | Bin (p, b, l, r) -> match order key ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order key ~prefix:p ~bit:b with
       | NA -> join (Tip (key, data)) key t p
-      | LB -> Bin (p, b, add_exn l ~key ~data, r)
-      | RB -> Bin (p, b, l, add_exn r ~key ~data)
+      | LB -> Bin (pk, add_exn l ~key ~data, r)
+      | RB -> Bin (pk, l, add_exn r ~key ~data)
 
   let add t ~key ~data = try `Ok (add_exn t ~key ~data) with
     | Duplicate -> `Duplicate
@@ -177,10 +222,12 @@ module Make(K : Patricia_tree_intf.Key) = struct
     | Nil -> Nil
     | Tip (k', _) when K.equal k k' -> Nil
     | Tip _ -> t
-    | Bin (p, b, l, r) -> match order k ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order k ~prefix:p ~bit:b with
       | NA -> t
-      | LB -> of_key p b (remove l k) r
-      | RB -> of_key p b l (remove r k)
+      | LB -> (match remove l k with Nil -> r | l' -> Bin (pk, l', r))
+      | RB -> (match remove r k with Nil -> l | r' -> Bin (pk, l, r'))
 
   let rec merge t1 t2 ~f = match t1, t2 with
     | Nil, t | t, Nil -> t
@@ -188,38 +235,40 @@ module Make(K : Patricia_tree_intf.Key) = struct
       update t k ~f:(function
           | Some v2 -> f ~key:k v1 v2
           | None -> v1)
-    | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
+    | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
+      let p1, b1 = unpack pk1 in
+      let p2, b2 = unpack pk2 in
       match order2 p1 b1 p2 b2 with
       | EQ -> of_key p1 b1 (merge l1 l2 ~f) (merge r1 r2 ~f)
-      | LIL -> Bin (p1, b1, merge l1 t2 ~f, r1)
-      | LIR -> Bin (p1, b1, l1, merge r1 t2 ~f)
-      | RIL -> Bin (p2, b2, merge t1 l2 ~f, r2)
-      | RIR -> Bin (p2, b2, l2, merge t1 r2 ~f)
+      | LIL -> Bin (pk1, merge l1 t2 ~f, r1)
+      | LIR -> Bin (pk1, l1, merge r1 t2 ~f)
+      | RIL -> Bin (pk2, merge t1 l2 ~f, r2)
+      | RIR -> Bin (pk2, l2, merge t1 r2 ~f)
       | DJ -> join t1 p1 t2 p2
   [@@specialise]
 
   let rec iter t ~f = match t with
     | Nil -> ()
     | Tip (k, v) -> f ~key:k ~data:v
-    | Bin (_, _, l, r) -> iter l ~f; iter r ~f
+    | Bin (_, l, r) -> iter l ~f; iter r ~f
   [@@specialise]
 
   let rec fold t ~init ~f = match t with
     | Nil -> init
     | Tip (k, v) -> f ~key:k ~data:v init
-    | Bin (_, _, l, r) -> fold r ~f ~init:(fold l ~init ~f)
+    | Bin (_, l, r) -> fold r ~f ~init:(fold l ~init ~f)
   [@@specialise]
 
   let rec fold_right t ~init ~f = match t with
     | Nil -> init
     | Tip (k, v) -> f ~key:k ~data:v init
-    | Bin (_, _, l, r) -> fold_right l ~f ~init:(fold_right r ~init ~f)
+    | Bin (_, l, r) -> fold_right l ~f ~init:(fold_right r ~init ~f)
   [@@specialise]
 
   let rec length = function
     | Nil -> 0
     | Tip _ -> 1
-    | Bin (_, _, l, r) -> length l + length r
+    | Bin (_, l, r) -> length l + length r
 
   let data t = fold_right t ~f:(fun ~key:_ ~data:x xs -> x :: xs) ~init:[]
   let keys t = fold_right t ~f:(fun ~key:x ~data:_ xs -> x :: xs) ~init:[]
@@ -238,13 +287,13 @@ module Make(K : Patricia_tree_intf.Key) = struct
       let rec aux = function
         | Nil -> return ()
         | Tip (k, x) -> yield (k, x)
-        | Bin (_, _, l, r) -> aux l >>= fun () -> aux r in
+        | Bin (_, l, r) -> aux l >>= fun () -> aux r in
       fun t -> run @@ aux t
     | `Decreasing_key ->
       let rec aux = function
         | Nil -> return ()
         | Tip (k, x) -> yield (k, x)
-        | Bin (_, _, l, r) -> aux r >>= fun () -> aux l in
+        | Bin (_, l, r) -> aux r >>= fun () -> aux l in
       fun t -> run @@ aux t
   [@@specialise]
 
@@ -252,8 +301,8 @@ module Make(K : Patricia_tree_intf.Key) = struct
     | Nil, Nil -> assert false
     | Tip (k1, x1), Tip (k2, x2) ->
       K.equal k1 k2 && f x1 x2
-    | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
-      equal_prefix p1 b1 p2 b2 && equal f l1 l2 && equal f r1 r2
+    | Bin (k1, l1, r1), Bin (k2, l2, r2) ->
+      K.equal k1 k2 && equal f l1 l2 && equal f r1 r2
     | _ -> false
 
   let rec compare f t1 t2 =
@@ -262,8 +311,8 @@ module Make(K : Patricia_tree_intf.Key) = struct
       | Tip (k1, x1), Tip (k2, x2) ->
         let c = K.compare k1 k2 in
         if c = 0 then f x1 x2 else c
-      | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
-        let c = compare_prefix p1 b1 p2 b2 in
+      | Bin (k1, l1, r1), Bin (k2, l2, r2) ->
+        let c = K.compare k1 k2 in
         if c = 0 then
           let c = compare f l1 l2 in
           if c = 0 then compare f r1 r2 else c
@@ -280,7 +329,7 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
   open Make_helpers(K)
 
   type t =
-    | Bin of key * key * t * t
+    | Bin of key * t * t
     | Tip of key
     | Nil
 
@@ -294,14 +343,16 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
   let rec mem t k = match t with
     | Nil -> false
     | Tip k' -> K.equal k k'
-    | Bin (p, b, l, r) -> match order k ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order k ~prefix:p ~bit:b with
       | NA -> false
       | LB -> mem l k
       | RB -> mem r k
 
   let of_key p b l r = match l, r with
     | Nil, o | o, Nil -> o
-    | _ -> Bin (p, b, l, r)
+    | _ -> Bin (pack ~prefix:p ~bit:b, l, r)
 
   let join t1 p1 t2 p2 =
     let bit = branching_bit p1 p2 in
@@ -317,14 +368,14 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
   let rec min_elt_exn = function
     | Nil -> raise Empty
     | Tip k -> k
-    | Bin (_, _, l, r) ->
+    | Bin (_, l, r) ->
       try min_elt_exn l with
       | Empty -> min_elt_exn r
 
   let rec max_elt_exn = function
     | Nil -> raise Empty
     | Tip k -> k
-    | Bin (_, _, l, r) ->
+    | Bin (_, l, r) ->
       try max_elt_exn r with
       | Empty -> max_elt_exn l
 
@@ -332,30 +383,36 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
     | Nil -> Tip k
     | Tip k' when K.equal k' k -> t
     | Tip k' -> join t k' (Tip k) k
-    | Bin (p, b, l, r) -> match order k ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order k ~prefix:p ~bit:b with
       | NA -> join (Tip k) k t p
-      | LB -> Bin (p, b, add l k, r)
-      | RB -> Bin (p, b, l, add r k)
+      | LB -> Bin (pk, add l k, r)
+      | RB -> Bin (pk, l, add r k)
 
   let rec remove t k = match t with
     | Nil -> Nil
     | Tip k' when K.equal k k' -> Nil
     | Tip _ -> t
-    | Bin (p, b, l, r) -> match order k ~prefix:p ~bit:b with
+    | Bin (pk, l, r) ->
+      let p, b = unpack pk in
+      match order k ~prefix:p ~bit:b with
       | NA -> t
-      | LB -> of_key p b (remove l k) r
-      | RB -> of_key p b l (remove r k)
+      | LB -> (match remove l k with Nil -> r | l' -> Bin (pk, l', r))
+      | RB -> (match remove r k with Nil -> l | r' -> Bin (pk, l, r'))
 
   let rec union t1 t2 = match t1, t2 with
     | Nil, t | t, Nil -> t
     | Tip k, t | t, Tip k -> add t k
-    | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
+    | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
+      let p1, b1 = unpack pk1 in
+      let p2, b2 = unpack pk2 in
       match order2 p1 b1 p2 b2 with
       | EQ -> of_key p1 b1 (union l1 l2) (union r1 r2)
-      | LIL -> Bin (p1, b1, union l1 t2, r1)
-      | LIR -> Bin (p1, b1, l1, union r1 t2)
-      | RIL -> Bin (p2, b2, union t1 l2, r2)
-      | RIR -> Bin (p2, b2, l2, union t1 r2)
+      | LIL -> Bin (pk1, union l1 t2, r1)
+      | LIR -> Bin (pk1, l1, union r1 t2)
+      | RIL -> Bin (pk2, union t1 l2, r2)
+      | RIR -> Bin (pk2, l2, union t1 r2)
       | DJ -> join t1 p1 t2 p2
 
   let rec diff t1 t2 = match t1, t2 with
@@ -363,7 +420,9 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
     | t, Nil -> t
     | Tip k, t -> if mem t k then Nil else t1
     | t, Tip k -> remove t k
-    | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
+    | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
+      let p1, b1 = unpack pk1 in
+      let p2, b2 = unpack pk2 in
       match order2 p1 b1 p2 b2 with
       | EQ -> of_key p1 b1 (diff l1 l2) (diff r1 r2)
       | LIL -> of_key p1 b1 (diff l1 t2) r1
@@ -378,7 +437,9 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
     | Tip _, _ -> Nil
     | t, Tip k when mem t k -> t2
     | _, Tip _ -> Nil
-    | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
+    | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
+      let p1, b1 = unpack pk1 in
+      let p2, b2 = unpack pk2 in
       match order2 p1 b1 p2 b2 with
       | EQ -> of_key p1 b1 (inter l1 l2) (inter r1 r2)
       | LIL -> inter l1 t2
@@ -390,7 +451,9 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
   let rec disjoint t1 t2 = match t1, t2 with
     | Nil, _ | _, Nil -> true
     | Tip k, t | t, Tip k -> not @@ mem t k
-    | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
+    | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
+      let p1, b1 = unpack pk1 in
+      let p2, b2 = unpack pk2 in
       match order2 p1 b1 p2 b2 with
       | EQ -> disjoint l1 l2 && disjoint r1 r2
       | LIL -> disjoint l1 t2
@@ -402,25 +465,25 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
   let rec iter t ~f = match t with
     | Nil -> ()
     | Tip k -> f k
-    | Bin (_, _, l, r) -> iter l ~f; iter r ~f
+    | Bin (_, l, r) -> iter l ~f; iter r ~f
   [@@specialise]
 
   let rec fold t ~init ~f = match t with
     | Nil -> init
     | Tip k -> f init k
-    | Bin (_, _, l, r) -> fold r ~f ~init:(fold l ~init ~f)
+    | Bin (_, l, r) -> fold r ~f ~init:(fold l ~init ~f)
   [@@specialise]
 
   let rec fold_right t ~init ~f = match t with
     | Nil -> init
     | Tip k -> f k init
-    | Bin (_, _, l, r) -> fold_right l ~f ~init:(fold_right r ~init ~f)
+    | Bin (_, l, r) -> fold_right l ~f ~init:(fold_right r ~init ~f)
   [@@specialise]
 
   let rec length = function
     | Nil -> 0
     | Tip _ -> 1
-    | Bin (_, _, l, r) -> length l + length r
+    | Bin (_, l, r) -> length l + length r
 
   let map t ~f = fold t ~init:empty ~f:(fun t x -> add t @@ f x)
   let to_list t = fold_right t ~f:List.cons ~init:[]
@@ -433,29 +496,29 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       let rec aux = function
         | Nil -> return ()
         | Tip k -> yield k
-        | Bin (_, _, l, r) -> aux l >>= fun () -> aux r in
+        | Bin (_, l, r) -> aux l >>= fun () -> aux r in
       fun t -> run @@ aux t
     | `Decreasing ->
       let rec aux = function
         | Nil -> return ()
         | Tip k -> yield k
-        | Bin (_, _, l, r) -> aux r >>= fun () -> aux l in
+        | Bin (_, l, r) -> aux r >>= fun () -> aux l in
       fun t -> run @@ aux t
   [@@specialise]
 
   let rec equal t1 t2 = phys_equal t1 t2 || match t1, t2 with
     | Nil, Nil -> assert false
     | Tip k1, Tip k2 -> K.equal k1 k2
-    | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
-      equal_prefix p1 b1 p2 b2 && equal l1 l2 && equal r1 r2
+    | Bin (k1, l1, r1), Bin (k2, l2, r2) ->
+      K.equal k1 k2 && equal l1 l2 && equal r1 r2
     | _ -> false
 
   let rec compare t1 t2 =
     if phys_equal t1 t2 then 0 else match t1, t2 with
       | Nil, Nil -> assert false
       | Tip k1, Tip k2 -> K.compare k1 k2
-      | Bin (p1, b1, l1, r1), Bin (p2, b2, l2, r2) ->
-        let c = compare_prefix p1 b1 p2 b2 in
+      | Bin (k1, l1, r1), Bin (k2, l2, r2) ->
+        let c = K.compare k1 k2 in
         if c = 0 then
           let c = compare l1 l2 in
           if c = 0 then compare r1 r2 else c
