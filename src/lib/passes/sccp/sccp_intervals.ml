@@ -13,9 +13,10 @@
 
 open Core
 open Regular.Std
-open Graphlib.Std
 open Virtual
 open Sccp_intervals_common
+
+module Solution = Fixpoint.Solution
 
 let find_var = find_var
 
@@ -60,7 +61,7 @@ let init_state ctx fn =
     Func.slots fn |> Seq.fold ~init ~f:(fun s x ->
         let size = Type.sizeof_imm_base ctx.word in
         update s (Slot.var x) @@ I.create_full ~size) in
-  Solution.create Label.(Map.singleton pseudoentry init) empty_state
+  Solution.create (Label.Tree.singleton Label.pseudoentry init) empty_state
 
 let transfer ctx l s = match Label.Tree.find ctx.blks l with
   | Some b -> Interp.interp_blk ctx s b
@@ -68,7 +69,7 @@ let transfer ctx l s = match Label.Tree.find ctx.blks l with
 
 type t = {
   insns : state Label.Table.t;
-  input : (Label.t, state) Solution.t;
+  input : state Solution.t;
 }
 
 let insn t l =
@@ -91,13 +92,13 @@ let cyclomatic_complexity cfg =
   let n = Cfg.number_of_nodes cfg in
   e - n + 2
 
-let analyze ?steps fn ~word ~typeof =
+let analyze fn ~word ~typeof =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
     let cycloc = cyclomatic_complexity cfg in
     let ctx = create_ctx cycloc ~blks ~word ~typeof ~cfg in
-    let input = Graphlib.fixpoint (module Cfg) cfg ?steps
+    let input = Fixpoint.run (module Cfg) cfg
         ~step:(step ctx)
         ~init:(init_state ctx fn)
         ~equal:equal_state

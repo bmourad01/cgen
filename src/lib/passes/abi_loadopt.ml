@@ -9,9 +9,9 @@
 open Core
 open Monads.Std
 open Regular.Std
-open Graphlib.Std
 open Virtual
 
+module Solution = Fixpoint.Solution
 module E = Monad.Result.Error
 
 open E.Let

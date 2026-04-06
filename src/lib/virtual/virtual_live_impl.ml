@@ -1,9 +1,9 @@
 open Core
-open Graphlib.Std
 open Regular.Std
 open Live_intf
 
 module Vset = Var.Tree_set
+module Solution = Fixpoint.Solution
 
 type tran = {
   defs : Vset.t;
@@ -61,7 +61,7 @@ module Make(M : L) : S
 
   type t = {
     blks : tran Label.Tree.t;
-    outs : (Label.t, Vset.t) Solution.t;
+    outs : Vset.t Solution.t;
   }
 
   let lookup blks n =
@@ -114,13 +114,12 @@ module Make(M : L) : S
               {x with defs = Vset.union x.defs args})))
 
   let init keep =
-    let s = Label.(Map.singleton pseudoexit keep) in
-    Solution.create s Vset.empty
+    Solution.create (Label.Tree.singleton Label.pseudoexit keep) Vset.empty
 
   let compute' ?(keep = Vset.empty) g blks =
     let blks = block_transitions g blks in {
       blks;
-      outs = Graphlib.fixpoint (module Cfg) g
+      outs = Fixpoint.run (module Cfg) g
           ~init:(init keep) ~rev:true
           ~start:Label.pseudoexit
           ~merge:Vset.union

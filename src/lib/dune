@@ -27,6 +27,7 @@
  (private_modules
   context_virtual_intf
   dominance
+  fixpoint
   ftree
   hashmap
   hashmap_intf

@@ -2,7 +2,8 @@
 
 open Core
 open Regular.Std
-open Graphlib.Std
+
+module Solution = Fixpoint.Solution
 
 let table enum d ds tbl =
   enum tbl |> Seq.map ~f:snd |>
@@ -70,8 +71,8 @@ module Make(M : L)(D : Domain) = struct
   let merge s1 s2 = Var.Tree.merge s1 s2 ~f:(fun ~key:_ -> D.join)
 
   let analyze ~blk cfg =
-    let init = Solution.create Label.Map.empty Var.Tree.empty in
-    let soln = Graphlib.fixpoint (module Cfg) cfg ~init ~merge
+    let init = Solution.create Label.Tree.empty Var.Tree.empty in
+    let soln = Fixpoint.run (module Cfg) cfg ~init ~merge
         ~equal:equal_state ~f:(transfer ~blk) in
     (* The pseudoexit label should have all of the accumulated
        results, since this is a forward-flow analysis. *)

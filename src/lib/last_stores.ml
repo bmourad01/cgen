@@ -2,7 +2,8 @@
 
 open Core
 open Regular.Std
-open Graphlib.Std
+
+module Solution = Fixpoint.Solution
 
 module type L = sig
   module Insn : sig
@@ -19,7 +20,7 @@ module type L = sig
 end
 
 type state = Label.t option [@@deriving equal]
-type t = (Label.t, state) Solution.t
+type t = state Solution.t
 
 module Make(M : L) = struct
   open M
@@ -36,8 +37,8 @@ module Make(M : L) = struct
       if Label.(a = b) then a else first_insn l)
 
   let analyze cfg =
-    Graphlib.fixpoint (module Cfg) ~step
-      ~init:(Solution.create Label.Map.empty None)
+    Fixpoint.run (module Cfg) ~step
+      ~init:(Solution.create Label.Tree.empty None)
       ~equal:equal_state ~merge:Fn.const ~f:transfer @@
     Cfg.Node.remove Label.pseudoentry @@
     Cfg.Node.remove Label.pseudoexit cfg

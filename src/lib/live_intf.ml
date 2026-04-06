@@ -48,7 +48,7 @@ module type S = sig
 
   (** Returns the solution of the data-flow equations, which is a mapping
       from block labels to their live-out sets. *)
-  val solution : t -> (Label.t, var_set) Solution.t
+  val solution : t -> var_set Fixpoint.Solution.t
 
   (** Pretty-prints the live-in sets for each block. *)
   val pp : Format.formatter -> t -> unit

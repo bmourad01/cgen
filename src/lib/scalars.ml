@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 
 let (@.) = Fn.compose
 let (@<) = Fn.flip
@@ -8,6 +7,7 @@ let (@<) = Fn.flip
 module Slot = Virtual.Slot
 module Vtree = Var.Tree
 module Vset = Var.Tree_set
+module Solution = Fixpoint.Solution
 
 (* A scalar access. *)
 module Scalar = struct
@@ -90,9 +90,9 @@ let pp_state ppf s =
   Format.fprintf ppf "@[<hov 0>%a@]" pp_elts @@ Vtree.to_list s
 [@@ocaml.warning "-32"]
 
-type solution = (Label.t, state) Solution.t
+type solution = state Solution.t
 
-let empty_solution = Solution.create Label.Map.empty State.empty
+let empty_solution = Solution.create Label.Tree.empty State.empty
 
 type load_or_store = Load | Store
 
@@ -250,7 +250,7 @@ module Make(M : L) = struct
         ~f:(fun ~key ~data:_ acc ->
             let data = Offset (key, 0L) in
             Vtree.set acc ~key ~data) in
-    Label.Map.singleton Label.pseudoentry init |>
+    Label.Tree.singleton Label.pseudoentry init |>
     Solution.create @< State.empty
   [@@specialise]
 
@@ -262,7 +262,7 @@ module Make(M : L) = struct
   let analyze ?(blkparam = true) cfg blks slots =
     let esc = Var.Hash_set.create () in
     let s =
-      Graphlib.fixpoint (module Cfg) cfg
+      Fixpoint.run (module Cfg) cfg
         ~init:(initialize slots blks)
         ~start:Label.pseudoentry
         ~equal:State.equal

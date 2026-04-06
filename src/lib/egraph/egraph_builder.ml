@@ -1,10 +1,10 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 open Monads.Std
 open Virtual
 open Egraph_common
 
+module Solution = Fixpoint.Solution
 module Rewrite = Egraph_rewrite
 module E = Monad.Result.Error
 

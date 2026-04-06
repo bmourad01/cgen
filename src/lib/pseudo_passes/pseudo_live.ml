@@ -1,7 +1,8 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 open Pseudo
+
+module Solution = Fixpoint.Solution
 
 module Make(M : Machine_intf.S_insn) = struct
   module Rv = M.Regvar
@@ -29,7 +30,7 @@ module Make(M : Machine_intf.S_insn) = struct
 
   type t = {
     blks : tran Label.Tree.t;
-    outs : (Label.t, Rv.Set.t) Solution.t;
+    outs : Rv.Set.t Solution.t;
   }
 
   let lookup blks n =
@@ -82,13 +83,12 @@ module Make(M : Machine_intf.S_insn) = struct
         })
 
   let init keep =
-    let s = Label.(Map.singleton pseudoexit keep) in
-    Solution.create s Rv.Set.empty
+    Solution.create (Label.Tree.singleton Label.pseudoexit keep) Rv.Set.empty
 
   let compute' ?(keep = Rv.Set.empty) g blks =
     let blks = block_transitions blks in {
       blks;
-      outs = Graphlib.fixpoint (module Cfg) g
+      outs = Fixpoint.run (module Cfg) g
           ~init:(init keep) ~rev:true
           ~start:Label.pseudoexit
           ~merge:Set.union

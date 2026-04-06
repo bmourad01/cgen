@@ -1,9 +1,9 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 
 module Slot = Virtual.Slot
 module Vtree = Var.Tree
+module Solution = Fixpoint.Solution
 
 type interval = {
   lo : int;
@@ -48,8 +48,8 @@ let empty_state : state = Vtree.empty
 
 (* Starting constraint has the entry block with no incoming
    initializations. *)
-let init_constraints : state Label.Map.t =
-  Label.Map.singleton Label.pseudoentry empty_state
+let init_constraints : state Label.Tree.t =
+  Label.Tree.singleton Label.pseudoentry empty_state
 
 (* Our top element, which is every slot having been initialized. *)
 let top_state slots : state =
@@ -83,7 +83,7 @@ let merge_state s1 s2 =
         | Some t2 -> Vtree.set acc ~key ~data:(merge_tree t1 t2)
         | None -> acc)
 
-type solution = (Label.t, state) Solution.t
+type solution = state Solution.t
 
 type t = {
   soln : solution;
@@ -164,7 +164,7 @@ module Make(M : Scalars.L) = struct
 
   let analyze' t cfg blks slots =
     let bad = Label.Hash_set.create () in
-    let s = Graphlib.fixpoint (module Cfg) cfg
+    let s = Fixpoint.run (module Cfg) cfg
         ~init:(Solution.create init_constraints @@ top_state slots)
         ~start:Label.pseudoentry
         ~equal:equal_state
