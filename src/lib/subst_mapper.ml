@@ -4,14 +4,16 @@ open Core
 open Regular.Std
 open Virtual
 
-type t = operand Var.Map.t
+module Vtree = Var.Tree
+
+type t = operand Vtree.t
 
 let invalid ctx o =
   let s = Format.asprintf "%a" pp_operand o in
   failwithf "Invalid %s operand %s" ctx s ()
 
 let map_arg subst (o : operand) = match o with
-  | `var x -> Map.find subst x |> Option.value ~default:o
+  | `var x -> Vtree.find subst x |> Option.value ~default:o
   | _ -> o
 
 let map_local subst : local -> local = function
@@ -21,7 +23,7 @@ let map_local subst : local -> local = function
 
 let map_global (subst : t) (g : global) = match g with
   | `addr _ | `sym _ -> g
-  | `var x -> match Map.find subst x with
+  | `var x -> match Vtree.find subst x with
     | Some `int (i, _) -> `addr i
     | Some (`sym _ as s) -> s
     | Some (`var _ as x) -> x
@@ -38,7 +40,7 @@ let map_dst subst (d : dst) = match d with
 
 let map_sel subst x t c l r =
   let arg = map_arg subst in
-  match Map.find subst c with
+  match Vtree.find subst c with
   | Some `bool true -> `uop (x, `copy t, arg l)
   | Some `bool false -> `uop (x, `copy t, arg r)
   | Some `var c -> `sel (x, t, c, arg l, arg r)
@@ -69,7 +71,7 @@ let map_tbl_entry subst i l = i, map_local subst l
 let map_br subst c y n =
   let y = map_dst subst y in
   let n = map_dst subst n in
-  match Map.find subst c with
+  match Vtree.find subst c with
   | Some `bool true -> `jmp y
   | Some `bool false -> `jmp n
   | Some `var c -> `br (c, y, n)
@@ -81,7 +83,7 @@ let map_sw subst t i d tbl =
   let tbl = Ctrl.Table.map_exn tbl ~f:(map_tbl_entry subst) in
   match i with
   | `sym _ -> `sw (t, i, d, tbl)
-  | `var x -> match Map.find subst x with
+  | `var x -> match Vtree.find subst x with
     | Some (#Ctrl.swindex as i) -> `sw (t, i, d, tbl)
     | Some `int (i, _) ->
       let d = Ctrl.Table.find tbl i |> Option.value ~default:d in
@@ -113,5 +115,5 @@ let blk_extend subst b b' =
   Blk.label b' |> map_blk_args subst b |> Option.bind ~f:(fun args ->
       Blk.args b' |> Seq.to_list |> List.zip args |> function
       | Ok l -> Option.some @@ List.fold l ~init:subst
-          ~f:(fun subst (o, x) -> Map.set subst ~key:x ~data:o)
+          ~f:(fun subst (o, x) -> Vtree.set subst ~key:x ~data:o)
       | Unequal_lengths -> None)

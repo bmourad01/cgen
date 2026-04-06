@@ -50,7 +50,7 @@ end
 module Make(M : L)(D : Domain) = struct
   open M
 
-  type state = D.t Var.Map.t [@@deriving equal]
+  type state = D.t Var.Tree.t [@@deriving equal]
 
   let local ~blk s (l, vs) : state =
     blk l |> Option.value_map ~default:s ~f:(fun b ->
@@ -58,7 +58,7 @@ module Make(M : L)(D : Domain) = struct
         match List.zip args vs with
         | Unequal_lengths -> assert false
         | Ok xs -> List.fold xs ~init:s ~f:(fun s (x, v) ->
-            Map.update s x ~f:(function
+            Var.Tree.update s x ~f:(function
                 | Some vs -> D.(join vs @@ one v)
                 | None -> D.one v)))
 
@@ -67,10 +67,10 @@ module Make(M : L)(D : Domain) = struct
         Blk.ctrl b |> Ctrl.locals |>
         List.fold ~init:s ~f:(local ~blk))
 
-  let merge = Map.merge_skewed ~combine:(fun ~key:_ -> D.join)
+  let merge s1 s2 = Var.Tree.merge s1 s2 ~f:(fun ~key:_ -> D.join)
 
   let analyze ~blk cfg =
-    let init = Solution.create Label.Map.empty Var.Map.empty in
+    let init = Solution.create Label.Map.empty Var.Tree.empty in
     let soln = Graphlib.fixpoint (module Cfg) cfg ~init ~merge
         ~equal:equal_state ~f:(transfer ~blk) in
     (* The pseudoexit label should have all of the accumulated

@@ -1,31 +1,31 @@
 module gcd
 
-export function w $gcd(w %a, w %b) {
+export function w $gcd(w %0, w %1) {
 @18:
-  %2 = slt.w %a, 0x0_w ; @19
-  br %2, @16, @14
+  %5 = slt.w %0, 0x0_w ; @19
+  br %5, @16, @14
 @16:
-  %a = neg.w %a ; @17
+  %0 = neg.w %0 ; @17
   jmp @14
 @14:
-  %1 = slt.w %b, 0x0_w ; @15
-  br %1, @12, @10
+  %4 = slt.w %1, 0x0_w ; @15
+  br %4, @12, @10
 @12:
-  %b = neg.w %b ; @13
+  %1 = neg.w %1 ; @13
   jmp @10
 @10:
-  %d = copy.w 0x1_w ; @11
+  %2 = copy.w 0x1_w ; @11
   jmp @3
 @3:
   jmp @8
 @8:
-  %0 = ne.w %b, 0x0_w ; @9
-  br %0, @4, @2
+  %3 = ne.w %1, 0x0_w ; @9
+  br %3, @4, @2
 @4:
-  %d = copy.w %b ; @7
-  %b = rem.w %a, %b ; @6
-  %a = copy.w %d ; @5
+  %2 = copy.w %1 ; @7
+  %1 = rem.w %0, %1 ; @6
+  %0 = copy.w %2 ; @5
   jmp @3
 @2:
-  ret %d
+  ret %2
 }

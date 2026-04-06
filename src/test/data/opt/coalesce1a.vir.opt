@@ -1,9 +1,9 @@
 module coalesce1a
 
-export function w $f(w %x, w %y, w %z) {
+export function w $f(w %3, w %5, w %7) {
 @2:
-  %2 = add.w %x, %y ; @21
-  %4 = add.w %z, %y ; @23
-  %5 = add.w %2, %4 ; @24
-  ret %5
+  %30 = add.w %3, %5 ; @21
+  %32 = add.w %7, %5 ; @23
+  %33 = add.w %30, %32 ; @24
+  ret %33
 }

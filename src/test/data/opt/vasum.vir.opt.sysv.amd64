@@ -1,72 +1,72 @@
 module vasum
 
 export function $sum { ; returns: rax
-  %3 = slot 176, align 16
+  %19 = slot 176, align 16
 @19:
-  mov %9:b, al ; @20
-  mov %n:w, edi ; @111
-  mov qword ptr [%3 + 0x8], rsi ; @21
-  mov qword ptr [%3 + 0x10], rdx ; @23
-  mov qword ptr [%3 + 0x18], rcx ; @25
-  mov qword ptr [%3 + 0x20], r8 ; @27
-  mov qword ptr [%3 + 0x28], r9 ; @29
-  test %9:b, %9:b ; @106
+  mov %25:b, al ; @20
+  mov %4:w, edi ; @111
+  mov qword ptr [%19 + 0x8], rsi ; @21
+  mov qword ptr [%19 + 0x10], rdx ; @23
+  mov qword ptr [%19 + 0x18], rcx ; @25
+  mov qword ptr [%19 + 0x20], r8 ; @27
+  mov qword ptr [%19 + 0x28], r9 ; @29
+  test %25:b, %25:b ; @106
   je @2 ; @107
   jmp @18 ; @108
 @18:
-  movdqa xmmword ptr [%3 + 0x30], xmm0 ; @32
-  movdqa xmmword ptr [%3 + 0x40], xmm1 ; @34
-  movdqa xmmword ptr [%3 + 0x50], xmm2 ; @36
-  movdqa xmmword ptr [%3 + 0x60], xmm3 ; @38
-  movdqa xmmword ptr [%3 + 0x70], xmm4 ; @40
-  movdqa xmmword ptr [%3 + 0x80], xmm5 ; @42
-  movdqa xmmword ptr [%3 + 0x90], xmm6 ; @44
-  movdqa xmmword ptr [%3 + 0xa0], xmm7 ; @46
+  movdqa xmmword ptr [%19 + 0x30], xmm0 ; @32
+  movdqa xmmword ptr [%19 + 0x40], xmm1 ; @34
+  movdqa xmmword ptr [%19 + 0x50], xmm2 ; @36
+  movdqa xmmword ptr [%19 + 0x60], xmm3 ; @38
+  movdqa xmmword ptr [%19 + 0x70], xmm4 ; @40
+  movdqa xmmword ptr [%19 + 0x80], xmm5 ; @42
+  movdqa xmmword ptr [%19 + 0x90], xmm6 ; @44
+  movdqa xmmword ptr [%19 + 0xa0], xmm7 ; @46
   jmp @2 ; @105
 @2:
-  lea %20.1:l, qword ptr [rbp + 0x10] ; @50
-  mov %36.2:l, %20.1:l ; @100
-  mov %34.2:w, 0x8_w ; @101
-  xor %x.1:w, %x.1:w ; @102
-  xor %i.1:w, %i.1:w ; @103
+  lea %63:l, qword ptr [rbp + 0x10] ; @50
+  mov %68:l, %63:l ; @100
+  mov %69:w, 0x8_w ; @101
+  xor %70:w, %70:w ; @102
+  xor %71:w, %71:w ; @103
   jmp @3 ; @104
 @3:
-  cmp %i.1:w, %n:w ; @95
+  cmp %71:w, %4:w ; @95
   jb @7 ; @96
   jmp @8 ; @97
 @8:
-  mov eax, %x.1:w ; @93
+  mov eax, %70:w ; @93
   ret ; @94
 @7:
   jmp @56 ; @92
 @56:
-  cmp %34.2:w, 0x28_w ; @87
+  cmp %69:w, 0x28_w ; @87
   jbe @57 ; @88
   jmp @58 ; @89
 @58:
-  lea %32.1:l, qword ptr [%36.2 + 0x8] ; @70
-  mov %36.3:l, %32.1:l ; @83
-  mov %34.3:w, %34.2:w ; @84
-  mov %33.1:l, %36.2:l ; @85
+  lea %89:l, qword ptr [%68 + 0x8] ; @70
+  mov %75:l, %89:l ; @83
+  mov %76:w, %69:w ; @84
+  mov %77:l, %68:l ; @85
   jmp @59 ; @86
 @57:
-  mov %27.1:w, %34.2:w ; @64
-  lea %28.1:l, qword ptr [%3 + %27.1*1] ; @65
-  lea %29.1:w, qword ptr [%34.2 + 0x8] ; @66
-  mov %36.3:l, %36.2:l ; @79
-  mov %34.3:w, %29.1:w ; @80
-  mov %33.1:l, %28.1:l ; @81
+  mov %83:w, %69:w ; @64
+  lea %84:l, qword ptr [%19 + %83*1] ; @65
+  lea %85:w, qword ptr [%69 + 0x8] ; @66
+  mov %75:l, %68:l ; @79
+  mov %76:w, %85:w ; @80
+  mov %77:l, %84:l ; @81
   jmp @59 ; @82
 @59:
-  mov %y.1:w, dword ptr [%33.1] ; @72
+  mov %78:w, dword ptr [%77] ; @72
   jmp @55 ; @78
 @55:
-  lea %1.1:w, qword ptr [%x.1 + %y.1*1] ; @16
-  lea %2.1:w, qword ptr [%i.1 + 0x1] ; @17
-  mov %36.2:l, %36.3:l ; @73
-  mov %34.2:w, %34.3:w ; @74
-  mov %x.1:w, %1.1:w ; @75
-  mov %i.1:w, %2.1:w ; @76
+  lea %79:w, qword ptr [%70 + %78*1] ; @16
+  lea %80:w, qword ptr [%71 + 0x1] ; @17
+  mov %68:l, %75:l ; @73
+  mov %69:w, %76:w ; @74
+  mov %70:w, %79:w ; @75
+  mov %71:w, %80:w ; @76
   jmp @3 ; @77
 }
 
@@ -84,7 +84,7 @@ export function $twenty_eight { ; returns: rax
   xor al, al ; @123
   call $sum ; r8 r9 rax rcx rdi rdx rsi ; @124
   add rsp, 0x10_l ; @125
-  mov %x.1:w, eax ; @126
-  mov eax, %x.1:w ; @113
+  mov %15:w, eax ; @126
+  mov eax, %15:w ; @113
   ret ; @114
 }

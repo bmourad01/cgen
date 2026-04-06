@@ -2,8 +2,8 @@ module palindrome
 
 export function $palindrome { ; returns: rax
 @2:
-  xor esi, esi ; @54
-  mov eax, edi ; @55
+  mov eax, edi ; @54
+  xor esi, esi ; @55
 @3:
   test eax, eax ; @48
   jne @6 ; @49
@@ -25,6 +25,6 @@ export function $palindrome { ; returns: rax
   lea edx, qword ptr [rsi + rsi*1] ; @28
   lea edx, qword ptr [rdx + rsi*8] ; @29
   lea esi, qword ptr [rdx + rax*1] ; @30
-  mov eax, ecx ; @36
+  mov eax, ecx ; @35
   jmp @3 ; @37
 }

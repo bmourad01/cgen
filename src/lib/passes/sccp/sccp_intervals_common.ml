@@ -2,28 +2,32 @@ open Core
 open Virtual
 
 module I = Bv_interval
+module Vtree = Var.Tree
 
-type state = I.t Var.Map.t [@@deriving equal, sexp]
+type state = I.t Vtree.t [@@deriving equal]
 
-let empty_state : state = Var.Map.empty
+let empty_state : state = Vtree.empty
 
 let combine_state x y ~f =
-  Map.merge_skewed x y ~combine:(fun ~key:_ a b -> f a b)
+  Vtree.merge x y ~f:(fun ~key:_ a b -> f a b)
 
 let join_state = combine_state ~f:I.union
 let meet_state = combine_state ~f:I.intersect
-let invert_state = Map.map ~f:I.inverse
+
+let invert_state s =
+  Vtree.fold s ~init:Vtree.empty ~f:(fun ~key ~data acc ->
+      Vtree.set acc ~key ~data:(I.inverse data))
 
 (* In most cases we don't want to union with the previous
    state for `x`. *)
-let update s x i = Map.set s ~key:x ~data:i
+let update s x i = Vtree.set s ~key:x ~data:i
 
-let update_union s x i = Map.update s x ~f:(function
+let update_union s x i = Vtree.update s x ~f:(function
     | Some i' -> I.union i i'
     | None -> i)
 
-let find_var = Map.find
-let enum_state s = Map.to_sequence s
+let find_var = Vtree.find
+let enum_state s = Vtree.to_sequence s
 
 type ctx = {
   insns  : state Label.Table.t; (* Out states for each instruction. *)
@@ -48,7 +52,7 @@ let create_ctx cycloc ~blks ~word ~typeof ~cfg = {
 }
 
 let narrow ctx l x i = Hashtbl.update ctx.narrow l ~f:(function
-    | None -> Var.Map.singleton x i
+    | None -> Vtree.singleton x i
     | Some s -> update_union s x i)
 
 let sizeof x ctx = match ctx.typeof x with

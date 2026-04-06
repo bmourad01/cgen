@@ -2,8 +2,8 @@ open Core
 open Regular.Std
 
 include Virtual_resolver_impl.Make(struct
-    type lhs = Var.Set.t
-    let vars_of_lhs = Set.to_list
+    type lhs = Var.Tree_set.t
+    let vars_of_lhs = Var.Tree_set.to_list
     module Insn = struct
       include Abi_insn
       let lhs = def

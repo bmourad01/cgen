@@ -1,7 +1,7 @@
 module foo
 
-export function w $foo(w %x) {
+export function w $foo(w %0) {
 @2:
-  %50 = add.w %x, 0x33_w ; @104
-  ret %50
+  %102 = add.w %0, 0x33_w ; @104
+  ret %102
 }

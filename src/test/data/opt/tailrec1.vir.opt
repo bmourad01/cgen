@@ -1,15 +1,15 @@
 module foo
 
-export function w $foo(w %acc, w %n) {
+export function w $foo(w %2, w %1) {
 @10:
-  jmp @2(%acc, %n)
-@2(%1, %2):
-  %3 = sle.w %2, 0x0_w ; @11
-  br %3, @9, @4
+  jmp @2(%2, %1)
+@2(%9, %10):
+  %11 = sle.w %10, 0x0_w ; @11
+  br %11, @9, @4
 @4:
-  %4 = mul.w %1, %2 ; @12
-  %5 = sub.w %2, 0x1_w ; @13
-  jmp @2(%4, %5)
+  %12 = mul.w %9, %10 ; @12
+  %13 = sub.w %10, 0x1_w ; @13
+  jmp @2(%12, %13)
 @9:
-  ret %1
+  ret %9
 }

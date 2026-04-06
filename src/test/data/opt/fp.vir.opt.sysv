@@ -1,111 +1,111 @@
 module fp
 
-export function $fadd_f32(s %x/xmm0, s %y/xmm1) {
+export function $fadd_f32(s %1/xmm0, s %2/xmm1) {
 @2:
-  %12 = add.s %x, %y ; @242
-  ret xmm0/%12
+  %380 = add.s %1, %2 ; @242
+  ret xmm0/%380
 }
 
-export function $fadd_f64(d %x/xmm0, d %y/xmm1) {
+export function $fadd_f64(d %4/xmm0, d %5/xmm1) {
 @4:
-  %13 = add.d %x, %y ; @243
-  ret xmm0/%13
+  %381 = add.d %4, %5 ; @243
+  ret xmm0/%381
 }
 
-export function $fsub_f32(s %x/xmm0, s %y/xmm1) {
+export function $fsub_f32(s %7/xmm0, s %8/xmm1) {
 @6:
-  %14 = sub.s %x, %y ; @244
-  ret xmm0/%14
+  %382 = sub.s %7, %8 ; @244
+  ret xmm0/%382
 }
 
-export function $fsub_f64(d %x/xmm0, d %y/xmm1) {
+export function $fsub_f64(d %10/xmm0, d %11/xmm1) {
 @8:
-  %15 = sub.d %x, %y ; @245
-  ret xmm0/%15
+  %383 = sub.d %10, %11 ; @245
+  ret xmm0/%383
 }
 
-export function $fmul_f32(s %x/xmm0, s %y/xmm1) {
+export function $fmul_f32(s %13/xmm0, s %14/xmm1) {
 @10:
-  %16 = mul.s %x, %y ; @246
-  ret xmm0/%16
+  %384 = mul.s %13, %14 ; @246
+  ret xmm0/%384
 }
 
-export function $fmul_f64(d %x/xmm0, d %y/xmm1) {
+export function $fmul_f64(d %16/xmm0, d %17/xmm1) {
 @12:
-  %17 = mul.d %x, %y ; @247
-  ret xmm0/%17
+  %385 = mul.d %16, %17 ; @247
+  ret xmm0/%385
 }
 
-export function $fdiv_f32(s %x/xmm0, s %y/xmm1) {
+export function $fdiv_f32(s %19/xmm0, s %20/xmm1) {
 @14:
-  %18 = div.s %x, %y ; @248
-  ret xmm0/%18
+  %386 = div.s %19, %20 ; @248
+  ret xmm0/%386
 }
 
-export function $fdiv_f64(d %x/xmm0, d %y/xmm1) {
+export function $fdiv_f64(d %22/xmm0, d %23/xmm1) {
 @16:
-  %19 = div.d %x, %y ; @249
-  ret xmm0/%19
+  %387 = div.d %22, %23 ; @249
+  ret xmm0/%387
 }
 
-export function $fneg_f32(s %x/xmm0) {
+export function $fneg_f32(s %25/xmm0) {
 @18:
-  %20 = neg.s %x ; @250
-  ret xmm0/%20
+  %388 = neg.s %25 ; @250
+  ret xmm0/%388
 }
 
-export function $fneg_f64(d %x/xmm0) {
+export function $fneg_f64(d %27/xmm0) {
 @20:
-  %21 = neg.d %x ; @251
-  ret xmm0/%21
+  %389 = neg.d %27 ; @251
+  ret xmm0/%389
 }
 
-export function $fadd_f32_const(s %x/xmm0) {
+export function $fadd_f32_const(s %29/xmm0) {
 @22:
-  %22 = add.s %x, 1.5_f ; @252
-  ret xmm0/%22
+  %390 = add.s %29, 1.5_f ; @252
+  ret xmm0/%390
 }
 
-export function $fadd_f64_const(d %x/xmm0) {
+export function $fadd_f64_const(d %31/xmm0) {
 @24:
-  %23 = add.d %x, 1.5_d ; @253
-  ret xmm0/%23
+  %391 = add.d %31, 1.5_d ; @253
+  ret xmm0/%391
 }
 
-export function $fsub_f32_const(s %x/xmm0) {
+export function $fsub_f32_const(s %33/xmm0) {
 @26:
-  %24 = sub.s %x, 1.5_f ; @254
-  ret xmm0/%24
+  %392 = sub.s %33, 1.5_f ; @254
+  ret xmm0/%392
 }
 
-export function $fsub_f64_const(d %x/xmm0) {
+export function $fsub_f64_const(d %35/xmm0) {
 @28:
-  %25 = sub.d %x, 1.5_d ; @255
-  ret xmm0/%25
+  %393 = sub.d %35, 1.5_d ; @255
+  ret xmm0/%393
 }
 
-export function $fmul_f32_const(s %x/xmm0) {
+export function $fmul_f32_const(s %37/xmm0) {
 @30:
-  %26 = mul.s %x, 2_f ; @256
-  ret xmm0/%26
+  %394 = mul.s %37, 2_f ; @256
+  ret xmm0/%394
 }
 
-export function $fmul_f64_const(d %x/xmm0) {
+export function $fmul_f64_const(d %39/xmm0) {
 @32:
-  %27 = mul.d %x, 2._d ; @257
-  ret xmm0/%27
+  %395 = mul.d %39, 2._d ; @257
+  ret xmm0/%395
 }
 
-export function $fdiv_f32_const(s %x/xmm0) {
+export function $fdiv_f32_const(s %41/xmm0) {
 @34:
-  %28 = div.s %x, 2_f ; @258
-  ret xmm0/%28
+  %396 = div.s %41, 2_f ; @258
+  ret xmm0/%396
 }
 
-export function $fdiv_f64_const(d %x/xmm0) {
+export function $fdiv_f64_const(d %43/xmm0) {
 @36:
-  %29 = div.d %x, 2._d ; @259
-  ret xmm0/%29
+  %397 = div.d %43, 2._d ; @259
+  ret xmm0/%397
 }
 
 export function $fneg_f32_const() {
@@ -118,518 +118,518 @@ export function $fneg_f64_const() {
   ret xmm0/-1.5_d
 }
 
-export function $fadd_f32_const_lhs(s %x/xmm0) {
+export function $fadd_f32_const_lhs(s %47/xmm0) {
 @42:
-  %30 = add.s 1.5_f, %x ; @260
-  ret xmm0/%30
+  %398 = add.s 1.5_f, %47 ; @260
+  ret xmm0/%398
 }
 
-export function $fadd_f64_const_lhs(d %x/xmm0) {
+export function $fadd_f64_const_lhs(d %49/xmm0) {
 @44:
-  %31 = add.d 1.5_d, %x ; @261
-  ret xmm0/%31
+  %399 = add.d 1.5_d, %49 ; @261
+  ret xmm0/%399
 }
 
-export function $fsub_f32_const_lhs(s %x/xmm0) {
+export function $fsub_f32_const_lhs(s %51/xmm0) {
 @46:
-  %32 = sub.s 1.5_f, %x ; @262
-  ret xmm0/%32
+  %400 = sub.s 1.5_f, %51 ; @262
+  ret xmm0/%400
 }
 
-export function $fsub_f64_const_lhs(d %x/xmm0) {
+export function $fsub_f64_const_lhs(d %53/xmm0) {
 @48:
-  %33 = sub.d 1.5_d, %x ; @263
-  ret xmm0/%33
+  %401 = sub.d 1.5_d, %53 ; @263
+  ret xmm0/%401
 }
 
-export function $fmul_f32_const_lhs(s %x/xmm0) {
+export function $fmul_f32_const_lhs(s %55/xmm0) {
 @50:
-  %34 = mul.s 2_f, %x ; @264
-  ret xmm0/%34
+  %402 = mul.s 2_f, %55 ; @264
+  ret xmm0/%402
 }
 
-export function $fmul_f64_const_lhs(d %x/xmm0) {
+export function $fmul_f64_const_lhs(d %57/xmm0) {
 @52:
-  %35 = mul.d 2._d, %x ; @265
-  ret xmm0/%35
+  %403 = mul.d 2._d, %57 ; @265
+  ret xmm0/%403
 }
 
-export function $fdiv_f32_const_lhs(s %x/xmm0) {
+export function $fdiv_f32_const_lhs(s %59/xmm0) {
 @54:
-  %36 = div.s 2_f, %x ; @266
-  ret xmm0/%36
+  %404 = div.s 2_f, %59 ; @266
+  ret xmm0/%404
 }
 
-export function $fdiv_f64_const_lhs(d %x/xmm0) {
+export function $fdiv_f64_const_lhs(d %61/xmm0) {
 @56:
-  %37 = div.d 2._d, %x ; @267
-  ret xmm0/%37
+  %405 = div.d 2._d, %61 ; @267
+  ret xmm0/%405
 }
 
-export function $flt_f32(s %x/xmm0, s %y/xmm1) {
+export function $flt_f32(s %63/xmm0, s %64/xmm1) {
 @58:
-  %38 = lt.s %x, %y ; @268
-  %39 = flag.w %38 ; @269
-  ret rax/%39
+  %406 = lt.s %63, %64 ; @268
+  %407 = flag.w %406 ; @269
+  ret rax/%407
 }
 
-export function $flt_f64(d %x/xmm0, d %y/xmm1) {
+export function $flt_f64(d %67/xmm0, d %68/xmm1) {
 @61:
-  %40 = lt.d %x, %y ; @270
-  %41 = flag.w %40 ; @271
-  ret rax/%41
+  %408 = lt.d %67, %68 ; @270
+  %409 = flag.w %408 ; @271
+  ret rax/%409
 }
 
-export function $fle_f32(s %x/xmm0, s %y/xmm1) {
+export function $fle_f32(s %71/xmm0, s %72/xmm1) {
 @64:
-  %42 = le.s %x, %y ; @272
-  %43 = flag.w %42 ; @273
-  ret rax/%43
+  %410 = le.s %71, %72 ; @272
+  %411 = flag.w %410 ; @273
+  ret rax/%411
 }
 
-export function $fle_f64(d %x/xmm0, d %y/xmm1) {
+export function $fle_f64(d %75/xmm0, d %76/xmm1) {
 @67:
-  %44 = le.d %x, %y ; @274
-  %45 = flag.w %44 ; @275
-  ret rax/%45
+  %412 = le.d %75, %76 ; @274
+  %413 = flag.w %412 ; @275
+  ret rax/%413
 }
 
-export function $feq_f32(s %x/xmm0, s %y/xmm1) {
+export function $feq_f32(s %79/xmm0, s %80/xmm1) {
 @70:
-  %46 = eq.s %x, %y ; @276
-  %47 = flag.w %46 ; @277
-  ret rax/%47
+  %414 = eq.s %79, %80 ; @276
+  %415 = flag.w %414 ; @277
+  ret rax/%415
 }
 
-export function $feq_f64(d %x/xmm0, d %y/xmm1) {
+export function $feq_f64(d %83/xmm0, d %84/xmm1) {
 @73:
-  %48 = eq.d %x, %y ; @278
-  %49 = flag.w %48 ; @279
-  ret rax/%49
+  %416 = eq.d %83, %84 ; @278
+  %417 = flag.w %416 ; @279
+  ret rax/%417
 }
 
-export function $fne_f32(s %x/xmm0, s %y/xmm1) {
+export function $fne_f32(s %87/xmm0, s %88/xmm1) {
 @76:
-  %50 = ne.s %x, %y ; @280
-  %51 = flag.w %50 ; @281
-  ret rax/%51
+  %418 = ne.s %87, %88 ; @280
+  %419 = flag.w %418 ; @281
+  ret rax/%419
 }
 
-export function $fne_f64(d %x/xmm0, d %y/xmm1) {
+export function $fne_f64(d %91/xmm0, d %92/xmm1) {
 @79:
-  %52 = ne.d %x, %y ; @282
-  %53 = flag.w %52 ; @283
-  ret rax/%53
+  %420 = ne.d %91, %92 ; @282
+  %421 = flag.w %420 ; @283
+  ret rax/%421
 }
 
-export function $fuo_f32(s %x/xmm0, s %y/xmm1) {
+export function $fuo_f32(s %95/xmm0, s %96/xmm1) {
 @82:
-  %54 = uo.s %x, %y ; @284
-  %55 = flag.w %54 ; @285
-  ret rax/%55
+  %422 = uo.s %95, %96 ; @284
+  %423 = flag.w %422 ; @285
+  ret rax/%423
 }
 
-export function $fo_f64(d %x/xmm0, d %y/xmm1) {
+export function $fo_f64(d %99/xmm0, d %100/xmm1) {
 @85:
-  %56 = o.d %x, %y ; @286
-  %57 = flag.w %56 ; @287
-  ret rax/%57
+  %424 = o.d %99, %100 ; @286
+  %425 = flag.w %424 ; @287
+  ret rax/%425
 }
 
-export function $flt_f32_const(s %x/xmm0) {
+export function $flt_f32_const(s %103/xmm0) {
 @88:
-  %58 = lt.s %x, 0_f ; @288
-  %59 = flag.w %58 ; @289
-  ret rax/%59
+  %426 = lt.s %103, 0_f ; @288
+  %427 = flag.w %426 ; @289
+  ret rax/%427
 }
 
-export function $flt_f64_const(d %x/xmm0) {
+export function $flt_f64_const(d %106/xmm0) {
 @91:
-  %60 = lt.d %x, 0._d ; @290
-  %61 = flag.w %60 ; @291
-  ret rax/%61
+  %428 = lt.d %106, 0._d ; @290
+  %429 = flag.w %428 ; @291
+  ret rax/%429
 }
 
-export function $feq_f32_const(s %x/xmm0) {
+export function $feq_f32_const(s %109/xmm0) {
 @94:
-  %62 = eq.s %x, 1_f ; @292
-  %63 = flag.w %62 ; @293
-  ret rax/%63
+  %430 = eq.s %109, 1_f ; @292
+  %431 = flag.w %430 ; @293
+  ret rax/%431
 }
 
-export function $feq_f64_const(d %x/xmm0) {
+export function $feq_f64_const(d %112/xmm0) {
 @97:
-  %64 = eq.d %x, 1._d ; @294
-  %65 = flag.w %64 ; @295
-  ret rax/%65
+  %432 = eq.d %112, 1._d ; @294
+  %433 = flag.w %432 ; @295
+  ret rax/%433
 }
 
-export function $flt_f32_const_lhs(s %x/xmm0) {
+export function $flt_f32_const_lhs(s %115/xmm0) {
 @100:
-  %66 = lt.s 0_f, %x ; @296
-  %67 = flag.w %66 ; @297
-  ret rax/%67
+  %434 = lt.s 0_f, %115 ; @296
+  %435 = flag.w %434 ; @297
+  ret rax/%435
 }
 
-export function $flt_f64_const_lhs(d %x/xmm0) {
+export function $flt_f64_const_lhs(d %118/xmm0) {
 @103:
-  %68 = lt.d 0._d, %x ; @298
-  %69 = flag.w %68 ; @299
-  ret rax/%69
+  %436 = lt.d 0._d, %118 ; @298
+  %437 = flag.w %436 ; @299
+  ret rax/%437
 }
 
-export function $feq_f32_const_lhs(s %x/xmm0) {
+export function $feq_f32_const_lhs(s %121/xmm0) {
 @106:
-  %70 = eq.s 1_f, %x ; @300
-  %71 = flag.w %70 ; @301
-  ret rax/%71
+  %438 = eq.s 1_f, %121 ; @300
+  %439 = flag.w %438 ; @301
+  ret rax/%439
 }
 
-export function $feq_f64_const_lhs(d %x/xmm0) {
+export function $feq_f64_const_lhs(d %124/xmm0) {
 @109:
-  %72 = eq.d 1._d, %x ; @302
-  %73 = flag.w %72 ; @303
-  ret rax/%73
+  %440 = eq.d 1._d, %124 ; @302
+  %441 = flag.w %440 ; @303
+  ret rax/%441
 }
 
-export function $br_flt_f32(s %x/xmm0, s %y/xmm1) {
+export function $br_flt_f32(s %127/xmm0, s %128/xmm1) {
 @112:
-  %74 = lt.s %x, %y ; @304
-  %75 = flag.w %74 ; @305
-  ret rax/%75
+  %442 = lt.s %127, %128 ; @304
+  %443 = flag.w %442 ; @305
+  ret rax/%443
 }
 
-export function $br_flt_f64(d %x/xmm0, d %y/xmm1) {
+export function $br_flt_f64(d %130/xmm0, d %131/xmm1) {
 @116:
-  %76 = lt.d %x, %y ; @306
-  %77 = flag.w %76 ; @307
-  ret rax/%77
+  %444 = lt.d %130, %131 ; @306
+  %445 = flag.w %444 ; @307
+  ret rax/%445
 }
 
-export function $br_flt_f32_const(s %x/xmm0) {
+export function $br_flt_f32_const(s %133/xmm0) {
 @120:
-  %78 = lt.s %x, 0_f ; @308
-  %79 = flag.w %78 ; @309
-  ret rax/%79
+  %446 = lt.s %133, 0_f ; @308
+  %447 = flag.w %446 ; @309
+  ret rax/%447
 }
 
-export function $br_flt_f64_const(d %x/xmm0) {
+export function $br_flt_f64_const(d %135/xmm0) {
 @124:
-  %80 = lt.d %x, 0._d ; @310
-  %81 = flag.w %80 ; @311
-  ret rax/%81
+  %448 = lt.d %135, 0._d ; @310
+  %449 = flag.w %448 ; @311
+  ret rax/%449
 }
 
-export function $br_flt_f32_const_lhs(s %x/xmm0) {
+export function $br_flt_f32_const_lhs(s %137/xmm0) {
 @128:
-  %82 = lt.s 0_f, %x ; @312
-  %83 = flag.w %82 ; @313
-  ret rax/%83
+  %450 = lt.s 0_f, %137 ; @312
+  %451 = flag.w %450 ; @313
+  ret rax/%451
 }
 
-export function $br_flt_f64_const_lhs(d %x/xmm0) {
+export function $br_flt_f64_const_lhs(d %139/xmm0) {
 @132:
-  %84 = lt.d 0._d, %x ; @314
-  %85 = flag.w %84 ; @315
-  ret rax/%85
+  %452 = lt.d 0._d, %139 ; @314
+  %453 = flag.w %452 ; @315
+  ret rax/%453
 }
 
-export function $ftosi_f32_i8(s %x/xmm0) {
+export function $ftosi_f32_i8(s %141/xmm0) {
 @136:
-  %86 = ftosi.s.b %x ; @316
-  ret rax/%86
+  %454 = ftosi.s.b %141 ; @316
+  ret rax/%454
 }
 
-export function $ftosi_f32_i16(s %x/xmm0) {
+export function $ftosi_f32_i16(s %143/xmm0) {
 @138:
-  %87 = ftosi.s.h %x ; @317
-  ret rax/%87
+  %455 = ftosi.s.h %143 ; @317
+  ret rax/%455
 }
 
-export function $ftosi_f32_i32(s %x/xmm0) {
+export function $ftosi_f32_i32(s %145/xmm0) {
 @140:
-  %88 = ftosi.s.w %x ; @318
-  ret rax/%88
+  %456 = ftosi.s.w %145 ; @318
+  ret rax/%456
 }
 
-export function $ftosi_f32_i64(s %x/xmm0) {
+export function $ftosi_f32_i64(s %147/xmm0) {
 @142:
-  %89 = ftosi.s.l %x ; @319
-  ret rax/%89
+  %457 = ftosi.s.l %147 ; @319
+  ret rax/%457
 }
 
-export function $ftosi_f64_i8(d %x/xmm0) {
+export function $ftosi_f64_i8(d %149/xmm0) {
 @144:
-  %90 = ftosi.d.b %x ; @320
-  ret rax/%90
+  %458 = ftosi.d.b %149 ; @320
+  ret rax/%458
 }
 
-export function $ftosi_f64_i16(d %x/xmm0) {
+export function $ftosi_f64_i16(d %151/xmm0) {
 @146:
-  %91 = ftosi.d.h %x ; @321
-  ret rax/%91
+  %459 = ftosi.d.h %151 ; @321
+  ret rax/%459
 }
 
-export function $ftosi_f64_i32(d %x/xmm0) {
+export function $ftosi_f64_i32(d %153/xmm0) {
 @148:
-  %92 = ftosi.d.w %x ; @322
-  ret rax/%92
+  %460 = ftosi.d.w %153 ; @322
+  ret rax/%460
 }
 
-export function $ftosi_f64_i64(d %x/xmm0) {
+export function $ftosi_f64_i64(d %155/xmm0) {
 @150:
-  %93 = ftosi.d.l %x ; @323
-  ret rax/%93
+  %461 = ftosi.d.l %155 ; @323
+  ret rax/%461
 }
 
-export function $ftoui_f32_i8(s %x/xmm0) {
+export function $ftoui_f32_i8(s %157/xmm0) {
 @152:
-  %94 = ftoui.s.b %x ; @324
-  ret rax/%94
+  %462 = ftoui.s.b %157 ; @324
+  ret rax/%462
 }
 
-export function $ftoui_f32_i16(s %x/xmm0) {
+export function $ftoui_f32_i16(s %159/xmm0) {
 @154:
-  %95 = ftoui.s.h %x ; @325
-  ret rax/%95
+  %463 = ftoui.s.h %159 ; @325
+  ret rax/%463
 }
 
-export function $ftoui_f32_i32(s %x/xmm0) {
+export function $ftoui_f32_i32(s %161/xmm0) {
 @156:
-  %96 = ftoui.s.w %x ; @326
-  ret rax/%96
+  %464 = ftoui.s.w %161 ; @326
+  ret rax/%464
 }
 
-export function $ftoui_f32_i64(s %x/xmm0) {
+export function $ftoui_f32_i64(s %163/xmm0) {
 @158:
-  %97 = ftoui.s.l %x ; @327
-  ret rax/%97
+  %465 = ftoui.s.l %163 ; @327
+  ret rax/%465
 }
 
-export function $ftoui_f64_i8(d %x/xmm0) {
+export function $ftoui_f64_i8(d %165/xmm0) {
 @160:
-  %98 = ftoui.d.b %x ; @328
-  ret rax/%98
+  %466 = ftoui.d.b %165 ; @328
+  ret rax/%466
 }
 
-export function $ftoui_f64_i16(d %x/xmm0) {
+export function $ftoui_f64_i16(d %167/xmm0) {
 @162:
-  %99 = ftoui.d.h %x ; @329
-  ret rax/%99
+  %467 = ftoui.d.h %167 ; @329
+  ret rax/%467
 }
 
-export function $ftoui_f64_i32(d %x/xmm0) {
+export function $ftoui_f64_i32(d %169/xmm0) {
 @164:
-  %100 = ftoui.d.w %x ; @330
-  ret rax/%100
+  %468 = ftoui.d.w %169 ; @330
+  ret rax/%468
 }
 
-export function $ftoui_f64_i64(d %x/xmm0) {
+export function $ftoui_f64_i64(d %171/xmm0) {
 @166:
-  %101 = ftoui.d.l %x ; @331
-  ret rax/%101
+  %469 = ftoui.d.l %171 ; @331
+  ret rax/%469
 }
 
-export function $sitof_i8_f32(b %x/rdi) {
+export function $sitof_i8_f32(b %173/rdi) {
 @168:
-  %102 = sitof.b.s %x ; @332
-  ret xmm0/%102
+  %470 = sitof.b.s %173 ; @332
+  ret xmm0/%470
 }
 
-export function $sitof_i8_f64(b %x/rdi) {
+export function $sitof_i8_f64(b %175/rdi) {
 @170:
-  %103 = sitof.b.d %x ; @333
-  ret xmm0/%103
+  %471 = sitof.b.d %175 ; @333
+  ret xmm0/%471
 }
 
-export function $sitof_i16_f32(h %x/rdi) {
+export function $sitof_i16_f32(h %177/rdi) {
 @172:
-  %104 = sitof.h.s %x ; @334
-  ret xmm0/%104
+  %472 = sitof.h.s %177 ; @334
+  ret xmm0/%472
 }
 
-export function $sitof_i16_f64(h %x/rdi) {
+export function $sitof_i16_f64(h %179/rdi) {
 @174:
-  %105 = sitof.h.d %x ; @335
-  ret xmm0/%105
+  %473 = sitof.h.d %179 ; @335
+  ret xmm0/%473
 }
 
-export function $sitof_i32_f32(w %x/rdi) {
+export function $sitof_i32_f32(w %181/rdi) {
 @176:
-  %106 = sitof.w.s %x ; @336
-  ret xmm0/%106
+  %474 = sitof.w.s %181 ; @336
+  ret xmm0/%474
 }
 
-export function $sitof_i32_f64(w %x/rdi) {
+export function $sitof_i32_f64(w %183/rdi) {
 @178:
-  %107 = sitof.w.d %x ; @337
-  ret xmm0/%107
+  %475 = sitof.w.d %183 ; @337
+  ret xmm0/%475
 }
 
-export function $sitof_i64_f32(l %x/rdi) {
+export function $sitof_i64_f32(l %185/rdi) {
 @180:
-  %108 = sitof.l.s %x ; @338
-  ret xmm0/%108
+  %476 = sitof.l.s %185 ; @338
+  ret xmm0/%476
 }
 
-export function $sitof_i64_f64(l %x/rdi) {
+export function $sitof_i64_f64(l %187/rdi) {
 @182:
-  %109 = sitof.l.d %x ; @339
-  ret xmm0/%109
+  %477 = sitof.l.d %187 ; @339
+  ret xmm0/%477
 }
 
-export function $uitof_i8_f32(b %x/rdi) {
+export function $uitof_i8_f32(b %189/rdi) {
 @184:
-  %136 = zext.w %x ; @366
-  %110 = sitof.w.s %136 ; @367
-  ret xmm0/%110
+  %504 = zext.w %189 ; @366
+  %478 = sitof.w.s %504 ; @367
+  ret xmm0/%478
 }
 
-export function $uitof_i8_f64(b %x/rdi) {
+export function $uitof_i8_f64(b %191/rdi) {
 @186:
-  %137 = zext.w %x ; @368
-  %111 = sitof.w.d %137 ; @369
-  ret xmm0/%111
+  %505 = zext.w %191 ; @368
+  %479 = sitof.w.d %505 ; @369
+  ret xmm0/%479
 }
 
-export function $uitof_i16_f32(h %x/rdi) {
+export function $uitof_i16_f32(h %193/rdi) {
 @188:
-  %138 = zext.w %x ; @370
-  %112 = sitof.w.s %138 ; @371
-  ret xmm0/%112
+  %506 = zext.w %193 ; @370
+  %480 = sitof.w.s %506 ; @371
+  ret xmm0/%480
 }
 
-export function $uitof_i16_f64(h %x/rdi) {
+export function $uitof_i16_f64(h %195/rdi) {
 @190:
-  %139 = zext.w %x ; @372
-  %113 = sitof.w.d %139 ; @373
-  ret xmm0/%113
+  %507 = zext.w %195 ; @372
+  %481 = sitof.w.d %507 ; @373
+  ret xmm0/%481
 }
 
-export function $uitof_i32_f32(w %x/rdi) {
+export function $uitof_i32_f32(w %197/rdi) {
 @192:
-  %140 = zext.l %x ; @374
-  %114 = sitof.l.s %140 ; @375
-  ret xmm0/%114
+  %508 = zext.l %197 ; @374
+  %482 = sitof.l.s %508 ; @375
+  ret xmm0/%482
 }
 
-export function $uitof_i32_f64(w %x/rdi) {
+export function $uitof_i32_f64(w %199/rdi) {
 @194:
-  %141 = zext.l %x ; @376
-  %115 = sitof.l.d %141 ; @377
-  ret xmm0/%115
+  %509 = zext.l %199 ; @376
+  %483 = sitof.l.d %509 ; @377
+  ret xmm0/%483
 }
 
-export function $uitof_i64_f32(l %x/rdi) {
+export function $uitof_i64_f32(l %201/rdi) {
 @196:
-  %142 = slt.l %x, 0x0_l ; @381
-  br %142, @378, @379
+  %510 = slt.l %201, 0x0_l ; @381
+  br %510, @378, @379
 @378:
-  %143 = lsr.l %x, 0x1_l ; @382
-  %144 = and.l %x, 0x1_l ; @383
-  %145 = or.l %143, %144 ; @384
-  %146 = sitof.l.s %145 ; @385
-  %147 = add.s %146, %146 ; @386
-  jmp @380(%147)
+  %511 = lsr.l %201, 0x1_l ; @382
+  %512 = and.l %201, 0x1_l ; @383
+  %513 = or.l %511, %512 ; @384
+  %514 = sitof.l.s %513 ; @385
+  %515 = add.s %514, %514 ; @386
+  jmp @380(%515)
 @379:
-  %148 = sitof.l.s %x ; @387
-  jmp @380(%148)
-@380(%149):
-  ret xmm0/%149
+  %516 = sitof.l.s %201 ; @387
+  jmp @380(%516)
+@380(%517):
+  ret xmm0/%517
 }
 
-export function $uitof_i64_f64(l %x/rdi) {
+export function $uitof_i64_f64(l %203/rdi) {
 @198:
-  %150 = slt.l %x, 0x0_l ; @392
-  br %150, @389, @390
+  %518 = slt.l %203, 0x0_l ; @392
+  br %518, @389, @390
 @389:
-  %151 = lsr.l %x, 0x1_l ; @393
-  %152 = and.l %x, 0x1_l ; @394
-  %153 = or.l %151, %152 ; @395
-  %154 = sitof.l.d %153 ; @396
-  %155 = add.d %154, %154 ; @397
-  jmp @391(%155)
+  %519 = lsr.l %203, 0x1_l ; @393
+  %520 = and.l %203, 0x1_l ; @394
+  %521 = or.l %519, %520 ; @395
+  %522 = sitof.l.d %521 ; @396
+  %523 = add.d %522, %522 ; @397
+  jmp @391(%523)
 @390:
-  %156 = sitof.l.d %x ; @398
-  jmp @391(%156)
-@391(%157):
-  ret xmm0/%157
+  %524 = sitof.l.d %203 ; @398
+  jmp @391(%524)
+@391(%525):
+  ret xmm0/%525
 }
 
-export function $fext_f32_f64(s %x/xmm0) {
+export function $fext_f32_f64(s %205/xmm0) {
 @200:
-  %118 = fext.d %x ; @348
-  ret xmm0/%118
+  %486 = fext.d %205 ; @348
+  ret xmm0/%486
 }
 
-export function $ftrunc_f64_f32(d %x/xmm0) {
+export function $ftrunc_f64_f32(d %207/xmm0) {
 @202:
-  %119 = ftrunc.s %x ; @349
-  ret xmm0/%119
+  %487 = ftrunc.s %207 ; @349
+  ret xmm0/%487
 }
 
-export function $sel_f32(s %x/xmm0, s %y/xmm1, s %yes/xmm2, s %no/xmm3) {
+export function $sel_f32(s %209/xmm0, s %210/xmm1, s %212/xmm2, s %213/xmm3) {
 @204:
-  %120 = lt.s %x, %y ; @350
-  %121 = sel.s %120, %yes, %no ; @351
-  ret xmm0/%121
+  %488 = lt.s %209, %210 ; @350
+  %489 = sel.s %488, %212, %213 ; @351
+  ret xmm0/%489
 }
 
-export function $sel_f64(d %x/xmm0, d %y/xmm1, d %yes/xmm2, d %no/xmm3) {
+export function $sel_f64(d %215/xmm0, d %216/xmm1, d %218/xmm2, d %219/xmm3) {
 @207:
-  %122 = lt.d %x, %y ; @352
-  %123 = sel.d %122, %yes, %no ; @353
-  ret xmm0/%123
+  %490 = lt.d %215, %216 ; @352
+  %491 = sel.d %490, %218, %219 ; @353
+  ret xmm0/%491
 }
 
-export function $sel_f32_const_cmp(s %x/xmm0, s %yes/xmm1, s %no/xmm2) {
+export function $sel_f32_const_cmp(s %221/xmm0, s %223/xmm1, s %224/xmm2) {
 @210:
-  %124 = lt.s %x, 0_f ; @354
-  %125 = sel.s %124, %yes, %no ; @355
-  ret xmm0/%125
+  %492 = lt.s %221, 0_f ; @354
+  %493 = sel.s %492, %223, %224 ; @355
+  ret xmm0/%493
 }
 
-export function $sel_f32_const_cmp_lhs(s %x/xmm0, s %yes/xmm1, s %no/xmm2) {
+export function $sel_f32_const_cmp_lhs(s %226/xmm0, s %228/xmm1, s %229/xmm2) {
 @213:
-  %126 = lt.s 0_f, %x ; @356
-  %127 = sel.s %126, %yes, %no ; @357
-  ret xmm0/%127
+  %494 = lt.s 0_f, %226 ; @356
+  %495 = sel.s %494, %228, %229 ; @357
+  ret xmm0/%495
 }
 
-export function $sel_f64_const_val(d %x/xmm0, d %y/xmm1, d %yes/xmm2) {
+export function $sel_f64_const_val(d %231/xmm0, d %232/xmm1, d %234/xmm2) {
 @216:
-  %128 = lt.d %x, %y ; @358
-  %129 = sel.d %128, %yes, 0._d ; @359
-  ret xmm0/%129
+  %496 = lt.d %231, %232 ; @358
+  %497 = sel.d %496, %234, 0._d ; @359
+  ret xmm0/%497
 }
 
-export function $sel_f64_const_cmp_lhs(d %x/xmm0, d %yes/xmm1, d %no/xmm2) {
+export function $sel_f64_const_cmp_lhs(d %236/xmm0, d %238/xmm1, d %239/xmm2) {
 @219:
-  %130 = lt.d 0._d, %x ; @360
-  %131 = sel.d %130, %yes, %no ; @361
-  ret xmm0/%131
+  %498 = lt.d 0._d, %236 ; @360
+  %499 = sel.d %498, %238, %239 ; @361
+  ret xmm0/%499
 }
 
-export function $ifbits_f32(s %x/xmm0) {
+export function $ifbits_f32(s %241/xmm0) {
 @222:
-  %132 = ifbits.w %x ; @362
-  ret rax/%132
+  %500 = ifbits.w %241 ; @362
+  ret rax/%500
 }
 
-export function $ifbits_f64(d %x/xmm0) {
+export function $ifbits_f64(d %243/xmm0) {
 @224:
-  %133 = ifbits.l %x ; @363
-  ret rax/%133
+  %501 = ifbits.l %243 ; @363
+  ret rax/%501
 }
 
-export function $fibits_f32(w %x/rdi) {
+export function $fibits_f32(w %245/rdi) {
 @226:
-  %134 = fibits.s %x ; @364
-  ret xmm0/%134
+  %502 = fibits.s %245 ; @364
+  ret xmm0/%502
 }
 
-export function $fibits_f64(l %x/rdi) {
+export function $fibits_f64(l %247/rdi) {
 @228:
-  %135 = fibits.d %x ; @365
-  ret xmm0/%135
+  %503 = fibits.d %247 ; @365
+  ret xmm0/%503
 }

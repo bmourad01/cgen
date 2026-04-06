@@ -41,8 +41,8 @@ export function $popcount32 { ; returns: rax
 
 export function $dot_product { ; returns: rax
 @28:
-  xor eax, eax ; @677
-  xor ecx, ecx ; @678
+  xor ecx, ecx ; @677
+  xor eax, eax ; @678
 @29:
   cmp ecx, edx ; @669
   jl @32 ; @670
@@ -210,29 +210,29 @@ export function $binary_search { ; returns: rax
   push r15 ; @1057
   push rbx ; @1058
   mov qword ptr [rbp - 0x10], rdi ; @1047
-  mov r12, rsi ; @806
-  mov r13, rdx ; @807
+  mov r13, rsi ; @806
+  mov r12, rdx ; @807
   mov r15, rcx ; @808
   mov qword ptr [rbp - 0x18], r8 ; @1048
 @109:
-  cmp r13, 0x0_l ; @800
+  cmp r12, 0x0_l ; @800
   jg @110 ; @801
 @770:
   xor eax, eax ; @798
   jmp @332 ; @799
 @110:
-  mov rbx, r13 ; @528
+  mov rbx, r12 ; @528
   shr rbx, 0x1_b ; @797
   mov rax, r15 ; @529
   imul rax, rbx ; @796
-  lea r14, qword ptr [r12 + rax*1] ; @530
+  lea r14, qword ptr [r13 + rax*1] ; @530
   mov rdi, qword ptr [rbp - 0x10] ; @1049
   mov rsi, r14 ; @793
   call qword ptr [rbp - 0x18] ; rdi rsi ; @794
   test eax, eax ; @788
   jns @114 ; @789
 @771:
-  mov r13, rbx ; @786
+  mov r12, rbx ; @786
   jmp @109 ; @787
 @114:
   cmp eax, 0x0_w ; @781
@@ -248,9 +248,9 @@ export function $binary_search { ; returns: rax
   leave ; @1064
   ret ; @778
 @121:
-  lea r12, qword ptr [r14 + r15*1] ; @533
+  lea r13, qword ptr [r14 + r15*1] ; @533
   lea rax, qword ptr [rbx + 0x1] ; @534
-  sub r13, rax ; @776
+  sub r12, rax ; @776
   jmp @109 ; @775
 }
 
@@ -286,12 +286,12 @@ export function $spill_stress { ; returns: rax
   mov edx, 0x1_w ; @856
   mov dword ptr [rsp + 0x4], edx ; @1067
 @129:
-  mov edx, dword ptr [rsp + 0x8] ; @1070
-  mov esi, dword ptr [rsp + 0x4] ; @1069
-  add esi, dword ptr [rsp + 0x8] ; @536
-  mov dword ptr [rsp + 0x4], esi ; @1068
+  mov edx, dword ptr [rsp + 0x4] ; @1069
+  mov edi, dword ptr [rsp + 0x8] ; @1068
+  add edx, dword ptr [rsp + 0x8] ; @536
+  mov dword ptr [rsp + 0x4], edx ; @1070
   mov esi, dword ptr [rsp + 0x10] ; @1081
-  lea r8d, qword ptr [rdx + rsi*1] ; @537
+  lea r8d, qword ptr [rdi + rsi*1] ; @537
   mov edx, dword ptr [rsp + 0x14] ; @1082
   add esi, dword ptr [rsp + 0x14] ; @538
   lea edi, qword ptr [rdx + rcx*1] ; @539
@@ -408,9 +408,9 @@ export function $fib { ; returns: rax
 
 export function $fsum { ; returns: xmm0
 @230:
-  movsd xmm0, qword ptr [rip + @926] ; @929
-  .fp64 @926, 0. ; @930
-  xor eax, eax ; @931
+  xor eax, eax ; @929
+  movsd xmm0, qword ptr [rip + @926] ; @930
+  .fp64 @926, 0. ; @931
 @231:
   cmp eax, esi ; @921
   jl @234 ; @922
@@ -476,19 +476,19 @@ export function $cgen_strlen { ; returns: rax
 
 export function $int_pow { ; returns: rax
 @292:
-  mov eax, 0x1_w ; @996
+  mov eax, 0x1_w ; @998
 @293:
   cmp rsi, 0x0_l ; @989
   jg @295 ; @990
 @296:
   ret ; @988
 @295:
-  mov rdx, rsi ; @619
-  and edx, 0x1_w ; @986
-  mov rcx, rax ; @621
-  imul rcx, rdi ; @983
-  test rdx, rdx ; @981
-  cmovne rax, rcx ; @982
+  mov rcx, rsi ; @619
+  and ecx, 0x1_w ; @986
+  mov rdx, rax ; @621
+  imul rdx, rdi ; @983
+  test rcx, rcx ; @981
+  cmovne rax, rdx ; @982
   imul rdi, rdi ; @980
   sar rsi, 0x1_b ; @979
   jmp @293 ; @978

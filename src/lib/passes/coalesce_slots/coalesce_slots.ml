@@ -19,7 +19,7 @@ let check_ssa msg n d =
 let apply t fn map_blks map_blk insns with_insns with_ctrl label =
   let not_dead = not @. Lset.mem t.deads @. label in
   if is_empty t then fn else
-    let f = if Map.is_empty t.subst then fun b ->
+    let f = if Var.Tree.is_empty t.subst then fun b ->
         insns b |> Seq.filter ~f:not_dead |>
         Seq.to_list |> with_insns b
       else fun b ->

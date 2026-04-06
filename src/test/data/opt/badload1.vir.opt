@@ -1,17 +1,17 @@
 module badload1
 
-export function w $foo(w %x) {
-  %a = slot 4, align 4
+export function w $foo(w %3) {
+  %0 = slot 4, align 4
 @2:
-  %0 = slt.w %x, 0x0_w ; @13
-  br %0, @3, @4
+  %20 = slt.w %3, 0x0_w ; @13
+  br %20, @3, @4
 @3:
-  %v.2 = ld.w %a ; @7
-  jmp @6(%v.2)
+  %18 = ld.w %0 ; @7
+  jmp @6(%18)
 @4:
-  st.w 0x5_w, %a ; @8
+  st.w 0x5_w, %0 ; @8
   jmp @6(0x5_w)
-@6(%v.1):
-  %1 = add.w %v.1, 0x4_w ; @14
-  ret %1
+@6(%14):
+  %21 = add.w %14, 0x4_w ; @14
+  ret %21
 }

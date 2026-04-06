@@ -104,7 +104,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let post_assign fn presize =
     let dict = Func.dict fn in
     if not @@ Dict.mem dict Tags.stack_laid_out then
-      let cfg = Cfg.create ~is_barrier:M.Insn.is_barrier ~dests:M.Insn.dests fn in
+      let cfg = Cfg.create fn
+          ~is_barrier:M.Insn.is_barrier
+          ~is_pseudo:M.Insn.is_pseudo
+          ~dests:M.Insn.dests in
       let frame = Dict.mem dict Func.Tag.needs_stack_frame in
       let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
       let find, base, size = make_offsets_and_size ~presize slots frame in

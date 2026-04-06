@@ -39,9 +39,9 @@ export function $foo { ; returns: rax
   mov dword ptr [rbp - 0x10], eax ; @81
 @66:
   mov rax, qword ptr [rcx] ; @87
-  mov qword ptr [rbp - 0x10], rax ; @88
   mov rcx, qword ptr [rdx] ; @89
-  movq xmm0, rax ; @6
+  mov qword ptr [rbp - 0x10], rax ; @48
+  movsd xmm0, qword ptr [rbp - 0x10] ; @6
   addsd xmm0, qword ptr [rip + @97] ; @98
   .fp64 @97, 1.234 ; @99
   cvttsd2si rax, xmm0 ; @15

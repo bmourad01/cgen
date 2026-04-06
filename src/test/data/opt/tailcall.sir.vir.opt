@@ -1,120 +1,120 @@
 module tailcall
 
-export function w $ping(w %n) {
+export function w $ping(w %1) {
 @2:
-  %18 = sle.w %n, 0x0_w ; @69
-  br %18, @60(0x0_w), @4
+  %98 = sle.w %1, 0x0_w ; @69
+  br %98, @60(0x0_w), @4
 @4:
-  %19 = sub.w %n, 0x1_w ; @70
-  %r.1 = call.w $pong(%19) ; @7
-  jmp @60(%r.1)
-@60(%8):
-  ret %8
+  %99 = sub.w %1, 0x1_w ; @70
+  %58 = call.w $pong(%99) ; @7
+  jmp @60(%58)
+@60(%88):
+  ret %88
 }
 
-export function w $pong(w %n) {
+export function w $pong(w %5) {
 @8:
-  %20 = sle.w %n, 0x0_w ; @71
-  br %20, @61(0x1_w), @10
+  %100 = sle.w %5, 0x0_w ; @71
+  br %100, @61(0x1_w), @10
 @10:
-  %21 = sub.w %n, 0x1_w ; @72
-  %r.1 = call.w $ping(%21) ; @13
-  jmp @61(%r.1)
-@61(%9):
-  ret %9
+  %101 = sub.w %5, 0x1_w ; @72
+  %61 = call.w $ping(%101) ; @13
+  jmp @61(%61)
+@61(%89):
+  ret %89
 }
 
-export function w $ping_nontail(w %n) {
+export function w $ping_nontail(w %9) {
 @14:
-  %22 = sle.w %n, 0x0_w ; @73
-  br %22, @62(0x0_w), @16
+  %102 = sle.w %9, 0x0_w ; @73
+  br %102, @62(0x0_w), @16
 @16:
-  %23 = sub.w %n, 0x1_w ; @74
-  %r.1 = call.w nontail $pong(%23) ; @19
-  jmp @62(%r.1)
-@62(%10):
-  ret %10
+  %103 = sub.w %9, 0x1_w ; @74
+  %64 = call.w nontail $pong(%103) ; @19
+  jmp @62(%64)
+@62(%90):
+  ret %90
 }
 
-export function w $call_and_ignore(w %n) {
+export function w $call_and_ignore(w %13) {
 @20:
-  %24 = sle.w %n, 0x0_w ; @75
-  br %24, @63, @22
+  %104 = sle.w %13, 0x0_w ; @75
+  br %104, @63, @22
 @22:
-  %25 = sub.w %n, 0x1_w ; @76
-  %ignored.1 = call.w $pong(%25) ; @25
+  %105 = sub.w %13, 0x1_w ; @76
+  %67 = call.w $pong(%105) ; @25
   jmp @63
 @63:
-  ret %n
-}
-
-export function w $dispatch(w %x, w %y) {
-@26:
-  %26 = slt.w %x, %y ; @77
-  br %26, @27, @28
-@27:
-  %r.1 = call.w $ping(%x) ; @30
-  jmp @64(%r.1)
-@28:
-  %r.2 = call.w $pong(%y) ; @31
-  jmp @64(%r.2)
-@64(%12):
-  ret %12
-}
-
-export function w $mixed_tail(w %x, w %y) {
-@32:
-  %27 = eq.w %x, 0x0_w ; @78
-  br %27, @33, @34
-@33:
-  %r.1 = call.w nontail $pong(%y) ; @36
-  jmp @65(%r.1)
-@34:
-  %28 = sub.w %x, 0x1_w ; @79
-  %r.2 = call.w $ping(%28) ; @38
-  jmp @65(%r.2)
-@65(%13):
   ret %13
 }
 
-export function w $gcd_tc(w %a, w %b) {
+export function w $dispatch(w %17, w %18) {
+@26:
+  %106 = slt.w %17, %18 ; @77
+  br %106, @27, @28
+@27:
+  %69 = call.w $ping(%17) ; @30
+  jmp @64(%69)
+@28:
+  %70 = call.w $pong(%18) ; @31
+  jmp @64(%70)
+@64(%92):
+  ret %92
+}
+
+export function w $mixed_tail(w %21, w %23) {
+@32:
+  %107 = eq.w %21, 0x0_w ; @78
+  br %107, @33, @34
+@33:
+  %72 = call.w nontail $pong(%23) ; @36
+  jmp @65(%72)
+@34:
+  %108 = sub.w %21, 0x1_w ; @79
+  %74 = call.w $ping(%108) ; @38
+  jmp @65(%74)
+@65(%93):
+  ret %93
+}
+
+export function w $gcd_tc(w %27, w %26) {
 @67:
-  jmp @39(%a, %b)
-@39(%15, %16):
-  %29 = eq.w %16, 0x0_w ; @80
-  br %29, @66, @41
+  jmp @39(%27, %26)
+@39(%95, %96):
+  %109 = eq.w %96, 0x0_w ; @80
+  br %109, @66, @41
 @41:
-  %r.1 = rem.w %15, %16 ; @43
-  jmp @39(%16, %r.1)
+  %76 = rem.w %95, %96 ; @43
+  jmp @39(%96, %76)
 @66:
-  ret %15
+  ret %95
 }
 
-export function w $sum7(w %a, w %b, w %c, w %d, w %e, w %f, w %g) {
+export function w $sum7(w %31, w %32, w %34, w %35, w %37, w %38, w %42) {
 @45:
-  %30 = add.w %a, %b ; @81
-  %31 = add.w %c, %d ; @82
-  %32 = add.w %e, %f ; @83
-  %33 = add.w %30, %31 ; @84
-  %36 = add.w %32, %g ; @87
-  %37 = add.w %33, %36 ; @88
-  ret %37
+  %110 = add.w %31, %32 ; @81
+  %111 = add.w %34, %35 ; @82
+  %112 = add.w %37, %38 ; @83
+  %113 = add.w %110, %111 ; @84
+  %116 = add.w %112, %42 ; @87
+  %117 = add.w %113, %116 ; @88
+  ret %117
 }
 
-export function w $tail_sum7_stk(w %a, w %b, w %c, w %d, w %e, w %f, w %g) {
+export function w $tail_sum7_stk(w %44, w %45, w %46, w %47, w %48, w %49, w %50) {
 @52:
-  %r.1 = call.w $sum7(%a, %b, %c, %d, %e, %f, %g) ; @53
-  ret %r.1
+  %84 = call.w $sum7(%44, %45, %46, %47, %48, %49, %50) ; @53
+  ret %84
 }
 
-export function w $gcd_nt(w %a, w %b) {
+export function w $gcd_nt(w %53, w %52) {
 @54:
-  %39 = eq.w %b, 0x0_w ; @90
-  br %39, @68(%a), @56
+  %119 = eq.w %52, 0x0_w ; @90
+  br %119, @68(%53), @56
 @56:
-  %r.1 = rem.w %a, %b ; @58
-  %s.1 = call.w nontail $gcd_nt(%b, %r.1) ; @59
-  jmp @68(%s.1)
-@68(%17):
-  ret %17
+  %86 = rem.w %53, %52 ; @58
+  %87 = call.w nontail $gcd_nt(%52, %86) ; @59
+  jmp @68(%87)
+@68(%97):
+  ret %97
 }

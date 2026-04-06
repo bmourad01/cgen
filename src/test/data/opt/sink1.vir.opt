@@ -1,11 +1,11 @@
 module sink1
 
-export function w $foo(w %x) {
+export function w $foo(w %1) {
 @2:
-  %3 = add.w %x, 0x1_w ; @12
-  %4 = eq.w %x, 0x0_w ; @13
-  %5 = eq.w %3, 0x1_w ; @14
-  %6 = flag.w %5 ; @15
-  %7 = sel.w %4, %6, 0x0_w ; @16
-  ret %7
+  %9 = add.w %1, 0x1_w ; @12
+  %10 = eq.w %1, 0x0_w ; @13
+  %11 = eq.w %9, 0x1_w ; @14
+  %12 = flag.w %11 ; @15
+  %13 = sel.w %10, %12, 0x0_w ; @16
+  ret %13
 }

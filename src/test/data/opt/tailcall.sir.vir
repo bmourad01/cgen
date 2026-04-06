@@ -1,115 +1,115 @@
 module tailcall
 
-export function w $ping(w %n) {
+export function w $ping(w %0) {
 @6:
-  %0 = sle.w %n, 0x0_w ; @7
-  br %0, @5, @2
+  %48 = sle.w %0, 0x0_w ; @7
+  br %48, @5, @2
 @5:
   ret 0x0_w
 @2:
-  %n1 = sub.w %n, 0x1_w ; @4
-  %r = call.w $pong(%n1) ; @3
-  ret %r
+  %1 = sub.w %0, 0x1_w ; @4
+  %2 = call.w $pong(%1) ; @3
+  ret %2
 }
 
-export function w $pong(w %n) {
+export function w $pong(w %3) {
 @12:
-  %1 = sle.w %n, 0x0_w ; @13
-  br %1, @11, @8
+  %49 = sle.w %3, 0x0_w ; @13
+  br %49, @11, @8
 @11:
   ret 0x1_w
 @8:
-  %n1 = sub.w %n, 0x1_w ; @10
-  %r = call.w $ping(%n1) ; @9
-  ret %r
+  %4 = sub.w %3, 0x1_w ; @10
+  %5 = call.w $ping(%4) ; @9
+  ret %5
 }
 
-export function w $ping_nontail(w %n) {
+export function w $ping_nontail(w %6) {
 @18:
-  %2 = sle.w %n, 0x0_w ; @19
-  br %2, @17, @14
+  %50 = sle.w %6, 0x0_w ; @19
+  br %50, @17, @14
 @17:
   ret 0x0_w
 @14:
-  %n1 = sub.w %n, 0x1_w ; @16
-  %r = call.w nontail $pong(%n1) ; @15
-  ret %r
+  %7 = sub.w %6, 0x1_w ; @16
+  %8 = call.w nontail $pong(%7) ; @15
+  ret %8
 }
 
-export function w $call_and_ignore(w %n) {
+export function w $call_and_ignore(w %9) {
 @24:
-  %3 = sle.w %n, 0x0_w ; @25
-  br %3, @23, @20
+  %51 = sle.w %9, 0x0_w ; @25
+  br %51, @23, @20
 @23:
-  ret %n
+  ret %9
 @20:
-  %n1 = sub.w %n, 0x1_w ; @22
-  %ignored = call.w $pong(%n1) ; @21
-  ret %n
+  %10 = sub.w %9, 0x1_w ; @22
+  %11 = call.w $pong(%10) ; @21
+  ret %9
 }
 
-export function w $dispatch(w %x, w %y) {
+export function w $dispatch(w %12, w %13) {
 @30:
-  %4 = slt.w %x, %y ; @31
-  br %4, @28, @26
+  %52 = slt.w %12, %13 ; @31
+  br %52, @28, @26
 @28:
-  %r = call.w $ping(%x) ; @29
-  ret %r
+  %14 = call.w $ping(%12) ; @29
+  ret %14
 @26:
-  %r = call.w $pong(%y) ; @27
-  ret %r
+  %14 = call.w $pong(%13) ; @27
+  ret %14
 }
 
-export function w $mixed_tail(w %x, w %y) {
+export function w $mixed_tail(w %15, w %17) {
 @37:
-  %5 = eq.w %x, 0x0_w ; @38
-  br %5, @35, @32
+  %53 = eq.w %15, 0x0_w ; @38
+  br %53, @35, @32
 @35:
-  %r = call.w nontail $pong(%y) ; @36
-  ret %r
+  %16 = call.w nontail $pong(%17) ; @36
+  ret %16
 @32:
-  %x1 = sub.w %x, 0x1_w ; @34
-  %r = call.w $ping(%x1) ; @33
-  ret %r
+  %18 = sub.w %15, 0x1_w ; @34
+  %16 = call.w $ping(%18) ; @33
+  ret %16
 }
 
-export function w $gcd_tc(w %a, w %b) {
+export function w $gcd_tc(w %20, w %19) {
 @43:
-  %6 = eq.w %b, 0x0_w ; @44
-  br %6, @42, @39
+  %54 = eq.w %19, 0x0_w ; @44
+  br %54, @42, @39
 @42:
-  ret %a
+  ret %20
 @39:
-  %r = rem.w %a, %b ; @41
-  %s = call.w $gcd_tc(%b, %r) ; @40
-  ret %s
+  %21 = rem.w %20, %19 ; @41
+  %22 = call.w $gcd_tc(%19, %21) ; @40
+  ret %22
 }
 
-export function w $sum7(w %a, w %b, w %c, w %d, w %e, w %f, w %g) {
+export function w $sum7(w %24, w %25, w %27, w %28, w %30, w %31, w %35) {
 @45:
-  %ab = add.w %a, %b ; @51
-  %cd = add.w %c, %d ; @50
-  %ef = add.w %e, %f ; @49
-  %abcd = add.w %ab, %cd ; @48
-  %abcdef = add.w %abcd, %ef ; @47
-  %r = add.w %abcdef, %g ; @46
-  ret %r
+  %23 = add.w %24, %25 ; @51
+  %26 = add.w %27, %28 ; @50
+  %29 = add.w %30, %31 ; @49
+  %32 = add.w %23, %26 ; @48
+  %33 = add.w %32, %29 ; @47
+  %34 = add.w %33, %35 ; @46
+  ret %34
 }
 
-export function w $tail_sum7_stk(w %a, w %b, w %c, w %d, w %e, w %f, w %g) {
+export function w $tail_sum7_stk(w %37, w %38, w %39, w %40, w %41, w %42, w %43) {
 @52:
-  %r = call.w $sum7(%a, %b, %c, %d, %e, %f, %g) ; @53
-  ret %r
+  %36 = call.w $sum7(%37, %38, %39, %40, %41, %42, %43) ; @53
+  ret %36
 }
 
-export function w $gcd_nt(w %a, w %b) {
+export function w $gcd_nt(w %45, w %44) {
 @58:
-  %7 = eq.w %b, 0x0_w ; @59
-  br %7, @57, @54
+  %55 = eq.w %44, 0x0_w ; @59
+  br %55, @57, @54
 @57:
-  ret %a
+  ret %45
 @54:
-  %r = rem.w %a, %b ; @56
-  %s = call.w nontail $gcd_nt(%b, %r) ; @55
-  ret %s
+  %46 = rem.w %45, %44 ; @56
+  %47 = call.w nontail $gcd_nt(%44, %46) ; @55
+  ret %47
 }

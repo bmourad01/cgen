@@ -515,6 +515,7 @@ module Make(M : Machine_intf.S) = struct
   let create fn =
     let cfg = Pseudo.Cfg.create fn
         ~is_barrier:M.Insn.is_barrier
+        ~is_pseudo:M.Insn.is_pseudo
         ~dests:M.Insn.dests in
     let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in
     let loop = Loop.analyze ~dom ~name:(Pseudo.Func.name fn) cfg in

@@ -1,21 +1,21 @@
 module foo
 
-export function w $foo(w %n) {
+export function w $foo(w %2) {
 @2:
-  jmp @3(%n, 0x0_w)
-@3(%x.2, %count.2):
-  %1 = gt.w %x.2, 0x1_w ; @28
-  br %1, @6, @7
+  jmp @3(%2, 0x0_w)
+@3(%24, %25):
+  %44 = gt.w %24, 0x1_w ; @28
+  br %44, @6, @7
 @6:
-  %2 = and.w %x.2, 0x1_w ; @29
-  %3 = eq.w %2, 0x0_w ; @30
-  %4 = lsr.w %x.2, 0x1_w ; @31
-  %5 = lsl.w %x.2, 0x1_w ; @32
-  %6 = add.w %5, %x.2 ; @33
-  %7 = add.w %6, 0x1_w ; @34
-  %8 = sel.w %3, %4, %7 ; @35
-  %9 = add.w %count.2, 0x1_w ; @36
-  jmp @3(%8, %9)
+  %45 = and.w %24, 0x1_w ; @29
+  %46 = eq.w %45, 0x0_w ; @30
+  %47 = lsr.w %24, 0x1_w ; @31
+  %48 = lsl.w %24, 0x1_w ; @32
+  %49 = add.w %48, %24 ; @33
+  %50 = add.w %49, 0x1_w ; @34
+  %51 = sel.w %46, %47, %50 ; @35
+  %52 = add.w %25, 0x1_w ; @36
+  jmp @3(%51, %52)
 @7:
-  ret %count.2
+  ret %25
 }

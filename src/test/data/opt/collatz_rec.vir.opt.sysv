@@ -1,24 +1,24 @@
 module collatz_rec
 
-export function $foo(w %n/rdi, w %steps/rsi) {
+export function $foo(w %1/rdi, w %2/rsi) {
 @18:
-  jmp @2(%n, %steps)
-@2(%1, %2):
-  %3 = eq.w %1, 0x1_w ; @19
-  br %3, @17, @4
+  jmp @2(%1, %2)
+@2(%16, %17):
+  %18 = eq.w %16, 0x1_w ; @19
+  br %18, @17, @4
 @4:
-  %4 = and.w %1, 0x1_w ; @20
-  %5 = eq.w %4, 0x0_w ; @21
-  %6 = add.w %2, 0x1_w ; @22
-  br %5, @6, @7
+  %19 = and.w %16, 0x1_w ; @20
+  %20 = eq.w %19, 0x0_w ; @21
+  %21 = add.w %17, 0x1_w ; @22
+  br %20, @6, @7
 @6:
-  %7 = lsr.w %1, 0x1_w ; @23
-  jmp @2(%7, %6)
+  %22 = lsr.w %16, 0x1_w ; @23
+  jmp @2(%22, %21)
 @7:
-  %8 = lsl.w %1, 0x1_w ; @24
-  %9 = add.w %8, %1 ; @25
-  %10 = add.w %9, 0x1_w ; @26
-  jmp @2(%10, %6)
+  %23 = lsl.w %16, 0x1_w ; @24
+  %24 = add.w %23, %16 ; @25
+  %25 = add.w %24, 0x1_w ; @26
+  jmp @2(%25, %21)
 @17:
-  ret rax/%2
+  ret rax/%17
 }

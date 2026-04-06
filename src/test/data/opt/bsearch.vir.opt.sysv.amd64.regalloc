@@ -18,29 +18,29 @@ export function $bsearch { ; returns: rax
   push r15 ; @95
   push rbx ; @96
   mov qword ptr [rbp - 0x10], rdi ; @85
-  mov r12, rsi ; @78
-  mov r13, rdx ; @79
+  mov r13, rsi ; @78
+  mov r12, rdx ; @79
   mov r15, rcx ; @80
   mov qword ptr [rbp - 0x18], r8 ; @86
 @7:
-  test r13, r13 ; @72
+  test r12, r12 ; @72
   jne @8 ; @73
 @42:
   xor eax, eax ; @70
   jmp @26 ; @71
 @8:
-  mov rbx, r13 ; @29
+  mov rbx, r12 ; @29
   shr rbx, 0x1_b ; @69
   mov rax, r15 ; @30
   imul rax, rbx ; @68
-  lea r14, qword ptr [r12 + rax*1] ; @31
+  lea r14, qword ptr [r13 + rax*1] ; @31
   mov rdi, qword ptr [rbp - 0x10] ; @87
   mov rsi, r14 ; @65
   call qword ptr [rbp - 0x18] ; rdi rsi ; @66
   test eax, eax ; @60
   jns @12 ; @61
 @43:
-  mov r13, rbx ; @58
+  mov r12, rbx ; @58
   jmp @7 ; @59
 @12:
   cmp eax, 0x0_w ; @53
@@ -56,8 +56,8 @@ export function $bsearch { ; returns: rax
   leave ; @102
   ret ; @50
 @19:
-  lea r12, qword ptr [r14 + r15*1] ; @34
+  lea r13, qword ptr [r14 + r15*1] ; @34
   lea rax, qword ptr [rbx + 0x1] ; @35
-  sub r13, rax ; @48
+  sub r12, rax ; @48
   jmp @7 ; @47
 }

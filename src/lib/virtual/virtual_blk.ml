@@ -50,15 +50,15 @@ let map_of_insns b =
           Label.pps key Label.pps b.label ())
 
 let free_vars b =
-  let (++) = Set.union and (--) = Set.diff in
+  let (++) = Var.Tree_set.union and (--) = Var.Tree_set.diff in
   let def i = match Insn.lhs i with
-    | Some x -> Var.Set.singleton x
-    | None -> Var.Set.empty in
+    | Some x -> Var.Tree_set.singleton x
+    | None -> Var.Tree_set.empty in
   let init = Ctrl.free_vars b.ctrl in
   Ftree.fold_right b.insns ~init ~f:(fun i inc ->
       inc -- def i ++ Insn.free_vars i)
 
-let uses_var b x = Set.mem (free_vars b) x
+let uses_var b x = Var.Tree_set.mem (free_vars b) x
 
 let map_args b ~f = {
   b with args = Ftree.map b.args ~f:(fun x -> f x);

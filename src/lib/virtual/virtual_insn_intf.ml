@@ -251,7 +251,7 @@ module type S = sig
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the basic instruction. *)
-  val free_vars_of_basic : basic -> Var.Set.t
+  val free_vars_of_basic : basic -> Var.Tree_set.t
 
   (** Pretty-prints a basic instruction. *)
   val pp_basic : Format.formatter -> basic -> unit
@@ -274,7 +274,7 @@ module type Mem = sig
   ] [@@deriving bin_io, compare, equal, sexp]
 
   (** Returns the set of free variables in the memory operation. *)
-  val free_vars_of_mem : mem -> Var.Set.t
+  val free_vars_of_mem : mem -> Var.Tree_set.t
 
   (** Pretty-prints a memory operation. *)
   val pp_mem : Format.formatter -> mem -> unit

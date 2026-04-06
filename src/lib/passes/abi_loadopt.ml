@@ -80,7 +80,7 @@ type t = {
 
 let init_dom_relation reso dom =
   let module Dom = Dominance.Make(struct
-      type lhs = Var.Set.t
+      type lhs = Var.Tree_set.t
       type insn = Abi.insn
       module Blk = Abi.Blk
       let is_descendant_of = Semi_nca.Tree.is_descendant_of dom

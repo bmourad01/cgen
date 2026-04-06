@@ -2,6 +2,7 @@ open Core
 open Virtual_common
 
 module Insn = Virtual_insn
+module Vset = Var.Tree_set
 
 type arith_binop = Insn.arith_binop [@@deriving bin_io, compare, equal, hash, sexp_poly]
 type arith_unop = Insn.arith_unop [@@deriving bin_io, compare, equal, hash, sexp_poly]
@@ -33,10 +34,10 @@ type mem = [
   | `store of Type.basic * operand * operand
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_mem : mem -> Var.Set.t = function
+let free_vars_of_mem : mem -> Vset.t = function
   | `load  (_, _, a) -> var_of_operand a |> var_set_of_option
   | `store (_, v, a) ->
-    List.filter_map [v; a] ~f:var_of_operand |> Var.Set.of_list
+    List.filter_map [v; a] ~f:var_of_operand |> Vset.of_list
 
 let pp_mem ppf : mem -> unit = function
   | `load (x, t, a) ->
@@ -51,7 +52,7 @@ type callarg = [
   | `stk of operand * int
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_callarg : callarg -> Var.Set.t = function
+let free_vars_of_callarg : callarg -> Vset.t = function
   | `reg (o, _) | `stk (o, _) -> var_of_operand o |> var_set_of_option
 
 let pp_callarg ppf : callarg -> unit = function
@@ -62,13 +63,13 @@ type call = [
   | `call of (Var.t * Type.basic * string) list * global * callarg list
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_call : call -> Var.Set.t = function
+let free_vars_of_call : call -> Vset.t = function
   | `call (_, f, args) ->
     let f = var_of_global f |> var_set_of_option in
     let args =
       List.map args ~f:free_vars_of_callarg |>
-      Var.Set.union_list in
-    Set.union f args
+      Vset.union_list in
+    Vset.union f args
 
 let pp_call_args ppf args =
   let pp_sep ppf () = Format.fprintf ppf ", " in
@@ -95,11 +96,11 @@ type extra = [
   | `stkargs of Var.t
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_extra : extra -> Var.Set.t = function
-  | `regcopy _ -> Var.Set.empty
+let free_vars_of_extra : extra -> Vset.t = function
+  | `regcopy _ -> Vset.empty
   | `regstore (_, a) | `regassign (_, a) ->
-    List.filter_map [a] ~f:var_of_operand |> Var.Set.of_list
-  | `stkargs _ -> Var.Set.empty
+    List.filter_map [a] ~f:var_of_operand |> Vset.of_list
+  | `stkargs _ -> Vset.empty
 
 let pp_extra ppf : extra -> unit = function
   | `regcopy (x, t, r) ->
@@ -118,7 +119,7 @@ type op = [
   | extra
 ] [@@deriving bin_io, compare, equal, sexp]
 
-let free_vars_of_op : op -> Var.Set.t = function
+let free_vars_of_op : op -> Vset.t = function
   | #basic as b -> free_vars_of_basic b
   | #call  as c -> free_vars_of_call c
   | #mem   as m -> free_vars_of_mem m
@@ -173,8 +174,8 @@ let def_of_op = function
   | `sel (x, _, _, _, _)
   | `load (x, _, _)
   | `regcopy (x, _, _)
-  | `stkargs x -> Var.Set.singleton x
-  | `store _ | `regstore _ | `regassign _ -> Var.Set.empty
-  | `call (xs, _, _) -> Var.Set.of_list @@ List.map xs ~f:fst3
+  | `stkargs x -> Vset.singleton x
+  | `store _ | `regstore _ | `regassign _ -> Vset.empty
+  | `call (xs, _, _) -> Vset.of_list @@ List.map xs ~f:fst3
 
 let def i = def_of_op i.op

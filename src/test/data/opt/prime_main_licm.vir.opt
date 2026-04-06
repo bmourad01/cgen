@@ -5,25 +5,25 @@ const data $fmt = {
   0x0_b
 }
 
-export function w $main(w %argc, l %argv) {
+export function w $main(w %8, l %1) {
 @2:
-  %0 = add.l %argv, 0x8_l ; @21
-  %p.2 = ld.l %0 ; @5
-  %n.1 = call.w $atoi(%p.2) ; @6
-  jmp @3(%n.1, 0x1_w, 0x1_w)
-@3(%n.2, %m.2, %i.2):
-  %1 = sle.w %n.2, 0x0_w ; @22
-  br %1, @9, @10(%i.2)
-@10(%i.3):
-  %b.1 = call.w $is_prime(%i.3) ; @14
-  %2 = eq.w %b.1, 0x0_w ; @23
-  %3 = add.w %i.3, 0x1_w ; @24
-  br %2, @10(%3), @13
+  %26 = add.l %1, 0x8_l ; @21
+  %10 = ld.l %26 ; @5
+  %11 = call.w $atoi(%10) ; @6
+  jmp @3(0x1_w, 0x1_w, %11)
+@3(%14, %15, %16):
+  %27 = sle.w %16, 0x0_w ; @22
+  br %27, @9, @10(%14)
+@10(%18):
+  %19 = call.w $is_prime(%18) ; @14
+  %28 = eq.w %19, 0x0_w ; @23
+  %29 = add.w %18, 0x1_w ; @24
+  br %28, @10(%29), @13
 @13:
-  %k.1 = call.w $printf($fmt, ..., %m.2, %i.3) ; @16
-  %4 = sub.w %n.2, 0x1_w ; @25
-  %5 = add.w %m.2, 0x1_w ; @26
-  jmp @3(%4, %5, %3)
+  %22 = call.w $printf($fmt, ..., %15, %18) ; @16
+  %30 = sub.w %16, 0x1_w ; @25
+  %31 = add.w %15, 0x1_w ; @26
+  jmp @3(%29, %31, %30)
 @9:
   ret 0x0_w
 }

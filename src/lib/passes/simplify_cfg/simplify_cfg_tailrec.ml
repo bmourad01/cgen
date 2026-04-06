@@ -25,10 +25,10 @@ let collect_calls env fn =
 
 let fresh_args fn =
   Func.args fn |> Context.Seq.fold
-    ~init:([], Var.Map.empty)
+    ~init:([], Var.Tree.empty)
     ~f:(fun (l, m) (x, _) ->
         let+ y = Context.Var.fresh in
-        y :: l, Map.set m ~key:x ~data:(`var y))
+        y :: l, Var.Tree.set m ~key:x ~data:(`var y))
 
 let subst_args subst b =
   let insns, ctrl = Subst_mapper.map_blk subst b in

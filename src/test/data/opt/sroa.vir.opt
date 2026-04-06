@@ -1,9 +1,9 @@
 module sroa
 
-export function w $foo(w %a, w %b, w %c, w %d) {
+export function w $foo(w %2, w %4, w %6, w %8) {
 @2:
-  %4 = add.w %a, %b ; @18
-  %6 = add.w %c, %d ; @20
-  %7 = add.w %4, %6 ; @21
-  ret %7
+  %40 = add.w %2, %4 ; @18
+  %42 = add.w %6, %8 ; @20
+  %43 = add.w %40, %42 ; @21
+  ret %43
 }

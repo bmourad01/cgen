@@ -2,45 +2,45 @@ module foo
 
 export function $foo { ; returns: xmm0
 @2:
-  mov %x:w, edi ; @11
-  mov %3:w, %x:w ; @29
-  cvtsi2ss %0:s, %3:l ; @28
-  movss xmm0, %0:s ; @26
+  mov %1:w, edi ; @11
+  mov %12:w, %1:w ; @29
+  cvtsi2ss %9:s, %12:l ; @28
+  movss xmm0, %9:s ; @26
   ret ; @27
 }
 
 export function $bar { ; returns: xmm0
 @4:
-  mov %x:l, rdi ; @16
-  test %x:l, %x:l ; @42
+  mov %3:l, rdi ; @16
+  test %3:l, %3:l ; @42
   js @13 ; @43
   jmp @14 ; @44
 @14:
-  cvtsi2ss %10:s, %x:l ; @41
-  movss %11:s, %10:s ; @39
+  cvtsi2ss %19:s, %3:l ; @41
+  movss %20:s, %19:s ; @39
   jmp @15 ; @40
 @13:
-  mov %5:l, %x:l ; @17
-  shr %5:l, 0x1_b ; @38
-  mov %6:l, %x:l ; @18
-  and %6:w, 0x1_w ; @37
-  mov %7:l, %5:l ; @19
-  or %7:l, %6:l ; @36
-  cvtsi2ss %8:s, %7:l ; @35
-  movss %9:s, %8:s ; @21
-  addss %9:s, %8:s ; @34
-  movss %11:s, %9:s ; @32
+  mov %14:l, %3:l ; @17
+  shr %14:l, 0x1_b ; @38
+  mov %15:l, %3:l ; @18
+  and %15:w, 0x1_w ; @37
+  mov %16:l, %14:l ; @19
+  or %16:l, %15:l ; @36
+  cvtsi2ss %17:s, %16:l ; @35
+  movss %18:s, %17:s ; @21
+  addss %18:s, %17:s ; @34
+  movss %20:s, %18:s ; @32
   jmp @15 ; @33
 @15:
-  movss xmm0, %11:s ; @30
+  movss xmm0, %20:s ; @30
   ret ; @31
 }
 
 export function $baz { ; returns: xmm0
 @6:
-  mov %x:h, di ; @24
-  movzx %12:w, %x:h ; @51
-  cvtsi2ss %2:s, %12:w ; @50
-  movss xmm0, %2:s ; @48
+  mov %5:h, di ; @24
+  movzx %21:w, %5:h ; @51
+  cvtsi2ss %11:s, %21:w ; @50
+  movss xmm0, %11:s ; @48
   ret ; @49
 }

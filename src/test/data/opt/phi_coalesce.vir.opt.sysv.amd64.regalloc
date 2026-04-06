@@ -37,18 +37,18 @@ export function $foo { ; returns: rax
   add eax, edi ; @45
   add r14d, edi ; @46
   add r15d, edi ; @47
-  mov esi, dword ptr [rsp + 0xc] ; @206
+  mov esi, dword ptr [rsp + 0xc] ; @205
   add esi, edi ; @48
-  mov dword ptr [rsp + 0xc], esi ; @205
-  mov esi, dword ptr [rsp + 0x8] ; @196
+  mov dword ptr [rsp + 0xc], esi ; @206
+  mov esi, dword ptr [rsp + 0x8] ; @195
   add esi, edi ; @49
-  mov dword ptr [rsp + 0x8], esi ; @195
-  mov esi, dword ptr [rsp + 0x4] ; @198
+  mov dword ptr [rsp + 0x8], esi ; @196
+  mov esi, dword ptr [rsp + 0x4] ; @197
   add esi, edi ; @50
-  mov dword ptr [rsp + 0x4], esi ; @197
-  mov esi, dword ptr [rsp] ; @200
+  mov dword ptr [rsp + 0x4], esi ; @198
+  mov esi, dword ptr [rsp] ; @199
   dec esi ; @51
-  mov dword ptr [rsp], esi ; @199
+  mov dword ptr [rsp], esi ; @200
   mov esi, dword ptr [rsp] ; @201
   test esi, esi ; @168
   jne @3 ; @169

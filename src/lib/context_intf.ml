@@ -14,6 +14,11 @@ module type S = sig
   module Var : sig
     (** Generates a fresh program variable. *)
     val fresh : var t
+
+    (** [with_allocator f] runs [f ~alloc] where [alloc] is a function
+        that allocates fresh program variables from the context's counter.
+        The counter is updated only if [f] succeeds. *)
+    val with_allocator : (alloc:(unit -> var) -> 'a Or_error.t) -> 'a t
   end
 
   module Label : sig

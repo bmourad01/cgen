@@ -49,7 +49,7 @@ module type S = sig
   val map_of_insns : t -> insn Label.Tree.t
 
   (** Returns the the set of free variables in the block. *)
-  val free_vars : t -> Var.Set.t
+  val free_vars : t -> Var.Tree_set.t
 
   (** [uses_var b x] returns [true] if the variable [x] appears in the
       free variables of [b].

@@ -66,13 +66,13 @@ end = struct
     fixpoint Lset.empty
 
   let needs_arg env st l x =
-    Set.mem (Live.ins env.live l) x &&
+    Var.Tree_set.mem (Live.ins env.live l) x &&
     not (has_arg st l x)
 
   let insert_blk_args env st =
-    Live.fold env.live ~init:Var.Set.empty
-      ~f:(fun u _ v -> Set.union u v) |>
-    Set.iter ~f:(fun x ->
+    Live.fold env.live ~init:Var.Tree_set.empty
+      ~f:(fun u _ v -> Var.Tree_set.union u v) |>
+    Var.Tree_set.iter ~f:(fun x ->
         blocks_that_define_var st x |>
         iterated_frontier env.df |>
         Lset.iter ~f:(fun l ->

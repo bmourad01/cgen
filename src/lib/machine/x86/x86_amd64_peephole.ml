@@ -99,8 +99,10 @@ let jump_threading changed fn =
             | insn -> insn))
   else fn
 
+let not_pseudo i = not @@ is_pseudo @@ Insn.insn i
+
 let is_merge_candidate cfg b1 b2 =
-  match Seq.hd @@ Blk.insns ~rev:true b1 with
+  match Blk.insns b1 ~rev:true |> Seq.find ~f:not_pseudo with
   | Some i when is_barrier (Insn.insn i) -> false
   | Some _ | None ->
     let l1 = Blk.label b1 and l2 = Blk.label b2 in Seq.(
@@ -111,7 +113,7 @@ let is_merge_candidate cfg b1 b2 =
    find m l = Some None ==> delete
    find m l = Some (Some b) ==> replace *)
 let collect_merge_blks fn =
-  let cfg = Cfg.create ~is_barrier ~dests fn in
+  let cfg = Cfg.create ~is_barrier ~is_pseudo ~dests fn in
   let rec go m = function
     | [] | [_] -> m
     | b1 :: b2 :: rest  when is_merge_candidate cfg b1 b2 ->
@@ -136,7 +138,7 @@ let merge_blks changed fn =
 (* Remove blocks that are not reachable from the entry block. *)
 let remove_disjoint changed fn =
   let reachable = with_return @@ fun {return} ->
-    let cfg = Cfg.create ~is_barrier ~dests fn in
+    let cfg = Cfg.create ~is_barrier ~is_pseudo ~dests fn in
     let start = Func.entry fn in
     Graphlib.depth_first_search (module Cfg) cfg ~start
       ~init:Lset.empty

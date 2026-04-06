@@ -1,24 +1,24 @@
 module sumphi
 
-function $sum(l %s/rdi) {
-  %p = slot 8, align 8
+function $sum(l %1/rdi) {
+  %0 = slot 8, align 8
 @2:
-  st.l %s, %p ; @22
-  %a.1 = ld.w %p ; @4
-  %0 = add.l %p, 0x4_l ; @19
-  %b.1 = ld.w %0 ; @6
-  %1 = add.w %a.1, %b.1 ; @20
-  ret rax/%1
+  st.l %1, %0 ; @22
+  %14 = ld.w %0 ; @4
+  %23 = add.l %0, 0x4_l ; @19
+  %16 = ld.w %23 ; @6
+  %24 = add.w %14, %16 ; @20
+  ret rax/%24
 }
 
-export function $sumphi(l %a/rdi, l %b/rsi, w %x/rdx) {
+export function $sumphi(l %8/rdi, l %9/rsi, w %11/rdx) {
 @8:
-  %2.1 = slt.w %x, 0x0_w ; @21
-  br %2.1, @9, @10
+  %42 = slt.w %11, 0x0_w ; @21
+  br %42, @9, @10
 @9:
-  jmp @14(%a)
+  jmp @14(%8)
 @10:
-  jmp @14(%b)
-@14(%rb.3):
-  tailcall $sum(%rb.3/rdi)
+  jmp @14(%9)
+@14(%43):
+  tailcall $sum(%43/rdi)
 }

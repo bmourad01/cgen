@@ -6,6 +6,8 @@ let (@.) = Fn.compose
 let (@<) = Fn.flip
 
 module Slot = Virtual.Slot
+module Vtree = Var.Tree
+module Vset = Var.Tree_set
 
 (* A scalar access. *)
 module Scalar = struct
@@ -47,29 +49,28 @@ module Value = struct
     | _ -> Top
 end
 
-type slots = Slot.t Var.Map.t
+type slots = Slot.t Vtree.t
 
 module State : sig
-  type t = value Var.Map.t [@@deriving equal, sexp]
+  type t = value Vtree.t [@@deriving equal]
   val empty : t
   val merge : t -> t -> t
   val derive : slots -> t -> Var.t -> int64 -> value option
 end = struct
   (* NB: the keys are the LHS of a given instruction *)
-  type t = value Var.Map.t [@@deriving equal, sexp]
+  type t = value Vtree.t [@@deriving equal]
 
-  let empty = Var.Map.empty
+  let empty = Vtree.empty
 
-  let merge a b = Map.merge_skewed a b
-      ~combine:(fun ~key:_ a b -> Value.merge a b)
+  let merge a b = Vtree.merge a b ~f:(fun ~key:_ -> Value.merge)
 
   let is_bad slots ptr offset =
-    Int64.(offset < 0L) || match Map.find slots ptr with
+    Int64.(offset < 0L) || match Vtree.find slots ptr with
     | Some s -> Int64.(offset >= of_int (Slot.size s))
     | None -> false
 
   (* Normalize the scalar referred to by `ptr` and `offset`. *)
-  let derive slots s ptr offset = match Map.find s ptr with
+  let derive slots s ptr offset = match Vtree.find s ptr with
     | (Some Top | None) as v -> v
     | Some Offset (ptr', offset') ->
       let offset'' = Int64.(offset + offset') in
@@ -80,13 +81,13 @@ end = struct
       Some value
 end
 
-type state = State.t [@@deriving equal, sexp]
+type state = State.t [@@deriving equal]
 
 let pp_state ppf s =
   let pp_sep ppf () = Format.fprintf ppf "@ " in
   let pp_elt ppf (x, v) = Format.fprintf ppf "(%a@ %a)" Var.pp x pp_value v in
   let pp_elts = Format.pp_print_list ~pp_sep pp_elt in
-  Format.fprintf ppf "@[<hov 0>%a@]" pp_elts @@ Map.to_alist s
+  Format.fprintf ppf "@[<hov 0>%a@]" pp_elts @@ Vtree.to_list s
 [@@ocaml.warning "-32"]
 
 type solution = (Label.t, state) Solution.t
@@ -115,11 +116,11 @@ module type L = sig
     val label : t -> Label.t
 
     (* Used during analysis. *)
-    val lhs : op -> Var.Set.t
+    val lhs : op -> Vset.t
     val offset : op -> scalar option
     val copy_of : op -> Var.t option
-    val free_vars : op -> Var.Set.t
-    val escapes : op -> Var.Set.t
+    val free_vars : op -> Vset.t
+    val escapes : op -> Vset.t
 
     (* Used during replacement. *)
     val load_or_store_to : op -> (Var.t * Type.basic * load_or_store) option
@@ -130,8 +131,8 @@ module type L = sig
 
   module Ctrl : sig
     type t
-    val free_vars : t -> Var.Set.t
-    val escapes : t -> Var.Set.t
+    val free_vars : t -> Vset.t
+    val escapes : t -> Vset.t
     val locals : t -> (Label.t * Virtual.operand list) list
   end
 
@@ -173,8 +174,8 @@ module Make(M : L) = struct
   (* Set all known scalars to `Top` according to `f`, which is the
      set of variables that escape. *)
   let escaping ?esc f x s =
-    Set.fold (f x) ~init:s ~f:(fun s v ->
-        match Map.find s v with
+    Vset.fold (f x) ~init:s ~f:(fun s v ->
+        match Vtree.find s v with
         | Some Offset (ptr, _) ->
           Option.iter esc ~f:(fun t ->
               Hash_set.strict_add t ptr |>
@@ -182,27 +183,27 @@ module Make(M : L) = struct
                   Logs.debug (fun m ->
                       m "%s: %a escapes via %a%!"
                         __FUNCTION__ Var.pp ptr Var.pp v)));
-          Map.set s ~key:ptr ~data:Top
+          Vtree.set s ~key:ptr ~data:Top
         | Some _ | None -> s)
 
   (* Transfer function for a single instruction. *)
   let transfer_op ?esc slots s op =
     let value = match Insn.offset op with
       | Some (ptr, offset) -> State.derive slots s ptr offset
-      | None -> Insn.copy_of op |> Option.bind ~f:(Map.find s) in
+      | None -> Insn.copy_of op |> Option.bind ~f:(Vtree.find s) in
     let s = match value with
       | None -> s
       | Some v ->
-        Insn.lhs op |> Set.fold ~init:s
-          ~f:(fun s key -> Map.set s ~key ~data:v) in
+        Insn.lhs op |> Vset.fold ~init:s
+          ~f:(fun s key -> Vtree.set s ~key ~data:v) in
     escaping ?esc Insn.escapes op s
 
   let merge_blkarg acc src dst = match src with
     | `var src when Var.(src = dst) -> acc
     | `var src ->
-      begin match Map.find acc src with
+      begin match Vtree.find acc src with
         | None -> acc
-        | Some v -> Map.update acc dst ~f:(function
+        | Some v -> Vtree.update acc dst ~f:(function
             | Some v' -> Value.merge v v'
             | None -> v)
       end
@@ -243,14 +244,19 @@ module Make(M : L) = struct
   (* Initial constraints. *)
   let initialize slots _blks =
     (* Set all slots to point to their own base address. *)
-    let init = Map.mapi slots ~f:(fun ~key ~data:_ -> Offset (key, 0L)) in
+    let init =
+      Vtree.fold slots
+        ~init:Vtree.empty
+        ~f:(fun ~key ~data:_ acc ->
+            let data = Offset (key, 0L) in
+            Vtree.set acc ~key ~data) in
     Label.Map.singleton Label.pseudoentry init |>
     Solution.create @< State.empty
   [@@specialise]
 
   (* All slots mapped to their names. *)
-  let collect_slots fn = Func.slots fn |> Seq.fold ~init:Var.Map.empty
-      ~f:(fun acc s -> Map.set acc ~key:(Slot.var s) ~data:s)
+  let collect_slots fn = Func.slots fn |> Seq.fold ~init:Vtree.empty
+      ~f:(fun acc s -> Vtree.set acc ~key:(Slot.var s) ~data:s)
 
   (* Run the dataflow analysis. *)
   let analyze ?(blkparam = true) cfg blks slots =

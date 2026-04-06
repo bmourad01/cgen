@@ -1042,7 +1042,7 @@ module Insn = struct
     | RET
     | One (CALLtail _, _)
       -> true
-    | i -> is_pseudo i
+    | _ -> false
 
   module I = struct
     let add a b = Two (ADD, a, b)

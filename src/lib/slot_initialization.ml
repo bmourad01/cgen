@@ -3,6 +3,7 @@ open Regular.Std
 open Graphlib.Std
 
 module Slot = Virtual.Slot
+module Vtree = Var.Tree
 
 type interval = {
   lo : int;
@@ -33,17 +34,17 @@ module Tree = Interval_tree.Make(Interval)
 
 (* For each slot, we have a set of intervals corresponding to
    relative byte offsets that were initialized by a store. *)
-type state = unit Tree.t Var.Map.t
+type state = unit Tree.t Vtree.t
 
 let equal_state s1 s2 =
-  Map.equal (fun t1 t2 ->
+  Vtree.equal (fun t1 t2 ->
       Seq.equal (fun (i1, _) (i2, _) ->
           Interval.compare i1 i2 = 0)
         (Tree.to_sequence t1)
         (Tree.to_sequence t2))
     s1 s2
 
-let empty_state : state = Var.Map.empty
+let empty_state : state = Vtree.empty
 
 (* Starting constraint has the entry block with no incoming
    initializations. *)
@@ -52,9 +53,9 @@ let init_constraints : state Label.Map.t =
 
 (* Our top element, which is every slot having been initialized. *)
 let top_state slots : state =
-  Map.map slots ~f:(fun s ->
+  Vtree.fold slots ~init:Vtree.empty ~f:(fun ~key ~data:s acc ->
       let i = {lo = 0; hi = Slot.size s - 1} in
-      Tree.singleton i ())
+      Vtree.set acc ~key ~data:(Tree.singleton i ()))
 
 (* Coalesce `i` with any overlapping or adjacent intervals in `t`. *)
 let normalize_add t i =
@@ -77,9 +78,10 @@ let merge_tree t1 t2 =
 (* Since this is a "must" forward-flow analysis, incoming
    predecessor states must intersect. *)
 let merge_state s1 s2 =
-  Map.merge s1 s2 ~f:(fun ~key:_ -> function
-      | `Both (t1, t2) -> Some (merge_tree t1 t2)
-      | `Left _ | `Right _ -> None)
+  Vtree.fold s1 ~init:Vtree.empty
+    ~f:(fun ~key ~data:t1 acc -> match Vtree.find s2 key with
+        | Some t2 -> Vtree.set acc ~key ~data:(merge_tree t1 t2)
+        | None -> acc)
 
 type solution = (Label.t, state) Solution.t
 
@@ -91,14 +93,14 @@ type t = {
 (* If the slot is not always initialized by the
    time we reach the load, then we have UB. *)
 let is_uninitialized acc base off ty =
-  match Map.find acc base with
+  match Vtree.find acc base with
   | None -> true
   | Some t ->
     let i = Interval.from_access off ty in
     not (Tree.dominates t i)
 
 let transfer_store esc acc ptr ty (s : Scalars.state) =
-  match Map.find s ptr with
+  match Vtree.find s ptr with
   | Some Offset (base, off) ->
     (* If `base` ever escaped, then don't ever consider
        it initialized. *)
@@ -109,14 +111,14 @@ let transfer_store esc acc ptr ty (s : Scalars.state) =
       acc
     else
       let i = Interval.from_access off ty in
-      Map.update acc base ~f:(function
+      Vtree.update acc base ~f:(function
           | None -> Tree.singleton i ()
           | Some t when Tree.dominates t i -> t
           | Some t -> normalize_add t i)
   | _ -> acc
 
 let transfer_load bad acc l ptr ty (s : Scalars.state) =
-  match Map.find s ptr with
+  match Vtree.find s ptr with
   | Some Offset (base, off) ->
     if is_uninitialized acc base off ty then
       Hash_set.add bad l;
@@ -134,7 +136,7 @@ let debug_dump blks bad s =
             Format.fprintf ppf "%a:%s" Var.pp x in
           m "%s: %a: incoming must-initialize: %s%!"
             __FUNCTION__ Label.pp key
-            (Map.to_alist s |>
+            (Vtree.to_list s |>
              List.to_string ~f:(Format.asprintf "%a" pp_tree))));
   Logs.debug (fun m ->
       Hash_set.iter bad ~f:(fun l ->

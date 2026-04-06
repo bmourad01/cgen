@@ -13,6 +13,7 @@ open Regular.Std
 open Scalars
 
 module Slot = Virtual.Slot
+module Vtree = Var.Tree
 module Allen = Allen_interval_algebra
 
 type range = {
@@ -44,7 +45,7 @@ type 'a partition = {
   mems : 'a list;
 }
 
-type 'a partitions = 'a partition list Var.Map.t
+type 'a partitions = 'a partition list Vtree.t
 
 module Partition = struct
   type 'a t = 'a partition
@@ -89,7 +90,7 @@ end = struct
     ldst : load_or_store;
   }
 
-  type accesses = access list Var.Map.t
+  type accesses = access list Vtree.t
 
   module Access = struct
     type t = access [@@ocaml.warning "-34"]
@@ -118,26 +119,29 @@ end = struct
 
   let collect_accesses slots fn t : accesses =
     (* Group all memory accesses by their corresponding slot. *)
-    Func.blks fn |> Seq.fold ~init:Var.Map.empty ~f:(fun init b ->
-        let s = ref @@ get t @@ Blk.label b in
-        Blk.insns b |> Seq.fold ~init ~f:(fun acc insn ->
-            let op = Insn.op insn in
-            let acc = match Insn.load_or_store_to op with
-              | None -> acc
-              | Some (ptr, ty, ldst) -> match Map.find !s ptr with
-                | Some Offset (base, _) when escaped t base ->
-                  (* Any slot that escaped at any time should not
-                     be considered for partitioning. *)
-                  Logs.debug (fun m ->
-                      m "%s: ignoring escaped pointer %a%!"
-                        __FUNCTION__ Var.pp base);
-                  acc
-                | Some Offset (base, off) ->
-                  Map.add_multi acc ~key:base ~data:{insn; off; ty; ldst}
-                | _ -> acc in
-            s := Analysis.transfer_op slots !s op;
-            acc)) |>
-    Map.map ~f:(List.sort ~compare:Access.cmp)
+    let t =
+      Func.blks fn |> Seq.fold ~init:Vtree.empty ~f:(fun init b ->
+          let s = ref @@ get t @@ Blk.label b in
+          Blk.insns b |> Seq.fold ~init ~f:(fun acc insn ->
+              let op = Insn.op insn in
+              let acc = match Insn.load_or_store_to op with
+                | None -> acc
+                | Some (ptr, ty, ldst) -> match Vtree.find !s ptr with
+                  | Some Offset (base, _) when escaped t base ->
+                    (* Any slot that escaped at any time should not
+                       be considered for partitioning. *)
+                    Logs.debug (fun m ->
+                        m "%s: ignoring escaped pointer %a%!"
+                          __FUNCTION__ Var.pp base);
+                    acc
+                  | Some Offset (base, off) ->
+                    Vtree.add_multi acc ~key:base ~data:{insn; off; ty; ldst}
+                  | _ -> acc in
+              s := Analysis.transfer_op slots !s op;
+              acc)) in
+    Vtree.fold t ~init:Vtree.empty ~f:(fun ~key ~data acc ->
+        let data = List.sort data ~compare:Access.cmp in
+        Vtree.set acc ~key ~data)
 
   (* Sort the memory accesses into self-contained, non-overlapping
      partitions, which are the fully-or-partially scalarized sub-objects
@@ -171,17 +175,19 @@ end = struct
               __FUNCTION__ Range.pp rc Range.pp rx Allen.pp a);
         merge acc p xs in
     (* pre: each access list is sorted *)
-    Map.filter_map m ~f:(function
-        | [] -> None
-        | x :: xs ->
-          let sx = Int64.of_int @@ Access.sizeof x in
-          let p = Partition.singleton x.off sx x in
-          Some (merge [] p xs))
+    Vtree.fold m
+      ~init:Vtree.empty
+      ~f:(fun ~key ~data acc -> match data with
+          | [] -> acc
+          | x :: xs ->
+            let sx = Int64.of_int @@ Access.sizeof x in
+            let p = Partition.singleton x.off sx x in
+            Vtree.set acc ~key ~data:(merge [] p xs))
 
   (* Turn each partition into a concrete slot. *)
   let materialize_partitions slots parts : scalars Context.t =
-    Map.to_sequence parts |> Seq.filter_map ~f:(fun (base, ps) ->
-        Map.find slots base |> Option.map ~f:(fun s -> base, ps, s)) |>
+    Vtree.to_sequence parts |> Seq.filter_map ~f:(fun (base, ps) ->
+        Vtree.find slots base |> Option.map ~f:(fun s -> base, ps, s)) |>
     Context.Seq.fold ~init:Scalar.Map.empty ~f:(fun init (base, ps, s) ->
         Seq.of_list ps |> Seq.filter ~f:(not @. Partition.is_entire_slot s) |>
         Context.Seq.fold ~init ~f:(fun acc p ->
@@ -200,7 +206,7 @@ end = struct
 
   (* Find the corresponding partition for [base+off, base+off+size). *)
   let find_partition (parts : 'a partitions) base off size =
-    Map.find parts base |> Option.bind ~f:(fun ps ->
+    Vtree.find parts base |> Option.bind ~f:(fun ps ->
         let r = {lo = off; hi = Int64.(off + of_int size)} in
         List.find ps ~f:(fun (p : 'a partition) ->
             let rp = Partition.range p in
@@ -270,7 +276,7 @@ end = struct
     | None -> !![i]
     | Some (ptr, ty, ldst) ->
       debug_show_insn i ptr ty ldst;
-      match Map.find s ptr with
+      match Vtree.find s ptr with
       | (Some Top | None) as v ->
         debug_show_bad_val ptr v;
         !![i]
@@ -309,7 +315,7 @@ end = struct
                      (fun ppf -> Format.fprintf ppf "  %a"
                          (Partition.pp Access.pp)))
                   data))
-          (Map.to_alist parts))
+          (Vtree.to_list parts))
 
   (* XXX: allowing the analysis to propagate through block parameters
      could possibly be done, but the current transformation isn't
@@ -326,13 +332,13 @@ end = struct
   let run fn =
     let open Context.Syntax in
     let slots = Analysis.collect_slots fn in
-    if Map.is_empty slots then !!fn else
+    if Vtree.is_empty slots then !!fn else
       let cfg = Cfg.create fn in
       let blks = Func.map_of_blks fn in
       let t = analyze cfg blks slots in
       let accs = collect_accesses slots fn t in
       let parts = partition_acesses accs in
-      if Map.is_empty parts then !!fn else
+      if Vtree.is_empty parts then !!fn else
         let () = debug_show_parts parts in
         let* m = materialize_partitions slots parts in
         if Map.is_empty m then !!fn else

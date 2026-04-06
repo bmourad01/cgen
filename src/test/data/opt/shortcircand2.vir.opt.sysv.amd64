@@ -2,26 +2,26 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %a:l, rdi ; @17
-  mov %i:l, rsi ; @41
-  cmp %i:l, 0x3_l ; @38
+  mov %5:l, rdi ; @17
+  mov %1:l, rsi ; @41
+  cmp %1:l, 0x3_l ; @38
   jl @3 ; @39
   jmp @22 ; @40
 @22:
-  mov %0:w, 0xffffffff_w ; @36
+  mov %17:w, 0xffffffff_w ; @36
   jmp @16 ; @37
 @3:
-  test %i:l, %i:l ; @31
+  test %1:l, %1:l ; @31
   jns @10 ; @32
   jmp @23 ; @33
 @23:
-  mov %0:w, 0xffffffff_w ; @29
+  mov %17:w, 0xffffffff_w ; @29
   jmp @16 ; @30
 @10:
-  mov %v.1:w, dword ptr [%a + %i*4] ; @15
-  mov %0:w, %v.1:w ; @26
+  mov %14:w, dword ptr [%5 + %1*4] ; @15
+  mov %17:w, %14:w ; @26
   jmp @16 ; @27
 @16:
-  mov eax, %0:w ; @24
+  mov eax, %17:w ; @24
   ret ; @25
 }

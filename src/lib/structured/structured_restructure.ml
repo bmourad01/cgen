@@ -219,7 +219,7 @@ let find_single_use_cond t n =
       | `bop (x, (#Insn.cmp as k), l, r) ->
         let* () = O.guard Var.(x = c) in
         let out = Live.outs t.live n in
-        let+ () = O.guard @@ not @@ Set.mem out x in
+        let+ () = O.guard @@ not @@ Var.Tree_set.mem out x in
         Insn.label i, `cmp (k, l, r)
       | _ -> None
     end

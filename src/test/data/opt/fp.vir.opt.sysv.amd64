@@ -2,181 +2,181 @@ module fp
 
 export function $fadd_f32 { ; returns: xmm0
 @2:
-  movss %x:s, xmm0 ; @242
-  movss %y:s, xmm1 ; @402
-  movss %12:s, %x:s ; @403
-  addss %12:s, %y:s ; @404
-  movss xmm0, %12:s ; @400
+  movss %1:s, xmm0 ; @242
+  movss %2:s, xmm1 ; @402
+  movss %380:s, %1:s ; @403
+  addss %380:s, %2:s ; @404
+  movss xmm0, %380:s ; @400
   ret ; @401
 }
 
 export function $fadd_f64 { ; returns: xmm0
 @4:
-  movsd %x:d, xmm0 ; @243
-  movsd %y:d, xmm1 ; @407
-  movsd %13:d, %x:d ; @408
-  addsd %13:d, %y:d ; @409
-  movsd xmm0, %13:d ; @405
+  movsd %4:d, xmm0 ; @243
+  movsd %5:d, xmm1 ; @407
+  movsd %381:d, %4:d ; @408
+  addsd %381:d, %5:d ; @409
+  movsd xmm0, %381:d ; @405
   ret ; @406
 }
 
 export function $fsub_f32 { ; returns: xmm0
 @6:
-  movss %x:s, xmm0 ; @244
-  movss %y:s, xmm1 ; @412
-  movss %14:s, %x:s ; @413
-  subss %14:s, %y:s ; @414
-  movss xmm0, %14:s ; @410
+  movss %7:s, xmm0 ; @244
+  movss %8:s, xmm1 ; @412
+  movss %382:s, %7:s ; @413
+  subss %382:s, %8:s ; @414
+  movss xmm0, %382:s ; @410
   ret ; @411
 }
 
 export function $fsub_f64 { ; returns: xmm0
 @8:
-  movsd %x:d, xmm0 ; @245
-  movsd %y:d, xmm1 ; @417
-  movsd %15:d, %x:d ; @418
-  subsd %15:d, %y:d ; @419
-  movsd xmm0, %15:d ; @415
+  movsd %10:d, xmm0 ; @245
+  movsd %11:d, xmm1 ; @417
+  movsd %383:d, %10:d ; @418
+  subsd %383:d, %11:d ; @419
+  movsd xmm0, %383:d ; @415
   ret ; @416
 }
 
 export function $fmul_f32 { ; returns: xmm0
 @10:
-  movss %x:s, xmm0 ; @246
-  movss %y:s, xmm1 ; @422
-  movss %16:s, %x:s ; @423
-  mulss %16:s, %y:s ; @424
-  movss xmm0, %16:s ; @420
+  movss %13:s, xmm0 ; @246
+  movss %14:s, xmm1 ; @422
+  movss %384:s, %13:s ; @423
+  mulss %384:s, %14:s ; @424
+  movss xmm0, %384:s ; @420
   ret ; @421
 }
 
 export function $fmul_f64 { ; returns: xmm0
 @12:
-  movsd %x:d, xmm0 ; @247
-  movsd %y:d, xmm1 ; @427
-  movsd %17:d, %x:d ; @428
-  mulsd %17:d, %y:d ; @429
-  movsd xmm0, %17:d ; @425
+  movsd %16:d, xmm0 ; @247
+  movsd %17:d, xmm1 ; @427
+  movsd %385:d, %16:d ; @428
+  mulsd %385:d, %17:d ; @429
+  movsd xmm0, %385:d ; @425
   ret ; @426
 }
 
 export function $fdiv_f32 { ; returns: xmm0
 @14:
-  movss %x:s, xmm0 ; @248
-  movss %y:s, xmm1 ; @432
-  movss %18:s, %x:s ; @433
-  divss %18:s, %y:s ; @434
-  movss xmm0, %18:s ; @430
+  movss %19:s, xmm0 ; @248
+  movss %20:s, xmm1 ; @432
+  movss %386:s, %19:s ; @433
+  divss %386:s, %20:s ; @434
+  movss xmm0, %386:s ; @430
   ret ; @431
 }
 
 export function $fdiv_f64 { ; returns: xmm0
 @16:
-  movsd %x:d, xmm0 ; @249
-  movsd %y:d, xmm1 ; @437
-  movsd %19:d, %x:d ; @438
-  divsd %19:d, %y:d ; @439
-  movsd xmm0, %19:d ; @435
+  movsd %22:d, xmm0 ; @249
+  movsd %23:d, xmm1 ; @437
+  movsd %387:d, %22:d ; @438
+  divsd %387:d, %23:d ; @439
+  movsd xmm0, %387:d ; @435
   ret ; @436
 }
 
 export function $fneg_f32 { ; returns: xmm0
 @18:
-  movss %x:s, xmm0 ; @250
-  movss %20:s, %x:s ; @443
-  xorps %20:s, xmmword ptr [rip + @442] ; @444
+  movss %25:s, xmm0 ; @250
+  movss %388:s, %25:s ; @443
+  xorps %388:s, xmmword ptr [rip + @442] ; @444
   .fp32v @442, -0 ; @445
-  movss xmm0, %20:s ; @440
+  movss xmm0, %388:s ; @440
   ret ; @441
 }
 
 export function $fneg_f64 { ; returns: xmm0
 @20:
-  movsd %x:d, xmm0 ; @251
-  movsd %21:d, %x:d ; @449
-  xorpd %21:d, xmmword ptr [rip + @448] ; @450
+  movsd %27:d, xmm0 ; @251
+  movsd %389:d, %27:d ; @449
+  xorpd %389:d, xmmword ptr [rip + @448] ; @450
   .fp64v @448, -0. ; @451
-  movsd xmm0, %21:d ; @446
+  movsd xmm0, %389:d ; @446
   ret ; @447
 }
 
 export function $fadd_f32_const { ; returns: xmm0
 @22:
-  movss %x:s, xmm0 ; @252
-  movss %22:s, %x:s ; @455
-  addss %22:s, dword ptr [rip + @454] ; @456
+  movss %29:s, xmm0 ; @252
+  movss %390:s, %29:s ; @455
+  addss %390:s, dword ptr [rip + @454] ; @456
   .fp32 @454, 1.5 ; @457
-  movss xmm0, %22:s ; @452
+  movss xmm0, %390:s ; @452
   ret ; @453
 }
 
 export function $fadd_f64_const { ; returns: xmm0
 @24:
-  movsd %x:d, xmm0 ; @253
-  movsd %23:d, %x:d ; @461
-  addsd %23:d, qword ptr [rip + @460] ; @462
+  movsd %31:d, xmm0 ; @253
+  movsd %391:d, %31:d ; @461
+  addsd %391:d, qword ptr [rip + @460] ; @462
   .fp64 @460, 1.5 ; @463
-  movsd xmm0, %23:d ; @458
+  movsd xmm0, %391:d ; @458
   ret ; @459
 }
 
 export function $fsub_f32_const { ; returns: xmm0
 @26:
-  movss %x:s, xmm0 ; @254
-  movss %24:s, %x:s ; @467
-  subss %24:s, dword ptr [rip + @466] ; @468
+  movss %33:s, xmm0 ; @254
+  movss %392:s, %33:s ; @467
+  subss %392:s, dword ptr [rip + @466] ; @468
   .fp32 @466, 1.5 ; @469
-  movss xmm0, %24:s ; @464
+  movss xmm0, %392:s ; @464
   ret ; @465
 }
 
 export function $fsub_f64_const { ; returns: xmm0
 @28:
-  movsd %x:d, xmm0 ; @255
-  movsd %25:d, %x:d ; @473
-  subsd %25:d, qword ptr [rip + @472] ; @474
+  movsd %35:d, xmm0 ; @255
+  movsd %393:d, %35:d ; @473
+  subsd %393:d, qword ptr [rip + @472] ; @474
   .fp64 @472, 1.5 ; @475
-  movsd xmm0, %25:d ; @470
+  movsd xmm0, %393:d ; @470
   ret ; @471
 }
 
 export function $fmul_f32_const { ; returns: xmm0
 @30:
-  movss %x:s, xmm0 ; @256
-  movss %26:s, %x:s ; @479
-  mulss %26:s, dword ptr [rip + @478] ; @480
+  movss %37:s, xmm0 ; @256
+  movss %394:s, %37:s ; @479
+  mulss %394:s, dword ptr [rip + @478] ; @480
   .fp32 @478, 2 ; @481
-  movss xmm0, %26:s ; @476
+  movss xmm0, %394:s ; @476
   ret ; @477
 }
 
 export function $fmul_f64_const { ; returns: xmm0
 @32:
-  movsd %x:d, xmm0 ; @257
-  movsd %27:d, %x:d ; @485
-  mulsd %27:d, qword ptr [rip + @484] ; @486
+  movsd %39:d, xmm0 ; @257
+  movsd %395:d, %39:d ; @485
+  mulsd %395:d, qword ptr [rip + @484] ; @486
   .fp64 @484, 2. ; @487
-  movsd xmm0, %27:d ; @482
+  movsd xmm0, %395:d ; @482
   ret ; @483
 }
 
 export function $fdiv_f32_const { ; returns: xmm0
 @34:
-  movss %x:s, xmm0 ; @258
-  movss %28:s, %x:s ; @491
-  divss %28:s, dword ptr [rip + @490] ; @492
+  movss %41:s, xmm0 ; @258
+  movss %396:s, %41:s ; @491
+  divss %396:s, dword ptr [rip + @490] ; @492
   .fp32 @490, 2 ; @493
-  movss xmm0, %28:s ; @488
+  movss xmm0, %396:s ; @488
   ret ; @489
 }
 
 export function $fdiv_f64_const { ; returns: xmm0
 @36:
-  movsd %x:d, xmm0 ; @259
-  movsd %29:d, %x:d ; @497
-  divsd %29:d, qword ptr [rip + @496] ; @498
+  movsd %43:d, xmm0 ; @259
+  movsd %397:d, %43:d ; @497
+  divsd %397:d, qword ptr [rip + @496] ; @498
   .fp64 @496, 2. ; @499
-  movsd xmm0, %29:d ; @494
+  movsd xmm0, %397:d ; @494
   ret ; @495
 }
 
@@ -196,845 +196,845 @@ export function $fneg_f64_const { ; returns: xmm0
 
 export function $fadd_f32_const_lhs { ; returns: xmm0
 @42:
-  movss %x:s, xmm0 ; @260
-  movss %30:s, %x:s ; @511
-  addss %30:s, dword ptr [rip + @510] ; @512
+  movss %47:s, xmm0 ; @260
+  movss %398:s, %47:s ; @511
+  addss %398:s, dword ptr [rip + @510] ; @512
   .fp32 @510, 1.5 ; @513
-  movss xmm0, %30:s ; @508
+  movss xmm0, %398:s ; @508
   ret ; @509
 }
 
 export function $fadd_f64_const_lhs { ; returns: xmm0
 @44:
-  movsd %x:d, xmm0 ; @261
-  movsd %31:d, %x:d ; @517
-  addsd %31:d, qword ptr [rip + @516] ; @518
+  movsd %49:d, xmm0 ; @261
+  movsd %399:d, %49:d ; @517
+  addsd %399:d, qword ptr [rip + @516] ; @518
   .fp64 @516, 1.5 ; @519
-  movsd xmm0, %31:d ; @514
+  movsd xmm0, %399:d ; @514
   ret ; @515
 }
 
 export function $fsub_f32_const_lhs { ; returns: xmm0
 @46:
-  movss %x:s, xmm0 ; @262
-  movss %32:s, dword ptr [rip + @522] ; @523
-  subss %32:s, %x:s ; @524
+  movss %51:s, xmm0 ; @262
+  movss %400:s, dword ptr [rip + @522] ; @523
+  subss %400:s, %51:s ; @524
   .fp32 @522, 1.5 ; @525
-  movss xmm0, %32:s ; @520
+  movss xmm0, %400:s ; @520
   ret ; @521
 }
 
 export function $fsub_f64_const_lhs { ; returns: xmm0
 @48:
-  movsd %x:d, xmm0 ; @263
-  movsd %33:d, qword ptr [rip + @528] ; @529
-  subsd %33:d, %x:d ; @530
+  movsd %53:d, xmm0 ; @263
+  movsd %401:d, qword ptr [rip + @528] ; @529
+  subsd %401:d, %53:d ; @530
   .fp64 @528, 1.5 ; @531
-  movsd xmm0, %33:d ; @526
+  movsd xmm0, %401:d ; @526
   ret ; @527
 }
 
 export function $fmul_f32_const_lhs { ; returns: xmm0
 @50:
-  movss %x:s, xmm0 ; @264
-  movss %34:s, %x:s ; @535
-  mulss %34:s, dword ptr [rip + @534] ; @536
+  movss %55:s, xmm0 ; @264
+  movss %402:s, %55:s ; @535
+  mulss %402:s, dword ptr [rip + @534] ; @536
   .fp32 @534, 2 ; @537
-  movss xmm0, %34:s ; @532
+  movss xmm0, %402:s ; @532
   ret ; @533
 }
 
 export function $fmul_f64_const_lhs { ; returns: xmm0
 @52:
-  movsd %x:d, xmm0 ; @265
-  movsd %35:d, %x:d ; @541
-  mulsd %35:d, qword ptr [rip + @540] ; @542
+  movsd %57:d, xmm0 ; @265
+  movsd %403:d, %57:d ; @541
+  mulsd %403:d, qword ptr [rip + @540] ; @542
   .fp64 @540, 2. ; @543
-  movsd xmm0, %35:d ; @538
+  movsd xmm0, %403:d ; @538
   ret ; @539
 }
 
 export function $fdiv_f32_const_lhs { ; returns: xmm0
 @54:
-  movss %x:s, xmm0 ; @266
-  movss %36:s, dword ptr [rip + @546] ; @547
-  divss %36:s, %x:s ; @548
+  movss %59:s, xmm0 ; @266
+  movss %404:s, dword ptr [rip + @546] ; @547
+  divss %404:s, %59:s ; @548
   .fp32 @546, 2 ; @549
-  movss xmm0, %36:s ; @544
+  movss xmm0, %404:s ; @544
   ret ; @545
 }
 
 export function $fdiv_f64_const_lhs { ; returns: xmm0
 @56:
-  movsd %x:d, xmm0 ; @267
-  movsd %37:d, qword ptr [rip + @552] ; @553
-  divsd %37:d, %x:d ; @554
+  movsd %61:d, xmm0 ; @267
+  movsd %405:d, qword ptr [rip + @552] ; @553
+  divsd %405:d, %61:d ; @554
   .fp64 @552, 2. ; @555
-  movsd xmm0, %37:d ; @550
+  movsd xmm0, %405:d ; @550
   ret ; @551
 }
 
 export function $flt_f32 { ; returns: rax
 @58:
-  movss %x:s, xmm0 ; @268
-  movss %y:s, xmm1 ; @558
-  xor %38:w, %38:w ; @559
-  ucomiss %x:s, %y:s ; @560
-  setb %38:b ; @561
-  mov %39:w, %38:w ; @269
-  mov eax, %39:w ; @556
+  movss %63:s, xmm0 ; @268
+  movss %64:s, xmm1 ; @558
+  xor %406:w, %406:w ; @559
+  ucomiss %63:s, %64:s ; @560
+  setb %406:b ; @561
+  mov %407:w, %406:w ; @269
+  mov eax, %407:w ; @556
   ret ; @557
 }
 
 export function $flt_f64 { ; returns: rax
 @61:
-  movsd %x:d, xmm0 ; @270
-  movsd %y:d, xmm1 ; @564
-  xor %40:w, %40:w ; @565
-  ucomisd %x:d, %y:d ; @566
-  setb %40:b ; @567
-  mov %41:w, %40:w ; @271
-  mov eax, %41:w ; @562
+  movsd %67:d, xmm0 ; @270
+  movsd %68:d, xmm1 ; @564
+  xor %408:w, %408:w ; @565
+  ucomisd %67:d, %68:d ; @566
+  setb %408:b ; @567
+  mov %409:w, %408:w ; @271
+  mov eax, %409:w ; @562
   ret ; @563
 }
 
 export function $fle_f32 { ; returns: rax
 @64:
-  movss %x:s, xmm0 ; @272
-  movss %y:s, xmm1 ; @570
-  xor %42:w, %42:w ; @571
-  ucomiss %x:s, %y:s ; @572
-  setbe %42:b ; @573
-  mov %43:w, %42:w ; @273
-  mov eax, %43:w ; @568
+  movss %71:s, xmm0 ; @272
+  movss %72:s, xmm1 ; @570
+  xor %410:w, %410:w ; @571
+  ucomiss %71:s, %72:s ; @572
+  setbe %410:b ; @573
+  mov %411:w, %410:w ; @273
+  mov eax, %411:w ; @568
   ret ; @569
 }
 
 export function $fle_f64 { ; returns: rax
 @67:
-  movsd %x:d, xmm0 ; @274
-  movsd %y:d, xmm1 ; @576
-  xor %44:w, %44:w ; @577
-  ucomisd %x:d, %y:d ; @578
-  setbe %44:b ; @579
-  mov %45:w, %44:w ; @275
-  mov eax, %45:w ; @574
+  movsd %75:d, xmm0 ; @274
+  movsd %76:d, xmm1 ; @576
+  xor %412:w, %412:w ; @577
+  ucomisd %75:d, %76:d ; @578
+  setbe %412:b ; @579
+  mov %413:w, %412:w ; @275
+  mov eax, %413:w ; @574
   ret ; @575
 }
 
 export function $feq_f32 { ; returns: rax
 @70:
-  movss %x:s, xmm0 ; @276
-  movss %y:s, xmm1 ; @582
-  xor %46:w, %46:w ; @583
-  ucomiss %x:s, %y:s ; @584
-  sete %46:b ; @585
-  mov %47:w, %46:w ; @277
-  mov eax, %47:w ; @580
+  movss %79:s, xmm0 ; @276
+  movss %80:s, xmm1 ; @582
+  xor %414:w, %414:w ; @583
+  ucomiss %79:s, %80:s ; @584
+  sete %414:b ; @585
+  mov %415:w, %414:w ; @277
+  mov eax, %415:w ; @580
   ret ; @581
 }
 
 export function $feq_f64 { ; returns: rax
 @73:
-  movsd %x:d, xmm0 ; @278
-  movsd %y:d, xmm1 ; @588
-  xor %48:w, %48:w ; @589
-  ucomisd %x:d, %y:d ; @590
-  sete %48:b ; @591
-  mov %49:w, %48:w ; @279
-  mov eax, %49:w ; @586
+  movsd %83:d, xmm0 ; @278
+  movsd %84:d, xmm1 ; @588
+  xor %416:w, %416:w ; @589
+  ucomisd %83:d, %84:d ; @590
+  sete %416:b ; @591
+  mov %417:w, %416:w ; @279
+  mov eax, %417:w ; @586
   ret ; @587
 }
 
 export function $fne_f32 { ; returns: rax
 @76:
-  movss %x:s, xmm0 ; @280
-  movss %y:s, xmm1 ; @594
-  xor %50:w, %50:w ; @595
-  ucomiss %x:s, %y:s ; @596
-  setne %50:b ; @597
-  mov %51:w, %50:w ; @281
-  mov eax, %51:w ; @592
+  movss %87:s, xmm0 ; @280
+  movss %88:s, xmm1 ; @594
+  xor %418:w, %418:w ; @595
+  ucomiss %87:s, %88:s ; @596
+  setne %418:b ; @597
+  mov %419:w, %418:w ; @281
+  mov eax, %419:w ; @592
   ret ; @593
 }
 
 export function $fne_f64 { ; returns: rax
 @79:
-  movsd %x:d, xmm0 ; @282
-  movsd %y:d, xmm1 ; @600
-  xor %52:w, %52:w ; @601
-  ucomisd %x:d, %y:d ; @602
-  setne %52:b ; @603
-  mov %53:w, %52:w ; @283
-  mov eax, %53:w ; @598
+  movsd %91:d, xmm0 ; @282
+  movsd %92:d, xmm1 ; @600
+  xor %420:w, %420:w ; @601
+  ucomisd %91:d, %92:d ; @602
+  setne %420:b ; @603
+  mov %421:w, %420:w ; @283
+  mov eax, %421:w ; @598
   ret ; @599
 }
 
 export function $fuo_f32 { ; returns: rax
 @82:
-  movss %x:s, xmm0 ; @284
-  movss %y:s, xmm1 ; @606
-  xor %54:w, %54:w ; @607
-  ucomiss %x:s, %y:s ; @608
-  setp %54:b ; @609
-  mov %55:w, %54:w ; @285
-  mov eax, %55:w ; @604
+  movss %95:s, xmm0 ; @284
+  movss %96:s, xmm1 ; @606
+  xor %422:w, %422:w ; @607
+  ucomiss %95:s, %96:s ; @608
+  setp %422:b ; @609
+  mov %423:w, %422:w ; @285
+  mov eax, %423:w ; @604
   ret ; @605
 }
 
 export function $fo_f64 { ; returns: rax
 @85:
-  movsd %x:d, xmm0 ; @286
-  movsd %y:d, xmm1 ; @612
-  xor %56:w, %56:w ; @613
-  ucomisd %x:d, %y:d ; @614
-  setnp %56:b ; @615
-  mov %57:w, %56:w ; @287
-  mov eax, %57:w ; @610
+  movsd %99:d, xmm0 ; @286
+  movsd %100:d, xmm1 ; @612
+  xor %424:w, %424:w ; @613
+  ucomisd %99:d, %100:d ; @614
+  setnp %424:b ; @615
+  mov %425:w, %424:w ; @287
+  mov eax, %425:w ; @610
   ret ; @611
 }
 
 export function $flt_f32_const { ; returns: rax
 @88:
-  movss %x:s, xmm0 ; @288
-  xor %58:w, %58:w ; @619
-  ucomiss %x:s, dword ptr [rip + @618] ; @620
-  setb %58:b ; @621
+  movss %103:s, xmm0 ; @288
+  xor %426:w, %426:w ; @619
+  ucomiss %103:s, dword ptr [rip + @618] ; @620
+  setb %426:b ; @621
   .fp32 @618, 0 ; @622
-  mov %59:w, %58:w ; @289
-  mov eax, %59:w ; @616
+  mov %427:w, %426:w ; @289
+  mov eax, %427:w ; @616
   ret ; @617
 }
 
 export function $flt_f64_const { ; returns: rax
 @91:
-  movsd %x:d, xmm0 ; @290
-  xor %60:w, %60:w ; @626
-  ucomisd %x:d, qword ptr [rip + @625] ; @627
-  setb %60:b ; @628
+  movsd %106:d, xmm0 ; @290
+  xor %428:w, %428:w ; @626
+  ucomisd %106:d, qword ptr [rip + @625] ; @627
+  setb %428:b ; @628
   .fp64 @625, 0. ; @629
-  mov %61:w, %60:w ; @291
-  mov eax, %61:w ; @623
+  mov %429:w, %428:w ; @291
+  mov eax, %429:w ; @623
   ret ; @624
 }
 
 export function $feq_f32_const { ; returns: rax
 @94:
-  movss %x:s, xmm0 ; @292
-  xor %62:w, %62:w ; @633
-  ucomiss %x:s, dword ptr [rip + @632] ; @634
-  sete %62:b ; @635
+  movss %109:s, xmm0 ; @292
+  xor %430:w, %430:w ; @633
+  ucomiss %109:s, dword ptr [rip + @632] ; @634
+  sete %430:b ; @635
   .fp32 @632, 1 ; @636
-  mov %63:w, %62:w ; @293
-  mov eax, %63:w ; @630
+  mov %431:w, %430:w ; @293
+  mov eax, %431:w ; @630
   ret ; @631
 }
 
 export function $feq_f64_const { ; returns: rax
 @97:
-  movsd %x:d, xmm0 ; @294
-  xor %64:w, %64:w ; @640
-  ucomisd %x:d, qword ptr [rip + @639] ; @641
-  sete %64:b ; @642
+  movsd %112:d, xmm0 ; @294
+  xor %432:w, %432:w ; @640
+  ucomisd %112:d, qword ptr [rip + @639] ; @641
+  sete %432:b ; @642
   .fp64 @639, 1. ; @643
-  mov %65:w, %64:w ; @295
-  mov eax, %65:w ; @637
+  mov %433:w, %432:w ; @295
+  mov eax, %433:w ; @637
   ret ; @638
 }
 
 export function $flt_f32_const_lhs { ; returns: rax
 @100:
-  movss %x:s, xmm0 ; @296
-  xor %66:w, %66:w ; @647
-  ucomiss %x:s, dword ptr [rip + @646] ; @648
-  setae %66:b ; @649
+  movss %115:s, xmm0 ; @296
+  xor %434:w, %434:w ; @647
+  ucomiss %115:s, dword ptr [rip + @646] ; @648
+  setae %434:b ; @649
   .fp32 @646, 0 ; @650
-  mov %67:w, %66:w ; @297
-  mov eax, %67:w ; @644
+  mov %435:w, %434:w ; @297
+  mov eax, %435:w ; @644
   ret ; @645
 }
 
 export function $flt_f64_const_lhs { ; returns: rax
 @103:
-  movsd %x:d, xmm0 ; @298
-  xor %68:w, %68:w ; @654
-  ucomisd %x:d, qword ptr [rip + @653] ; @655
-  setae %68:b ; @656
+  movsd %118:d, xmm0 ; @298
+  xor %436:w, %436:w ; @654
+  ucomisd %118:d, qword ptr [rip + @653] ; @655
+  setae %436:b ; @656
   .fp64 @653, 0. ; @657
-  mov %69:w, %68:w ; @299
-  mov eax, %69:w ; @651
+  mov %437:w, %436:w ; @299
+  mov eax, %437:w ; @651
   ret ; @652
 }
 
 export function $feq_f32_const_lhs { ; returns: rax
 @106:
-  movss %x:s, xmm0 ; @300
-  xor %70:w, %70:w ; @661
-  ucomiss %x:s, dword ptr [rip + @660] ; @662
-  sete %70:b ; @663
+  movss %121:s, xmm0 ; @300
+  xor %438:w, %438:w ; @661
+  ucomiss %121:s, dword ptr [rip + @660] ; @662
+  sete %438:b ; @663
   .fp32 @660, 1 ; @664
-  mov %71:w, %70:w ; @301
-  mov eax, %71:w ; @658
+  mov %439:w, %438:w ; @301
+  mov eax, %439:w ; @658
   ret ; @659
 }
 
 export function $feq_f64_const_lhs { ; returns: rax
 @109:
-  movsd %x:d, xmm0 ; @302
-  xor %72:w, %72:w ; @668
-  ucomisd %x:d, qword ptr [rip + @667] ; @669
-  sete %72:b ; @670
+  movsd %124:d, xmm0 ; @302
+  xor %440:w, %440:w ; @668
+  ucomisd %124:d, qword ptr [rip + @667] ; @669
+  sete %440:b ; @670
   .fp64 @667, 1. ; @671
-  mov %73:w, %72:w ; @303
-  mov eax, %73:w ; @665
+  mov %441:w, %440:w ; @303
+  mov eax, %441:w ; @665
   ret ; @666
 }
 
 export function $br_flt_f32 { ; returns: rax
 @112:
-  movss %x:s, xmm0 ; @304
-  movss %y:s, xmm1 ; @674
-  xor %74:w, %74:w ; @675
-  ucomiss %x:s, %y:s ; @676
-  setb %74:b ; @677
-  mov %75:w, %74:w ; @305
-  mov eax, %75:w ; @672
+  movss %127:s, xmm0 ; @304
+  movss %128:s, xmm1 ; @674
+  xor %442:w, %442:w ; @675
+  ucomiss %127:s, %128:s ; @676
+  setb %442:b ; @677
+  mov %443:w, %442:w ; @305
+  mov eax, %443:w ; @672
   ret ; @673
 }
 
 export function $br_flt_f64 { ; returns: rax
 @116:
-  movsd %x:d, xmm0 ; @306
-  movsd %y:d, xmm1 ; @680
-  xor %76:w, %76:w ; @681
-  ucomisd %x:d, %y:d ; @682
-  setb %76:b ; @683
-  mov %77:w, %76:w ; @307
-  mov eax, %77:w ; @678
+  movsd %130:d, xmm0 ; @306
+  movsd %131:d, xmm1 ; @680
+  xor %444:w, %444:w ; @681
+  ucomisd %130:d, %131:d ; @682
+  setb %444:b ; @683
+  mov %445:w, %444:w ; @307
+  mov eax, %445:w ; @678
   ret ; @679
 }
 
 export function $br_flt_f32_const { ; returns: rax
 @120:
-  movss %x:s, xmm0 ; @308
-  xor %78:w, %78:w ; @687
-  ucomiss %x:s, dword ptr [rip + @686] ; @688
-  setb %78:b ; @689
+  movss %133:s, xmm0 ; @308
+  xor %446:w, %446:w ; @687
+  ucomiss %133:s, dword ptr [rip + @686] ; @688
+  setb %446:b ; @689
   .fp32 @686, 0 ; @690
-  mov %79:w, %78:w ; @309
-  mov eax, %79:w ; @684
+  mov %447:w, %446:w ; @309
+  mov eax, %447:w ; @684
   ret ; @685
 }
 
 export function $br_flt_f64_const { ; returns: rax
 @124:
-  movsd %x:d, xmm0 ; @310
-  xor %80:w, %80:w ; @694
-  ucomisd %x:d, qword ptr [rip + @693] ; @695
-  setb %80:b ; @696
+  movsd %135:d, xmm0 ; @310
+  xor %448:w, %448:w ; @694
+  ucomisd %135:d, qword ptr [rip + @693] ; @695
+  setb %448:b ; @696
   .fp64 @693, 0. ; @697
-  mov %81:w, %80:w ; @311
-  mov eax, %81:w ; @691
+  mov %449:w, %448:w ; @311
+  mov eax, %449:w ; @691
   ret ; @692
 }
 
 export function $br_flt_f32_const_lhs { ; returns: rax
 @128:
-  movss %x:s, xmm0 ; @312
-  xor %82:w, %82:w ; @701
-  ucomiss %x:s, dword ptr [rip + @700] ; @702
-  setae %82:b ; @703
+  movss %137:s, xmm0 ; @312
+  xor %450:w, %450:w ; @701
+  ucomiss %137:s, dword ptr [rip + @700] ; @702
+  setae %450:b ; @703
   .fp32 @700, 0 ; @704
-  mov %83:w, %82:w ; @313
-  mov eax, %83:w ; @698
+  mov %451:w, %450:w ; @313
+  mov eax, %451:w ; @698
   ret ; @699
 }
 
 export function $br_flt_f64_const_lhs { ; returns: rax
 @132:
-  movsd %x:d, xmm0 ; @314
-  xor %84:w, %84:w ; @708
-  ucomisd %x:d, qword ptr [rip + @707] ; @709
-  setae %84:b ; @710
+  movsd %139:d, xmm0 ; @314
+  xor %452:w, %452:w ; @708
+  ucomisd %139:d, qword ptr [rip + @707] ; @709
+  setae %452:b ; @710
   .fp64 @707, 0. ; @711
-  mov %85:w, %84:w ; @315
-  mov eax, %85:w ; @705
+  mov %453:w, %452:w ; @315
+  mov eax, %453:w ; @705
   ret ; @706
 }
 
 export function $ftosi_f32_i8 { ; returns: rax
 @136:
-  movss %x:s, xmm0 ; @316
-  cvttss2si %86:w, %x:s ; @714
-  movsx %86:w, %86:b ; @715
-  mov al, %86:b ; @712
+  movss %141:s, xmm0 ; @316
+  cvttss2si %454:w, %141:s ; @714
+  movsx %454:w, %454:b ; @715
+  mov al, %454:b ; @712
   ret ; @713
 }
 
 export function $ftosi_f32_i16 { ; returns: rax
 @138:
-  movss %x:s, xmm0 ; @317
-  cvttss2si %87:w, %x:s ; @718
-  movsx %87:w, %87:h ; @719
-  mov ax, %87:h ; @716
+  movss %143:s, xmm0 ; @317
+  cvttss2si %455:w, %143:s ; @718
+  movsx %455:w, %455:h ; @719
+  mov ax, %455:h ; @716
   ret ; @717
 }
 
 export function $ftosi_f32_i32 { ; returns: rax
 @140:
-  movss %x:s, xmm0 ; @318
-  cvttss2si %88:w, %x:s ; @722
-  mov eax, %88:w ; @720
+  movss %145:s, xmm0 ; @318
+  cvttss2si %456:w, %145:s ; @722
+  mov eax, %456:w ; @720
   ret ; @721
 }
 
 export function $ftosi_f32_i64 { ; returns: rax
 @142:
-  movss %x:s, xmm0 ; @319
-  cvttss2si %89:l, %x:s ; @725
-  mov rax, %89:l ; @723
+  movss %147:s, xmm0 ; @319
+  cvttss2si %457:l, %147:s ; @725
+  mov rax, %457:l ; @723
   ret ; @724
 }
 
 export function $ftosi_f64_i8 { ; returns: rax
 @144:
-  movsd %x:d, xmm0 ; @320
-  cvttsd2si %90:w, %x:d ; @728
-  movsx %90:w, %90:b ; @729
-  mov al, %90:b ; @726
+  movsd %149:d, xmm0 ; @320
+  cvttsd2si %458:w, %149:d ; @728
+  movsx %458:w, %458:b ; @729
+  mov al, %458:b ; @726
   ret ; @727
 }
 
 export function $ftosi_f64_i16 { ; returns: rax
 @146:
-  movsd %x:d, xmm0 ; @321
-  cvttsd2si %91:w, %x:d ; @732
-  movsx %91:w, %91:h ; @733
-  mov ax, %91:h ; @730
+  movsd %151:d, xmm0 ; @321
+  cvttsd2si %459:w, %151:d ; @732
+  movsx %459:w, %459:h ; @733
+  mov ax, %459:h ; @730
   ret ; @731
 }
 
 export function $ftosi_f64_i32 { ; returns: rax
 @148:
-  movsd %x:d, xmm0 ; @322
-  cvttsd2si %92:w, %x:d ; @736
-  mov eax, %92:w ; @734
+  movsd %153:d, xmm0 ; @322
+  cvttsd2si %460:w, %153:d ; @736
+  mov eax, %460:w ; @734
   ret ; @735
 }
 
 export function $ftosi_f64_i64 { ; returns: rax
 @150:
-  movsd %x:d, xmm0 ; @323
-  cvttsd2si %93:l, %x:d ; @739
-  mov rax, %93:l ; @737
+  movsd %155:d, xmm0 ; @323
+  cvttsd2si %461:l, %155:d ; @739
+  mov rax, %461:l ; @737
   ret ; @738
 }
 
 export function $ftoui_f32_i8 { ; returns: rax
 @152:
-  movss %x:s, xmm0 ; @324
-  cvttss2si %94:w, %x:s ; @742
-  movzx %94:w, %94:b ; @743
-  mov al, %94:b ; @740
+  movss %157:s, xmm0 ; @324
+  cvttss2si %462:w, %157:s ; @742
+  movzx %462:w, %462:b ; @743
+  mov al, %462:b ; @740
   ret ; @741
 }
 
 export function $ftoui_f32_i16 { ; returns: rax
 @154:
-  movss %x:s, xmm0 ; @325
-  cvttss2si %95:w, %x:s ; @746
-  movzx %95:w, %95:h ; @747
-  mov ax, %95:h ; @744
+  movss %159:s, xmm0 ; @325
+  cvttss2si %463:w, %159:s ; @746
+  movzx %463:w, %463:h ; @747
+  mov ax, %463:h ; @744
   ret ; @745
 }
 
 export function $ftoui_f32_i32 { ; returns: rax
 @156:
-  movss %x:s, xmm0 ; @326
-  cvttss2si %96:l, %x:s ; @750
-  mov eax, %96:w ; @748
+  movss %161:s, xmm0 ; @326
+  cvttss2si %464:l, %161:s ; @750
+  mov eax, %464:w ; @748
   ret ; @749
 }
 
 export function $ftoui_f32_i64 { ; returns: rax
 @158:
-  movss %x:s, xmm0 ; @327
-  mov %161:l, 0x8000000000000000_l ; @754
-  cvttss2si %158:l, %x:s ; @755
-  movss %159:s, %x:s ; @756
-  subss %159:s, dword ptr [rip + @753] ; @757
-  cvttss2si %160:l, %159:s ; @758
-  xor %160:l, %161:l ; @759
-  ucomiss %x:s, dword ptr [rip + @753] ; @760
-  cmovae %158:l, %160:l ; @761
-  mov %97:l, %158:l ; @762
+  movss %163:s, xmm0 ; @327
+  mov %529:l, 0x8000000000000000_l ; @754
+  cvttss2si %526:l, %163:s ; @755
+  movss %527:s, %163:s ; @756
+  subss %527:s, dword ptr [rip + @753] ; @757
+  cvttss2si %528:l, %527:s ; @758
+  xor %528:l, %529:l ; @759
+  ucomiss %163:s, dword ptr [rip + @753] ; @760
+  cmovae %526:l, %528:l ; @761
+  mov %465:l, %526:l ; @762
   .fp32 @753, 9.22337e+18 ; @763
-  mov rax, %97:l ; @751
+  mov rax, %465:l ; @751
   ret ; @752
 }
 
 export function $ftoui_f64_i8 { ; returns: rax
 @160:
-  movsd %x:d, xmm0 ; @328
-  cvttsd2si %98:w, %x:d ; @766
-  movzx %98:w, %98:b ; @767
-  mov al, %98:b ; @764
+  movsd %165:d, xmm0 ; @328
+  cvttsd2si %466:w, %165:d ; @766
+  movzx %466:w, %466:b ; @767
+  mov al, %466:b ; @764
   ret ; @765
 }
 
 export function $ftoui_f64_i16 { ; returns: rax
 @162:
-  movsd %x:d, xmm0 ; @329
-  cvttsd2si %99:w, %x:d ; @770
-  movzx %99:w, %99:h ; @771
-  mov ax, %99:h ; @768
+  movsd %167:d, xmm0 ; @329
+  cvttsd2si %467:w, %167:d ; @770
+  movzx %467:w, %467:h ; @771
+  mov ax, %467:h ; @768
   ret ; @769
 }
 
 export function $ftoui_f64_i32 { ; returns: rax
 @164:
-  movsd %x:d, xmm0 ; @330
-  cvttsd2si %100:l, %x:d ; @774
-  mov eax, %100:w ; @772
+  movsd %169:d, xmm0 ; @330
+  cvttsd2si %468:l, %169:d ; @774
+  mov eax, %468:w ; @772
   ret ; @773
 }
 
 export function $ftoui_f64_i64 { ; returns: rax
 @166:
-  movsd %x:d, xmm0 ; @331
-  mov %165:l, 0x8000000000000000_l ; @778
-  cvttsd2si %162:l, %x:d ; @779
-  movsd %163:d, %x:d ; @780
-  subsd %163:d, qword ptr [rip + @777] ; @781
-  cvttsd2si %164:l, %163:d ; @782
-  xor %164:l, %165:l ; @783
-  ucomisd %x:d, qword ptr [rip + @777] ; @784
-  cmovae %162:l, %164:l ; @785
-  mov %101:l, %162:l ; @786
+  movsd %171:d, xmm0 ; @331
+  mov %533:l, 0x8000000000000000_l ; @778
+  cvttsd2si %530:l, %171:d ; @779
+  movsd %531:d, %171:d ; @780
+  subsd %531:d, qword ptr [rip + @777] ; @781
+  cvttsd2si %532:l, %531:d ; @782
+  xor %532:l, %533:l ; @783
+  ucomisd %171:d, qword ptr [rip + @777] ; @784
+  cmovae %530:l, %532:l ; @785
+  mov %469:l, %530:l ; @786
   .fp64 @777, 9.2233720368547758e+18 ; @787
-  mov rax, %101:l ; @775
+  mov rax, %469:l ; @775
   ret ; @776
 }
 
 export function $sitof_i8_f32 { ; returns: xmm0
 @168:
-  mov %x:b, dil ; @332
-  movsx %166:w, %x:b ; @790
-  cvtsi2ss %102:s, %166:w ; @792
-  movss xmm0, %102:s ; @788
+  mov %173:b, dil ; @332
+  movsx %534:w, %173:b ; @790
+  cvtsi2ss %470:s, %534:w ; @792
+  movss xmm0, %470:s ; @788
   ret ; @789
 }
 
 export function $sitof_i8_f64 { ; returns: xmm0
 @170:
-  mov %x:b, dil ; @333
-  movsx %167:w, %x:b ; @795
-  cvtsi2sd %103:d, %167:w ; @797
-  movsd xmm0, %103:d ; @793
+  mov %175:b, dil ; @333
+  movsx %535:w, %175:b ; @795
+  cvtsi2sd %471:d, %535:w ; @797
+  movsd xmm0, %471:d ; @793
   ret ; @794
 }
 
 export function $sitof_i16_f32 { ; returns: xmm0
 @172:
-  mov %x:h, di ; @334
-  movsx %168:w, %x:h ; @800
-  cvtsi2ss %104:s, %168:w ; @802
-  movss xmm0, %104:s ; @798
+  mov %177:h, di ; @334
+  movsx %536:w, %177:h ; @800
+  cvtsi2ss %472:s, %536:w ; @802
+  movss xmm0, %472:s ; @798
   ret ; @799
 }
 
 export function $sitof_i16_f64 { ; returns: xmm0
 @174:
-  mov %x:h, di ; @335
-  movsx %169:w, %x:h ; @805
-  cvtsi2sd %105:d, %169:w ; @807
-  movsd xmm0, %105:d ; @803
+  mov %179:h, di ; @335
+  movsx %537:w, %179:h ; @805
+  cvtsi2sd %473:d, %537:w ; @807
+  movsd xmm0, %473:d ; @803
   ret ; @804
 }
 
 export function $sitof_i32_f32 { ; returns: xmm0
 @176:
-  mov %x:w, edi ; @336
-  cvtsi2ss %106:s, %x:w ; @811
-  movss xmm0, %106:s ; @808
+  mov %181:w, edi ; @336
+  cvtsi2ss %474:s, %181:w ; @811
+  movss xmm0, %474:s ; @808
   ret ; @809
 }
 
 export function $sitof_i32_f64 { ; returns: xmm0
 @178:
-  mov %x:w, edi ; @337
-  cvtsi2sd %107:d, %x:w ; @815
-  movsd xmm0, %107:d ; @812
+  mov %183:w, edi ; @337
+  cvtsi2sd %475:d, %183:w ; @815
+  movsd xmm0, %475:d ; @812
   ret ; @813
 }
 
 export function $sitof_i64_f32 { ; returns: xmm0
 @180:
-  mov %x:l, rdi ; @338
-  cvtsi2ss %108:s, %x:l ; @819
-  movss xmm0, %108:s ; @816
+  mov %185:l, rdi ; @338
+  cvtsi2ss %476:s, %185:l ; @819
+  movss xmm0, %476:s ; @816
   ret ; @817
 }
 
 export function $sitof_i64_f64 { ; returns: xmm0
 @182:
-  mov %x:l, rdi ; @339
-  cvtsi2sd %109:d, %x:l ; @823
-  movsd xmm0, %109:d ; @820
+  mov %187:l, rdi ; @339
+  cvtsi2sd %477:d, %187:l ; @823
+  movsd xmm0, %477:d ; @820
   ret ; @821
 }
 
 export function $uitof_i8_f32 { ; returns: xmm0
 @184:
-  mov %x:b, dil ; @366
-  movzx %136:w, %x:b ; @827
-  cvtsi2ss %110:s, %136:w ; @826
-  movss xmm0, %110:s ; @824
+  mov %189:b, dil ; @366
+  movzx %504:w, %189:b ; @827
+  cvtsi2ss %478:s, %504:w ; @826
+  movss xmm0, %478:s ; @824
   ret ; @825
 }
 
 export function $uitof_i8_f64 { ; returns: xmm0
 @186:
-  mov %x:b, dil ; @368
-  movzx %137:w, %x:b ; @831
-  cvtsi2sd %111:d, %137:w ; @830
-  movsd xmm0, %111:d ; @828
+  mov %191:b, dil ; @368
+  movzx %505:w, %191:b ; @831
+  cvtsi2sd %479:d, %505:w ; @830
+  movsd xmm0, %479:d ; @828
   ret ; @829
 }
 
 export function $uitof_i16_f32 { ; returns: xmm0
 @188:
-  mov %x:h, di ; @370
-  movzx %138:w, %x:h ; @835
-  cvtsi2ss %112:s, %138:w ; @834
-  movss xmm0, %112:s ; @832
+  mov %193:h, di ; @370
+  movzx %506:w, %193:h ; @835
+  cvtsi2ss %480:s, %506:w ; @834
+  movss xmm0, %480:s ; @832
   ret ; @833
 }
 
 export function $uitof_i16_f64 { ; returns: xmm0
 @190:
-  mov %x:h, di ; @372
-  movzx %139:w, %x:h ; @839
-  cvtsi2sd %113:d, %139:w ; @838
-  movsd xmm0, %113:d ; @836
+  mov %195:h, di ; @372
+  movzx %507:w, %195:h ; @839
+  cvtsi2sd %481:d, %507:w ; @838
+  movsd xmm0, %481:d ; @836
   ret ; @837
 }
 
 export function $uitof_i32_f32 { ; returns: xmm0
 @192:
-  mov %x:w, edi ; @374
-  mov %140:w, %x:w ; @843
-  cvtsi2ss %114:s, %140:l ; @842
-  movss xmm0, %114:s ; @840
+  mov %197:w, edi ; @374
+  mov %508:w, %197:w ; @843
+  cvtsi2ss %482:s, %508:l ; @842
+  movss xmm0, %482:s ; @840
   ret ; @841
 }
 
 export function $uitof_i32_f64 { ; returns: xmm0
 @194:
-  mov %x:w, edi ; @376
-  mov %141:w, %x:w ; @847
-  cvtsi2sd %115:d, %141:l ; @846
-  movsd xmm0, %115:d ; @844
+  mov %199:w, edi ; @376
+  mov %509:w, %199:w ; @847
+  cvtsi2sd %483:d, %509:l ; @846
+  movsd xmm0, %483:d ; @844
   ret ; @845
 }
 
 export function $uitof_i64_f32 { ; returns: xmm0
 @196:
-  mov %x:l, rdi ; @381
-  test %x:l, %x:l ; @860
+  mov %201:l, rdi ; @381
+  test %201:l, %201:l ; @860
   js @378 ; @861
   jmp @379 ; @862
 @379:
-  cvtsi2ss %148:s, %x:l ; @859
-  movss %149:s, %148:s ; @857
+  cvtsi2ss %516:s, %201:l ; @859
+  movss %517:s, %516:s ; @857
   jmp @380 ; @858
 @378:
-  mov %143:l, %x:l ; @382
-  shr %143:l, 0x1_b ; @856
-  mov %144:l, %x:l ; @383
-  and %144:w, 0x1_w ; @855
-  mov %145:l, %143:l ; @384
-  or %145:l, %144:l ; @854
-  cvtsi2ss %146:s, %145:l ; @853
-  movss %147:s, %146:s ; @386
-  addss %147:s, %146:s ; @852
-  movss %149:s, %147:s ; @850
+  mov %511:l, %201:l ; @382
+  shr %511:l, 0x1_b ; @856
+  mov %512:l, %201:l ; @383
+  and %512:w, 0x1_w ; @855
+  mov %513:l, %511:l ; @384
+  or %513:l, %512:l ; @854
+  cvtsi2ss %514:s, %513:l ; @853
+  movss %515:s, %514:s ; @386
+  addss %515:s, %514:s ; @852
+  movss %517:s, %515:s ; @850
   jmp @380 ; @851
 @380:
-  movss xmm0, %149:s ; @848
+  movss xmm0, %517:s ; @848
   ret ; @849
 }
 
 export function $uitof_i64_f64 { ; returns: xmm0
 @198:
-  mov %x:l, rdi ; @392
-  test %x:l, %x:l ; @878
+  mov %203:l, rdi ; @392
+  test %203:l, %203:l ; @878
   js @389 ; @879
   jmp @390 ; @880
 @390:
-  cvtsi2sd %156:d, %x:l ; @877
-  movsd %157:d, %156:d ; @875
+  cvtsi2sd %524:d, %203:l ; @877
+  movsd %525:d, %524:d ; @875
   jmp @391 ; @876
 @389:
-  mov %151:l, %x:l ; @393
-  shr %151:l, 0x1_b ; @874
-  mov %152:l, %x:l ; @394
-  and %152:w, 0x1_w ; @873
-  mov %153:l, %151:l ; @395
-  or %153:l, %152:l ; @872
-  cvtsi2sd %154:d, %153:l ; @871
-  movsd %155:d, %154:d ; @397
-  addsd %155:d, %154:d ; @870
-  movsd %157:d, %155:d ; @868
+  mov %519:l, %203:l ; @393
+  shr %519:l, 0x1_b ; @874
+  mov %520:l, %203:l ; @394
+  and %520:w, 0x1_w ; @873
+  mov %521:l, %519:l ; @395
+  or %521:l, %520:l ; @872
+  cvtsi2sd %522:d, %521:l ; @871
+  movsd %523:d, %522:d ; @397
+  addsd %523:d, %522:d ; @870
+  movsd %525:d, %523:d ; @868
   jmp @391 ; @869
 @391:
-  movsd xmm0, %157:d ; @866
+  movsd xmm0, %525:d ; @866
   ret ; @867
 }
 
 export function $fext_f32_f64 { ; returns: xmm0
 @200:
-  movss %x:s, xmm0 ; @348
-  cvtss2sd %118:d, %x:s ; @887
-  movsd xmm0, %118:d ; @884
+  movss %205:s, xmm0 ; @348
+  cvtss2sd %486:d, %205:s ; @887
+  movsd xmm0, %486:d ; @884
   ret ; @885
 }
 
 export function $ftrunc_f64_f32 { ; returns: xmm0
 @202:
-  movsd %x:d, xmm0 ; @349
-  cvtsd2ss %119:s, %x:d ; @891
-  movss xmm0, %119:s ; @888
+  movsd %207:d, xmm0 ; @349
+  cvtsd2ss %487:s, %207:d ; @891
+  movss xmm0, %487:s ; @888
   ret ; @889
 }
 
 export function $sel_f32 { ; returns: xmm0
 @204:
-  movss %x:s, xmm0 ; @350
-  movss %y:s, xmm1 ; @899
-  movss %yes:s, xmm2 ; @900
-  movss %no:s, xmm3 ; @901
-  movss %170:s, %x:s ; @351
-  cmpltss %170:s, %y:s ; @894
-  movss %121:s, %yes:s ; @895
-  andps %121:s, %170:s ; @896
-  andnps %170:s, %no:s ; @897
-  orps %121:s, %170:s ; @898
-  movss xmm0, %121:s ; @892
+  movss %209:s, xmm0 ; @350
+  movss %210:s, xmm1 ; @899
+  movss %212:s, xmm2 ; @900
+  movss %213:s, xmm3 ; @901
+  movss %538:s, %209:s ; @351
+  cmpltss %538:s, %210:s ; @894
+  movss %489:s, %212:s ; @895
+  andps %489:s, %538:s ; @896
+  andnps %538:s, %213:s ; @897
+  orps %489:s, %538:s ; @898
+  movss xmm0, %489:s ; @892
   ret ; @893
 }
 
 export function $sel_f64 { ; returns: xmm0
 @207:
-  movsd %x:d, xmm0 ; @352
-  movsd %y:d, xmm1 ; @912
-  movsd %yes:d, xmm2 ; @913
-  movsd %no:d, xmm3 ; @914
-  movsd %171:d, %x:d ; @353
-  cmpltsd %171:d, %y:d ; @907
-  movsd %123:d, %yes:d ; @908
-  andpd %123:d, %171:d ; @909
-  andnpd %171:d, %no:d ; @910
-  orpd %123:d, %171:d ; @911
-  movsd xmm0, %123:d ; @905
+  movsd %215:d, xmm0 ; @352
+  movsd %216:d, xmm1 ; @912
+  movsd %218:d, xmm2 ; @913
+  movsd %219:d, xmm3 ; @914
+  movsd %539:d, %215:d ; @353
+  cmpltsd %539:d, %216:d ; @907
+  movsd %491:d, %218:d ; @908
+  andpd %491:d, %539:d ; @909
+  andnpd %539:d, %219:d ; @910
+  orpd %491:d, %539:d ; @911
+  movsd xmm0, %491:d ; @905
   ret ; @906
 }
 
 export function $sel_f32_const_cmp { ; returns: xmm0
 @210:
-  movss %x:s, xmm0 ; @354
-  movss %yes:s, xmm1 ; @928
-  movss %no:s, xmm2 ; @929
+  movss %221:s, xmm0 ; @354
+  movss %223:s, xmm1 ; @928
+  movss %224:s, xmm2 ; @929
   .fp32 @927, 0 ; @933
-  movss %172:s, %x:s ; @355
-  cmpltss %172:s, dword ptr [rip + @920] ; @921
-  movss %125:s, %yes:s ; @922
-  andps %125:s, %172:s ; @923
-  andnps %172:s, %no:s ; @924
-  orps %125:s, %172:s ; @925
+  movss %540:s, %221:s ; @355
+  cmpltss %540:s, dword ptr [rip + @920] ; @921
+  movss %493:s, %223:s ; @922
+  andps %493:s, %540:s ; @923
+  andnps %540:s, %224:s ; @924
+  orps %493:s, %540:s ; @925
   .fp32 @920, 0 ; @926
-  movss xmm0, %125:s ; @918
+  movss xmm0, %493:s ; @918
   ret ; @919
 }
 
 export function $sel_f32_const_cmp_lhs { ; returns: xmm0
 @213:
-  movss %x:s, xmm0 ; @356
-  movss %yes:s, xmm1 ; @944
-  movss %no:s, xmm2 ; @945
+  movss %226:s, xmm0 ; @356
+  movss %228:s, xmm1 ; @944
+  movss %229:s, xmm2 ; @945
   .fp32 @943, 0 ; @949
-  movss %173:s, dword ptr [rip + @936] ; @357
-  cmpltss %173:s, %x:s ; @937
-  movss %127:s, %yes:s ; @938
-  andps %127:s, %173:s ; @939
-  andnps %173:s, %no:s ; @940
-  orps %127:s, %173:s ; @941
+  movss %541:s, dword ptr [rip + @936] ; @357
+  cmpltss %541:s, %226:s ; @937
+  movss %495:s, %228:s ; @938
+  andps %495:s, %541:s ; @939
+  andnps %541:s, %229:s ; @940
+  orps %495:s, %541:s ; @941
   .fp32 @936, 0 ; @942
-  movss xmm0, %127:s ; @934
+  movss xmm0, %495:s ; @934
   ret ; @935
 }
 
 export function $sel_f64_const_val { ; returns: xmm0
 @216:
-  movsd %x:d, xmm0 ; @358
-  movsd %y:d, xmm1 ; @959
-  movsd %yes:d, xmm2 ; @960
-  movsd %174:d, %x:d ; @359
-  cmpltsd %174:d, %y:d ; @953
-  movsd %129:d, %yes:d ; @954
-  andpd %129:d, %174:d ; @955
-  andnpd %174:d, xmmword ptr [rip + @952] ; @956
-  orpd %129:d, %174:d ; @957
+  movsd %231:d, xmm0 ; @358
+  movsd %232:d, xmm1 ; @959
+  movsd %234:d, xmm2 ; @960
+  movsd %542:d, %231:d ; @359
+  cmpltsd %542:d, %232:d ; @953
+  movsd %497:d, %234:d ; @954
+  andpd %497:d, %542:d ; @955
+  andnpd %542:d, xmmword ptr [rip + @952] ; @956
+  orpd %497:d, %542:d ; @957
   .fp64v @952, 0. ; @958
-  movsd xmm0, %129:d ; @950
+  movsd xmm0, %497:d ; @950
   ret ; @951
 }
 
 export function $sel_f64_const_cmp_lhs { ; returns: xmm0
 @219:
-  movsd %x:d, xmm0 ; @360
-  movsd %yes:d, xmm1 ; @974
-  movsd %no:d, xmm2 ; @975
+  movsd %236:d, xmm0 ; @360
+  movsd %238:d, xmm1 ; @974
+  movsd %239:d, xmm2 ; @975
   .fp64 @973, 0. ; @979
-  movsd %175:d, qword ptr [rip + @966] ; @361
-  cmpltsd %175:d, %x:d ; @967
-  movsd %131:d, %yes:d ; @968
-  andpd %131:d, %175:d ; @969
-  andnpd %175:d, %no:d ; @970
-  orpd %131:d, %175:d ; @971
+  movsd %543:d, qword ptr [rip + @966] ; @361
+  cmpltsd %543:d, %236:d ; @967
+  movsd %499:d, %238:d ; @968
+  andpd %499:d, %543:d ; @969
+  andnpd %543:d, %239:d ; @970
+  orpd %499:d, %543:d ; @971
   .fp64 @966, 0. ; @972
-  movsd xmm0, %131:d ; @964
+  movsd xmm0, %499:d ; @964
   ret ; @965
 }
 
 export function $ifbits_f32 { ; returns: rax
 @222:
-  movss %x:s, xmm0 ; @362
-  movd %132:w, %x:s ; @982
-  mov eax, %132:w ; @980
+  movss %241:s, xmm0 ; @362
+  movd %500:w, %241:s ; @982
+  mov eax, %500:w ; @980
   ret ; @981
 }
 
 export function $ifbits_f64 { ; returns: rax
 @224:
-  movsd %x:d, xmm0 ; @363
-  movq %133:l, %x:d ; @985
-  mov rax, %133:l ; @983
+  movsd %243:d, xmm0 ; @363
+  movq %501:l, %243:d ; @985
+  mov rax, %501:l ; @983
   ret ; @984
 }
 
 export function $fibits_f32 { ; returns: xmm0
 @226:
-  mov %x:w, edi ; @364
-  movd %134:s, %x:w ; @988
-  movss xmm0, %134:s ; @986
+  mov %245:w, edi ; @364
+  movd %502:s, %245:w ; @988
+  movss xmm0, %502:s ; @986
   ret ; @987
 }
 
 export function $fibits_f64 { ; returns: xmm0
 @228:
-  mov %x:l, rdi ; @365
-  movq %135:d, %x:l ; @991
-  movsd xmm0, %135:d ; @989
+  mov %247:l, rdi ; @365
+  movq %503:d, %247:l ; @991
+  movsd xmm0, %503:d ; @989
   ret ; @990
 }

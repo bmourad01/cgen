@@ -1,37 +1,37 @@
 module foo
 
-export function w $foo(w %n) {
+export function w $foo(w %1) {
 start:
-  if le.w %n, 0x1_w {
+  if le.w %1, 0x1_w {
     ret 0x0_w
   } else {
-    if le.w %n, 0x3_w {
+    if le.w %1, 0x3_w {
       ret 0x1_w
     } else {
-      %r.1 = urem.w %n, 0x2_w;
-      if eq.w %r.1, 0x0_w {
+      %8 = urem.w %1, 0x2_w;
+      if eq.w %8, 0x0_w {
         ret 0x0_w
       } else {
-        %r.2 = urem.w %n, 0x3_w;
-        if eq.w %r.2, 0x0_w {
+        %10 = urem.w %1, 0x3_w;
+        if eq.w %10, 0x0_w {
           ret 0x0_w
         } else {
-          %i.1 = copy.w 0x5_w;
-          %i.2 = copy.w %i.1;
+          %12 = copy.w 0x5_w;
+          %13 = copy.w %12;
           loop {
-            %s.1 = mul.w %i.2, %i.2;
-            if le.w %s.1, %n {
-              %r.3 = urem.w %n, %i.2;
-              if eq.w %r.3, 0x0_w {
+            %14 = mul.w %13, %13;
+            if le.w %14, %1 {
+              %16 = urem.w %1, %13;
+              if eq.w %16, 0x0_w {
                 ret 0x0_w
               } else {
-                %i2.1 = add.w %i.2, 0x2_w;
-                %r.4 = urem.w %n, %i2.1;
-                if eq.w %r.4, 0x0_w {
+                %18 = add.w %13, 0x2_w;
+                %19 = urem.w %1, %18;
+                if eq.w %19, 0x0_w {
                   ret 0x0_w
                 } else {
-                  %i.3 = add.w %i.2, 0x6_w;
-                  %i.2 = copy.w %i.3;
+                  %21 = add.w %13, 0x6_w;
+                  %13 = copy.w %21;
                   continue
                 }
               }

@@ -52,18 +52,15 @@
          let+ () = setenv {env with labels} in
          l
 
-    let temp_of_name ?index name =
+    let temp_of_name name =
       let* env = curenv in
-      let+ v = match Core.Map.find env.temps name with
-        | Some v -> !!v
-        | None ->
-          let* v = Context.Var.fresh in
-          let temps = Core.Map.set env.temps ~key:name ~data:v in
-          let+ () = setenv {env with temps} in
-          v in
-      match index with
-      | Some i -> Var.with_index v i
-      | None -> v
+      match Core.Map.find env.temps name with
+      | Some v -> !!v
+      | None ->
+        let* v = Context.Var.fresh in
+        let temps = Core.Map.set env.temps ~key:name ~data:v in
+        let+ () = setenv {env with temps} in
+        v
 
     let make_data l align c name elts =
       let module Tag = Virtual.Data.Tag in
@@ -157,10 +154,8 @@
 %token <float> DOUBLE
 %token <Float32.t> SINGLE
 %token <bool> BOOL
-%token <string * int> VAR
 %token <string> IDENT
 %token <string> TEMP
-%token <string * int> TEMPI
 
 %start module_
 
@@ -590,7 +585,5 @@ const:
   | s = SYM MINUS i = NUM { `sym (s, -(Bv.to_int i)) }
 
 var:
-  | x = VAR { !!Var.(with_index (create (fst x)) (snd x)) }
-  | x = IDENT { !!(Var.create x) }
+  | x = IDENT { temp_of_name x }
   | x = TEMP { temp_of_name x }
-  | x = TEMPI { temp_of_name (fst x) ~index:(snd x) }

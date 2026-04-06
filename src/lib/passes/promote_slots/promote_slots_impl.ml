@@ -4,6 +4,7 @@ open Regular.Std
 open Virtual
 
 module E = Monad.Result.Error
+module Vtree = Var.Tree
 
 open E.Let
 
@@ -116,7 +117,7 @@ module Make(M : L) = struct
 
   let collect env ~undef =
     Func.slots env.fn |>
-    Seq.fold ~init:Var.Map.empty ~f:(fun acc s ->
+    Seq.fold ~init:Vtree.empty ~f:(fun acc s ->
         match Qualify.go env s ~undef with
         | Bad ->
           Logs.debug (fun m ->
@@ -127,7 +128,7 @@ module Make(M : L) = struct
           Logs.debug (fun m ->
               m "%s: promoting %a%!"
                 __FUNCTION__ Var.pp (Slot.var s));
-          Map.set acc ~key:(Slot.var s) ~data:t
+          Vtree.set acc ~key:(Slot.var s) ~data:t
         | Read _ ->
           Logs.debug (fun m ->
               m "%s: slot %a is read, but never written to%!"
@@ -137,8 +138,8 @@ module Make(M : L) = struct
              intended, so we should cancel this promotion. *)
           acc)
 
-  let remove_slots fn =
-    Map.fold ~init:fn ~f:(fun ~key ~data:_ fn ->
+  let remove_slots fn xs =
+    Vtree.fold xs ~init:fn ~f:(fun ~key ~data:_ fn ->
         Func.remove_slot fn key)
 
   (* Replace a store with a copy to a fresh variable. *)
@@ -153,7 +154,7 @@ module Make(M : L) = struct
       | _ -> Insn.copy y t' (`var x) in
     Hashtbl.set env.ops ~key:l ~data:k
 
-  let replace env = Map.iteri ~f:(fun ~key:x ~data:t ->
+  let replace env = Vtree.iter ~f:(fun ~key:x ~data:t ->
       Resolver.uses env.reso x |> List.iter ~f:(function
           | `blk _ -> assert false
           | `insn (i, _, _, _) ->
@@ -167,7 +168,7 @@ module Make(M : L) = struct
   let run fn ~undef =
     let+ env = init fn in
     let xs = collect env ~undef in
-    if not @@ Map.is_empty xs then
+    if not @@ Vtree.is_empty xs then
       let fn = remove_slots fn xs in
       replace env xs;
       (* SSA form needs to be recomputed. *)

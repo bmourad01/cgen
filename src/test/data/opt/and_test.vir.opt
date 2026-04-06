@@ -1,41 +1,41 @@
 module and_test
 
-export function w $foo(w %x, w %y) {
+export function w $foo(w %1, w %4) {
 @2:
-  %2 = and.w %x, 0x3_w ; @31
-  %3 = eq.w %2, 0x0_w ; @32
-  %4 = sel.w %3, %y, %x ; @33
-  ret %4
+  %31 = and.w %1, 0x3_w ; @31
+  %32 = eq.w %31, 0x0_w ; @32
+  %33 = sel.w %32, %4, %1 ; @33
+  ret %33
 }
 
-export function w $bar(w %x, w %y) {
+export function w $bar(w %6, w %9) {
 @10:
-  %5 = and.w %x, 0x3_w ; @34
-  %6 = eq.w %5, 0x0_w ; @35
-  %7 = add.w %y, 0x1_w ; @36
-  %8 = add.w %x, 0x1_w ; @37
-  %9 = sel.w %6, %7, %8 ; @38
-  ret %9
+  %34 = and.w %6, 0x3_w ; @34
+  %35 = eq.w %34, 0x0_w ; @35
+  %36 = add.w %9, 0x1_w ; @36
+  %37 = add.w %6, 0x1_w ; @37
+  %38 = sel.w %35, %36, %37 ; @38
+  ret %38
 }
 
-export function l $baz(l %x) {
+export function l $baz(l %11) {
 @18:
-  %10 = and.l %x, 0x3_l ; @39
-  switch.l %10, @19 [0x1_l -> @20,
+  %39 = and.l %11, 0x3_l ; @39
+  switch.l %39, @19 [0x1_l -> @20,
                      0x2_l -> @21,
                      0x3_l -> @22]
 @19:
-  %11 = add.l %x, 0x1_l ; @40
-  jmp @24(%11)
+  %40 = add.l %11, 0x1_l ; @40
+  jmp @24(%40)
 @20:
-  %12 = add.l %x, 0x2_l ; @41
-  jmp @24(%12)
+  %41 = add.l %11, 0x2_l ; @41
+  jmp @24(%41)
 @21:
-  %13 = add.l %x, 0x3_l ; @42
-  jmp @24(%13)
+  %42 = add.l %11, 0x3_l ; @42
+  jmp @24(%42)
 @22:
-  %14 = add.l %x, 0x4_l ; @43
-  jmp @24(%14)
-@24(%r.1):
-  ret %r.1
+  %43 = add.l %11, 0x4_l ; @43
+  jmp @24(%43)
+@24(%24):
+  ret %24
 }
