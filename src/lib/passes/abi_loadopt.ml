@@ -13,6 +13,7 @@ open Virtual
 
 module Solution = Fixpoint.Solution
 module E = Monad.Result.Error
+module Lset = Label.Tree_set
 
 open E.Let
 
@@ -73,10 +74,16 @@ type t = {
   blks         : Abi.blk Label.Table.t;
   mems         : store Mem.Table.t;
   vars         : operand Var.Table.t;
-  nop          : Label.Hash_set.t;
+  nop          : Lset.t Label.Table.t;
   mutable mem  : Label.t option;
   mutable memo : operand Hashcons.t;
+  mutable blk  : Label.t;
 }
+
+let add_nop t l =
+  Hashtbl.update t.nop t.blk ~f:(function
+      | None -> Lset.singleton l
+      | Some s -> Lset.add s l)
 
 let init_dom_relation reso dom =
   let module Dom = Dominance.Make(struct
@@ -108,9 +115,9 @@ let init fn =
   let blks = Label.Table.create () in
   let mems = Mem.Table.create () in
   let vars = Var.Table.create () in
-  let nop = Label.Hash_set.create () in
-  let mem = None and memo = Hashcons.empty in
-  {reso; dom; rdom; lst; blks; mems; mem; vars; memo; nop}
+  let nop = Label.Table.create () in
+  let mem = None and memo = Hashcons.empty and blk = Label.pseudoentry in
+  {reso; dom; rdom; lst; blks; mems; mem; vars; memo; nop; blk}
 
 module Optimize = struct
   let var t x = match Hashtbl.find t.vars x with
@@ -165,7 +172,7 @@ module Optimize = struct
     Option.iter t.mem ~f:(fun m ->
         match Hashtbl.find t.mems {key with label = m} with
         | Some Value (v', l') when same_store t v v' l l' ->
-          Hash_set.add t.nop l
+          add_nop t l
         | Some _ | None -> ());
     Hashtbl.set t.mems ~key ~data:(Value (v, l));
     t.mem <- Some l;
@@ -249,7 +256,7 @@ module Optimize = struct
         Op.commute k |> Option.iter ~f:(canonicalize t x)
       | Some c ->
         Hashtbl.set t.vars ~key:x ~data:(c :> operand);
-        Hash_set.add t.nop l
+        add_nop t l
     end;
     op
 
@@ -262,7 +269,7 @@ module Optimize = struct
         canonicalize t x k
       | Some c ->
         Hashtbl.set t.vars ~key:x ~data:(c :> operand);
-        Hash_set.add t.nop l
+        add_nop t l
     end;
     op
 
@@ -326,6 +333,7 @@ module Optimize = struct
     | Some `blk b ->
       setmem t l lst;
       t.memo <- memo;
+      t.blk <- l;
       let b = Abi.Blk.map_insns b ~f:(insn t) in
       let b = Abi.Blk.map_ctrl b ~f:(ctrl t) in
       Hashtbl.set t.blks ~key:l ~data:b
@@ -339,12 +347,16 @@ let run0 fn =
       Semi_nca.Tree.children t.dom l |> Seq.iter ~f:(fun l ->
           Stack.push q (l, t.mem, t.memo)));
   Abi.Func.map_blks fn ~f:(fun b ->
+      let l = Abi.Blk.label b in
       let b =
-        Abi.Blk.label b |> Hashtbl.find t.blks |>
+        Hashtbl.find t.blks l |>
         Option.value ~default:b in
-      if Hash_set.is_empty t.nop then b else
+      match Hashtbl.find t.nop l with
+      | None -> b
+      | Some s when Lset.is_empty s -> b
+      | Some s ->
         Abi.Blk.insns b |> Seq.filter ~f:(fun i ->
-            not @@ Hash_set.mem t.nop @@ Abi.Insn.label i) |>
+            not @@ Lset.mem s @@ Abi.Insn.label i) |>
         Seq.to_list |> Abi.Blk.with_insns b)
 
 let run fn =
