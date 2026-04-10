@@ -24,7 +24,7 @@ let init input depth_limit match_limit rules = {
   depth_limit;
   match_limit;
   rules;
-  vms = Array.init depth_limit ~f:(fun _ -> VM.create ());
+  vms = Array.init depth_limit ~f:(fun _ -> VM.create rules);
 }
 
 let check_ssa fn =

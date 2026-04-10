@@ -135,43 +135,36 @@ module Make(M : L) : sig
   (** A virtual machine (VM) for running a compiled program. *)
   module VM : sig
     (** Internal VM state. *)
-    type state
+    type 'a state
 
-    (** Create a VM state.
-
-        [registers] is the initial capacity of the register file,
-        i.e. the number of subterms that the VM will need to keep
-        track of at any given time. The register file will grow
-        as needed, so this number should be informed by the relative
-        size of the patterns for the input program.
-    *)
-    val create : ?registers:int -> unit -> state
+    (** Create a VM state. *)
+    val create : 'a program -> 'a state
 
     (** Reset the VM state.
 
         This should be done after all matching on a single term
         is completed.
     *)
-    val reset : state -> unit
+    val reset : _ state -> unit
 
     (** The ID of the term that was passed to [init].
 
         @raise Failure if the VM was uninitialized
     *)
-    val root : state -> id
+    val root : _ state -> id
 
     (** Initializes the state for incremental execution on a
         single term.
 
         Returns [true] if the initialization was successful.
     *)
-    val init : lookup:(id -> term) -> state -> 'a program -> id -> bool
+    val init : lookup:(id -> term) -> 'a state -> id -> bool
 
     (** Attempts to produce a single match.
 
         Returns [None] if the term had no matches.
     *)
-    val one : state -> 'a program -> 'a yield option
+    val one : 'a state -> 'a yield option
 
     (** A generalized version of [one].
 
@@ -181,6 +174,6 @@ module Make(M : L) : sig
         An optional [limit] on the number of matches can be provided. If
         this is less than [1], then no matches will be produced.
     *)
-    val many : ?limit:int -> state -> 'a program -> 'a yield list
+    val many : ?limit:int -> 'a state -> 'a yield list
   end
 end

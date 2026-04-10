@@ -77,13 +77,14 @@ type rule = {
   subsume : bool;
 }
 
-(* The children of a pattern to be matched against, and a
-   post-condition, as well as a flag marking the rewritten
-   term as subsuming. *)
-type toplevel = pattern list * formula * bool
+(* The payload for each rule. *)
+type payload = formula * bool
 
 (* The compiled program for matching `pre` patterns. *)
-type rules = (formula * bool) Matcher.program
+type rules = payload Matcher.program
+
+(* The matcher VM. *)
+type vm = payload VM.state
 
 (* The actual e-graph data structure.
 
@@ -107,13 +108,13 @@ type t = {
   memo           : (enode, id) Hashtbl.t; (* The hash-cons for optimized terms. *)
   lmoved         : Iset.t Label.Table.t;  (* Set of IDs that were moved to a given label. *)
   imoved         : Lset.t Vec.t;          (* Set of labels that were moved for a given ID. *)
-  mutable pinned : Bitset.t;           (* IDs that should not be rescheduled. *)
+  mutable pinned : Bitset.t;              (* IDs that should not be rescheduled. *)
   ilbl           : Label.t Uopt.t Vec.t;  (* Maps IDs to labels. *)
   lval           : id Label.Table.t;      (* Maps labels to IDs. *)
   depth_limit    : int;                   (* Maximum rewrite depth. *)
   match_limit    : int;                   (* Maximum rewrites per term. *)
   rules          : rules;                 (* The compiled matcher program. *)
-  vms            : VM.state array;        (* Pre-allocated VMs, indexed by depth_limit - d. *)
+  vms            : vm array;              (* Pre-allocated VMs, indexed by depth_limit - d. *)
 }
 
 type egraph = t

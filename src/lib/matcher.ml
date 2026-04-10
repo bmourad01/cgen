@@ -3,6 +3,8 @@
 
 open Core
 
+module OA = Option_array
+
 (* At minimum, we'll have a branching factor of 2,
    but in cases where there is a large amount of
    sharing it can be in the hundreds. My initial
@@ -123,6 +125,7 @@ module Make(M : L) = struct
        of the machine for a new term. *)
     | Init of {
         f : op;
+        nargs : int;
         mutable next : (label [@hash.ignore] [@compare.ignore]);
       }
     (* Match `i` with operator `f`, and if successful, bind its
@@ -131,6 +134,7 @@ module Make(M : L) = struct
         i : reg;
         f : op;
         o : reg;
+        nargs : int;
         mutable next : (label [@hash.ignore] [@compare.ignore]);
       }
     (* Same as `Bind`, but specialized to ground terms. *)
@@ -170,8 +174,8 @@ module Make(M : L) = struct
     | Two of label * label
 
   let succs_of_insn = function
-    | Init i -> One i.next
-    | Bind b -> One b.next
+    | Init i  -> One i.next
+    | Bind b  -> One b.next
     | Check c -> One c.next
     | Compare c -> One c.next
     | Choose {alt = None; next} -> One next
@@ -180,8 +184,8 @@ module Make(M : L) = struct
 
   module Insn = struct
     type t = insn [@@deriving compare, hash, sexp]
-    let init f = Init {f; next = nil}
-    let bind i f o = Bind {i; f; o; next = nil}
+    let init f nargs = Init {f; nargs; next = nil}
+    let bind i f o nargs = Bind {i; f; o; nargs; next = nil}
     let check i t = Check {i; t; next = nil}
     let compare_ i j = Compare {i; j; next = nil}
     let yield regs rule = Yield {regs; rule}
@@ -189,10 +193,10 @@ module Make(M : L) = struct
 
   let pp_insn ppf = function
     | Init i ->
-      Format.fprintf ppf "init(%a, %a)" pp_op i.f pp_label i.next
+      Format.fprintf ppf "init(%a, nargs=%d, %a)" pp_op i.f i.nargs pp_label i.next
     | Bind b ->
-      Format.fprintf ppf "bind(%a, %a, %a, %a)"
-        pp_reg b.i pp_op b.f pp_reg b.o pp_label b.next
+      Format.fprintf ppf "bind(%a, %a, %a, nargs=%d, %a)"
+        pp_reg b.i pp_op b.f pp_reg b.o b.nargs pp_label b.next
     | Check c ->
       Format.fprintf ppf "check(%a, %a, %a)"
         pp_reg c.i pp_op c.t pp_label c.next
@@ -272,11 +276,13 @@ module Make(M : L) = struct
   end
 
   type 'a program = {
-    name : string;
-    rule : (pat * 'a) array;
-    code : insn Vec.t;
-    root : (op, label) Hashtbl.t;
-    rmin : int array;
+    name : string;                (* Name of the ruleset *)
+    rule : (pat * 'a) array;      (* Map rule IDs to their payloads *)
+    code : insn Vec.t;            (* The compiled VM program *)
+    root : (op, label) Hashtbl.t; (* Entry points; each is a root in the forest *)
+    prio : int array;             (* Backtracking priority: this is in rule ID order *)
+    maxd : int;                   (* Maximum possible continuations that can be live *)
+    maxr : int;                   (* Maximum needed size of the register file *)
   }
 
   let name p = p.name
@@ -316,9 +322,10 @@ module Make(M : L) = struct
           | P (f, args) ->
             (* Bind each argument to a new register and
                continue. *)
+            let nargs = List.length args in
             let o' = enqueue_children w args o in
             Seq {
-              insn = Insn.bind {reg = i} f {reg = o};
+              insn = Insn.bind {reg = i} f {reg = o} nargs;
               next = go v o';
             }
           | V x ->
@@ -337,9 +344,10 @@ module Make(M : L) = struct
 
     let compile_one_rule w rule = function
       | P (f, args) ->
+        let nargs = List.length args in
         let o = enqueue_children w args 1 in
         Seq {
-          insn = Insn.init f;
+          insn = Insn.init f nargs;
           next = compile_pat ~rule w o;
         }
       | V x ->
@@ -452,27 +460,57 @@ module Make(M : L) = struct
        back-edges to consider (which means we do not need to
        perform a full iterative worklist analysis).
     *)
-    let compute_rmin code =
-      let rmin = Array.create ~len:(Vec.length code) Int.max_value in
+    let compute_priority code =
+      let prio = Array.create ~len:(Vec.length code) Int.max_value in
       (* Assuming the code is laid out topologically in `linearize`,
          we can do an O(n) backwards traversal to compute the minimum
          rule ID for each instruction. *)
       Vec.iteri_rev code ~f:(fun i -> function
-          | Yield y -> rmin.(i) <- y.rule
+          | Yield y -> prio.(i) <- y.rule
           | insn ->
-            rmin.(i) <- match succs_of_insn insn with
+            prio.(i) <- match succs_of_insn insn with
               | Zero ->
                 (* The only case where we have no successors is a
                    `Yield`, which we covered above. *)
                 assert false
               | One s ->
                 assert (i < s.label);
-                rmin.(s.label)
+                prio.(s.label)
               | Two (s1, s2) ->
                 assert (i < s1.label);
                 assert (i < s2.label);
-                Int.min rmin.(s1.label) rmin.(s2.label));
-      rmin
+                Int.min prio.(s1.label) prio.(s2.label));
+      prio
+
+    (* Compute the maximum frame stack depth and maximum register file
+       size needed by the VM, from the compiled program code alone. *)
+    let compute_caps code =
+      let n = Vec.length code in
+      let depth = Array.create ~len:n 0 in
+      Vec.iteri_rev code ~f:(fun i -> function
+          | Yield _ -> ()
+          | Bind b -> depth.(i) <- depth.(b.next.label)
+          | Init t -> depth.(i) <- depth.(t.next.label)
+          | Check c -> depth.(i) <- depth.(c.next.label)
+          | Compare c -> depth.(i) <- depth.(c.next.label)
+          | Choose c ->
+            let dn = depth.(c.next.label) in
+            let da = match c.alt with
+              | Some a -> 1 + depth.(a.label)
+              | None -> 0 in
+            depth.(i) <- Int.max (1 + dn) da);
+      let maxr, maxd =
+        Vec.foldi code ~init:(0, 0)
+          ~f:(fun i ((r, d) as acc) -> function
+              | Init t ->
+                let r = Int.max r t.nargs in
+                let d = Int.max d depth.(i) in
+                r, d
+              | Bind b ->
+                let r = Int.max r (b.o.reg + b.nargs - 1) in
+                r, d
+              | _ -> acc) in
+      maxd, maxr + 1
 
     let compile_tree forest w i pat =
       match compile_one_rule w i pat with
@@ -489,8 +527,8 @@ module Make(M : L) = struct
       let rule = Array.of_list rules in
       let code = Vec.create () in
       let w = Queue.create ~capacity:7 () in
-      let rmin, root = match rules with
-        | [] -> [||], Hashtbl.create (module Op)
+      let prio, root, maxd, maxr = match rules with
+        | [] -> [||], Hashtbl.create (module Op), 0, 1
         | _ ->
           let forest = Hashtbl.create (module Op) in
           if commute then
@@ -500,13 +538,17 @@ module Make(M : L) = struct
             Array.iteri rule ~f:(fun i (pat, _) ->
                 compile_tree forest w i pat);
           let root = Hashtbl.map forest ~f:(linearize code) in
-          compute_rmin code, root in
+          let prio = compute_priority code in
+          let depth, regs = compute_caps code in
+          prio, root, depth, regs in
       let[@alert "-deprecated"] t = Time.now () in
       let[@alert "-deprecated"] elapsed = Time.(Span.to_sec (diff t t0)) in
       Logs.debug (fun m ->
-          m "%s: ruleset %s: compiled %d rules to %d instructions in %g seconds, commute=%b%!"
-            __FUNCTION__ name (Array.length rule) (Vec.length code) elapsed commute);
-      {name; rule; code; root; rmin}
+          m "%s: ruleset %S: compiled %d rules to %d instructions in %g seconds, \
+             commute=%b, maxd=%d, maxr=%d%!"
+            __FUNCTION__ name (Array.length rule) (Vec.length code)
+            elapsed commute maxd maxr);
+      {name; rule; code; root; prio; maxd; maxr}
   end
 
   let compile = Compiler.compile
@@ -544,12 +586,20 @@ module Make(M : L) = struct
   module VM = struct
     exception Finished
 
-    type regs = id Option_array.t
+    type regs = id OA.t
 
+    (* A saved execution context for backtracking.
+
+       Each frame holds an independent snapshot of the register file taken
+       at push time. On `backtrack`, the snapshot is swapped in as the live
+       registers. This correctly handles non-LIFO frame pops (priority-based
+       selection) because each frame owns its own state and is independent of
+       others.
+    *)
     type frame = {
-      pc : label;
+      pc   : label;
       regs : regs;
-      max_written : int;
+      maxw : int;
       rule : int;
     }
 
@@ -558,104 +608,130 @@ module Make(M : L) = struct
       | 0 -> compare_label f1.pc f2.pc
       | n -> n
 
-    type state = {
-      mutable pc : label;
-      mutable regs : regs;
-      mutable max_written : int;
-      mutable lookup : id -> term;
-      mutable spare : regs option;
-      cont : frame Vec.t;
+    type 'a state = {
+      mutable pc     : label;       (* Current instruction *)
+      mutable regs   : regs;        (* Current register file *)
+      mutable maxw   : int;         (* Maximum register written *)
+      mutable lookup : id -> term;  (* Look up a term using its ID *)
+      pool           : regs Vec.t;  (* Spare register files to recycle *)
+      cont           : frame Vec.t; (* Queue of saved continuations *)
+      prog           : 'a program;  (* The VM program *)
     }
 
     let default_lookup _ =
       failwith "VM: term lookup is uninitialized"
 
-    let create ?(registers = 10) () = {
+    let (.![]) v i = Vec.unsafe_get v i
+    let (.![]<-) v i x = Vec.unsafe_set v i x
+
+    let create prog = {
       pc = nil;
       lookup = default_lookup;
-      regs = Option_array.create ~len:(max 2 registers);
-      max_written = 0;
-      spare = None;
-      cont = Vec.create ~capacity:branching_factor ();
+      regs = OA.create ~len:(max 1 prog.maxr);
+      maxw = 0;
+      pool = Vec.create ~capacity:prog.maxd ();
+      cont = Vec.create ~capacity:prog.maxd ();
+      prog;
     }
 
-    let (.![]) v i = Vec.unsafe_get v i
+    (* Pop the highest priority frame.
 
-    let pop_min cont =
-      let n = Vec.length cont in
+       The continuation queue is usually very small; on current workloads
+       I never saw it grow past 5 elements. We can get better performance
+       with a flat vector combined with selection sort.
+
+       This also makes more sense when we consider that the VM can run
+       incrementally, and a user might greedily pick the first match, so
+       sorting the rest of the queue would be a waste of effort.
+    *)
+    let pop_frame st =
+      let n = Vec.length st.cont in
       if n = 0 then None else
         let mi = ref 0 in
-        for i = 1 to n - 1 do
-          if frame_order cont.![i] cont.![!mi] < 0 then mi := i
-        done;
-        let f = cont.![!mi] in
         let last = n - 1 in
-        if !mi < last then Vec.set_exn cont !mi cont.![last];
-        ignore (Vec.pop_exn cont);
+        for i = 1 to last do
+          if frame_order st.cont.![i] st.cont.![!mi] < 0 then mi := i
+        done;
+        let f = st.cont.![!mi] in
+        if !mi < last then st.cont.![!mi] <- st.cont.![last];
+        ignore (Vec.pop_exn st.cont);
         Some f
 
+    (* Save the current register file.
+
+       We're going to look for the most recent pool entry that can fit
+       our current needed size. If none exists, we create it.
+    *)
     let snapshot_regs st =
-      let n = st.max_written + 1 in
-      let copy = match st.spare with
-        | Some arr when Option_array.length arr >= n ->
-          st.spare <- None;
-          arr
-        | _ -> Option_array.create ~len:n in
-      Option_array.blit ~src:st.regs ~src_pos:0 ~dst:copy ~dst_pos:0 ~len:n;
-      copy
+      let n = st.maxw + 1 in
+      let last = Vec.length st.pool - 1 in
+      let i = ref last in
+      while !i >= 0 && OA.length st.pool.![!i] < n do decr i done;
+      let dst =
+        if !i < 0 then OA.create ~len:n else
+          let a = st.pool.![!i] in
+          if !i < last then st.pool.![!i] <- st.pool.![last];
+          ignore (Vec.pop_exn st.pool);
+          a in
+      OA.blit ~src:st.regs ~src_pos:0 ~dst ~dst_pos:0 ~len:n;
+      dst
 
     let reset st =
       st.pc <- nil;
       st.lookup <- default_lookup;
-      st.max_written <- 0;
-      Option_array.clear st.regs;
+      st.maxw <- 0;
+      OA.clear st.regs;
+      Vec.iter st.cont ~f:(fun f ->
+          if Vec.length st.pool < st.prog.maxd then
+            Vec.push st.pool f.regs);
       Vec.clear st.cont
 
-    let push_frame prog st pc =
+    let push_frame st pc =
       Vec.push st.cont {
         pc;
         regs = snapshot_regs st;
-        max_written = st.max_written;
-        rule = prog.rmin.(pc.label);
+        maxw = st.maxw;
+        rule = st.prog.prio.(pc.label);
       }
 
-    let push_union_frame prog st r id =
-      let regs' = snapshot_regs st in
-      Option_array.set_some regs' r.reg id;
+    let push_union_frame st r id =
+      let regs = snapshot_regs st in
+      OA.set_some regs r.reg id;
       Vec.push st.cont {
         pc = st.pc;
-        regs = regs';
-        max_written = st.max_written;
-        rule = prog.rmin.(st.pc.label);
+        regs;
+        maxw = st.maxw;
+        rule = st.prog.prio.(st.pc.label);
       }
 
-    let backtrack st = match pop_min st.cont with
+    let backtrack st = match pop_frame st with
       | None ->
         reset st;
         raise_notrace Finished
       | Some f ->
-        st.spare <- Some st.regs;
+        if Vec.length st.pool < st.prog.maxd then
+          Vec.push st.pool st.regs;
         st.regs <- f.regs;
-        st.max_written <- f.max_written;
+        st.maxw <- f.maxw;
         st.pc <- f.pc
 
-    let (.$[]) st r = match Option_array.get st.regs r.reg with
+    let (.$[]) st r = match OA.get st.regs r.reg with
       | None -> failwithf "VM: register $%d is uninitialized" r.reg ()
       | Some t -> t
 
     let root st = st.$[r0]
 
     let (.$[]<-) st r x =
-      Option_array.set_some st.regs r.reg x;
-      if r.reg > st.max_written then st.max_written <- r.reg
+      OA.set_some st.regs r.reg x;
+      if r.reg > st.maxw then st.maxw <- r.reg
 
     let ensure_regs st need =
       let n = need + 1 in
-      let current_len = Option_array.length st.regs in
+      let current_len = OA.length st.regs in
       if current_len < n then
         let new_len = max n (2 * current_len + 1) in
-        let bigger = Option_array.create ~len:new_len in
-        Option_array.blit
+        let bigger = OA.create ~len:new_len in
+        OA.blit
           ~src:st.regs ~src_pos:0
           ~dst:bigger ~dst_pos:0
           ~len:current_len;
@@ -664,10 +740,9 @@ module Make(M : L) = struct
     let load_args st r t =
       let args = term_args t in
       let len = List.length args in
-      if len > 0 then begin
-        ensure_regs st (r.reg + len);
+      if len > 0 then
+        let () = ensure_regs st (r.reg + len) in
         List.iteri args ~f:(fun i t -> st.$[r +$ i] <- t)
-      end
 
     let bind st o t next =
       load_args st o t;
@@ -675,42 +750,42 @@ module Make(M : L) = struct
 
     (* Extract the term that `id` represents, handling chains
        of unions along the way. *)
-    let rec normalize_term st prog r id =
+    let rec normalize_term st r id =
       let t = st.lookup id in
       match term_union t with
       | None -> t
       | Some (pre, post) ->
         (* Bookmark the `pre` term for exploration. *)
-        push_union_frame prog st r pre;
+        push_union_frame st r pre;
         (* Explore the `post` term, although it may be
            a union itself, so we need to recurse. *)
-        normalize_term st prog r post
+        normalize_term st r post
 
     type 'a step =
       | Continue
       | Yield of 'a yield
 
-    let step st prog =
+    let step st =
       if equal_label st.pc nil then
         raise_notrace Finished;
-      match Vec.get_exn prog.code st.pc.label with
+      match Vec.get_exn st.prog.code st.pc.label with
       | Init _ ->
         (* NB: this should be done manually at the toplevel *)
         assert false
       | Bind b ->
-        let t = normalize_term st prog b.i st.$[b.i] in
+        let t = normalize_term st b.i st.$[b.i] in
         if term_equal_op t b.f
         then bind st b.o t b.next
         else backtrack st;
         Continue
       | Check c ->
-        let t = normalize_term st prog c.i st.$[c.i] in
+        let t = normalize_term st c.i st.$[c.i] in
         if is_ground_term t && term_equal_op t c.t
         then st.pc <- c.next
         else backtrack st;
         Continue
       | Choose c ->
-        Option.iter c.alt ~f:(push_frame prog st);
+        Option.iter c.alt ~f:(push_frame st);
         st.pc <- c.next;
         Continue
       | Compare c ->
@@ -722,19 +797,19 @@ module Make(M : L) = struct
         Continue
       | Yield y ->
         let subst = Varenv.to_subst y.regs ~lookup:(fun r -> st.$[r]) in
-        let pat, payload = prog.rule.(y.rule) in
+        let pat, payload = st.prog.rule.(y.rule) in
         Yield {subst; payload; rule = y.rule; pat}
 
     let (let-) x f = match x with
       | Some y -> f y
       | None -> false
 
-    let init ~lookup st prog id =
+    let init ~lookup st id =
       reset st;
       let t = lookup id in
       let- op = term_op t in
-      let- r = Hashtbl.find prog.root op in
-      match Vec.get_exn prog.code r.label with
+      let- r = Hashtbl.find st.prog.root op in
+      match Vec.get_exn st.prog.code r.label with
       | Init i ->
         assert (equal_op op i.f);
         st.pc <- i.next;
@@ -744,12 +819,12 @@ module Make(M : L) = struct
         true
       | _ -> assert false
 
-    let many ?(limit = Int.max_value) st prog =
+    let many ?(limit = Int.max_value) st =
       let result = ref [] in
       let count = ref 0 in
       let continue = ref true in
       while !continue && !count < limit do
-        try match step st prog with
+        try match step st with
           | Continue -> ()
           | Yield y ->
             result := y :: !result;
@@ -759,8 +834,7 @@ module Make(M : L) = struct
       done;
       List.rev !result
 
-    let one st prog =
-      match many ~limit:1 st prog with
+    let one st = match many ~limit:1 st with
       | [] -> None
       | [y] -> Some y
       | _ -> assert false

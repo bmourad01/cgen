@@ -62,13 +62,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   module VM = Matcher.VM
   module Y = Matcher.Yield
 
-  let prog, vm =
+  let vm =
     (* XXX: don't try this at home! The representations are exactly the
        same, but we need to erase the type constraints on the input. *)
     let pats : (Matcher.pat * callback list) list = Obj.magic rules in
     let name = Format.asprintf "%a-isel" Target.pp M.target in
     let prog = Matcher.compile ~name pats ~commute:true in
-    prog, VM.create ()
+    VM.create prog
 
   (* Translate a substitution we got from the matcher
      into one that our rule callbacks can understand. *)
@@ -142,9 +142,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | _ -> ()
 
   let match_one t l id =
-    let init = VM.init ~lookup:(node t) vm prog id in
+    let init = VM.init ~lookup:(node t) vm id in
     let* () = C.unless init @@ fun () -> fail_init_matcher t l id in
-    let rec loop () = match VM.one vm prog with
+    let rec loop () = match VM.one vm with
       | None -> !!None
       | Some y -> try
           Logs.debug (fun m ->

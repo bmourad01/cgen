@@ -119,13 +119,13 @@ and optimize ?ty ?l ~d t n id =
     | N _ ->
       let vm = t.vms.(t.depth_limit - d) in
       let rws = {id; budget = t.match_limit} in
-      if VM.init ~lookup:(node t) vm t.rules id then begin
+      if VM.init ~lookup:(node t) vm id then begin
         (* Cap the number of new terms that can be inserted. For large
            chains of union nodes this helps to keep the running time
            from exploding. *)
         let continue = ref true in
         while !continue && rws.budget > 0 do
-          continue := match VM.one vm t.rules with
+          continue := match VM.one vm with
             | Some y -> rewrite ?ty ?l ~d:(d - 1) t rws y
             | None -> false
         done;
