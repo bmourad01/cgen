@@ -69,7 +69,7 @@ module Make_helpers(K : Patricia_tree_intf.Key) = struct
   let branching_size = ctz @@ Int.ceil_pow2 size
   let payload_size = size - branching_size
   let payload_mask = (neg one) lsr branching_size
-  
+
   let pack ~prefix ~bit =
     let idx = of_int (remaining_bits bit) in
     (idx lsl payload_size) lxor (prefix land payload_mask)
