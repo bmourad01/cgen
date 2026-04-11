@@ -72,9 +72,10 @@ module Make(M : L)(D : Domain) = struct
 
   let analyze ~blk cfg =
     let init = Solution.create Label.Tree.empty Var.Tree.empty in
-    let soln = Fixpoint.run (module Cfg) cfg ~init ~merge
+    let start = Label.pseudoentry and finish = Label.pseudoexit in
+    let soln = Fixpoint.run (module Cfg) cfg ~init ~merge ~start
         ~equal:equal_state ~f:(transfer ~blk) in
-    (* The pseudoexit label should have all of the accumulated
+    (* The exit label should have all of the accumulated
        results, since this is a forward-flow analysis. *)
-    Solution.get soln Label.pseudoexit
+    Solution.get soln finish
 end

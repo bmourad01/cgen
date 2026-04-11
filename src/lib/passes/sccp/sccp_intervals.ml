@@ -100,6 +100,7 @@ let analyze fn ~word ~typeof =
     let ctx = create_ctx cycloc ~blks ~word ~typeof ~cfg in
     let input = Fixpoint.run (module Cfg) cfg
         ~step:(step ctx)
+        ~start:Label.pseudoentry
         ~init:(init_state ctx fn)
         ~equal:equal_state
         ~merge:join_state

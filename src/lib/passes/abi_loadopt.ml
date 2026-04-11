@@ -95,7 +95,7 @@ let init_dom_relation reso dom =
     end) in
   Dom.dominates
 
-let init_last_stores cfg reso =
+let init_last_stores start cfg reso =
   let module Lst = Last_stores.Make(struct
       module Insn = Abi.Insn
       module Blk = Abi.Blk
@@ -104,14 +104,15 @@ let init_last_stores cfg reso =
         | Some `insn _ | None -> assert false
         | Some `blk b -> b
     end) in
-  Lst.analyze cfg
+  Lst.analyze cfg start
 
 let init fn =
   let+ reso = Abi.Resolver.create fn in
+  let start = Abi.Func.entry fn in
   let cfg = Abi.Cfg.create fn in
   let dom = Semi_nca.compute (module Abi.Cfg) cfg Label.pseudoentry in
   let rdom = init_dom_relation reso dom in
-  let lst = init_last_stores cfg reso in
+  let lst = init_last_stores start cfg reso in
   let blks = Label.Table.create () in
   let mems = Mem.Table.create () in
   let vars = Var.Table.create () in

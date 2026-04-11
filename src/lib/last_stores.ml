@@ -36,8 +36,8 @@ module Make(M : L) = struct
   let step _ l = Option.merge ~f:(fun a b ->
       if Label.(a = b) then a else first_insn l)
 
-  let analyze cfg =
-    Fixpoint.run (module Cfg) ~step
+  let analyze cfg start =
+    Fixpoint.run (module Cfg) ~step ~start
       ~init:(Solution.create Label.Tree.empty None)
       ~equal:equal_state ~merge:Fn.const ~f:transfer @@
     Cfg.Node.remove Label.pseudoentry @@

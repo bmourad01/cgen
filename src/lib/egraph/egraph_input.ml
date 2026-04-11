@@ -54,7 +54,7 @@ let init_dom_relation reso dom =
     end) in
   Dom.dominates
 
-let init_last_stores cfg reso =
+let init_last_stores start cfg reso =
   let module Lst = Last_stores.Make(struct
       module Insn = Insn
       module Blk = Blk
@@ -63,7 +63,7 @@ let init_last_stores cfg reso =
         | Some `insn _ | None -> assert false
         | Some `blk b -> b
     end) in
-  Lst.analyze cfg
+  Lst.analyze cfg start
 
 let resolve_blk reso l =
   match Resolver.resolve reso l with
@@ -72,12 +72,13 @@ let resolve_blk reso l =
 
 let init fn tenv =
   let+ reso = Resolver.create fn in
+  let start = Func.entry fn in
   let cfg = Cfg.create fn in
   let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
   let loop = Loops.analyze ~dom ~name:(Func.name fn) cfg in
   let pdom = Semi_nca.compute (module Cfg) cfg Label.pseudoexit ~rev:true in
   let rdom = init_dom_relation reso dom in
-  let lst = init_last_stores cfg reso in
+  let lst = init_last_stores start cfg reso in
   let phis = Phis.analyze ~blk:(resolve_blk reso) cfg in
   let scc = Graphlib.strong_components (module Cfg) cfg in
   Logs.debug (fun m ->
