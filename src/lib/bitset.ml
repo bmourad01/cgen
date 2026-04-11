@@ -61,7 +61,6 @@ let enum =
   let rec go f t = match f t with
     | Some (k, t') -> yield k >>= fun () -> go f t'
     | None -> return () in
-  let _ = Z.numbits in
   fun ?(rev = false) t ->
     let f = if rev then pop_max_elt else pop_min_elt in
     run @@ go f t
