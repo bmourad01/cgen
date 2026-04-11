@@ -593,17 +593,13 @@ module Make(M : Machine_intf.S) = struct
     (* Setup the remaining state for the first round. *)
     alloc_arrays t
 
-  (* Verify the paper's stated invariants, adapted for our `combine_edge`
-     deviation (no spurious DecrementDegree on new-edge neighbours).
+  (* Verify the stated invariants in the IRC paper:
 
-     Strictness:
      - Partition invariant: every colorable node is in exactly one set.
      - Degree invariant: degree[u] counts active neighbours exactly.
-     - `wfreeze`: degree < K AND move-related (strict per paper).
-     - `wspill`:  degree >= K (strict per paper).
-     - `wsimplify`: classification relaxed, `combine_edge` can leave
-       nodes move-related (from inherited copies) or high-degree (from
-       `select_spill`) in `wsimplify`, which is benign.
+     - `wfreeze`: degree < K AND move-related.
+     - `wspill`:  degree >= K.
+     - `wsimplify`: degree < K AND NOT move-related.
   *)
   let check_invariants t =
     let n = num_nodes t in
@@ -625,6 +621,14 @@ module Make(M : Machine_intf.S) = struct
     Bitset.iter t.wsimplify ~f:check_degree;
     H.iter t.wfreeze ~f:check_degree;
     H.iter t.wspill ~f:check_degree;
+    (* wsimplify invariant: degree < K and not move-related *)
+    Bitset.iter t.wsimplify ~f:(fun id ->
+        let d = t.data.degree.(id) in
+        let k = Regs.node_k t.![id] in
+        if d >= k then
+          failwithf "wsimplify invariant: id %d degree=%d >= K=%d" id d k ();
+        if Wmoves.move_related t id then
+          failwithf "wsimplify invariant: id %d is move-related" id ());
     (* wfreeze invariant: degree < K and move-related *)
     H.iter t.wfreeze ~f:(fun id ->
         let d = t.data.degree.(id) in

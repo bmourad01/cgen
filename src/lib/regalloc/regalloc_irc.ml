@@ -408,10 +408,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           __FUNCTION__ Rv.pp t.![m]);
     (* spillWorklist := spillWorklist ∖ {m} *)
     Wspill.clear t m;
-    (* simplifyWorklist := simplifyWorklist ∪ {m} *)
-    t.wsimplify <- Bitset.set t.wsimplify m;
     (* FreezeMoves(m) *)
-    freeze_moves t m
+    freeze_moves t m;
+    (* Instead of going through `wsimplify`, we'll inline the relevant
+       logic here. This is to avoid violating the invariants of the
+       simplify worklist. *)
+    if can_be_colored t m then Stack.push t.select m;
+    Bitset.iter (adjacent t m) ~f:(decrement_degree t)
 
   (* For all neighbors of `id` that have a color, remove them from the
      set of his available colors. *)
