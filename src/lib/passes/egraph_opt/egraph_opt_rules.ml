@@ -530,15 +530,15 @@ module Groups = struct
     mul `i32 x (i32 1l) =>! x;
     mul `i64 x (i64 1L) =>! x;
 
-    mulh `i8 x  (i8 1) =>! x;
-    mulh `i16 x (i16 1) =>! x;
-    mulh `i32 x (i32 1l) =>! x;
-    mulh `i64 x (i64 1L) =>! x;
+    mulh `i8 x  (i8 1) => asr_ `i8 x (i8 7);
+    mulh `i16 x (i16 1) => asr_ `i16 x (i16 15);
+    mulh `i32 x (i32 1l) => asr_ `i32 x (i32 31l);
+    mulh `i64 x (i64 1L) => asr_ `i64 x (i64 63L);
 
-    umulh `i8 x  (i8 1) =>! x;
-    umulh `i16 x (i16 1) =>! x;
-    umulh `i32 x (i32 1l) =>! x;
-    umulh `i64 x (i64 1L) =>! x;
+    umulh `i8 x  (i8 1) =>! i8 0;
+    umulh `i16 x (i16 1) =>! i16 0;
+    umulh `i32 x (i32 1l) =>! i32 0l;
+    umulh `i64 x (i64 1L) =>! i64 0L;
   ]
 
   (* x * -1 = -x *)
