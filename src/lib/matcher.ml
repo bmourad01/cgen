@@ -105,15 +105,30 @@ module Make(M : L) = struct
   module Varenv = struct
     (* These environments are typically very small, so we can
        get away with using an association list. *)
-    type t = (string * reg) list [@@deriving compare, hash, sexp]
+    type t =
+      | Nil
+      | Var of string * reg * t
+    [@@deriving compare, hash, sexp]
 
-    let empty = []
-    let find v x = List.Assoc.find v ~equal:String.equal x
-    let add v x r = (x, r) :: v
+    let empty = Nil
 
-    let to_subst v ~lookup =
-      List.fold v ~init:String.Map.empty ~f:(fun acc (x, r) ->
-          Map.add_exn acc ~key:x ~data:(lookup r))
+    let rec find env x = match env with
+      | Nil -> None
+      | Var (y, r, _) when String.(x = y) -> Some r
+      | Var (_, _, env) -> find env x
+
+    let add env x r = Var (x, r, env)
+
+    let to_subst env ~lookup =
+      let rec go m = function
+        | Nil -> m
+        | Var (x, r, env) ->
+          go (Map.add_exn m ~key:x ~data:(lookup r)) env in
+      go String.Map.empty env
+
+    let[@tail_mod_cons] rec to_list = function
+      | Nil -> []
+      | Var (x, r, env) -> (x, r) :: to_list env
   end
 
   type varenv = Varenv.t [@@deriving compare, hash, sexp]
@@ -213,7 +228,7 @@ module Make(M : L) = struct
         (Format.pp_print_list
            (fun ppf (x, r) -> Format.fprintf ppf "%a:?%s" pp_reg r x)
            ~pp_sep:(fun ppf () -> Format.fprintf ppf ", "))
-        y.regs y.rule
+        (Varenv.to_list y.regs) y.rule
 
   (* A tree of code sequences. *)
   type tree =
