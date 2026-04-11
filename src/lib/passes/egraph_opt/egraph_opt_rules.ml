@@ -481,6 +481,14 @@ module Groups = struct
     not_ `i64 (sub `i64 x (i64 1L)) => neg `i64 x;
   ]
 
+  (* -(x * y) = x * (-y) *)
+  let neg_mul = [
+    neg `i8 (mul `i8 x y) => mul `i8 x (neg `i8 y);
+    neg `i16 (mul `i16 x y) => mul `i16 x (neg `i16 y);
+    neg `i32 (mul `i32 x y) => mul `i32 x (neg `i32 y);
+    neg `i64 (mul `i64 x y) => mul `i64 x (neg `i64 y);
+  ]
+
   (* -x * -y = x * y *)
   let mul_negs = [
     mul `i8 (neg `i8 x) (neg `i8 y) => mul `i8 x y;
@@ -774,6 +782,118 @@ module Groups = struct
     or_ `i64 (not_ `i64 y) (and_ `i64 x y) => or_ `i64 x (not_ `i64 y);
   ]
 
+  (* x | (~x & y) = (~x & y) | x = x | y *)
+  let or_masked = [
+    or_ `i8 x (and_ `i8 (not_ `i8 x) y) => or_ `i8 x y;
+    or_ `i16 x (and_ `i16 (not_ `i16 x) y) => or_ `i16 x y;
+    or_ `i32 x (and_ `i32 (not_ `i32 x) y) => or_ `i32 x y;
+    or_ `i64 x (and_ `i64 (not_ `i64 x) y) => or_ `i64 x y;
+
+    or_ `i8 (and_ `i8 (not_ `i8 x) y) x => or_ `i8 x y;
+    or_ `i16 (and_ `i16 (not_ `i16 x) y) x => or_ `i16 x y;
+    or_ `i32 (and_ `i32 (not_ `i32 x) y) x => or_ `i32 x y;
+    or_ `i64 (and_ `i64 (not_ `i64 x) y) x => or_ `i64 x y;
+
+    or_ `i8 x (and_ `i8 y (not_ `i8 x)) => or_ `i8 x y;
+    or_ `i16 x (and_ `i16 y (not_ `i16 x)) => or_ `i16 x y;
+    or_ `i32 x (and_ `i32 y (not_ `i32 x)) => or_ `i32 x y;
+    or_ `i64 x (and_ `i64 y (not_ `i64 x)) => or_ `i64 x y;
+
+    or_ `i8 (and_ `i8 y (not_ `i8 x)) x => or_ `i8 x y;
+    or_ `i16 (and_ `i16 y (not_ `i16 x)) x => or_ `i16 x y;
+    or_ `i32 (and_ `i32 y (not_ `i32 x)) x => or_ `i32 x y;
+    or_ `i64 (and_ `i64 y (not_ `i64 x)) x => or_ `i64 x y;
+  ]
+
+  (* (x ^ y) & y = y & (x ^ y) = ~x & y *)
+  let xor_and = [
+    and_ `i8 (xor `i8 x y) y => and_ `i8 (not_ `i8 x) y;
+    and_ `i16 (xor `i16 x y) y => and_ `i16 (not_ `i16 x) y;
+    and_ `i32 (xor `i32 x y) y => and_ `i32 (not_ `i32 x) y;
+    and_ `i64 (xor `i64 x y) y => and_ `i64 (not_ `i64 x) y;
+
+    and_ `i8 y (xor `i8 x y) => and_ `i8 (not_ `i8 x) y;
+    and_ `i16 y (xor `i16 x y) => and_ `i16 (not_ `i16 x) y;
+    and_ `i32 y (xor `i32 x y) => and_ `i32 (not_ `i32 x) y;
+    and_ `i64 y (xor `i64 x y) => and_ `i64 (not_ `i64 x) y;
+  ]
+
+  (* (x ^ y) | y = y | (x ^ y) = x | y *)
+  let xor_or = [
+    or_ `i8 (xor `i8 x y) y => or_ `i8 x y;
+    or_ `i16 (xor `i16 x y) y => or_ `i16 x y;
+    or_ `i32 (xor `i32 x y) y => or_ `i32 x y;
+    or_ `i64 (xor `i64 x y) y => or_ `i64 x y;
+
+    or_ `i8 y (xor `i8 x y) => or_ `i8 x y;
+    or_ `i16 y (xor `i16 x y) => or_ `i16 x y;
+    or_ `i32 y (xor `i32 x y) => or_ `i32 x y;
+    or_ `i64 y (xor `i64 x y) => or_ `i64 x y;
+  ]
+
+  (* (x | y) ^ (x & y) = (x & y) ^ (x | y) = x ^ y *)
+  let symmetric_diff = [
+    xor `i8 (or_ `i8 x y) (and_ `i8 x y) => xor `i8 x y;
+    xor `i16 (or_ `i16 x y) (and_ `i16 x y) => xor `i16 x y;
+    xor `i32 (or_ `i32 x y) (and_ `i32 x y) => xor `i32 x y;
+    xor `i64 (or_ `i64 x y) (and_ `i64 x y) => xor `i64 x y;
+
+    xor `i8 (and_ `i8 x y) (or_ `i8 x y) => xor `i8 x y;
+    xor `i16 (and_ `i16 x y) (or_ `i16 x y) => xor `i16 x y;
+    xor `i32 (and_ `i32 x y) (or_ `i32 x y) => xor `i32 x y;
+    xor `i64 (and_ `i64 x y) (or_ `i64 x y) => xor `i64 x y;
+  ]
+
+  (* x & (x & y) = (x & y) & x = x & y *)
+  let and_redundant = [
+    and_ `i8 x (and_ `i8 x y) =>! and_ `i8 x y;
+    and_ `i16 x (and_ `i16 x y) =>! and_ `i16 x y;
+    and_ `i32 x (and_ `i32 x y) =>! and_ `i32 x y;
+    and_ `i64 x (and_ `i64 x y) =>! and_ `i64 x y;
+
+    and_ `i8 (and_ `i8 x y) x =>! and_ `i8 x y;
+    and_ `i16 (and_ `i16 x y) x =>! and_ `i16 x y;
+    and_ `i32 (and_ `i32 x y) x =>! and_ `i32 x y;
+    and_ `i64 (and_ `i64 x y) x =>! and_ `i64 x y;
+  ]
+
+  (* x | (x | y) = (x | y) | x = x | y *)
+  let or_redundant = [
+    or_ `i8 x (or_ `i8 x y) =>! or_ `i8 x y;
+    or_ `i16 x (or_ `i16 x y) =>! or_ `i16 x y;
+    or_ `i32 x (or_ `i32 x y) =>! or_ `i32 x y;
+    or_ `i64 x (or_ `i64 x y) =>! or_ `i64 x y;
+
+    or_ `i8 (or_ `i8 x y) x =>! or_ `i8 x y;
+    or_ `i16 (or_ `i16 x y) x =>! or_ `i16 x y;
+    or_ `i32 (or_ `i32 x y) x =>! or_ `i32 x y;
+    or_ `i64 (or_ `i64 x y) x =>! or_ `i64 x y;
+  ]
+
+  (* 0 >>> x = 0 *)
+  let asr_of_zero = [
+    asr_ `i8 (i8 0) x =>! i8 0;
+    asr_ `i16 (i16 0) x =>! i16 0;
+    asr_ `i32 (i32 0l) x =>! i32 0l;
+    asr_ `i64 (i64 0L) x =>! i64 0L;
+  ]
+
+  (* 0 << x = 0 *)
+  let lsl_of_zero = [
+    lsl_ `i8 (i8 0) x =>! i8 0;
+    lsl_ `i16 (i16 0) x =>! i16 0;
+    lsl_ `i32 (i32 0l) x =>! i32 0l;
+    lsl_ `i64 (i64 0L) x =>! i64 0L;
+  ]
+
+  (* 0 >> x = 0 *)
+  let lsr_of_zero = [
+    lsr_ `i8 (i8 0) x =>! i8 0;
+    lsr_ `i16 (i16 0) x =>! i16 0;
+    lsr_ `i32 (i32 0l) x =>! i32 0l;
+    lsr_ `i64 (i64 0L) x =>! i64 0L;
+  ]
+
   (* x >>> 0 = x *)
   let asr_zero = [
     asr_ `i8 x (i8 0) =>! x;
@@ -912,15 +1032,15 @@ module Groups = struct
   (* (x & y) ^ (x ^ y) =
      (x ^ y) ^ (x & y) = x | y *)
   let xor_to_or = [
-    xor `i8 (and_ `i8 x y) (xor `i8 x y) =>! or_ `i8 x y;
-    xor `i16 (and_ `i16 x y) (xor `i16 x y) =>! or_ `i16 x y;
-    xor `i32 (and_ `i32 x y) (xor `i32 x y) =>! or_ `i32 x y;
-    xor `i64 (and_ `i64 x y) (xor `i64 x y) =>! or_ `i64 x y;
+    xor `i8 (and_ `i8 x y) (xor `i8 x y) => or_ `i8 x y;
+    xor `i16 (and_ `i16 x y) (xor `i16 x y) => or_ `i16 x y;
+    xor `i32 (and_ `i32 x y) (xor `i32 x y) => or_ `i32 x y;
+    xor `i64 (and_ `i64 x y) (xor `i64 x y) => or_ `i64 x y;
 
-    xor `i8 (xor `i8 x y) (and_ `i8 x y) =>! or_ `i8 x y;
-    xor `i16 (xor `i16 x y) (and_ `i16 x y) =>! or_ `i16 x y;
-    xor `i32 (xor `i32 x y) (and_ `i32 x y) =>! or_ `i32 x y;
-    xor `i64 (xor `i64 x y) (and_ `i64 x y) =>! or_ `i64 x y;
+    xor `i8 (xor `i8 x y) (and_ `i8 x y) => or_ `i8 x y;
+    xor `i16 (xor `i16 x y) (and_ `i16 x y) => or_ `i16 x y;
+    xor `i32 (xor `i32 x y) (and_ `i32 x y) => or_ `i32 x y;
+    xor `i64 (xor `i64 x y) (and_ `i64 x y) => or_ `i64 x y;
   ]
 
   (* (x ^ y) ^ y =
@@ -972,6 +1092,117 @@ module Groups = struct
     ne `i16 x x =>! bool false;
     ne `i32 x x =>! bool false;
     ne `i64 x x =>! bool false;
+  ]
+
+  (* popcnt x == 0 = x == 0 *)
+  let popcnt_eq_zero = [
+    eq `i8  (popcnt `i8 x) (i8 0) => eq `i8 x (i8 0);
+    eq `i16 (popcnt `i16 x) (i16 0) => eq `i16 x (i16 0);
+    eq `i32 (popcnt `i32 x) (i32 0l) => eq `i32 x (i32 0l);
+    eq `i64 (popcnt `i64 x) (i64 0L) => eq `i64 x (i64 0L);
+  ]
+
+  (* popcnt x != 0 = x != 0 *)
+  let popcnt_ne_zero = [
+    ne `i8  (popcnt `i8  x) (i8 0) => ne `i8 x (i8 0);
+    ne `i16 (popcnt `i16 x) (i16 0) => ne `i16 x (i16 0);
+    ne `i32 (popcnt `i32 x) (i32 0l) => ne `i32 x (i32 0l);
+    ne `i64 (popcnt `i64 x) (i64 0L) => ne `i64 x (i64 0L);
+  ]
+
+  (* x & ~x = ~x & x = 0 *)
+  let and_not_self = [
+    and_ `i8 x (not_ `i8 x) =>! i8 0;
+    and_ `i16 x (not_ `i16 x) =>! i16 0;
+    and_ `i32 x (not_ `i32 x) =>! i32 0l;
+    and_ `i64 x (not_ `i64 x) =>! i64 0L;
+
+    and_ `i8 (not_ `i8 x) x =>! i8 0;
+    and_ `i16 (not_ `i16 x) x =>! i16 0;
+    and_ `i32 (not_ `i32 x) x =>! i32 0l;
+    and_ `i64 (not_ `i64 x) x =>! i64 0L;
+  ]
+
+  (* x & (x | y) = (x | y) & x = x *)
+  let absorb_or_and = [
+    and_ `i8 x (or_ `i8 x y) =>! x;
+    and_ `i16 x (or_ `i16 x y) =>! x;
+    and_ `i32 x (or_ `i32 x y) =>! x;
+    and_ `i64 x (or_ `i64 x y) =>! x;
+
+    and_ `i8 (or_ `i8 x y) x =>! x;
+    and_ `i16 (or_ `i16 x y) x =>! x;
+    and_ `i32 (or_ `i32 x y) x =>! x;
+    and_ `i64 (or_ `i64 x y) x =>! x;
+  ]
+
+  (* x | (x & y) = (x & y) | x = x *)
+  let absorb_and_or = [
+    or_ `i8 x (and_ `i8 x y) =>! x;
+    or_ `i16 x (and_ `i16 x y) =>! x;
+    or_ `i32 x (and_ `i32 x y) =>! x;
+    or_ `i64 x (and_ `i64 x y) =>! x;
+
+    or_ `i8 (and_ `i8 x y) x =>! x;
+    or_ `i16 (and_ `i16 x y) x =>! x;
+    or_ `i32 (and_ `i32 x y) x =>! x;
+    or_ `i64 (and_ `i64 x y) x =>! x;
+  ]
+
+  (* -(x - y) = y - x *)
+  let neg_sub = [
+    neg `i8 (sub `i8 x y) => sub `i8 y x;
+    neg `i16 (sub `i16 x y) => sub `i16 y x;
+    neg `i32 (sub `i32 x y) => sub `i32 y x;
+    neg `i64 (sub `i64 x y) => sub `i64 y x;
+  ]
+
+  (* ~(-x) = x - 1 *)
+  let not_neg = [
+    not_ `i8 (neg `i8 x) => sub `i8 x (i8 1);
+    not_ `i16 (neg `i16 x) => sub `i16 x (i16 1);
+    not_ `i32 (neg `i32 x) => sub `i32 x (i32 1l);
+    not_ `i64 (neg `i64 x) => sub `i64 x (i64 1L);
+  ]
+
+  (* -~x = x + 1 *)
+  let neg_not = [
+    neg `i8 (not_ `i8 x) => add `i8 x (i8 1);
+    neg `i16 (not_ `i16 x) => add `i16 x (i16 1);
+    neg `i32 (not_ `i32 x) => add `i32 x (i32 1l);
+    neg `i64 (not_ `i64 x) => add `i64 x (i64 1L);
+  ]
+
+  (* ~x + 1 = -x *)
+  let not_add_one = [
+    add `i8 (not_ `i8 x) (i8 1) => neg `i8 x;
+    add `i16 (not_ `i16 x) (i16 1) => neg `i16 x;
+    add `i32 (not_ `i32 x) (i32 1l) => neg `i32 x;
+    add `i64 (not_ `i64 x) (i64 1L) => neg `i64 x;
+  ]
+
+  (* x - (x + y) = -y
+     x - (y + x) = -y *)
+  let sub_add_cancel = [
+    sub `i8 x (add `i8 x y) => neg `i8 y;
+    sub `i16 x (add `i16 x y) => neg `i16 y;
+    sub `i32 x (add `i32 x y) => neg `i32 y;
+    sub `i64 x (add `i64 x y) => neg `i64 y;
+
+    sub `i8 x (add `i8 y x) => neg `i8 y;
+    sub `i16 x (add `i16 y x) => neg `i16 y;
+    sub `i32 x (add `i32 y x) => neg `i32 y;
+    sub `i64 x (add `i64 y x) => neg `i64 y;
+
+    sub `i8 (add `i8 x y) x =>! y;
+    sub `i16 (add `i16 x y) x =>! y;
+    sub `i32 (add `i32 x y) x =>! y;
+    sub `i64 (add `i64 x y) x =>! y;
+
+    sub `i8 (add `i8 y x) x =>! y;
+    sub `i16 (add `i16 y x) x =>! y;
+    sub `i32 (add `i32 y x) x =>! y;
+    sub `i64 (add `i64 y x) x =>! y;
   ]
 
   (* x >= x = true *)
@@ -1922,6 +2153,7 @@ module Groups = struct
       double_not;
       inc_not;
       dec_not;
+      neg_mul;
       mul_negs;
       sub_self;
       mul_zero;
@@ -1950,9 +2182,21 @@ module Groups = struct
       or_ones;
       or_self;
       or_not_self;
+      and_not_self;
+      absorb_or_and;
+      absorb_and_or;
+      or_masked;
       demorgan_not_or;
       demorgan_not_and;
       or_and_not;
+      xor_and;
+      xor_or;
+      symmetric_diff;
+      and_redundant;
+      or_redundant;
+      asr_of_zero;
+      lsl_of_zero;
+      lsr_of_zero;
       asr_zero;
       lsl_zero;
       lsr_zero;
@@ -1966,9 +2210,16 @@ module Groups = struct
       xor_not_self;
       xor_to_or;
       double_xor;
+      neg_sub;
+      not_neg;
+      neg_not;
+      not_add_one;
+      sub_add_cancel;
       lsr_asr_bitwidth;
       eq_self;
       ne_self;
+      popcnt_eq_zero;
+      popcnt_ne_zero;
       ge_self;
       gt_self;
       le_self;

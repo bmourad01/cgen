@@ -36,6 +36,7 @@ type t =
 [@@deriving compare, equal, hash, sexp]
 
 let is_const = function
+  | N (Oaddr _, [])
   | N (Obool _, [])
   | N (Oint _, [])
   | N (Odouble _, [])

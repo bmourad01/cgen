@@ -24,20 +24,27 @@ let pp_prov ppf = function
    out the edges of translating the CFG representation. *)
 type ext = E of prov * Enode.op * ext list
 
-(* Let the bottom N bits of the cost be the depth of a given
-   term, and the remaining upper bits are the actual cost
-   of the operation(s).
+(* Cost is packed into an Int63 with three fields, in order
+   of significance:
 
-   This should favor shallower terms, which in practice lead
-   to more favorable register pressure.
+   - opc: the operation cost of the term (dominates)
+   - width: number of direct children that need registers (secondary)
+   - depth: the depth of the term (tertiary tiebreaker)
+
+   Constants and popular children (already materialized elsewhere)
+   are excluded from width. This ordering means we first minimize
+   total operations, then prefer terms with fewer simultaneously-live
+   operands (less register pressure at the node), and finally prefer
+   shallower terms.
 *)
 module Cost : sig
   type t = private Int63.t
   val (<) : t -> t -> bool
   val pure : int -> t
-  val incr : t -> t
-  val add : t -> t -> t
+  val incr : width:int -> t -> t
+  val accum : t -> t -> t
   val opc : t -> Int63.t
+  val width : t -> Int63.t
   val depth : t -> Int63.t
   val pp : Format.formatter -> t -> unit
 end = struct
@@ -49,26 +56,38 @@ end = struct
   let compare_u a b = compare (a lxor min_value) (b lxor min_value) [@@inline]
   let (<) a b = Int.(compare_u a b < 0) [@@inline]
 
-  let depth_bits = 12
+  let depth_bits = 8
+  let width_bits = 8
+  let low_bits = Int.(depth_bits + width_bits)
   let depth_mask = pred (one lsl depth_bits)
-  let opc_mask = lnot depth_mask
+  let width_mask = pred (one lsl width_bits) lsl depth_bits
+  let low_mask = pred (one lsl low_bits)
 
-  let opc c = c lsr depth_bits [@@inline]
+  let opc c = c lsr low_bits [@@inline]
+  let width c = (c land width_mask) lsr depth_bits [@@inline]
   let depth c = c land depth_mask [@@inline]
-  let create o d = (o lsl depth_bits) lor (d land depth_mask) [@@inline]
-  let pure o = of_int o lsl depth_bits [@@inline]
 
-  (* Make sure the increment doesn't wrap around. *)
-  let incr c =
-    let d = depth c in
-    (c land opc_mask) lor
-    (if d = depth_mask then d else succ d)
+  let create o w d =
+    let o = o lsl low_bits in
+    let w = (w land (pred one lsl width_bits)) lsl depth_bits in
+    let d = d land depth_mask in
+    o lor w lor d
   [@@inline]
 
-  let add x y =
+  let pure o = of_int o lsl low_bits [@@inline]
+
+  (* Finalize a compound node's cost with its width and depth. *)
+  let incr ~width:w c =
+    let d = depth c in
+    let d = if d = depth_mask then d else succ d in
+    let w = min (of_int w) (pred (one lsl width_bits)) in
+    (c land (lnot low_mask)) lor (w lsl depth_bits) lor d
+  [@@inline]
+
+  let accum x y =
     let o = opc x + opc y in
     let d = max (depth x) (depth y) in
-    create o d
+    create o zero d
   [@@inline]
 
   let pp = pp
@@ -79,6 +98,7 @@ type cost = Cost.t
 type t = {
   eg             : egraph;
   table          : (cost * enode) Id.Table.t;
+  safe           : (cost * enode) Id.Table.t;
   memo           : ext Id.Table.t;
   mutable impure : Bitset.t;
 }
@@ -129,23 +149,58 @@ let op_cost : Enode.op -> cost = function
   | Obinop _ -> Cost.pure 4
   | Osel _ -> Cost.pure 8
 
+(* Structural popularity: for each e-class, count how many distinct
+   parent e-classes reference it as a child across all e-nodes.
+
+   An e-class with popularity >= 2 is likely to be materialized
+   regardless of extraction choices. Popular children are excluded
+   from the width field so the secondary tiebreaker favors nodes
+   whose operands are already live.
+*)
+let compute_popularity eg =
+  let n = Vec.length eg.node in
+  let seen1 = Array.create ~len:n (-1) in
+  let popular = ref Bitset.empty in
+  Vec.iteri eg.node ~f:(fun id -> function
+      | N (Oset _, _) | U _ -> () (* skip signpost nodes *)
+      | N (_, cs) ->
+        let pid = find eg id in
+        List.iter cs ~f:(fun cid ->
+            let cid = find eg cid in
+            if cid <> pid then
+              let prev = seen1.(cid) in
+              if prev < 0 then
+                seen1.(cid) <- pid
+              else if prev <> pid then
+                popular := Bitset.set !popular cid));
+  !popular
+
 (* Fill the table with the "best" terms for each e-class. *)
 module Saturation : sig
   val go : t -> unit
 end = struct
-  let get t id = find t.eg id |> Hashtbl.find_exn t.table
-  let set t id ~f = find t.eg id |> Hashtbl.update t.table ~f
+  let get tbl eg id : cost * enode =
+    Hashtbl.find_exn tbl @@ find eg id
 
-  let cost t (n : enode) = match n with
+  let cost tbl eg pop ~self (n : enode) = match n with
     | N (op, []) -> op_cost op, n
     | N (op, children) ->
-      let k = List.fold children ~init:(op_cost op)
-          ~f:(fun k id -> Cost.add k @@ fst @@ get t id) in
-      Cost.incr k, n
+      let width, k =
+        List.fold children
+          ~init:(0, op_cost op)
+          ~f:(fun (w, k) id ->
+              let cid = find eg id in
+              let c, n = get tbl eg cid in
+              (* Popular or constant children don't contribute to
+                 register pressure. Exclude them from width. *)
+              let pop_ok = cid <> self && Bitset.mem pop cid in
+              let w = if pop_ok || Enode.is_const n then w else w + 1 in
+              let k = Cost.accum k c in
+              w, k) in
+      Cost.incr ~width k, n
     | U {pre; post} ->
-      (* Break ties by favoring the rewritten term. *)
-      let pre, a = get t pre in
-      let post, b = get t post in
+      let pre, a = get tbl eg pre in
+      let post, b = get tbl eg post in
       if Cost.(pre < post) then pre, a else post, b
 
   (* We're searching in a pseudo-topological order, so we shouldn't need
@@ -154,29 +209,55 @@ end = struct
      Note that because of this ordering, we can always eagerly break ties
      by using the newer term.
   *)
-  let go t = Vec.iteri t.eg.node ~f:(fun id n ->
-      let (x, _) as term = cost t n in
-      set t id ~f:(function
-          | Some ((y, _) as prev) when Cost.(y < x) -> prev
-          | Some _ | None -> term))
+  let saturate tbl eg pop =
+    Vec.iteri eg.node ~f:(fun id n ->
+        let self = find eg id in
+        let (x, _) as term = cost tbl eg pop ~self n in
+        let cid = self in
+        Hashtbl.update tbl cid ~f:(function
+            | Some ((y, _) as prev) when Cost.(y < x) -> prev
+            | Some _ | None -> term))
+
+  let go t =
+    let pop = compute_popularity t.eg in
+    (* First pass: undiscounted costs into safe table. *)
+    saturate t.safe t.eg Bitset.empty;
+    (* Second pass: popularity-aware costs into main table.
+       Popular children still pay full opcode cost (avoiding
+       cascade through decomposition chains), but are excluded
+       from width so the secondary tiebreaker favors nodes
+       whose operands are already materialized elsewhere. *)
+    saturate t.table t.eg pop
 end
 
 let debug_dump t =
+  let pp ppf (cid, (c, n)) =
+    Format.fprintf ppf
+      "  %d:\n    cost: %a (opc = %a, width = %a, depth = %a)\n    node: %a%!"
+      cid Cost.pp c
+      Int63.pp (Cost.opc c)
+      Int63.pp (Cost.width c)
+      Int63.pp (Cost.depth c)
+      Enode.pp n in
+  let sort l = List.sort l ~compare:(fun (a, _) (b, _) -> compare a b) in
   Logs.debug (fun m ->
-      let pp ppf (cid, (c, n)) =
-        Format.fprintf ppf
-          "  %d:\n    cost: %a (depth = %a, opc = %a)\n    node: %a%!"
-          cid Cost.pp c Int63.pp (Cost.depth c) Int63.pp (Cost.opc c) Enode.pp n in
       m "%s: $%s cost table:\n%a"
         __FUNCTION__ (Func.name t.eg.input.fn)
         (Format.pp_print_list pp
            ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n"))
-        (Hashtbl.to_alist t.table))
+        (sort @@ Hashtbl.to_alist t.table);
+      m "%s: $%s safe cost table:\n%a"
+        __FUNCTION__ (Func.name t.eg.input.fn)
+        (Format.pp_print_list pp
+           ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n"))
+        (sort @@ Hashtbl.to_alist t.safe)
+    )
 
 let init eg =
   let t = {
     eg;
     table = Id.Table.create ();
+    safe = Id.Table.create ();
     memo = Id.Table.create ();
     impure = Bitset.empty;
   } in
@@ -229,20 +310,27 @@ let prov t cid id op args =
 
 module O = Monad.Option
 
-let rec extract t id =
-  let cid = find t.eg id in
-  match Hashtbl.find t.memo cid with
-  | Some _ as e -> e
-  | None ->
-    let open O.Let in
-    let* _, n = Hashtbl.find t.table cid in
-    match n with
-    | N (op, cs) ->
-      let+ cs = O.List.map cs ~f:(extract t) in
-      let e = E (prov t cid id op cs, op, cs) in
-      Hashtbl.set t.memo ~key:cid ~data:e;
-      e
-    | U {pre; post} ->
-      let id = find t.eg post in
-      assert (id = find t.eg pre);
-      extract t post
+let extract t =
+  let rec go tbl visiting id =
+    let cid = find t.eg id in
+    match Hashtbl.find t.memo cid with
+    | Some _ as e -> e
+    | None when Bitset.mem visiting cid ->
+      (* Cycle in discounted table: fall back to safe table,
+         which is guaranteed acyclic (no discount). *)
+      go t.safe Bitset.empty cid
+    | None ->
+      let visiting = Bitset.set visiting cid in
+      let open O.Let in
+      let* _, n = Hashtbl.find tbl cid in
+      match n with
+      | N (op, cs) ->
+        let+ cs = O.List.map cs ~f:(go tbl visiting) in
+        let e = E (prov t cid id op cs, op, cs) in
+        Hashtbl.set t.memo ~key:cid ~data:e;
+        e
+      | U {pre; post} ->
+        let id = find t.eg post in
+        assert (id = find t.eg pre);
+        go tbl visiting post in
+  go t.table Bitset.empty

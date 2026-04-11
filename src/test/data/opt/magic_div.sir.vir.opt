@@ -78,7 +78,6 @@ export function :magic_u $magic_unsigned(w %31) {
   %120 = udiv.w 0x7fffffff_w, %31 ; @69
   %226 = mul.w %120, %31 ; @180
   %227 = sub.w 0x7fffffff_w, %226 ; @181
-  %229 = sub.w 0x1_w, %31 ; @183
   jmp @60(0x1f_w, 0x0_w, %227, %120, %225, %117)
 @60(%125, %126, %127, %128, %129, %130):
   %230 = add.w %125, 0x1_w ; @184
@@ -105,7 +104,7 @@ export function :magic_u $magic_unsigned(w %31) {
   %255 = ge.w %128, 0x7fffffff_w ; @209
   %256 = sel.w %255, 0x1_w, %126 ; @210
   %257 = add.w %244, 0x1_w ; @211
-  %258 = add.w %242, %229 ; @212
+  %258 = sub.w %243, %31 ; @212
   jmp @96(%256, %258, %257)
 @96(%139, %140, %141):
   %245 = add.w %140, 0x1_w ; @199
