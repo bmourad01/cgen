@@ -1,0 +1,24 @@
+module edge_narrow
+
+export function w $test(w %x) {
+@start:
+  %c = gt.w %x, 10_w
+  br %c, @a, @b
+@a:
+  %c1 = ne.w %x, 0_w
+  br %c1, @join, @dead1
+@b:
+  %c2 = ne.w %x, 0_w
+  br %c2, @join, @dead2
+@join:
+  %c3 = ne.w %x, 0_w
+  br %c3, @ok, @bad
+@ok:
+  ret %x
+@dead1:
+  hlt
+@dead2:
+  hlt
+@bad:
+  hlt
+}

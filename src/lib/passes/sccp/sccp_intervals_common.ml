@@ -29,31 +29,38 @@ let update_union s x i = Vtree.update s x ~f:(function
 let find_var = Vtree.find
 let enum_state s = Vtree.to_sequence s
 
+module Edge = struct
+  type t = Label.t * Label.t [@@deriving compare, hash, sexp_of]
+end
+
 type ctx = {
-  insns  : state Label.Table.t; (* Out states for each instruction. *)
-  narrow : state Label.Table.t; (* Incoming state constraints for each block. *)
-  cond   : state Var.Table.t;   (* State implied by each condition variable. *)
-  blks   : blk Label.Tree.t;    (* Labels to blocks. *)
-  word   : Type.imm_base;       (* Word size. *)
-  typeof : Var.t -> Type.t;     (* Typing of variables. *)
-  cycloc : int;                 (* Cyclomatic complexity. *)
-  cfg    : Cfg.t;               (* Control-flow graph *)
+  insns  : state Label.Table.t;       (* Out states for each instruction. *)
+  narrow : (Edge.t, state) Hashtbl.t; (* Per-edge narrowing constraints. *)
+  cond   : state Var.Table.t;         (* State implied by each condition variable. *)
+  blks   : blk Label.Tree.t;          (* Labels to blocks. *)
+  word   : Type.imm_base;             (* Word size. *)
+  typeof : Var.t -> Type.t;           (* Typing of variables. *)
+  cycloc : int;                       (* Cyclomatic complexity. *)
+  cfg    : Cfg.t;                     (* Control-flow graph *)
+  mutable src : Label.t;              (* Current source block for narrowing. *)
 }
 
 let create_ctx cycloc ~blks ~word ~typeof ~cfg = {
   insns = Label.Table.create ();
-  narrow = Label.Table.create ();
+  narrow = Hashtbl.create (module Edge);
   cond = Var.Table.create ();
   blks;
   word;
   typeof;
   cycloc;
   cfg;
+  src = Label.pseudoentry;
 }
 
-let narrow ctx l x i = Hashtbl.update ctx.narrow l ~f:(function
-    | None -> Vtree.singleton x i
-    | Some s -> update_union s x i)
+let narrow ctx l x i =
+  Hashtbl.update ctx.narrow (ctx.src, l) ~f:(function
+      | None -> Vtree.singleton x i
+      | Some s -> update_union s x i)
 
 let sizeof x ctx = match ctx.typeof x with
   | #Type.basic as b -> Some (Type.sizeof_basic b)

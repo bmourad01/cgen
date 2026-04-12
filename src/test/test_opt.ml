@@ -350,6 +350,7 @@ let opt_suite = "Test optimizations" >::: [
     "Benchmark" >:: test "bench";
     "Magic division" >:: test "magic_div";
     "Tail call" >:: test "tailcall";
+    "Edge narrowing" >:: test "edge_narrow";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [

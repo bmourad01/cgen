@@ -83,7 +83,7 @@ let components ~adj ~start ~n g =
   nodes, rnodes, sccs
 
 let run (type g) (module G : Label.Graph_s with type t = g)
-    ?(rev = false) ?step
+    ?(rev = false) ?step ?edge
     ~start ~(init : _ Solution.t) ~equal ~merge ~f g =
   if not (G.Node.mem start g) then
     invalid_argf "Fixpoint.run: start node %a is not in the graph"
@@ -113,6 +113,9 @@ let run (type g) (module G : Label.Graph_s with type t = g)
         let out = f nodes.![node] approx.(node) in
         List.iter succs.(node) ~f:(fun s ->
             let prev = approx.(s) in
+            let out = match edge with
+              | None -> out
+              | Some edge -> edge nodes.![node] nodes.![s] out in
             let next = merge out prev in
             let next = match step with
               | None -> next

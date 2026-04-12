@@ -1,3 +1,5 @@
+(** Iterative dataflow analysis *)
+
 (** A dataflow solution mapping labels to abstract values. *)
 module Solution : sig
   type 'd t
@@ -13,14 +15,18 @@ module Solution : sig
   val default : 'd t -> 'd
 end
 
-(** [run (module G) ?rev ?step ~start ~init ~equal ~merge ~f g] computes
-    a dataflow fixpoint over [g], starting from the [start] node.
+(** [run (module G) ?rev ?step ?edge ~start ~init ~equal ~merge ~f g]
+    computes a dataflow fixpoint over [g], starting from the [start] node.
 
     [~rev:true] reverses the graph direction, useful for backward analyses
-    such as liveness.
+    such as liveness. Defaults to [false].
 
     [~step] is an optional per-node hook called as
     [step visit_count node old_val new_val]; used for widening.
+
+    [~edge] is an optional per-edge hook called as
+    [edge src dst val] before merging into the successor; used for
+    path-sensitive narrowing.
 
     @raise Invalid_argument if [start] is not a node in [g].
 *)
@@ -28,6 +34,7 @@ val run :
   (module Label.Graph_s with type t = 'g) ->
   ?rev:bool ->
   ?step:(int -> Label.t -> 'd -> 'd -> 'd) ->
+  ?edge:(Label.t -> Label.t -> 'd -> 'd) ->
   start:Label.t ->
   init:'d Solution.t ->
   equal:('d -> 'd -> bool) ->

@@ -17,35 +17,30 @@ open Virtual
 open Sccp_intervals_common
 
 module Solution = Fixpoint.Solution
+module Interp = Sccp_intervals_interp
 
 let find_var = find_var
 
-module Interp = Sccp_intervals_interp
-
-let is_safe_to_narrow ctx l =
-  Cfg.Node.degree ~dir:`In l ctx.cfg < 2
-
 let step ctx visits l _ s =
   (* Widening for block args. *)
-  let s = match Label.Tree.find ctx.blks l with
-    | None -> s
-    | Some b ->
-      (* XXX: we need a better widening heuristic for back edges.
-         Allowing extra rounds of iteration only to return the most
-         general overapproximation seems like a waste (and indeed
-         this could noticably slow down compile times). *)
-      if visits > ctx.cycloc then
-        Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
-            match sizeof x ctx with
-            | Some size -> update s x @@ I.create_full ~size
-            | None -> s)
-      else s in
-  (* Narrowing for constraints. *)
-  if is_safe_to_narrow ctx l then
-    match Hashtbl.find ctx.narrow l with
-    | Some s' -> meet_state s s'
-    | None -> s
-  else s
+  match Label.Tree.find ctx.blks l with
+  | None -> s
+  | Some b ->
+    (* XXX: we need a better widening heuristic for back edges.
+       Allowing extra rounds of iteration only to return the most
+       general overapproximation seems like a waste (and indeed
+       this could noticably slow down compile times). *)
+    if visits > ctx.cycloc then
+      Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
+          match sizeof x ctx with
+          | Some size -> update s x @@ I.create_full ~size
+          | None -> s)
+    else s
+
+let edge ctx src dst s =
+  match Hashtbl.find ctx.narrow (src, dst) with
+  | Some s' -> meet_state s s'
+  | None -> s
 
 let init_state ctx fn =
   let init =
@@ -63,7 +58,9 @@ let init_state ctx fn =
         update s (Slot.var x) @@ I.create_full ~size) in
   Solution.create (Label.Tree.singleton Label.pseudoentry init) empty_state
 
-let transfer ctx l s = match Label.Tree.find ctx.blks l with
+let transfer ctx l s =
+  ctx.src <- l;
+  match Label.Tree.find ctx.blks l with
   | Some b -> Interp.interp_blk ctx s b
   | None -> s
 
@@ -100,6 +97,7 @@ let analyze fn ~word ~typeof =
     let ctx = create_ctx cycloc ~blks ~word ~typeof ~cfg in
     let input = Fixpoint.run (module Cfg) cfg
         ~step:(step ctx)
+        ~edge:(edge ctx)
         ~start:Label.pseudoentry
         ~init:(init_state ctx fn)
         ~equal:equal_state
