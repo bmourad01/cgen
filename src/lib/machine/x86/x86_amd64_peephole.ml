@@ -36,15 +36,11 @@ let collect_singles fn =
   let start = Func.start fn in
   Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       let key = Blk.label b in
-      if Label.(key = start) then acc
-      else
+      if Label.(key = start) then acc else
         let is = Seq.map ~f:Insn.insn @@ Blk.insns b in
         match Seq.next is with
-        | Some (JMP (Jlbl dst), rest) ->
-          begin match Seq.next rest with
-            | Some _ -> acc
-            | None -> Ltree.set acc ~key ~data:dst
-          end
+        | Some (JMP (Jlbl dst), rest) when Seq.is_empty rest ->
+          Ltree.set acc ~key ~data:dst
         | _ -> acc)
 
 (* Union-find with path compression. *)
