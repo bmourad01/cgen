@@ -247,7 +247,7 @@ let interp_insn ctx s i =
   s
 
 let assign_blk_args ctx s l args =
-  match Label.Tree.find ctx.blks l with
+  match Ltree.find ctx.blks l with
   | None -> s
   | Some b ->
     let args' = Blk.args b |> Seq.to_list in

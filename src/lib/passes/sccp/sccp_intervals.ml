@@ -21,19 +21,43 @@ module Interp = Sccp_intervals_interp
 
 let find_var = find_var
 
+(* Widen interval `i` using program-derived thresholds.
+
+   When a block arg's interval is still growing after a certain
+   number of visits, we widen each bound toward the next threshold
+   constant from comparisons in the program rather than jumping
+   straight to full. This preserves precision for common loop
+   patterns like `i < n` where `n` is a known constant.
+
+   pre: `i` is not empty or full
+*)
+let widen_with_thresholds ctx x i =
+  match find_var ctx.thresholds x with
+  | Some t when I.contains t i -> t
+  | _ -> I.create_full ~size:(I.size i)
+
+(* Number of visits before threshold widening kicks in,
+   and before we give up and go to full. *)
+let widen_delay = 3
+let widen_limit = widen_delay * 2
+
 let step ctx visits l _ s =
   (* Widening for block args. *)
-  match Label.Tree.find ctx.blks l with
+  match Ltree.find ctx.blks l with
   | None -> s
   | Some b ->
-    (* XXX: we need a better widening heuristic for back edges.
-       Allowing extra rounds of iteration only to return the most
-       general overapproximation seems like a waste (and indeed
-       this could noticably slow down compile times). *)
-    if visits > ctx.cycloc then
-      Blk.args b |> Seq.fold ~init:s ~f:(fun s x ->
+    if visits > widen_limit then
+      (* Second widening pass: give up and go to full. *)
+      Blk.fold_args b ~init:s ~f:(fun s x ->
           match sizeof x ctx with
           | Some size -> update s x @@ I.create_full ~size
+          | None -> s)
+    else if visits > widen_delay then
+      (* First widening pass: use thresholds. *)
+      Blk.fold_args b ~init:s ~f:(fun s x ->
+          match find_var s x with
+          | Some i when I.(is_full i || is_empty i) -> s
+          | Some i -> update s x @@ widen_with_thresholds ctx x i
           | None -> s)
     else s
 
@@ -52,15 +76,16 @@ let init_state ctx fn =
         match sizeof x ctx with
         | Some size -> update s x @@ I.create_full ~size
         | None -> s) in
-  let init =
-    Func.slots fn |> Seq.fold ~init ~f:(fun s x ->
-        let size = Type.sizeof_imm_base ctx.word in
-        update s (Slot.var x) @@ I.create_full ~size) in
-  Solution.create (Label.Tree.singleton Label.pseudoentry init) empty_state
+  let init = Func.fold_slots fn ~init ~f:(fun s x ->
+      let size = Type.sizeof_imm_base ctx.word in
+      update s (Slot.var x) @@ I.create_full ~size) in
+  Solution.create
+    (Ltree.singleton Label.pseudoentry init)
+    empty_state
 
 let transfer ctx l s =
   ctx.src <- l;
-  match Label.Tree.find ctx.blks l with
+  match Ltree.find ctx.blks l with
   | Some b -> Interp.interp_blk ctx s b
   | None -> s
 
@@ -75,26 +100,11 @@ let insn t l =
 
 let input t l = Solution.get t.input l
 
-(* Cyclomatic complexity is the number of linearly independent
-   paths in a CFG, denoted by the formula:
-
-   M = E - N + 2P
-
-   where E is the number of edges, N is the number of nodes,
-   and P is the number of connected components. For our purposes,
-   P is always 1.
-*)
-let cyclomatic_complexity cfg =
-  let e = Cfg.number_of_edges cfg in
-  let n = Cfg.number_of_nodes cfg in
-  e - n + 2
-
 let analyze fn ~word ~typeof =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
-    let cycloc = cyclomatic_complexity cfg in
-    let ctx = create_ctx cycloc ~blks ~word ~typeof ~cfg in
+    let ctx = create_ctx ~blks ~word ~typeof ~cfg in
     let input = Fixpoint.run (module Cfg) cfg
         ~step:(step ctx)
         ~edge:(edge ctx)

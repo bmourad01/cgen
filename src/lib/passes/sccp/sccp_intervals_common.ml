@@ -3,6 +3,7 @@ open Virtual
 
 module I = Bv_interval
 module Vtree = Var.Tree
+module Ltree = Label.Tree
 
 type state = I.t Vtree.t [@@deriving equal]
 
@@ -34,25 +35,54 @@ module Edge = struct
 end
 
 type ctx = {
-  insns  : state Label.Table.t;       (* Out states for each instruction. *)
-  narrow : (Edge.t, state) Hashtbl.t; (* Per-edge narrowing constraints. *)
-  cond   : state Var.Table.t;         (* State implied by each condition variable. *)
-  blks   : blk Label.Tree.t;          (* Labels to blocks. *)
-  word   : Type.imm_base;             (* Word size. *)
-  typeof : Var.t -> Type.t;           (* Typing of variables. *)
-  cycloc : int;                       (* Cyclomatic complexity. *)
-  cfg    : Cfg.t;                     (* Control-flow graph *)
-  mutable src : Label.t;              (* Current source block for narrowing. *)
+  insns       : state Label.Table.t;       (* Out states for each instruction. *)
+  narrow      : (Edge.t, state) Hashtbl.t; (* Per-edge narrowing constraints. *)
+  cond        : state Var.Table.t;         (* State implied by each condition variable. *)
+  thresholds  : I.t Vtree.t;               (* Per-variable widening thresholds. *)
+  blks        : blk Ltree.t;               (* Labels to blocks. *)
+  word        : Type.imm_base;             (* Word size. *)
+  typeof      : Var.t -> Type.t;           (* Typing of variables. *)
+  cfg         : Cfg.t;                     (* Control-flow graph *)
+  mutable src : Label.t;                   (* Current source block for narrowing. *)
 }
 
-let create_ctx cycloc ~blks ~word ~typeof ~cfg = {
+let cmp_to_pred : Insn.cmp -> I.predicate option = function
+  | `eq #Type.imm -> Some EQ
+  | `ne #Type.imm -> Some NE
+  | `lt #Type.imm -> Some LT
+  | `le #Type.imm -> Some LE
+  | `gt #Type.imm -> Some GT
+  | `ge #Type.imm -> Some GE
+  | `slt _ -> Some SLT
+  | `sle _ -> Some SLE
+  | `sgt _ -> Some SGT
+  | `sge _ -> Some SGE
+  |  _ -> None
+
+let collect_thresholds blks =
+  let add m x v t p =
+    let size = Type.sizeof_imm t in
+    let ci = I.create_single ~value:v ~size in
+    let r = I.satisfying_icmp_region ci p in
+    if I.(is_full r || is_empty r) then m
+    else update_union m x r in
+  Ltree.fold blks ~init:Vtree.empty ~f:(fun ~key:_ ~data:b m ->
+      Blk.fold_insns b ~init:m ~f:(fun m i -> match Insn.op i with
+          | `bop (_, (#Insn.cmp as c), `var x, `int (v, t)) ->
+            cmp_to_pred c |> Option.value_map ~default:m ~f:(add m x v t)
+          | `bop (_, (#Insn.cmp as c), `int (v, t), `var x) ->
+            cmp_to_pred c |> Option.map ~f:I.swap_predicate |>
+            Option.value_map ~default:m ~f:(add m x v t)
+          | _ -> m))
+
+let create_ctx ~blks ~word ~typeof ~cfg = {
   insns = Label.Table.create ();
   narrow = Hashtbl.create (module Edge);
   cond = Var.Table.create ();
+  thresholds = collect_thresholds blks;
   blks;
   word;
   typeof;
-  cycloc;
   cfg;
   src = Label.pseudoentry;
 }
