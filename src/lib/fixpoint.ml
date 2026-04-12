@@ -17,27 +17,33 @@ end
 let (.![]) v i = Vec.unsafe_get v i
 let (.![]<-) v i x = Vec.unsafe_set v i x
 
+type 'a dfsnode = {
+  pre : int;
+  mutable adj : 'a list;
+}
+
 (* Compute the SCCs of the graph, which should give us a
-   topological ordering perform the iteration by. *)
+   topological ordering to perform the iteration by. *)
 let components ~adj ~start ~n g =
   let rnodes = Label.Table.create ~size:n () in
   let nodes = Vec.create ~capacity:n () in
   let low = Vec.create ~capacity:n () in
-  let onstk = ref Bitset.empty in
   let stk = Vec.create ~capacity:n () in
   let sccs = Vec.create ~capacity:16 () in
   let work = Vec.create ~capacity:16 () in
-  let counter = ref 0 in
+  let onstk = ref Bitset.empty in
   (* Visiting a node for the first time *)
   let visit l =
-    let d = !counter in
-    incr counter;
+    let d = Vec.length nodes in
     onstk := Bitset.set !onstk d;
     Hashtbl.set rnodes ~key:l ~data:d;
     Vec.push nodes l;
     Vec.push low d;
     Vec.push stk d;
-    Vec.push work (l, ref (adj l g), d) in
+    Vec.push work {
+      pre = d;
+      adj = Seq.to_list (adj l g);
+    } in
   (* Construct the component *)
   let construct d =
     assert (not @@ Vec.is_empty stk);
@@ -53,22 +59,26 @@ let components ~adj ~start ~n g =
   (* Perform our DFS. *)
   visit start;
   while not (Vec.is_empty work) do
-    let _, rem, d = Vec.back_exn work in
-    match Seq.next !rem with
-    | None ->
+    let d = Vec.back_exn work in
+    match d.adj with
+    | [] ->
       ignore (Vec.pop_exn work);
-      Vec.back work |> Option.iter ~f:(fun (_, _, p) ->
-          let ld = low.![d] and lp = low.![p] in
-          if ld < lp then low.![p] <- ld);
-      if low.![d] = d then construct d
-    | Some (s, rest) ->
-      rem := rest;
+      (* Adjust parent's lowlink *)
+      Vec.back work |> Option.iter ~f:(fun p ->
+          let ld = low.![d.pre] and lp = low.![p.pre] in
+          if ld < lp then low.![p.pre] <- ld);
+      (* Check if `d` is a root *)
+      if low.![d.pre] = d.pre then construct d.pre
+    | s :: rest ->
+      d.adj <- rest;
       match Hashtbl.find rnodes s with
       | None -> visit s
       | Some s when Bitset.mem !onstk s ->
-        if s < low.![d] then low.![d] <- s
+        (* Back-edge: update lowlink *)
+        if s < low.![d.pre] then low.![d.pre] <- s
       | Some _ -> ()
   done;
+  (* Reverse to get the topological order *)
   Vec.rev_inplace sccs;
   nodes, rnodes, sccs
 
