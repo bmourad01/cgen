@@ -982,6 +982,18 @@ let inverse_predicate = function
   | SLE -> SGT
   | SGT -> SLE
 
+let swap_predicate = function
+  | EQ -> EQ
+  | NE -> NE
+  | LT -> GT
+  | GT -> LT
+  | LE -> GE
+  | GE -> LE
+  | SLT -> SGT
+  | SGT -> SLT
+  | SLE -> SGE
+  | SGE -> SLE
+
 let allowed_icmp_region i p =
   if is_empty i then i else
     let size = i.size in

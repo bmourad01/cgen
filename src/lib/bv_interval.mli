@@ -345,8 +345,17 @@ type predicate =
   | GT | SGT
   | GE | SGE
 
-(** Inverts the predicate to cover the complement range. *)
+(** Inverts the predicate to cover the complement range.
+
+    e.g. [x < y] becomes [x >= y]
+*)
 val inverse_predicate : predicate -> predicate
+
+(** Swaps the predicate to account for swapped operands.
+
+    e.g. [x < y] becomes [y > x]
+*)
+val swap_predicate : predicate -> predicate
 
 (** [allowed_icmp_region t p] produces the smallest range [t'] such that
     it contains all values that may satisfy [p] in [t]. *)
