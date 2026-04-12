@@ -274,6 +274,38 @@ let collect_redundant_spill_after_reload fn =
 let redundant_spill_after_reload changed fn =
   filter_not_in changed fn @@ collect_redundant_spill_after_reload fn
 
+(* Dual of the above: eliminate a reload immediately after a store
+   to the same slot.
+
+     mov [mem], r     ; store
+     mov r', [mem]    ; reload (redundant)
+
+   If r = r', the reload is dead and removed.
+   If r <> r', rewrite to: mov r', r
+*)
+let collect_redundant_reload_after_spill fn =
+  Func.fold_blks fn
+    ~init:(Ltree.empty, Lset.empty)
+    ~f:(fun acc b ->
+        let rec go ((rw, rm) as acc) = function
+          | [] | [_] -> acc
+          | (_, Two (MOV, Omem (a1, t1), Oreg (r1, r1t)))
+            :: (l, Two (MOV, Oreg (r2, r2t), Omem (a2, t2)))
+            :: xs when equal_amode a1 a2
+                    && equal_memty t1 t2
+                    && Type.equal_basic r1t r2t ->
+            if Rv.(r1 = r2) then
+              go (rw, Lset.add rm l) xs
+            else
+              let data = Two (MOV, Oreg (r2, r2t), Oreg (r1, r1t)) in
+              go (Ltree.set rw ~key:l ~data, rm) xs
+          | _ :: xs -> go acc xs in
+        go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+
+let redundant_reload_after_spill changed fn =
+  let rw, rm = collect_redundant_reload_after_spill fn in
+  filter_not_in changed (map_insns changed fn rw) rm
+
 (* If we have a LEA of the same address as a subsequent load,
    then use the result of the LEA as the address for the load.
 
@@ -486,6 +518,7 @@ let run fn =
       let fn = implicit_fallthroughs changed afters fn in
       let fn = dealloc_stack_before_leave changed fn in
       let fn = redundant_spill_after_reload changed fn in
+      let fn = redundant_reload_after_spill changed fn in
       let fn = reuse_lea changed fn in
       let fn = and_test changed fn in
       let fn = lea_mov changed fn in

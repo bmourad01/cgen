@@ -49,7 +49,6 @@ export function $foo { ; returns: rax
   mov esi, dword ptr [rsp] ; @199
   dec esi ; @51
   mov dword ptr [rsp], esi ; @200
-  mov esi, dword ptr [rsp] ; @201
   test esi, esi ; @168
   jne @3 ; @169
 @4:
