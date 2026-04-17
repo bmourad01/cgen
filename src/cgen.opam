@@ -34,12 +34,18 @@ depends: [
   "zarith"
   "odoc" {with-doc}
 ]
-dev-repo: "git+https://github.com/bmourad01/cgen.git"
 build: [
+  ["dune" "subst"] {dev}
   [
-    make
+    "dune"
     "build"
-    "doc" {with-doc}
-    "install"
+    "-p"
+    name
+    "-j"
+    jobs
+    "@install"
+    "@runtest" {with-test}
+    "@doc" {with-doc}
   ]
 ]
+dev-repo: "git+https://github.com/bmourad01/cgen.git"

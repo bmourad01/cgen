@@ -1,40 +1,50 @@
 (lang dune 3.15)
+
 (name cgen)
+
 (version 0.1)
+
 (using menhir 3.0)
 
 (generate_opam_files true)
 
-(source (github bmourad01/cgen))
+(source
+ (github bmourad01/cgen))
+
 (license "LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception")
+
 (authors "Benjamin Mourad")
+
 (maintainers "Benjamin_Mourad@student.uml.edu")
 
 (package
-  (name cgen)
-  (synopsis "A compiler backend")
-  (description "A library and suite of tools for generating native code")
-  (depends
-    bitvec
-    bitvec-binprot
-    bitvec-order
-    bitvec-sexp
-    cmdliner
-    (core (>= v0.15))
-    (core_kernel (>= v0.15))
-    (core_unix (>= v0.15))
-    dune
-    fmt
-    graphlib
-    logs
-    menhir
-    monads
-    ocamldiff
-    ounit2
-    ppx_bin_prot
-    ppx_compare
-    ppx_fields_conv
-    ppx_sexp_conv
-    regular
-    shexp
-    zarith))
+ (name cgen)
+ (synopsis "A compiler backend")
+ (description "A library and suite of tools for generating native code")
+ (depends
+  bitvec
+  bitvec-binprot
+  bitvec-order
+  bitvec-sexp
+  cmdliner
+  (core
+   (>= v0.15))
+  (core_kernel
+   (>= v0.15))
+  (core_unix
+   (>= v0.15))
+  dune
+  fmt
+  graphlib
+  logs
+  menhir
+  monads
+  ocamldiff
+  ounit2
+  ppx_bin_prot
+  ppx_compare
+  ppx_fields_conv
+  ppx_sexp_conv
+  regular
+  shexp
+  zarith))
