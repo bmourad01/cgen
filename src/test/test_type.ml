@@ -1,6 +1,10 @@
 open Core
 open Cgen
 
+let sexp = Fn.compose Type.Layout.t_of_sexp Sexp.of_string
+
+(* Struct types *)
+
 let c1 : Type.compound = `compound ("c1", Some 4, [
     `elt (`i32, 4);
     `elt (`i8, 2);
@@ -85,26 +89,85 @@ let c1arr : Type.compound = `compound ("c1arr", None, [
     `name ("c1", 3);
   ])
 
-let sexp = Fn.compose Type.Layout.t_of_sexp Sexp.of_string
+let c17 : Type.compound = `compound ("c17", None, [
+    `name ("u1", 1);
+    `elt (`i32, 1);
+  ])
 
-let l1 = sexp "((align 4) (data (i32 i32 i32 i32 i8 i8 (pad 2))))"
-let l2 = sexp "((align 4) (data (i32 i32 i32 i32 i32 i8 i8 (pad 2) i16 (pad 2))))"
-let l3 = sexp "((align 4) (data ()))"
-let l4 = sexp "((align 4) (data (i32)))"
-let l5 = sexp "((align 4) (data (i32 i32)))"
-let l6 = sexp "((align 8) (data ()))"
-let l7 = sexp "((align 8) (data (i32 (pad 4) i32 (pad 4))))"
-let l8 = sexp "((align 1) (data ()))"
-let l9 = sexp "((align 4) (data (f32 i8 i8 (pad 2) i32)))"
-let l10 = sexp "((align 4) (data (i32 i32 i32 i32 i8 i8 (pad 2) i32 i32 i32 i32 i8 i8 (pad 2))))"
-let l11 = sexp "((align 4) (data (i16 i16 i16 (pad 2) i32)))"
-let l12 = sexp "((align 8) (data (i32 (pad 4))))"
-let l13 = sexp "((align 1) (data (i8 i8 i8)))"
-let l14 = sexp "((align 8) (data (i16 (pad 6))))"
-let l15 = sexp "((align 8) (data (i8 (pad 1) i16 i32 i8 (pad 7))))"
-let lopaque4 = sexp "((align 4) (data ((opaque 4))))"
-let l16 = sexp "((align 4) (data ((opaque 8))))"
-let l1arr = sexp "((align 4) (data (i32 i32 i32 i32 i8 i8 (pad 2) i32 i32 i32 i32 i8 i8 (pad 2) i32 i32 i32 i32 i8 i8 (pad 2))))"
+let l1 = sexp "((align 4) (size 20) (members (First (i32 i32 i32 i32 i8 i8 (pad 2)))))"
+let l2 = sexp "((align 4) (size 28) (members (First (i32 i32 i32 i32 i32 i8 i8 (pad 2) i16 (pad 2)))))"
+let l3 = sexp "((align 4) (size 0) (members (First ())))"
+let l4 = sexp "((align 4) (size 4) (members (First (i32))))"
+let l5 = sexp "((align 4) (size 8) (members (First (i32 i32))))"
+let l6 = sexp "((align 8) (size 0) (members (First ())))"
+let l7 = sexp "((align 8) (size 16) (members (First (i32 (pad 4) i32 (pad 4)))))"
+let l8 = sexp "((align 1) (size 0) (members (First ())))"
+let l9 = sexp "((align 4) (size 12) (members (First (f32 i8 i8 (pad 2) i32))))"
+let l10 = sexp "((align 4) (size 40) (members (First (i32 i32 i32 i32 i8 i8 (pad 2) i32 i32 i32 i32 i8 i8 (pad 2)))))"
+let l11 = sexp "((align 4) (size 12) (members (First (i16 i16 i16 (pad 2) i32))))"
+let l12 = sexp "((align 8) (size 8) (members (First (i32 (pad 4)))))"
+let l13 = sexp "((align 1) (size 3) (members (First (i8 i8 i8))))"
+let l14 = sexp "((align 8) (size 8) (members (First (i16 (pad 6)))))"
+let l15 = sexp "((align 8) (size 16) (members (First (i8 (pad 1) i16 i32 i8 (pad 7)))))"
+let lopaque4 = sexp "((align 4) (size 4) (members (First ((opaque 4)))))"
+let l16 = sexp "((align 4) (size 8) (members (First ((opaque 8)))))"
+let l1arr = sexp "((align 4) (size 60) (members (First (i32 i32 i32 i32 i8 i8 (pad 2) i32 i32 i32 i32 i8 i8 (pad 2) i32 i32 i32 i32 i8 i8 (pad 2)))))"
+let l17 = sexp "((align 4) (size 8) (members (First ((union (u1 4)) i32))))"
+
+(* Union types *)
+
+let u1 : Type.compound = `union ("u1", None, [
+    `elt (`f32, 1);
+    `elt (`i32, 1);
+  ])
+
+let u2 : Type.compound = `union ("u2", None, [
+    `elt (`f64, 1);
+    `elt (`i32, 1);
+  ])
+
+let u3 : Type.compound = `union ("u3", None, [
+    `elt (`f32, 1);
+    `elt (`f64, 1);
+  ])
+
+let u4 : Type.compound = `union ("u4", None, [
+    `elt (`i8, 8);
+    `elt (`f64, 1);
+  ])
+
+let u5 : Type.compound = `union ("u5", None, [
+    `elt (`i64, 1);
+  ])
+
+let u6 : Type.compound = `union ("u6", None, [])
+
+let u7 : Type.compound = `union ("u7", None, [
+    `name ("c1", 1);
+    `elt (`f64, 1);
+  ])
+
+let u8 : Type.compound = `union ("u8", Some 16, [
+    `elt (`i32, 1);
+    `elt (`f32, 1);
+  ])
+
+let u9 : Type.compound = `union ("u9", None, [
+    `elt (`i16, 1);
+    `elt (`i8, 1);
+  ])
+
+let lu1 = sexp "((align 4) (size 4) (members (Second ((f32) (i32)))))"
+let lu2 = sexp "((align 8) (size 8) (members (Second ((f64) (i32 (pad 4))))))"
+let lu3 = sexp "((align 8) (size 8) (members (Second ((f32 (pad 4)) (f64)))))"
+let lu4 = sexp "((align 8) (size 8) (members (Second ((i8 i8 i8 i8 i8 i8 i8 i8) (f64)))))"
+let lu5 = sexp "((align 8) (size 8) (members (Second ((i64)))))"
+let lu6 = sexp "((align 1) (size 0) (members (Second ())))"
+let lu7 = sexp "((align 8) (size 24) (members (Second ((i32 i32 i32 i32 i8 i8 (pad 6)) (f64 (pad 16))))))"
+let lu8 = sexp "((align 16) (size 16) (members (Second ((i32 (pad 12)) (f32 (pad 12))))))"
+let lu9 = sexp "((align 2) (size 2) (members (Second ((i16) (i8 (pad 1))))))"
+
+(* The tests *)
 
 let gamma = function
   | "c1" -> l1
@@ -125,39 +188,53 @@ let gamma = function
   | "opaque4" -> lopaque4
   | "c16" -> l16
   | "c1arr" -> l1arr
+  | "c17" -> l17
+  | "u1" -> lu1
+  | "u2" -> lu2
+  | "u3" -> lu3
+  | "u4" -> lu4
+  | "u5" -> lu5
+  | "u6" -> lu6
+  | "u7" -> lu7
+  | "u8" -> lu8
+  | "u9" -> lu9
   | s -> failwithf "gamma: %s is undefined" s ()
 
-let _sexp_of_layout l = Sexp.List (List.map l ~f:Type.sexp_of_datum)
-
-let test_sizeof_compound (t : Type.compound) ~expected =
+let test_layout (t : Type.compound) =
   let l = Type.layout_exn gamma t in
   let name = Type.compound_name t in
-  let l_expected = gamma name in
-  if not (Type.equal_layout l l_expected) then
+  let expected = gamma name in
+  if not (Type.equal_layout l expected) then
     failwithf "expected layout %s, got %s"
-      (Format.asprintf "%a" Type.pp_layout l_expected)
+      (Format.asprintf "%a" Type.pp_layout expected)
       (Format.asprintf "%a" Type.pp_layout l)
-      ();
-  let s = Type.sizeof_layout l in
-  if s <> expected then
-    failwithf "expected size %d in bytes for type :%s, got %d"
-      expected name s ()
+      ()
 
-let%test_unit "sizeof c1"      = test_sizeof_compound c1      ~expected:20
-let%test_unit "sizeof c2"      = test_sizeof_compound c2      ~expected:28
-let%test_unit "sizeof c3"      = test_sizeof_compound c3      ~expected:0
-let%test_unit "sizeof c4"      = test_sizeof_compound c4      ~expected:4
-let%test_unit "sizeof c5"      = test_sizeof_compound c5      ~expected:8
-let%test_unit "sizeof c6"      = test_sizeof_compound c6      ~expected:0
-let%test_unit "sizeof c7"      = test_sizeof_compound c7      ~expected:16
-let%test_unit "sizeof c8"      = test_sizeof_compound c8      ~expected:0
-let%test_unit "sizeof c9"      = test_sizeof_compound c9      ~expected:12
-let%test_unit "sizeof c10"     = test_sizeof_compound c10     ~expected:40
-let%test_unit "sizeof c11"     = test_sizeof_compound c11     ~expected:12
-let%test_unit "sizeof c12"     = test_sizeof_compound c12     ~expected:8
-let%test_unit "sizeof c13"     = test_sizeof_compound c13     ~expected:3
-let%test_unit "sizeof c14"     = test_sizeof_compound c14     ~expected:8
-let%test_unit "sizeof c15"     = test_sizeof_compound c15     ~expected:16
-let%test_unit "sizeof opaque4" = test_sizeof_compound opaque4 ~expected:4
-let%test_unit "sizeof c16"     = test_sizeof_compound c16     ~expected:8
-let%test_unit "sizeof c1arr"   = test_sizeof_compound c1arr   ~expected:60
+let%test_unit "layout c1"      = test_layout c1
+let%test_unit "layout c2"      = test_layout c2
+let%test_unit "layout c3"      = test_layout c3
+let%test_unit "layout c4"      = test_layout c4
+let%test_unit "layout c5"      = test_layout c5
+let%test_unit "layout c6"      = test_layout c6
+let%test_unit "layout c7"      = test_layout c7
+let%test_unit "layout c8"      = test_layout c8
+let%test_unit "layout c9"      = test_layout c9
+let%test_unit "layout c10"     = test_layout c10
+let%test_unit "layout c11"     = test_layout c11
+let%test_unit "layout c12"     = test_layout c12
+let%test_unit "layout c13"     = test_layout c13
+let%test_unit "layout c14"     = test_layout c14
+let%test_unit "layout c15"     = test_layout c15
+let%test_unit "layout opaque4" = test_layout opaque4
+let%test_unit "layout c16"     = test_layout c16
+let%test_unit "layout c1arr"   = test_layout c1arr
+let%test_unit "layout c17"     = test_layout c17
+let%test_unit "layout u1"      = test_layout u1
+let%test_unit "layout u2"      = test_layout u2
+let%test_unit "layout u3"      = test_layout u3
+let%test_unit "layout u4"      = test_layout u4
+let%test_unit "layout u5"      = test_layout u5
+let%test_unit "layout u6"      = test_layout u6
+let%test_unit "layout u7"      = test_layout u7
+let%test_unit "layout u8"      = test_layout u8
+let%test_unit "layout u9"      = test_layout u9

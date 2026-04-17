@@ -108,6 +108,7 @@
 %token ALIGN
 %token <unit> CONST
 %token TYPE
+%token UNION
 %token LBRACE
 %token RBRACE
 %token LPAREN
@@ -248,6 +249,10 @@ typ:
       | `opaque n -> `opaque (name, align, n)
       | `fields f -> `compound (name, Some align, f)
     }
+  | TYPE name = TYPENAME EQUALS UNION LBRACE fields = separated_list(COMMA, typ_field) RBRACE
+    { `union (name, None, fields) }
+  | TYPE name = TYPENAME EQUALS UNION ALIGN align = NUM LBRACE fields = separated_list(COMMA, typ_field) RBRACE
+    { `union (name, Some (Bv.to_int align), fields) }
 
 typ_fields_or_opaque:
   | n = NUM { `opaque (Bv.to_int n) }

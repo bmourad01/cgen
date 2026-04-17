@@ -1,0 +1,141 @@
+module union
+
+type :u = union {
+  s,
+  w
+}
+
+type :s = {
+  :u,
+  w
+}
+
+type :uf = union {
+  s,
+  d
+}
+
+type :u2 = union {
+  l 2,
+  d
+}
+
+type :ub = union {
+  l 3,
+  d
+}
+
+type :u8 = union {
+  l,
+  d
+}
+
+type :s2 = {
+  :u8,
+  w
+}
+
+export function w $getint(:u %x) {
+  %tmp = slot 4, align 4
+@start:
+  st:u %x, %tmp
+  %r = ld.w %tmp
+  ret %r
+}
+
+export function :u $mkfloat(s %f) {
+  %tmp = slot 4, align 4
+@start:
+  st.s %f, %tmp
+  %r = ld:u %tmp
+  ret %r
+}
+
+export function w $struct_with_union(:s %x) {
+  %tmp = slot 8, align 4
+@start:
+  st:s %x, %tmp
+  %p = add.l %tmp, 4_l
+  %r = ld.w %p
+  ret %r
+}
+
+export function d $get_sse_d(:uf %x) {
+  %tmp = slot 8, align 8
+@start:
+  st:uf %x, %tmp
+  %r = ld.d %tmp
+  ret %r
+}
+
+export function :uf $mk_sse_d(d %x) {
+  %tmp = slot 8, align 8
+@start:
+  st.d %x, %tmp
+  %r = ld:uf %tmp
+  ret %r
+}
+
+export function l $sum_u2(:u2 %x) {
+  %tmp = slot 16, align 8
+@start:
+  st:u2 %x, %tmp
+  %a = ld.l %tmp
+  %p = add.l %tmp, 8_l
+  %b = ld.l %p
+  %r = add.l %a, %b
+  ret %r
+}
+
+export function :u2 $mk_u2(l %a, l %b) {
+  %tmp = slot 16, align 8
+@start:
+  st.l %a, %tmp
+  %p = add.l %tmp, 8_l
+  st.l %b, %p
+  %r = ld:u2 %tmp
+  ret %r
+}
+
+export function l $sum_big(:ub %x) {
+  %tmp = slot 24, align 8
+@start:
+  st:ub %x, %tmp
+  %a = ld.l %tmp
+  %p1 = add.l %tmp, 8_l
+  %b = ld.l %p1
+  %p2 = add.l %tmp, 16_l
+  %c = ld.l %p2
+  %ab = add.l %a, %b
+  %r = add.l %ab, %c
+  ret %r
+}
+
+export function :ub $mk_big(l %a, l %b, l %c) {
+  %tmp = slot 24, align 8
+@start:
+  st.l %a, %tmp
+  %p1 = add.l %tmp, 8_l
+  st.l %b, %p1
+  %p2 = add.l %tmp, 16_l
+  st.l %c, %p2
+  %r = ld:ub %tmp
+  ret %r
+}
+
+export function l $s2_union_l(:s2 %x) {
+  %tmp = slot 16, align 8
+@start:
+  st:s2 %x, %tmp
+  %r = ld.l %tmp
+  ret %r
+}
+
+export function w $s2_w(:s2 %x) {
+  %tmp = slot 16, align 8
+@start:
+  st:s2 %x, %tmp
+  %p = add.l %tmp, 8_l
+  %r = ld.w %p
+  ret %r
+}

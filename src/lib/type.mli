@@ -79,7 +79,16 @@ val pp_field : Format.formatter -> field -> unit
 
 (** A [`compound (name, align, fields)] data type, consisting of
     a [name], an optional [align]ment (in bytes), and a list of
-    [fields].
+    [fields]. Fields are laid out sequentially with padding for
+    alignment (struct semantics). The layout has a single member.
+
+    A [`union (name, align, fields)] data type has the same
+    components, but all fields overlap at offset 0 (union semantics).
+    The size is the maximum of all field sizes, and the alignment
+    is the maximum of all field alignments. The layout preserves
+    each field as a separate member datum array, so that ABI
+    implementations can apply target-specific classification rules
+    over the per-member structure.
 
     An alignment [Some n] will indicate that the fields of the
     type are aligned by [n] bytes.
@@ -95,6 +104,7 @@ val pp_field : Format.formatter -> field -> unit
 *)
 type compound = [
   | `compound of string * int option * field list
+  | `union    of string * int option * field list
   | `opaque   of string * int * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
@@ -104,14 +114,21 @@ val compound_name : compound -> string
 (** Convenience function to get the alignment of a compound type. *)
 val compound_align : compound -> int option
 
-(** An element of a compound data type's layout. It is either
-    a basic type, a [`pad n], which is [n] bytes of padding,
-    or an [`opaque n], which is [n] bytes of opaque data (and
-    is semantically distinct from padding). *)
+(** An element of a compound data type's layout. It is one of the
+    following:
+
+    - a [basic] type
+    - a [`pad n] which is [n] bytes of padding
+    - an [`opaque n] which is [n] bytes of opaque data (and
+      is semantically distinct from padding)
+    - a [`union (name, n)] which is a reference to a union type
+      of [n] bytes whose layout is target-dependent
+*)
 type datum = [
   | basic
   | `pad of int
   | `opaque of int
+  | `union of string * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Pretty-prints a datum. *)
@@ -142,8 +159,16 @@ module Layout : sig
   *)
   val align : t -> int
 
-  (** Returns the exact structure of the data. *)
-  val data : t -> datum seq
+  (** Returns the member datum sequences.
+
+      For structs and opaque types, [First s] contains the single
+      flat datum sequence of the type's fields.
+
+      For unions, [Second ss] contains one datum sequence per field,
+      preserving per-member type information so that ABI
+      implementations can apply target-specific classification.
+  *)
+  val members : t -> (datum seq, datum seq seq) Either.t
 
   (** Returns [true] if the layout contains no data. *)
   val is_empty : t -> bool

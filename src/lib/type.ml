@@ -73,39 +73,53 @@ let pp_field ppf : field -> unit = function
 
 type compound = [
   | `compound of string * int option * field list
+  | `union    of string * int option * field list
   | `opaque   of string * int * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let compound_name : compound -> string = function
   | `compound (s, _, _)
+  | `union (s, _, _)
   | `opaque (s, _, _) -> s
 
 let compound_align : compound -> int option = function
-  | `compound (_, a, _) -> a
+  | `compound (_, a, _)
+  | `union (_, a, _) -> a
   | `opaque (_, a, _) -> Some a
 
+let pp_fields ppf align fields =
+  let pp_sep ppf () = Format.fprintf ppf ",@;" in
+  Option.iter align ~f:(Format.fprintf ppf "align %d ");
+  if List.is_empty fields then
+    Format.fprintf ppf "{}"
+  else
+    Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
+      (Format.pp_print_list ~pp_sep pp_field) fields
+
 let pp_compound ppf : compound -> unit = function
-  | `compound (_, align, fields) ->
-    let pp_sep ppf () = Format.fprintf ppf ",@;" in
-    Option.iter align ~f:(Format.fprintf ppf "align %d ");
-    if List.is_empty fields then
-      Format.fprintf ppf "{}"
-    else
-      Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
-        (Format.pp_print_list ~pp_sep pp_field) fields
+  | `compound (_, align, fields) -> pp_fields ppf align fields
+  | `union (_, align, fields) ->
+    Format.fprintf ppf "union ";
+    pp_fields ppf align fields
   | `opaque (_, align, n) ->
     Format.fprintf ppf "align %d {%d}" align n
 
+let pp_fields_decl ppf align fields =
+  let pp_sep ppf () = Format.fprintf ppf ",@;" in
+  Option.iter align ~f:(Format.fprintf ppf "align %d ");
+  if List.is_empty fields then
+    Format.fprintf ppf "{}"
+  else
+    Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
+      (Format.pp_print_list ~pp_sep pp_field) fields
+
 let pp_compound_decl ppf : compound -> unit = function
   | `compound (name, align, fields) ->
-    let pp_sep ppf () = Format.fprintf ppf ",@;" in
     Format.fprintf ppf "type :%s = " name;
-    Option.iter align ~f:(Format.fprintf ppf "align %d ");
-    if List.is_empty fields then
-      Format.fprintf ppf "{}"
-    else
-      Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
-        (Format.pp_print_list ~pp_sep pp_field) fields
+    pp_fields_decl ppf align fields
+  | `union (name, align, fields) ->
+    Format.fprintf ppf "type :%s = union " name;
+    pp_fields_decl ppf align fields
   | `opaque (name, align, n) ->
     Format.fprintf ppf "type :%s = align %d {%d}" name align n
 
@@ -113,12 +127,14 @@ type datum = [
   | basic
   | `pad    of int
   | `opaque of int
+  | `union  of string * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_datum ppf : datum -> unit = function
-  | #basic as b -> Format.fprintf ppf "%a"  pp_basic b
-  | `pad n      -> Format.fprintf ppf "%d"  n
-  | `opaque n   -> Format.fprintf ppf "?%d" n
+  | #basic as b   -> Format.fprintf ppf "%a"  pp_basic b
+  | `pad n        -> Format.fprintf ppf "%d"  n
+  | `opaque n     -> Format.fprintf ppf "?%d" n
+  | `union (u, _) -> Format.fprintf ppf ":%s" u
 
 type data = datum array [@@deriving bin_io, compare, equal, sexp]
 
@@ -139,24 +155,33 @@ module Data = Regular.Make(struct
 let hash_fold_data = Data.hash_fold_t
 
 type layout = {
-  align : int;
-  data  : data;
+  align   : int;
+  size    : int;
+  members : (data, data list) Either.t;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
-let pp_layout ppf l =
-  Format.fprintf ppf "%d(%a)" l.align Data.pp l.data
+let pp_layout ppf l = match l.members with
+  | First d ->
+    Format.fprintf ppf "%d/%d(%a)" l.align l.size Data.pp d
+  | Second ds ->
+    let pp_sep ppf () = Format.fprintf ppf "; " in
+    Format.fprintf ppf "%d/%d(%a)" l.align l.size
+      (Format.pp_print_list ~pp_sep Data.pp) ds
 
-let sizeof_layout l = Array.fold l.data ~init:0 ~f:(fun sz -> function
-    | #basic as b -> sz + (sizeof_basic b / 8)
-    | `pad n | `opaque n -> sz + n)
+let sizeof_layout l = l.size
 
 module Layout = struct
   type t = layout
 
   let sizeof = sizeof_layout
   let align l = l.align
-  let data l = Array.to_sequence l.data
-  let is_empty l = Array.is_empty l.data
+  let is_empty l = l.size = 0
+
+  let members l = Either.map l.members
+      ~first:Array.to_sequence_mutable
+      ~second:(fun ds ->
+          Seq.of_list ds |>
+          Seq.map ~f:Array.to_sequence_mutable)
 
   (* pre: `align` is a positive power of 2 *)
   let padding size align =
@@ -180,8 +205,78 @@ module Layout = struct
   let finalize data align size =
     padding size align |> padded data |> coalesce |> Array.of_list
 
+  let sizeof_data d = Array.fold d ~init:0 ~f:(fun sz -> function
+      | #basic as b -> sz + (sizeof_basic b / 8)
+      | `pad n | `opaque n | `union (_, n) -> sz + n)
+
+  (* Compute the datum list, alignment, and total byte size for
+     a single field in a compound type declaration. *)
+  let field_data gamma name (f : field) =
+    match f with
+    | `elt (_, c) | `name (_, c) when c <= 0 ->
+      invalid_argf "Invalid field %s for type :%s"
+        (Format.asprintf "%a" pp_field f) name ()
+    | `elt (t, c) ->
+      let s = sizeof_basic t / 8 in
+      let d = List.init c ~f:(fun _ -> (t :> datum)) in
+      d, s, s * c
+    | `name (s, _) when String.(s = name) ->
+      invalid_argf "Type :%s is incomplete, it cannot \
+                    contain itself as a field" name ()
+    | `name (s, c) -> match gamma s with
+      | exception exn ->
+        invalid_argf "Invalid argument :%s for gamma: %s"
+          s (Exn.to_string exn) ()
+      | {align = a; _} when a <= 0 ->
+        invalid_argf "Invalid alignment %d for type :%s" a s ()
+      | {size = 0; align; _} ->
+        (* Empty: preserve alignment. *)
+        [], align, 0
+      | l ->
+        let sz = sizeof l in
+        let d = match l.members with
+          | First m ->
+            let data = Array.to_list m in
+            List.init c ~f:(fun _ -> data) |> List.concat
+          | Second _ ->
+            List.init c ~f:(fun _ -> (`union (s, sz) : datum)) in
+        d, l.align, sz * c
+
+  let create_compound gamma name align fields =
+    let data, align, size =
+      let init = [], Option.value align ~default:1, 0 in
+      List.fold fields ~init ~f:(fun (data, align, size) f ->
+          let fdata, falign, fsize = field_data gamma name f in
+          let pad = padding size falign in
+          let align = max align falign in
+          let data = List.rev_append fdata @@ padded data pad in
+          data, align, size + pad + fsize) in
+    let member = finalize data align size in
+    {align; size = sizeof_data member; members = First member}
+
+  let create_union gamma name align fields =
+    let fields' = List.map fields ~f:(field_data gamma name) in
+    let align = List.fold fields'
+        ~init:(Option.value align ~default:1)
+        ~f:(fun acc (_, falign, _) -> max acc falign) in
+    let raw_size = List.fold fields' ~init:0
+        ~f:(fun acc (_, _, fsize) -> max acc fsize) in
+    let size =
+      if raw_size = 0 then 0
+      else raw_size + padding raw_size align in
+    let members = if size = 0 then [] else
+        (* Each field becomes a separate member datum array,
+           padded to the union's total size. *)
+        List.map fields' ~f:(fun (fdata, _, fsize) ->
+            let tail_pad = size - fsize in
+            let data = List.rev fdata in
+            let data = if tail_pad > 0 then `pad tail_pad :: data else data in
+            Array.of_list @@ coalesce data) in
+    {align; size; members = Second members}
+
   let create gamma : compound -> layout = function
     | `opaque (s, n, _) | `compound (s, Some n, _)
+    | `union (s, Some n, _)
       when n < 1 || (n land (n - 1)) <> 0 ->
       invalid_argf "Invalid alignment %d for type :%s, \
                     must be positive power of 2" n s ()
@@ -189,63 +284,44 @@ module Layout = struct
       invalid_argf "Invalid number of bytes %d for opaque \
                     type :%s, must be greater than 0" n s ()
     | `opaque (_, align, n) ->
-      {align; data = Array.of_list @@ padded [`opaque n] @@ padding n align}
-    | `compound (_, Some n, []) -> {align = n; data = [||]}
-    | `compound (_, None, []) -> {align = 1; data = [||]}
+      let d = Array.of_list @@ padded [`opaque n] @@ padding n align in
+      {align; size = sizeof_data d; members = First d}
+    | `compound (_, Some n, []) ->
+      {align = n; size = 0; members = First [||]}
+    | `compound (_, None, []) ->
+      {align = 1; size = 0; members = First [||]}
+    | `union (_, Some n, []) ->
+      {align = n; size = 0; members = Second []}
+    | `union (_, None, []) ->
+      {align = 1; size = 0; members = Second []}
     | `compound (name, align, fields) ->
-      let data, align, size =
-        let init = [], Option.value align ~default:1, 0 in
-        List.fold fields ~init ~f:(fun (data, align, size) f ->
-            let fdata, falign, fsize = match f with
-              | `elt (_, c) | `name (_, c) when c <= 0 ->
-                invalid_argf "Invalid field %s for type :%s"
-                  (Format.asprintf "%a" pp_field f) name ()
-              | `elt (t, c) ->
-                let s = sizeof_basic t / 8 in
-                let d = List.init c ~f:(fun _ -> (t :> datum)) in
-                d, s, s * c
-              | `name (s, _) when String.(s = name) ->
-                invalid_argf "Type :%s is incomplete, it cannot \
-                              contain itself as a field" name ()
-              | `name (s, c) -> match gamma s with
-                | exception exn ->
-                  invalid_argf "Invalid argument :%s for gamma: %s"
-                    s (Exn.to_string exn) ()
-                | {align = a; _} when a <= 0 ->
-                  invalid_argf "Invalid alignment %d for type :%s" a s ()
-                | {align; data} as l ->
-                  let data = Array.to_list data in
-                  let data = List.init c ~f:(fun _ -> data) |> List.concat in
-                  data, align, sizeof l * c in
-            let pad = padding size falign in
-            let align = max align falign in
-            let data = List.rev_append fdata @@ padded data pad in
-            data, align, size + pad + fsize) in
-      {align; data = finalize data align size}
+      create_compound gamma name align fields
+    | `union (name, align, fields) ->
+      create_union gamma name align fields
 
   module Typegraph = Graphlib.Make(String)(Unit)
 
   let build_tenv (ts : compound list) =
     List.fold ts ~init:String.Map.empty ~f:(fun tenv t ->
-        let name = match t with
-          | `opaque (name, _, _) -> name
-          | `compound (name, _, _) -> name in
+        let name = compound_name t in
         match Map.add tenv ~key:name ~data:t with
         | `Duplicate -> invalid_argf "Duplicate type :%s" name ()
         | `Ok tenv -> tenv)
 
   let build_typ_graph tenv ts =
+    let add_fields name fields g =
+      let init = Typegraph.Node.insert name g in
+      List.fold fields ~init ~f:(fun g -> function
+          | `elt _ -> g
+          | `name (n, _) when Map.mem tenv n ->
+            Typegraph.Edge.(insert (create n name ()) g)
+          | `name (n, _) ->
+            invalid_argf "Undeclared type field :%s in type :%s"
+              n name ()) in
     List.fold ts ~init:Typegraph.empty ~f:(fun g -> function
         | `opaque (name, _, _) -> Typegraph.Node.insert name g
-        | `compound (name, _, fields) ->
-          let init = Typegraph.Node.insert name g in
-          List.fold fields ~init ~f:(fun g -> function
-              | `elt _ -> g
-              | `name (n, _) when Map.mem tenv n ->
-                Typegraph.Edge.(insert (create n name ()) g)
-              | `name (n, _) ->
-                invalid_argf "Undeclared type field :%s in type :%s"
-                  n name ()))
+        | `compound (name, _, fields)
+        | `union (name, _, fields) -> add_fields name fields g)
 
   let check_typ_cycles g =
     Graphlib.strong_components (module Typegraph) g |>

@@ -80,6 +80,7 @@ rule token = parse
   | "align" { ALIGN }
   | "const" { CONST () }
   | "type" { TYPE }
+  | "union" { UNION }
   | '{' { LBRACE }
   | '}' { RBRACE }
   | '(' { LPAREN }

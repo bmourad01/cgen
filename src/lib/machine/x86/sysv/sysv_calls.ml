@@ -142,8 +142,9 @@ module Make(Context : Context_intf.S_virtual) = struct
         | Some r -> {k with callar = k.callar @> `reg (a, r)}
       end
     | `flag -> assert false
-    | `compound (s, _, _) | `opaque (s, _, _) ->
+    | #Type.compound as c ->
       (* Figure out what class this type is. *)
+      let s = Type.compound_name c in
       let* lk = type_cls env s in
       let* x = expect_arg_var env key a in
       let src = find_ref env x in

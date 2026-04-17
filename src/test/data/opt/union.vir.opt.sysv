@@ -1,0 +1,81 @@
+module union
+
+export function $getint(l %1/rdi) {
+  %86 = slot 8, align 8
+@2:
+  st.l %1, %86 ; @63
+  %50 = ld.w %86 ; @4
+  ret rax/%50
+}
+
+export function $mkfloat(s %4/xmm0) {
+  %3 = slot 8, align 8
+@5:
+  st.s %4, %3 ; @6
+  %176 = ld.l %3 ; @66
+  ret rax/%176
+}
+
+export function $struct_with_union(l %7/rdi) {
+  %6 = slot 8, align 8
+@8:
+  st.l %7, %6 ; @69
+  %75 = add.l %6, 0x4_l ; @52
+  %53 = ld.w %75 ; @11
+  ret rax/%53
+}
+
+export function $get_sse_d(d %11/xmm0) {
+  %93 = slot 8, align 8
+@12:
+  st.d %11, %93 ; @72
+  ret xmm0/%11
+}
+
+export function $mk_sse_d(d %14/xmm0) {
+  %95 = slot 8, align 8
+@15:
+  st.d %14, %95 ; @16
+  ret xmm0/%14
+}
+
+export function $sum_u2(l %99/rdi, l %100/rsi) {
+@18:
+  %191 = add.l %99, %100 ; @54
+  ret rax/%191
+}
+
+export function $mk_u2(l %23/rdi, l %25/rsi) {
+@24:
+  ret rax/%23, rdx/%25
+}
+
+export function $sum_big(l %115/+0, l %116/+8, l %118/+16) {
+@29:
+  %224 = add.l %115, %116 ; @58
+  %225 = add.l %224, %118 ; @59
+  ret rax/%225
+}
+
+export function $mk_big(l %127/rdi, l %37/rsi, l %39/rdx, l %41/rcx) {
+@38:
+  st.l %37, %127 ; @112
+  %234 = add.l %127, 0x8_l ; @115
+  st.l %39, %234 ; @116
+  %237 = add.l %127, 0x10_l ; @119
+  st.l %41, %237 ; @120
+  ret rax/%127
+}
+
+export function $s2_union_l(l %136/rdi, l %137/rsi) {
+@45:
+  ret rax/%136
+}
+
+export function $s2_w(l %144/rdi, l %145/rsi) {
+  %173 = slot 8, align 8
+@48:
+  st.l %145, %173 ; @138
+  %257 = ld.w %173 ; @51
+  ret rax/%257
+}

@@ -357,6 +357,7 @@ let abi_suite = "Test ABI lowering" >::: [
     (* SysV ABI lowering tests *)
     "Simple calls (SysV)" >:: test_sysv "addcalls";
     "Empty struct (SysV)" >:: test_sysv "emptystruct";
+    "Union type (SysV)" >:: test_sysv "union";
     "Extended GCD returning a struct (SysV)" >:: test_sysv "gcdext";
     "Extended GCD with pointer params (SysV)" >:: test_sysv "gcdextm";
     "Constructing and returning a struct (SysV)" >:: test_sysv "retmem";
@@ -429,6 +430,7 @@ let isel_suite = "Test instruction selection" >::: [
 let regalloc_suite = "Test register allocation" >::: [
     (* AMD64 register allocation tests *)
     "LEA arithmetic with negative disp (SysV AMD64)" >:: test_sysv_amd64_regalloc "lea1";
+    "Union type (SysV AMD64)" >:: test_sysv_amd64_regalloc "union";
     "Test prime numbers (SysV AMD64)" >:: test_sysv_amd64_regalloc "prime";
     "Spill test 1 (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill1";
     "Phi slot coalescing (SysV AMD64)" >:: test_sysv_amd64_regalloc "phi_coalesce";
@@ -485,6 +487,7 @@ let native_suite = "Test native code" >::: [
     (* AMD64 SysV *)
     "First 20 prime numbers (SysV AMD64)" >:: test_sysv_amd64_native "prime";
     "Extended GCD (SysV AMD64)" >:: test_sysv_amd64_native "gcdext";
+    "Union type (SysV AMD64)" >:: test_sysv_amd64_native "union";
     "Copy array (SysV AMD64)" >:: test_sysv_amd64_native "cpyarray";
     "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_native "vasum";
     "Collatz (SysV AMD64)" >:: test_sysv_amd64_native "collatz";
