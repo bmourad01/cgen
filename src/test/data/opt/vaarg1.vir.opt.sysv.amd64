@@ -4,7 +4,7 @@ export function $foo { ; returns: rax
   %23 = slot 176, align 16
   %70 = slot 8, align 8
 @19:
-  mov %29:b, al ; @20
+  mov %29:w, eax ; @20
   mov %9:l, rdi ; @120
   mov qword ptr [%23 + 0x8], rsi ; @21
   mov qword ptr [%23 + 0x10], rdx ; @23

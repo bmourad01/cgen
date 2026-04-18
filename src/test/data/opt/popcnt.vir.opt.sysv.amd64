@@ -2,21 +2,21 @@ module popcnt
 
 export function $popcnt8 { ; returns: rax
 @2:
-  mov %1:b, dil ; @10
+  mov %1:w, edi ; @10
   movzx %16:w, %1:b ; @16
   popcnt %17:w, %16:w ; @17
   mov %12:w, %17:w ; @18
-  mov al, %12:b ; @14
+  mov eax, %12:w ; @14
   ret ; @15
 }
 
 export function $popcnt16 { ; returns: rax
 @4:
-  mov %3:h, di ; @11
+  mov %3:w, edi ; @11
   movzx %18:w, %3:h ; @21
   popcnt %19:w, %18:w ; @22
   mov %13:w, %19:w ; @23
-  mov ax, %13:h ; @19
+  mov eax, %13:w ; @19
   ret ; @20
 }
 

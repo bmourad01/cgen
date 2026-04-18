@@ -6,6 +6,7 @@ module Insn = X86_amd64_common.Insn
 
 let (>*) x f = List.bind x ~f
 
+let ity ty = (ty :> Type.imm)
 let bty ty = (ty :> Type.basic)
 let mty ty = (ty :> X86_amd64_common.Insn.memty)
 
@@ -21,20 +22,23 @@ let ftoui_ty = function
   | `i32 -> `i64
   | ty -> ty
 
-let xor_gpr_self x ty =
-  (* Shorter instruction encoding when we use the 32-bit register,
-     which is implicitly zero-extended to 64 bits. *)
-  let ty = match ty with
-    | `i64 -> `i32
-    | _ -> ty in
-  let x = Insn.Oreg (x, ty) in
-  Insn.I.xor x x
+(* Promote i8/i16 register operand widths to i32 for truncation-invariant
+   ops (e.g. mov, add, sub, neg, not, and, or, xor).
 
-let cwd_cdq_cqo (ty : Type.basic) = match ty with
-  | `i16 -> Insn.I.cwd
-  | `i32 -> Insn.I.cdq
-  | `i64 -> Insn.I.cqo
-  | `i8 | #Type.fp -> assert false
+   Writing 32 bits implicitly zero-extends to 64 bits, breaking the false
+   dependency that 8-or-16-bit partial writes would carry on the prior
+   full-register value.
+
+   The low N bits of the result are identical to the 8-or-16-bit computation,
+   which is all that downstream consumers will read. Narrower consumers either
+   access 8 or 16 bits directly or issue an explicit zero/sign extension.
+
+   `i64` must stay `i64` (we'd lose the high 32 bits otherwise), and FP types
+   are unaffected.
+*)
+let promote_narrow_ty = function
+  | `i8 | `i16 -> `i32
+  | ty -> ty
 
 (* True if `x` fits in a zero-extended 32-bit encoding. *)
 let fits_int32 x =
@@ -158,12 +162,54 @@ end = struct
       | _ -> [] in
     f suffix
 
-  (* Rule callbacks. *)
+  let xor_gpr_self x ty =
+    (* `xor r32, r32` is a shorter encoding than `xor r64, r64` and still
+       zero-clears all 64 bits of the GPR. For i8/i16, promoting to i32 also
+       breaks the false dep a partial write would carry. *)
+    let ty = match ty with
+      | `i64 -> `i32
+      | ty -> promote_narrow_ty ty in
+    let x = Oreg (x, ty) in
+    I.xor x x
+
+  let cwd_cdq_cqo (ty : Type.basic) = match ty with
+    | `i16 -> I.cwd
+    | `i32 -> I.cdq
+    | `i64 -> I.cqo
+    | `i8 | #Type.fp -> assert false
 
   let mov_typed xt dst src = match xt with
     | #Type.imm -> I.mov   dst src
     | `f32      -> I.movss dst src
     | `f64      -> I.movsd dst src
+
+  (* Load into a GPR, promoting i8/i16 destinations to i32 via movzx to
+     avoid a partial-register false dependency on the old value of the
+     64-bit register. *)
+  let load_typed xt x addr = match (xt : Type.basic) with
+    | `i8 | `i16  -> I.movzx (Oreg (x, `i32)) addr
+    | `i32 | `i64 -> I.mov   (Oreg (x, xt)) addr
+    | `f32        -> I.movss (Oreg (x, xt)) addr
+    | `f64        -> I.movsd (Oreg (x, xt)) addr
+
+  (* Fused sext-of-load: sign-extend from the narrow memory type `zt` into
+     `xt` in a single instruction. Similarly to `load_typed`, we promote
+     the width to avoid a false dependency. *)
+  let sext_load_typed xt zt x addr = match xt, zt with
+    | `i64, `i32 ->
+      I.movsxd (Oreg (x, `i64)) addr
+    | (`i16 | `i32 | `i64), (`i8 | `i16) ->
+      let xt' = promote_narrow_ty xt in
+      I.movsx (Oreg (x, xt')) addr
+    | _, _ -> assert false
+
+  (* Same as `load_typed`, but narrowed to `Type.imm`. *)
+  let zext_load_typed zt x addr = match zt with
+    | `i8 | `i16 -> I.movzx (Oreg (x, `i32)) addr
+    | `i32       -> I.mov   (Oreg (x, `i32)) addr
+    | `i64       -> I.mov   (Oreg (x, `i64)) addr
+
+  (* Rule callbacks. *)
 
   let move_rr_x_y ?(zx = false) env =
     let*! x, xt = S.regvar env "x" in
@@ -183,8 +229,10 @@ end = struct
         | _ -> xt in
       !!![I.movzx (Oreg (x, xt')) (Oreg (y, yt))]
     | #Type.imm, #Type.imm ->
-      (* Assume the width of the destination register. *)
-      !!![I.mov (Oreg (x, xt)) (Oreg (y, xt))]
+      (* Assume the width of the destination register, but promote i8/i16
+         to i32 to avoid a partial-register write. *)
+      let xt' = promote_narrow_ty xt in
+      !!![I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
     | `f32, `f32 ->
       !!![I.movss (Oreg (x, xt)) (Oreg (y, yt))]
     | `f64, `f64 ->
@@ -201,6 +249,7 @@ end = struct
       let y = Bv.to_int64 y in
       let ty = match yt with
         | `i64 when fits_int32_pos y -> `i32
+        | `i8 | `i16 -> `i32
         | _ -> yt in
       !!![I.mov (Oreg (x, bty ty)) (Oimm (y, ty))]
 
@@ -210,7 +259,12 @@ end = struct
       | #Type.imm as t -> Some t
       | _ -> None in
     let*! y = S.bool env "y" in
-    if y then !!![I.mov (Oreg (x, xt)) (Oimm (1L, xti))]
+    if y then
+      let xt' = promote_narrow_ty xt in
+      let xti' = match xti with
+        | `i8 | `i16 -> `i32
+        | t -> t in
+      !!![I.mov (Oreg (x, xt')) (Oimm (1L, xti'))]
     else !!![xor_gpr_self x xt]
 
   let move_rsym_x_y env =
@@ -238,11 +292,13 @@ end = struct
     let*! () = guard @@ Type.equal_basic xt yt in
     let*! () = guard @@ Type.equal_basic xt zt in
     if not (Rv.equal x y) && can_lea_ty xt then
-      !!![I.lea (Oreg (x, xt)) (Omem (Abis (y, z, S1), `i64))]
+      let xt' = promote_narrow_ty xt in
+      !!![I.lea (Oreg (x, xt')) (Omem (Abis (y, z, S1), `i64))]
     else match xt with
-      | #Type.imm -> !!![
-          I.mov (Oreg (x, xt)) (Oreg (y, yt));
-          I.add (Oreg (x, xt)) (Oreg (z, zt));
+      | #Type.imm ->
+        let xt' = promote_narrow_ty xt in !!![
+          I.mov (Oreg (x, xt')) (Oreg (y, xt'));
+          I.add (Oreg (x, xt')) (Oreg (z, xt'));
         ]
       | `f64 -> !!![
           I.movsd (Oreg (x, xt)) (Oreg (y, yt));
@@ -282,19 +338,23 @@ end = struct
     let*! () = guard @@ Type.equal_basic xt yt in
     let*! z, zt = S.imm env "z" in
     let z = Bv.to_int64 z in
+    let xt' = promote_narrow_ty xt in
+    let zt' = match zt with
+      | `i8 | `i16 -> `i32
+      | t -> t in
     if Int64.(z = 0L) then
-      !!![I.mov (Oreg (x, xt)) (Oreg (y, yt))]
+      !!![I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
     else if not (Rv.equal x y) && fits_int32_pos z && can_lea_ty xt then
       let z = Int64.to_int32_trunc z in
-      !!![I.lea (Oreg (x, xt)) (Omem (Abd (y, z), `i64))]
+      !!![I.lea (Oreg (x, xt')) (Omem (Abd (y, z), `i64))]
     else
-      let@ oz = with_imm xt z zt in
+      let@ oz = with_imm xt' z zt' in
       if Rv.equal x y then !!![
-          I.add (Oreg (x, xt)) oz
+          I.add (Oreg (x, xt')) oz
         ]
       else !!![
-          I.mov (Oreg (x, xt)) (Oreg (y, yt));
-          I.add (Oreg (x, xt)) oz;
+          I.mov (Oreg (x, xt')) (Oreg (y, xt'));
+          I.add (Oreg (x, xt')) oz;
         ]
 
   let arith_float_x_y_z i1 i2 f s t env =
@@ -331,9 +391,10 @@ end = struct
     let*! () = guard @@ Type.equal_basic xt yt in
     let*! () = guard @@ Type.equal_basic xt zt in
     match xt with
-    | #Type.imm -> !!![
-        I.mov (Oreg (x, xt)) (Oreg (y, yt));
-        I.sub (Oreg (x, xt)) (Oreg (z, zt));
+    | #Type.imm ->
+      let xt' = promote_narrow_ty xt in !!![
+        I.mov (Oreg (x, xt')) (Oreg (y, xt'));
+        I.sub (Oreg (x, xt')) (Oreg (z, xt'));
       ]
     | `f64 -> !!![
         I.movsd (Oreg (x, xt)) (Oreg (y, yt));
@@ -351,19 +412,23 @@ end = struct
     let*! z, zt = S.imm env "z" in
     let z = Bv.to_int64 z in
     let nz = Int64.neg z in
+    let xt' = promote_narrow_ty xt in
+    let zt' = match zt with
+      | `i8 | `i16 -> `i32
+      | t -> t in
     if Int64.(z = 0L) then
-      !!![I.mov (Oreg (x, xt)) (Oreg (y, yt))]
+      !!![I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
     else if not (Rv.equal x y) && fits_int32_neg nz && can_lea_ty xt then
       let z = Int64.to_int32_trunc nz in
-      !!![I.lea (Oreg (x, xt)) (Omem (Abd (y, z), `i64))]
+      !!![I.lea (Oreg (x, xt')) (Omem (Abd (y, z), `i64))]
     else
-      let@ oz = with_imm xt z zt in
+      let@ oz = with_imm xt' z zt' in
       if Rv.equal x y then !!![
-          I.sub (Oreg (x, xt)) oz
+          I.sub (Oreg (x, xt')) oz
         ]
       else !!![
-          I.mov (Oreg (x, xt)) (Oreg (y, yt));
-          I.sub (Oreg (x, xt)) oz;
+          I.mov (Oreg (x, xt')) (Oreg (y, xt'));
+          I.sub (Oreg (x, xt')) oz;
         ]
 
   let sub_ir_x_y_z env =
@@ -371,9 +436,13 @@ end = struct
     let*! y, yt = S.imm env "y" in
     let*! z, zt = S.regvar env "z" in
     let*! () = guard @@ Type.equal_basic xt zt in
-    let y = Bv.to_int64 y in !!![
-      I.mov (Oreg (x, xt)) (Oimm (y, yt));
-      I.sub (Oreg (x, xt)) (Oreg (z, zt));
+    let y = Bv.to_int64 y in
+    let xt' = promote_narrow_ty xt in
+    let yt' = match yt with
+      | `i8 | `i16 -> `i32
+      | t -> t in !!![
+      I.mov (Oreg (x, xt')) (Oimm (y, yt'));
+      I.sub (Oreg (x, xt')) (Oreg (z, xt'));
     ]
 
   let sub_rf32_x_y_z = arith_float_x_y_z I.movss I.subss I.fp32 S.single `f32
@@ -383,23 +452,25 @@ end = struct
 
   let bitwise_rr_x_y_z i env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      i (Oreg (x, xt)) (Oreg (z, zt));
+    let*! y, _  = S.regvar env "y" in
+    let*! z, _  = S.regvar env "z" in
+    let xt' = promote_narrow_ty xt in !!![
+      I.mov (Oreg (x, xt')) (Oreg (y, xt'));
+      i (Oreg (x, xt')) (Oreg (z, xt'));
     ]
   [@@specialise]
 
   let bitwise_ri_x_y_z ?(trunc = false) i env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
+    let*! y, _  = S.regvar env "y" in
     let*! z, zt = S.imm env "z" in
     let z = Bv.to_int64 z in
     let xt', zt' = match xt with
       | `i64 when trunc && fits_int32 z -> `i32, `i32
+      | `i8 | `i16 -> `i32, `i32
       | _ -> xt, zt in
     let@ oz = with_imm xt' z zt' in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
+      I.mov (Oreg (x, xt')) (Oreg (y, xt'));
       i (Oreg (x, xt')) oz;
     ]
   [@@specialise]
@@ -930,7 +1001,7 @@ end = struct
     let*! () = guard @@ fits_int32_pos w in
     let w = Int64.to_int32_trunc w in
     let addr = Omem (Abisd (y, z, s, w), mty xt) in
-    !!![mov_typed xt (Oreg (x, xt)) addr]
+    !!![load_typed xt x addr]
 
   let load_add_mul_rr_scale_neg_imm_x_y_z_w s env =
     let*! x, xt = S.regvar env "x" in
@@ -942,14 +1013,14 @@ end = struct
     let*! () = guard @@ fits_int32_neg nw in
     let w = Int64.to_int32_trunc nw in
     let addr = Omem (Abisd (y, z, s, w), mty xt) in
-    !!![mov_typed xt (Oreg (x, xt)) addr]
+    !!![load_typed xt x addr]
 
   let load_add_mul_rr_scale_x_y_z s env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
     let*! z, _ = S.regvar env "z" in
     let addr = Omem (Abis (y, z, s), mty xt) in
-    !!![mov_typed xt (Oreg (x, xt)) addr]
+    !!![load_typed xt x addr]
 
   let load_rri_add_x_y_z env =
     let*! x, xt = S.regvar env "x" in
@@ -959,13 +1030,126 @@ end = struct
     let*! () = guard @@ fits_sext32 z in
     let z = Int64.to_int32_trunc z in
     let addr = Omem (Abd (y, z), mty xt) in
-    !!![mov_typed xt (Oreg (x, xt)) addr]
+    !!![load_typed xt x addr]
+
+  let load_rrr_add_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let addr = Omem (Abis (y, z, S1), mty xt) in
+    !!![load_typed xt x addr]
 
   let load_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
     let addr = Omem (Ab y, mty xt) in
-    !!![mov_typed xt (Oreg (x, xt)) addr]
+    !!![load_typed xt x addr]
+
+  let load_sext_rr_x_y zt env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let addr = Omem (Ab y, mty zt) in
+    !!![sext_load_typed xt zt x addr]
+
+  let load_zext_rr_x_y zt env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let addr = Omem (Ab y, mty zt) in
+    !!![zext_load_typed zt x addr]
+
+  let load_sext_rri_add_x_y_z zt env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_sext32 z in
+    let z = Int64.to_int32_trunc z in
+    let addr = Omem (Abd (y, z), mty zt) in
+    !!![sext_load_typed xt zt x addr]
+
+  let load_sext_rrr_add_x_y_z zt env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let addr = Omem (Abis (y, z, S1), mty zt) in
+    !!![sext_load_typed xt zt x addr]
+
+  let load_zext_rri_add_x_y_z zt env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.imm env "z" in
+    let z = Bv.to_int64 z in
+    let*! () = guard @@ fits_sext32 z in
+    let z = Int64.to_int32_trunc z in
+    let addr = Omem (Abd (y, z), mty zt) in
+    !!![zext_load_typed zt x addr]
+
+  let load_zext_rrr_add_x_y_z zt env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let addr = Omem (Abis (y, z, S1), mty zt) in
+    !!![zext_load_typed zt x addr]
+
+  let load_sext_add_mul_rr_scale_x_y_z zt s env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let addr = Omem (Abis (y, z, s), mty zt) in
+    !!![sext_load_typed xt zt x addr]
+
+  let load_zext_add_mul_rr_scale_x_y_z zt s env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let addr = Omem (Abis (y, z, s), mty zt) in
+    !!![zext_load_typed zt x addr]
+
+  let load_sext_add_mul_rr_scale_imm_x_y_z_w zt s env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let*! w, _ = S.imm env "w" in
+    let w = Bv.to_int64 w in
+    let*! () = guard @@ fits_int32_pos w in
+    let w = Int64.to_int32_trunc w in
+    let addr = Omem (Abisd (y, z, s, w), mty zt) in
+    !!![sext_load_typed xt zt x addr]
+
+  let load_zext_add_mul_rr_scale_imm_x_y_z_w zt s env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let*! w, _ = S.imm env "w" in
+    let w = Bv.to_int64 w in
+    let*! () = guard @@ fits_int32_pos w in
+    let w = Int64.to_int32_trunc w in
+    let addr = Omem (Abisd (y, z, s, w), mty zt) in
+    !!![zext_load_typed zt x addr]
+
+  let load_sext_add_mul_rr_scale_neg_imm_x_y_z_w zt s env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let*! w, _ = S.imm env "w" in
+    let w = Bv.to_int64 w in
+    let nw = Int64.neg w in
+    let*! () = guard @@ fits_int32_neg nw in
+    let w = Int64.to_int32_trunc nw in
+    let addr = Omem (Abisd (y, z, s, w), mty zt) in
+    !!![sext_load_typed xt zt x addr]
+
+  let load_zext_add_mul_rr_scale_neg_imm_x_y_z_w zt s env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let*! w, _ = S.imm env "w" in
+    let w = Bv.to_int64 w in
+    let nw = Int64.neg w in
+    let*! () = guard @@ fits_int32_neg nw in
+    let w = Int64.to_int32_trunc nw in
+    let addr = Omem (Abisd (y, z, s, w), mty zt) in
+    !!![zext_load_typed zt x addr]
 
   let store_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
@@ -1033,6 +1217,13 @@ end = struct
     let*! () = guard @@ fits_sext32 z in
     let z = Int64.to_int32_trunc z in
     let addr = Omem (Abd (y, z), mty xt) in
+    !!![mov_typed xt addr (Oreg (x, xt))]
+
+  let store_rrr_add_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! z, _ = S.regvar env "z" in
+    let addr = Omem (Abis (y, z, S1), mty xt) in
     !!![mov_typed xt addr (Oreg (x, xt))]
 
   let store_iri_add_x_y_z env =
@@ -1443,9 +1634,10 @@ end = struct
   let div_rem_rr_x_y_z = div_rr zero_rdx I.div (Rv.reg `rdx)
   let div_rem_ri_x_y_z = div_ri zero_rdx I.div (Rv.reg `rdx)
   let div_rem_ir_x_y_z = div_ir zero_rdx I.div (Rv.reg `rdx)
-  let udiv_rr_x_y_z    = div_rr zero_rdx I.div (Rv.reg `rax)
-  let udiv_ri_x_y_z    = div_ri zero_rdx I.div (Rv.reg `rax)
-  let udiv_ir_x_y_z    = div_ir zero_rdx I.div (Rv.reg `rax)
+
+  let udiv_rr_x_y_z = div_rr zero_rdx I.div (Rv.reg `rax)
+  let udiv_ri_x_y_z = div_ri zero_rdx I.div (Rv.reg `rax)
+  let udiv_ir_x_y_z = div_ir zero_rdx I.div (Rv.reg `rax)
 
   let fdiv_rr_x_y_z = float_rr_x_y_z I.divss I.divsd
 
@@ -1454,43 +1646,91 @@ end = struct
   let fdiv_fr32_x_y_z = arith_float_fr_x_y_z I.movss I.divss I.fp32 S.single `f32
   let fdiv_fr64_x_y_z = arith_float_fr_x_y_z I.movsd I.divsd I.fp64 S.double `f64
 
-  let shift_rr_x_y_z i env =
+  (* Shift helpers.
+
+     The `ext` mode controls whether and how the source is loaded
+     into the destination:
+
+     - [`narrow]: no promotion; operate at the IR type's width.
+       Required for rotations (rol, ror) because rotation wraps at
+       the type boundary.
+     - [`nop]: promote narrow widths to i32 with plain mov. Correct
+       for shl because upper-bit garbage doesn't affect the
+       lower-width result.
+     - [`zext]: promote with movzx. Required for shr so upper-bit
+       garbage doesn't corrupt the lower bits after the shift.
+     - [`sext]: promote with movsx. Required for sar so the sign
+       fill is correct.
+  *)
+
+  let shift_dst_ty ~ext xt = match ext with
+    | `nop | `zext | `sext -> promote_narrow_ty xt
+    | `narrow -> xt
+
+  let shift_mov_yx ~ext (x : Rv.t) xt (y : Rv.t) yt =
+    let xt' = shift_dst_ty ~ext xt in
+    match ext, xt with
+    | `zext, (`i8 | `i16) -> I.movzx (Oreg (x, xt')) (Oreg (y, yt))
+    | `sext, (`i8 | `i16) -> I.movsx (Oreg (x, xt')) (Oreg (y, yt))
+    | (`nop | `zext | `sext), _ -> I.mov (Oreg (x, xt')) (Oreg (y, xt'))
+    | `narrow, _ -> I.mov (Oreg (x, xt)) (Oreg (y, yt))
+
+  let shift_rr_x_y_z ~ext i env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, _ = S.regvar env "z" in
+    let xt' = shift_dst_ty ~ext xt in
     let rcx = Rv.reg `rcx in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
+      shift_mov_yx ~ext x xt y yt;
       I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      i (Oreg (x, xt)) (Oreg (rcx, `i8));
+      i (Oreg (x, xt')) (Oreg (rcx, `i8));
     ]
 
-  let shift_ir_x_y_z i env =
+  let shift_ir_x_y_z ~ext i env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
     let*! z, _ = S.regvar env "z" in
     let y = Bv.to_int64 y in
-    let xt', yt' = match xt with
-      | `i64 when fits_int32 y -> `i32, `i32
-      | _ -> xt, yt in
+    (* For sar on narrow widths, pre-compute the sign-extended value
+       so the imm placed in the i32 register has the correct sign
+       fill. For shl/shr, `mov r32, imm32` already zero-extends a
+       narrow bitvector correctly. *)
+    let y = match ext, yt with
+      | `sext, `i8 when Int64.(y land 0x80L <> 0L) ->
+        Int64.(y lor 0xFFFFFF00L)
+      | `sext, `i16 when Int64.(y land 0x8000L <> 0L) ->
+        Int64.(y lor 0xFFFF0000L)
+      | _ -> y in
+    let xt_shift = shift_dst_ty ~ext xt in
+    (* i64 imm that fits `int32` is loaded at i32 to save the REX.W
+       prefix; the subsequent shift still runs at i64. For narrow
+       promoted shifts, load the imm at i32. For sar the value was
+       already sign-extended above; for shl/shr the narrow-range
+       imm is naturally zero-extended by `mov r32, imm32`. *)
+    let xt_mov, yt_mov = match ext, xt with
+      | _, `i64 when fits_int32 y -> `i32, `i32
+      | (`nop | `zext | `sext), (`i8 | `i16) -> xt_shift, `i32
+      | _ -> xt_shift, yt in
     let rcx = Rv.reg `rcx in !!![
-      I.mov (Oreg (x, xt')) (Oimm (y, yt'));
+      I.mov (Oreg (x, xt_mov)) (Oimm (y, yt_mov));
       I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      i (Oreg (x, xt)) (Oreg (rcx, `i8));
+      i (Oreg (x, xt_shift)) (Oreg (rcx, `i8));
     ]
 
-  let shift_ri_x_y_z i env =
+  let shift_ri_x_y_z ~ext i env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
     let*! z, _ = S.imm env "z" in
-    let z = Bv.to_int64 z in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      i (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
+    let z = Bv.to_int64 z in
+    let xt' = shift_dst_ty ~ext xt in !!![
+      shift_mov_yx ~ext x xt y yt;
+      i (Oreg (x, xt')) (Oimm (Int64.(z land 0xFFL), `i8));
     ]
 
-  let lsl_rr_x_y_z = shift_rr_x_y_z I.shl
-  let lsl_ir_x_y_z = shift_ir_x_y_z I.shl
+  let lsl_rr_x_y_z = shift_rr_x_y_z ~ext:`nop I.shl
+  let lsl_ir_x_y_z = shift_ir_x_y_z ~ext:`nop I.shl
 
-  (* `lsr` is specialized because it can be a `lea` instruction *)
+  (* `lsl` is specialized because it can be a `lea` instruction *)
   let lsl_ri_x_y_z env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -1500,29 +1740,30 @@ end = struct
     | 1L when can_lea_ty xt ->
       !!![I.lea (Oreg (x, xt)) (Omem (Abis (y, y, S1), `i64))]
     | _ ->
-      !!![
-        I.mov (Oreg (x, xt)) (Oreg (y, yt));
-        I.shl (Oreg (x, xt)) (Oimm (Int64.(z land 0xFFL), `i8));
+      let xt' = promote_narrow_ty xt in !!![
+        shift_mov_yx ~ext:`nop x xt y yt;
+        I.shl (Oreg (x, xt')) (Oimm (Int64.(z land 0xFFL), `i8));
       ]
 
-  let lsr_rr_x_y_z = shift_rr_x_y_z I.shr
-  let lsr_ir_x_y_z = shift_ir_x_y_z I.shr
-  let lsr_ri_x_y_z = shift_ri_x_y_z I.shr
-  let asr_rr_x_y_z = shift_rr_x_y_z I.sar
-  let asr_ir_x_y_z = shift_ir_x_y_z I.sar
-  let asr_ri_x_y_z = shift_ri_x_y_z I.sar
-  let rol_rr_x_y_z = shift_rr_x_y_z I.rol
-  let rol_ir_x_y_z = shift_ir_x_y_z I.rol
-  let rol_ri_x_y_z = shift_ri_x_y_z I.rol
-  let ror_rr_x_y_z = shift_rr_x_y_z I.ror
-  let ror_ir_x_y_z = shift_ir_x_y_z I.ror
-  let ror_ri_x_y_z = shift_ri_x_y_z I.ror
+  let lsr_rr_x_y_z = shift_rr_x_y_z ~ext:`zext I.shr
+  let lsr_ir_x_y_z = shift_ir_x_y_z ~ext:`zext I.shr
+  let lsr_ri_x_y_z = shift_ri_x_y_z ~ext:`zext I.shr
+  let asr_rr_x_y_z = shift_rr_x_y_z ~ext:`sext I.sar
+  let asr_ir_x_y_z = shift_ir_x_y_z ~ext:`sext I.sar
+  let asr_ri_x_y_z = shift_ri_x_y_z ~ext:`sext I.sar
+  let rol_rr_x_y_z = shift_rr_x_y_z ~ext:`narrow I.rol
+  let rol_ir_x_y_z = shift_ir_x_y_z ~ext:`narrow I.rol
+  let rol_ri_x_y_z = shift_ri_x_y_z ~ext:`narrow I.rol
+  let ror_rr_x_y_z = shift_rr_x_y_z ~ext:`narrow I.ror
+  let ror_ir_x_y_z = shift_ir_x_y_z ~ext:`narrow I.ror
+  let ror_ri_x_y_z = shift_ri_x_y_z ~ext:`narrow I.ror
 
   let neg_r_x_y env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.neg (Oreg (x, xt));
+    let*! y, _  = S.regvar env "y" in
+    let xt' = promote_narrow_ty xt in !!![
+      I.mov (Oreg (x, xt')) (Oreg (y, xt'));
+      I.neg (Oreg (x, xt'));
     ]
 
   let neg_i_x_y env =
@@ -1530,7 +1771,11 @@ end = struct
     let*! y, yt = S.imm env "y" in
     match Virtual.Eval.unop_int (`neg (bty yt)) y yt with
     | Some `int (i, _) ->
-      !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 i, yt))]
+      let xt' = promote_narrow_ty xt in
+      let yt' = match yt with
+        | `i8 | `i16 -> `i32
+        | t -> t in
+      !!![I.mov (Oreg (x, xt')) (Oimm (Bv.to_int64 i, yt'))]
     | _ ->
       (* shouldn't fail *)
       !!None
@@ -1577,21 +1822,26 @@ end = struct
 
   let not_r_x_y env =
     let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.not_ (Oreg (x, xt));
+    let*! y, _  = S.regvar env "y" in
+    let xt' = promote_narrow_ty xt in !!![
+      I.mov (Oreg (x, xt')) (Oreg (y, xt'));
+      I.not_ (Oreg (x, xt'));
     ]
 
   let not_i_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
+    let xt' = promote_narrow_ty xt in
+    let yt' = match yt with
+      | `i8 | `i16 -> `i32
+      | t -> t in
     match Virtual.Eval.unop_int (`not_ yt) y yt with
     | Some `int (i, _) ->
-      !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 i, yt))]
+      !!![I.mov (Oreg (x, xt')) (Oimm (Bv.to_int64 i, yt'))]
     | _ ->
       !!![
-        I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y, yt));
-        I.not_ (Oreg (x, xt));
+        I.mov (Oreg (x, xt')) (Oimm (Bv.to_int64 y, yt'));
+        I.not_ (Oreg (x, xt'));
       ]
 
   let clz_r_x_y env =
@@ -1651,19 +1901,22 @@ end = struct
       when Type.sizeof_imm xi > Type.sizeof_imm yi ->
       !!![I.movsx (Oreg (x, xt)) (Oreg (y, yt))]
     | #Type.imm, #Type.imm ->
-      (* Assume the width of the destination. *)
-      !!![I.mov (Oreg (x, xt)) (Oreg (y, xt))]
+      let xt' = promote_narrow_ty xt in
+      !!![I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
     | _ -> !!None
 
   let sext_ri_x_y env =
     let*! x, xt = S.regvar env "x" in
     match xt with
     | #Type.fp -> !!None
-    | #Type.imm as xt' ->
+    | #Type.imm as xti ->
       let*! y, yt = S.imm env "y" in
-      match Virtual.Eval.unop_int (`sext xt') y yt with
+      match Virtual.Eval.unop_int (`sext xti) y yt with
       | Some `int (y, _) ->
-        !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y, xt'))]
+        let xti' : Type.imm = match xti with
+          | `i8 | `i16 -> `i32
+          | t -> t in
+        !!![I.mov (Oreg (x, bty xti')) (Oimm (Bv.to_int64 y, xti'))]
       | _ -> !!None
 
   let fext_rr_x_y ty env =
@@ -1721,7 +1974,7 @@ end = struct
   let fibits_ri_x_y ty env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
-    let*! () = guard (Type.equal_basic (ty :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (bty ty) xt) in
     match Virtual.Eval.unop_int (`fibits ty) y yt with
     | Some `float f ->
       let* l, addr = fresh_label_addr in !!![
@@ -1738,8 +1991,8 @@ end = struct
   let ftosi_rr_x_y tf ti env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
-    let*! () = guard (Type.equal_basic (tf :> Type.basic) yt) in
+    let*! () = guard (Type.equal_basic (bty ti) xt) in
+    let*! () = guard (Type.equal_basic (bty tf) yt) in
     let xt' = ftosi_ty xt in
     match tf with
     | `f32 ->
@@ -1753,7 +2006,7 @@ end = struct
   let ftosi_rf32_x_y ti env =
     let*! x, xt = S.regvar env "x" in
     let*! y = S.single env "y" in
-    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (bty ti) xt) in
     match Virtual.Eval.unop_single (`ftosi (`f32, ti)) y with
     | Some `int (y', yt) ->
       !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt))]
@@ -1762,7 +2015,7 @@ end = struct
   let ftosi_rf64_x_y ti env =
     let*! x, xt = S.regvar env "x" in
     let*! y = S.double env "y" in
-    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (bty ti) xt) in
     match Virtual.Eval.unop_double (`ftosi (`f64, ti)) y with
     | Some `int (y', yt) ->
       !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt))]
@@ -1789,8 +2042,8 @@ end = struct
   let ftoui_rr_x_y tf ti env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
-    let*! () = guard (Type.equal_basic (tf :> Type.basic) yt) in
+    let*! () = guard (Type.equal_basic (bty ti) xt) in
+    let*! () = guard (Type.equal_basic (bty tf) yt) in
     let xt' = ftoui_ty xt in
     match tf, xt with
     | `f32, `i64 ->
@@ -1812,7 +2065,7 @@ end = struct
   let ftoui_rf32_x_y ti env =
     let*! x, xt = S.regvar env "x" in
     let*! y = S.single env "y" in
-    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (bty ti) xt) in
     match Virtual.Eval.unop_single (`ftoui (`f32, ti)) y with
     | Some `int (y', yt) ->
       !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt))]
@@ -1821,7 +2074,7 @@ end = struct
   let ftoui_rf64_x_y ti env =
     let*! x, xt = S.regvar env "x" in
     let*! y = S.double env "y" in
-    let*! () = guard (Type.equal_basic (ti :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (bty ti) xt) in
     match Virtual.Eval.unop_double (`ftoui (`f64, ti)) y with
     | Some `int (y', yt) ->
       !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt))]
@@ -1872,7 +2125,7 @@ end = struct
   let ifbits_rr_x_y ty env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (ty :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (bty ty) xt) in
     match ty, yt with
     | `i32, `f32 ->
       !!![I.movd (Oreg (x, xt)) (Oreg (y, yt))]
@@ -1900,14 +2153,14 @@ end = struct
   let itrunc_rr_x_y ty env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (ty :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (bty ty) xt) in
     (* Assume the width of the destination. *)
     !!![I.mov (Oreg (x, xt)) (Oreg (y, xt))]
 
   let itrunc_ri_x_y ty env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
-    let*! () = guard (Type.equal_basic (ty :> Type.basic) xt) in
+    let*! () = guard (Type.equal_basic (bty ty) xt) in
     match Virtual.Eval.unop_int (`itrunc ty) y yt with
     | Some `int (y', yt') ->
       !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt'))]
@@ -1916,8 +2169,8 @@ end = struct
   let sitof_rr_x_y ti tf env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (tf :> Type.basic) xt) in
-    let*! () = guard (Type.equal_basic (ti :> Type.basic) yt) in
+    let*! () = guard (Type.equal_basic (bty tf) xt) in
+    let*! () = guard (Type.equal_basic (bty ti) yt) in
     match ti, tf with
     | (`i8 | `i16), `f32 ->
       let* tmp = C.Var.fresh >>| Rv.var GPR in !!![
@@ -1951,8 +2204,8 @@ end = struct
   let sitof_ri_x_y ti tf env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.imm env "y" in
-    let*! () = guard (Type.equal_basic (tf :> Type.basic) xt) in
-    let*! () = guard (Type.equal_imm (ti :> Type.imm) yt) in
+    let*! () = guard (Type.equal_basic (bty tf) xt) in
+    let*! () = guard (Type.equal_imm (ity ti) yt) in
     match Virtual.Eval.unop_int (`sitof (ti, tf)) y yt with
     | Some `float f ->
       let* l, addr = fresh_label_addr in !!![
@@ -2264,6 +2517,49 @@ end = struct
 
     let load_add = [
       load_rri_add_x_y_z;
+      load_rrr_add_x_y_z;
+    ]
+
+    let load_sext zt = [
+      load_sext_rr_x_y zt;
+    ]
+
+    let load_zext zt = [
+      load_zext_rr_x_y zt;
+    ]
+
+    let load_sext_add zt = [
+      load_sext_rri_add_x_y_z zt;
+      load_sext_rrr_add_x_y_z zt;
+    ]
+
+    let load_zext_add zt = [
+      load_zext_rri_add_x_y_z zt;
+      load_zext_rrr_add_x_y_z zt;
+    ]
+
+    let load_sext_add_mul zt s = [
+      load_sext_add_mul_rr_scale_x_y_z zt s;
+    ]
+
+    let load_zext_add_mul zt s = [
+      load_zext_add_mul_rr_scale_x_y_z zt s;
+    ]
+
+    let load_sext_add_mul_disp zt s = [
+      load_sext_add_mul_rr_scale_imm_x_y_z_w zt s;
+    ]
+
+    let load_zext_add_mul_disp zt s = [
+      load_zext_add_mul_rr_scale_imm_x_y_z_w zt s;
+    ]
+
+    let load_sext_add_mul_disp_neg zt s = [
+      load_sext_add_mul_rr_scale_neg_imm_x_y_z_w zt s;
+    ]
+
+    let load_zext_add_mul_disp_neg zt s = [
+      load_zext_add_mul_rr_scale_neg_imm_x_y_z_w zt s;
     ]
 
     let move_ri = [
@@ -2367,6 +2663,7 @@ end = struct
       store_iri_add_x_y_z;
       store_f32ri_add_x_y_z;
       store_f64ri_add_x_y_z;
+      store_rrr_add_x_y_z;
     ]
 
     let store = [
@@ -2464,6 +2761,27 @@ end = struct
         add ty' (mul ty' y sm) z;
         add ty' (lsl_ ty y ss) z;
       |]
+
+    let sib_disp_i64 = [|
+      sib_disp_pat `i64 (i64 1L) (i64 0L);
+      sib_disp_pat `i64 (i64 2L) (i64 1L);
+      sib_disp_pat `i64 (i64 4L) (i64 2L);
+      sib_disp_pat `i64 (i64 8L) (i64 3L);
+    |]
+
+    let sib_disp_neg_i64 = [|
+      sib_disp_neg_pat `i64 (i64 1L) (i64 0L);
+      sib_disp_neg_pat `i64 (i64 2L) (i64 1L);
+      sib_disp_neg_pat `i64 (i64 4L) (i64 2L);
+      sib_disp_neg_pat `i64 (i64 8L) (i64 3L);
+    |]
+
+    let sib_i64 = [|
+      sib_pat `i64 (i64 1L) (i64 0L);
+      sib_pat `i64 (i64 2L) (i64 1L);
+      sib_pat `i64 (i64 4L) (i64 2L);
+      sib_pat `i64 (i64 8L) (i64 3L);
+    |]
 
     (* x = add (add y (mul z i)) w => lea x, [y+z*i+w]
 
@@ -2746,7 +3064,7 @@ end = struct
        `i32, i32 0l;
        `i64, i64 0L;
       ] >* fun (ty, zero) ->
-        let ty' = (ty :> Type.basic) in [
+        let ty' = bty ty in [
           move x (ne ty' (and_ ty y z) zero) =>* Group.setcc_test (); (* x = (y & z) != 0 *)
           move x (eq ty' (and_ ty y z) zero) =>* Group.setcc_test () ~neg:true; (* x = (y & z) == 0 *)
           move x (eq ty' y zero) => setcc_r_zero_x_y; (* x = y == 0 *)
@@ -2855,10 +3173,10 @@ end = struct
     *)
     let load_add_mul_disp =
       [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty ->
-        let p1 = sib_disp_pat `i64 (i64 1L) (i64 0L) in
-        let p2 = sib_disp_pat `i64 (i64 2L) (i64 1L) in
-        let p3 = sib_disp_pat `i64 (i64 4L) (i64 2L) in
-        let p4 = sib_disp_pat `i64 (i64 8L) (i64 3L) in [
+        let p1 = sib_disp_i64.(0) in
+        let p2 = sib_disp_i64.(1) in
+        let p3 = sib_disp_i64.(2) in
+        let p4 = sib_disp_i64.(3) in [
           (* Scale by 8 *)
           move x (load ty p4.(0)) => load_add_mul_rr_scale_imm_x_y_z_w S8;
           move x (load ty p4.(1)) => load_add_mul_rr_scale_imm_x_y_z_w S8;
@@ -2893,10 +3211,10 @@ end = struct
     *)
     let load_add_mul_disp_neg =
       [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty ->
-        let p1 = sib_disp_neg_pat `i64 (i64 1L) (i64 0L) in
-        let p2 = sib_disp_neg_pat `i64 (i64 2L) (i64 1L) in
-        let p3 = sib_disp_neg_pat `i64 (i64 4L) (i64 2L) in
-        let p4 = sib_disp_neg_pat `i64 (i64 8L) (i64 3L) in [
+        let p1 = sib_disp_neg_i64.(0) in
+        let p2 = sib_disp_neg_i64.(1) in
+        let p3 = sib_disp_neg_i64.(2) in
+        let p4 = sib_disp_neg_i64.(3) in [
           (* Scale by 8 *)
           move x (load ty p4.(0)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S8;
           move x (load ty p4.(1)) => load_add_mul_rr_scale_neg_imm_x_y_z_w S8;
@@ -2930,10 +3248,10 @@ end = struct
     *)
     let load_add_mul =
       [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty ->
-        let p1 = sib_pat `i64 (i64 1L) (i64 0L) in
-        let p2 = sib_pat `i64 (i64 2L) (i64 1L) in
-        let p3 = sib_pat `i64 (i64 4L) (i64 2L) in
-        let p4 = sib_pat `i64 (i64 8L) (i64 3L) in [
+        let p1 = sib_i64.(0) in
+        let p2 = sib_i64.(1) in
+        let p3 = sib_i64.(2) in
+        let p4 = sib_i64.(3) in [
           (* Scale by 8 *)
           move x (load ty p4.(0)) => load_add_mul_rr_scale_x_y_z S8;
           move x (load ty p4.(1)) => load_add_mul_rr_scale_x_y_z S8;
@@ -2967,6 +3285,121 @@ end = struct
       move x (load `f32 y) =>* Group.load;
       move x (load `f64 y) =>* Group.load;
     ]
+
+    let load_ext_pairs : (Type.imm * Type.imm) list = [
+      `i16, `i8;
+      `i32, `i8; `i32, `i16;
+      `i64, `i8; `i64, `i16; `i64, `i32;
+    ]
+
+    (* x = sext/zext (load (add y z)) => movsx/movsxd/movzx x, [y+z] *)
+    let load_ext_add =
+      load_ext_pairs >* fun (xt, zt) ->
+        [sext, Group.load_sext_add;
+         zext, Group.load_zext_add] >* fun (p, f) ->
+          let zt' = bty zt in [
+            move x (p xt (load zt' (add `i64 y z))) =>* f zt;
+          ]
+
+    (* x = sext/zext (load (add (add y (mul z i)) w)) => movsx/movsxd/movzx x, [y+z*i+w] *)
+    let load_ext_add_mul_disp =
+      load_ext_pairs >* fun (xt, zt) ->
+        [sext, Group.load_sext_add_mul_disp;
+         zext, Group.load_zext_add_mul_disp] >* fun (p, f) ->
+          let zt' = bty zt in
+          let p1 = sib_disp_i64.(0) in
+          let p2 = sib_disp_i64.(1) in
+          let p3 = sib_disp_i64.(2) in
+          let p4 = sib_disp_i64.(3) in [
+            (* Scale by 8 *)
+            move x (p xt (load zt' p4.(0))) =>* f zt S8;
+            move x (p xt (load zt' p4.(1))) =>* f zt S8;
+            move x (p xt (load zt' p4.(2))) =>* f zt S8;
+            move x (p xt (load zt' p4.(3))) =>* f zt S8;
+            (* Scale by 4 *)
+            move x (p xt (load zt' p3.(0))) =>* f zt S4;
+            move x (p xt (load zt' p3.(1))) =>* f zt S4;
+            move x (p xt (load zt' p3.(2))) =>* f zt S4;
+            move x (p xt (load zt' p3.(3))) =>* f zt S4;
+            (* Scale by 2 *)
+            move x (p xt (load zt' p2.(0))) =>* f zt S2;
+            move x (p xt (load zt' p2.(1))) =>* f zt S2;
+            move x (p xt (load zt' p2.(2))) =>* f zt S2;
+            move x (p xt (load zt' p2.(3))) =>* f zt S2;
+            (* Scale by 1 *)
+            move x (p xt (load zt' p1.(0))) =>* f zt S1;
+            move x (p xt (load zt' p1.(1))) =>* f zt S1;
+            move x (p xt (load zt' p1.(2))) =>* f zt S1;
+            move x (p xt (load zt' p1.(3))) =>* f zt S1;
+            move x (p xt (load zt' (add `i64 (add `i64 y z) w))) =>* f zt S1;
+            move x (p xt (load zt' (add `i64 y (add `i64 z w)))) =>* f zt S1;
+          ]
+
+    (* x = sext/zext (load (sub (add y (mul z i)) w)) => movsx/movsxd/movzx x, [y+z*i-w] *)
+    let load_ext_add_mul_disp_neg =
+      load_ext_pairs >* fun (xt, zt) ->
+        [sext, Group.load_sext_add_mul_disp_neg;
+         zext, Group.load_zext_add_mul_disp_neg] >* fun (p, f) ->
+          let zt' = bty zt in
+          let p1 = sib_disp_neg_i64.(0) in
+          let p2 = sib_disp_neg_i64.(1) in
+          let p3 = sib_disp_neg_i64.(2) in
+          let p4 = sib_disp_neg_i64.(3) in [
+            (* Scale by 8 *)
+            move x (p xt (load zt' p4.(0))) =>* f zt S8;
+            move x (p xt (load zt' p4.(1))) =>* f zt S8;
+            move x (p xt (load zt' p4.(2))) =>* f zt S8;
+            move x (p xt (load zt' p4.(3))) =>* f zt S8;
+            (* Scale by 4 *)
+            move x (p xt (load zt' p3.(0))) =>* f zt S4;
+            move x (p xt (load zt' p3.(1))) =>* f zt S4;
+            move x (p xt (load zt' p3.(2))) =>* f zt S4;
+            move x (p xt (load zt' p3.(3))) =>* f zt S4;
+            (* Scale by 2 *)
+            move x (p xt (load zt' p2.(0))) =>* f zt S2;
+            move x (p xt (load zt' p2.(1))) =>* f zt S2;
+            move x (p xt (load zt' p2.(2))) =>* f zt S2;
+            move x (p xt (load zt' p2.(3))) =>* f zt S2;
+            (* Scale by 1 *)
+            move x (p xt (load zt' p1.(0))) =>* f zt S1;
+            move x (p xt (load zt' p1.(1))) =>* f zt S1;
+            move x (p xt (load zt' p1.(2))) =>* f zt S1;
+            move x (p xt (load zt' p1.(3))) =>* f zt S1;
+            move x (p xt (load zt' (sub `i64 (add `i64 y z) w))) =>* f zt S1;
+          ]
+
+    (* x = sext/zext (load (add y (mul z i))) => movsx/movsxd/movzx x, [y+z*i] *)
+    let load_ext_add_mul =
+      load_ext_pairs >* fun (xt, zt) ->
+        [sext, Group.load_sext_add_mul;
+         zext, Group.load_zext_add_mul] >* fun (p, f) ->
+          let zt' = bty zt in
+          let p1 = sib_i64.(0) in
+          let p2 = sib_i64.(1) in
+          let p3 = sib_i64.(2) in
+          let p4 = sib_i64.(3) in [
+            (* Scale by 8 *)
+            move x (p xt (load zt' p4.(0))) =>* f zt S8;
+            move x (p xt (load zt' p4.(1))) =>* f zt S8;
+            (* Scale by 4 *)
+            move x (p xt (load zt' p3.(0))) =>* f zt S4;
+            move x (p xt (load zt' p3.(1))) =>* f zt S4;
+            (* Scale by 2 *)
+            move x (p xt (load zt' p2.(0))) =>* f zt S2;
+            move x (p xt (load zt' p2.(1))) =>* f zt S2;
+            (* Scale by 1 *)
+            move x (p xt (load zt' p1.(0))) =>* f zt S1;
+            move x (p xt (load zt' p1.(1))) =>* f zt S1;
+          ]
+
+    (* x = sext/zext (load y) => movsx/movsxd/movzx x, [y] *)
+    let load_ext_basic =
+      load_ext_pairs >* fun (xt, zt) ->
+        [sext, Group.load_sext;
+         zext, Group.load_zext] >* fun (p, f) ->
+          let zt' = bty zt in [
+            move x (p xt (load zt' y)) =>* f zt;
+          ]
 
     (* x = neg y *)
     let neg_basic = [
@@ -3041,7 +3474,7 @@ end = struct
     (* x = ftosi y *)
     let ftosi_basic =
       [`i8; `i16; `i32; `i64] >* fun ty ->
-        let ty' = (ty :> Type.imm) in [
+        let ty' = ity ty in [
           move x (ftosi `f64 ty' y) =>* Group.ftosi `f64 ty;
           move x (ftosi `f32 ty' y) =>* Group.ftosi `f32 ty;
         ]
@@ -3049,7 +3482,7 @@ end = struct
     (* x = ftoui y *)
     let ftoui_basic =
       [`i8; `i16; `i32; `i64] >* fun ty ->
-        let ty' = (ty :> Type.imm) in [
+        let ty' = ity ty in [
           move x (ftoui `f64 ty' y) =>* Group.ftoui `f64 ty;
           move x (ftoui `f32 ty' y) =>* Group.ftoui `f32 ty;
         ]
@@ -3117,10 +3550,10 @@ end = struct
     *)
     let store_add_mul_disp =
       [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty ->
-        let p1 = sib_disp_pat `i64 (i64 1L) (i64 0L) in
-        let p2 = sib_disp_pat `i64 (i64 2L) (i64 1L) in
-        let p3 = sib_disp_pat `i64 (i64 4L) (i64 2L) in
-        let p4 = sib_disp_pat `i64 (i64 8L) (i64 3L) in [
+        let p1 = sib_disp_i64.(0) in
+        let p2 = sib_disp_i64.(1) in
+        let p3 = sib_disp_i64.(2) in
+        let p4 = sib_disp_i64.(3) in [
           (* Scale by 8 *)
           store ty x p4.(0) => store_add_mul_rr_scale_imm_x_y_z_w S8;
           store ty x p4.(1) => store_add_mul_rr_scale_imm_x_y_z_w S8;
@@ -3156,10 +3589,10 @@ end = struct
     *)
     let store_add_mul_disp_neg =
       [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty ->
-        let p1 = sib_disp_neg_pat `i64 (i64 1L) (i64 0L) in
-        let p2 = sib_disp_neg_pat `i64 (i64 2L) (i64 1L) in
-        let p3 = sib_disp_neg_pat `i64 (i64 4L) (i64 2L) in
-        let p4 = sib_disp_neg_pat `i64 (i64 8L) (i64 3L) in [
+        let p1 = sib_disp_neg_i64.(0) in
+        let p2 = sib_disp_neg_i64.(1) in
+        let p3 = sib_disp_neg_i64.(2) in
+        let p4 = sib_disp_neg_i64.(3) in [
           (* Scale by 8 *)
           store ty x p4.(0) => store_add_mul_rr_scale_neg_imm_x_y_z_w S8;
           store ty x p4.(1) => store_add_mul_rr_scale_neg_imm_x_y_z_w S8;
@@ -3193,10 +3626,10 @@ end = struct
     *)
     let store_add_mul =
       [`i8; `i16; `i32; `i64; `f32; `f64] >* fun ty ->
-        let p1 = sib_pat `i64 (i64 1L) (i64 0L) in
-        let p2 = sib_pat `i64 (i64 2L) (i64 1L) in
-        let p3 = sib_pat `i64 (i64 4L) (i64 2L) in
-        let p4 = sib_pat `i64 (i64 8L) (i64 3L) in [
+        let p1 = sib_i64.(0) in
+        let p2 = sib_i64.(1) in
+        let p3 = sib_i64.(2) in
+        let p4 = sib_i64.(3) in [
           (* Scale by 8 *)
           store ty x p4.(0) => store_add_mul_rr_scale_x_y_z S8;
           store ty x p4.(1) => store_add_mul_rr_scale_x_y_z S8;
@@ -3247,7 +3680,7 @@ end = struct
        `i32, i32 0l;
        `i64, i64 0L;
       ] >* fun (ty, zero) ->
-        let ty' = (ty :> Type.basic) in [
+        let ty' = bty ty in [
           (* Test two operands. *)
           br (ne ty' (and_ ty x y) zero) yes no =>* Group.br_test ();
           br (eq ty' (and_ ty x y) zero) yes no =>* Group.br_test () ~neg:true;
@@ -3365,6 +3798,11 @@ end = struct
       clz_basic;
       ctz_basic;
       popcnt_basic;
+      load_ext_add_mul_disp;
+      load_ext_add_mul_disp_neg;
+      load_ext_add_mul;
+      load_ext_add;
+      load_ext_basic;
       sext_basic;
       zext_basic;
       fext_basic;

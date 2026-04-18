@@ -36,7 +36,7 @@ export function $main { ; returns: rax
   lea rdi, qword ptr [rip + $fmt] ; @16
   mov esi, r13d ; @35
   mov edx, r12d ; @36
-  xor al, al ; @37
+  xor eax, eax ; @37
   call $printf ; rax rdi rdx rsi ; @38
   dec r14d ; @25
   inc r13d ; @26

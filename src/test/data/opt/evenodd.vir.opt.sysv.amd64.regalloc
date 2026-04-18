@@ -18,7 +18,7 @@ export function $even { ; returns: rax
   test eax, eax ; @44
   jne @9 ; @45
 @23:
-  mov al, 0x1_b ; @42
+  mov eax, 0x1_w ; @42
   leave ; @66
   ret ; @43
 @9:
@@ -35,7 +35,7 @@ export function $odd { ; returns: rax
   test eax, eax ; @56
   jne @16 ; @57
 @24:
-  xor al, al ; @54
+  xor eax, eax ; @54
   leave ; @70
   ret ; @55
 @16:

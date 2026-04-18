@@ -63,7 +63,7 @@ export function $twenty_eight { ; returns: rax
   sub rsp, 0x10_l ; @120
   mov dword ptr [rsp], 0x6_w ; @121
   mov dword ptr [rsp + 0x8], 0x7_w ; @122
-  xor al, al ; @123
+  xor eax, eax ; @123
   call $sum ; r8 r9 rax rcx rdi rdx rsi ; @124
   leave ; @133
   ret ; @114

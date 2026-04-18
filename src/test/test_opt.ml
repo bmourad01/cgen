@@ -425,6 +425,9 @@ let isel_suite = "Test instruction selection" >::: [
     "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64 "imm32_boundary";
     "Tail call (SysV AMD64)" >:: test_sysv_amd64 "tailcall";
     "Floating point (SysV AMD64)" >:: test_sysv_amd64 "fp";
+    "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64 "sext_zext_load";
+    "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64 "load_store";
+    "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64 "narrow_promote";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -481,6 +484,9 @@ let regalloc_suite = "Test register allocation" >::: [
     "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64_regalloc "imm32_boundary";
     "Tail call (SysV AMD64)" >:: test_sysv_amd64_regalloc "tailcall";
     "Floating point (SysV AMD64)" >:: test_sysv_amd64_regalloc "fp";
+    "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64_regalloc "sext_zext_load";
+    "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64_regalloc "load_store";
+    "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_regalloc "narrow_promote";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -534,6 +540,9 @@ let native_suite = "Test native code" >::: [
     "32-bit immediate boundary (SysV AMD64)" >:: test_sysv_amd64_native "imm32_boundary";
     "Tail call (SysV AMD64)" >:: test_sysv_amd64_native "tailcall";
     "Floating point (SysV AMD64)" >:: test_sysv_amd64_native "fp";
+    "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64_native "sext_zext_load";
+    "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64_native "load_store";
+    "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_native "narrow_promote";
   ]
 
 let () = run_test_tt_main @@ test_list [

@@ -2,21 +2,21 @@ module clz_ctz_8
 
 export function $clz8 { ; returns: rax
 @2:
-  mov %1:b, dil ; @6
+  mov %1:w, edi ; @6
   movzx %8:w, %1:b ; @10
   bsr %9:w, %8:w ; @11
   xor %9:w, 0x7_w ; @12
   mov %6:w, %9:w ; @13
-  mov al, %6:b ; @8
+  mov eax, %6:w ; @8
   ret ; @9
 }
 
 export function $ctz8 { ; returns: rax
 @4:
-  mov %3:b, dil ; @7
+  mov %3:w, edi ; @7
   movzx %10:w, %3:b ; @16
   bsf %11:w, %10:w ; @17
   mov %7:w, %11:w ; @18
-  mov al, %7:b ; @14
+  mov eax, %7:w ; @14
   ret ; @15
 }

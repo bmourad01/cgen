@@ -22,7 +22,7 @@ export function $bar { ; returns: xmm0
 @13:
   mov %14:l, %3:l ; @17
   shr %14:l, 0x1_b ; @38
-  mov %15:l, %3:l ; @18
+  mov %15:w, %3:w ; @18
   and %15:w, 0x1_w ; @37
   mov %16:l, %14:l ; @19
   or %16:l, %15:l ; @36
@@ -38,7 +38,7 @@ export function $bar { ; returns: xmm0
 
 export function $baz { ; returns: xmm0
 @6:
-  mov %5:h, di ; @24
+  mov %5:w, edi ; @24
   movzx %21:w, %5:h ; @51
   cvtsi2ss %11:s, %21:w ; @50
   movss xmm0, %11:s ; @48

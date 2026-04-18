@@ -10,9 +10,7 @@ export function $fnv1a { ; returns: rax
 @7:
   ret ; @643
 @6:
-  lea rdx, qword ptr [rdi + rcx*1] ; @341
-  mov dl, byte ptr [rdx] ; @10
-  movzx edx, dl ; @342
+  movzx edx, byte ptr [rdi + rcx*1] ; @342
   xor eax, edx ; @641
   imul eax, eax, 0x1000193 ; @344
   inc rcx ; @358
@@ -463,7 +461,7 @@ export function $cgen_strlen { ; returns: rax
 @283:
   mov rax, rdi ; @977
 @284:
-  mov cl, byte ptr [rax] ; @288
+  movzx ecx, byte ptr [rax] ; @288
   test cl, cl ; @971
   jne @286 ; @972
 @287:
@@ -483,7 +481,7 @@ export function $int_pow { ; returns: rax
 @296:
   ret ; @992
 @295:
-  mov rcx, rsi ; @623
+  mov ecx, esi ; @623
   and ecx, 0x1_w ; @990
   mov rdx, rax ; @625
   imul rdx, rdi ; @987

@@ -1,0 +1,327 @@
+module load_store
+
+;; test isel for fused plain loads and stores across addressing modes.
+
+;; basic loads: *p
+
+export function b $load_b_basic(l %p) {
+@start:
+  %r = ld.b %p
+  ret %r
+}
+
+export function h $load_h_basic(l %p) {
+@start:
+  %r = ld.h %p
+  ret %r
+}
+
+export function w $load_w_basic(l %p) {
+@start:
+  %r = ld.w %p
+  ret %r
+}
+
+export function l $load_l_basic(l %p) {
+@start:
+  %r = ld.l %p
+  ret %r
+}
+
+;; basic stores: *p = v
+
+export function $store_b_basic(l %p, b %v) {
+@start:
+  st.b %v, %p
+  ret
+}
+
+export function $store_h_basic(l %p, h %v) {
+@start:
+  st.h %v, %p
+  ret
+}
+
+export function $store_w_basic(l %p, w %v) {
+@start:
+  st.w %v, %p
+  ret
+}
+
+export function $store_l_basic(l %p, l %v) {
+@start:
+  st.l %v, %p
+  ret
+}
+
+;; base + disp
+
+export function b $load_b_add(l %p) {
+@start:
+  %q = add.l %p, 16_l
+  %r = ld.b %q
+  ret %r
+}
+
+export function h $load_h_add(l %p) {
+@start:
+  %q = add.l %p, 16_l
+  %r = ld.h %q
+  ret %r
+}
+
+export function w $load_w_add(l %p) {
+@start:
+  %q = add.l %p, 16_l
+  %r = ld.w %q
+  ret %r
+}
+
+export function l $load_l_add(l %p) {
+@start:
+  %q = add.l %p, 16_l
+  %r = ld.l %q
+  ret %r
+}
+
+export function $store_b_add(l %p, b %v) {
+@start:
+  %q = add.l %p, 16_l
+  st.b %v, %q
+  ret
+}
+
+export function $store_h_add(l %p, h %v) {
+@start:
+  %q = add.l %p, 16_l
+  st.h %v, %q
+  ret
+}
+
+export function $store_w_add(l %p, w %v) {
+@start:
+  %q = add.l %p, 16_l
+  st.w %v, %q
+  ret
+}
+
+export function $store_l_add(l %p, l %v) {
+@start:
+  %q = add.l %p, 16_l
+  st.l %v, %q
+  ret
+}
+
+;; base + index*scale
+
+export function b $load_b_add_mul(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  %r = ld.b %q
+  ret %r
+}
+
+export function h $load_h_add_mul(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  %r = ld.h %q
+  ret %r
+}
+
+export function w $load_w_add_mul(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  %r = ld.w %q
+  ret %r
+}
+
+export function l $load_l_add_mul(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  %r = ld.l %q
+  ret %r
+}
+
+export function $store_b_add_mul(l %p, l %i, b %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  st.b %v, %q
+  ret
+}
+
+export function $store_h_add_mul(l %p, l %i, h %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  st.h %v, %q
+  ret
+}
+
+export function $store_w_add_mul(l %p, l %i, w %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  st.w %v, %q
+  ret
+}
+
+export function $store_l_add_mul(l %p, l %i, l %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  st.l %v, %q
+  ret
+}
+
+;; base + index*scale + disp
+
+export function b $load_b_add_mul_disp(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  %r = ld.b %q
+  ret %r
+}
+
+export function h $load_h_add_mul_disp(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  %r = ld.h %q
+  ret %r
+}
+
+export function w $load_w_add_mul_disp(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  %r = ld.w %q
+  ret %r
+}
+
+export function l $load_l_add_mul_disp(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  %r = ld.l %q
+  ret %r
+}
+
+export function $store_b_add_mul_disp(l %p, l %i, b %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  st.b %v, %q
+  ret
+}
+
+export function $store_h_add_mul_disp(l %p, l %i, h %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  st.h %v, %q
+  ret
+}
+
+export function $store_w_add_mul_disp(l %p, l %i, w %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  st.w %v, %q
+  ret
+}
+
+export function $store_l_add_mul_disp(l %p, l %i, l %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  st.l %v, %q
+  ret
+}
+
+;; base + index*scale - disp
+
+export function b $load_b_add_mul_disp_neg(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  %r = ld.b %q
+  ret %r
+}
+
+export function h $load_h_add_mul_disp_neg(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  %r = ld.h %q
+  ret %r
+}
+
+export function w $load_w_add_mul_disp_neg(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  %r = ld.w %q
+  ret %r
+}
+
+export function l $load_l_add_mul_disp_neg(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  %r = ld.l %q
+  ret %r
+}
+
+export function $store_b_add_mul_disp_neg(l %p, l %i, b %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  st.b %v, %q
+  ret
+}
+
+export function $store_h_add_mul_disp_neg(l %p, l %i, h %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  st.h %v, %q
+  ret
+}
+
+export function $store_w_add_mul_disp_neg(l %p, l %i, w %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  st.w %v, %q
+  ret
+}
+
+export function $store_l_add_mul_disp_neg(l %p, l %i, l %v) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  st.l %v, %q
+  ret
+}

@@ -1,0 +1,269 @@
+module narrow_promote
+
+export function $ld_b { ; returns: rax
+@2:
+  movzx eax, byte ptr [rdi] ; @109
+  ret ; @108
+}
+
+export function $ld_h { ; returns: rax
+@4:
+  movzx eax, word ptr [rdi] ; @112
+  ret ; @111
+}
+
+export function $zero_b { ; returns: rax
+@6:
+  xor eax, eax ; @113
+  ret ; @114
+}
+
+export function $zero_h { ; returns: rax
+@7:
+  xor eax, eax ; @115
+  ret ; @116
+}
+
+export function $const_b { ; returns: rax
+@8:
+  mov eax, 0x7_w ; @117
+  ret ; @118
+}
+
+export function $const_h { ; returns: rax
+@9:
+  mov eax, 0x100_w ; @119
+  ret ; @120
+}
+
+export function $add_b { ; returns: rax
+@10:
+  mov eax, edi ; @76
+  add eax, esi ; @125
+  ret ; @122
+}
+
+export function $add_h { ; returns: rax
+@12:
+  lea eax, qword ptr [rdi + rsi*1] ; @129
+  ret ; @127
+}
+
+export function $add_bi { ; returns: rax
+@14:
+  add edi, 0x3_w ; @133
+  mov eax, edi ; @130
+  ret ; @131
+}
+
+export function $add_hi { ; returns: rax
+@16:
+  lea eax, qword ptr [rdi + 0x3] ; @136
+  ret ; @135
+}
+
+export function $sub_b { ; returns: rax
+@18:
+  mov eax, edi ; @80
+  sub eax, esi ; @141
+  ret ; @138
+}
+
+export function $sub_h { ; returns: rax
+@20:
+  mov eax, edi ; @81
+  sub eax, esi ; @146
+  ret ; @143
+}
+
+export function $sub_bi { ; returns: rax
+@22:
+  sub edi, 0x3_w ; @150
+  mov eax, edi ; @147
+  ret ; @148
+}
+
+export function $sub_hi { ; returns: rax
+@24:
+  lea eax, qword ptr [rdi - 0x3] ; @153
+  ret ; @152
+}
+
+export function $sub_ib { ; returns: rax
+@26:
+  mov eax, 0x64_w ; @156
+  sub eax, edi ; @157
+  ret ; @155
+}
+
+export function $sub_ih { ; returns: rax
+@28:
+  mov eax, 0x64_w ; @160
+  sub eax, edi ; @161
+  ret ; @159
+}
+
+export function $and_b { ; returns: rax
+@30:
+  mov eax, edi ; @86
+  and eax, esi ; @166
+  ret ; @163
+}
+
+export function $and_h { ; returns: rax
+@32:
+  mov eax, edi ; @87
+  and eax, esi ; @171
+  ret ; @168
+}
+
+export function $or_b { ; returns: rax
+@34:
+  mov eax, edi ; @88
+  or eax, esi ; @176
+  ret ; @173
+}
+
+export function $or_h { ; returns: rax
+@36:
+  mov eax, edi ; @89
+  or eax, esi ; @181
+  ret ; @178
+}
+
+export function $xor_b { ; returns: rax
+@38:
+  mov eax, edi ; @90
+  xor eax, esi ; @186
+  ret ; @183
+}
+
+export function $xor_h { ; returns: rax
+@40:
+  mov eax, edi ; @91
+  xor eax, esi ; @191
+  ret ; @188
+}
+
+export function $and_bi { ; returns: rax
+@42:
+  and edi, 0xf_w ; @195
+  mov eax, edi ; @192
+  ret ; @193
+}
+
+export function $or_hi { ; returns: rax
+@44:
+  or edi, 0xff_w ; @199
+  mov eax, edi ; @196
+  ret ; @197
+}
+
+export function $xor_bi { ; returns: rax
+@46:
+  xor edi, 0x2a_w ; @203
+  mov eax, edi ; @200
+  ret ; @201
+}
+
+export function $xor_b_self { ; returns: rax
+@48:
+  xor eax, eax ; @205
+  ret ; @206
+}
+
+export function $xor_h_self { ; returns: rax
+@50:
+  xor eax, eax ; @208
+  ret ; @209
+}
+
+export function $neg_b { ; returns: rax
+@52:
+  neg edi ; @213
+  mov eax, edi ; @210
+  ret ; @211
+}
+
+export function $neg_h { ; returns: rax
+@54:
+  neg edi ; @217
+  mov eax, edi ; @214
+  ret ; @215
+}
+
+export function $not_b { ; returns: rax
+@56:
+  not edi ; @221
+  mov eax, edi ; @218
+  ret ; @219
+}
+
+export function $not_h { ; returns: rax
+@58:
+  not edi ; @225
+  mov eax, edi ; @222
+  ret ; @223
+}
+
+export function $lsl_b { ; returns: rax
+@60:
+  mov ecx, esi ; @228
+  shl edi, cl ; @231
+  mov eax, edi ; @226
+  ret ; @227
+}
+
+export function $lsl_h { ; returns: rax
+@62:
+  mov ecx, esi ; @234
+  shl edi, cl ; @237
+  mov eax, edi ; @232
+  ret ; @233
+}
+
+export function $lsr_b { ; returns: rax
+@64:
+  mov ecx, esi ; @240
+  movzx eax, dil ; @241
+  shr eax, cl ; @243
+  ret ; @239
+}
+
+export function $lsr_h { ; returns: rax
+@66:
+  mov ecx, esi ; @246
+  movzx eax, di ; @247
+  shr eax, cl ; @249
+  ret ; @245
+}
+
+export function $asr_b { ; returns: rax
+@68:
+  mov ecx, esi ; @252
+  movsx eax, dil ; @253
+  sar eax, cl ; @255
+  ret ; @251
+}
+
+export function $asr_h { ; returns: rax
+@70:
+  mov ecx, esi ; @258
+  movsx eax, di ; @259
+  sar eax, cl ; @261
+  ret ; @257
+}
+
+export function $lsl_bi { ; returns: rax
+@72:
+  shl edi, 0x3_b ; @265
+  mov eax, edi ; @262
+  ret ; @263
+}
+
+export function $lsr_hi { ; returns: rax
+@74:
+  movzx eax, di ; @268
+  shr eax, 0x4_b ; @269
+  ret ; @267
+}

@@ -1,0 +1,345 @@
+module load_store
+
+export function $load_b_basic { ; returns: rax
+@2:
+  mov %1:l, rdi ; @3
+  movzx %176:w, byte ptr [%1] ; @228
+  mov eax, %176:w ; @226
+  ret ; @227
+}
+
+export function $load_h_basic { ; returns: rax
+@4:
+  mov %3:l, rdi ; @5
+  movzx %177:w, word ptr [%3] ; @231
+  mov eax, %177:w ; @229
+  ret ; @230
+}
+
+export function $load_w_basic { ; returns: rax
+@6:
+  mov %5:l, rdi ; @7
+  mov %178:w, dword ptr [%5] ; @234
+  mov eax, %178:w ; @232
+  ret ; @233
+}
+
+export function $load_l_basic { ; returns: rax
+@8:
+  mov %7:l, rdi ; @9
+  mov %179:l, qword ptr [%7] ; @237
+  mov rax, %179:l ; @235
+  ret ; @236
+}
+
+export function $store_b_basic {
+@10:
+  mov %9:l, rdi ; @11
+  mov %8:w, esi ; @239
+  mov byte ptr [%9], %8:b ; @240
+  ret ; @238
+}
+
+export function $store_h_basic {
+@12:
+  mov %11:l, rdi ; @13
+  mov %10:w, esi ; @242
+  mov word ptr [%11], %10:h ; @243
+  ret ; @241
+}
+
+export function $store_w_basic {
+@14:
+  mov %13:l, rdi ; @15
+  mov %12:w, esi ; @245
+  mov dword ptr [%13], %12:w ; @246
+  ret ; @244
+}
+
+export function $store_l_basic {
+@16:
+  mov %15:l, rdi ; @17
+  mov %14:l, rsi ; @248
+  mov qword ptr [%15], %14:l ; @249
+  ret ; @247
+}
+
+export function $load_b_add { ; returns: rax
+@18:
+  mov %17:l, rdi ; @154
+  movzx %181:w, byte ptr [%17 + 0x10] ; @20
+  mov eax, %181:w ; @250
+  ret ; @251
+}
+
+export function $load_h_add { ; returns: rax
+@21:
+  mov %20:l, rdi ; @155
+  movzx %183:w, word ptr [%20 + 0x10] ; @23
+  mov eax, %183:w ; @253
+  ret ; @254
+}
+
+export function $load_w_add { ; returns: rax
+@24:
+  mov %23:l, rdi ; @156
+  mov %185:w, dword ptr [%23 + 0x10] ; @26
+  mov eax, %185:w ; @256
+  ret ; @257
+}
+
+export function $load_l_add { ; returns: rax
+@27:
+  mov %26:l, rdi ; @157
+  mov %187:l, qword ptr [%26 + 0x10] ; @29
+  mov rax, %187:l ; @259
+  ret ; @260
+}
+
+export function $store_b_add {
+@30:
+  mov %29:l, rdi ; @158
+  mov %30:w, esi ; @263
+  mov byte ptr [%29 + 0x10], %30:b ; @32
+  ret ; @262
+}
+
+export function $store_h_add {
+@33:
+  mov %32:l, rdi ; @159
+  mov %33:w, esi ; @266
+  mov word ptr [%32 + 0x10], %33:h ; @35
+  ret ; @265
+}
+
+export function $store_w_add {
+@36:
+  mov %35:l, rdi ; @160
+  mov %36:w, esi ; @269
+  mov dword ptr [%35 + 0x10], %36:w ; @38
+  ret ; @268
+}
+
+export function $store_l_add {
+@39:
+  mov %38:l, rdi ; @161
+  mov %39:l, rsi ; @272
+  mov qword ptr [%38 + 0x10], %39:l ; @41
+  ret ; @271
+}
+
+export function $load_b_add_mul { ; returns: rax
+@42:
+  mov %43:l, rdi ; @162
+  mov %41:l, rsi ; @276
+  movzx %194:w, byte ptr [%43 + %41*4] ; @45
+  mov eax, %194:w ; @274
+  ret ; @275
+}
+
+export function $load_h_add_mul { ; returns: rax
+@46:
+  mov %48:l, rdi ; @164
+  mov %46:l, rsi ; @281
+  movzx %197:w, word ptr [%48 + %46*4] ; @49
+  mov eax, %197:w ; @279
+  ret ; @280
+}
+
+export function $load_w_add_mul { ; returns: rax
+@50:
+  mov %53:l, rdi ; @166
+  mov %51:l, rsi ; @286
+  mov %200:w, dword ptr [%53 + %51*4] ; @53
+  mov eax, %200:w ; @284
+  ret ; @285
+}
+
+export function $load_l_add_mul { ; returns: rax
+@54:
+  mov %58:l, rdi ; @168
+  mov %56:l, rsi ; @291
+  mov %203:l, qword ptr [%58 + %56*4] ; @57
+  mov rax, %203:l ; @289
+  ret ; @290
+}
+
+export function $store_b_add_mul {
+@58:
+  mov %63:l, rdi ; @170
+  mov %61:l, rsi ; @295
+  mov %64:w, edx ; @296
+  mov byte ptr [%63 + %61*4], %64:b ; @61
+  ret ; @294
+}
+
+export function $store_h_add_mul {
+@62:
+  mov %68:l, rdi ; @172
+  mov %66:l, rsi ; @300
+  mov %69:w, edx ; @301
+  mov word ptr [%68 + %66*4], %69:h ; @65
+  ret ; @299
+}
+
+export function $store_w_add_mul {
+@66:
+  mov %73:l, rdi ; @174
+  mov %71:l, rsi ; @305
+  mov %74:w, edx ; @306
+  mov dword ptr [%73 + %71*4], %74:w ; @69
+  ret ; @304
+}
+
+export function $store_l_add_mul {
+@70:
+  mov %78:l, rdi ; @176
+  mov %76:l, rsi ; @310
+  mov %79:l, rdx ; @311
+  mov qword ptr [%78 + %76*4], %79:l ; @73
+  ret ; @309
+}
+
+export function $load_b_add_mul_disp { ; returns: rax
+@74:
+  mov %83:l, rdi ; @178
+  mov %81:l, rsi ; @316
+  movzx %215:w, byte ptr [%83 + %81*4 + 0x10] ; @78
+  mov eax, %215:w ; @314
+  ret ; @315
+}
+
+export function $load_h_add_mul_disp { ; returns: rax
+@79:
+  mov %89:l, rdi ; @181
+  mov %87:l, rsi ; @321
+  movzx %219:w, word ptr [%89 + %87*4 + 0x10] ; @83
+  mov eax, %219:w ; @319
+  ret ; @320
+}
+
+export function $load_w_add_mul_disp { ; returns: rax
+@84:
+  mov %95:l, rdi ; @184
+  mov %93:l, rsi ; @326
+  mov %223:w, dword ptr [%95 + %93*4 + 0x10] ; @88
+  mov eax, %223:w ; @324
+  ret ; @325
+}
+
+export function $load_l_add_mul_disp { ; returns: rax
+@89:
+  mov %101:l, rdi ; @187
+  mov %99:l, rsi ; @331
+  mov %227:l, qword ptr [%101 + %99*4 + 0x10] ; @93
+  mov rax, %227:l ; @329
+  ret ; @330
+}
+
+export function $store_b_add_mul_disp {
+@94:
+  mov %107:l, rdi ; @190
+  mov %105:l, rsi ; @335
+  mov %109:w, edx ; @336
+  mov byte ptr [%107 + %105*4 + 0x10], %109:b ; @98
+  ret ; @334
+}
+
+export function $store_h_add_mul_disp {
+@99:
+  mov %113:l, rdi ; @193
+  mov %111:l, rsi ; @340
+  mov %115:w, edx ; @341
+  mov word ptr [%113 + %111*4 + 0x10], %115:h ; @103
+  ret ; @339
+}
+
+export function $store_w_add_mul_disp {
+@104:
+  mov %119:l, rdi ; @196
+  mov %117:l, rsi ; @345
+  mov %121:w, edx ; @346
+  mov dword ptr [%119 + %117*4 + 0x10], %121:w ; @108
+  ret ; @344
+}
+
+export function $store_l_add_mul_disp {
+@109:
+  mov %125:l, rdi ; @199
+  mov %123:l, rsi ; @350
+  mov %127:l, rdx ; @351
+  mov qword ptr [%125 + %123*4 + 0x10], %127:l ; @113
+  ret ; @349
+}
+
+export function $load_b_add_mul_disp_neg { ; returns: rax
+@114:
+  mov %131:l, rdi ; @202
+  mov %129:l, rsi ; @356
+  movzx %243:w, byte ptr [%131 + %129*4 - 0x10] ; @118
+  mov eax, %243:w ; @354
+  ret ; @355
+}
+
+export function $load_h_add_mul_disp_neg { ; returns: rax
+@119:
+  mov %137:l, rdi ; @205
+  mov %135:l, rsi ; @361
+  movzx %247:w, word ptr [%137 + %135*4 - 0x10] ; @123
+  mov eax, %247:w ; @359
+  ret ; @360
+}
+
+export function $load_w_add_mul_disp_neg { ; returns: rax
+@124:
+  mov %143:l, rdi ; @208
+  mov %141:l, rsi ; @366
+  mov %251:w, dword ptr [%143 + %141*4 - 0x10] ; @128
+  mov eax, %251:w ; @364
+  ret ; @365
+}
+
+export function $load_l_add_mul_disp_neg { ; returns: rax
+@129:
+  mov %149:l, rdi ; @211
+  mov %147:l, rsi ; @371
+  mov %255:l, qword ptr [%149 + %147*4 - 0x10] ; @133
+  mov rax, %255:l ; @369
+  ret ; @370
+}
+
+export function $store_b_add_mul_disp_neg {
+@134:
+  mov %155:l, rdi ; @214
+  mov %153:l, rsi ; @375
+  mov %157:w, edx ; @376
+  mov byte ptr [%155 + %153*4 - 0x10], %157:b ; @138
+  ret ; @374
+}
+
+export function $store_h_add_mul_disp_neg {
+@139:
+  mov %161:l, rdi ; @217
+  mov %159:l, rsi ; @380
+  mov %163:w, edx ; @381
+  mov word ptr [%161 + %159*4 - 0x10], %163:h ; @143
+  ret ; @379
+}
+
+export function $store_w_add_mul_disp_neg {
+@144:
+  mov %167:l, rdi ; @220
+  mov %165:l, rsi ; @385
+  mov %169:w, edx ; @386
+  mov dword ptr [%167 + %165*4 - 0x10], %169:w ; @148
+  ret ; @384
+}
+
+export function $store_l_add_mul_disp_neg {
+@149:
+  mov %173:l, rdi ; @223
+  mov %171:l, rsi ; @390
+  mov %175:l, rdx ; @391
+  mov qword ptr [%173 + %171*4 - 0x10], %175:l ; @153
+  ret ; @389
+}

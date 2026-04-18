@@ -1,0 +1,245 @@
+module narrow_promote
+
+;; test i8 (b) and i16 (h) promotion
+
+;; load
+
+export function b $ld_b(l %p) {
+@start:
+  %r = ld.b %p
+  ret %r
+}
+
+export function h $ld_h(l %p) {
+@start:
+  %r = ld.h %p
+  ret %r
+}
+
+;; immediate move
+
+export function b $zero_b() {
+@start:
+  ret 0_b
+}
+
+export function h $zero_h() {
+@start:
+  ret 0_h
+}
+
+export function b $const_b() {
+@start:
+  ret 7_b
+}
+
+export function h $const_h() {
+@start:
+  ret 256_h
+}
+
+;; arith
+
+export function b $add_b(b %x, b %y) {
+@start:
+  %r = add.b %x, %y
+  ret %r
+}
+
+export function h $add_h(h %x, h %y) {
+@start:
+  %r = add.h %x, %y
+  ret %r
+}
+
+export function b $add_bi(b %x) {
+@start:
+  %r = add.b %x, 3_b
+  ret %r
+}
+
+export function h $add_hi(h %x) {
+@start:
+  %r = add.h %x, 3_h
+  ret %r
+}
+
+export function b $sub_b(b %x, b %y) {
+@start:
+  %r = sub.b %x, %y
+  ret %r
+}
+
+export function h $sub_h(h %x, h %y) {
+@start:
+  %r = sub.h %x, %y
+  ret %r
+}
+
+export function b $sub_bi(b %x) {
+@start:
+  %r = sub.b %x, 3_b
+  ret %r
+}
+
+export function h $sub_hi(h %x) {
+@start:
+  %r = sub.h %x, 3_h
+  ret %r
+}
+
+export function b $sub_ib(b %x) {
+@start:
+  %r = sub.b 100_b, %x
+  ret %r
+}
+
+export function h $sub_ih(h %x) {
+@start:
+  %r = sub.h 100_h, %x
+  ret %r
+}
+
+;; bitwise
+
+export function b $and_b(b %x, b %y) {
+@start:
+  %r = and.b %x, %y
+  ret %r
+}
+
+export function h $and_h(h %x, h %y) {
+@start:
+  %r = and.h %x, %y
+  ret %r
+}
+
+export function b $or_b(b %x, b %y) {
+@start:
+  %r = or.b %x, %y
+  ret %r
+}
+
+export function h $or_h(h %x, h %y) {
+@start:
+  %r = or.h %x, %y
+  ret %r
+}
+
+export function b $xor_b(b %x, b %y) {
+@start:
+  %r = xor.b %x, %y
+  ret %r
+}
+
+export function h $xor_h(h %x, h %y) {
+@start:
+  %r = xor.h %x, %y
+  ret %r
+}
+
+export function b $and_bi(b %x) {
+@start:
+  %r = and.b %x, 15_b
+  ret %r
+}
+
+export function h $or_hi(h %x) {
+@start:
+  %r = or.h %x, 255_h
+  ret %r
+}
+
+export function b $xor_bi(b %x) {
+@start:
+  %r = xor.b %x, 42_b
+  ret %r
+}
+
+export function b $xor_b_self(b %x) {
+@start:
+  %r = xor.b %x, %x
+  ret %r
+}
+
+export function h $xor_h_self(h %x) {
+@start:
+  %r = xor.h %x, %x
+  ret %r
+}
+
+;; unary
+
+export function b $neg_b(b %x) {
+@start:
+  %r = neg.b %x
+  ret %r
+}
+
+export function h $neg_h(h %x) {
+@start:
+  %r = neg.h %x
+  ret %r
+}
+
+export function b $not_b(b %x) {
+@start:
+  %r = not.b %x
+  ret %r
+}
+
+export function h $not_h(h %x) {
+@start:
+  %r = not.h %x
+  ret %r
+}
+
+;; shifts
+
+export function b $lsl_b(b %x, b %y) {
+@start:
+  %r = lsl.b %x, %y
+  ret %r
+}
+
+export function h $lsl_h(h %x, h %y) {
+@start:
+  %r = lsl.h %x, %y
+  ret %r
+}
+
+export function b $lsr_b(b %x, b %y) {
+@start:
+  %r = lsr.b %x, %y
+  ret %r
+}
+
+export function h $lsr_h(h %x, h %y) {
+@start:
+  %r = lsr.h %x, %y
+  ret %r
+}
+
+export function b $asr_b(b %x, b %y) {
+@start:
+  %r = asr.b %x, %y
+  ret %r
+}
+
+export function h $asr_h(h %x, h %y) {
+@start:
+  %r = asr.h %x, %y
+  ret %r
+}
+
+export function b $lsl_bi(b %x) {
+@start:
+  %r = lsl.b %x, 3_b
+  ret %r
+}
+
+export function h $lsr_hi(h %x) {
+@start:
+  %r = lsr.h %x, 4_h
+  ret %r
+}

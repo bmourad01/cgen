@@ -1,0 +1,233 @@
+module sext_zext_load
+
+;; test isel for fused sign/zero-extending loads.
+
+;; base
+
+export function l $sext_b_l_basic(l %p) {
+@start:
+  %b = ld.b %p
+  %r = sext.l %b
+  ret %r
+}
+
+export function l $sext_h_l_basic(l %p) {
+@start:
+  %h = ld.h %p
+  %r = sext.l %h
+  ret %r
+}
+
+export function l $sext_w_l_basic(l %p) {
+@start:
+  %w = ld.w %p
+  %r = sext.l %w
+  ret %r
+}
+
+export function l $zext_b_l_basic(l %p) {
+@start:
+  %b = ld.b %p
+  %r = zext.l %b
+  ret %r
+}
+
+export function l $zext_h_l_basic(l %p) {
+@start:
+  %h = ld.h %p
+  %r = zext.l %h
+  ret %r
+}
+
+;; base + disp
+
+export function l $sext_b_l_add(l %p) {
+@start:
+  %q = add.l %p, 16_l
+  %b = ld.b %q
+  %r = sext.l %b
+  ret %r
+}
+
+export function l $sext_h_l_add(l %p) {
+@start:
+  %q = add.l %p, 16_l
+  %h = ld.h %q
+  %r = sext.l %h
+  ret %r
+}
+
+export function l $sext_w_l_add(l %p) {
+@start:
+  %q = add.l %p, 16_l
+  %w = ld.w %q
+  %r = sext.l %w
+  ret %r
+}
+
+export function l $zext_b_l_add(l %p) {
+@start:
+  %q = add.l %p, 16_l
+  %b = ld.b %q
+  %r = zext.l %b
+  ret %r
+}
+
+export function l $zext_h_l_add(l %p) {
+@start:
+  %q = add.l %p, 16_l
+  %h = ld.h %q
+  %r = zext.l %h
+  ret %r
+}
+
+;; base + index*scale
+
+export function l $sext_b_l_add_mul(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  %b = ld.b %q
+  %r = sext.l %b
+  ret %r
+}
+
+export function l $sext_h_l_add_mul(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  %h = ld.h %q
+  %r = sext.l %h
+  ret %r
+}
+
+export function l $sext_w_l_add_mul(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  %w = ld.w %q
+  %r = sext.l %w
+  ret %r
+}
+
+export function l $zext_b_l_add_mul(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  %b = ld.b %q
+  %r = zext.l %b
+  ret %r
+}
+
+export function l $zext_h_l_add_mul(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %q = add.l %p, %m
+  %h = ld.h %q
+  %r = zext.l %h
+  ret %r
+}
+
+;; base + index*scale + disp
+
+export function l $sext_b_l_add_mul_disp(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  %b = ld.b %q
+  %r = sext.l %b
+  ret %r
+}
+
+export function l $sext_h_l_add_mul_disp(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  %h = ld.h %q
+  %r = sext.l %h
+  ret %r
+}
+
+export function l $sext_w_l_add_mul_disp(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  %w = ld.w %q
+  %r = sext.l %w
+  ret %r
+}
+
+export function l $zext_b_l_add_mul_disp(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  %b = ld.b %q
+  %r = zext.l %b
+  ret %r
+}
+
+export function l $zext_h_l_add_mul_disp(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = add.l %a, 16_l
+  %h = ld.h %q
+  %r = zext.l %h
+  ret %r
+}
+
+;; base + index*scale - disp
+
+export function l $sext_b_l_add_mul_disp_neg(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  %b = ld.b %q
+  %r = sext.l %b
+  ret %r
+}
+
+export function l $sext_h_l_add_mul_disp_neg(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  %h = ld.h %q
+  %r = sext.l %h
+  ret %r
+}
+
+export function l $sext_w_l_add_mul_disp_neg(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  %w = ld.w %q
+  %r = sext.l %w
+  ret %r
+}
+
+export function l $zext_b_l_add_mul_disp_neg(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  %b = ld.b %q
+  %r = zext.l %b
+  ret %r
+}
+
+export function l $zext_h_l_add_mul_disp_neg(l %p, l %i) {
+@start:
+  %m = mul.l %i, 4_l
+  %a = add.l %p, %m
+  %q = sub.l %a, 16_l
+  %h = ld.h %q
+  %r = zext.l %h
+  ret %r
+}

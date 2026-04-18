@@ -169,7 +169,7 @@ export function $xor_hi { ; returns: rax
 export function $and_hi { ; returns: rax
 @47:
   mov %36:l, rdi ; @102
-  mov %115:l, %36:l ; @199
+  mov %115:w, %36:w ; @199
   and %115:w, 0x80000000_w ; @200
   mov rax, %115:l ; @197
   ret ; @198

@@ -22,7 +22,7 @@ export function $even { ; returns: rax
   je @23 ; @45
   jmp @9 ; @46
 @23:
-  mov al, 0x1_b ; @42
+  mov eax, 0x1_w ; @42
   ret ; @43
 @9:
   lea %26:w, qword ptr [%10 - 0x1] ; @29
@@ -40,7 +40,7 @@ export function $odd { ; returns: rax
   je @24 ; @57
   jmp @16 ; @58
 @24:
-  xor al, al ; @54
+  xor eax, eax ; @54
   ret ; @55
 @16:
   lea %28:w, qword ptr [%14 - 0x1] ; @31

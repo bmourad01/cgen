@@ -1,0 +1,351 @@
+module narrow_promote
+
+export function $ld_b { ; returns: rax
+@2:
+  mov %1:l, rdi ; @3
+  movzx %86:w, byte ptr [%1] ; @109
+  mov eax, %86:w ; @107
+  ret ; @108
+}
+
+export function $ld_h { ; returns: rax
+@4:
+  mov %3:l, rdi ; @5
+  movzx %87:w, word ptr [%3] ; @112
+  mov eax, %87:w ; @110
+  ret ; @111
+}
+
+export function $zero_b { ; returns: rax
+@6:
+  xor eax, eax ; @113
+  ret ; @114
+}
+
+export function $zero_h { ; returns: rax
+@7:
+  xor eax, eax ; @115
+  ret ; @116
+}
+
+export function $const_b { ; returns: rax
+@8:
+  mov eax, 0x7_w ; @117
+  ret ; @118
+}
+
+export function $const_h { ; returns: rax
+@9:
+  mov eax, 0x100_w ; @119
+  ret ; @120
+}
+
+export function $add_b { ; returns: rax
+@10:
+  mov %5:w, edi ; @76
+  mov %6:w, esi ; @123
+  mov %121:w, %5:w ; @124
+  add %121:w, %6:w ; @125
+  mov eax, %121:w ; @121
+  ret ; @122
+}
+
+export function $add_h { ; returns: rax
+@12:
+  mov %8:w, edi ; @77
+  mov %9:w, esi ; @128
+  lea %122:w, qword ptr [%8 + %9*1] ; @129
+  mov eax, %122:w ; @126
+  ret ; @127
+}
+
+export function $add_bi { ; returns: rax
+@14:
+  mov %11:w, edi ; @78
+  mov %123:w, %11:w ; @132
+  add %123:w, 0x3_w ; @133
+  mov eax, %123:w ; @130
+  ret ; @131
+}
+
+export function $add_hi { ; returns: rax
+@16:
+  mov %13:w, edi ; @79
+  lea %124:w, qword ptr [%13 + 0x3] ; @136
+  mov eax, %124:w ; @134
+  ret ; @135
+}
+
+export function $sub_b { ; returns: rax
+@18:
+  mov %15:w, edi ; @80
+  mov %16:w, esi ; @139
+  mov %125:w, %15:w ; @140
+  sub %125:w, %16:w ; @141
+  mov eax, %125:w ; @137
+  ret ; @138
+}
+
+export function $sub_h { ; returns: rax
+@20:
+  mov %18:w, edi ; @81
+  mov %19:w, esi ; @144
+  mov %126:w, %18:w ; @145
+  sub %126:w, %19:w ; @146
+  mov eax, %126:w ; @142
+  ret ; @143
+}
+
+export function $sub_bi { ; returns: rax
+@22:
+  mov %21:w, edi ; @82
+  mov %127:w, %21:w ; @149
+  sub %127:w, 0x3_w ; @150
+  mov eax, %127:w ; @147
+  ret ; @148
+}
+
+export function $sub_hi { ; returns: rax
+@24:
+  mov %23:w, edi ; @83
+  lea %128:w, qword ptr [%23 - 0x3] ; @153
+  mov eax, %128:w ; @151
+  ret ; @152
+}
+
+export function $sub_ib { ; returns: rax
+@26:
+  mov %25:w, edi ; @84
+  mov %129:w, 0x64_w ; @156
+  sub %129:w, %25:w ; @157
+  mov eax, %129:w ; @154
+  ret ; @155
+}
+
+export function $sub_ih { ; returns: rax
+@28:
+  mov %27:w, edi ; @85
+  mov %130:w, 0x64_w ; @160
+  sub %130:w, %27:w ; @161
+  mov eax, %130:w ; @158
+  ret ; @159
+}
+
+export function $and_b { ; returns: rax
+@30:
+  mov %29:w, edi ; @86
+  mov %30:w, esi ; @164
+  mov %131:w, %29:w ; @165
+  and %131:w, %30:w ; @166
+  mov eax, %131:w ; @162
+  ret ; @163
+}
+
+export function $and_h { ; returns: rax
+@32:
+  mov %32:w, edi ; @87
+  mov %33:w, esi ; @169
+  mov %132:w, %32:w ; @170
+  and %132:w, %33:w ; @171
+  mov eax, %132:w ; @167
+  ret ; @168
+}
+
+export function $or_b { ; returns: rax
+@34:
+  mov %35:w, edi ; @88
+  mov %36:w, esi ; @174
+  mov %133:w, %35:w ; @175
+  or %133:w, %36:w ; @176
+  mov eax, %133:w ; @172
+  ret ; @173
+}
+
+export function $or_h { ; returns: rax
+@36:
+  mov %38:w, edi ; @89
+  mov %39:w, esi ; @179
+  mov %134:w, %38:w ; @180
+  or %134:w, %39:w ; @181
+  mov eax, %134:w ; @177
+  ret ; @178
+}
+
+export function $xor_b { ; returns: rax
+@38:
+  mov %41:w, edi ; @90
+  mov %42:w, esi ; @184
+  mov %135:w, %41:w ; @185
+  xor %135:w, %42:w ; @186
+  mov eax, %135:w ; @182
+  ret ; @183
+}
+
+export function $xor_h { ; returns: rax
+@40:
+  mov %44:w, edi ; @91
+  mov %45:w, esi ; @189
+  mov %136:w, %44:w ; @190
+  xor %136:w, %45:w ; @191
+  mov eax, %136:w ; @187
+  ret ; @188
+}
+
+export function $and_bi { ; returns: rax
+@42:
+  mov %47:w, edi ; @92
+  mov %137:w, %47:w ; @194
+  and %137:w, 0xf_w ; @195
+  mov eax, %137:w ; @192
+  ret ; @193
+}
+
+export function $or_hi { ; returns: rax
+@44:
+  mov %49:w, edi ; @93
+  mov %138:w, %49:w ; @198
+  or %138:w, 0xff_w ; @199
+  mov eax, %138:w ; @196
+  ret ; @197
+}
+
+export function $xor_bi { ; returns: rax
+@46:
+  mov %51:w, edi ; @94
+  mov %139:w, %51:w ; @202
+  xor %139:w, 0x2a_w ; @203
+  mov eax, %139:w ; @200
+  ret ; @201
+}
+
+export function $xor_b_self { ; returns: rax
+@48:
+  xor eax, eax ; @205
+  ret ; @206
+}
+
+export function $xor_h_self { ; returns: rax
+@50:
+  xor eax, eax ; @208
+  ret ; @209
+}
+
+export function $neg_b { ; returns: rax
+@52:
+  mov %57:w, edi ; @95
+  mov %140:w, %57:w ; @212
+  neg %140:w ; @213
+  mov eax, %140:w ; @210
+  ret ; @211
+}
+
+export function $neg_h { ; returns: rax
+@54:
+  mov %59:w, edi ; @96
+  mov %141:w, %59:w ; @216
+  neg %141:w ; @217
+  mov eax, %141:w ; @214
+  ret ; @215
+}
+
+export function $not_b { ; returns: rax
+@56:
+  mov %61:w, edi ; @97
+  mov %142:w, %61:w ; @220
+  not %142:w ; @221
+  mov eax, %142:w ; @218
+  ret ; @219
+}
+
+export function $not_h { ; returns: rax
+@58:
+  mov %63:w, edi ; @98
+  mov %143:w, %63:w ; @224
+  not %143:w ; @225
+  mov eax, %143:w ; @222
+  ret ; @223
+}
+
+export function $lsl_b { ; returns: rax
+@60:
+  mov %65:w, edi ; @99
+  mov %66:w, esi ; @228
+  mov %144:w, %65:w ; @229
+  mov cl, %66:b ; @230
+  shl %144:w, cl ; @231
+  mov eax, %144:w ; @226
+  ret ; @227
+}
+
+export function $lsl_h { ; returns: rax
+@62:
+  mov %68:w, edi ; @100
+  mov %69:w, esi ; @234
+  mov %145:w, %68:w ; @235
+  mov cl, %69:b ; @236
+  shl %145:w, cl ; @237
+  mov eax, %145:w ; @232
+  ret ; @233
+}
+
+export function $lsr_b { ; returns: rax
+@64:
+  mov %71:w, edi ; @101
+  mov %72:w, esi ; @240
+  movzx %146:w, %71:b ; @241
+  mov cl, %72:b ; @242
+  shr %146:w, cl ; @243
+  mov eax, %146:w ; @238
+  ret ; @239
+}
+
+export function $lsr_h { ; returns: rax
+@66:
+  mov %74:w, edi ; @102
+  mov %75:w, esi ; @246
+  movzx %147:w, %74:h ; @247
+  mov cl, %75:b ; @248
+  shr %147:w, cl ; @249
+  mov eax, %147:w ; @244
+  ret ; @245
+}
+
+export function $asr_b { ; returns: rax
+@68:
+  mov %77:w, edi ; @103
+  mov %78:w, esi ; @252
+  movsx %148:w, %77:b ; @253
+  mov cl, %78:b ; @254
+  sar %148:w, cl ; @255
+  mov eax, %148:w ; @250
+  ret ; @251
+}
+
+export function $asr_h { ; returns: rax
+@70:
+  mov %80:w, edi ; @104
+  mov %81:w, esi ; @258
+  movsx %149:w, %80:h ; @259
+  mov cl, %81:b ; @260
+  sar %149:w, cl ; @261
+  mov eax, %149:w ; @256
+  ret ; @257
+}
+
+export function $lsl_bi { ; returns: rax
+@72:
+  mov %83:w, edi ; @105
+  mov %150:w, %83:w ; @264
+  shl %150:w, 0x3_b ; @265
+  mov eax, %150:w ; @262
+  ret ; @263
+}
+
+export function $lsr_hi { ; returns: rax
+@74:
+  mov %85:w, edi ; @106
+  movzx %151:w, %85:h ; @268
+  shr %151:w, 0x4_b ; @269
+  mov eax, %151:w ; @266
+  ret ; @267
+}

@@ -1,0 +1,216 @@
+module sext_zext_load
+
+export function $sext_b_l_basic { ; returns: rax
+@2:
+  mov %1:l, rdi ; @3
+  movsx %230:l, byte ptr [%1] ; @122
+  mov rax, %230:l ; @192
+  ret ; @193
+}
+
+export function $sext_h_l_basic { ; returns: rax
+@5:
+  mov %4:l, rdi ; @6
+  movsx %231:l, word ptr [%4] ; @123
+  mov rax, %231:l ; @195
+  ret ; @196
+}
+
+export function $sext_w_l_basic { ; returns: rax
+@8:
+  mov %7:l, rdi ; @9
+  movsxd %232:l, dword ptr [%7] ; @124
+  mov rax, %232:l ; @198
+  ret ; @199
+}
+
+export function $zext_b_l_basic { ; returns: rax
+@11:
+  mov %10:l, rdi ; @12
+  movzx %233:w, byte ptr [%10] ; @125
+  mov rax, %233:l ; @201
+  ret ; @202
+}
+
+export function $zext_h_l_basic { ; returns: rax
+@14:
+  mov %13:l, rdi ; @15
+  movzx %234:w, word ptr [%13] ; @126
+  mov rax, %234:l ; @204
+  ret ; @205
+}
+
+export function $sext_b_l_add { ; returns: rax
+@17:
+  mov %16:l, rdi ; @127
+  movsx %236:l, byte ptr [%16 + 0x10] ; @128
+  mov rax, %236:l ; @207
+  ret ; @208
+}
+
+export function $sext_h_l_add { ; returns: rax
+@21:
+  mov %20:l, rdi ; @129
+  movsx %238:l, word ptr [%20 + 0x10] ; @130
+  mov rax, %238:l ; @210
+  ret ; @211
+}
+
+export function $sext_w_l_add { ; returns: rax
+@25:
+  mov %24:l, rdi ; @131
+  movsxd %240:l, dword ptr [%24 + 0x10] ; @132
+  mov rax, %240:l ; @213
+  ret ; @214
+}
+
+export function $zext_b_l_add { ; returns: rax
+@29:
+  mov %28:l, rdi ; @133
+  movzx %242:w, byte ptr [%28 + 0x10] ; @134
+  mov rax, %242:l ; @216
+  ret ; @217
+}
+
+export function $zext_h_l_add { ; returns: rax
+@33:
+  mov %32:l, rdi ; @135
+  movzx %244:w, word ptr [%32 + 0x10] ; @136
+  mov rax, %244:l ; @219
+  ret ; @220
+}
+
+export function $sext_b_l_add_mul { ; returns: rax
+@37:
+  mov %38:l, rdi ; @137
+  mov %36:l, rsi ; @224
+  movsx %247:l, byte ptr [%38 + %36*4] ; @139
+  mov rax, %247:l ; @222
+  ret ; @223
+}
+
+export function $sext_h_l_add_mul { ; returns: rax
+@42:
+  mov %44:l, rdi ; @140
+  mov %42:l, rsi ; @229
+  movsx %250:l, word ptr [%44 + %42*4] ; @142
+  mov rax, %250:l ; @227
+  ret ; @228
+}
+
+export function $sext_w_l_add_mul { ; returns: rax
+@47:
+  mov %50:l, rdi ; @143
+  mov %48:l, rsi ; @234
+  movsxd %253:l, dword ptr [%50 + %48*4] ; @145
+  mov rax, %253:l ; @232
+  ret ; @233
+}
+
+export function $zext_b_l_add_mul { ; returns: rax
+@52:
+  mov %56:l, rdi ; @146
+  mov %54:l, rsi ; @239
+  movzx %256:w, byte ptr [%56 + %54*4] ; @148
+  mov rax, %256:l ; @237
+  ret ; @238
+}
+
+export function $zext_h_l_add_mul { ; returns: rax
+@57:
+  mov %62:l, rdi ; @149
+  mov %60:l, rsi ; @244
+  movzx %259:w, word ptr [%62 + %60*4] ; @151
+  mov rax, %259:l ; @242
+  ret ; @243
+}
+
+export function $sext_b_l_add_mul_disp { ; returns: rax
+@62:
+  mov %68:l, rdi ; @152
+  mov %66:l, rsi ; @249
+  movsx %263:l, byte ptr [%68 + %66*4 + 0x10] ; @155
+  mov rax, %263:l ; @247
+  ret ; @248
+}
+
+export function $sext_h_l_add_mul_disp { ; returns: rax
+@68:
+  mov %75:l, rdi ; @156
+  mov %73:l, rsi ; @254
+  movsx %267:l, word ptr [%75 + %73*4 + 0x10] ; @159
+  mov rax, %267:l ; @252
+  ret ; @253
+}
+
+export function $sext_w_l_add_mul_disp { ; returns: rax
+@74:
+  mov %82:l, rdi ; @160
+  mov %80:l, rsi ; @259
+  movsxd %271:l, dword ptr [%82 + %80*4 + 0x10] ; @163
+  mov rax, %271:l ; @257
+  ret ; @258
+}
+
+export function $zext_b_l_add_mul_disp { ; returns: rax
+@80:
+  mov %89:l, rdi ; @164
+  mov %87:l, rsi ; @264
+  movzx %275:w, byte ptr [%89 + %87*4 + 0x10] ; @167
+  mov rax, %275:l ; @262
+  ret ; @263
+}
+
+export function $zext_h_l_add_mul_disp { ; returns: rax
+@86:
+  mov %96:l, rdi ; @168
+  mov %94:l, rsi ; @269
+  movzx %279:w, word ptr [%96 + %94*4 + 0x10] ; @171
+  mov rax, %279:l ; @267
+  ret ; @268
+}
+
+export function $sext_b_l_add_mul_disp_neg { ; returns: rax
+@92:
+  mov %103:l, rdi ; @172
+  mov %101:l, rsi ; @274
+  movsx %283:l, byte ptr [%103 + %101*4 - 0x10] ; @175
+  mov rax, %283:l ; @272
+  ret ; @273
+}
+
+export function $sext_h_l_add_mul_disp_neg { ; returns: rax
+@98:
+  mov %110:l, rdi ; @176
+  mov %108:l, rsi ; @279
+  movsx %287:l, word ptr [%110 + %108*4 - 0x10] ; @179
+  mov rax, %287:l ; @277
+  ret ; @278
+}
+
+export function $sext_w_l_add_mul_disp_neg { ; returns: rax
+@104:
+  mov %117:l, rdi ; @180
+  mov %115:l, rsi ; @284
+  movsxd %291:l, dword ptr [%117 + %115*4 - 0x10] ; @183
+  mov rax, %291:l ; @282
+  ret ; @283
+}
+
+export function $zext_b_l_add_mul_disp_neg { ; returns: rax
+@110:
+  mov %124:l, rdi ; @184
+  mov %122:l, rsi ; @289
+  movzx %295:w, byte ptr [%124 + %122*4 - 0x10] ; @187
+  mov rax, %295:l ; @287
+  ret ; @288
+}
+
+export function $zext_h_l_add_mul_disp_neg { ; returns: rax
+@116:
+  mov %131:l, rdi ; @188
+  mov %129:l, rsi ; @294
+  movzx %299:w, word ptr [%131 + %129*4 - 0x10] ; @191
+  mov rax, %299:l ; @292
+  ret ; @293
+}

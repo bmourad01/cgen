@@ -567,7 +567,7 @@ export function $ftosi_f32_i8 { ; returns: rax
   movss %141:s, xmm0 ; @316
   cvttss2si %454:w, %141:s ; @714
   movsx %454:w, %454:b ; @715
-  mov al, %454:b ; @712
+  mov eax, %454:w ; @712
   ret ; @713
 }
 
@@ -576,7 +576,7 @@ export function $ftosi_f32_i16 { ; returns: rax
   movss %143:s, xmm0 ; @317
   cvttss2si %455:w, %143:s ; @718
   movsx %455:w, %455:h ; @719
-  mov ax, %455:h ; @716
+  mov eax, %455:w ; @716
   ret ; @717
 }
 
@@ -601,7 +601,7 @@ export function $ftosi_f64_i8 { ; returns: rax
   movsd %149:d, xmm0 ; @320
   cvttsd2si %458:w, %149:d ; @728
   movsx %458:w, %458:b ; @729
-  mov al, %458:b ; @726
+  mov eax, %458:w ; @726
   ret ; @727
 }
 
@@ -610,7 +610,7 @@ export function $ftosi_f64_i16 { ; returns: rax
   movsd %151:d, xmm0 ; @321
   cvttsd2si %459:w, %151:d ; @732
   movsx %459:w, %459:h ; @733
-  mov ax, %459:h ; @730
+  mov eax, %459:w ; @730
   ret ; @731
 }
 
@@ -635,7 +635,7 @@ export function $ftoui_f32_i8 { ; returns: rax
   movss %157:s, xmm0 ; @324
   cvttss2si %462:w, %157:s ; @742
   movzx %462:w, %462:b ; @743
-  mov al, %462:b ; @740
+  mov eax, %462:w ; @740
   ret ; @741
 }
 
@@ -644,7 +644,7 @@ export function $ftoui_f32_i16 { ; returns: rax
   movss %159:s, xmm0 ; @325
   cvttss2si %463:w, %159:s ; @746
   movzx %463:w, %463:h ; @747
-  mov ax, %463:h ; @744
+  mov eax, %463:w ; @744
   ret ; @745
 }
 
@@ -678,7 +678,7 @@ export function $ftoui_f64_i8 { ; returns: rax
   movsd %165:d, xmm0 ; @328
   cvttsd2si %466:w, %165:d ; @766
   movzx %466:w, %466:b ; @767
-  mov al, %466:b ; @764
+  mov eax, %466:w ; @764
   ret ; @765
 }
 
@@ -687,7 +687,7 @@ export function $ftoui_f64_i16 { ; returns: rax
   movsd %167:d, xmm0 ; @329
   cvttsd2si %467:w, %167:d ; @770
   movzx %467:w, %467:h ; @771
-  mov ax, %467:h ; @768
+  mov eax, %467:w ; @768
   ret ; @769
 }
 
@@ -718,7 +718,7 @@ export function $ftoui_f64_i64 { ; returns: rax
 
 export function $sitof_i8_f32 { ; returns: xmm0
 @168:
-  mov %173:b, dil ; @332
+  mov %173:w, edi ; @332
   movsx %534:w, %173:b ; @790
   cvtsi2ss %470:s, %534:w ; @792
   movss xmm0, %470:s ; @788
@@ -727,7 +727,7 @@ export function $sitof_i8_f32 { ; returns: xmm0
 
 export function $sitof_i8_f64 { ; returns: xmm0
 @170:
-  mov %175:b, dil ; @333
+  mov %175:w, edi ; @333
   movsx %535:w, %175:b ; @795
   cvtsi2sd %471:d, %535:w ; @797
   movsd xmm0, %471:d ; @793
@@ -736,7 +736,7 @@ export function $sitof_i8_f64 { ; returns: xmm0
 
 export function $sitof_i16_f32 { ; returns: xmm0
 @172:
-  mov %177:h, di ; @334
+  mov %177:w, edi ; @334
   movsx %536:w, %177:h ; @800
   cvtsi2ss %472:s, %536:w ; @802
   movss xmm0, %472:s ; @798
@@ -745,7 +745,7 @@ export function $sitof_i16_f32 { ; returns: xmm0
 
 export function $sitof_i16_f64 { ; returns: xmm0
 @174:
-  mov %179:h, di ; @335
+  mov %179:w, edi ; @335
   movsx %537:w, %179:h ; @805
   cvtsi2sd %473:d, %537:w ; @807
   movsd xmm0, %473:d ; @803
@@ -786,7 +786,7 @@ export function $sitof_i64_f64 { ; returns: xmm0
 
 export function $uitof_i8_f32 { ; returns: xmm0
 @184:
-  mov %189:b, dil ; @366
+  mov %189:w, edi ; @366
   movzx %504:w, %189:b ; @827
   cvtsi2ss %478:s, %504:w ; @826
   movss xmm0, %478:s ; @824
@@ -795,7 +795,7 @@ export function $uitof_i8_f32 { ; returns: xmm0
 
 export function $uitof_i8_f64 { ; returns: xmm0
 @186:
-  mov %191:b, dil ; @368
+  mov %191:w, edi ; @368
   movzx %505:w, %191:b ; @831
   cvtsi2sd %479:d, %505:w ; @830
   movsd xmm0, %479:d ; @828
@@ -804,7 +804,7 @@ export function $uitof_i8_f64 { ; returns: xmm0
 
 export function $uitof_i16_f32 { ; returns: xmm0
 @188:
-  mov %193:h, di ; @370
+  mov %193:w, edi ; @370
   movzx %506:w, %193:h ; @835
   cvtsi2ss %480:s, %506:w ; @834
   movss xmm0, %480:s ; @832
@@ -813,7 +813,7 @@ export function $uitof_i16_f32 { ; returns: xmm0
 
 export function $uitof_i16_f64 { ; returns: xmm0
 @190:
-  mov %195:h, di ; @372
+  mov %195:w, edi ; @372
   movzx %507:w, %195:h ; @839
   cvtsi2sd %481:d, %507:w ; @838
   movsd xmm0, %481:d ; @836
@@ -851,7 +851,7 @@ export function $uitof_i64_f32 { ; returns: xmm0
 @378:
   mov %511:l, %201:l ; @382
   shr %511:l, 0x1_b ; @856
-  mov %512:l, %201:l ; @383
+  mov %512:w, %201:w ; @383
   and %512:w, 0x1_w ; @855
   mov %513:l, %511:l ; @384
   or %513:l, %512:l ; @854
@@ -878,7 +878,7 @@ export function $uitof_i64_f64 { ; returns: xmm0
 @389:
   mov %519:l, %203:l ; @393
   shr %519:l, 0x1_b ; @874
-  mov %520:l, %203:l ; @394
+  mov %520:w, %203:w ; @394
   and %520:w, 0x1_w ; @873
   mov %521:l, %519:l ; @395
   or %521:l, %520:l ; @872

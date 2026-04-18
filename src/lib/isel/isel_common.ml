@@ -20,18 +20,20 @@ let regcls : ty -> Machine_regvar.cls = function
   | #Type.fp | `v128 -> FP
 
 type 'r t = {
-  fn    : func;
-  node  : 'r node Vec.t;
-  typs  : ty Uopt.t Vec.t;
-  id2r  : 'r Uopt.t Vec.t;
-  cfg   : Cfg.t;
-  dom   : Label.t Semi_nca.tree;
-  blks  : blk Label.Tree.t;
-  v2id  : Id.t Var.Table.t;
-  insn  : Id.t list Label.Table.t;
-  extra : Label.t list Label.Table.t;
-  frame : bool;
-  mutable phi : Var.Set.t;
+  fn             : func;
+  node           : 'r node Vec.t;
+  typs           : ty Uopt.t Vec.t;
+  id2r           : 'r Uopt.t Vec.t;
+  cfg            : Cfg.t;
+  dom            : Label.t Semi_nca.tree;
+  blks           : blk Label.Tree.t;
+  v2id           : Id.t Var.Table.t;
+  insn           : Id.t list Label.Table.t;
+  extra          : Label.t list Label.Table.t;
+  frame          : bool;
+  loadgen        : (int * Id.t) Var.Table.t;
+  mutable phi    : Var.Set.t;
+  mutable memgen : int;
 }
 
 let new_node ?l ?ty t n : Id.t =

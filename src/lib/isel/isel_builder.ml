@@ -60,7 +60,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let operand t : Virtual.operand -> Id.t C.t = function
     | #Virtual.const as c -> !!(constant t c)
-    | `var x -> var t x
+    | `var x -> match Hashtbl.find t.loadgen x with
+      | Some (gen, lid) when gen = t.memgen -> !!lid
+      | _ -> var t x
+
+  let invalidate_mem t = t.memgen <- t.memgen + 1
 
   let operands t = C.List.map ~f:(operand t)
 
@@ -244,6 +248,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | `flag -> `i8
       | `v128 -> `v128
       | #Type.basic as b -> (b :> [Type.basic | `v128]) in
+    invalidate_mem t;
     ignore @@ new_node ~l t @@ N (Ostore ty, [a; aid])
 
   let call_ret t l (x, ty, r) =
@@ -282,6 +287,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           Rv.reg @@ M.Reg.of_string_exn r) |>
       List.dedup_and_sort ~compare:Rv.compare in
     let ca = new_node t @@ Callargs callargs in
+    invalidate_mem t;
     !!(ignore @@ new_node ~l t @@ N (Otailcall, [ca; f]))
 
   let call t l ret f args =
@@ -306,6 +312,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           Rv.reg @@ M.Reg.of_string_exn r) |>
       List.dedup_and_sort ~compare:Rv.compare in
     let ca = new_node t @@ Callargs callargs in
+    invalidate_mem t;
     ignore @@ new_node ~l t @@ N (Ocall, [ca; f]);
     call_adj_stack t l sz ~restore:true;
     C.List.iter ret ~f:(call_ret t l)
@@ -316,14 +323,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let n = N (Oload ty, [a]) in
     let lid = new_node ~ty:ty' t n in
     let vid = newvar t x ty' in
-    (* TODO: see if we can do a pessimistic alias analysis to forward
-       the `Oload` node where this var appears, where possible. *)
+    (* Make the destination of the load an alias for the load itself,
+       so that rules can choose which one they want to match on. *)
+    Option.iter (getrv t vid) ~f:(setrv t lid);
+    Hashtbl.set t.loadgen ~key:x ~data:(t.memgen, lid);
     ignore @@ new_node ~l t @@ N (Omove, [vid; lid])
 
   let store t l ty v a =
     let* v = operand t v in
     let+ a = operand t a in
     let ty' = (ty :> [Type.basic | `v128]) in
+    invalidate_mem t;
     let n = N (Ostore ty', [v; a]) in
     ignore @@ new_node ~l t n
 
@@ -340,6 +350,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let+ a = operand t a in
     let ty = R.typeof r in
     let rid = new_node ~ty:(ty :> ty) t @@ Rv (Rv.reg r) in
+    invalidate_mem t;
     let n = N (Ostore ty, [rid; a]) in
     ignore @@ new_node ~l t n
 
@@ -441,13 +452,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     ignore @@ new_node ~l t @@ N (Omove, [xid; lid]);
     !!()
 
-  (* TODO: stack stuff
-
-     I think would suffice to just make the binding to the variable available
-     and then maintain the slot abstraction up to register allocation, because
-     at that point we will have more information on how to lay out the stack.
-  *)
   let slot t _l s =
+    (* Maintain slots until we reach the regalloc phase. *)
     let _sid = newvar t (Slot.var s) word in
     ()
 
@@ -458,6 +464,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         "In Isel_builder.step: missing block for label %a in function $%s"
         Label.pp l (Func.name t.fn) ()
     | Some b ->
+      Hashtbl.clear t.loadgen;
       let* () = Blk.insns b |> C.Seq.iter ~f:(insn t) in
       ctrl t (Blk.label b) (Blk.ctrl b)
 
