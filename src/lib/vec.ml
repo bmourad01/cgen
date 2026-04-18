@@ -80,31 +80,52 @@ let pop_exn t =
     x
   else invalid_argf "pop_exn: empty" ()
 
-let pop t = Option.try_with @@ fun () -> pop_exn t
+let pop t =
+  let i = t.length - 1 in
+  if i >= 0 then
+    let x = unsafe_get t i in
+    (* Clear the element to prevent a memory leak. *)
+    Oa.unsafe_set_none t.data i;
+    t.length <- i;
+    Some x
+  else None
 
 let get_exn t i =
   if i >= 0 && i < t.length then unsafe_get t i
   else invalid_argf "get_exn: index %d out of bounds [0,%d)" i t.length ()
+[@@inline]
 
-let get t i = Option.try_with @@ fun () -> get_exn t i
+let get t i =
+  if i >= 0 && i < t.length then Some (unsafe_get t i) else None
+[@@inline]
 
 let front_exn t =
   if t.length > 0 then unsafe_get t 0 else invalid_argf "front_exn: empty" ()
+[@@inline]
 
-let front t = Option.try_with @@ fun () -> front_exn t
+let front t =
+  if t.length > 0 then Some (unsafe_get t 0) else None
+[@@inline]
 
 let back_exn t =
   let i = t.length - 1 in
   if i >= 0 then unsafe_get t i else invalid_argf "back_exn: empty" ()
+[@@inline]
 
-let back t = Option.try_with @@ fun () -> back_exn t
+let back t =
+  let i = t.length - 1 in
+  if i >= 0 then Some (unsafe_get t i) else None
+[@@inline]
 
 let set_exn t i x =
   if i >= 0 && i < t.length then unsafe_set t i x
   else invalid_argf "set_exn: index %d out of bounds [0,%d)" i t.length ()
+[@@inline]
 
-let set t i x = try Ok (set_exn t i x) with
-  | Invalid_argument msg -> Or_error.error_string msg
+let set t i x =
+  if i >= 0 && i < t.length then Ok (unsafe_set t i x)
+  else Or_error.errorf "set_exn: index %d out of bounds [0,%d)" i t.length
+[@@inline]
 
 let fold_until =
   let open Container.Continue_or_stop in
