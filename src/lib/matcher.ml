@@ -688,7 +688,7 @@ module Make(M : L) = struct
           if !i < last then st.pool.![!i] <- st.pool.![last];
           ignore (Vec.pop_exn st.pool);
           a in
-      OA.blit ~src:st.regs ~src_pos:0 ~dst ~dst_pos:0 ~len:n;
+      OA.unsafe_blit ~src:st.regs ~src_pos:0 ~dst ~dst_pos:0 ~len:n;
       dst
 
     let reset st =
@@ -734,34 +734,65 @@ module Make(M : L) = struct
       | None -> failwithf "VM: register $%d is uninitialized" r.reg ()
       | Some t -> t
 
-    let root st = st.$[r0]
+    let root st = st.$[r0] [@@inline]
 
     let (.$[]<-) st r x =
       OA.set_some st.regs r.reg x;
       if r.reg > st.maxw then st.maxw <- r.reg
+    [@@inline]
 
-    let ensure_regs st need =
-      let n = need + 1 in
-      let current_len = OA.length st.regs in
-      if current_len < n then
-        let new_len = max n (2 * current_len + 1) in
-        let bigger = OA.create ~len:new_len in
-        OA.blit
-          ~src:st.regs ~src_pos:0
-          ~dst:bigger ~dst_pos:0
-          ~len:current_len;
-        st.regs <- bigger
+    let ensure_cap' st cap last =
+      if last < cap then cap else
+        let new_len = max (last + 1) (2 * cap + 1) in
+        let dst = OA.create ~len:new_len in
+        OA.unsafe_blit ~src:st.regs ~src_pos:0 ~dst ~dst_pos:0 ~len:cap;
+        st.regs <- dst;
+        new_len
+    [@@inline]
+
+    let ensure_cap st last =
+      ignore (ensure_cap' st (OA.length st.regs) last)
+    [@@inline]
 
     let load_args st r t =
-      let args = term_args t in
-      let len = List.length args in
-      if len > 0 then
-        let () = ensure_regs st (r.reg + len) in
-        List.iteri args ~f:(fun i t -> st.$[r +$ i] <- t)
+      match term_args t with
+      | [] -> ()
+      | [a] ->
+        let i = r.reg in
+        ensure_cap st i;
+        OA.unsafe_set_some st.regs i a;
+        if i > st.maxw then st.maxw <- i
+      | [a; b] ->
+        let i = r.reg in
+        let j = i + 1 in
+        ensure_cap st j;
+        let regs = st.regs in
+        OA.unsafe_set_some regs i a;
+        OA.unsafe_set_some regs j b;
+        if j > st.maxw then st.maxw <- j
+      | [a; b; c] ->
+        let i = r.reg in
+        let k = i + 2 in
+        ensure_cap st k;
+        let regs = st.regs in
+        OA.unsafe_set_some regs i a;
+        OA.unsafe_set_some regs (i + 1) b;
+        OA.unsafe_set_some regs k c;
+        if k > st.maxw then st.maxw <- k
+      | args ->
+        let rec loop st cap i = function
+          | [] -> i
+          | x :: xs ->
+            let cap = ensure_cap' st cap i in
+            OA.unsafe_set_some st.regs i x;
+            loop st cap (i + 1) xs in
+        let last = loop st (OA.length st.regs) r.reg args - 1 in
+        if last > st.maxw then st.maxw <- last
 
     let bind st o t next =
       load_args st o t;
       st.pc <- next
+    [@@inline]
 
     (* Extract the term that `id` represents, handling chains
        of unions along the way. *)
@@ -800,7 +831,9 @@ module Make(M : L) = struct
         else backtrack st;
         Continue
       | Choose c ->
-        Option.iter c.alt ~f:(push_frame st);
+        let () = match c.alt with
+          | None -> ()
+          | Some alt -> push_frame st alt in
         st.pc <- c.next;
         Continue
       | Compare c ->
@@ -818,6 +851,7 @@ module Make(M : L) = struct
     let (let-) x f = match x with
       | Some y -> f y
       | None -> false
+    [@@inline]
 
     let init ~lookup st id =
       reset st;
@@ -837,16 +871,17 @@ module Make(M : L) = struct
     let many ?(limit = Int.max_value) st =
       let result = ref [] in
       let count = ref 0 in
-      let continue = ref true in
-      while !continue && !count < limit do
-        try match step st with
-          | Continue -> ()
-          | Yield y ->
-            result := y :: !result;
-            incr count;
-            backtrack st
-        with Finished -> continue := false
-      done;
+      let () =
+        try
+          while !count < limit do
+            match step st with
+            | Continue -> ()
+            | Yield y ->
+              result := y :: !result;
+              incr count;
+              backtrack st
+          done;
+        with Finished -> () in
       List.rev !result
 
     let one st = match many ~limit:1 st with
