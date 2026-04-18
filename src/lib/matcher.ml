@@ -87,7 +87,7 @@ module Make(M : L) = struct
 
   let r0 = {reg = 0}
 
-  let (+$) r i = {reg = r.reg + i} [@@inline]
+  let (+$) r i = {reg = r.reg + i} [@@inline] [@@ocaml.warning "-32"]
 
   (* Program label *)
   type label = {

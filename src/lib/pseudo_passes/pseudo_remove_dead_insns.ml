@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Pseudo
 
 let (--) = Set.diff

@@ -1,6 +1,3 @@
-open Core
-open Graphlib.Std
-
 module type S = sig
   type t
   type var

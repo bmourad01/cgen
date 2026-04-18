@@ -30,6 +30,7 @@ module Make_helpers(K : Patricia_tree_intf.Key) = struct
   let compare_prefix p1 b1 p2 b2 =
     let c = compare b1 b2 in
     if c = 0 then compare p1 p2 else c
+  [@@ocaml.warning "-32"]
 
   type order = NA | LB | RB
 
