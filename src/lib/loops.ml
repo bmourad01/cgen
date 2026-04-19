@@ -4,7 +4,7 @@ open Graphlib.Std
 open Monads.Std
 
 module O = Monad.Option
-module Tbl = Label.Dense_table
+module LT = Label.Dense_table
 
 let rec while_top q ~f = match Stack.top q with
   | Some x -> f x; while_top q ~f
@@ -49,7 +49,7 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
   type t = {
     name  : string;
     loops : data Vec.t;
-    blks  : loop Tbl.t;
+    blks  : loop LT.t;
   }
 
   let pp ppf t =
@@ -59,12 +59,12 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
       "((name %s) (loops (%a)) (blks (%a))"
       t.name
       (Format.pp_print_list ~pp_sep pp_data) (Vec.to_list t.loops)
-      (Format.pp_print_list ~pp_sep pp_blk) (Tbl.to_alist t.blks)
+      (Format.pp_print_list ~pp_sep pp_blk) (LT.to_alist t.blks)
 
   let init name = {
     name;
     loops = Vec.create ();
-    blks = Tbl.create ();
+    blks = LT.create ();
   }
 
   let get t n = match Vec.get t.loops n with
@@ -74,8 +74,8 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
         "Loop %d does not exist in function $%s"
         n t.name ()
 
-  let blk t l = Tbl.find t.blks l
-  let mem t l = Tbl.mem t.blks l
+  let blk t l = LT.find t.blks l
+  let mem t l = LT.mem t.blks l
 
   let is_header t l = match blk t l with
     | Some n -> Label.equal l @@ (get t n).header
@@ -118,7 +118,7 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
     Graphlib.reverse_postorder_traverse (module Cfg)
       ~start:Label.pseudoentry cfg |> Seq.iter ~f:(fun l ->
           if dom_backedge l cfg dom |> Seq.is_empty |> not then
-            Tbl.set t.blks ~key:l ~data:(new_loop t l))
+            LT.set t.blks ~key:l ~data:(new_loop t l))
 
   (* Check if loop `m` can be reparented under loop `n`. If so, return the root of `m`. *)
   let find_candidate_for_reparenting t n m =
@@ -129,11 +129,11 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
     let* m = chase m (get t m).parent in
     Option.some_if (n <> m) m
 
-  let visit_loop_block t n l = match Tbl.find t.blks l with
+  let visit_loop_block t n l = match LT.find t.blks l with
     | None ->
       (* We haven't visited this block yet, so it needs to be
          enqueued for analysis. *)
-      Tbl.set t.blks ~key:l ~data:n;
+      LT.set t.blks ~key:l ~data:n;
       Some l
     | Some m ->
       let+ m = find_candidate_for_reparenting t n m in

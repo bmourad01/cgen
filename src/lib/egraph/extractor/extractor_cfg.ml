@@ -47,9 +47,9 @@ type env = {
   mutable scp : scope;
 }
 
-let init () = {
-  insn = LT.create ();
-  ctrl = LT.create ();
+let init t = {
+  insn = LT.create ~capacity:(Func.num_insns t.eg.input.fn) ();
+  ctrl = LT.create ~capacity:(Func.num_blks t.eg.input.fn) ();
   news = LT.create ();
   cur = Label.pseudoentry;
   scp = empty_scope;
@@ -376,14 +376,12 @@ module Hoisting = struct
         let r = LS.create () in
         let q = Stack.singleton l in
         Stack.until_empty q (fun n ->
-            match LS.strict_add r n with
-            | false when Label.(n = l) -> return true
-            | false -> ()
-            | true ->
+            if LS.strict_add r n then
               Cfg.Node.succs n t.eg.input.cfg |>
               Seq.filter ~f:(Group.mem g) |>
               Seq.filter ~f:(Fn.non @@ Lset.mem bs) |>
-              Seq.iter ~f:(Stack.push q));
+              Seq.iter ~f:(Stack.push q)
+            else if Label.(n = l) then return true);
         false in
     Logs.debug (fun m ->
         m "%s: %a is post-dominated: bs=%s, id=%d, cid=%d, res=%b%!"
@@ -558,7 +556,7 @@ let step t env l = match Resolver.resolve t.eg.input.reso l with
 (* Collect all of the rewritten instructions in a traversal of the
    dominator tree, starting at label `l`. *)
 let collect t l =
-  let env = init () in
+  let env = init t in
   let q = Stack.singleton (l, env.scp) in
   let rec loop () = match Stack.pop q with
     | None -> !!env

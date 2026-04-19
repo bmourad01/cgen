@@ -639,7 +639,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let rewrite_function t =
     let ivec = Vec.create () in
-    let blks = LT.create () in
+    let blks = LT.create ~capacity:(Func.num_blks t.fn) () in
     Func.blks t.fn |> Seq.iter ~f:(fun b ->
         LT.set blks ~key:(Blk.label b) ~data:b);
     let+ () =

@@ -77,8 +77,8 @@ let collect_thresholds blks =
             Option.value_map ~default:m ~f:(add m x v t)
           | _ -> m))
 
-let create_ctx ~blks ~word ~typeof ~cfg = {
-  insns = LT.create ();
+let create_ctx fn ~blks ~word ~typeof ~cfg = {
+  insns = LT.create ~capacity:(Func.num_insns fn) ();
   narrow = Hashtbl.create (module Edge);
   cond = VT.create ();
   thresholds = collect_thresholds blks;

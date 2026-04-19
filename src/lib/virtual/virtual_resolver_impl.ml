@@ -40,6 +40,8 @@ module type L = sig
     val args : ?rev:bool -> t -> Var.t seq
     val slots : ?rev:bool -> t -> Virtual_slot.t seq
     val blks : ?rev:bool -> t -> Blk.t seq
+    val num_blks : t -> int
+    val num_insns : t -> int
   end
 end
 
@@ -94,7 +96,9 @@ module Make(M : L) : S
       E.failf "Variable %a is used but not defined" Var.pp x ()
 
   let create fn =
-    let lbl = LT.create () in
+    let nblk = Func.num_blks fn in
+    let ninsn = Func.num_insns fn in
+    let lbl = LT.create ~capacity:(nblk + ninsn) () in
     let use = VT.create () in
     let def = VT.create () in
     let* () = Func.args fn |> E.Seq.iter ~f:(fun a ->

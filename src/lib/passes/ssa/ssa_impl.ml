@@ -13,7 +13,7 @@ end = struct
     let cfg = Cfg.create fn in
     let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
     let df = Semi_nca.frontier (module Cfg) cfg dom in
-    let blks = LT.create () in
+    let blks = LT.create ~capacity:(Func.num_blks fn) () in
     Func.blks fn |> Seq.iter ~f:(fun b ->
         LT.set blks ~key:(Blk.label b) ~data:b);
     {live; cfg; dom; df; blks}

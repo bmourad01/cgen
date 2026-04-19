@@ -11,7 +11,7 @@
 
 (** The interface required for keys. *)
 module type Key = sig
-  type t [@@deriving compare, equal] [@@immediate64]
+  type t [@@deriving equal] [@@immediate64]
 
   (** A value of [t] that will never appear as a legitimate key.
 

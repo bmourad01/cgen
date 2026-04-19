@@ -47,6 +47,7 @@ module type L = sig
     val with_tag : t -> 'a Dict.tag -> 'a -> t
     val name : t -> string
     val blks : ?rev:bool -> t -> Blk.t seq
+    val num_blks : t -> int
     val update_blks_exn : t -> Blk.t list -> t
   end
 

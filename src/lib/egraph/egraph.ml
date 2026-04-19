@@ -20,7 +20,7 @@ let init input depth_limit match_limit rules = {
   imoved = Vec.create ();
   pinned = Bitset.empty;
   ilbl = Vec.create ();
-  lval = LT.create ();
+  lval = LT.create ~capacity:(Func.num_insns input.fn) ();
   depth_limit;
   match_limit;
   rules;

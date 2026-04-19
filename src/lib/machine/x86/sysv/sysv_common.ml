@@ -158,11 +158,13 @@ let empty_ret = {
   retr = [];
 }
 
+type callret = Var.t * Type.basic * string
+
 type call = {
-  callai : Abi.insn Ftree.t;                   (* Set up the arguments before the call. *)
-  callar : Abi.Insn.callarg Ftree.t;           (* Passing arguments. *)
-  callri : Abi.insn Ftree.t;                   (* Copy the return value after the call. *)
-  callrr : (Var.t * Type.basic * string) list; (* Registers holding the return value. *)
+  callai : Abi.insn Ftree.t;         (* Set up the arguments before the call. *)
+  callar : Abi.Insn.callarg Ftree.t; (* Passing arguments. *)
+  callri : Abi.insn Ftree.t;         (* Copy the return value after the call. *)
+  callrr : callret list;             (* Registers holding the return value. *)
 }
 
 let empty_call = {
@@ -199,23 +201,23 @@ type vaarg = {
 }
 
 type env = {
-  fn            : func;                        (* The original function. *)
-  blks          : blk Label.Tree.t;            (* Map of basic blocks. *)
-  tenv          : Typecheck.env;               (* Typing environment. *)
-  rets          : ret LT.t;                    (* Lowered `ret` instructions. *)
-  calls         : call LT.t;                   (* Lowered `call` instructions. *)
-  tailcalls     : LS.t;                        (* Labels of tail-call-eligible calls. *)
-  refs          : Var.t VT.t;                  (* Struct var to its slot. *)
-  unrefs        : Abi.insn list VT.t;          (* `unref` to blit. *)
-  blits         : Abi.insn list LT.t;          (* Stores of structs. *)
-  slots         : slot Vec.t;                  (* New stack slots. *)
-  params        : param Vec.t;                 (* Function parameters. *)
-  layout        : acls String.Table.t;         (* Cached struct layouts. *)
-  vastart       : Abi.insn list LT.t;          (* Lowered `vastart` instructions. *)
-  vaarg         : vaarg LT.t;                  (* Lowered `vaarg` instructions. *)
-  mutable rsave : regsave option;              (* Register save area. *)
-  mutable rmem  : Var.t option;                (* Return value blitted to memory. *)
-  mutable alpar : Var.t option;                (* Implicit AL argument. *)
+  fn            : func;                (* The original function. *)
+  blks          : blk Label.Tree.t;    (* Map of basic blocks. *)
+  tenv          : Typecheck.env;       (* Typing environment. *)
+  rets          : ret LT.t;            (* Lowered `ret` instructions. *)
+  calls         : call LT.t;           (* Lowered `call` instructions. *)
+  tailcalls     : LS.t;                (* Labels of tail-call-eligible calls. *)
+  refs          : Var.t VT.t;          (* Struct var to its slot. *)
+  unrefs        : Abi.insn list VT.t;  (* `unref` to blit. *)
+  blits         : Abi.insn list LT.t;  (* Stores of structs. *)
+  slots         : slot Vec.t;          (* New stack slots. *)
+  params        : param Vec.t;         (* Function parameters. *)
+  layout        : acls String.Table.t; (* Cached struct layouts. *)
+  vastart       : Abi.insn list LT.t;  (* Lowered `vastart` instructions. *)
+  vaarg         : vaarg LT.t;          (* Lowered `vaarg` instructions. *)
+  mutable rsave : regsave option;      (* Register save area. *)
+  mutable rmem  : Var.t option;        (* Return value blitted to memory. *)
+  mutable alpar : Var.t option;        (* Implicit AL argument. *)
 }
 
 (* For simplicity, let's make sure each existing stack slot is aligned

@@ -241,28 +241,29 @@ let compute
     (module G : Label.Graph_s with type t = g) ?(rev = false) g entry =
   let dfs_dir = if rev then G.Node.preds else G.Node.succs in
   let sdom_dir = if rev then G.Node.succs else G.Node.preds in
+  let capacity = G.number_of_nodes g in
   (* Map nodes to preorder numbers *)
-  let nums = LT.create () in
+  let nums = LT.create ~capacity () in
   (* Preorder spanning tree *)
-  let postord = Vec.create () in
-  let preord = Vec.create () in
+  let postord = Vec.create ~capacity () in
+  let preord = Vec.create ~capacity () in
   Impl.dfs g nums postord preord entry dfs_dir;
   (* Ancestor path. *)
   let path = Stack.create () in
   Impl.semi g path nums preord sdom_dir;
   (* Immediate dominators *)
-  let parent = LT.create () in
+  let parent = LT.create ~capacity () in
   Impl.idom parent preord;
   (* Reverse postorder numbering *)
   let rpo = lazy begin
-    let t = LT.create () in
+    let t = LT.create ~capacity () in
     let n = Vec.length postord in
     Vec.iteri postord ~f:(fun i key ->
         LT.set t ~key ~data:(n - 1 - i));
     t end in
   (* Children of each node, sorted by RPO. *)
   let children = lazy begin
-    let t = LT.create () in
+    let t = LT.create ~capacity () in
     G.nodes g |> Seq.iter ~f:(fun u ->
         LT.find parent u |> Option.iter ~f:(fun v ->
             LT.add_multi t ~key:v ~data:u));
@@ -274,7 +275,7 @@ let compute
             Int.compare na nb));
     t end in
   let depth = lazy begin
-    let t = LT.create () in
+    let t = LT.create ~capacity () in
     let children = Lazy.force children in
     let q = Stack.singleton (entry, 0) in
     Stack.until_empty q (fun (n, d) ->
@@ -289,7 +290,7 @@ let compute
 let frontier
     (type g)
     (module G : Label.Graph_s with type t = g) g tree =
-  let t = LT.create () in
+  let t = LT.create ~capacity:(G.number_of_nodes g) () in
   let add u v = match LT.find tree.parent v with
     | Some p when Label.(p <> u) ->
       LT.update t u ~f:(function

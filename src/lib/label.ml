@@ -31,25 +31,21 @@ module R = Regular.Make(struct
 
 include R
 
-module Tree = Patricia_tree.Make(struct
-    include Int63
-    let size = 63
-    let to_int = to_int_trunc
-  end)
-
-module Tree_set = Patricia_tree.Make_set(struct
-    include Int63
-    let size = 63
-    let to_int = to_int_trunc
-  end)
+module Patricia_key = struct
+  include Int63
+  let size = 63
+  let to_int = to_int_trunc
+end
 
 module Dense_key = struct
-  include T
+  type t = label [@@deriving equal]
   let empty_sentinel = Int63.of_int (-1)
   let to_int = Int63.to_int_trunc
   let pp = pp
 end
 
+module Tree = Patricia_tree.Make(Patricia_key)
+module Tree_set = Patricia_tree.Make_set(Patricia_key)
 module Dense_table = Dense.Make_map(Dense_key)
 module Dense_set = Dense.Make_set(Dense_key)
 
@@ -272,19 +268,20 @@ module Pseudo(G : Graph_s) = struct
     g
 
   let add g =
-    let[@inline] propagate g v q = Stack.until_empty q @@ fun n ->
-      if not (Tree_set.mem !v n) then
-        let () = v := Tree_set.add !v n in
+    let[@inline] propagate g v q =
+      Stack.until_empty q @@ fun n ->
+      if Dense_set.strict_add v n then
         G.Node.preds n g |> Seq.iter ~f:(Stack.push q) in
     let g0 = G.nodes g |> Seq.fold ~init:g ~f:connect_unreachable in
-    let v = ref (Tree_set.singleton pseudoexit) in
     let q = Stack.create () in
+    let v = Dense_set.create () in
+    Dense_set.add v pseudoexit;
     G.Node.preds pseudoexit g0 |> Seq.iter ~f:(Stack.push q);
     propagate g0 v q;
     G.nodes g |> Seq.fold ~init:g0 ~f:(fun g n ->
-        if Tree_set.mem !v n then g else
-          let () = v := Tree_set.add !v n in
-          G.Node.preds n g |> Seq.iter ~f:(Stack.push q);
+        if Dense_set.strict_add v n then
+          let () = G.Node.preds n g |> Seq.iter ~f:(Stack.push q) in
           propagate g0 v q;
-          connect_with_exit n g)
+          connect_with_exit n g
+        else g)
 end

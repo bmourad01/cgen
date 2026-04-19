@@ -104,7 +104,7 @@ let analyze fn ~word ~typeof =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
-    let ctx = create_ctx ~blks ~word ~typeof ~cfg in
+    let ctx = create_ctx fn ~blks ~word ~typeof ~cfg in
     let input = Fixpoint.run (module Cfg) cfg
         ~step:(step ctx)
         ~edge:(edge ctx)
