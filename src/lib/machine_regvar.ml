@@ -11,6 +11,7 @@ module type S = sig
   type t
   type reg
 
+  val empty_sentinel : t
   val reg : reg -> t
   val var : cls -> Var.t -> t
   val is_reg : t -> bool
@@ -34,26 +35,33 @@ end
 module Make(R : Reg)(N : Name) = struct
   module T = struct
     type t =
+      | Nil
       | Reg of R.t
-      | Var of Var.t * cls
+      | Var of Var.t * (cls[@hash.ignore])
     [@@deriving bin_io, compare, equal, hash, sexp]
   end
 
   include T
 
+  let empty_sentinel = Nil
+
   let is_reg = function
+    | Nil -> false
     | Reg _ -> true
     | Var _ -> false
 
   let is_var = function
+    | Nil -> false
     | Reg _ -> false
     | Var _ -> true
 
   let has_reg t r = match t with
+    | Nil -> false
     | Reg r' -> R.equal r r'
     | Var _ -> false
 
   let has_var t v = match t with
+    | Nil -> false
     | Var (v', _) -> Var.(v = v')
     | Reg _ -> false
 
@@ -61,10 +69,12 @@ module Make(R : Reg)(N : Name) = struct
   let var cls v = Var (v, cls)
 
   let which = function
+    | Nil -> failwith "which: empty_sentinel"
     | Reg r -> First r
     | Var (v, cls) -> Second (v, cls)
 
   let pp ppf = function
+    | Nil -> Format.fprintf ppf "<nil>"
     | Reg r -> Format.fprintf ppf "%a" R.pp r
     | Var (v, _) -> Format.fprintf ppf "%a" Var.pp v
 

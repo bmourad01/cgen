@@ -32,11 +32,16 @@ type id_heap = id H.t
 type id_elt = id H.Elt.t
 type label_heap = Label.t H.t
 type label_elt = Label.t H.Elt.t
-type 'a label_tbl = 'a LT.t
 type 'a oarray = 'a Option_array.t
 
 module Make(M : Machine_intf.S) = struct
   module Rv = M.Regvar
+
+  module RT = Dense.Make_map(struct
+      include Rv
+      let to_int = hash
+    end)
+
   module Regs = Regalloc_regs.Make(M)
   module Live = Pseudo_passes.Live(M)
   module Loop = Loops.Make(Cfg)
@@ -46,8 +51,6 @@ module Make(M : Machine_intf.S) = struct
     src  : id;
     loop : int;
   }
-
-  type 'a rv_tbl = 'a Rv.Table.t
 
   (* Per-node data read by heap comparison functions (spill cost, move
      priority, freeze score).
@@ -84,7 +87,7 @@ module Make(M : Machine_intf.S) = struct
 
   type t = {
     mutable fn           : (M.Insn.t, M.Reg.t) func;
-    rv2id                : id Rv.Table.t;  (* regvar to interned ID *)
+    rv2id                : id RT.t;        (* regvar to interned ID *)
     id2rv                : Rv.t Vec.t;     (* interned ID to regvar *)
     data                 : data;
     mutable wsimplify    : Bitset.t;       (* simplify worklist *)
@@ -96,7 +99,7 @@ module Make(M : Machine_intf.S) = struct
     mutable spilled      : Bitset.t;       (* spilled nodes *)
     mutable keep         : Rv.Set.t;       (* nodes that are live at the exits *)
     wmoves               : label_heap;     (* worklist moves *)
-    wmoves_elts          : label_elt label_tbl;
+    wmoves_elts          : label_elt LT.t;
     mutable cmoves       : Lset.t;         (* coalesced moves *)
     mutable kmoves       : Lset.t;         (* constrained moves *)
     mutable fmoves       : Lset.t;         (* frozen moves *)
@@ -107,10 +110,10 @@ module Make(M : Machine_intf.S) = struct
     wspill               : id_heap;
     mutable wspill_elts  : id_elt oarray;
     select               : id Stack.t;
-    copies               : copy label_tbl;
-    insn_blks            : (Label.t * id) label_tbl;
-    slots                : Rv.t rv_tbl;
-    phi_pairs            : Rv.Set.t rv_tbl;
+    copies               : copy LT.t;
+    insn_blks            : (Label.t * id) LT.t;
+    slots                : Rv.t RT.t;
+    phi_pairs            : Rv.Set.t RT.t;
     mutable types        : [Type.basic | `v128] Rv.Map.t;
     cfg                  : Pseudo.Cfg.t;
     loop                 : Loop.t;
@@ -118,12 +121,12 @@ module Make(M : Machine_intf.S) = struct
   }
 
   let intern t rv =
-    Hashtbl.find_or_add t.rv2id rv ~default:(fun () ->
+    RT.find_or_add t.rv2id rv ~default:(fun () ->
         let id = Vec.length t.id2rv in
         Vec.push t.id2rv rv;
         id)
 
-  let (.$[]) t rv = Hashtbl.find_exn t.rv2id rv
+  let (.$[]) t rv = RT.find_exn t.rv2id rv
   let (.![]) t id = Vec.get_exn t.id2rv id
 
   let num_nodes t = Vec.length t.id2rv
@@ -244,12 +247,12 @@ module Make(M : Machine_intf.S) = struct
 
   let add_phi_pair t a b =
     let add rv partner =
-      Hashtbl.update t.phi_pairs rv ~f:(fun s ->
+      RT.update t.phi_pairs rv ~f:(fun s ->
           Set.add (Option.value s ~default:Rv.Set.empty) partner) in
     add a b; add b a
 
   let phi_pair_partners t rv =
-    Hashtbl.find t.phi_pairs rv |> Option.value ~default:Rv.Set.empty
+    RT.find t.phi_pairs rv |> Option.value ~default:Rv.Set.empty
 
   module Wspill = struct
     (* Loop-weighted cost of a single use/def at `loop_depth`. *)
@@ -532,7 +535,7 @@ module Make(M : Machine_intf.S) = struct
     let wmoves_cmp = Wmoves.cmp data ~copies ~id2rv ~insn_blks ~dom in
     let wfreeze_cmp = Wfreeze.cmp data ~wmoves_elts ~copies ~id2rv ~phi_var in {
       fn;
-      rv2id = Rv.Table.create ();
+      rv2id = RT.create ();
       id2rv;
       data;
       wsimplify = Bitset.empty;
@@ -557,8 +560,8 @@ module Make(M : Machine_intf.S) = struct
       select = Stack.create ();
       copies;
       insn_blks;
-      slots = Rv.Table.create ();
-      phi_pairs = Rv.Table.create ();
+      slots = RT.create ();
+      phi_pairs = RT.create ();
       types = Rv.Map.empty;
       cfg;
       loop;

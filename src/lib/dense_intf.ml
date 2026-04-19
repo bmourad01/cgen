@@ -1,4 +1,4 @@
-(** Open-addressing hash tables and sets for integer-like keys.
+(** Open-addressing hash tables and sets.
 
     Inspired by LLVM's [DenseMap]/[DenseSet]. Uses Robin Hood probing
     with shift-back deletion, so there are no tombstones.
@@ -11,7 +11,7 @@
 
 (** The interface required for keys. *)
 module type Key = sig
-  type t [@@deriving equal] [@@immediate64]
+  type t [@@deriving equal]
 
   (** A value of [t] that will never appear as a legitimate key.
 

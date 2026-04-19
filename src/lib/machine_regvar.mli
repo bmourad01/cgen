@@ -25,6 +25,9 @@ module type S = sig
   type t
   type reg
 
+  (** A dummy value. *)
+  val empty_sentinel : t
+
   (** Construct a register. *)
   val reg : reg -> t
 

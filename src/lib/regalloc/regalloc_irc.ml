@@ -500,7 +500,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
          that now correspond to old slots, and coalescing to an old slot
          aliases live ranges. *)
       if not (Bitset.mem t.spilled t.$[partner]) then None else
-        Hashtbl.find t.slots partner |> Option.bind ~f:(fun slot ->
+        RT.find t.slots partner |> Option.bind ~f:(fun slot ->
             Option.some_if (not (has_edge t id t.$[slot])) slot) in
     phi_pair_partners t rv |> Set.to_sequence |>
     Seq.filter_map ~f:try_slot |> Seq.hd |> function
@@ -530,7 +530,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               Logs.debug (fun m ->
                   m "%s: re-using slot %a for spilled node %a%!"
                     __FUNCTION__ Rv.pp r' Rv.pp r);
-              Hashtbl.set t.slots ~key:r ~data:r';
+              RT.set t.slots ~key:r ~data:r';
               t.data.slot_bits <- Bitset.set t.data.slot_bits rid;
               acc, update_slot_map m size r' in
             match preferred_slot t id with
@@ -543,7 +543,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                     m "%s: spilling %a to new slot%!"
                       __FUNCTION__ Rv.pp r);
                 let s = Virtual.Slot.create_exn v ~size ~align:size in
-                Hashtbl.set t.slots ~key:r ~data:r;
+                RT.set t.slots ~key:r ~data:r;
                 t.data.slot_bits <- Bitset.set t.data.slot_bits rid;
                 s :: acc, Map.add_multi m ~key:size ~data:r) in
     t.fn <- Func.insert_slots t.fn slots
@@ -556,8 +556,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Bitset.mem t.spilled t.$[drv] &&
       Bitset.mem t.spilled t.$[srv] &&
       Option.equal Rv.equal
-        (Hashtbl.find t.slots drv)
-        (Hashtbl.find t.slots srv)
+        (RT.find t.slots drv)
+        (RT.find t.slots srv)
     | _ -> false
 
   (* Rewrite a single instruction to spill and reload variables. *)
@@ -571,7 +571,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Seq.filter ~f:(fun rv -> Bitset.mem t.spilled t.$[rv]) |>
       C.Seq.fold ~init ~f:(fun (f, s, m, rl) v ->
           let* ty = typeof t v in
-          let slot = Hashtbl.find_exn t.slots v in
+          let slot = RT.find_exn t.slots v in
           let is_use = Set.mem use v and is_def = Set.mem def v in
           (* Optimization: if `v` is a pure use and we already loaded it
              earlier in this block (it's in the reload cache `rl`), reuse
