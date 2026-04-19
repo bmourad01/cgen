@@ -1,5 +1,8 @@
 open Regular.Std
 
+module VT = Var.Dense_table
+module LT = Label.Dense_table
+
 exception Missing_blk of Label.t
 
 module type L = sig
@@ -77,9 +80,9 @@ module type L = sig
 end
 
 type ('live, 'cfg, 'blk) env = {
-  live : 'live;                     (* Liveness analysis. *)
-  cfg  : 'cfg;                      (* Control-flow graph. *)
-  dom  : Semi_nca.tree;             (* Dominator tree. *)
-  df   : Semi_nca.frontier;         (* Dominance frontier. *)
-  blks : 'blk Label.Table.t;        (* Current version of each block. *)
+  live : 'live;             (* Liveness analysis. *)
+  cfg  : 'cfg;              (* Control-flow graph. *)
+  dom  : Semi_nca.tree;     (* Dominator tree. *)
+  df   : Semi_nca.frontier; (* Dominance frontier. *)
+  blks : 'blk LT.t;         (* Current version of each block. *)
 }

@@ -43,6 +43,16 @@ module Tree_set = Patricia_tree.Make_set(struct
     let to_int = to_int_trunc
   end)
 
+module Dense_key = struct
+  include T
+  let empty_sentinel = Int63.of_int (-1)
+  let to_int = Int63.to_int_trunc
+  let pp = pp
+end
+
+module Dense_table = Dense.Make_map(Dense_key)
+module Dense_set = Dense.Make_set(Dense_key)
+
 module type Graph_s = Graph
   with type node = t
    and type Edge.label = unit

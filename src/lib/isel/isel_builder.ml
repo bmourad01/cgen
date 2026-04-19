@@ -60,7 +60,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let operand t : Virtual.operand -> Id.t C.t = function
     | #Virtual.const as c -> !!(constant t c)
-    | `var x -> match Hashtbl.find t.loadgen x with
+    | `var x -> match VT.find t.loadgen x with
       | Some (gen, lid) when gen = t.memgen -> !!lid
       | _ -> var t x
 
@@ -326,7 +326,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Make the destination of the load an alias for the load itself,
        so that rules can choose which one they want to match on. *)
     Option.iter (getrv t vid) ~f:(setrv t lid);
-    Hashtbl.set t.loadgen ~key:x ~data:(t.memgen, lid);
+    VT.set t.loadgen ~key:x ~data:(t.memgen, lid);
     ignore @@ new_node ~l t @@ N (Omove, [vid; lid])
 
   let store t l ty v a =
@@ -464,7 +464,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         "In Isel_builder.step: missing block for label %a in function $%s"
         Label.pp l (Func.name t.fn) ()
     | Some b ->
-      Hashtbl.clear t.loadgen;
+      VT.clear t.loadgen;
       let* () = Blk.insns b |> C.Seq.iter ~f:(insn t) in
       ctrl t (Blk.label b) (Blk.ctrl b)
 

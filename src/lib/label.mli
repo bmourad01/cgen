@@ -33,6 +33,12 @@ module Tree : Patricia_tree_intf.S with type key := t
 (** Same as [Tree], but for sets of labels. *)
 module Tree_set : Patricia_tree_intf.Set with type key := t
 
+(** An open-addressing hash table keyed by labels. *)
+module Dense_table : Dense_intf.Map with type key := t
+
+(** An open-addressing hash set of labels. *)
+module Dense_set : Dense_intf.Set with type key := t
+
 (** The signature for graphs with labels as nodes. *)
 module type Graph_s = Graph
   with type node = t

@@ -198,7 +198,7 @@ let interp_basic_unop ctx s x o a =
 
 let interp_basic_sel ctx s x k y n =
   interp_operand ctx s (`var k) |> try1 s ~f:(fun c ->
-      let y, n = match Hashtbl.find ctx.cond k with
+      let y, n = match VT.find ctx.cond k with
         | Some s' ->
           interp_operand ctx (meet_state s s') y,
           interp_operand ctx (meet_state s @@ invert_state s') n
@@ -243,7 +243,7 @@ let interp_insn ctx s i =
     | #Insn.call as c -> interp_call ctx s c
     | #Insn.mem as m -> interp_mem ctx s m
     | #Insn.variadic as v -> interp_variadic ctx s v in
-  Hashtbl.set ctx.insns ~key:(Insn.label i) ~data:s;
+  LT.set ctx.insns ~key:(Insn.label i) ~data:s;
   s
 
 let assign_blk_args ctx s l args =
@@ -294,20 +294,20 @@ let interp_ctrl ctx s = function
   | `br (c, `label (y, yargs), `label (n, nargs)) ->
     narrow ctx y c I.boolean_true;
     narrow ctx n c I.boolean_false;
-    Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
+    VT.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Var.Tree.iter s' ~f:(fun ~key:x ~data:i ->
             Narrow_branch.both ctx s y n x i));
     let s = assign_blk_args ctx s y yargs in
     assign_blk_args ctx s n nargs
   | `br (c, `label (y, yargs), _) ->
     narrow ctx y c I.boolean_true;
-    Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
+    VT.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Var.Tree.iter s' ~f:(fun ~key:x ~data:i ->
             Narrow_branch.yes ctx s y x i));
     assign_blk_args ctx s y yargs
   | `br (c, _, `label (n, nargs)) ->
     narrow ctx n c I.boolean_false;
-    Hashtbl.find ctx.cond c |> Option.iter ~f:(fun s' ->
+    VT.find ctx.cond c |> Option.iter ~f:(fun s' ->
         Var.Tree.iter s' ~f:(fun ~key:x ~data:i ->
             Narrow_branch.no ctx s n x i));
     assign_blk_args ctx s n nargs

@@ -102,7 +102,7 @@ module Make(Context : Context_intf.S_virtual) = struct
   let call_ret_memory env x lk k =
     let+ y = new_slot env lk.size lk.align in
     let callar = `reg (`var y, int_args.(0)) <@ k.callar in
-    Hashtbl.set env.refs ~key:x ~data:y;
+    VT.set env.refs ~key:x ~data:y;
     (* `x` is now a dummy return value, future references will
        be directed to `y`. *)
     {k with callar; callrr = [x, `i64, int_rets.(0)]}
@@ -245,10 +245,10 @@ module Make(Context : Context_intf.S_virtual) = struct
                   {k with callar = k.callar @> `reg (i8 n, reg_str `rax)} in
               (* Process the return value. *)
               let+ k = lower_call_ret env kret k in
-              Hashtbl.set env.calls ~key ~data:k;
+              LT.set env.calls ~key ~data:k;
               if not non_tail
               && is_tailcall_eligible k ~vargs
               && is_tail env b key ret
-              then Hash_set.add env.tailcalls key
+              then LS.add env.tailcalls key
             | _ -> !!()))
 end

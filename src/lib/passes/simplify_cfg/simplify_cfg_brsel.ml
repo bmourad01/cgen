@@ -19,12 +19,15 @@ open Simplify_cfg_common
 
 open Context.Syntax
 
+module LT = Label.Dense_table
+module VT = Var.Dense_table
+
 exception Non_basic
 
 let typeof tenv env fn x =
   match Typecheck.Env.typeof_var fn x tenv with
   | Ok t -> t
-  | Error _ -> match Hashtbl.find env.typs x with
+  | Error _ -> match VT.find env.typs x with
     | Some t -> t
     | None ->
       failwithf "variable %a in function $%s has no known type"
@@ -36,10 +39,10 @@ let basicty tenv env fn x =  match typeof tenv env fn x with
   | _ -> raise_notrace Non_basic
 
 let collect tenv env fn =
-  Hashtbl.fold env.blks ~init:[] ~f:(fun ~key ~data:b acc ->
+  LT.fold env.blks ~init:[] ~f:(fun ~key ~data:b acc ->
       try match Blk.ctrl b with
         | `br (c, `label (l, xs), `label (l', xs')) when Label.(l = l') ->
-          let b' = Hashtbl.find_exn env.blks l in
+          let b' = LT.find_exn env.blks l in
           let typs =
             Blk.args b' |>
             Seq.map ~f:(basicty tenv env fn) |>
@@ -67,10 +70,10 @@ let run tenv env fn =
           Logs.debug (fun m ->
               m "%s: inserting %a%!" __FUNCTION__
                 Insn.pp_op (Insn.op sel));
-          Hashtbl.set env.typs ~key:x ~data:(ty :> Type.t);
+          VT.set env.typs ~key:x ~data:(ty :> Type.t);
           `var x, sel) in
       let args, sels = List.unzip sels in
       let b = Blk.with_ctrl b @@ `jmp (`label (l, args)) in
       let b = Blk.append_insns b sels in
-      Hashtbl.set env.blks ~key:(Blk.label b) ~data:b) in
+      LT.set env.blks ~key:(Blk.label b) ~data:b) in
   not @@ List.is_empty xs

@@ -37,6 +37,7 @@ open Simplify_cfg_common
 
 module O = Monad.Option
 module Short_circ = Simplify_cfg_short_circ
+module LT = Label.Dense_table
 
 open O.Let
 
@@ -45,7 +46,7 @@ let is_dup env l c c' =
 
 let true_br env c y n = match y with
   | `label (y, []) ->
-    let* b' = Hashtbl.find env.blks y in
+    let* b' = LT.find env.blks y in
     let* () = O.guard @@ Short_circ.is_empty b' in
     begin match Blk.ctrl b' with
       | `br (c', y', _) when is_dup env y c c' ->
@@ -56,7 +57,7 @@ let true_br env c y n = match y with
 
 let false_br env c y n = match n with
   | `label (n, []) ->
-    let* b' = Hashtbl.find env.blks n in
+    let* b' = LT.find env.blks n in
     let* () = O.guard @@ Short_circ.is_empty b' in
     begin match Blk.ctrl b' with
       | `br (c', _, n') when is_dup env n c c' ->
@@ -70,7 +71,7 @@ let merge_br (`br (c, y, _)) (`br (c', _, n)) =
   `br (c, y, n)
 
 let collect env =
-  Hashtbl.fold env.blks ~init:Label.Tree.empty
+  LT.fold env.blks ~init:Label.Tree.empty
     ~f:(fun ~key ~data:b acc -> match Blk.ctrl b with
         | `br (c, y, n) ->
           Option.merge (true_br env c y n) (false_br env c y n) ~f:merge_br |>
@@ -84,7 +85,7 @@ let collect env =
         | _ -> acc)
 
 let redir changed env dups =
-  Hashtbl.mapi_inplace env.blks
+  LT.mapi_inplace env.blks
     ~f:(fun ~key ~data:b ->
         Label.Tree.find dups key |>
         Option.value_map ~default:b ~f:(fun c ->

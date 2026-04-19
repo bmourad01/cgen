@@ -5,6 +5,7 @@ open Virtual
 
 module E = Monad.Result.Error
 module Vtree = Var.Tree
+module LT = Label.Dense_table
 
 open E.Let
 
@@ -50,12 +51,12 @@ module Make(M : L) = struct
   type env = {
     fn   : Func.t;
     reso : Resolver.t;
-    ops  : Insn.op Label.Table.t;
+    ops  : Insn.op LT.t;
   }
 
   let init fn =
     let+ reso = Resolver.create fn in
-    let ops = Label.Table.create () in
+    let ops = LT.create () in
     {fn; reso; ops}
 
   module Qualify = struct
@@ -144,7 +145,7 @@ module Make(M : L) = struct
 
   (* Replace a store with a copy to a fresh variable. *)
   let replace_store env x l v t =
-    Hashtbl.set env.ops ~key:l ~data:(Insn.copy x t v)
+    LT.set env.ops ~key:l ~data:(Insn.copy x t v)
 
   (* Replace a load with a copy/cast. *)
   let replace_load env x l y t t' =
@@ -152,7 +153,7 @@ module Make(M : L) = struct
       | #Type.imm_base as imm, #Type.fp -> Insn.ifbits y imm (`var x)
       | #Type.fp as fp, #Type.imm_base -> Insn.fibits y fp (`var x)
       | _ -> Insn.copy y t' (`var x) in
-    Hashtbl.set env.ops ~key:l ~data:k
+    LT.set env.ops ~key:l ~data:k
 
   let replace env = Vtree.iter ~f:(fun ~key:x ~data:t ->
       Resolver.uses env.reso x |> List.iter ~f:(function
@@ -175,7 +176,7 @@ module Make(M : L) = struct
       let dict = Dict.remove (Func.dict fn) Tags.ssa in
       Func.with_dict fn dict |> Func.map_blks ~f:(fun b ->
           Blk.map_insns b ~f:(fun l default ->
-              Hashtbl.find env.ops l |>
+              LT.find env.ops l |>
               Option.value ~default))
     else fn
 end

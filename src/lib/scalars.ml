@@ -7,6 +7,7 @@ let (@<) = Fn.flip
 module Slot = Virtual.Slot
 module Vtree = Var.Tree
 module Vset = Var.Tree_set
+module VS = Var.Dense_set
 module Solution = Fixpoint.Solution
 
 (* A scalar access. *)
@@ -161,12 +162,12 @@ module type L = sig
 end
 
 type t = {
-  soln : solution;       (* Dataflow solution *)
-  esc  : Var.Hash_set.t; (* All slots that escaped, globally *)
+  soln : solution; (* Dataflow solution *)
+  esc  : VS.t;     (* All slots that escaped, globally *)
 }
 
 let get t l = Solution.get t.soln l
-let escaped t x = Hash_set.mem t.esc x
+let escaped t x = VS.mem t.esc x
 
 module Make(M : L) = struct
   open M
@@ -178,11 +179,10 @@ module Make(M : L) = struct
         match Vtree.find s v with
         | Some Offset (ptr, _) ->
           Option.iter esc ~f:(fun t ->
-              Hash_set.strict_add t ptr |>
-              Or_error.iter ~f:(fun () ->
-                  Logs.debug (fun m ->
-                      m "%s: %a escapes via %a%!"
-                        __FUNCTION__ Var.pp ptr Var.pp v)));
+              if not @@ VS.strict_add t ptr then
+                Logs.debug (fun m ->
+                    m "%s: %a escapes via %a%!"
+                      __FUNCTION__ Var.pp ptr Var.pp v));
           Vtree.set s ~key:ptr ~data:Top
         | Some _ | None -> s)
 
@@ -260,7 +260,7 @@ module Make(M : L) = struct
 
   (* Run the dataflow analysis. *)
   let analyze ?(blkparam = true) cfg blks slots =
-    let esc = Var.Hash_set.create () in
+    let esc = VS.create () in
     let s =
       Fixpoint.run (module Cfg) cfg
         ~init:(initialize slots blks)

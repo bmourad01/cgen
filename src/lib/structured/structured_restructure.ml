@@ -20,6 +20,7 @@ open Virtual
 module O = Monad.Option
 module DT = Semi_nca.Tree
 module Ltree = Label.Tree
+module LS = Label.Dense_set
 module Stmt = Structured_stmt
 
 (* Info about the function + global state.
@@ -35,8 +36,8 @@ type t = {
   pdom : DT.t;
   loop : loops;
   live : live;
-  work : Label.Hash_set.t;
-  labl : Label.Hash_set.t;
+  work : LS.t;
+  labl : LS.t;
   slot : slot Vec.t;
 }
 
@@ -47,8 +48,8 @@ let init ~tenv fn =
   let loop = Loops.analyze ~dom ~name:(Func.name fn) cfg in
   let pdom = Semi_nca.compute (module Cfg) ~rev:true cfg Label.pseudoexit in
   let live = Live.compute' cfg blks in
-  let work = Label.Hash_set.create () in
-  let labl = Label.Hash_set.create () in
+  let work = LS.create () in
+  let labl = LS.create () in
   let slot = Vec.create () in
   Func.slots fn |> Seq.iter ~f:(Vec.push slot);
   {fn; tenv; blks; cfg; pdom; loop; live; work; labl; slot}
@@ -411,25 +412,24 @@ module Make(C : Context_intf.S) = struct
         `seq (body, `seq (term.stmt, sj))
 
     (* Main entry point. *)
-    and node t n ~ctx =
-      if Hash_set.mem t.labl n then
+    and node t n ~ctx = match () with
+      | () when LS.mem t.labl n ->
         (* Re-entering a node that already has a label, so
            insert a goto. *)
         !!(`goto (`label n))
-      else match Hash_set.strict_add t.work n with
-        | Error _ ->
-          (* We're in the middle of emitting this node, and we
-             re-entered it, so ensure that it will be enclosed
-             within an explicit label. *)
-          Hash_set.add t.labl n;
-          !!(`goto (`label n))
-        | Ok () ->
-          let+ body =
-            if Loops.is_header t.loop n
-            then loop t n ~ctx
-            else plain t n ~ctx in
-          Hash_set.remove t.work n;
-          if Hash_set.mem t.labl n then `label (n, body) else body
+      | () when LS.strict_add t.work n ->
+        let+ body =
+          if Loops.is_header t.loop n
+          then loop t n ~ctx
+          else plain t n ~ctx in
+        LS.remove t.work n;
+        if LS.mem t.labl n then `label (n, body) else body
+      | () ->
+        (* We're in the middle of emitting this node, and we
+           re-entered it, so ensure that it will be enclosed
+           within an explicit label. *)
+        LS.add t.labl n;
+        !!(`goto (`label n))
   end
 
   let run ~tenv fn =

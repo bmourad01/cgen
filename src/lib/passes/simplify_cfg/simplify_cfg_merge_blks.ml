@@ -7,6 +7,8 @@ open Simplify_cfg_common
 
 open O.Let
 
+module LT = Label.Dense_table
+
 let can_merge env l l' =
   Label.(l <> l') &&
   Label.(l' <> env.start) &&
@@ -16,7 +18,7 @@ let can_merge env l l' =
 let candidate subst env b l =
   Cfg.Node.succs l env.cfg |> Seq.next |> function
   | Some (l', rest) when Seq.is_empty rest && can_merge env l l' ->
-    let* b' = Hashtbl.find env.blks l' in
+    let* b' = LT.find env.blks l' in
     let+ subst = Subst_mapper.blk_extend subst b b' in
     subst, l', b'
   | _ -> None
@@ -29,7 +31,7 @@ let map_edges env l l' =
 
 let rec try_merge ?child subst env l =
   let next () = subst, Option.value child ~default:l in
-  match Hashtbl.find env.blks l with
+  match LT.find env.blks l with
   | None -> next ()
   | Some b -> match candidate subst env b l with
     | Some (subst, l', b') -> merge subst env l l' b b'
@@ -43,8 +45,8 @@ and merge subst env l l' b b' =
     Blk.insns ~rev:true b |>
     Seq.fold ~init:insns' ~f:(Fn.flip List.cons) in
   let b = Blk.(with_insns (with_ctrl b c) new_insns) in
-  Hashtbl.set env.blks ~key:l ~data:b;
-  Hashtbl.remove env.blks l';
+  LT.set env.blks ~key:l ~data:b;
+  LT.remove env.blks l';
   let es = map_edges env l l' in
   env.cfg <- Cfg.Node.remove l' env.cfg;
   List.iter es ~f:(fun e ->
@@ -55,11 +57,11 @@ and merge subst env l l' b b' =
   try_merge ~child:l' subst env l
 
 let run env =
-  let orig_len = Hashtbl.length env.blks in
+  let orig_len = LT.length env.blks in
   let q = Stack.singleton (Label.pseudoentry, Var.Tree.empty) in
   Stack.until_empty q (fun (l, subst) ->
       if not @@ Var.Tree.is_empty subst then
-        Hashtbl.change env.blks l ~f:(O.map ~f:(fun b ->
+        LT.change env.blks l ~f:(O.map ~f:(fun b ->
             let is, c = Subst_mapper.map_blk subst b in
             Blk.(with_insns (with_ctrl b c) is)));
       (* If we successfully merge for the block at this label,
@@ -71,4 +73,4 @@ let run env =
       Seq.iter ~f:(fun l -> Stack.push q (l, subst)));
   (* We're only ever removing blocks, so this is the only
      condition where something would've changed. *)
-  Hashtbl.length env.blks < orig_len
+  LT.length env.blks < orig_len

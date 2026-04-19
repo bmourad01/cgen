@@ -5,8 +5,10 @@ open Scalars
 
 module Ltree = Label.Tree
 module Lset = Label.Tree_set
+module LS = Label.Dense_set
 module Vtree = Var.Tree
 module Vset = Var.Tree_set
+module VS = Var.Dense_set
 module Slot = Virtual.Slot
 module Allen = Allen_interval_algebra
 
@@ -219,7 +221,7 @@ module Make(M : Scalars.L) = struct
     | Some Top -> Vtree.set acc ~key:x ~data:Range.bad
     | Some Offset (base, _) -> match ldst with
       | Some Store -> mkdef acc base n
-      | Some Load when Hash_set.mem si.bad l ->
+      | Some Load when LS.mem si.bad l ->
         (* Uninitialized load is UB: forbid this slot as
            a candidate for coalescing. *)
         Logs.debug (fun m ->
@@ -248,7 +250,7 @@ module Make(M : Scalars.L) = struct
     let ip = ref 0 in
     let nums = Vec.create () in
     let init =
-      Hash_set.fold t.esc ~init:Vtree.empty
+      VS.fold t.esc ~init:Vtree.empty
         ~f:(fun acc x -> Vtree.set acc ~key:x ~data:Range.bad) in
     let acc =
       Graphlib.reverse_postorder_traverse

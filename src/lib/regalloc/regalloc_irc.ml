@@ -6,6 +6,7 @@ open Regular.Std
 open Pseudo
 
 module Lset = Label.Tree_set
+module LT = Label.Dense_table
 
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
@@ -60,7 +61,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
              moveList[n] := moveList[n] ∪ {I} *)
         Wmoves.add_move t label d;
         Wmoves.add_move t label s;
-        Hashtbl.set t.copies ~key:label ~data:{
+        LT.set t.copies ~key:label ~data:{
           dst = d;
           src = s;
           loop = loop_depth;
@@ -101,7 +102,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         (* ∀ I ∈ instructions(b) in reverse order *)
         let ord = ref (Blk.num_insns b - 1) in
         Blk.insns b ~rev:true |> C.Seq.iter ~f:(fun i ->
-            Hashtbl.set t.insn_blks ~key:(Insn.label i) ~data:(l, !ord);
+            LT.set t.insn_blks ~key:(Insn.label i) ~data:(l, !ord);
             let+ out' = build_insn ~loop_depth t !out i in
             out := out';
             decr ord))
@@ -303,7 +304,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let coalesce t =
     (* let m_(=copy(x,y)) ∈ worklistMoves *)
     let m = Wmoves.pop_exn t in
-    let c = Hashtbl.find_exn t.copies m in
+    let c = LT.find_exn t.copies m in
     (* x := GetAlias(x) *)
     let x = alias t c.dst in
     (* y := GetAlias(y) *)
@@ -363,7 +364,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let u' = alias t u in
     (* ∀ m ∈ NodeMoves(u) *)
     Wmoves.node_moves t u |> Lset.iter ~f:(fun m ->
-        let c = Hashtbl.find_exn t.copies m in
+        let c = LT.find_exn t.copies m in
         (* GetAlias(src); if it equals GetAlias(u), v is the dst side. *)
         let y = alias t c.src in
         let v = if y = u' then alias t c.dst else y in
@@ -432,7 +433,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      neighbor's color we eliminate the copy instruction. *)
   let preferred_color t id cs =
     Wmoves.moves t id |> Lset.to_sequence |>
-    Seq.filter_map ~f:(Hashtbl.find t.copies) |>
+    Seq.filter_map ~f:(LT.find t.copies) |>
     Seq.filter_map ~f:(fun c ->
         let other = if c.dst = id then c.src else c.dst in
         color t (alias t other)) |>
@@ -507,7 +508,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | None ->
       (* Same-round fallback: check current-round copies. *)
       Wmoves.moves t id |> Lset.to_sequence |>
-      Seq.filter_map ~f:(Hashtbl.find t.copies) |>
+      Seq.filter_map ~f:(LT.find t.copies) |>
       Seq.filter_map ~f:(fun c ->
           let other = if c.dst = id then c.src else c.dst in
           try_slot t.![other]) |> Seq.hd
@@ -631,24 +632,24 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             if same_slot_copy t insn then !!rl
             else rewrite_insn t rl ivec i) in
     let data = Blk.with_insns b @@ Vec.to_list ivec in
-    Hashtbl.set blks ~key:(Blk.label b) ~data;
+    LT.set blks ~key:(Blk.label b) ~data;
     Vec.clear ivec
 
   module Remove_deads = Pseudo_passes.Remove_dead_insns(M)
 
   let rewrite_function t =
     let ivec = Vec.create () in
-    let blks = Label.Table.create () in
+    let blks = LT.create () in
     Func.blks t.fn |> Seq.iter ~f:(fun b ->
-        Hashtbl.set blks ~key:(Blk.label b) ~data:b);
+        LT.set blks ~key:(Blk.label b) ~data:b);
     let+ () =
       Semi_nca.Tree.preorder t.dom |>
       C.Seq.iter ~f:(fun l ->
-          match Hashtbl.find blks l with
+          match LT.find blks l with
           | Some b -> rewrite_blk t b blks ivec
           | None -> !!()) in
     let fn = Func.map_blks t.fn ~f:(fun b ->
-        Blk.label b |> Hashtbl.find blks |>
+        Blk.label b |> LT.find blks |>
         Option.value ~default:b) in
     t.fn <- Remove_deads.run fn
 
@@ -668,8 +669,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* Clear the relevant state for the next round. *)
   let new_round t =
     t.data.live <- None;
-    Hashtbl.clear t.copies;
-    Hashtbl.clear t.insn_blks;
+    LT.clear t.copies;
+    LT.clear t.insn_blks;
     Wmoves.reset t;
     Wfreeze.reset t;
     t.data.amoves <- Lset.empty;

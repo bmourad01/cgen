@@ -88,7 +88,7 @@ module Make(Context : Context_intf.S_virtual) = struct
     let* p = Context.Var.fresh in
     (* Check if this is a struct; if so we need to blit it
        to the appropriate stack slot. *)
-    let* res = match Hashtbl.find env.refs x with
+    let* res = match VT.find env.refs x with
       | Some y -> Cv.Abi.blit `i64 (8 * num) ~src:p ~dst:y
       | None ->
         let+ li = Cv.Abi.insn @@ `load (x, t, `var p) in
@@ -171,13 +171,13 @@ module Make(Context : Context_intf.S_virtual) = struct
       match k.cls with
       | Kreg _ when k.size = 0 -> assert false
       | Kreg (r, _) when k.size = 8 ->
-        assert (Hashtbl.mem env.refs x);
+        assert (VT.mem env.refs x);
         begin match reg_type r with
           | `i64 -> fetch_reg env x `i64 ap cont
           | `f64 -> fetch_reg env x `f64 ap cont
         end
       | Kreg (r1, r2) ->
-        assert (Hashtbl.mem env.refs x);
+        assert (VT.mem env.refs x);
         begin match reg_type r1, reg_type r2 with
           | `i64, `i64 -> fetch_reg ~num:2 env x `i64 ap cont
           | `f64, `f64 -> fetch_reg ~num:2 env x `f64 ap cont
@@ -233,7 +233,7 @@ module Make(Context : Context_intf.S_virtual) = struct
                   let ap = Sysv_vastart.ap_oper ap in
                   let* vacont = Context.Label.fresh in
                   let+ vablks = fetch env x t ap vacont in
-                  Hashtbl.set env.vaarg
+                  LT.set env.vaarg
                     ~key:(Insn.label i)
                     ~data:{vablks; vacont}
               end

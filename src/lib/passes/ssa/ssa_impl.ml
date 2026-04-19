@@ -13,9 +13,9 @@ end = struct
     let cfg = Cfg.create fn in
     let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
     let df = Semi_nca.frontier (module Cfg) cfg dom in
-    let blks = Label.Table.create () in
+    let blks = LT.create () in
     Func.blks fn |> Seq.iter ~f:(fun b ->
-        Hashtbl.set blks ~key:(Blk.label b) ~data:b);
+        LT.set blks ~key:(Blk.label b) ~data:b);
     {live; cfg; dom; df; blks}
 
   module Phi = Ssa_impl_phi.Make(M)
@@ -40,7 +40,7 @@ end = struct
       Phi.go env;
       Rename.go env ~alloc;
       let fn =
-        Hashtbl.data env.blks |>
+        LT.data env.blks |>
         Func.update_blks_exn fn in
       Check.go env.dom fn;
       Func.with_tag fn Tags.ssa ()

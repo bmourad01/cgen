@@ -7,6 +7,7 @@ open Egraph_common
 module Solution = Fixpoint.Solution
 module Rewrite = Egraph_rewrite
 module E = Monad.Result.Error
+module VT = Var.Dense_table
 
 exception Notype of Var.t
 exception Missing of Label.t
@@ -46,14 +47,14 @@ module Mem = Regular.Make(struct
   end)
 
 type env = {
-  vars        : id Var.Table.t;    (* Remember the IDs for each SSA variable. *)
+  vars        : id VT.t;           (* Remember the IDs for each SSA variable. *)
   mems        : store Mem.Table.t; (* Remember each memory access. *)
   mutable cur : Label.t;           (* Current instruction. *)
   mutable mem : Label.t option;    (* Most recent memory access. *)
 }
 
 let init () = {
-  vars = Var.Table.create ();
+  vars = VT.create ();
   mems = Mem.Table.create ();
   cur = Label.pseudoentry;
   mem = None;
@@ -67,7 +68,7 @@ let atom ?ty eg op = node ?ty eg op []
 let constant ?ty eg k =
   Rewrite.insert ?ty ~d:eg.depth_limit eg @@ Enode.of_const k
 
-let var env eg x = Hashtbl.find_or_add env.vars x
+let var env eg x = VT.find_or_add env.vars x
     ~default:(fun () -> match typeof_var eg x with
         | Some ty -> atom ~ty eg @@ Ovar x
         | None -> raise_notrace @@ Notype x)
@@ -109,10 +110,10 @@ let sched ?x ?(f = Fn.const) env eg l op args =
   let ty = Option.bind x ~f:(typeof_var eg) in
   let id = node ?ty ~l eg op args in
   Option.iter x ~f:(fun x ->
-      match Hashtbl.add env.vars ~key:x ~data:id with
-      | `Duplicate -> raise_notrace @@ Duplicate (x, l)
-      | `Ok -> ());
-  Hashtbl.set eg.lval ~key:l ~data:(f id eg)
+      if VT.mem env.vars x
+      then raise_notrace @@ Duplicate (x, l)
+      else VT.set env.vars ~key:x ~data:id);
+  LT.set eg.lval ~key:l ~data:(f id eg)
 
 let set x id eg = node eg (Oset x) [id]
 
@@ -255,7 +256,7 @@ let add_phi_value r env eg acc = function
     let ty = typeof_const eg c in
     Set.add acc @@ constant ~ty eg c
   | `var y ->
-    Set.add acc @@ match Hashtbl.find env.vars y with
+    Set.add acc @@ match VT.find env.vars y with
     | Some id -> id
     | None ->
       (* `y` likely comes from a back-edge in the CFG,
@@ -273,7 +274,7 @@ let approximate_phis env eg b =
                  ~f:(add_phi_value return env eg) in
              if Set.length vals = 1 then
                let data = Set.min_elt_exn vals in
-               Hashtbl.set env.vars ~key:x ~data))
+               VT.set env.vars ~key:x ~data))
 
 let step env eg l lst =
   match Resolver.resolve eg.input.reso l with

@@ -3,14 +3,15 @@ open Regular.Std
 open Graphlib.Std
 
 module Lset = Label.Tree_set
+module LT = Label.Dense_table
 
 type tree = {
   rev      : bool;
   root     : Label.t;
-  parent   : Label.t Label.Table.t;
-  children : Label.t list Label.Table.t Lazy.t;
-  depth    : int Label.Table.t Lazy.t;
-  rpo      : int Label.Table.t Lazy.t;
+  parent   : Label.t LT.t;
+  children : Label.t list LT.t Lazy.t;
+  depth    : int LT.t Lazy.t;
+  rpo      : int LT.t Lazy.t;
 }
 
 module Tree = struct
@@ -20,15 +21,15 @@ module Tree = struct
 
   let is_reversed t = t.rev
   let root t = t.root
-  let parent t n = Hashtbl.find t.parent n
-  let depth t n = Hashtbl.find (Lazy.force t.depth) n
-  let rpo t n = Hashtbl.find (Lazy.force t.rpo) n
+  let parent t n = LT.find t.parent n
+  let depth t n = LT.find (Lazy.force t.depth) n
+  let rpo t n = LT.find (Lazy.force t.rpo) n
 
-  let children t n = match Hashtbl.find (Lazy.force t.children) n with
+  let children t n = match LT.find (Lazy.force t.children) n with
     | Some cs -> Seq.of_list cs
     | None -> Seq.empty
 
-  let mem t n = Label.(n = t.root) || Hashtbl.mem t.parent n
+  let mem t n = Label.(n = t.root) || LT.mem t.parent n
 
   let parent_exn t n = match parent t n with
     | None -> raise Not_found
@@ -42,7 +43,7 @@ module Tree = struct
     | None -> raise Not_found
     | Some o -> o
 
-  let rec is_descendant_of t ~parent n = match Hashtbl.find t.parent n with
+  let rec is_descendant_of t ~parent n = match LT.find t.parent n with
     | Some p -> Label.(p = parent) || is_descendant_of t ~parent p
     | None -> false
 
@@ -69,7 +70,7 @@ module Tree = struct
 
   let ancestors t n =
     let open Seq.Generator in
-    let rec walk n = match Hashtbl.find t.parent n with
+    let rec walk n = match LT.find t.parent n with
       | None -> return ()
       | Some p -> yield p >>= fun () -> walk p in
     run @@ walk n
@@ -100,16 +101,16 @@ module Tree = struct
     | Not_found -> None
 end
 
-type frontier = Lset.t Label.Table.t
+type frontier = Lset.t LT.t
 
 module Frontier = struct
   type t = frontier
 
-  let get t n = match Hashtbl.find t n with
+  let get t n = match LT.find t n with
     | Some s -> s
     | None -> Lset.empty
 
-  let mem t a b = match Hashtbl.find t a with
+  let mem t a b = match LT.find t a with
     | Some s -> Lset.mem s b
     | None -> false
 end
@@ -172,16 +173,16 @@ module Impl = struct
     let q = Stack.singleton @@ Enter (entry, 0) in
     Stack.until_empty q @@ function
     | Exit u -> Vec.push postord u
-    | Enter (u, _) when Hashtbl.mem nums u -> ()
+    | Enter (u, _) when LT.mem nums u -> ()
     | Enter (u, p) ->
       Stack.push q @@ Exit u;
       let n = Vec.length preord in
-      Hashtbl.set nums ~key:u ~data:n;
+      LT.set nums ~key:u ~data:n;
       Vec.push preord @@ create_node p n u;
       (* Explore the children according to the ordering
          prescribed by `g`. *)
       dir u g |> Seq.filter ~f:(fun v ->
-          not @@ Hashtbl.mem nums v) |>
+          not @@ LT.mem nums v) |>
       Seq.to_list_rev |> List.iter ~f:(fun v ->
           Stack.push q @@ Enter (v, n))
 
@@ -217,7 +218,7 @@ module Impl = struct
       let vn = preord.!(v) in
       let s =
         dir vn.self g |>
-        Seq.filter_map ~f:(Hashtbl.find nums) |>
+        Seq.filter_map ~f:(LT.find nums) |>
         Seq.map ~f:(eval ~stop:(v + 1) path preord) |>
         Seq.fold ~init:vn.ans ~f:min in
       vn.best <- s;
@@ -231,7 +232,7 @@ module Impl = struct
       while vn.idom > vn.sdom do
         vn.idom <- preord.!(vn.idom).idom
       done;
-      Hashtbl.set idom ~key:vn.self ~data:preord.!(vn.idom).self
+      LT.set idom ~key:vn.self ~data:preord.!(vn.idom).self
     done
 end
 
@@ -241,7 +242,7 @@ let compute
   let dfs_dir = if rev then G.Node.preds else G.Node.succs in
   let sdom_dir = if rev then G.Node.succs else G.Node.preds in
   (* Map nodes to preorder numbers *)
-  let nums = Label.Table.create () in
+  let nums = LT.create () in
   (* Preorder spanning tree *)
   let postord = Vec.create () in
   let preord = Vec.create () in
@@ -250,35 +251,35 @@ let compute
   let path = Stack.create () in
   Impl.semi g path nums preord sdom_dir;
   (* Immediate dominators *)
-  let parent = Label.Table.create () in
+  let parent = LT.create () in
   Impl.idom parent preord;
   (* Reverse postorder numbering *)
   let rpo = lazy begin
-    let t = Label.Table.create () in
+    let t = LT.create () in
     let n = Vec.length postord in
     Vec.iteri postord ~f:(fun i key ->
-        Hashtbl.set t ~key ~data:(n - 1 - i));
+        LT.set t ~key ~data:(n - 1 - i));
     t end in
   (* Children of each node, sorted by RPO. *)
   let children = lazy begin
-    let t = Label.Table.create () in
+    let t = LT.create () in
     G.nodes g |> Seq.iter ~f:(fun u ->
-        Hashtbl.find parent u |> Option.iter ~f:(fun v ->
-            Hashtbl.add_multi t ~key:v ~data:u));
+        LT.find parent u |> Option.iter ~f:(fun v ->
+            LT.add_multi t ~key:v ~data:u));
     let rpo = Lazy.force rpo in
-    Hashtbl.map_inplace t ~f:(fun cs ->
+    LT.map_inplace t ~f:(fun cs ->
         List.dedup_and_sort cs ~compare:(fun a b ->
-            let na = Hashtbl.find_exn rpo a in
-            let nb = Hashtbl.find_exn rpo b in
+            let na = LT.find_exn rpo a in
+            let nb = LT.find_exn rpo b in
             Int.compare na nb));
     t end in
   let depth = lazy begin
-    let t = Label.Table.create () in
+    let t = LT.create () in
     let children = Lazy.force children in
     let q = Stack.singleton (entry, 0) in
     Stack.until_empty q (fun (n, d) ->
-        Hashtbl.set t ~key:n ~data:d;
-        Hashtbl.find children n |> Option.iter ~f:(fun cs ->
+        LT.set t ~key:n ~data:d;
+        LT.find children n |> Option.iter ~f:(fun cs ->
             List.iter cs ~f:(fun c -> Stack.push q (c, d + 1))));
     t end in
   {rev; root = entry; parent; children; depth; rpo}
@@ -288,10 +289,10 @@ let compute
 let frontier
     (type g)
     (module G : Label.Graph_s with type t = g) g tree =
-  let t = Label.Table.create () in
-  let add u v = match Hashtbl.find tree.parent v with
+  let t = LT.create () in
+  let add u v = match LT.find tree.parent v with
     | Some p when Label.(p <> u) ->
-      Hashtbl.update t u ~f:(function
+      LT.update t u ~f:(function
           | None -> Lset.singleton v
           | Some s -> Lset.add s v)
     | _ -> () in
@@ -303,6 +304,6 @@ let frontier
   (* Compute DF, in a bottom-up traversal of the tree. *)
   Tree.postorder tree |> Seq.iter ~f:(fun u ->
       Tree.children tree u |>
-      Seq.filter_map ~f:(Hashtbl.find t) |>
+      Seq.filter_map ~f:(LT.find t) |>
       Seq.iter ~f:(fun s -> Lset.iter s ~f:(add u)));
   t

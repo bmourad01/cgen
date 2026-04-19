@@ -10,20 +10,20 @@ module Make(M : L) : sig
 end = struct
   open M
 
-  let find_blk env l = match Hashtbl.find env.blks l with
+  let find_blk env l = match LT.find env.blks l with
     | None when Label.is_pseudo l -> None
     | None -> raise_notrace @@ Missing_blk l
     | Some _ as b -> b
 
   let new_name stk alloc x =
     let y = alloc () in
-    Hashtbl.add_multi stk ~key:x ~data:y;
+    VT.add_multi stk ~key:x ~data:y;
     y
 
   let rename_args stk alloc b =
     Blk.args b |> Seq.map ~f:(new_name stk alloc) |> Seq.to_list
 
-  let map_var stk x = match Hashtbl.find stk x with
+  let map_var stk x = match VT.find stk x with
     | Some [] | None -> x
     | Some (y :: _) -> y
 
@@ -35,7 +35,7 @@ end = struct
     Seq.to_list
 
   let pop_var stk x =
-    Hashtbl.change stk x ~f:(function
+    VT.change stk x ~f:(function
         | Some ([] | [_]) | None -> None
         | Some (_ :: xs) -> Some xs)
 
@@ -57,7 +57,7 @@ end = struct
         let insns = rename_insns stk alloc b in
         let ctrl = rename_ctrl ~stk:(map_var stk) @@ Blk.ctrl b in
         let b' = Blk.create ~dict ~args ~insns ~ctrl ~label:l () in
-        Hashtbl.set env.blks ~key:l ~data:b';
+        LT.set env.blks ~key:l ~data:b';
         (* Pop the renamed variables from the stack. *)
         Stack.push q @@ Pop b);
     (* Repeat for the children in the dominator tree. *)
@@ -65,7 +65,7 @@ end = struct
       ~f:(fun l -> Stack.push q @@ Visit l)
 
   let go env ~alloc =
-    let stk = Var.Table.create () in
+    let stk = VT.create () in
     let q = Stack.singleton @@ Visit Label.pseudoentry in
     Stack.until_empty q @@ function
     | Visit l -> visit q env stk alloc l

@@ -13,6 +13,8 @@ open Virtual
 open Simplify_cfg_common
 
 module O = Monad.Option
+module LT = Label.Dense_table
+module VT = Var.Dense_table
 
 open O.Let
 open O.Syntax
@@ -60,7 +62,7 @@ let argidx b c =
   Option.map ~f:fst
 
 let collect_cond_phi env =
-  Hashtbl.fold env.blks ~init:Label.Tree.empty
+  LT.fold env.blks ~init:Label.Tree.empty
     ~f:(fun ~key ~data:b acc ->
         if is_empty b then match Blk.ctrl b with
           | `br (c, y, n) ->
@@ -79,7 +81,7 @@ let collect_cond_phi env =
 let is_var env x = function
   | `var y ->
     Var.(x = y) ||
-    Hashtbl.find env.flag y |>
+    VT.find env.flag y |>
     Option.value_map ~default:false ~f:(Var.equal x)
   | _ -> false
 
@@ -93,7 +95,7 @@ let brcond env cphi c d ~f =
   | _ -> None
 
 let redir changed env cphi =
-  Hashtbl.map_inplace env.blks ~f:(fun b ->
+  LT.map_inplace env.blks ~f:(fun b ->
       match Blk.ctrl b with
       | `br (c, y, n) ->
         let y' = brcond env cphi c y ~f:(fun y _ -> changed := true; y) in
@@ -109,7 +111,7 @@ let redir changed env cphi =
         Option.value ~default:b begin
           let* y, n, i, ne = Label.Tree.find cphi l in
           let* x = List.nth args i >>= var_of_operand in
-          let+ c = if ne then Hashtbl.find env.flag x else !!x in
+          let+ c = if ne then VT.find env.flag x else !!x in
           changed := true;
           Logs.debug (fun m ->
               m "%s: block %a: simplified jmp %a: c=%a, y=%a, n=%a%!"

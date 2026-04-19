@@ -26,6 +26,8 @@
   zarith)
  (private_modules
   context_virtual_intf
+  dense
+  dense_intf
   dominance
   ftree
   hashmap

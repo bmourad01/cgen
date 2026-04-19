@@ -32,7 +32,7 @@ module Make(Context : Context_intf.S_virtual) = struct
      slot coalescing, store-to-load forwarding, SROA, etc).
   *)
   let make_load env mrs x s a =
-    Context.unless (Hashtbl.mem env.refs x) @@ fun () ->
+    Context.unless (VT.mem env.refs x) @@ fun () ->
     let* k = type_cls env s in
     (* Re-use the implicit first parameter instead of allocating
        a new stack slot. *)
@@ -45,8 +45,8 @@ module Make(Context : Context_intf.S_virtual) = struct
         let+ x, i = Cv.Abi.unop (`copy `i64) a in
         x, [i] in
     let+ blit = Cv.Abi.blit ~src ~dst:y `i64 k.size in
-    Hashtbl.set env.unrefs ~key:x ~data:(srci @ blit);
-    Hashtbl.set env.refs ~key:x ~data:y
+    VT.set env.unrefs ~key:x ~data:(srci @ blit);
+    VT.set env.refs ~key:x ~data:y
 
   let make_store env l s v a =
     let* k = type_cls env s in
@@ -61,7 +61,7 @@ module Make(Context : Context_intf.S_virtual) = struct
         let+ x, i = Cv.Abi.unop (`copy `i64) a in
         x, [i] in
     let+ blit = Cv.Abi.blit ~src ~dst `i64 k.size in
-    Hashtbl.set env.blits ~key:l ~data:(dsti @ blit)
+    LT.set env.blits ~key:l ~data:(dsti @ blit)
 
   let lower env =
     let mrs = collect_mem_rets env in
@@ -70,7 +70,7 @@ module Make(Context : Context_intf.S_virtual) = struct
           Blk.args b |> Context.Seq.iter ~f:(fun x ->
               typeof_var env x >>| function
               | #Type.compound ->
-                Hashtbl.set env.refs ~key:x ~data:x
+                VT.set env.refs ~key:x ~data:x
               | _ -> ()) in
         Blk.insns b |> Context.Seq.iter ~f:(fun i ->
             match Insn.op i with
@@ -82,6 +82,6 @@ module Make(Context : Context_intf.S_virtual) = struct
             | `call (Some (x, `name s), _, _, _, _) ->
               let* k = type_cls env s in
               let+ y = new_slot env k.size k.align in
-              Hashtbl.set env.refs ~key:x ~data:y
+              VT.set env.refs ~key:x ~data:y
             | _ -> !!()))
 end

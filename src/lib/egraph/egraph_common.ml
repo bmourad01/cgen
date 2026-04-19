@@ -7,6 +7,7 @@ module Input = Egraph_input
 module Uf = Egraph_uf
 module Lset = Label.Tree_set
 module Iset = Id.Tree_set
+module LT = Label.Dense_table
 
 type id = Id.t [@@deriving bin_io, compare, equal, hash, sexp]
 type enode = Enode.t
@@ -106,11 +107,11 @@ type t = {
   node           : enode Vec.t;           (* All e-nodes, indexed by ID. *)
   typs           : Type.t Uopt.t Vec.t;   (* The type of each node. *)
   memo           : (enode, id) Hashtbl.t; (* The hash-cons for optimized terms. *)
-  lmoved         : Iset.t Label.Table.t;  (* Set of IDs that were moved to a given label. *)
+  lmoved         : Iset.t LT.t;           (* Set of IDs that were moved to a given label. *)
   imoved         : Lset.t Vec.t;          (* Set of labels that were moved for a given ID. *)
   mutable pinned : Bitset.t;              (* IDs that should not be rescheduled. *)
   ilbl           : Label.t Uopt.t Vec.t;  (* Maps IDs to labels. *)
-  lval           : id Label.Table.t;      (* Maps labels to IDs. *)
+  lval           : id LT.t;               (* Maps labels to IDs. *)
   depth_limit    : int;                   (* Maximum rewrite depth. *)
   match_limit    : int;                   (* Maximum rewrites per term. *)
   rules          : rules;                 (* The compiled matcher program. *)

@@ -10,6 +10,8 @@ module Common = Egraph_common
 module Lset = Label.Tree_set
 module Iset = Egraph_id.Tree_set
 module Id = Egraph_id
+module LT = Label.Dense_table
+module LS = Label.Dense_set
 
 open Context.Syntax
 
@@ -38,17 +40,17 @@ let add_placed p id l =
   }
 
 type env = {
-  insn        : Insn.op Label.Table.t;
-  ctrl        : ctrl Label.Table.t;
-  news        : placed Label.Table.t;
+  insn        : Insn.op LT.t;
+  ctrl        : ctrl LT.t;
+  news        : placed LT.t;
   mutable cur : Label.t;
   mutable scp : scope;
 }
 
 let init () = {
-  insn = Label.Table.create ();
-  ctrl = Label.Table.create ();
-  news = Label.Table.create();
+  insn = LT.create ();
+  ctrl = LT.create ();
+  news = LT.create ();
   cur = Label.pseudoentry;
   scp = empty_scope;
 }
@@ -83,7 +85,7 @@ let no_var l =
   Context.failf "%s: no variable is bound for label %a"
     error_prefix Label.pp l ()
 
-let upd t x y = Hashtbl.update t x ~f:(Option.value ~default:y)
+let upd t x y = LT.update t x ~f:(Option.value ~default:y)
 
 let fresh env canon real =
   match Id.Tree.find env.scp canon with
@@ -95,7 +97,7 @@ let fresh env canon real =
     Logs.debug (fun m ->
         m "%s: placing fresh %a at %a: env.cur=%a canon=%d, real=%d%!"
           __FUNCTION__ Var.pp x Label.pp l Label.pp env.cur canon real);
-    Hashtbl.update env.news env.cur ~f:(function
+    LT.update env.news env.cur ~f:(function
         | Some p -> add_placed p real l
         | None -> create_placed real l);
     x, l
@@ -371,13 +373,13 @@ module Hoisting = struct
         (* This is just a DFS search, but we will restrict it to the SCC
            that `l` belongs to, so we can avoid state explosion. *)
         with_return @@ fun {return} ->
-        let r = Label.Hash_set.create () in
+        let r = LS.create () in
         let q = Stack.singleton l in
         Stack.until_empty q (fun n ->
-            match Hash_set.strict_add r n with
-            | Error _ when Label.(n = l) -> return true
-            | Error _ -> ()
-            | Ok () ->
+            match LS.strict_add r n with
+            | false when Label.(n = l) -> return true
+            | false -> ()
+            | true ->
               Cfg.Node.succs n t.eg.input.cfg |>
               Seq.filter ~f:(Group.mem g) |>
               Seq.filter ~f:(Fn.non @@ Lset.mem bs) |>
@@ -413,19 +415,18 @@ module Hoisting = struct
   let is_partial_redundancy_pathwise t l id cid ~uses =
     let kills = compute_kills t uses in
     let res = with_return @@ fun {return} ->
-      let r = Label.Hash_set.create () in
+      let r = LS.create () in
       let q = Stack.create () in
       Lset.iter kills ~f:(fun k ->
-          Hash_set.add r k;
+          LS.add r k;
           Stack.push q k);
       Stack.until_empty q (fun n ->
           Cfg.Node.preds n t.eg.input.cfg |>
           Seq.filter ~f:(Fn.non @@ Lset.mem uses) |>
           Seq.iter ~f:(fun p ->
               if Label.(p = l) then return true
-              else match Hash_set.strict_add r p with
-                | Ok () -> Stack.push q p
-                | Error _ -> ()));
+              else if LS.strict_add r p then Stack.push q p
+              else ()));
       false in
     Logs.debug (fun m ->
         m "%s: l=%a, id=%d cid=%d, uses=%s, kills=%s, res=%b%!"
@@ -487,7 +488,7 @@ module Hoisting = struct
      to minimize duplication as we traverse down the dominator tree.
   *)
   let process_moved_nodes t env l =
-    match Hashtbl.find t.eg.lmoved l with
+    match LT.find t.eg.lmoved l with
     | None -> !!()
     | Some s ->
       (* Explore the newest nodes first, ignoring those that have
@@ -508,7 +509,7 @@ end
 (* Determine placement of instructions at this label. *)
 let reify t env l =
   let* () = Hoisting.process_moved_nodes t env l in
-  match Hashtbl.find t.eg.lval l with
+  match LT.find t.eg.lval l with
   | None -> !!()
   | Some id -> match extract t id with
     | None -> extract_fail l @@ Common.find t.eg id
@@ -571,12 +572,12 @@ let collect t l =
 
 (* Find the rewritten instruction at label `l`. *)
 let find_insn env l =
-  Hashtbl.find env.insn l |> Option.map ~f:(Insn.create ~label:l)
+  LT.find env.insn l |> Option.map ~f:(Insn.create ~label:l)
 
 (* Find any new instructions to be prepended directly before label `l`.
    The order can be reversed for an efficient `rev_append` as seen below. *)
 let find_news ?(rev = false) env l =
-  Hashtbl.find env.news l |>
+  LT.find env.news l |>
   Option.value_map ~default:[] ~f:(fun p ->
       Ftree.enum ~rev p.seq |>
       Seq.filter_map ~f:(find_insn env) |>
@@ -588,7 +589,7 @@ let cfg t =
   let+ env = collect t Label.pseudoentry in
   Func.map_blks t.eg.input.fn ~f:(fun b ->
       let label = Blk.label b in
-      let k = match Hashtbl.find env.ctrl label with
+      let k = match LT.find env.ctrl label with
         | None -> Blk.ctrl b
         | Some c -> c in
       let is =

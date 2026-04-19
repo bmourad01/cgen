@@ -15,34 +15,35 @@ end = struct
   open M
 
   type state = {
-    defs : Lset.t Var.Table.t;
-    args : Var.t list Label.Table.t;
-    ctrl : Ctrl.t Label.Table.t;
-    outs : Var.t list Ltree.t Label.Table.t;
+    defs : Lset.t VT.t;
+    args : Var.t list LT.t;
+    ctrl : Ctrl.t LT.t;
+    outs : Var.t list Ltree.t LT.t;
   }
 
-  let define defs l = Hashtbl.update defs ~f:(function
-      | None -> Lset.singleton l
-      | Some s -> Lset.add s l)
+  let define defs d l = VT.update defs l ~f:(function
+      | None -> Lset.singleton d
+      | Some s -> Lset.add s d)
 
   let blocks_that_define_var st x =
-    Hashtbl.find st.defs x |>
+    VT.find st.defs x |>
     Option.value ~default:Lset.empty
 
   let has_arg st l x =
-    Hashtbl.find_exn st.args l |>
+    LT.find_exn st.args l |>
     Fn.flip List.mem x ~equal:Var.equal
 
   let init env =
-    let defs = Var.Table.create () in
-    let args = Label.Table.create () in
-    let ctrl = Label.Table.create () in
-    let outs = Label.Table.create () in
-    Hashtbl.iteri env.blks ~f:(fun ~key:l ~data:b ->
-        Hashtbl.set ctrl ~key:l ~data:(Blk.ctrl b);
+    let nblks = LT.length env.blks in
+    let defs = VT.create () in
+    let args = LT.create ~capacity:nblks () in
+    let ctrl = LT.create ~capacity:nblks () in
+    let outs = LT.create ~capacity:nblks () in
+    LT.iteri env.blks ~f:(fun ~key:l ~data:b ->
+        LT.set ctrl ~key:l ~data:(Blk.ctrl b);
         (* Vars defined by existing block arguments. *)
         let args' = Seq.to_list @@ Blk.args b in
-        Hashtbl.set args ~key:l ~data:args';
+        LT.set args ~key:l ~data:args';
         List.iter args' ~f:(define defs l);
         (* Vars defined by instructions. *)
         Blk.insns b |> Seq.map ~f:Insn.lhs |>
@@ -51,12 +52,12 @@ end = struct
 
   let update_incoming env l x outs =
     Cfg.Node.preds l env.cfg |> Seq.iter ~f:(fun l' ->
-        Hashtbl.update outs l' ~f:(function
+        LT.update outs l' ~f:(function
             | Some inc -> Ltree.add_multi inc ~key:l ~data:x
             | None -> Ltree.singleton l [x]))
 
   let add_arg env st l x =
-    Hashtbl.add_multi st.args ~key:l ~data:x;
+    LT.add_multi st.args ~key:l ~data:x;
     update_incoming env l x st.outs
 
   let iterated_frontier f blks =
@@ -85,9 +86,9 @@ end = struct
   let find_inc inc l = Ltree.find inc l |> Option.value ~default:[]
 
   let insert_ctrl_args st =
-    Hashtbl.iteri st.outs ~f:(fun ~key:l ~data:inc ->
+    LT.iteri st.outs ~f:(fun ~key:l ~data:inc ->
         if not @@ Label.is_pseudo l then
-          Hashtbl.update st.ctrl l ~f:(function
+          LT.update st.ctrl l ~f:(function
               | Some c -> argify_ctrl ~inc:(find_inc inc) c
               | None -> assert false))
 
@@ -95,11 +96,11 @@ end = struct
     let st = init env in
     insert_blk_args env st;
     insert_ctrl_args st;
-    Hashtbl.map_inplace env.blks ~f:(fun b ->
+    LT.map_inplace env.blks ~f:(fun b ->
         let label = Blk.label b in
         let dict = Blk.dict b in
-        let args = Hashtbl.find_exn st.args label in
-        let ctrl = Hashtbl.find_exn st.ctrl label in
+        let args = LT.find_exn st.args label in
+        let ctrl = LT.find_exn st.ctrl label in
         let insns = Blk.insns b |> Seq.to_list in
         Blk.create ~dict ~args ~insns ~ctrl ~label ())
 end

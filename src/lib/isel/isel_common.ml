@@ -4,6 +4,8 @@ open Virtual.Abi
 module Id = Isel_internal.Id
 module P = Isel_internal.Pattern
 module S = Isel_internal.Subst
+module LT = Label.Dense_table
+module VT = Var.Dense_table
 
 type 'r node =
   | N of P.op * Id.t list
@@ -27,11 +29,11 @@ type 'r t = {
   cfg            : Cfg.t;
   dom            : Semi_nca.tree;
   blks           : blk Label.Tree.t;
-  v2id           : Id.t Var.Table.t;
-  insn           : Id.t list Label.Table.t;
-  extra          : Label.t list Label.Table.t;
+  v2id           : Id.t VT.t;
+  insn           : Id.t list LT.t;
+  extra          : Label.t list LT.t;
   frame          : bool;
-  loadgen        : (int * Id.t) Var.Table.t;
+  loadgen        : (int * Id.t) VT.t;
   mutable phi    : Var.Set.t;
   mutable memgen : int;
 }
@@ -43,18 +45,18 @@ let new_node ?l ?ty t n : Id.t =
   Vec.push t.typs @@ Uopt.of_option ty;
   Vec.push t.id2r Uopt.none;
   Option.iter l ~f:(fun key ->
-      Hashtbl.add_multi t.insn ~key ~data:id);
+      LT.add_multi t.insn ~key ~data:id);
   id
 
 let node t id = Vec.get_exn t.node id
 let typeof t id = Uopt.to_option @@ Vec.get_exn t.typs id
-let setvar t x id = Hashtbl.set t.v2id ~key:x ~data:id
-let getvar t x = Hashtbl.find t.v2id x
+let setvar t x id = VT.set t.v2id ~key:x ~data:id
+let getvar t x = VT.find t.v2id x
 let setrv t id r = Vec.set_exn t.id2r id @@ Uopt.some r
 let getrv t id = Uopt.to_option @@ Vec.get_exn t.id2r id
-let addextra t key data = Hashtbl.add_multi t.extra ~key ~data
+let addextra t key data = LT.add_multi t.extra ~key ~data
 
-let newvar ~f t x ty = Hashtbl.find_or_add t.v2id x ~default:(fun () ->
+let newvar ~f t x ty = VT.find_or_add t.v2id x ~default:(fun () ->
     let v = f (regcls ty) x in
     let id = new_node ~ty t @@ Rv v in
     setrv t id v;

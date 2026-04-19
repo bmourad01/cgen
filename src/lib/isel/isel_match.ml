@@ -170,7 +170,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   (* NB: the list we get from `t.insn` is in reverse order, so a normal
      fold will correct it. *)
-  let insns t l = match Hashtbl.find t.insn l with
+  let insns t l = match LT.find t.insn l with
     | None -> !![]
     | Some ids -> C.List.fold ids ~init:[] ~f:(fun acc id ->
         let+ insns = match_one t l id in
@@ -182,7 +182,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let step t b =
     let label = Blk.label b in
-    let* extra = match Hashtbl.find t.extra label with
+    let* extra = match LT.find t.extra label with
       | None -> !![]
       | Some ls ->
         (* NB: we're reversing the order on purpose. *)

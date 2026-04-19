@@ -219,7 +219,7 @@ module Make(Context : Context_intf.S_virtual) = struct
           let* y = if k.size > 0
             then new_slot env k.size k.align
             else !!x in
-          Hashtbl.set env.refs ~key:x ~data:y;
+          VT.set env.refs ~key:x ~data:y;
           match k.cls with
           | Kreg _ when k.size = 0 -> assert false
           | Kreg (r, _) when k.size = 8 -> onereg_param ~ofs ~reg env x y r

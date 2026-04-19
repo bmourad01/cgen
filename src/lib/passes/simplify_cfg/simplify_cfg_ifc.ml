@@ -15,6 +15,7 @@ open Virtual
 open Simplify_cfg_common
 
 module BR = Simplify_cfg_brsel
+module LT = Label.Dense_table
 
 type join =
   | Diamond of {
@@ -80,8 +81,8 @@ let check_args tenv env fn b =
     true
   with BR.Non_basic -> false
 
-let (.?[]) env l = Hashtbl.find env.blks l
-let (.![]) env l = Hashtbl.find_exn env.blks l
+let (.?[]) env l = LT.find env.blks l
+let (.![]) env l = LT.find_exn env.blks l
 
 let check_blk env l j = match env.?[l] with
   | None -> false
@@ -112,7 +113,7 @@ let plist env l = Seq.to_list @@ Cfg.Node.preds l env.cfg
 
 let find_join tenv env fn =
   with_return @@ fun {return} ->
-  Hashtbl.iteri env.blks ~f:(fun ~key ~data:b ->
+  LT.iteri env.blks ~f:(fun ~key ~data:b ->
       let found j = return @@ Some (key, j) in
       if check_args tenv env fn b then match plist env key with
         | [p1; p2] when Label.(p1 <> p2) ->
@@ -150,7 +151,7 @@ let canonicalize_diamond env p1 p2 hdr =
   let i1 = Seq.append (Blk.insns b1) (Blk.insns b2) in
   let h' = Blk.append_insns h @@ Seq.to_list i1 in
   let h' = Blk.with_ctrl h' ctrl in
-  Hashtbl.set env.blks ~key:hdr ~data:h'
+  LT.set env.blks ~key:hdr ~data:h'
 
 let canonicalize_triangle env key pred hdr =
   let b = env.![pred] and h = env.![hdr] in
@@ -165,7 +166,7 @@ let canonicalize_triangle env key pred hdr =
     | _ -> assert false in
   let h' = Blk.append_insns h @@ Seq.to_list @@ Blk.insns b in
   let h' = Blk.with_ctrl h' ctrl in
-  Hashtbl.set env.blks ~key:hdr ~data:h'
+  LT.set env.blks ~key:hdr ~data:h'
 
 let canonicalize env key = function
   | Diamond {pred1; pred2; hdr} -> canonicalize_diamond env pred1 pred2 hdr

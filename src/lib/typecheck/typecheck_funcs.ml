@@ -8,6 +8,7 @@ open Typecheck_common
 module Insns = Typecheck_insns
 module Ctrls = Typecheck_ctrls
 module Vset = Var.Tree_set
+module LS = Label.Dense_set
 
 let not_pseudo = Fn.non Label.is_pseudo
 
@@ -107,7 +108,7 @@ let check fn =
   let* () = args in
   let* () = slots in
   (* Be aware of duplicate labels for instructions. *)
-  let seen = Label.Hash_set.create () in
+  let seen = LS.create () in
   let*? blks = try Ok (Func.map_of_blks fn) with
     | Invalid_argument msg -> Or_error.error_string msg in
   let cfg = Cfg.create fn in

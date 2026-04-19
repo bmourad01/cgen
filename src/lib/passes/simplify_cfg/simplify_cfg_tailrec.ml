@@ -7,12 +7,14 @@ open Simplify_cfg_common
 
 open Context.Syntax
 
+module LT = Label.Dense_table
+
 let collect_calls env fn =
   let name = Func.name fn in
   let is_tail f b r =
     String.(f = name) &&
     Tailcall.is_tail_ctrl
-      ~blk:(Hashtbl.find env.blks)
+      ~blk:(LT.find env.blks)
       ~ctrl:(Blk.ctrl b)
       ~ret:(Option.map r ~f:fst) in
   Func.blks fn |> Seq.fold ~init:Label.Tree.empty ~f:(fun acc b ->

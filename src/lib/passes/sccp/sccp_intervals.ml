@@ -90,12 +90,12 @@ let transfer ctx l s =
   | None -> s
 
 type t = {
-  insns : state Label.Table.t;
+  insns : state LT.t;
   input : state Solution.t;
 }
 
 let insn t l =
-  Hashtbl.find t.insns l |>
+  LT.find t.insns l |>
   Option.value ~default:empty_state
 
 let input t l = Solution.get t.input l

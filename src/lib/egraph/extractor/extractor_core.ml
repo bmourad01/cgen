@@ -3,6 +3,8 @@ open Egraph_common
 open Monads.Std
 open Virtual
 
+module OA = Option_array
+
 (* Keep track of the provenance of extracted nodes.
 
    We were previously using the real IDs for determining
@@ -97,9 +99,9 @@ type cost = Cost.t
 
 type t = {
   eg             : egraph;
-  table          : (cost * enode) Id.Table.t;
-  safe           : (cost * enode) Id.Table.t;
-  memo           : ext Id.Table.t;
+  table          : (cost * enode) OA.t;
+  safe           : (cost * enode) OA.t;
+  memo           : ext OA.t;
   mutable impure : Bitset.t;
 }
 
@@ -180,7 +182,7 @@ module Saturation : sig
   val go : t -> unit
 end = struct
   let get tbl eg id : cost * enode =
-    Hashtbl.find_exn tbl @@ find eg id
+    OA.unsafe_get_some_exn tbl @@ find eg id
 
   let cost tbl eg pop ~self (n : enode) = match n with
     | N (op, []) -> op_cost op, n
@@ -213,10 +215,9 @@ end = struct
     Vec.iteri eg.node ~f:(fun id n ->
         let self = find eg id in
         let (x, _) as term = cost tbl eg pop ~self n in
-        let cid = self in
-        Hashtbl.update tbl cid ~f:(function
-            | Some ((y, _) as prev) when Cost.(y < x) -> prev
-            | Some _ | None -> term))
+        match OA.unsafe_get tbl self with
+        | Some (y, _) when Cost.(y < x) -> ()
+        | Some _ | None -> OA.unsafe_set_some tbl self term)
 
   let go t =
     let pop = compute_popularity t.eg in
@@ -231,6 +232,14 @@ end = struct
 end
 
 let debug_dump t =
+  let to_alist tbl =
+    let l = ref [] in
+    for i = OA.length tbl - 1 downto 0 do
+      match OA.unsafe_get tbl i with
+      | Some x -> l := (i, x) :: !l
+      | None -> ()
+    done;
+    !l in
   let pp ppf (cid, (c, n)) =
     Format.fprintf ppf
       "  %d:\n    cost: %a (opc = %a, width = %a, depth = %a)\n    node: %a%!"
@@ -239,26 +248,26 @@ let debug_dump t =
       Int63.pp (Cost.width c)
       Int63.pp (Cost.depth c)
       Enode.pp n in
-  let sort l = List.sort l ~compare:(fun (a, _) (b, _) -> compare a b) in
   Logs.debug (fun m ->
       m "%s: $%s cost table:\n%a"
         __FUNCTION__ (Func.name t.eg.input.fn)
         (Format.pp_print_list pp
            ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n"))
-        (sort @@ Hashtbl.to_alist t.table);
+        (to_alist t.table);
       m "%s: $%s safe cost table:\n%a"
         __FUNCTION__ (Func.name t.eg.input.fn)
         (Format.pp_print_list pp
            ~pp_sep:(fun ppf () -> Format.fprintf ppf "\n"))
-        (sort @@ Hashtbl.to_alist t.safe)
+        (to_alist t.safe)
     )
 
 let init eg =
+  let len = Vec.length eg.classes in
   let t = {
     eg;
-    table = Id.Table.create ();
-    safe = Id.Table.create ();
-    memo = Id.Table.create ();
+    table = OA.create ~len;
+    safe = OA.create ~len;
+    memo = OA.create ~len;
     impure = Bitset.empty;
   } in
   Saturation.go t;
@@ -313,7 +322,7 @@ module O = Monad.Option
 let extract t =
   let rec go tbl visiting id =
     let cid = find t.eg id in
-    match Hashtbl.find t.memo cid with
+    match OA.unsafe_get t.memo cid with
     | Some _ as e -> e
     | None when Bitset.mem visiting cid ->
       (* Cycle in discounted table: fall back to safe table,
@@ -322,12 +331,12 @@ let extract t =
     | None ->
       let visiting = Bitset.set visiting cid in
       let open O.Let in
-      let* _, n = Hashtbl.find tbl cid in
+      let* _, n = OA.unsafe_get tbl cid in
       match n with
       | N (op, cs) ->
         let+ cs = O.List.map cs ~f:(go tbl visiting) in
         let e = E (prov t cid id op cs, op, cs) in
-        Hashtbl.set t.memo ~key:cid ~data:e;
+        OA.unsafe_set_some t.memo cid e;
         e
       | U {pre; post} ->
         let id = find t.eg post in

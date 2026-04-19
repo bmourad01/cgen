@@ -16,11 +16,11 @@ let init input depth_limit match_limit rules = {
   memo = Hashtbl.create (module Enode);
   node = Vec.create ();
   typs = Vec.create ();
-  lmoved = Label.Table.create ();
+  lmoved = LT.create ();
   imoved = Vec.create ();
   pinned = Bitset.empty;
   ilbl = Vec.create ();
-  lval = Label.Table.create ();
+  lval = LT.create ();
   depth_limit;
   match_limit;
   rules;
@@ -44,7 +44,7 @@ let debug_dump t =
       m "%s: $%s lmoved:\n%a%!"
         __FUNCTION__ (Func.name t.input.fn)
         (Format.pp_print_list ~pp_sep pp_lmoved)
-        (Hashtbl.to_alist t.lmoved |>
+        (LT.to_alist t.lmoved |>
          List.filter ~f:(fun (_, s) -> not (Iset.is_empty s))));
   Logs.debug (fun m ->
       let pp_lmoved ppf (id, s) =

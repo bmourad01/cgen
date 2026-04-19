@@ -6,7 +6,10 @@ open Simplify_cfg_common
 
 open Context.Syntax
 
-let map_blk tbl rb b = match Hashtbl.find tbl @@ Blk.label b with
+module LT = Label.Dense_table
+module VT = Var.Dense_table
+
+let map_blk tbl rb b = match LT.find tbl @@ Blk.label b with
   | Some (Some a) ->
     Blk.with_ctrl b @@ `jmp (`label (Blk.label rb, [a]))
   | Some None ->
@@ -18,9 +21,9 @@ let commit env tbl rb fn =
   Logs.debug (fun m ->
       m "%s: merged returns to new block %a: %s%!"
         __FUNCTION__ Label.pp key
-        (Hashtbl.keys tbl |> List.to_string ~f:Label.to_string));
-  Hashtbl.map_inplace env.blks ~f:(map_blk tbl rb);
-  Hashtbl.set env.blks ~key ~data:rb;
+        (LT.keys tbl |> List.to_string ~f:Label.to_string));
+  LT.map_inplace env.blks ~f:(map_blk tbl rb);
+  LT.set env.blks ~key ~data:rb;
   env.ret <- Some key;
   recompute_cfg env @@
   Fn.flip Func.insert_blk rb @@
@@ -38,17 +41,17 @@ let map_retty fn tenv = function
         (Func.name fn) (Error.to_string_hum err) ()
 
 let run tenv env fn =
-  let tbl = Label.Table.create () in
-  Hashtbl.iteri env.blks
+  let tbl = LT.create () in
+  LT.iteri env.blks
     ~f:(fun ~key:l ~data:b -> match Blk.ctrl b with
-        | `ret a -> Hashtbl.set tbl ~key:l ~data:a
+        | `ret a -> LT.set tbl ~key:l ~data:a
         | _ -> ());
-  if Hashtbl.length tbl <= 1 then !!fn
+  if LT.length tbl <= 1 then !!fn
   else match Func.return fn with
     | Some ty ->
       let data = map_retty fn tenv ty in
       let* r = Context.Var.fresh in
-      Hashtbl.set env.typs ~key:r ~data;
+      VT.set env.typs ~key:r ~data;
       let ctrl = `ret (Some (`var r)) in
       let+ rb = Context.Virtual.blk ~args:[r] ~ctrl () in
       commit env tbl rb fn

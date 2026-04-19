@@ -24,7 +24,7 @@ module Make(Context : Context_intf.S_virtual) = struct
     ctrl = `hlt; (* dummy *)
   }
 
-  let transl_var env x = match Hashtbl.find env.refs x with
+  let transl_var env x = match VT.find env.refs x with
     | Some y -> y
     | None -> x
 
@@ -61,17 +61,17 @@ module Make(Context : Context_intf.S_virtual) = struct
     | `store ((#Type.basic as t), v, a) ->
       Vec.push ivec @@ ins @@ `store (t, op v, op a)
     | `load (x, `name _, _) ->
-      Hashtbl.find env.unrefs x |>
+      VT.find env.unrefs x |>
       Option.iter ~f:(List.iter ~f:(Vec.push ivec))
     | `store (`name _, _, _) ->
-      Hashtbl.find env.blits l |>
+      LT.find env.blits l |>
       Option.iter ~f:(List.iter ~f:(Vec.push ivec))
 
   let transl_call env t l f =
-    let k = Hashtbl.find_exn env.calls l in
+    let k = LT.find_exn env.calls l in
     (* Instructions before the call. *)
     Ftree.iter k.callai ~f:(Vec.push t.ivec);
-    if Hash_set.mem env.tailcalls l then
+    if LS.mem env.tailcalls l then
       (* Tail call should override the `ctrl` for this block;
          remember that `transl_ctrl` is called first. *)
       let args = Ftree.to_list k.callar in
@@ -95,7 +95,7 @@ module Make(Context : Context_intf.S_virtual) = struct
       ins (transl_basic env b :> Abi.Insn.op)
     | #Insn.mem as m -> transl_mem env ivec l m
     | `vastart _ ->
-      Hashtbl.find_exn env.vastart l |>
+      LT.find_exn env.vastart l |>
       List.iter ~f:(Vec.push ivec)
     | `call (_, f, _, _, _) ->
       transl_call env t l f
@@ -117,7 +117,7 @@ module Make(Context : Context_intf.S_virtual) = struct
     `sw (t, transl_swindex env i, transl_local env d, transl_tbl env tbl t)
 
   let transl_ret env l =
-    let r = Hashtbl.find_exn env.rets l in
+    let r = LT.find_exn env.rets l in
     r.reti, `ret r.retr
 
   (* We're done translating this block, either because we translated
@@ -183,7 +183,7 @@ module Make(Context : Context_intf.S_virtual) = struct
       | `vaarg _ ->
         (* If we performed the `vaarg` lowering pass beforehand, then
            this shouldn't fail. *)
-        let v = Hashtbl.find_exn env.vaarg @@ Insn.label i in
+        let v = LT.find_exn env.vaarg @@ Insn.label i in
         transl_vaarg t env label v rest
       | `uop (x, `uitof (ti, tf), a) ->
         transl_uitof t env label ti tf x a rest

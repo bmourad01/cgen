@@ -23,6 +23,7 @@ open Regular.Std
 open Pseudo
 
 module Lset = Label.Tree_set
+module LT = Label.Dense_table
 module Id = Int
 module H = Pairing_heap
 
@@ -31,7 +32,7 @@ type id_heap = id H.t
 type id_elt = id H.Elt.t
 type label_heap = Label.t H.t
 type label_elt = Label.t H.Elt.t
-type 'a label_tbl = 'a Label.Table.t
+type 'a label_tbl = 'a LT.t
 type 'a oarray = 'a Option_array.t
 
 module Make(M : Machine_intf.S) = struct
@@ -300,10 +301,10 @@ module Make(M : Machine_intf.S) = struct
 
   module Wmoves = struct
     let moves t id = t.data.node_moves.(id)
-    let elt t m = Hashtbl.find t.wmoves_elts m
-    let has t m = Hashtbl.mem t.wmoves_elts m
-    let set t m e = Hashtbl.set t.wmoves_elts ~key:m ~data:e
-    let clear t m = Hashtbl.remove t.wmoves_elts m
+    let elt t m = LT.find t.wmoves_elts m
+    let has t m = LT.mem t.wmoves_elts m
+    let set t m e = LT.set t.wmoves_elts ~key:m ~data:e
+    let clear t m = LT.remove t.wmoves_elts m
     let is_empty t = H.is_empty t.wmoves
 
     (* moveList[n] ∩ (activeMoves ∪ worklistMoves) *)
@@ -331,14 +332,14 @@ module Make(M : Machine_intf.S) = struct
       not (is_register' data v) &&
       not (is_slot' data v) &&
       data.nuse.(v) = 1 &&
-      match Hashtbl.find insn_blks m with
+      match LT.find insn_blks m with
       | None -> false
       | Some (bm, om) ->
         let out = Live.outs (Option.value_exn data.live) bm in
         not (Set.mem out (Vec.get_exn id2rv v)) &&
         data.defs.(v) |> Lset.to_sequence |>
         Seq.for_all ~f:(fun d ->
-            match Hashtbl.find insn_blks d with
+            match LT.find insn_blks d with
             | None -> false
             | Some (bd, od) when Label.(bm = bd) ->
               Logs.debug (fun m ->
@@ -358,7 +359,7 @@ module Make(M : Machine_intf.S) = struct
        W follows our heuristic for spill priority: 10^loop_depth
     *)
     let priority_impl data ~copies ~id2rv ~insn_blks ~dom m =
-      let c = Hashtbl.find_exn copies m in
+      let c = LT.find_exn copies m in
       let exclude id = is_register' data id || is_slot' data id in
       let pu = exclude c.dst in
       let pv = exclude c.src in
@@ -432,7 +433,7 @@ module Make(M : Machine_intf.S) = struct
       m
 
     let reset t =
-      Hashtbl.clear t.wmoves_elts;
+      LT.clear t.wmoves_elts;
       H.clear t.wmoves
   end
 
@@ -447,7 +448,7 @@ module Make(M : Machine_intf.S) = struct
 
     let cost data ~wmoves_elts ~copies ~id2rv ~phi_var id =
       let mvs = Lset.fold data.node_moves.(id) ~init:Lset.empty ~f:(fun acc m ->
-          if Lset.mem data.amoves m || Hashtbl.mem wmoves_elts m
+          if Lset.mem data.amoves m || LT.mem wmoves_elts m
           then Lset.add acc m else acc) in
       (* Freeze the node whose freezing loses the least loop-weighted value.
          Each active move contributes its loop depth to the cost of freezing
@@ -458,7 +459,7 @@ module Make(M : Machine_intf.S) = struct
          an ordinary copy. *)
       let non_phi_weight, phi_weight =
         Lset.to_sequence mvs |>
-        Seq.filter_map ~f:(Hashtbl.find copies) |>
+        Seq.filter_map ~f:(LT.find copies) |>
         Seq.fold ~init:(0, 0) ~f:(fun (np, pw) (copy : copy) ->
             let w = copy.loop in
             match Rv.which (Vec.get_exn id2rv copy.dst) with
@@ -487,7 +488,7 @@ module Make(M : Machine_intf.S) = struct
           set t id (H.update t.wfreeze e id))
 
     let update_for_move t m =
-      match Hashtbl.find t.copies m with
+      match LT.find t.copies m with
       | None -> ()
       | Some c ->
         update t (alias t c.dst);
@@ -519,10 +520,10 @@ module Make(M : Machine_intf.S) = struct
         ~dests:M.Insn.dests in
     let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in
     let loop = Loop.analyze ~dom ~name:(Pseudo.Func.name fn) cfg in
-    let copies = Label.Table.create () in
-    let insn_blks = Label.Table.create () in
+    let copies = LT.create () in
+    let insn_blks = LT.create () in
     let id2rv = Vec.create () in
-    let wmoves_elts = Label.Table.create () in
+    let wmoves_elts = LT.create () in
     let phi_var =
       Dict.find (Func.dict fn) Tags.phi_var |>
       Option.value ~default:Var.Set.empty in

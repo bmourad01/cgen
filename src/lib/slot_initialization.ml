@@ -3,6 +3,8 @@ open Regular.Std
 
 module Slot = Virtual.Slot
 module Vtree = Var.Tree
+module VS = Var.Dense_set
+module LS = Label.Dense_set
 module Solution = Fixpoint.Solution
 
 type interval = {
@@ -87,7 +89,7 @@ type solution = state Solution.t
 
 type t = {
   soln : solution;
-  bad  : Label.Hash_set.t;
+  bad  : LS.t;
 }
 
 (* If the slot is not always initialized by the
@@ -104,7 +106,7 @@ let transfer_store esc acc ptr ty (s : Scalars.state) =
   | Some Offset (base, off) ->
     (* If `base` ever escaped, then don't ever consider
        it initialized. *)
-    if Hash_set.mem esc base then
+    if VS.mem esc base then
       let () = Logs.debug (fun m ->
           m "%s: ignoring escaped slot %a%!"
             __FUNCTION__ Var.pp base) in
@@ -121,7 +123,7 @@ let transfer_load bad acc l ptr ty (s : Scalars.state) =
   match Vtree.find s ptr with
   | Some Offset (base, off) ->
     if is_uninitialized acc base off ty then
-      Hash_set.add bad l;
+      LS.add bad l;
     acc
   | _ -> acc
 
@@ -139,7 +141,7 @@ let debug_dump blks bad s =
             (Vtree.to_list s |>
              List.to_string ~f:(Format.asprintf "%a" pp_tree))));
   Logs.debug (fun m ->
-      Hash_set.iter bad ~f:(fun l ->
+      LS.iter bad ~f:(fun l ->
           m "%s: load at %a is potentially uninitialized%!"
             __FUNCTION__ Label.pp l))
 
@@ -163,7 +165,7 @@ module Make(M : Scalars.L) = struct
           acc)
 
   let analyze' t cfg blks slots =
-    let bad = Label.Hash_set.create () in
+    let bad = LS.create () in
     let s = Fixpoint.run (module Cfg) cfg
         ~init:(Solution.create init_constraints @@ top_state slots)
         ~start:Label.pseudoentry

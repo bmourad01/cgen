@@ -5,11 +5,13 @@ open Graphlib.Std
 open Virtual
 
 module O = Monad.Option
+module LT = Label.Dense_table
+module VT = Var.Dense_table
 
 type env = {
-  blks          : blk Label.Table.t;
-  typs          : Type.t Var.Table.t;
-  flag          : Var.t Var.Table.t;
+  blks          : blk LT.t;
+  typs          : Type.t VT.t;
+  flag          : Var.t VT.t;
   mutable start : Label.t;
   mutable cfg   : Cfg.t;
   mutable dom   : Semi_nca.tree;
@@ -17,24 +19,24 @@ type env = {
 }
 
 let collect_flag fn =
-  let flag = Var.Table.create () in
+  let flag = VT.create () in
   Func.blks fn |> Seq.iter ~f:(fun b ->
       Blk.insns b |> Seq.iter ~f:(fun i ->
           match Insn.op i with
           | `uop (x, `flag _, `var y) ->
-            Hashtbl.set flag ~key:x ~data:y;
+            VT.set flag ~key:x ~data:y;
           | _ -> ()));
   flag
 
 let init fn =
   let cfg = Cfg.create fn in
   let start = Func.entry fn in
-  let blks = Label.Table.create () in
-  let typs = Var.Table.create () in
+  let blks = LT.create () in
+  let typs = VT.create () in
   let flag = collect_flag fn in
   let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
   Func.blks fn |> Seq.iter ~f:(fun b ->
-      Hashtbl.set blks ~key:(Blk.label b) ~data:b);
+      LT.set blks ~key:(Blk.label b) ~data:b);
   {blks; typs; flag; start; cfg; dom; ret = None}
 
 let is_ret env l = match env.ret with
@@ -43,7 +45,7 @@ let is_ret env l = match env.ret with
 
 let update_fn env fn =
   Func.blks fn |> Seq.filter_map ~f:(fun b ->
-      Hashtbl.find env.blks @@ Blk.label b) |>
+      LT.find env.blks @@ Blk.label b) |>
   Seq.to_list |> Func.with_blks_exn fn
 
 let not_pseudo = Fn.non Label.is_pseudo
@@ -64,7 +66,7 @@ let recompute_cfg env fn =
     Seq.fold ~init:(fn, g) ~f:(fun ((fn, g) as acc) l ->
         if is_disjoint env g l then
           let g' = Cfg.Node.remove l g in
-          Hashtbl.remove env.blks l;
+          LT.remove env.blks l;
           Func.remove_blk_exn fn l, g'
         else acc) in
   env.dom <- Semi_nca.compute (module Cfg) g' Label.pseudoentry;

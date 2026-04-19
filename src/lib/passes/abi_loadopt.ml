@@ -14,6 +14,8 @@ open Virtual
 module Solution = Fixpoint.Solution
 module E = Monad.Result.Error
 module Lset = Label.Tree_set
+module LT = Label.Dense_table
+module VT = Var.Dense_table
 
 open E.Let
 
@@ -71,17 +73,17 @@ type t = {
   dom          : Semi_nca.tree;
   rdom         : Dominance.t;
   lst          : Last_stores.t;
-  blks         : Abi.blk Label.Table.t;
+  blks         : Abi.blk LT.t;
   mems         : store Mem.Table.t;
-  vars         : operand Var.Table.t;
-  nop          : Lset.t Label.Table.t;
+  vars         : operand VT.t;
+  nop          : Lset.t LT.t;
   mutable mem  : Label.t option;
   mutable memo : operand Hashcons.t;
   mutable blk  : Label.t;
 }
 
 let add_nop t l =
-  Hashtbl.update t.nop t.blk ~f:(function
+  LT.update t.nop t.blk ~f:(function
       | None -> Lset.singleton l
       | Some s -> Lset.add s l)
 
@@ -113,15 +115,15 @@ let init fn =
   let dom = Semi_nca.compute (module Abi.Cfg) cfg Label.pseudoentry in
   let rdom = init_dom_relation reso dom in
   let lst = init_last_stores start cfg reso in
-  let blks = Label.Table.create () in
+  let blks = LT.create () in
   let mems = Mem.Table.create () in
-  let vars = Var.Table.create () in
-  let nop = Label.Table.create () in
+  let vars = VT.create () in
+  let nop = LT.create () in
   let mem = None and memo = Hashcons.empty and blk = Label.pseudoentry in
   {reso; dom; rdom; lst; blks; mems; mem; vars; memo; nop; blk}
 
 module Optimize = struct
-  let var t x = match Hashtbl.find t.vars x with
+  let var t x = match VT.find t.vars x with
     | None -> `var x
     | Some y -> y
 
@@ -153,11 +155,11 @@ module Optimize = struct
       | `stk (o, s) -> `stk (operand t o, s))
 
   let canonicalize t x op = match Hashcons.find t.memo op with
-    | Some y -> Hashtbl.set t.vars ~key:x ~data:y
+    | Some y -> VT.set t.vars ~key:x ~data:y
     | None ->
       let data = match op with
         | Uop (`copy _, a) ->
-          Hashtbl.set t.vars ~key:x ~data:a; a
+          VT.set t.vars ~key:x ~data:a; a
         | _ -> `var x in
       t.memo <- Hashcons.set t.memo ~key:op ~data
 
@@ -256,7 +258,7 @@ module Optimize = struct
         canonicalize t x k;
         Op.commute k |> Option.iter ~f:(canonicalize t x)
       | Some c ->
-        Hashtbl.set t.vars ~key:x ~data:(c :> operand);
+        VT.set t.vars ~key:x ~data:(c :> operand);
         add_nop t l
     end;
     op
@@ -269,7 +271,7 @@ module Optimize = struct
         let k = Op.of_insn op in
         canonicalize t x k
       | Some c ->
-        Hashtbl.set t.vars ~key:x ~data:(c :> operand);
+        VT.set t.vars ~key:x ~data:(c :> operand);
         add_nop t l
     end;
     op
@@ -337,7 +339,7 @@ module Optimize = struct
       t.blk <- l;
       let b = Abi.Blk.map_insns b ~f:(insn t) in
       let b = Abi.Blk.map_ctrl b ~f:(ctrl t) in
-      Hashtbl.set t.blks ~key:l ~data:b
+      LT.set t.blks ~key:l ~data:b
 end
 
 let run0 fn =
@@ -350,9 +352,9 @@ let run0 fn =
   Abi.Func.map_blks fn ~f:(fun b ->
       let l = Abi.Blk.label b in
       let b =
-        Hashtbl.find t.blks l |>
+        LT.find t.blks l |>
         Option.value ~default:b in
-      match Hashtbl.find t.nop l with
+      match LT.find t.nop l with
       | None -> b
       | Some s when Lset.is_empty s -> b
       | Some s ->

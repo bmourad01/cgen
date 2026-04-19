@@ -17,7 +17,7 @@ module Make(Context : Context_intf.S_virtual) = struct
 
   (* Return in the first integer register. *)
   let intret env key x =
-    Context.return @@ Hashtbl.set env.rets ~key ~data:{
+    Context.return @@ LT.set env.rets ~key ~data:{
       reti = [];
       retr = [int_rets.(0), x];
     }
@@ -25,14 +25,14 @@ module Make(Context : Context_intf.S_virtual) = struct
   (* Return in the first integer register, with a sign extension. *)
   let intret_signed env key x =
     let+ r, ri = Cv.Abi.unop (`sext `i64) x in
-    Hashtbl.set env.rets ~key ~data:{
+    LT.set env.rets ~key ~data:{
       reti = [ri];
       retr = [int_rets.(0), `var r];
     }
 
   (* Return in the first SSE register. *)
   let sseret env key x =
-    Context.return @@ Hashtbl.set env.rets ~key ~data:{
+    Context.return @@ LT.set env.rets ~key ~data:{
       reti = [];
       retr = [sse_rets.(0), x];
     }
@@ -46,7 +46,7 @@ module Make(Context : Context_intf.S_virtual) = struct
       | `i64 -> int_rets.(0)
       | `f64 -> sse_rets.(0) in
     let+ r, ri = Cv.Abi.load t (`var x) in
-    Hashtbl.set env.rets ~key ~data:{
+    LT.set env.rets ~key ~data:{
       reti = [ri];
       retr = [reg, `var r];
     }
@@ -64,7 +64,7 @@ module Make(Context : Context_intf.S_virtual) = struct
     let* ld1, ldi1 = Cv.Abi.load t1 (`var x) in
     let* a, add = Cv.Abi.binop (`add `i64) (`var x) (i64 8) in
     let+ ld2, ldi2 = Cv.Abi.load t2 (`var a) in
-    Hashtbl.set env.rets ~key ~data:{
+    LT.set env.rets ~key ~data:{
       reti = [ldi1; add; ldi2];
       retr = [
         reg1, `var ld1;
@@ -84,13 +84,13 @@ module Make(Context : Context_intf.S_virtual) = struct
         let retr = [int_rets.(0), `var dst] in
         (* In the case of `unref` we should've already blitted
            to `dst` (see Sysv_refs). *)
-        let+ reti = if not @@ Hashtbl.mem env.unrefs x then
+        let+ reti = if not @@ VT.mem env.unrefs x then
             let src = find_ref env x in
             Cv.Abi.blit `i64 k.size ~src ~dst
           else !![] in
         {reti; retr}
       else !!empty_ret in
-    Hashtbl.set env.rets ~key ~data
+    LT.set env.rets ~key ~data
 
   (* Lower the `ret` instructions. *)
   let lower env =

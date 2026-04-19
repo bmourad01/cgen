@@ -56,7 +56,7 @@ let apply
   let cfg = M.Cfg.create fn in
   let blks = M.Func.map_of_blks fn in
   let s = Sinit.analyze cfg blks slots in
-  let undef l = Hash_set.mem s.bad l in
+  let undef l = Label.Dense_set.mem s.bad l in
   let*? fn' = run fn ~undef in
   ssa fn'
 

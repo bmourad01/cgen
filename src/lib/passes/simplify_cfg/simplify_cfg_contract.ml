@@ -10,6 +10,7 @@ open O.Let
 open O.Syntax
 
 module Lset = Label.Tree_set
+module LT = Label.Dense_table
 
 type singles = dst Label.Tree.t
 
@@ -22,7 +23,7 @@ let can_be_single env l b =
   not (Blk.has_any_insns b)
 
 let singles env : singles =
-  Hashtbl.fold env.blks ~init:Label.Tree.empty
+  LT.fold env.blks ~init:Label.Tree.empty
     ~f:(fun ~key:l ~data:b m -> match Blk.ctrl b with
         | `jmp d when can_be_single env l b ->
           Label.Tree.set m ~key:l ~data:d
@@ -53,13 +54,13 @@ let chase ?(local_only = false) (s : singles) l =
 let rec eval subst env = function
   | Dest d -> !!(Subst_mapper.map_dst subst d)
   | Next (l, l', x) ->
-    let* b = Hashtbl.find env.blks l in
-    let* b' = Hashtbl.find env.blks l' in
+    let* b = LT.find env.blks l in
+    let* b' = LT.find env.blks l' in
     let* subst = Subst_mapper.blk_extend subst b b' in
     eval subst env x
 
 let init_subst env l args =
-  let* b = Hashtbl.find env.blks l in
+  let* b = LT.find env.blks l in
   let args' = Seq.to_list @@ Blk.args b in
   match List.zip args' args with
   | Unequal_lengths -> None
@@ -108,7 +109,7 @@ let map_loc key changed env s l = match find_loc env s l with
   | None -> l
 
 let contract_blks changed env (s : singles) =
-  Hashtbl.map_inplace env.blks ~f:(fun b ->
+  LT.map_inplace env.blks ~f:(fun b ->
       let key = Blk.label b in
       let dst = map_dst key changed env s in
       let loc = map_loc key changed env s in

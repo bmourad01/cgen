@@ -9,6 +9,8 @@
 open Core
 open Regular.Std
 
+module VT = Var.Dense_table
+
 module Make(C : Context_intf.S) = struct
   open C.Syntax
 
@@ -16,10 +18,10 @@ module Make(C : Context_intf.S) = struct
     let moves = Array.of_list moves in
     let n = Array.length moves in
     let status = Array.create ~len:n `to_move in
-    let subst = Var.Table.create () in
+    let subst = VT.create () in
     let rewrite = function
       | `var v as default ->
-        Hashtbl.find subst v |>
+        VT.find subst v |>
         Option.value ~default
       | src -> src in
     let emit ?i dst src =
@@ -53,7 +55,7 @@ module Make(C : Context_intf.S) = struct
             let* tmp = C.Var.fresh in
             let+ () = emit tmp src' in
             (* Any future mention of `v` will refer to `tmp`. *)
-            Hashtbl.set subst ~key:v ~data:(`var tmp)) in
+            VT.set subst ~key:v ~data:(`var tmp)) in
     (* Entry point: consider all pending moves. *)
     Seq.range 0 n |> C.Seq.iter ~f:(fun i ->
         match status.(i) with

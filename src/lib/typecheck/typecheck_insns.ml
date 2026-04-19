@@ -4,6 +4,8 @@ open Core
 open Virtual
 open Typecheck_common
 
+module LS = Label.Dense_set
+
 let expect_ptr_size_base_var v t word msg =
   let* fn = getfn and* blk = getblk and* l = getins in
   M.failf "Expected imm_base of type %a for var %a in %s %a \
@@ -441,12 +443,10 @@ let go seen =
       let l = Insn.label d in
       let* () = M.update @@ fun ctx -> {ctx with ins = Some l} in
       let o = Insn.op d in
-      let* () = match Hash_set.strict_add seen l with
-        | Ok () -> !!()
-        | Error _ ->
-          let* fn = getfn in
-          M.failf "Instruction for label %a in block %a already \
-                   exists in function $%s"
-            Label.pp l Label.pp (Blk.label blk) (Func.name fn) () in
+      let* () = M.unless (LS.strict_add seen l) @@ fun () ->
+        let* fn = getfn in
+        M.failf "Instruction for label %a in block %a already \
+                 exists in function $%s"
+          Label.pp l Label.pp (Blk.label blk) (Func.name fn) () in
       op env o) in
   updenv env

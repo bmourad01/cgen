@@ -2,6 +2,7 @@ open Core
 open Regular.Std
 
 module Ltree = Label.Tree
+module Tbl = Label.Dense_table
 
 module Solution = struct
   type 'd t = {
@@ -25,7 +26,7 @@ type 'a dfsnode = {
 (* Compute the SCCs of the graph, which should give us a
    topological ordering to perform the iteration by. *)
 let components ~adj ~start ~n g =
-  let rnodes = Label.Table.create ~size:n () in
+  let rnodes = Tbl.create ~capacity:n () in
   let nodes = Vec.create ~capacity:n () in
   let low = Vec.create ~capacity:n () in
   let stk = Vec.create ~capacity:n () in
@@ -36,7 +37,7 @@ let components ~adj ~start ~n g =
   let visit l =
     let d = Vec.length nodes in
     onstk := Bitset.set !onstk d;
-    Hashtbl.set rnodes ~key:l ~data:d;
+    Tbl.set rnodes ~key:l ~data:d;
     Vec.push nodes l;
     Vec.push low d;
     Vec.push stk d;
@@ -71,7 +72,7 @@ let components ~adj ~start ~n g =
       if low.![d.pre] = d.pre then construct d.pre
     | s :: rest ->
       d.adj <- rest;
-      match Hashtbl.find rnodes s with
+      match Tbl.find rnodes s with
       | None -> visit s
       | Some s when Bitset.mem !onstk s ->
         (* Back-edge: update lowlink *)
@@ -94,12 +95,12 @@ let run (type g) (module G : Label.Graph_s with type t = g)
   let len = Vec.length nodes in
   let succs = Array.init len ~f:(fun i ->
       adj nodes.![i] g |>
-      Seq.filter_map ~f:(Hashtbl.find rnodes) |>
+      Seq.filter_map ~f:(Tbl.find rnodes) |>
       Seq.to_list) in
   (* Working approximation and per-node visit counts. *)
   let approx = Array.create ~len init.def in
   Ltree.iter init.map ~f:(fun ~key ~data ->
-      match Hashtbl.find rnodes key with
+      match Tbl.find rnodes key with
       | Some i -> approx.(i) <- data
       | None -> ());
   let visits = Array.create ~len 0 in

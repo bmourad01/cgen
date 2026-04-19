@@ -2,6 +2,10 @@ open Core
 open Regular.Std
 open Virtual
 
+module LT = Label.Dense_table
+module VT = Var.Dense_table
+module LS = Label.Dense_set
+
 let reg_str = Format.asprintf "%a" X86_amd64_common.Reg.pp
 
 let int_args = Array.map ~f:reg_str [|
@@ -198,17 +202,17 @@ type env = {
   fn            : func;                        (* The original function. *)
   blks          : blk Label.Tree.t;            (* Map of basic blocks. *)
   tenv          : Typecheck.env;               (* Typing environment. *)
-  rets          : ret Label.Table.t;           (* Lowered `ret` instructions. *)
-  calls         : call Label.Table.t;          (* Lowered `call` instructions. *)
-  tailcalls     : Label.Hash_set.t;            (* Labels of tail-call-eligible calls. *)
-  refs          : Var.t Var.Table.t;           (* Struct var to its slot. *)
-  unrefs        : Abi.insn list Var.Table.t;   (* `unref` to blit. *)
-  blits         : Abi.insn list Label.Table.t; (* Stores of structs. *)
+  rets          : ret LT.t;                    (* Lowered `ret` instructions. *)
+  calls         : call LT.t;                   (* Lowered `call` instructions. *)
+  tailcalls     : LS.t;                        (* Labels of tail-call-eligible calls. *)
+  refs          : Var.t VT.t;                  (* Struct var to its slot. *)
+  unrefs        : Abi.insn list VT.t;          (* `unref` to blit. *)
+  blits         : Abi.insn list LT.t;          (* Stores of structs. *)
   slots         : slot Vec.t;                  (* New stack slots. *)
   params        : param Vec.t;                 (* Function parameters. *)
   layout        : acls String.Table.t;         (* Cached struct layouts. *)
-  vastart       : Abi.insn list Label.Table.t; (* Lowered `vastart` instructions. *)
-  vaarg         : vaarg Label.Table.t;         (* Lowered `vaarg` instructions. *)
+  vastart       : Abi.insn list LT.t;          (* Lowered `vastart` instructions. *)
+  vaarg         : vaarg LT.t;                  (* Lowered `vaarg` instructions. *)
   mutable rsave : regsave option;              (* Register save area. *)
   mutable rmem  : Var.t option;                (* Return value blitted to memory. *)
   mutable alpar : Var.t option;                (* Implicit AL argument. *)
@@ -233,17 +237,17 @@ let init_env tenv fn =
     fn;
     blks = Func.map_of_blks fn;
     tenv;
-    rets = Label.Table.create ();
-    calls = Label.Table.create ();
-    tailcalls = Label.Hash_set.create ();
-    refs = Var.Table.create ();
-    unrefs = Var.Table.create ();
-    blits = Label.Table.create ();
+    rets = LT.create ();
+    calls = LT.create ();
+    tailcalls = LS.create ();
+    refs = VT.create ();
+    unrefs = VT.create ();
+    blits = LT.create ();
     slots = Vec.create ();
     params = Vec.create ();
     layout = String.Table.create ();
-    vastart = Label.Table.create ();
-    vaarg = Label.Table.create ();
+    vastart = LT.create ();
+    vaarg = LT.create ();
     rsave = None;
     rmem = None;
     alpar = None;
@@ -258,7 +262,7 @@ module Make0(Context : Context_intf.S) = struct
     Vec.push env.slots s;
     x
 
-  let find_ref env x = match Hashtbl.find env.refs x with
+  let find_ref env x = match VT.find env.refs x with
     | Some y -> y
     | None ->
       failwithf "%a has no ref in function $%s"

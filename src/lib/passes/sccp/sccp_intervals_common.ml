@@ -4,6 +4,8 @@ open Virtual
 module I = Bv_interval
 module Vtree = Var.Tree
 module Ltree = Label.Tree
+module LT = Label.Dense_table
+module VT = Var.Dense_table
 
 type state = I.t Vtree.t [@@deriving equal]
 
@@ -35,9 +37,9 @@ module Edge = struct
 end
 
 type ctx = {
-  insns       : state Label.Table.t;       (* Out states for each instruction. *)
+  insns       : state LT.t;                (* Out states for each instruction. *)
   narrow      : (Edge.t, state) Hashtbl.t; (* Per-edge narrowing constraints. *)
-  cond        : state Var.Table.t;         (* State implied by each condition variable. *)
+  cond        : state VT.t;                (* State implied by each condition variable. *)
   thresholds  : I.t Vtree.t;               (* Per-variable widening thresholds. *)
   blks        : blk Ltree.t;               (* Labels to blocks. *)
   word        : Type.imm_base;             (* Word size. *)
@@ -76,9 +78,9 @@ let collect_thresholds blks =
           | _ -> m))
 
 let create_ctx ~blks ~word ~typeof ~cfg = {
-  insns = Label.Table.create ();
+  insns = LT.create ();
   narrow = Hashtbl.create (module Edge);
-  cond = Var.Table.create ();
+  cond = VT.create ();
   thresholds = collect_thresholds blks;
   blks;
   word;

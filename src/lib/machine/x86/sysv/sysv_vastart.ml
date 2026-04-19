@@ -60,7 +60,7 @@ module Make(Context : Context_intf.S_virtual) = struct
                 let* o, oi3 = Cv.Abi.binop (`add `i64) ap (i64 16) in
                 let+ rs = Cv.Abi.store `i64 (`var rs.rsslot) (`var o) in
                 (* Store the result. *)
-                Hashtbl.set env.vastart ~key:(Insn.label i) ~data:[
+                LT.set env.vastart ~key:(Insn.label i) ~data:[
                   gpi; oi1; fpi; ri; oi2; ofi; oi3; rs;
                 ]
               | _ -> !!()))

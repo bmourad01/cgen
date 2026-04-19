@@ -28,11 +28,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       cfg;
       dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry;
       blks = Func.map_of_blks fn;
-      v2id = Var.Table.create ();
-      insn = Label.Table.create ();
-      extra = Label.Table.create ();
+      v2id = VT.create ();
+      insn = LT.create ();
+      extra = LT.create ();
       frame = needs_stack_frame fn;
-      loadgen = Var.Table.create ();
+      loadgen = VT.create ();
       phi = Var.Set.empty;
       memgen = 0;
     }

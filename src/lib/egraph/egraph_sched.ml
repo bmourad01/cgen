@@ -28,7 +28,7 @@ let move t old l id =
         __FUNCTION__ id pp_old old Label.pp l);
   add_moved t id old;
   set_label t id l;
-  Hashtbl.update t.lmoved l ~f:(function
+  LT.update t.lmoved l ~f:(function
       | None -> Iset.singleton id
       | Some s -> Iset.add s id)
 
