@@ -73,6 +73,10 @@ let iter_blks ?(rev = false) t ~f =
   if rev then Ftree.iter_rev t.blks ~f
   else Ftree.iter t.blks ~f
 
+let num_insns t =
+  fold_blks t ~init:0 ~f:(fun acc b ->
+      acc + Pseudo_blk.num_insns b)
+
 let rets ?(rev = false) t = Ftree.enum ~rev t.rets
 
 let fold_rets ?(rev = false) t ~init ~f =

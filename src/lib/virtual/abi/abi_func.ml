@@ -81,6 +81,10 @@ let iter_blks ?(rev = false) fn ~f =
   if rev then Ftree.iter_rev fn.blks ~f
   else Ftree.iter fn.blks ~f
 
+let num_insns fn =
+  fold_blks fn ~init:0 ~f:(fun acc b ->
+      acc + Abi_blk.num_insns b)
+
 let entry fn = Abi_blk.label @@ Ftree.head_exn fn.blks
 let args ?(rev = false) fn = Ftree.enum fn.args ~rev
 let has_any_args fn = not (Ftree.is_empty fn.args)

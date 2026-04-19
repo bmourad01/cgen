@@ -134,6 +134,9 @@ module Func : sig
   (** [iter_blks ?rev fn ~f] iterates over blocks without allocating a [Seq]. *)
   val iter_blks : ?rev:bool -> ('a, 'b) t -> f:('a blk -> unit) -> unit
 
+  (** Returns the sum of instructions over all basic blocks. *)
+  val num_insns : ('a, 'b) t -> int
+
   (** The return registers of the function. *)
   val rets : ?rev:bool -> ('a, 'b) t -> 'b seq
 

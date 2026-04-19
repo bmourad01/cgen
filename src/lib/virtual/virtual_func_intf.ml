@@ -66,6 +66,9 @@ module type S = sig
   (** [iter_blks ?rev fn ~f] applies [f] to each block of [fn]. *)
   val iter_blks : ?rev:bool -> t -> f:(blk -> unit) -> unit
 
+  (** Returns the sum of instructions over all basic blocks. *)
+  val num_insns : t -> int
+
   (** Returns the label of the entry block. *)
   val entry : t -> Label.t
 
