@@ -79,7 +79,7 @@ end
 type ('live, 'cfg, 'blk) env = {
   live : 'live;                     (* Liveness analysis. *)
   cfg  : 'cfg;                      (* Control-flow graph. *)
-  dom  : Label.t Semi_nca.tree;     (* Dominator tree. *)
-  df   : Label.t Semi_nca.frontier; (* Dominance frontier. *)
+  dom  : Semi_nca.tree;             (* Dominator tree. *)
+  df   : Semi_nca.frontier;         (* Dominance frontier. *)
   blks : 'blk Label.Table.t;        (* Current version of each block. *)
 }

@@ -2,11 +2,8 @@ open Core
 open Graphlib.Std
 
 let check
-    (type t n e)
-    (module G : Graph
-      with type t = t
-       and type edge = e
-       and type node = n) ?dom g entry =
+    (type g)
+    (module G : Label.Graph_s with type t = g) ?dom g entry =
   with_return @@ fun {return} ->
   let dom = match dom with
     | None -> Semi_nca.compute (module G) g entry
@@ -17,7 +14,7 @@ let check
     ~start_tree:(fun n () ->
         (* We're only interested in the spanning tree with
            the entry node as the root. *)
-        if G.Node.(n <> entry) then return true)
+        if Label.(n <> entry) then return true)
     ~enter_edge:(fun k e () -> match k with
         | `Tree | `Forward | `Cross -> ()
         | `Back ->

@@ -113,7 +113,7 @@ module Make(M : Machine_intf.S) = struct
     mutable types        : [Type.basic | `v128] Rv.Map.t;
     cfg                  : Pseudo.Cfg.t;
     loop                 : Loop.t;
-    dom                  : Label.t Semi_nca.tree;
+    dom                  : Semi_nca.tree;
   }
 
   let intern t rv =

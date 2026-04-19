@@ -39,16 +39,11 @@
     equally valid candidates).
 *)
 
-open Graphlib.Std
-
 (** [check (module G) ?dom g entry] determines if graph [g] is reducible
     when starting from the [entry] node. *)
 val check :
-  (module Graph
-    with type t = 't
-     and type edge = 'e
-     and type node = 'n) ->
-  ?dom:'n Semi_nca.tree ->
-  't ->
-  'n ->
+  (module Label.Graph_s with type t = 'g) ->
+  ?dom:Semi_nca.tree ->
+  'g ->
+  Label.t ->
   bool

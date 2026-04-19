@@ -2,7 +2,10 @@ open Core
 open Regular.Std
 open Ssa_impl_common
 
+module Vset = Var.Tree_set
 module Lset = Label.Tree_set
+module Ltree = Label.Tree
+module DF = Semi_nca.Frontier
 
 (* First phase of the algorithm is to insert arguments to basic blocks
    and control-flow instructions based on the dominance frontier. *)
@@ -15,7 +18,7 @@ end = struct
     defs : Lset.t Var.Table.t;
     args : Var.t list Label.Table.t;
     ctrl : Ctrl.t Label.Table.t;
-    outs : Var.t list Label.Tree.t Label.Table.t;
+    outs : Var.t list Ltree.t Label.Table.t;
   }
 
   let define defs l = Hashtbl.update defs ~f:(function
@@ -49,8 +52,8 @@ end = struct
   let update_incoming env l x outs =
     Cfg.Node.preds l env.cfg |> Seq.iter ~f:(fun l' ->
         Hashtbl.update outs l' ~f:(function
-            | Some inc -> Label.Tree.add_multi inc ~key:l ~data:x
-            | None -> Label.Tree.singleton l [x]))
+            | Some inc -> Ltree.add_multi inc ~key:l ~data:x
+            | None -> Ltree.singleton l [x]))
 
   let add_arg env st l x =
     Hashtbl.add_multi st.args ~key:l ~data:x;
@@ -59,29 +62,27 @@ end = struct
   let iterated_frontier f blks =
     let blks = Lset.add blks Label.pseudoentry in
     let df = Lset.fold ~init:Lset.empty ~f:(fun init b ->
-        Semi_nca.Frontier.enum f b |> Seq.fold ~init ~f:Lset.add) in
+        Lset.union init (DF.get f b)) in
     let rec fixpoint idf =
       let idf' = df @@ Lset.union idf blks in
       if Lset.equal idf idf' then idf' else fixpoint idf' in
     fixpoint Lset.empty
 
   let needs_arg env st l x =
-    Var.Tree_set.mem (Live.ins env.live l) x &&
+    Vset.mem (Live.ins env.live l) x &&
     not (has_arg st l x)
 
   let insert_blk_args env st =
-    Live.fold env.live ~init:Var.Tree_set.empty
-      ~f:(fun u _ v -> Var.Tree_set.union u v) |>
-    Var.Tree_set.iter ~f:(fun x ->
+    Live.fold env.live ~init:Vset.empty
+      ~f:(fun u _ v -> Vset.union u v) |>
+    Vset.iter ~f:(fun x ->
         blocks_that_define_var st x |>
         iterated_frontier env.df |>
         Lset.iter ~f:(fun l ->
             if needs_arg env st l x
             then add_arg env st l x))
 
-  let find_inc inc l =
-    Label.Tree.find inc l |>
-    Option.value ~default:[]
+  let find_inc inc l = Ltree.find inc l |> Option.value ~default:[]
 
   let insert_ctrl_args st =
     Hashtbl.iteri st.outs ~f:(fun ~key:l ~data:inc ->

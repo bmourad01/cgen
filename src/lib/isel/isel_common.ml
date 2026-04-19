@@ -25,7 +25,7 @@ type 'r t = {
   typs           : ty Uopt.t Vec.t;
   id2r           : 'r Uopt.t Vec.t;
   cfg            : Cfg.t;
-  dom            : Label.t Semi_nca.tree;
+  dom            : Semi_nca.tree;
   blks           : blk Label.Tree.t;
   v2id           : Id.t Var.Table.t;
   insn           : Id.t list Label.Table.t;

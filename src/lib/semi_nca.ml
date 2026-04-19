@@ -2,55 +2,59 @@ open Core
 open Regular.Std
 open Graphlib.Std
 
-type 'a tree = {
+module Lset = Label.Tree_set
+
+type tree = {
   rev      : bool;
-  root     : 'a;
-  equal    : 'a -> 'a -> bool;
-  parent   : 'a -> 'a option;
-  children : 'a -> 'a seq;
-  depth    : 'a -> int option;
-  rpo      : 'a -> int option;
+  root     : Label.t;
+  parent   : Label.t Label.Table.t;
+  children : Label.t list Label.Table.t Lazy.t;
+  depth    : int Label.Table.t Lazy.t;
+  rpo      : int Label.Table.t Lazy.t;
 }
 
-let preorder ~children n =
-  let open Seq.Generator in
-  let rec gen u =
-    yield u >>= fun () ->
-    children u |> Seq.fold ~init:(return ())
-      ~f:(fun acc c -> acc >>= fun () -> gen c) in
-  run @@ gen n
-
 module Tree = struct
-  type 'a t = 'a tree
+  type t = tree
 
   exception Not_found
 
   let is_reversed t = t.rev
   let root t = t.root
-  let parent t n = t.parent n
-  let children t n = t.children n
-  let depth t n = t.depth n
-  let rpo t n = t.rpo n
-  let descendants t n = preorder ~children:t.children n
-  let mem t n = t.equal n t.root || Option.is_some (t.parent n)
+  let parent t n = Hashtbl.find t.parent n
+  let depth t n = Hashtbl.find (Lazy.force t.depth) n
+  let rpo t n = Hashtbl.find (Lazy.force t.rpo) n
 
-  let parent_exn t n = match t.parent n with
+  let children t n = match Hashtbl.find (Lazy.force t.children) n with
+    | Some cs -> Seq.of_list cs
+    | None -> Seq.empty
+
+  let mem t n = Label.(n = t.root) || Hashtbl.mem t.parent n
+
+  let parent_exn t n = match parent t n with
     | None -> raise Not_found
     | Some p -> p
 
-  let depth_exn t n = match t.depth n with
+  let depth_exn t n = match depth t n with
     | None -> raise Not_found
     | Some d -> d
 
-  let rpo_exn t n = match t.rpo n with
+  let rpo_exn t n = match rpo t n with
     | None -> raise Not_found
     | Some o -> o
 
-  let rec is_descendant_of t ~parent n = match t.parent n with
-    | Some p -> t.equal p parent || is_descendant_of t ~parent p
+  let rec is_descendant_of t ~parent n = match Hashtbl.find t.parent n with
+    | Some p -> Label.(p = parent) || is_descendant_of t ~parent p
     | None -> false
 
-  let dominates t a b = t.equal a b || is_descendant_of t ~parent:a b
+  let dominates t a b = Label.(a = b) || is_descendant_of t ~parent:a b
+
+  let descendants t n =
+    let open Seq.Generator in
+    let rec gen u =
+      yield u >>= fun () ->
+      children t u |> Seq.fold ~init:(return ())
+        ~f:(fun acc c -> acc >>= fun () -> gen c) in
+    run @@ gen n
 
   let postorder t =
     let open Seq.Generator in
@@ -58,14 +62,14 @@ module Tree = struct
       let rec walk s = match Seq.next s with
         | Some (c, s) -> gen c >>= fun () -> walk s
         | None -> yield u in
-      walk @@ t.children u in
+      walk @@ children t u in
     run @@ gen t.root
 
   let preorder t = descendants t t.root
 
   let ancestors t n =
     let open Seq.Generator in
-    let rec walk n = match t.parent n with
+    let rec walk n = match Hashtbl.find t.parent n with
       | None -> return ()
       | Some p -> yield p >>= fun () -> walk p in
     run @@ walk n
@@ -86,7 +90,7 @@ module Tree = struct
       decr db;
     done;
     (* Find the common ancestor. *)
-    while not (t.equal !ra !rb) do
+    while Label.(!ra <> !rb) do
       ra := parent_exn t !ra;
       rb := parent_exn t !rb;
     done;
@@ -96,15 +100,18 @@ module Tree = struct
     | Not_found -> None
 end
 
-type 'a frontier = {
-  enum : 'a -> 'a seq;
-  mem  : 'a -> 'a -> bool;
-}
+type frontier = Lset.t Label.Table.t
 
 module Frontier = struct
-  type 'a t = 'a frontier
-  let enum t = t.enum
-  let mem t = t.mem
+  type t = frontier
+
+  let get t n = match Hashtbl.find t n with
+    | Some s -> s
+    | None -> Lset.empty
+
+  let mem t a b = match Hashtbl.find t a with
+    | Some s -> Lset.mem s b
+    | None -> false
 end
 
 (* Implementation of the SEMI-NCA algorithm from:
@@ -138,12 +145,12 @@ module Impl = struct
      [idom]: the immediate dominator
      [self]: the node itself
   *)
-  type 'a node = {
+  type node = {
     mutable ans  : int;
     mutable sdom : int;
     mutable best : int;
     mutable idom : int;
-    self         : 'a;
+    self         : Label.t;
   }
 
   let create_node p n u = {
@@ -156,9 +163,9 @@ module Impl = struct
 
   let ( .!() ) t i = Vec.unsafe_get t i
 
-  type 'a frame =
-    | Enter of 'a * int
-    | Exit of 'a
+  type frame =
+    | Enter of Label.t * int
+    | Exit of Label.t
 
   (* Initialize the DFS spanning tree. *)
   let dfs g nums postord preord entry dir =
@@ -229,15 +236,12 @@ module Impl = struct
 end
 
 let compute
-    (type t n e)
-    (module G : Graph
-      with type t = t
-       and type edge = e
-       and type node = n) ?(rev = false) g entry =
+    (type g)
+    (module G : Label.Graph_s with type t = g) ?(rev = false) g entry =
   let dfs_dir = if rev then G.Node.preds else G.Node.succs in
   let sdom_dir = if rev then G.Node.succs else G.Node.preds in
   (* Map nodes to preorder numbers *)
-  let nums = G.Node.Table.create () in
+  let nums = Label.Table.create () in
   (* Preorder spanning tree *)
   let postord = Vec.create () in
   let preord = Vec.create () in
@@ -246,68 +250,50 @@ let compute
   let path = Stack.create () in
   Impl.semi g path nums preord sdom_dir;
   (* Immediate dominators *)
-  let idom = G.Node.Table.create () in
-  Impl.idom idom preord;
+  let parent = Label.Table.create () in
+  Impl.idom parent preord;
   (* Reverse postorder numbering *)
-  let rpo =
-    let t = lazy begin
-      let t = G.Node.Table.create () in
-      let n = Vec.length postord in
-      Vec.iteri postord ~f:(fun i key ->
-          Hashtbl.set t ~key ~data:(n - 1 - i));
-      t end in
-    fun n -> Hashtbl.find (Lazy.force t) n in
-  (* The resulting tree methods *)
-  let parent u = Hashtbl.find idom u in
-  let children =
-    let t = lazy begin
-      let t = G.Node.Table.create () in
-      G.nodes g |> Seq.iter ~f:(fun u ->
-          parent u |> Option.iter ~f:(fun v ->
-              Hashtbl.add_multi t ~key:v ~data:u));
-      (* Sort children by RPO number *)
-      Hashtbl.map_inplace t
-        ~f:(List.dedup_and_sort ~compare:(fun a b ->
-            let na = Option.value_exn (rpo a) in
-            let nb = Option.value_exn (rpo b) in
+  let rpo = lazy begin
+    let t = Label.Table.create () in
+    let n = Vec.length postord in
+    Vec.iteri postord ~f:(fun i key ->
+        Hashtbl.set t ~key ~data:(n - 1 - i));
+    t end in
+  (* Children of each node, sorted by RPO. *)
+  let children = lazy begin
+    let t = Label.Table.create () in
+    G.nodes g |> Seq.iter ~f:(fun u ->
+        Hashtbl.find parent u |> Option.iter ~f:(fun v ->
+            Hashtbl.add_multi t ~key:v ~data:u));
+    let rpo = Lazy.force rpo in
+    Hashtbl.map_inplace t ~f:(fun cs ->
+        List.dedup_and_sort cs ~compare:(fun a b ->
+            let na = Hashtbl.find_exn rpo a in
+            let nb = Hashtbl.find_exn rpo b in
             Int.compare na nb));
-      t end in
-    fun n -> match Hashtbl.find (Lazy.force t) n with
-      | Some s -> Seq.of_list s
-      | None -> Seq.empty in
-  let depth =
-    let t = lazy begin
-      let t = G.Node.Table.create () in
-      let q = Stack.singleton (entry, 0) in
-      Stack.until_empty q (fun (n, d) ->
-          Hashtbl.set t ~key:n ~data:d;
-          children n |> Seq.iter ~f:(fun c ->
-              Stack.push q (c, d + 1)));
-      t end in
-    fun n -> Hashtbl.find (Lazy.force t) n in
-  let root = entry and equal = G.Node.equal in
-  {rev; root; equal; parent; children; depth; rpo}
+    t end in
+  let depth = lazy begin
+    let t = Label.Table.create () in
+    let children = Lazy.force children in
+    let q = Stack.singleton (entry, 0) in
+    Stack.until_empty q (fun (n, d) ->
+        Hashtbl.set t ~key:n ~data:d;
+        Hashtbl.find children n |> Option.iter ~f:(fun cs ->
+            List.iter cs ~f:(fun c -> Stack.push q (c, d + 1))));
+    t end in
+  {rev; root = entry; parent; children; depth; rpo}
 
 (* Based on the paper "Efficiently Computing Static Single Assignment
    Form and the Control Dependence Graph" by Cytron et al. *)
 let frontier
-    (type t n e)
-    (module G : Graph
-      with type t = t
-       and type edge = e
-       and type node = n) g tree =
-  let t = G.Node.Table.create () in
-  let enum a = match Hashtbl.find t a with
-    | Some s -> Set.to_sequence s
-    | None -> Seq.empty in
-  let mem a b = match Hashtbl.find t a with
-    | Some s -> Set.mem s b
-    | None -> false in
-  let add u v = match tree.parent v with
-    | Some p when G.Node.(p <> u) ->
+    (type g)
+    (module G : Label.Graph_s with type t = g) g tree =
+  let t = Label.Table.create () in
+  let add u v = match Hashtbl.find tree.parent v with
+    | Some p when Label.(p <> u) ->
       Hashtbl.update t u ~f:(function
-          | None -> G.Node.Set.singleton v
-          | Some s -> Set.add s v)
+          | None -> Lset.singleton v
+          | Some s -> Lset.add s v)
     | _ -> () in
   (* Compute DF_{local}. *)
   let dir = if tree.rev
@@ -316,6 +302,7 @@ let frontier
   G.edges g |> Seq.map ~f:dir |> Seq.iter ~f:(Tuple2.uncurry add);
   (* Compute DF, in a bottom-up traversal of the tree. *)
   Tree.postorder tree |> Seq.iter ~f:(fun u ->
-      tree.children u |> Seq.bind ~f:enum |>
-      Seq.iter ~f:(add u));
-  {enum; mem}
+      Tree.children tree u |>
+      Seq.filter_map ~f:(Hashtbl.find t) |>
+      Seq.iter ~f:(fun s -> Lset.iter s ~f:(add u)));
+  t

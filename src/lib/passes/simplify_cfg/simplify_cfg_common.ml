@@ -12,7 +12,7 @@ type env = {
   flag          : Var.t Var.Table.t;
   mutable start : Label.t;
   mutable cfg   : Cfg.t;
-  mutable dom   : Label.t Semi_nca.tree;
+  mutable dom   : Semi_nca.tree;
   mutable ret   : Label.t option;
 }
 

@@ -4,7 +4,7 @@ open Ssa_impl_common
 
 (* Verify that the function does not violate the SSA invariants. *)
 module Make(M : L) : sig
-  val go : Label.t Semi_nca.tree -> M.Func.t -> unit
+  val go : Semi_nca.tree -> M.Func.t -> unit
 end = struct
   open M
 

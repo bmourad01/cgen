@@ -68,7 +68,7 @@ module Mem = Regular.Make(struct
 
 type t = {
   reso         : Abi.resolver;
-  dom          : Label.t Semi_nca.tree;
+  dom          : Semi_nca.tree;
   rdom         : Dominance.t;
   lst          : Last_stores.t;
   blks         : Abi.blk Label.Table.t;

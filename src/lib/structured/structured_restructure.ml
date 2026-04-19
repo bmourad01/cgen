@@ -32,7 +32,7 @@ type t = {
   tenv : Typecheck.env;
   blks : blk Ltree.t;
   cfg  : cfg;
-  pdom : Label.t DT.t;
+  pdom : DT.t;
   loop : loops;
   live : live;
   work : Label.Hash_set.t;
