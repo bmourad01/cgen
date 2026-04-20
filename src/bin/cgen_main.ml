@@ -124,7 +124,21 @@ let comp (opts : Cli.t) =
     Context.failf "input/dump combination %S and %S is invalid"
       (Cli.string_of_input_fmt opts.ifmt) (Cli.string_of_dump opts.dump) ()
 
+(* Since this program is short-lived, just prioritize GC throughput. *)
+let setup_gc () =
+  let opts = Stdlib.Gc.get () in
+  Stdlib.Gc.set {opts with space_overhead = 2000}
+
+let has_env var = match Sys.getenv var with
+  | Some _ -> true
+  | None -> false
+
+let setup_gc_unless_overridden () =
+  if not (has_env "OCAMLRUNPARAM" || has_env "CAMLRUNPARAM")
+  then setup_gc ()
+
 let () =
+  setup_gc_unless_overridden ();
   Cli.run @@ fun opts ->
   Context.init opts.target |>
   Context.run (comp opts) |>
