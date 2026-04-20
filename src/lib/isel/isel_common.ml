@@ -16,11 +16,6 @@ type 'r node =
 
 type ty = [Type.basic | `flag | `v128]
 
-(* XXX: maybe we should let the machine implementation decide this. *)
-let regcls : ty -> Machine_regvar.cls = function
-  | #Type.imm | `flag -> GPR
-  | #Type.fp | `v128 -> FP
-
 type 'r t = {
   fn             : func;
   node           : 'r node Vec.t;
@@ -57,7 +52,7 @@ let getrv t id = Uopt.to_option @@ Vec.get_exn t.id2r id
 let addextra t key data = LT.add_multi t.extra ~key ~data
 
 let newvar ~f t x ty = VT.find_or_add t.v2id x ~default:(fun () ->
-    let v = f (regcls ty) x in
+    let v = f x in
     let id = new_node ~ty t @@ Rv v in
     setrv t id v;
     id)

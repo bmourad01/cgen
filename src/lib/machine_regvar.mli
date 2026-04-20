@@ -14,6 +14,9 @@ type cls = GPR | FP [@@deriving bin_io, compare, equal, hash, sexp]
 
 val pp_cls : Format.formatter -> cls -> unit
 
+(** Map a typed operand to its register class. *)
+val cls_of_ty : [< Type.basic | `flag | `v128] -> cls
+
 (** A machine register or a virtual variable.
 
     To ease implementation of the backend, instructions can refer to
@@ -31,8 +34,8 @@ module type S = sig
   (** Construct a register. *)
   val reg : reg -> t
 
-  (** Construct a variable, with the provided register class. *)
-  val var : cls -> Var.t -> t
+  (** Construct a variable. *)
+  val var : Var.t -> t
 
   (** Returns [true] if it is a register. *)
   val is_reg : t -> bool
@@ -47,7 +50,7 @@ module type S = sig
   val has_var : t -> Var.t -> bool
 
   (** Returns the discrimination. *)
-  val which : t -> (reg, Var.t * cls) Either.t
+  val which : t -> (reg, Var.t) Either.t
 
   include Regular.S with type t := t
 end

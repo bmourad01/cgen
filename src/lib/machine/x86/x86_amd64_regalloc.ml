@@ -16,73 +16,45 @@ let is_call = function
   | One (CALL _, _) -> true
   | _ -> false
 
-let classof rv = match Regvar.which rv with
-  | First r -> Reg.classof r
-  | Second (_, cls) -> cls
+let load_from_slot ty ~dst ~src = match ty with
+  | #Type.imm as b -> I.mov (Oreg (dst, b)) (Omem (Ab src, b))
+  | `f64 -> I.movsd (Oreg (dst, `f64)) (Omem (Ab src, `i64))
+  | `f32 -> I.movss (Oreg (dst, `f32)) (Omem (Ab src, `i32))
+  | `v128 -> I.movdqa (Oregv dst) (Omem (Ab src, `v128))
 
-let load_from_slot ty ~dst ~src = match classof dst with
-  | GPR ->
-    begin match ty with
-      | `v128 | #Type.fp -> assert false
-      | #Type.basic as b -> I.mov (Oreg (dst, b)) (Omem (Ab src, b))
-    end
-  | FP ->
-    begin match ty with
-      | `f64 -> I.movsd (Oreg (dst, `f64)) (Omem (Ab src, `i64))
-      | `f32 -> I.movss (Oreg (dst, `f32)) (Omem (Ab src, `i32))
-      | `v128 -> I.movdqa (Oregv dst) (Omem (Ab src, `v128))
-      | #Type.imm -> assert false
-    end
-
-let move ty ~dst ~src = match classof dst with
-  | GPR ->
-    begin match ty with
-      | `v128 | #Type.fp -> assert false
-      | #Type.basic as b -> I.mov (Oreg (dst, b)) (Oreg (src, b))
-    end
-  | FP ->
-    begin match ty with
-      | `f64 -> I.movsd (Oreg (dst, `f64)) (Oreg (src, `f64))
-      | `f32 -> I.movss (Oreg (dst, `f32)) (Oreg (src, `f32))
-      | `v128 -> I.movdqa (Oregv dst) (Oregv src)
-      | #Type.imm -> assert false
-    end
+let move ty ~dst ~src = match ty with
+  | #Type.imm as b -> I.mov (Oreg (dst, b)) (Oreg (src, b))
+  | `f64 -> I.movsd (Oreg (dst, `f64)) (Oreg (src, `f64))
+  | `f32 -> I.movss (Oreg (dst, `f32)) (Oreg (src, `f32))
+  | `v128 -> I.movdqa (Oregv dst) (Oregv src)
 
 let immty = function
   | #Type.imm as ty -> ty
   | _ -> assert false
 
-let store_to_slot ty i ~src ~dst = match classof src with
-  | GPR ->
-    begin match ty with
-      | `v128 | #Type.fp -> assert false
-      | #Type.basic as b ->
-        (* Attempt some peephole optimizations of the
-           store. *)
-        begin match i with
-          (* XOR with self -> just store 0 in the slot *)
-          | Two (XOR, Oreg (x, _), Oreg (y ,_))
-            when Regvar.(x = y) && Regvar.(x = dst) ->
-            I.mov (Omem (Ab dst, b)) (Oimm (0L, immty ty))
-          | Two (SUB, Oreg (x, _), Oimm (1L, _))
-            when Regvar.(x = dst) ->
-            I.dec (Omem (Ab dst, b))
-          | Two (ADD, Oreg (x, _), Oimm (1L, _))
-            when Regvar.(x = dst) ->
-            I.inc (Omem (Ab dst, b))
-          | _ ->
-            (* Default case: just do a regular store
-               to the slot. *)
-            I.mov (Omem (Ab dst, b)) (Oreg (src, b))
-        end
+let store_to_slot ty i ~src ~dst = match ty with
+  | #Type.imm as b ->
+    (* Attempt some peephole optimizations of the
+       store. *)
+    begin match i with
+      (* XOR with self -> just store 0 in the slot *)
+      | Two (XOR, Oreg (x, _), Oreg (y ,_))
+        when Regvar.(x = y) && Regvar.(x = dst) ->
+        I.mov (Omem (Ab dst, b)) (Oimm (0L, immty ty))
+      | Two (SUB, Oreg (x, _), Oimm (1L, _))
+        when Regvar.(x = dst) ->
+        I.dec (Omem (Ab dst, b))
+      | Two (ADD, Oreg (x, _), Oimm (1L, _))
+        when Regvar.(x = dst) ->
+        I.inc (Omem (Ab dst, b))
+      | _ ->
+        (* Default case: just do a regular store
+           to the slot. *)
+        I.mov (Omem (Ab dst, b)) (Oreg (src, b))
     end
-  | FP ->
-    begin match ty with
-      | `f64 -> I.movsd (Omem (Ab dst, `i64)) (Oreg (src, `f64))
-      | `f32 -> I.movss (Omem (Ab dst, `i32)) (Oreg (src, `f32))
-      | `v128 -> I.movdqa (Omem (Ab dst, `v128)) (Oregv src)
-      | #Type.imm -> assert false
-    end
+  | `f64 -> I.movsd (Omem (Ab dst, `i64)) (Oreg (src, `f64))
+  | `f32 -> I.movss (Omem (Ab dst, `i32)) (Oreg (src, `f32))
+  | `v128 -> I.movdqa (Omem (Ab dst, `v128)) (Oregv src)
 
 let substitute_amode f = function
   | Ab b -> Ab (f b)
@@ -334,7 +306,7 @@ module Pre_assign_slots(C : Context_intf.S) = struct
   open C.Syntax
 
   let freshen x off =
-    let+ x' = C.Var.fresh >>| Regvar.var GPR in
+    let+ x' = C.Var.fresh >>| Regvar.var in
     x', [I.lea (Oreg (x', `i64)) (Omem (Abd (x, off), `i64))]
 
   let add_disp base off d =

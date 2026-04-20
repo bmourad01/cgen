@@ -30,7 +30,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         let align = Slot.align s in
         (* Round up the offset to the correct alignment. *)
         let o = alup o align in
-        let m = Map.set m ~key:(Rv.var GPR v) ~data:o in
+        let m = Map.set m ~key:(Rv.var v) ~data:o in
         o + size, m) |> snd
 
   let callee_saves fn =

@@ -7,18 +7,22 @@ let pp_cls ppf = function
   | GPR -> Format.fprintf ppf "gpr"
   | FP -> Format.fprintf ppf "fp"
 
+let cls_of_ty : [< Type.basic | `flag | `v128] -> cls = function
+  | #Type.imm | `flag -> GPR
+  | #Type.fp | `v128 -> FP
+
 module type S = sig
   type t
   type reg
 
   val empty_sentinel : t
   val reg : reg -> t
-  val var : cls -> Var.t -> t
+  val var : Var.t -> t
   val is_reg : t -> bool
   val is_var : t -> bool
   val has_reg : t -> reg -> bool
   val has_var : t -> Var.t -> bool
-  val which : t -> (reg, Var.t * cls) Either.t
+  val which : t -> (reg, Var.t) Either.t
 
   include Regular.S with type t := t
 end
@@ -37,7 +41,7 @@ module Make(R : Reg)(N : Name) = struct
     type t =
       | Nil
       | Reg of R.t
-      | Var of Var.t * (cls[@hash.ignore])
+      | Var of Var.t
     [@@deriving bin_io, compare, equal, hash, sexp]
   end
 
@@ -62,21 +66,21 @@ module Make(R : Reg)(N : Name) = struct
 
   let has_var t v = match t with
     | Nil -> false
-    | Var (v', _) -> Var.(v = v')
+    | Var v' -> Var.(v = v')
     | Reg _ -> false
 
   let reg r = Reg r
-  let var cls v = Var (v, cls)
+  let var v = Var v
 
   let which = function
     | Nil -> failwith "which: empty_sentinel"
     | Reg r -> First r
-    | Var (v, cls) -> Second (v, cls)
+    | Var v -> Second v
 
   let pp ppf = function
     | Nil -> Format.fprintf ppf "<nil>"
     | Reg r -> Format.fprintf ppf "%a" R.pp r
-    | Var (v, _) -> Format.fprintf ppf "%a" Var.pp v
+    | Var v -> Format.fprintf ppf "%a" Var.pp v
 
   include Regular.Make(struct
       include T

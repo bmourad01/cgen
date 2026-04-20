@@ -97,7 +97,7 @@ let emit_reg t ppf r = match r, t with
 
 let emit_regvar t ppf rv = match Regvar.which rv with
   | First r -> emit_reg t ppf r
-  | Second (x, _) ->
+  | Second x ->
     invalid_argf "tried to emit a variable %s"
       (Format.asprintf "%a" Var.pp x) ()
 

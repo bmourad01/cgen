@@ -17,11 +17,12 @@ module Make(M : Machine_intf.S) = struct
         | GPR -> assert false
         | FP -> ())
 
-  let classof rv = match Rv.which rv with
+  let classof ~typeof rv = match Rv.which rv with
     | First r -> M.Reg.classof r
-    | Second (_, k) -> k
+    | Second _ -> MR.cls_of_ty (typeof rv)
 
-  let same_class_node a b = MR.equal_cls (classof a) (classof b)
+  let same_class_node ~typeof a b =
+    MR.equal_cls (classof ~typeof a) (classof ~typeof b)
 
   let allocatable = Array.of_list M.Reg.allocatable
   let allocatable_fp = Array.of_list M.Reg.allocatable_fp
@@ -54,5 +55,5 @@ module Make(M : Machine_intf.S) = struct
 
   (* Choose K based on the register class. `initial` should
      not contain pre-colored nodes. *)
-  let node_k n = class_k @@ classof n
+  let node_k ~typeof n = class_k @@ classof ~typeof n
 end

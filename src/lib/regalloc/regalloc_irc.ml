@@ -22,7 +22,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     ensure_degree t v;
     if u <> v
     && not (has_edge t u v)
-    && Regs.same_class_node t.![u] t.![v]
+    && same_cls t u v
     && not (is_slot t u)
     && not (is_slot t v) then begin
       add_adjlist t u v;
@@ -51,7 +51,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         let d = t.$[drv] and s = t.$[srv] in
         (* This is an invariant that is required of `RA.is_copy`; better
            to fail loudly here than silently introduce errors. *)
-        let+ () = C.unless (Regs.same_class_node drv srv) @@ fun () ->
+        let+ () = C.unless (same_cls t d s) @@ fun () ->
           C.failf "In Regalloc.build_insn: got a copy instruction `%a` between \
                    between two different register classes (%a, %a)"
             (Insn.pp M.Insn.pp) i Rv.pp drv Rv.pp srv () in
@@ -114,7 +114,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
            its definition during dead code elimination, then it
            won't have a degree. *)
         degree' t id |> Option.iter ~f:(fun d ->
-            if d >= Regs.node_k t.![id] then
+            if d >= id_k t id then
               Wspill.add t id
             else if Wmoves.move_related t id then
               Wfreeze.add t id
@@ -153,7 +153,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
          degree[m] := d-1 *)
       dec_degree t id;
       (* if d = K then *)
-      if d = Regs.node_k t.![id] then begin
+      if d = id_k t id then begin
         (* EnableMoves({m} ∪ Adjacent(m)) *)
         enable_moves t (Bitset.set (adjacent t id) id);
         (* spillWorklist := spillWorklist ∖ {m} *)
@@ -187,7 +187,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* not(MoveRelated(u)) *)
     not (Wmoves.move_related t id) &&
     (* degree[u] < K *)
-    degree t id < Regs.node_k t.![id]
+    degree t id < id_k t id
 
   let add_worklist t id = if should_add_to_worklist t id then begin
       (* freezeWorklist := freezeWorklist ∖ {u} *)
@@ -201,7 +201,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* t ∈ precolored *)
       exclude_from_coloring t a ||
       (* degree[t] < K *)
-      degree t a < Regs.node_k t.![a] ||
+      degree t a < id_k t a ||
       (* (a,r) ∈ adjSet *)
       has_edge t a r in
     Logs.debug (fun m ->
@@ -224,13 +224,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   *)
   let conservative t nodes =
     Bitset.fold nodes ~init:0 ~f:(fun k id ->
-        if degree t id >= Regs.node_k t.![id] then k + 1 else k)
+        if degree t id >= id_k t id then k + 1 else k)
 
   (* Conservative(Adjacent(u) ∪ Adjacent(v)) *)
   let conservative_adj t u v =
-    assert (Regs.same_class_node t.![u] t.![v]);
+    assert (same_cls t u v);
     let nodes = Bitset.union (adjacent t u) (adjacent t v) in
-    let nk = Regs.node_k t.![u] in
+    let nk = id_k t u in
     let k = conservative t nodes in
     Logs.debug (fun m ->
         m "%s: u=%a, v=%a, k=%d, nk=%d%!"
@@ -291,7 +291,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
        falsely move-related. *)
     enable_moves_one t v;
     if (* degree[u] >= K *)
-      degree t u >= Regs.node_k t.![u] &&
+      degree t u >= id_k t u &&
       (* u ∈ freezeWorklist *)
       Wfreeze.has t u
     then
@@ -382,7 +382,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         t.fmoves <- Lset.add t.fmoves m;
         (* if NodeMoves(v) = {} ∧ degree[v] < K ∧ v not precolored *)
         if Lset.is_empty (Wmoves.node_moves t v)
-        && degree t v < Regs.node_k t.![v]
+        && degree t v < id_k t v
         && not (exclude_from_coloring t v) then begin
           (* freezeWorklist := freezeWorklist ∖ {v} *)
           Wfreeze.remove t v;
@@ -445,7 +445,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Stack.until_empty t.select (fun id ->
         assert (can_be_colored t id);
         (* okColors := {0,...,K-1} *)
-        let k = Regs.node_k t.![id] in
+        let k = id_k t id in
         let cs = free_colors t id k in
         (* if okColors = {} then *)
         match Bitset.min_elt cs with
@@ -464,7 +464,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         (* color[n] := color[GetAlias(n)] *)
         alias t id |> color t |> Option.iter ~f:(set_color t id))
 
-  let typeof t v = match Map.find t.types v with
+  let typeof t v = match RT.find t.types v with
     | None -> C.failf "no type available for spilled node %a" Rv.pp v ()
     | Some ty -> !!ty
 
@@ -520,11 +520,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       C.Seq.fold ~init:([], Int.Map.empty) ~f:(fun (acc, m) id ->
           match Rv.which t.![id] with
           | First _ -> assert false
-          | Second (v, _) ->
+          | Second v ->
             let+ size = typeof t t.![id] >>| function
               | #Type.basic as b -> Type.sizeof_basic b / 8
               | `v128 -> 16 in
-            let r = Rv.var GPR v in
+            let r = Rv.var v in
             let rid = t.$[r] in
             let reuse r' =
               Logs.debug (fun m ->
@@ -583,7 +583,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           | _ ->
             (* Create a new temporary v_i for each definition and each use
                not already satisfied by the reload cache. *)
-            let* v' = C.Var.fresh >>| Rv.var (Regs.classof v) in
+            let* v' = C.Var.fresh >>| Rv.var in
             (* a fetch before each use of a v_i; cache it for later uses *)
             let* f', rl = if is_use then
                 let+ label = C.Label.fresh in
@@ -612,7 +612,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                first, dropping the reload temps below K so they move to
                `wsimplify` and get colored rather than actually spilled. *)
             t.reload_bits <- Bitset.set t.reload_bits t.$[v'];
-            t.types <- Map.set t.types ~key:v' ~data:ty;
+            RT.set t.types ~key:v' ~data:ty;
             f', s', m', rl) in
     (* Apply the substitution to the existing instruction. *)
     let subst n = Map.find subst n |> Option.value ~default:n in
@@ -727,7 +727,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         rv
       | c ->
         assert (can_be_colored t id);
-        Rv.reg @@ match Regs.classof rv with
+        Rv.reg @@ match t.data.cls.(id) with
         | GPR -> Regs.allocatable.(c)
         | FP -> Regs.allocatable_fp.(c) in
     Func.map_blks t.fn ~f:(fun b ->

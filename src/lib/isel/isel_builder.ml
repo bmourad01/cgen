@@ -99,7 +99,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let+ ty = typeof_operand t a in
     match a with
     | #Virtual.const as c -> ty, constant t c
-    | `var x -> ty, new_node ~ty t @@ Rv (Rv.var (regcls ty) x)
+    | `var x -> ty, new_node ~ty t @@ Rv (Rv.var x)
 
   module W = Windmill.Make(C)
 
@@ -166,7 +166,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         let+ b = operand t b in
         let n = N (Obinop o, [a; b]) in
         new_node ~ty t n in
-    let r = Rv.var (regcls ty) x in
+    let r = Rv.var x in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
     setvar t x id;
@@ -188,7 +188,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           let+ a = operand t a in
           let n = N (Ounop o, [a]) in
           new_node ~ty t n in
-    let r = Rv.var (regcls ty) x in
+    let r = Rv.var x in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
     setvar t x id;
@@ -201,7 +201,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let n = N (Osel ty, [c; y; n]) in
     let ty = (ty :> ty) in
     let id = new_node ~ty t n in
-    let r = Rv.var (regcls ty) x in
+    let r = Rv.var x in
     let rid = new_node ~ty t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
     setvar t x id;

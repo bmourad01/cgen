@@ -22,6 +22,7 @@ open Core
 open Regular.Std
 open Pseudo
 
+module MR = Machine_regvar
 module Lset = Label.Tree_set
 module LT = Label.Dense_table
 module Id = Int
@@ -68,10 +69,12 @@ module Make(M : Machine_intf.S) = struct
     mutable defs       : Lset.t array;  (* definition instructions for each node *)
     mutable node_moves : Lset.t array;  (* move instructions for each node *)
     mutable amoves     : Lset.t;        (* active moves *)
+    mutable cls        : MR.cls array;  (* register class for each node *)
   }
 
   let is_register' data id = Bitset.mem data.reg_bits id
   let is_slot' data id = Bitset.mem data.slot_bits id
+  let id_k' data id = Regs.class_k data.cls.(id)
 
   let create_data () = {
     degree = [||];
@@ -83,6 +86,7 @@ module Make(M : Machine_intf.S) = struct
     defs = [||];
     node_moves = [||];
     amoves = Lset.empty;
+    cls = [||];
   }
 
   type t = {
@@ -114,7 +118,7 @@ module Make(M : Machine_intf.S) = struct
     insn_blks            : (Label.t * id) LT.t;
     slots                : Rv.t RT.t;
     phi_pairs            : Rv.Set.t RT.t;
-    mutable types        : [Type.basic | `v128] Rv.Map.t;
+    types                : [Type.basic | `v128] RT.t;
     cfg                  : Pseudo.Cfg.t;
     loop                 : Loop.t;
     dom                  : Semi_nca.tree;
@@ -142,12 +146,18 @@ module Make(M : Machine_intf.S) = struct
     t.alias <- Array.init n ~f:Fn.id;
     t.data.node_moves <- Array.create ~len:n Lset.empty;
     t.data.defs <- Array.create ~len:n Lset.empty;
+    t.data.cls <-
+      Array.init n ~f:(fun id ->
+          Regs.classof t.![id]
+            ~typeof:(RT.find_exn t.types));
     t.wspill_elts <- Option_array.create ~len:n;
     t.wfreeze_elts <- Option_array.create ~len:n
 
   let is_register t id = is_register' t.data id
   let is_slot t id = is_slot' t.data id
   let is_colored t id = Bitset.mem t.colored id
+  let id_k t id = id_k' t.data id
+  let same_cls t a b = MR.equal_cls t.data.cls.(a) t.data.cls.(b)
 
   (* Explicit registers and variables that correspond to stack slots should
      be excluded from consideration. *)
@@ -228,13 +238,16 @@ module Make(M : Machine_intf.S) = struct
         sk (st a) (st b) ()
 
   let update_types t insn =
-    let types = M.Regalloc.writes_with_types insn in
-    t.types <- Map.merge_skewed t.types types ~combine:reduce_type
+    M.Regalloc.writes_with_types insn |>
+    Map.iteri ~f:(fun ~key ~data ->
+        RT.update t.types key ~f:(function
+            | Some ty -> reduce_type ~key ty data
+            | None -> data))
 
   let is_phi_var t id =
     match Rv.which t.![id] with
     | First _ -> false
-    | Second (v, _) ->
+    | Second v ->
       match Dict.find (Func.dict t.fn) Tags.phi_var with
       | None -> false
       | Some p -> Set.mem p v
@@ -371,7 +384,7 @@ module Make(M : Machine_intf.S) = struct
            scale the result such that a node with degree > K doesn't
            outweigh a node that is pre-colored. *)
         let effective_degree id p =
-          let k = Regs.node_k (Vec.get_exn id2rv id) in
+          let k = id_k' data id in
           let k' = k * 2 in
           if p then k' else
             let d = data.degree.(id) in
@@ -466,7 +479,7 @@ module Make(M : Machine_intf.S) = struct
         Seq.fold ~init:(0, 0) ~f:(fun (np, pw) (copy : copy) ->
             let w = copy.loop in
             match Rv.which (Vec.get_exn id2rv copy.dst) with
-            | Second (v, _) when Set.mem phi_var v -> np, pw + w
+            | Second v when Set.mem phi_var v -> np, pw + w
             | _ -> np + w, pw) in
       non_phi_weight + phi_weight_coeff * phi_weight
 
@@ -562,7 +575,7 @@ module Make(M : Machine_intf.S) = struct
       insn_blks;
       slots = RT.create ();
       phi_pairs = RT.create ();
-      types = Rv.Map.empty;
+      types = RT.create ();
       cfg;
       loop;
       dom;
@@ -628,7 +641,7 @@ module Make(M : Machine_intf.S) = struct
     (* wsimplify invariant: degree < K and not move-related *)
     Bitset.iter t.wsimplify ~f:(fun id ->
         let d = t.data.degree.(id) in
-        let k = Regs.node_k t.![id] in
+        let k = id_k t id in
         if d >= k then
           failwithf "wsimplify invariant: id %d degree=%d >= K=%d" id d k ();
         if Wmoves.move_related t id then
@@ -636,7 +649,7 @@ module Make(M : Machine_intf.S) = struct
     (* wfreeze invariant: degree < K and move-related *)
     H.iter t.wfreeze ~f:(fun id ->
         let d = t.data.degree.(id) in
-        let k = Regs.node_k t.![id] in
+        let k = id_k t id in
         if d >= k then
           failwithf "wfreeze invariant: id %d degree=%d >= K=%d" id d k ();
         if not (Wmoves.move_related t id) then
@@ -644,7 +657,7 @@ module Make(M : Machine_intf.S) = struct
     (* wspill invariant: degree >= K *)
     H.iter t.wspill ~f:(fun id ->
         let d = t.data.degree.(id) in
-        let k = Regs.node_k t.![id] in
+        let k = id_k t id in
         if d < k then
           failwithf "wspill invariant: id %d degree=%d < K=%d" id d k ());
     (* Partition invariant: each colorable node in exactly one set *)
