@@ -1,7 +1,8 @@
 open Core
+open Cgen_containers
 
 module Seq = Sequence
-module B = Cgen.Bitset
+module B = Bitset
 module Q = Quickcheck
 module G = Q.Generator
 module S = Q.Shrinker

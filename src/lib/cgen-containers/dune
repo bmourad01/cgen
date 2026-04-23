@@ -1,0 +1,6 @@
+(library
+ (name cgen_containers)
+ (public_name cgen.containers)
+ (libraries core regular zarith)
+ (preprocess
+  (pps ppx_bin_prot ppx_compare ppx_fields_conv ppx_hash ppx_sexp_conv)))

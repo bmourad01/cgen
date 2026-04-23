@@ -1,0 +1,54 @@
+(include_subdirs qualified)
+
+(ocamllex virtual_lexer structured_lexer)
+
+(menhir
+ (modules virtual_parser structured_parser)
+ (explain true))
+
+(library
+ (name cgen)
+ (public_name cgen)
+ (preprocess
+  (pps ppx_bin_prot ppx_compare ppx_fields_conv ppx_hash ppx_sexp_conv))
+ (libraries
+  bitvec
+  bitvec-binprot
+  bitvec-order
+  bitvec-sexp
+  cgen.containers
+  core
+  core_kernel.pairing_heap
+  core_kernel.uopt
+  graphlib
+  logs
+  monads
+  regular
+  zarith)
+ (private_modules
+  context_virtual_intf
+  dominance
+  isel_internal
+  last_stores
+  live_intf
+  loops
+  loops_intf
+  matcher
+  phi_values
+  resolver_intf
+  scalars
+  slot_initialization
+  sm
+  structured_lexer
+  structured_parser
+  subst_mapper
+  subst_mapper_abi
+  tags
+  tailcall
+  virtual_lexer
+  virtual_parser
+  windmill)
+ (foreign_stubs
+  (language c)
+  (names float_stubs))
+ (ocamlopt_flags -O2))
