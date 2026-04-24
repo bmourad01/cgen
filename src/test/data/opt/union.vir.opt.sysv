@@ -1,48 +1,48 @@
 module union
 
 export function $getint(l %1/rdi) {
-  %86 = slot 8, align 8
+  %109 = slot 8, align 8
 @2:
-  st.l %1, %86 ; @63
-  %50 = ld.w %86 ; @4
-  ret rax/%50
+  st.l %1, %109 ; @80
+  %65 = ld.w %109 ; @4
+  ret rax/%65
 }
 
 export function $mkfloat(s %4/xmm0) {
   %3 = slot 8, align 8
 @5:
   st.s %4, %3 ; @6
-  %176 = ld.l %3 ; @66
-  ret rax/%176
+  %208 = ld.l %3 ; @83
+  ret rax/%208
 }
 
 export function $struct_with_union(l %7/rdi) {
   %6 = slot 8, align 8
 @8:
-  st.l %7, %6 ; @69
-  %75 = add.l %6, 0x4_l ; @52
-  %53 = ld.w %75 ; @11
-  ret rax/%53
+  st.l %7, %6 ; @86
+  %96 = add.l %6, 0x4_l ; @67
+  %68 = ld.w %96 ; @11
+  ret rax/%68
 }
 
 export function $get_sse_d(d %11/xmm0) {
-  %93 = slot 8, align 8
+  %116 = slot 8, align 8
 @12:
-  st.d %11, %93 ; @72
+  st.d %11, %116 ; @89
   ret xmm0/%11
 }
 
 export function $mk_sse_d(d %14/xmm0) {
-  %95 = slot 8, align 8
+  %118 = slot 8, align 8
 @15:
-  st.d %14, %95 ; @16
+  st.d %14, %118 ; @16
   ret xmm0/%14
 }
 
-export function $sum_u2(l %99/rdi, l %100/rsi) {
+export function $sum_u2(l %122/rdi, l %123/rsi) {
 @18:
-  %191 = add.l %99, %100 ; @54
-  ret rax/%191
+  %223 = add.l %122, %123 ; @69
+  ret rax/%223
 }
 
 export function $mk_u2(l %23/rdi, l %25/rsi) {
@@ -50,32 +50,65 @@ export function $mk_u2(l %23/rdi, l %25/rsi) {
   ret rax/%23, rdx/%25
 }
 
-export function $sum_big(l %115/+0, l %116/+8, l %118/+16) {
+export function $sum_big(l %138/+0, l %139/+8, l %141/+16) {
 @29:
-  %224 = add.l %115, %116 ; @58
-  %225 = add.l %224, %118 ; @59
-  ret rax/%225
-}
-
-export function $mk_big(l %127/rdi, l %37/rsi, l %39/rdx, l %41/rcx) {
-@38:
-  st.l %37, %127 ; @112
-  %234 = add.l %127, 0x8_l ; @115
-  st.l %39, %234 ; @116
-  %237 = add.l %127, 0x10_l ; @119
-  st.l %41, %237 ; @120
-  ret rax/%127
-}
-
-export function $s2_union_l(l %136/rdi, l %137/rsi) {
-@45:
-  ret rax/%136
-}
-
-export function $s2_w(l %144/rdi, l %145/rsi) {
-  %173 = slot 8, align 8
-@48:
-  st.l %145, %173 ; @138
-  %257 = ld.w %173 ; @51
+  %256 = add.l %138, %139 ; @73
+  %257 = add.l %256, %141 ; @74
   ret rax/%257
+}
+
+export function $mk_big(l %150/rdi, l %37/rsi, l %39/rdx, l %41/rcx) {
+@38:
+  st.l %37, %150 ; @129
+  %266 = add.l %150, 0x8_l ; @132
+  st.l %39, %266 ; @133
+  %269 = add.l %150, 0x10_l ; @136
+  st.l %41, %269 ; @137
+  ret rax/%150
+}
+
+export function $s2_union_l(l %159/rdi, l %160/rsi) {
+@45:
+  ret rax/%159
+}
+
+export function $s2_w(l %167/rdi, l %168/rsi) {
+  %205 = slot 8, align 8
+@48:
+  st.l %168, %205 ; @155
+  %289 = ld.w %205 ; @51
+  ret rax/%289
+}
+
+export function $us_first(l %51/rdi) {
+  %174 = slot 8, align 8
+@52:
+  st.l %51, %174 ; @156
+  %90 = ld.w %174 ; @54
+  ret rax/%90
+}
+
+export function $us_second(l %54/rdi) {
+  %53 = slot 8, align 8
+@55:
+  st.l %54, %53 ; @159
+  %107 = add.l %53, 0x4_l ; @78
+  %92 = ld.w %107 ; @58
+  ret rax/%92
+}
+
+export function $mk_us_pair(w %58/rdi, w %60/rsi) {
+  %57 = slot 8, align 8
+@59:
+  st.w %58, %57 ; @60
+  %108 = add.l %57, 0x4_l ; @79
+  st.w %60, %108 ; @62
+  %179 = ld.l %57 ; @162
+  ret rax/%179
+}
+
+export function $us_as_d(l %63/rdi) {
+@64:
+  %293 = fibits.d %63 ; @66
+  ret xmm0/%293
 }

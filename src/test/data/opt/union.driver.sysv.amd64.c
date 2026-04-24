@@ -35,6 +35,16 @@ struct S2 {
   int w;
 };
 
+struct Pair {
+  int a;
+  int b;
+};
+
+union US {
+  struct Pair p;
+  double d;
+};
+
 extern int getint(union U x);
 extern union U mkfloat(float f);
 extern int struct_with_union(struct S x);
@@ -46,6 +56,10 @@ extern long sum_big(union UB x);
 extern union UB mk_big(long a, long b, long c);
 extern long s2_union_l(struct S2 x);
 extern int s2_w(struct S2 x);
+extern int us_first(union US x);
+extern int us_second(union US x);
+extern union US mk_us_pair(int a, int b);
+extern double us_as_d(union US x);
 
 int
 main() {
@@ -97,4 +111,17 @@ main() {
   s2.w = 77;
   assert(s2_union_l(s2) == 42);
   assert(s2_w(s2) == 77);
+
+  union US us;
+  us.p.a = 11;
+  us.p.b = 22;
+  assert(us_first(us) == 11);
+  assert(us_second(us) == 22);
+
+  us = mk_us_pair(33, 44);
+  assert(us.p.a == 33);
+  assert(us.p.b == 44);
+
+  us.d = 1.5;
+  assert(us_as_d(us) == 1.5);
 }

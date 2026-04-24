@@ -35,6 +35,16 @@ type :s2 = {
   w
 }
 
+type :pair = {
+  w,
+  w
+}
+
+type :us = union {
+  :pair,
+  d
+}
+
 export function w $getint(:u %x) {
   %tmp = slot 4, align 4
 @start:
@@ -137,5 +147,40 @@ export function w $s2_w(:s2 %x) {
   st:s2 %x, %tmp
   %p = add.l %tmp, 8_l
   %r = ld.w %p
+  ret %r
+}
+
+export function w $us_first(:us %x) {
+  %tmp = slot 8, align 8
+@start:
+  st:us %x, %tmp
+  %r = ld.w %tmp
+  ret %r
+}
+
+export function w $us_second(:us %x) {
+  %tmp = slot 8, align 8
+@start:
+  st:us %x, %tmp
+  %p = add.l %tmp, 4_l
+  %r = ld.w %p
+  ret %r
+}
+
+export function :us $mk_us_pair(w %a, w %b) {
+  %tmp = slot 8, align 8
+@start:
+  st.w %a, %tmp
+  %p = add.l %tmp, 4_l
+  st.w %b, %p
+  %r = ld:us %tmp
+  ret %r
+}
+
+export function d $us_as_d(:us %x) {
+  %tmp = slot 8, align 8
+@start:
+  st:us %x, %tmp
+  %r = ld.d %tmp
   ret %r
 }

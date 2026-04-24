@@ -2,93 +2,127 @@ module union
 
 export function $getint { ; returns: rax
 @2:
-  sub rsp, 0x8_l ; @182
-  mov qword ptr [rsp], rdi ; @141
+  sub rsp, 0x8_l ; @224
+  mov qword ptr [rsp], rdi ; @170
   mov eax, dword ptr [rsp] ; @4
-  add rsp, 0x8_l ; @183
-  ret ; @140
+  add rsp, 0x8_l ; @225
+  ret ; @169
 }
 
 export function $mkfloat { ; returns: rax
 @5:
-  sub rsp, 0x8_l ; @184
-  movss dword ptr [rsp], xmm0 ; @144
-  mov rax, qword ptr [rsp] ; @66
-  add rsp, 0x8_l ; @185
-  ret ; @143
+  sub rsp, 0x8_l ; @226
+  movss dword ptr [rsp], xmm0 ; @173
+  mov rax, qword ptr [rsp] ; @83
+  add rsp, 0x8_l ; @227
+  ret ; @172
 }
 
 export function $struct_with_union { ; returns: rax
 @8:
-  sub rsp, 0x8_l ; @186
-  mov qword ptr [rsp], rdi ; @147
+  sub rsp, 0x8_l ; @228
+  mov qword ptr [rsp], rdi ; @176
   mov eax, dword ptr [rsp + 0x4] ; @11
-  add rsp, 0x8_l ; @187
-  ret ; @146
+  add rsp, 0x8_l ; @229
+  ret ; @175
 }
 
 export function $get_sse_d { ; returns: xmm0
 @12:
-  sub rsp, 0x8_l ; @188
-  movsd qword ptr [rsp], xmm0 ; @150
-  add rsp, 0x8_l ; @189
-  ret ; @149
+  sub rsp, 0x8_l ; @230
+  movsd qword ptr [rsp], xmm0 ; @179
+  add rsp, 0x8_l ; @231
+  ret ; @178
 }
 
 export function $mk_sse_d { ; returns: xmm0
 @15:
-  sub rsp, 0x8_l ; @190
-  movsd qword ptr [rsp], xmm0 ; @153
-  add rsp, 0x8_l ; @191
-  ret ; @152
+  sub rsp, 0x8_l ; @232
+  movsd qword ptr [rsp], xmm0 ; @182
+  add rsp, 0x8_l ; @233
+  ret ; @181
 }
 
 export function $sum_u2 { ; returns: rax
 @18:
-  lea rax, qword ptr [rdi + rsi*1] ; @157
-  ret ; @155
+  lea rax, qword ptr [rdi + rsi*1] ; @186
+  ret ; @184
 }
 
 export function $mk_u2 { ; returns: rax rdx
 @24:
-  mov rax, rdi ; @158
-  mov rdx, rsi ; @159
-  ret ; @162
+  mov rax, rdi ; @187
+  mov rdx, rsi ; @188
+  ret ; @191
 }
 
 export function $sum_big { ; returns: rax
 @29:
-  push rbp ; @192
-  mov rbp, rsp ; @193
-  mov rdx, qword ptr [rbp + 0x10] ; @58
-  mov rax, qword ptr [rbp + 0x18] ; @165
-  mov rcx, qword ptr [rbp + 0x20] ; @166
-  add rax, rdx ; @167
-  add rax, rcx ; @59
-  leave ; @194
-  ret ; @164
+  push rbp ; @234
+  mov rbp, rsp ; @235
+  mov rdx, qword ptr [rbp + 0x10] ; @73
+  mov rax, qword ptr [rbp + 0x18] ; @194
+  mov rcx, qword ptr [rbp + 0x20] ; @195
+  add rax, rdx ; @196
+  add rax, rcx ; @74
+  leave ; @236
+  ret ; @193
 }
 
 export function $mk_big { ; returns: rax
 @38:
-  mov qword ptr [rdi], rsi ; @173
-  mov qword ptr [rdi + 0x8], rdx ; @116
-  mov qword ptr [rdi + 0x10], rcx ; @120
-  mov rax, rdi ; @168
-  ret ; @169
+  mov qword ptr [rdi], rsi ; @202
+  mov qword ptr [rdi + 0x8], rdx ; @133
+  mov qword ptr [rdi + 0x10], rcx ; @137
+  mov rax, rdi ; @197
+  ret ; @198
 }
 
 export function $s2_union_l { ; returns: rax
 @45:
-  mov rax, rdi ; @174
-  ret ; @177
+  mov rax, rdi ; @203
+  ret ; @206
 }
 
 export function $s2_w { ; returns: rax
 @48:
-  sub rsp, 0x8_l ; @195
-  mov qword ptr [rsp], rsi ; @181
+  sub rsp, 0x8_l ; @237
+  mov qword ptr [rsp], rsi ; @210
   mov eax, dword ptr [rsp] ; @51
-  add rsp, 0x8_l ; @196
-  ret ; @179
+  add rsp, 0x8_l ; @238
+  ret ; @208
+}
+
+export function $us_first { ; returns: rax
+@52:
+  sub rsp, 0x8_l ; @239
+  mov qword ptr [rsp], rdi ; @213
+  mov eax, dword ptr [rsp] ; @54
+  add rsp, 0x8_l ; @240
+  ret ; @212
+}
+
+export function $us_second { ; returns: rax
+@55:
+  sub rsp, 0x8_l ; @241
+  mov qword ptr [rsp], rdi ; @216
+  mov eax, dword ptr [rsp + 0x4] ; @58
+  add rsp, 0x8_l ; @242
+  ret ; @215
+}
+
+export function $mk_us_pair { ; returns: rax
+@59:
+  sub rsp, 0x8_l ; @243
+  mov dword ptr [rsp], edi ; @220
+  mov dword ptr [rsp + 0x4], esi ; @62
+  mov rax, qword ptr [rsp] ; @162
+  add rsp, 0x8_l ; @244
+  ret ; @218
+}
+
+export function $us_as_d { ; returns: xmm0
+@64:
+  movq xmm0, rdi ; @223
+  ret ; @222
 }
