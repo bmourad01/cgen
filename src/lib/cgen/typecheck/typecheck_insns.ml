@@ -353,12 +353,12 @@ let check_call_sym_args env s (args : (operand * Type.arg) list) =
   M.List.iter args ~f:(fun (a, t) ->
       let* at = typeof_arg fn env a in
       match at, t with
-      | (#Type.compound as c), `name n ->
-        let cn = Type.compound_name c in
+      | (#Type.named as c), `name n ->
+        let cn = Type.named_name c in
         if String.(cn = n) then !!()
         else name_arg_fail s cn n a
-      | (#Type.compound as c), (#Type.basic as b) ->
-        let cn = Type.compound_name c in
+      | (#Type.named as c), (#Type.basic as b) ->
+        let cn = Type.named_name c in
         expected_compound_arg s cn (b : Type.t) a
       | (#Type.t as at), `name n ->
         expected_basic_arg s n at a

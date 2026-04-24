@@ -497,7 +497,7 @@ module Data : sig
 
   (** Returns the corresponding compound type of the struct, where
       [word] is the target's pointer size. *)
-  val typeof : t -> word:Type.imm_base -> Type.compound
+  val typeof : t -> word:Type.imm_base -> Type.named
 
   (** Prepends an element to the beginning of the structure. *)
   val prepend_elt : t -> elt -> t
@@ -522,7 +522,7 @@ module Module : sig
   (** Creates a module. *)
   val create :
     ?dict:Dict.t ->
-    ?typs:Type.compound list ->
+    ?typs:Type.named list ->
     ?data:data list ->
     ?funs:func list ->
     name:string ->
@@ -530,21 +530,21 @@ module Module : sig
     t
 
   (** Declared (compound) types that are visible in the module. *)
-  val typs : ?rev:bool -> t -> Type.compound seq
+  val typs : ?rev:bool -> t -> Type.named seq
 
   (** Appends a type to the module. *)
-  val insert_type : t -> Type.compound -> t
+  val insert_type : t -> Type.named -> t
 
   (** Removes the type associated with the name. *)
   val remove_type : t -> string -> t
 
   (** Returns the module with each type transformed by [f]. *)
-  val map_typs : t -> f:(Type.compound -> Type.compound) -> t
+  val map_typs : t -> f:(Type.named -> Type.named) -> t
 
   (** Returns the module with each type transformed by [f],
       where [f] may fail. *)
   val map_typs_err :
-    t -> f:(Type.compound -> Type.compound Or_error.t) -> t Or_error.t
+    t -> f:(Type.named -> Type.named Or_error.t) -> t Or_error.t
 end
 
 type module_ = Module.t

@@ -204,7 +204,7 @@ module Module : sig
   (** Creates a module. *)
   val create :
     ?dict:Dict.t ->
-    ?typs:Type.compound list ->
+    ?typs:Type.named list ->
     ?data:Virtual.data list ->
     ?funs:func list ->
     name:string ->
@@ -215,7 +215,7 @@ module Module : sig
   val name : t -> string
 
   (** Declared (compound) types that are visible in the module. *)
-  val typs : ?rev:bool -> t -> Type.compound seq
+  val typs : ?rev:bool -> t -> Type.named seq
 
   (** Structs defined in the module. *)
   val data : ?rev:bool -> t -> Virtual.data seq
@@ -236,7 +236,7 @@ module Module : sig
   val has_name : t -> string -> bool
 
   (** Appends a type to the module. *)
-  val insert_type : t -> Type.compound -> t
+  val insert_type : t -> Type.named -> t
 
   (** Appends a struct to the module. *)
   val insert_data : t -> Virtual.data -> t
@@ -260,7 +260,7 @@ module Module : sig
   val map_funs : t -> f:(func -> func) -> t
 
   (** Returns the module with each type transformed by [f]. *)
-  val map_typs : t -> f:(Type.compound -> Type.compound) -> t
+  val map_typs : t -> f:(Type.named -> Type.named) -> t
 
   (** Replaces the functions in the module. *)
   val with_funs : t -> func list -> t
@@ -268,7 +268,7 @@ module Module : sig
   (** Returns the module with each type transformed by [f],
       where [f] may fail. *)
   val map_typs_err :
-    t -> f:(Type.compound -> Type.compound Or_error.t) -> t Or_error.t
+    t -> f:(Type.named -> Type.named Or_error.t) -> t Or_error.t
 
   (** Returns the module with each struct transformed by [f],
       where [f] may fail. *)

@@ -1,7 +1,7 @@
  %{
     type elt =
       | Func of Virtual.func
-      | Typ  of Type.compound
+      | Typ  of Type.named
       | Data of Virtual.data
 
     type call_arg =
@@ -164,7 +164,7 @@
 %type <elt Context.t> module_elt
 %type <Virtual.data Context.t> data
 %type <Virtual.Data.elt> data_elt
-%type <Type.compound> typ
+%type <Type.named> typ
 %type <[`opaque of int | `fields of Type.field list]> typ_fields_or_opaque
 %type <Type.field> typ_field
 %type <Virtual.func Context.t> func
@@ -241,13 +241,13 @@ data_elt:
 
 typ:
   | TYPE name = TYPENAME EQUALS LBRACE fields = separated_list(COMMA, typ_field) RBRACE
-    { `compound (name, None, fields) }
+    { `struct_ (name, None, fields) }
   | TYPE name = TYPENAME EQUALS ALIGN align = NUM LBRACE t = typ_fields_or_opaque RBRACE
     {
       let align = Bv.to_int align in
       match t with
       | `opaque n -> `opaque (name, align, n)
-      | `fields f -> `compound (name, Some align, f)
+      | `fields f -> `struct_ (name, Some align, f)
     }
   | TYPE name = TYPENAME EQUALS UNION LBRACE fields = separated_list(COMMA, typ_field) RBRACE
     { `union (name, None, fields) }

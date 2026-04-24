@@ -81,7 +81,7 @@ let typeof d ~(word : Type.imm_base) =
       | `string s   -> `elt (`i8, String.length s)
       | `zero n     -> `elt (`i8, n)
       | `sym _      -> `elt ((word :> Type.basic), 1)) in
-  `compound (name, align d, fields)
+  `struct_ (name, align d, fields)
 
 let prepend_elt d e = {
   d with elts = Ftree.cons d.elts e;

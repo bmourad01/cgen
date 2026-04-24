@@ -77,18 +77,20 @@ type field = [
 (** Pretty-prints a field. *)
 val pp_field : Format.formatter -> field -> unit
 
-(** A [`compound (name, align, fields)] data type, consisting of
-    a [name], an optional [align]ment (in bytes), and a list of
-    [fields]. Fields are laid out sequentially with padding for
-    alignment (struct semantics). The layout has a single member.
+(** A compound data type: one whose layout is composed of addressable
+    fields.
 
-    A [`union (name, align, fields)] data type has the same
-    components, but all fields overlap at offset 0 (union semantics).
-    The size is the maximum of all field sizes, and the alignment
-    is the maximum of all field alignments. The layout preserves
-    each field as a separate member datum array, so that ABI
-    implementations can apply target-specific classification rules
-    over the per-member structure.
+    A [`struct_ (name, align, fields)] data type consists of a [name],
+    an optional [align]ment (in bytes), and a list of [fields]. Fields
+    are laid out sequentially with padding for alignment (struct
+    semantics). The layout has a single member.
+
+    A [`union (name, align, fields)] data type has the same components,
+    but all fields overlap at offset 0 (union semantics). The size is
+    the maximum of all field sizes, and the alignment is the maximum
+    of all field alignments. The layout preserves each field as a
+    separate member datum array, so that ABI implementations can apply
+    target-specific classification rules over the per-member structure.
 
     An alignment [Some n] will indicate that the fields of the
     type are aligned by [n] bytes.
@@ -96,23 +98,33 @@ val pp_field : Format.formatter -> field -> unit
     If no alignment is specified, then the fields of the type
     are aligned by the size of their largest member.
 
+    Note that an alignment must be a positive power of 2.
+*)
+type compound = [
+  | `struct_ of string * int option * field list
+  | `union   of string * int option * field list
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+(** A named, user-declared type. Includes the [compound] types and
+    [`opaque] types.
+
     An [`opaque (name, align, n)] data type requires an [align]ment.
     It is intended to describe [n] bytes of opaque data whose internal
     structure is unspecified. Note that [n <= 0] is illegal.
 
-    Note that an alignment must be a positive power of 2.
+    These are the types referenced by name (via [`name s] in fields
+    and arguments) and for which a {!layout} is computed.
 *)
-type compound = [
-  | `compound of string * int option * field list
-  | `union    of string * int option * field list
-  | `opaque   of string * int * int
+type named = [
+  | compound
+  | `opaque of string * int * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** Convenience function to get the name of a compound type. *)
-val compound_name : compound -> string
+(** Convenience function to get the name of a named type. *)
+val named_name : named -> string
 
-(** Convenience function to get the alignment of a compound type. *)
-val compound_align : compound -> int option
+(** Convenience function to get the alignment of a named type. *)
+val named_align : named -> int option
 
 (** An element of a compound data type's layout. It is one of the
     following:
@@ -134,7 +146,7 @@ type datum = [
 (** Pretty-prints a datum. *)
 val pp_datum : Format.formatter -> datum -> unit
 
-(** The layout of a compound data type. *)
+(** The layout of a named data type. *)
 type layout [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** Returns the size of the layout in bytes. *)
@@ -176,18 +188,17 @@ module Layout : sig
   include Regular.S with type t := t
 end
 
-(** [layout_exn gamma c] derives the layout of the compound data
+(** [layout_exn gamma c] derives the layout of the named data
     type [c].
 
     A function [gamma] is provided to resolve the layout of
-    fields [`name n], where [n] refers to another compound
-    type.
+    fields [`name n], where [n] refers to another named type.
 
     @raise Invalid_argument if [c] is not well-formed.
 *)
-val layout_exn : (string -> layout) -> compound -> layout
+val layout_exn : (string -> layout) -> named -> layout
 
-val layout : (string -> layout) -> compound -> layout Or_error.t
+val layout : (string -> layout) -> named -> layout Or_error.t
 
 (** [layouts_of_types_exn ts] attempts to compute a topological ordering
     for [ts] and then compute their layouts in this order.
@@ -201,15 +212,15 @@ val layout : (string -> layout) -> compound -> layout Or_error.t
 
     @raise Invalid_argument if [ts] is not well-formed.
 *)
-val layouts_of_types_exn : compound list -> (string * layout) list
+val layouts_of_types_exn : named list -> (string * layout) list
 
-val layouts_of_types : compound list -> (string * layout) list Or_error.t
+val layouts_of_types : named list -> (string * layout) list Or_error.t
 
-(** Pretty-prints a compound type (without the name). *)
-val pp_compound : Format.formatter -> compound -> unit
+(** Pretty-prints a named type (without the name). *)
+val pp_named : Format.formatter -> named -> unit
 
-(** Pretty-prints a compound type as a declaration. *)
-val pp_compound_decl : Format.formatter -> compound -> unit
+(** Pretty-prints a named type as a declaration. *)
+val pp_named_decl : Format.formatter -> named -> unit
 
 (** A type that is allowed to be used as a function argument. *)
 type arg = [
@@ -270,7 +281,7 @@ val pp_proto : Format.formatter -> proto -> unit
 *)
 type t = [
   | basic
-  | compound
+  | named
   | `flag
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 

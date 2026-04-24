@@ -69,7 +69,7 @@ module Make(Context : Context_intf.S_virtual) = struct
         let* () =
           Blk.args b |> Context.Seq.iter ~f:(fun x ->
               typeof_var env x >>| function
-              | #Type.compound ->
+              | #Type.named ->
                 VT.set env.refs ~key:x ~data:x
               | _ -> ()) in
         Blk.insns b |> Context.Seq.iter ~f:(fun i ->

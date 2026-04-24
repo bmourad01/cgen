@@ -18,7 +18,7 @@ module Env : sig
       module are allowed, as these can be resolved during
       linking.
   *)
-  val typeof_data : string -> t -> Type.compound option
+  val typeof_data : string -> t -> Type.named option
 
   (** Returns the defined data symbols in the module. *)
   val datanames : t -> string seq
@@ -35,7 +35,7 @@ module Env : sig
   val funcnames : t -> string seq
 
   (** The compound type associated with a type name. *)
-  val typeof_typ : string -> t -> Type.compound Or_error.t
+  val typeof_typ : string -> t -> Type.named Or_error.t
 
   (** Returns the defined type names in the module. *)
   val typenames : t -> string seq

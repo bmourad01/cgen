@@ -72,18 +72,22 @@ let pp_field ppf : field -> unit = function
   | `name (s, n) -> Format.fprintf ppf ":%s %d" s n
 
 type compound = [
-  | `compound of string * int option * field list
-  | `union    of string * int option * field list
-  | `opaque   of string * int * int
+  | `struct_ of string * int option * field list
+  | `union   of string * int option * field list
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
-let compound_name : compound -> string = function
-  | `compound (s, _, _)
+type named = [
+  | compound
+  | `opaque of string * int * int
+] [@@deriving bin_io, compare, equal, hash, sexp]
+
+let named_name : named -> string = function
+  | `struct_ (s, _, _)
   | `union (s, _, _)
   | `opaque (s, _, _) -> s
 
-let compound_align : compound -> int option = function
-  | `compound (_, a, _)
+let named_align : named -> int option = function
+  | `struct_ (_, a, _)
   | `union (_, a, _) -> a
   | `opaque (_, a, _) -> Some a
 
@@ -96,8 +100,8 @@ let pp_fields ppf align fields =
     Format.fprintf ppf "{@;@[<v 2>%a@]@;}"
       (Format.pp_print_list ~pp_sep pp_field) fields
 
-let pp_compound ppf : compound -> unit = function
-  | `compound (_, align, fields) -> pp_fields ppf align fields
+let pp_named ppf : named -> unit = function
+  | `struct_ (_, align, fields) -> pp_fields ppf align fields
   | `union (_, align, fields) ->
     Format.fprintf ppf "union ";
     pp_fields ppf align fields
@@ -113,8 +117,8 @@ let pp_fields_decl ppf align fields =
     Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
       (Format.pp_print_list ~pp_sep pp_field) fields
 
-let pp_compound_decl ppf : compound -> unit = function
-  | `compound (name, align, fields) ->
+let pp_named_decl ppf : named -> unit = function
+  | `struct_ (name, align, fields) ->
     Format.fprintf ppf "type :%s = " name;
     pp_fields_decl ppf align fields
   | `union (name, align, fields) ->
@@ -274,8 +278,8 @@ module Layout = struct
             Array.of_list @@ coalesce data) in
     {align; size; members = Second members}
 
-  let create gamma : compound -> layout = function
-    | `opaque (s, n, _) | `compound (s, Some n, _)
+  let create gamma : named -> layout = function
+    | `opaque (s, n, _) | `struct_ (s, Some n, _)
     | `union (s, Some n, _)
       when n < 1 || (n land (n - 1)) <> 0 ->
       invalid_argf "Invalid alignment %d for type :%s, \
@@ -286,24 +290,24 @@ module Layout = struct
     | `opaque (_, align, n) ->
       let d = Array.of_list @@ padded [`opaque n] @@ padding n align in
       {align; size = sizeof_data d; members = First d}
-    | `compound (_, Some n, []) ->
+    | `struct_ (_, Some n, []) ->
       {align = n; size = 0; members = First [||]}
-    | `compound (_, None, []) ->
+    | `struct_ (_, None, []) ->
       {align = 1; size = 0; members = First [||]}
     | `union (_, Some n, []) ->
       {align = n; size = 0; members = Second []}
     | `union (_, None, []) ->
       {align = 1; size = 0; members = Second []}
-    | `compound (name, align, fields) ->
+    | `struct_ (name, align, fields) ->
       create_compound gamma name align fields
     | `union (name, align, fields) ->
       create_union gamma name align fields
 
   module Typegraph = Graphlib.Make(String)(Unit)
 
-  let build_tenv (ts : compound list) =
+  let build_tenv (ts : named list) =
     List.fold ts ~init:String.Map.empty ~f:(fun tenv t ->
-        let name = compound_name t in
+        let name = named_name t in
         match Map.add tenv ~key:name ~data:t with
         | `Duplicate -> invalid_argf "Duplicate type :%s" name ()
         | `Ok tenv -> tenv)
@@ -320,7 +324,7 @@ module Layout = struct
               n name ()) in
     List.fold ts ~init:Typegraph.empty ~f:(fun g -> function
         | `opaque (name, _, _) -> Typegraph.Node.insert name g
-        | `compound (name, _, fields)
+        | `struct_ (name, _, fields)
         | `union (name, _, fields) -> add_fields name fields g)
 
   let check_typ_cycles g =
@@ -423,7 +427,7 @@ let pp_proto ppf : proto -> unit = function
 module T = struct
   type t = [
     | basic
-    | compound
+    | named
     | `flag
   ] [@@deriving bin_io, compare, equal, hash, sexp]
 end
@@ -431,9 +435,9 @@ end
 include T
 
 let pp ppf : t -> unit = function
-  | #basic    as b -> Format.fprintf ppf "%a" pp_basic b
-  | #compound as c -> Format.fprintf ppf "%a" pp_compound c
-  | `flag          -> Format.fprintf ppf "flag"
+  | #basic as b -> Format.fprintf ppf "%a" pp_basic b
+  | #named as c -> Format.fprintf ppf "%a" pp_named c
+  | `flag       -> Format.fprintf ppf "flag"
 
 include Regular.Make(struct
     include T

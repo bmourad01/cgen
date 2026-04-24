@@ -96,5 +96,5 @@ let narrow ctx l x i =
 
 let sizeof x ctx = match ctx.typeof x with
   | #Type.basic as b -> Some (Type.sizeof_basic b)
-  | #Type.compound -> None
+  | #Type.named -> None
   | `flag -> Some 1

@@ -8,9 +8,9 @@ let unify_fail t t' v fn = Or_error.errorf
 
 type t = {
   target : Target.t;
-  denv   : Type.compound String.Map.t;
+  denv   : Type.named String.Map.t;
   fenv   : Type.proto String.Map.t;
-  tenv   : Type.compound String.Map.t;
+  tenv   : Type.named String.Map.t;
   venv   : Type.t Var.Tree.t String.Map.t;
   genv   : Type.layout String.Map.t;
 }
@@ -59,14 +59,14 @@ let typeof_fn name env = Map.find env.fenv name
 let funcnames env =
   Map.to_sequence env.fenv |> Seq.map ~f:fst
 
-let check_typ_align t name = match Type.compound_align t with
+let check_typ_align t name = match Type.named_align t with
   | Some n when n < 1 || (n land (n - 1)) <> 0 ->
     Or_error.errorf "Invalid alignment %d of type :%s, must be \
                      positive power of 2" n name
   | Some _ | None -> Ok ()
 
 let add_typ t env =
-  let name = Type.compound_name t in
+  let name = Type.named_name t in
   check_typ_align t name |> Or_error.bind ~f:(fun () ->
       match Map.add env.tenv ~key:name ~data:t with
       | `Duplicate -> Or_error.errorf "Redefinition of type :%s" name

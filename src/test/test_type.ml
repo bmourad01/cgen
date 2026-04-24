@@ -5,43 +5,43 @@ let sexp = Fn.compose Type.Layout.t_of_sexp Sexp.of_string
 
 (* Struct types *)
 
-let c1 : Type.compound = `compound ("c1", Some 4, [
+let c1 : Type.named = `struct_ ("c1", Some 4, [
     `elt (`i32, 4);
     `elt (`i8, 2);
   ])
 
-let c2 : Type.compound = `compound ("c2", None, [
+let c2 : Type.named = `struct_ ("c2", None, [
     `elt (`i32, 1);
     `name ("c1", 1);
     `elt (`i16, 1);
   ])
 
-let c3 : Type.compound = `compound ("c3", Some 4, [])
+let c3 : Type.named = `struct_ ("c3", Some 4, [])
 
-let c4 : Type.compound = `compound ("c4", None, [
+let c4 : Type.named = `struct_ ("c4", None, [
     `name ("c3", 1);
     `elt (`i32, 1);
   ])
 
-let c5 : Type.compound = `compound ("c5", None, [
+let c5 : Type.named = `struct_ ("c5", None, [
     `name ("c3", 1);
     `elt (`i32, 1);
     `name ("c3", 1);
     `elt (`i32, 1);
   ])
 
-let c6 : Type.compound = `compound ("c6", Some 8, [])
+let c6 : Type.named = `struct_ ("c6", Some 8, [])
 
-let c7 : Type.compound = `compound ("c7", None, [
+let c7 : Type.named = `struct_ ("c7", None, [
     `name ("c6", 1);
     `elt (`i32, 1);
     `name ("c6", 1);
     `elt (`i32, 1);
   ])
 
-let c8 : Type.compound = `compound ("c8", None, [])
+let c8 : Type.named = `struct_ ("c8", None, [])
 
-let c9 : Type.compound = `compound ("c9", None, [
+let c9 : Type.named = `struct_ ("c9", None, [
     `elt (`f32, 1);
     `elt (`i8, 1);
     `name ("c8", 1);
@@ -50,46 +50,46 @@ let c9 : Type.compound = `compound ("c9", None, [
     `elt (`i32, 1);
   ])
 
-let c10 : Type.compound = `compound ("c10", None, [
+let c10 : Type.named = `struct_ ("c10", None, [
     `name ("c1", 2);
   ])
 
-let c11 : Type.compound = `compound ("c11", None, [
+let c11 : Type.named = `struct_ ("c11", None, [
     `elt (`i16, 3);
     `elt (`i32, 1);
   ])
 
-let c12 : Type.compound = `compound ("c12", Some 8, [
+let c12 : Type.named = `struct_ ("c12", Some 8, [
     `elt (`i32, 1);
   ])
 
-let c13 : Type.compound = `compound ("c13", None, [
+let c13 : Type.named = `struct_ ("c13", None, [
     `elt (`i8, 3);
   ])
 
-let c14 : Type.compound = `compound ("c14", Some 8, [
+let c14 : Type.named = `struct_ ("c14", Some 8, [
     `elt (`i16, 1);
   ])
 
-let c15 : Type.compound = `compound ("c15", Some 8, [
+let c15 : Type.named = `struct_ ("c15", Some 8, [
     `elt (`i8, 1);
     `elt (`i16, 1);
     `elt (`i32, 1);
     `elt (`i8, 1);
   ])
 
-let opaque4 : Type.compound = `opaque ("opaque4", 4, 4)
+let opaque4 : Type.named = `opaque ("opaque4", 4, 4)
 
-let c16 : Type.compound = `compound ("c16", Some 4, [
+let c16 : Type.named = `struct_ ("c16", Some 4, [
     `name ("opaque4", 1);
     `name ("opaque4", 1);
   ])
 
-let c1arr : Type.compound = `compound ("c1arr", None, [
+let c1arr : Type.named = `struct_ ("c1arr", None, [
     `name ("c1", 3);
   ])
 
-let c17 : Type.compound = `compound ("c17", None, [
+let c17 : Type.named = `struct_ ("c17", None, [
     `name ("u1", 1);
     `elt (`i32, 1);
   ])
@@ -116,43 +116,43 @@ let l17 = sexp "((align 4) (size 8) (members (First ((union (u1 4)) i32))))"
 
 (* Union types *)
 
-let u1 : Type.compound = `union ("u1", None, [
+let u1 : Type.named = `union ("u1", None, [
     `elt (`f32, 1);
     `elt (`i32, 1);
   ])
 
-let u2 : Type.compound = `union ("u2", None, [
+let u2 : Type.named = `union ("u2", None, [
     `elt (`f64, 1);
     `elt (`i32, 1);
   ])
 
-let u3 : Type.compound = `union ("u3", None, [
+let u3 : Type.named = `union ("u3", None, [
     `elt (`f32, 1);
     `elt (`f64, 1);
   ])
 
-let u4 : Type.compound = `union ("u4", None, [
+let u4 : Type.named = `union ("u4", None, [
     `elt (`i8, 8);
     `elt (`f64, 1);
   ])
 
-let u5 : Type.compound = `union ("u5", None, [
+let u5 : Type.named = `union ("u5", None, [
     `elt (`i64, 1);
   ])
 
-let u6 : Type.compound = `union ("u6", None, [])
+let u6 : Type.named = `union ("u6", None, [])
 
-let u7 : Type.compound = `union ("u7", None, [
+let u7 : Type.named = `union ("u7", None, [
     `name ("c1", 1);
     `elt (`f64, 1);
   ])
 
-let u8 : Type.compound = `union ("u8", Some 16, [
+let u8 : Type.named = `union ("u8", Some 16, [
     `elt (`i32, 1);
     `elt (`f32, 1);
   ])
 
-let u9 : Type.compound = `union ("u9", None, [
+let u9 : Type.named = `union ("u9", None, [
     `elt (`i16, 1);
     `elt (`i8, 1);
   ])
@@ -200,9 +200,9 @@ let gamma = function
   | "u9" -> lu9
   | s -> failwithf "gamma: %s is undefined" s ()
 
-let test_layout (t : Type.compound) =
+let test_layout (t : Type.named) =
   let l = Type.layout_exn gamma t in
-  let name = Type.compound_name t in
+  let name = Type.named_name t in
   let expected = gamma name in
   if not (Type.equal_layout l expected) then
     failwithf "expected layout %s, got %s"

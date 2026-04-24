@@ -9,7 +9,7 @@ module Data = Virtual_data
 module T = struct
   type t = {
     name : string;
-    typs : Type.compound ftree;
+    typs : Type.named ftree;
     data : Data.t ftree;
     funs : Func.t ftree;
     dict : Dict.t;
@@ -58,7 +58,7 @@ let insert_fn m fn = {
 
 let remove_type m name = {
   m with typs = Ftree.remove_if m.typs ~f:(fun c ->
-    String.equal name @@ Type.compound_name c);
+    String.equal name @@ Type.named_name c);
 }
 
 let remove_data m name = {
@@ -116,7 +116,7 @@ let pp ppf m =
   | false, true, true ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Type.pp_compound_decl sep) m.typs
+      (Ftree.pp Type.pp_named_decl sep) m.typs
   | true, false, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
@@ -127,20 +127,20 @@ let pp ppf m =
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Type.pp_compound_decl sep) m.typs
+      (Ftree.pp Type.pp_named_decl sep) m.typs
       (Ftree.pp Func.pp sep) m.funs
   | false, false, true ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Type.pp_compound_decl sep) m.typs
+      (Ftree.pp Type.pp_named_decl sep) m.typs
       (Ftree.pp Data.pp sep) m.data
   | false, false, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Type.pp_compound_decl sep) m.typs
+      (Ftree.pp Type.pp_named_decl sep) m.typs
       (Ftree.pp Data.pp sep) m.data
       (Ftree.pp Func.pp sep) m.funs
 

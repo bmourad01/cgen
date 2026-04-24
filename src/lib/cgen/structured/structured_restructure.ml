@@ -256,8 +256,8 @@ module Make(C : Context_intf.S) = struct
         typeof_var t dst >>= function
         | #Type.basic as b ->
           C.return @@ Vec.push out @@ `uop (dst, `copy b, src)
-        | #Type.compound as c ->
-          let name = Type.compound_name c in
+        | #Type.named as c ->
+          let name = Type.named_name c in
           let* lt = layout t name in
           let* s = C.Var.fresh in
           let size = Type.Layout.sizeof lt in
