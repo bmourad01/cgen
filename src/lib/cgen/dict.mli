@@ -13,7 +13,9 @@ module type S = sig
 end
 
 (** Persistent type identifier. *)
-type typeid [@@deriving bin_io, compare, equal, sexp]
+type typeid = private string [@@deriving bin_io, compare, equal, sexp]
+
+val pp_typeid : Format.formatter -> typeid -> unit
 
 (** A universal value. *)
 type value [@@deriving compare, equal, sexp]
@@ -44,7 +46,7 @@ val is : 'a tag -> value -> bool
 val tagname : value -> string
 
 (** Returns the type identifier of a value. *)
-val typeid : value -> string
+val typeid : value -> typeid
 
 (** [get v t] attempts to extract the value associated with
     [t] in [v]. *)

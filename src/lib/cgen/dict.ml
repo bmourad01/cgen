@@ -13,6 +13,8 @@ module Typeid = String
 
 type typeid = Typeid.t [@@deriving bin_io, compare, equal, sexp]
 
+let pp_typeid ppf t = Format.fprintf ppf "%s" t
+
 type 'a tag = {
   key : 'a Type_equal.Id.t;
 } [@@unboxed]
