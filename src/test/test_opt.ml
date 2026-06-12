@@ -351,6 +351,7 @@ let opt_suite = "Test optimizations" >::: [
     "Magic division" >:: test "magic_div";
     "Tail call" >:: test "tailcall";
     "Edge narrowing" >:: test "edge_narrow";
+    "Sumto" >:: test "sumto";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
@@ -388,6 +389,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Magic division (SysV)" >:: test_sysv "magic_div";
     "Tail call (SysV)" >:: test_sysv "tailcall";
     "Floating point (SysV)" >:: test_sysv "fp";
+    "Sumto (SysV)" >:: test_sysv "sumto";
   ]
 
 let isel_suite = "Test instruction selection" >::: [
@@ -428,6 +430,7 @@ let isel_suite = "Test instruction selection" >::: [
     "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64 "sext_zext_load";
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64 "load_store";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64 "narrow_promote";
+    "Sumto (SysV AMD64)" >:: test_sysv_amd64 "sumto";
   ]
 
 let regalloc_suite = "Test register allocation" >::: [
@@ -487,6 +490,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64_regalloc "sext_zext_load";
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64_regalloc "load_store";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_regalloc "narrow_promote";
+    "Sumto (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumto";
   ]
 
 let native_suite = "Test native code" >::: [
@@ -543,6 +547,7 @@ let native_suite = "Test native code" >::: [
     "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64_native "sext_zext_load";
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64_native "load_store";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_native "narrow_promote";
+    "Sumto (SysV AMD64)" >:: test_sysv_amd64_native "sumto";
   ]
 
 let () = run_test_tt_main @@ test_list [

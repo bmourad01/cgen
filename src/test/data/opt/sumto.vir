@@ -1,0 +1,48 @@
+module sumto
+
+;; this is testing for a miscompile in
+;; not computing the correct live ranges
+;; in the slot coalescing pass, since
+;; back-edges weren't being considered
+
+export function sw $sumto(w %5) {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+  %2 = slot 4, align 4
+  %3 = slot 4, align 4
+  %4 = slot 4, align 4
+@25:
+  st.w %5, %0 ; @28
+  st.w 0x0_w, %2 ; @27
+  st.w 0x1_w, %1 ; @26
+  jmp @5
+@5:
+  jmp @19
+@19:
+  %19 = ld.w %1 ; @24
+  %20 = ld.w %0 ; @23
+  %21 = sle.w %19, %20 ; @22
+  %22 = flag.w %21 ; @21
+  %23 = ne.w %22, 0x0_w ; @20
+  br %23, @12, @3
+@12:
+  %25 = ld.w %2 ; @18
+  st.w %25, %4 ; @17
+  %26 = ld.w %4 ; @16
+  %27 = ld.w %1 ; @15
+  %28 = add.w %26, %27 ; @14
+  st.w %28, %2 ; @13
+  jmp @2
+@2:
+  jmp @6
+@6:
+  %29 = ld.w %1 ; @11
+  st.w %29, %3 ; @10
+  %30 = ld.w %3 ; @9
+  %31 = add.w %30, 0x1_w ; @8
+  st.w %31, %1 ; @7
+  jmp @5
+@3:
+  %24 = ld.w %2 ; @4
+  ret %24
+}

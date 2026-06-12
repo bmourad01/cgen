@@ -1,0 +1,15 @@
+module sumto
+
+export function sw $sumto(w %5) {
+@2:
+  jmp @3(0x0_w, 0x1_w)
+@3(%35, %36):
+  %54 = sle.w %36, %5 ; @29
+  br %54, @8, @9
+@8:
+  %56 = add.w %35, %36 ; @31
+  %57 = add.w %36, 0x1_w ; @32
+  jmp @3(%56, %57)
+@9:
+  ret %35
+}

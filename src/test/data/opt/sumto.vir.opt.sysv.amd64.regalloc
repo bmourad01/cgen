@@ -1,0 +1,17 @@
+module sumto
+
+export function $sumto { ; returns: rax
+@2:
+  xor ecx, ecx ; @45
+  mov eax, 0x1_w ; @46
+@3:
+  cmp eax, edi ; @39
+  jle @8 ; @40
+@9:
+  movsxd rax, ecx ; @33
+  ret ; @38
+@8:
+  add ecx, eax ; @31
+  inc eax ; @32
+  jmp @3 ; @36
+}

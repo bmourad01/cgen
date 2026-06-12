@@ -207,6 +207,7 @@ module Make(M : Scalars.L) = struct
   open M
 
   module Sinit = Slot_initialization.Make(M)
+  module Loop = Loops.Make(M.Cfg)
 
   let mkdef s x n = Vtree.update s x ~f:(function
       | None -> Range.singleton n
@@ -247,9 +248,35 @@ module Make(M : Scalars.L) = struct
     Ctrl.free_vars c |> Vset.fold ~init:acc
       ~f:(fun acc x -> update si acc s x ip l None)
 
+  (* Stretch slot ranges around loop back-edges *)
+  let extend_for_loops loop spans rs =
+    let loop_spans =
+      Ltree.fold spans ~init:Ltree.empty
+        ~f:(fun ~key:l ~data:(lo, hi) acc ->
+            Loop.loops_of loop l |>
+            Seq.fold ~init:acc ~f:(fun acc lp ->
+                let h = Loop.header @@ Loop.get loop lp in
+                Ltree.update acc h ~f:(function
+                    | Some (a, b) -> Int.min a lo, Int.max b hi
+                    | None -> lo, hi))) in
+    if Ltree.is_empty loop_spans then rs else
+      Vtree.fold rs ~init:rs ~f:(fun ~key ~data:r acc ->
+          if Range.is_bad r then acc else
+            let r' =
+              Ltree.fold loop_spans ~init:r
+                ~f:(fun ~key:_ ~data:(llo, lhi) r ->
+                    (* Defined before the loop and reaching into it. *)
+                    if r.lo < llo && r.hi > llo
+                    then {r with hi = Int.max r.hi (lhi + 1)}
+                    else r) in
+            if phys_equal r' r then acc
+            else Vtree.set acc ~key ~data:r')
+
   let liveness cfg blks slots t si =
+    let loop = Loop.analyze ~name:"" cfg in
     let ip = ref 0 in
     let nums = Vec.create () in
+    let spans = ref Ltree.empty in
     let init =
       VS.fold t.esc ~init:Vtree.empty
         ~f:(fun acc x -> Vtree.set acc ~key:x ~data:Range.bad) in
@@ -259,6 +286,7 @@ module Make(M : Scalars.L) = struct
       Seq.filter_map ~f:(Ltree.find blks) |>
       Seq.fold ~init ~f:(fun acc b ->
           let l = Blk.label b in
+          let lo_ip = !ip in
           let s = ref @@ get t l in
           let acc = Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
               let op = Insn.op i in
@@ -267,11 +295,13 @@ module Make(M : Scalars.L) = struct
               s := Sinit.S.transfer_op slots !s op;
               incr ip;
               acc) in
-          let acc = liveness_ctrl si acc !s !ip l @@ Blk.ctrl b in
+          let ctrl_ip = !ip in
+          let acc = liveness_ctrl si acc !s ctrl_ip l @@ Blk.ctrl b in
           Vec.push nums l;
           incr ip;
+          spans := Ltree.set !spans ~key:l ~data:(lo_ip, ctrl_ip);
           acc) in
-    acc, nums
+    extend_for_loops loop !spans acc, nums
 
   let collect_deads blks slots rs t =
     Ltree.fold blks ~init:Lset.empty

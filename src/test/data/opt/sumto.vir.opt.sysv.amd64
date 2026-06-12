@@ -1,0 +1,23 @@
+module sumto
+
+export function $sumto { ; returns: rax
+@2:
+  mov %5:w, edi ; @44
+  xor %35:w, %35:w ; @45
+  mov %36:w, 0x1_w ; @46
+  jmp @3 ; @47
+@3:
+  cmp %36:w, %5:w ; @39
+  jle @8 ; @40
+  jmp @9 ; @41
+@9:
+  movsxd %58:l, %35:w ; @33
+  mov rax, %58:l ; @37
+  ret ; @38
+@8:
+  lea %56:w, qword ptr [%35 + %36*1] ; @31
+  lea %57:w, qword ptr [%36 + 0x1] ; @32
+  mov %35:w, %56:w ; @34
+  mov %36:w, %57:w ; @35
+  jmp @3 ; @36
+}
