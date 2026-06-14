@@ -3,14 +3,18 @@ module foo
 export function $foo { ; returns: rax
 @2:
   mov %0:w, edi ; @4
-  imul %2:l, %0:l, 0x24924925 ; @13
-  shr %2:l, 0x20_b ; @14
-  mov %3:w, %2:w ; @5
-  shl %3:w, 0x3_b ; @12
+  imul %2:l, %0:l, 0x24924925 ; @18
+  shr %2:l, 0x20_b ; @19
+  mov %3:w, %0:w ; @5
+  sub %3:w, %2:w ; @17
   mov %4:w, %3:w ; @6
-  sub %4:w, %2:w ; @11
-  mov %5:w, %0:w ; @7
-  sub %5:w, %4:w ; @10
-  mov eax, %5:w ; @8
-  ret ; @9
+  shr %4:w, 0x1_b ; @16
+  lea %5:w, qword ptr [%4 + %2*1] ; @7
+  mov %6:w, %5:w ; @8
+  shr %6:w, 0x2_b ; @15
+  imul %7:w, %6:w, 0x7 ; @9
+  mov %8:w, %0:w ; @10
+  sub %8:w, %7:w ; @14
+  mov eax, %8:w ; @12
+  ret ; @13
 }

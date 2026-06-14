@@ -248,6 +248,7 @@ let opt_suite = "Test optimizations" >::: [
     "Signed remainder by 7" >:: test "sremby7";
     "Signed remainder by 8" >:: test "sremby8";
     "Unsigned remainder by 7" >:: test "uremby7";
+    "Unsigned remainder by 641" >:: test "uremby641";
     "Select arms are equal" >:: test "selsame";
     "Select arms are booleans" >:: test "selflag";
     "Select arms are booleans (negated)" >:: test "selflagneg";
@@ -529,6 +530,7 @@ let native_suite = "Test native code" >::: [
     "Unsigned divide by 11 (SysV AMD64)" >:: test_sysv_amd64_native "udivby11";
     "Unsigned divide by -1 (SysV AMD64)" >:: test_sysv_amd64_native "udivbyn1";
     "Unsigned remainder by 7 (SysV AMD64)" >:: test_sysv_amd64_native "uremby7";
+    "Unsigned remainder by 641 (SysV AMD64)" >:: test_sysv_amd64_native "uremby641";
     "Unsigned remainder by -1 (SysV AMD64)" >:: test_sysv_amd64_native "urembyn1";
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_native "promote2-partial";
     "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_native "sumphi";

@@ -20,4 +20,8 @@ main() {
   assert(foo(29) == 1);
   assert(foo(30) == 2);
   assert(foo(999) == (999u % 7u));
+  /* Large dividends: the previous magic was wrong near 2^32. */
+  assert(foo(0xfffffff9u) == (0xfffffff9u % 7u));
+  assert(foo(0xffffffffu) == (0xffffffffu % 7u));
+  assert(foo(3000000001u) == (3000000001u % 7u));
 }

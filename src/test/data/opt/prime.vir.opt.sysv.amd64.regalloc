@@ -2,65 +2,67 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  cmp edi, 0x1_w ; @112
-  ja @4 ; @113
-@44:
-  xor eax, eax ; @110
-  jmp @28 ; @111
-@4:
-  cmp edi, 0x3_w ; @105
-  ja @7 ; @106
+  cmp edi, 0x1_w ; @115
+  ja @4 ; @116
 @45:
-  mov eax, 0x1_w ; @103
-  jmp @28 ; @104
-@7:
-  test edi, 0x1_w ; @97
-  jne @9 ; @98
+  xor eax, eax ; @113
+  jmp @28 ; @114
+@4:
+  cmp edi, 0x3_w ; @108
+  ja @7 ; @109
 @46:
-  xor eax, eax ; @95
-  jmp @28 ; @96
-@9:
-  imul rax, rdi, 0x55555556 ; @33
-  shr rax, 0x20_b ; @94
-  lea ecx, qword ptr [rax + rax*2] ; @35
-  mov eax, edi ; @36
-  sub eax, ecx ; @93
-  test eax, eax ; @88
-  jne @48 ; @89
+  mov eax, 0x1_w ; @106
+  jmp @28 ; @107
+@7:
+  test edi, 0x1_w ; @100
+  jne @9 ; @101
 @47:
-  xor eax, eax ; @86
-  jmp @28 ; @87
+  xor eax, eax ; @98
+  jmp @28 ; @99
+@9:
+  mov eax, 0xaaaaaaab_w ; @33
+  imul rax, rdi ; @96
+  shr rax, 0x20_b ; @97
+  shr eax, 0x1_b ; @95
+  lea ecx, qword ptr [rax + rax*2] ; @36
+  mov eax, edi ; @37
+  sub eax, ecx ; @94
+  test eax, eax ; @89
+  jne @49 ; @90
 @48:
-  mov ecx, 0x5_w ; @84
-@15:
-  mov eax, ecx ; @38
-  imul eax, ecx ; @83
-  cmp eax, edi ; @78
-  jbe @17 ; @79
+  xor eax, eax ; @87
+  jmp @28 ; @88
 @49:
-  mov eax, 0x1_w ; @76
-  jmp @28 ; @77
+  mov ecx, 0x5_w ; @85
+@15:
+  mov eax, ecx ; @39
+  imul eax, ecx ; @84
+  cmp eax, edi ; @79
+  jbe @17 ; @80
+@50:
+  mov eax, 0x1_w ; @77
+  jmp @28 ; @78
 @17:
   mov eax, edi ; @21
-  xor edx, edx ; @73
-  div ecx ; @74
-  test edx, edx ; @68
-  jne @20 ; @69
-@50:
-  xor eax, eax ; @66
-  jmp @28 ; @67
-@20:
-  lea esi, qword ptr [rcx + 0x2] ; @41
-  mov eax, edi ; @25
-  xor edx, edx ; @63
-  div esi ; @64
-  test edx, edx ; @58
-  jne @23 ; @59
+  xor edx, edx ; @74
+  div ecx ; @75
+  test edx, edx ; @69
+  jne @20 ; @70
 @51:
-  xor eax, eax ; @56
+  xor eax, eax ; @67
+  jmp @28 ; @68
+@20:
+  lea esi, qword ptr [rcx + 0x2] ; @42
+  mov eax, edi ; @25
+  xor edx, edx ; @64
+  div esi ; @65
+  test edx, edx ; @59
+  jne @23 ; @60
+@52:
+  xor eax, eax ; @57
 @28:
-  ret ; @55
+  ret ; @56
 @23:
-  add ecx, 0x6_w ; @43
-  jmp @15 ; @53
+  add ecx, 0x6_w ; @44
+  jmp @15 ; @54
 }

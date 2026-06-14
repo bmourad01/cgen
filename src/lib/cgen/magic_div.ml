@@ -31,10 +31,13 @@ let unsigned d t =
           B.(q2 * int 2),
           B.(r2 * int 2 + one) in
       let delta = B.(d - one - r2) in
-      if p >= sz2 || (
-          Bv.(q1 >= delta) &&
-          Bv.(q1 <> delta || r1 <> B.zero)
-        ) then loop a p q1 r1 q2 r2
+      (* Continue while we haven't converged, bounded by `sz2` iterations
+         (the magic is guaranteed within `2 * sz`). The `sz2` bound must
+         terminate the loop, not extend it: some divisors (e.g. 641) never
+         hit the convergence exit, so without the bound `q1` runs away and
+         the loop spins forever. *)
+      if p < sz2 && Bv.(q1 < delta || (q1 = delta && r1 = B.zero))
+      then loop a p q1 r1 q2 r2
       else B.(q2 + one), a, p - sz in
     let q1 = B.(mins / nc) in
     let r1 = B.(mins - q1 * nc) in
