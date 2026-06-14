@@ -80,3 +80,52 @@ let signed d t =
     let q2 = B.(mins / ad) in
     let r2 = B.(mins - q2 * ad) in
     loop sz1 q1 r1 q2 r2
+
+let mulinv a t =
+  let sz = Type.sizeof_imm t in
+  let module B = (val Bv.modular sz) in
+  (* `a` is its own inverse modulo 8, and each Newton step
+     `x <- x * (2 - a * x)` doubles the number of correct
+     low bits. *)
+  let two = B.int 2 in
+  let rec loop x bits =
+    if bits >= sz then x
+    else loop B.(x * (two - a * x)) (bits * 2) in
+  loop a 3
+
+type divisible =
+  | Pow2_mask of Bv.t
+  | Test of {
+      factor : Bv.t;
+      bias   : Bv.t;
+      rot    : int;
+      limit  : Bv.t;
+    }
+
+let divisible ~signed d t =
+  let sz = Type.sizeof_imm t in
+  let module B = (val Bv.modular sz) in
+  let ad = if signed then B.abs d else d in
+  let mask = B.pred ad in
+  if Bv.(B.(ad land mask) = zero) then Pow2_mask mask
+  else
+    (* `d = 2^k * q` with `q` odd. The low `k` bits are handled by the
+       rotation, and `q` by the modular inverse. *)
+    let k = Int64.ctz @@ Bv.to_int64 ad in
+    let q = B.(ad lsr int k) in
+    let factor = mulinv q t in
+    if not signed then
+      (* `x` divisible by `d` iff `ror (x * factor) k <= (2^W - 1) / d`. *)
+      Test {factor; bias = B.zero; rot = k; limit = B.(ones / ad)}
+    else
+      (* Map the divisible values, which straddle zero, into a single
+         unsigned range by adding `bias = (2^(W-1) / d) << k` before the
+         rotation. *)
+      let mins = B.(one lsl int Int.(sz - 1)) in
+      let b0 = B.(mins / ad) in
+      Test {
+        factor;
+        bias = B.(b0 lsl int k);
+        rot = k;
+        limit = B.(pred mins / ad + b0);
+      }

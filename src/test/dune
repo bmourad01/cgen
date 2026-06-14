@@ -52,6 +52,15 @@
   (pps ppx_jane)))
 
 (library
+ (name test_magic_div)
+ (modules test_magic_div)
+ (libraries cgen zarith)
+ (ocamlopt_flags -O2)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
  (name golden)
  (libraries core core_unix core_unix.filename_unix ocamldiff)
  (modules golden)

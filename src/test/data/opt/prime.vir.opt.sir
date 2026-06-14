@@ -12,31 +12,27 @@ start:
       if eq.w %25, 0x0_w {
         %22 = copy.w 0x0_w
       } else {
-        %27 = umulh.w %1, 0xaaaaaaab_w;
-        %28 = lsr.w %27, 0x1_w;
-        %29 = lsl.w %28, 0x1_w;
-        %30 = add.w %29, %28;
-        %31 = sub.w %1, %30;
-        if eq.w %31, 0x0_w {
+        %32 = mul.w %1, 0xaaaaaaab_w;
+        if le.w %32, 0x55555555_w {
           %22 = copy.w 0x0_w
         } else {
           %13 = copy.w 0x5_w;
           loop {
-            %33 = mul.w %13, %13;
-            if le.w %33, %1 {
+            %34 = mul.w %13, %13;
+            if le.w %34, %1 {
               %16 = urem.w %1, %13;
               if eq.w %16, 0x0_w {
                 %22 = copy.w 0x0_w;
                 break
               } else {
-                %36 = add.w %13, 0x2_w;
-                %19 = urem.w %1, %36;
+                %37 = add.w %13, 0x2_w;
+                %19 = urem.w %1, %37;
                 if eq.w %19, 0x0_w {
                   %22 = copy.w 0x0_w;
                   break
                 } else {
-                  %38 = add.w %13, 0x6_w;
-                  %13 = copy.w %38;
+                  %39 = add.w %13, 0x6_w;
+                  %13 = copy.w %39;
                   continue
                 }
               }

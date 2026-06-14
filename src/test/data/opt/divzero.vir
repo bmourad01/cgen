@@ -1,0 +1,46 @@
+module divzero
+
+; (x % 3) == 0, unsigned odd non-power-of-two
+export function w $u_div3(w %x) {
+@start:
+  %r = urem.w %x, 3_w
+  %c = eq.w %r, 0_w
+  %z = flag.w %c
+  ret %z
+}
+
+; (x % 4) == 0, signed power of two (low-bits mask; valid for negatives)
+export function w $s_div4(w %x) {
+@start:
+  %r = rem.w %x, 4_w
+  %c = eq.w %r, 0_w
+  %z = flag.w %c
+  ret %z
+}
+
+; (x % 100) == 0, signed even non-power-of-two (bias-folded test)
+export function w $s_div100(w %x) {
+@start:
+  %r = rem.w %x, 100_w
+  %c = eq.w %r, 0_w
+  %z = flag.w %c
+  ret %z
+}
+
+; (x % 7) != 0, signed odd non-power-of-two, negated form
+export function w $s_ndiv7(w %x) {
+@start:
+  %r = rem.w %x, 7_w
+  %c = ne.w %r, 0_w
+  %z = flag.w %c
+  ret %z
+}
+
+; (x % 6) == 0, unsigned even non-power-of-two
+export function l $u_div6(l %x) {
+@start:
+  %r = urem.l %x, 6_l
+  %c = eq.l %r, 0_l
+  %z = flag.l %c
+  ret %z
+}

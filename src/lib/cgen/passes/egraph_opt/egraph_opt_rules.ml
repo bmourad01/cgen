@@ -32,6 +32,10 @@ let udiv_imm_pow2_y = C.udiv_imm_pow2 x "y"
 let urem_imm_pow2_y = C.urem_imm_pow2 x "y"
 let udiv_imm_non_pow2_y = C.udiv_urem_imm_non_pow2 x "y"
 let urem_imm_non_pow2_y = C.udiv_urem_imm_non_pow2 x "y" ~rem:true
+let urem_eq_zero_y = C.rem_zero_test ~signed:false x "y"
+let urem_ne_zero_y = C.rem_zero_test ~signed:false ~neg:true x "y"
+let srem_eq_zero_y = C.rem_zero_test ~signed:true x "y"
+let srem_ne_zero_y = C.rem_zero_test ~signed:true ~neg:true x "y"
 let identity_same_type_x = C.identity_same_type "x"
 let is_rotate_const_y_z = C.is_rotate_const "y" "z"
 
@@ -632,6 +636,31 @@ module Groups = struct
     urem `i16 x y =>* urem_imm_non_pow2_y;
     urem `i32 x y =>* urem_imm_non_pow2_y;
     urem `i64 x y =>* urem_imm_non_pow2_y;
+  ]
+
+  (* (x % c) == 0 / != 0 with a constant `c`: a divisibility test (mask
+     for powers of two, otherwise multiply-and-compare) rather than a
+     full remainder followed by a comparison against zero. *)
+  let rem_zero_test = [
+    eq `i8  (urem `i8  x y) (i8 0)   =>* urem_eq_zero_y;
+    eq `i16 (urem `i16 x y) (i16 0)  =>* urem_eq_zero_y;
+    eq `i32 (urem `i32 x y) (i32 0l) =>* urem_eq_zero_y;
+    eq `i64 (urem `i64 x y) (i64 0L) =>* urem_eq_zero_y;
+
+    ne `i8  (urem `i8  x y) (i8 0)   =>* urem_ne_zero_y;
+    ne `i16 (urem `i16 x y) (i16 0)  =>* urem_ne_zero_y;
+    ne `i32 (urem `i32 x y) (i32 0l) =>* urem_ne_zero_y;
+    ne `i64 (urem `i64 x y) (i64 0L) =>* urem_ne_zero_y;
+
+    eq `i8  (rem `i8  x y) (i8 0)   =>* srem_eq_zero_y;
+    eq `i16 (rem `i16 x y) (i16 0)  =>* srem_eq_zero_y;
+    eq `i32 (rem `i32 x y) (i32 0l) =>* srem_eq_zero_y;
+    eq `i64 (rem `i64 x y) (i64 0L) =>* srem_eq_zero_y;
+
+    ne `i8  (rem `i8  x y) (i8 0)   =>* srem_ne_zero_y;
+    ne `i16 (rem `i16 x y) (i16 0)  =>* srem_ne_zero_y;
+    ne `i32 (rem `i32 x y) (i32 0l) =>* srem_ne_zero_y;
+    ne `i64 (rem `i64 x y) (i64 0L) =>* srem_ne_zero_y;
   ]
 
   (* x / 1 = x *)
@@ -2169,6 +2198,7 @@ module Groups = struct
       udiv_const_non_pow2;
       urem_const_pow2;
       urem_const_non_pow2;
+      rem_zero_test;
       div_one;
       sdiv_neg_one;
       srem_neg_one;

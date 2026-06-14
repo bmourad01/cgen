@@ -257,6 +257,36 @@ let udiv_urem_imm_non_pow2 ?(rem = false) x y env =
     else Op.(sub tb x (mul tb qf (int i ty)))
   | _ -> None
 
+(* Strength-reduce a divisibility test `(x % C) == 0` (or `!= 0`) with a
+   constant divisor `C` into a multiply-and-compare, avoiding the full
+   remainder. The parameters come from `Magic_div.divisible`. *)
+let rem_zero_test ~signed ?(neg = false) x y env =
+  Subst.find env y >>= Subst.const >>= function
+  | `int (d, ty) ->
+    let module B = (val bv ty) in
+    let excluded =
+      Bv.(d = zero) ||
+      Bv.(d = one) ||
+      (signed && Bv.(d = B.pred zero)) in
+    let+ () = O.guard @@ not excluded in
+    let tb = (ty :> Type.basic) in
+    let zero = Op.int B.zero ty in
+    begin match Magic_div.divisible ~signed d ty with
+      | Pow2_mask mask ->
+        (* `x` divisible by `C` iff its low bits are clear. *)
+        let test = Op.(and_ ty x (int mask ty)) in
+        if neg then Op.(ne tb test zero) else Op.(eq tb test zero)
+      | Test {factor; bias; rot; limit} ->
+        let p = Op.(mul tb x (int factor ty)) in
+        let p = if Bv.(bias = B.zero) then p
+          else Op.(add tb p (int bias ty)) in
+        let p = if rot = 0 then p
+          else Op.(ror ty p (int (B.int rot) ty)) in
+        let lim = Op.int limit ty in
+        if neg then Op.(gt tb p lim) else Op.(le tb p lim)
+    end
+  | _ -> None
+
 (* Rewrite a multiplication by a constant that is not a power of two.
 
    Can be a series of shifts, additions, and subtractions. Essentially
