@@ -1,0 +1,41 @@
+module setcc_imm_left
+
+export function $sgt { ; returns: rax
+@2:
+  movsx ecx, byte ptr [rdi] ; @34
+  xor eax, eax ; @35
+  cmp ecx, 0xfffffff6_w ; @52
+  setl al ; @53
+  add eax, eax ; @37
+  ret ; @51
+}
+
+export function $sge { ; returns: rax
+@10:
+  movsx ecx, byte ptr [rdi] ; @38
+  xor eax, eax ; @39
+  cmp ecx, 0x5_w ; @57
+  setle al ; @58
+  add eax, eax ; @41
+  ret ; @56
+}
+
+export function $ugt { ; returns: rax
+@18:
+  movzx ecx, byte ptr [rdi] ; @42
+  xor eax, eax ; @43
+  cmp ecx, 0x64_w ; @62
+  setb al ; @63
+  add eax, eax ; @45
+  ret ; @61
+}
+
+export function $uge { ; returns: rax
+@26:
+  movzx ecx, byte ptr [rdi] ; @46
+  xor eax, eax ; @47
+  cmp ecx, 0x64_w ; @67
+  setbe al ; @68
+  add eax, eax ; @49
+  ret ; @66
+}

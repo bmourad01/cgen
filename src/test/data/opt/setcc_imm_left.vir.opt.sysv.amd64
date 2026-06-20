@@ -1,0 +1,53 @@
+module setcc_imm_left
+
+export function $sgt { ; returns: rax
+@2:
+  mov %1:l, rdi ; @3
+  movsx %60:w, byte ptr [%1] ; @34
+  xor %61:w, %61:w ; @35
+  cmp %60:w, 0xfffffff6_w ; @52
+  setl %61:b ; @53
+  mov %62:w, %61:w ; @36
+  lea %63:w, qword ptr [%62 + %62*1] ; @37
+  mov eax, %63:w ; @50
+  ret ; @51
+}
+
+export function $sge { ; returns: rax
+@10:
+  mov %9:l, rdi ; @11
+  movsx %64:w, byte ptr [%9] ; @38
+  xor %65:w, %65:w ; @39
+  cmp %64:w, 0x5_w ; @57
+  setle %65:b ; @58
+  mov %66:w, %65:w ; @40
+  lea %67:w, qword ptr [%66 + %66*1] ; @41
+  mov eax, %67:w ; @55
+  ret ; @56
+}
+
+export function $ugt { ; returns: rax
+@18:
+  mov %17:l, rdi ; @19
+  movzx %68:w, byte ptr [%17] ; @42
+  xor %69:w, %69:w ; @43
+  cmp %68:w, 0x64_w ; @62
+  setb %69:b ; @63
+  mov %70:w, %69:w ; @44
+  lea %71:w, qword ptr [%70 + %70*1] ; @45
+  mov eax, %71:w ; @60
+  ret ; @61
+}
+
+export function $uge { ; returns: rax
+@26:
+  mov %25:l, rdi ; @27
+  movzx %72:w, byte ptr [%25] ; @46
+  xor %73:w, %73:w ; @47
+  cmp %72:w, 0x64_w ; @67
+  setbe %73:b ; @68
+  mov %74:w, %73:w ; @48
+  lea %75:w, qword ptr [%74 + %74*1] ; @49
+  mov eax, %75:w ; @65
+  ret ; @66
+}

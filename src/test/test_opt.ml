@@ -435,6 +435,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64 "load_store";
     "Store immediate to symbol (SysV AMD64)" >:: test_sysv_amd64 "store_symi";
     "Select on float comparison (SysV AMD64)" >:: test_sysv_amd64 "sel_fcmp";
+    "Comparison with immediate on the left (SysV AMD64)" >:: test_sysv_amd64 "setcc_imm_left";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64 "narrow_promote";
     "Sumto (SysV AMD64)" >:: test_sysv_amd64 "sumto";
   ]
@@ -498,6 +499,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64_regalloc "load_store";
     "Store immediate to symbol (SysV AMD64)" >:: test_sysv_amd64_regalloc "store_symi";
     "Select on float comparison (SysV AMD64)" >:: test_sysv_amd64_regalloc "sel_fcmp";
+    "Comparison with immediate on the left (SysV AMD64)" >:: test_sysv_amd64_regalloc "setcc_imm_left";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_regalloc "narrow_promote";
     "Sumto (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumto";
   ]
@@ -560,6 +562,7 @@ let native_suite = "Test native code" >::: [
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64_native "load_store";
     "Store immediate to symbol (SysV AMD64)" >:: test_sysv_amd64_native "store_symi";
     "Select on float comparison (SysV AMD64)" >:: test_sysv_amd64_native "sel_fcmp";
+    "Comparison with immediate on the left (SysV AMD64)" >:: test_sysv_amd64_native "setcc_imm_left";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_native "narrow_promote";
     "Sumto (SysV AMD64)" >:: test_sysv_amd64_native "sumto";
   ]

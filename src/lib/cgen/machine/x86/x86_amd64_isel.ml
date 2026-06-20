@@ -820,6 +820,17 @@ end = struct
       I.setcc cc (Oreg (x, `i8));
     ]
 
+  let setcc_ir_x_y_z cc env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yt = S.imm env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let y = Bv.to_int64 y in
+    let@ oy = with_imm zt y yt in !!![
+      I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
+      I.cmp (Oreg (z, zt)) oy;
+      I.setcc (swap_cc cc) (Oreg (x, `i8));
+    ]
+
   (* 8-bit cmov is not supported, but we can just use
      the 32-bit variant and pretend that nothing happened.
 
@@ -2514,6 +2525,7 @@ end = struct
     let setcc cc = [
       setcc_rr_x_y_z cc;
       setcc_ri_x_y_z cc;
+      setcc_ir_x_y_z cc;
       setcc_rsym_x_y_z cc;
       setcc_symi_x_y_z cc;
     ]

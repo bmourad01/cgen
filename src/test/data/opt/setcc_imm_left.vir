@@ -1,0 +1,54 @@
+module setcc_imm_left
+
+;; immediate is on the left, but needs to be on the right
+;;
+;; NOTE: the order of the comparisons are deliberate so
+;; that egraph extraction breaks ties on the case we want
+
+export function w $sgt(l %p) {
+@start:
+  %z = ld.b %p
+  %e = sext.w %z
+  %a = slt.w %e, 0xfffffff6_w
+  %b = sgt.w 0xfffffff6_w, %e
+  %fa = flag.w %a
+  %fb = flag.w %b
+  %r = add.w %fa, %fb
+  ret %r
+}
+
+export function w $sge(l %p) {
+@start:
+  %z = ld.b %p
+  %e = sext.w %z
+  %a = sle.w %e, 0x5_w
+  %b = sge.w 0x5_w, %e
+  %fa = flag.w %a
+  %fb = flag.w %b
+  %r = add.w %fa, %fb
+  ret %r
+}
+
+export function w $ugt(l %p) {
+@start:
+  %z = ld.b %p
+  %e = zext.w %z
+  %a = lt.w %e, 0x64_w
+  %b = gt.w 0x64_w, %e
+  %fa = flag.w %a
+  %fb = flag.w %b
+  %r = add.w %fa, %fb
+  ret %r
+}
+
+export function w $uge(l %p) {
+@start:
+  %z = ld.b %p
+  %e = zext.w %z
+  %a = le.w %e, 0x64_w
+  %b = ge.w 0x64_w, %e
+  %fa = flag.w %a
+  %fb = flag.w %b
+  %r = add.w %fa, %fb
+  ret %r
+}
