@@ -433,6 +433,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Floating point (SysV AMD64)" >:: test_sysv_amd64 "fp";
     "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64 "sext_zext_load";
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64 "load_store";
+    "Store immediate to symbol (SysV AMD64)" >:: test_sysv_amd64 "store_symi";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64 "narrow_promote";
     "Sumto (SysV AMD64)" >:: test_sysv_amd64 "sumto";
   ]
@@ -494,6 +495,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Floating point (SysV AMD64)" >:: test_sysv_amd64_regalloc "fp";
     "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64_regalloc "sext_zext_load";
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64_regalloc "load_store";
+    "Store immediate to symbol (SysV AMD64)" >:: test_sysv_amd64_regalloc "store_symi";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_regalloc "narrow_promote";
     "Sumto (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumto";
   ]
@@ -554,6 +556,7 @@ let native_suite = "Test native code" >::: [
     "Floating point (SysV AMD64)" >:: test_sysv_amd64_native "fp";
     "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64_native "sext_zext_load";
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64_native "load_store";
+    "Store immediate to symbol (SysV AMD64)" >:: test_sysv_amd64_native "store_symi";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_native "narrow_promote";
     "Sumto (SysV AMD64)" >:: test_sysv_amd64_native "sumto";
   ]

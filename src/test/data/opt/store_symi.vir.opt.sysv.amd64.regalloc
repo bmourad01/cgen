@@ -1,0 +1,52 @@
+module store_symi
+
+export data $g_b = {
+  z 1
+}
+
+export data $g_h = {
+  z 2
+}
+
+export data $g_w = {
+  z 4
+}
+
+export data $g_l = {
+  z 8
+}
+
+export data $g_big = {
+  z 8
+}
+
+export function $set_b {
+@2:
+  mov byte ptr [rip + $g_b], 0x12_b ; @3
+  ret ; @12
+}
+
+export function $set_h {
+@4:
+  mov word ptr [rip + $g_h], 0x1234_h ; @5
+  ret ; @13
+}
+
+export function $set_w {
+@6:
+  mov dword ptr [rip + $g_w], 0x12345678_w ; @7
+  ret ; @14
+}
+
+export function $set_l {
+@8:
+  mov qword ptr [rip + $g_l], 0x7fffffff_l ; @9
+  ret ; @15
+}
+
+export function $set_big {
+@10:
+  mov rax, 0x123456789_l ; @11
+  mov qword ptr [rip + $g_big], rax ; @17
+  ret ; @16
+}

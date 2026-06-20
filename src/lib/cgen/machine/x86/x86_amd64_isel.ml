@@ -1276,6 +1276,12 @@ end = struct
       I.mov (Omem (Asym (s, o), mty xt)) (Oreg (x, xt));
     ]
 
+  let store_symi_x_y env =
+    let*! x, xt = S.imm env "x" in
+    let*! s, o = S.sym env "y" in
+    let@ i = with_imm xt (Bv.to_int64 x) xt in
+    !!![I.mov (Omem (Asym (s, o), mty xt)) i]
+
   let store_v_rr_x_y env =
     let*! x = S.regvar_v env "x" in
     let*! y, _ = S.regvar env "y" in !!![
@@ -2672,6 +2678,7 @@ end = struct
       store_ri_x_y;
       store_rsym_x_y;
       store_symr_x_y;
+      store_symi_x_y;
       store_rf32_x_y;
       store_rf64_x_y;
     ]

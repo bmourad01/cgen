@@ -1,0 +1,51 @@
+module store_symi
+
+export data $g_b = {
+  z 1
+}
+
+export data $g_h = {
+  z 2
+}
+
+export data $g_w = {
+  z 4
+}
+
+export data $g_l = {
+  z 8
+}
+
+export data $g_big = {
+  z 8
+}
+
+export function $set_b() {
+@start:
+  st.b 0x12_b, $g_b
+  ret
+}
+
+export function $set_h() {
+@start:
+  st.h 0x1234_h, $g_h
+  ret
+}
+
+export function $set_w() {
+@start:
+  st.w 0x12345678_w, $g_w
+  ret
+}
+
+export function $set_l() {
+@start:
+  st.l 0x7fffffff_l, $g_l
+  ret
+}
+
+export function $set_big() {
+@start:
+  st.l 0x123456789_l, $g_big
+  ret
+}
