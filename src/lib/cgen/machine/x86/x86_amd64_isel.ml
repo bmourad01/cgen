@@ -924,6 +924,44 @@ end = struct
   let sel_ir_zero_x_y = sel_zero_x_y sel_yn_ir
   let sel_ii_zero_x_y = sel_zero_x_y sel_yn_ii
 
+  let sel_fcmp_rr ucomi yn cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z, zt = S.regvar env "z" in
+    yn cc x xt [] (ucomi (Oreg (y, yt)) (Oreg (z, zt))) env
+
+  let sel_fcmp_rf32 yn cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z = S.single env "z" in
+    let*! () = guard @@ Type.equal_basic yt `f32 in
+    let* l, addr = fresh_label_addr in
+    yn cc x xt [I.fp32 l z] (I.ucomiss (Oreg (y, yt)) (Omem (addr, `f32))) env
+
+  let sel_fcmp_rf64 yn cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! z = S.double env "z" in
+    let*! () = guard @@ Type.equal_basic yt `f64 in
+    let* l, addr = fresh_label_addr in
+    yn cc x xt [I.fp64 l z] (I.ucomisd (Oreg (y, yt)) (Omem (addr, `f64))) env
+
+  let sel_fcmp_fr32 yn cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.single env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! () = guard @@ Type.equal_basic zt `f32 in
+    let* l, addr = fresh_label_addr in
+    yn (flip_cc cc) x xt [I.fp32 l y] (I.ucomiss (Oreg (z, zt)) (Omem (addr, `f32))) env
+
+  let sel_fcmp_fr64 yn cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y = S.double env "y" in
+    let*! z, zt = S.regvar env "z" in
+    let*! () = guard @@ Type.equal_basic zt `f64 in
+    let* l, addr = fresh_label_addr in
+    yn (flip_cc cc) x xt [I.fp64 l y] (I.ucomisd (Oreg (z, zt)) (Omem (addr, `f64))) env
+
   let f32_reg rv f = f (Oreg (rv, `f32), [])
   let f64_reg rv f = f (Oreg (rv, `f64), [])
 
@@ -2488,6 +2526,36 @@ end = struct
       sel_f64_x_y_z p
     ]
 
+    let sel_fcmp32 cc = [
+      sel_fcmp_rr I.ucomiss sel_yn_rr cc;
+      sel_fcmp_rr I.ucomiss sel_yn_ri cc;
+      sel_fcmp_rr I.ucomiss sel_yn_ir cc;
+      sel_fcmp_rr I.ucomiss sel_yn_ii cc;
+      sel_fcmp_rf32 sel_yn_rr cc;
+      sel_fcmp_rf32 sel_yn_ri cc;
+      sel_fcmp_rf32 sel_yn_ir cc;
+      sel_fcmp_rf32 sel_yn_ii cc;
+      sel_fcmp_fr32 sel_yn_rr cc;
+      sel_fcmp_fr32 sel_yn_ri cc;
+      sel_fcmp_fr32 sel_yn_ir cc;
+      sel_fcmp_fr32 sel_yn_ii cc;
+    ]
+
+    let sel_fcmp64 cc = [
+      sel_fcmp_rr I.ucomisd sel_yn_rr cc;
+      sel_fcmp_rr I.ucomisd sel_yn_ri cc;
+      sel_fcmp_rr I.ucomisd sel_yn_ir cc;
+      sel_fcmp_rr I.ucomisd sel_yn_ii cc;
+      sel_fcmp_rf64 sel_yn_rr cc;
+      sel_fcmp_rf64 sel_yn_ri cc;
+      sel_fcmp_rf64 sel_yn_ir cc;
+      sel_fcmp_rf64 sel_yn_ii cc;
+      sel_fcmp_fr64 sel_yn_rr cc;
+      sel_fcmp_fr64 sel_yn_ri cc;
+      sel_fcmp_fr64 sel_yn_ir cc;
+      sel_fcmp_fr64 sel_yn_ii cc;
+    ]
+
     let setcc_f32 cc = [
       setcc_rr_f32_x_y_z cc;
       setcc_rf32_x_y_z cc;
@@ -3150,6 +3218,27 @@ end = struct
           move x (sel ty' (o ty   y z) yes no) =>* f FORD;
         ]
 
+    (* x = sel (fcmp y z) yes no  [f32/f64 comparison, integer select value].
+
+       The condition codes match `setcc_fbasic` (ucomi sets CF/ZF/PF).
+    *)
+    let sel_ifcmp =
+      [`i8; `i16; `i32; `i64] >* fun tys ->
+        [`f32, Group.sel_fcmp32;
+         `f64, Group.sel_fcmp64;
+        ] >* fun (fty, f) ->
+          let tys' = bty tys in
+          let fty' = bty fty in [
+            move x (sel tys' (eq fty' y z) yes no) =>* f Ce;
+            move x (sel tys' (ne fty' y z) yes no) =>* f Cne;
+            move x (sel tys' (lt fty' y z) yes no) =>* f Cb;
+            move x (sel tys' (le fty' y z) yes no) =>* f Cbe;
+            move x (sel tys' (gt fty' y z) yes no) =>* f Ca;
+            move x (sel tys' (ge fty' y z) yes no) =>* f Cae;
+            move x (sel tys' (uo fty  y z) yes no) =>* f Cp;
+            move x (sel tys' (o fty   y z) yes no) =>* f Cnp;
+          ]
+
     (* x = sel (cmp y z) yes no *)
     let sel_ibasic =
       [`i8; `i16; `i32; `i64] >* fun tyc ->
@@ -3796,6 +3885,7 @@ end = struct
       sel_zero;
       sel_ibasic;
       sel_fbasic;
+      sel_ifcmp;
       load_add_mul_disp;
       load_add_mul_disp_neg;
       load_add_mul;

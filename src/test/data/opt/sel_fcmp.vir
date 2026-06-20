@@ -1,0 +1,36 @@
+module sel_fcmp
+
+export function w $le_f32_rr(s %x, s %y, w %a, w %b) {
+@start:
+  %c = le.s %x, %y
+  %r = sel.w %c, %a, %b
+  ret %r
+}
+
+export function w $ge_f32_const(s %x) {
+@start:
+  %c = ge.s %x, 10.0_s
+  %r = sel.w %c, 0x7b_w, 0x1c8_w
+  ret %r
+}
+
+export function l $lt_f64_rr(d %x, d %y, l %a, l %b) {
+@start:
+  %c = lt.d %x, %y
+  %r = sel.l %c, %a, %b
+  ret %r
+}
+
+export function w $eq_f64_const(d %x, w %a) {
+@start:
+  %c = eq.d %x, 2.5_d
+  %r = sel.w %c, %a, 0x2a_w
+  ret %r
+}
+
+export function w $gt_f32_const_ir(s %x, w %b) {
+@start:
+  %c = gt.s %x, 0.0_s
+  %r = sel.w %c, 0x9_w, %b
+  ret %r
+}

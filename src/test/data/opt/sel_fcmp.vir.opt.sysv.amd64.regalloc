@@ -1,0 +1,45 @@
+module sel_fcmp
+
+export function $le_f32_rr { ; returns: rax
+@2:
+  ucomiss xmm0, xmm1 ; @29
+  cmovbe esi, edi ; @30
+  mov eax, esi ; @27
+  ret ; @28
+}
+
+export function $ge_f32_const { ; returns: rax
+@5:
+  .fp32 @42, 10 ; @20
+  mov ecx, 0x7b_w ; @43
+  mov eax, 0x1c8_w ; @44
+  ucomiss xmm0, dword ptr [rip + @42] ; @45
+  cmovae eax, ecx ; @46
+  ret ; @38
+}
+
+export function $lt_f64_rr { ; returns: rax
+@8:
+  ucomisd xmm0, xmm1 ; @54
+  cmovb rsi, rdi ; @55
+  mov rax, rsi ; @52
+  ret ; @53
+}
+
+export function $eq_f64_const { ; returns: rax
+@11:
+  .fp64 @65, 2.5 ; @24
+  mov eax, 0x2a_w ; @66
+  ucomisd xmm0, qword ptr [rip + @65] ; @67
+  cmove eax, edi ; @68
+  ret ; @63
+}
+
+export function $gt_f32_const_ir { ; returns: rax
+@14:
+  .fp32 @79, 0 ; @26
+  mov eax, 0x9_w ; @80
+  ucomiss xmm0, dword ptr [rip + @79] ; @81
+  cmovbe eax, edi ; @82
+  ret ; @76
+}
