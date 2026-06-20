@@ -256,18 +256,18 @@ let inverse t =
 let difference t1 t2 = intersect t1 @@ inverse t2 [@@inline]
 
 let zext t ~size =
-  if is_empty t then t
-  else if t.size >= size then
+  if t.size >= size then
     invalid_arg "zext: `size` is not strictly greater than `t.size`"
+  else if is_empty t then create_empty ~size
   else if is_full t || is_wrapped_hi t then
     let lo = if Bv.(t.hi = zero) then t.lo else Bv.zero in
     create ~lo ~hi:(Bv.setbit Bv.zero t.size (Bv.modulus size)) ~size
   else create ~lo:t.lo ~hi:t.hi ~size
 
 let sext t ~size =
-  if is_empty t then t
-  else if t.size >= size then
+  if t.size >= size then
     invalid_arg "sext: `size` is not strictly greater than `t.size`"
+  else if is_empty t then create_empty ~size
   else if Bv.(t.hi = min_signed_value t.size) then
     let lo = Bv.sext t.lo t.size size in
     let hi = Bv.sext t.hi t.size size in
@@ -288,8 +288,8 @@ let trunc t ~size =
     invalid_argf
       "trunc: `size` %d is not strictly less than `size t` %d"
       size t.size ()
-  else if is_empty t then t
-  else if is_full t then t
+  else if is_empty t then create_empty ~size
+  else if is_full t then create_full ~size
   else with_return @@ fun {return} ->
     let u = ref @@ create_empty ~size
     and ud = ref t.hi 

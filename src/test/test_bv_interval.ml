@@ -393,6 +393,18 @@ let prop_zext_sound (size, t, k) =
     ~concrete_op:(fun v _ _ -> v)
     t
 
+let prop_truncate_size (size, t, k) =
+  k < 0 || k >= size ||
+  Int.equal k (I.size (I.trunc t ~size:k))
+
+let prop_sext_size (size, t, k) =
+  k < 0 || k <= size ||
+  Int.equal k (I.size (I.sext t ~size:k))
+
+let prop_zext_size (size, t, k) =
+  k < 0 || k <= size ||
+  Int.equal k (I.size (I.zext t ~size:k))
+
 let prop_abs_sound (size, t) =
   oracle_sound_unop "abs"
     ~size
@@ -510,8 +522,17 @@ let%test_unit "abs sound" =
 let%test_unit "trunc sound" =
   qc1 sexp_unop_size "bv-trunc" gen_small_sized_interval_size2 prop_truncate_sound
 
+let%test_unit "trunc size" =
+  qc1 sexp_unop_size "bv-trunc-size" gen_small_sized_interval_size2 prop_truncate_size
+
 let%test_unit "sext sound" =
   qc1 sexp_unop_size "bv-sext" gen_small_sized_interval_size2 prop_sext_sound
 
+let%test_unit "sext size" =
+  qc1 sexp_unop_size "bv-sext-size" gen_small_sized_interval_size2 prop_sext_size
+
 let%test_unit "zext sound" =
   qc1 sexp_unop_size "bv-zext" gen_small_sized_interval_size2 prop_zext_sound
+
+let%test_unit "zext size" =
+  qc1 sexp_unop_size "bv-zext-size" gen_small_sized_interval_size2 prop_zext_size
