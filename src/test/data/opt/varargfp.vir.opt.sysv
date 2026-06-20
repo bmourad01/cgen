@@ -1,0 +1,71 @@
+module varargfp
+
+export function $addv(b %25/rax, w %4/rdi, ...) {
+  %19 = slot 176, align 16
+@19:
+  %55 = add.l %19, 0x8_l ; @20
+  regstore rsi, %55 ; @21
+  %56 = add.l %19, 0x10_l ; @22
+  regstore rdx, %56 ; @23
+  %57 = add.l %19, 0x18_l ; @24
+  regstore rcx, %57 ; @25
+  %58 = add.l %19, 0x20_l ; @26
+  regstore r8, %58 ; @27
+  %59 = add.l %19, 0x28_l ; @28
+  regstore r9, %59 ; @29
+  %60 = eq.b %25, 0x0_b ; @30
+  br %60, @2, @18
+@18:
+  %93 = add.l %19, 0x30_l ; @31
+  regstore xmm0, %93 ; @32
+  %94 = add.l %19, 0x40_l ; @33
+  regstore xmm1, %94 ; @34
+  %95 = add.l %19, 0x50_l ; @35
+  regstore xmm2, %95 ; @36
+  %96 = add.l %19, 0x60_l ; @37
+  regstore xmm3, %96 ; @38
+  %97 = add.l %19, 0x70_l ; @39
+  regstore xmm4, %97 ; @40
+  %98 = add.l %19, 0x80_l ; @41
+  regstore xmm5, %98 ; @42
+  %99 = add.l %19, 0x90_l ; @43
+  regstore xmm6, %99 ; @44
+  %100 = add.l %19, 0xa0_l ; @45
+  regstore xmm7, %100 ; @46
+  jmp @2
+@2:
+  %64 = stkargs ; @50
+  jmp @3(%64, 0x30_w, 0x0_w, 0._d)
+@3(%69, %70, %71, %72):
+  %73 = lt.w %71, %4 ; @15
+  br %73, @7, @8
+@7:
+  jmp @56
+@56:
+  %76 = le.w %70, 0xa0_w ; @62
+  br %76, @57, @58
+@57:
+  %85 = zext.l %70 ; @65
+  %86 = add.l %19, %85 ; @66
+  %87 = add.w %70, 0x10_w ; @67
+  jmp @59(%69, %87, %86)
+@58:
+  %91 = add.l %69, 0x8_l ; @71
+  jmp @59(%91, %70, %69)
+@59(%77, %78, %79):
+  %80 = ld.d %79 ; @73
+  jmp @55
+@55:
+  %81 = add.d %72, %80 ; @16
+  %82 = add.w %71, 0x1_w ; @17
+  jmp @3(%77, %78, %82, %81)
+@8:
+  ret xmm0/%72
+}
+
+export function $six() {
+@13:
+  %15/d/xmm0 = call $addv(0x3_w/rdi, 1._d/xmm0, 2._d/xmm1, 3._d/xmm2, 0x3_b/rax)
+  ; @14
+  ret xmm0/%15
+}

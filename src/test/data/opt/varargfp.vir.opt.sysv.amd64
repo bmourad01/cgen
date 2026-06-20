@@ -1,0 +1,89 @@
+module varargfp
+
+export function $addv { ; returns: xmm0
+  %19 = slot 176, align 16
+@19:
+  mov %25:w, eax ; @20
+  mov %4:w, edi ; @115
+  mov qword ptr [%19 + 0x8], rsi ; @21
+  mov qword ptr [%19 + 0x10], rdx ; @23
+  mov qword ptr [%19 + 0x18], rcx ; @25
+  mov qword ptr [%19 + 0x20], r8 ; @27
+  mov qword ptr [%19 + 0x28], r9 ; @29
+  test %25:b, %25:b ; @110
+  je @2 ; @111
+  jmp @18 ; @112
+@18:
+  movdqa xmmword ptr [%19 + 0x30], xmm0 ; @32
+  movdqa xmmword ptr [%19 + 0x40], xmm1 ; @34
+  movdqa xmmword ptr [%19 + 0x50], xmm2 ; @36
+  movdqa xmmword ptr [%19 + 0x60], xmm3 ; @38
+  movdqa xmmword ptr [%19 + 0x70], xmm4 ; @40
+  movdqa xmmword ptr [%19 + 0x80], xmm5 ; @42
+  movdqa xmmword ptr [%19 + 0x90], xmm6 ; @44
+  movdqa xmmword ptr [%19 + 0xa0], xmm7 ; @46
+  jmp @2 ; @109
+@2:
+  lea %64:l, qword ptr [rbp + 0x10] ; @50
+  mov %69:l, %64:l ; @103
+  mov %70:w, 0x30_w ; @104
+  xor %71:w, %71:w ; @105
+  movsd %72:d, qword ptr [rip + @102] ; @106
+  .fp64 @102, 0. ; @107
+  jmp @3 ; @108
+@3:
+  cmp %71:w, %4:w ; @97
+  jb @7 ; @98
+  jmp @8 ; @99
+@8:
+  movsd xmm0, %72:d ; @95
+  ret ; @96
+@7:
+  jmp @56 ; @94
+@56:
+  cmp %70:w, 0xa0_w ; @89
+  jbe @57 ; @90
+  jmp @58 ; @91
+@58:
+  lea %91:l, qword ptr [%69 + 0x8] ; @71
+  mov %77:l, %91:l ; @85
+  mov %78:w, %70:w ; @86
+  mov %79:l, %69:l ; @87
+  jmp @59 ; @88
+@57:
+  mov %85:w, %70:w ; @65
+  lea %86:l, qword ptr [%19 + %85*1] ; @66
+  lea %87:w, qword ptr [%70 + 0x10] ; @67
+  mov %77:l, %69:l ; @81
+  mov %78:w, %87:w ; @82
+  mov %79:l, %86:l ; @83
+  jmp @59 ; @84
+@59:
+  movsd %80:d, qword ptr [%79] ; @73
+  jmp @55 ; @80
+@55:
+  movsd %81:d, %72:d ; @16
+  addsd %81:d, %80:d ; @79
+  lea %82:w, qword ptr [%71 + 0x1] ; @17
+  mov %69:l, %77:l ; @74
+  mov %70:w, %78:w ; @75
+  mov %71:w, %82:w ; @76
+  movsd %72:d, %81:d ; @77
+  jmp @3 ; @78
+}
+
+export function $six { ; returns: xmm0
+@13:
+  mov edi, 0x3_w ; @14
+  movsd xmm0, qword ptr [rip + @121] ; @122
+  .fp64 @121, 1. ; @123
+  movsd xmm1, qword ptr [rip + @120] ; @124
+  .fp64 @120, 2. ; @125
+  movsd xmm2, qword ptr [rip + @119] ; @126
+  .fp64 @119, 3. ; @127
+  mov eax, 0x3_w ; @128
+  call $addv ; xmm0 xmm1 xmm2 rax rdi ; @129
+  movsd %15:d, xmm0 ; @130
+  movsd xmm0, %15:d ; @117
+  ret ; @118
+}

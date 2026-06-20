@@ -370,6 +370,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Variadic function arguments 1 (SysV)" >:: test_sysv "vaarg1";
     "Variadic function arguments 2 (SysV)" >:: test_sysv "vaarg2";
     "Variadic sum (SysV)" >:: test_sysv "vasum";
+    "Variadic sum of doubles (SysV)" >:: test_sysv "varargfp";
     "Unsigned integer to float (SysV)" >:: test_sysv "uitof";
     "Naiive even-odd test (SysV)" >:: test_sysv "evenodd";
     "Trivial infinite loop (SysV)" >:: test_sysv "forever";
@@ -402,6 +403,7 @@ let isel_suite = "Test instruction selection" >::: [
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64 "promote2-partial";
     "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64 "vaarg1";
     "Variadic sum (SysV AMD64)" >:: test_sysv_amd64 "vasum";
+    "Variadic sum of doubles (SysV AMD64)" >:: test_sysv_amd64 "varargfp";
     "Sum an array of words (SysV AMD64)" >:: test_sysv_amd64 "sumarray";
     "Copy an array of words (SysV AMD64)" >:: test_sysv_amd64 "cpyarray";
     "Folding addition (SysV AMD64)" >:: test_sysv_amd64 "foldadd";
@@ -481,6 +483,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64_regalloc "parallel";
     "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumphi";
     "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_regalloc "vasum";
+    "Variadic sum of doubles (SysV AMD64)" >:: test_sysv_amd64_regalloc "varargfp";
     "Binary search (SysV AMD64)" >:: test_sysv_amd64_regalloc "bsearch";
     "strspn (SysV AMD64)" >:: test_sysv_amd64_regalloc "strspn";
     "strcspn (SysV AMD64)" >:: test_sysv_amd64_regalloc "strcspn";
@@ -502,6 +505,7 @@ let native_suite = "Test native code" >::: [
     "Union type (SysV AMD64)" >:: test_sysv_amd64_native "union";
     "Copy array (SysV AMD64)" >:: test_sysv_amd64_native "cpyarray";
     "Variadic sum (SysV AMD64)" >:: test_sysv_amd64_native "vasum";
+    "Variadic sum of doubles (SysV AMD64)" >:: test_sysv_amd64_native "varargfp";
     "Collatz (SysV AMD64)" >:: test_sysv_amd64_native "collatz";
     "Collatz recursive (SysV AMD64)" >:: test_sysv_amd64_native "collatz_rec";
     "Ackermann (SysV AMD64)" >:: test_sysv_amd64_native "ackermann";

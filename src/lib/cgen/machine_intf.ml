@@ -171,6 +171,13 @@ module type S = sig
         their types. *)
     val writes_with_types : Insn.t -> [Type.basic | `v128] Regvar.Map.t
 
+    (** Reconcile two types observed for the same register or variable across
+        the function, or [None] if they cannot share a register. *)
+    val reduce_type :
+      [Type.basic | `v128] ->
+      [Type.basic | `v128] ->
+      [Type.basic | `v128] option
+
     (** Pre-assign stack slots before doing register allocation. *)
     module Pre_assign_slots(C : Context_intf.S) : sig
       (** [pre_assign_slots find base i] replaces uses of virtual stack slots in [i]

@@ -1,0 +1,70 @@
+module varargfp
+
+export function $addv { ; returns: xmm0
+@19:
+  push rbp ; @131
+  mov rbp, rsp ; @132
+  sub rsp, 0xc0_l ; @133
+  mov qword ptr [rbp - 0xa8], rsi ; @21
+  mov qword ptr [rbp - 0xa0], rdx ; @23
+  mov qword ptr [rbp - 0x98], rcx ; @25
+  mov qword ptr [rbp - 0x90], r8 ; @27
+  mov qword ptr [rbp - 0x88], r9 ; @29
+  test al, al ; @110
+  je @2 ; @111
+@18:
+  movdqa xmmword ptr [rbp - 0x80], xmm0 ; @32
+  movdqa xmmword ptr [rbp - 0x70], xmm1 ; @34
+  movdqa xmmword ptr [rbp - 0x60], xmm2 ; @36
+  movdqa xmmword ptr [rbp - 0x50], xmm3 ; @38
+  movdqa xmmword ptr [rbp - 0x40], xmm4 ; @40
+  movdqa xmmword ptr [rbp - 0x30], xmm5 ; @42
+  movdqa xmmword ptr [rbp - 0x20], xmm6 ; @44
+  movdqa xmmword ptr [rbp - 0x10], xmm7 ; @46
+@2:
+  lea rax, qword ptr [rbp + 0x10] ; @50
+  mov ecx, 0x30_w ; @104
+  xor r8d, r8d ; @105
+  movsd xmm0, qword ptr [rip + @102] ; @106
+  .fp64 @102, 0. ; @107
+@3:
+  cmp r8d, edi ; @97
+  jb @56 ; @98
+@8:
+  leave ; @134
+  ret ; @96
+@56:
+  cmp ecx, 0xa0_w ; @89
+  jbe @57 ; @90
+@58:
+  lea rdx, qword ptr [rax + 0x8] ; @71
+  mov rsi, rax ; @87
+  jmp @59 ; @88
+@57:
+  lea rsi, qword ptr [rbp + rcx*1 - 0xb0] ; @66
+  add ecx, 0x10_w ; @67
+  mov rdx, rax ; @81
+@59:
+  movsd xmm1, qword ptr [rsi] ; @73
+  addsd xmm0, xmm1 ; @79
+  inc r8d ; @17
+  mov rax, rdx ; @74
+  jmp @3 ; @78
+}
+
+export function $six { ; returns: xmm0
+@13:
+  push rbp ; @135
+  mov rbp, rsp ; @136
+  mov edi, 0x3_w ; @14
+  movsd xmm0, qword ptr [rip + @121] ; @122
+  .fp64 @121, 1. ; @123
+  movsd xmm1, qword ptr [rip + @120] ; @124
+  .fp64 @120, 2. ; @125
+  movsd xmm2, qword ptr [rip + @119] ; @126
+  .fp64 @119, 3. ; @127
+  mov eax, 0x3_w ; @128
+  call $addv ; xmm0 xmm1 xmm2 rax rdi ; @129
+  leave ; @137
+  ret ; @118
+}

@@ -1,0 +1,26 @@
+module varargfp
+
+export function d $addv(w %n, ...) {
+  %ap = slot 24, align 8
+@start:
+  vastart %ap
+  %s = copy.d 0.0_d
+  %i = copy.w 0_w
+  jmp @loop
+@loop:
+  %c = lt.w %i, %n
+  br %c, @body, @done
+@body:
+  %y = vaarg.d %ap
+  %s = add.d %s, %y
+  %i = add.w %i, 1_w
+  jmp @loop
+@done:
+  ret %s
+}
+
+export function d $six() {
+@start:
+  %x = call.d $addv(3_w, ..., 1.0_d, 2.0_d, 3.0_d)
+  ret %x
+}

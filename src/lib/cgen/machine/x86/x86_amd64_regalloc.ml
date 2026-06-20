@@ -142,15 +142,20 @@ module Typed_writes = struct
 
   let wty ty = (ty :> ty)
 
-  let reduce a b = match a, b with
+  let reduce_opt a b = match a, b with
     | (#Type.imm as ia), (#Type.imm as ib)
-      when Type.sizeof_imm ia < Type.sizeof_imm ib -> b
-    | #Type.imm, #Type.imm -> a
+      when Type.sizeof_imm ia < Type.sizeof_imm ib -> Some b
+    | #Type.imm, #Type.imm -> Some a
     | (#Type.fp as fa), (#Type.fp as fb)
-      when Type.sizeof_fp fa < Type.sizeof_fp fb -> b
-    | #Type.fp, #Type.fp -> a
-    | `v128, `v128 -> `v128
-    | _ -> assert false
+      when Type.sizeof_fp fa < Type.sizeof_fp fb -> Some b
+    | #Type.fp, #Type.fp -> Some a
+    (* Account for overlap between FP args and XMM registers. *)
+    | (#Type.fp | `v128), (#Type.fp | `v128) -> Some `v128
+    | _ -> None
+
+  let reduce a b = match reduce_opt a b with
+    | Some t -> t
+    | None -> assert false
 
   (* Helper for registers mentioned in an addressing mode. *)
   let rv_of_amode = function
@@ -301,6 +306,7 @@ module Typed_writes = struct
 end
 
 let writes_with_types = Typed_writes.writes
+let reduce_type = Typed_writes.reduce_opt
 
 module Pre_assign_slots(C : Context_intf.S) = struct
   open C.Syntax

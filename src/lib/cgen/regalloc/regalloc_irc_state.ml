@@ -221,15 +221,9 @@ module Make(M : Machine_intf.S) = struct
 
   let add_initial t rv = add_initial_id t @@ intern t rv
 
-  let reduce_type ~key a b = match a, b with
-    | (#Type.imm as ia), (#Type.imm as ib)
-      when Type.sizeof_imm ia < Type.sizeof_imm ib -> b
-    | #Type.imm, #Type.imm -> a
-    | (#Type.fp as fa), (#Type.fp as fb)
-      when Type.sizeof_fp fa < Type.sizeof_fp fb -> b
-    | #Type.fp, #Type.fp -> a
-    | `v128, `v128 -> `v128
-    | _ ->
+  let reduce_type ~key a b = match M.Regalloc.reduce_type a b with
+    | Some t -> t
+    | None ->
       let sk = Format.asprintf "%a" Rv.pp key in
       let st t = match t with
         | #Type.basic as b ->
