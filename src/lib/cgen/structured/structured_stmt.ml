@@ -108,12 +108,12 @@ and pp_loop ppf = function
 
 and pp_when ppf c b =
   Format.fprintf ppf
-    "when %a [@;@[<v 2>  %a@]@;}"
+    "when %a {@;@[<v 2>  %a@]@;}"
     pp_cond c pp b
 
 and pp_unless ppf c b =
   Format.fprintf ppf
-    "unless %a [@;@[<v 2>  %a@]@;}"
+    "unless %a {@;@[<v 2>  %a@]@;}"
     pp_cond c pp b
 
 and pp_ite ppf c y n = match y, n with

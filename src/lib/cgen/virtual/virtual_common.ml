@@ -23,7 +23,7 @@ type const = [
 let pp_const ppf : const -> unit = function
   | `bool f -> Format.fprintf ppf "%a" Bool.pp f
   | `int (n, t) -> Format.fprintf ppf "%a_%a" Bv.pp n Type.pp_imm t
-  | `float f -> Format.fprintf ppf "%s_f" @@ Float32.to_string f
+  | `float f -> Format.fprintf ppf "%s_s" @@ Float32.to_string f
   | `double d -> Format.fprintf ppf "%a_d" Float.pp d
   | `sym (s, 0) -> Format.fprintf ppf "$%s" s
   | `sym (s, n) when n > 0 -> Format.fprintf ppf "$%s+0x%x" s n

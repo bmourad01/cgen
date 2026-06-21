@@ -44,16 +44,17 @@ let space = [' ' '\t' '\n' '\r']
 let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 let ident = (alpha | '_') (alpha | '_' | digit)*
+let symname = (alpha | '_' | '.') (alpha | '_' | '.' | digit)*
 let integer = digit+
 let ninteger = '-' integer
 let hinteger = "0x" ['0'-'9' 'a'-'f' 'A'-'F']+
 let ointeger = "0o" ['0'-'7']+
 let binteger = "0b" ['0'-'1']+
 let posints = (integer | hinteger | ointeger | binteger)
-let exp = ('E' | 'e') (integer | ninteger)
+let exp = ('E' | 'e') ('+' | '-')? integer
 let inf = ("INF" | "inf" | "INFINITY" | "infinity")
 let nan = ("NAN" | "NaN" | "nan")
-let flt = ('-'? digit+ '.' digit+ exp?) | ('-'? inf) | ('-'? nan)
+let flt = ('-'? digit+ ('.' digit*)? exp?) | ('-'? inf) | ('-'? nan)
 let backslash_escapes = ['\\' '\'' '"' 'n' 't' 'b' 'r']
 let imm = ['w' 'l' 'b' 'h']
 let imm_base = ['w' 'l']
@@ -74,7 +75,7 @@ rule token = parse
   | ':' (ident as id) { TYPENAME id }
   | ':' { COLON }
   | ';' { SEMI }
-  | '$' (ident as id) { SYM id }
+  | '$' (symname as id) { SYM id }
   | '@' (ident as id) { LABEL id }
   | '@' (integer as id) { LABEL id }
   | '%' (ident as id) { IDENT id }
