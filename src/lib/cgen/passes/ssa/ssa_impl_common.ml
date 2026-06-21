@@ -39,6 +39,11 @@ module type L = sig
     val args : ?rev:bool -> t -> Var.t seq
     val insns : ?rev:bool -> t -> Insn.t seq
     val ctrl : t -> Ctrl.t
+    val fold_insns : ?rev:bool -> t -> init:'a -> f:('a -> Insn.t -> 'a) -> 'a
+    val iter_insns : ?rev:bool -> t -> f:(Insn.t -> unit) -> unit
+    val fold_args : ?rev:bool -> t -> init:'a -> f:('a -> Var.t -> 'a) -> 'a
+    val iter_args : ?rev:bool -> t -> f:(Var.t -> unit) -> unit
+    val args_to_list : t -> Var.t list
   end
 
   module Func : sig
@@ -48,6 +53,7 @@ module type L = sig
     val name : t -> string
     val blks : ?rev:bool -> t -> Blk.t seq
     val num_blks : t -> int
+    val num_insns : t -> int
     val update_blks_exn : t -> Blk.t list -> t
   end
 
@@ -81,9 +87,10 @@ module type L = sig
 end
 
 type ('live, 'cfg, 'blk) env = {
-  live : 'live;             (* Liveness analysis. *)
-  cfg  : 'cfg;              (* Control-flow graph. *)
-  dom  : Semi_nca.tree;     (* Dominator tree. *)
-  df   : Semi_nca.frontier; (* Dominance frontier. *)
-  blks : 'blk LT.t;         (* Current version of each block. *)
+  live  : 'live;             (* Liveness analysis. *)
+  cfg   : 'cfg;              (* Control-flow graph. *)
+  dom   : Semi_nca.tree;     (* Dominator tree. *)
+  df    : Semi_nca.frontier; (* Dominance frontier. *)
+  blks  : 'blk LT.t;         (* Current version of each block. *)
+  nvars : int;
 }

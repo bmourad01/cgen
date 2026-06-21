@@ -95,12 +95,29 @@ module Make(M : L) : S
     with Bad_use x ->
       E.failf "Variable %a is used but not defined" Var.pp x ()
 
+  let uses_of fn vars =
+    let use = VT.create ~capacity:(Var.Tree_set.length vars) () in
+    Func.blks fn |> Seq.iter ~f:(fun b ->
+        let blk = `blk b in
+        let _ = Blk.insns b |> Seq.fold ~init:0 ~f:(fun ord i ->
+            let data = `insn (i, b, Insn.lhs i, ord) in
+            Insn.free_vars i |> Var.Tree_set.iter ~f:(fun key ->
+                if Var.Tree_set.mem vars key then
+                  VT.add_multi use ~key ~data);
+            ord + 1) in
+        Blk.ctrl b |> Ctrl.free_vars |>
+        Var.Tree_set.iter ~f:(fun key ->
+            if Var.Tree_set.mem vars key then
+              VT.add_multi use ~key ~data:blk));
+    fun x -> VT.find use x |> Option.value ~default:[]
+
   let create fn =
     let nblk = Func.num_blks fn in
     let ninsn = Func.num_insns fn in
-    let lbl = LT.create ~capacity:(nblk + ninsn) () in
-    let use = VT.create () in
-    let def = VT.create () in
+    let cap = nblk + ninsn in
+    let lbl = LT.create ~capacity:cap () in
+    let use = VT.create ~capacity:cap () in
+    let def = VT.create ~capacity:cap () in
     let* () = Func.args fn |> E.Seq.iter ~f:(fun a ->
         insert_var def a `arg ~err:(duplicate_def a)) in
     let* () = Func.slots fn |> E.Seq.iter ~f:(fun s ->

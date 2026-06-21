@@ -1,13 +1,9 @@
 open Core
-open Monads.Std
 open Regular.Std
 open Virtual
 
-module E = Monad.Result.Error
 module Vtree = Var.Tree
 module LT = Label.Dense_table
-
-open E.Let
 
 module type L = sig
   type lhs
@@ -50,14 +46,17 @@ module Make(M : L) = struct
 
   type env = {
     fn   : Func.t;
-    reso : Resolver.t;
+    uses : Var.t -> Resolver.resolved list;
     ops  : Insn.op LT.t;
   }
 
   let init fn =
-    let+ reso = Resolver.create fn in
+    let slots =
+      Func.slots fn |> Seq.map ~f:Slot.var |>
+      Seq.to_list |> Var.Tree_set.of_list in
+    let uses = Resolver.uses_of fn slots in
     let ops = LT.create () in
-    {fn; reso; ops}
+    {fn; uses; ops}
 
   module Qualify = struct
     (* The qualification of the slot.
@@ -105,7 +104,7 @@ module Make(M : L) = struct
 
     let go env s ~undef =
       let x = Slot.var s in
-      Resolver.uses env.reso x |>
+      env.uses x |>
       List.fold_until ~init:Bad ~finish:Fn.id
         ~f:(fun acc -> function
             |`blk _ -> Stop Bad
@@ -156,7 +155,7 @@ module Make(M : L) = struct
     LT.set env.ops ~key:l ~data:k
 
   let replace env = Vtree.iter ~f:(fun ~key:x ~data:t ->
-      Resolver.uses env.reso x |> List.iter ~f:(function
+      env.uses x |> List.iter ~f:(function
           | `blk _ -> assert false
           | `insn (i, _, _, _) ->
             let l = Insn.label i in
@@ -167,7 +166,7 @@ module Make(M : L) = struct
               | None -> assert false))
 
   let run fn ~undef =
-    let+ env = init fn in
+    let env = init fn in
     let xs = collect env ~undef in
     if not @@ Vtree.is_empty xs then
       let fn = remove_slots fn xs in

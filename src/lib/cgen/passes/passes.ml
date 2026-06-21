@@ -42,21 +42,21 @@ let restructure ~tenv m =
 let retype tenv m =
   Module.funs m |> Seq.to_list |> Typecheck.update_fns tenv
 
-let initialize m =
+let initialize ?(invariants = false) m =
   let* target = Context.target in
   let m = Module.map_funs m ~f:Remove_disjoint_blks.run in
   let*? tenv = Typecheck.run m ~target in
-  let* m = Context.Virtual.Module.map_funs m ~f:Ssa.run in
+  let* m = Context.Virtual.Module.map_funs m ~f:(Ssa.run ~check:invariants) in
   let+? tenv = retype tenv m in
   tenv, m
 
-let optimize tenv m =
+let optimize ?(invariants = false) tenv m =
   let module Cv = Context.Virtual in
   let*? m = Module.map_funs_err m ~f:Coalesce_slots.run in
   let*? m = Module.map_funs_err m ~f:Resolve_constant_blk_args.run in
   let*? m = Module.map_funs_err m ~f:Remove_dead_vars.run in
   let* m = Context.Virtual.Module.map_funs m ~f:Sroa.run in
-  let* m = Context.Virtual.Module.map_funs m ~f:Promote_slots.run in
+  let* m = Context.Virtual.Module.map_funs m ~f:(Promote_slots.run ~invariants) in
   let*? tenv = retype tenv m in
   let*? m = Module.map_funs_err m ~f:(Sccp.run tenv) in
   let m = Module.map_funs m ~f:Remove_disjoint_blks.run in
@@ -66,7 +66,6 @@ let optimize tenv m =
   let* m = Cv.Module.map_funs m ~f:(Egraph_opt.run tenv) in
   let*? tenv = retype tenv m in
   let m = Module.map_funs m ~f:Remove_disjoint_blks.run in
-  let*? m = Module.map_funs_err m ~f:Remove_dead_vars.run in
   let*? m = Module.map_funs_err m ~f:Resolve_constant_blk_args.run in
   let*? tenv = retype tenv m in
   let m = Module.map_funs m ~f:Remove_disjoint_blks.run in
@@ -77,10 +76,10 @@ let optimize tenv m =
   let+? tenv = retype tenv m in
   tenv, m
 
-let to_abi tenv m =
+let to_abi ?(invariants = false) tenv m =
   let+ funs =
     Module.funs m |> Seq.to_list |>
-    Context.List.map ~f:(Lower_abi.run tenv) in
+    Context.List.map ~f:(Lower_abi.run ~invariants tenv) in
   Abi.Module.create () ~funs
     ~name:(Module.name m)
     ~dict:(Module.dict m)
@@ -91,7 +90,7 @@ let optimize_abi ?(invariants = false) m =
   let*? m = Abi.Module.map_funs_err m ~f:Resolve_constant_blk_args.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in
   let* m = Context.Virtual.Module.map_funs_abi m ~f:Sroa.run_abi in
-  let* m = Context.Virtual.Module.map_funs_abi m ~f:Promote_slots.run_abi in
+  let* m = Context.Virtual.Module.map_funs_abi m ~f:(Promote_slots.run_abi ~invariants) in
   let*? m = Abi.Module.map_funs_err m ~f:Abi_loadopt.run in
   let m = Abi.Module.map_funs m ~f:Remove_disjoint_blks.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in

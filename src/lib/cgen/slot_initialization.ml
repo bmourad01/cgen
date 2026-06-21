@@ -6,6 +6,7 @@ module Slot = Virtual.Slot
 module Vtree = Var.Tree
 module VS = Var.Dense_set
 module LS = Label.Dense_set
+module LT = Label.Dense_table
 module Solution = Fixpoint.Solution
 
 type interval = {
@@ -81,10 +82,8 @@ let merge_tree t1 t2 =
 (* Since this is a "must" forward-flow analysis, incoming
    predecessor states must intersect. *)
 let merge_state s1 s2 =
-  Vtree.fold s1 ~init:Vtree.empty
-    ~f:(fun ~key ~data:t1 acc -> match Vtree.find s2 key with
-        | Some t2 -> Vtree.set acc ~key ~data:(merge_tree t1 t2)
-        | None -> acc)
+  Vtree.inter_with s1 s2 ~f:(fun ~key:_ t1 t2 ->
+      if phys_equal t1 t2 then t1 else merge_tree t1 t2)
 
 type solution = state Solution.t
 
@@ -102,31 +101,20 @@ let is_uninitialized acc base off ty =
     let i = Interval.from_access off ty in
     not (Tree.dominates t i)
 
-let transfer_store esc acc ptr ty (s : Scalars.state) =
-  match Vtree.find s ptr with
-  | Some Offset (base, off) ->
-    (* If `base` ever escaped, then don't ever consider
-       it initialized. *)
-    if VS.mem esc base then
-      let () = Logs.debug (fun m ->
-          m "%s: ignoring escaped slot %a%!"
-            __FUNCTION__ Var.pp base) in
-      acc
-    else
-      let i = Interval.from_access off ty in
-      Vtree.update acc base ~f:(function
-          | None -> Tree.singleton i ()
-          | Some t when Tree.dominates t i -> t
-          | Some t -> normalize_add t i)
-  | _ -> acc
+type access =
+  | Load_at  of Var.t * int64 * Type.basic
+  | Store_at of Var.t * int64 * Type.basic
 
-let transfer_load bad acc l ptr ty (s : Scalars.state) =
-  match Vtree.find s ptr with
-  | Some Offset (base, off) ->
-    if is_uninitialized acc base off ty then
-      LS.add bad l;
-    acc
-  | _ -> acc
+let apply_store acc base off ty =
+  let i = Interval.from_access off ty in
+  Vtree.update acc base ~f:(function
+      | None -> Tree.singleton i ()
+      | Some t when Tree.dominates t i -> t
+      | Some t -> normalize_add t i)
+
+let apply_load bad acc l base off ty =
+  if is_uninitialized acc base off ty then LS.add bad l;
+  acc
 
 let debug_dump blks bad s =
   Logs.debug (fun m ->
@@ -151,28 +139,62 @@ module Make(M : Scalars.L) = struct
 
   module S = Scalars.Make(M)
 
-  let transfer bad t blks slots l st =
+  let collect_accesses t blks slots =
+    let ninsns =
+      Label.Tree.fold blks ~init:0
+        ~f:(fun ~key:_ ~data:b acc -> acc + Blk.num_insns b) in
+    let accesses = LT.create ~capacity:ninsns () in
+    Label.Tree.iter blks ~f:(fun ~key:l ~data:b ->
+        let s = ref @@ Scalars.get t l in
+        Blk.iter_insns b ~f:(fun i ->
+            let op = Insn.op i in
+            begin match Insn.load_or_store_to op with
+              | Some (ptr, ty, kind) ->
+                begin match Vtree.find !s ptr with
+                  | Some Offset (base, off) ->
+                    begin match kind with
+                      | Load ->
+                        LT.set accesses ~key:(Insn.label i)
+                          ~data:(Load_at (base, off, ty))
+                      | Store ->
+                        (* An escaped slot is never considered initialized. *)
+                        if VS.mem t.esc base then
+                          Logs.debug (fun m ->
+                              m "%s: ignoring escaped slot %a%!"
+                                __FUNCTION__ Var.pp base)
+                        else
+                          LT.set accesses ~key:(Insn.label i)
+                            ~data:(Store_at (base, off, ty))
+                    end
+                  | _ -> ()
+                end
+              | None -> ()
+            end;
+            s := S.transfer_op slots !s op));
+    accesses
+
+  let transfer bad accesses blks l st =
     match Label.Tree.find blks l with
     | None -> st
     | Some b ->
-      let s = ref @@ Scalars.get t l in
-      Blk.insns b |> Seq.fold ~init:st ~f:(fun acc i ->
-          let op = Insn.op i and l = Insn.label i in
-          let acc = match Insn.load_or_store_to op with
-            | Some (ptr, ty, Store) -> transfer_store t.esc acc ptr ty !s
-            | Some (ptr, ty, Load) -> transfer_load bad acc l ptr ty !s
-            | _ -> acc in
-          s := S.transfer_op slots !s op;
-          acc)
+      Blk.fold_insns b ~init:st ~f:(fun acc i ->
+          let l = Insn.label i in
+          match LT.find accesses l with
+          | Some (Store_at (base, off, ty)) ->
+            apply_store acc base off ty
+          | Some (Load_at (base, off, ty)) ->
+            apply_load bad acc l base off ty
+          | None -> acc)
 
   let analyze' t cfg blks slots =
     let bad = LS.create () in
+    let accesses = collect_accesses t blks slots in
     let s = Fixpoint.run (module Cfg) cfg
         ~init:(Solution.create init_constraints @@ top_state slots)
         ~start:Label.pseudoentry
         ~equal:equal_state
         ~merge:merge_state
-        ~f:(transfer bad t blks slots) in
+        ~f:(transfer bad accesses blks) in
     debug_dump blks bad s;
     {soln = s; bad}
 

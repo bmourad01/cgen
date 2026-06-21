@@ -57,21 +57,20 @@ let apply
   let blks = M.Func.map_of_blks fn in
   let s = Sinit.analyze cfg blks slots in
   let undef l = Label.Dense_set.mem s.bad l in
-  let*? fn' = run fn ~undef in
-  ssa fn'
+  ssa (run fn ~undef)
 
-let run fn =
+let run ?(invariants = false) fn =
   if Dict.mem (Func.dict fn) Tags.ssa then
-    apply (module Scalars_common.VL) V.run Ssa.run fn
+    apply (module Scalars_common.VL) V.run (Ssa.run ~check:invariants) fn
   else
     Context.failf
       "In Promote_slots: expected SSA form for function $%s"
       (Func.name fn) ()
 
-let run_abi fn =
+let run_abi ?(invariants = false) fn =
   let open Abi in
   if Dict.mem (Func.dict fn) Tags.ssa then
-    apply (module Scalars_common.AL) A.run Ssa.run_abi fn
+    apply (module Scalars_common.AL) A.run (Ssa.run_abi ~check:invariants) fn
   else
     Context.failf
       "In Promote_slots (ABI): expected SSA form for function $%s"

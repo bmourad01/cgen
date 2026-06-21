@@ -57,6 +57,11 @@ module type S = sig
   *)
   val uses : t -> Var.t -> resolved list
 
+  (** [uses_of fn vars] collects the usage sites of only the variables in
+      [vars]. The returned closure maps a variable to its uses (as [uses]
+      would), or to [[]] if it is absent or not in [vars]. *)
+  val uses_of : func -> Var.Tree_set.t -> Var.t -> resolved list
+
   (** Compute the resolution data for a function.
 
       Returns [Error _] if there are duplicate definitions.

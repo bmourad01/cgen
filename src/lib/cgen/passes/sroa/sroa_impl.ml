@@ -14,6 +14,7 @@ open Scalars
 
 module Slot = Virtual.Slot
 module Vtree = Var.Tree
+module LT = Label.Dense_table
 module Allen = Allen_interval_algebra
 
 type range = {
@@ -269,32 +270,36 @@ end = struct
           v)
 
   (* Rewrite an instruction. *)
-  let rewrite_insn parts (m : scalars) (s : state) i =
+  let rewrite_insn parts (m : scalars) resolved i =
     let open Context.Syntax in
     let op = Insn.op i in
     match Insn.load_or_store_to op with
     | None -> !![i]
     | Some (ptr, ty, ldst) ->
       debug_show_insn i ptr ty ldst;
-      match Vtree.find s ptr with
-      | (Some Top | None) as v ->
-        debug_show_bad_val ptr v;
-        !![i]
-      | Some Offset (base, off) ->
+      match LT.find resolved (Insn.label i) with
+      | None -> !![i]
+      | Some (base, off) ->
         match find_partition parts base off @@ basic_size ty with
         | Some p -> rewrite_insn_exact m i ~exact:p.off ~base ~off
         | None ->
           Logs.debug (fun m -> m "%s: no parts found%!" __FUNCTION__);
           !![i]
 
-  let rewrite_with_partitions slots fn t parts m =
+  let build_resolved (accs : accesses) =
+    let resolved = LT.create () in
+    Vtree.iter accs ~f:(fun ~key:base ~data:list ->
+        List.iter list ~f:(fun (a : access) ->
+            LT.set resolved ~key:(Insn.label a.insn) ~data:(base, a.off)));
+    resolved
+
+  let rewrite_with_partitions fn resolved parts m =
     let open Context.Syntax in
     let* blks = Func.blks fn |> Context.Seq.map ~f:(fun b ->
-        let s = ref @@ get t @@ Blk.label b in
-        let+ insns = Blk.insns b |> Context.Seq.map ~f:(fun i ->
-            let+ is = rewrite_insn parts m !s i in
-            s := Analysis.transfer_op slots !s @@ Insn.op i; is)
-          >>| List.concat @. Seq.to_list in
+        let+ insns =
+          Blk.insns b |>
+          Context.Seq.map ~f:(rewrite_insn parts m resolved) >>|
+          List.concat @. Seq.to_list in
         Blk.with_insns b insns) >>| Seq.to_list in
     Context.lift_err @@ Func.with_blks fn blks
 
@@ -343,5 +348,5 @@ end = struct
         let* m = materialize_partitions slots parts in
         if Map.is_empty m then !!fn else
           let fn = insert_new_slots fn m in
-          rewrite_with_partitions slots fn t parts m
+          rewrite_with_partitions fn (build_resolved accs) parts m
 end

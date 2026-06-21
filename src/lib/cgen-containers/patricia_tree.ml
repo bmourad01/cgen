@@ -230,22 +230,60 @@ module Make(K : Patricia_tree_intf.Key) = struct
       | LB -> (match remove l k with Nil -> r | l' -> Bin (pk, l', r))
       | RB -> (match remove r k with Nil -> l | r' -> Bin (pk, l, r'))
 
-  let rec merge t1 t2 ~f = match t1, t2 with
-    | Nil, t | t, Nil -> t
-    | Tip (k, v1), t | t, Tip (k, v1) ->
-      update t k ~f:(function
-          | Some v2 -> f ~key:k v1 v2
-          | None -> v1)
-    | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
-      let p1, b1 = unpack pk1 in
-      let p2, b2 = unpack pk2 in
-      match order2 p1 b1 p2 b2 with
-      | EQ -> of_key p1 b1 (merge l1 l2 ~f) (merge r1 r2 ~f)
-      | LIL -> Bin (pk1, merge l1 t2 ~f, r1)
-      | LIR -> Bin (pk1, l1, merge r1 t2 ~f)
-      | RIL -> Bin (pk2, merge t1 l2 ~f, r2)
-      | RIR -> Bin (pk2, l2, merge t1 r2 ~f)
-      | DJ -> join t1 p1 t2 p2
+  let rec merge t1 t2 ~f =
+    if phys_equal t1 t2 then t1 else match t1, t2 with
+      | Nil, t | t, Nil -> t
+      | Tip (k, v1), t | t, Tip (k, v1) ->
+        update t k ~f:(function
+            | Some v2 -> f ~key:k v1 v2
+            | None -> v1)
+      | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
+        let p1, b1 = unpack pk1 in
+        let p2, b2 = unpack pk2 in
+        match order2 p1 b1 p2 b2 with
+        | EQ ->
+          let l = merge l1 l2 ~f and r = merge r1 r2 ~f in
+          if phys_equal l l1 && phys_equal r r1 then t1
+          else of_key p1 b1 l r
+        | LIL ->
+          let l = merge l1 t2 ~f in
+          if phys_equal l l1 then t1 else Bin (pk1, l, r1)
+        | LIR ->
+          let r = merge r1 t2 ~f in
+          if phys_equal r r1 then t1 else Bin (pk1, l1, r)
+        | RIL ->
+          let l = merge t1 l2 ~f in
+          if phys_equal l l2 then t2 else Bin (pk2, l, r2)
+        | RIR ->
+          let r = merge t1 r2 ~f in
+          if phys_equal r r2 then t2 else Bin (pk2, l2, r)
+        | DJ -> join t1 p1 t2 p2
+  [@@specialise]
+
+  let rec inter_with t1 t2 ~f =
+    if phys_equal t1 t2 then t1 else match t1, t2 with
+      | Nil, _ | _, Nil -> Nil
+      | Tip (k, v1), _ -> begin match find t2 k with
+          | Some v2 -> Tip (k, f ~key:k v1 v2)
+          | None -> Nil
+        end
+      | _, Tip (k, v2) -> begin match find t1 k with
+          | Some v1 -> Tip (k, f ~key:k v1 v2)
+          | None -> Nil
+        end
+      | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
+        let p1, b1 = unpack pk1 in
+        let p2, b2 = unpack pk2 in
+        match order2 p1 b1 p2 b2 with
+        | EQ ->
+          let l = inter_with l1 l2 ~f and r = inter_with r1 r2 ~f in
+          if phys_equal l l1 && phys_equal r r1 then t1
+          else of_key p1 b1 l r
+        | LIL -> inter_with l1 t2 ~f
+        | LIR -> inter_with r1 t2 ~f
+        | RIL -> inter_with t1 l2 ~f
+        | RIR -> inter_with t1 r2 ~f
+        | DJ -> Nil
   [@@specialise]
 
   let rec iter t ~f = match t with
@@ -402,19 +440,31 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       | LB -> (match remove l k with Nil -> r | l' -> Bin (pk, l', r))
       | RB -> (match remove r k with Nil -> l | r' -> Bin (pk, l, r'))
 
-  let rec union t1 t2 = match t1, t2 with
-    | Nil, t | t, Nil -> t
-    | Tip k, t | t, Tip k -> add t k
-    | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
-      let p1, b1 = unpack pk1 in
-      let p2, b2 = unpack pk2 in
-      match order2 p1 b1 p2 b2 with
-      | EQ -> of_key p1 b1 (union l1 l2) (union r1 r2)
-      | LIL -> Bin (pk1, union l1 t2, r1)
-      | LIR -> Bin (pk1, l1, union r1 t2)
-      | RIL -> Bin (pk2, union t1 l2, r2)
-      | RIR -> Bin (pk2, l2, union t1 r2)
-      | DJ -> join t1 p1 t2 p2
+  let rec union t1 t2 =
+    if phys_equal t1 t2 then t1 else match t1, t2 with
+      | Nil, t | t, Nil -> t
+      | Tip k, t | t, Tip k -> add t k
+      | Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
+        let p1, b1 = unpack pk1 in
+        let p2, b2 = unpack pk2 in
+        match order2 p1 b1 p2 b2 with
+        | EQ ->
+          let l = union l1 l2 and r = union r1 r2 in
+          if phys_equal l l1 && phys_equal r r1 then t1
+          else of_key p1 b1 l r
+        | LIL ->
+          let l = union l1 t2 in
+          if phys_equal l l1 then t1 else Bin (pk1, l, r1)
+        | LIR ->
+          let r = union r1 t2 in
+          if phys_equal r r1 then t1 else Bin (pk1, l1, r)
+        | RIL ->
+          let l = union t1 l2 in
+          if phys_equal l l2 then t2 else Bin (pk2, l, r2)
+        | RIR ->
+          let r = union t1 r2 in
+          if phys_equal r r2 then t2 else Bin (pk2, l2, r)
+        | DJ -> join t1 p1 t2 p2
 
   let rec diff t1 t2 = match t1, t2 with
     | Nil, _ -> Nil
@@ -462,6 +512,30 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       | RIL -> disjoint t1 l2
       | RIR -> disjoint t1 r2
       | DJ -> true
+
+  module M = Make(K)
+
+  let rec restrict : 'a. 'a M.t -> t -> 'a M.t = fun m s -> match m, s with
+    | M.Nil, _ | _, Nil -> M.Nil
+    | M.Tip (k, _), _ -> if mem s k then m else M.Nil
+    | _, Tip k -> (match M.find m k with
+        | Some v -> M.Tip (k, v)
+        | None -> M.Nil)
+    | M.Bin (pk1, l1, r1), Bin (pk2, l2, r2) ->
+      let p1, b1 = unpack pk1 in
+      let p2, b2 = unpack pk2 in
+      match order2 p1 b1 p2 b2 with
+      | EQ ->
+        let l = restrict l1 l2
+        and r = restrict r1 r2 in
+        if phys_equal l l1
+        && phys_equal r r1 then m
+        else M.of_key p1 b1 l r
+      | LIL -> restrict l1 s
+      | LIR -> restrict r1 s
+      | RIL -> restrict m l2
+      | RIR -> restrict m r2
+      | DJ -> M.Nil
 
   let rec iter t ~f = match t with
     | Nil -> ()

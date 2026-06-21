@@ -7,6 +7,7 @@ open Cgen_containers
 module Ltree = Label.Tree
 module Lset = Label.Tree_set
 module LS = Label.Dense_set
+module LT = Label.Dense_table
 module Vtree = Var.Tree
 module Vset = Var.Tree_set
 module VS = Var.Dense_set
@@ -277,6 +278,7 @@ module Make(M : Scalars.L) = struct
     let ip = ref 0 in
     let nums = Vec.create () in
     let spans = ref Ltree.empty in
+    let store_base = LT.create () in
     let init =
       VS.fold t.esc ~init:Vtree.empty
         ~f:(fun acc x -> Vtree.set acc ~key:x ~data:Range.bad) in
@@ -291,6 +293,14 @@ module Make(M : Scalars.L) = struct
           let acc = Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
               let op = Insn.op i in
               let acc = liveness_insn si acc !s !ip i in
+              let () = match Insn.load_or_store_to op with
+                | Some (ptr, _, Store) ->
+                  begin match Vtree.find !s ptr with
+                    | Some Offset (base, _) ->
+                      LT.set store_base ~key:(Insn.label i) ~data:base
+                    | _ -> ()
+                  end
+                | _ -> () in
               Vec.push nums (Insn.label i);
               s := Sinit.S.transfer_op slots !s op;
               incr ip;
@@ -301,30 +311,17 @@ module Make(M : Scalars.L) = struct
           incr ip;
           spans := Ltree.set !spans ~key:l ~data:(lo_ip, ctrl_ip);
           acc) in
-    extend_for_loops loop !spans acc, nums
+    extend_for_loops loop !spans acc, nums, store_base
 
-  let collect_deads blks slots rs t =
-    Ltree.fold blks ~init:Lset.empty
-      ~f:(fun ~key ~data:b init ->
-          let s = ref @@ get t key in
-          Blk.insns b |> Seq.fold ~init ~f:(fun acc i ->
-              let op = Insn.op i in
-              let acc = match Insn.load_or_store_to op with
-                | Some (ptr, _, Store) ->
-                  begin match Vtree.find !s ptr with
-                    | Some Offset (base, _) ->
-                      begin match Vtree.find rs base with
-                        | Some {tg = Def; _} ->
-                          (* This slot is only ever stored to, so we can
-                             safely remove it. *)
-                          Lset.add acc @@ Insn.label i
-                        | _ -> acc
-                      end
-                    | _ -> acc
-                  end
-                | _ -> acc in
-              s := Sinit.S.transfer_op slots !s op;
-              acc))
+  let collect_deads rs store_base =
+    LT.fold store_base ~init:Lset.empty
+      ~f:(fun ~key:label ~data:base acc ->
+          match Vtree.find rs base with
+          | Some {tg = Def; _} ->
+            (* This slot is only ever stored to, so we can safely
+               remove it. *)
+            Lset.add acc label
+          | _ -> acc)
 
   let debug_show slots rs nums deads p subst =
     Logs.debug (fun m ->
@@ -364,9 +361,9 @@ module Make(M : Scalars.L) = struct
       let blks = Func.map_of_blks fn in
       let t = Sinit.S.analyze cfg blks slots in
       let si = Sinit.analyze' t cfg blks slots in
-      let rs, nums = liveness cfg blks slots t si in
+      let rs, nums, store_base = liveness cfg blks slots t si in
       let p = partition slots rs in
-      let deads = collect_deads blks slots rs t in
+      let deads = collect_deads rs store_base in
       let subst = make_subst slots p in
       debug_show slots rs nums deads p subst;
       {subst; deads}

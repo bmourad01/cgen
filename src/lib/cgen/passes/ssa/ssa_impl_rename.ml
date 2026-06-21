@@ -20,8 +20,11 @@ end = struct
     VT.add_multi stk ~key:x ~data:y;
     y
 
+  (* NB: `new_name` allocates fresh variables, so the traversal must be
+     forward to keep variable numbering stable. *)
   let rename_args stk alloc b =
-    Blk.args b |> Seq.map ~f:(new_name stk alloc) |> Seq.to_list
+    Blk.fold_args b ~init:[] ~f:(fun acc x ->
+        new_name stk alloc x :: acc) |> List.rev
 
   let map_var stk x = match VT.find stk x with
     | Some [] | None -> x
@@ -30,9 +33,13 @@ end = struct
   let rename_insns stk alloc b =
     let rename = new_name stk alloc in
     let stk = map_var stk in
-    Blk.insns b |> Seq.map ~f:(fun i ->
-        Insn.op i |> rename_op ~stk ~rename |> Insn.with_op i) |>
-    Seq.to_list
+    Blk.fold_insns b ~init:[] ~f:(fun acc i ->
+        let i' =
+          Insn.op i |>
+          rename_op ~stk ~rename |>
+          Insn.with_op i in
+        i' :: acc) |>
+    List.rev
 
   let pop_var stk x =
     VT.change stk x ~f:(function
@@ -41,9 +48,8 @@ end = struct
 
   let pop_defs stk b =
     let f = pop_var stk in
-    Blk.args b |> Seq.iter ~f;
-    Blk.insns b |> Seq.map ~f:Insn.lhs |>
-    Seq.iter ~f:(List.iter ~f)
+    Blk.iter_args b ~f;
+    Blk.iter_insns b ~f:(fun i -> List.iter (Insn.lhs i) ~f)
 
   type action =
     | Visit of Label.t
@@ -65,7 +71,7 @@ end = struct
       ~f:(fun l -> Stack.push q @@ Visit l)
 
   let go env ~alloc =
-    let stk = VT.create () in
+    let stk = VT.create ~capacity:env.nvars () in
     let q = Stack.singleton @@ Visit Label.pseudoentry in
     Stack.until_empty q @@ function
     | Visit l -> visit q env stk alloc l

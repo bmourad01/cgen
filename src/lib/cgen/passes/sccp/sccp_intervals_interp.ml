@@ -237,14 +237,11 @@ let interp_variadic _ s : Insn.variadic -> state = function
   | `vaarg (x, t, _) -> make_top s x t
   | `vastart _ -> s
 
-let interp_insn ctx s i =
-  let s = match Insn.op i with
-    | #Insn.basic as b -> interp_basic ctx s b
-    | #Insn.call as c -> interp_call ctx s c
-    | #Insn.mem as m -> interp_mem ctx s m
-    | #Insn.variadic as v -> interp_variadic ctx s v in
-  LT.set ctx.insns ~key:(Insn.label i) ~data:s;
-  s
+let interp_insn ctx s i = match Insn.op i with
+  | #Insn.basic as b -> interp_basic ctx s b
+  | #Insn.call as c -> interp_call ctx s c
+  | #Insn.mem as m -> interp_mem ctx s m
+  | #Insn.variadic as v -> interp_variadic ctx s v
 
 let assign_blk_args ctx s l args =
   match Ltree.find ctx.blks l with

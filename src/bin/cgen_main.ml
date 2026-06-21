@@ -11,7 +11,7 @@ let dump_ok (opts : Cli.t) = match opts.ifmt with
 
 let comp_virtual' (opts : Cli.t) ppf close bail m =
   let open Context.Syntax in
-  let* tenv, m = Passes.initialize m in
+  let* tenv, m = Passes.initialize ~invariants:opts.invariants m in
   if Cli.equal_dump opts.dump Dssa then begin
     if not opts.nc then Format.fprintf ppf ";; After SSA transformation:\n\n%!";
     Format.fprintf ppf "%a\n%!" Virtual.Module.pp m;
@@ -22,7 +22,7 @@ let comp_virtual' (opts : Cli.t) ppf close bail m =
     if not opts.nc then Format.fprintf ppf ";; After restructuring (pre-optimizations):\n\n%!";
     Format.fprintf ppf "%a\n%!" Structured.Module.pp m;
     bail () in
-  let* tenv, m = Passes.optimize tenv m in
+  let* tenv, m = Passes.optimize ~invariants:opts.invariants tenv m in
   if Cli.equal_dump opts.dump Dmiddle then begin
     if not opts.nc then Format.fprintf ppf ";; After middle-end-optimizations:\n\n%!";
     Format.fprintf ppf "%a\n%!" Virtual.Module.pp m;
@@ -33,7 +33,7 @@ let comp_virtual' (opts : Cli.t) ppf close bail m =
     if not opts.nc then Format.fprintf ppf ";; After restructuring (post-optimizations):\n\n%!";
     Format.fprintf ppf "%a\n%!" Structured.Module.pp m;
     bail () in
-  let* m = Passes.to_abi tenv m in
+  let* m = Passes.to_abi ~invariants:opts.invariants tenv m in
   let* m = Passes.optimize_abi ~invariants:opts.invariants m in
   if Cli.equal_dump opts.dump Dabi then begin
     if not opts.nc then Format.fprintf ppf ";; After ABI lowering\n\n%!";

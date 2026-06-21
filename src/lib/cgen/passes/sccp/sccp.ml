@@ -4,6 +4,7 @@ open Virtual
 
 module I = Bv_interval
 module Intervals = Sccp_intervals
+module SC = Sccp_intervals_common
 
 type cursor = Blk | Insn
 
@@ -12,16 +13,18 @@ let pp_cursor ppf = function
   | Insn -> Format.fprintf ppf "insn"
 
 type env = {
-  mutable cur : cursor;
-  mutable pos : Label.t;
-  tenv        : Typecheck.env;
-  intv        : Intervals.t;
-  fn          : func;
+  mutable cur   : cursor;
+  mutable pos   : Label.t;
+  mutable state : SC.state;
+  tenv          : Typecheck.env;
+  intv          : Intervals.t;
+  fn            : func;
 }
 
 let init tenv intv fn = {
   cur = Blk;
   pos = Label.pseudoentry;
+  state = SC.empty_state;
   tenv;
   intv;
   fn;
@@ -33,10 +36,7 @@ let typeof_var env x =
   | Ok ty -> ty
 
 let var env x =
-  let s = match env.cur with
-    | Blk -> Intervals.input env.intv env.pos
-    | Insn -> Intervals.insn env.intv env.pos in
-  let i = Intervals.find_var s x in
+  let i = Intervals.find_var env.state x in
   Option.iter i ~f:(fun i ->
       Logs.debug (fun m ->
           m "%s: var %a has interval %a at %a %a"
@@ -113,8 +113,7 @@ let mark_div_rem_nonzero env i = match Insn.op i with
       | `udiv _
       | `rem #Type.imm
       | `urem _ ->
-        let s = Intervals.insn env.intv @@ Insn.label i in
-        begin match Intervals.find_var s x with
+        begin match Intervals.find_var env.state x with
           | Some iv when Bv_interval.contains_value iv Bv.zero -> i
           | Some _ -> Insn.with_tag i Tags.div_rem_nonzero ()
           | None -> i
@@ -174,14 +173,14 @@ let map_ctrl env : ctrl -> ctrl = function
   | `sw (t, i, d, tbl) -> map_sw env t i d tbl
 
 let map_blk env b =
-  let is = Blk.insns b |> Seq.map ~f:(fun i ->
+  env.cur <- Blk;
+  env.pos <- Blk.label b;
+  env.state <- Intervals.input env.intv (Blk.label b);
+  let is = Blk.insns b |> Seq.to_list |> List.map ~f:(fun i ->
       env.cur <- Insn;
       env.pos <- Insn.label i;
-      map_insn env i) |> Seq.to_list in
-  if List.is_empty is then begin
-    env.cur <- Blk;
-    env.pos <- Blk.label b
-  end;
+      env.state <- Intervals.step_insn env.intv env.state i;
+      map_insn env i) in
   let k = map_ctrl env @@ Blk.ctrl b in
   Blk.(with_ctrl (with_insns b is) k)
 

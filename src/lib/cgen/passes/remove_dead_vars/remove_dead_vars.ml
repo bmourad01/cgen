@@ -4,6 +4,7 @@ open Virtual
 open Remove_dead_vars_impl
 
 module E = Monad.Result.Error
+module Vset = Var.Tree_set
 
 (* Even if the result of a div/rem may be unused, if the instruction has
    the potential to trap then removing it will change the semantics. *)
@@ -52,29 +53,56 @@ let map_ctrl m unused c =
     let tbl, ct = map_tbl m unused tbl in
     `sw (t, i, d, tbl), (cd || ct)
 
-module V = Make(struct
-    type nonrec local = local
-    type nonrec dst = dst
+let var_opt : operand -> Var.t option = function
+  | `var x -> Some x
+  | #const -> None
 
+let local_feed : local -> Label.t * Var.t option list = function
+  | `label (l, args) -> l, List.map args ~f:var_opt
+
+let dst_feed : dst -> (Label.t * Var.t option list) list = function
+  | `label (l, args) -> [l, List.map args ~f:var_opt]
+  | #global -> []
+
+let ctrl_roots = function
+  | `hlt | `jmp _ -> Vset.empty
+  | `br (x, _, _) -> Vset.singleton x
+  | `sw (_, `var v, _, _) -> Vset.singleton v
+  | `sw (_, `sym _, _, _) -> Vset.empty
+
+let ctrl_locals enum = function
+  | `hlt | `ret _ -> []
+  | `jmp d -> dst_feed d
+  | `br (_, y, n) -> dst_feed y @ dst_feed n
+  | `sw (_, _, d, tbl) ->
+    local_feed d ::
+    (enum tbl |> Sequence.to_list |> List.map ~f:(fun (_, l) -> local_feed l))
+
+module V = Make(struct
     module Insn = struct
       include Insn
       let check_div_rem i = check_div_rem (Insn.dict i) (Insn.op i)
     end
 
-    module Ctrl = Ctrl
+    module Ctrl = struct
+      include Ctrl
+      let roots = function
+        | `ret None -> Vset.empty
+        | `ret (Some a) -> (match var_opt a with
+            | Some x -> Vset.singleton x
+            | None -> Vset.empty)
+        | (`hlt | `jmp _ | `br _ | `sw _) as c -> ctrl_roots c
+      let locals = ctrl_locals Ctrl.Table.enum
+    end
+
     module Blk = Blk
     module Func = Func
-    module Live = Live
-    module Cfg = Cfg
 
     let map_ctrl = map_ctrl Ctrl.Table.map_exn
   end)
 
 module A = Make(struct
     open Abi
-
-    type nonrec local = local
-    type nonrec dst = dst
 
     module Insn = struct
       include Insn
@@ -102,11 +130,21 @@ module A = Make(struct
         | `call _ -> None
     end
 
-    module Ctrl = Ctrl
+    module Ctrl = struct
+      include Ctrl
+
+      let roots : t -> Vset.t = function
+        | (`tailcall _ | `ret _) as c -> Ctrl.free_vars c
+        | (`hlt | `jmp _ | `br _ | `sw _) as c -> ctrl_roots c
+
+      let locals : t -> (Label.t * Var.t option list) list = function
+        | `tailcall _ -> []
+        | (`hlt | `jmp _ | `br _ | `ret _ | `sw _) as c ->
+          ctrl_locals Ctrl.Table.enum c
+    end
+
     module Blk = Blk
     module Func = Func
-    module Live = Live
-    module Cfg = Cfg
 
     let map_ctrl unused (c : Ctrl.t) : Ctrl.t * bool = match c with
       | `tailcall _ -> c, false

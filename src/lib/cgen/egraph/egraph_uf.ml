@@ -6,7 +6,7 @@ module Id = Egraph_id
 
 type t = Id.t Vec.t
 
-let create () = Vec.create ()
+let create ?capacity () = Vec.create ?capacity ()
 
 let fresh t : Id.t =
   let id : Id.t = Vec.length t in

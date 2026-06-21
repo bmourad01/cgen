@@ -3,7 +3,7 @@ open Regular.Std
 open Ssa_impl_common
 
 module Make(M : L) : sig
-  val run : M.Func.t -> M.Func.t Context.t
+  val run : ?check:bool -> M.Func.t -> M.Func.t Context.t
   val check : M.Func.t -> unit Or_error.t
 end = struct
   open M
@@ -16,7 +16,8 @@ end = struct
     let blks = LT.create ~capacity:(Func.num_blks fn) () in
     Func.blks fn |> Seq.iter ~f:(fun b ->
         LT.set blks ~key:(Blk.label b) ~data:b);
-    {live; cfg; dom; df; blks}
+    let nvars = Func.num_blks fn + Func.num_insns fn in
+    {live; cfg; dom; df; blks; nvars}
 
   module Phi = Ssa_impl_phi.Make(M)
   module Rename = Ssa_impl_rename.Make(M)
@@ -30,7 +31,7 @@ end = struct
     | Invalid_argument msg | Failure msg ->
       Or_error.errorf "SSA: %s" msg
 
-  let run fn =
+  let run ?(check = false) fn =
     Context.Var.with_allocator @@ fun ~alloc ->
     try_ fn @@ fun () ->
     if Dict.mem (Func.dict fn) Tags.ssa
@@ -42,7 +43,7 @@ end = struct
       let fn =
         LT.data env.blks |>
         Func.update_blks_exn fn in
-      Check.go env.dom fn;
+      if check then Check.go env.dom fn;
       Func.with_tag fn Tags.ssa ()
 
   let check fn = try_ fn @@ fun () ->

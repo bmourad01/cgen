@@ -61,9 +61,15 @@ let step ctx visits l _ s =
           | None -> s)
     else s
 
-let edge ctx src dst s =
-  match Hashtbl.find ctx.narrow (src, dst) with
-  | Some s' -> meet_state s s'
+let edge ctx keep src dst s =
+  let s = match Hashtbl.find ctx.narrow (src, dst) with
+    | Some s' -> meet_state s s'
+    | None -> s in
+  (* Drop intervals for variables that are not live entering `dst`,
+     which should drastically reduce the amount of redundant data
+     in each state. *)
+  match Ltree.find keep dst with
+  | Some ks -> restrict s ks
   | None -> s
 
 let init_state ctx fn =
@@ -89,31 +95,36 @@ let transfer ctx l s =
   | Some b -> Interp.interp_blk ctx s b
   | None -> s
 
+type nonrec state = state
+
 type t = {
-  insns : state LT.t;
+  ctx   : ctx;
   input : state Solution.t;
 }
 
-let insn t l =
-  LT.find t.insns l |>
-  Option.value ~default:empty_state
-
 let input t l = Solution.get t.input l
+let step_insn t s i = Interp.interp_insn t.ctx s i
 
 let analyze fn ~word ~typeof =
   if Dict.mem (Func.dict fn) Tags.ssa then
     let cfg = Cfg.create fn in
     let blks = Func.map_of_blks fn in
-    let ctx = create_ctx fn ~blks ~word ~typeof ~cfg in
+    let ctx = create_ctx ~blks ~word ~typeof ~cfg in
+    let live = Live.compute' cfg blks in
+    let keep =
+      Ltree.fold blks ~init:Ltree.empty ~f:(fun ~key:l ~data:b acc ->
+          let params = Blk.args b |> Seq.to_list |> Var.Tree_set.of_list in
+          let ks = Var.Tree_set.union (Live.ins live l) params in
+          Ltree.set acc ~key:l ~data:ks) in
     let input = Fixpoint.run (module Cfg) cfg
         ~step:(step ctx)
-        ~edge:(edge ctx)
+        ~edge:(edge ctx keep)
         ~start:Label.pseudoentry
         ~init:(init_state ctx fn)
         ~equal:equal_state
         ~merge:join_state
         ~f:(transfer ctx) in
-    {insns = ctx.insns; input}
+    {ctx; input}
   else
     invalid_argf
       "Intervals analysis: function $%s is not in SSA form"

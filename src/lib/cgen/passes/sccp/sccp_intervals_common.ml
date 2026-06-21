@@ -4,7 +4,6 @@ open Virtual
 module I = Bv_interval
 module Vtree = Var.Tree
 module Ltree = Label.Tree
-module LT = Label.Dense_table
 module VT = Var.Dense_table
 
 type state = I.t Vtree.t [@@deriving equal]
@@ -31,13 +30,13 @@ let update_union s x i = Vtree.update s x ~f:(function
 
 let find_var = Vtree.find
 let enum_state s = Vtree.to_sequence s
+let restrict s keep = Var.Tree_set.restrict s keep
 
 module Edge = struct
   type t = Label.t * Label.t [@@deriving compare, hash, sexp_of]
 end
 
 type ctx = {
-  insns       : state LT.t;                (* Out states for each instruction. *)
   narrow      : (Edge.t, state) Hashtbl.t; (* Per-edge narrowing constraints. *)
   cond        : state VT.t;                (* State implied by each condition variable. *)
   thresholds  : I.t Vtree.t;               (* Per-variable widening thresholds. *)
@@ -77,8 +76,7 @@ let collect_thresholds blks =
             Option.value_map ~default:m ~f:(add m x v t)
           | _ -> m))
 
-let create_ctx fn ~blks ~word ~typeof ~cfg = {
-  insns = LT.create ~capacity:(Func.num_insns fn) ();
+let create_ctx ~blks ~word ~typeof ~cfg = {
   narrow = Hashtbl.create (module Edge);
   cond = VT.create ();
   thresholds = collect_thresholds blks;

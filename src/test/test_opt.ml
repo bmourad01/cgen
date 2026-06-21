@@ -20,13 +20,13 @@ let compare_outputs ?(chop_end = true) expected_file actual =
 let from_file filename =
   let open Context.Syntax in
   let* m = Parse.Virtual.from_file filename in
-  let* tenv, m = Passes.initialize m in
-  Passes.optimize tenv m
+  let* tenv, m = Passes.initialize ~invariants:true m in
+  Passes.optimize ~invariants:true tenv m
 
 let from_file_abi filename =
   let open Context.Syntax in
   let* tenv, m = from_file filename in
-  let* m = Passes.to_abi tenv m in
+  let* m = Passes.to_abi ~invariants:true tenv m in
   let* () = Context.iter_seq_err (Virtual.Abi.Module.funs m) ~f:Passes.Ssa.check_abi in
   Passes.optimize_abi ~invariants:true m
 
@@ -46,7 +46,7 @@ let test ?(f = from_file) name _ =
 let coalesce_only filename =
   let open Context.Syntax in
   let* m = Parse.Virtual.from_file filename in
-  let* tenv, m = Passes.initialize m in
+  let* tenv, m = Passes.initialize ~invariants:true m in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Coalesce_slots.run in
   let*? m = Virtual.Module.map_funs_err m ~f:Passes.Resolve_constant_blk_args.run in
   let+? m = Virtual.Module.map_funs_err m ~f:Passes.Remove_dead_vars.run in
@@ -73,9 +73,9 @@ let test_restructure ?(opt = false) name _ =
   Context.eval begin
     let open Context.Syntax in
     let* m = Parse.Virtual.from_file filename in
-    let* tenv, m = Passes.initialize m in
+    let* tenv, m = Passes.initialize ~invariants:true m in
     let* tenv, m = if opt
-      then Passes.optimize tenv m
+      then Passes.optimize ~invariants:true tenv m
       else !!(tenv, m) in
     let* m = Passes.restructure ~tenv m in
     !!(Format.asprintf "%a" Structured.Module.pp m)

@@ -35,19 +35,19 @@ end = struct
 
   let init env =
     let nblks = LT.length env.blks in
-    let defs = VT.create () in
+    let defs = VT.create ~capacity:env.nvars () in
     let args = LT.create ~capacity:nblks () in
     let ctrl = LT.create ~capacity:nblks () in
     let outs = LT.create ~capacity:nblks () in
     LT.iteri env.blks ~f:(fun ~key:l ~data:b ->
         LT.set ctrl ~key:l ~data:(Blk.ctrl b);
         (* Vars defined by existing block arguments. *)
-        let args' = Seq.to_list @@ Blk.args b in
+        let args' = Blk.args_to_list b in
         LT.set args ~key:l ~data:args';
         List.iter args' ~f:(define defs l);
         (* Vars defined by instructions. *)
-        Blk.insns b |> Seq.map ~f:Insn.lhs |>
-        Seq.iter ~f:(List.iter ~f:(define defs l)));
+        Blk.iter_insns b ~f:(fun i ->
+            List.iter (Insn.lhs i) ~f:(define defs l)));
     {defs; args; ctrl; outs}
 
   let update_incoming env l x outs =
@@ -101,6 +101,6 @@ end = struct
         let dict = Blk.dict b in
         let args = LT.find_exn st.args label in
         let ctrl = LT.find_exn st.ctrl label in
-        let insns = Blk.insns b |> Seq.to_list in
+        let insns = Blk.fold_insns ~rev:true b ~init:[] ~f:(fun acc i -> i :: acc) in
         Blk.create ~dict ~args ~insns ~ctrl ~label ())
 end

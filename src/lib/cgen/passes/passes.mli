@@ -9,14 +9,31 @@ val destructure : Structured.module_ -> Virtual.module_ Context.t
 (** Lifts from [Virtual] to [Structured]. *)
 val restructure : tenv:Typecheck.env -> Virtual.module_ -> Structured.module_ Context.t
 
-(** Runs type-checking and SSA transformation. *)
-val initialize : module_ -> (Typecheck.env * module_) Context.t
+(** Runs type-checking and SSA transformation.
 
-(** Runs the middle-end optimizations in the recommended order. *)
-val optimize : Typecheck.env -> module_ -> (Typecheck.env * module_) Context.t
+    When [invariants] is [true], SSA invariants are verified after each SSA
+    conversion. This is expensive and intended for development and testing;
+    it defaults to [false].
+*)
+val initialize : ?invariants:bool -> module_ -> (Typecheck.env * module_) Context.t
 
-(** Performs ABI lowering on the entire module. *)
-val to_abi : Typecheck.env -> module_ -> Abi.module_ Context.t
+(** Runs the middle-end optimizations in the recommended order.
+
+    When [invariants] is [true], SSA invariants are verified after each SSA
+    conversion performed during optimization. Defaults to [false].
+*)
+val optimize :
+  ?invariants:bool ->
+  Typecheck.env ->
+  module_ ->
+  (Typecheck.env * module_) Context.t
+
+(** Performs ABI lowering on the entire module.
+
+    When [invariants] is [true], SSA invariants are verified after each
+    function is lowered. Defaults to [false].
+*)
+val to_abi : ?invariants:bool -> Typecheck.env -> module_ -> Abi.module_ Context.t
 
 (** Runs the middle-end optimizations in the recommended order, for an
     ABI-lowered module.
@@ -123,7 +140,7 @@ end
     explicit registers.
 *)
 module Lower_abi : sig
-  val run : Typecheck.env -> func -> Abi.func Context.t
+  val run : ?invariants:bool -> Typecheck.env -> func -> Abi.func Context.t
 end
 
 (** Attempts to promote uniform stack slots to SSA variables.
@@ -131,8 +148,8 @@ end
     Assumes the function is in SSA form.
 *)
 module Promote_slots : sig
-  val run : func -> func Context.t
-  val run_abi : Abi.func -> Abi.func Context.t
+  val run : ?invariants:bool -> func -> func Context.t
+  val run_abi : ?invariants:bool -> Abi.func -> Abi.func Context.t
 end
 
 (** Removes assignments to variables that are never used.
@@ -213,10 +230,14 @@ module Sroa : sig
   val run_abi : Abi.func -> Abi.func Context.t
 end
 
-(** Transforms a function into semi-pruned SSA form. *)
+(** Transforms a function into semi-pruned SSA form.
+
+    When [check] is [true], SSA invariants are verified after the
+    transformation completes. Defaults to [false].
+*)
 module Ssa : sig
-  val run : func -> func Context.t
-  val run_abi : Abi.func -> Abi.func Context.t
+  val run : ?check:bool -> func -> func Context.t
+  val run_abi : ?check:bool -> Abi.func -> Abi.func Context.t
 
   (** Verify that the function satisfies the invariants
       of SSA form. *)

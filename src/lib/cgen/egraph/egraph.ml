@@ -11,22 +11,23 @@ module Builder = Egraph_builder
 
 type rule = Rule.t
 
-let init input depth_limit match_limit rules = {
-  input;
-  classes = Uf.create ();
-  memo = Hashtbl.create (module Enode);
-  node = Vec.create ();
-  typs = Vec.create ();
-  lmoved = LT.create ();
-  imoved = Vec.create ();
-  pinned = Bitset.empty;
-  ilbl = Vec.create ();
-  lval = LT.create ~capacity:(Func.num_insns input.fn) ();
-  depth_limit;
-  match_limit;
-  rules;
-  vms = Array.init depth_limit ~f:(fun _ -> VM.create rules);
-}
+let init (input : Input.t) depth_limit match_limit rules =
+  let n = Func.num_insns input.fn in {
+    input;
+    classes = Uf.create ~capacity:n ();
+    memo = Hashtbl.create ~size:n (module Enode);
+    node = Vec.create ~capacity:n ();
+    typs = Vec.create ~capacity:n ();
+    lmoved = LT.create ();
+    imoved = Vec.create ();
+    pinned = Bitset.empty;
+    ilbl = Vec.create ();
+    lval = LT.create ~capacity:n ();
+    depth_limit;
+    match_limit;
+    rules;
+    vms = Array.init depth_limit ~f:(fun _ -> VM.create rules);
+  }
 
 let check_ssa fn =
   if Dict.mem (Func.dict fn) Tags.ssa then

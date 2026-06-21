@@ -10,12 +10,10 @@ include Regular.Make(struct
     let version = "0.1"
   end)
 
-module Tree = Patricia_tree.Make(struct
-    include Int
-    let size = Sys.int_size_in_bits
-  end)
+module Key = struct
+  include Int
+  let size = Sys.int_size_in_bits
+end
 
-module Tree_set = Patricia_tree.Make_set(struct
-    include Int
-    let size = Sys.int_size_in_bits
-  end)
+module Tree = Patricia_tree.Make(Key)
+module Tree_set = Patricia_tree.Make_set(Key)

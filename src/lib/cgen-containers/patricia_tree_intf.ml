@@ -123,8 +123,21 @@ module type S = sig
   (** Same as [update], but [f] can remove the element from the tree. *)
   val change : 'a t -> key -> f:('a option -> 'a option) -> 'a t
 
-  (** Combines two trees together according to [f]. *)
+  (** Combines two trees together according to [f], which is applied to the
+      values of keys present in both (keys present in only one are kept as-is).
+
+      [f] must be idempotent on equal values.
+  *)
   val merge : 'a t -> 'a t -> f:(key:key -> 'a -> 'a -> 'a) -> 'a t
+
+  (** [inter_with t1 t2 ~f] intersects the two trees, keeping only keys
+      present in {i both} and combining their values with [f].
+
+      Unlike [merge], keys present in only one tree are dropped.
+
+      As with [merge], [f] must be idempotent on equal values.
+  *)
+  val inter_with : 'a t -> 'a t -> f:(key:key -> 'a -> 'a -> 'a) -> 'a t
 
   (** Iterates the tree according to [f]. *)
   val iter : 'a t -> f:(key:key -> data:'a -> unit) -> unit
@@ -185,6 +198,9 @@ module type Set = sig
   (** The set. *)
   type t
 
+  (** The companion map keyed by the same {!type:key}. *)
+  type 'a map
+
   val empty : t
 
   (** Returns [true] if the tree is empty. *)
@@ -224,6 +240,10 @@ module type Set = sig
 
   (** Intersects two sets (i.e. returns the set that has elements of both). *)
   val inter : t -> t -> t
+
+  (** [restrict m s] keeps only the bindings of map [m] whose key is in the
+      set [s], dropping the rest. *)
+  val restrict : 'a map -> t -> 'a map
 
   (** Returns [true] if the two sets are disjoint from each other. *)
   val disjoint : t -> t -> bool

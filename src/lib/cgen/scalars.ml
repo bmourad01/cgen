@@ -144,6 +144,10 @@ module type L = sig
     val insns : ?rev:bool -> t -> Insn.t seq
     val ctrl : t -> Ctrl.t
     val with_insns : t -> Insn.t list -> t
+    val num_insns : t -> int
+    val fold_insns : ?rev:bool -> t -> init:'a -> f:('a -> Insn.t -> 'a) -> 'a
+    val iter_insns : ?rev:bool -> t -> f:(Insn.t -> unit) -> unit
+    val args_to_list : t -> Var.t list
   end
 
   module Func : sig
@@ -212,7 +216,7 @@ module Make(M : L) = struct
   let blkargs blks s (l, xs) =
     Label.Tree.find blks l |>
     Option.value_map ~default:s ~f:(fun b ->
-        let args = Seq.to_list @@ Blk.args b in
+        let args = Blk.args_to_list b in
         List.fold2 xs args ~init:s ~f:merge_blkarg |> function
         | Ok s -> s
         | Unequal_lengths ->
@@ -236,8 +240,8 @@ module Make(M : L) = struct
   let transfer ?(blkparam = true) ?esc slots blks l s =
     Label.Tree.find blks l |>
     Option.value_map ~default:s ~f:(fun b ->
-        Blk.insns b |> Seq.map ~f:Insn.op |>
-        Seq.fold ~init:s ~f:(transfer_op ?esc slots) |>
+        Blk.fold_insns b ~init:s
+          ~f:(fun acc i -> transfer_op ?esc slots acc (Insn.op i)) |>
         transfer_ctrl ~blkparam ?esc blks @< Blk.ctrl b)
   [@@specialise]
 
