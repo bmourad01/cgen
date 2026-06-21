@@ -317,6 +317,27 @@ end = struct
     let*! () = guard @@ can_lea_ty xt in
     !!![I.lea (Oreg (x, xt)) (Omem (Abis (y, z, s), `i64))]
 
+  let add_rsym_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, _ = S.regvar env "y" in
+    let*! s, o = S.sym env "z" in
+    let*! () = guard @@ can_lea_ty xt in
+    let* tmp = C.Var.fresh >>| Rv.var in
+    let xt' = promote_narrow_ty xt in !!![
+      I.lea (Oreg (tmp, `i64)) (Omem (Asym (s, o), `i64));
+      I.lea (Oreg (x, xt')) (Omem (Abis (y, tmp, S1), `i64));
+    ]
+
+  let add_symi_x_y_z env =
+    let*! x, xt = S.regvar env "x" in
+    let*! s, o = S.sym env "y" in
+    let*! z, _ = S.imm env "z" in
+    let*! () = guard @@ can_lea_ty xt in
+    let d = Int64.(of_int o + Bv.to_int64 z) in
+    let*! () = guard @@ fits_sext32 d in
+    let xt' = promote_narrow_ty xt in
+    !!![I.lea (Oreg (x, xt')) (Omem (Asym (s, Int64.to_int_trunc d), `i64))]
+
   let lea_bisd_x_y_z_w neg s env =
     let*! x, xt = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
@@ -668,6 +689,20 @@ end = struct
       I.jmp (Jlbl no);
     ]
 
+  let jcc_symsym_x_y cc env =
+    let*! x, xo = S.sym env "x" in
+    let*! y, yo = S.sym env "y" in
+    let*! yes = S.label env "yes" in
+    let*! no = S.label env "no" in
+    let* tmp1 = C.Var.fresh >>| Rv.var in
+    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+      I.lea (Oreg (tmp1, `i64)) (Osym (x, xo));
+      I.lea (Oreg (tmp2, `i64)) (Osym (y, yo));
+      I.cmp (Oreg (tmp1, `i64)) (Oreg (tmp2, `i64));
+      I.jcc cc yes;
+      I.jmp (Jlbl no);
+    ]
+
   (* Default to 8-bit *)
   let setcc_r_zero_x_y ?(neg = false) env =
     let*! x, _ = S.regvar env "x" in
@@ -715,7 +750,7 @@ end = struct
   let setcc_rsym_test_x_y_z ?(neg = false) env =
     let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let*! z, zo = S.sym env "y" in
+    let*! z, zo = S.sym env "z" in
     let* tmp = C.Var.fresh >>| Rv.var in
     let cc = if neg then Ce else Cne in !!![
       I.lea (Oreg (tmp, `i64)) (Osym (z, zo));
@@ -789,7 +824,7 @@ end = struct
   let setcc_rsym_x_y_z cc env =
     let*! x, _ = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
-    let*! z, zo = S.sym env "y" in
+    let*! z, zo = S.sym env "z" in
     let* tmp = C.Var.fresh >>| Rv.var in !!![
       I.lea (Oreg (tmp, `i64)) (Osym (z, zo));
       I.cmp (Oreg (y, yt)) (Oreg (tmp, `i64));
@@ -805,6 +840,18 @@ end = struct
     let z = Bv.to_int64 z in !!![
       I.lea (Oreg (tmp, `i64)) (Osym (y, yo));
       I.cmp (Oreg (tmp, `i64)) (Oimm (z, zt));
+      I.setcc cc (Oreg (x, `i8));
+    ]
+
+  let setcc_symsym_x_y_z cc env =
+    let*! x, _ = S.regvar env "x" in
+    let*! y, yo = S.sym env "y" in
+    let*! z, zo = S.sym env "z" in
+    let* tmp1 = C.Var.fresh >>| Rv.var in
+    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+      I.lea (Oreg (tmp1, `i64)) (Osym (y, yo));
+      I.lea (Oreg (tmp2, `i64)) (Osym (z, zo));
+      I.cmp (Oreg (tmp1, `i64)) (Oreg (tmp2, `i64));
       I.setcc cc (Oreg (x, `i8));
     ]
 
@@ -1105,6 +1152,24 @@ end = struct
     let*! x, _ = S.regvar env "x" in
     let*! y, _ = S.regvar env "y" in
     let addr = Omem (Ab y, mty zt) in
+    !!![zext_load_typed zt x addr]
+
+  let load_sym_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! s, o = S.sym env "y" in
+    let addr = Omem (Asym (s, o), mty xt) in
+    !!![load_typed xt x addr]
+
+  let load_sext_sym_x_y zt env =
+    let*! x, xt = S.regvar env "x" in
+    let*! s, o = S.sym env "y" in
+    let addr = Omem (Asym (s, o), mty zt) in
+    !!![sext_load_typed xt zt x addr]
+
+  let load_zext_sym_x_y zt env =
+    let*! x, _ = S.regvar env "x" in
+    let*! s, o = S.sym env "y" in
+    let addr = Omem (Asym (s, o), mty zt) in
     !!![zext_load_typed zt x addr]
 
   let load_sext_rri_add_x_y_z zt env =
@@ -2372,6 +2437,8 @@ end = struct
     let add = [
       add_rr_x_y_z;
       add_ri_x_y_z;
+      add_rsym_x_y_z;
+      add_symi_x_y_z;
       add_rf32_x_y_z;
       add_rf64_x_y_z;
     ]
@@ -2528,6 +2595,7 @@ end = struct
       setcc_ir_x_y_z cc;
       setcc_rsym_x_y_z cc;
       setcc_symi_x_y_z cc;
+      setcc_symsym_x_y_z cc;
     ]
 
     let sel_f32 p = [
@@ -2600,6 +2668,7 @@ end = struct
 
     let load = [
       load_rr_x_y;
+      load_sym_x_y;
     ]
 
     let load_add = [
@@ -2609,10 +2678,12 @@ end = struct
 
     let load_sext zt = [
       load_sext_rr_x_y zt;
+      load_sext_sym_x_y zt;
     ]
 
     let load_zext zt = [
       load_zext_rr_x_y zt;
+      load_zext_sym_x_y zt;
     ]
 
     let load_sext_add zt = [
@@ -2789,6 +2860,7 @@ end = struct
       jcc_ri_x_y cc;
       jcc_rsym_x_y cc;
       jcc_symi_x_y cc;
+      jcc_symsym_x_y cc;
     ]
 
     let br_fcmp32 cc = [
