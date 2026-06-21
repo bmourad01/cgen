@@ -334,7 +334,7 @@ module Make(M : Scalars.L) = struct
                 Format.fprintf ppf "%a (%a to %a)"
                   Range.pp r
                   Label.pp (Vec.get_exn nums r.lo)
-                  Label.pp (Vec.get_exn nums r.hi) in
+                  Label.pp (Vec.get_exn nums (r.hi - 1)) in
             m "%s: %a: %a%!" __FUNCTION__ Var.pp x ppr x));
     Logs.debug (fun m ->
         List.iter p ~f:(fun g ->
