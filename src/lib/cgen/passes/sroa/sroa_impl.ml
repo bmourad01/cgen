@@ -268,6 +268,7 @@ end = struct
              ~none:pp_bot
              pp_value)
           v)
+  [@@ocaml.warning "-32"]
 
   (* Rewrite an instruction. *)
   let rewrite_insn parts (m : scalars) resolved i =

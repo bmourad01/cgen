@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Graphlib.Std
 open Cgen_containers
 
 module Lset = Label.Tree_set

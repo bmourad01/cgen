@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 
 module Slot = Virtual.Slot
 module Vset = Var.Tree_set

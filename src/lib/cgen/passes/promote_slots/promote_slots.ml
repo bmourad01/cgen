@@ -1,7 +1,5 @@
-open Core
 open Virtual
 open Promote_slots_impl
-open Context.Syntax
 
 let store op i = match op i with
   | `store ((#Type.basic as t), v, `var a) -> Some (v, a, t)

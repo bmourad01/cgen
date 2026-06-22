@@ -5,7 +5,6 @@
 *)
 
 open Regular.Std
-open Graphlib.Std
 
 (** The dominator tree *)
 type tree
