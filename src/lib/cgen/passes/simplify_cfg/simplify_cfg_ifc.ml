@@ -43,11 +43,11 @@ exception Not_hoistable
 
 let insn_cost : Insn.op -> int = function
   (* Provably non-trapping div/rem gets a high cost. *)
-  | `bop (_, (`div #Type.imm | `rem #Type.imm), _, `int (i, _))
+  | `bop (_, (`div #Type.imm | `rem #Type.imm | `udiv _ | `urem _), _, `int (i, _))
     when Bv.(i <> zero) -> 4
   (* Effectful or potentially trapping instructions cannot
      be hoisted. *)
-  | `bop (_, (`div #Type.imm | `rem #Type.imm), _, _)
+  | `bop (_, (`div #Type.imm | `rem #Type.imm | `udiv _ | `urem _), _, _)
   | `load _
   | `store _
   | #Insn.variadic
