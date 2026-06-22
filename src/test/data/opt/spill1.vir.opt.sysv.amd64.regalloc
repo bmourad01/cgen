@@ -8,102 +8,103 @@ export function $foo { ; returns: rax
   push r15 ; @260
   push rbx ; @261
   sub rsp, 0x50_l ; @262
+  mov eax, edi ; @190
   xor r13d, r13d ; @191
-  xor r12d, r12d ; @192
-  xor ebx, ebx ; @193
-  xor r11d, r11d ; @194
-  xor r10d, r10d ; @195
-  xor r9d, r9d ; @196
-  xor r8d, r8d ; @197
-  xor esi, esi ; @198
-  xor edx, edx ; @199
-  xor ecx, ecx ; @200
-  xor eax, eax ; @201
-  xor r15d, r15d ; @202
-  mov dword ptr [rsp + 0x4c], 0x0_w ; @253
-  xor r14d, r14d ; @204
   mov dword ptr [rsp + 0x48], 0x0_w ; @209
   mov dword ptr [rsp + 0x44], 0x0_w ; @210
-  mov dword ptr [rsp + 0x40], edi ; @211
+  xor r12d, r12d ; @194
+  xor ebx, ebx ; @195
+  xor r11d, r11d ; @196
+  xor r10d, r10d ; @197
+  xor r9d, r9d ; @198
+  xor r8d, r8d ; @199
+  xor edi, edi ; @200
+  xor esi, esi ; @201
+  xor edx, edx ; @202
+  xor ecx, ecx ; @203
+  xor r15d, r15d ; @204
+  mov dword ptr [rsp + 0x4c], 0x0_w ; @253
+  mov dword ptr [rsp + 0x40], 0x0_w ; @211
 @3:
-  mov edi, dword ptr [rsp + 0x44] ; @212
-  inc edi ; @57
-  mov dword ptr [rsp + 0x3c], edi ; @213
-  mov edi, dword ptr [rsp + 0x48] ; @214
-  add edi, 0x2_w ; @58
-  mov dword ptr [rsp + 0x38], edi ; @215
-  lea edi, qword ptr [r14 + 0x3] ; @59
-  mov dword ptr [rsp + 0x34], edi ; @216
-  mov edi, dword ptr [rsp + 0x4c] ; @254
-  add edi, 0x4_w ; @60
-  mov dword ptr [rsp + 0x30], edi ; @217
-  lea edi, qword ptr [r15 + 0x5] ; @61
-  mov dword ptr [rsp + 0x2c], edi ; @218
-  lea edi, qword ptr [rax + 0x6] ; @62
-  mov dword ptr [rsp + 0x28], edi ; @219
-  lea edi, qword ptr [rcx + 0x7] ; @63
-  mov dword ptr [rsp + 0x24], edi ; @220
-  lea edi, qword ptr [rdx + 0x8] ; @64
-  mov dword ptr [rsp + 0x20], edi ; @221
-  lea edi, qword ptr [rsi + 0x9] ; @65
-  mov dword ptr [rsp + 0x1c], edi ; @222
-  lea edi, qword ptr [r8 + 0xa] ; @66
-  mov dword ptr [rsp + 0x18], edi ; @223
-  lea edi, qword ptr [r9 + 0xb] ; @67
-  mov dword ptr [rsp + 0x14], edi ; @224
-  lea edi, qword ptr [r10 + 0xc] ; @68
-  mov dword ptr [rsp + 0x10], edi ; @225
-  lea edi, qword ptr [r11 + 0xd] ; @69
-  mov dword ptr [rsp + 0xc], edi ; @226
-  lea edi, qword ptr [rbx + 0xe] ; @70
-  mov dword ptr [rsp + 0x8], edi ; @227
-  lea edi, qword ptr [r12 + 0xf] ; @71
-  mov dword ptr [rsp + 0x4], edi ; @228
-  lea edi, qword ptr [r13 + 0x10] ; @72
-  mov dword ptr [rsp], edi ; @229
-  mov edi, dword ptr [rsp + 0x40] ; @230
-  dec edi ; @73
-  mov dword ptr [rsp + 0x40], edi ; @231
-  test edi, edi ; @185
+  mov r14d, dword ptr [rsp + 0x40] ; @212
+  inc r14d ; @57
+  mov dword ptr [rsp + 0x3c], r14d ; @213
+  mov r14d, dword ptr [rsp + 0x4c] ; @254
+  add r14d, 0x2_w ; @58
+  mov dword ptr [rsp + 0x38], r14d ; @214
+  lea r14d, qword ptr [r15 + 0x3] ; @59
+  mov dword ptr [rsp + 0x34], r14d ; @215
+  lea r14d, qword ptr [rcx + 0x4] ; @60
+  mov dword ptr [rsp + 0x30], r14d ; @216
+  lea r14d, qword ptr [rdx + 0x5] ; @61
+  mov dword ptr [rsp + 0x2c], r14d ; @217
+  lea r14d, qword ptr [rsi + 0x6] ; @62
+  mov dword ptr [rsp + 0x28], r14d ; @218
+  lea r14d, qword ptr [rdi + 0x7] ; @63
+  mov dword ptr [rsp + 0x24], r14d ; @219
+  lea r14d, qword ptr [r8 + 0x8] ; @64
+  mov dword ptr [rsp + 0x20], r14d ; @220
+  lea r14d, qword ptr [r9 + 0x9] ; @65
+  mov dword ptr [rsp + 0x1c], r14d ; @221
+  lea r14d, qword ptr [r10 + 0xa] ; @66
+  mov dword ptr [rsp + 0x18], r14d ; @222
+  lea r14d, qword ptr [r11 + 0xb] ; @67
+  mov dword ptr [rsp + 0x14], r14d ; @223
+  lea r14d, qword ptr [rbx + 0xc] ; @68
+  mov dword ptr [rsp + 0x10], r14d ; @224
+  lea r14d, qword ptr [r12 + 0xd] ; @69
+  mov dword ptr [rsp + 0xc], r14d ; @225
+  mov r14d, dword ptr [rsp + 0x44] ; @226
+  add r14d, 0xe_w ; @70
+  mov dword ptr [rsp + 0x8], r14d ; @227
+  mov r14d, dword ptr [rsp + 0x48] ; @228
+  add r14d, 0xf_w ; @71
+  mov dword ptr [rsp + 0x4], r14d ; @229
+  lea r14d, qword ptr [r13 + 0x10] ; @72
+  mov dword ptr [rsp], r14d ; @230
+  dec eax ; @73
+  test eax, eax ; @185
   je @21 ; @186
 @164:
-  mov r13d, dword ptr [rsp] ; @233
-  mov r12d, dword ptr [rsp + 0x4] ; @234
-  mov ebx, dword ptr [rsp + 0x8] ; @235
-  mov r11d, dword ptr [rsp + 0xc] ; @236
-  mov r10d, dword ptr [rsp + 0x10] ; @237
-  mov r9d, dword ptr [rsp + 0x14] ; @238
-  mov r8d, dword ptr [rsp + 0x18] ; @239
-  mov esi, dword ptr [rsp + 0x1c] ; @240
-  mov edx, dword ptr [rsp + 0x20] ; @241
-  mov ecx, dword ptr [rsp + 0x24] ; @242
-  mov eax, dword ptr [rsp + 0x28] ; @243
-  mov r15d, dword ptr [rsp + 0x2c] ; @244
-  mov edi, dword ptr [rsp + 0x30] ; @245
-  mov dword ptr [rsp + 0x4c], edi ; @255
-  mov r14d, dword ptr [rsp + 0x34] ; @246
-  mov edi, dword ptr [rsp + 0x38] ; @248
-  mov dword ptr [rsp + 0x48], edi ; @247
-  mov edi, dword ptr [rsp + 0x3c] ; @250
-  mov dword ptr [rsp + 0x44], edi ; @249
+  mov r13d, dword ptr [rsp] ; @231
+  mov ecx, dword ptr [rsp + 0x4] ; @233
+  mov dword ptr [rsp + 0x48], ecx ; @232
+  mov ecx, dword ptr [rsp + 0x8] ; @235
+  mov dword ptr [rsp + 0x44], ecx ; @234
+  mov r12d, dword ptr [rsp + 0xc] ; @236
+  mov ebx, dword ptr [rsp + 0x10] ; @237
+  mov r11d, dword ptr [rsp + 0x14] ; @238
+  mov r10d, dword ptr [rsp + 0x18] ; @239
+  mov r9d, dword ptr [rsp + 0x1c] ; @240
+  mov r8d, dword ptr [rsp + 0x20] ; @241
+  mov edi, dword ptr [rsp + 0x24] ; @242
+  mov esi, dword ptr [rsp + 0x28] ; @243
+  mov edx, dword ptr [rsp + 0x2c] ; @244
+  mov ecx, dword ptr [rsp + 0x30] ; @245
+  mov r15d, dword ptr [rsp + 0x34] ; @246
+  mov r14d, dword ptr [rsp + 0x38] ; @247
+  mov dword ptr [rsp + 0x4c], r14d ; @255
+  mov r14d, dword ptr [rsp + 0x3c] ; @249
+  mov dword ptr [rsp + 0x40], r14d ; @248
   jmp @3 ; @184
 @21:
-  add r14d, dword ptr [rsp + 0x48] ; @79
-  mov edi, dword ptr [rsp + 0x4c] ; @256
-  add edi, r15d ; @88
-  add eax, ecx ; @99
-  add edi, eax ; @100
-  mov eax, dword ptr [rsp + 0x44] ; @252
+  mov eax, dword ptr [rsp + 0x4c] ; @256
+  lea r14d, qword ptr [r15 + rax*1] ; @79
+  add ecx, edx ; @88
+  lea eax, qword ptr [rdi + rsi*1] ; @99
+  lea esi, qword ptr [rax + rcx*1] ; @100
+  mov eax, dword ptr [rsp + 0x40] ; @250
   lea eax, qword ptr [r14 + rax*1 + 0x1c] ; @101
-  lea ecx, qword ptr [rsi + rdx*1] ; @112
+  lea ecx, qword ptr [r9 + r8*1] ; @112
   lea edx, qword ptr [rax + 0x11] ; @113
-  lea eax, qword ptr [r9 + r8*1] ; @125
+  lea eax, qword ptr [r11 + r10*1] ; @125
   add ecx, eax ; @126
-  lea eax, qword ptr [rdi + rdx*1 + 0x15] ; @127
-  lea edx, qword ptr [r11 + r10*1] ; @138
-  lea ecx, qword ptr [rcx + rax*1 + 0x19] ; @140
-  lea eax, qword ptr [r12 + rbx*1] ; @151
-  lea ecx, qword ptr [rdx + rcx*1 + 0x1d] ; @153
+  lea eax, qword ptr [rsi + rdx*1 + 0x15] ; @127
+  lea esi, qword ptr [r12 + rbx*1] ; @138
+  lea edx, qword ptr [rcx + rax*1 + 0x19] ; @140
+  mov eax, dword ptr [rsp + 0x44] ; @252
+  add eax, dword ptr [rsp + 0x48] ; @151
+  lea ecx, qword ptr [rsi + rdx*1 + 0x1d] ; @153
   lea eax, qword ptr [rax + r13*1 + 0x10] ; @161
   add eax, ecx ; @162
   add rsp, 0x50_l ; @263

@@ -301,6 +301,22 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* spillWorklist := spillWorklist ∪ {u} *)
       Wspill.add t u
 
+  (* Coalescing `v` into `u` extends `u`'s interferences to include `v`'s. If
+     that adds a precolored neighbor `u` does not already have, the merge makes
+     `u` strictly more constrained. The usual cause is that `v` is live across a
+     call (conflicting with the whole caller-saved set) while `u` is not. The
+     `is_trivial_du` bypass of Briggs is unsound there, because the merged node
+     must spill, but spilling does not remove the originating copy, so the coalesce
+     regenerates every round and never converges. Fall back to the conservative
+     test in that case. *)
+  let extends_precolored t u v =
+    let u_pre =
+      adjlist t u |> Bitset.enum |> Seq.map ~f:(alias t) |>
+      Seq.fold ~init:Int.Set.empty ~f:(fun s w ->
+          if is_register t w then Set.add s w else s) in
+    adjlist t v |> Bitset.enum |> Seq.map ~f:(alias t) |>
+    Seq.exists ~f:(fun w -> is_register t w && not (Set.mem u_pre w))
+
   (* pre: wmoves is not empty *)
   let coalesce t =
     (* let m_(=copy(x,y)) ∈ worklistMoves *)
@@ -348,7 +364,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* u ∈ precolored ∧ (∀ t ∈ Adjacent(v), OK(t,u)) *)
       (exclude_from_coloring t u && all_adjacent_ok t u v) ||
       (* u ∉ precolored ∧ Conservative(Adjacent(u), Adjacent(v)) *)
-      (can_be_colored t u && (Wmoves.is_trivial_du t m v || conservative_adj t u v))
+      (can_be_colored t u &&
+       ((Wmoves.is_trivial_du t m v && not (extends_precolored t u v))
+        || conservative_adj t u v))
     then
       (* coalescedMoves := coalescedMoves ∪ {m} *)
       let () = t.cmoves <- Lset.add t.cmoves m in

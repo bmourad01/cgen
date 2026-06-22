@@ -261,87 +261,78 @@ export function $binary_search { ; returns: rax
 
 export function $spill_stress { ; returns: rax
 @128:
-  push r12 ; @1121
-  push r13 ; @1122
-  push r14 ; @1123
-  push r15 ; @1124
-  push rbx ; @1125
-  sub rsp, 0x30_l ; @1126
+  push r12 ; @1111
+  push r13 ; @1112
+  push r14 ; @1113
+  push r15 ; @1114
+  push rbx ; @1115
+  sub rsp, 0x20_l ; @1116
   mov dword ptr [rsp + 0xc], edi ; @1092
-  mov r13d, 0x10_w ; @872
-  mov r12d, 0xf_w ; @873
-  mov ebx, 0xe_w ; @874
-  mov r14d, 0xd_w ; @875
+  mov r14d, 0x10_w ; @872
+  mov r13d, 0xf_w ; @873
+  mov r12d, 0xe_w ; @874
+  mov ebx, 0xd_w ; @875
   mov r11d, 0xc_w ; @876
   mov r10d, 0xb_w ; @877
   mov r9d, 0xa_w ; @878
-  mov eax, 0x9_w ; @879
-  mov r15d, 0x8_w ; @880
-  mov ecx, 0x7_w ; @881
-  mov dword ptr [rsp + 0x1c], ecx ; @1115
-  mov ecx, 0x6_w ; @882
-  mov dword ptr [rsp + 0x18], ecx ; @1112
-  mov ecx, 0x5_w ; @883
-  mov edx, 0x4_w ; @884
-  mov dword ptr [rsp + 0x14], edx ; @1106
+  mov r8d, 0x9_w ; @879
+  mov edi, 0x8_w ; @880
+  mov r15d, 0x7_w ; @881
+  mov eax, 0x6_w ; @882
+  mov dword ptr [rsp + 0x14], eax ; @1105
+  mov esi, 0x5_w ; @883
+  mov eax, 0x4_w ; @884
+  mov dword ptr [rsp + 0x10], eax ; @1106
   mov edx, 0x3_w ; @885
-  mov dword ptr [rsp + 0x10], edx ; @1107
-  mov edx, 0x2_w ; @886
-  mov dword ptr [rsp + 0x8], edx ; @1093
-  mov edx, 0x1_w ; @887
-  mov dword ptr [rsp + 0x4], edx ; @1094
+  mov eax, 0x2_w ; @886
+  mov dword ptr [rsp + 0x8], eax ; @1093
+  mov eax, 0x1_w ; @887
+  mov dword ptr [rsp + 0x4], eax ; @1094
 @129:
-  mov edx, dword ptr [rsp + 0x4] ; @1096
-  mov edi, dword ptr [rsp + 0x8] ; @1095
-  add edx, dword ptr [rsp + 0x8] ; @552
-  mov dword ptr [rsp + 0x4], edx ; @1097
-  mov esi, dword ptr [rsp + 0x10] ; @1108
-  lea r8d, qword ptr [rdi + rsi*1] ; @553
-  mov edx, dword ptr [rsp + 0x14] ; @1109
-  add esi, dword ptr [rsp + 0x14] ; @554
-  lea edi, qword ptr [rdx + rcx*1] ; @555
-  mov edx, dword ptr [rsp + 0x18] ; @1113
-  add ecx, dword ptr [rsp + 0x18] ; @556
-  mov dword ptr [rsp], ecx ; @1098
-  mov ecx, dword ptr [rsp + 0x1c] ; @1116
-  add edx, dword ptr [rsp + 0x1c] ; @557
-  add ecx, r15d ; @558
-  add r15d, eax ; @559
-  add eax, r9d ; @560
-  mov dword ptr [rsp + 0x20], eax ; @1118
+  mov eax, dword ptr [rsp + 0x4] ; @1096
+  mov ecx, dword ptr [rsp + 0x8] ; @1095
+  add eax, dword ptr [rsp + 0x8] ; @552
+  mov dword ptr [rsp + 0x4], eax ; @1097
+  lea eax, qword ptr [rcx + rdx*1] ; @553
+  mov dword ptr [rsp + 0x8], eax ; @1098
+  mov eax, dword ptr [rsp + 0x10] ; @1107
+  lea ecx, qword ptr [rdx + rax*1] ; @554
+  mov dword ptr [rsp], ecx ; @1099
+  lea edx, qword ptr [rax + rsi*1] ; @555
+  mov eax, dword ptr [rsp + 0x14] ; @1108
+  add esi, dword ptr [rsp + 0x14] ; @556
+  lea ecx, qword ptr [rax + r15*1] ; @557
+  add r15d, edi ; @558
+  add edi, r8d ; @559
+  add r8d, r9d ; @560
   add r9d, r10d ; @561
   add r10d, r11d ; @562
-  add r11d, r14d ; @563
-  add r14d, ebx ; @564
-  add ebx, r12d ; @565
-  add r12d, r13d ; @566
-  add r13d, dword ptr [rsp + 0x4] ; @567
-  mov eax, dword ptr [rsp + 0xc] ; @1100
+  add r11d, ebx ; @563
+  add ebx, r12d ; @564
+  add r12d, r13d ; @565
+  add r13d, r14d ; @566
+  add r14d, dword ptr [rsp + 0x4] ; @567
+  mov eax, dword ptr [rsp + 0xc] ; @1101
   dec eax ; @568
   test eax, eax ; @865
   je @147 ; @866
 @844:
-  mov dword ptr [rsp + 0xc], eax ; @1101
-  mov eax, dword ptr [rsp + 0x20] ; @1119
-  mov dword ptr [rsp + 0x1c], ecx ; @1117
-  mov dword ptr [rsp + 0x18], edx ; @1114
-  mov ecx, dword ptr [rsp] ; @1102
-  mov dword ptr [rsp + 0x14], edi ; @1110
-  mov dword ptr [rsp + 0x10], esi ; @1111
-  mov dword ptr [rsp + 0x8], r8d ; @1103
+  mov dword ptr [rsp + 0xc], eax ; @1102
+  mov dword ptr [rsp + 0x14], ecx ; @1109
+  mov dword ptr [rsp + 0x10], edx ; @1110
+  mov edx, dword ptr [rsp] ; @1103
   jmp @129 ; @864
 @147:
-  mov ecx, dword ptr [rsp + 0x4] ; @1104
-  add ecx, dword ptr [rsp + 0x20] ; @570
-  mov eax, dword ptr [rsp] ; @1105
-  add eax, r14d ; @573
+  mov eax, dword ptr [rsp + 0x4] ; @1104
+  lea ecx, qword ptr [rax + r8*1] ; @570
+  lea eax, qword ptr [rsi + rbx*1] ; @573
   add eax, ecx ; @574
-  add rsp, 0x30_l ; @1127
-  pop rbx ; @1128
-  pop r15 ; @1129
-  pop r14 ; @1130
-  pop r13 ; @1131
-  pop r12 ; @1132
+  add rsp, 0x20_l ; @1117
+  pop rbx ; @1118
+  pop r15 ; @1119
+  pop r14 ; @1120
+  pop r13 ; @1121
+  pop r12 ; @1122
   ret ; @846
 }
 
@@ -389,10 +380,10 @@ export function $identities { ; returns: rax
 
 export function $fib { ; returns: rax
 @221:
-  push rbp ; @1133
-  mov rbp, rsp ; @1134
-  push r12 ; @1135
-  push rbx ; @1136
+  push rbp ; @1123
+  mov rbp, rsp ; @1124
+  push r12 ; @1125
+  push rbx ; @1126
   mov rbx, rdi ; @597
   cmp rbx, 0x2_l ; @939
   jl @336 ; @940
@@ -405,9 +396,9 @@ export function $fib { ; returns: rax
   lea rbx, qword ptr [r12 + rax*1] ; @600
 @336:
   mov rax, rbx ; @929
-  pop rbx ; @1137
-  pop r12 ; @1138
-  leave ; @1139
+  pop rbx ; @1127
+  pop r12 ; @1128
+  leave ; @1129
   ret ; @930
 }
 
@@ -518,10 +509,10 @@ function $store_to_load { ; returns: rax
 
 export function $ackermann { ; returns: rax
 @339:
-  push rbp ; @1140
-  mov rbp, rsp ; @1141
-  sub rsp, 0x8_l ; @1142
-  push rbx ; @1143
+  push rbp ; @1130
+  mov rbp, rsp ; @1131
+  sub rsp, 0x8_l ; @1132
+  push rbx ; @1133
   mov eax, esi ; @1068
 @318:
   test edi, edi ; @1062
@@ -541,7 +532,7 @@ export function $ackermann { ; returns: rax
   jmp @318 ; @1050
 @319:
   inc eax ; @649
-  pop rbx ; @1144
-  leave ; @1145
+  pop rbx ; @1134
+  leave ; @1135
   ret ; @1047
 }

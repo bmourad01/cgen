@@ -503,6 +503,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Comparison with immediate on the left (SysV AMD64)" >:: test_sysv_amd64_regalloc "setcc_imm_left";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_regalloc "narrow_promote";
     "Sumto (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumto";
+    "Mindiv2 (SysV AMD64)" >:: test_sysv_amd64_regalloc "mindiv2";
   ]
 
 let native_suite = "Test native code" >::: [
