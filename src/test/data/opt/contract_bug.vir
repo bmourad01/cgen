@@ -1,0 +1,23 @@
+module contract_bug
+
+export function w $f(w %x, w %y, w %n, w %sel, w %m) {
+@entry:
+  %c0 = ne.w %sel, 0_w
+  br %c0, @t, @f
+@t:
+  %p = add.w %x, 1_w
+  jmp @b
+@f:
+  %p = add.w %y, 2_w
+  jmp @b
+@b:
+  jmp @loop
+@loop:
+  %c = slt.w %m, %n
+  br %c, @body, @exit
+@body:
+  %m = add.w %m, %p
+  jmp @loop
+@exit:
+  ret %m
+}

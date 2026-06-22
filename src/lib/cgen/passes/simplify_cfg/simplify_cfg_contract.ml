@@ -10,6 +10,7 @@ open O.Let
 open O.Syntax
 
 module Lset = Label.Tree_set
+module Vset = Var.Tree_set
 module LT = Label.Dense_table
 
 type singles = dst Label.Tree.t
@@ -18,14 +19,28 @@ type chain =
   | Dest of dst
   | Next of Label.t * Label.t * chain
 
-let can_be_single env l b =
+let block_params env =
+  LT.fold env.blks ~init:Vset.empty ~f:(fun ~key:_ ~data:b acc ->
+      Blk.args b |> Seq.fold ~init:acc ~f:Vset.add)
+
+let downstream_used_params env params =
+  if Vset.is_empty params then params else
+    LT.fold env.blks ~init:Vset.empty ~f:(fun ~key:_ ~data:b acc ->
+        Vset.union acc @@ Vset.inter params @@ Blk.free_vars b)
+
+let can_be_single env used l b =
   Label.(l <> env.start) &&
-  not (Blk.has_any_insns b)
+  not (Blk.has_any_insns b) &&
+  (* NB: if any of the params are used, we can't use this to
+     contract edges, as it could leave uses of the param as
+     orphans (thus having a use without a definition). *)
+  not (Blk.args b |> Seq.exists ~f:(Vset.mem used))
 
 let singles env : singles =
+  let used = downstream_used_params env @@ block_params env in
   LT.fold env.blks ~init:Label.Tree.empty
     ~f:(fun ~key:l ~data:b m -> match Blk.ctrl b with
-        | `jmp d when can_be_single env l b ->
+        | `jmp d when can_be_single env used l b ->
           Label.Tree.set m ~key:l ~data:d
         | _ -> m)
 

@@ -354,6 +354,7 @@ let opt_suite = "Test optimizations" >::: [
     "Tail call" >:: test "tailcall";
     "Edge narrowing" >:: test "edge_narrow";
     "Sumto" >:: test "sumto";
+    "Contraction bug" >:: test "contract_bug";
   ]
 
 let abi_suite = "Test ABI lowering" >::: [
