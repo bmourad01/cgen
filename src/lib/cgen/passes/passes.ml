@@ -92,11 +92,12 @@ let optimize_abi ?(invariants = false) m =
   let* m = Context.Virtual.Module.map_funs_abi m ~f:Sroa.run_abi in
   let* m = Context.Virtual.Module.map_funs_abi m ~f:(Promote_slots.run_abi ~invariants) in
   let*? m = Abi.Module.map_funs_err m ~f:Abi_loadopt.run in
-  let m = Abi.Module.map_funs m ~f:Remove_disjoint_blks.run_abi in
+  let m = Abi.Module.map_funs m ~f:Remove_disjoint_blks.run_abi in (* necessary after loadopt *)
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Coalesce_slots.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Resolve_constant_blk_args.run_abi in
   let*? m = Abi.Module.map_funs_err m ~f:Abi_loadopt.run in
+  let m = Abi.Module.map_funs m ~f:Remove_disjoint_blks.run_abi in (* necessary after loadopt *)
   let*? m = Abi.Module.map_funs_err m ~f:Remove_dead_vars.run_abi in
   let* () = Context.when_ invariants @@ fun () ->
     Context.iter_seq_err (Abi.Module.funs m) ~f:Ssa.check_abi in
