@@ -193,13 +193,13 @@ export function $magic_unsigned { ; returns: rax rdx
   mov ecx, eax ; @314
   jmp @60 ; @315
 @116:
-  lea ecx, qword ptr [rdx + 0x1] ; @204
-  lea eax, qword ptr [r13 - 0x1f] ; @205
-  mov dword ptr [rsp], ecx ; @123
+  lea eax, qword ptr [rdx + 0x1] ; @204
+  lea ecx, qword ptr [r13 - 0x1f] ; @205
+  mov dword ptr [rsp], eax ; @123
   mov dword ptr [rsp + 0x4], esi ; @124
-  mov dword ptr [rsp + 0x8], eax ; @125
   mov rax, qword ptr [rsp] ; @218
-  mov rdx, qword ptr [rsp + 0x8] ; @221
+  mov dword ptr [rsp + 0x8], ecx ; @223
+  mov rdx, qword ptr [rsp + 0x8] ; @226
   add rsp, 0x18_l ; @418
   pop rbx ; @419
   pop r14 ; @420

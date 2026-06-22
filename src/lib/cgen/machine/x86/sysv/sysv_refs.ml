@@ -44,7 +44,9 @@ module Make(Context : Context_intf.S_virtual) = struct
       | _ ->
         let+ x, i = Cv.Abi.unop (`copy `i64) a in
         x, [i] in
-    let+ blit = Cv.Abi.blit ~src ~dst:y `i64 k.size in
+    (* Copy only the actual size of the type, not the eightbyte-rounded ABI
+       size, so we neither over-read the source nor over-write the slot. *)
+    let+ blit = Cv.Abi.blit ~src ~dst:y `i64 k.bytes in
     VT.set env.unrefs ~key:x ~data:(srci @ blit);
     VT.set env.refs ~key:x ~data:y
 
@@ -60,7 +62,9 @@ module Make(Context : Context_intf.S_virtual) = struct
       | _ ->
         let+ x, i = Cv.Abi.unop (`copy `i64) a in
         x, [i] in
-    let+ blit = Cv.Abi.blit ~src ~dst `i64 k.size in
+    (* Copy only the actual size of the type (see `make_load`): a `st:` to a
+       real object must not write past it into adjacent storage. *)
+    let+ blit = Cv.Abi.blit ~src ~dst `i64 k.bytes in
     LT.set env.blits ~key:l ~data:(dsti @ blit)
 
   let lower env =

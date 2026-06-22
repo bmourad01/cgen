@@ -65,6 +65,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let make_offsets_and_size ?presize slots frame =
     let size = compute_size slots in
+    (* `compute_offsets` lays slots out from `start`, rounding each up to its
+       alignment. For that to use no more space than `compute_size` predicted
+       (which rounds from 0), `start` must itself be aligned to the maximum
+       slot alignment. Otherwise the base rounding wastes space and pushes the
+       topmost slot past the region, overlapping the caller-reserved `presize`
+       bytes (e.g. a spill slot aliasing an already-pre-assigned slot). *)
+    let max_align =
+      List.fold slots ~init:wordsz ~f:(fun a s -> Int.max a (Slot.align s)) in
     (* The frame pointer offsets will be negative. We're also accounting
        for the fact that the previous frame pointer will be preserved
        on the stack. *)
@@ -73,7 +81,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | None when frame -> wordsz
       | None -> 0 in
     let start, size = if frame then
-        let size = size + presize in
+        let size = alup (size + presize) max_align in
         -size, size
       else presize, size + presize in
     let offsets = compute_offsets slots start in

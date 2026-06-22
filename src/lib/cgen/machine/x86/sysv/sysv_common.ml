@@ -76,9 +76,12 @@ type cls =
   | Kreg of reg * reg
   | Kmem
 
-(* `size` and `align` are always multiples of 8. *)
+(* `size` and `align` are always multiples of 8. `bytes` is the actual,
+   un-rounded size of the type, used for in-memory copies (blits) that must
+   not write past the object into adjacent storage. *)
 type acls = {
   size  : int;
+  bytes : int;
   align : int;
   cls   : cls;
 }
@@ -131,10 +134,10 @@ and classify_union ~gamma dss =
           Continue (r1', r2'))
 
 let classify_layout ~gamma lt =
-  let size = Type.Layout.sizeof lt in
+  let bytes = Type.Layout.sizeof lt in
   (* Align to the nearest eightbyte boundary. *)
   let align = max 8 @@ Type.Layout.align lt in
-  let size = (size + align - 1) land -align in
+  let size = (bytes + align - 1) land -align in
   let cls =
     (* Try to pack the type into two registers. If it is
        larger than 16 bytes or contains unaligned fields
@@ -147,7 +150,7 @@ let classify_layout ~gamma lt =
       Option.value_map ~default:Kmem
         ~f:(fun (r1, r2) -> Kreg (r1, r2))
     else Kmem in
-  {size; align; cls}
+  {size; bytes; align; cls}
 
 type ret = {
   reti : Abi.insn list;           (* Copy the data to be returned. *)

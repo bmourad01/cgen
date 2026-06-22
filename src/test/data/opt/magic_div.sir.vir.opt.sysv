@@ -57,7 +57,7 @@ export function $magic_signed(w %2/rdi) {
 
 export function $magic_unsigned(w %31/rdi) {
   %272 = slot 8, align 8
-  %273 = slot 8, align 8
+  %275 = slot 8, align 8
 @59:
   %277 = neg.w %31 ; @176
   %278 = urem.w %277, %31 ; @62
@@ -116,8 +116,8 @@ export function $magic_unsigned(w %31/rdi) {
   st.w %315, %272 ; @123
   %319 = add.l %272, 0x4_l ; @227
   st.w %307, %319 ; @124
-  st.w %316, %273 ; @125
-  %320 = ld.l %272 ; @218
-  %323 = ld.l %273 ; @221
-  ret rax/%320, rdx/%323
+  %321 = ld.l %272 ; @218
+  st.w %316, %275 ; @223
+  %328 = ld.l %275 ; @226
+  ret rax/%321, rdx/%328
 }

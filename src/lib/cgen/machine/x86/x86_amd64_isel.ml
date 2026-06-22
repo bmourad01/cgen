@@ -210,6 +210,13 @@ end = struct
     | `i32       -> I.mov   (Oreg (x, `i32)) addr
     | `i64       -> I.mov   (Oreg (x, `i64)) addr
 
+  (* Load a symbol's address into a GPR. We go through the `Asym` memory
+     operand (RIP-relative) rather than `Osym` (a bare absolute symbol) so
+     the emitted `lea` is position-independent: `lea dst, [rip + sym]`
+     instead of `lea dst, sym` (an `R_X86_64_32S` relocation, which the
+     linker rejects when building a PIE). *)
+  let lea_sym dst s o = I.lea (Oreg (dst, `i64)) (Omem (Asym (s, o), `i64))
+
   (* Rule callbacks. *)
 
   let move_rr_x_y ?(zx = false) env =
@@ -578,7 +585,7 @@ end = struct
     let*! no = S.label env "no" in
     let* tmp = C.Var.fresh >>| Rv.var in
     let cc = if neg then Ce else Cne in !!![
-      I.lea (Oreg (tmp, `i64)) (Osym (y, yo));
+      lea_sym tmp y yo;
       I.test (Oreg (x, xt)) (Oreg (tmp, `i64));
       I.jcc cc yes;
       I.jmp (Jlbl no);
@@ -669,7 +676,7 @@ end = struct
     let*! yes = S.label env "yes" in
     let*! no = S.label env "no" in
     let* tmp = C.Var.fresh >>| Rv.var in !!![
-      I.lea (Oreg (tmp, `i64)) (Osym (y, yo));
+      lea_sym tmp y yo;
       I.cmp (Oreg (x, xt)) (Oreg (tmp, `i64));
       I.jcc cc yes;
       I.jmp (Jlbl no);
@@ -683,7 +690,7 @@ end = struct
     let*! no = S.label env "no" in
     let* tmp = C.Var.fresh >>| Rv.var in
     let y = Bv.to_int64 y in !!![
-      I.lea (Oreg (tmp, `i64)) (Osym (x, xo));
+      lea_sym tmp x xo;
       I.cmp (Oreg (tmp, `i64)) (Oimm (y, yt));
       I.jcc cc yes;
       I.jmp (Jlbl no);
@@ -696,8 +703,8 @@ end = struct
     let*! no = S.label env "no" in
     let* tmp1 = C.Var.fresh >>| Rv.var in
     let* tmp2 = C.Var.fresh >>| Rv.var in !!![
-      I.lea (Oreg (tmp1, `i64)) (Osym (x, xo));
-      I.lea (Oreg (tmp2, `i64)) (Osym (y, yo));
+      lea_sym tmp1 x xo;
+      lea_sym tmp2 y yo;
       I.cmp (Oreg (tmp1, `i64)) (Oreg (tmp2, `i64));
       I.jcc cc yes;
       I.jmp (Jlbl no);
@@ -753,7 +760,8 @@ end = struct
     let*! z, zo = S.sym env "z" in
     let* tmp = C.Var.fresh >>| Rv.var in
     let cc = if neg then Ce else Cne in !!![
-      I.lea (Oreg (tmp, `i64)) (Osym (z, zo));
+      I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
+      lea_sym tmp z zo;
       I.test (Oreg (y, yt)) (Oreg (tmp, `i64));
       I.setcc cc (Oreg (x, `i8));
     ]
@@ -826,7 +834,11 @@ end = struct
     let*! y, yt = S.regvar env "y" in
     let*! z, zo = S.sym env "z" in
     let* tmp = C.Var.fresh >>| Rv.var in !!![
-      I.lea (Oreg (tmp, `i64)) (Osym (z, zo));
+      (* Zero the result first: `setcc` writes only the low byte, so without
+         this the upper bytes are garbage when the flag is later widened to a
+         full register (e.g. stored to a 32-bit global). *)
+      I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
+      lea_sym tmp z zo;
       I.cmp (Oreg (y, yt)) (Oreg (tmp, `i64));
       I.setcc cc (Oreg (x, `i8));
     ]
@@ -838,7 +850,8 @@ end = struct
     let*! () = guard @@ Type.equal_imm zt `i64 in
     let* tmp = C.Var.fresh >>| Rv.var in
     let z = Bv.to_int64 z in !!![
-      I.lea (Oreg (tmp, `i64)) (Osym (y, yo));
+      I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
+      lea_sym tmp y yo;
       I.cmp (Oreg (tmp, `i64)) (Oimm (z, zt));
       I.setcc cc (Oreg (x, `i8));
     ]
@@ -849,8 +862,9 @@ end = struct
     let*! z, zo = S.sym env "z" in
     let* tmp1 = C.Var.fresh >>| Rv.var in
     let* tmp2 = C.Var.fresh >>| Rv.var in !!![
-      I.lea (Oreg (tmp1, `i64)) (Osym (y, yo));
-      I.lea (Oreg (tmp2, `i64)) (Osym (z, zo));
+      I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
+      lea_sym tmp1 y yo;
+      lea_sym tmp2 z zo;
       I.cmp (Oreg (tmp1, `i64)) (Oreg (tmp2, `i64));
       I.setcc cc (Oreg (x, `i8));
     ]
@@ -1380,7 +1394,7 @@ end = struct
     let*! s, o = S.sym env "x" in
     let*! y, yt = S.regvar env "y" in
     let* x = C.Var.fresh >>| Rv.var in !!![
-      I.lea (Oreg (x, `i64)) (Omem (Asym (s, o), `i64));
+      lea_sym x s o;
       I.mov (Omem (Ab y, mty yt)) (Oreg (x, yt));
     ]
 
@@ -1395,6 +1409,16 @@ end = struct
     let*! s, o = S.sym env "y" in
     let@ i = with_imm xt (Bv.to_int64 x) xt in
     !!![I.mov (Omem (Asym (s, o), mty xt)) i]
+
+  (* Store a symbol's address (the value) to another symbol's address. Both
+     are i64, since a symbol value is itself an address. *)
+  let store_symsym_x_y env =
+    let*! s1, o1 = S.sym env "x" in
+    let*! s2, o2 = S.sym env "y" in
+    let* tmp = C.Var.fresh >>| Rv.var in !!![
+      lea_sym tmp s1 o1;
+      I.mov (Omem (Asym (s2, o2), `i64)) (Oreg (tmp, `i64));
+    ]
 
   let store_v_rr_x_y env =
     let*! x = S.regvar_v env "x" in
@@ -2830,6 +2854,7 @@ end = struct
       store_rsym_x_y;
       store_symr_x_y;
       store_symi_x_y;
+      store_symsym_x_y;
       store_rf32_x_y;
       store_rf64_x_y;
     ]

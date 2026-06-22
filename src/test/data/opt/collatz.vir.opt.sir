@@ -5,16 +5,16 @@ start:
   %24 = copy.w %2;
   %25 = copy.w 0x0_w;
   while gt.w %24, 0x1_w {
-    %45 = and.w %24, 0x1_w;
-    %46 = eq.w %45, 0x0_w;
+    %44 = and.w %24, 0x1_w;
+    %45 = eq.w %44, 0x0_w;
     %47 = lsr.w %24, 0x1_w;
     %48 = lsl.w %24, 0x1_w;
     %49 = add.w %48, %24;
     %50 = add.w %49, 0x1_w;
-    %51 = sel.w %46, %47, %50;
-    %52 = add.w %25, 0x1_w;
+    %51 = sel.w %45, %47, %50;
+    %46 = add.w %25, 0x1_w;
     %24 = copy.w %51;
-    %25 = copy.w %52
+    %25 = copy.w %46
   };
   ret %25
 }

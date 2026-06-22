@@ -2,7 +2,7 @@ module sw
 
 export function $test {
 @2:
-  lea %4:l, $sym ; @12
+  lea %4:l, qword ptr [rip + $sym] ; @12
   cmp %4:l, 0x2_l ; @13
   je @5 ; @14
   jmp @7 ; @15

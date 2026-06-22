@@ -4,7 +4,7 @@ export function $getint { ; returns: rax
 @2:
   sub rsp, 0x8_l ; @224
   mov qword ptr [rsp], rdi ; @170
-  mov eax, dword ptr [rsp] ; @4
+  mov eax, dword ptr [rsp] ; @81
   add rsp, 0x8_l ; @225
   ret ; @169
 }
@@ -12,8 +12,9 @@ export function $getint { ; returns: rax
 export function $mkfloat { ; returns: rax
 @5:
   sub rsp, 0x8_l ; @226
-  movss dword ptr [rsp], xmm0 ; @173
-  mov rax, qword ptr [rsp] ; @83
+  movd eax, xmm0 ; @173
+  mov dword ptr [rsp], eax ; @84
+  mov rax, qword ptr [rsp] ; @85
   add rsp, 0x8_l ; @227
   ret ; @172
 }

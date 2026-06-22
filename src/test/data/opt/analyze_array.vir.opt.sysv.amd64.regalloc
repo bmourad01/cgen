@@ -33,15 +33,15 @@ export function $analyze_array { ; returns: rax
   push r14 ; @191
   push r15 ; @192
   push rbx ; @193
-  mov qword ptr [rbp - 0x10], rdi ; @181
-  mov dword ptr [rbp - 0x8], esi ; @182
-  mov rax, qword ptr [rbp - 0x10] ; @183
+  mov qword ptr [rbp - 0x18], rdi ; @181
+  mov dword ptr [rbp - 0x10], esi ; @182
+  mov rax, qword ptr [rbp - 0x18] ; @183
   mov edi, dword ptr [rax] ; @148
   xor r13d, r13d ; @142
   mov r12d, edi ; @143
   xor ebx, ebx ; @145
 @13:
-  cmp r13d, dword ptr [rbp - 0x8] ; @137
+  cmp r13d, dword ptr [rbp - 0x10] ; @137
   jl @18 ; @138
 @19:
   sub edi, r12d ; @136
@@ -55,7 +55,7 @@ export function $analyze_array { ; returns: rax
   leave ; @199
   ret ; @133
 @18:
-  mov rax, qword ptr [rbp - 0x10] ; @185
+  mov rax, qword ptr [rbp - 0x18] ; @185
   mov r14d, dword ptr [rax + r13*4] ; @24
   mov esi, r14d ; @128
   call $max ; rdi rsi ; @129

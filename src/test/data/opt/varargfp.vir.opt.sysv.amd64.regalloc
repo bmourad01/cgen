@@ -5,22 +5,22 @@ export function $addv { ; returns: xmm0
   push rbp ; @131
   mov rbp, rsp ; @132
   sub rsp, 0xc0_l ; @133
-  mov qword ptr [rbp - 0xa8], rsi ; @21
-  mov qword ptr [rbp - 0xa0], rdx ; @23
-  mov qword ptr [rbp - 0x98], rcx ; @25
-  mov qword ptr [rbp - 0x90], r8 ; @27
-  mov qword ptr [rbp - 0x88], r9 ; @29
+  mov qword ptr [rbp - 0xb8], rsi ; @21
+  mov qword ptr [rbp - 0xb0], rdx ; @23
+  mov qword ptr [rbp - 0xa8], rcx ; @25
+  mov qword ptr [rbp - 0xa0], r8 ; @27
+  mov qword ptr [rbp - 0x98], r9 ; @29
   test al, al ; @110
   je @2 ; @111
 @18:
-  movdqa xmmword ptr [rbp - 0x80], xmm0 ; @32
-  movdqa xmmword ptr [rbp - 0x70], xmm1 ; @34
-  movdqa xmmword ptr [rbp - 0x60], xmm2 ; @36
-  movdqa xmmword ptr [rbp - 0x50], xmm3 ; @38
-  movdqa xmmword ptr [rbp - 0x40], xmm4 ; @40
-  movdqa xmmword ptr [rbp - 0x30], xmm5 ; @42
-  movdqa xmmword ptr [rbp - 0x20], xmm6 ; @44
-  movdqa xmmword ptr [rbp - 0x10], xmm7 ; @46
+  movdqa xmmword ptr [rbp - 0x90], xmm0 ; @32
+  movdqa xmmword ptr [rbp - 0x80], xmm1 ; @34
+  movdqa xmmword ptr [rbp - 0x70], xmm2 ; @36
+  movdqa xmmword ptr [rbp - 0x60], xmm3 ; @38
+  movdqa xmmword ptr [rbp - 0x50], xmm4 ; @40
+  movdqa xmmword ptr [rbp - 0x40], xmm5 ; @42
+  movdqa xmmword ptr [rbp - 0x30], xmm6 ; @44
+  movdqa xmmword ptr [rbp - 0x20], xmm7 ; @46
 @2:
   lea rax, qword ptr [rbp + 0x10] ; @50
   mov ecx, 0x30_w ; @104
@@ -41,7 +41,7 @@ export function $addv { ; returns: xmm0
   mov rsi, rax ; @87
   jmp @59 ; @88
 @57:
-  lea rsi, qword ptr [rbp + rcx*1 - 0xb0] ; @66
+  lea rsi, qword ptr [rbp + rcx*1 - 0xc0] ; @66
   add ecx, 0x10_w ; @67
   mov rdx, rax ; @81
 @59:
