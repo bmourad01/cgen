@@ -974,6 +974,18 @@ end = struct
         env
   [@@specialise]
 
+  (* Condition compares a register against a symbol's address. *)
+  let sel_rsym_x_y_z yn cc env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    let*! s, o = S.sym env "z" in
+    let* tmp = C.Var.fresh >>| Rv.var in
+    yn cc x xt
+      [lea_sym tmp s o]
+      (I.cmp (Oreg (y, yt)) (Oreg (tmp, `i64)))
+      env
+  [@@specialise]
+
   let sel_zero_x_y yn ?(neg = false) ?(eq = true) env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -990,6 +1002,11 @@ end = struct
   let sel_riri_x_y_z = sel_ri_x_y_z sel_yn_ri
   let sel_riir_x_y_z = sel_ri_x_y_z sel_yn_ir
   let sel_riii_x_y_z = sel_ri_x_y_z sel_yn_ii
+
+  let sel_rsymrr_x_y_z = sel_rsym_x_y_z sel_yn_rr
+  let sel_rsymri_x_y_z = sel_rsym_x_y_z sel_yn_ri
+  let sel_rsymir_x_y_z = sel_rsym_x_y_z sel_yn_ir
+  let sel_rsymii_x_y_z = sel_rsym_x_y_z sel_yn_ii
 
   let sel_rr_zero_x_y = sel_zero_x_y sel_yn_rr
   let sel_ri_zero_x_y = sel_zero_x_y sel_yn_ri
@@ -2681,6 +2698,10 @@ end = struct
       sel_riri_x_y_z cc;
       sel_riir_x_y_z cc;
       sel_riii_x_y_z cc;
+      sel_rsymrr_x_y_z cc;
+      sel_rsymri_x_y_z cc;
+      sel_rsymir_x_y_z cc;
+      sel_rsymii_x_y_z cc;
     ]
 
     let sel_zero ?(neg = false) ?(eq = true) () = [
