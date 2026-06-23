@@ -567,16 +567,31 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                 s :: acc, Map.add_multi m ~key:size ~data:r) in
     t.fn <- Func.insert_slots t.fn slots
 
+  (* The slot assigned to `rv`'s coalesced group, if that group was spilled.
+
+     We resolve through `alias` because `make_slots` keys `t.slots` only by the
+     group's representative. A variable coalesced into a spilled representative
+     is not itself in `t.spilled` and has no slot of its own.
+
+     Without this, the copy linking a coalesced member to its representative is
+     not recognized as a same-slot no-op (below) and regenerates every round,
+     so spilling never converges.
+  *)
+  let spilled_slot t rv =
+    let id = alias t t.$[rv] in
+    if Bitset.mem t.spilled id then RT.find t.slots t.![id] else None
+
   (* If both sides of a copy are spilled to the same slot, the copy is a
-     no-op: the source slot already holds the correct value for the dest.
-     Skip the instruction entirely rather than generating load+copy+store. *)
+     no-op, and the source slot already holds the correct value for the dest.
+
+     Skip the instruction entirely rather than generating load + copy + store.
+  *)
   let same_slot_copy t insn = match RA.is_copy insn with
     | Some (drv, srv) ->
-      Bitset.mem t.spilled t.$[drv] &&
-      Bitset.mem t.spilled t.$[srv] &&
-      Option.equal Rv.equal
-        (RT.find t.slots drv)
-        (RT.find t.slots srv)
+      begin match spilled_slot t drv, spilled_slot t srv with
+        | Some sd, Some ss -> Rv.equal sd ss
+        | _ -> false
+      end
     | _ -> false
 
   (* Rewrite a single instruction to spill and reload variables. *)
@@ -587,10 +602,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let+ fetch, store, subst, reload =
       let init = [], [], Rv.Map.empty, reload in
       Set.union use def |> Set.to_sequence |>
-      Seq.filter ~f:(fun rv -> Bitset.mem t.spilled t.$[rv]) |>
+      (* Resolve through `alias`, since a variable coalesced into a spilled
+         representative shares the representative's slot (see `spilled_slot`). *)
+      Seq.filter ~f:(fun rv -> Bitset.mem t.spilled (alias t t.$[rv])) |>
       C.Seq.fold ~init ~f:(fun (f, s, m, rl) v ->
           let* ty = typeof t v in
-          let slot = RT.find_exn t.slots v in
+          let slot = RT.find_exn t.slots t.![alias t t.$[v]] in
           let is_use = Set.mem use v and is_def = Set.mem def v in
           (* Optimization: if `v` is a pure use and we already loaded it
              earlier in this block (it's in the reload cache `rl`), reuse
