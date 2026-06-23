@@ -1,0 +1,34 @@
+module retcall
+
+type :t = {
+  l,
+  l,
+  l
+}
+
+export function :t $mk(l %a, l %b, l %c) {
+  %r = slot 24, align 8
+@start:
+  st.l %a, %r
+  %r8 = add.l %r, 8_l
+  st.l %b, %r8
+  %r16 = add.l %r, 16_l
+  st.l %c, %r16
+  %s = ld:t %r
+  ret %s
+}
+
+export function l $sum(l %a, l %b, l %c) {
+  %p = slot 24, align 8
+@start:
+  %s = call:t $mk(%a, %b, %c)
+  st:t %s, %p
+  %f0 = ld.l %p
+  %p8 = add.l %p, 8_l
+  %f1 = ld.l %p8
+  %p16 = add.l %p, 16_l
+  %f2 = ld.l %p16
+  %t = add.l %f0, %f1
+  %sum = add.l %t, %f2
+  ret %sum
+}

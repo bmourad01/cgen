@@ -98,14 +98,25 @@ module Make(Context : Context_intf.S_virtual) = struct
     let callri = k.callri @>* [oi; st1; st2] in
     {k with callri; callrr = [y1, t1, reg1; y2, t2, reg2]}
 
-  (* Passed as a reference to memory. We need to allocate
-     a new stack slot for this one. *)
+  (* Passed as a reference to memory.
+
+     The callee writes its result directly through the pointer we pass in
+     `int_args.(0)`, so the result's home slot has to be that buffer.
+
+     `Refs.lower` runs before us and has already assigned `x` a home slot,
+     and emitted blits that read from it, so we reuse it as the destination
+     buffer.
+
+     Allocating a fresh slot here instead would leave the callee writing a
+     buffer that nobody reads from, while the blits read an uninitialized
+     one.
+  *)
   let call_ret_memory env x lk k =
-    let+ y = new_slot env lk.size lk.align in
+    let+ y = match VT.find env.refs x with
+      | Some y -> !!y
+      | None -> new_slot env lk.size lk.align in
     let callar = `reg (`var y, int_args.(0)) <@ k.callar in
     VT.set env.refs ~key:x ~data:y;
-    (* `x` is now a dummy return value, future references will
-       be directed to `y`. *)
     {k with callar; callrr = [x, `i64, int_rets.(0)]}
 
   (* Handle the compound type return value of a call.  *)

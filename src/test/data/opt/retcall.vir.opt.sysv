@@ -1,0 +1,25 @@
+module retcall
+
+export function $mk(l %36/rdi, l %1/rsi, l %3/rdx, l %5/rcx) {
+@2:
+  st.l %1, %36 ; @26
+  %66 = add.l %36, 0x8_l ; @29
+  st.l %3, %66 ; @30
+  %69 = add.l %36, 0x10_l ; @33
+  st.l %5, %69 ; @34
+  ret rax/%36
+}
+
+export function $sum(l %9/rdi, l %10/rsi, l %11/rdx) {
+  %44 = slot 24, align 8
+@9:
+  %70/l/rax = call $mk(%44/rdi, %9/rsi, %10/rdx, %11/rcx) ; @10
+  %71 = ld.l %44 ; @35
+  %73 = add.l %44, 0x8_l ; @37
+  %74 = ld.l %73 ; @38
+  %77 = add.l %44, 0x10_l ; @41
+  %78 = ld.l %77 ; @42
+  %86 = add.l %71, %74 ; @23
+  %87 = add.l %86, %78 ; @24
+  ret rax/%87
+}

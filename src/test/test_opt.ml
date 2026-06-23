@@ -365,6 +365,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Extended GCD returning a struct (SysV)" >:: test_sysv "gcdext";
     "Extended GCD with pointer params (SysV)" >:: test_sysv "gcdextm";
     "Constructing and returning a struct (SysV)" >:: test_sysv "retmem";
+    "Reading fields of a memory-returned struct call (SysV)" >:: test_sysv "retcall";
     "Scalar arguments passed on the stack (SysV)" >:: test_sysv "stkarg";
     "Struct in a block argument (SysV)" >:: test_sysv "sumphi";
     "Returning, passing, and dereferencing a struct (SysV)" >:: test_sysv "unref";
@@ -549,6 +550,7 @@ let native_suite = "Test native code" >::: [
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_native "promote2-partial";
     "Struct in a block argument (SysV AMD64)" >:: test_sysv_amd64_native "sumphi";
     "Returning, passing, and dereferencing a struct (SysV AMD64)" >:: test_sysv_amd64_native "unref";
+    "Reading fields of a memory-returned struct call (SysV AMD64)" >:: test_sysv_amd64_native "retcall";
     "Sink 1 (SysV AMD64)" >:: test_sysv_amd64_native "sink1";
     "Binary search (SysV AMD64)" >:: test_sysv_amd64_native "bsearch";
     "Naiive even-odd test (SysV AMD64)" >:: test_sysv_amd64_native "evenodd";
