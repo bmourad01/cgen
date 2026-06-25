@@ -181,7 +181,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* push(n, selectStack) *)
     if can_be_colored t id then begin
       Logs.debug (fun m -> m "%s: selecting %a%!" __FUNCTION__ Rv.pp t.![id]);
-      Stack.push t.select id
+      push_select t id
     end;
     (* ∀ m ∈ Adjacent(n) *)
     Bitset.iter (adjacent t id) ~f:(decrement_degree t)
@@ -438,7 +438,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     (* Instead of going through `wsimplify`, we'll inline the relevant
        logic here. This is to avoid violating the invariants of the
        simplify worklist. *)
-    if can_be_colored t m then Stack.push t.select m;
+    if can_be_colored t m then push_select t m;
     Bitset.iter (adjacent t m) ~f:(decrement_degree t)
 
   (* For all neighbors of `id` that have a color, remove them from the
@@ -721,6 +721,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     t.cmoves <- Lset.empty;
     t.kmoves <- Lset.empty;
     t.fmoves <- Lset.empty;
+    Bitset.clear t.on_select;
     alloc_arrays t
 
   let rec main t ~round ~max_rounds ~invariants =

@@ -115,6 +115,7 @@ module Make(M : Machine_intf.S) = struct
     wspill               : id_heap;
     mutable wspill_elts  : id_elt oarray;
     select               : id Stack.t;
+    on_select            : Bitset.t;       (* membership set for `select` *)
     copies               : copy LT.t;
     insn_blks            : (Label.t * id) LT.t;
     slots                : Rv.t RT.t;
@@ -200,15 +201,17 @@ module Make(M : Machine_intf.S) = struct
     then t.adjlist.(id)
     else empty_adj
 
+  let push_select t id =
+    Stack.push t.select id;
+    Bitset.add t.on_select id
+
   (* adjList[n] ∖ (selectStack ∪ coalescedNodes) *)
   let adjacent t id =
     let a = adjlist t id in
     if Bitset.is_empty a then a else
-      (* Copy `a` (the stored adjacency set), then remove the coalesced and
-         select-stack nodes in place. *)
       let r = Bitset.copy a in
       Bitset.diff r t.coalesced;
-      Stack.iter t.select ~f:(Bitset.remove r);
+      Bitset.diff r t.on_select;
       r
 
   let color t id = match Rv.which t.![id] with
@@ -575,6 +578,7 @@ module Make(M : Machine_intf.S) = struct
       wspill = H.create ~cmp:wspill_cmp ();
       wspill_elts = Option_array.empty;
       select = Stack.create ();
+      on_select = Bitset.create ();
       copies;
       insn_blks;
       slots = RT.create ();
@@ -669,6 +673,9 @@ module Make(M : Machine_intf.S) = struct
     (* Partition invariant: each colorable node in exactly one set *)
     let select_set = Bitset.create () in
     Stack.iter t.select ~f:(Bitset.add select_set);
+    (* `on_select` must mirror the select stack (relied on by `adjacent`). *)
+    if not (Bitset.equal select_set t.on_select) then
+      failwithf "on_select out of sync with select stack" ();
     let partitions = [
       ("wsimplify", t.wsimplify);
       ("wfreeze",   wfreeze_set);
