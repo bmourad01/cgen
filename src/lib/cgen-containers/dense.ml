@@ -10,6 +10,15 @@ let (.?[]<-) = OA.unsafe_set_some
 
 let initial_capacity = 8
 
+(* Power-of-two table size that holds `n` elements below the 3/4 load
+   factor without resizing.
+
+   A bare `create ()` keeps the small default.
+*)
+let size_for = function
+  | None -> initial_capacity
+  | Some n -> Int.(ceil_pow2 @@ max initial_capacity (n * 4 / 3))
+
 let probe_of ~to_int mask key idx =
   let preferred = to_int key land mask in
   let distance = idx - preferred in
@@ -51,8 +60,8 @@ module Make_map(K : Key) : Map with type key = K.t = struct
   exception Duplicate
   exception Not_found
 
-  let create ?(capacity = initial_capacity) () =
-    let cap = Int.(ceil_pow2 @@ max capacity initial_capacity) in {
+  let create ?capacity () =
+    let cap = size_for capacity in {
       keys = Array.create ~len:cap K.empty_sentinel;
       vals = OA.create ~len:cap;
       length = 0;
@@ -290,8 +299,8 @@ module Make_set(K : Key) : Set with type key = K.t = struct
     mutable mask   : int;
   }
 
-  let create ?(capacity = initial_capacity) () =
-    let cap = Int.(ceil_pow2 @@ max capacity initial_capacity) in {
+  let create ?capacity () =
+    let cap = size_for capacity in {
       keys = Array.create ~len:cap K.empty_sentinel;
       length = 0;
       mask = cap - 1;
