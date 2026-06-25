@@ -233,6 +233,13 @@ module Make(K : Patricia_tree_intf.Key) = struct
   let rec merge t1 t2 ~f =
     if phys_equal t1 t2 then t1 else match t1, t2 with
       | Nil, t | t, Nil -> t
+      | Tip (k1, v1), Tip (k2, v2) when K.equal k1 k2 ->
+        (* Reuse an existing leaf when the combiner keeps one side's value,
+           so the node reuse in the `Bin` cases can cascade upward. *)
+        let v = f ~key:k1 v1 v2 in
+        if phys_equal v v1 then t1
+        else if phys_equal v v2 then t2
+        else Tip (k1, v)
       | Tip (k, v1), t | t, Tip (k, v1) ->
         update t k ~f:(function
             | Some v2 -> f ~key:k v1 v2
