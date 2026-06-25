@@ -539,10 +539,11 @@ module Make(M : Machine_intf.S) = struct
         ~dests:M.Insn.dests in
     let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in
     let loop = Loop.analyze ~dom ~name:(Pseudo.Func.name fn) cfg in
-    let copies = LT.create () in
-    let insn_blks = LT.create ~capacity:(Func.num_insns fn) () in
+    let ninsn = Func.num_insns fn in
+    let copies = LT.create ~capacity:ninsn () in
+    let insn_blks = LT.create ~capacity:ninsn () in
     let id2rv = Vec.create () in
-    let wmoves_elts = LT.create () in
+    let wmoves_elts = LT.create ~capacity:ninsn () in
     let phi_var =
       Dict.find (Func.dict fn) Tags.phi_var |>
       Option.value ~default:Var.Set.empty in

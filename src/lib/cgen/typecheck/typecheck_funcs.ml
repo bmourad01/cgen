@@ -108,7 +108,7 @@ let check fn =
   let* () = args in
   let* () = slots in
   (* Be aware of duplicate labels for instructions. *)
-  let seen = LS.create () in
+  let seen = LS.create () ~capacity:(Func.num_insns fn) in
   let*? blks = try Ok (Func.map_of_blks fn) with
     | Invalid_argument msg -> Or_error.error_string msg in
   let cfg = Cfg.create fn in
