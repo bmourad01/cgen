@@ -6,98 +6,88 @@ open Regular.Std
 type key = int
 
 (** The bitset. *)
-type t = private Z.t [@@deriving compare, equal, sexp]
+type t [@@deriving compare, equal, sexp]
 
-(** The empty set. *)
-val empty : t
+(** [create ?capacity ()] is a fresh empty set. *)
+val create : ?capacity:int -> unit -> t
+
+(** Returns a copy of the set. *)
+val copy : t -> t
+
+(** The singleton set containing [key]. *)
+val singleton : key -> t
 
 (** Returns [true] if the set is empty. *)
 val is_empty : t -> bool
 
-(** Returns the singleton set of a key. *)
-val singleton : key -> t
-
-(** Set union. *)
-val union : t -> t -> t
-
-(** Set intersection. *)
-val inter : t -> t -> t
-
-(** Add an element to the set. *)
-val set : t -> key -> t
-
-(** Remove an element from the set. *)
-val clear : t -> key -> t
-
 (** Returns [true] if the element is in the set. *)
 val mem : t -> key -> bool
 
-(** Constructs the set where the first [n] elements
-    are set. *)
+(** Adds an element to the set. *)
+val add : t -> key -> unit
+
+(** Removes an element from the set. *)
+val remove : t -> key -> unit
+
+(** Removes all elements from the set. *)
+val clear : t -> unit
+
+(** Constructs the set where the first [n] elements are present. *)
 val init : int -> t
+
+(** [union a b] adds every element of [b] to [a]. *)
+val union : t -> t -> unit
+
+(** [inter a b] keeps only the elements of [a] that are also in [b]. *)
+val inter : t -> t -> unit
+
+(** [diff a b] removes every element of [b] from [a]. *)
+val diff : t -> t -> unit
+
+(** Returns the least element of the set, or [None] if empty. *)
+val min_elt : t -> key option
 
 (** Returns the least element of the set.
 
-    @raise Invalid_argument if the set is empty
+    Raises [Invalid_argument] if the set is empty.
 *)
 val min_elt_exn : t -> key
 
-(** Same as [min_elt_exn], but returns [None] if
-    the set is empty. *)
-val min_elt : t -> key option
+(** Returns the greatest element of the set, or [None] if empty. *)
+val max_elt : t -> key option
 
 (** Returns the greatest element of the set.
 
-    @raise Invalid_argument if the set is empty
+    Raises [Invalid_argument] if the set is empty.
 *)
 val max_elt_exn : t -> key
 
-(** Same as [max_elt_exn], but returns [None] if
-    the set is empty. *)
-val max_elt : t -> key option
+(** Removes and returns the least element of the set.
 
-(** Pops the least element of the set, returning the
-    element and the updated set.
-
-    @raise Invalid_argument if the set is empty
+    Raises [Invalid_argument] if the set is empty.
 *)
-val pop_min_elt_exn : t -> key * t
+val pop_min_exn : t -> key
 
-(** Same as [pop_min_elt_exn], but returns [None] if
-    the set is empty. *)
-val pop_min_elt : t -> (key * t) option
+(** Removes and returns the greatest element of the set.
 
-(** Pops the greatest element of the set, returning the
-    element and the updated set.
-
-    @raise Invalid_argument if the set is empty
+    Raises [Invalid_argument] if the set is empty.
 *)
-val pop_max_elt_exn : t -> key * t
+val pop_max_exn : t -> key
 
-(** Same as [pop_max_elt_exn], but returns [None] if
-    the set is empty. *)
-val pop_max_elt : t -> (key * t) option
+(** Produces the sequence of elements in the set, according to [rev].
 
-(** Set difference. *)
-val diff : t -> t -> t
-
-(** Produces the sequence of elements in the set,
-    according to [rev].
-
-    If [rev] is [true], then the order is descending,
-    otherwise, the order is ascending. The default is
-    [false].
+    If [rev] is [true], then the order is descending, otherwise the order is
+    ascending. The default is [false].
 *)
 val enum : ?rev:bool -> t -> key seq
 
 (** [fold ?rev t ~init ~f] folds over elements in ascending (or descending if
-    [rev]) order without allocating a sequence. *)
+    [rev]) order. *)
 val fold : ?rev:bool -> t -> init:'a -> f:('a -> key -> 'a) -> 'a
 
 (** [iter ?rev t ~f] iterates over elements in ascending (or descending if
-    [rev]) order without allocating a sequence. *)
+    [rev]) order. *)
 val iter : ?rev:bool -> t -> f:(key -> unit) -> unit
 
-(** [for_all t ~f] returns [true] iff [f] holds for every element (ascending
-    order, short-circuits on first [false]). *)
+(** [for_all t ~f] returns [true] iff [f] holds for every element. *)
 val for_all : t -> f:(key -> bool) -> bool

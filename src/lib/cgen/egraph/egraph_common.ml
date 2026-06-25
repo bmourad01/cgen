@@ -110,7 +110,7 @@ type t = {
   memo           : (enode, id) Hashtbl.t; (* The hash-cons for optimized terms. *)
   lmoved         : Iset.t LT.t;           (* Set of IDs that were moved to a given label. *)
   imoved         : Lset.t Vec.t;          (* Set of labels that were moved for a given ID. *)
-  mutable pinned : Bitset.t;              (* IDs that should not be rescheduled. *)
+  pinned         : Bitset.t;              (* IDs that should not be rescheduled. *)
   ilbl           : Label.t Uopt.t Vec.t;  (* Maps IDs to labels. *)
   lval           : id LT.t;               (* Maps labels to IDs. *)
   depth_limit    : int;                   (* Maximum rewrite depth. *)
@@ -144,7 +144,7 @@ let add_moved t id = function
     let init = Vec.get_exn t.imoved id in
     Vec.set_exn t.imoved id @@ List.fold ls ~init ~f:Lset.add
 
-let set_pinned t id = t.pinned <- Bitset.set t.pinned id
+let set_pinned t id = Bitset.add t.pinned id
 let is_pinned t id = Bitset.mem t.pinned id
 
 let typeof_var t x =

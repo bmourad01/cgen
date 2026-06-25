@@ -35,10 +35,9 @@ let create_placed id l = {
 }
 
 let add_placed p id l =
-  assert (not @@ Bitset.mem p.ids id); {
-    seq = Ftree.snoc p.seq l;
-    ids = Bitset.set p.ids id;
-  }
+  assert (not @@ Bitset.mem p.ids id);
+  Bitset.add p.ids id;
+  {p with seq = Ftree.snoc p.seq l}
 
 type env = {
   insn        : Insn.op LT.t;

@@ -103,7 +103,7 @@ type t = {
   table          : (cost * enode) OA.t;
   safe           : (cost * enode) OA.t;
   memo           : ext OA.t;
-  mutable impure : Bitset.t;
+  impure         : Bitset.t;
 }
 
 let rec pp_ext ppf = function
@@ -163,7 +163,7 @@ let op_cost : Enode.op -> cost = function
 let compute_popularity eg =
   let n = Vec.length eg.node in
   let seen1 = Array.create ~len:n (-1) in
-  let popular = ref Bitset.empty in
+  let popular = Bitset.create () in
   Vec.iteri eg.node ~f:(fun id -> function
       | N (Oset _, _) | U _ -> () (* skip signpost nodes *)
       | N (_, cs) ->
@@ -175,8 +175,8 @@ let compute_popularity eg =
               if prev < 0 then
                 seen1.(cid) <- pid
               else if prev <> pid then
-                popular := Bitset.set !popular cid));
-  !popular
+                Bitset.add popular cid));
+  popular
 
 (* Fill the table with the "best" terms for each e-class. *)
 module Saturation : sig
@@ -223,7 +223,7 @@ end = struct
   let go t =
     let pop = compute_popularity t.eg in
     (* First pass: undiscounted costs into safe table. *)
-    saturate t.safe t.eg Bitset.empty;
+    saturate t.safe t.eg (Bitset.create ());
     (* Second pass: popularity-aware costs into main table.
        Popular children still pay full opcode cost (avoiding
        cascade through decomposition chains), but are excluded
@@ -269,7 +269,7 @@ let init eg =
     table = OA.create ~len;
     safe = OA.create ~len;
     memo = OA.create ~len;
-    impure = Bitset.empty;
+    impure = Bitset.create ();
   } in
   Saturation.go t;
   debug_dump t;
@@ -309,7 +309,7 @@ let rec must_remain_fixed op args = match (op : Enode.op) with
 
 let prov t cid id op args =
   if must_remain_fixed op args then
-    let () = t.impure <- Bitset.set t.impure cid in
+    let () = Bitset.add t.impure cid in
     match labelof t.eg cid with
     | Some l -> Label l
     | None when id = cid -> Id {canon = cid; real = id}
@@ -328,19 +328,24 @@ let extract t =
     | None when Bitset.mem visiting cid ->
       (* Cycle in discounted table: fall back to safe table,
          which is guaranteed acyclic (no discount). *)
-      go t.safe Bitset.empty cid
+      go t.safe (Bitset.create ()) cid
     | None ->
-      let visiting = Bitset.set visiting cid in
+      (* `visiting` tracks the current DFS path for cycle detection, so we
+         add `cid` on the way down and remove it as we backtrack. *)
+      Bitset.add visiting cid;
       let open O.Let in
-      let* _, n = OA.unsafe_get tbl cid in
-      match n with
-      | N (op, cs) ->
-        let+ cs = O.List.map cs ~f:(go tbl visiting) in
-        let e = E (prov t cid id op cs, op, cs) in
-        OA.unsafe_set_some t.memo cid e;
-        e
-      | U {pre; post} ->
-        let id = find t.eg post in
-        assert (id = find t.eg pre);
-        go tbl visiting post in
-  go t.table Bitset.empty
+      let result =
+        let* _, n = OA.unsafe_get tbl cid in
+        match n with
+        | N (op, cs) ->
+          let+ cs = O.List.map cs ~f:(go tbl visiting) in
+          let e = E (prov t cid id op cs, op, cs) in
+          OA.unsafe_set_some t.memo cid e;
+          e
+        | U {pre; post} ->
+          let id = find t.eg post in
+          assert (id = find t.eg pre);
+          go tbl visiting post in
+      Bitset.remove visiting cid;
+      result in
+  go t.table (Bitset.create ())

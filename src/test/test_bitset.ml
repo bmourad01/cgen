@@ -16,11 +16,12 @@ let gen_key = Int.quickcheck_generator |> G.filter ~f:key_ok
 
 let gen_set =
   G.(list (tuple2 gen_key bool)) |> G.map ~f:(fun bits ->
-      List.fold bits ~init:B.empty ~f:(fun acc (k, on) ->
-          if on then B.set acc k else acc))
+      let s = B.create () in
+      List.iter bits ~f:(fun (k, on) -> if on then B.add s k);
+      s)
 
 let shr_set = S.create @@ fun s ->
-  B.enum s |> Seq.map ~f:(B.clear s)
+  B.enum s |> Seq.map ~f:(fun k -> let s' = B.copy s in B.remove s' k; s')
 
 let obs_set = O.unmap [%observer : int list]
     ~f:(Fn.compose Seq.to_list B.enum)
@@ -60,35 +61,41 @@ module With_key = struct
   let quickcheck_shrinker = S.tuple2 shr_set [%shrinker : int]
 end
 
+let un a b =
+  let r = B.copy a in
+  B.union r b;
+  r
+
+let it a b =
+  let r = B.copy a in
+  B.inter r b;
+  r
+
 let%test_unit "union is commutative" =
   T.run_exn (module Pair) ~f:(fun (a, b) ->
-      [%test_eq : B.t] (B.union a b) (B.union b a))
+      [%test_eq : B.t] (un a b) (un b a))
 
 let%test_unit "union is associative" =
   T.run_exn (module Triple) ~f:(fun (a, b, c) ->
-      [%test_eq : B.t]
-        (B.union a (B.union b c))
-        (B.union (B.union a b) c))
+      [%test_eq : B.t] (un a (un b c)) (un (un a b) c))
 
 let%test_unit "inter is commutative" =
   T.run_exn (module Pair) ~f:(fun (a, b) ->
-      [%test_eq : B.t] (B.inter a b) (B.inter b a))
+      [%test_eq : B.t] (it a b) (it b a))
 
 let%test_unit "inter is associative" =
   T.run_exn (module Triple) ~f:(fun (a, b, c) ->
-      [%test_eq : B.t]
-        (B.inter a (B.inter b c))
-        (B.inter (B.inter a b) c))
+      [%test_eq : B.t] (it a (it b c)) (it (it a b) c))
 
-let%test_unit "set / mem consistency" =
+let%test_unit "add / mem consistency" =
   T.run_exn (module With_key) ~f:(fun (s, k) ->
-      let s' = B.set s k in
-      assert (B.mem s' k))
+      B.add s k;
+      assert (B.mem s k))
 
-let%test_unit "clear / mem consistency" =
+let%test_unit "remove / mem consistency" =
   T.run_exn (module With_key) ~f:(fun (s, k) ->
-      let s' = B.clear s k in
-      assert (not (B.mem s' k)))
+      B.remove s k;
+      assert (not (B.mem s k)))
 
 let%test_unit "singleton has exactly one element" =
   T.run_exn (module Key) ~f:(fun k ->

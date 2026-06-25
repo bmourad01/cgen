@@ -20,7 +20,7 @@ let init (input : Input.t) depth_limit match_limit rules =
     typs = Vec.create ~capacity:n ();
     lmoved = LT.create ();
     imoved = Vec.create ();
-    pinned = Bitset.empty;
+    pinned = Bitset.create ();
     ilbl = Vec.create ();
     lval = LT.create ~capacity:n ();
     depth_limit;

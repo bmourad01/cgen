@@ -63,8 +63,8 @@ module Make(M : Machine_intf.S) = struct
   type data = {
     mutable degree     : int array;     (* Int.max_value = not yet seen *)
     mutable spill_cost : int array;     (* estimated spill cost of each node *)
-    mutable reg_bits   : Bitset.t;      (* IDs that are pre-colored regs *)
-    mutable slot_bits  : Bitset.t;      (* IDs that are stack-slot nodes *)
+    reg_bits           : Bitset.t;      (* IDs that are pre-colored regs *)
+    slot_bits          : Bitset.t;      (* IDs that are stack-slot nodes *)
     mutable nuse       : int array;     (* use count for each node *)
     mutable live       : Live.t option; (* liveness analysis *)
     mutable defs       : Lset.t array;  (* definition instructions for each node *)
@@ -80,8 +80,8 @@ module Make(M : Machine_intf.S) = struct
   let create_data () = {
     degree = [||];
     spill_cost = [||];
-    reg_bits = Bitset.empty;
-    slot_bits = Bitset.empty;
+    reg_bits = Bitset.create ();
+    slot_bits = Bitset.create ();
     nuse = [||];
     live = None;
     defs = [||];
@@ -95,13 +95,13 @@ module Make(M : Machine_intf.S) = struct
     rv2id                : id RT.t;        (* regvar to interned ID *)
     id2rv                : Rv.t Vec.t;     (* interned ID to regvar *)
     data                 : data;
-    mutable wsimplify    : Bitset.t;       (* simplify worklist *)
+    wsimplify            : Bitset.t;       (* simplify worklist *)
     wfreeze              : id_heap;        (* freeze worklist *)
     mutable wfreeze_elts : id_elt oarray;
-    mutable coalesced    : Bitset.t;       (* coalesced nodes *)
-    mutable colored      : Bitset.t;       (* colored nodes *)
-    mutable initial      : Bitset.t;       (* nodes not yet on a worklist *)
-    mutable spilled      : Bitset.t;       (* spilled nodes *)
+    coalesced            : Bitset.t;       (* coalesced nodes *)
+    colored              : Bitset.t;       (* colored nodes *)
+    initial              : Bitset.t;       (* nodes not yet on a worklist *)
+    spilled              : Bitset.t;       (* spilled nodes *)
     mutable keep         : Rv.Set.t;       (* nodes that are live at the exits *)
     wmoves               : label_heap;     (* worklist moves *)
     wmoves_elts          : label_elt LT.t;
@@ -111,7 +111,7 @@ module Make(M : Machine_intf.S) = struct
     mutable adjlist      : Bitset.t array; (* adjacency list of the interference graph *)
     mutable colors       : int array;      (* node colors, -1 = not yet colored *)
     mutable alias        : id array;       (* node aliases (from combine/coalesce) *)
-    mutable reload_bits  : Bitset.t;       (* IDs of reload temporaries from `rewrite_insn` *)
+    reload_bits          : Bitset.t;       (* IDs of reload temporaries from `rewrite_insn` *)
     wspill               : id_heap;
     mutable wspill_elts  : id_elt oarray;
     select               : id Stack.t;
@@ -141,7 +141,7 @@ module Make(M : Machine_intf.S) = struct
     let n = num_nodes t in
     t.data.degree <- Array.create ~len:n Int.max_value;
     t.data.spill_cost <- Array.create ~len:n 0;
-    t.adjlist <- Array.create ~len:n Bitset.empty;
+    t.adjlist <- Array.init n ~f:(fun _ -> Bitset.create ());
     t.data.nuse <- Array.create ~len:n 0;
     t.colors <- Array.create ~len:n (-1);
     t.alias <- Array.init n ~f:Fn.id;
@@ -184,24 +184,32 @@ module Make(M : Machine_intf.S) = struct
 
   (* NB: we include nodes that could be pre-colored as keys here. *)
   let add_adjlist t u v =
-    t.adjlist.(u) <- Bitset.set t.adjlist.(u) v
+    Bitset.add t.adjlist.(u) v
 
   (* NB: this is unidirectional *)
   let has_edge t u v = Bitset.mem t.adjlist.(u) v
+
+  (* A shared empty set returned for nodes excluded from coloring. Callers
+     only read the result of `adjlist` and `adjacent`, never mutate it. *)
+  let empty_adj = Bitset.create ()
 
   (* NB: since we include nodes that can be precolored as keys, we need to
      exclude them here. *)
   let adjlist t id =
     if can_be_colored t id
     then t.adjlist.(id)
-    else Bitset.empty
+    else empty_adj
 
   (* adjList[n] ∖ (selectStack ∪ coalescedNodes) *)
   let adjacent t id =
     let a = adjlist t id in
     if Bitset.is_empty a then a else
-      let removed = Stack.fold t.select ~init:t.coalesced ~f:Bitset.set in
-      Bitset.diff a removed
+      (* Copy `a` (the stored adjacency set), then remove the coalesced and
+         select-stack nodes in place. *)
+      let r = Bitset.copy a in
+      Bitset.diff r t.coalesced;
+      Stack.iter t.select ~f:(Bitset.remove r);
+      r
 
   let color t id = match Rv.which t.![id] with
     | First r -> Regs.reg_color r
@@ -217,7 +225,7 @@ module Make(M : Machine_intf.S) = struct
 
   let add_initial_id t id =
     if can_be_colored t id then
-      t.initial <- Bitset.set t.initial id
+      Bitset.add t.initial id
 
   let add_initial t rv = add_initial_id t @@ intern t rv
 
@@ -546,13 +554,13 @@ module Make(M : Machine_intf.S) = struct
       rv2id = RT.create ();
       id2rv;
       data;
-      wsimplify = Bitset.empty;
+      wsimplify = Bitset.create ();
       wfreeze = H.create ~cmp:wfreeze_cmp ();
       wfreeze_elts = Option_array.empty;
-      coalesced = Bitset.empty;
-      colored = Bitset.empty;
-      initial = Bitset.empty;
-      spilled = Bitset.empty;
+      coalesced = Bitset.create ();
+      colored = Bitset.create ();
+      initial = Bitset.create ();
+      spilled = Bitset.create ();
       keep = Rv.Set.empty;
       wmoves = H.create ~cmp:wmoves_cmp ();
       wmoves_elts;
@@ -562,7 +570,7 @@ module Make(M : Machine_intf.S) = struct
       adjlist = [||];
       colors = [||];
       alias = [||];
-      reload_bits = Bitset.empty;
+      reload_bits = Bitset.create ();
       wspill = H.create ~cmp:wspill_cmp ();
       wspill_elts = Option_array.empty;
       select = Stack.create ();
@@ -592,16 +600,16 @@ module Make(M : Machine_intf.S) = struct
        "initially live", which seeds the liveness analysis. *)
     let sp = Rv.reg M.Reg.sp in
     t.keep <- Set.add t.keep sp;
-    t.data.reg_bits <- Bitset.set t.data.reg_bits (intern t sp);
+    Bitset.add t.data.reg_bits (intern t sp);
     Func.rets t.fn |> Seq.iter ~f:(fun r ->
         let rv = Rv.reg r in
         let id = intern t rv in
         t.keep <- Set.add t.keep rv;
-        t.data.reg_bits <- Bitset.set t.data.reg_bits id);
+        Bitset.add t.data.reg_bits id);
     (* Record which nodes are precolored (hardcoded registers). *)
     Vec.iter t.id2rv ~f:(fun rv ->
         if Rv.is_reg rv then
-          t.data.reg_bits <- Bitset.set t.data.reg_bits t.$[rv]);
+          Bitset.add t.data.reg_bits t.$[rv]);
     (* Setup the remaining state for the first round. *)
     alloc_arrays t
 
@@ -615,12 +623,14 @@ module Make(M : Machine_intf.S) = struct
   *)
   let check_invariants t =
     let n = num_nodes t in
-    let wfreeze_set = H.fold t.wfreeze ~init:Bitset.empty ~f:Bitset.set in
-    let wspill_set = H.fold t.wspill ~init:Bitset.empty ~f:Bitset.set in
-    let active =
-      Bitset.union t.wsimplify
-        (Bitset.union wfreeze_set
-           (Bitset.union wspill_set t.data.reg_bits)) in
+    let wfreeze_set = Bitset.create () in
+    H.iter t.wfreeze ~f:(Bitset.add wfreeze_set);
+    let wspill_set = Bitset.create () in
+    H.iter t.wspill ~f:(Bitset.add wspill_set);
+    let active = Bitset.copy t.wsimplify in
+    Bitset.union active wfreeze_set;
+    Bitset.union active wspill_set;
+    Bitset.union active t.data.reg_bits;
     (* Degree invariant *)
     let check_degree id =
       let expected =
@@ -656,7 +666,8 @@ module Make(M : Machine_intf.S) = struct
         if d < k then
           failwithf "wspill invariant: id %d degree=%d < K=%d" id d k ());
     (* Partition invariant: each colorable node in exactly one set *)
-    let select_set = Stack.fold t.select ~init:Bitset.empty ~f:Bitset.set in
+    let select_set = Bitset.create () in
+    Stack.iter t.select ~f:(Bitset.add select_set);
     let partitions = [
       ("wsimplify", t.wsimplify);
       ("wfreeze",   wfreeze_set);

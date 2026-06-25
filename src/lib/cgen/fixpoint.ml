@@ -33,11 +33,11 @@ let components ~adj ~start ~n g =
   let stk = Vec.create ~capacity:n () in
   let sccs = Vec.create ~capacity:16 () in
   let work = Vec.create ~capacity:16 () in
-  let onstk = ref Bitset.empty in
+  let onstk = Bitset.create () in
   (* Visiting a node for the first time *)
   let visit l =
     let d = Vec.length nodes in
-    onstk := Bitset.set !onstk d;
+    Bitset.add onstk d;
     Tbl.set rnodes ~key:l ~data:d;
     Vec.push nodes l;
     Vec.push low d;
@@ -49,15 +49,15 @@ let components ~adj ~start ~n g =
   (* Construct the component *)
   let construct d =
     assert (not @@ Vec.is_empty stk);
-    let scc = ref Bitset.empty in
+    let scc = Bitset.create () in
     let go = ref true in
     while !go do
       let m = Vec.pop_exn stk in
-      onstk := Bitset.clear !onstk m;
-      scc := Bitset.set !scc m;
+      Bitset.remove onstk m;
+      Bitset.add scc m;
       if m = d then go := false
     done;
-    Vec.push sccs !scc in
+    Vec.push sccs scc in
   (* Perform our DFS. *)
   visit start;
   while not (Vec.is_empty work) do
@@ -75,7 +75,7 @@ let components ~adj ~start ~n g =
       d.adj <- rest;
       match Tbl.find rnodes s with
       | None -> visit s
-      | Some s when Bitset.mem !onstk s ->
+      | Some s when Bitset.mem onstk s ->
         (* Back-edge: update lowlink *)
         if s < low.![d.pre] then low.![d.pre] <- s
       | Some _ -> ()
@@ -105,13 +105,15 @@ let run (type g) (module G : Label.Graph_s with type t = g)
       | Some i -> approx.(i) <- data
       | None -> ());
   let visits = Array.create ~len 0 in
+  let scc_of = Array.create ~len (-1) in
+  Vec.iteri sccs ~f:(fun ci scc ->
+      Bitset.iter scc ~f:(fun m -> scc_of.(m) <- ci));
   (* Two-level iteration: outer pass over SCCs in topological
      order, inner worklist within each SCC until convergence. *)
-  Vec.iter sccs ~f:(fun scc ->
-      let worklist = ref scc in
-      while not (Bitset.is_empty !worklist) do
-        let node, rest = Bitset.pop_min_elt_exn !worklist in
-        worklist := rest;
+  Vec.iteri sccs ~f:(fun ci scc ->
+      (* `scc` doubles as the worklist here. *)
+      while not (Bitset.is_empty scc) do
+        let node = Bitset.pop_min_exn scc in
         let out = f nodes.![node] approx.(node) in
         List.iter succs.(node) ~f:(fun s ->
             let prev = approx.(s) in
@@ -124,10 +126,10 @@ let run (type g) (module G : Label.Graph_s with type t = g)
               | Some step ->
                 visits.(s) <- visits.(s) + 1;
                 step visits.(s) nodes.![s] prev next in
-            if not (equal prev next) then
-              let () = approx.(s) <- next in
-              if Bitset.mem scc s then
-                worklist := Bitset.set !worklist s)
+            if not (equal prev next) then begin
+              approx.(s) <- next;
+              if scc_of.(s) = ci then Bitset.add scc s
+            end)
       done);
   (* Reconstruct solution, omitting default-valued entries. *)
   let map = Array.foldi approx ~init:Ltree.empty ~f:(fun i acc v ->

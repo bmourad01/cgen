@@ -120,8 +120,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             else if Wmoves.move_related t id then
               Wfreeze.add t id
             else
-              t.wsimplify <- Bitset.set t.wsimplify id));
-    t.initial <- Bitset.empty
+              Bitset.add t.wsimplify id));
+    Bitset.clear t.initial
 
   let enable_moves_one t n =
     (* ∀ m ∈ NodeMoves(n) *)
@@ -154,9 +154,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
          degree[m] := d-1 *)
       dec_degree t id;
       (* if d = K then *)
-      if d = id_k t id then begin
+      if d = id_k t id then
         (* EnableMoves({m} ∪ Adjacent(m)) *)
-        enable_moves t (Bitset.set (adjacent t id) id);
+        let adj = adjacent t id in
+        if Bitset.is_empty adj
+        then enable_moves_one t id
+        else begin
+          Bitset.add adj id;
+          enable_moves t adj
+        end;
         (* spillWorklist := spillWorklist ∖ {m} *)
         Wspill.remove t id;
         (* if MoveRelated(m) then
@@ -165,15 +171,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
              simplifyWorklist := simplifyWorklist ∪ {m} *)
         if Wmoves.move_related t id
         then Wfreeze.add t id
-        else t.wsimplify <- Bitset.set t.wsimplify id
-      end
+        else Bitset.add t.wsimplify id
 
   (* pre: wsimplify is not empty *)
   let simplify t =
     (* let n ∈ simplifyWorklist
        simplifyWorklist := simplifyWorklist ∖ {n} *)
-    let id, wsimplify' = Bitset.pop_min_elt_exn t.wsimplify in
-    t.wsimplify <- wsimplify';
+    let id = Bitset.pop_min_exn t.wsimplify in
     (* push(n, selectStack) *)
     if can_be_colored t id then begin
       Logs.debug (fun m -> m "%s: selecting %a%!" __FUNCTION__ Rv.pp t.![id]);
@@ -194,7 +198,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* freezeWorklist := freezeWorklist ∖ {u} *)
       Wfreeze.remove t id;
       (* simplifyWorklist := simplifyWorklist ∪ {u} *)
-      t.wsimplify <- Bitset.set t.wsimplify id;
+      Bitset.add t.wsimplify id;
     end
 
   let george_ok t a r =
@@ -230,7 +234,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* Conservative(Adjacent(u) ∪ Adjacent(v)) *)
   let conservative_adj t u v =
     assert (same_cls t u v);
-    let nodes = Bitset.union (adjacent t u) (adjacent t v) in
+    let nodes = Bitset.copy (adjacent t u) in
+    Bitset.union nodes (adjacent t v);
     let nk = id_k t u in
     let k = conservative t nodes in
     Logs.debug (fun m ->
@@ -277,7 +282,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (* spillWorklist := spillWorklist ∖ {v} *)
       Wspill.remove t v;
     (* coalescedNodes := coalescedNodes ∪ {v} *)
-    t.coalesced <- Bitset.set t.coalesced v;
+    Bitset.add t.coalesced v;
     (* alias[v] := u *)
     t.alias.(v) <- u;
     (* nodeMoves[u] := nodeMoves[u] ∪ nodeMoves[v] *)
@@ -406,7 +411,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           (* freezeWorklist := freezeWorklist ∖ {v} *)
           Wfreeze.remove t v;
           (* simplifyWorklist := simplifyWorklist ∪ {v} *)
-          t.wsimplify <- Bitset.set t.wsimplify v;
+          Bitset.add t.wsimplify v;
         end else
           Wfreeze.update t v)
 
@@ -417,7 +422,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let u = Wfreeze.pop_exn t in
     Logs.debug (fun m -> m "%s: frozen node u=%a%!" __FUNCTION__ Rv.pp t.![u]);
     (* simplifyWorklist := simplifyWorklist ∪ {u} *)
-    t.wsimplify <- Bitset.set t.wsimplify u;
+    Bitset.add t.wsimplify u;
     (* FreezeMoves(u) *)
     freeze_moves t u
 
@@ -439,13 +444,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* For all neighbors of `id` that have a color, remove them from the
      set of his available colors. *)
   let free_colors t id k =
+    let cs = Bitset.init k in
     (* ∀ w ∈ adjList[n] *)
     adjlist t id |> Bitset.enum |> Seq.map ~f:(alias t) |>
     (* if GetAlias(w) ∈ (coloredNodes ∪ precolored) then *)
     Seq.filter ~f:(fun w -> is_register t w || is_colored t w) |>
     (* okColors := okColors ∖ {color[GetAlias(w)]} *)
     Seq.filter_map ~f:(color t) |>
-    Seq.fold ~init:(Bitset.init k) ~f:Bitset.clear
+    Seq.iter ~f:(Bitset.remove cs);
+    cs
 
   (* If a copy-related neighbor is already colored with a color in `cs`,
      return that color. This is known as move biasing: by reusing the
@@ -470,10 +477,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         match Bitset.min_elt cs with
         | None ->
           (* spilledNodes := spilledNodes ∪ {n} *)
-          t.spilled <- Bitset.set t.spilled id
+          Bitset.add t.spilled id
         | Some default ->
           (* coloredNodes := coloredNodes ∪ {n} *)
-          t.colored <- Bitset.set t.colored id;
+          Bitset.add t.colored id;
           (* Prefer a color that eliminates a copy (move biasing),
              falling back to the minimum available color. *)
           let c = Option.value (preferred_color t id cs) ~default in
@@ -550,7 +557,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                   m "%s: re-using slot %a for spilled node %a%!"
                     __FUNCTION__ Rv.pp r' Rv.pp r);
               RT.set t.slots ~key:r ~data:r';
-              t.data.slot_bits <- Bitset.set t.data.slot_bits rid;
+              Bitset.add t.data.slot_bits rid;
               acc, update_slot_map m size r' in
             match preferred_slot t id with
             | Some r' -> reuse r'
@@ -563,7 +570,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                       __FUNCTION__ Rv.pp r);
                 let s = Virtual.Slot.create_exn v ~size ~align:size in
                 RT.set t.slots ~key:r ~data:r;
-                t.data.slot_bits <- Bitset.set t.data.slot_bits rid;
+                Bitset.add t.data.slot_bits rid;
                 s :: acc, Map.add_multi m ~key:size ~data:r) in
     t.fn <- Func.insert_slots t.fn slots
 
@@ -647,7 +654,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                Infinite spill cost forces original variables to be simplified
                first, dropping the reload temps below K so they move to
                `wsimplify` and get colored rather than actually spilled. *)
-            t.reload_bits <- Bitset.set t.reload_bits t.$[v'];
+            Bitset.add t.reload_bits t.$[v'];
             RT.set t.types ~key:v' ~data:ty;
             f', s', m', rl) in
     (* Apply the substitution to the existing instruction. *)
@@ -694,13 +701,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let* () = make_slots t in
     let+ () = rewrite_function t in
     (* spilledNodes := {} *)
-    t.spilled <- Bitset.empty;
-    (* initial := coloredNodes ∪ coalescedNodes *)
-    t.initial <- Bitset.union t.initial (Bitset.union t.colored t.coalesced);
+    Bitset.clear t.spilled;
+    (* initial := initial ∪ coloredNodes ∪ coalescedNodes *)
+    Bitset.union t.initial t.colored;
+    Bitset.union t.initial t.coalesced;
     (* coloredNodes := {} *)
-    t.colored <- Bitset.empty;
+    Bitset.clear t.colored;
     (* coalescedNodes := {} *)
-    t.coalesced <- Bitset.empty
+    Bitset.clear t.coalesced
 
   (* Clear the relevant state for the next round. *)
   let new_round t =
