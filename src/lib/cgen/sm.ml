@@ -104,13 +104,25 @@ module Make(M : S) = struct
   module List = struct
     include List
 
-    (* The derived List.map in the Monads library will accumulate (and
-       unwrap the monadic terms) in reverse order, which is not what we
-       want for generating fresh labels. *)
+    (* The derived `List.map` in the `Monads` library will accumulate
+       and unwrap the monadic terms in reverse order, which is not what
+       we want for generating fresh labels. *)
     let map l ~f =
-      fold l ~init:[] ~f:(fun acc x ->
-          f x >>| Base.Fn.flip Base.List.cons acc) >>|
-      Base.List.rev
+      let rec aux l k = match l with
+        | [] -> k []
+        | x :: xs ->
+          f x >>= fun y ->
+          aux xs (fun ys -> k (y :: ys)) in
+      aux l return
+
+    let filter_map l ~f =
+      let rec aux l k = match l with
+        | [] -> k []
+        | x :: xs ->
+          f x >>= function
+          | None -> aux xs k
+          | Some y -> aux xs (fun ys -> k (y :: ys)) in
+      aux l return
 
     let all = map ~f:Base.Fn.id
   end
@@ -118,9 +130,27 @@ module Make(M : S) = struct
   module Seq = struct
     include Seq
 
+    (* Like the custom `List.map` above, accumulate in order via CPS rather
+       than `Base.Sequence.append`, which is quadratic (each step nests an
+       `append`, so forcing the result is O(n^2)). The monadic effects are
+       run eagerly regardless. The result is a pure sequence, so every `f x`
+       must run during this computation. *)
     let map s ~f =
-      fold s ~init:Base.Sequence.empty ~f:(fun acc x ->
-          f x >>| fun x -> Base.Sequence.(append acc @@ return x))
+      let rec aux s k = match Base.Sequence.next s with
+        | None -> k []
+        | Some (x, xs) ->
+          f x >>= fun y ->
+          aux xs (fun ys -> k (y :: ys)) in
+      aux s (fun ys -> return @@ Base.Sequence.of_list ys)
+
+    let filter_map s ~f =
+      let rec aux s k = match Base.Sequence.next s with
+        | None -> k []
+        | Some (x, xs) ->
+          f x >>= function
+          | None -> aux xs k
+          | Some y -> aux xs (fun ys -> k (y :: ys)) in
+      aux s (fun ys -> return @@ Base.Sequence.of_list ys)
 
     let all = map ~f:Base.Fn.id
   end
