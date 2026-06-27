@@ -48,10 +48,14 @@ module Make(M : Machine_intf.S) = struct
   module Live = Pseudo_passes.Live(M)
   module Loop = Loops.Make(Cfg)
 
+  (* Used for `is_trivial_du` *)
+  type triviality = Untested | Trivial | Nontrivial
+
   type copy = {
-    dst  : id;
-    src  : id;
-    loop : int;
+    dst             : id;
+    src             : id;
+    loop            : int;
+    mutable trivial : triviality;
   }
 
   (* Per-node data read by heap comparison functions (spill cost, move
@@ -363,11 +367,7 @@ module Make(M : Machine_intf.S) = struct
         Seq.for_all ~f:(fun d ->
             match LT.find insn_blks d with
             | None -> false
-            | Some (bd, od) when Label.(bm = bd) ->
-              Logs.debug (fun m ->
-                  m "%s: bm=%a, om=%d, bd=%a, od=%d%!"
-                    __FUNCTION__ Label.pp bm om Label.pp bd od);
-              od < om
+            | Some (bd, od) when Label.(bm = bd) -> od < om
             | Some (bd, _) ->
               Semi_nca.Tree.is_descendant_of dom ~parent:bd bm)
 
@@ -406,7 +406,10 @@ module Make(M : Machine_intf.S) = struct
         let p = w /. Float.of_int (1 + du + dv) in
         (* If this move is trivially coalescable, bump the weight so that
            it can coalesce earlier. *)
-        let trivial = is_trivial_du_impl data ~insn_blks ~id2rv ~dom m c.src in
+        let trivial = match c.trivial with
+          | Trivial -> true
+          | Nontrivial -> false
+          | Untested -> is_trivial_du_impl data ~insn_blks ~id2rv ~dom m c.src in
         let p = if trivial then p *. 2.0 else p in
         (* If one of the nodes is pre-colored, this coalesce will be much
            riskier. If both are pre-colored, avoid at all costs (see
@@ -419,6 +422,11 @@ module Make(M : Machine_intf.S) = struct
         ~id2rv:t.id2rv
         ~dom:t.dom
         m v
+
+    (* Cache the results of `is_trivial_du` *)
+    let finalize_trivial t =
+      LT.iteri t.copies ~f:(fun ~key:m ~data:c ->
+          c.trivial <- if is_trivial_du t m c.src then Trivial else Nontrivial)
 
     let priority t m =
       priority_impl t.data

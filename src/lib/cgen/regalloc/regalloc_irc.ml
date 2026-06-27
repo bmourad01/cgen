@@ -66,6 +66,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           dst = d;
           src = s;
           loop = loop_depth;
+          trivial = Untested;
         };
         (* Persist phi-copy relationships for cross-round slot coalescing.
            `t.copies` is cleared each round, but `phi_pairs` survives. *)
@@ -740,6 +741,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Bitset.iter t.reload_bits ~f:(fun id ->
         t.data.spill_cost.(id) <- Int.max_value);
     make_worklist t;
+    Wmoves.finalize_trivial t;
     (* Process the worklists. *)
     let continue = ref true in
     while !continue do
