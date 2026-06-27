@@ -83,46 +83,6 @@ let of_const : const -> t = function
   | `float s -> N (Osingle s, [])
   | `sym (s, o) -> N (Osym (s, o), [])
 
-let infer_ty_binop : Virtual.Insn.binop -> Type.t option = function
-  | `add t
-  | `div t
-  | `mul t
-  | `sub t -> Some (t :> Type.t)
-  | `rem t
-  | `mulh t
-  | `udiv t
-  | `umulh t
-  | `urem t
-  | `and_ t
-  | `or_ t
-  | `asr_ t
-  | `lsl_ t
-  | `lsr_ t
-  | `rol t
-  | `ror t
-  | `xor t -> Some (t :> Type.t)
-  | #Virtual.Insn.cmp -> Some `flag
-
-let infer_ty_unop : Virtual.Insn.unop -> Type.t option = function
-  | `neg t
-  | `copy t -> Some (t :> Type.t)
-  | `clz t
-  | `ctz t
-  | `not_ t
-  | `popcnt t
-  | `flag t
-  | `ftosi (_, t)
-  | `ftoui (_, t)
-  | `itrunc t
-  | `sext t
-  | `zext t -> Some (t :> Type.t)
-  | `ifbits t -> Some (t :> Type.t)
-  | `fext t
-  | `fibits t
-  | `ftrunc t
-  | `sitof (_, t)
-  | `uitof (_, t) -> Some (t :> Type.t)
-
 let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
   | U {pre; post} ->
     let tpre = tid pre in
@@ -132,7 +92,7 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
         x)
   | N (o, _) -> match o with
     | Oaddr _ -> Some word
-    | Obinop b -> infer_ty_binop b
+    | Obinop b -> Some (Insn.typeof_binop b :> Type.t)
     | Obool _ -> Some `flag
     | Obr -> None
     | Ocall0 _ -> None
@@ -156,7 +116,7 @@ let infer_ty ~tid ~tty ~tvar ~word : t -> Type.t option = function
     | Osw _ -> None
     | Osym _ -> Some word
     | Otbl _ -> None
-    | Ounop u -> infer_ty_unop u
+    | Ounop u -> Some (Insn.typeof_unop u :> Type.t)
     | Ovaarg (_, (#Type.basic as t)) -> Some (t :> Type.t)
     | Ovaarg (_, `name n) -> tty n
     | Ovar x -> tvar x

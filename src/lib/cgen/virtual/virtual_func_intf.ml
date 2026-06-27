@@ -75,6 +75,9 @@ module type S = sig
   (** Returns the arguments of the function, along with their types. *)
   val args : ?rev:bool -> t -> (arg * argt) seq
 
+  (** [fold_args ?rev fn ~init ~f] folds [f] over the arguments of [fn]. *)
+  val fold_args : ?rev:bool -> t -> init:'a -> f:('a -> arg * argt -> 'a) -> 'a
+
   (** Returns [true] if the function has at least one argument. *)
   val has_any_args : t -> bool
 

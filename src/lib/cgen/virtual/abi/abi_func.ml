@@ -90,6 +90,11 @@ let entry fn = Abi_blk.label @@ Ftree.head_exn fn.blks
 let args ?(rev = false) fn = Ftree.enum fn.args ~rev
 let has_any_args fn = not (Ftree.is_empty fn.args)
 let num_args fn = Ftree.length fn.args
+
+let fold_args ?(rev = false) fn ~init ~f =
+  if rev then Ftree.fold_right fn.args ~init ~f:(fun x acc -> f acc x)
+  else Ftree.fold fn.args ~init ~f
+
 let dict fn = fn.dict
 let with_dict fn dict = {fn with dict}
 let with_tag fn tag x = {fn with dict = Dict.set fn.dict tag x}

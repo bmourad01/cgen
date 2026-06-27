@@ -29,6 +29,9 @@ let pp_binop = Insn.pp_binop
 let pp_unop = Insn.pp_unop
 let pp_basic = Insn.pp_basic
 
+let typeof_binop = Insn.typeof_binop
+let typeof_unop = Insn.typeof_unop
+
 type mem = [
   | `load  of Var.t * Type.basic * operand
   | `store of Type.basic * operand * operand

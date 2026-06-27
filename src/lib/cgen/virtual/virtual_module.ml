@@ -36,6 +36,22 @@ let name m = m.name
 let typs ?(rev = false) m = Ftree.enum m.typs ~rev
 let data ?(rev = false) m = Ftree.enum m.data ~rev
 let funs ?(rev = false) m = Ftree.enum m.funs ~rev
+
+let fold_field t ?(rev = false) ~init ~f =
+  if rev then Ftree.fold_right t ~init ~f:(fun x acc -> f acc x)
+  else Ftree.fold t ~init ~f
+
+let iter_field t ?(rev = false) ~f () =
+  if rev then Ftree.iter_rev t ~f else Ftree.iter t ~f
+
+let fold_typs ?rev m ~init ~f = fold_field m.typs ?rev ~init ~f
+let fold_data ?rev m ~init ~f = fold_field m.data ?rev ~init ~f
+let fold_funs ?rev m ~init ~f = fold_field m.funs ?rev ~init ~f
+
+let iter_typs ?rev m ~f = iter_field m.typs ?rev ~f ()
+let iter_data ?rev m ~f = iter_field m.data ?rev ~f ()
+let iter_funs ?rev m ~f = iter_field m.funs ?rev ~f ()
+
 let has_name m name = String.(name = m.name)
 let hash m = String.hash m.name
 let dict fn = fn.dict

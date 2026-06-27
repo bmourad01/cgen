@@ -186,6 +186,26 @@ let pp_unop ppf : unop -> unit = function
   | #cast as c -> Format.fprintf ppf "%a" pp_cast c
   | #copy as c -> Format.fprintf ppf "%a" pp_copy c
 
+(* The result type of a binary operation. Comparisons produce a flag,
+   everything else preserves the operand type. *)
+let typeof_binop : binop -> [Type.basic | `flag] = function
+  | `add t | `div t | `mul t | `sub t -> (t :> [Type.basic | `flag])
+  | `mulh t | `rem t | `udiv t | `umulh t | `urem t
+  | `and_ t | `or_ t | `asr_ t | `lsl_ t | `lsr_ t
+  | `rol t | `ror t | `xor t -> (t :> [Type.basic | `flag])
+  | #cmp -> `flag
+
+(* The result type of a unary operation. Always a basic type, carried
+   directly by the opcode (for casts, the destination type). *)
+let typeof_unop : unop -> Type.basic = function
+  | `neg t | `copy t -> t
+  | `clz t | `ctz t | `not_ t | `popcnt t
+  | `flag t | `itrunc t | `sext t | `zext t
+  | `ftosi (_, t) | `ftoui (_, t) -> (t :> Type.basic)
+  | `ifbits t -> (t :> Type.basic)
+  | `fext t | `fibits t | `ftrunc t
+  | `sitof (_, t) | `uitof (_, t) -> (t :> Type.basic)
+
 type basic = [
   | `bop of Var.t * binop * operand * operand
   | `uop of Var.t * unop  * operand
@@ -321,6 +341,28 @@ let op_has_lhs d v = match lhs_of_op d with
   | Some x -> Var.(x = v)
   | None -> false
 
+(* The declared return type of a call, normalizing sign-extended returns
+   to their underlying immediate type. *)
+let typeof_ret : Type.ret -> [Type.arg | `flag] = function
+  | #Type.arg as a -> (a :> [Type.arg | `flag])
+  | `si8 -> `i8
+  | `si16 -> `i16
+  | `si32 -> `i32
+
+(* The type of the value assigned by an operation, if it assigns one.
+   Named (aggregate) result types are returned unresolved as [`name n];
+   the caller resolves them against its type environment. *)
+let typeof_op : op -> [Type.arg | `flag] option = function
+  | `bop (_, b, _, _) -> Some (typeof_binop b :> [Type.arg | `flag])
+  | `uop (_, u, _) -> Some (typeof_unop u :> [Type.arg | `flag])
+  | `sel (_, t, _, _, _) -> Some (t :> [Type.arg | `flag])
+  | `load (_, t, _) -> Some (t :> [Type.arg | `flag])
+  | `vaarg (_, t, _) -> Some (t :> [Type.arg | `flag])
+  | `call (Some (_, t), _, _, _, _) -> Some (typeof_ret t)
+  | `call (None, _, _, _, _) -> None
+  | `store _ -> None
+  | `vastart _ -> None
+
 let free_vars_of_op : op -> Vset.t = function
   | #basic    as b -> free_vars_of_basic b
   | #call     as c -> free_vars_of_call c
@@ -347,6 +389,7 @@ let has_label i l = Label.(i.label = l)
 let map i ~f = {i with op = f i.op}
 let lhs i = lhs_of_op i.op
 let has_lhs i v = op_has_lhs i.op v
+let typeof i = typeof_op i.op
 let free_vars i = free_vars_of_op i.op
 let dict i = i.dict
 let with_dict i dict = {i with dict}

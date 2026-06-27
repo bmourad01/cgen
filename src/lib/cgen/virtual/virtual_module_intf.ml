@@ -15,6 +15,18 @@ module type S = sig
   (** Functions defined in the module. *)
   val funs : ?rev:bool -> t -> func seq
 
+  (** [fold_data ?rev m ~init ~f] folds [f] over the structs of [m]. *)
+  val fold_data : ?rev:bool -> t -> init:'a -> f:('a -> data -> 'a) -> 'a
+
+  (** [fold_funs ?rev m ~init ~f] folds [f] over the functions of [m]. *)
+  val fold_funs : ?rev:bool -> t -> init:'a -> f:('a -> func -> 'a) -> 'a
+
+  (** [iter_data ?rev m ~f] applies [f] to each struct of [m]. *)
+  val iter_data : ?rev:bool -> t -> f:(data -> unit) -> unit
+
+  (** [iter_funs ?rev m ~f] applies [f] to each function of [m]. *)
+  val iter_funs : ?rev:bool -> t -> f:(func -> unit) -> unit
+
   (** Returns the dictionary of the module. *)
   val dict : t -> Dict.t
 

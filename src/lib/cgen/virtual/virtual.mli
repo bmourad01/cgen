@@ -230,6 +230,20 @@ module Insn : sig
   (** [has_lhs d x] returns [true] if the instruction [d] assigns the
       variable [x]. *)
   val op_has_lhs : op -> Var.t -> bool
+
+  (** The type of the value assigned by an operation, if it assigns one.
+
+      Named (aggregate) result types are returned unresolved as [`name n].
+      The caller is responsible for resolving them against its type
+      environment.
+
+      Sign-extended call returns are normalized to their underlying
+      immediate type.
+  *)
+  val typeof_op : op -> [Type.arg | `flag] option
+
+  (** Same as [typeof_op (op i)]. *)
+  val typeof : t -> [Type.arg | `flag] option
 end
 
 type insn = Insn.t [@@deriving bin_io, compare, equal, sexp]
@@ -531,6 +545,12 @@ module Module : sig
 
   (** Declared (compound) types that are visible in the module. *)
   val typs : ?rev:bool -> t -> Type.named seq
+
+  (** [fold_typs ?rev m ~init ~f] folds [f] over the types of [m]. *)
+  val fold_typs : ?rev:bool -> t -> init:'a -> f:('a -> Type.named -> 'a) -> 'a
+
+  (** [iter_typs ?rev m ~f] applies [f] to each type of [m]. *)
+  val iter_typs : ?rev:bool -> t -> f:(Type.named -> unit) -> unit
 
   (** Appends a type to the module. *)
   val insert_type : t -> Type.named -> t

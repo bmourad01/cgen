@@ -255,6 +255,16 @@ module type S = sig
 
   (** Pretty-prints a basic instruction. *)
   val pp_basic : Format.formatter -> basic -> unit
+
+  (** The result type of a binary operation.
+
+      Comparisons produce [`flag]. All other operations preserve their
+      operand type.
+  *)
+  val typeof_binop : binop -> [Type.basic | `flag]
+
+  (** The result type of a unary operation. *)
+  val typeof_unop : unop -> Type.basic
 end
 
 module type Mem = sig
