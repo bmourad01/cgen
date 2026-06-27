@@ -31,7 +31,7 @@ module Stmt = Structured_stmt
 *)
 type t = {
   fn   : func;
-  tenv : Typecheck.env;
+  tenv : Type_env.t;
   blks : blk Ltree.t;
   cfg  : cfg;
   pdom : DT.t;
@@ -242,11 +242,11 @@ module Make(C : Context_intf.S) = struct
   open C.Syntax
 
   let typeof_var t x =
-    Typecheck.Env.typeof_var t.fn x t.tenv |>
+    Type_env.typeof_var t.fn x t.tenv |>
     C.lift_err ~prefix:"Restructure"
 
   let layout t name =
-    Typecheck.Env.layout name t.tenv |>
+    Type_env.layout name t.tenv |>
     C.lift_err ~prefix:"Restructure"
 
   module W = Windmill.Make(C)

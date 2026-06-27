@@ -207,7 +207,7 @@ type vaarg = {
 type env = {
   fn            : func;                (* The original function. *)
   blks          : blk Label.Tree.t;    (* Map of basic blocks. *)
-  tenv          : Typecheck.env;       (* Typing environment. *)
+  tenv          : Type_env.t;          (* Typing environment. *)
   rets          : ret LT.t;            (* Lowered `ret` instructions. *)
   calls         : call LT.t;           (* Lowered `call` instructions. *)
   tailcalls     : LS.t;                (* Labels of tail-call-eligible calls. *)
@@ -275,7 +275,7 @@ module Make0(Context : Context_intf.S) = struct
         Var.pps x (Func.name env.fn) ()
 
   let resolve_union env name =
-    match Typecheck.Env.layout name env.tenv with
+    match Type_env.layout name env.tenv with
     | Error _ -> Seq.empty
     | Ok lt -> match Type.Layout.members lt with
       | Second dss -> dss
@@ -284,7 +284,7 @@ module Make0(Context : Context_intf.S) = struct
   let type_cls env s = match Hashtbl.find env.layout s with
     | Some k -> !!k
     | None ->
-      let+? lt = Typecheck.Env.layout s env.tenv in
+      let+? lt = Type_env.layout s env.tenv in
       let k = classify_layout ~gamma:(resolve_union env) lt in
       Hashtbl.set env.layout ~key:s ~data:k;
       k
@@ -295,9 +295,9 @@ module Make0(Context : Context_intf.S) = struct
 
   let typeof_var env x =
     Context.lift_err ~prefix:"Sysv" @@
-    Typecheck.Env.typeof_var env.fn x env.tenv
+    Type_env.typeof_var env.fn x env.tenv
 
-  let word env = (Target.word (Typecheck.Env.target env.tenv) :> Type.t)
+  let word env = (Target.word (Type_env.target env.tenv) :> Type.t)
 
   let typeof_operand env : operand -> Type.t Context.t = function
     | `int (_, t) -> !!(t :> Type.t)

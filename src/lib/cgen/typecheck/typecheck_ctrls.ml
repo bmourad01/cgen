@@ -104,7 +104,7 @@ let ctrl_sw blks t v d tbl =
   let* env = getenv and* fn = getfn in
   let*? tv = match v with
     | `var v -> Env.typeof_var fn v env
-    | `sym _ -> Ok (Target.word env.target :> Type.t) in
+    | `sym _ -> Ok (Target.word (Env.target env) :> Type.t) in
   if Type.(t' = tv) then
     let* () = check_dst blks (d :> dst) in
     Ctrl.Table.enum tbl |> M.Seq.iter ~f:(fun (i, l) ->

@@ -290,5 +290,5 @@ end
 
 (** Restructure the control flow of a [Virtual] function. *)
 module Restructure(C : Context_intf.S) : sig
-  val run : tenv:Typecheck.env -> Virtual.func -> func C.t
+  val run : tenv:Type_env.t -> Virtual.func -> func C.t
 end

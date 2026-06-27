@@ -25,7 +25,7 @@ module VT = Var.Dense_table
 exception Non_basic
 
 let typeof tenv env fn x =
-  match Typecheck.Env.typeof_var fn x tenv with
+  match Type_env.typeof_var fn x tenv with
   | Ok t -> t
   | Error _ -> match VT.find env.typs x with
     | Some t -> t

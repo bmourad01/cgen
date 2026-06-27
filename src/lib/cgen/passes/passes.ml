@@ -40,14 +40,19 @@ let restructure ~tenv m =
     ~name:(Module.name m)
 
 let retype tenv m =
-  Module.funs m |> Seq.to_list |> Typecheck.update_fns tenv
+  Module.funs m |> Seq.to_list |> Type_env.collect_fns tenv
+
+let typecheck ?(invariants = false) m =
+  Context.when_ invariants @@ fun () ->
+  let* target = Context.target in
+  Context.lift_err @@ Typecheck.check m ~target
 
 let initialize ?(invariants = false) m =
   let* target = Context.target in
   let m = Module.map_funs m ~f:Remove_disjoint_blks.run in
-  let*? tenv = Typecheck.run m ~target in
+  let* () = typecheck ~invariants m in
   let* m = Context.Virtual.Module.map_funs m ~f:(Ssa.run ~check:invariants) in
-  let+? tenv = retype tenv m in
+  let+? tenv = Type_env.collect m ~target in
   tenv, m
 
 let optimize ?(invariants = false) tenv m =
@@ -73,7 +78,8 @@ let optimize ?(invariants = false) tenv m =
   let* m = Cv.Module.map_funs m ~f:(Simplify_cfg.run tenv) in
   let*? tenv = retype tenv m in
   let*? m = Module.map_funs_err m ~f:Remove_dead_vars.run in
-  let+? tenv = retype tenv m in
+  let*? tenv = retype tenv m in
+  let+ () = typecheck ~invariants m in
   tenv, m
 
 let to_abi ?(invariants = false) tenv m =

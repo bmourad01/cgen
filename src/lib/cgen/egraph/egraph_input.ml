@@ -31,17 +31,17 @@ module Phis = Phi_values.Make(Phis_lang)(Phis_domain)
 
 (* General information about the function we're translating. *)
 type t = {
-  fn   : func;                  (* The function itself. *)
-  loop : loops;                 (* Loops analysis. *)
-  reso : resolver;              (* Labels to blocks/insns. *)
-  cfg  : Cfg.t;                 (* The CFG. *)
-  dom  : Semi_nca.tree;         (* Dominator tree. *)
-  pdom : Semi_nca.tree;         (* Post-dominator tree. *)
-  rdom : Dominance.t;           (* Fine-grained dominance relation. *)
-  lst  : Last_stores.t;         (* Last stores analysis. *)
-  tenv : Typecheck.env;         (* Typing environment. *)
-  phis : Phis.state;            (* Block argument value sets. *)
-  scc  : Label.t partition;     (* Strongly-connected components. *)
+  fn   : func;              (* The function itself. *)
+  loop : loops;             (* Loops analysis. *)
+  reso : resolver;          (* Labels to blocks/insns. *)
+  cfg  : Cfg.t;             (* The CFG. *)
+  dom  : Semi_nca.tree;     (* Dominator tree. *)
+  pdom : Semi_nca.tree;     (* Post-dominator tree. *)
+  rdom : Dominance.t;       (* Fine-grained dominance relation. *)
+  lst  : Last_stores.t;     (* Last stores analysis. *)
+  tenv : Type_env.t;        (* Typing environment. *)
+  phis : Phis.state;        (* Block argument value sets. *)
+  scc  : Label.t partition; (* Strongly-connected components. *)
 }
 
 let init_dom_relation reso dom =

@@ -16,7 +16,7 @@ type env = {
   mutable cur   : cursor;
   mutable pos   : Label.t;
   mutable state : SC.state;
-  tenv          : Typecheck.env;
+  tenv          : Type_env.t;
   intv          : Intervals.t;
   fn            : func;
 }
@@ -31,7 +31,7 @@ let init tenv intv fn = {
 }
 
 let typeof_var env x =
-  match Typecheck.Env.typeof_var env.fn x env.tenv with
+  match Type_env.typeof_var env.fn x env.tenv with
   | Error err -> failwithf "%s" (Error.to_string_hum err) ()
   | Ok ty -> ty
 
@@ -43,7 +43,7 @@ let var env x =
             __FUNCTION__ Var.pp x I.pp i pp_cursor env.cur Label.pp env.pos));
   i
 
-let word env = Target.word @@ Typecheck.Env.target env.tenv
+let word env = Target.word @@ Type_env.target env.tenv
 
 let map_operand env : operand -> operand = function
   | `var x as o ->
@@ -189,8 +189,8 @@ let try_ f = try Ok (f ()) with
   | Failure msg -> Or_error.errorf "In SCCP: %s" msg
 
 let run tenv fn = try_ @@ fun () ->
-  let word = Target.word @@ Typecheck.Env.target tenv in
-  let typeof x = match Typecheck.Env.typeof_var fn x tenv with
+  let word = Target.word @@ Type_env.target tenv in
+  let typeof x = match Type_env.typeof_var fn x tenv with
     | Error err -> failwith @@ Error.to_string_hum err
     | Ok t -> t in
   let intv = Intervals.analyze fn ~word ~typeof in

@@ -34,7 +34,7 @@ let map_retty fn tenv = function
   | `si8 -> `i8
   | `si16 -> `i16
   | `si32 -> `i32
-  | `name s -> match Typecheck.Env.typeof_typ s tenv with
+  | `name s -> match Type_env.typeof_typ s tenv with
     | Ok t -> (t :> Type.t)
     | Error err ->
       failwithf "in function $%s: %s"

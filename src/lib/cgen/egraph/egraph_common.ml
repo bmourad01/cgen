@@ -148,20 +148,20 @@ let set_pinned t id = Bitset.add t.pinned id
 let is_pinned t id = Bitset.mem t.pinned id
 
 let typeof_var t x =
-  Typecheck.Env.typeof_var t.input.fn x t.input.tenv |> Or_error.ok
+  Type_env.typeof_var t.input.fn x t.input.tenv |> Or_error.ok
 
-let typeof_typ t n = match Typecheck.Env.typeof_typ n t.input.tenv with
+let typeof_typ t n = match Type_env.typeof_typ n t.input.tenv with
   | Ok t -> Some (t :> Type.t)
   | Error _ -> None
 
 let word t =
-  (Target.word @@ Typecheck.Env.target t.input.tenv :> Type.t)
+  (Target.word @@ Type_env.target t.input.tenv :> Type.t)
 
 let wordsz t =
   Type.sizeof_imm_base @@
   Target.word @@
-  Typecheck.Env.target t.input.tenv
+  Type_env.target t.input.tenv
 
 let typenames t =
-  Typecheck.Env.typenames t.input.tenv |>
+  Type_env.typenames t.input.tenv |>
   Seq.map ~f:(fun s -> `name s)

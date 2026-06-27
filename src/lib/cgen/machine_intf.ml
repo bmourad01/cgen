@@ -124,7 +124,7 @@ module type S = sig
       variadic or not.
   *)
   module Lower_abi(C : Context_intf.S_virtual) : sig
-    val run : Typecheck.env -> Virtual.func -> Virtual.Abi.func C.t
+    val run : Type_env.t -> Virtual.func -> Virtual.Abi.func C.t
   end
 
   (** Instruction selection. *)

@@ -79,7 +79,7 @@ val run :
   ?depth_limit:int ->
   ?match_limit:int ->
   func ->
-  Typecheck.env ->
+  Type_env.t ->
   rules ->
   func Context.t
 

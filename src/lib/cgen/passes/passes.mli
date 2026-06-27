@@ -7,7 +7,7 @@ open Virtual
 val destructure : Structured.module_ -> Virtual.module_ Context.t
 
 (** Lifts from [Virtual] to [Structured]. *)
-val restructure : tenv:Typecheck.env -> Virtual.module_ -> Structured.module_ Context.t
+val restructure : tenv:Type_env.t -> Virtual.module_ -> Structured.module_ Context.t
 
 (** Runs type-checking and SSA transformation.
 
@@ -15,7 +15,7 @@ val restructure : tenv:Typecheck.env -> Virtual.module_ -> Structured.module_ Co
     conversion. This is expensive and intended for development and testing;
     it defaults to [false].
 *)
-val initialize : ?invariants:bool -> module_ -> (Typecheck.env * module_) Context.t
+val initialize : ?invariants:bool -> module_ -> (Type_env.t * module_) Context.t
 
 (** Runs the middle-end optimizations in the recommended order.
 
@@ -24,16 +24,16 @@ val initialize : ?invariants:bool -> module_ -> (Typecheck.env * module_) Contex
 *)
 val optimize :
   ?invariants:bool ->
-  Typecheck.env ->
+  Type_env.t ->
   module_ ->
-  (Typecheck.env * module_) Context.t
+  (Type_env.t * module_) Context.t
 
 (** Performs ABI lowering on the entire module.
 
     When [invariants] is [true], SSA invariants are verified after each
     function is lowered. Defaults to [false].
 *)
-val to_abi : ?invariants:bool -> Typecheck.env -> module_ -> Abi.module_ Context.t
+val to_abi : ?invariants:bool -> Type_env.t -> module_ -> Abi.module_ Context.t
 
 (** Runs the middle-end optimizations in the recommended order, for an
     ABI-lowered module.
@@ -124,10 +124,10 @@ end
     The function is assumed to be in SSA form.
 *)
 module Egraph_opt : sig
-  val run : Typecheck.env -> func -> func Context.t
+  val run : Type_env.t -> func -> func Context.t
 
   (** Runs the pass with no rewrite rules. *)
-  val run_no_rules : Typecheck.env -> func -> func Context.t
+  val run_no_rules : Type_env.t -> func -> func Context.t
 end
 
 (** This pass lowers a Virtual function into a Virtual ABI function,
@@ -140,7 +140,7 @@ end
     explicit registers.
 *)
 module Lower_abi : sig
-  val run : ?invariants:bool -> Typecheck.env -> func -> Abi.func Context.t
+  val run : ?invariants:bool -> Type_env.t -> func -> Abi.func Context.t
 end
 
 (** Attempts to promote uniform stack slots to SSA variables.
@@ -190,7 +190,7 @@ end
     The function is assumed to be in SSA form.
 *)
 module Sccp : sig
-  val run : Typecheck.env -> func -> func Or_error.t
+  val run : Type_env.t -> func -> func Or_error.t
 end
 
 (** Performs the following control-flow transformations:
@@ -208,7 +208,7 @@ end
     The function must be in SSA form.
 *)
 module Simplify_cfg : sig
-  val run : Typecheck.env -> func -> func Context.t
+  val run : Type_env.t -> func -> func Context.t
 end
 
 (** Performs Scalar Replacement of Aggregates (SROA).

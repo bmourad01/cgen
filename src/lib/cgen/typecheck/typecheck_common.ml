@@ -1,9 +1,11 @@
 open Core
 open Virtual
 
-module Env = Typecheck_env
+module Env = Type_env
 
-let unify_fail = Env.unify_fail
+let unify_fail t t' v fn =
+  Or_error.errorf "Failed to unify types '%a' and '%a' for var %a in function $%s"
+    Type.pps t Type.pps t' Var.pps v (Func.name fn)
 
 type env = Env.t
 
@@ -41,7 +43,7 @@ let getins = M.gets @@ fun ctx -> match ctx.ins with
 
 let target =
   let+ env = getenv in
-  env.target
+  Env.target env
 
 let updenv env = M.update @@ fun ctx -> {ctx with env}
 
