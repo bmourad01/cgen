@@ -46,18 +46,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         if is_phi_var t d then
           Wspill.update_cost ~factor:2 ~loop_depth t d);
     (* if isMoveInstruction(I) then *)
-    let+ out = match RA.is_copy insn with
-      | None -> !!out
+    let () = match RA.is_copy insn with
+      | None -> ()
       | Some (drv, srv) ->
         let d = t.$[drv] and s = t.$[srv] in
         (* This is an invariant that is required of `RA.is_copy`; better
            to fail loudly here than silently introduce errors. *)
-        let+ () = C.unless (same_cls t d s) @@ fun () ->
-          C.failf "In Regalloc.build_insn: got a copy instruction `%a` between \
-                   between two different register classes (%a, %a)"
-            (Insn.pp M.Insn.pp) i Rv.pp drv Rv.pp srv () in
+        assert (same_cls t d s);
         (* live := live ∖ use(I) *)
-        let out = Set.diff out use in
+        Set.iter use ~f:(fun rv -> Bitset.remove out t.$[rv]);
         (* ∀ n ∈ def(I) ∪ use(I)
              moveList[n] := moveList[n] ∪ {I} *)
         Wmoves.add_move t label d;
@@ -73,26 +70,27 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         if is_phi_var t d || is_phi_var t s then
           add_phi_pair t drv srv;
         (* worklistMoves := worklistMoves ∪ {I} *)
-        Wmoves.add t label;
-        out in
+        Wmoves.add t label in
     (* live := live ∪ def(I) *)
-    let out = Set.union out def in
+    Set.iter def ~f:(fun rv -> Bitset.add out t.$[rv]);
     (* ∀ d ∈ def(I) *)
     Set.iter def ~f:(fun rv ->
         (* ∀ l ∈ live
              AddEdge(l,d) *)
         let d = t.$[rv] in
         add_def t d label;
-        Set.iter out ~f:(fun rv -> add_edge t t.$[rv] d));
+        Bitset.iter out ~f:(fun l -> add_edge t l d));
     (* live := use(I) ∪ (live ∖ def(I)) *)
-    Set.union use (Set.diff out def)
+    Set.iter def ~f:(fun rv -> Bitset.remove out t.$[rv]);
+    Set.iter use ~f:(fun rv -> Bitset.add out t.$[rv])
 
   (* Build the interference graph and other initial state for the
      algorithm. *)
   let build t =
     (* ∀ b ∈ blocks in program *)
     let live = Option.value_exn t.data.live in
-    Func.blks t.fn |> C.Seq.iter ~f:(fun b ->
+    let out = Bitset.create () in
+    Func.iter_blks t.fn ~f:(fun b ->
         let l = Blk.label b in
         let loop_depth = match Loop.blk t.loop l with
           | None -> 0
@@ -100,13 +98,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             (* NB: levels start at 0 *)
             (Loop.(level (get t.loop lp)) :> int) + 1 in
         (* live := liveOut(b) *)
-        let out = ref @@ Live.outs live l in
+        Bitset.clear out;
+        Set.iter (Live.outs live l) ~f:(fun rv -> Bitset.add out t.$[rv]);
         (* ∀ I ∈ instructions(b) in reverse order *)
         let ord = ref (Blk.num_insns b - 1) in
-        Blk.insns b ~rev:true |> C.Seq.iter ~f:(fun i ->
+        Blk.iter_insns b ~rev:true ~f:(fun i ->
             LT.set t.insn_blks ~key:(Insn.label i) ~data:(l, !ord);
-            let+ out' = build_insn ~loop_depth t !out i in
-            out := out';
+            build_insn ~loop_depth t out i;
             decr ord))
 
   (* Initialize the worklists. *)
@@ -734,7 +732,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           __FUNCTION__ (Func.name t.fn) round max_rounds);
     (* Build the interference graph. *)
     t.data.live <- Some (Live.compute ~keep:t.keep t.fn);
-    let* () = build t in
+    build t;
     (* Override spill costs for reload temporaries. After build computes
        costs from use counts, pin every reload temp to max so `select_spill`
        never picks them preferentially over original variables. *)
