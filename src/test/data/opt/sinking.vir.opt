@@ -3,9 +3,9 @@ module foo
 export function w $foo(w %1, w %5) {
 @2:
   %13 = add.w %1, 0x1_w ; @12
-  %14 = lsl.w %13, 0x1_w ; @13
-  %17 = slt.w %1, 0x0_w ; @16
-  %18 = add.w %14, %5 ; @17
-  %20 = sel.w %17, %18, %5 ; @19
-  ret %20
+  %15 = slt.w %1, 0x0_w ; @14
+  %16 = lsl.w %13, 0x1_w ; @15
+  %17 = add.w %16, %5 ; @16
+  %18 = sel.w %15, %17, %5 ; @17
+  ret %18
 }

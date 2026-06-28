@@ -44,9 +44,8 @@ let is_ret env l = match env.ret with
   | None -> false
 
 let update_fn env fn =
-  Func.blks fn |> Seq.filter_map ~f:(fun b ->
-      LT.find env.blks @@ Blk.label b) |>
-  Seq.to_list |> Func.with_blks_exn fn
+  Func.filter_map_blks_exn fn ~f:(fun b ->
+      LT.find env.blks @@ Blk.label b)
 
 let not_pseudo = Fn.non Label.is_pseudo
 

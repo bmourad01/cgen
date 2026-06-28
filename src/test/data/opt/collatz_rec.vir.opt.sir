@@ -6,18 +6,17 @@ start:
   %17 = copy.w %2;
   while ne.w %16, 0x1_w {
     %19 = and.w %16, 0x1_w;
-    %20 = eq.w %19, 0x0_w;
-    %21 = add.w %17, 0x1_w;
-    if %20 {
+    %20 = add.w %17, 0x1_w;
+    if eq.w %19, 0x0_w {
       %22 = lsr.w %16, 0x1_w;
       %16 = copy.w %22;
-      %17 = copy.w %21
+      %17 = copy.w %20
     } else {
       %23 = lsl.w %16, 0x1_w;
       %24 = add.w %23, %16;
       %25 = add.w %24, 0x1_w;
       %16 = copy.w %25;
-      %17 = copy.w %21
+      %17 = copy.w %20
     }
   };
   ret %17

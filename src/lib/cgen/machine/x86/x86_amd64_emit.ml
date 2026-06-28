@@ -16,7 +16,7 @@ external float_to_bits : float -> int64 = "cgen_bits_of_float"
 module Data = Virtual.Data
 
 let label ppf (l : Label.t) =
-  Format.fprintf ppf ".L%a" Int63.pp (l :> Int63.t)
+  Format.fprintf ppf ".L%d" (l :> int)
 
 let global ppf name =
   Format.fprintf ppf ".global %s\n" name

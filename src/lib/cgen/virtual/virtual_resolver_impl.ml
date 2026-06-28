@@ -1,49 +1,50 @@
 open Core
 open Monads.Std
-open Regular.Std
 open Resolver_intf
 
 module E = Monad.Result.Error
 module LT = Label.Dense_table
 module VT = Var.Dense_table
-
-open E.Let
-open E.Syntax
+module Vset = Var.Tree_set
 
 module type L = sig
   type lhs
 
-  val vars_of_lhs : lhs -> Var.t list
+  val iter_vars_of_lhs : lhs -> f:(Var.t -> unit) -> unit
 
   module Insn : sig
     type t
     val label : t -> Label.t
     val lhs : t -> lhs
-    val free_vars : t -> Var.Tree_set.t
+    val free_vars : t -> Vset.t
   end
 
   module Ctrl : sig
     type t
-    val free_vars : t -> Var.Tree_set.t
+    val free_vars : t -> Vset.t
   end
 
   module Blk : sig
     type t
     val label : t -> Label.t
     val ctrl : t -> Ctrl.t
-    val args : ?rev:bool -> t -> Var.t seq
-    val insns : ?rev:bool -> t -> Insn.t seq
+    val iter_args : ?rev:bool -> t -> f:(Var.t -> unit) -> unit
+    val fold_insns : ?rev:bool -> t -> init:'a -> f:('a -> Insn.t -> 'a) -> 'a
   end
 
   module Func : sig
     type t
-    val args : ?rev:bool -> t -> Var.t seq
-    val slots : ?rev:bool -> t -> Virtual_slot.t seq
-    val blks : ?rev:bool -> t -> Blk.t seq
+    val iter_args : ?rev:bool -> t -> f:(Var.t -> unit) -> unit
+    val iter_slots : ?rev:bool -> t -> f:(Virtual_slot.t -> unit) -> unit
+    val iter_blks : ?rev:bool -> t -> f:(Blk.t -> unit) -> unit
     val num_blks : t -> int
     val num_insns : t -> int
   end
 end
+
+exception Bad_use of Var.t
+exception Duplicate_def of Var.t
+exception Duplicate_label of Label.t
 
 module Make(M : L) : S
   with type lhs := M.lhs
@@ -76,71 +77,77 @@ module Make(M : L) : S
 
   let insert_lbl t x y ~err =
     if LT.mem t x then err ()
-    else !!(LT.set t ~key:x ~data:y)
+    else LT.set t ~key:x ~data:y
 
   let insert_var t x y ~err =
     if VT.mem t x then err ()
-    else !!(VT.set t ~key:x ~data:y)
+    else VT.set t ~key:x ~data:y
 
-  let duplicate_def = E.failf "Duplicate definition for var %a" Var.pp
-  let duplicate_label = E.failf "Duplicate label %a" Label.pp
+  let duplicate_def x () = raise_notrace @@ Duplicate_def x
+  let duplicate_label l () = raise_notrace @@ Duplicate_label l
 
-  exception Bad_use of Var.t
-
-  let verify_uses use def = try
-      VT.iter_keys use ~f:(fun x ->
-          if not @@ VT.mem def x then
-            raise_notrace @@ Bad_use x);
-      !!()
-    with Bad_use x ->
-      E.failf "Variable %a is used but not defined" Var.pp x ()
+  let verify_uses use def =
+    VT.iter_keys use ~f:(fun x ->
+        if not @@ VT.mem def x then
+          raise_notrace @@ Bad_use x)
 
   let uses_of fn vars =
-    let use = VT.create ~capacity:(Var.Tree_set.length vars) () in
-    Func.blks fn |> Seq.iter ~f:(fun b ->
+    let use = VT.create ~capacity:(Vset.length vars) () in
+    Func.iter_blks fn ~f:(fun b ->
         let blk = `blk b in
-        let _ = Blk.insns b |> Seq.fold ~init:0 ~f:(fun ord i ->
-            let data = `insn (i, b, Insn.lhs i, ord) in
-            Insn.free_vars i |> Var.Tree_set.iter ~f:(fun key ->
-                if Var.Tree_set.mem vars key then
+        let _ =
+          Blk.fold_insns b ~init:0 ~f:(fun ord i ->
+              let data = `insn (i, b, Insn.lhs i, ord) in
+              Insn.free_vars i |>
+              Vset.inter vars |>
+              Vset.iter ~f:(fun key ->
                   VT.add_multi use ~key ~data);
-            ord + 1) in
-        Blk.ctrl b |> Ctrl.free_vars |>
-        Var.Tree_set.iter ~f:(fun key ->
-            if Var.Tree_set.mem vars key then
-              VT.add_multi use ~key ~data:blk));
+              ord + 1) in
+        Blk.ctrl b |>
+        Ctrl.free_vars |>
+        Vset.inter vars |>
+        Vset.iter ~f:(fun key ->
+            VT.add_multi use ~key ~data:blk));
     fun x -> VT.find use x |> Option.value ~default:[]
 
   let create fn =
-    let nblk = Func.num_blks fn in
-    let ninsn = Func.num_insns fn in
-    let cap = nblk + ninsn in
-    let lbl = LT.create ~capacity:cap () in
-    let use = VT.create ~capacity:cap () in
-    let def = VT.create ~capacity:cap () in
-    let* () = Func.args fn |> E.Seq.iter ~f:(fun a ->
-        insert_var def a `arg ~err:(duplicate_def a)) in
-    let* () = Func.slots fn |> E.Seq.iter ~f:(fun s ->
-        let x = Virtual_slot.var s in
-        insert_var def x `slot ~err:(duplicate_def x)) in
-    let* () = Func.blks fn |> E.Seq.iter ~f:(fun b ->
-        let label = Blk.label b in
-        let blk = `blk b in
-        let* () = insert_lbl lbl label blk ~err:(duplicate_label label) in
-        let* () = Blk.args b |> E.Seq.iter ~f:(fun x ->
-            insert_var def x (`blkarg b) ~err:(duplicate_def x)) in
-        let+ _ = Blk.insns b |> E.Seq.fold ~init:0 ~f:(fun ord i ->
-            let key = Insn.label i in
-            let lhs = Insn.lhs i in
-            let data = `insn (i, b, lhs, ord) in
-            let* () = insert_lbl lbl key data ~err:(duplicate_label key) in
-            let+ () = vars_of_lhs lhs |> E.List.iter ~f:(fun x ->
-                insert_var def x data ~err:(duplicate_def x)) in
-            Insn.free_vars i |> Var.Tree_set.iter ~f:(fun key ->
-                VT.add_multi use ~key ~data);
-            ord + 1) in
-        Blk.ctrl b |> Ctrl.free_vars |> Var.Tree_set.iter ~f:(fun key ->
-            VT.add_multi use ~key ~data:blk)) in
-    let+ () = verify_uses use def in
-    {lbl; use; def}
+    try
+      let nblk = Func.num_blks fn in
+      let ninsn = Func.num_insns fn in
+      let cap = nblk + ninsn in
+      let lbl = LT.create ~capacity:cap () in
+      let use = VT.create ~capacity:cap () in
+      let def = VT.create ~capacity:cap () in
+      Func.iter_args fn ~f:(fun a ->
+          insert_var def a `arg ~err:(duplicate_def a));
+      Func.iter_slots fn ~f:(fun s ->
+          let x = Virtual_slot.var s in
+          insert_var def x `slot ~err:(duplicate_def x));
+      Func.iter_blks fn ~f:(fun b ->
+          let label = Blk.label b in
+          let blk = `blk b in
+          insert_lbl lbl label blk ~err:(duplicate_label label);
+          Blk.iter_args b ~f:(fun x ->
+              insert_var def x (`blkarg b) ~err:(duplicate_def x));
+          let _ = Blk.fold_insns b ~init:0 ~f:(fun ord i ->
+              let key = Insn.label i in
+              let lhs = Insn.lhs i in
+              let data = `insn (i, b, lhs, ord) in
+              insert_lbl lbl key data ~err:(duplicate_label key);
+              iter_vars_of_lhs lhs ~f:(fun x ->
+                  insert_var def x data ~err:(duplicate_def x));
+              Insn.free_vars i |> Vset.iter ~f:(fun key ->
+                  VT.add_multi use ~key ~data);
+              ord + 1) in
+          Blk.ctrl b |> Ctrl.free_vars |> Vset.iter ~f:(fun key ->
+              VT.add_multi use ~key ~data:blk));
+      verify_uses use def;
+      Ok {lbl; use; def}
+    with
+    | Bad_use x ->
+      E.failf "Variable %a is used but not defined" Var.pp x ()
+    | Duplicate_def x ->
+      E.failf "Duplicate definition for var %a" Var.pp x ()
+    | Duplicate_label l ->
+      E.failf "Duplicate label %a" Label.pp l ()
 end

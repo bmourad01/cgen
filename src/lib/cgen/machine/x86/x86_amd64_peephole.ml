@@ -23,9 +23,8 @@ let filter_not_in changed fn t =
   if Lset.is_empty t then fn else
     let () = changed := true in
     Func.map_blks fn ~f:(fun b ->
-        Blk.insns b |> Seq.filter ~f:(fun i ->
-            not @@ Lset.mem t @@ Insn.label i) |>
-        Seq.to_list |> Blk.with_insns b)
+        Blk.filter_insns b ~f:(fun i ->
+            not @@ Lset.mem t @@ Insn.label i))
 
 let take_seq_singleton s =
   Seq.take s 2 |> Seq.to_list |> function
@@ -130,10 +129,9 @@ let merge_blks changed fn =
   let m = collect_merge_blks fn in
   if Ltree.is_empty m then fn else
     let () = changed := true in
-    Func.blks fn |> Seq.filter_map ~f:(fun b ->
+    Func.filter_map_blks fn ~f:(fun b ->
         match Ltree.find m @@ Blk.label b with
-        | None -> Some b | Some b' -> b') |>
-    Seq.to_list |> Func.with_blks fn
+        | None -> Some b | Some b' -> b')
 
 (* Remove blocks that are not reachable from the entry block. *)
 let remove_disjoint changed fn =

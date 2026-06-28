@@ -1,6 +1,5 @@
 open Core
 open Regular.Std
-open Structured_common
 open Cgen_containers
 
 module Func = Structured_func
@@ -9,9 +8,9 @@ module Data = Virtual.Data
 module T = struct
   type t = {
     name : string;
-    typs : Type.named ftree;
-    data : Data.t ftree;
-    funs : Func.t ftree;
+    typs : Type.named Rrb.t;
+    data : Data.t Rrb.t;
+    funs : Func.t Rrb.t;
     dict : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
 end
@@ -26,16 +25,23 @@ let create
     ~name
     () = {
   name;
-  typs = Ftree.of_list typs;
-  data = Ftree.of_list data;
-  funs = Ftree.of_list funs;
+  typs = Rrb.of_list typs;
+  data = Rrb.of_list data;
+  funs = Rrb.of_list funs;
   dict;
 }
 
 let name m = m.name
-let typs ?(rev = false) m = Ftree.enum m.typs ~rev
-let data ?(rev = false) m = Ftree.enum m.data ~rev
-let funs ?(rev = false) m = Ftree.enum m.funs ~rev
+
+let typs ?(rev = false) m =
+  if rev then Rrb.to_sequence_rev m.typs else Rrb.to_sequence m.typs
+
+let data ?(rev = false) m =
+  if rev then Rrb.to_sequence_rev m.data else Rrb.to_sequence m.data
+
+let funs ?(rev = false) m =
+  if rev then Rrb.to_sequence_rev m.funs else Rrb.to_sequence m.funs
+
 let has_name m name = String.(name = m.name)
 let hash m = String.hash m.name
 let dict fn = fn.dict
@@ -45,43 +51,45 @@ let with_tag fn tag x = {fn with dict = Dict.set fn.dict tag x}
 exception Failed of Error.t
 
 let insert_type m t = {
-  m with typs = Ftree.snoc m.typs t;
+  m with typs = Rrb.snoc m.typs t;
 }
 
 let insert_data m d = {
-  m with data = Ftree.snoc m.data d;
+  m with data = Rrb.snoc m.data d;
 }
 
 let insert_fn m fn = {
-  m with funs = Ftree.snoc m.funs fn;
+  m with funs = Rrb.snoc m.funs fn;
 }
 
 let remove_type m name = {
-  m with typs = Ftree.remove_if m.typs ~f:(fun c ->
-    String.equal name @@ Type.named_name c);
+  m with typs = Rrb.filter m.typs ~f:(fun c ->
+    not @@ String.equal name @@ Type.named_name c);
 }
 
 let remove_data m name = {
-  m with data = Ftree.remove_if m.data ~f:(Fn.flip Data.has_name name);
+  m with data = Rrb.filter m.data ~f:(fun d ->
+    not @@ Data.has_name d name);
 }
 
 let remove_fn m name = {
-  m with funs = Ftree.remove_if m.funs ~f:(Fn.flip Func.has_name name);
+  m with funs = Rrb.filter m.funs ~f:(fun fn ->
+    not @@ Func.has_name fn name);
 }
 
 let map_typs m ~f = {
-  m with typs = Ftree.map m.typs ~f;
+  m with typs = Rrb.map m.typs ~f;
 }
 
 let map_data m ~f = {
-  m with data = Ftree.map m.data ~f;
+  m with data = Rrb.map m.data ~f;
 }
 
 let map_funs m ~f = {
-  m with funs = Ftree.map m.funs ~f;
+  m with funs = Rrb.map m.funs ~f;
 }
 
-let map_err_aux t ~f = Ftree.map t ~f:(fun x -> match f x with
+let map_err_aux t ~f = Rrb.map t ~f:(fun x -> match f x with
     | Error e -> raise_notrace @@ Failed e
     | Ok x -> x)
 
@@ -97,52 +105,54 @@ let map_funs_err m ~f =
   try  Ok {m with funs = map_err_aux m.funs ~f}
   with Failed err -> Error err
 
-let with_funs m funs = {m with funs = Ftree.of_list funs}
+let with_funs m funs = {m with funs = Rrb.of_list funs}
+
+let pp_rrb = Func.pp_rrb
 
 let pp ppf m =
   let sep ppf = Format.fprintf ppf "@;@;" in
-  let em = Ftree.is_empty in
+  let em = Rrb.is_empty in
   match em m.typs, em m.data, em m.funs with
   | true, true, true ->
     Format.fprintf ppf "@[<v 0>module %s@]" m.name
   | true, true, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Func.pp sep) m.funs
+      (pp_rrb Func.pp sep) m.funs
   | true, false, true ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Data.pp sep) m.data
+      (pp_rrb Data.pp sep) m.data
   | false, true, true ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Type.pp_named_decl sep) m.typs
+      (pp_rrb Type.pp_named_decl sep) m.typs
   | true, false, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Data.pp sep) m.data
-      (Ftree.pp Func.pp sep) m.funs
+      (pp_rrb Data.pp sep) m.data
+      (pp_rrb Func.pp sep) m.funs
   | false, true, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Type.pp_named_decl sep) m.typs
-      (Ftree.pp Func.pp sep) m.funs
+      (pp_rrb Type.pp_named_decl sep) m.typs
+      (pp_rrb Func.pp sep) m.funs
   | false, false, true ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Type.pp_named_decl sep) m.typs
-      (Ftree.pp Data.pp sep) m.data
+      (pp_rrb Type.pp_named_decl sep) m.typs
+      (pp_rrb Data.pp sep) m.data
   | false, false, false ->
     Format.fprintf ppf "@[<v 0>module %s@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@;@;\
                         @[<v 0>%a@]@]" m.name
-      (Ftree.pp Type.pp_named_decl sep) m.typs
-      (Ftree.pp Data.pp sep) m.data
-      (Ftree.pp Func.pp sep) m.funs
+      (pp_rrb Type.pp_named_decl sep) m.typs
+      (pp_rrb Data.pp sep) m.data
+      (pp_rrb Func.pp sep) m.funs
 
 include Regular.Make(struct
     include T

@@ -16,9 +16,7 @@ let combine_state x y ~f =
 let join_state = combine_state ~f:I.union
 let meet_state = combine_state ~f:I.intersect
 
-let invert_state s =
-  Vtree.fold s ~init:Vtree.empty ~f:(fun ~key ~data acc ->
-      Vtree.set acc ~key ~data:(I.inverse data))
+let invert_state s = Vtree.map s ~f:I.inverse
 
 (* In most cases we don't want to union with the previous
    state for `x`. *)

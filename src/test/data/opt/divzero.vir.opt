@@ -2,44 +2,44 @@ module divzero
 
 export function w $u_div3(w %1) {
 @2:
-  %40 = mul.w %1, 0xaaaaaaab_w ; @27
-  %41 = le.w %40, 0x55555555_w ; @28
-  %42 = flag.w %41 ; @29
-  ret %42
+  %38 = mul.w %1, 0xaaaaaaab_w ; @25
+  %39 = le.w %38, 0x55555555_w ; @26
+  %40 = flag.w %39 ; @27
+  ret %40
 }
 
 export function w $s_div4(w %5) {
 @6:
-  %48 = and.w %5, 0x3_w ; @35
-  %49 = eq.w %48, 0x0_w ; @36
-  %50 = flag.w %49 ; @37
-  ret %50
+  %45 = and.w %5, 0x3_w ; @32
+  %46 = eq.w %45, 0x0_w ; @33
+  %47 = flag.w %46 ; @34
+  ret %47
 }
 
 export function w $s_div100(w %9) {
 @10:
-  %62 = mul.w %9, 0xc28f5c29_w ; @49
-  %63 = add.w %62, 0x51eb850_w ; @50
-  %64 = ror.w %63, 0x2_w ; @51
-  %65 = le.w %64, 0x28f5c28_w ; @52
-  %66 = flag.w %65 ; @53
-  ret %66
+  %56 = mul.w %9, 0xc28f5c29_w ; @43
+  %57 = add.w %56, 0x51eb850_w ; @44
+  %58 = ror.w %57, 0x2_w ; @45
+  %59 = le.w %58, 0x28f5c28_w ; @46
+  %60 = flag.w %59 ; @47
+  ret %60
 }
 
 export function w $s_ndiv7(w %13) {
 @14:
-  %76 = mul.w %13, 0xb6db6db7_w ; @63
-  %77 = add.w %76, 0x12492492_w ; @64
-  %78 = gt.w %77, 0x24924924_w ; @65
-  %79 = flag.w %78 ; @66
-  ret %79
+  %68 = mul.w %13, 0xb6db6db7_w ; @55
+  %69 = add.w %68, 0x12492492_w ; @56
+  %70 = gt.w %69, 0x24924924_w ; @57
+  %71 = flag.w %70 ; @58
+  ret %71
 }
 
 export function l $u_div6(l %17) {
 @18:
-  %87 = mul.l %17, 0xaaaaaaaaaaaaaaab_l ; @74
-  %88 = ror.l %87, 0x1_l ; @75
-  %89 = le.l %88, 0x2aaaaaaaaaaaaaaa_l ; @76
-  %90 = flag.l %89 ; @77
-  ret %90
+  %77 = mul.l %17, 0xaaaaaaaaaaaaaaab_l ; @64
+  %78 = ror.l %77, 0x1_l ; @65
+  %79 = le.l %78, 0x2aaaaaaaaaaaaaaa_l ; @66
+  %80 = flag.l %79 ; @67
+  ret %80
 }

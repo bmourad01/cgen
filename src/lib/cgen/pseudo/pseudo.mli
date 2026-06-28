@@ -46,6 +46,9 @@ module Blk : sig
   (** Transforms the instructions of the block according to [f]. *)
   val map_insns : 'a t -> f:('a insn -> 'a insn) -> 'a t
 
+  (** Keeps only the instructions of the block for which [f] holds. *)
+  val filter_insns : 'a t -> f:('a insn -> bool) -> 'a t
+
   (** Replaces the instructions of the block. *)
   val with_insns : 'a t -> 'a insn list -> 'a t
 
@@ -181,6 +184,10 @@ module Func : sig
 
   (** Transforms the blocks of the function according to [f]. *)
   val map_blks : ('a, 'b) t -> f:('a blk -> 'a blk) -> ('a, 'b) t
+
+  (** Keeps each block's [Some] result under [f], dropping the [None]s. *)
+  val filter_map_blks :
+    ('a, 'b) t -> f:('a blk -> 'a blk option) -> ('a, 'b) t
 
   (** Replaces the blocks of the function. *)
   val with_blks : ('a, 'b) t -> 'a blk list -> ('a, 'b) t

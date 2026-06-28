@@ -2,61 +2,61 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  cmp edi, 0x1_w ; @112
-  ja @4 ; @113
-@46:
-  xor eax, eax ; @110
-  jmp @28 ; @111
+  cmp edi, 0x1_w ; @110
+  ja @4 ; @111
+@44:
+  xor eax, eax ; @108
+  jmp @28 ; @109
 @4:
-  cmp edi, 0x3_w ; @105
-  ja @7 ; @106
-@47:
-  mov eax, 0x1_w ; @103
-  jmp @28 ; @104
+  cmp edi, 0x3_w ; @103
+  ja @7 ; @104
+@45:
+  mov eax, 0x1_w ; @101
+  jmp @28 ; @102
 @7:
-  test edi, 0x1_w ; @97
-  jne @9 ; @98
-@48:
-  xor eax, eax ; @95
-  jmp @28 ; @96
+  test edi, 0x1_w ; @95
+  jne @9 ; @96
+@46:
+  xor eax, eax ; @93
+  jmp @28 ; @94
 @9:
-  imul eax, edi, 0xaaaaaaab ; @38
-  cmp eax, 0x55555555_w ; @90
-  ja @50 ; @91
-@49:
-  xor eax, eax ; @88
-  jmp @28 ; @89
-@50:
-  mov ecx, 0x5_w ; @86
+  imul eax, edi, 0xaaaaaaab ; @36
+  cmp eax, 0x55555555_w ; @88
+  ja @48 ; @89
+@47:
+  xor eax, eax ; @86
+  jmp @28 ; @87
+@48:
+  mov ecx, 0x5_w ; @84
 @15:
-  mov eax, ecx ; @40
-  imul eax, ecx ; @85
-  cmp eax, edi ; @80
-  jbe @17 ; @81
-@51:
-  mov eax, 0x1_w ; @78
-  jmp @28 ; @79
+  mov eax, ecx ; @38
+  imul eax, ecx ; @83
+  cmp eax, edi ; @78
+  jbe @17 ; @79
+@49:
+  mov eax, 0x1_w ; @76
+  jmp @28 ; @77
 @17:
   mov eax, edi ; @21
-  xor edx, edx ; @75
-  div ecx ; @76
-  test edx, edx ; @70
-  jne @20 ; @71
-@52:
-  xor eax, eax ; @68
-  jmp @28 ; @69
+  xor edx, edx ; @73
+  div ecx ; @74
+  test edx, edx ; @68
+  jne @20 ; @69
+@50:
+  xor eax, eax ; @66
+  jmp @28 ; @67
 @20:
-  lea esi, qword ptr [rcx + 0x2] ; @43
+  lea esi, qword ptr [rcx + 0x2] ; @41
   mov eax, edi ; @25
-  xor edx, edx ; @65
-  div esi ; @66
-  test edx, edx ; @60
-  jne @23 ; @61
-@53:
-  xor eax, eax ; @58
+  xor edx, edx ; @63
+  div esi ; @64
+  test edx, edx ; @58
+  jne @23 ; @59
+@51:
+  xor eax, eax ; @56
 @28:
-  ret ; @57
+  ret ; @55
 @23:
-  add ecx, 0x6_w ; @45
-  jmp @15 ; @55
+  add ecx, 0x6_w ; @43
+  jmp @15 ; @53
 }

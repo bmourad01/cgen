@@ -78,6 +78,9 @@ module type S = sig
   (** [fold_args ?rev fn ~init ~f] folds [f] over the arguments of [fn]. *)
   val fold_args : ?rev:bool -> t -> init:'a -> f:('a -> arg * argt -> 'a) -> 'a
 
+  (** [iter_args ?rev fn ~f] applies [f] to each argument of [fn]. *)
+  val iter_args : ?rev:bool -> t -> f:(arg * argt -> unit) -> unit
+
   (** Returns [true] if the function has at least one argument. *)
   val has_any_args : t -> bool
 
@@ -122,6 +125,15 @@ module type S = sig
 
   (** Same as [map_blks], but handles the case where [f] may fail. *)
   val map_blks_err : t -> f:(blk -> blk Or_error.t) -> t Or_error.t
+
+  (** [filter_map_blks_exn fn ~f] returns [fn] keeping each block's [Some]
+      result under [f], dropping the [None]s.
+
+      Raises [Invalid_argument] if no blocks remain. *)
+  val filter_map_blks_exn : t -> f:(blk -> blk option) -> t
+
+  (** Same as [filter_map_blks_exn], but returns an error upon failure. *)
+  val filter_map_blks : t -> f:(blk -> blk option) -> t Or_error.t
 
   (** Appends a block to the end of the function. *)
   val insert_blk : t -> blk -> t

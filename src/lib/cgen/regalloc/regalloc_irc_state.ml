@@ -55,6 +55,7 @@ module Make(M : Machine_intf.S) = struct
     dst             : id;
     src             : id;
     loop            : int;
+    weight          : float;  (* 10^loop, the move weight for coalesce priority *)
     mutable trivial : triviality;
   }
 
@@ -333,14 +334,17 @@ module Make(M : Machine_intf.S) = struct
     let clear t m = LT.remove t.wmoves_elts m
     let is_empty t = H.is_empty t.wmoves
 
-    (* moveList[n] ∩ (activeMoves ∪ worklistMoves) *)
-    let node_moves t id =
-      Lset.fold (moves t id) ~init:Lset.empty ~f:(fun acc m ->
-          if Lset.mem t.data.amoves m || has t m
-          then Lset.add acc m
-          else acc)
+    (* Iterate moveList[n] ∩ (activeMoves ∪ worklistMoves), filtering
+       inline rather than materializing the intersection set. *)
+    let iter_node_moves t id ~f =
+      Lset.iter (moves t id) ~f:(fun m ->
+          if Lset.mem t.data.amoves m || has t m then f m)
 
-    let move_related t id = not (Lset.is_empty (node_moves t id))
+    (* [moveList[n] ∩ (activeMoves ∪ worklistMoves) ≠ ∅], but without
+       materializing the intersection: short-circuit on the first move
+       that is active or on the worklist. *)
+    let move_related t id =
+      Lset.exists (moves t id) ~f:(fun m -> Lset.mem t.data.amoves m || has t m)
 
     let add_move t label id =
       t.data.node_moves.(id) <- Lset.add t.data.node_moves.(id) label
@@ -402,8 +406,7 @@ module Make(M : Machine_intf.S) = struct
               min (k' - 1) (k + ((d - k) / 2)) in
         let du = effective_degree c.dst pu in
         let dv = effective_degree c.src pv in
-        let w = Float.of_int @@ Int.pow 10 c.loop in
-        let p = w /. Float.of_int (1 + du + dv) in
+        let p = c.weight /. Float.of_int (1 + du + dv) in
         (* If this move is trivially coalescable, bump the weight so that
            it can coalesce earlier. *)
         let trivial = match c.trivial with
@@ -476,25 +479,28 @@ module Make(M : Machine_intf.S) = struct
 
     let phi_weight_coeff = 5
 
+    (* Freeze the node whose freezing loses the least loop-weighted value.
+       Each active move contributes its loop depth to the cost of freezing
+       this node. Phi-related moves (back-edge copies where the destination
+       is a phi var) are weighted by an additional coefficient to defer
+       freezing of phi vars. Coalescing those moves eliminates loop-carried
+       register shuffles, so losing them is much more expensive than losing
+       an ordinary copy.
+
+       Folds over moveList[id] once, filtering to the active/worklist moves
+       inline; materializing the intersection set here would allocate on
+       every heap comparison. *)
     let cost data ~wmoves_elts ~copies ~id2rv ~phi_var id =
-      let mvs = Lset.fold data.node_moves.(id) ~init:Lset.empty ~f:(fun acc m ->
-          if Lset.mem data.amoves m || LT.mem wmoves_elts m
-          then Lset.add acc m else acc) in
-      (* Freeze the node whose freezing loses the least loop-weighted value.
-         Each active move contributes its loop depth to the cost of freezing
-         this node. Phi-related moves (back-edge copies where the destination
-         is a phi var) are weighted by an additional coefficient to defer
-         freezing of phi vars. Coalescing those moves eliminates loop-carried
-         register shuffles, so losing them is much more expensive than losing
-         an ordinary copy. *)
       let non_phi_weight, phi_weight =
-        Lset.to_sequence mvs |>
-        Seq.filter_map ~f:(LT.find copies) |>
-        Seq.fold ~init:(0, 0) ~f:(fun (np, pw) (copy : copy) ->
-            let w = copy.loop in
-            match Rv.which (Vec.get_exn id2rv copy.dst) with
-            | Second v when Set.mem phi_var v -> np, pw + w
-            | _ -> np + w, pw) in
+        Lset.fold data.node_moves.(id) ~init:(0, 0) ~f:(fun (np, pw) m ->
+            if not (Lset.mem data.amoves m || LT.mem wmoves_elts m) then np, pw
+            else match LT.find copies m with
+              | None -> np, pw
+              | Some (copy : copy) ->
+                let w = copy.loop in
+                match Rv.which (Vec.get_exn id2rv copy.dst) with
+                | Second v when Set.mem phi_var v -> np, pw + w
+                | _ -> np + w, pw) in
       non_phi_weight + phi_weight_coeff * phi_weight
 
     let cmp data ~wmoves_elts ~copies ~id2rv ~phi_var a b =

@@ -17,7 +17,7 @@ let pp_elt ppf : elt -> unit = function
 module T = struct
   type t = {
     name : string;
-    elts : elt ftree;
+    elts : elt Rrb.t;
     dict : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
 end
@@ -45,7 +45,7 @@ let create_exn
     () =
   match elts with
   | [] -> invalid_argf "Cannot create empty data %s" name ()
-  | _ -> {name; elts = Ftree.of_list elts; dict}
+  | _ -> {name; elts = Rrb.of_list elts; dict}
 
 let create
     ?(dict = Dict.empty)
@@ -56,7 +56,9 @@ let create
   | Invalid_argument msg -> Or_error.error_string msg
 
 let name d = d.name
-let elts ?(rev = false) d = Ftree.enum d.elts ~rev
+
+let elts ?(rev = false) d =
+  if rev then Rrb.to_sequence_rev d.elts else Rrb.to_sequence d.elts
 
 let linkage d = match Dict.find d.dict Tag.linkage with
   | None -> Linkage.default_static
@@ -72,7 +74,7 @@ let hash d = String.hash d.name
 
 let typeof d ~(word : Type.imm_base) =
   let name = Format.sprintf "%s_t" d.name in
-  let fields = Ftree.fold_right d.elts ~init:[] ~f:(fun elt fields ->
+  let fields = Rrb.fold_right d.elts ~init:[] ~f:(fun elt fields ->
       Fn.flip List.cons fields @@ match elt with
       | `bool _     -> `elt (`i8, 1)
       | `int (_, t) -> `elt ((t :> Type.basic), 1)
@@ -84,16 +86,22 @@ let typeof d ~(word : Type.imm_base) =
   `struct_ (name, align d, fields)
 
 let prepend_elt d e = {
-  d with elts = Ftree.cons d.elts e;
+  d with elts = Rrb.cons e d.elts;
 }
 
 let append_elt d e = {
-  d with elts = Ftree.snoc d.elts e;
+  d with elts = Rrb.snoc d.elts e;
 }
 
 let map_elts d ~f = {
-  d with elts = Ftree.map d.elts ~f;
+  d with elts = Rrb.map d.elts ~f;
 }
+
+let pp_rrb pp_elt sep ppf t =
+  let first = ref true in
+  Rrb.iter t ~f:(fun x ->
+      if !first then first := false else sep ppf;
+      pp_elt ppf x)
 
 let pp ppf d =
   let sep ppf = Format.fprintf ppf ",@;" in
@@ -105,7 +113,7 @@ let pp ppf d =
   Format.fprintf ppf "data $%s = " d.name;
   Option.iter (align d) ~f:(Format.fprintf ppf "align %d ");
   Format.fprintf ppf "{@;@[<v 2>  %a@]@;}"
-    (Ftree.pp pp_elt sep) d.elts
+    (pp_rrb pp_elt sep) d.elts
 
 include Regular.Make(struct
     include T

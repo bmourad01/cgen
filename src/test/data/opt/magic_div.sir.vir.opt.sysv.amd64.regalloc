@@ -2,208 +2,222 @@ module magic_div
 
 export function $magic_signed { ; returns: rax
 @2:
-  push r12 ; @405
-  push r13 ; @406
+  push r12 ; @404
+  push r13 ; @405
+  push r14 ; @406
   push rbx ; @407
-  sub rsp, 0x10_l ; @408
-  xor ecx, ecx ; @300
-  test edi, edi ; @301
-  sets cl ; @302
-  mov eax, edi ; @139
-  neg eax ; @299
-  mov esi, edi ; @140
-  test edi, edi ; @297
-  cmovs esi, eax ; @298
+  sub rsp, 0x8_l ; @408
+  mov r14d, edi ; @138
+  xor ecx, ecx ; @299
+  test r14d, r14d ; @300
+  sets cl ; @301
+  mov eax, r14d ; @139
+  neg eax ; @298
+  mov ebx, r14d ; @140
+  test r14d, r14d ; @296
+  cmovs ebx, eax ; @297
   lea eax, qword ptr [rcx - 0x80000000] ; @142
-  lea r9d, qword ptr [rcx + 0x7fffffff] ; @143
-  xor edx, edx ; @294
-  div esi ; @295
-  sub r9d, edx ; @293
+  xor edx, edx ; @293
+  div ebx ; @294
+  lea r11d, qword ptr [rcx + 0x7fffffff] ; @143
+  sub r11d, edx ; @292
   mov eax, 0x80000000_w ; @19
-  xor edx, edx ; @290
-  div r9d ; @291
-  mov ecx, eax ; @292
-  mov eax, ecx ; @147
-  imul eax, r9d ; @289
-  mov r8d, 0x80000000_w ; @148
-  sub r8d, eax ; @288
+  xor edx, edx ; @289
+  div r11d ; @290
+  mov r8d, eax ; @291
+  mov r9d, r8d ; @146
+  imul r9d, r11d ; @288
   mov eax, 0x80000000_w ; @22
   xor edx, edx ; @285
-  div esi ; @286
-  mov r10d, eax ; @149
-  imul r10d, esi ; @284
-  mov edx, 0x80000000_w ; @150
-  sub edx, r10d ; @283
-  mov r10d, 0x1f_w ; @277
+  div ebx ; @286
+  mov ecx, eax ; @287
+  mov eax, ecx ; @147
+  imul eax, ebx ; @284
+  mov esi, 0x80000000_w ; @148
+  sub esi, eax ; @283
+  mov edi, 0x80000000_w ; @149
+  sub edi, r9d ; @282
+  mov r13d, 0x1f_w ; @276
 @14:
-  lea r11d, qword ptr [r10 + 0x1] ; @151
-  lea r12d, qword ptr [rcx + rcx*1] ; @152
-  lea ebx, qword ptr [r8 + r8*1] ; @153
-  lea r13d, qword ptr [rcx*2 + 0x1] ; @155
-  mov ecx, ebx ; @156
-  sub ecx, r9d ; @274
-  mov r8d, ebx ; @158
-  cmp ebx, r9d ; @272
-  cmovae r8d, ecx ; @273
-  cmp ebx, r9d ; @270
-  cmovae r12d, r13d ; @271
-  lea ecx, qword ptr [rax + rax*1] ; @160
-  lea ebx, qword ptr [rdx + rdx*1] ; @161
-  lea r13d, qword ptr [rax*2 + 0x1] ; @163
-  mov eax, ebx ; @164
-  sub eax, esi ; @267
-  mov edx, ebx ; @165
-  cmp ebx, esi ; @265
-  cmovae edx, eax ; @266
-  cmp ebx, esi ; @263
-  cmovae ecx, r13d ; @264
-  mov eax, esi ; @167
-  sub eax, edx ; @262
-  cmp r12d, eax ; @257
-  jae @42 ; @258
-@228:
-  mov r10d, r11d ; @251
-  mov eax, ecx ; @253
-  mov ecx, r12d ; @255
-  jmp @14 ; @256
+  lea r12d, qword ptr [rdi + rdi*1] ; @150
+  lea r9d, qword ptr [r8 + r8*1] ; @152
+  lea eax, qword ptr [r8*2 + 0x1] ; @153
+  mov r10d, r12d ; @154
+  sub r10d, r11d ; @273
+  cmp r12d, r11d ; @271
+  cmovae r9d, eax ; @272
+  lea r8d, qword ptr [rsi + rsi*1] ; @157
+  lea eax, qword ptr [rcx + rcx*1] ; @159
+  lea edi, qword ptr [rcx*2 + 0x1] ; @160
+  mov ecx, r8d ; @161
+  sub ecx, ebx ; @268
+  mov esi, r8d ; @162
+  cmp r8d, ebx ; @266
+  cmovae esi, ecx ; @267
+  mov edx, ebx ; @163
+  sub edx, esi ; @265
+  lea ecx, qword ptr [r13 + 0x1] ; @165
+  cmp r8d, ebx ; @261
+  cmovae eax, edi ; @262
+  mov edi, r12d ; @167
+  cmp r12d, r11d ; @259
+  cmovae edi, r10d ; @260
+  cmp r9d, edx ; @256
+  jae @42 ; @257
+@227:
+  mov r13d, ecx ; @250
+  mov ecx, eax ; @252
+  mov r8d, r9d ; @254
+  jmp @14 ; @255
 @42:
-  cmp r12d, eax ; @246
-  jne @46 ; @247
+  cmp r9d, edx ; @245
+  jne @46 ; @246
 @45:
-  test r8d, r8d ; @241
-  jne @46 ; @242
-@229:
-  mov r10d, r11d ; @235
-  mov eax, ecx ; @237
-  mov ecx, r12d ; @239
-  jmp @14 ; @240
+  test edi, edi ; @240
+  jne @46 ; @241
+@228:
+  mov r13d, ecx ; @234
+  mov ecx, eax ; @236
+  mov r8d, r9d ; @238
+  jmp @14 ; @239
 @46:
-  lea eax, qword ptr [rcx + 0x1] ; @170
-  inc ecx ; @171
-  neg ecx ; @234
-  test edi, edi ; @232
-  cmovs eax, ecx ; @233
-  lea ecx, qword ptr [r10 - 0x1f] ; @173
+  inc eax ; @169
+  mov ecx, eax ; @170
+  neg ecx ; @233
+  test r14d, r14d ; @231
+  cmovs eax, ecx ; @232
   mov dword ptr [rsp], eax ; @56
-  mov dword ptr [rsp + 0x4], ecx ; @57
-  mov rax, qword ptr [rsp] ; @215
-  add rsp, 0x10_l ; @409
+  lea eax, qword ptr [r13 - 0x1f] ; @173
+  mov dword ptr [rsp + 0x4], eax ; @57
+  mov rax, qword ptr [rsp] ; @214
+  add rsp, 0x8_l ; @409
   pop rbx ; @410
-  pop r13 ; @411
-  pop r12 ; @412
-  ret ; @231
+  pop r14 ; @411
+  pop r13 ; @412
+  pop r12 ; @413
+  ret ; @230
 }
 
 export function $magic_unsigned { ; returns: rax rdx
 @59:
-  push r12 ; @413
-  push r13 ; @414
-  push r14 ; @415
-  push rbx ; @416
-  sub rsp, 0x18_l ; @417
-  mov eax, edi ; @403
-  neg eax ; @404
-  xor edx, edx ; @400
-  div edi ; @401
-  mov ebx, edx ; @402
-  not ebx ; @399
+  push r12 ; @422
+  push r13 ; @423
+  push r14 ; @424
+  push r15 ; @425
+  push rbx ; @426
+  sub rsp, 0x20_l ; @427
+  mov eax, edi ; @402
+  neg eax ; @403
+  xor edx, edx ; @399
+  div edi ; @400
+  mov r11d, edx ; @401
+  not r11d ; @398
   mov eax, 0x80000000_w ; @66
-  xor edx, edx ; @396
-  div ebx ; @397
-  mov ecx, eax ; @398
-  mov eax, ecx ; @178
-  imul eax, ebx ; @395
-  mov r9d, 0x80000000_w ; @179
-  sub r9d, eax ; @394
+  xor edx, edx ; @395
+  div r11d ; @396
+  mov ecx, eax ; @397
+  mov esi, ecx ; @177
+  imul esi, r11d ; @394
   mov eax, 0x7fffffff_w ; @69
   xor edx, edx ; @391
   div edi ; @392
-  mov r10d, eax ; @393
-  mov eax, r10d ; @180
-  imul eax, edi ; @390
-  mov r11d, 0x7fffffff_w ; @181
-  sub r11d, eax ; @389
-  mov r13d, 0x1f_w ; @382
-  xor r12d, r12d ; @383
+  mov r13d, eax ; @393
+  mov edx, r13d ; @178
+  imul edx, edi ; @390
+  mov eax, 0x7fffffff_w ; @181
+  sub eax, edx ; @389
+  mov r10d, 0x80000000_w ; @182
+  sub r10d, esi ; @388
+  mov r12d, 0x1f_w ; @381
+  xor ebx, ebx ; @382
+  mov edx, ecx ; @386
 @60:
-  lea r8d, qword ptr [r13 + 0x1] ; @184
-  mov esi, ebx ; @185
-  sub esi, r9d ; @381
-  lea eax, qword ptr [rcx + rcx*1] ; @187
-  lea r14d, qword ptr [rcx*2 + 0x1] ; @188
-  lea ecx, qword ptr [r9 + r9*1] ; @189
-  mov edx, ecx ; @190
-  sub edx, ebx ; @378
-  cmp r9d, esi ; @376
-  cmovae ecx, edx ; @377
-  cmp r9d, esi ; @374
-  cmovae eax, r14d ; @375
-  lea r9d, qword ptr [r11 + 0x1] ; @193
-  mov esi, edi ; @194
-  sub esi, r11d ; @373
-  lea r11d, qword ptr [r11*2 + 0x1] ; @197
-  lea edx, qword ptr [r10 + r10*1] ; @198
-  cmp r9d, esi ; @368
-  jae @87 ; @369
+  lea r9d, qword ptr [r12 + 0x1] ; @183
+  mov r8d, r11d ; @184
+  sub r8d, r10d ; @380
+  lea ecx, qword ptr [rdx + rdx*1] ; @186
+  lea edx, qword ptr [rdx*2 + 0x1] ; @187
+  mov dword ptr [rsp + 0x14], edx ; @414
+  lea r15d, qword ptr [r10 + r10*1] ; @188
+  mov dword ptr [rsp + 0x18], r15d ; @418
+  mov edx, r15d ; @419
+  sub edx, r11d ; @377
+  mov dword ptr [rsp + 0x18], edx ; @420
+  lea edx, qword ptr [rax + 0x1] ; @190
+  mov dword ptr [rsp + 0x10], edx ; @415
+  mov edx, edi ; @191
+  sub edx, eax ; @376
+  lea eax, qword ptr [rax*2 + 0x1] ; @194
+  lea esi, qword ptr [r13 + r13*1] ; @195
+  mov r14d, dword ptr [rsp + 0x10] ; @416
+  cmp r14d, edx ; @371
+  jae @87 ; @372
 @88:
-  mov esi, 0x1_w ; @214
-  cmp r10d, 0x80000000_w ; @364
-  cmovb esi, r12d ; @365
-  jmp @96 ; @363
+  mov edx, 0x1_w ; @213
+  cmp r13d, 0x80000000_w ; @367
+  cmovb edx, ebx ; @368
+  mov ebx, edx ; @363
+  jmp @96 ; @366
 @87:
-  mov esi, 0x1_w ; @210
-  cmp r10d, 0x7fffffff_w ; @356
-  cmovb esi, r12d ; @357
-  lea edx, qword ptr [r10*2 + 0x1] ; @211
-  sub r11d, edi ; @355
+  mov edx, 0x1_w ; @209
+  cmp r13d, 0x7fffffff_w ; @359
+  cmovb edx, ebx ; @360
+  sub eax, edi ; @358
+  lea esi, qword ptr [r13*2 + 0x1] ; @211
+  mov ebx, edx ; @354
 @96:
-  lea r10d, qword ptr [r11 + 0x1] ; @199
-  cmp r8d, 0x40_w ; @346
-  jb @109 ; @347
-@303:
-  mov r13d, r8d ; @339
-  mov r12d, esi ; @340
+  lea r14d, qword ptr [rax + 0x1] ; @196
+  mov edx, r15d ; @198
+  cmp r10d, r8d ; @350
+  mov r13d, dword ptr [rsp + 0x18] ; @421
+  cmovae edx, r13d ; @351
+  cmp r10d, r8d ; @348
+  mov r8d, dword ptr [rsp + 0x14] ; @417
+  cmovae ecx, r8d ; @349
+  cmp r9d, 0x40_w ; @345
+  jb @109 ; @346
+@302:
+  mov r12d, r9d ; @338
+  mov r13d, esi ; @341
   mov r10d, edx ; @342
-  mov r9d, ecx ; @343
-  mov ecx, eax ; @344
-  jmp @60 ; @345
+  mov edx, ecx ; @343
+  jmp @60 ; @344
 @109:
-  mov r9d, edi ; @201
-  sub r9d, r10d ; @338
-  cmp eax, r9d ; @333
-  jae @113 ; @334
-@304:
-  mov r13d, r8d ; @326
-  mov r12d, esi ; @327
+  mov r8d, edi ; @200
+  sub r8d, r14d ; @337
+  cmp ecx, r8d ; @332
+  jae @113 ; @333
+@303:
+  mov r12d, r9d ; @325
+  mov r13d, esi ; @328
   mov r10d, edx ; @329
-  mov r9d, ecx ; @330
-  mov ecx, eax ; @331
-  jmp @60 ; @332
+  mov edx, ecx ; @330
+  jmp @60 ; @331
 @113:
-  cmp eax, r9d ; @321
-  jne @116 ; @322
+  cmp ecx, r8d ; @320
+  jne @116 ; @321
 @115:
-  test ecx, ecx ; @316
-  jne @116 ; @317
-@305:
-  mov r13d, r8d ; @309
-  mov r12d, esi ; @310
+  test edx, edx ; @315
+  jne @116 ; @316
+@304:
+  mov r12d, r9d ; @308
+  mov r13d, esi ; @311
   mov r10d, edx ; @312
-  mov r9d, ecx ; @313
-  mov ecx, eax ; @314
-  jmp @60 ; @315
+  mov edx, ecx ; @313
+  jmp @60 ; @314
 @116:
-  lea eax, qword ptr [rdx + 0x1] ; @204
-  lea ecx, qword ptr [r13 - 0x1f] ; @205
+  lea eax, qword ptr [rsi + 0x1] ; @203
   mov dword ptr [rsp], eax ; @123
-  mov dword ptr [rsp + 0x4], esi ; @124
-  mov rax, qword ptr [rsp] ; @218
-  mov dword ptr [rsp + 0x8], ecx ; @223
-  mov rdx, qword ptr [rsp + 0x8] ; @226
-  add rsp, 0x18_l ; @418
-  pop rbx ; @419
-  pop r14 ; @420
-  pop r13 ; @421
-  pop r12 ; @422
-  ret ; @308
+  mov dword ptr [rsp + 0x4], ebx ; @124
+  lea ecx, qword ptr [r12 - 0x1f] ; @206
+  mov rax, qword ptr [rsp] ; @217
+  mov dword ptr [rsp + 0x8], ecx ; @222
+  mov rdx, qword ptr [rsp + 0x8] ; @225
+  add rsp, 0x20_l ; @428
+  pop rbx ; @429
+  pop r15 ; @430
+  pop r14 ; @431
+  pop r13 ; @432
+  pop r12 ; @433
+  ret ; @307
 }

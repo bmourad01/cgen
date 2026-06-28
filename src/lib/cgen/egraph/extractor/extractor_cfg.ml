@@ -20,24 +20,26 @@ open Context.Syntax
    because it is scoped to the current line in the dominator
    tree. This way, we can duplicate code when we find a partial
    redundancy. *)
-type scope = (Var.t * Label.t) Id.Tree.t
-
-let empty_scope : scope = Id.Tree.empty
+type scope = (Var.t * Label.t) Uopt.t Rrb.t
 
 type placed = {
-  seq : Label.t Ftree.t;
+  seq : Label.t Vec.t;
   ids : Bitset.t;
 }
 
-let create_placed id l = {
-  seq = Ftree.singleton l;
-  ids = Bitset.singleton id;
-}
+let create_placed id l =
+  let seq = Vec.create () in
+  let ids = Bitset.singleton id in
+  Vec.push seq l;
+  {seq; ids}
+[@@inline]
 
 let add_placed p id l =
   assert (not @@ Bitset.mem p.ids id);
+  Vec.push p.seq l;
   Bitset.add p.ids id;
-  {p with seq = Ftree.snoc p.seq l}
+  p
+[@@inline]
 
 type env = {
   insn        : Insn.op LT.t;
@@ -52,7 +54,7 @@ let init t = {
   ctrl = LT.create ~capacity:(Func.num_blks t.eg.input.fn) ();
   news = LT.create ();
   cur = Label.pseudoentry;
-  scp = empty_scope;
+  scp = Rrb.init (Vec.length t.eg.node) ~f:(fun _ -> Uopt.none);
 }
 
 let error_prefix = "In Extractor_cfg"
@@ -88,12 +90,12 @@ let no_var l =
 let upd t x y = LT.update t x ~f:(Option.value ~default:y)
 
 let fresh env canon real =
-  match Id.Tree.find env.scp canon with
-  | Some p -> !!p
-  | None ->
+  let u = Rrb.get_exn env.scp canon in
+  if Uopt.is_some u then !!(Uopt.unsafe_value u)
+  else
     let* x = Context.Var.fresh in
     let+ l = Context.Label.fresh in
-    env.scp <- Id.Tree.set env.scp ~key:canon ~data:(x, l);
+    env.scp <- Rrb.set env.scp canon (Uopt.some (x, l));
     Logs.debug (fun m ->
         m "%s: placing fresh %a at %a: env.cur=%a canon=%d, real=%d%!"
           __FUNCTION__ Var.pp x Label.pp l Label.pp env.cur canon real);
@@ -347,15 +349,6 @@ module Hoisting = struct
       if id = cid then s else Common.movedof t.eg cid
     else s
 
-  let resolve_label t l =
-    match Resolver.resolve t.eg.input.reso l with
-    | Some `insn (_, b, _, _) -> Blk.label b
-    | Some `blk b -> Blk.label b
-    | None -> assert false
-
-  let moved_blks t id cid =
-    find_moved t id cid |> Lset.map ~f:(resolve_label t)
-
   let rec post_dominated t l bs =
     match Semi_nca.Tree.parent t.eg.input.pdom l with
     | Some p -> Lset.mem bs p || post_dominated t p bs
@@ -447,12 +440,12 @@ module Hoisting = struct
             __FUNCTION__ Label.pp l id cid);
       (* Get the blocks associated with the labels that were
          "moved" for this node. *)
-      let bs = moved_blks t id cid in
+      let bs = find_moved t id cid in
       (* An empty set means that nobody uses this value. *)
       Lset.is_empty bs || begin
         (* If we're being used in the candidate block then this is trivially
            not a partial redundancy. *)
-        let l = resolve_label t l in
+        let l = Egraph_input.resolve_blk_label t.eg.input.reso l in
         not (Lset.mem bs l) && begin
           (* If one of these blocks post-dominates the block that we're
              moving to, then it is safe to allow the move to happen,
@@ -493,7 +486,8 @@ module Hoisting = struct
          already been placed. *)
       Iset.to_sequence s ~order:`Decreasing |>
       Seq.map ~f:(fun id -> id, Common.find t.eg id) |>
-      Seq.filter ~f:(fun (_, cid) -> not @@ Id.Tree.mem env.scp cid) |>
+      Seq.filter ~f:(fun (_, cid) ->
+          not @@ Uopt.is_some (Rrb.get_exn env.scp cid)) |>
       Context.Seq.iter ~f:(fun (id, cid) -> match extract t id with
           | None -> extract_fail l id
           | Some e ->
@@ -571,17 +565,22 @@ let collect t l =
 (* Find the rewritten instruction at label `l`. *)
 let find_insn env l =
   LT.find env.insn l |> Option.map ~f:(Insn.create ~label:l)
+[@@inline]
 
 (* Find any new instructions to be prepended directly before label `l`.
    The order can be reversed for an efficient `rev_append` as seen below. *)
 let find_news ?(rev = false) env l =
+  let seq = if rev
+    then Vec.to_sequence_rev_mutable
+    else Vec.to_sequence_mutable in
   LT.find env.news l |>
   Option.value_map ~default:[] ~f:(fun p ->
-      Ftree.enum ~rev p.seq |>
+      seq p.seq |>
       Seq.filter_map ~f:(find_insn env) |>
       Seq.to_list)
+[@@specialise]
 
-let move_dict i i' = Insn.(with_dict i' @@ dict i)
+let move_dict i i' = Insn.(with_dict i' @@ dict i) [@@inline]
 
 let cfg t =
   let+ env = collect t Label.pseudoentry in

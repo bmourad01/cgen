@@ -7,8 +7,8 @@ open Cgen_containers
 module T = struct
   type t = {
     label : Label.t;
-    args  : Var.t ftree;
-    insns : Abi_insn.t ftree;
+    args  : Var.t Rrb.t;
+    insns : Abi_insn.t Rrb.t;
     ctrl  : Abi_ctrl.t;
     dict  : Dict.t;
   } [@@deriving bin_io, compare, equal, sexp]
@@ -22,15 +22,17 @@ let create
     ?(insns = [])
     ~label ~ctrl () = {
   label;
-  args = Ftree.of_list args;
-  insns = Ftree.of_list insns;
+  args = Rrb.of_list args;
+  insns = Rrb.of_list insns;
   ctrl;
   dict;
 }
 
 let label b = b.label
-let args ?(rev = false) b = Ftree.enum b.args ~rev
-let insns ?(rev = false) b = Ftree.enum b.insns ~rev
+let args ?(rev = false) b =
+  if rev then Rrb.to_sequence_rev b.args else Rrb.to_sequence b.args
+let insns ?(rev = false) b =
+  if rev then Rrb.to_sequence_rev b.insns else Rrb.to_sequence b.insns
 let ctrl b = b.ctrl
 let has_label b l = Label.(b.label = l)
 let hash b = Label.hash b.label
@@ -39,7 +41,7 @@ let with_dict b dict = {b with dict}
 let with_tag b tag x = {b with dict = Dict.set b.dict tag x}
 
 let map_of_insns b =
-  Ftree.fold b.insns ~init:Label.Tree.empty ~f:(fun m d ->
+  Rrb.fold b.insns ~init:Label.Tree.empty ~f:(fun m d ->
       let key = Abi_insn.label d in
       match Label.Tree.add m ~key ~data:d with
       | `Ok m -> m
@@ -51,110 +53,140 @@ let map_of_insns b =
 let free_vars b =
   let (++) = Var.Tree_set.union and (--) = Var.Tree_set.diff in
   let init = Abi_ctrl.free_vars b.ctrl in
-  Ftree.fold_right b.insns ~init ~f:(fun i inc ->
+  Rrb.fold_right b.insns ~init ~f:(fun i inc ->
       inc -- Abi_insn.def i ++ Abi_insn.free_vars i)
 
 let uses_var b x = Var.Tree_set.mem (free_vars b) x
 
 let map_args b ~f = {
-  b with args = Ftree.map b.args ~f:(fun x -> f x);
+  b with args = Rrb.map b.args ~f:(fun x -> f x);
 }
 
 let map_insns b ~f = {
-  b with insns = Ftree.map b.insns ~f:(fun d ->
+  b with insns = Rrb.map b.insns ~f:(fun d ->
     Abi_insn.map d ~f:(f d.label));
 }
+
+let filter_insns b ~f = {b with insns = Rrb.filter b.insns ~f}
 
 let map_ctrl b ~f = {
   b with ctrl = f b.ctrl;
 }
 
-let prepend_arg ?before b a = {
-  b with args = Ftree.icons ?before b.args a Var.equal;
-}
+let prepend_arg ?before b a =
+  let args = match before with
+    | None -> Rrb.cons a b.args
+    | Some k -> Rrb.insert_before b.args (Rrb.singleton a) ~f:(fun x -> Var.equal x k) in
+  {b with args}
 
-let append_arg ?after b a = {
-  b with args = Ftree.isnoc ?after b.args a Var.equal;
-}
+let append_arg ?after b a =
+  let args = match after with
+    | None -> Rrb.snoc b.args a
+    | Some k -> Rrb.insert_after b.args (Rrb.singleton a) ~f:(fun x -> Var.equal x k) in
+  {b with args}
 
-let prepend_insn ?before b d = {
-  b with insns = Ftree.icons ?before b.insns d Abi_insn.has_label;
-}
+let prepend_insn ?before b d =
+  let insns = match before with
+    | None -> Rrb.cons d b.insns
+    | Some k -> Rrb.insert_before b.insns (Rrb.singleton d) ~f:(fun i -> Abi_insn.has_label i k) in
+  {b with insns}
 
-let append_insn ?after b d = {
-  b with insns = Ftree.isnoc ?after b.insns d Abi_insn.has_label;
-}
+let append_insn ?after b d =
+  let insns = match after with
+    | None -> Rrb.snoc b.insns d
+    | Some k -> Rrb.insert_after b.insns (Rrb.singleton d) ~f:(fun i -> Abi_insn.has_label i k) in
+  {b with insns}
 
-let prepend_insns ?before b ds = {
-  b with insns = Ftree.icons_multi ?before b.insns ds Abi_insn.has_label;
-}
+let prepend_insns ?before b ds =
+  let insns = match before with
+    | None -> Rrb.append (Rrb.of_list ds) b.insns
+    | Some k -> Rrb.insert_before b.insns (Rrb.of_list ds) ~f:(fun i -> Abi_insn.has_label i k) in
+  {b with insns}
 
-let append_insns ?after b ds = {
-  b with insns = Ftree.isnoc_multi ?after b.insns ds Abi_insn.has_label;
-}
+let append_insns ?after b ds =
+  let insns = match after with
+    | None -> Rrb.append b.insns (Rrb.of_list ds)
+    | Some k -> Rrb.insert_after b.insns (Rrb.of_list ds) ~f:(fun i -> Abi_insn.has_label i k) in
+  {b with insns}
 
 let with_ctrl b c = {
   b with ctrl = c;
 }
 
 let with_insns b is = {
-  b with insns = Ftree.of_list is;
+  b with insns = Rrb.of_list is;
 }
 
 let with_args b args = {
-  b with args = Ftree.of_list args;
+  b with args = Rrb.of_list args;
 }
 
 let remove_arg b x = {
-  b with args = Ftree.remove_if b.args ~f:(Var.equal x);
+  b with args = Rrb.filter b.args ~f:(Fn.non @@ Var.equal x);
 }
 
 let remove_insn b l = {
-  b with insns = Ftree.remove_if b.insns ~f:(Fn.flip Abi_insn.has_label l);
+  b with insns = Rrb.filter b.insns ~f:(fun i -> not @@ Abi_insn.has_label i l);
 }
 
-let has_arg b x = Ftree.exists b.args ~f:(Var.equal x)
+let has_arg b x = Rrb.exists b.args ~f:(Var.equal x)
 
-let has_lhs b y = Ftree.exists b.insns
+let has_lhs b y = Rrb.exists b.insns
     ~f:(fun i -> Var.Tree_set.mem (Abi_insn.def i) y)
 
 let defines_var b x = has_arg b x || has_lhs b x
-let has_any_insns b = not (Ftree.is_empty b.insns)
-let has_any_args b = not (Ftree.is_empty b.args)
-let num_insns b = Ftree.length b.insns
-let num_args b = Ftree.length b.args
+let has_any_insns b = not (Rrb.is_empty b.insns)
+let has_any_args b = not (Rrb.is_empty b.args)
+let num_insns b = Rrb.length b.insns
+let num_args b = Rrb.length b.args
 
 let fold_insns ?(rev = false) b ~init ~f =
-  if rev then Ftree.fold_right b.insns ~init ~f:(fun x acc -> f acc x)
-  else Ftree.fold b.insns ~init ~f
+  if rev then Rrb.fold_right b.insns ~init ~f:(fun x acc -> f acc x)
+  else Rrb.fold b.insns ~init ~f
 
 let iter_insns ?(rev = false) b ~f =
-  if rev then Ftree.iter_rev b.insns ~f
-  else Ftree.iter b.insns ~f
+  if rev then Rrb.iter_rev b.insns ~f
+  else Rrb.iter b.insns ~f
 
 let fold_args ?(rev = false) b ~init ~f =
-  if rev then Ftree.fold_right b.args ~init ~f:(fun x acc -> f acc x)
-  else Ftree.fold b.args ~init ~f
+  if rev then Rrb.fold_right b.args ~init ~f:(fun x acc -> f acc x)
+  else Rrb.fold b.args ~init ~f
 
 let iter_args ?(rev = false) b ~f =
-  if rev then Ftree.iter_rev b.args ~f
-  else Ftree.iter b.args ~f
+  if rev then Rrb.iter_rev b.args ~f
+  else Rrb.iter b.args ~f
 
-let args_to_list b = Ftree.to_list b.args
-let has_insn b l = Ftree.exists b.insns ~f:(Fn.flip Abi_insn.has_label l)
-let find_insn b l = Ftree.find b.insns ~f:(Fn.flip Abi_insn.has_label l)
-let next_insn b l = Ftree.next b.insns ~f:(Fn.flip Abi_insn.has_label l)
-let prev_insn b l = Ftree.prev b.insns ~f:(Fn.flip Abi_insn.has_label l)
+let args_to_list b = Rrb.to_list b.args
+let has_insn b l = Rrb.exists b.insns ~f:(fun i -> Abi_insn.has_label i l)
+let find_insn b l = Rrb.find b.insns ~f:(fun i -> Abi_insn.has_label i l)
+
+let next_insn b l =
+  match Rrb.find_index b.insns ~f:(fun i -> Abi_insn.has_label i l) with
+  | Some i -> Rrb.get b.insns (i + 1)
+  | None -> None
+
+let prev_insn b l =
+  match Rrb.find_index b.insns ~f:(fun i -> Abi_insn.has_label i l) with
+  | Some i when i > 0 -> Some (Rrb.get_exn b.insns (i - 1))
+  | Some _ | None -> None
 
 let pp_args ppf args =
-  let sep ppf = Format.fprintf ppf ", " in
-  if not @@ Ftree.is_empty args then
-    Format.fprintf ppf "(%a)"
-      (Ftree.pp Var.pp sep) args
+  if not @@ Rrb.is_empty args then begin
+    Format.fprintf ppf "(";
+    let first = ref true in
+    Rrb.iter args ~f:(fun a ->
+        if !first then first := false else Format.fprintf ppf ", ";
+        Var.pp ppf a);
+    Format.fprintf ppf ")"
+  end
 
 let pp ppf b =
-  let sep ppf = Format.fprintf ppf "@;" in
-  match Ftree.is_empty b.insns with
+  let pp_insns ppf insns =
+    let first = ref true in
+    Rrb.iter insns ~f:(fun i ->
+        if !first then first := false else Format.fprintf ppf "@;";
+        Abi_insn.pp ppf i) in
+  match Rrb.is_empty b.insns with
   | true ->
     Format.fprintf ppf "%a%a:@;  %a"
       Label.pp b.label
@@ -164,7 +196,7 @@ let pp ppf b =
     Format.fprintf ppf "%a%a:@;@[<v 2>  %a@;%a@]"
       Label.pp b.label
       pp_args b.args
-      (Ftree.pp Abi_insn.pp sep) b.insns
+      pp_insns b.insns
       Abi_ctrl.pp b.ctrl
 
 include Regular.Make(struct

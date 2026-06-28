@@ -62,13 +62,13 @@ export function $addv { ; returns: xmm0
   movsd %80:d, qword ptr [%79] ; @73
   jmp @55 ; @80
 @55:
-  movsd %81:d, %72:d ; @16
-  addsd %81:d, %80:d ; @79
-  lea %82:w, qword ptr [%71 + 0x1] ; @17
+  lea %81:w, qword ptr [%71 + 0x1] ; @16
+  movsd %82:d, %72:d ; @17
+  addsd %82:d, %80:d ; @79
   mov %69:l, %77:l ; @74
   mov %70:w, %78:w ; @75
-  mov %71:w, %82:w ; @76
-  movsd %72:d, %81:d ; @77
+  mov %71:w, %81:w ; @76
+  movsd %72:d, %82:d ; @77
   jmp @3 ; @78
 }
 

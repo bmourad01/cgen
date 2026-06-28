@@ -5,7 +5,11 @@ open Regular.Std
 open Cgen_containers
 
 (** A program variable. *)
-type t = private Int63.t
+type t = private int
+
+(** Escape hatch for constructing a variable via its underlying
+    representation. *)
+val of_int_unsafe : int -> t
 
 include Regular.S with type t := t
 

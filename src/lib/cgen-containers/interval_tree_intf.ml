@@ -22,6 +22,8 @@ module type S = sig
   val add : 'a t -> key -> 'a -> 'a t
   val dominators : 'a t -> key -> (key * 'a) seq
   val intersections : 'a t -> key -> (key * 'a) seq
+  val fold_intersections : 'a t -> key -> init:'b -> f:('b -> key -> 'a -> 'b) -> 'b
+  val foldi : 'a t -> init:'b -> f:('b -> key -> 'a -> 'b) -> 'b
   val intersects : 'a t -> key -> bool
   val dominates : 'a t -> key -> bool
   val contains : 'a t -> point -> bool

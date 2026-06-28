@@ -12,9 +12,9 @@ export function $foo { ; returns: rax
   lea %5:w, qword ptr [%4 + %2*1] ; @7
   mov %6:w, %5:w ; @8
   shr %6:w, 0x2_b ; @15
-  imul %7:w, %6:w, 0x7 ; @9
-  mov %8:w, %0:w ; @10
-  sub %8:w, %7:w ; @14
-  mov eax, %8:w ; @12
+  imul %8:w, %6:w, 0x7 ; @10
+  mov %9:w, %0:w ; @11
+  sub %9:w, %8:w ; @14
+  mov eax, %9:w ; @12
   ret ; @13
 }

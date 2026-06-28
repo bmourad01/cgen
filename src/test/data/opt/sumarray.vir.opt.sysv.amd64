@@ -18,9 +18,9 @@ export function $foo { ; returns: rax
 @6:
   mov %19:w, %9:w ; @16
   mov %15:w, dword ptr [%5 + %19*4] ; @12
-  lea %22:w, qword ptr [%15 + %10*1] ; @19
-  lea %23:w, qword ptr [%9 + 0x1] ; @20
-  mov %9:w, %23:w ; @22
-  mov %10:w, %22:w ; @23
+  lea %22:w, qword ptr [%9 + 0x1] ; @19
+  lea %23:w, qword ptr [%15 + %10*1] ; @20
+  mov %9:w, %22:w ; @22
+  mov %10:w, %23:w ; @23
   jmp @3 ; @24
 }

@@ -150,6 +150,13 @@ module type S = sig
       decreasing order. *)
   val fold_right : 'a t -> init:'b -> f:(key:key -> data:'a -> 'b -> 'b) -> 'b
 
+  (** Transforms each value, reusing the tree's structure (the key set is
+      unchanged, so no rebalancing or insertion occurs). *)
+  val map : 'a t -> f:('a -> 'b) -> 'b t
+
+  (** Same as {!map}, but [f] also receives the key. *)
+  val mapi : 'a t -> f:(key:key -> data:'a -> 'b) -> 'b t
+
   (** Returns the number of elements in the tree. *)
   val length : 'a t -> int
 
@@ -256,6 +263,9 @@ module type Set = sig
 
   (** Iterates the set according to [f]. *)
   val iter : t -> f:(key -> unit) -> unit
+
+  (** Returns [true] if [f] holds for any element (short-circuits). *)
+  val exists : t -> f:(key -> bool) -> bool
 
   (** Accumulates a result for each key in the set, in increasing order. *)
   val fold : t -> init:'a -> f:('a -> key -> 'a) -> 'a

@@ -150,9 +150,54 @@ module Make(I : Interval) = struct
       ~skip_if:can't_be_in_tree
       ~take_if:has_intersections
 
-  let dominates m r = not (Seq.is_empty (dominators m r))
-  let intersects m r = not (Seq.is_empty (intersections m r))
-  let contains m a = not (Seq.is_empty (lookup m a))
+  (* Direct short-circuiting existence test; avoids materializing a
+     `Seq.Generator` sequence just to check emptiness. *)
+  let exists_query ~skip_if ~take_if start r =
+    let rec go = function
+      | None -> false
+      | Some t ->
+        not (skip_if t r) &&
+        (take_if t r || go t.lhs || go t.rhs) in
+    go start
+
+  let dominates m r = exists_query m r
+      ~skip_if:can't_be_dominated
+      ~take_if:is_dominated
+
+  let intersects m r = exists_query m r
+      ~skip_if:can't_be_in_tree
+      ~take_if:has_intersections
+
+  let contains m a =
+    let rec go = function
+      | None -> false
+      | Some t ->
+        P.(a >= t.least && a <= t.greatest) &&
+        (is_inside t.key a || go t.lhs || go t.rhs) in
+    go m
+
+  (* In-order fold over the intervals intersecting `r`, calling `f`
+     directly (no intermediate sequence). *)
+  let fold_intersections start r ~init ~f =
+    let rec go acc = function
+      | None -> acc
+      | Some t ->
+        if can't_be_in_tree t r then acc
+        else
+          let acc = go acc t.lhs in
+          let acc = if has_intersections t r then f acc t.key t.data else acc in
+          go acc t.rhs in
+    go init start
+
+  (* In-order fold over all key/data pairs (no intermediate sequence). *)
+  let foldi start ~init ~f =
+    let rec go acc = function
+      | None -> acc
+      | Some t ->
+        let acc = go acc t.lhs in
+        let acc = f acc t.key t.data in
+        go acc t.rhs in
+    go init start
 
   let[@tail_mod_cons] rec map m ~f = match m with
     | None -> None

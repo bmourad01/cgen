@@ -2,7 +2,7 @@
  (name test_opt)
  (libraries cgen golden ocamldiff ounit2 process)
  (modules test_opt)
- (ocamlopt_flags -O2)
+ (ocamlopt_flags -O3)
  (deps
   (glob_files_rec data/*)))
 
@@ -10,7 +10,7 @@
  (name test_type)
  (libraries cgen)
  (modules test_type)
- (ocamlopt_flags -O2)
+ (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
   (pps ppx_jane)))
@@ -19,7 +19,7 @@
  (name test_allen)
  (libraries cgen)
  (modules test_allen)
- (ocamlopt_flags -O2)
+ (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
   (pps ppx_jane)))
@@ -28,7 +28,7 @@
  (name test_float32)
  (modules test_float32)
  (libraries cgen)
- (ocamlopt_flags -O2)
+ (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
   (pps ppx_jane)))
@@ -37,7 +37,7 @@
  (name test_bv_interval)
  (modules test_bv_interval)
  (libraries cgen)
- (ocamlopt_flags -O2)
+ (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
   (pps ppx_jane)))
@@ -46,7 +46,7 @@
  (name test_bitset)
  (modules test_bitset)
  (libraries cgen)
- (ocamlopt_flags -O2)
+ (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
   (pps ppx_jane)))
@@ -55,7 +55,25 @@
  (name test_dense)
  (modules test_dense)
  (libraries cgen)
- (ocamlopt_flags -O2)
+ (ocamlopt_flags -O3)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name test_rrb)
+ (modules test_rrb)
+ (libraries cgen)
+ (ocamlopt_flags -O3)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name test_champ)
+ (modules test_champ)
+ (libraries cgen)
+ (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
   (pps ppx_jane)))
@@ -64,7 +82,7 @@
  (name test_magic_div)
  (modules test_magic_div)
  (libraries cgen zarith)
- (ocamlopt_flags -O2)
+ (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
   (pps ppx_jane)))
@@ -73,10 +91,10 @@
  (name golden)
  (libraries core core_unix core_unix.filename_unix ocamldiff)
  (modules golden)
- (ocamlopt_flags -O2))
+ (ocamlopt_flags -O3))
 
 (library
  (name process)
  (libraries core shexp.process)
  (modules process)
- (ocamlopt_flags -O2))
+ (ocamlopt_flags -O3))

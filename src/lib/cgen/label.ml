@@ -4,24 +4,26 @@ open Regular.Std
 open Cgen_containers
 
 module T = struct
-  type t = Int63.t [@@deriving bin_io, compare, equal, hash, sexp]
+  type t = int [@@deriving bin_io, compare, equal, hash, sexp]
 end
 
 include T
 
 type label = t [@@deriving bin_io, compare, equal, sexp]
 
+let of_int_unsafe l = l
+
 (* NOTE: do not change these constants, unless you want to redo all of the
    file tests. *)
-let pseudoentry = Int63.zero
-let pseudoexit = Int63.succ pseudoentry
+let pseudoentry = 0
+let pseudoexit = 1
 
-let is_pseudo l = Int63.(l = pseudoentry || l = pseudoexit)
+let is_pseudo l = l = pseudoentry || l = pseudoexit
 
 let pp ppf = function
-  | l when Int63.(l = pseudoentry) -> Format.fprintf ppf "@pseudoentry"
-  | l when Int63.(l = pseudoexit) -> Format.fprintf ppf "@pseudoexit"
-  | l -> Format.fprintf ppf "@%a" Int63.pp l
+  | l when l = pseudoentry -> Format.fprintf ppf "@pseudoentry"
+  | l when l = pseudoexit -> Format.fprintf ppf "@pseudoexit"
+  | l -> Format.fprintf ppf "@%d" l
 
 module R = Regular.Make(struct
     include T
@@ -33,16 +35,17 @@ module R = Regular.Make(struct
 include R
 
 module Patricia_key = struct
-  include Int63
+  include Int
   let size = 63
-  let to_int = to_int_trunc
+  let equal : t -> t -> bool = phys_equal
 end
 
 module Dense_key = struct
-  type t = label [@@deriving equal]
-  let empty_sentinel = Int63.of_int (-1)
-  let to_int = Int63.to_int_trunc
+  type t = label
+  let empty_sentinel = -1
+  let to_int l = l
   let pp = pp
+  let equal : t -> t -> bool = phys_equal
 end
 
 module Tree = Patricia_tree.Make(Patricia_key)

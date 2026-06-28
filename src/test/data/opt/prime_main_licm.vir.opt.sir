@@ -26,11 +26,11 @@ start:
       }
     };
     %22 = call.w $printf($fmt, ..., %15, %18);
-    %30 = sub.w %16, 0x1_w;
-    %31 = add.w %15, 0x1_w;
+    %30 = add.w %15, 0x1_w;
+    %31 = sub.w %16, 0x1_w;
     %14 = copy.w %29;
-    %15 = copy.w %31;
-    %16 = copy.w %30
+    %15 = copy.w %30;
+    %16 = copy.w %31
   };
   ret 0x0_w
 }

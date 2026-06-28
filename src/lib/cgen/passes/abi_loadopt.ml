@@ -49,7 +49,7 @@ module Op = struct
     | `sel (_, ty, c, y, n) -> Sel (ty, c, y, n)
 end
 
-module Hashcons = Hashmap.Make(Op)
+module Hashcons = Champ.Make(Op)
 
 type mem = {
   label : Label.t;
@@ -359,9 +359,8 @@ let run0 fn =
       | None -> b
       | Some s when Lset.is_empty s -> b
       | Some s ->
-        Abi.Blk.insns b |> Seq.filter ~f:(fun i ->
-            not @@ Lset.mem s @@ Abi.Insn.label i) |>
-        Seq.to_list |> Abi.Blk.with_insns b)
+        Abi.Blk.filter_insns b ~f:(fun i ->
+            not @@ Lset.mem s @@ Abi.Insn.label i))
 
 let run fn =
   if Dict.mem (Abi.Func.dict fn) Tags.ssa then run0 fn else

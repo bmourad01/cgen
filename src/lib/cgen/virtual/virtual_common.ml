@@ -1,16 +1,10 @@
 open Core
-open Cgen_containers
 
 module Vset = Var.Tree_set
 
 let var_set_of_option = function
   | Some x -> Vset.singleton x
   | None -> Vset.empty
-
-type 'a ftree = 'a Ftree.t [@@deriving bin_io, sexp]
-
-let compare_ftree compare t1 t2 = Ftree.compare t1 t2 ~compare
-let equal_ftree equal t1 t2 = Ftree.equal t1 t2 ~equal
 
 type const = [
   | `bool   of bool

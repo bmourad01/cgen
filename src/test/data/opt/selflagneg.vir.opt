@@ -3,6 +3,6 @@ module foo
 export function w $foo(w %1) {
 @2:
   %5 = ne.w %1, 0x1_w ; @6
-  %6 = flag.w %5 ; @7
-  ret %6
+  %7 = flag.w %5 ; @8
+  ret %7
 }

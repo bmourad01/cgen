@@ -2,9 +2,11 @@ open Core
 open Regular.Std
 open Cgen_containers
 
-type t = Int63.t [@@deriving bin_io, compare, equal, hash, sexp]
+type t = int [@@deriving bin_io, compare, equal, hash, sexp]
 
-let pp ppf v = Format.fprintf ppf "%%%a" Int63.pp v
+let of_int_unsafe v = v
+
+let pp ppf v = Format.fprintf ppf "%%%d" v
 
 include Regular.Make(struct
     type nonrec t = t [@@deriving bin_io, compare, equal, hash, sexp]
@@ -14,16 +16,17 @@ include Regular.Make(struct
   end)
 
 module Patricia_key = struct
-  include Int63
+  include Int
   let size = 63
-  let to_int = to_int_trunc
+  let equal : t -> t -> bool = phys_equal
 end
 
 module Dense_key = struct
-  type nonrec t = t [@@deriving equal]
-  let empty_sentinel = Int63.of_int (-1)
-  let to_int = Int63.to_int_trunc
+  type nonrec t = t
+  let empty_sentinel = -1
+  let to_int v = v
   let pp = pp
+  let equal : t -> t -> bool = phys_equal
 end
 
 module Tree = Patricia_tree.Make(Patricia_key)

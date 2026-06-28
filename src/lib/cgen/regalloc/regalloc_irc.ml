@@ -63,6 +63,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           dst = d;
           src = s;
           loop = loop_depth;
+          weight = Float.of_int (Int.pow 10 loop_depth);
           trivial = Untested;
         };
         (* Persist phi-copy relationships for cross-round slot coalescing.
@@ -124,7 +125,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let enable_moves_one t n =
     (* ∀ m ∈ NodeMoves(n) *)
-    Wmoves.node_moves t n |> Lset.iter ~f:(fun m ->
+    Wmoves.iter_node_moves t n ~f:(fun m ->
         (* if m ∈ activeMoves then *)
         if Lset.mem t.data.amoves m then begin
           Logs.debug (fun m_ ->
@@ -386,7 +387,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let freeze_moves t u =
     let u' = alias t u in
     (* ∀ m ∈ NodeMoves(u) *)
-    Wmoves.node_moves t u |> Lset.iter ~f:(fun m ->
+    Wmoves.iter_node_moves t u ~f:(fun m ->
         let c = LT.find_exn t.copies m in
         (* GetAlias(src); if it equals GetAlias(u), v is the dst side. *)
         let y = alias t c.src in
@@ -404,7 +405,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               __FUNCTION__ Label.pp m Rv.pp t.![v]);
         t.fmoves <- Lset.add t.fmoves m;
         (* if NodeMoves(v) = {} ∧ degree[v] < K ∧ v not precolored *)
-        if Lset.is_empty (Wmoves.node_moves t v)
+        if not (Wmoves.move_related t v)
         && degree t v < id_k t v
         && not (exclude_from_coloring t v) then begin
           (* freezeWorklist := freezeWorklist ∖ {v} *)

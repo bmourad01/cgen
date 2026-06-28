@@ -16,6 +16,8 @@ let lca t a b =
     Some (`insn (_, bb, _, _) | `blk bb) ->
     Semi_nca.Tree.lca_exn t.input.dom (Blk.label ba) (Blk.label bb)
 
+let blk_label t l = Input.resolve_blk_label t.input.reso l
+
 (* Note that `id` must be the canonical e-class. *)
 let move t old l id =
   Logs.debug (fun m ->
@@ -26,13 +28,13 @@ let move t old l id =
             (List.to_string ~f:Label.to_string old) in
       m "%s: moving term %d %ato %a%!"
         __FUNCTION__ id pp_old old Label.pp l);
-  add_moved t id old;
+  add_moved t id @@ List.map old ~f:(blk_label t);
   set_label t id l;
   LT.update t.lmoved l ~f:(function
       | None -> Iset.singleton id
       | Some s -> Iset.add s id)
 
-let mark_use t id a = add_moved t id [a]
+let mark_use t id a = add_moved t id [blk_label t a]
 
 (* Update when we union two nodes together. Should not be
    called if both IDs are the same. *)
@@ -70,16 +72,14 @@ let merge t a b u =
     clear_label t b;
     move t [pa; pb] pc cid
 
-let rec useof t l : enode -> unit = function
+let useof t l (n : enode) =
+  let bl = blk_label t l in
+  match n with
   | U {pre; post} ->
-    mark_use t pre l;
-    mark_use t post l;
-    useof t l @@ node t pre;
-    useof t l @@ node t post
+    add_moved t pre [bl];
+    add_moved t post [bl]
   | N (_, cs) ->
-    List.iter cs ~f:(fun c ->
-        mark_use t c l;
-        useof t l @@ node t c)
+    List.iter cs ~f:(fun c -> add_moved t c [bl])
 
 let default_placement t id l n =
   Logs.debug (fun m ->

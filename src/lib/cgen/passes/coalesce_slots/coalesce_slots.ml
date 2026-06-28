@@ -16,12 +16,11 @@ let check_ssa msg n d =
   if Dict.mem d Tags.ssa then Ok ()
   else E.failf "In Coalesce_slots%s: function $%s is not in SSA form" msg n ()
 
-let apply t fn map_blks map_blk insns with_insns with_ctrl label =
+let apply t fn map_blks map_blk filter_insns with_insns with_ctrl label =
   let not_dead = not @. Lset.mem t.deads @. label in
   if is_empty t then fn else
     let f = if Var.Tree.is_empty t.subst then fun b ->
-        insns b |> Seq.filter ~f:not_dead |>
-        Seq.to_list |> with_insns b
+        filter_insns b ~f:not_dead
       else fun b ->
         let is, c = map_blk t.subst b in
         let is = if Lset.is_empty t.deads then is
@@ -36,7 +35,7 @@ let run fn =
   apply t fn
     Func.map_blks
     Subst_mapper.map_blk
-    Blk.insns
+    Blk.filter_insns
     Blk.with_insns
     Blk.with_ctrl
     Insn.label
@@ -48,7 +47,7 @@ let run_abi fn =
   apply t fn
     Func.map_blks
     Subst_mapper_abi.map_blk
-    Blk.insns
+    Blk.filter_insns
     Blk.with_insns
     Blk.with_ctrl
     Insn.label

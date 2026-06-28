@@ -99,11 +99,11 @@ end
 type cost = Cost.t
 
 type t = {
-  eg             : egraph;
-  table          : (cost * enode) OA.t;
-  safe           : (cost * enode) OA.t;
-  memo           : ext OA.t;
-  impure         : Bitset.t;
+  eg     : egraph;
+  table  : (cost * enode) OA.t;
+  safe   : (cost * enode) OA.t;
+  memo   : ext OA.t;
+  impure : Bitset.t;
 }
 
 let rec pp_ext ppf = function

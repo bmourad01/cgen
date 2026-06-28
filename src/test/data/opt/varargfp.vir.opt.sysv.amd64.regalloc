@@ -46,8 +46,8 @@ export function $addv { ; returns: xmm0
   mov rdx, rax ; @81
 @59:
   movsd xmm1, qword ptr [rsi] ; @73
+  inc r8d ; @16
   addsd xmm0, xmm1 ; @79
-  inc r8d ; @17
   mov rax, rdx ; @74
   jmp @3 ; @78
 }

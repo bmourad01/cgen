@@ -78,7 +78,6 @@ type candidate = {
   size : int;
   align : int;
   range : range;
-  mutable adj : Vset.t;
   mutable assigned : bool;
 }
 
@@ -88,7 +87,6 @@ let create_candidate slots rs v =
     size = Slot.size slot;
     align = Slot.align slot;
     range = Vtree.find_exn rs v;
-    adj = Vset.empty;
     assigned = false;
   }
 
@@ -136,8 +134,6 @@ let candidates slots rs =
   Seq.iter ~f:(Vec.push vs);
   vs
 
-let is_subset g y = List.for_all g ~f:(fun x -> Vset.mem y.adj x.var)
-
 (* Greedy partitioning algorithm. *)
 let partition slots rs =
   let vs = candidates slots rs in
@@ -146,34 +142,42 @@ let partition slots rs =
   | 1 -> [[Vec.front_exn vs]]
   | len ->
     assert (len > 1);
-    let gs = ref [] in
-    (* Compute the adjacency sets. *)
-    for i = 0 to len - 1 do
-      let x = Vec.unsafe_get vs i in
-      for j = 0 to len - 1 do
-        if i <> j then
-          let y = Vec.unsafe_get vs j in
-          if compat_range x y then
-            x.adj <- Vset.add x.adj y.var
-      done
-    done;
-    (* Use an ascending order. *)
+    (* Process shorter live ranges first. *)
     Vec.sort vs ~compare:(fun x y -> range_priority y x);
-    while not @@ Vec.is_empty vs do
-      let x = Vec.pop_exn vs in
-      if not x.assigned then
-        let () = x.assigned <- true in
+    let gs = ref [] in
+    let feasible = ref (Bitset.create ~capacity:len ()) in
+    let scratch = ref (Bitset.create ~capacity:len ()) in
+    for k = len - 1 downto 0 do
+      let x = Vec.unsafe_get vs k in
+      if not x.assigned then begin
+        x.assigned <- true;
         Logs.debug (fun m ->
             m "%s: processing %a%!"
               __FUNCTION__ Var.pp x.var);
         let g = ref [x] in
-        for i = Vec.length vs - 1 downto 0 do
-          let y = Vec.unsafe_get vs i in
-          if not y.assigned && is_subset !g y then
-            let () = y.assigned <- true in
-            g := y :: !g
+        (* Seed every unassigned candidate below `k` that is
+           compatible with `x`. *)
+        Bitset.clear !feasible;
+        for j = 0 to k - 1 do
+          let y = Vec.unsafe_get vs j in
+          if not y.assigned && compat_range x y then
+            Bitset.add !feasible j
+        done;
+        for i = k - 1 downto 0 do
+          if Bitset.mem !feasible i then begin
+            let y = Vec.unsafe_get vs i in
+            y.assigned <- true;
+            g := y :: !g;
+            (* feasible := feasible ∩ {j | compat y vs[j]}. *)
+            Bitset.clear !scratch;
+            Bitset.iter !feasible ~f:(fun j ->
+                if compat_range y (Vec.unsafe_get vs j)
+                then Bitset.add !scratch j);
+            Ref.swap feasible scratch
+          end
         done;
         gs := !g :: !gs
+      end
     done;
     !gs
 
@@ -210,9 +214,9 @@ module Make(M : Scalars.L) = struct
   module Sinit = Slot_initialization.Make(M)
   module Loop = Loops.Make(M.Cfg)
 
-  let mkdef s x n = Vtree.update s x ~f:(function
-      | None -> Range.singleton n
-      | Some r -> Range.def r n)
+  let mkdef s x n = Vtree.update_with s x
+      ~nil:(fun () -> Range.singleton n)
+      ~has:(fun r -> Range.def r n)
 
   let mkuse s x n = Vtree.change s x ~f:(function
       | Some r -> Some (Range.use r n)
@@ -257,9 +261,9 @@ module Make(M : Scalars.L) = struct
             Loop.loops_of loop l |>
             Seq.fold ~init:acc ~f:(fun acc lp ->
                 let h = Loop.header @@ Loop.get loop lp in
-                Ltree.update acc h ~f:(function
-                    | Some (a, b) -> Int.min a lo, Int.max b hi
-                    | None -> lo, hi))) in
+                Ltree.update_with acc h
+                  ~has:(fun (a, b) -> Int.min a lo, Int.max b hi)
+                  ~nil:(fun () -> lo, hi))) in
     if Ltree.is_empty loop_spans then rs else
       Vtree.fold rs ~init:rs ~f:(fun ~key ~data:r acc ->
           if Range.is_bad r then acc else

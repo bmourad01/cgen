@@ -7,7 +7,7 @@ export function w $foo(w %0) {
   %4 = lsr.w %3, 0x1_w ; @6
   %5 = add.w %4, %2 ; @7
   %6 = lsr.w %5, 0x2_w ; @8
-  %7 = mul.w %6, 0x7_w ; @9
-  %8 = sub.w %0, %7 ; @10
-  ret %8
+  %8 = mul.w %6, 0x7_w ; @10
+  %9 = sub.w %0, %8 ; @11
+  ret %9
 }

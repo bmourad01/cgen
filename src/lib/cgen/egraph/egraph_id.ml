@@ -15,5 +15,4 @@ module Key = struct
   let size = Sys.int_size_in_bits
 end
 
-module Tree = Patricia_tree.Make(Key)
 module Tree_set = Patricia_tree.Make_set(Key)

@@ -70,6 +70,13 @@ let resolve_blk reso l =
   | Some `blk b -> Some b
   | Some _ | None -> None
 
+(* The label of the block that `l` belongs to (whether `l` is a block or
+   an instruction label). *)
+let resolve_blk_label reso l =
+  match Resolver.resolve reso l with
+  | Some (`insn (_, b, _, _) | `blk b) -> Blk.label b
+  | None -> assert false
+
 let init fn tenv =
   let+ reso = Resolver.create fn in
   let start = Func.entry fn in

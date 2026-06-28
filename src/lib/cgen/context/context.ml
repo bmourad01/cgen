@@ -14,7 +14,7 @@ end
 
 let init target = {
   target;
-  nextvar = Int63.zero;
+  nextvar = 0;
   nextlabel = Label.init;
 }
 

@@ -12,7 +12,11 @@ open Regular.Std
 open Cgen_containers
 
 (** A program label. *)
-type t = private Int63.t
+type t = private int
+
+(** Escape hatch for constructing a label via its underlying
+    representation. *)
+val of_int_unsafe : int -> t
 
 (** The pseudo-entry label. Primarily useful for computing the
     dominator tree of a graph .*)

@@ -22,10 +22,10 @@ start:
         %20 = copy.l %36
       } else {
         if sgt.w %25, 0x0_w {
-          %41 = add.l %38, %9;
-          %42 = add.l %36, 0x1_l;
-          %43 = sub.l %20, %42;
-          %19 = copy.l %41;
+          %41 = add.l %36, 0x1_l;
+          %42 = add.l %38, %9;
+          %43 = sub.l %20, %41;
+          %19 = copy.l %42;
           %20 = copy.l %43
         } else {
           %33 = copy.l %38;

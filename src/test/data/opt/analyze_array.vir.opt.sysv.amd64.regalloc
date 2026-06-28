@@ -69,8 +69,8 @@ export function $analyze_array { ; returns: rax
   mov ecx, r15d ; @73
   sub ecx, r12d ; @122
   add eax, ebx ; @75
-  lea ebx, qword ptr [rax + rcx*1] ; @76
-  inc r13d ; @77
+  inc r13d ; @76
+  lea ebx, qword ptr [rax + rcx*1] ; @77
   mov edi, r15d ; @119
   jmp @13 ; @121
 }
@@ -101,8 +101,8 @@ export function $analyze_array_inl { ; returns: rax
   mov ecx, r8d ; @89
   sub ecx, eax ; @154
   add edx, r9d ; @91
-  lea r9d, qword ptr [rdx + rcx*1] ; @92
-  inc r10d ; @93
+  inc r10d ; @92
+  lea r9d, qword ptr [rdx + rcx*1] ; @93
   mov ecx, eax ; @150
   mov eax, r8d ; @151
   jmp @36 ; @153

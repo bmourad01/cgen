@@ -56,11 +56,11 @@ export function $bsearch { ; returns: rax
   mov rax, %33:l ; @49
   ret ; @50
 @19:
-  lea %41:l, qword ptr [%38 + %9*1] ; @34
-  lea %42:l, qword ptr [%36 + 0x1] ; @35
+  lea %41:l, qword ptr [%36 + 0x1] ; @34
+  lea %42:l, qword ptr [%38 + %9*1] ; @35
   mov %43:l, %20:l ; @36
-  sub %43:l, %42:l ; @48
-  mov %19:l, %41:l ; @45
+  sub %43:l, %41:l ; @48
+  mov %19:l, %42:l ; @45
   mov %20:l, %43:l ; @46
   jmp @7 ; @47
 }

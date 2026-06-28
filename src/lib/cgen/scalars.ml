@@ -207,9 +207,10 @@ module Make(M : L) = struct
     | `var src ->
       begin match Vtree.find acc src with
         | None -> acc
-        | Some v -> Vtree.update acc dst ~f:(function
-            | Some v' -> Value.merge v v'
-            | None -> v)
+        | Some v ->
+          Vtree.update_with acc dst
+            ~has:(fun v' -> Value.merge v v')
+            ~nil:(fun () -> v)
       end
     | _ -> acc
 

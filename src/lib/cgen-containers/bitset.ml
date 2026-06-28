@@ -1,9 +1,9 @@
 open Core
 open Regular.Std
 
-module W = Int63
+module W = Int
 
-let bpw = 63
+let bpw = Sys.int_size_in_bits
 let () = assert (W.num_bits = bpw)
 
 type key = int

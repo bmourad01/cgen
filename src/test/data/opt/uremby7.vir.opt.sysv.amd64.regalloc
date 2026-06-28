@@ -10,7 +10,7 @@ export function $foo { ; returns: rax
   shr ecx, 0x1_b ; @16
   add ecx, edx ; @7
   shr ecx, 0x2_b ; @15
-  imul ecx, ecx, 0x7 ; @9
+  imul ecx, ecx, 0x7 ; @10
   sub eax, ecx ; @14
   ret ; @13
 }

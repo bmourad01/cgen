@@ -1,11 +1,11 @@
 open Core
 open Context_common
 
-let init = Int63.(succ (Obj.magic Label.pseudoexit : t))
+let init = (Label.pseudoexit :> int) + 1
 
 let fresh = {
   M.run = fun ~reject:_ ~accept s ->
-    let l = (Obj.magic s.state.nextlabel : Label.t) in
-    let state = {s.state with nextlabel = Int63.succ s.state.nextlabel} in
+    let l = Label.of_int_unsafe s.state.nextlabel in
+    let state = {s.state with nextlabel = s.state.nextlabel + 1} in
     accept l {s with state}
 }

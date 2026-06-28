@@ -38,8 +38,8 @@ export function $main { ; returns: rax
   mov edx, r12d ; @36
   xor eax, eax ; @37
   call $printf ; rax rdi rdx rsi ; @38
-  dec r14d ; @25
-  inc r13d ; @26
+  inc r13d ; @25
+  dec r14d ; @26
   jmp @3 ; @34
 @9:
   xor eax, eax ; @29

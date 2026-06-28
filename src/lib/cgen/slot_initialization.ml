@@ -42,6 +42,7 @@ type state = unit Tree.t Vtree.t
 
 let equal_state s1 s2 =
   Vtree.equal (fun t1 t2 ->
+      phys_equal t1 t2 ||
       Seq.equal (fun (i1, _) (i2, _) ->
           Interval.compare i1 i2 = 0)
         (Tree.to_sequence t1)
@@ -57,24 +58,21 @@ let init_constraints : state Label.Tree.t =
 
 (* Our top element, which is every slot having been initialized. *)
 let top_state slots : state =
-  Vtree.fold slots ~init:Vtree.empty ~f:(fun ~key ~data:s acc ->
+  Vtree.mapi slots ~f:(fun ~key:_ ~data:s ->
       let i = {lo = 0; hi = Slot.size s - 1} in
-      Vtree.set acc ~key ~data:(Tree.singleton i ()))
+      Tree.singleton i ())
 
 (* Coalesce `i` with any overlapping or adjacent intervals in `t`. *)
 let normalize_add t i =
   let lo, hi, t =
-    Interval.extended i |> Tree.intersections t |> Seq.map ~f:fst |>
-    Seq.fold ~init:(i.lo, i.hi, t) ~f:(fun (lo, hi, t) i ->
-        min lo i.lo, max hi i.hi, Tree.remove t i) in
+    Tree.fold_intersections t (Interval.extended i) ~init:(i.lo, i.hi, t)
+      ~f:(fun (lo, hi, t) j _ -> min lo j.lo, max hi j.hi, Tree.remove t j) in
   Tree.add t {lo; hi} ()
 
 (* Intersect the intervals (and also normalize them). *)
 let merge_tree t1 t2 =
-  Tree.to_sequence t1 |> Seq.map ~f:fst |>
-  Seq.fold ~init:Tree.empty ~f:(fun init i1 ->
-      Tree.intersections t2 i1 |> Seq.map ~f:fst |>
-      Seq.fold ~init ~f:(fun acc i2 ->
+  Tree.foldi t1 ~init:Tree.empty ~f:(fun init i1 () ->
+      Tree.fold_intersections t2 i1 ~init ~f:(fun acc i2 () ->
           let lo = max i1.lo i2.lo in
           let hi = min i1.hi i2.hi in
           if lo <= hi then normalize_add acc {lo; hi} else acc))
@@ -107,10 +105,11 @@ type access =
 
 let apply_store acc base off ty =
   let i = Interval.from_access off ty in
-  Vtree.update acc base ~f:(function
-      | None -> Tree.singleton i ()
-      | Some t when Tree.dominates t i -> t
-      | Some t -> normalize_add t i)
+  Vtree.update_with acc base
+    ~nil:(fun () -> Tree.singleton i ())
+    ~has:(fun t ->
+        if Tree.dominates t i then t
+        else normalize_add t i)
 
 let apply_load bad acc l base off ty =
   if is_uninitialized acc base off ty then LS.add bad l;

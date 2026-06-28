@@ -10,15 +10,15 @@ export function $freeze_test { ; returns: rax
   sub rsp, 0x10_l ; @184
   mov dword ptr [rsp + 0xc], ecx ; @165
   xor eax, eax ; @151
-  xor r13d, r13d ; @152
-  xor r12d, r12d ; @153
-  xor ebx, ebx ; @154
-  xor r11d, r11d ; @155
-  xor r10d, r10d ; @156
-  xor r9d, r9d ; @157
-  xor r8d, r8d ; @158
-  xor r14d, r14d ; @159
-  xor r15d, r15d ; @160
+  xor r15d, r15d ; @152
+  xor r13d, r13d ; @153
+  xor r12d, r12d ; @154
+  xor ebx, ebx ; @155
+  xor r11d, r11d ; @156
+  xor r10d, r10d ; @157
+  xor r9d, r9d ; @158
+  xor r8d, r8d ; @159
+  xor r14d, r14d ; @160
   mov dword ptr [rsp + 0x8], 0x0_w ; @166
   mov dword ptr [rsp + 0x4], 0x0_w ; @167
   mov dword ptr [rsp], 0x0_w ; @168
@@ -31,42 +31,42 @@ export function $freeze_test { ; returns: rax
   test ecx, ecx ; @133
   jne @23 ; @134
 @24:
-  mov ecx, dword ptr [rsp] ; @170
-  add ecx, edi ; @57
-  mov dword ptr [rsp], ecx ; @171
+  dec edx ; @57
+  add r15d, edi ; @58
+  add r13d, edi ; @59
+  add r12d, edi ; @60
+  add ebx, edi ; @61
+  add r11d, edi ; @62
+  add r10d, edi ; @63
+  add r9d, edi ; @64
+  add r8d, edi ; @65
+  add r14d, edi ; @66
+  mov ecx, dword ptr [rsp + 0x8] ; @170
+  add ecx, edi ; @67
+  mov dword ptr [rsp + 0x8], ecx ; @171
   mov ecx, dword ptr [rsp + 0x4] ; @172
-  add ecx, edi ; @58
+  add ecx, edi ; @68
   mov dword ptr [rsp + 0x4], ecx ; @173
-  mov ecx, dword ptr [rsp + 0x8] ; @174
-  add ecx, edi ; @59
-  mov dword ptr [rsp + 0x8], ecx ; @175
-  add r15d, edi ; @60
-  add r14d, edi ; @61
-  add r8d, edi ; @62
-  add r9d, edi ; @63
-  add r10d, edi ; @64
-  add r11d, edi ; @65
-  add ebx, edi ; @66
-  add r12d, edi ; @67
-  add r13d, edi ; @68
-  dec edx ; @69
+  mov ecx, dword ptr [rsp] ; @174
+  add ecx, edi ; @69
+  mov dword ptr [rsp], ecx ; @175
   jmp @3 ; @132
 @23:
-  add eax, esi ; @55
-  dec ecx ; @56
+  dec ecx ; @55
+  add eax, esi ; @56
   jmp @21 ; @117
 @19:
   mov edx, dword ptr [rsp + 0x4] ; @176
   add edx, dword ptr [rsp] ; @70
   mov ecx, dword ptr [rsp + 0x8] ; @178
-  add ecx, r15d ; @72
+  add ecx, r14d ; @72
   add edx, ecx ; @73
-  lea esi, qword ptr [r14 + r8*1] ; @76
-  lea ecx, qword ptr [r9 + r10*1] ; @82
+  lea esi, qword ptr [r8 + r9*1] ; @76
+  lea ecx, qword ptr [r10 + r11*1] ; @82
   add esi, ecx ; @83
-  lea ecx, qword ptr [r11 + rbx*1] ; @90
+  lea ecx, qword ptr [rbx + r12*1] ; @90
   add esi, ecx ; @91
-  lea ecx, qword ptr [r12 + r13*1] ; @100
+  lea ecx, qword ptr [r13 + r15*1] ; @100
   add eax, ecx ; @106
   add eax, esi ; @107
   add eax, edx ; @108

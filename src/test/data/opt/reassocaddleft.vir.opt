@@ -3,7 +3,7 @@ module foo
 export function w $foo(w %3, w %2, w %1) {
 @2:
   %7 = add.w %1, 0x1_w ; @6
-  %10 = add.w %2, %3 ; @9
-  %11 = add.w %7, %10 ; @10
+  %9 = add.w %2, %3 ; @8
+  %11 = add.w %7, %9 ; @10
   ret %11
 }

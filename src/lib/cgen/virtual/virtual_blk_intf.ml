@@ -84,6 +84,10 @@ module type S = sig
       to [f]. *)
   val map_insns : t -> f:(Label.t -> op -> op) -> t
 
+  (** [filter_insns b ~f] returns [b] keeping only the instructions for
+      which [f] holds. *)
+  val filter_insns : t -> f:(insn -> bool) -> t
+
   (** [map_ctrl b ~f] returns [b] with the terminator applied to [f]. *)
   val map_ctrl : t -> f:(ctrl -> ctrl) -> t
 

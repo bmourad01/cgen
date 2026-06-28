@@ -41,8 +41,8 @@ export function $foo { ; returns: rax
   lea eax, qword ptr [r12 + rbx*1] ; @59
   lea ecx, qword ptr [r11 + r10*1] ; @60
   imul eax, ecx ; @73
-  add edi, eax ; @62
-  inc r13d ; @63
+  inc r13d ; @62
+  add edi, eax ; @63
   jmp @3 ; @72
 @21:
   lea ecx, qword ptr [r12 + r9*1] ; @48
@@ -55,7 +55,7 @@ export function $foo { ; returns: rax
   add ecx, esi ; @54
   add eax, edx ; @55
   xor ecx, eax ; @67
-  add edi, ecx ; @57
-  inc r9d ; @58
+  inc r9d ; @57
+  add edi, ecx ; @58
   jmp @9 ; @66
 }

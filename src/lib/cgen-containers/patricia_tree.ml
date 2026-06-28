@@ -311,6 +311,18 @@ module Make(K : Patricia_tree_intf.Key) = struct
     | Bin (_, l, r) -> fold_right l ~f ~init:(fold_right r ~init ~f)
   [@@specialise]
 
+  (* The tree's shape depends only on the keys, so a value transform
+     reuses the exact `Bin` spine and `Tip` keys; no prefix matching,
+     branching, or insertion is needed. *)
+  let[@tail_mod_cons] rec mapi t ~f = match t with
+    | Nil -> Nil
+    | Tip (k, v) -> Tip (k, f ~key:k ~data:v)
+    | Bin (pk, l, r) ->
+      Bin (pk, (mapi[@tailcall false]) l ~f, (mapi[@tailcall]) r ~f)
+  [@@specialise]
+
+  let map t ~f = mapi t ~f:(fun ~key:_ ~data -> f data) [@@inline]
+
   let rec length = function
     | Nil -> 0
     | Tip _ -> 1
@@ -548,6 +560,12 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
     | Nil -> ()
     | Tip k -> f k
     | Bin (_, l, r) -> iter l ~f; iter r ~f
+  [@@specialise]
+
+  let rec exists t ~f = match t with
+    | Nil -> false
+    | Tip k -> f k
+    | Bin (_, l, r) -> exists l ~f || exists r ~f
   [@@specialise]
 
   let rec fold t ~init ~f = match t with

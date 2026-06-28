@@ -15,19 +15,19 @@ export function $foo { ; returns: rax
   mov eax, %17:w ; @40
   ret ; @41
 @4:
-  lea %21:w, qword ptr [%17 + 0x1] ; @22
+  lea %20:w, qword ptr [%17 + 0x1] ; @21
   test %16:w, 0x1_w ; @34
   je @6 ; @35
   jmp @7 ; @36
 @7:
   lea %25:w, qword ptr [%16 + %16*2 + 0x1] ; @26
   mov %16:w, %25:w ; @31
-  mov %17:w, %21:w ; @32
+  mov %17:w, %20:w ; @32
   jmp @2 ; @33
 @6:
   mov %22:w, %16:w ; @23
   shr %22:w, 0x1_b ; @30
   mov %16:w, %22:w ; @27
-  mov %17:w, %21:w ; @28
+  mov %17:w, %20:w ; @28
   jmp @2 ; @29
 }

@@ -138,6 +138,9 @@ let set_label t id l = Vec.set_exn t.ilbl id @@ Uopt.some l
 let clear_label t id = Vec.set_exn t.ilbl id Uopt.none
 let movedof t id = Vec.get_exn t.imoved id
 
+(* The labels must already be block labels: `imoved` is only ever consumed as
+   block labels, so callers normalize before inserting (collapsing multiple
+   in-block use points to one entry). *)
 let add_moved t id = function
   | [] -> ()
   | ls ->

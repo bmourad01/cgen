@@ -3,8 +3,8 @@ open Regular.Std
 
 type state = {
   target    : Target.t;
-  nextvar   : Int63.t;
-  nextlabel : Int63.t;
+  nextvar   : int;
+  nextlabel : int;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 module State = struct
