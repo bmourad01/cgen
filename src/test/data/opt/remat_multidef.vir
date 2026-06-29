@@ -1,0 +1,118 @@
+module remat_multidef
+
+export data $platform_main_end_x = {
+  z 8
+}
+
+export data $g_428 = {
+  z 2
+}
+
+data $.str0 = {
+  "checksum = %llx\n",
+  z 1
+}
+
+export function sb $safe_div_func_uint8_t_u_u(b %1) {
+  %0 = slot 1, align 1
+@2:
+  st.b %1, %0 ; @3
+  hlt
+}
+
+export function sw $main() {
+  %2 = slot 1, align 1
+  %3 = slot 2, align 2
+  %4 = slot 1, align 1
+  %5 = slot 4, align 4
+  %6 = slot 4, align 4
+  %7 = slot 4, align 4
+  %8 = slot 4, align 4
+  %9 = slot 4, align 4
+  %10 = slot 4, align 4
+  %11 = slot 1, align 1
+  %13 = slot 4, align 4
+  %14 = slot 4, align 4
+@69:
+  st.w 0x2_w, %9 ; @71
+  st.w 0x0_w, %10 ; @70
+  jmp @7
+@7:
+  jmp @66
+@66:
+  %49 = ld.w %9 ; @68
+  %50 = ne.w %49, 0x0_w ; @67
+  br %50, @62, @4
+@62:
+  %52 = itrunc.b 0x9_w ; @65
+  st.b %52, %11 ; @64
+  st.w 0x0_w, %13 ; @63
+  jmp @14
+@14:
+  jmp @58
+@58:
+  st.w 0x0_w, %14 ; @61
+  %53 = ld.w %13 ; @60
+  %54 = ne.w %53, 0x0_w ; @59
+  br %54, @8, @50
+@50:
+  %58 = ld.b %11 ; @57
+  st.b %58, %2 ; @56
+  %59 = ld.b %2 ; @55
+  %60 = sext.w %59 ; @54
+  %61 = add.w %60, 0x1_w ; @53
+  %62 = itrunc.b %61 ; @52
+  st.b %62, %11 ; @51
+  jmp @27
+@27:
+  jmp @44
+@44:
+  %63 = ld.b %11 ; @49
+  %64 = sext.w %63 ; @48
+  %65 = sle.w %64, 0x2_w ; @47
+  %66 = flag.w %65 ; @46
+  %67 = ne.w %66, 0x0_w ; @45
+  br %67, @28, @21
+@28:
+  %74 = itrunc.h 0x0_w ; @43
+  st.h %74, %3 ; @42
+  %75 = ld.h %3 ; @41
+  st.h %75, $g_428 ; @40
+  %76 = ld.h %3 ; @39
+  %77 = itrunc.b %76 ; @38
+  %78 = call.sb $safe_div_func_uint8_t_u_u(%77) ; @37
+  st.b %78, %4 ; @36
+  %79 = ld.w %14 ; @35
+  st.w %79, %5 ; @34
+  %80 = ld.w %5 ; @33
+  %81 = ld.b %4 ; @32
+  %82 = sext.w %81 ; @31
+  %83 = and.w %80, %82 ; @30
+  st.w %83, %14 ; @29
+  jmp @27
+@21:
+  %68 = ld.w %13 ; @26
+  st.w %68, %6 ; @25
+  %69 = ld.w %6 ; @24
+  %70 = sub.w %69, 0x1_w ; @23
+  st.w %70, %13 ; @22
+  jmp @15
+@15:
+  %71 = ld.w %10 ; @20
+  st.w %71, %7 ; @19
+  %72 = ld.w %7 ; @18
+  %73 = sub.w %72, 0x1_w ; @17
+  st.w %73, %10 ; @16
+  jmp @14
+@8:
+  %55 = ld.w %9 ; @13
+  st.w %55, %8 ; @12
+  %56 = ld.w %8 ; @11
+  %57 = sub.w %56, 0x1_w ; @10
+  st.w %57, %9 ; @9
+  jmp @7
+@4:
+  %51 = ld.l $platform_main_end_x ; @6
+  call $printf($.str0, ..., %51) ; @5
+  ret 0x0_w
+}

@@ -37,6 +37,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let insn = Insn.insn i in
     let use = M.Insn.reads insn in
     let def = M.Insn.writes insn in
+    (* Record rematerializable defs so spilling can recompute them at each
+       use instead of allocating a slot. *)
+    if RA.is_rematerializable insn
+    && Set.for_all use ~f:(fun rv -> exclude_from_coloring t t.$[rv]) then
+      Set.iter def ~f:(fun rv -> RT.set t.remat ~key:rv ~data:insn);
     Set.iter use ~f:(fun rv ->
         let u = t.$[rv] in
         Wspill.update_cost ~loop_depth t u;
@@ -539,6 +544,13 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           let other = if c.dst = id then c.src else c.dst in
           try_slot t.![other]) |> Seq.hd
 
+  (* The rematerializable def recorded for node `id`, but only if `id` has a
+     single definition. A value with multiple defs must NOT be recomputed from
+     the constant def, or the other defs are dropped. *)
+  let remat_insn t id = match RT.find t.remat t.![id] with
+    | Some insn when num_defs t id = 1 -> Some insn
+    | _ -> None
+
   (* Create slots for spilled nodes. *)
   let make_slots t =
     let+ slots, _ =
@@ -546,6 +558,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       C.Seq.fold ~init:([], Int.Map.empty) ~f:(fun (acc, m) id ->
           match Rv.which t.![id] with
           | First _ -> assert false
+          (* A rematerializable node is recomputed at each use, so it needs
+             no slot. *)
+          | Second _ when Option.is_some (remat_insn t id) -> !!(acc, m)
           | Second v ->
             let+ size = typeof t t.![id] >>| function
               | #Type.basic as b -> Type.sizeof_basic b / 8
@@ -616,50 +631,75 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
          representative shares the representative's slot (see `spilled_slot`). *)
       Seq.filter ~f:(fun rv -> Bitset.mem t.spilled (alias t t.$[rv])) |>
       C.Seq.fold ~init ~f:(fun (f, s, m, rl) v ->
-          let* ty = typeof t v in
-          let slot = RT.find_exn t.slots t.![alias t t.$[v]] in
+          let aid = alias t t.$[v] in
+          let rep = t.![aid] in
           let is_use = Set.mem use v and is_def = Set.mem def v in
-          (* Optimization: if `v` is a pure use and we already loaded it
-             earlier in this block (it's in the reload cache `rl`), reuse
-             the existing temp without emitting another load. *)
-          match Map.find rl v with
-          | Some v' when is_use && not is_def ->
-            let m' = Map.set m ~key:v ~data:v' in
-            !!(f, s, m', rl)
-          | _ ->
-            (* Create a new temporary v_i for each definition and each use
-               not already satisfied by the reload cache. *)
-            let* v' = C.Var.fresh >>| Rv.var in
-            (* a fetch before each use of a v_i; cache it for later uses *)
-            let* f', rl = if is_use then
-                let+ label = C.Label.fresh in
-                let insn = RA.load_from_slot ty ~dst:v' ~src:slot in
-                Insn.create ~label ~insn :: f,
-                Map.set rl ~key:v ~data:v'
-              else !!(f, rl) in
-            (* Insert a store after each definition of a v_i; invalidate cache *)
-            let+ s', rl = if is_def then
-                let+ label = C.Label.fresh in
-                let insn = RA.store_to_slot ty insn ~src:v' ~dst:slot in
-                Insn.create ~label ~insn :: s,
-                Map.remove rl v
-              else !!(s, rl) in
-            (* Update the substitution. *)
-            let m' = Map.set m ~key:v ~data:v' in
-            (* initial := initial ∪ newTemps *)
-            add_initial t v';
-            (* Mark `v'` as a reload temporary so `select_spill` avoids it.
-               Reload temps introduced here have short live ranges but can
-               interfere with all K surviving registers at a loop use point,
-               giving them cost/degree < original variables. Without this
-               flag their low cost causes `select_spill` to pick them first,
-               spilling them in `assign_colors` and creating an infinite cascade.
-               Infinite spill cost forces original variables to be simplified
-               first, dropping the reload temps below K so they move to
-               `wsimplify` and get colored rather than actually spilled. *)
-            Bitset.add t.reload_bits t.$[v'];
-            RT.set t.types ~key:v' ~data:ty;
-            f', s', m', rl) in
+          match remat_insn t aid with
+          | Some def_insn ->
+            (* Rematerialize `v` right before each use instead of reloading it
+               from a slot. The original defining instruction is left in place
+               and becomes dead (later DCE removes it). This keeps the value's
+               live range to a single instruction, which is what makes spilling
+               converge when many address constants are live at once. *)
+            if not is_use then !!(f, s, m, rl) else
+              let* ty = typeof t v in
+              let* v' = C.Var.fresh >>| Rv.var in
+              let+ label = C.Label.fresh in
+              let rinsn =
+                RA.substitute def_insn
+                  (fun n -> if Rv.(n = rep) then v' else n) in
+              add_initial t v';
+              (* Pin the rematerialized temp like a reload temp so `select_spill`
+                 avoids it and spills the original multi-use values first,
+                 otherwise the cheap single-use temp is re-spilled every round. *)
+              Bitset.add t.reload_bits t.$[v'];
+              RT.set t.types ~key:v' ~data:ty;
+              Insn.create ~label ~insn:rinsn :: f, s,
+              Map.set m ~key:v ~data:v', rl
+          | None ->
+            let* ty = typeof t v in
+            let slot = RT.find_exn t.slots rep in
+            (* Optimization: if `v` is a pure use and we already loaded it
+               earlier in this block (it's in the reload cache `rl`), reuse
+               the existing temp without emitting another load. *)
+            match Map.find rl v with
+            | Some v' when is_use && not is_def ->
+              let m' = Map.set m ~key:v ~data:v' in
+              !!(f, s, m', rl)
+            | _ ->
+              (* Create a new temporary v_i for each definition and each use
+                 not already satisfied by the reload cache. *)
+              let* v' = C.Var.fresh >>| Rv.var in
+              (* a fetch before each use of a v_i; cache it for later uses *)
+              let* f', rl = if is_use then
+                  let+ label = C.Label.fresh in
+                  let insn = RA.load_from_slot ty ~dst:v' ~src:slot in
+                  Insn.create ~label ~insn :: f,
+                  Map.set rl ~key:v ~data:v'
+                else !!(f, rl) in
+              (* Insert a store after each definition of a v_i; invalidate cache *)
+              let+ s', rl = if is_def then
+                  let+ label = C.Label.fresh in
+                  let insn = RA.store_to_slot ty insn ~src:v' ~dst:slot in
+                  Insn.create ~label ~insn :: s,
+                  Map.remove rl v
+                else !!(s, rl) in
+              (* Update the substitution. *)
+              let m' = Map.set m ~key:v ~data:v' in
+              (* initial := initial ∪ newTemps *)
+              add_initial t v';
+              (* Mark `v'` as a reload temporary so `select_spill` avoids it.
+                 Reload temps introduced here have short live ranges but can
+                 interfere with all K surviving registers at a loop use point,
+                 giving them cost/degree < original variables. Without this
+                 flag their low cost causes `select_spill` to pick them first,
+                 spilling them in `assign_colors` and creating an infinite cascade.
+                 Infinite spill cost forces original variables to be simplified
+                 first, dropping the reload temps below K so they move to
+                 `wsimplify` and get colored rather than actually spilled. *)
+              Bitset.add t.reload_bits t.$[v'];
+              RT.set t.types ~key:v' ~data:ty;
+              f', s', m', rl) in
     (* Apply the substitution to the existing instruction. *)
     let subst n = Map.find subst n |> Option.value ~default:n in
     let i' = Insn.with_insn i @@ RA.substitute insn subst in

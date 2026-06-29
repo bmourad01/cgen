@@ -147,6 +147,14 @@ module type S = sig
         may otherwise clobber an arbitrary set of registers. *)
     val is_call : Insn.t -> bool
 
+    (** Returns [true] if the instruction is a candidate for rematerialization.
+
+        A typical candidate does not read/write memory or perform any other
+        kind of side effect, so it can be recomputed to reproduce its result
+        elsewhere in the function.
+    *)
+    val is_rematerializable : Insn.t -> bool
+
     (** Produce an instruction to load a value from a slot, where [src] holds the
         address of the slot and [dst] is destination register/variable. *)
     val load_from_slot : [Type.basic | `v128] -> dst:Regvar.t -> src:Regvar.t -> Insn.t

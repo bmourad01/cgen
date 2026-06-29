@@ -16,6 +16,13 @@ let is_call = function
   | One (CALL _, _) -> true
   | _ -> false
 
+let is_rematerializable = function
+  | Two (LEA, Oreg _, Omem _)
+  | Two (MOV, Oreg _, Oimm _)
+    -> true
+  | _
+    -> false
+
 let load_from_slot ty ~dst ~src = match ty with
   | #Type.imm as b -> I.mov (Oreg (dst, b)) (Omem (Ab src, b))
   | `f64 -> I.movsd (Oreg (dst, `f64)) (Omem (Ab src, `i64))

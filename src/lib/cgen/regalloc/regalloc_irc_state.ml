@@ -126,6 +126,7 @@ module Make(M : Machine_intf.S) = struct
     slots                : Rv.t RT.t;
     phi_pairs            : Rv.Set.t RT.t;
     types                : [Type.basic | `v128] RT.t;
+    remat                : M.Insn.t RT.t;  (* rematerializable defs, by dest var *)
     cfg                  : Pseudo.Cfg.t;
     loop                 : Loop.t;
     dom                  : Semi_nca.tree;
@@ -268,6 +269,8 @@ module Make(M : Machine_intf.S) = struct
 
   let add_def t id label =
     t.data.defs.(id) <- Lset.add t.data.defs.(id) label
+
+  let num_defs t id = Lset.length t.data.defs.(id)
 
   let add_phi_pair t a b =
     let add rv partner =
@@ -598,6 +601,7 @@ module Make(M : Machine_intf.S) = struct
       slots = RT.create ();
       phi_pairs = RT.create ();
       types = RT.create ();
+      remat = RT.create ();
       cfg;
       loop;
       dom;

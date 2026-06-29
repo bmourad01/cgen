@@ -1,0 +1,87 @@
+module remat_multidef
+
+export data $platform_main_end_x = {
+  z 8
+}
+
+export data $g_428 = {
+  z 2
+}
+
+data $.str0 = {
+  "checksum = %llx\n",
+  z 1
+}
+
+export function $safe_div_func_uint8_t_u_u {
+@2:
+  ud2 ; @88
+}
+
+export function $main { ; returns: rax
+@4:
+  push rbp ; @135
+  mov rbp, rsp ; @136
+  sub rsp, 0x18_l ; @137
+  push r12 ; @138
+  push r13 ; @139
+  push r14 ; @140
+  push r15 ; @141
+  push rbx ; @142
+  xor r14d, r14d ; @128
+  mov eax, 0x2_w ; @129
+  mov dword ptr [rbp - 0x18], eax ; @131
+@5:
+  mov eax, dword ptr [rbp - 0x18] ; @132
+  test eax, eax ; @123
+  je @10 ; @124
+@89:
+  xor r13d, r13d ; @119
+  mov r15d, 0x9_w ; @120
+@13:
+  test r13d, r13d ; @114
+  jne @18 ; @115
+@19:
+  mov byte ptr [rbp - 0x10], r15b ; @25
+  movsx eax, r15b ; @75
+  lea r15d, qword ptr [rax + 0x1] ; @76
+  movsx r12d, r15b ; @78
+  xor ebx, ebx ; @110
+@23:
+  cmp r12d, 0x2_w ; @107
+  jle @32 ; @108
+@33:
+  mov dword ptr [rbp - 0x10], r13d ; @56
+  dec r13d ; @84
+  mov dword ptr [rbp - 0x10], r14d ; @61
+  dec r14d ; @85
+  jmp @13 ; @106
+@32:
+  mov word ptr [rbp - 0x10], 0x0_h ; @40
+  mov word ptr [rip + $g_428], 0x0_h ; @42
+  movzx edi, word ptr [rbp - 0x10] ; @43
+  call $safe_div_func_uint8_t_u_u ; rdi ; @101
+  mov dword ptr [rbp - 0x10], ebx ; @48
+  movsx eax, al ; @82
+  and ebx, eax ; @100
+  jmp @23 ; @99
+@18:
+  mov eax, dword ptr [rbp - 0x18] ; @133
+  mov dword ptr [rbp - 0x10], eax ; @66
+  dec eax ; @74
+  mov dword ptr [rbp - 0x18], eax ; @134
+  jmp @5 ; @97
+@10:
+  mov rsi, qword ptr [rip + $platform_main_end_x] ; @70
+  lea rdi, qword ptr [rip + $.str0] ; @71
+  xor eax, eax ; @93
+  call $printf ; rax rdi rsi ; @94
+  xor eax, eax ; @90
+  pop rbx ; @143
+  pop r15 ; @144
+  pop r14 ; @145
+  pop r13 ; @146
+  pop r12 ; @147
+  leave ; @148
+  ret ; @91
+}
