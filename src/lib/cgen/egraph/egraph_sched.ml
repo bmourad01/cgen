@@ -136,6 +136,11 @@ module Licm = struct
     let rec is_variant ~lp t l n = match find_loop t l with
       | Some lp' when Loops.equal_loop lp lp' -> true
       | Some lp' when is_child_loop ~parent:lp' t lp -> false
+      | Some lp' when is_child_loop ~parent:lp t lp' ->
+        (* It lives in a loop nested inside the current one, so it is
+           recomputed on every iteration of the current loop, making
+           it variant. *)
+        true
       | Some _ -> children ~lp t n
       | None -> false
 
