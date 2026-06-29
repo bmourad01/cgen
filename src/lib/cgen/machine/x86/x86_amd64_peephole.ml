@@ -99,10 +99,12 @@ let jump_threading changed fn =
   else fn
 
 let not_pseudo i = not @@ is_pseudo @@ Insn.insn i
+let has_dests i = not @@ Set.is_empty @@ dests @@ Insn.insn i
 
 let is_merge_candidate cfg b1 b2 =
   match Blk.insns b1 ~rev:true |> Seq.find ~f:not_pseudo with
-  | Some i when is_barrier (Insn.insn i) -> false
+  (* `b1` must fall through into `b2`, unconditionally. *)
+  | Some i when is_barrier (Insn.insn i) || has_dests i -> false
   | Some _ | None ->
     let l1 = Blk.label b1 and l2 = Blk.label b2 in Seq.(
       equal Label.equal (Cfg.Node.succs l1 cfg) (singleton l2) &&
@@ -417,37 +419,41 @@ let combinable_unop = function
   | MUL -> true
   | _ -> false
 
-let rset_mem' o l = List.exists l ~f:(Set.mem @@ rset [o])
+let rset_mem' o l =
+  let s = rset o in
+  List.exists l ~f:(Set.mem s)
 
 let collect_mov_op fn =
   Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       let rec go acc = function
         | [] | [_] -> acc
-        | (_, Two (MOV, Oreg (r1, _), o1))
+        | (_, Two (MOV, Oreg (r1, mt), o1))
           :: (_, Two (MOV, Oreg (r2, _), o2))
           :: (l, Two (op, Oreg (r3, r3t), Oreg (r3', _)))
           :: xs when combinable_binop op
                   && Rv.(r1 = r3')
                   && Rv.(r2 = r3)
                   && Rv.(r3 <> r3')
-                  && not (Set.mem (rset [o1]) r1)
-                  && not (rset_mem' o2 [r1; r2])
+                  && Type.equal_basic mt r3t
+                  && not (rset_mem' [o1; o2] [r1; r3])
                   && combinable_imm r3t o1 ->
           let i = Two (op, Oreg (r3, r3t), o1) in
           go (Ltree.set acc ~key:l ~data:i) xs
-        | (_, Two (MOV, Oreg (r1, _), o))
+        | (_, Two (MOV, Oreg (r1, mt), o))
           :: (l, Two (op, Oreg (r1', r1t), Oreg (r2', _)))
           :: xs when combinable_binop op
                   && Rv.(r1 = r2')
                   && Rv.(r1' <> r2')
+                  && Type.equal_basic mt r1t
                   && not (Set.mem (rset [o]) r1)
                   && combinable_imm r1t o ->
           let i = Two (op, Oreg (r1', r1t), o) in
           go (Ltree.set acc ~key:l ~data:i) xs
-        | (_, Two (MOV, Oreg (r1, _), o))
-          :: (l, One (op, Oreg (r2', _)))
+        | (_, Two (MOV, Oreg (r1, mt), o))
+          :: (l, One (op, Oreg (r2', ut)))
           :: xs when combinable_unop op
                   && Rv.(r1 = r2')
+                  && Type.equal_basic mt ut
                   && not (Set.mem (rset [o]) r1) ->
           let i = One (op, o) in
           go (Ltree.set acc ~key:l ~data:i) xs
