@@ -264,22 +264,176 @@ let fold_right t ~init ~f = match t with
 let to_list t = fold_right t ~init:[] ~f:(fun x acc -> x :: acc)
 let to_list_rev t = fold t ~init:[] ~f:(fun acc x -> x :: acc)
 
-(* Groups a list of subtrees into chunks of [block_size], applying [f] to
-   each chunk's array to construct the parent nodes. *)
-let nodes f trees =
-  let buf = Buffer.create block_size in
-  let[@tail_mod_cons] rec loop = function
-    | [] -> [f @@ Buffer.get buf]
-    | t :: ts ->
-      let n = Buffer.length buf in
-      if n = block_size then
-        let res = Buffer.get buf in
-        Buffer.push buf t;
-        f res :: loop ts
-      else
-        let () = Buffer.push buf t in
-        loop ts in
-  loop trees
+(* Groups a list of subtrees into chunks of `block_size`, applying `f` to
+   each chunk's array.
+
+   We manually unroll to reduce intermediate allocations, and maximize
+   throughput.
+*)
+let[@tail_mod_cons] rec nodes f = function
+  | [] -> []
+  | [x0] ->
+    [f [|x0|]]
+  | [x0; x1] ->
+    [f [|x0; x1|]]
+  | [x0; x1; x2] ->
+    [f [|x0; x1; x2|]]
+  | [x0; x1; x2; x3] ->
+    [f [|x0; x1; x2; x3|]]
+  | [x0; x1; x2; x3; x4] ->
+    [f [|x0; x1; x2; x3; x4|]]
+  | [x0; x1; x2; x3; x4; x5] ->
+    [f [|x0; x1; x2; x3; x4; x5|]]
+  | [x0; x1; x2; x3; x4; x5; x6] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21; x22] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21; x22|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21; x22; x23] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21; x22; x23|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21; x22; x23;
+     x24] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21; x22; x23;
+         x24|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21; x22; x23;
+     x24; x25] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21; x22; x23;
+         x24; x25|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21; x22; x23;
+     x24; x25; x26] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21; x22; x23;
+         x24; x25; x26|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21; x22; x23;
+     x24; x25; x26; x27] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21; x22; x23;
+         x24; x25; x26; x27|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21; x22; x23;
+     x24; x25; x26; x27; x28] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21; x22; x23;
+         x24; x25; x26; x27; x28|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21; x22; x23;
+     x24; x25; x26; x27; x28; x29] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21; x22; x23;
+         x24; x25; x26; x27; x28; x29|]]
+  | [x0; x1; x2; x3; x4; x5; x6; x7;
+     x8; x9; x10; x11; x12; x13; x14; x15;
+     x16; x17; x18; x19; x20; x21; x22; x23;
+     x24; x25; x26; x27; x28; x29; x30] ->
+    [f [|x0; x1; x2; x3; x4; x5; x6; x7;
+         x8; x9; x10; x11; x12; x13; x14; x15;
+         x16; x17; x18; x19; x20; x21; x22; x23;
+         x24; x25; x26; x27; x28; x29; x30|]]
+  | x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: x7
+    :: x8 :: x9 :: x10 :: x11 :: x12 :: x13 :: x14 :: x15
+    :: x16 :: x17 :: x18 :: x19 :: x20 :: x21 :: x22 :: x23
+    :: x24 :: x25 :: x26 :: x27 :: x28 :: x29 :: x30 :: x31 :: rest ->
+    f [|
+      x0; x1; x2; x3; x4; x5; x6; x7;
+      x8; x9; x10; x11; x12; x13; x14; x15;
+      x16; x17; x18; x19; x20; x21; x22; x23;
+      x24; x25; x26; x27; x28; x29; x30; x31
+    |] :: nodes f rest
 
 (* Builds the upper levels of the tree from its leaf nodes. *)
 let build_from_leaves = function
