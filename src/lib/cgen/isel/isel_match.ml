@@ -141,7 +141,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       end
     | _ -> ()
 
-  let match_one t l id =
+  let rec match_one t l id =
     let init = VM.init ~lookup:(node t) vm id in
     let* () = C.unless init @@ fun () -> fail_init_matcher t l id in
     let rec loop () = match VM.one vm with
@@ -165,8 +165,56 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             loop ()
         with Mismatch -> loop () in
     loop () >>= function
-    | None -> fail_match t l id ()
     | Some is -> !!is
+    | None ->
+      (* No rule covered this node in its current shape, so we try to
+         materialize its hard leaves (symbols/immediates) into fresh registers
+         and re-match, since most uncovered shapes are a missing immediate/symbol
+         form of an otherwise-covered register/register rule. *)
+      materialize ~root:true t l id >>= function
+      | None -> fail_match t l id ()
+      | Some (mat, id') ->
+        let+ is = match_one t l id' in
+        mat @ is
+
+  (* Rewrite `id` so that an otherwise-uncovered shape can re-match. *)
+  and materialize ~root t l id = match node t id with
+    | N ((Oaddr _ | Obool _ | Oint _ | Osym _ | Osingle _ | Odouble _), []) ->
+      (* A constant just goes in a fresh variable dest. *)
+      let* v = C.Var.fresh in
+      let r = Rv.var v in
+      let ty = Option.value (typeof t id) ~default:(wordb :> ty) in
+      let rid = new_node ~ty t @@ Rv r in
+      setrv t rid r;
+      let mid = new_node ~ty t @@ N (Omove, [rid; id]) in
+      let+ is = match_one t l mid in
+      Some (is, rid)
+    | N (op, (_ :: _ as cs)) ->
+      (* An inlined subexpression that contains a leaf: rebuild
+         with the leaf replaced. *)
+      let* rs = C.List.map cs ~f:(materialize ~root:false t l) in
+      if List.for_all rs ~f:Option.is_none then !!None else
+        let is = List.bind rs ~f:(function
+            | Some (is, _) -> is
+            | None -> []) in
+        let cs' = List.map2_exn cs rs ~f:(fun c -> function
+            | Some (_, rid) -> rid
+            | None -> c) in
+        let nid = new_node ?ty:(typeof t id) t @@ N (op, cs') in
+        Option.iter (getrv t id) ~f:(setrv t nid);
+        let is_flag = match typeof t id with
+          | Some `flag -> true
+          | _ -> false in
+        if is_flag || root then !!(Some (is, nid)) else
+          let* v = C.Var.fresh in
+          let r = Rv.var v in
+          let ty = Option.value (typeof t id) ~default:(wordb :> ty) in
+          let rid = new_node ~ty t @@ Rv r in
+          setrv t rid r;
+          let mid = new_node ~ty t @@ N (Omove, [rid; nid]) in
+          let+ is2 = match_one t l mid in
+          Some (is @ is2, rid)
+    | N (_, []) | Rv _ | Tbl _ | Callargs _ -> !!None
 
   (* NB: the list we get from `t.insn` is in reverse order, so a normal
      fold will correct it. *)
