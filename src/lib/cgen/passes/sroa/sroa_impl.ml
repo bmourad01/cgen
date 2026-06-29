@@ -199,7 +199,9 @@ end = struct
                by one or more `ld.w`). If so, this partition could be
                broken down further if we modify the store instruction(s). *)
             let* x = Context.Var.fresh in
-            let+? s = Slot.create x ~size ~align:size in
+            (* Alignment is the largest power of 2 dividing the partition size. *)
+            let align = size land (-size) in
+            let+? s = Slot.create x ~size ~align in
             Logs.debug (fun m ->
                 m "%s: new slot %a, base=%a, off=0x%Lx, size=%Ld%!"
                   __FUNCTION__ Var.pp x Var.pp base p.off p.size);

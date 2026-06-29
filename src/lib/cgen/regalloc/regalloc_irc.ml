@@ -568,7 +568,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
                 Logs.debug (fun m ->
                     m "%s: spilling %a to new slot%!"
                       __FUNCTION__ Rv.pp r);
-                let s = Virtual.Slot.create_exn v ~size ~align:size in
+                (* Alignment is the largest power of 2 dividing the size
+                   of the slot itself. *)
+                let align = size land (-size) in
+                let s = Virtual.Slot.create_exn v ~size ~align in
                 RT.set t.slots ~key:r ~data:r;
                 Bitset.add t.data.slot_bits rid;
                 s :: acc, Map.add_multi m ~key:size ~data:r) in
