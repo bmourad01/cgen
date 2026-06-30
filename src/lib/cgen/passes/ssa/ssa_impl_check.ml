@@ -21,10 +21,16 @@ end = struct
 
   (* The resolver should handle multiple definitions, as well as uses
      with no definitions. Our remaining task is to check that each
-     definition dominates its uses. *)
+     definition dominates its uses.
+
+     Only reachable blocks are checked, since a use inside an unreachable
+     ("disjoint") block never executes and its defining block does not
+     need to dominate it (the dominator tree does not even cover unreachable
+     blocks), so checking them would be a false positive.
+  *)
   let go dom fn = match Resolver.create fn with
     | Error err -> failwith @@ Error.to_string_hum err
-    | Ok r -> Func.blks fn |> Seq.iter ~f:(fun b ->
+    | Ok r -> Func.iter_reachable fn ~f:(fun b ->
         Blk.args b |> Seq.iter ~f:(fun x ->
             Resolver.uses r x |> List.iter ~f:(function
                 | `insn (_, b', _, _) | `blk b' ->

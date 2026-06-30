@@ -70,10 +70,17 @@ let pp_local ppf : local -> unit = function
     Format.fprintf ppf "%a(%a)"
       Label.pp l (Format.pp_print_list ~pp_sep pp_operand) args
 
+let label_of_local : local -> Label.t = function
+  | `label (l, _) -> l
+
 type dst = [
   | global
   | local
 ] [@@deriving bin_io, compare, equal, sexp]
+
+let label_of_dst : dst -> Label.t option = function
+  | #local as l -> Some (label_of_local l)
+  | #global -> None
 
 let free_vars_of_dst : dst -> Vset.t = function
   | `var x -> Vset.singleton x

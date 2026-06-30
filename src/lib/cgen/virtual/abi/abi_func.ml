@@ -131,6 +131,28 @@ let map_of_blks fn =
           "Duplicate block of label %a in function %s"
           Label.pps key fn.name ())
 
+let fold_reachable fn ~init ~f =
+  let index = map_of_blks fn in
+  let nblk = Rrb.length fn.blks in
+  let visited = Label.Dense_set.create ~capacity:nblk () in
+  let rec go acc = function
+    | [] -> acc
+    | l :: rest ->
+      if Label.Dense_set.strict_add visited l then
+        match Label.Tree.find index l with
+        | None -> go acc rest
+        | Some b ->
+          let c = Abi_blk.ctrl b in
+          let rest =
+            Abi_ctrl.fold_dests c ~init:rest
+              ~f:(fun stk l -> l :: stk) in
+          go (f acc b) rest
+      else go acc rest in
+  go init [entry fn]
+
+let iter_reachable fn ~f =
+  fold_reachable fn ~init:() ~f:(fun () b -> f b)
+
 let map_blks fn ~f = {fn with blks = Rrb.map fn.blks ~f}
 
 exception Failed of Error.t

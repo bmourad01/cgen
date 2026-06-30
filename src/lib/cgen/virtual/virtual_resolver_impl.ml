@@ -36,7 +36,7 @@ module type L = sig
     type t
     val iter_args : ?rev:bool -> t -> f:(Var.t -> unit) -> unit
     val iter_slots : ?rev:bool -> t -> f:(Virtual_slot.t -> unit) -> unit
-    val iter_blks : ?rev:bool -> t -> f:(Blk.t -> unit) -> unit
+    val iter_reachable : t -> f:(Blk.t -> unit) -> unit
     val num_blks : t -> int
     val num_insns : t -> int
   end
@@ -93,7 +93,7 @@ module Make(M : L) : S
 
   let uses_of fn vars =
     let use = VT.create ~capacity:(Vset.length vars) () in
-    Func.iter_blks fn ~f:(fun b ->
+    Func.iter_reachable fn ~f:(fun b ->
         let blk = `blk b in
         let _ =
           Blk.fold_insns b ~init:0 ~f:(fun ord i ->
@@ -123,7 +123,7 @@ module Make(M : L) : S
       Func.iter_slots fn ~f:(fun s ->
           let x = Virtual_slot.var s in
           insert_var def x `slot ~err:(duplicate_def x));
-      Func.iter_blks fn ~f:(fun b ->
+      Func.iter_reachable fn ~f:(fun b ->
           let label = Blk.label b in
           let blk = `blk b in
           insert_lbl lbl label blk ~err:(duplicate_label label);

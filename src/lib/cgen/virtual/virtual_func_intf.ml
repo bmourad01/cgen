@@ -116,6 +116,16 @@ module type S = sig
   *)
   val map_of_blks : t -> blk Label.Tree.t
 
+  (** [fold_reachable fn ~init ~f] folds [f] over the blocks reachable from the
+      entry, following control-flow edges (each block's [ctrl] enumerates its
+      successors). Each reachable block is visited exactly once, in depth-first
+      preorder from the entry; unreachable ("disjoint") blocks are skipped. *)
+  val fold_reachable : t -> init:'a -> f:('a -> blk -> 'a) -> 'a
+
+  (** [iter_reachable fn ~f] applies [f] to each block reachable from the entry
+      (see {!fold_reachable}); unreachable ("disjoint") blocks are skipped. *)
+  val iter_reachable : t -> f:(blk -> unit) -> unit
+
   (** [map_blks fn ~f] returns [fn] with each basic block applied to [f].
 
       Note that [f] is allowed to change the label of the entry block.

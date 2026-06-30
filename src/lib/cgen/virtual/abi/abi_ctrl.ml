@@ -43,6 +43,19 @@ let free_vars : t -> Vset.t = function
     let av = List.map args ~f:Abi_insn.free_vars_of_callarg |> Vset.union_list in
     Vset.union fv av
 
+let fold_dests t ~init ~f =
+  let dst acc d = match label_of_dst d with
+    | Some l -> f acc l
+    | None -> acc in
+  match t with
+  | `hlt | `ret _ | `tailcall _ -> init
+  | `jmp d -> dst init d
+  | `br (_, y, n) -> dst (dst init n) y
+  | `sw (_, _, d, tbl) ->
+    Table.enum tbl |>
+    Sequence.fold ~init:(f init (label_of_local d)) ~f:(fun acc (_, l) ->
+        f acc (label_of_local l))
+
 let pp ppf : t -> unit = function
   | `hlt -> Format.fprintf ppf "hlt"
   | `jmp d ->

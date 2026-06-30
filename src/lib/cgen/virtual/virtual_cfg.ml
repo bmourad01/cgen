@@ -7,27 +7,15 @@ module Func = Virtual_func
 module G = Label.Graph
 module Pseudo = Label.Pseudo(G)
 
-let accum tbl g b : _ -> G.t = function
-  | `hlt -> g
-  | `jmp (`label (l, _)) -> G.Edge.(insert (create b l ()) g)
-  | `jmp _ -> g
-  | `br (_, `label (t, _), `label (f, _)) ->
-    G.Edge.(insert (create b t ()) @@
-            insert (create b f ()) g)
-  | `br (_, `label (l, _), _) | `br (_, _, `label (l, _)) ->
-    G.Edge.(insert (create b l ()) g)
-  | `br _ -> g
-  | `ret _ -> g
-  | `tailcall _ -> g
-  | `sw (_, _, `label (d, _), t) ->
-    let init = G.Edge.(insert (create b d ()) g) in
-    tbl t |> Seq.fold ~init
-      ~f:(fun g (_, `label (l, _)) ->
-          G.Edge.(insert (create b l ()) g))
-
 let create fn =
-  Func.fold_blks fn ~init:G.empty ~f:(fun g b ->
-      let l = Blk.label b and c = Blk.ctrl b in
-      accum Ctrl.Table.enum (G.Node.insert l g) l c) |> Pseudo.add
+  Func.fold_blks fn
+    ~init:G.empty ~f:(fun g b ->
+        let src = Blk.label b
+        and c = Blk.ctrl b in
+        Ctrl.fold_dests c
+          ~init:(G.Node.insert src g)
+          ~f:(fun g dst ->
+              let e = G.Edge.create src dst () in
+              G.Edge.insert e g)) |> Pseudo.add
 
 include G

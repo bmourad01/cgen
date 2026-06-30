@@ -1,5 +1,4 @@
 open Core
-open Graphlib.Std
 open Regular.Std
 
 module type L = sig
@@ -11,14 +10,9 @@ module type L = sig
   module Func : sig
     type t
     val name : t -> string
-    val entry : t -> Label.t
     val blks : ?rev:bool -> t -> Blk.t seq
+    val fold_reachable : t -> init:'a -> f:('a -> Blk.t -> 'a) -> 'a
     val remove_blks_exn : t -> Label.t list -> t
-  end
-
-  module Cfg : sig
-    include Label.Graph_s
-    val create : Func.t -> t
   end
 end
 
@@ -26,14 +20,9 @@ module Make(M : L) = struct
   open M
 
   let run fn =
-    let reachable = with_return @@ fun {return} ->
-      let cfg = Cfg.create fn in
-      let start = Func.entry fn in
-      Graphlib.depth_first_search (module Cfg) cfg ~start
-        ~init:Label.Tree_set.empty
-        ~start_tree:(fun n s ->
-            if Label.(n = start) then s else return s)
-        ~enter_node:(fun _ n s -> Label.Tree_set.add s n) in
+    let reachable =
+      Func.fold_reachable fn ~init:Label.Tree_set.empty
+        ~f:(fun s b -> Label.Tree_set.add s (Blk.label b)) in
     let blks =
       Func.blks fn |> Seq.map ~f:Blk.label |>
       Seq.filter ~f:(Fn.non @@ Label.Tree_set.mem reachable) |>
@@ -50,13 +39,11 @@ open Virtual
 module V = Make(struct
     module Blk = Blk
     module Func = Func
-    module Cfg = Cfg
   end)
 
 module A = Make(struct
     module Blk = Abi.Blk
     module Func = Abi.Func
-    module Cfg = Abi.Cfg
   end)
 
 let run = V.run
