@@ -510,6 +510,7 @@ let regalloc_suite = "Test register allocation" >::: [
 
 let native_suite = "Test native code" >::: [
     (* AMD64 SysV *)
+    "sub-add-lea displacement sign (SysV AMD64)" >:: test_sysv_amd64_native "sub_add_lea";
     "First 20 prime numbers (SysV AMD64)" >:: test_sysv_amd64_native "prime";
     "Extended GCD (SysV AMD64)" >:: test_sysv_amd64_native "gcdext";
     "Union type (SysV AMD64)" >:: test_sysv_amd64_native "union";

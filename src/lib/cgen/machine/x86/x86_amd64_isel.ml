@@ -3063,7 +3063,7 @@ end = struct
           move x p1.(1) => add_mul_rr_scale_neg_imm_x_y_z_w S1;
           move x p1.(2) => add_mul_rr_scale_neg_imm_x_y_z_w S1;
           move x p1.(3) => add_mul_rr_scale_neg_imm_x_y_z_w S1;
-          move x (sub ty' (add ty' y z) w) => add_mul_rr_scale_imm_x_y_z_w S1;
+          move x (sub ty' (add ty' y z) w) => add_mul_rr_scale_neg_imm_x_y_z_w S1;
         ]
 
     (* x = add y (mul z i) => lea x, [y+z*i]

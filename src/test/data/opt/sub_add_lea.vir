@@ -1,0 +1,8 @@
+module sub_add_lea
+
+export function l $addr(l %base, l %idx) {
+@start:
+  %s = add.l %base, %idx
+  %a = sub.l %s, 16_l
+  ret %a
+}
