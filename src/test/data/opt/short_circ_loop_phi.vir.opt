@@ -1,0 +1,46 @@
+module st
+
+export data $g = {
+  z 4
+}
+
+export data $p = {
+  z 4
+}
+
+export data $s = {
+  z 4
+}
+
+export data $t = {
+  z 4
+}
+
+export function sb $f() {
+@2:
+  jmp @3(0xa_w)
+@3(%27):
+  %28 = ld.w $p ; @8
+  %43 = ne.w %28, 0x0_w ; @27
+  br %43, @6, @7
+@7:
+  %39 = ld.w $t ; @11
+  %48 = sub.w %39, 0x1_w ; @32
+  st.w %48, $t ; @15
+  jmp @10(%27)
+@6:
+  %35 = ld.w $s ; @16
+  %46 = ne.w %35, 0x0_w ; @30
+  %47 = flag.w %46 ; @31
+  jmp @10(%47)
+@10(%30):
+  %44 = ne.w %30, 0x0_w ; @28
+  br %44, @20, @21
+@20:
+  %33 = ld.w $p ; @24
+  %45 = itrunc.b %33 ; @29
+  ret %45
+@21:
+  st.w 0x0_w, $g ; @26
+  jmp @3(%30)
+}

@@ -15,6 +15,7 @@ open Simplify_cfg_common
 module O = Monad.Option
 module LT = Label.Dense_table
 module VT = Var.Dense_table
+module Vset = Var.Tree_set
 
 open O.Let
 open O.Syntax
@@ -61,10 +62,18 @@ let argidx b c =
   Seq.findi ~f:(fun _ -> Var.equal c) |>
   Option.map ~f:fst
 
+let params b = Blk.args b |> Seq.fold ~init:Vset.empty ~f:Vset.add
+
 let collect_cond_phi env =
+  let used_across =
+    LT.fold env.blks ~init:Vset.empty ~f:(fun ~key:_ ~data:b acc ->
+        Vset.union acc (Vset.diff (Blk.free_vars b) (params b))) in
+  let usable b =
+    not (Seq.exists (Blk.args b) ~f:(Vset.mem used_across)) in
   LT.fold env.blks ~init:Label.Tree.empty
     ~f:(fun ~key ~data:b acc ->
-        if is_empty b then match Blk.ctrl b with
+        if not (usable b) then acc
+        else if is_empty b then match Blk.ctrl b with
           | `br (c, y, n) ->
             argidx b c |> Option.value_map ~default:acc ~f:(fun i ->
                 Label.Tree.set acc ~key ~data:(y, n, i, false))
@@ -85,13 +94,29 @@ let is_var env x = function
     Option.value_map ~default:false ~f:(Var.equal x)
   | _ -> false
 
+let subst_operand m = function
+  | `var v as o -> Option.value (Map.find m v) ~default:o
+  | o -> o
+
+let subst_target env l args (d : dst) : dst = match d with
+  | `label (tl, targs) ->
+    begin match LT.find env.blks l with
+      | None -> d
+      | Some lb -> match List.zip (Seq.to_list (Blk.args lb)) args with
+        | Unequal_lengths -> d
+        | Ok pairs ->
+          let m = Var.Map.of_alist_reduce pairs ~f:(fun _ b -> b) in
+          `label (tl, List.map targs ~f:(subst_operand m))
+    end
+  | #global -> d
+
 let brcond env cphi c d ~f =
   Option.value ~default:d @@ match d with
   | `label (l, args) ->
     let* y, n, i, _ = Label.Tree.find cphi l in
     let* arg = List.nth args i in
     let+ () = O.guard @@ is_var env c arg in
-    f y n
+    subst_target env l args (f y n)
   | _ -> None
 
 let redir changed env cphi =
@@ -113,6 +138,8 @@ let redir changed env cphi =
           let* x = List.nth args i >>= var_of_operand in
           let+ c = if ne then VT.find env.flag x else !!x in
           changed := true;
+          let y = subst_target env l args y
+          and n = subst_target env l args n in
           Logs.debug (fun m ->
               m "%s: block %a: simplified jmp %a: c=%a, y=%a, n=%a%!"
                 __FUNCTION__ Label.pp (Blk.label b)

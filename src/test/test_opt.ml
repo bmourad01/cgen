@@ -322,6 +322,7 @@ let opt_suite = "Test optimizations" >::: [
     "Short-circuiting OR" >:: test "shortcircor";
     "Short-circuiting OR (flag indirection)" >:: test "shortcircor2";
     "Short-circuiting OR (negated flag indirection)" >:: test "shortcircor3";
+    "Short-circuiting cond-phi with loop-carried param" >:: test "short_circ_loop_phi";
     "Edge contraction and select" >:: test "contractsel";
     "Naiive even-odd test" >:: test "evenodd";
     "Trivial infinite loop" >:: test "forever";

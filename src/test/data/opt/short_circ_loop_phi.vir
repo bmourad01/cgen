@@ -1,0 +1,55 @@
+module st
+
+export data $g = {
+  z 4
+}
+
+export data $p = {
+  z 4
+}
+
+export data $s = {
+  z 4
+}
+
+export data $t = {
+  z 4
+}
+
+export function sb $f() {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+@26:
+  st.w 0xa_w, %1 ; @27
+  jmp @2
+@2:
+  jmp @23
+@23:
+  %2 = ld.w $p ; @25
+  %13 = ne.w %2, 0x0_w ; @24
+  br %13, @12, @17
+@17:
+  %6 = ld.w $t ; @22
+  st.w %6, %0 ; @21
+  %7 = ld.w %0 ; @20
+  %8 = sub.w %7, 0x1_w ; @19
+  st.w %8, $t ; @18
+  jmp @9
+@12:
+  %3 = ld.w $s ; @16
+  %4 = ne.w %3, 0x0_w ; @15
+  %5 = flag.w %4 ; @14
+  st.w %5, %1 ; @13
+  jmp @9
+@9:
+  %9 = ld.w %1 ; @11
+  %12 = ne.w %9, 0x0_w ; @10
+  br %12, @6, @4
+@6:
+  %10 = ld.w $p ; @8
+  %11 = itrunc.b %10 ; @7
+  ret %11
+@4:
+  st.w 0x0_w, $g ; @5
+  jmp @2
+}
