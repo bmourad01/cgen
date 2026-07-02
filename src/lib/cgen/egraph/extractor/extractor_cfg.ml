@@ -133,33 +133,59 @@ let sel e x ty c y n = match c with
 
 let (let@) x f = x f [@@specialise] [@@inline]
 
+(* If this node's canonical ID already has a temporary bound on the current
+   dominator path, then its entire operand subtree was already placed when
+   the temporary was created. Return the bound variable directly instead of
+   re-walking (and re-memo-checking) the subtree. *)
+let cached_var env = function
+  | Id {canon; _} ->
+    let u = Rrb.get_exn env.scp canon in
+    if Uopt.is_some u then
+      let x, _ = Uopt.unsafe_value u in
+      Uopt.some x
+    else Uopt.none
+  | Label _ -> Uopt.none
+[@@inline]
+
 let rec pure t env e : operand Context.t =
   let pure = pure t env in
   let insn = insn t env in
   match e with
   (* Only canonical forms are accepted. *)
   | E (a, Obinop b, [l; r]) ->
-    let* l = pure l in
-    let* r = pure r in
-    let@ x = insn a in
-    !!(`bop (x, b, l, r))
+    let c = cached_var env a in
+    if Uopt.is_some c
+    then !!(`var (Uopt.unsafe_value c))
+    else
+      let* l = pure l in
+      let* r = pure r in
+      let@ x = insn a in
+      !!(`bop (x, b, l, r))
   | E (_, Obool b, []) -> !!(`bool b)
   | E (_, Ocall (x, _, _), _) -> !!(`var x)
   | E (_, Odouble d, []) -> !!(`double d)
   | E (_, Oint (i, t), []) -> !!(`int (i, t))
   | E (_, Oload (x, _), _) -> !!(`var x)
   | E (a, Osel ty, [c; y; n]) ->
-    let* c = pure c in
-    let* y = pure y in
-    let* n = pure n in
-    let@ x = insn a in
-    sel e x ty c y n
+    let cv = cached_var env a in
+    if Uopt.is_some cv
+    then !!(`var (Uopt.unsafe_value cv))
+    else
+      let* c = pure c in
+      let* y = pure y in
+      let* n = pure n in
+      let@ x = insn a in
+      sel e x ty c y n
   | E (_, Osingle s, []) -> !!(`float s)
   | E (_, Osym (s, n), []) -> !!(`sym (s, n))
   | E (a, Ounop u, [y]) ->
-    let* y = pure y in
-    let@ x = insn a in
-    !!(`uop (x, u, y))
+    let c = cached_var env a in
+    if Uopt.is_some c
+    then !!(`var (Uopt.unsafe_value c))
+    else
+      let* y = pure y in
+      let@ x = insn a in
+      !!(`uop (x, u, y))
   | E (_, Ovaarg (x, _), [_]) -> !!(`var x)
   | E (_, Ovar x, []) -> !!(`var x)
   (* The rest are rejected. *)
