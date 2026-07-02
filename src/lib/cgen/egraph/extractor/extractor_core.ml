@@ -99,11 +99,12 @@ end
 type cost = Cost.t
 
 type t = {
-  eg     : egraph;
-  table  : (cost * enode) OA.t;
-  safe   : (cost * enode) OA.t;
-  memo   : ext OA.t;
-  impure : Bitset.t;
+  eg       : egraph;
+  table    : (cost * enode) OA.t;
+  safe     : (cost * enode) OA.t;
+  memo     : ext OA.t;
+  impure   : Bitset.t;
+  visiting : Bitset.t;
 }
 
 let rec pp_ext ppf = function
@@ -270,6 +271,7 @@ let init eg =
     safe = OA.create ~len;
     memo = OA.create ~len;
     impure = Bitset.create ();
+    visiting = Bitset.create ();
   } in
   Saturation.go t;
   debug_dump t;
@@ -326,8 +328,9 @@ let extract t =
     match OA.unsafe_get t.memo cid with
     | Some _ as e -> e
     | None when Bitset.mem visiting cid ->
-      (* Cycle in discounted table: fall back to safe table,
-         which is guaranteed acyclic (no discount). *)
+      (* Cycle in discounted table: fall back to safe table, which is
+         guaranteed acyclic (no discount). This path is purely defensive
+         and rarely ever fires. *)
       go t.safe (Bitset.create ()) cid
     | None ->
       (* `visiting` tracks the current DFS path for cycle detection, so we
@@ -348,4 +351,8 @@ let extract t =
           go tbl visiting post in
       Bitset.remove visiting cid;
       result in
-  go t.table (Bitset.create ())
+  (* `t.visiting` is left logically empty by the balanced add/remove above, so
+     it is safe to reuse across the many `extract t id` calls. The safe-table
+     fallback nests inside an in-progress traversal, so it must use its own
+     independent set. *)
+  go t.table t.visiting
