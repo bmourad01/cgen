@@ -53,12 +53,14 @@ type env = {
   mutable mem : Label.t option;    (* Most recent memory access. *)
 }
 
-let init () = {
-  vars = VT.create ();
-  mems = Mem.Table.create ();
-  cur = Label.pseudoentry;
-  mem = None;
-}
+let init eg =
+  let fn = eg.input.fn in
+  let capacity = Func.num_insns fn + Func.num_args fn in {
+    vars = VT.create ~capacity ();
+    mems = Mem.Table.create ();
+    cur = Label.pseudoentry;
+    mem = None;
+  }
 
 let node ?ty ?l eg op args =
   Rewrite.insert ?ty ?l ~d:eg.depth_limit eg @@ N (op, args)
@@ -303,7 +305,7 @@ let try_ f = try Ok (f ()) with
       error_prefix Var.pp x ()
 
 let run eg = try_ @@ fun () ->
-  let env = init () in
+  let env = init eg in
   let q = Stack.singleton (Label.pseudoentry, env.mem) in
   Stack.until_empty q @@ fun (l, lst) ->
   step env eg l lst;
