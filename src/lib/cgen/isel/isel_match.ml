@@ -3,6 +3,8 @@ open Regular.Std
 open Virtual.Abi
 open Isel_common
 
+let (let@) f x = f x [@@inline]
+
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
 
@@ -167,10 +169,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     loop () >>= function
     | Some is -> !!is
     | None ->
-      (* No rule covered this node in its current shape, so we try to
-         materialize its hard leaves (symbols/immediates) into fresh registers
-         and re-match, since most uncovered shapes are a missing immediate/symbol
-         form of an otherwise-covered register/register rule. *)
+      (* No rule covered this node in its current shape, so we try to materialize
+         its hard leaves (symbols/immediates) into fresh registers and re-match,
+         since most uncovered shapes are a missing immediate/symbol form of an
+         otherwise-covered register/register rule. *)
       materialize ~root:true t l id >>= function
       | None -> fail_match t l id ()
       | Some (mat, id') ->
@@ -178,14 +180,18 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         mat @ is
 
   (* Rewrite `id` so that an otherwise-uncovered shape can re-match. *)
-  and materialize ~root t l id = match node t id with
-    | N ((Oaddr _ | Obool _ | Oint _ | Osym _ | Osingle _ | Odouble _), []) ->
-      (* A constant just goes in a fresh variable dest. *)
+  and materialize ~root t l id =
+    let fresh id k =
       let* v = C.Var.fresh in
       let r = Rv.var v in
       let ty = Option.value (typeof t id) ~default:(wordb :> ty) in
       let rid = new_node ~ty t @@ Rv r in
       setrv t rid r;
+      k (rid, ty) in
+    match node t id with
+    | N ((Oaddr _ | Obool _ | Oint _ | Osym _ | Osingle _ | Odouble _), []) ->
+      (* A constant just goes in a fresh variable dest. *)
+      let@ rid, ty = fresh id in
       let mid = new_node ~ty t @@ N (Omove, [rid; id]) in
       let+ is = match_one t l mid in
       Some (is, rid)
@@ -206,11 +212,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           | Some `flag -> true
           | _ -> false in
         if is_flag || root then !!(Some (is, nid)) else
-          let* v = C.Var.fresh in
-          let r = Rv.var v in
-          let ty = Option.value (typeof t id) ~default:(wordb :> ty) in
-          let rid = new_node ~ty t @@ Rv r in
-          setrv t rid r;
+          let@ rid, ty = fresh id in
           let mid = new_node ~ty t @@ N (Omove, [rid; nid]) in
           let+ is2 = match_one t l mid in
           Some (is @ is2, rid)
