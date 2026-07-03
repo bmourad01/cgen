@@ -1,0 +1,38 @@
+int next_id(void) {
+  counter.0 = counter.0 + 1;
+  return counter.0;
+}
+
+int next_seq(void) {
+  counter.1 = counter.1 + 1;
+  return counter.1;
+}
+
+char greeting_char(int i) {
+  return ((char *)msg.2)[i];
+}
+
+int squares(int n) {
+  int total = 0;
+  {
+    int i = 0;
+    for (; i < n; i = i + 1) {
+      total = total + base.3 + i;
+    }
+  }
+  return total;
+}
+
+int shared = 7;
+
+int get_shared(void) {
+  return shared;
+}
+
+static int counter.0 = 0;
+
+static int counter.1 = 100;
+
+static char msg.2[3] = "hi";
+
+static int base.3 = 2 * 5;

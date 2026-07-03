@@ -1,0 +1,22 @@
+int g_6;
+
+short g_87;
+
+int real;
+
+int *p55 = &real;
+
+int nested_loop_licm(void) {
+  short *l_86 = &g_87;
+  short **l_114 = &l_86;
+  restart: p55 = &real;
+  for (; ; )
+    for (; ; ) {
+      **l_114 = (short)0;
+      if (g_6 & *p55)
+        break;
+      if (g_6)
+        goto restart;
+      return 0;
+    }
+}

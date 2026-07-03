@@ -1,0 +1,274 @@
+module bitfield_pack
+
+type :A = {
+  w,
+  h
+}
+
+type :B = {
+  w,
+  w
+}
+
+type :C = {
+  b,
+  b 3,
+  b
+}
+
+type :E = {
+  l,
+  w
+}
+
+export data $init_a = {
+  0x7f_b,
+  0xd_b,
+  0x186a_h,
+  0x3039_h,
+  z 2
+}
+
+export data $init_e = {
+  0x6_b,
+  0xa_b,
+  0x14_b,
+  0x1e_b,
+  0x28_b,
+  0x64_b,
+  z 2
+}
+
+export function l $size_a() {
+start:
+  ret 0x8_l
+}
+
+export function l $size_b() {
+start:
+  ret 0x8_l
+}
+
+export function l $size_c() {
+start:
+  ret 0x5_l
+}
+
+export function sw $a_a(l %1) {
+  %0 = slot 8, align 8
+start:
+  st.l %1, %0;
+  %2 = ld.l %0;
+  %3 = ld.b %2;
+  %4 = sext.w %3;
+  ret %4
+}
+
+export function sw $a_b(l %6) {
+  %5 = slot 8, align 8
+start:
+  st.l %6, %5;
+  %7 = ld.l %5;
+  %8 = add.l %7, 0x1_l;
+  %9 = ld.b %8;
+  %10 = zext.w %9;
+  %11 = lsl.w %10, 0x1c_w;
+  %12 = asr.w %11, 0x1c_w;
+  ret %12
+}
+
+export function w $a_c(l %14) {
+  %13 = slot 8, align 8
+start:
+  st.l %14, %13;
+  %15 = ld.l %13;
+  %16 = ld.w %15;
+  %17 = lsl.w %16, 0x0_w;
+  %18 = lsr.w %17, 0xc_w;
+  ret %18
+}
+
+export function sw $a_d(l %20) {
+  %19 = slot 8, align 8
+start:
+  st.l %20, %19;
+  %21 = ld.l %19;
+  %22 = add.l %21, 0x4_l;
+  %23 = ld.h %22;
+  %24 = sext.w %23;
+  ret %24
+}
+
+export function $set_b(l %27, w %28) {
+  %25 = slot 8, align 8
+  %26 = slot 4, align 4
+start:
+  st.l %27, %25;
+  st.w %28, %26;
+  %29 = ld.l %25;
+  %30 = ld.w %26;
+  %31 = add.l %29, 0x1_l;
+  %32 = itrunc.b %30;
+  %33 = ld.b %31;
+  %34 = and.b %33, 0xf0_b;
+  %35 = lsl.b %32, 0x0_b;
+  %36 = and.b %35, 0xf_b;
+  %37 = or.b %34, %36;
+  st.b %37, %31
+}
+
+export function $set_c(l %40, w %41) {
+  %38 = slot 8, align 8
+  %39 = slot 4, align 4
+start:
+  st.l %40, %38;
+  st.w %41, %39;
+  %42 = ld.l %38;
+  %43 = ld.w %39;
+  %44 = ld.w %42;
+  %45 = and.w %44, 0xfff_w;
+  %46 = lsl.w %43, 0xc_w;
+  %47 = and.w %46, 0xfffff000_w;
+  %48 = or.w %45, %47;
+  st.w %48, %42
+}
+
+export function sw $b_x(l %50) {
+  %49 = slot 8, align 8
+start:
+  st.l %50, %49;
+  %51 = ld.l %49;
+  %52 = ld.b %51;
+  %53 = zext.w %52;
+  %54 = lsl.w %53, 0x1c_w;
+  %55 = asr.w %54, 0x1c_w;
+  ret %55
+}
+
+export function sw $b_y(l %57) {
+  %56 = slot 8, align 8
+start:
+  st.l %57, %56;
+  %58 = ld.l %56;
+  %59 = add.l %58, 0x2_l;
+  %60 = ld.h %59;
+  %61 = sext.w %60;
+  ret %61
+}
+
+export function sw $b_z(l %63) {
+  %62 = slot 8, align 8
+start:
+  st.l %63, %62;
+  %64 = ld.l %62;
+  %65 = add.l %64, 0x4_l;
+  %66 = ld.b %65;
+  %67 = zext.w %66;
+  %68 = lsl.w %67, 0x1c_w;
+  %69 = asr.w %68, 0x1c_w;
+  ret %69
+}
+
+export function sw $b_w(l %71) {
+  %70 = slot 8, align 8
+start:
+  st.l %71, %70;
+  %72 = ld.l %70;
+  %73 = add.l %72, 0x5_l;
+  %74 = ld.b %73;
+  %75 = sext.w %74;
+  ret %75
+}
+
+export function sw $c_a(l %77) {
+  %76 = slot 8, align 8
+start:
+  st.l %77, %76;
+  %78 = ld.l %76;
+  %79 = ld.b %78;
+  %80 = sext.w %79;
+  ret %80
+}
+
+export function sw $c_b(l %82) {
+  %81 = slot 8, align 8
+start:
+  st.l %82, %81;
+  %83 = ld.l %81;
+  %84 = add.l %83, 0x4_l;
+  %85 = ld.b %84;
+  %86 = sext.w %85;
+  ret %86
+}
+
+export function l $size_e() {
+start:
+  ret 0x8_l
+}
+
+export function sw $ia_a() {
+start:
+  %87 = ld.b $init_a;
+  %88 = sext.w %87;
+  ret %88
+}
+
+export function sw $ia_b() {
+start:
+  %89 = add.l $init_a, 0x1_l;
+  %90 = ld.b %89;
+  %91 = zext.w %90;
+  %92 = lsl.w %91, 0x1c_w;
+  %93 = asr.w %92, 0x1c_w;
+  ret %93
+}
+
+export function w $ia_c() {
+start:
+  %94 = ld.w $init_a;
+  %95 = lsl.w %94, 0x0_w;
+  %96 = lsr.w %95, 0xc_w;
+  ret %96
+}
+
+export function sw $ia_d() {
+start:
+  %97 = add.l $init_a, 0x4_l;
+  %98 = ld.h %97;
+  %99 = sext.w %98;
+  ret %99
+}
+
+export function l $ie_x() {
+start:
+  %100 = ld.b $init_e;
+  %101 = zext.l %100;
+  %102 = lsl.l %101, 0x3c_l;
+  %103 = asr.l %102, 0x3c_l;
+  %104 = itrunc.w %103;
+  %105 = sext.l %104;
+  ret %105
+}
+
+export function sw $ie_arr(w %107) {
+  %106 = slot 4, align 4
+start:
+  st.w %107, %106;
+  %108 = add.l $init_e, 0x1_l;
+  %109 = ld.w %106;
+  %110 = sext.l %109;
+  %111 = add.l %108, %110;
+  %112 = ld.b %111;
+  %113 = sext.w %112;
+  ret %113
+}
+
+export function sw $ie_y() {
+start:
+  %114 = add.l $init_e, 0x5_l;
+  %115 = ld.b %114;
+  %116 = zext.w %115;
+  %117 = lsl.w %116, 0x18_w;
+  %118 = asr.w %117, 0x18_w;
+  ret %118
+}

@@ -1,0 +1,310 @@
+module globals
+
+type :point = {
+  w,
+  w
+}
+
+type :padded = {
+  b,
+  w
+}
+
+export data $g_int = {
+  0x2a_w
+}
+
+export data $g_long = {
+  0x12d687_l
+}
+
+export data $g_msg = {
+  $.str0
+}
+
+export data $g_arr = {
+  0xa_w,
+  0x14_w,
+  0x1e_w,
+  0x28_w
+}
+
+export data $g_sparse = {
+  0x1_w,
+  0x2_w,
+  z 12
+}
+
+export data $g_name = {
+  "abc",
+  z 5
+}
+
+export data $g_exact = {
+  "abc"
+}
+
+export data $g_flex = {
+  "abc",
+  z 1
+}
+
+export data $g_empty = {
+  z 4
+}
+
+export data $g_pt = {
+  0x3_w,
+  0x4_w
+}
+
+export data $g_pad = {
+  0x7_b,
+  z 3,
+  0x64_w
+}
+
+export data $g_pts = {
+  0x1_w,
+  0x2_w,
+  0x3_w,
+  0x4_w
+}
+
+export data $g_pelem = {
+  $g_arr+0x8
+}
+
+export data $g_pmemb = {
+  $g_pt+0x4
+}
+
+export data $g_pnull = {
+  0x0_l
+}
+
+export data $g_pconst = {
+  $g_int
+}
+
+export data $g_pcelem = {
+  $g_arr+0x4
+}
+
+export data $g_pcarr = {
+  $g_int,
+  0x0_l,
+  $g_arr+0xc
+}
+
+data $.str0 = {
+  "hello",
+  z 1
+}
+
+export function sw $get_int() {
+start:
+  %0 = ld.w $g_int;
+  ret %0
+}
+
+export function l $get_long() {
+start:
+  %1 = ld.l $g_long;
+  ret %1
+}
+
+export function sb $get_msg(w %3) {
+  %2 = slot 4, align 4
+start:
+  st.w %3, %2;
+  %4 = ld.l $g_msg;
+  %5 = ld.w %2;
+  %6 = sext.l %5;
+  %7 = add.l %4, %6;
+  %8 = ld.b %7;
+  ret %8
+}
+
+export function sw $get_arr(w %10) {
+  %9 = slot 4, align 4
+start:
+  st.w %10, %9;
+  %11 = ld.w %9;
+  %12 = sext.l %11;
+  %13 = mul.l %12, 0x4_l;
+  %14 = add.l $g_arr, %13;
+  %15 = ld.w %14;
+  ret %15
+}
+
+export function sw $get_sparse(w %17) {
+  %16 = slot 4, align 4
+start:
+  st.w %17, %16;
+  %18 = ld.w %16;
+  %19 = sext.l %18;
+  %20 = mul.l %19, 0x4_l;
+  %21 = add.l $g_sparse, %20;
+  %22 = ld.w %21;
+  ret %22
+}
+
+export function sb $get_name(w %24) {
+  %23 = slot 4, align 4
+start:
+  st.w %24, %23;
+  %25 = ld.w %23;
+  %26 = sext.l %25;
+  %27 = add.l $g_name, %26;
+  %28 = ld.b %27;
+  ret %28
+}
+
+export function sb $get_exact(w %30) {
+  %29 = slot 4, align 4
+start:
+  st.w %30, %29;
+  %31 = ld.w %29;
+  %32 = sext.l %31;
+  %33 = add.l $g_exact, %32;
+  %34 = ld.b %33;
+  ret %34
+}
+
+export function sb $get_flex(w %36) {
+  %35 = slot 4, align 4
+start:
+  st.w %36, %35;
+  %37 = ld.w %35;
+  %38 = sext.l %37;
+  %39 = add.l $g_flex, %38;
+  %40 = ld.b %39;
+  ret %40
+}
+
+export function sb $get_empty(w %42) {
+  %41 = slot 4, align 4
+start:
+  st.w %42, %41;
+  %43 = ld.w %41;
+  %44 = sext.l %43;
+  %45 = add.l $g_empty, %44;
+  %46 = ld.b %45;
+  ret %46
+}
+
+export function sw $pt_x() {
+start:
+  %47 = ld.w $g_pt;
+  ret %47
+}
+
+export function sw $pt_y() {
+start:
+  %48 = add.l $g_pt, 0x4_l;
+  %49 = ld.w %48;
+  ret %49
+}
+
+export function sw $pad_c() {
+start:
+  %50 = ld.b $g_pad;
+  %51 = sext.w %50;
+  ret %51
+}
+
+export function sw $pad_n() {
+start:
+  %52 = add.l $g_pad, 0x4_l;
+  %53 = ld.w %52;
+  ret %53
+}
+
+export function sw $pts_sum() {
+start:
+  %54 = sext.l 0x0_w;
+  %55 = mul.l %54, 0x8_l;
+  %56 = add.l $g_pts, %55;
+  %57 = ld.w %56;
+  %58 = sext.l 0x0_w;
+  %59 = mul.l %58, 0x8_l;
+  %60 = add.l $g_pts, %59;
+  %61 = add.l %60, 0x4_l;
+  %62 = ld.w %61;
+  %63 = add.w %57, %62;
+  %64 = sext.l 0x1_w;
+  %65 = mul.l %64, 0x8_l;
+  %66 = add.l $g_pts, %65;
+  %67 = ld.w %66;
+  %68 = add.w %63, %67;
+  %69 = sext.l 0x1_w;
+  %70 = mul.l %69, 0x8_l;
+  %71 = add.l $g_pts, %70;
+  %72 = add.l %71, 0x4_l;
+  %73 = ld.w %72;
+  %74 = add.w %68, %73;
+  ret %74
+}
+
+export function sw $deref_pelem() {
+start:
+  %75 = ld.l $g_pelem;
+  %76 = ld.w %75;
+  ret %76
+}
+
+export function sw $deref_pmemb() {
+start:
+  %77 = ld.l $g_pmemb;
+  %78 = ld.w %77;
+  ret %78
+}
+
+export function sw $pnull_null() {
+start:
+  %79 = ld.l $g_pnull;
+  %80 = sext.l 0x0_w;
+  %81 = eq.l %79, %80;
+  %82 = flag.w %81;
+  ret %82
+}
+
+export function sw $deref_pconst() {
+start:
+  %83 = ld.l $g_pconst;
+  %84 = ld.w %83;
+  ret %84
+}
+
+export function sw $deref_pcelem() {
+start:
+  %85 = ld.l $g_pcelem;
+  %86 = ld.w %85;
+  ret %86
+}
+
+export function sw $pcarr_get(w %88) {
+  %87 = slot 4, align 4
+  %89 = slot 4, align 4
+  %90 = slot 8, align 8
+start:
+  st.w %88, %87;
+  %91 = ld.w %87;
+  %92 = sext.l %91;
+  %93 = mul.l %92, 0x8_l;
+  %94 = add.l $g_pcarr, %93;
+  %95 = ld.l %94;
+  st.l %95, %90;
+  %96 = ld.l %90;
+  if ne.l %96, 0x0_l {
+    %97 = ld.l %90;
+    %98 = ld.w %97;
+    st.w %98, %89
+  } else {
+    %99 = neg.w 0x1_w;
+    st.w %99, %89
+  };
+  %100 = ld.w %89;
+  ret %100
+}

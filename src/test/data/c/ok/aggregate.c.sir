@@ -1,0 +1,82 @@
+module aggregate
+
+type :point = {
+  w,
+  w
+}
+
+export function :point $mkpoint(w %2, w %3) {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+  %4 = slot 8, align 4
+start:
+  st.w %2, %0;
+  st.w %3, %1;
+  %5 = ld.w %0;
+  st.w %5, %4;
+  %6 = add.l %4, 0x4_l;
+  %7 = ld.w %1;
+  st.w %7, %6;
+  %8 = ld:point %4;
+  ret %8
+}
+
+export function sw $dot(:point %11, :point %12) {
+  %9 = slot 8, align 4
+  %10 = slot 8, align 4
+start:
+  st:point %11, %9;
+  st:point %12, %10;
+  %13 = ld.w %9;
+  %14 = ld.w %10;
+  %15 = mul.w %13, %14;
+  %16 = add.l %9, 0x4_l;
+  %17 = ld.w %16;
+  %18 = add.l %10, 0x4_l;
+  %19 = ld.w %18;
+  %20 = mul.w %17, %19;
+  %21 = add.w %15, %20;
+  ret %21
+}
+
+export function sw $sum_array(l %24, w %25) {
+  %22 = slot 8, align 8
+  %23 = slot 4, align 4
+  %26 = slot 4, align 4
+  %27 = slot 4, align 4
+  %28 = slot 4, align 4
+  %29 = slot 4, align 4
+start:
+  st.l %24, %22;
+  st.w %25, %23;
+  st.w 0x0_w, %28;
+  st.w 0x0_w, %29;
+  loop {
+    %42 = ld.w %29;
+    %43 = ld.w %23;
+    %44 = slt.w %42, %43;
+    %45 = flag.w %44;
+    unless ne.w %45, 0x0_w {
+      break
+    };
+    %30 = ld.w %28;
+    st.w %30, %26;
+    %31 = ld.w %26;
+    %32 = ld.l %22;
+    %33 = ld.w %29;
+    %34 = sext.l %33;
+    %35 = mul.l %34, 0x4_l;
+    %36 = add.l %32, %35;
+    %37 = ld.w %36;
+    %38 = add.w %31, %37;
+    st.w %38, %28
+  } step {
+    %39 = ld.w %29;
+    st.w %39, %27;
+    %40 = ld.w %27;
+    %41 = add.w %40, 0x1_w;
+    st.w %41, %29
+  };
+  %46 = ld.w %28;
+  ret %46
+}

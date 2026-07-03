@@ -1,0 +1,318 @@
+module designators
+
+type :Inner = {
+  w,
+  w
+}
+
+type :Outer = {
+  :Inner,
+  w
+}
+
+const data $go = {
+  0x4_w,
+  0x6_w,
+  0x7_w
+}
+
+export function sw $single_chain() {
+  %0 = slot 12, align 4
+start:
+  st.l 0x0_l, %0;
+  %1 = add.l %0, 0x8_l;
+  st.w 0x0_w, %1;
+  st.w 0x0_w, %0;
+  %2 = add.l %0, 0x4_l;
+  st.w 0x5_w, %2;
+  %3 = ld.w %0;
+  %4 = mul.w %3, 0x64_w;
+  %5 = add.l %0, 0x4_l;
+  %6 = ld.w %5;
+  %7 = mul.w %6, 0xa_w;
+  %8 = add.w %4, %7;
+  %9 = add.l %0, 0x8_l;
+  %10 = ld.w %9;
+  %11 = add.w %8, %10;
+  ret %11
+}
+
+export function sw $merge() {
+  %12 = slot 12, align 4
+start:
+  st.w 0x1_w, %12;
+  %13 = add.l %12, 0x4_l;
+  st.w 0x2_w, %13;
+  %14 = add.l %12, 0x8_l;
+  st.w 0x9_w, %14;
+  %15 = ld.w %12;
+  %16 = mul.w %15, 0x64_w;
+  %17 = add.l %12, 0x4_l;
+  %18 = ld.w %17;
+  %19 = mul.w %18, 0xa_w;
+  %20 = add.w %16, %19;
+  %21 = add.l %12, 0x8_l;
+  %22 = ld.w %21;
+  %23 = add.w %20, %22;
+  ret %23
+}
+
+export function sw $continuation() {
+  %24 = slot 12, align 4
+start:
+  st.w 0x1_w, %24;
+  %25 = add.l %24, 0x4_l;
+  st.w 0x2_w, %25;
+  %26 = add.l %24, 0x8_l;
+  st.w 0x3_w, %26;
+  %27 = ld.w %24;
+  %28 = mul.w %27, 0x64_w;
+  %29 = add.l %24, 0x4_l;
+  %30 = ld.w %29;
+  %31 = mul.w %30, 0xa_w;
+  %32 = add.w %28, %31;
+  %33 = add.l %24, 0x8_l;
+  %34 = ld.w %33;
+  %35 = add.w %32, %34;
+  ret %35
+}
+
+export function sw $brace_then_reset() {
+  %36 = slot 12, align 4
+start:
+  st.w 0x1_w, %36;
+  %37 = add.l %36, 0x4_l;
+  st.w 0x2_w, %37;
+  %38 = add.l %36, 0x8_l;
+  st.w 0x9_w, %38;
+  %39 = ld.w %36;
+  %40 = mul.w %39, 0x64_w;
+  %41 = add.l %36, 0x4_l;
+  %42 = ld.w %41;
+  %43 = mul.w %42, 0xa_w;
+  %44 = add.w %40, %43;
+  %45 = add.l %36, 0x8_l;
+  %46 = ld.w %45;
+  %47 = add.w %44, %46;
+  ret %47
+}
+
+export function sw $array_desig() {
+  %48 = slot 24, align 4
+start:
+  st.l 0x0_l, %48;
+  %49 = add.l %48, 0x8_l;
+  st.l 0x0_l, %49;
+  %50 = add.l %48, 0x10_l;
+  st.l 0x0_l, %50;
+  st.w 0x0_w, %48;
+  %51 = add.l %48, 0x4_l;
+  st.w 0x0_w, %51;
+  %52 = add.l %48, 0x8_l;
+  st.w 0xf_w, %52;
+  %53 = add.l %48, 0xc_l;
+  st.w 0x0_w, %53;
+  %54 = add.l %48, 0x10_l;
+  st.w 0x1d_w, %54;
+  %55 = sext.l 0x0_w;
+  %56 = mul.l %55, 0x4_l;
+  %57 = add.l %48, %56;
+  %58 = ld.w %57;
+  %59 = sext.l 0x2_w;
+  %60 = mul.l %59, 0x4_l;
+  %61 = add.l %48, %60;
+  %62 = ld.w %61;
+  %63 = add.w %58, %62;
+  %64 = sext.l 0x4_w;
+  %65 = mul.l %64, 0x4_l;
+  %66 = add.l %48, %65;
+  %67 = ld.w %66;
+  %68 = add.w %63, %67;
+  ret %68
+}
+
+export function sw $elem_field() {
+  %69 = slot 24, align 4
+start:
+  st.l 0x0_l, %69;
+  %70 = add.l %69, 0x8_l;
+  st.l 0x0_l, %70;
+  %71 = add.l %69, 0x10_l;
+  st.l 0x0_l, %71;
+  st.w 0x1_w, %69;
+  %72 = add.l %69, 0x8_l;
+  st.w 0x4_w, %72;
+  %73 = add.l %72, 0x4_l;
+  st.w 0x7_w, %73;
+  %74 = sext.l 0x0_w;
+  %75 = mul.l %74, 0x8_l;
+  %76 = add.l %69, %75;
+  %77 = ld.w %76;
+  %78 = mul.w %77, 0x3e8_w;
+  %79 = sext.l 0x1_w;
+  %80 = mul.l %79, 0x8_l;
+  %81 = add.l %69, %80;
+  %82 = ld.w %81;
+  %83 = mul.w %82, 0x64_w;
+  %84 = add.w %78, %83;
+  %85 = sext.l 0x1_w;
+  %86 = mul.l %85, 0x8_l;
+  %87 = add.l %69, %86;
+  %88 = add.l %87, 0x4_l;
+  %89 = ld.w %88;
+  %90 = mul.w %89, 0xa_w;
+  %91 = add.w %84, %90;
+  %92 = sext.l 0x2_w;
+  %93 = mul.l %92, 0x8_l;
+  %94 = add.l %69, %93;
+  %95 = ld.w %94;
+  %96 = add.w %91, %95;
+  ret %96
+}
+
+export function sw $multidim() {
+  %97 = slot 16, align 4
+start:
+  st.l 0x0_l, %97;
+  %98 = add.l %97, 0x8_l;
+  st.l 0x0_l, %98;
+  st.w 0x0_w, %97;
+  %99 = add.l %97, 0x4_l;
+  st.w 0x3_w, %99;
+  %100 = add.l %97, 0x8_l;
+  st.w 0x5_w, %100;
+  %101 = sext.l 0x0_w;
+  %102 = mul.l %101, 0x8_l;
+  %103 = add.l %97, %102;
+  %104 = sext.l 0x0_w;
+  %105 = mul.l %104, 0x4_l;
+  %106 = add.l %103, %105;
+  %107 = ld.w %106;
+  %108 = sext.l 0x0_w;
+  %109 = mul.l %108, 0x8_l;
+  %110 = add.l %97, %109;
+  %111 = sext.l 0x1_w;
+  %112 = mul.l %111, 0x4_l;
+  %113 = add.l %110, %112;
+  %114 = ld.w %113;
+  %115 = mul.w %114, 0xa_w;
+  %116 = add.w %107, %115;
+  %117 = sext.l 0x1_w;
+  %118 = mul.l %117, 0x8_l;
+  %119 = add.l %97, %118;
+  %120 = sext.l 0x0_w;
+  %121 = mul.l %120, 0x4_l;
+  %122 = add.l %119, %121;
+  %123 = ld.w %122;
+  %124 = mul.w %123, 0x64_w;
+  %125 = add.w %116, %124;
+  %126 = sext.l 0x1_w;
+  %127 = mul.l %126, 0x8_l;
+  %128 = add.l %97, %127;
+  %129 = sext.l 0x1_w;
+  %130 = mul.l %129, 0x4_l;
+  %131 = add.l %128, %130;
+  %132 = ld.w %131;
+  %133 = mul.w %132, 0x3e8_w;
+  %134 = add.w %125, %133;
+  ret %134
+}
+
+export function sw $override() {
+  %135 = slot 12, align 4
+start:
+  st.l 0x0_l, %135;
+  %136 = add.l %135, 0x8_l;
+  st.w 0x0_w, %136;
+  st.w 0x0_w, %135;
+  %137 = add.l %135, 0x4_l;
+  st.w 0x7_w, %137;
+  %138 = sext.l 0x0_w;
+  %139 = mul.l %138, 0x4_l;
+  %140 = add.l %135, %139;
+  %141 = ld.w %140;
+  %142 = mul.w %141, 0x64_w;
+  %143 = sext.l 0x1_w;
+  %144 = mul.l %143, 0x4_l;
+  %145 = add.l %135, %144;
+  %146 = ld.w %145;
+  %147 = mul.w %146, 0xa_w;
+  %148 = add.w %142, %147;
+  %149 = sext.l 0x2_w;
+  %150 = mul.l %149, 0x4_l;
+  %151 = add.l %135, %150;
+  %152 = ld.w %151;
+  %153 = add.w %148, %152;
+  ret %153
+}
+
+export function :Inner $make_inner() {
+  %154 = slot 8, align 4
+start:
+  st.w 0x7_w, %154;
+  %155 = add.l %154, 0x4_l;
+  st.w 0x8_w, %155;
+  %156 = ld:Inner %154;
+  ret %156
+}
+
+export function sw $overlay_call() {
+  %157 = slot 8, align 4
+  %159 = slot 12, align 4
+start:
+  %158 = call:Inner $make_inner();
+  st:Inner %158, %157;
+  st.l 0x0_l, %159;
+  %160 = add.l %159, 0x8_l;
+  st.w 0x0_w, %160;
+  %161 = ld:Inner %157;
+  st:Inner %161, %159;
+  %162 = add.l %159, 0x4_l;
+  st.w 0x3_w, %162;
+  %163 = ld.w %159;
+  %164 = mul.w %163, 0x64_w;
+  %165 = add.l %159, 0x4_l;
+  %166 = ld.w %165;
+  %167 = mul.w %166, 0xa_w;
+  %168 = add.w %164, %167;
+  %169 = add.l %159, 0x8_l;
+  %170 = ld.w %169;
+  %171 = add.w %168, %170;
+  ret %171
+}
+
+export function sw $overlay_literal() {
+  %172 = slot 12, align 4
+start:
+  st.l 0x0_l, %172;
+  %173 = add.l %172, 0x8_l;
+  st.w 0x0_w, %173;
+  st.w 0x1_w, %172;
+  %174 = add.l %172, 0x4_l;
+  st.w 0x3_w, %174;
+  %175 = ld.w %172;
+  %176 = mul.w %175, 0x64_w;
+  %177 = add.l %172, 0x4_l;
+  %178 = ld.w %177;
+  %179 = mul.w %178, 0xa_w;
+  %180 = add.w %176, %179;
+  %181 = add.l %172, 0x8_l;
+  %182 = ld.w %181;
+  %183 = add.w %180, %182;
+  ret %183
+}
+
+export function sw $overlay_global() {
+start:
+  %184 = ld.w $go;
+  %185 = mul.w %184, 0x3e8_w;
+  %186 = add.l $go, 0x4_l;
+  %187 = ld.w %186;
+  %188 = mul.w %187, 0x64_w;
+  %189 = add.w %185, %188;
+  %190 = add.l $go, 0x8_l;
+  %191 = ld.w %190;
+  %192 = mul.w %191, 0xa_w;
+  %193 = add.w %189, %192;
+  ret %193
+}

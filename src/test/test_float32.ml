@@ -1,5 +1,5 @@
 open Core
-open Cgen.Float32
+open Cgen_utils.Float32
 
 module Q = Quickcheck
 

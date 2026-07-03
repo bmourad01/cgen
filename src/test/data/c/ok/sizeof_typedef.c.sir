@@ -1,0 +1,21 @@
+module sizeof_typedef
+
+type :padded = {
+  b 4,
+  b 20
+}
+
+export function l $size_of_typedef() {
+start:
+  ret 0x8_l
+}
+
+export function l $size_of_pointer_typedef() {
+start:
+  ret 0x8_l
+}
+
+export function l $size_of_padded_struct() {
+start:
+  ret 0x18_l
+}

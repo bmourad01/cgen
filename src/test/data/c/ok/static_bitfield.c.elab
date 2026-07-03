@@ -1,0 +1,45 @@
+struct flags {
+  unsigned int a : 3;
+  unsigned int b : 5;
+  int c : 4;
+  int x;
+};
+
+struct mixed {
+  int p : 10;
+  int : 0;
+  int q : 10;
+  unsigned int r : 1;
+};
+
+static struct flags gf = {.a = (unsigned int)5, .b = (unsigned int)20, .c = -2, .x = 4660};
+
+static struct mixed gm = {.p = -100, .q = 300, .r = (unsigned int)1};
+
+unsigned int f_a(void) {
+  return (unsigned int)(int)gf.a;
+}
+
+unsigned int f_b(void) {
+  return (unsigned int)(int)gf.b;
+}
+
+int f_c(void) {
+  return (int)gf.c;
+}
+
+int f_x(void) {
+  return gf.x;
+}
+
+int m_p(void) {
+  return (int)gm.p;
+}
+
+int m_q(void) {
+  return (int)gm.q;
+}
+
+unsigned int m_r(void) {
+  return (unsigned int)(int)gm.r;
+}

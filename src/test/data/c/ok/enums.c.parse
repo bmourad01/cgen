@@ -1,0 +1,14 @@
+enum color {
+  red,
+  green = 4,
+  blue,
+};
+
+enum color favorite;
+
+enum __anon_enum_1 {
+  LOW = 1,
+  MID,
+  HIGH = 10,
+  TOP,
+};

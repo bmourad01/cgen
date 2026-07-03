@@ -1,6 +1,5 @@
 open Core
-open Cgen
-open Allen_interval_algebra
+open Cgen_utils.Allen_interval_algebra
 
 module Seq = Sequence
 module Q = Quickcheck

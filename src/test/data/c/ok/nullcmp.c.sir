@@ -1,0 +1,45 @@
+module nullcmp
+
+export function sw $eq_null(l %1) {
+  %0 = slot 8, align 8
+start:
+  st.l %1, %0;
+  %2 = ld.l %0;
+  %3 = sext.l 0x0_w;
+  %4 = eq.l %2, %3;
+  %5 = flag.w %4;
+  ret %5
+}
+
+export function sw $ne_null(l %7) {
+  %6 = slot 8, align 8
+start:
+  st.l %7, %6;
+  %8 = ld.l %6;
+  %9 = sext.l 0x0_w;
+  %10 = ne.l %8, %9;
+  %11 = flag.w %10;
+  ret %11
+}
+
+export function sw $null_eq(l %13) {
+  %12 = slot 8, align 8
+start:
+  st.l %13, %12;
+  %14 = sext.l 0x0_w;
+  %15 = ld.l %12;
+  %16 = eq.l %14, %15;
+  %17 = flag.w %16;
+  ret %17
+}
+
+export function sw $eq_voidnull(l %19) {
+  %18 = slot 8, align 8
+start:
+  st.l %19, %18;
+  %20 = ld.l %18;
+  %21 = sext.l 0x0_w;
+  %22 = eq.l %20, %21;
+  %23 = flag.w %22;
+  ret %23
+}

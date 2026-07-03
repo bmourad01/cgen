@@ -1,0 +1,121 @@
+struct A {
+  char a;
+  int b : 4;
+  unsigned int c : 20;
+  short d;
+};
+
+struct B {
+  int x : 4;
+  short y;
+  int z : 4;
+  char w;
+};
+
+struct C {
+  char a;
+  int : 0;
+  char b;
+};
+
+unsigned long size_a(void) {
+  return 8;
+}
+
+unsigned long size_b(void) {
+  return 8;
+}
+
+unsigned long size_c(void) {
+  return 5;
+}
+
+int a_a(struct A *p) {
+  return (int)(*p).a;
+}
+
+int a_b(struct A *p) {
+  return (int)(*p).b;
+}
+
+unsigned int a_c(struct A *p) {
+  return (unsigned int)(int)(*p).c;
+}
+
+int a_d(struct A *p) {
+  return (int)(*p).d;
+}
+
+void set_b(struct A *p, int v) {
+  (*p).b = v;
+}
+
+void set_c(struct A *p, unsigned int v) {
+  (*p).c = v;
+}
+
+int b_x(struct B *p) {
+  return (int)(*p).x;
+}
+
+int b_y(struct B *p) {
+  return (int)(*p).y;
+}
+
+int b_z(struct B *p) {
+  return (int)(*p).z;
+}
+
+int b_w(struct B *p) {
+  return (int)(*p).w;
+}
+
+int c_a(struct C *p) {
+  return (int)(*p).a;
+}
+
+int c_b(struct C *p) {
+  return (int)(*p).b;
+}
+
+struct E {
+  long long x : 4;
+  char arr[4];
+  int y : 8;
+};
+
+unsigned long size_e(void) {
+  return 8;
+}
+
+struct A init_a = {.a = (char)127, .b = -3, .c = (unsigned int)100000, .d = (short)12345};
+
+struct E init_e = {.x = (long long)6, .arr = {(char)10, (char)20, (char)30, (char)40}, .y = 100};
+
+int ia_a(void) {
+  return (int)init_a.a;
+}
+
+int ia_b(void) {
+  return (int)init_a.b;
+}
+
+unsigned int ia_c(void) {
+  return (unsigned int)(int)init_a.c;
+}
+
+int ia_d(void) {
+  return (int)init_a.d;
+}
+
+long long ie_x(void) {
+  return (long long)(int)init_e.x;
+}
+
+int ie_arr(int i) {
+  return (int)((char *)init_e.arr)[i];
+}
+
+int ie_y(void) {
+  return (int)init_e.y;
+}

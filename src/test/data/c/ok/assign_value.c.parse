@@ -1,0 +1,40 @@
+int g = 9;
+
+int *p = &g;
+
+int self_ref(void) {
+  int r = *p = 1 < *p;
+  if (r)
+    *p = 0;
+  return *p;
+}
+
+int g2 = 5;
+
+int *q = &g2;
+
+int compound_self(void) {
+  return *q += *q;
+}
+
+int incdec(void) {
+  int x = 6;
+  int a = x++;
+  int b = ++x;
+  return a * 100 + b * 10 + x;
+}
+
+int chain(void) {
+  int a;
+  int b;
+  int c;
+  a = b = c = 7;
+  return a + b + c;
+}
+
+int cond_assign(void) {
+  int x = 0;
+  if (x = 5)
+    return x;
+  return -1;
+}

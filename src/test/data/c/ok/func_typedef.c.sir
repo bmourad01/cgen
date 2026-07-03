@@ -1,0 +1,78 @@
+module func_typedef
+
+type :calculator = {
+  l,
+  l
+}
+
+function sw $add(w %2, w %3) {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+start:
+  st.w %2, %0;
+  st.w %3, %1;
+  %4 = ld.w %0;
+  %5 = ld.w %1;
+  %6 = add.w %4, %5;
+  ret %6
+}
+
+function sw $mul(w %9, w %10) {
+  %7 = slot 4, align 4
+  %8 = slot 4, align 4
+start:
+  st.w %9, %7;
+  st.w %10, %8;
+  %11 = ld.w %7;
+  %12 = ld.w %8;
+  %13 = mul.w %11, %12;
+  ret %13
+}
+
+export function sw $run(l %17, w %18, w %19) {
+  %14 = slot 8, align 8
+  %15 = slot 4, align 4
+  %16 = slot 4, align 4
+  %20 = slot 4, align 4
+  %21 = slot 4, align 4
+start:
+  st.l %17, %14;
+  st.w %18, %15;
+  st.w %19, %16;
+  %22 = ld.l %14;
+  %23 = ld.l %22;
+  %24 = ld.w %15;
+  %25 = ld.w %16;
+  %26 = call.sw %23(%24, %25);
+  st.w %26, %20;
+  %27 = ld.l %14;
+  %28 = add.l %27, 0x8_l;
+  %29 = ld.l %28;
+  %30 = ld.w %15;
+  %31 = ld.w %16;
+  %32 = call.sw %29(%30, %31);
+  st.w %32, %21;
+  %33 = ld.w %20;
+  %34 = ld.w %21;
+  %35 = add.w %33, %34;
+  ret %35
+}
+
+export function sw $compute(w %38, w %39) {
+  %36 = slot 4, align 4
+  %37 = slot 4, align 4
+  %40 = slot 4, align 4
+  %41 = slot 16, align 8
+start:
+  st.w %38, %36;
+  st.w %39, %37;
+  st.l $add, %41;
+  %42 = add.l %41, 0x8_l;
+  st.l $mul, %42;
+  %43 = ld.w %36;
+  %44 = ld.w %37;
+  %45 = call.sw $run(%41, %43, %44);
+  st.w %45, %40;
+  %46 = ld.w %40;
+  ret %46
+}

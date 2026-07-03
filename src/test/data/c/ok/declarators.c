@@ -1,0 +1,6 @@
+int *ap[3];
+int (*pa)[3];
+int (*fp)(int, int);
+int (*fps[5])(int);
+const int *const cp;
+char *const *p;

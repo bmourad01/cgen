@@ -1,0 +1,33 @@
+int gcd(int a, int b) {
+  while (b != 0) {
+    int t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
+}
+
+int sumto(int n) {
+  int %0;
+  int %1;
+  int s = 0;
+  {
+    int i = 1;
+    for (; i <= n; %1 = i, i = %1 + 1)
+      (%0 = s, s = %0 + i);
+  }
+  return s;
+}
+
+long fib(int n) {
+  long %0;
+  long %1;
+  if (n < 2)
+    return (long)n;
+  {
+    %0 = ((long (*)(int n))fib)(n - 1);
+    %1 = ((long (*)(int n))fib)(n - 2);
+    ;
+    return %0 + %1;
+  }
+}

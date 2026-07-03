@@ -1,0 +1,5 @@
+module enums
+
+export data $favorite = {
+  z 4
+}

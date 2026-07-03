@@ -1,0 +1,128 @@
+struct Inner {
+  int a;
+  int b;
+};
+
+struct Outer {
+  struct Inner s;
+  int x;
+};
+
+int single_chain(void) {
+  struct Outer o = {.s = {.a = (int)0, .b = 5}};
+  return o.s.a * 100 + o.s.b * 10 + o.x;
+}
+
+int merge(void) {
+  {
+    ;
+    ;
+    ;
+  }
+  struct Outer o = {.s = {.a = 1, .b = 2}, .x = 9};
+  return o.s.a * 100 + o.s.b * 10 + o.x;
+}
+
+int continuation(void) {
+  {
+    ;
+    ;
+    ;
+  }
+  struct Outer o = {.s = {.a = 1, .b = 2}, .x = 3};
+  return o.s.a * 100 + o.s.b * 10 + o.x;
+}
+
+int brace_then_reset(void) {
+  {
+    ;
+    ;
+    ;
+  }
+  struct Outer o = {.s = {.a = 1, .b = 2}, .x = 9};
+  return o.s.a * 100 + o.s.b * 10 + o.x;
+}
+
+int array_desig(void) {
+  {
+    ;
+    ;
+    ;
+    ;
+  }
+  int a[6] = {(int)0, (int)0, 15, (int)0, 29};
+  return ((int *)a)[0] + ((int *)a)[2] + ((int *)a)[4];
+}
+
+int elem_field(void) {
+  {
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+  }
+  struct Inner ps[3] = {{.a = 1}, {.a = 4, .b = 7}};
+  return ((struct Inner *)ps)[0].a * 1000 + ((struct Inner *)ps)[1].a * 100 + ((struct Inner *)ps)[1].b * 10 + ((struct Inner *)ps)[2].a;
+}
+
+int multidim(void) {
+  {
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+  }
+  int m[2][2] = {{(int)0, 3}, {5}};
+  return ((int *)((int (*)[2])m)[0])[0] + ((int *)((int (*)[2])m)[0])[1] * 10 + ((int *)((int (*)[2])m)[1])[0] * 100 + ((int *)((int (*)[2])m)[1])[1] * 1000;
+}
+
+int override(void) {
+  {
+    ;
+    ;
+    ;
+    ;
+  }
+  int a[3] = {(int)0, 7};
+  return ((int *)a)[0] * 100 + ((int *)a)[1] * 10 + ((int *)a)[2];
+}
+
+struct Inner make_inner(void) {
+  {
+    ;
+    ;
+  }
+  struct Inner i = {.a = 7, .b = 8};
+  return i;
+}
+
+int overlay_call(void) {
+  struct Inner %0;
+  {
+    %0 = ((struct Inner (*)(void))make_inner)();
+    ;
+    ;
+  }
+  struct Outer o = {.s = %0 with {.b = 3}};
+  return o.s.a * 100 + o.s.b * 10 + o.x;
+}
+
+int overlay_literal(void) {
+  {
+    ;
+    ;
+    ;
+  }
+  struct Outer o = {.s = {.a = 1, .b = 3}};
+  return o.s.a * 100 + o.s.b * 10 + o.x;
+}
+
+static const struct Outer go = {.s = {.a = 4, .b = 6}, .x = 7};
+
+int overlay_global(void) {
+  return go.s.a * 1000 + go.s.b * 100 + go.x * 10;
+}

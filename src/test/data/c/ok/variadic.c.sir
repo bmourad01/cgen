@@ -1,0 +1,133 @@
+module variadic
+
+type :P = {
+  w,
+  w
+}
+
+export function sw $sum(w %1, ...) {
+  %0 = slot 4, align 4
+  %2 = slot 4, align 4
+  %3 = slot 24, align 8
+  %4 = slot 4, align 4
+  %5 = slot 4, align 4
+start:
+  st.w %1, %0;
+  vastart %3;
+  st.w 0x0_w, %4;
+  st.w 0x0_w, %5;
+  loop {
+    %12 = ld.w %5;
+    %13 = ld.w %0;
+    %14 = slt.w %12, %13;
+    %15 = flag.w %14;
+    unless ne.w %15, 0x0_w {
+      break
+    };
+    %6 = vaarg.w %3;
+    st.w %6, %2;
+    %7 = ld.w %4;
+    %8 = ld.w %2;
+    %9 = add.w %7, %8;
+    st.w %9, %4
+  } step {
+    %10 = ld.w %5;
+    %11 = add.w %10, 0x1_w;
+    st.w %11, %5
+  };
+  %16 = ld.w %4;
+  ret %16
+}
+
+export function d $dsum(w %18, ...) {
+  %17 = slot 4, align 4
+  %19 = slot 8, align 8
+  %20 = slot 24, align 8
+  %21 = slot 8, align 8
+  %23 = slot 4, align 4
+start:
+  st.w %18, %17;
+  vastart %20;
+  %22 = sitof.w.d 0x0_w;
+  st.d %22, %21;
+  st.w 0x0_w, %23;
+  loop {
+    %30 = ld.w %23;
+    %31 = ld.w %17;
+    %32 = slt.w %30, %31;
+    %33 = flag.w %32;
+    unless ne.w %33, 0x0_w {
+      break
+    };
+    %24 = vaarg.d %20;
+    st.d %24, %19;
+    %25 = ld.d %21;
+    %26 = ld.d %19;
+    %27 = add.d %25, %26;
+    st.d %27, %21
+  } step {
+    %28 = ld.w %23;
+    %29 = add.w %28, 0x1_w;
+    st.w %29, %23
+  };
+  %34 = ld.d %21;
+  ret %34
+}
+
+export function sw $psum(w %36, ...) {
+  %35 = slot 4, align 4
+  %37 = slot 8, align 4
+  %38 = slot 24, align 8
+  %39 = slot 4, align 4
+  %40 = slot 4, align 4
+  %42 = slot 8, align 4
+start:
+  st.w %36, %35;
+  vastart %38;
+  st.w 0x0_w, %39;
+  st.w 0x0_w, %40;
+  loop {
+    %52 = ld.w %40;
+    %53 = ld.w %35;
+    %54 = slt.w %52, %53;
+    %55 = flag.w %54;
+    unless ne.w %55, 0x0_w {
+      break
+    };
+    %41 = vaarg:P %38;
+    st:P %41, %37;
+    %43 = ld:P %37;
+    st:P %43, %42;
+    %44 = ld.w %39;
+    %45 = ld.w %42;
+    %46 = add.w %44, %45;
+    %47 = add.l %42, 0x4_l;
+    %48 = ld.w %47;
+    %49 = add.w %46, %48;
+    st.w %49, %39
+  } step {
+    %50 = ld.w %40;
+    %51 = add.w %50, 0x1_w;
+    st.w %51, %40
+  };
+  %56 = ld.w %39;
+  ret %56
+}
+
+export function sw $sum3(w %60, w %61, w %62) {
+  %57 = slot 4, align 4
+  %58 = slot 4, align 4
+  %59 = slot 4, align 4
+  %63 = slot 4, align 4
+start:
+  st.w %60, %57;
+  st.w %61, %58;
+  st.w %62, %59;
+  %64 = ld.w %57;
+  %65 = ld.w %58;
+  %66 = ld.w %59;
+  %67 = call.sw $sum(0x3_w, ..., %64, %65, %66);
+  st.w %67, %63;
+  %68 = ld.w %63;
+  ret %68
+}

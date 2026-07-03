@@ -1,0 +1,11 @@
+int compute(int a, int b) {
+  int %0;
+  int %1;
+  int c = a * b + (a - b) / 2;
+  int d = a > b ? a : b;
+  int e = a & b | a ^ b;
+  int f = (a ? b != (int)0 : 0) ? 1 : !c != (int)0;
+  (%0 = c, c = %0 + d);
+  (%1 = c, c = %1 << 1);
+  return c + e + f;
+}

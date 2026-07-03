@@ -1,0 +1,25 @@
+module declarators
+
+export data $ap = {
+  z 24
+}
+
+export data $pa = {
+  z 8
+}
+
+export data $fp = {
+  z 8
+}
+
+export data $fps = {
+  z 40
+}
+
+export const data $cp = {
+  z 8
+}
+
+export data $p = {
+  z 8
+}

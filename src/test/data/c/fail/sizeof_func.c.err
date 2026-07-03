@@ -1,0 +1,3 @@
+data/c/fail/sizeof_func.c:7:10-18: error: sizeof applied to a function type 'void (void)'
+ 7 |   return sizeof g;
+   |          ^~~~~~~~

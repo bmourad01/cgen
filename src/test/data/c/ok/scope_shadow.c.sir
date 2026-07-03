@@ -1,0 +1,78 @@
+module scope_shadow
+
+export data $g = {
+  0x7_w
+}
+
+export function sw $after_block() {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+start:
+  st.w 0x63_w, %1;
+  %2 = ld.w %1;
+  st.w %2, %0;
+  %3 = ld.w %0;
+  %4 = ld.w $g;
+  %5 = add.w %3, %4;
+  ret %5
+}
+
+export function sw $nested() {
+  %6 = slot 4, align 4
+  %7 = slot 4, align 4
+  %8 = slot 4, align 4
+start:
+  st.w 0x1_w, %6;
+  st.w 0x2_w, %7;
+  st.w 0x3_w, %8;
+  %9 = ld.w %8;
+  %10 = ne.w %9, 0x3_w;
+  %11 = flag.w %10;
+  when ne.w %11, 0x0_w {
+    %12 = neg.w 0x1_w;
+    ret %12
+  };
+  %13 = ld.w %7;
+  %14 = ne.w %13, 0x2_w;
+  %15 = flag.w %14;
+  when ne.w %15, 0x0_w {
+    %16 = neg.w 0x2_w;
+    ret %16
+  };
+  %17 = ld.w %6;
+  ret %17
+}
+
+export function sw $for_shadow() {
+  %18 = slot 4, align 4
+  %19 = slot 4, align 4
+  %20 = slot 4, align 4
+  %21 = slot 4, align 4
+start:
+  st.w 0x0_w, %20;
+  st.w 0x0_w, %21;
+  loop {
+    %29 = ld.w %21;
+    %30 = slt.w %29, 0x5_w;
+    %31 = flag.w %30;
+    unless ne.w %31, 0x0_w {
+      break
+    };
+    %22 = ld.w %20;
+    st.w %22, %18;
+    %23 = ld.w %18;
+    %24 = ld.w %21;
+    %25 = add.w %23, %24;
+    st.w %25, %20
+  } step {
+    %26 = ld.w %21;
+    st.w %26, %19;
+    %27 = ld.w %19;
+    %28 = add.w %27, 0x1_w;
+    st.w %28, %21
+  };
+  %32 = ld.w %20;
+  %33 = ld.w $g;
+  %34 = add.w %32, %33;
+  ret %34
+}

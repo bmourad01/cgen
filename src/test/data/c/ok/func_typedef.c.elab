@@ -1,0 +1,35 @@
+struct calculator {
+  int (*op)(int a, int b);
+  int (*fallback)(int, int);
+};
+
+static int add(int a, int b) {
+  return a + b;
+}
+
+static int mul(int a, int b) {
+  return a * b;
+}
+
+int run(struct calculator *c, int x, int y) {
+  int %0;
+  int %1;
+  {
+    %0 = (*c).op(x, y);
+    %1 = (*c).fallback(x, y);
+    ;
+    return %0 + %1;
+  }
+}
+
+int compute(int x, int y) {
+  int %0;
+  struct calculator c;
+  c.op = (int (*)(int a, int b))add;
+  c.fallback = (int (*)(int, int))(int (*)(int a, int b))mul;
+  {
+    %0 = ((int (*)(struct calculator *c, int x, int y))run)(&c, x, y);
+    ;
+    return %0;
+  }
+}

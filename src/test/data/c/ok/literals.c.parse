@@ -1,0 +1,19 @@
+long hex_uint_wrap(void) {
+  return 4294967295 + 1;
+}
+
+long dec_long_nowrap(void) {
+  return 4294967295 + 1;
+}
+
+int hex_ull_is_unsigned(void) {
+  return 18446744073709551615 > 0;
+}
+
+int oct_value(void) {
+  return 8 + 511;
+}
+
+int bin_value(void) {
+  return 11 + 4;
+}

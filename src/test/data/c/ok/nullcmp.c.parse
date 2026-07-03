@@ -1,0 +1,15 @@
+int eq_null(int *p) {
+  return p == 0;
+}
+
+int ne_null(int *p) {
+  return p != 0;
+}
+
+int null_eq(int *p) {
+  return 0 == p;
+}
+
+int eq_voidnull(int *p) {
+  return p == (void *)0;
+}

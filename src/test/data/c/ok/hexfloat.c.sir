@@ -1,0 +1,26 @@
+module hexfloat
+
+export function d $hf_frac() {
+start:
+  ret 12._d
+}
+
+export function d $hf_no_point() {
+start:
+  ret 0.0625_d
+}
+
+export function d $hf_no_int() {
+start:
+  ret 1._d
+}
+
+export function d $hf_upper() {
+start:
+  ret 4._d
+}
+
+export function s $hf_float() {
+start:
+  ret 0.0625_s
+}

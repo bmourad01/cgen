@@ -1,0 +1,3 @@
+data/c/fail/extern_local_init.c:5:3-20: error: a block-scope 'extern' declaration shall have no initializer
+ 5 |   extern int x = 5;
+   |   ^~~~~~~~~~~~~~~~~

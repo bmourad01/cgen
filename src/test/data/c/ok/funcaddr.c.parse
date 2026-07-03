@@ -1,0 +1,20 @@
+static int add1(int x) {
+  return x + 1;
+}
+
+static int apply(int (*f)(int), int x) {
+  return f(x);
+}
+
+int via_addr(int x) {
+  return apply(&add1, x);
+}
+
+int via_bare(int x) {
+  return apply(add1, x);
+}
+
+int via_var(int x) {
+  int (*p)(int) = &add1;
+  return p(x);
+}

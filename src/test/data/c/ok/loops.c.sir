@@ -1,0 +1,177 @@
+module loops
+
+export function sw $sum_odds(w %1) {
+  %0 = slot 4, align 4
+  %2 = slot 4, align 4
+  %3 = slot 4, align 4
+start:
+  st.w %1, %0;
+  st.w 0x0_w, %2;
+  st.w 0x0_w, %3;
+  loop {
+    %13 = ld.w %3;
+    %14 = ld.w %0;
+    %15 = slt.w %13, %14;
+    %16 = flag.w %15;
+    unless ne.w %16, 0x0_w {
+      break
+    };
+    %4 = ld.w %3;
+    %5 = rem.w %4, 0x2_w;
+    %6 = eq.w %5, 0x0_w;
+    %7 = flag.w %6;
+    when ne.w %7, 0x0_w {
+      continue
+    };
+    %8 = ld.w %2;
+    %9 = ld.w %3;
+    %10 = add.w %8, %9;
+    st.w %10, %2
+  } step {
+    %11 = ld.w %3;
+    %12 = add.w %11, 0x1_w;
+    st.w %12, %3
+  };
+  %17 = ld.w %2;
+  ret %17
+}
+
+export function sw $count_down(w %19) {
+  %18 = slot 4, align 4
+  %20 = slot 4, align 4
+start:
+  st.w %19, %18;
+  st.w 0x0_w, %20;
+  loop {
+    %29 = ld.w %18;
+    %30 = sgt.w %29, 0x0_w;
+    %31 = flag.w %30;
+    unless ne.w %31, 0x0_w {
+      break
+    };
+    %21 = ld.w %18;
+    %22 = sub.w %21, 0x1_w;
+    st.w %22, %18;
+    %23 = ld.w %18;
+    %24 = rem.w %23, 0x3_w;
+    %25 = eq.w %24, 0x0_w;
+    %26 = flag.w %25;
+    when ne.w %26, 0x0_w {
+      continue
+    };
+    %27 = ld.w %20;
+    %28 = add.w %27, 0x1_w;
+    st.w %28, %20
+  };
+  %32 = ld.w %20;
+  ret %32
+}
+
+export function sw $do_at_least_once(w %34) {
+  %33 = slot 4, align 4
+  %35 = slot 4, align 4
+start:
+  st.w %34, %33;
+  st.w 0x0_w, %35;
+  loop {
+    %36 = ld.w %35;
+    %37 = add.w %36, 0x1_w;
+    st.w %37, %35
+  } step {
+    %38 = ld.w %35;
+    %39 = ld.w %33;
+    %40 = slt.w %38, %39;
+    %41 = flag.w %40;
+    unless ne.w %41, 0x0_w {
+      break
+    }
+  };
+  %42 = ld.w %35;
+  ret %42
+}
+
+export function sw $do_count(w %44) {
+  %43 = slot 4, align 4
+  %45 = slot 4, align 4
+  %46 = slot 4, align 4
+start:
+  st.w %44, %43;
+  st.w 0x0_w, %45;
+  st.w 0x0_w, %46;
+  loop {
+    %47 = ld.w %45;
+    %48 = add.w %47, 0x1_w;
+    st.w %48, %45;
+    %49 = ld.w %45;
+    %50 = rem.w %49, 0x4_w;
+    %51 = eq.w %50, 0x0_w;
+    %52 = flag.w %51;
+    when ne.w %52, 0x0_w {
+      continue
+    };
+    %53 = ld.w %46;
+    %54 = add.w %53, 0x1_w;
+    st.w %54, %46
+  } step {
+    %55 = ld.w %45;
+    %56 = ld.w %43;
+    %57 = slt.w %55, %56;
+    %58 = flag.w %57;
+    unless ne.w %58, 0x0_w {
+      break
+    }
+  };
+  %59 = ld.w %46;
+  ret %59
+}
+
+export function sw $grid(w %62, w %63) {
+  %60 = slot 4, align 4
+  %61 = slot 4, align 4
+  %64 = slot 4, align 4
+  %65 = slot 4, align 4
+  %66 = slot 4, align 4
+start:
+  st.w %62, %60;
+  st.w %63, %61;
+  st.w 0x0_w, %64;
+  st.w 0x0_w, %65;
+  loop {
+    %80 = ld.w %65;
+    %81 = ld.w %60;
+    %82 = slt.w %80, %81;
+    %83 = flag.w %82;
+    unless ne.w %83, 0x0_w {
+      break
+    };
+    st.w 0x0_w, %66;
+    loop {
+      %74 = ld.w %66;
+      %75 = ld.w %61;
+      %76 = slt.w %74, %75;
+      %77 = flag.w %76;
+      unless ne.w %77, 0x0_w {
+        break
+      };
+      %67 = ld.w %66;
+      %68 = eq.w %67, 0x1_w;
+      %69 = flag.w %68;
+      when ne.w %69, 0x0_w {
+        continue
+      };
+      %70 = ld.w %64;
+      %71 = add.w %70, 0x1_w;
+      st.w %71, %64
+    } step {
+      %72 = ld.w %66;
+      %73 = add.w %72, 0x1_w;
+      st.w %73, %66
+    }
+  } step {
+    %78 = ld.w %65;
+    %79 = add.w %78, 0x1_w;
+    st.w %79, %65
+  };
+  %84 = ld.w %64;
+  ret %84
+}

@@ -1,0 +1,40 @@
+module shift
+
+export function l $shl(l %2, w %3) {
+  %0 = slot 8, align 8
+  %1 = slot 4, align 4
+start:
+  st.l %2, %0;
+  st.w %3, %1;
+  %4 = ld.l %0;
+  %5 = ld.w %1;
+  %6 = sext.l %5;
+  %7 = lsl.l %4, %6;
+  ret %7
+}
+
+export function l $sar(l %10, w %11) {
+  %8 = slot 8, align 8
+  %9 = slot 4, align 4
+start:
+  st.l %10, %8;
+  st.w %11, %9;
+  %12 = ld.l %8;
+  %13 = ld.w %9;
+  %14 = sext.l %13;
+  %15 = asr.l %12, %14;
+  ret %15
+}
+
+export function l $shr(l %18, w %19) {
+  %16 = slot 8, align 8
+  %17 = slot 4, align 4
+start:
+  st.l %18, %16;
+  st.w %19, %17;
+  %20 = ld.l %16;
+  %21 = ld.w %17;
+  %22 = sext.l %21;
+  %23 = lsr.l %20, %22;
+  ret %23
+}

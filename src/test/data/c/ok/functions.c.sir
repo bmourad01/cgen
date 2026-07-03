@@ -1,0 +1,41 @@
+module functions
+
+export function sw $add(w %2, w %3) {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+start:
+  st.w %2, %0;
+  st.w %3, %1;
+  %4 = ld.w %0;
+  %5 = ld.w %1;
+  %6 = add.w %4, %5;
+  ret %6
+}
+
+export function sw $twice(w %8) {
+  %7 = slot 4, align 4
+  %9 = slot 4, align 4
+start:
+  st.w %8, %7;
+  %10 = ld.w %7;
+  %11 = ld.w %7;
+  %12 = call.sw $add(%10, %11);
+  st.w %12, %9;
+  %13 = ld.w %9;
+  ret %13
+}
+
+export function sw $apply(l %16, w %17) {
+  %14 = slot 8, align 8
+  %15 = slot 4, align 4
+  %18 = slot 4, align 4
+start:
+  st.l %16, %14;
+  st.w %17, %15;
+  %19 = ld.l %14;
+  %20 = ld.w %15;
+  %21 = call.sw %19(%20);
+  st.w %21, %18;
+  %22 = ld.w %18;
+  ret %22
+}

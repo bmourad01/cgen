@@ -1,0 +1,91 @@
+module scalar
+
+export function sw $gcd(w %2, w %3) {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+  %4 = slot 4, align 4
+start:
+  st.w %2, %0;
+  st.w %3, %1;
+  loop {
+    %10 = ld.w %1;
+    %11 = ne.w %10, 0x0_w;
+    %12 = flag.w %11;
+    unless ne.w %12, 0x0_w {
+      break
+    };
+    %5 = ld.w %1;
+    st.w %5, %4;
+    %6 = ld.w %0;
+    %7 = ld.w %1;
+    %8 = rem.w %6, %7;
+    st.w %8, %1;
+    %9 = ld.w %4;
+    st.w %9, %0
+  };
+  %13 = ld.w %0;
+  ret %13
+}
+
+export function sw $sumto(w %15) {
+  %14 = slot 4, align 4
+  %16 = slot 4, align 4
+  %17 = slot 4, align 4
+  %18 = slot 4, align 4
+  %19 = slot 4, align 4
+start:
+  st.w %15, %14;
+  st.w 0x0_w, %18;
+  st.w 0x1_w, %19;
+  loop {
+    %27 = ld.w %19;
+    %28 = ld.w %14;
+    %29 = sle.w %27, %28;
+    %30 = flag.w %29;
+    unless ne.w %30, 0x0_w {
+      break
+    };
+    %20 = ld.w %18;
+    st.w %20, %16;
+    %21 = ld.w %16;
+    %22 = ld.w %19;
+    %23 = add.w %21, %22;
+    st.w %23, %18
+  } step {
+    %24 = ld.w %19;
+    st.w %24, %17;
+    %25 = ld.w %17;
+    %26 = add.w %25, 0x1_w;
+    st.w %26, %19
+  };
+  %31 = ld.w %18;
+  ret %31
+}
+
+export function l $fib(w %33) {
+  %32 = slot 4, align 4
+  %34 = slot 8, align 8
+  %35 = slot 8, align 8
+start:
+  st.w %33, %32;
+  %36 = ld.w %32;
+  %37 = slt.w %36, 0x2_w;
+  %38 = flag.w %37;
+  when ne.w %38, 0x0_w {
+    %39 = ld.w %32;
+    %40 = sext.l %39;
+    ret %40
+  };
+  %41 = ld.w %32;
+  %42 = sub.w %41, 0x1_w;
+  %43 = call.l $fib(%42);
+  st.l %43, %34;
+  %44 = ld.w %32;
+  %45 = sub.w %44, 0x2_w;
+  %46 = call.l $fib(%45);
+  st.l %46, %35;
+  %47 = ld.l %34;
+  %48 = ld.l %35;
+  %49 = add.l %47, %48;
+  ret %49
+}

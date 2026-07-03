@@ -1,0 +1,79 @@
+module switch
+
+export function sw $classify(w %1) {
+  %0 = slot 4, align 4
+start:
+  st.w %1, %0;
+  %2 = ld.w %0;
+  switch.w %2 {
+  case 0x0_w:
+    nop
+  case 0x1_w:
+    ret 0x1_w
+  case 0x2_w:
+    ret 0x2_w
+  default:
+    %3 = neg.w 0x1_w;
+    ret %3
+  }
+}
+
+export function sw $days_in_month(w %5) {
+  %4 = slot 4, align 4
+  %6 = slot 4, align 4
+start:
+  st.w %5, %4;
+  %7 = ld.w %4;
+  switch.w %7 {
+  case 0x2_w:
+    st.w 0x1c_w, %6;
+    break
+  case 0x4_w:
+    nop
+  case 0x6_w:
+    nop
+  case 0x9_w:
+    nop
+  case 0xb_w:
+    st.w 0x1e_w, %6;
+    break
+  default:
+    st.w 0x1f_w, %6
+  };
+  %8 = ld.w %6;
+  ret %8
+}
+
+export function sw $accumulate(w %10) {
+  %9 = slot 4, align 4
+  %11 = slot 4, align 4
+  %12 = slot 4, align 4
+  %13 = slot 4, align 4
+  %14 = slot 4, align 4
+start:
+  st.w %10, %9;
+  st.w 0x0_w, %14;
+  %15 = ld.w %9;
+  switch.w %15 {
+  case 0x3_w:
+    %16 = ld.w %14;
+    st.w %16, %11;
+    %17 = ld.w %11;
+    %18 = add.w %17, 0x3_w;
+    st.w %18, %14
+  case 0x2_w:
+    %19 = ld.w %14;
+    st.w %19, %12;
+    %20 = ld.w %12;
+    %21 = add.w %20, 0x2_w;
+    st.w %21, %14
+  case 0x1_w:
+    %22 = ld.w %14;
+    st.w %22, %13;
+    %23 = ld.w %13;
+    %24 = add.w %23, 0x1_w;
+    st.w %24, %14
+  };
+  %25 = ld.w %14;
+  ret %25
+}

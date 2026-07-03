@@ -1,0 +1,94 @@
+module discard_call
+
+type :S = {
+  w,
+  w
+}
+
+data $counter = {
+  z 4
+}
+
+export function sw $add7() {
+  %0 = slot 4, align 4
+start:
+  %1 = ld.w $counter;
+  st.w %1, %0;
+  %2 = ld.w %0;
+  %3 = add.w %2, 0x7_w;
+  st.w %3, $counter;
+  %4 = ld.w $counter;
+  ret %4
+}
+
+export function w $mul(w %7, w %8) {
+  %5 = slot 4, align 4
+  %6 = slot 4, align 4
+  %9 = slot 4, align 4
+start:
+  st.w %7, %5;
+  st.w %8, %6;
+  %10 = ld.w $counter;
+  st.w %10, %9;
+  %11 = ld.w %9;
+  %12 = ld.w %5;
+  %13 = ld.w %6;
+  %14 = mul.w %12, %13;
+  %15 = add.w %11, %14;
+  st.w %15, $counter;
+  %16 = ld.w %5;
+  %17 = ld.w %6;
+  %18 = mul.w %16, %17;
+  ret %18
+}
+
+export function l $setp(l %21, w %22) {
+  %19 = slot 8, align 8
+  %20 = slot 4, align 4
+start:
+  st.l %21, %19;
+  st.w %22, %20;
+  %23 = ld.l %19;
+  %24 = ld.w %20;
+  st.w %24, %23;
+  %25 = ld.l %19;
+  ret %25
+}
+
+export function :S $mk(w %27) {
+  %26 = slot 4, align 4
+  %28 = slot 4, align 4
+  %33 = slot 8, align 4
+start:
+  st.w %27, %26;
+  %29 = ld.w $counter;
+  st.w %29, %28;
+  %30 = ld.w %28;
+  %31 = ld.w %26;
+  %32 = add.w %30, %31;
+  st.w %32, $counter;
+  %34 = ld.w %26;
+  st.w %34, %33;
+  %35 = add.l %33, 0x4_l;
+  %36 = ld.w %26;
+  %37 = add.w %36, 0x1_w;
+  st.w %37, %35;
+  %38 = ld:S %33;
+  ret %38
+}
+
+export function sw $run() {
+  %42 = slot 4, align 4
+start:
+  st.w 0x0_w, $counter;
+  %39 = call.sw $add7();
+  %40 = call.sw $add7();
+  %41 = call.w $mul(0x3_w, 0x4_w);
+  st.w 0x0_w, %42;
+  %43 = call.l $setp(%42, 0x63_w);
+  %44 = call:S $mk(0x5_w);
+  %45 = ld.w $counter;
+  %46 = ld.w %42;
+  %47 = add.w %45, %46;
+  ret %47
+}

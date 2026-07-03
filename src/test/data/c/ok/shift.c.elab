@@ -1,0 +1,11 @@
+long shl(long a, int b) {
+  return a << b;
+}
+
+long sar(long a, int b) {
+  return a >> b;
+}
+
+unsigned long shr(unsigned long a, int b) {
+  return a >> b;
+}

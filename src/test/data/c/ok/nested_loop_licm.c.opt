@@ -1,0 +1,41 @@
+module nested_loop_licm
+
+export data $g_6 = {
+  z 4
+}
+
+export data $g_87 = {
+  z 2
+}
+
+export data $real = {
+  z 4
+}
+
+export data $p55 = {
+  $real
+}
+
+export function sw $nested_loop_licm() {
+  %0 = slot 8, align 8
+@22:
+  st.l $g_87, %0 ; @24
+  jmp @2
+@2:
+  st.l $real, $p55 ; @21
+  jmp @3
+@3:
+  %24 = ld.l %0 ; @18
+  st.h 0x0_h, %24 ; @16
+  %26 = ld.w $g_6 ; @15
+  %27 = ld.l $p55 ; @14
+  %28 = ld.w %27 ; @13
+  %33 = and.w %26, %28 ; @25
+  %34 = ne.w %33, 0x0_w ; @26
+  br %34, @3, @7
+@7:
+  %35 = ne.w %26, 0x0_w ; @27
+  br %35, @2, @6
+@6:
+  ret 0x0_w
+}

@@ -1,0 +1,112 @@
+module bitfield_zero
+
+type :sep = {
+  w,
+  w
+}
+
+type :lead = {
+  w
+}
+
+export function sw $sep_init() {
+  %0 = slot 8, align 4
+start:
+  st.l 0x0_l, %0;
+  %1 = ld.w %0;
+  %2 = and.w %1, 0xfffffff0_w;
+  %3 = lsl.w 0x1_w, 0x0_w;
+  %4 = and.w %3, 0xf_w;
+  %5 = or.w %2, %4;
+  st.w %5, %0;
+  %6 = add.l %0, 0x4_l;
+  %7 = ld.w %6;
+  %8 = and.w %7, 0xfffffff0_w;
+  %9 = lsl.w 0x2_w, 0x0_w;
+  %10 = and.w %9, 0xf_w;
+  %11 = or.w %8, %10;
+  st.w %11, %6;
+  %12 = ld.w %0;
+  %13 = lsl.w %12, 0x1c_w;
+  %14 = asr.w %13, 0x1c_w;
+  %15 = mul.w %14, 0xa_w;
+  %16 = add.l %0, 0x4_l;
+  %17 = ld.w %16;
+  %18 = lsl.w %17, 0x1c_w;
+  %19 = asr.w %18, 0x1c_w;
+  %20 = add.w %15, %19;
+  ret %20
+}
+
+export function sw $sep_write(w %23, w %24) {
+  %21 = slot 4, align 4
+  %22 = slot 4, align 4
+  %25 = slot 8, align 4
+start:
+  st.w %23, %21;
+  st.w %24, %22;
+  st.l 0x0_l, %25;
+  %26 = ld.w %25;
+  %27 = and.w %26, 0xfffffff0_w;
+  %28 = lsl.w 0x0_w, 0x0_w;
+  %29 = and.w %28, 0xf_w;
+  %30 = or.w %27, %29;
+  st.w %30, %25;
+  %31 = ld.w %21;
+  %32 = ld.w %25;
+  %33 = and.w %32, 0xfffffff0_w;
+  %34 = lsl.w %31, 0x0_w;
+  %35 = and.w %34, 0xf_w;
+  %36 = or.w %33, %35;
+  st.w %36, %25;
+  %37 = ld.w %22;
+  %38 = add.l %25, 0x4_l;
+  %39 = ld.w %38;
+  %40 = and.w %39, 0xfffffff0_w;
+  %41 = lsl.w %37, 0x0_w;
+  %42 = and.w %41, 0xf_w;
+  %43 = or.w %40, %42;
+  st.w %43, %38;
+  %44 = ld.w %25;
+  %45 = lsl.w %44, 0x1c_w;
+  %46 = asr.w %45, 0x1c_w;
+  %47 = mul.w %46, 0xa_w;
+  %48 = add.l %25, 0x4_l;
+  %49 = ld.w %48;
+  %50 = lsl.w %49, 0x1c_w;
+  %51 = asr.w %50, 0x1c_w;
+  %52 = add.w %47, %51;
+  ret %52
+}
+
+export function sw $lead_init() {
+  %53 = slot 4, align 4
+start:
+  st.w 0x0_w, %53;
+  %54 = ld.w %53;
+  %55 = and.w %54, 0xffffffe0_w;
+  %56 = lsl.w 0x0_w, 0x0_w;
+  %57 = and.w %56, 0x1f_w;
+  %58 = or.w %55, %57;
+  st.w %58, %53;
+  %59 = ld.w %53;
+  %60 = and.w %59, 0xffffffe0_w;
+  %61 = lsl.w 0x9_w, 0x0_w;
+  %62 = and.w %61, 0x1f_w;
+  %63 = or.w %60, %62;
+  st.w %63, %53;
+  %64 = ld.w %53;
+  %65 = lsl.w %64, 0x1b_w;
+  %66 = asr.w %65, 0x1b_w;
+  ret %66
+}
+
+export function l $sep_size() {
+start:
+  ret 0x8_l
+}
+
+export function l $lead_size() {
+start:
+  ret 0x4_l
+}

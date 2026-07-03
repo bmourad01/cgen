@@ -1,0 +1,78 @@
+module static_bitfield
+
+type :flags = {
+  w,
+  w
+}
+
+type :mixed = {
+  w,
+  w
+}
+
+data $gf = {
+  0xea5_w,
+  0x1234_w
+}
+
+data $gm = {
+  0x39c_w,
+  0x52c_w
+}
+
+export function w $f_a() {
+start:
+  %0 = ld.w $gf;
+  %1 = lsl.w %0, 0x1d_w;
+  %2 = lsr.w %1, 0x1d_w;
+  ret %2
+}
+
+export function w $f_b() {
+start:
+  %3 = ld.w $gf;
+  %4 = lsl.w %3, 0x18_w;
+  %5 = lsr.w %4, 0x1b_w;
+  ret %5
+}
+
+export function sw $f_c() {
+start:
+  %6 = ld.w $gf;
+  %7 = lsl.w %6, 0x14_w;
+  %8 = asr.w %7, 0x1c_w;
+  ret %8
+}
+
+export function sw $f_x() {
+start:
+  %9 = add.l $gf, 0x4_l;
+  %10 = ld.w %9;
+  ret %10
+}
+
+export function sw $m_p() {
+start:
+  %11 = ld.w $gm;
+  %12 = lsl.w %11, 0x16_w;
+  %13 = asr.w %12, 0x16_w;
+  ret %13
+}
+
+export function sw $m_q() {
+start:
+  %14 = add.l $gm, 0x4_l;
+  %15 = ld.w %14;
+  %16 = lsl.w %15, 0x16_w;
+  %17 = asr.w %16, 0x16_w;
+  ret %17
+}
+
+export function w $m_r() {
+start:
+  %18 = add.l $gm, 0x4_l;
+  %19 = ld.w %18;
+  %20 = lsl.w %19, 0x15_w;
+  %21 = lsr.w %20, 0x1f_w;
+  ret %21
+}
