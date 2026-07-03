@@ -224,6 +224,9 @@ module Pattern : sig
     (** [neg t x]: negate the term [x] of type [t]. *)
     val neg : Type.basic -> sub -> sub
 
+    (** [bswap t x]: reverse the byte order of the integer [x] of type [t]. *)
+    val bswap : Type.imm -> sub -> sub
+
     (** [not_ t x]: bitwise NOT of the integer [x] of type [t]. *)
     val not_ : Type.imm -> sub -> sub
 

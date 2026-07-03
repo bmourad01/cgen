@@ -14,6 +14,7 @@
 open Core
 open Elab_common
 
+module Ftree = Cgen_containers.Ftree
 module EC = Elab_conv
 module TE = Type_env
 
@@ -62,7 +63,7 @@ let rec collect_labels ((defined, used) as acc) (s : Tstmt.t) = match s with
   | Sswitch {body; _}
   | Scase {body; _}
   | Sdefault body -> collect_labels acc body
-  | Sbreak | Scontinue | Sreturn _ | Sinstr _ -> acc
+  | Sgotoind _ | Sbreak | Scontinue | Sreturn _ | Sinstr _ -> acc
 
 module Make(A : Annotation) = struct
   module S = Elab_stmt.Make(A)
@@ -138,15 +139,23 @@ module Make(A : Annotation) = struct
      §6.8.6.1: every `goto` target must be a label defined in the
                enclosing function.
   *)
-  let check_labels body =
+  let check_labels ~labaddrs body =
     let defined, used = collect_labels ([], []) body in
     let* () = match List.find_a_dup defined ~compare:String.compare with
       | Some l -> Ctx.fatal "duplicate label '%s'" l ()
       | None -> !!() in
     let dset = String.Set.of_list defined in
-    M.List.map used ~f:(fun g ->
+    let* () =
+      M.List.map used ~f:(fun g ->
+          M.unless (Set.mem dset g) @@ fun () ->
+          Ctx.fatal "use of undeclared label '%s'" g ()) >>| ignore in
+    (* Each address-taken label (`&&L`) must denote a label defined in this
+       function. Cross-function label addresses are not supported. Report at
+       the `&&L` site, captured when the address was first taken. *)
+    M.List.map labaddrs ~f:(fun (g, loc) ->
         M.unless (Set.mem dset g) @@ fun () ->
-        Ctx.fatal "use of undeclared label '%s'" g ()) >>| ignore
+        Ctx.with_location loc @@ fun () ->
+        Ctx.fatal "address taken of undeclared label '%s'" g ()) >>| ignore
 
   (* Elaborate a struct/union field (§6.7.2.1).
 
@@ -225,9 +234,9 @@ module Make(A : Annotation) = struct
         ~elab_void:E.elab_void
         body in
     let* fc = M.gets fnctx in
-    let tmps = match fc with
-      | Some fc -> fc.tmps
-      | None -> [] in
+    let tmps, labaddrs = match fc with
+      | Some fc -> fc.tmps, Ftree.to_list fc.labaddr
+      | None -> [], [] in
     let body = prepend_tmps tmps tbody in
     (* §5.1.2.2.3: reaching the closing brace of `main` is equivalent to
        `return 0`. Append it explicitly so the destructure pass emits a return
@@ -242,7 +251,7 @@ module Make(A : Annotation) = struct
           Tstmt.bstmt ret;
         ]
       else body in
-    let* () = check_labels body in
+    let* () = check_labels ~labaddrs body in
     let+ () =
       M.update @@ fun c -> {
         c with
@@ -252,6 +261,7 @@ module Make(A : Annotation) = struct
       } in
     Tdecl.fundef
       ~name ~variadic ~body ~linkage ~inline ~noreturn
+      ~labaddrs:(List.map labaddrs ~f:fst)
       ~params:(tdecl_params eparams)
       ~ret:ret_ty
       ()

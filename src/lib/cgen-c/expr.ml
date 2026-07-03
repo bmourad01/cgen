@@ -121,6 +121,9 @@ type 'a t = {
 and 'a node =
   | Econst of const
   | Ename of string
+  (* The address of a label (GNU `&&label`), a `void *` usable only as the
+     operand of a computed `goto *`. *)
+  | Elabaddr of string
   | Eunary of {
       op  : uop;
       arg : 'a t;
@@ -191,6 +194,7 @@ and 'a builtin_arg =
 
 let const c ~ann = {node = Econst c; ann}
 let name n ~ann = {node = Ename n; ann}
+let labaddr n ~ann = {node = Elabaddr n; ann}
 let unary ~op ~arg ~ann = {node = Eunary {op; arg}; ann}
 let binary ~op ~lhs ~rhs ~ann = {node = Ebinary {op; lhs; rhs}; ann}
 let index ~arr ~idx ~ann = {node = Eindex {arr; idx}; ann}
@@ -247,7 +251,7 @@ let uop_is_postfix : uop -> bool = function
   | _ -> false
 
 let prec_node : type a. a node -> int = function
-  | Econst _ | Ename _ -> 0
+  | Econst _ | Ename _ | Elabaddr _ -> 0
   | Eunary {op; _} -> prec_uop op
   | Ebinary {op; _} -> prec_bop op
   | Eindex _
@@ -358,6 +362,7 @@ let rec pp_at ~ctx ppf e =
 and pp_node ppf = function
   | Econst c -> pp_const ppf c
   | Ename n -> Format.pp_print_string ppf n
+  | Elabaddr n -> Format.fprintf ppf "&&%s" n
   | Eunary {op; arg} ->
     if uop_is_postfix op then begin
       pp_at ~ctx:1 ppf arg;

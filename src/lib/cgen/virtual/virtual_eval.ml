@@ -47,6 +47,18 @@ let popcnt x n =
   let i = Bv.popcnt x in
   Bv.(int i mod modulus n)
 
+(* Reverse the order of the low `n` bits' bytes. *)
+let bswap x n =
+  let bytes = n / 8 in
+  let module B = (val Bv.modular n) in
+  let rec go i acc =
+    if i >= bytes then acc else
+      let byte = Bv.extract ~hi:(i * 8 + 7) ~lo:(i * 8) x in
+      let shift = (bytes - 1 - i) * 8 in
+      let placed = B.(byte lsl int shift) in
+      go (i + 1) B.(acc lor placed) in
+  go 0 Bv.zero
+
 let immsz t = Type.sizeof_imm t
 let imod t = Bv.modulus @@ immsz t
 
@@ -177,6 +189,8 @@ let unop_int o a ty = match (o : Insn.unop) with
     Some (`int (Bv.(lnot a mod imod t), t))
   | `popcnt t ->
     Some (`int (popcnt a @@ immsz t, t))
+  | `bswap t ->
+    Some (`int (bswap a @@ immsz t, t))
   | `fibits `f32 ->
     Some (`float (Float32.of_bits @@ Bv.to_int32 a))
   | `fibits `f64 ->

@@ -68,6 +68,7 @@ and t =
       body : t;
     }
   | Sgoto of string
+  | Sgotoind of Texpr.t
   | Sbreak
   | Scontinue
   | Sreturn of Texpr.t option
@@ -98,6 +99,7 @@ let case ~value ~body = Scase {value; body}
 let default body = Sdefault body
 let label ~name ~body = Slabel {name; body}
 let goto name = Sgoto name
+let gotoind e = Sgotoind e
 let break = Sbreak
 let continue = Scontinue
 let return ?value () = Sreturn value
@@ -151,6 +153,7 @@ let rec pp_stmt ppf s = match s with
   | Sswitch {expr; body} -> pp_switch ppf expr body
   | Scase _ | Sdefault _ | Slabel _ -> pp_labeled ppf s
   | Sgoto name -> Format.fprintf ppf "goto %s;" name
+  | Sgotoind e -> Format.fprintf ppf "goto *%a;" Texpr.pp e
   | Sbreak -> Format.pp_print_string ppf "break;"
   | Scontinue -> Format.pp_print_string ppf "continue;"
   | Sreturn None -> Format.pp_print_string ppf "return;"

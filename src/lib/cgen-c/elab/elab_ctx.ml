@@ -4,17 +4,24 @@ open Core
 open Cgen_utils
 open Elab_common
 
+module Ftree = Cgen_containers.Ftree
+
 type fnctx = {
-  retty : Texpr.ty;
-  fresh : int;
-  tmps  : Tstmt.localdecl list;
+  retty   : Texpr.ty;
+  fresh   : int;
+  tmps    : Tstmt.localdecl list;
+  labaddr : (string * Location.t option) Ftree.t;
 }
 
 let create_fnctx ~retty = {
   retty;
   fresh = 0;
   tmps = [];
+  labaddr = Ftree.empty;
 }
+
+let index_of_labaddr c name =
+  Ftree.index c.labaddr ~f:(fun (n, _) -> String.(n = name))
 
 module Make(A : Annotation) = struct
   type ann = A.ann
@@ -97,6 +104,21 @@ module Make(A : Annotation) = struct
       let+ () = M.put {ctx with fnctx = Some fc'} in
       Texpr.lvar name ~ty
 
+  (* The integer index of a label whose address is taken (`&&name`),
+     assigning it the next index the first time it is seen. *)
+  let labaddr_index name =
+    let* ctx = M.get () in
+    match ctx.fnctx with
+    | None -> failwith "Elab_ctx.labaddr_index: no enclosing function context"
+    | Some fc -> match index_of_labaddr fc name with
+      | Some i -> !!i
+      | None ->
+        let i = Ftree.length fc.labaddr in
+        let entry = name, ctx.location in
+        let fc' = {fc with labaddr = Ftree.snoc fc.labaddr entry} in
+        let+ () = M.put {ctx with fnctx = Some fc'} in
+        i
+
   let fresh_label =
     let* ctx = M.get () in
     match ctx.fnctx with
@@ -106,12 +128,18 @@ module Make(A : Annotation) = struct
       let+ () = M.put {ctx with fnctx = Some {fc with fresh = fc.fresh + 1}} in
       name
 
-  let with_location_of ann f =
+  (* Run `f` with `loc` installed as the current diagnostic location,
+     restoring the prior location on exit. *)
+  let with_location loc f =
     let* prev = M.gets location in
-    let* () = M.update @@ fun ctx -> {ctx with location = ctx.loc_of_ann ann} in
+    let* () = M.update @@ fun ctx -> {ctx with location = loc} in
     let* result = f () in
     let+ () = M.update @@ fun ctx -> {ctx with location = prev} in
     result
+
+  let with_location_of ann f =
+    let* ctx = M.get () in
+    with_location (ctx.loc_of_ann ann) f
 
   (* Run `f`, then roll back the temporary allocator (`fnctx`) to
      its prior state, dropping any temporaries `f` reserved.

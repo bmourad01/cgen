@@ -25,6 +25,7 @@ type t = {
   brk           : brk;
   case_labels   : (Cgen.Bv.t * Cgen.Label.t) list;
   default_label : Cgen.Label.t option;
+  labaddrs      : string list;
 }
 
 let scalar_basic c ty = E.scalar_basic c.e ty
@@ -247,22 +248,48 @@ and lower_alist c (ap : Texpr.t) k =
   | _ -> Ctx.failf "lower: va_list argument is not an lvalue" ()
 
 and lower_builtin c ~lval ~name ~(args : Texpr.t list) k =
-  match name, args, lval with
-  | "__builtin_va_start", [ap], None ->
-    let@ g = lower_alist c ap in
-    let+ rest = k () in
-    E.emit (`vastart g) rest
-  | "__builtin_va_end", [_ap], None ->
-    (* XXX: for now, all of our supported targets treat `va_end` as
-       a no-op. *)
-    k ()
-  | "__builtin_va_arg", [ap], Some lv ->
-    let aty = Lower_type.arg_of c.e.layout lv.ty in
-    let@ g = lower_alist c ap in
+  match Builtins.find name, args, lval with
+  | Some desc, [arg], Some lv ->
+    let t = E.scalar_imm c.e desc.Builtins.operand in
+    let rt = E.scalar_imm c.e lv.ty in
+    let uop = match desc.Builtins.op with
+      | Clz -> `clz t
+      | Ctz -> `ctz t
+      | Popcount -> `popcnt t
+      | Bswap -> `bswap t in
+    let@ v = E.lower_rval c.e arg in
     let* r = E.fresh_var in
-    let+ rest = store_result c ~lval:lv ~value:(`var r) k in
-    E.emit (`vaarg (r, aty, g)) rest
-  | _ -> Ctx.failf "lower: malformed builtin '%s'" name ()
+    if IT.equal_imm t rt then
+      let+ rest = store_result c ~lval:lv ~value:(`var r) k in
+      E.emit (`uop (r, uop, v)) rest
+    else
+      let resize =
+        if IT.sizeof_imm rt < IT.sizeof_imm t
+        then `itrunc rt else `zext rt in
+      let* r2 = E.fresh_var in
+      let+ rest = store_result c ~lval:lv ~value:(`var r2) k in
+      E.emit
+        (`uop (r, uop, v))
+        (E.emit
+           (`uop (r2, resize, `var r))
+           rest)
+  | _ ->
+    match name, args, lval with
+    | "__builtin_va_start", [ap], None ->
+      let@ g = lower_alist c ap in
+      let+ rest = k () in
+      E.emit (`vastart g) rest
+    | "__builtin_va_end", [_ap], None ->
+      (* XXX: for now, all of our supported targets treat `va_end` as
+         a no-op. *)
+      k ()
+    | "__builtin_va_arg", [ap], Some lv ->
+      let aty = Lower_type.arg_of c.e.layout lv.ty in
+      let@ g = lower_alist c ap in
+      let* r = E.fresh_var in
+      let+ rest = store_result c ~lval:lv ~value:(`var r) k in
+      E.emit (`vaarg (r, aty, g)) rest
+    | _ -> Ctx.failf "lower: malformed builtin '%s'" name ()
 
 and lower_call c ~lval ~(fn : Texpr.t) ~args k =
   (* Peel away the cast(s) that a function-to-pointer decay would
@@ -365,7 +392,7 @@ let rec has_nested_case ?(top = true) (s : Tstmt.t) = match s with
     || Option.exists else_ ~f:(has_nested_case ~top:false)
   | Swhile {body; _} | Sdowhile {body; _}
   | Sfor {body; _} | Slabel {body; _} -> has_nested_case ~top:false body
-  | Sinstr _ | Sgoto _ | Sbreak | Scontinue | Sreturn _ -> false
+  | Sinstr _ | Sgoto _ | Sgotoind _ | Sbreak | Scontinue | Sreturn _ -> false
 
 (* Collect every `case` value and whether a `default` exists in this switch,
    descending into all nested statements except a nested `Sswitch` (whose
@@ -387,7 +414,7 @@ let collect_cases (s : Tstmt.t) =
     | Swhile {body; _} | Sdowhile {body; _}
     | Sfor {body; _} | Slabel {body; _} -> go body acc
     | Sswitch _
-    | Sinstr _ | Sgoto _ | Sbreak | Scontinue | Sreturn _ -> acc in
+    | Sinstr _ | Sgoto _ | Sgotoind _ | Sbreak | Scontinue | Sreturn _ -> acc in
   let vals, dflt = go s ([], false) in
   List.rev vals, dflt
 
@@ -413,6 +440,27 @@ let rec lower_stmt c (s : Tstmt.t) = match s with
   | Scontinue -> !!`continue
   | Sgoto name ->
     !!(`goto (`label (Map.find_exn c.labels name)))
+  (* GNU computed `goto *e`: `e` is an integer index into the function's
+     address-taken labels (produced by `&&label`).
+
+     Dispatch it through a jump-table `sw` with one arm per label, in the
+     same index order the elaborator assigned.
+
+     An out-of-range index is undefined behavior, so the default arm traps.
+  *)
+  | Sgotoind e ->
+    let b = scalar_basic c e.ty in
+    let ty = E.scalar_imm c.e e.ty in
+    let@ v = E.lower_rval c.e e in
+    let@ idx = as_index b v in
+    let m = Cgen.Bv.modulus (Cgen.Type.sizeof_imm ty) in
+    let mki i = Cgen.Bv.(int i mod m) in
+    let cases =
+      List.mapi c.labaddrs ~f:(fun i name ->
+          let l = Map.find_exn c.labels name in
+          `case (mki i, `goto (`label l)))
+      @ [`default `hlt] in
+    !!(`sw (idx, ty, cases))
   | Slabel {name; body} ->
     let+ bs = lower_stmt c body in
     let l = Map.find_exn c.labels name in
@@ -428,13 +476,17 @@ let rec lower_stmt c (s : Tstmt.t) = match s with
   *)
   | Scase {value; body} ->
     begin match List.Assoc.find c.case_labels value ~equal:Cgen.Bv.equal with
-      | Some l -> let+ bs = lower_stmt c body in `label (l, bs)
       | None -> Ctx.failf "lower: `case` label outside of a switch" ()
+      | Some l ->
+        let+ bs = lower_stmt c body in
+        `label (l, bs)
     end
   | Sdefault body ->
     begin match c.default_label with
-      | Some l -> let+ bs = lower_stmt c body in `label (l, bs)
       | None -> Ctx.failf "lower: `default` label outside of a switch" ()
+      | Some l ->
+        let+ bs = lower_stmt c body in
+        `label (l, bs)
     end
 
 and lower_if c cond then_ else_ =

@@ -27,8 +27,7 @@ let arch_macros target = match Target.name target with
 
    Here, we'll ask the OCaml `Sys` module what OS it was configured for.
 *)
-let os_macros () =
-  match Stdlib.Sys.os_type with
+let os_macros () = match Stdlib.Sys.os_type with
   | "Unix" when Stdlib.Sys.file_exists "/proc/version" ->
     ["__unix__"; "__linux__"; "__gnu_linux__"]
   | "Unix" when Stdlib.Sys.file_exists "/System/Library/CoreServices/SystemVersion.plist" ->

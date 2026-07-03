@@ -44,6 +44,7 @@ let rec collect_labels acc (s : Tstmt.t) = match s with
   | Sdefault body
     -> collect_labels acc body
   | Sgoto _
+  | Sgotoind _
   | Sbreak
   | Scontinue
   | Sreturn _
@@ -61,7 +62,8 @@ let lower_fundef
     ~(ret : Texpr.ty)
     ~body
     ~variadic
-    ~linkage =
+    ~linkage
+    ~labaddrs =
   (* Parameters are allocated up front, function-wide. Block-scoped locals
      are allocated lazily as they come into scope during statement lowering,
      so that two declarations sharing a name (such as a local shadowing a
@@ -96,6 +98,7 @@ let lower_fundef
     brk = `structured;
     case_labels = [];
     default_label = None;
+    labaddrs;
   } in
   (* The core lowering. *)
   let+ body_s = Lower_stmt.lower_stmt c body in
@@ -391,10 +394,10 @@ let module_ ~name (tc : Tcunit.t) =
   let strings = String.Table.create () in
   let nstr = ref 0 in
   let classify (d : Tdecl.t) = match d with
-    | Dfundef {name; params; ret; body; linkage; variadic; _} ->
+    | Dfundef {name; params; ret; body; linkage; variadic; labaddrs; _} ->
       let+ fn =
         lower_fundef layout ~strings ~nstr ~name ~params ~ret ~body
-          ~variadic ~linkage in
+          ~variadic ~linkage ~labaddrs in
       `Fun fn
     | Dglobal {name; ty; init; linkage; _} ->
       let+ data = lower_global layout ~strings ~nstr ~name ~ty ~init ~linkage in

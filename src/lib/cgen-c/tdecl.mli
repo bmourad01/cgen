@@ -42,6 +42,9 @@ type t =
       linkage  : linkage;
       inline   : bool;
       noreturn : bool;
+      labaddrs : string list;
+      (** Address-taken labels (targets of a computed [goto *]), in the
+          index order used by [&&label]. *)
     } (** A function definition. *)
   | Dfundecl of {
       name     : string;
@@ -88,12 +91,15 @@ val field :
     [variadic], [inline], and [noreturn] default to [false].
 
     [linkage] defaults to [Lextern].
+
+    [labaddrs] defaults to [[]].
 *)
 val fundef :
   ?variadic:bool ->
   ?linkage:linkage ->
   ?inline:bool ->
   ?noreturn:bool ->
+  ?labaddrs:string list ->
   name:string ->
   params:param list ->
   ret:Texpr.ty ->

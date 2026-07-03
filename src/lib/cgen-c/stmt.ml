@@ -56,6 +56,7 @@ and 'a node =
       body : 'a t;
     }
   | Sgoto of string
+  | Sgotoind of 'a Expr.t
   | Sbreak
   | Scontinue
   | Sreturn of 'a Expr.t option
@@ -83,6 +84,7 @@ let case ~value ~body ~ann = {node = Scase {value; body}; ann}
 let default body ~ann = {node = Sdefault body; ann}
 let label ~name ~body ~ann = {node = Slabel {name; body}; ann}
 let goto name ~ann = {node = Sgoto name; ann}
+let gotoind e ~ann = {node = Sgotoind e; ann}
 let break ~ann = {node = Sbreak; ann}
 let continue ~ann = {node = Scontinue; ann}
 let return ?value ~ann () = {node = Sreturn value; ann}
@@ -171,6 +173,7 @@ let rec pp_stmt ppf s = match s.node with
   | Slabel {name; body} ->
     Format.fprintf ppf "%s: %a" name pp_stmt body
   | Sgoto name -> Format.fprintf ppf "goto %s;" name
+  | Sgotoind e -> Format.fprintf ppf "goto *%a;" Expr.pp e
   | Sbreak -> Format.pp_print_string ppf "break;"
   | Scontinue -> Format.pp_print_string ppf "continue;"
   | Sreturn None -> Format.pp_print_string ppf "return;"

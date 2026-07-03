@@ -129,7 +129,7 @@
 %token <Type.fp> O UO
 %token <Type.fp * Type.imm> FTOSI FTOUI
 %token <Type.fp> FEXT FIBITS FTRUNC
-%token <Type.imm> CLZ CTZ FLAG ITRUNC POPCNT SEXT ZEXT
+%token <Type.imm> BSWAP CLZ CTZ FLAG ITRUNC POPCNT SEXT ZEXT
 %token <Type.imm_base> IFBITS
 %token <Type.imm * Type.fp> SITOF UITOF
 %token <Type.basic> COPY SEL
@@ -531,6 +531,7 @@ insn_arith_unop:
   | t = NEG { `neg t }
 
 insn_bitwise_unop:
+  | t = BSWAP { `bswap t }
   | t = CLZ { `clz t }
   | t = CTZ { `ctz t }
   | t = NOT { `not_ t }

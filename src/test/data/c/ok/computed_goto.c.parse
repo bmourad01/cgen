@@ -1,0 +1,30 @@
+int classify(int x) {
+  void *target;
+  if (x < 0)
+    target = &&neg;
+  else if (x > 0)
+    target = &&pos;
+  else
+    target = &&zero;
+  goto *target;
+  neg: return -1;
+  zero: return 0;
+  pos: return 1;
+}
+
+int interp(const int *code) {
+  void *table[3];
+  table[0] = &&op_add;
+  table[1] = &&op_sub;
+  table[2] = &&op_halt;
+  int acc = 0;
+  int pc = 0;
+  goto *table[code[pc]];
+  op_add: acc += code[pc + 1];
+  pc += 2;
+  goto *table[code[pc]];
+  op_sub: acc -= code[pc + 1];
+  pc += 2;
+  goto *table[code[pc]];
+  op_halt: return acc;
+}

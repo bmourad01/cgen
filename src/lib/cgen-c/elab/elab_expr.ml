@@ -436,6 +436,10 @@ module Make(A : Annotation) = struct
     match e.node with
     | Econst c -> rval_const c cont
     | Ename name -> rval_name name cont
+    (* GNU `&&label`: a `void *` whose value is the label's dispatch index. *)
+    | Elabaddr name ->
+      let* i = Ctx.labaddr_index name in
+      cont (Texpr.int_ Bv.(M64.int i) ~ty:(Type.ptr (Type.void ())))
     | Eunary {op = `addr; arg} -> rval_addrof arg cont
     | Eunary {op = `deref; _} | Eindex _ | Emember _ | Earrow _
     | Ecompound _ -> rval_of_lvalue e cont
@@ -627,8 +631,11 @@ module Make(A : Annotation) = struct
     let* operand_ty =
       let@ () = Ctx.discarding_temps in
       M.catch
-        (let+ _, lv = capture_lval operand in lv.Texpr.ty)
-        (fun _ -> let+ _, rv = capture_rval operand in rv.Texpr.ty) in
+        (let+ _, lv = capture_lval operand in
+         lv.Texpr.ty)
+        (fun _ ->
+           let+ _, rv = capture_rval operand in
+           rv.Texpr.ty) in
     sizeof_of operand_ty >>= cont
 
   (* Increment / decrement (§6.5.2.4 / §6.5.3.1): scalar modifiable
@@ -660,7 +667,8 @@ module Make(A : Annotation) = struct
     let* incremented = compute_binop bop tmp_rv one in
     let* layout = M.gets Ctx.layout in
     let eval = Eval.create_init layout in
-    let*? converted, w = EC.convert_for_assign tenv eval ~lhs:arg_lv.ty ~rhs:incremented in
+    let*? converted, w =
+      EC.convert_for_assign tenv eval ~lhs:arg_lv.ty ~rhs:incremented in
     let* () = Ctx.warn_opt w in
     let store = Tstmt.assign ~lval:arg_lv ~expr:converted in
     let result_rv = match op with
@@ -689,7 +697,8 @@ module Make(A : Annotation) = struct
     let* layout = M.gets Ctx.layout in
     let tenv = Layout.tenv layout in
     let eval = Eval.create_init layout in
-    let*? converted, w = EC.convert_for_assign tenv eval ~lhs:lhs_lv.ty ~rhs:rhs_rv in
+    let*? converted, w =
+      EC.convert_for_assign tenv eval ~lhs:lhs_lv.ty ~rhs:rhs_rv in
     let* () = Ctx.warn_opt w in
     (* §6.5.16.1: the assignment's value is the left operand _after_ the
        store.
@@ -746,24 +755,102 @@ module Make(A : Annotation) = struct
       Bstmt tail;
     ]
 
-  (* A compiler builtin used as an rvalue. *)
-  and rval_builtin name args cont = match name, args with
-    | "__builtin_va_arg", [Expr.BAexpr ap; Expr.BAtype ty] ->
-      let* ty' = ET.elab ~elab_size ty in
-      let@ ap_rv = elab_rval ap in
-      let* tmp = Ctx.fresh_tlval ty' in
-      let bi = Tstmt.builtin ~lval:tmp ~name ~args:[ap_rv] () in
+  (* A compiler builtin used as an rvalue.
+
+     Simple builtins (bit-counting and the like) are described uniformly by
+     the `Builtins` registry; only the variadic `__builtin_va_*` family, which
+     needs the ABI, is special-cased below.
+  *)
+  and rval_builtin name args cont = match Builtins.find name with
+    | Some desc -> rval_simple_builtin name desc args cont
+    | None -> match name, args with
+      | ( "__builtin_parity"
+        | "__builtin_parityl"
+        | "__builtin_parityll" ), [Expr.BAexpr arg] ->
+        rval_parity_builtin name arg cont
+      | ( "__builtin_ffs"
+        | "__builtin_ffsl"
+        | "__builtin_ffsll" ), [Expr.BAexpr arg] ->
+        rval_ffs_builtin name arg cont
+      | "__builtin_va_arg", [Expr.BAexpr ap; Expr.BAtype ty] ->
+        let* ty' = ET.elab ~elab_size ty in
+        let@ ap_rv = elab_rval ap in
+        let* tmp = Ctx.fresh_tlval ty' in
+        let bi = Tstmt.builtin ~lval:tmp ~name ~args:[ap_rv] () in
+        let* tenv = M.gets Ctx.tenv in
+        let result_rv = EC.lvalue_to_rvalue tenv tmp in
+        let+ tail = cont result_rv in
+        mkblock [Bstmt (Sinstr [bi]); Bstmt tail]
+      | "__builtin_va_arg", _ ->
+        Ctx.fatal "__builtin_va_arg expects a va_list and a type" ()
+      | ( "__builtin_va_start"
+        | "__builtin_va_end"
+        ), _ ->
+        Ctx.fatal "'%s' does not produce a value" name ()
+      | _ -> Ctx.fatal "unsupported builtin '%s'" name ()
+
+  and rval_simple_builtin name (desc : Builtins.t) args cont =
+    match args with
+    | [Expr.BAexpr arg] ->
+      let@ arg_rv = elab_rval arg in
+      let* () =
+        require_unary ~op:name ~kind:"integer type"
+          ~p:EC.is_integer arg_rv in
+      let arg_rv = Texpr.cast ~dst:desc.Builtins.operand ~arg:arg_rv in
+      let* tmp = Ctx.fresh_tlval desc.Builtins.result in
+      let bi = Tstmt.builtin ~lval:tmp ~name ~args:[arg_rv] () in
       let* tenv = M.gets Ctx.tenv in
       let result_rv = EC.lvalue_to_rvalue tenv tmp in
       let+ tail = cont result_rv in
       mkblock [Bstmt (Sinstr [bi]); Bstmt tail]
-    | "__builtin_va_arg", _ ->
-      Ctx.fatal "__builtin_va_arg expects a va_list and a type" ()
-    | ( "__builtin_va_start"
-      | "__builtin_va_end"
-      ), _ ->
-      Ctx.fatal "'%s' does not produce a value" name ()
-    | _ -> Ctx.fatal "unsupported builtin '%s'" name ()
+    | _ ->
+      Ctx.fatal "'%s' expects one integer argument" name ()
+
+  (* parity(x) = popcount(x) & 1: reuse the population count, then mask. *)
+  and rval_parity_builtin name arg cont =
+    let pop = match name with
+      | "__builtin_parityll" -> "__builtin_popcountll"
+      | "__builtin_parityl" -> "__builtin_popcountl"
+      | _ -> "__builtin_popcount" in
+    let desc = Option.value_exn (Builtins.find pop) in
+    let@ pc = rval_simple_builtin pop desc [Expr.BAexpr arg] in
+    let one = Texpr.int_ Bv.one ~ty:(Type.int_ ()) in
+    cont (Texpr.binary ~op:`and_ ~lhs:pc ~rhs:one ~ty:(Type.int_ ()))
+
+  (* ffs(x) = x ? ctz(x) + 1 : 0.
+
+     The argument is snapshotted so it is evaluated once. `ctz(0)` is
+     unspecified but never traps, so its result is simply discarded on
+     the zero path.
+  *)
+  and rval_ffs_builtin name arg cont =
+    let ctz = match name with
+      | "__builtin_ffsll" -> "__builtin_ctzll"
+      | "__builtin_ffsl" -> "__builtin_ctzl"
+      | _ -> "__builtin_ctz" in
+    let desc = Option.value_exn (Builtins.find ctz) in
+    let@ arg_rv = elab_rval arg in
+    let* () =
+      require_unary
+        ~op:name
+        ~kind:"integer type"
+        ~p:EC.is_integer arg_rv in
+    let* xt = Ctx.fresh_tlval arg_rv.ty in
+    let snapshot = Tstmt.assign ~lval:xt ~expr:arg_rv in
+    let* tenv = M.gets Ctx.tenv in
+    let x_rv = EC.lvalue_to_rvalue tenv xt in
+    let cast_x = Texpr.cast ~dst:desc.Builtins.operand ~arg:x_rv in
+    let* ct = Ctx.fresh_tlval desc.Builtins.result in
+    let bi = Tstmt.builtin ~lval:ct ~name:ctz ~args:[cast_x] () in
+    let ct_rv = EC.lvalue_to_rvalue tenv ct in
+    let int_ = Type.int_ () in
+    let one = Texpr.int_ Bv.one ~ty:int_ in
+    let zero = Texpr.int_ Bv.zero ~ty:int_ in
+    let ctz1 = Texpr.binary ~op:`add ~lhs:ct_rv ~rhs:one ~ty:int_ in
+    let guard = truth_value x_rv in
+    let result = Texpr.cond ~cond:guard ~then_:ctz1 ~else_:zero ~ty:int_ in
+    let+ tail = cont result in
+    mkblock [Bstmt (Sinstr [snapshot; bi]); Bstmt tail]
 
   (* `va_start`/`va_end` in statement (void) context.
 

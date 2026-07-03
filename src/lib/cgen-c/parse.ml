@@ -1,15 +1,22 @@
 open Core
 open Cgen_utils
 
+module Ftree = Cgen_containers.Ftree
+
 module Cpp = struct
   type t = {
     prog : string;
-    args : string list;
+    args : string Ftree.t;
   }
 
-  let create ~prog ?(args = []) () = {prog; args}
+  let create ~prog ?(args = []) () = {
+    prog;
+    args = Ftree.of_list args;
+  }
 
-  let add_args t extra = {t with args = t.args @ extra}
+  let add_args t extra = {
+    t with args = List.fold extra ~init:t.args ~f:Ftree.snoc;
+  }
 
   (* A bare preprocessor with `-undef`, so it strips the host compiler's
      predefined macros.
@@ -19,14 +26,14 @@ module Cpp = struct
 
      Standard macros (e.g. `__STDC__`, `__STDC_VERSION__`) survive `-undef`.
   *)
-  let default = {prog = "cpp"; args = ["-undef"]}
+  let default = {prog = "cpp"; args = Ftree.singleton "-undef"}
 
   let normalize cmd =
     String.split_on_chars cmd ~on:[' '; '\t'] |>
     List.filter ~f:(Fn.non String.is_empty)
 
   let of_command cmd = match normalize cmd with
-    | prog :: args -> {prog; args}
+    | prog :: args -> {prog; args = Ftree.of_list args}
     | [] -> default
 end
 
@@ -54,12 +61,18 @@ let run lexbuf ~file =
   | u -> Ok u
   | exception exn ->
     let loc =
-      Source_map.location_of !Parse_state.source_map
-        lexbuf.Lexing.lex_start_p lexbuf.Lexing.lex_curr_p in
-    Error (Diagnostic.error ~location:loc (Format.asprintf "%a" pp_exception exn))
+      Source_map.location_of
+        !Parse_state.source_map
+        lexbuf.Lexing.lex_start_p
+        lexbuf.Lexing.lex_curr_p in
+    let d =
+      Diagnostic.error ~location:loc @@
+      Format.asprintf "%a" pp_exception exn in
+    Error d
 
-let run_cpp (cpp : Cpp.t) ~input ?stdin () : (string, Diagnostic.t) result =
-  match Process.run ?stdin cpp.prog (cpp.args @ [input]) with
+let run_cpp (cpp : Cpp.t) ~input ?stdin () =
+  let args = Ftree.to_list (Ftree.snoc cpp.args input) in
+  match Process.run ?stdin cpp.prog args with
   | exception exn ->
     let d =
       Diagnostic.error @@ Format.sprintf
@@ -79,9 +92,9 @@ let run_cpp (cpp : Cpp.t) ~input ?stdin () : (string, Diagnostic.t) result =
         (if String.is_empty err then "" else ":\n" ^ err) in
     Error d
 
-let lex_result ~file : (string, Diagnostic.t) result -> _ = function
-  | Error _ as e -> e
+let lex_result ~file = function
   | Ok text -> run (Lexing.from_string text) ~file
+  | Error _ as e -> e
 
 let from_string s = run (Lexing.from_string s) ~file:"<input>"
 

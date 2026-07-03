@@ -1,0 +1,60 @@
+int
+leading_zeros(unsigned int x) {
+  return __builtin_clz(x);
+}
+int
+trailing_zeros(unsigned int x) {
+  return __builtin_ctz(x);
+}
+int
+set_bits(unsigned int x) {
+  return __builtin_popcount(x);
+}
+
+int
+leading_zeros_l(unsigned long x) {
+  return __builtin_clzl(x);
+}
+int
+trailing_zeros_l(unsigned long x) {
+  return __builtin_ctzl(x);
+}
+int
+set_bits_l(unsigned long x) {
+  return __builtin_popcountl(x);
+}
+
+int
+set_bits_ll(unsigned long long x) {
+  return __builtin_popcountll(x);
+}
+
+unsigned short
+swap16(unsigned short x) {
+  return __builtin_bswap16(x);
+}
+unsigned int
+swap32(unsigned int x) {
+  return __builtin_bswap32(x);
+}
+unsigned long
+swap64(unsigned long x) {
+  return __builtin_bswap64(x);
+}
+
+int
+first_set(int x) {
+  return __builtin_ffs(x);
+}
+int
+first_set_l(long x) {
+  return __builtin_ffsl(x);
+}
+int
+parity(unsigned int x) {
+  return __builtin_parity(x);
+}
+int
+parity_ll(unsigned long long x) {
+  return __builtin_parityll(x);
+}

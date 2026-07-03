@@ -1,0 +1,3 @@
+data/c/fail/labaddr_undeclared.c:3:10-19: error: address taken of undeclared label 'nowhere'
+ 3 |   return &&nowhere;
+   |          ^~~~~~~~~

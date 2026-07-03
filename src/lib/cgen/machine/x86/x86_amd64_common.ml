@@ -404,6 +404,7 @@ module Insn = struct
   type unop =
     | CALL of Regvar.t list (* arguments *)
     | CALLtail of Regvar.t list (* tail-call arguments *)
+    | BSWAP
     | DEC
     | DIV
     | IDIV
@@ -420,6 +421,7 @@ module Insn = struct
   let pp_unop ppf = function
     | CALL _ -> Format.fprintf ppf "call"
     | CALLtail _ -> Format.fprintf ppf "tailcall"
+    | BSWAP -> Format.fprintf ppf "bswap"
     | DEC -> Format.fprintf ppf "dec"
     | DIV -> Format.fprintf ppf "div"
     | IDIV -> Format.fprintf ppf "idiv"
@@ -754,6 +756,7 @@ module Insn = struct
       Regvar.Set.of_list args
     | DEC
     | INC
+    | BSWAP
     | NEG
     | NOT
       -> rset [a]
@@ -869,6 +872,9 @@ module Insn = struct
       (* Tail call: no registers are written by the call itself since
          we are exiting the function. Equivalent to `JMP`. *)
       -> Regvar.Set.empty
+    | BSWAP
+      (* Byte-swap writes only its register operand, not the flags. *)
+      -> rset_reg [a]
     | DEC
     | INC
     | NEG
@@ -988,6 +994,7 @@ module Insn = struct
 
   let unop_writes_to_memory op a = match op with
     | CALLtail _ -> false
+    | BSWAP
     | DEC
     | INC
     | NEG
@@ -1129,6 +1136,7 @@ module Insn = struct
     let mul a = One (MUL, a)
     let neg a = One (NEG, a)
     let not_ a = One (NOT, a)
+    let bswap a = One (BSWAP, a)
     let pop a = One (POP, a)
     let push a = One (PUSH, a)
     let setcc cc a = One (SETcc cc, a)

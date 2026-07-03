@@ -175,6 +175,9 @@ and 'a node =
   (** A reference to a named identifier. The kind of entity the
       name refers to (e.g. a variable, function, enum constant,
       typedef) is determined during elaboration. *)
+  | Elabaddr of string
+  (** The address of a label (GNU [&&label]), which is a [void *] usable only
+      as the operand of a computed [goto *]. *)
   | Eunary of {
       op  : uop;
       arg : 'a t;
@@ -259,6 +262,9 @@ val const : const -> ann:'a -> 'a t
 
 (** A reference to a named identifier. *)
 val name : string -> ann:'a -> 'a t
+
+(** The address of a label (GNU [&&label]). *)
+val labaddr : string -> ann:'a -> 'a t
 
 (** [sizeof] of an expression. *)
 val sizeof_e : 'a t -> ann:'a -> 'a t

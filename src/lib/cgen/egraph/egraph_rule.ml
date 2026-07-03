@@ -47,6 +47,7 @@ module Op = struct
   let ror     t = bop (`ror t)
   let xor     t = bop (`xor t)
   let neg     t = uop (`neg t)
+  let bswap   t = uop (`bswap t)
   let clz     t = uop (`clz t)
   let ctz     t = uop (`ctz t)
   let not_    t = uop (`not_ t)

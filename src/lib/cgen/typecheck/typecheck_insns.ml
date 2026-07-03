@@ -100,6 +100,7 @@ let op_arith_unop ta a (o : Insn.arith_unop) =
 
 let op_bitwise_unop ta a (o : Insn.bitwise_unop) =
   let t = match o with
+    | `bswap t
     | `clz t
     | `ctz t
     | `not_ t

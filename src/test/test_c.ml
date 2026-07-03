@@ -201,6 +201,8 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Bit-field packing" "bitfield_pack";
     ok_case ~sir:true "Function-type typedefs" "func_typedef";
     ok_case ~sir:true "Incomplete/forward struct types" "incomplete_types";
+    ok_case ~sir:true "Bit-counting builtins" "builtins";
+    ok_case ~sir:true "Computed goto" "computed_goto";
     ok_case ~sir:true "sizeof of a typedef-name" "sizeof_typedef";
     ok_case "Typedef-name parameter ambiguity" "param_typedef_paren";
   ]
@@ -208,6 +210,8 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
 let native_suite = "C frontend: native execution" >::: [
     (* AMD64 SysV *)
     "Scalar arithmetic (SysV AMD64)" >:: test_sysv_amd64_native "scalar";
+    "Bit-counting builtins (SysV AMD64)" >:: test_sysv_amd64_native "builtins";
+    "Computed goto (SysV AMD64)" >:: test_sysv_amd64_native "computed_goto";
     "Aggregates and arrays (SysV AMD64)" >:: test_sysv_amd64_native "aggregate";
     "Switch statements (SysV AMD64)" >:: test_sysv_amd64_native "switch";
     "Global initializers (SysV AMD64)" >:: test_sysv_amd64_native "globals";
@@ -248,6 +252,7 @@ let fail_suite = "C frontend: rejected programs" >::: [
     "va_start with undeclared last arg" >:: test_error "va_start_undeclared";
     "sizeof of a function" >:: test_error "sizeof_func";
     "assignment to a function" >:: test_error "assign_func";
+    "address of an undeclared label" >:: test_error "labaddr_undeclared";
   ]
 
 let () = run_test_tt_main @@ test_list [

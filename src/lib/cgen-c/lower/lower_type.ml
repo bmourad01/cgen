@@ -139,7 +139,9 @@ let struct_cells layout fields =
         let p = round_up p (fa * 8) in
         let* elt = field_elt layout f in
         go (p + fs * 8) units ((p / 8, fa, fs, elt) :: members) rest
-      | Some 0 -> go (round_up p (bitfield_unit_bits layout f.fty)) units members rest
+      | Some 0 ->
+        let u = bitfield_unit_bits layout f.fty in
+        go (round_up p u) units members rest
       | Some w ->
         let u = bitfield_unit_bits layout f.fty in
         let p = if p mod u + w > u then round_up p u else p in
@@ -181,11 +183,11 @@ let named_of_compound layout ~kind ~tag ~fields =
       let* units, members = struct_cells layout fields in
       let contained (off, _, size, _) =
         List.exists units ~f:(fun (us, ub) -> us <= off && off + size <= us + ub) in
-      let cells =
-        List.filter members ~f:(Fn.non contained)
-        @ List.map units ~f:(fun (us, ub) ->
-            us, ub, ub, `elt (int_elt_of_bytes ub, 1))
-        |> List.sort ~compare:(fun (a, _, _, _) (b, _, _, _) -> Int.compare a b) in
+      let non_overlapping = List.filter members ~f:(Fn.non contained) in
+      let units' = List.map units ~f:(fun (us, ub) ->
+          us, ub, ub, `elt (int_elt_of_bytes ub, 1)) in
+      let cells = List.sort (non_overlapping @ units')
+          ~compare:(fun (a, _, _, _) (b, _, _, _) -> Int.compare a b) in
       (* Emit cells in order, inserting explicit byte padding only where a gap
          cannot be reproduced by the next element's own alignment (so ordinary
          structs are unaffected). *)

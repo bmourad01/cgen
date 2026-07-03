@@ -1,0 +1,196 @@
+module builtins
+
+export function sw $leading_zeros(w %1) {
+  %0 = slot 4, align 4
+  %2 = slot 4, align 4
+start:
+  st.w %1, %0;
+  %3 = ld.w %0;
+  %4 = clz.w %3;
+  st.w %4, %2;
+  %5 = ld.w %2;
+  ret %5
+}
+
+export function sw $trailing_zeros(w %7) {
+  %6 = slot 4, align 4
+  %8 = slot 4, align 4
+start:
+  st.w %7, %6;
+  %9 = ld.w %6;
+  %10 = ctz.w %9;
+  st.w %10, %8;
+  %11 = ld.w %8;
+  ret %11
+}
+
+export function sw $set_bits(w %13) {
+  %12 = slot 4, align 4
+  %14 = slot 4, align 4
+start:
+  st.w %13, %12;
+  %15 = ld.w %12;
+  %16 = popcnt.w %15;
+  st.w %16, %14;
+  %17 = ld.w %14;
+  ret %17
+}
+
+export function sw $leading_zeros_l(l %19) {
+  %18 = slot 8, align 8
+  %20 = slot 4, align 4
+start:
+  st.l %19, %18;
+  %21 = ld.l %18;
+  %22 = clz.l %21;
+  %23 = itrunc.w %22;
+  st.w %23, %20;
+  %24 = ld.w %20;
+  ret %24
+}
+
+export function sw $trailing_zeros_l(l %26) {
+  %25 = slot 8, align 8
+  %27 = slot 4, align 4
+start:
+  st.l %26, %25;
+  %28 = ld.l %25;
+  %29 = ctz.l %28;
+  %30 = itrunc.w %29;
+  st.w %30, %27;
+  %31 = ld.w %27;
+  ret %31
+}
+
+export function sw $set_bits_l(l %33) {
+  %32 = slot 8, align 8
+  %34 = slot 4, align 4
+start:
+  st.l %33, %32;
+  %35 = ld.l %32;
+  %36 = popcnt.l %35;
+  %37 = itrunc.w %36;
+  st.w %37, %34;
+  %38 = ld.w %34;
+  ret %38
+}
+
+export function sw $set_bits_ll(l %40) {
+  %39 = slot 8, align 8
+  %41 = slot 4, align 4
+start:
+  st.l %40, %39;
+  %42 = ld.l %39;
+  %43 = popcnt.l %42;
+  %44 = itrunc.w %43;
+  st.w %44, %41;
+  %45 = ld.w %41;
+  ret %45
+}
+
+export function h $swap16(h %47) {
+  %46 = slot 2, align 2
+  %48 = slot 2, align 2
+start:
+  st.h %47, %46;
+  %49 = ld.h %46;
+  %50 = bswap.h %49;
+  st.h %50, %48;
+  %51 = ld.h %48;
+  ret %51
+}
+
+export function w $swap32(w %53) {
+  %52 = slot 4, align 4
+  %54 = slot 4, align 4
+start:
+  st.w %53, %52;
+  %55 = ld.w %52;
+  %56 = bswap.w %55;
+  st.w %56, %54;
+  %57 = ld.w %54;
+  ret %57
+}
+
+export function l $swap64(l %59) {
+  %58 = slot 8, align 8
+  %60 = slot 8, align 8
+start:
+  st.l %59, %58;
+  %61 = ld.l %58;
+  %62 = bswap.l %61;
+  st.l %62, %60;
+  %63 = ld.l %60;
+  ret %63
+}
+
+export function sw $first_set(w %65) {
+  %64 = slot 4, align 4
+  %66 = slot 4, align 4
+  %67 = slot 4, align 4
+start:
+  st.w %65, %64;
+  %68 = ld.w %64;
+  st.w %68, %66;
+  %69 = ld.w %66;
+  %70 = ctz.w %69;
+  st.w %70, %67;
+  %71 = ld.w %66;
+  %72 = ne.w %71, 0x0_w;
+  %73 = flag.w %72;
+  %74 = ld.w %67;
+  %75 = add.w %74, 0x1_w;
+  %76 = ne.w %73, 0x0_w;
+  %77 = sel.w %76, %75, 0x0_w;
+  ret %77
+}
+
+export function sw $first_set_l(l %79) {
+  %78 = slot 8, align 8
+  %80 = slot 8, align 8
+  %81 = slot 4, align 4
+start:
+  st.l %79, %78;
+  %82 = ld.l %78;
+  st.l %82, %80;
+  %83 = ld.l %80;
+  %84 = ctz.l %83;
+  %85 = itrunc.w %84;
+  st.w %85, %81;
+  %86 = ld.l %80;
+  %87 = sext.l 0x0_w;
+  %88 = ne.l %86, %87;
+  %89 = flag.w %88;
+  %90 = ld.w %81;
+  %91 = add.w %90, 0x1_w;
+  %92 = ne.w %89, 0x0_w;
+  %93 = sel.w %92, %91, 0x0_w;
+  ret %93
+}
+
+export function sw $parity(w %95) {
+  %94 = slot 4, align 4
+  %96 = slot 4, align 4
+start:
+  st.w %95, %94;
+  %97 = ld.w %94;
+  %98 = popcnt.w %97;
+  st.w %98, %96;
+  %99 = ld.w %96;
+  %100 = and.w %99, 0x1_w;
+  ret %100
+}
+
+export function sw $parity_ll(l %102) {
+  %101 = slot 8, align 8
+  %103 = slot 4, align 4
+start:
+  st.l %102, %101;
+  %104 = ld.l %101;
+  %105 = popcnt.l %104;
+  %106 = itrunc.w %105;
+  st.w %106, %103;
+  %107 = ld.w %103;
+  %108 = and.w %107, 0x1_w;
+  ret %108
+}

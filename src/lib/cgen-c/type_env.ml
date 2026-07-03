@@ -124,12 +124,15 @@ let is_tag_complete env name = match Map.find env.tenv name with
   | None | Some (Tenum [] | Tcompound {fields = []; _}) -> false
   | Some _ -> true
 
-(* Resolve typedefs in a type, returning a [Texpr.ty] with no `Tnamed`
+(* Resolve typedefs in a type, returning a `Texpr.ty` with no `Tnamed`
    typedef nodes.
 
-   Outer cv-qualifiers compose: a `const` on the typedef name unions with
-   whatever the underlying type has. Struct/union/enum tags are not
-   expanded. Idempotent. *)
+   Outer cv-qualifiers compose, e.g. a `const` on the typedef name
+   unions with whatever the underlying type has. Struct/union/enum
+   tags are not expanded.
+
+   This function is idempotent.
+*)
 let normalize env ty =
   let rec go : Texpr.ty -> Texpr.ty = function
     | Tbase _ as t -> t

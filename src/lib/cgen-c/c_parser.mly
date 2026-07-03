@@ -788,6 +788,9 @@ for_init:
 jump_statement:
   | GOTO n = IDENT SEMI
     { Stmt.goto n ~ann:(loc $symbolstartpos $endpos) }
+  (* GNU computed goto. *)
+  | GOTO STAR e = expression SEMI
+    { Stmt.gotoind e ~ann:(loc $symbolstartpos $endpos) }
   | CONTINUE SEMI
     { Stmt.continue ~ann:(loc $symbolstartpos $endpos) }
   | BREAK SEMI
@@ -799,6 +802,8 @@ jump_statement:
 
 primary_expression:
   | n = IDENT { Expr.name n ~ann:(loc $symbolstartpos $endpos) }
+  (* GNU label-as-value: the address of a label. *)
+  | ANDAND n = IDENT { Expr.labaddr n ~ann:(loc $symbolstartpos $endpos) }
   | c = CONSTANT { Expr.const c ~ann:(loc $symbolstartpos $endpos) }
   | s = nonempty_list(STRING)
     { Expr.str (String.concat "" s) ~ann:(loc $symbolstartpos $endpos) }

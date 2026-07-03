@@ -26,6 +26,7 @@ type t =
       linkage  : linkage;
       inline   : bool;
       noreturn : bool;
+      labaddrs : string list;
     }
   | Dfundecl of {
       name     : string;
@@ -64,8 +65,10 @@ let fundef
     ?(linkage = Lextern)
     ?(inline = false)
     ?(noreturn = false)
+    ?(labaddrs = [])
     ~name ~params ~ret ~body () =
-  Dfundef {name; params; variadic; ret; body; linkage; inline; noreturn}
+  Dfundef
+    {name; params; variadic; ret; body; linkage; inline; noreturn; labaddrs}
 
 let fundecl
     ?(variadic = false)
@@ -114,7 +117,8 @@ let pp_function_modifiers ppf ~inline ~noreturn =
   if noreturn then Format.pp_print_string ppf "_Noreturn "
 
 let pp ppf = function
-  | Dfundef {name; params; variadic; ret; body; linkage; inline; noreturn} ->
+  | Dfundef {name; params; variadic; ret; body; linkage; inline; noreturn;
+             labaddrs = _} ->
     Format.fprintf ppf "@[<v 2>";
     pp_linkage_prefix ppf linkage;
     pp_function_modifiers ppf ~inline ~noreturn;

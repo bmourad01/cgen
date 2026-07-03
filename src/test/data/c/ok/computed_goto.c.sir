@@ -1,0 +1,167 @@
+module computed_goto
+
+export function sw $classify(w %1) {
+  %0 = slot 4, align 4
+  %2 = slot 8, align 8
+start:
+  st.w %1, %0;
+  %3 = ld.w %0;
+  %4 = slt.w %3, 0x0_w;
+  %5 = flag.w %4;
+  if ne.w %5, 0x0_w {
+    st.l 0x0_l, %2
+  } else {
+    %6 = ld.w %0;
+    %7 = sgt.w %6, 0x0_w;
+    %8 = flag.w %7;
+    if ne.w %8, 0x0_w {
+      st.l 0x1_l, %2
+    } else {
+      st.l 0x2_l, %2
+    }
+  };
+  %9 = ld.l %2;
+  switch.l %9 {
+  case 0x0_l:
+    goto @2
+  case 0x1_l:
+    goto @3
+  case 0x2_l:
+    goto @4
+  default:
+    hlt
+  };
+  @2:
+    %10 = neg.w 0x1_w;
+    ret %10;
+  @4:
+    ret 0x0_w;
+  @3:
+    ret 0x1_w
+}
+
+export function sw $interp(l %12) {
+  %11 = slot 8, align 8
+  %13 = slot 4, align 4
+  %14 = slot 4, align 4
+  %15 = slot 4, align 4
+  %16 = slot 4, align 4
+  %17 = slot 24, align 8
+  %27 = slot 4, align 4
+  %28 = slot 4, align 4
+start:
+  st.l %12, %11;
+  %18 = sext.l 0x0_w;
+  %19 = mul.l %18, 0x8_l;
+  %20 = add.l %17, %19;
+  st.l 0x0_l, %20;
+  %21 = sext.l 0x1_w;
+  %22 = mul.l %21, 0x8_l;
+  %23 = add.l %17, %22;
+  st.l 0x1_l, %23;
+  %24 = sext.l 0x2_w;
+  %25 = mul.l %24, 0x8_l;
+  %26 = add.l %17, %25;
+  st.l 0x2_l, %26;
+  st.w 0x0_w, %27;
+  st.w 0x0_w, %28;
+  %29 = ld.l %11;
+  %30 = ld.w %28;
+  %31 = sext.l %30;
+  %32 = mul.l %31, 0x4_l;
+  %33 = add.l %29, %32;
+  %34 = ld.w %33;
+  %35 = sext.l %34;
+  %36 = mul.l %35, 0x8_l;
+  %37 = add.l %17, %36;
+  %38 = ld.l %37;
+  switch.l %38 {
+  case 0x0_l:
+    goto @5
+  case 0x1_l:
+    goto @7
+  case 0x2_l:
+    goto @6
+  default:
+    hlt
+  };
+  @5:
+    %39 = ld.w %27;
+    st.w %39, %13;
+    %40 = ld.w %13;
+    %41 = ld.l %11;
+    %42 = ld.w %28;
+    %43 = add.w %42, 0x1_w;
+    %44 = sext.l %43;
+    %45 = mul.l %44, 0x4_l;
+    %46 = add.l %41, %45;
+    %47 = ld.w %46;
+    %48 = add.w %40, %47;
+    st.w %48, %27;
+  %49 = ld.w %28;
+  st.w %49, %14;
+  %50 = ld.w %14;
+  %51 = add.w %50, 0x2_w;
+  st.w %51, %28;
+  %52 = ld.l %11;
+  %53 = ld.w %28;
+  %54 = sext.l %53;
+  %55 = mul.l %54, 0x4_l;
+  %56 = add.l %52, %55;
+  %57 = ld.w %56;
+  %58 = sext.l %57;
+  %59 = mul.l %58, 0x8_l;
+  %60 = add.l %17, %59;
+  %61 = ld.l %60;
+  switch.l %61 {
+  case 0x0_l:
+    goto @5
+  case 0x1_l:
+    goto @7
+  case 0x2_l:
+    goto @6
+  default:
+    hlt
+  };
+  @7:
+    %62 = ld.w %27;
+    st.w %62, %15;
+    %63 = ld.w %15;
+    %64 = ld.l %11;
+    %65 = ld.w %28;
+    %66 = add.w %65, 0x1_w;
+    %67 = sext.l %66;
+    %68 = mul.l %67, 0x4_l;
+    %69 = add.l %64, %68;
+    %70 = ld.w %69;
+    %71 = sub.w %63, %70;
+    st.w %71, %27;
+  %72 = ld.w %28;
+  st.w %72, %16;
+  %73 = ld.w %16;
+  %74 = add.w %73, 0x2_w;
+  st.w %74, %28;
+  %75 = ld.l %11;
+  %76 = ld.w %28;
+  %77 = sext.l %76;
+  %78 = mul.l %77, 0x4_l;
+  %79 = add.l %75, %78;
+  %80 = ld.w %79;
+  %81 = sext.l %80;
+  %82 = mul.l %81, 0x8_l;
+  %83 = add.l %17, %82;
+  %84 = ld.l %83;
+  switch.l %84 {
+  case 0x0_l:
+    goto @5
+  case 0x1_l:
+    goto @7
+  case 0x2_l:
+    goto @6
+  default:
+    hlt
+  };
+  @6:
+    %85 = ld.w %27;
+    ret %85
+}

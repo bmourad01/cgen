@@ -1,0 +1,127 @@
+int leading_zeros(unsigned int x) {
+  int %0;
+  {
+    %0 = __builtin_clz((unsigned int)x);
+    ;
+    return %0;
+  }
+}
+
+int trailing_zeros(unsigned int x) {
+  int %0;
+  {
+    %0 = __builtin_ctz((unsigned int)x);
+    ;
+    return %0;
+  }
+}
+
+int set_bits(unsigned int x) {
+  int %0;
+  {
+    %0 = __builtin_popcount((unsigned int)x);
+    ;
+    return %0;
+  }
+}
+
+int leading_zeros_l(unsigned long x) {
+  int %0;
+  {
+    %0 = __builtin_clzl((unsigned long)x);
+    ;
+    return %0;
+  }
+}
+
+int trailing_zeros_l(unsigned long x) {
+  int %0;
+  {
+    %0 = __builtin_ctzl((unsigned long)x);
+    ;
+    return %0;
+  }
+}
+
+int set_bits_l(unsigned long x) {
+  int %0;
+  {
+    %0 = __builtin_popcountl((unsigned long)x);
+    ;
+    return %0;
+  }
+}
+
+int set_bits_ll(unsigned long long x) {
+  int %0;
+  {
+    %0 = __builtin_popcountll((unsigned long long)x);
+    ;
+    return %0;
+  }
+}
+
+unsigned short swap16(unsigned short x) {
+  unsigned short %0;
+  {
+    %0 = __builtin_bswap16((unsigned short)x);
+    ;
+    return %0;
+  }
+}
+
+unsigned int swap32(unsigned int x) {
+  unsigned int %0;
+  {
+    %0 = __builtin_bswap32((unsigned int)x);
+    ;
+    return %0;
+  }
+}
+
+unsigned long swap64(unsigned long x) {
+  unsigned long %0;
+  {
+    %0 = __builtin_bswap64((unsigned long)x);
+    ;
+    return %0;
+  }
+}
+
+int first_set(int x) {
+  int %0;
+  int %1;
+  {
+    (%0 = x, %1 = __builtin_ctz((unsigned int)%0));
+    ;
+    return %0 != (int)0 ? %1 + 1 : 0;
+  }
+}
+
+int first_set_l(long x) {
+  long %0;
+  int %1;
+  {
+    (%0 = x, %1 = __builtin_ctzl((unsigned long)%0));
+    ;
+    return %0 != (long)0 ? %1 + 1 : 0;
+  }
+}
+
+int parity(unsigned int x) {
+  int %0;
+  {
+    %0 = __builtin_popcount((unsigned int)x);
+    ;
+    return %0 & 1;
+  }
+}
+
+int parity_ll(unsigned long long x) {
+  int %0;
+  {
+    %0 = __builtin_popcountll((unsigned long long)x);
+    ;
+    return %0 & 1;
+  }
+}

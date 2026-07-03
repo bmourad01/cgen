@@ -84,6 +84,9 @@ module type S = sig
 
   (** Bitwise unary operations.
 
+      [`bswap t]: reverse the byte order of the operand (a no-op for a
+      single-byte width).
+
       [`clz t]: count leading zeroes. If the operand is zero, then the
       result is unspecified.
 
@@ -95,6 +98,7 @@ module type S = sig
       [`popcnt t]: population count (number of set bits).
   *)
   type bitwise_unop = [
+    | `bswap  of Type.imm
     | `clz    of Type.imm
     | `ctz    of Type.imm
     | `not_   of Type.imm

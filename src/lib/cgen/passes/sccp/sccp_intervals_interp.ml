@@ -154,6 +154,9 @@ let interp_bitwise_unop o a = match (o : Insn.bitwise_unop) with
   | `ctz _ -> I.ctz a
   | `popcnt _ -> I.popcnt a
   | `not_ _ -> I.lnot a
+  (* Byte reversal is not monotone in the value, so fall back to the full
+     range at the operand's width. *)
+  | `bswap _ -> I.create_full ~size:(I.size a)
 
 let interp_cast o a = match (o : Insn.cast) with
   | `fext t

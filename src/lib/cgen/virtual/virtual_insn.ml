@@ -55,6 +55,7 @@ let pp_bitwise_binop ppf : bitwise_binop -> unit = function
   | `xor  t -> Format.fprintf ppf "xor.%a" Type.pp_imm t
 
 type bitwise_unop = [
+  | `bswap  of Type.imm
   | `clz    of Type.imm
   | `ctz    of Type.imm
   | `not_   of Type.imm
@@ -62,6 +63,8 @@ type bitwise_unop = [
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
 let pp_bitwise_unop ppf : bitwise_unop -> unit = function
+  | `bswap t ->
+    Format.fprintf ppf "bswap.%a" Type.pp_imm t
   | `clz t ->
     Format.fprintf ppf "clz.%a" Type.pp_imm t
   | `ctz t ->
@@ -199,7 +202,7 @@ let typeof_binop : binop -> [Type.basic | `flag] = function
    directly by the opcode (for casts, the destination type). *)
 let typeof_unop : unop -> Type.basic = function
   | `neg t | `copy t -> t
-  | `clz t | `ctz t | `not_ t | `popcnt t
+  | `bswap t | `clz t | `ctz t | `not_ t | `popcnt t
   | `flag t | `itrunc t | `sext t | `zext t
   | `ftosi (_, t) | `ftoui (_, t) -> (t :> Type.basic)
   | `ifbits t -> (t :> Type.basic)

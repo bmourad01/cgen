@@ -261,6 +261,7 @@ module Typed_writes = struct
       -> call
     | CALLtail _
       -> Regvar.Map.empty
+    | BSWAP
     | DEC
     | INC
     | NEG

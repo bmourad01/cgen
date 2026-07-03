@@ -81,6 +81,7 @@ let rec rewrite_continue label (s : Tstmt.t) = match s with
   | Sfor _
   | Sbreak
   | Sgoto _
+  | Sgotoind _
   | Sreturn _
   | Sinstr _
     -> s
@@ -235,6 +236,8 @@ module Make(A : Annotation) = struct
     (* §6.8.6.1: `goto`. The target label's existence is validated by
        the whole-function pass in declaration elaboration. *)
     | Sgoto name -> !!(Tstmt.goto name)
+    (* GNU computed goto: dispatch on the (index-valued) target. *)
+    | Sgotoind e -> env.elab_rval e @@ fun rv -> !!(Tstmt.gotoind rv)
     | Sbreak -> stmt_break env
     | Scontinue -> stmt_continue env
     | Slabel {name; body} -> stmt_label env name body

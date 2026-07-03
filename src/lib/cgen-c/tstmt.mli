@@ -89,6 +89,7 @@ and t =
       body : t;
     } (** A named label and the statement it labels. *)
   | Sgoto of string
+  | Sgotoind of Texpr.t
   (** A [goto] to a named label. *)
   | Sbreak
   (** A [break] statement. *)
@@ -190,6 +191,7 @@ val label : name:string -> body:t -> t
 
 (** A [goto] to a named label. *)
 val goto : string -> t
+val gotoind : Texpr.t -> t
 
 (** A [break] statement. *)
 val break : t

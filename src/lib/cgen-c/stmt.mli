@@ -73,6 +73,9 @@ and 'a node =
     } (** A named label and the statement it labels. *)
   | Sgoto of string
   (** A [goto] to a named label. *)
+  | Sgotoind of 'a Expr.t
+  (** A computed [goto *e] (GNU extension): jump to the label whose address
+      [e] holds. *)
   | Sbreak
   (** A [break] statement. *)
   | Scontinue
@@ -146,6 +149,9 @@ val label : name:string -> body:'a t -> ann:'a -> 'a t
 
 (** A [goto] to a named label. *)
 val goto : string -> ann:'a -> 'a t
+
+(** A computed [goto *e] (GNU extension). *)
+val gotoind : 'a Expr.t -> ann:'a -> 'a t
 
 (** A [break] statement. *)
 val break : ann:'a -> 'a t

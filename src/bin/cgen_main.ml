@@ -177,10 +177,10 @@ let comp_c (opts : Cli.t) =
      `--cpp`, disabled with `--no-cpp`). cgen supplies its own target-derived
      predefines rather than inheriting the host compiler's identity. *)
   let cpp =
-    if opts.no_cpp then None
-    else
+    if opts.no_cpp then None else
       let base = Cgen_c.Parse.Cpp.of_command opts.cpp in
-      Some (Cgen_c.Parse.Cpp.add_args base (Cgen_c.Predef.defines opts.target)) in
+      let defs = Cgen_c.Predef.defines opts.target in
+      Some (Cgen_c.Parse.Cpp.add_args base defs) in
   let parsed = match opts.file with
     | Ifile file -> Cgen_c.Parse.from_file ?cpp file
     | Istdin -> Cgen_c.Parse.from_stdin ?cpp () in

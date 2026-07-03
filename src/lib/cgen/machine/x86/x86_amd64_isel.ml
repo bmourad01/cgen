@@ -2054,6 +2054,24 @@ end = struct
       I.mov (Oreg (x, ty)) (Oreg (tmp2, ty));
     ]
 
+  let bswap_r_x_y env =
+    let*! x, xt = S.regvar env "x" in
+    let*! y, yt = S.regvar env "y" in
+    match xt with
+    | `i16 ->
+      (* `bswap r16` is officially undefined; swap the byte pair with a
+         rotate instead. *)
+      !!![
+        I.mov (Oreg (x, xt)) (Oreg (y, yt));
+        I.rol (Oreg (x, xt)) (Oimm (8L, `i8));
+      ]
+    | `i32 | `i64 ->
+      !!![
+        I.mov (Oreg (x, xt)) (Oreg (y, yt));
+        I.bswap (Oreg (x, xt));
+      ]
+    | _ -> !!None
+
   let sext_rr_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! y, yt = S.regvar env "y" in
@@ -2805,6 +2823,10 @@ end = struct
 
     let popcnt = [
       popcnt_r_x_y;
+    ]
+
+    let bswap = [
+      bswap_r_x_y;
     ]
 
     let sext = [
@@ -3671,6 +3693,13 @@ end = struct
       move x (popcnt `i64 y) =>* Group.popcnt;
     ]
 
+    (* x = bswap y *)
+    let bswap_basic = [
+      move x (bswap `i16 y) =>* Group.bswap;
+      move x (bswap `i32 y) =>* Group.bswap;
+      move x (bswap `i64 y) =>* Group.bswap;
+    ]
+
     (* x = sext y *)
     let sext_basic = [
       move x (sext `i8  y) =>* Group.move_ri;
@@ -4027,6 +4056,7 @@ end = struct
       clz_basic;
       ctz_basic;
       popcnt_basic;
+      bswap_basic;
       load_ext_add_mul_disp;
       load_ext_add_mul_disp_neg;
       load_ext_add_mul;
