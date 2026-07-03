@@ -1,3 +1,4 @@
+open Core
 open Egraph_common
 open Matcher
 
@@ -12,6 +13,13 @@ let (=>*) pre gen = {pre; post = Dyn gen; subsume = false}
 let (=>!) pre post = {pre; post = Static post; subsume = true}
 let (=>?!) pre post ~if_ = {pre; post = Cond (post, if_); subsume = true}
 let (=>*!) pre gen = {pre; post = Dyn gen; subsume = true}
+
+let commute_variants r =
+  let acc = ref [] in
+  iter_permutations r.pre ~f:(fun pre -> acc := {r with pre} :: !acc);
+  List.rev !acc
+
+let comm rules = List.bind rules ~f:commute_variants
 
 module Op = struct
   let bop b l r = Obinop b & [l; r]

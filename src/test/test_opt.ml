@@ -253,6 +253,10 @@ let opt_suite = "Test optimizations" >::: [
     "Store to load forwarding 2" >:: test "storetoload2";
     "Test rotate left by constant and OR" >:: test "rolconstor";
     "Test rotate left by constant and addition" >:: test "rolconstadd";
+    "Test byte-swap idiom recognition (16-bit)" >:: test "bswap16";
+    "Test byte-swap idiom recognition (32-bit)" >:: test "bswap32";
+    "Test byte-swap idiom recognition (64-bit)" >:: test "bswap64";
+    "Test byte-swap idiom recognition (mask-then-shift)" >:: test "bswap32_maskshift";
     "Redundant load elimination" >:: test "rle";
     "Redundant load elimination (partial redundancy)" >:: test "rle-partial";
     "Test prime numbers" >:: test "prime";

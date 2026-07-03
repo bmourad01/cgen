@@ -1,0 +1,29 @@
+module bswap
+
+export function l $bswap64(l %x) {
+@start:
+  %a0 = lsr.l %x, 0x38_l
+  %a1 = and.l %a0, 0xff_l
+  %b0 = lsr.l %x, 0x28_l
+  %b1 = and.l %b0, 0xff00_l
+  %c0 = lsr.l %x, 0x18_l
+  %c1 = and.l %c0, 0xff0000_l
+  %d0 = lsr.l %x, 0x8_l
+  %d1 = and.l %d0, 0xff000000_l
+  %e0 = lsl.l %x, 0x8_l
+  %e1 = and.l %e0, 0xff00000000_l
+  %f0 = lsl.l %x, 0x18_l
+  %f1 = and.l %f0, 0xff0000000000_l
+  %g0 = lsl.l %x, 0x28_l
+  %g1 = and.l %g0, 0xff000000000000_l
+  %h0 = lsl.l %x, 0x38_l
+  %h1 = and.l %h0, 0xff00000000000000_l
+  %r0 = or.l %a1, %b1
+  %r1 = or.l %c1, %d1
+  %r2 = or.l %e1, %f1
+  %r3 = or.l %g1, %h1
+  %s0 = or.l %r0, %r1
+  %s1 = or.l %r2, %r3
+  %r = or.l %s0, %s1
+  ret %r
+}

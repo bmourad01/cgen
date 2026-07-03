@@ -1,0 +1,7 @@
+module bswap
+
+export function h $bswap16(h %1) {
+@2:
+  %21 = rol.h %1, 0x8_h ; @16
+  ret %21
+}

@@ -1,0 +1,17 @@
+module bswap
+
+export function w $bswap32(w %x) {
+@start:
+  %a0 = and.w %x, 0xff000000_w
+  %a1 = lsr.w %a0, 0x18_w
+  %b0 = and.w %x, 0xff0000_w
+  %b1 = lsr.w %b0, 0x8_w
+  %c0 = and.w %x, 0xff00_w
+  %c1 = lsl.w %c0, 0x8_w
+  %d0 = and.w %x, 0xff_w
+  %d1 = lsl.w %d0, 0x18_w
+  %r0 = or.w %a1, %b1
+  %r1 = or.w %c1, %d1
+  %r = or.w %r0, %r1
+  ret %r
+}

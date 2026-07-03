@@ -136,6 +136,9 @@ module Rule : sig
       dynamically according to [gen]. *)
   val (=>*) : pattern -> pattern option callback -> t
 
+  (** [comm rules] expands each rule into its commutative variants. *)
+  val comm : t list -> t list
+
   (** Same as [=>*], but the rewritten term subsumes all other
       equivalent terms. *)
   val (=>*!) : pattern -> pattern option callback -> t
@@ -174,6 +177,7 @@ module Rule : sig
     val ror : Type.imm -> pattern -> pattern -> pattern
     val xor : Type.imm -> pattern -> pattern -> pattern
     val neg : Type.basic -> pattern -> pattern
+    val bswap : Type.imm -> pattern -> pattern
     val not_ : Type.imm -> pattern -> pattern
     val clz : Type.imm -> pattern -> pattern
     val ctz : Type.imm -> pattern -> pattern

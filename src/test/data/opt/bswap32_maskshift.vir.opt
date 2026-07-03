@@ -1,0 +1,7 @@
+module bswap
+
+export function w $bswap32(w %1) {
+@2:
+  %33 = bswap.w %1 ; @24
+  ret %33
+}

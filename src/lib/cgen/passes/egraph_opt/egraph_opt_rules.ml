@@ -11,6 +11,17 @@ let x = var "x"
 let y = var "y"
 let z = var "z"
 
+(* Shift amounts and masks of the four/eight byte-extraction terms in the
+   byte-swap (`bswap`) idiom. *)
+let sa = var "sa" and ma = var "ma"
+let sb = var "sb" and mb = var "mb"
+let sc = var "sc" and mc = var "mc"
+let sd = var "sd" and md = var "md"
+let se = var "se" and me = var "me"
+let sf = var "sf" and mf = var "mf"
+let sg = var "sg" and mg = var "mg"
+let sh = var "sh" and mh = var "mh"
+
 (* Specialized versions of our callbacks. *)
 let is_const_x = C.is_const "x"
 let is_const_y = C.is_const "y"
@@ -38,6 +49,29 @@ let srem_eq_zero_y = C.rem_zero_test ~signed:true x "y"
 let srem_ne_zero_y = C.rem_zero_test ~signed:true ~neg:true x "y"
 let identity_same_type_x = C.identity_same_type "x"
 let is_rotate_const_y_z = C.is_rotate_const "y" "z"
+
+let is_bswap32 order = C.is_bswap 4 [
+    order, `shr, "sa", "ma";
+    order, `shr, "sb", "mb";
+    order, `shl, "sc", "mc";
+    order, `shl, "sd", "md";
+  ]
+
+let is_bswap64 order = C.is_bswap 8 [
+    order, `shr, "sa", "ma";
+    order, `shr, "sb", "mb";
+    order, `shr, "sc", "mc";
+    order, `shr, "sd", "md";
+    order, `shl, "se", "me";
+    order, `shl, "sf", "mf";
+    order, `shl, "sg", "mg";
+    order, `shl, "sh", "mh";
+  ]
+
+let is_bswap32_sm = is_bswap32 `sm
+let is_bswap32_ms = is_bswap32 `ms
+let is_bswap64_sm = is_bswap64 `sm
+let is_bswap64_ms = is_bswap64 `ms
 
 (* Sets of related rules. *)
 module Groups = struct
@@ -770,17 +804,12 @@ module Groups = struct
   ]
 
   (* x | ~x = ~x | x = 0xff... *)
-  let or_not_self = [
-    or_ `i8 x (not_ `i8 x) =>! i8 0xff;
-    or_ `i16 x (not_ `i16 x) =>! i16 0xffff;
-    or_ `i32 x (not_ `i32 x) =>! i32 0xffff_ffffl;
-    or_ `i64 x (not_ `i64 x) =>! i64 0xffff_ffff_ffff_ffffL;
-
-    or_ `i8 (not_ `i8 x) x =>! i8 0xff;
-    or_ `i16 (not_ `i16 x) x =>! i16 0xffff;
-    or_ `i32 (not_ `i32 x) x =>! i32 0xffff_ffffl;
-    or_ `i64 (not_ `i64 x) x =>! i64 0xffff_ffff_ffff_ffffL;
-  ]
+  let or_not_self = comm [
+      or_ `i8 x (not_ `i8 x) =>! i8 0xff;
+      or_ `i16 x (not_ `i16 x) =>! i16 0xffff;
+      or_ `i32 x (not_ `i32 x) =>! i32 0xffff_ffffl;
+      or_ `i64 x (not_ `i64 x) =>! i64 0xffff_ffff_ffff_ffffL;
+    ]
 
   (* ~(x | y) = ~x & ~y *)
   let demorgan_not_or = [
@@ -970,27 +999,17 @@ module Groups = struct
 
      when y and z are known consts and z = size - y
   *)
-  let recognize_rol_const = [
-    (or_ `i8 (lsl_ `i8 x y) (lsr_ `i8 x z) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i16 (lsl_ `i16 x y) (lsr_ `i16 x z) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i32 (lsl_ `i32 x y) (lsr_ `i32 x z) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i64 (lsl_ `i64 x y) (lsr_ `i64 x z) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
+  let recognize_rol_const = comm [
+      (or_ `i8 (lsl_ `i8 x y) (lsr_ `i8 x z) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i16 (lsl_ `i16 x y) (lsr_ `i16 x z) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i32 (lsl_ `i32 x y) (lsr_ `i32 x z) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i64 (lsl_ `i64 x y) (lsr_ `i64 x z) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
 
-    (or_ `i8 (lsr_ `i8 x z) (lsl_ `i8 x y) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i16 (lsr_ `i16 x z) (lsl_ `i16 x y) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i32 (lsr_ `i32 x z) (lsl_ `i32 x y) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i64 (lsr_ `i64 x z) (lsl_ `i64 x y) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
-
-    (add `i8 (lsl_ `i8 x y) (lsr_ `i8 x z) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
-    (add `i16 (lsl_ `i16 x y) (lsr_ `i16 x z) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
-    (add `i32 (lsl_ `i32 x y) (lsr_ `i32 x z) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
-    (add `i64 (lsl_ `i64 x y) (lsr_ `i64 x z) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
-
-    (add `i8 (lsr_ `i8 x z) (lsl_ `i8 x y) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
-    (add `i16 (lsr_ `i16 x z) (lsl_ `i16 x y) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
-    (add `i32 (lsr_ `i32 x z) (lsl_ `i32 x y) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
-    (add `i64 (lsr_ `i64 x z) (lsl_ `i64 x y) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
-  ]
+      (add `i8 (lsl_ `i8 x y) (lsr_ `i8 x z) =>? rol `i8 x y) ~if_:is_rotate_const_y_z;
+      (add `i16 (lsl_ `i16 x y) (lsr_ `i16 x z) =>? rol `i16 x y) ~if_:is_rotate_const_y_z;
+      (add `i32 (lsl_ `i32 x y) (lsr_ `i32 x z) =>? rol `i32 x y) ~if_:is_rotate_const_y_z;
+      (add `i64 (lsl_ `i64 x y) (lsr_ `i64 x z) =>? rol `i64 x y) ~if_:is_rotate_const_y_z;
+    ]
 
   (* (x >> y) | (x << z) =
      (x << z) | (x >> y) =
@@ -999,27 +1018,87 @@ module Groups = struct
 
      when y and z are known consts and z = size - y
   *)
-  let recognize_ror_const = [
-    (or_ `i8 (lsr_ `i8 x y) (lsl_ `i8 x z) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i16 (lsr_ `i16 x y) (lsl_ `i16 x z) =>? ror`i16 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i32 (lsr_ `i32 x y) (lsl_ `i32 x z) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i64 (lsr_ `i64 x y) (lsl_ `i64 x z) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+  let recognize_ror_const = comm [
+      (or_ `i8 (lsr_ `i8 x y) (lsl_ `i8 x z) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i16 (lsr_ `i16 x y) (lsl_ `i16 x z) =>? ror `i16 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i32 (lsr_ `i32 x y) (lsl_ `i32 x z) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
+      (or_ `i64 (lsr_ `i64 x y) (lsl_ `i64 x z) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
 
-    (or_ `i8 (lsl_ `i8 x z) (lsr_ `i8 x y) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i16 (lsl_ `i16 x z) (lsr_ `i16 x y) =>? ror `i16 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i32 (lsl_ `i32 x z) (lsr_ `i32 x y) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
-    (or_ `i64 (lsl_ `i64 x z) (lsr_ `i64 x y) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+      (add `i8 (lsr_ `i8 x y) (lsl_ `i8 x z) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
+      (add `i16 (lsr_ `i16 x y) (lsl_ `i16 x z) =>? ror `i16 x y) ~if_:is_rotate_const_y_z;
+      (add `i32 (lsr_ `i32 x y) (lsl_ `i32 x z) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
+      (add `i64 (lsr_ `i64 x y) (lsl_ `i64 x z) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+    ]
 
-    (add `i8 (lsr_ `i8 x y) (lsl_ `i8 x z) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
-    (add `i16 (lsr_ `i16 x y) (lsl_ `i16 x z) =>? ror`i16 x y) ~if_:is_rotate_const_y_z;
-    (add `i32 (lsr_ `i32 x y) (lsl_ `i32 x z) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
-    (add `i64 (lsr_ `i64 x y) (lsl_ `i64 x z) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
+  (* Recognize a hand-written 32-or-64-bit byte swap as a native `bswap`.
 
-    (add `i8 (lsl_ `i8 x z) (lsr_ `i8 x y) =>? ror `i8 x y) ~if_:is_rotate_const_y_z;
-    (add `i16 (lsl_ `i16 x z) (lsr_ `i16 x y) =>? ror `i16 x y) ~if_:is_rotate_const_y_z;
-    (add `i32 (lsl_ `i32 x z) (lsr_ `i32 x y) =>? ror `i32 x y) ~if_:is_rotate_const_y_z;
-    (add `i64 (lsl_ `i64 x z) (lsr_ `i64 x y) =>? ror `i64 x y) ~if_:is_rotate_const_y_z;
-  ]
+     Reassociation canonicalizes the OR of byte-extraction terms into a balanced
+     tree, while `is_bswap` validates that the shift amounts and single-byte masks
+     form a complete byte reversal.
+
+     A 16-bit byte swap is a rotate by 8, which is handled separately (below).
+  *)
+  let recognize_bswap =
+    (* One byte-extraction term, and the two balanced `or` trees. Both trees
+       keep each term's substitution vars fixed (the `is_bswap*` callbacks look
+       terms up by name), so swapping the halves just reorders the tree. *)
+    let shift ty = function
+      | `shr -> lsr_ ty
+      | `shl -> lsl_ ty in
+    let sm_term ty dir s m = and_ ty (shift ty dir x s) m in
+    let ms_term ty dir s m = shift ty dir (and_ ty x m) s in
+    let tree4 ty a b c d = or_ ty (or_ ty a b) (or_ ty c d) in
+    let tree8 ty a b c d e f g h =
+      or_ ty
+        (or_ ty (or_ ty a b) (or_ ty c d))
+        (or_ ty (or_ ty e f) (or_ ty g h)) in
+    (* The four/eight terms in canonical (high-bytes-first) order. *)
+    let terms4 mk ty =
+      mk ty `shr sa ma,
+      mk ty `shr sb mb,
+      mk ty `shl sc mc,
+      mk ty `shl sd md in
+    let terms8 mk ty =
+      mk ty `shr sa ma,
+      mk ty `shr sb mb,
+      mk ty `shr sc mc,
+      mk ty `shr sd md,
+      mk ty `shl se me,
+      mk ty `shl sf mf,
+      mk ty `shl sg mg,
+      mk ty `shl sh mh in
+    let rules32 mk if_ =
+      let a, b, c, d = terms4 mk `i32 in [
+        (tree4 `i32 a b c d =>? bswap `i32 x) ~if_;
+        (tree4 `i32 c d a b =>? bswap `i32 x) ~if_;
+      ] in
+    let rules64 mk if_ =
+      let a, b, c, d, e, f, g, h = terms8 mk `i64 in [
+        (tree8 `i64 a b c d e f g h =>? bswap `i64 x) ~if_;
+        (tree8 `i64 e f g h a b c d =>? bswap `i64 x) ~if_;
+      ] in
+    List.concat [
+      rules32 sm_term is_bswap32_sm;
+      rules32 ms_term is_bswap32_ms;
+      rules64 sm_term is_bswap64_sm;
+      rules64 ms_term is_bswap64_ms;
+    ]
+
+  (* A 16-bit byte swap = a rotate by 8 *)
+  let recognize_bswap16 =
+    let idiom shift =
+      itrunc `i16
+        (or_ `i32
+           (and_ `i32
+              (shift `i32 (zext `i32 x) (i32 8l))
+              (i32 0xffl))
+           (lsl_ `i32
+              (and_ `i32 (zext `i32 x) (i32 0xffl))
+              (i32 8l))) in
+    comm [
+      (idiom asr_ =>? rol `i16 x (i16 8)) ~if_:(has_type_x `i16);
+      (idiom lsr_ =>? rol `i16 x (i16 8)) ~if_:(has_type_x `i16);
+    ]
 
   (* x ^ 0 = x *)
   let xor_zero = [
@@ -1046,17 +1125,12 @@ module Groups = struct
   ]
 
   (* x ^ ~x = ~x ^ x = 0xff... *)
-  let xor_not_self = [
-    xor `i8 x (not_ `i8 x) =>! i8 0xff;
-    xor `i16 x (not_ `i16 x) =>! i16 0xffff;
-    xor `i32 x (not_ `i32 x) =>! i32 0xffff_ffffl;
-    xor `i64 x (not_ `i64 x) =>! i64 0xffff_ffff_ffff_ffffL;
-
-    xor `i8 (not_ `i8 x) x =>! i8 0xff;
-    xor `i16 (not_ `i16 x) x =>! i16 0xffff;
-    xor `i32 (not_ `i32 x) x =>! i32 0xffff_ffffl;
-    xor `i64 (not_ `i64 x) x =>! i64 0xffff_ffff_ffff_ffffL;
-  ]
+  let xor_not_self = comm [
+      xor `i8 x (not_ `i8 x) =>! i8 0xff;
+      xor `i16 x (not_ `i16 x) =>! i16 0xffff;
+      xor `i32 x (not_ `i32 x) =>! i32 0xffff_ffffl;
+      xor `i64 x (not_ `i64 x) =>! i64 0xffff_ffff_ffff_ffffL;
+    ]
 
   (* (x & y) ^ (x ^ y) =
      (x ^ y) ^ (x & y) = x | y *)
@@ -1140,17 +1214,12 @@ module Groups = struct
   ]
 
   (* x & ~x = ~x & x = 0 *)
-  let and_not_self = [
-    and_ `i8 x (not_ `i8 x) =>! i8 0;
-    and_ `i16 x (not_ `i16 x) =>! i16 0;
-    and_ `i32 x (not_ `i32 x) =>! i32 0l;
-    and_ `i64 x (not_ `i64 x) =>! i64 0L;
-
-    and_ `i8 (not_ `i8 x) x =>! i8 0;
-    and_ `i16 (not_ `i16 x) x =>! i16 0;
-    and_ `i32 (not_ `i32 x) x =>! i32 0l;
-    and_ `i64 (not_ `i64 x) x =>! i64 0L;
-  ]
+  let and_not_self = comm [
+      and_ `i8 x (not_ `i8 x) =>! i8 0;
+      and_ `i16 x (not_ `i16 x) =>! i16 0;
+      and_ `i32 x (not_ `i32 x) =>! i32 0l;
+      and_ `i64 x (not_ `i64 x) =>! i64 0L;
+    ]
 
   (* x & (x | y) = (x | y) & x = x *)
   let absorb_or_and = [
@@ -2234,6 +2303,8 @@ module Groups = struct
       ror_zero;
       recognize_rol_const;
       recognize_ror_const;
+      recognize_bswap;
+      recognize_bswap16;
       xor_zero;
       xor_ones;
       xor_self;

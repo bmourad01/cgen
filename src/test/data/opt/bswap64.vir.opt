@@ -1,0 +1,7 @@
+module bswap
+
+export function l $bswap64(l %1) {
+@2:
+  %69 = bswap.l %1 ; @48
+  ret %69
+}

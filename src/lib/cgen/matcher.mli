@@ -69,6 +69,16 @@ module Make(M : L) : sig
 
   val pp_pat : Format.formatter -> pat -> unit
 
+  (** [iter_permutations pat ~f] calls [f] once per distinct pattern obtained
+      by permuting the operands of every commutative node in [pat] (per
+      [M.is_commutative]).
+
+      This is the same expansion the [compile ~commute] flag performs. Exposing
+      it lets a ruleset apply it selectively (to shallow patterns) rather than
+      to every rule.
+  *)
+  val iter_permutations : pat -> f:(pat -> unit) -> unit
+
   (** A compiled VM program. *)
   type 'a program
 
@@ -86,7 +96,8 @@ module Make(M : L) : sig
       If [commute] is [true] (default is [false]), then patterns
       will be expanded/permuted according to [M.is_commutative].
       This can substantially increase the size of the compiled
-      program.
+      program. It is only recommended for rulesets that are
+      uniformly shallow.
 
       The rules are assumed to be in an {i optimal} priority order,
       and the [VM] (see below) will prioritize yielding matches in

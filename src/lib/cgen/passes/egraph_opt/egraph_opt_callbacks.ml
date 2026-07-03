@@ -366,3 +366,57 @@ let is_rotate_const x y env =
       Option.some_if Bv.(xi = B.(sz - yi)) ()
     | _ -> None
   end
+
+(* The output byte selected by a single-byte mask `0xff << (8*k)` for an
+   `nbytes`-wide value, if `m` is exactly such a mask. *)
+let byte_mask_index nbytes ty m =
+  let module B = (val bv ty) in
+  let rec go k =
+    if k >= nbytes then None
+    else if Bv.equal m (B.int64 (Int64.shift_left 0xffL (8 * k)))
+    then Some k
+    else go (k + 1) in
+  go 0
+
+(* Recognize a byte-reversal (`bswap`) idiom.
+
+   `order` is as follows:
+   - [`sm]: shift-then-mask
+   - [`ms]: mask-then-shift
+*)
+let is_bswap nbytes terms env =
+  let seen = Array.create ~len:nbytes false in
+  let ok_term (order, dir, sname, mname) =
+    match
+      Subst.find env sname >>= Subst.const,
+      Subst.find env mname >>= Subst.const
+    with
+    | Some (`int (s, sty)), Some (`int (m, mty))
+      when Type.equal_imm sty mty ->
+      begin match byte_mask_index nbytes mty m with
+        | None -> false
+        | Some j ->
+          let sh = Int64.to_int_trunc (Bv.to_int64 s) in
+          sh land 7 = 0 &&
+          sh >= 0 &&
+          sh < nbytes * 8 && begin
+            let db = sh / 8 in
+            (* `j` is the masked byte; recover the output and source bytes. *)
+            let out, src = match order, dir with
+              | `sm, `shr -> j, j + db
+              | `sm, `shl -> j, j - db
+              | `ms, `shr -> j - db, j
+              | `ms, `shl -> j + db, j in
+            out >= 0 &&
+            out < nbytes &&
+            src >= 0 &&
+            src < nbytes &&
+            out = nbytes - 1 - src &&
+            not seen.(out) && begin
+              seen.(out) <- true;
+              true
+            end
+          end
+      end
+    | _ -> false in
+  List.for_all terms ~f:ok_term && Array.for_all seen ~f:Fn.id

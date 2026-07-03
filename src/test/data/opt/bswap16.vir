@@ -1,0 +1,13 @@
+module bswap
+
+export function h $bswap16(h %x) {
+@start:
+  %a = zext.w %x
+  %b = asr.w %a, 0x8_w
+  %c = and.w %b, 0xff_w
+  %d = and.w %a, 0xff_w
+  %e = lsl.w %d, 0x8_w
+  %f = or.w %c, %e
+  %r = itrunc.h %f
+  ret %r
+}
