@@ -37,6 +37,7 @@
   phi_values
   resolver_intf
   scalars
+  scalars_common
   slot_initialization
   sm
   structured_lexer

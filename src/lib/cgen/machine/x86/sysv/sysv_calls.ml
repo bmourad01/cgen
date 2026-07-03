@@ -8,8 +8,33 @@ module Make(Context : Context_intf.S_virtual) = struct
   open Context.Syntax
   open Make0(Context)
   module Cv = Context.Virtual
+  module Scal = Scalars.Make(Scalars_common.VL)
+  module Vset = Var.Tree_set
 
   let onext = Sysv_params.onext
+
+  (* The set of variables that were derived from a stack slot.
+
+     A tail call cannot pass such a value to its callee, since
+     the caller's frame is torn down before the jump, so the
+     callee would dereference reclaimed stack memory.
+
+     We reuse the `Scalars` analysis for this purpose.
+  *)
+  let frame_pointers env =
+    if not (Func.has_any_slots env.fn) then Vset.empty else
+      let module VL = Scalars_common.VL in
+      let slots = Scal.collect_slots env.fn in
+      let cfg = VL.Cfg.create env.fn in
+      let sol = Scal.analyze cfg env.blks slots in
+      Label.Tree.fold env.blks ~init:Vset.empty ~f:(fun ~key:l ~data:b acc ->
+          VL.Blk.fold_insns b ~init:(Scalars.get sol l)
+            ~f:(fun s i -> Scal.transfer_op slots s (VL.Insn.op i)) |>
+          Var.Tree.fold ~init:acc ~f:(fun ~key ~data:_ acc -> Vset.add acc key))
+
+  let operand_is_frame_pointer frame = function
+    | `var v -> Vset.mem frame v
+    | _ -> false
 
   (* A compound argument to a call passed in a single register. *)
   let onereg_arg ~ofs ~reg k r src =
@@ -206,10 +231,11 @@ module Make(Context : Context_intf.S_virtual) = struct
     | `stk _ -> true
     | _ -> false
 
-  let is_tailcall_eligible k ~vargs =
+  let is_tailcall_eligible k ~frame ~args ~vargs =
     List.is_empty vargs &&
     Ftree.is_empty k.callri &&
-    not (Ftree.exists k.callar ~f:is_stkarg)
+    not (Ftree.exists k.callar ~f:is_stkarg) &&
+    not (List.exists args ~f:(operand_is_frame_pointer frame))
 
   let is_tail env b key ret =
     (* The call must be the last instruction in the block. *)
@@ -222,6 +248,7 @@ module Make(Context : Context_intf.S_virtual) = struct
 
   (* Lower the `call` instructions. *)
   let lower env =
+    let frame = frame_pointers env in
     Func.blks env.fn |> Context.Seq.iter ~f:(fun b ->
         Blk.insns b |> Context.Seq.iter ~f:(fun i ->
             match Insn.op i with
@@ -259,7 +286,7 @@ module Make(Context : Context_intf.S_virtual) = struct
               let+ k = lower_call_ret env kret k in
               LT.set env.calls ~key ~data:k;
               if not non_tail
-              && is_tailcall_eligible k ~vargs
+              && is_tailcall_eligible k ~frame ~args ~vargs
               && is_tail env b key ret
               then LS.add env.tailcalls key
             | _ -> !!()))

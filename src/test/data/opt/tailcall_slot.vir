@@ -1,0 +1,9 @@
+module tailcall_slot
+
+export function l $caller(l %x, l %f) {
+  %c = slot 8, align 8
+@start:
+  st.l %f, %c
+  %r = call.l $callee(%c, %x)
+  ret %r
+}

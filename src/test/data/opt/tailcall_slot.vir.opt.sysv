@@ -1,0 +1,9 @@
+module tailcall_slot
+
+export function $caller(l %3/rdi, l %1/rsi) {
+  %0 = slot 8, align 8
+@2:
+  st.l %1, %0 ; @3
+  %4/l/rax = call $callee(%0/rdi, %3/rsi) ; @4
+  ret rax/%4
+}

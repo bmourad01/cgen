@@ -394,6 +394,7 @@ let abi_suite = "Test ABI lowering" >::: [
     "Binary search (SysV)" >:: test_sysv "bsearch";
     "Magic division (SysV)" >:: test_sysv "magic_div";
     "Tail call (SysV)" >:: test_sysv "tailcall";
+    "No tail call past a frame pointer (SysV)" >:: test_sysv "tailcall_slot";
     "Floating point (SysV)" >:: test_sysv "fp";
     "Sumto (SysV)" >:: test_sysv "sumto";
   ]
