@@ -1,0 +1,76 @@
+struct flags {
+  unsigned int ready : 1;
+  unsigned int mode : 3;
+  int sign : 4;
+  unsigned int wide : 20;
+};
+
+unsigned int get_ready(struct flags *f) {
+  return (unsigned int)(int)(*f).ready;
+}
+
+unsigned int get_mode(struct flags *f) {
+  return (unsigned int)(int)(*f).mode;
+}
+
+int get_sign(struct flags *f) {
+  return (int)(*f).sign;
+}
+
+unsigned int get_wide(struct flags *f) {
+  return (unsigned int)(int)(*f).wide;
+}
+
+void set_mode(struct flags *f, unsigned int v) {
+  (*f).mode = v;
+}
+
+void set_sign(struct flags *f, int v) {
+  (*f).sign = v;
+}
+
+void set_wide(struct flags *f, unsigned int v) {
+  (*f).wide = v;
+}
+
+int packed_sum(void) {
+  {
+    ;
+    ;
+    ;
+    ;
+  }
+  struct flags f = {.ready = (unsigned int)1, .mode = (unsigned int)5, .sign = -3, .wide = (unsigned int)1000};
+  return (int)f.ready + (int)f.mode + (int)f.sign + (int)(int)f.wide;
+}
+
+unsigned int assign_value_unsigned(struct flags *f) {
+  {
+    (*f).mode = (unsigned int)13;
+    ;
+    return (*f).mode;
+  }
+}
+
+int assign_value_signed(struct flags *f) {
+  {
+    (*f).sign = 13;
+    ;
+    return (*f).sign;
+  }
+}
+
+unsigned int compound_value(struct flags *f) {
+  unsigned int %0;
+  (*f).mode = (unsigned int)6;
+  {
+    (%0 = (*f).mode, (*f).mode = %0 + (unsigned int)5);
+    ;
+    return (*f).mode;
+  }
+}
+
+int signed_compare(struct flags *f) {
+  short s = (short)-1;
+  return (int)s < (int)(*f).mode;
+}

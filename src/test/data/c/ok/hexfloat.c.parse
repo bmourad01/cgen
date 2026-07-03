@@ -1,0 +1,19 @@
+double hf_frac(void) {
+  return 0x1.8p+3;
+}
+
+double hf_no_point(void) {
+  return 0x1p-4;
+}
+
+double hf_no_int(void) {
+  return 0x1p+0;
+}
+
+double hf_upper(void) {
+  return 0x1p+2;
+}
+
+float hf_float(void) {
+  return 0x1p-4f;
+}

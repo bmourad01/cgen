@@ -10,7 +10,7 @@ module type Pre = sig
 
     (** Creates a switch table from an association list.
 
-        @raise Invalid_argument if the list has duplicate keys.
+        Raises [Invalid_argument] if the list has duplicate keys.
     *)
     val create_exn : (Bv.t * local) list -> Type.imm -> t
 
@@ -32,7 +32,7 @@ module type Pre = sig
 
     (** [map_exn t ~f] applies [f] to each element of [t].
 
-        @raise Invalid_argument if [f] produces a duplicate key.
+        Raises [Invalid_argument] if [f] produces a duplicate key.
     *)
     val map_exn : t -> f:(Bv.t -> local -> Bv.t * local) -> t
 

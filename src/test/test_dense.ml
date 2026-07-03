@@ -62,15 +62,15 @@ let gen_sop =
 module Mops = struct
   type t = mop list [@@deriving sexp]
   let quickcheck_generator = G.list gen_mop
-  let quickcheck_observer = O.opaque
-  let quickcheck_shrinker = S.list S.atomic
+  let quickcheck_observer : t O.t = O.opaque
+  let quickcheck_shrinker : t S.t = S.list S.atomic
 end
 
 module Sops = struct
   type t = sop list [@@deriving sexp]
   let quickcheck_generator = G.list gen_sop
-  let quickcheck_observer = O.opaque
-  let quickcheck_shrinker = S.list S.atomic
+  let quickcheck_observer : t O.t = O.opaque
+  let quickcheck_shrinker : t S.t = S.list S.atomic
 end
 
 let incr = Option.value_map ~default:0 ~f:succ

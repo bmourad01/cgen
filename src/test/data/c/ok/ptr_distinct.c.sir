@@ -1,0 +1,47 @@
+module ptr_distinct
+
+export function sw $cross_assign(w %1) {
+  %0 = slot 4, align 4
+  %2 = slot 4, align 4
+  %3 = slot 8, align 8
+  %4 = slot 8, align 8
+start:
+  st.w %1, %0;
+  st.l %0, %3;
+  %5 = ld.l %3;
+  st.l %5, %4;
+  %6 = ld.l %4;
+  %7 = ld.l %3;
+  %8 = eq.l %6, %7;
+  %9 = flag.w %8;
+  if ne.w %9, 0x0_w {
+    %10 = ld.l %4;
+    %11 = ld.w %10;
+    %12 = ld.w %0;
+    %13 = eq.w %11, %12;
+    %14 = flag.w %13;
+    %15 = ne.w %14, 0x0_w;
+    %16 = flag.w %15;
+    st.w %16, %2
+  } else {
+    st.w 0x0_w, %2
+  };
+  %17 = ld.w %2;
+  ret %17
+}
+
+export function sw $deep_ne(l %20, l %21) {
+  %18 = slot 8, align 8
+  %19 = slot 8, align 8
+  %22 = slot 8, align 8
+start:
+  st.l %20, %18;
+  st.l %21, %19;
+  %23 = ld.l %18;
+  st.l %23, %22;
+  %24 = ld.l %22;
+  %25 = ld.l %19;
+  %26 = ne.l %24, %25;
+  %27 = flag.w %26;
+  ret %27
+}

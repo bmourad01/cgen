@@ -153,7 +153,7 @@
 %token <Bv.t * Type.imm> INT
 %token <Bv.t> NUM
 %token <float> DOUBLE
-%token <Float32.t> SINGLE
+%token <Cgen_utils.Float32.t> SINGLE
 %token <bool> BOOL
 %token <string> IDENT
 %token <string> TEMP

@@ -1,0 +1,137 @@
+struct point {
+  int x;
+  int y;
+};
+
+struct padded {
+  char c;
+  int n;
+};
+
+int g_int = 42;
+
+long g_long = (long)1234567;
+
+char *g_msg = (char *)"hello";
+
+int g_arr[4] = {10, 20, 30, 40};
+
+int g_sparse[5] = {1, 2};
+
+char g_name[8] = "abc";
+
+char g_exact[3] = "abc";
+
+char g_flex[4] = "abc";
+
+char g_empty[4] = "";
+
+struct point g_pt = {.x = 3, .y = 4};
+
+struct padded g_pad = {.c = (char)7, .n = 100};
+
+struct point g_pts[2] = {{.x = 1, .y = 2}, {.x = 3, .y = 4}};
+
+int *g_pelem = &g_arr[2];
+
+int *g_pmemb = &g_pt.y;
+
+int *g_pnull = (int *)(void *)0;
+
+const int *g_pconst = (const int *)&g_int;
+
+const int *g_pcelem = (const int *)&g_arr[1];
+
+const int *g_pcarr[3] = {(const int *)&g_int, (const int *)(void *)0, (const int *)&g_arr[3]};
+
+int get_int(void) {
+  return g_int;
+}
+
+long get_long(void) {
+  return g_long;
+}
+
+char get_msg(int i) {
+  return g_msg[i];
+}
+
+int get_arr(int i) {
+  return ((int *)g_arr)[i];
+}
+
+int get_sparse(int i) {
+  return ((int *)g_sparse)[i];
+}
+
+char get_name(int i) {
+  return ((char *)g_name)[i];
+}
+
+char get_exact(int i) {
+  return ((char *)g_exact)[i];
+}
+
+char get_flex(int i) {
+  return ((char *)g_flex)[i];
+}
+
+char get_empty(int i) {
+  return ((char *)g_empty)[i];
+}
+
+int pt_x(void) {
+  return g_pt.x;
+}
+
+int pt_y(void) {
+  return g_pt.y;
+}
+
+int pad_c(void) {
+  return (int)g_pad.c;
+}
+
+int pad_n(void) {
+  return g_pad.n;
+}
+
+int pts_sum(void) {
+  return ((struct point *)g_pts)[0].x + ((struct point *)g_pts)[0].y + ((struct point *)g_pts)[1].x + ((struct point *)g_pts)[1].y;
+}
+
+int deref_pelem(void) {
+  return *g_pelem;
+}
+
+int deref_pmemb(void) {
+  return *g_pmemb;
+}
+
+int pnull_null(void) {
+  return g_pnull == (int *)(void *)0;
+}
+
+int deref_pconst(void) {
+  return *g_pconst;
+}
+
+int deref_pcelem(void) {
+  return *g_pcelem;
+}
+
+int pcarr_get(int i) {
+  int %0;
+  const int *p = ((const int **)g_pcarr)[i];
+  {
+    if (p) {
+      ;
+      %0 = *p;
+    } else {
+      ;
+      %0 = -1;
+    }
+    ;
+    return %0;
+  }
+}

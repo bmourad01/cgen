@@ -1,0 +1,78 @@
+module divisible
+
+export function sw $s_div3(w %1) {
+@2:
+  %113 = mul.w %1, 0xaaaaaaab_w ; @51
+  %114 = add.w %113, 0x2aaaaaaa_w ; @52
+  %115 = le.w %114, 0x55555554_w ; @53
+  %116 = flag.w %115 ; @54
+  ret %116
+}
+
+export function sw $s_div4(w %7) {
+@8:
+  %121 = and.w %7, 0x3_w ; @59
+  %122 = eq.w %121, 0x0_w ; @60
+  %123 = flag.w %122 ; @61
+  ret %123
+}
+
+export function sw $s_div100(w %13) {
+@14:
+  %132 = mul.w %13, 0xc28f5c29_w ; @70
+  %133 = add.w %132, 0x51eb850_w ; @71
+  %134 = ror.w %133, 0x2_w ; @72
+  %135 = le.w %134, 0x28f5c28_w ; @73
+  %136 = flag.w %135 ; @74
+  ret %136
+}
+
+export function sw $s_ndiv7(w %19) {
+@20:
+  %144 = mul.w %19, 0xb6db6db7_w ; @82
+  %145 = add.w %144, 0x12492492_w ; @83
+  %146 = gt.w %145, 0x24924924_w ; @84
+  %147 = flag.w %146 ; @85
+  ret %147
+}
+
+export function w $u_div6(w %25) {
+@26:
+  %153 = mul.w %25, 0xaaaaaaab_w ; @91
+  %154 = ror.w %153, 0x1_w ; @92
+  %155 = le.w %154, 0x2aaaaaaa_w ; @93
+  %156 = flag.w %155 ; @94
+  ret %156
+}
+
+export function w $u_div10(w %31) {
+@32:
+  %162 = mul.w %31, 0xcccccccd_w ; @100
+  %163 = ror.w %162, 0x1_w ; @101
+  %164 = le.w %163, 0x19999999_w ; @102
+  %165 = flag.w %164 ; @103
+  ret %165
+}
+
+export function w $u_mod7(w %37) {
+@38:
+  %166 = umulh.w %37, 0x24924925_w ; @104
+  %167 = sub.w %37, %166 ; @105
+  %168 = lsr.w %167, 0x1_w ; @106
+  %169 = add.w %168, %166 ; @107
+  %170 = lsr.w %169, 0x2_w ; @108
+  %172 = mul.w %170, 0x7_w ; @110
+  %173 = sub.w %37, %172 ; @111
+  ret %173
+}
+
+export function w $u_mod641(w %41) {
+@42:
+  %174 = umulh.w %41, 0x663d81_w ; @112
+  %175 = lsl.w %174, 0x9_w ; @113
+  %176 = sub.w %41, %175 ; @114
+  %177 = lsl.w %174, 0x7_w ; @115
+  %178 = add.w %177, %174 ; @116
+  %179 = sub.w %176, %178 ; @117
+  ret %179
+}

@@ -185,6 +185,7 @@ rule token = parse
   | "else" { ELSE }
   | "ret" { RET }
   | "loop" { LOOP }
+  | "step" { STEP }
   | "while" { WHILE }
   | "do" { DO }
   | "switch" '.' (imm as t) { SWITCH (imm_of_char t) }
@@ -211,7 +212,7 @@ rule token = parse
     NUM (Bv.bigint_unsafe i)
   }
   | (flt as f) "_d" { DOUBLE (Float.of_string f) }
-  | (flt as f) "_s" { SINGLE (Float32.of_string f) }
+  | (flt as f) "_s" { SINGLE (Cgen_utils.Float32.of_string f) }
   | "true" { BOOL true }
   | "false" { BOOL false }
   | _ { raise Error }

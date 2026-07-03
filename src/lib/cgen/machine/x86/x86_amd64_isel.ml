@@ -4,6 +4,7 @@ open Cgen_containers
 module R = X86_amd64_common.Reg
 module Rv = X86_amd64_common.Regvar
 module Insn = X86_amd64_common.Insn
+module Float32 = Cgen_utils.Float32
 
 let (>*) x f = List.bind x ~f
 

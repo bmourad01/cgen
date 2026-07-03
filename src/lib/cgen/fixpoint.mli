@@ -41,7 +41,7 @@ end
     [edge src dst value] before merging into [dst]; used for
     path-sensitive narrowing.
 
-    @raise Invalid_argument if [start] is not a node in [g].
+    Raises [Invalid_argument] if [start] is not a node in [g].
 *)
 val run :
   (module Label.Graph_s with type t = 'g) ->

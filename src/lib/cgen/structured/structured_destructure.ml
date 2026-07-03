@@ -74,7 +74,7 @@ module Make(C : Context_intf.S_virtual) = struct
       | `nop -> k
       | `seq (s1, s2) -> seq ~ctx s1 s2 k
       | `ite (c, y, n) -> ite ~ctx c y n k
-      | `loop b -> loop ~ctx b k
+      | `loop (b, s) -> loop ~ctx b s k
       | `break -> break ~ctx
       | `continue -> continue ~ctx
       | `sw (i, ty, cs) -> switch ~ctx i ty cs k
@@ -109,14 +109,24 @@ module Make(C : Context_intf.S_virtual) = struct
       let ct = `br (c, dlocal ly, dlocal ln) in
       ctrl ct ops blks
 
-    and loop ~ctx b (k : k) : k = mk@@fun ops blks ->
+    and loop ~ctx b step (k : k) : k = mk@@fun ops blks ->
       (* Loop header continuation. *)
       let* h = C.Label.fresh in
       (* Loop exit continuation. *)
       let* break, blks = k.apply [] blks in
-      (* Loop body. *)
-      let ctx = {ctx with break = Some break; continue = Some h} in
-      let* lb, blks = go ~ctx b (mk@@goto h) [] blks in
+      (* Step region: falls through to the header.
+
+         A `continue` inside the step (unusual) also restarts the loop at
+         the header.
+
+         When `step` is `nop`, `lstep` collapses back to `h`, so a plain
+         loop (or a `while`) lowers exactly as before.
+      *)
+      let ctx_step = {ctx with break = Some break; continue = Some h} in
+      let* lstep, blks = go ~ctx:ctx_step step (mk@@goto h) [] blks in
+      (* Loop body: `continue` (and fall-through) jump to the step region. *)
+      let ctx_body = {ctx with break = Some break; continue = Some lstep} in
+      let* lb, blks = go ~ctx:ctx_body b (mk@@goto lstep) [] blks in
       let* blks = add_blk h [] (`jmp (dlocal lb)) blks in
       (* Jump to the loop header. *)
       goto h ops blks

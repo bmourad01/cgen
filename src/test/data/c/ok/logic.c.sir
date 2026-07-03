@@ -1,0 +1,365 @@
+module logic
+
+export function sw $land(w %2, w %3) {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+start:
+  st.w %2, %0;
+  st.w %3, %1;
+  %4 = ld.w %0;
+  %5 = ld.w %1;
+  %6 = ne.w %5, 0x0_w;
+  %7 = flag.w %6;
+  %8 = ne.w %4, 0x0_w;
+  %9 = sel.w %8, %7, 0x0_w;
+  ret %9
+}
+
+export function sw $lor(w %12, w %13) {
+  %10 = slot 4, align 4
+  %11 = slot 4, align 4
+start:
+  st.w %12, %10;
+  st.w %13, %11;
+  %14 = ld.w %10;
+  %15 = ld.w %11;
+  %16 = ne.w %15, 0x0_w;
+  %17 = flag.w %16;
+  %18 = ne.w %14, 0x0_w;
+  %19 = sel.w %18, 0x1_w, %17;
+  ret %19
+}
+
+export function sw $between(w %23, w %24, w %25) {
+  %20 = slot 4, align 4
+  %21 = slot 4, align 4
+  %22 = slot 4, align 4
+start:
+  st.w %23, %20;
+  st.w %24, %21;
+  st.w %25, %22;
+  %26 = ld.w %21;
+  %27 = ld.w %20;
+  %28 = sle.w %26, %27;
+  %29 = flag.w %28;
+  %30 = ld.w %20;
+  %31 = ld.w %22;
+  %32 = sle.w %30, %31;
+  %33 = flag.w %32;
+  %34 = ne.w %33, 0x0_w;
+  %35 = flag.w %34;
+  %36 = ne.w %29, 0x0_w;
+  %37 = sel.w %36, %35, 0x0_w;
+  ret %37
+}
+
+export function sw $imax(w %40, w %41) {
+  %38 = slot 4, align 4
+  %39 = slot 4, align 4
+start:
+  st.w %40, %38;
+  st.w %41, %39;
+  %42 = ld.w %38;
+  %43 = ld.w %39;
+  %44 = sgt.w %42, %43;
+  %45 = flag.w %44;
+  %46 = ld.w %38;
+  %47 = ld.w %39;
+  %48 = ne.w %45, 0x0_w;
+  %49 = sel.w %48, %46, %47;
+  ret %49
+}
+
+export function sw $iabs(w %51) {
+  %50 = slot 4, align 4
+start:
+  st.w %51, %50;
+  %52 = ld.w %50;
+  %53 = slt.w %52, 0x0_w;
+  %54 = flag.w %53;
+  %55 = ld.w %50;
+  %56 = neg.w %55;
+  %57 = ld.w %50;
+  %58 = ne.w %54, 0x0_w;
+  %59 = sel.w %58, %56, %57;
+  ret %59
+}
+
+export function sw $clamp(w %63, w %64, w %65) {
+  %60 = slot 4, align 4
+  %61 = slot 4, align 4
+  %62 = slot 4, align 4
+start:
+  st.w %63, %60;
+  st.w %64, %61;
+  st.w %65, %62;
+  %66 = ld.w %60;
+  %67 = ld.w %61;
+  %68 = slt.w %66, %67;
+  %69 = flag.w %68;
+  %70 = ld.w %61;
+  %71 = ld.w %60;
+  %72 = ld.w %62;
+  %73 = sgt.w %71, %72;
+  %74 = flag.w %73;
+  %75 = ld.w %62;
+  %76 = ld.w %60;
+  %77 = ne.w %74, 0x0_w;
+  %78 = sel.w %77, %75, %76;
+  %79 = ne.w %69, 0x0_w;
+  %80 = sel.w %79, %70, %78;
+  ret %80
+}
+
+export function sw $is_alpha(w %82) {
+  %81 = slot 4, align 4
+start:
+  st.w %82, %81;
+  %83 = ld.w %81;
+  %84 = sge.w %83, 0x61_w;
+  %85 = flag.w %84;
+  %86 = ld.w %81;
+  %87 = sle.w %86, 0x7a_w;
+  %88 = flag.w %87;
+  %89 = ne.w %88, 0x0_w;
+  %90 = flag.w %89;
+  %91 = ne.w %85, 0x0_w;
+  %92 = sel.w %91, %90, 0x0_w;
+  %93 = ld.w %81;
+  %94 = sge.w %93, 0x41_w;
+  %95 = flag.w %94;
+  %96 = ld.w %81;
+  %97 = sle.w %96, 0x5a_w;
+  %98 = flag.w %97;
+  %99 = ne.w %98, 0x0_w;
+  %100 = flag.w %99;
+  %101 = ne.w %95, 0x0_w;
+  %102 = sel.w %101, %100, 0x0_w;
+  %103 = ne.w %102, 0x0_w;
+  %104 = flag.w %103;
+  %105 = ne.w %92, 0x0_w;
+  %106 = sel.w %105, 0x1_w, %104;
+  ret %106
+}
+
+export function sw $is_leap(w %108) {
+  %107 = slot 4, align 4
+start:
+  st.w %108, %107;
+  %109 = ld.w %107;
+  %110 = rem.w %109, 0x4_w;
+  %111 = eq.w %110, 0x0_w;
+  %112 = flag.w %111;
+  %113 = ld.w %107;
+  %114 = rem.w %113, 0x64_w;
+  %115 = ne.w %114, 0x0_w;
+  %116 = flag.w %115;
+  %117 = ne.w %116, 0x0_w;
+  %118 = flag.w %117;
+  %119 = ne.w %112, 0x0_w;
+  %120 = sel.w %119, %118, 0x0_w;
+  %121 = ld.w %107;
+  %122 = rem.w %121, 0x190_w;
+  %123 = eq.w %122, 0x0_w;
+  %124 = flag.w %123;
+  %125 = ne.w %124, 0x0_w;
+  %126 = flag.w %125;
+  %127 = ne.w %120, 0x0_w;
+  %128 = sel.w %127, 0x1_w, %126;
+  ret %128
+}
+
+export function sw $count_pos(l %131, w %132) {
+  %129 = slot 8, align 8
+  %130 = slot 4, align 4
+  %133 = slot 4, align 4
+  %134 = slot 4, align 4
+start:
+  st.l %131, %129;
+  st.w %132, %130;
+  st.w 0x0_w, %133;
+  st.w 0x0_w, %134;
+  loop {
+    %149 = ld.w %134;
+    %150 = ld.w %130;
+    %151 = slt.w %149, %150;
+    %152 = flag.w %151;
+    unless ne.w %152, 0x0_w {
+      break
+    };
+    %135 = ld.w %133;
+    %136 = ld.l %129;
+    %137 = ld.w %134;
+    %138 = sext.l %137;
+    %139 = mul.l %138, 0x4_l;
+    %140 = add.l %136, %139;
+    %141 = ld.w %140;
+    %142 = sgt.w %141, 0x0_w;
+    %143 = flag.w %142;
+    %144 = ne.w %143, 0x0_w;
+    %145 = sel.w %144, 0x1_w, 0x0_w;
+    %146 = add.w %135, %145;
+    st.w %146, %133
+  } step {
+    %147 = ld.w %134;
+    %148 = add.w %147, 0x1_w;
+    st.w %148, %134
+  };
+  %153 = ld.w %133;
+  ret %153
+}
+
+export function sw $first_is_pos(l %156, w %157) {
+  %154 = slot 8, align 8
+  %155 = slot 4, align 4
+  %158 = slot 4, align 4
+start:
+  st.l %156, %154;
+  st.w %157, %155;
+  %159 = ld.w %155;
+  %160 = sgt.w %159, 0x0_w;
+  %161 = flag.w %160;
+  if ne.w %161, 0x0_w {
+    %162 = ld.l %154;
+    %163 = sext.l 0x0_w;
+    %164 = mul.l %163, 0x4_l;
+    %165 = add.l %162, %164;
+    %166 = ld.w %165;
+    %167 = sgt.w %166, 0x0_w;
+    %168 = flag.w %167;
+    %169 = ne.w %168, 0x0_w;
+    %170 = flag.w %169;
+    st.w %170, %158
+  } else {
+    st.w 0x0_w, %158
+  };
+  %171 = ld.w %158;
+  ret %171
+}
+
+export function sw $guarded(w %174, l %175) {
+  %172 = slot 4, align 4
+  %173 = slot 8, align 8
+  %176 = slot 4, align 4
+  %177 = slot 4, align 4
+start:
+  st.w %174, %172;
+  st.l %175, %173;
+  %178 = ld.w %172;
+  if ne.w %178, 0x0_w {
+    %179 = ld.l %173;
+    %180 = call.sw %179();
+    st.w %180, %176;
+    %181 = ld.w %176;
+    %182 = ne.w %181, 0x0_w;
+    %183 = flag.w %182;
+    st.w %183, %177
+  } else {
+    st.w 0x0_w, %177
+  };
+  %184 = ld.w %177;
+  ret %184
+}
+
+export function sw $max_if(w %187, w %188) {
+  %185 = slot 4, align 4
+  %186 = slot 4, align 4
+start:
+  st.w %187, %185;
+  st.w %188, %186;
+  %189 = ld.w %185;
+  %190 = ld.w %186;
+  %191 = sgt.w %189, %190;
+  %192 = flag.w %191;
+  if ne.w %192, 0x0_w {
+    %193 = ld.w %185;
+    ret %193
+  } else {
+    %194 = ld.w %186;
+    ret %194
+  }
+}
+
+export function sw $sign_if(w %196) {
+  %195 = slot 4, align 4
+start:
+  st.w %196, %195;
+  %197 = ld.w %195;
+  %198 = sgt.w %197, 0x0_w;
+  %199 = flag.w %198;
+  if ne.w %199, 0x0_w {
+    ret 0x1_w
+  } else {
+    %200 = ld.w %195;
+    %201 = slt.w %200, 0x0_w;
+    %202 = flag.w %201;
+    if ne.w %202, 0x0_w {
+      %203 = neg.w 0x1_w;
+      ret %203
+    } else {
+      ret 0x0_w
+    }
+  }
+}
+
+export function sw $choose(w %207, w %208, w %209) {
+  %204 = slot 4, align 4
+  %205 = slot 4, align 4
+  %206 = slot 4, align 4
+  %210 = slot 4, align 4
+start:
+  st.w %207, %204;
+  st.w %208, %205;
+  st.w %209, %206;
+  %211 = ld.w %204;
+  if ne.w %211, 0x0_w {
+    %212 = ld.w %205;
+    st.w %212, %210
+  } else {
+    %213 = ld.w %206;
+    st.w %213, %210
+  };
+  %214 = ld.w %210;
+  %215 = add.w %214, 0x1_w;
+  ret %215
+}
+
+export function sw $count_pos_if(l %218, w %219) {
+  %216 = slot 8, align 8
+  %217 = slot 4, align 4
+  %220 = slot 4, align 4
+  %221 = slot 4, align 4
+start:
+  st.l %218, %216;
+  st.w %219, %217;
+  st.w 0x0_w, %220;
+  st.w 0x0_w, %221;
+  loop {
+    %234 = ld.w %221;
+    %235 = ld.w %217;
+    %236 = slt.w %234, %235;
+    %237 = flag.w %236;
+    unless ne.w %237, 0x0_w {
+      break
+    };
+    %222 = ld.l %216;
+    %223 = ld.w %221;
+    %224 = sext.l %223;
+    %225 = mul.l %224, 0x4_l;
+    %226 = add.l %222, %225;
+    %227 = ld.w %226;
+    %228 = sgt.w %227, 0x0_w;
+    %229 = flag.w %228;
+    when ne.w %229, 0x0_w {
+      %230 = ld.w %220;
+      %231 = add.w %230, 0x1_w;
+      st.w %231, %220
+    }
+  } step {
+    %232 = ld.w %221;
+    %233 = add.w %232, 0x1_w;
+    st.w %233, %221
+  };
+  %238 = ld.w %220;
+  ret %238
+}

@@ -1,0 +1,40 @@
+struct sep {
+  int a : 4;
+  int : 0;
+  int b : 4;
+};
+
+struct lead {
+  int : 0;
+  int a : 5;
+};
+
+int sep_init(void) {
+  {
+    ;
+    ;
+  }
+  struct sep s = {.a = 1, .b = 2};
+  return (int)s.a * 10 + (int)s.b;
+}
+
+int sep_write(int x, int y) {
+  struct sep s = {.a = 0};
+  s.a = x;
+  s.b = y;
+  return (int)s.a * 10 + (int)s.b;
+}
+
+int lead_init(void) {
+  struct lead l = {.a = 0};
+  l.a = 9;
+  return (int)l.a;
+}
+
+unsigned long sep_size(void) {
+  return 8;
+}
+
+unsigned long lead_size(void) {
+  return 4;
+}

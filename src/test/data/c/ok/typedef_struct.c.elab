@@ -1,0 +1,16 @@
+struct point {
+  int x;
+  int y;
+};
+
+struct rect {
+  struct point lo;
+  struct point hi;
+  unsigned char flags : 3;
+};
+
+size_t count;
+
+point origin;
+
+struct rect bounds;

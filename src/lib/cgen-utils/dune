@@ -1,0 +1,10 @@
+(library
+ (name cgen_utils)
+ (public_name cgen.utils)
+ (libraries core monads shexp.process)
+ (ocamlopt_flags -O3)
+ (preprocess
+  (pps ppx_bin_prot ppx_compare ppx_hash ppx_sexp_conv))
+ (foreign_stubs
+  (language c)
+  (names float_stubs)))

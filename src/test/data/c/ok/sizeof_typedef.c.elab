@@ -1,0 +1,16 @@
+struct padded {
+  char used[4];
+  char pad[20];
+};
+
+unsigned long size_of_typedef(void) {
+  return 8;
+}
+
+unsigned long size_of_pointer_typedef(void) {
+  return 8;
+}
+
+unsigned long size_of_padded_struct(void) {
+  return 24;
+}

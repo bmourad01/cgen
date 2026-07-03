@@ -1,0 +1,64 @@
+module funcaddr
+
+function sw $add1(w %1) {
+  %0 = slot 4, align 4
+start:
+  st.w %1, %0;
+  %2 = ld.w %0;
+  %3 = add.w %2, 0x1_w;
+  ret %3
+}
+
+function sw $apply(l %6, w %7) {
+  %4 = slot 8, align 8
+  %5 = slot 4, align 4
+  %8 = slot 4, align 4
+start:
+  st.l %6, %4;
+  st.w %7, %5;
+  %9 = ld.l %4;
+  %10 = ld.w %5;
+  %11 = call.sw %9(%10);
+  st.w %11, %8;
+  %12 = ld.w %8;
+  ret %12
+}
+
+export function sw $via_addr(w %14) {
+  %13 = slot 4, align 4
+  %15 = slot 4, align 4
+start:
+  st.w %14, %13;
+  %16 = ld.w %13;
+  %17 = call.sw $apply($add1, %16);
+  st.w %17, %15;
+  %18 = ld.w %15;
+  ret %18
+}
+
+export function sw $via_bare(w %20) {
+  %19 = slot 4, align 4
+  %21 = slot 4, align 4
+start:
+  st.w %20, %19;
+  %22 = ld.w %19;
+  %23 = call.sw $apply($add1, %22);
+  st.w %23, %21;
+  %24 = ld.w %21;
+  ret %24
+}
+
+export function sw $via_var(w %26) {
+  %25 = slot 4, align 4
+  %27 = slot 4, align 4
+  %28 = slot 8, align 8
+start:
+  st.w %26, %25;
+  st.l $add1, %28;
+  %29 = ld.l %28;
+  %30 = ld.w %25;
+  %31 = call.sw %29(%30);
+  st.w %31, %27;
+  %32 = ld.w %27;
+  ret %32
+}

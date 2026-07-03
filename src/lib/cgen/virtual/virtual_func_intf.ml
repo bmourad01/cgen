@@ -13,7 +13,7 @@ module type S = sig
       It is assumed that [blks] is ordered such that the entry block is
       the first element.
 
-      @raise Invalid_argument if [blks] is empty.
+      Raises [Invalid_argument] if [blks] is empty.
   *)
   val create_exn :
     ?dict:Dict.t ->
@@ -100,7 +100,7 @@ module type S = sig
       with [blks]. The first block in the list is implicitly the entry
       block.
 
-      @raise Invalid_argument if [blks] is empty
+      Raises [Invalid_argument] if [blks] is empty
   *)
   val with_blks_exn : t -> blk list -> t
 
@@ -112,7 +112,7 @@ module type S = sig
 
   (** Returns a mapping from block labels to blocks.
 
-      @raise Invalid_argument if there are duplicate labels
+      Raises [Invalid_argument] if there are duplicate labels
   *)
   val map_of_blks : t -> blk Label.Tree.t
 
@@ -157,7 +157,7 @@ module type S = sig
   (** [remove_blk_exn fn l] removes the block with label [l] from function
       [f].
 
-      @raise Invalid_argument if [l] is the label of the entry block.
+      Raises [Invalid_argument] if [l] is the label of the entry block.
   *)
   val remove_blk_exn : t -> Label.t -> t
 
@@ -166,7 +166,7 @@ module type S = sig
 
   (** Same as [remove_blk_exn], but removes multiple blocks.
 
-      @raise Invalid_argument if one of the labels is the entry block.
+      Raises [Invalid_argument] if one of the labels is the entry block.
   *)
   val remove_blks_exn : t -> Label.t list -> t
 
@@ -216,7 +216,7 @@ module type S = sig
   (** Same as [update_blk], but for a list of blocks for updating in batches,
       which should be more efficient.
 
-      @raise Invalid_argument if the list of blocks contains duplicate labels.
+      Raises [Invalid_argument] if the list of blocks contains duplicate labels.
   *)
   val update_blks_exn : t -> blk list -> t
 

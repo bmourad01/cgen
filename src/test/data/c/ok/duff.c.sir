@@ -1,0 +1,289 @@
+module duff
+
+export function $copy(l %3, l %4, w %5) {
+  %0 = slot 8, align 8
+  %1 = slot 8, align 8
+  %2 = slot 4, align 4
+  %6 = slot 8, align 8
+  %7 = slot 8, align 8
+  %8 = slot 8, align 8
+  %9 = slot 8, align 8
+  %10 = slot 8, align 8
+  %11 = slot 8, align 8
+  %12 = slot 8, align 8
+  %13 = slot 8, align 8
+  %14 = slot 8, align 8
+  %15 = slot 8, align 8
+  %16 = slot 8, align 8
+  %17 = slot 8, align 8
+  %18 = slot 8, align 8
+  %19 = slot 8, align 8
+  %20 = slot 8, align 8
+  %21 = slot 8, align 8
+  %22 = slot 4, align 4
+  %23 = slot 4, align 4
+start:
+  st.l %3, %0;
+  st.l %4, %1;
+  st.w %5, %2;
+  %24 = ld.w %2;
+  %25 = add.w %24, 0x7_w;
+  %26 = div.w %25, 0x8_w;
+  st.w %26, %23;
+  %27 = ld.w %2;
+  %28 = rem.w %27, 0x8_w;
+  switch.w %28 {
+  case 0x0_w:
+    goto @2
+  case 0x7_w:
+    goto @3
+  case 0x6_w:
+    goto @4
+  case 0x5_w:
+    goto @5
+  case 0x4_w:
+    goto @6
+  case 0x3_w:
+    goto @7
+  case 0x2_w:
+    goto @8
+  case 0x1_w:
+    goto @9
+  default:
+    goto @10
+  };
+  @2:
+    loop {
+      %29 = ld.l %0;
+      st.l %29, %6;
+      %30 = ld.l %6;
+      %31 = sext.l 0x1_w;
+      %32 = mul.l %31, 0x4_l;
+      %33 = add.l %30, %32;
+      st.l %33, %0;
+      %34 = ld.l %1;
+      st.l %34, %7;
+      %35 = ld.l %7;
+      %36 = sext.l 0x1_w;
+      %37 = mul.l %36, 0x4_l;
+      %38 = add.l %35, %37;
+      st.l %38, %1;
+      %39 = ld.l %6;
+      %40 = ld.l %7;
+      %41 = ld.w %40;
+      st.w %41, %39;
+      @3:
+        %42 = ld.l %0;
+        st.l %42, %8;
+        %43 = ld.l %8;
+        %44 = sext.l 0x1_w;
+        %45 = mul.l %44, 0x4_l;
+        %46 = add.l %43, %45;
+        st.l %46, %0;
+        %47 = ld.l %1;
+        st.l %47, %9;
+        %48 = ld.l %9;
+        %49 = sext.l 0x1_w;
+        %50 = mul.l %49, 0x4_l;
+        %51 = add.l %48, %50;
+        st.l %51, %1;
+        %52 = ld.l %8;
+        %53 = ld.l %9;
+        %54 = ld.w %53;
+        st.w %54, %52;
+      @4:
+        %55 = ld.l %0;
+        st.l %55, %10;
+        %56 = ld.l %10;
+        %57 = sext.l 0x1_w;
+        %58 = mul.l %57, 0x4_l;
+        %59 = add.l %56, %58;
+        st.l %59, %0;
+        %60 = ld.l %1;
+        st.l %60, %11;
+        %61 = ld.l %11;
+        %62 = sext.l 0x1_w;
+        %63 = mul.l %62, 0x4_l;
+        %64 = add.l %61, %63;
+        st.l %64, %1;
+        %65 = ld.l %10;
+        %66 = ld.l %11;
+        %67 = ld.w %66;
+        st.w %67, %65;
+      @5:
+        %68 = ld.l %0;
+        st.l %68, %12;
+        %69 = ld.l %12;
+        %70 = sext.l 0x1_w;
+        %71 = mul.l %70, 0x4_l;
+        %72 = add.l %69, %71;
+        st.l %72, %0;
+        %73 = ld.l %1;
+        st.l %73, %13;
+        %74 = ld.l %13;
+        %75 = sext.l 0x1_w;
+        %76 = mul.l %75, 0x4_l;
+        %77 = add.l %74, %76;
+        st.l %77, %1;
+        %78 = ld.l %12;
+        %79 = ld.l %13;
+        %80 = ld.w %79;
+        st.w %80, %78;
+      @6:
+        %81 = ld.l %0;
+        st.l %81, %14;
+        %82 = ld.l %14;
+        %83 = sext.l 0x1_w;
+        %84 = mul.l %83, 0x4_l;
+        %85 = add.l %82, %84;
+        st.l %85, %0;
+        %86 = ld.l %1;
+        st.l %86, %15;
+        %87 = ld.l %15;
+        %88 = sext.l 0x1_w;
+        %89 = mul.l %88, 0x4_l;
+        %90 = add.l %87, %89;
+        st.l %90, %1;
+        %91 = ld.l %14;
+        %92 = ld.l %15;
+        %93 = ld.w %92;
+        st.w %93, %91;
+      @7:
+        %94 = ld.l %0;
+        st.l %94, %16;
+        %95 = ld.l %16;
+        %96 = sext.l 0x1_w;
+        %97 = mul.l %96, 0x4_l;
+        %98 = add.l %95, %97;
+        st.l %98, %0;
+        %99 = ld.l %1;
+        st.l %99, %17;
+        %100 = ld.l %17;
+        %101 = sext.l 0x1_w;
+        %102 = mul.l %101, 0x4_l;
+        %103 = add.l %100, %102;
+        st.l %103, %1;
+        %104 = ld.l %16;
+        %105 = ld.l %17;
+        %106 = ld.w %105;
+        st.w %106, %104;
+      @8:
+        %107 = ld.l %0;
+        st.l %107, %18;
+        %108 = ld.l %18;
+        %109 = sext.l 0x1_w;
+        %110 = mul.l %109, 0x4_l;
+        %111 = add.l %108, %110;
+        st.l %111, %0;
+        %112 = ld.l %1;
+        st.l %112, %19;
+        %113 = ld.l %19;
+        %114 = sext.l 0x1_w;
+        %115 = mul.l %114, 0x4_l;
+        %116 = add.l %113, %115;
+        st.l %116, %1;
+        %117 = ld.l %18;
+        %118 = ld.l %19;
+        %119 = ld.w %118;
+        st.w %119, %117;
+      @9:
+        %120 = ld.l %0;
+        st.l %120, %20;
+        %121 = ld.l %20;
+        %122 = sext.l 0x1_w;
+        %123 = mul.l %122, 0x4_l;
+        %124 = add.l %121, %123;
+        st.l %124, %0;
+        %125 = ld.l %1;
+        st.l %125, %21;
+        %126 = ld.l %21;
+        %127 = sext.l 0x1_w;
+        %128 = mul.l %127, 0x4_l;
+        %129 = add.l %126, %128;
+        st.l %129, %1;
+        %130 = ld.l %20;
+        %131 = ld.l %21;
+        %132 = ld.w %131;
+        st.w %132, %130;
+      %133 = ld.w %23;
+      st.w %133, %22;
+      %134 = ld.w %22;
+      %135 = sub.w %134, 0x1_w;
+      st.w %135, %23
+    } step {
+      %136 = ld.w %22;
+      %137 = sub.w %136, 0x1_w;
+      %138 = sgt.w %137, 0x0_w;
+      %139 = flag.w %138;
+      unless ne.w %139, 0x0_w {
+        break
+      }
+    };
+  @10:
+    nop
+}
+
+export function sw $scoped(w %142, w %143) {
+  %140 = slot 4, align 4
+  %141 = slot 4, align 4
+  %144 = slot 4, align 4
+  %145 = slot 4, align 4
+  %146 = slot 4, align 4
+  %147 = slot 4, align 4
+  %148 = slot 4, align 4
+start:
+  st.w %142, %140;
+  st.w %143, %141;
+  st.w 0x0_w, %147;
+  st.w 0x0_w, %148;
+  %149 = ld.w %140;
+  switch.w %149 {
+  case 0x0_w:
+    goto @11
+  case 0x1_w:
+    goto @12
+  default:
+    goto @13
+  };
+  @11:
+    loop {
+      %160 = ld.w %148;
+      %161 = ld.w %141;
+      %162 = slt.w %160, %161;
+      %163 = flag.w %162;
+      unless ne.w %163, 0x0_w {
+        break
+      };
+      %150 = ld.w %148;
+      st.w %150, %144;
+      %151 = ld.w %144;
+      %152 = add.w %151, 0x1_w;
+      st.w %152, %148;
+      @12:
+        %153 = ld.w %147;
+        st.w %153, %145;
+        %154 = ld.w %145;
+        %155 = ld.w %148;
+        %156 = add.w %154, %155;
+        st.w %156, %147;
+      %157 = ld.w %148;
+      %158 = eq.w %157, 0x3_w;
+      %159 = flag.w %158;
+      when ne.w %159, 0x0_w {
+        break
+      }
+    };
+  %164 = ld.w %147;
+  st.w %164, %146;
+  %165 = ld.w %146;
+  %166 = add.w %165, 0x1_w;
+  st.w %166, %147;
+  goto @14;
+  @13:
+    %167 = neg.w 0x1_w;
+    st.w %167, %147;
+  @14:
+    nop;
+  %168 = ld.w %147;
+  ret %168
+}

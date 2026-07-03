@@ -30,7 +30,7 @@ type t = [
   | `nop
   | `seq of t * t
   | `ite of cond * t * t
-  | `loop of t
+  | `loop of t * t
   | `break
   | `continue
   | `sw of Virtual.Ctrl.swindex * Type.imm * swcase list
@@ -53,7 +53,7 @@ let rec pp ppf : t -> unit = function
   | `seq (t1, t2) ->
     Format.fprintf ppf "%a;@;%a" pp t1 pp t2
   | `ite (c, y, n) -> pp_ite ppf c y n
-  | `loop b -> pp_loop ppf b
+  | `loop (b, s) -> pp_loop ppf b s
   | `break ->
     Format.fprintf ppf "break"
   | `continue ->
@@ -96,15 +96,27 @@ and pp_dowhile ppf b c =
     "do {@;@[<v 2>  %a@]@;} while %a"
     pp b pp_cond c
 
-and pp_loop ppf = function
-  | `seq (`ite (c, `nop, `break), b)
-  | `ite (c, b, `break)
-    -> pp_while ppf c b
-  | `ite (`cmp (k, l, r), `break, b) ->
+and pp_loop ppf body step = match body, step with
+  (* A `while` loop tests at the top of the body, with no step region. *)
+  | (`seq (`ite (c, `nop, `break), b) | `ite (c, b, `break)), `nop ->
+    pp_while ppf c b
+  | `ite (`cmp (k, l, r), `break, b), `nop ->
     let k = Virtual.Insn.negate_cmp k in
     pp_while ppf (`cmp (k, l, r)) b
-  | `seq (b, `ite (c, `nop, `break)) -> pp_dowhile ppf b c
-  | b ->  Format.fprintf ppf "loop {@;@[<v 2>  %a@]@;}" pp b
+  (* A `do`-`while` loop's step region is the condition test. *)
+  | b, `ite (c, `nop, `break) -> pp_dowhile ppf b c
+  | b, `ite (`cmp (k, l, r), `break, `nop) ->
+    let k = Virtual.Insn.negate_cmp k in
+    pp_dowhile ppf b (`cmp (k, l, r))
+  (* A plain loop with no step region. *)
+  | b, `nop ->
+    Format.fprintf ppf "loop {@;@[<v 2>  %a@]@;}" pp b
+  (* The general case: a loop with an explicit step region (e.g. a
+     `for` loop's increment). *)
+  | b, s ->
+    Format.fprintf ppf
+      "loop {@;@[<v 2>  %a@]@;} step {@;@[<v 2>  %a@]@;}"
+      pp b pp s
 
 and pp_when ppf c b =
   Format.fprintf ppf
@@ -132,15 +144,14 @@ let while_ c b =
     `seq (
       unless c `break,
       b
-    )
+    ),
+    `nop
   )
 
 let dowhile b c =
   `loop (
-    `seq (
-      b,
-      unless c `break
-    )
+    b,
+    unless c `break
   )
 
 let[@tail_mod_cons] rec seq : t list -> t = function
@@ -174,7 +185,8 @@ let[@tail_mod_cons] rec normalize (s : t) : t = match s with
     end
   | `ite (c, y, n) ->
     `ite (c, (normalize [@tailcall false]) y, (normalize [@tailcall]) n)
-  | `loop b -> `loop (normalize b)
+  | `loop (b, s) ->
+    `loop ((normalize [@tailcall false]) b, (normalize [@tailcall]) s)
   | `sw (i, ty, cs) ->
     `sw (i, ty, List.map cs ~f:normalize_swcase)
   | `label (l, b) -> `label (l, normalize b)

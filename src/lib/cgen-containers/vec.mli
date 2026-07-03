@@ -52,7 +52,7 @@ val push : 'a t -> 'a -> unit
 
 (** [pop_exn t] removes and returns the element at the end of [t].
 
-    @raise Invalid_argument if [t] is empty.
+    Raises [Invalid_argument] if [t] is empty.
 *)
 val pop_exn : 'a t -> 'a
 
@@ -61,7 +61,7 @@ val pop : 'a t -> 'a option
 
 (** [get_exn t i] returns the element at index [i] from [t].
 
-    @raise Invalid_argument if [i] is out of bounds.
+    Raises [Invalid_argument] if [i] is out of bounds.
 *)
 val get_exn : 'a t -> int -> 'a
 
@@ -82,7 +82,7 @@ val back : 'a t -> 'a option
 
 (** [set_exn t i x] sets the element at index [i] to [x] in [t].
 
-    @raise Invalid_argument if [i] is out of bounds.
+    Raises [Invalid_argument] if [i] is out of bounds.
 *)
 val set_exn : 'a t -> int -> 'a -> unit
 

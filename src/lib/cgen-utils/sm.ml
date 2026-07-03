@@ -1,31 +1,42 @@
-(* Efficient state + error monad. *)
+(** Efficient state + error monad.
+
+    The monadic type is a single CPS function that takes a state plus
+    [reject] and [accept] continuations, avoiding any per-bind allocation
+    of [Result.t] cells.
+
+    Parameterized over the user's [error] type via [S.of_or_error], so
+    different callers can attach their own structured errors (e.g. a
+    diagnostic record with source location) instead of bare strings.
+*)
 
 open Core
 open Monads.Std
 
 module type S = sig
   type state
-  val error_prefix : string
+  type error
+
+  (** Lift an [Error.t] (used internally by [failf] and [lift_err])
+      into the user's error type. *)
+  val of_or_error : Error.t -> error
 end
 
 module Make(M : S) = struct
   type 'a m = {
-    run : 'r. reject:(Error.t -> 'r) -> accept:('a -> M.state -> 'r) -> M.state -> 'r;
+    run : 'r. reject:(M.error -> 'r) -> accept:('a -> M.state -> 'r) -> M.state -> 'r;
   }
 
-  let fail err = {
+  let fail (err : M.error) = {
     run = fun ~reject ~accept:_ _ -> reject err
-  }
+  } [@@inline]
 
   let failf fmt =
     let buf = Buffer.create 512 in
     let ppf = Format.formatter_of_buffer buf in
     let kon ppf () =
       Format.pp_print_flush ppf ();
-      let err =
-        Error.createf "%s: %s" M.error_prefix @@
-        Buffer.contents buf in
-      fail err in
+      let err = Error.of_string (Buffer.contents buf) in
+      fail (M.of_or_error err) in
     Format.kfprintf kon ppf fmt
 
   module SM = Monad.Make(struct
@@ -53,9 +64,11 @@ module Make(M : S) = struct
 
   let lift_err ?prefix : 'a Or_error.t -> 'a m = function
     | Ok x -> return x
-    | Error err -> match prefix with
-      | None -> failf "%a" Error.pp err ()
-      | Some p -> failf "%s: %a" p Error.pp err ()
+    | Error err ->
+      let err = match prefix with
+        | None -> err
+        | Some p -> Error.tag err ~tag:p in
+      fail (M.of_or_error err)
 
   module Syntax = struct
     include SM.Syntax
@@ -100,6 +113,8 @@ module Make(M : S) = struct
       x.run s ~accept ~reject:(fun p ->
           (err p).run ~reject ~accept s)
   } [@@inline]
+
+  let run x ~init ~reject ~accept = x.run ~reject ~accept init
 
   module List = struct
     include List

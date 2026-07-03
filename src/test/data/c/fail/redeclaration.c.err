@@ -1,0 +1,3 @@
+data/c/fail/redeclaration.c:2:1-8: error: conflicting types for 'g'
+ 2 | char g;
+   | ^~~~~~~

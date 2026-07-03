@@ -98,7 +98,7 @@ module Func : sig
 
       [rets]: the registers returned by the function
 
-      @raise Invalid_argument if [blks] is empty.
+      Raises [Invalid_argument] if [blks] is empty.
   *)
   val create_exn :
     ?dict:Dict.t ->
@@ -204,7 +204,7 @@ module Func : sig
   (** Same as [update_blk], but for a list of blocks for updating in batches,
       which should be more efficient.
 
-      @raise Invalid_argument if the list of blocks contains duplicate labels.
+      Raises [Invalid_argument] if the list of blocks contains duplicate labels.
   *)
   val update_blks_exn : ('a, 'b) t -> 'a blk list -> ('a, 'b) t
 
@@ -230,13 +230,13 @@ module Func : sig
   (** [remove_blk_exn fn l] removes the block with label [l] from function
       [f].
 
-      @raise Invalid_argument if [l] is the label of the entry block.
+      Raises [Invalid_argument] if [l] is the label of the entry block.
   *)
   val remove_blk_exn : ('a, 'b) t -> Label.t -> ('a, 'b) t
 
   (** Same as [remove_blk_exn], but removes multiple blocks.
 
-      @raise Invalid_argument if one of the labels is the entry block.
+      Raises [Invalid_argument] if one of the labels is the entry block.
   *)
   val remove_blks_exn : ('a, 'b) t -> Label.t list -> ('a, 'b) t
 

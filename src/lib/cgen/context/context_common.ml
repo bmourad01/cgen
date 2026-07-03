@@ -24,9 +24,10 @@ type ctx = {
 
 let error_prefix = "Context error"
 
-module M = Sm.Make(struct
+module M = Cgen_utils.Sm.Make(struct
     type state = ctx
-    let error_prefix = error_prefix
+    type error = Error.t
+    let of_or_error e = Error.tag e ~tag:error_prefix
   end)
 
 include M.Syntax

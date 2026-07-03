@@ -1,0 +1,88 @@
+module static_local
+
+export data $shared = {
+  0x7_w
+}
+
+data $counter.0 = {
+  0x0_w
+}
+
+data $counter.1 = {
+  0x64_w
+}
+
+data $msg.2 = {
+  "hi",
+  z 1
+}
+
+data $base.3 = {
+  0xa_w
+}
+
+export function sw $next_id() {
+start:
+  %0 = ld.w $counter.0;
+  %1 = add.w %0, 0x1_w;
+  st.w %1, $counter.0;
+  %2 = ld.w $counter.0;
+  ret %2
+}
+
+export function sw $next_seq() {
+start:
+  %3 = ld.w $counter.1;
+  %4 = add.w %3, 0x1_w;
+  st.w %4, $counter.1;
+  %5 = ld.w $counter.1;
+  ret %5
+}
+
+export function sb $greeting_char(w %7) {
+  %6 = slot 4, align 4
+start:
+  st.w %7, %6;
+  %8 = ld.w %6;
+  %9 = sext.l %8;
+  %10 = add.l $msg.2, %9;
+  %11 = ld.b %10;
+  ret %11
+}
+
+export function sw $squares(w %13) {
+  %12 = slot 4, align 4
+  %14 = slot 4, align 4
+  %15 = slot 4, align 4
+start:
+  st.w %13, %12;
+  st.w 0x0_w, %14;
+  st.w 0x0_w, %15;
+  loop {
+    %23 = ld.w %15;
+    %24 = ld.w %12;
+    %25 = slt.w %23, %24;
+    %26 = flag.w %25;
+    unless ne.w %26, 0x0_w {
+      break
+    };
+    %16 = ld.w %14;
+    %17 = ld.w $base.3;
+    %18 = add.w %16, %17;
+    %19 = ld.w %15;
+    %20 = add.w %18, %19;
+    st.w %20, %14
+  } step {
+    %21 = ld.w %15;
+    %22 = add.w %21, 0x1_w;
+    st.w %22, %15
+  };
+  %27 = ld.w %14;
+  ret %27
+}
+
+export function sw $get_shared() {
+start:
+  %28 = ld.w $shared;
+  ret %28
+}

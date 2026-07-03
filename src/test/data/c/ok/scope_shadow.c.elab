@@ -1,0 +1,37 @@
+int g = 7;
+
+int after_block(void) {
+  int r;
+  {
+    int g = 99;
+    r = g;
+  }
+  return r + g;
+}
+
+int nested(void) {
+  int x = 1;
+  {
+    int x = 2;
+    {
+      int x = 3;
+      if (x != 3)
+        return -1;
+    }
+    if (x != 2)
+      return -2;
+  }
+  return x;
+}
+
+int for_shadow(void) {
+  int %0;
+  int %1;
+  int sum = 0;
+  {
+    int g = 0;
+    for (; g < 5; %1 = g, g = %1 + 1)
+      (%0 = sum, sum = %0 + g);
+  }
+  return sum + g;
+}

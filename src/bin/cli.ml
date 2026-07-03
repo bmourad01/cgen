@@ -13,14 +13,17 @@ let fatal fmt =
 type input_fmt =
   | IFvirtual
   | IFstructured
+  | IFc
 
 let string_of_input_fmt = function
   | IFvirtual -> "virtual"
   | IFstructured -> "structured"
+  | IFc -> "c"
 
 let input_fmt_of_string_opt = function
   | "virtual" -> Some IFvirtual
   | "structured" -> Some IFstructured
+  | "c" -> Some IFc
   | _ -> None
 
 let man_input_fmt =
@@ -30,6 +33,7 @@ let man_input_fmt =
         `I (string_of_input_fmt i ^ ":", desc)) [
       IFvirtual, "Virtual IR (.vir)";
       IFstructured, "Structured IR (.sir)";
+      IFc, "C source (.c)";
     ]
   end
 
@@ -51,6 +55,8 @@ let file =
 
 type dump =
   | Dparse
+  | Delab
+  | Dstructured
   | Ddestructure
   | Dssa
   | Drestructure_preopt
@@ -66,6 +72,8 @@ type dump =
 
 let string_of_dump = function
   | Dparse -> "parse"
+  | Delab -> "elab"
+  | Dstructured -> "structured"
   | Ddestructure -> "destructure"
   | Dssa -> "ssa"
   | Drestructure_preopt -> "restructure-preopt"
@@ -80,6 +88,8 @@ let string_of_dump = function
 
 let dump_of_string_opt = function
   | "parse" -> Some Dparse
+  | "elab" -> Some Delab
+  | "structured" -> Some Dstructured
   | "destructure" -> Some Ddestructure
   | "ssa" -> Some Dssa
   | "restructure-preopt" -> Some Drestructure_preopt
@@ -99,7 +109,9 @@ let man_dump =
     Core.List.map ~f:(fun (d, desc) ->
         `I (string_of_dump d ^ ":", desc)) [
       Dparse, "dump the IR after parsing";
-      Ddestructure, "dump the IR after destructuring (for .sir)";
+      Delab, "dump the typed AST after elaboration (for .c)";
+      Dstructured, "dump the Structured IR after lowering (for .c)";
+      Ddestructure, "dump the IR after destructuring (for .sir/.c)";
       Dssa, "dump the IR after SSA transformation";
       Drestructure_preopt, "dump the IR in structured (.sir) form, after SSA transformation, \
                             but before middle-end optimizations";
@@ -127,6 +139,22 @@ let dump_no_comment =
 let check_invariants =
   let doc = "Enable internal invariant checking (slow; intended for development)" in
   Arg.(value & flag (info ["check-invariants"] ~doc))
+
+let cpp =
+  let doc = "Preprocessor command for C inputs (whitespace-split; the input \
+             file, or '-' for stdin, is appended). cgen appends its own \
+             target predefines, so a bare '-undef' preprocessor is preferred. \
+             Defaults to 'cpp -undef'." in
+  Arg.(value & opt string "cpp -undef" (info ["cpp"] ~docv:"CMD" ~doc))
+
+let no_cpp =
+  let doc = "Treat C input as already preprocessed and do not run the \
+             preprocessor." in
+  Arg.(value & flag (info ["no-cpp"] ~doc))
+
+let no_warnings =
+  let doc = "Suppress diagnostic warnings from the C front-end." in
+  Arg.(value & flag (info ["w"; "no-warnings"] ~doc))
 
 let man_targets =
   `S "TARGET" ::
@@ -166,6 +194,9 @@ type t = {
   target     : Cgen.Target.t;
   ifmt       : input_fmt;
   invariants : bool;
+  cpp        : string;
+  no_cpp     : bool;
+  no_warnings : bool;
 }
 
 let log_env = Cmd.Env.info "CGEN_LOG"
@@ -176,8 +207,9 @@ let setup_log level =
 
 let is_vir = Core.String.is_suffix ~suffix:".vir" [@@ocaml.warning "-32"]
 let is_sir = Core.String.is_suffix ~suffix:".sir"
+let is_c = Core.String.is_suffix ~suffix:".c"
 
-let go f file output dump nc target ifmt invariants log_level =
+let go f file output dump nc target ifmt invariants cpp no_cpp no_warnings log_level =
   setup_log log_level;
   let file = match file with
     | "" -> Istdin
@@ -199,8 +231,9 @@ let go f file output dump nc target ifmt invariants log_level =
       end
     | None -> match file with
       | Ifile f when is_sir f -> IFstructured
+      | Ifile f when is_c f -> IFc
       | Ifile _ | Istdin -> IFvirtual in
-  f {file; output; dump; nc; target; ifmt; invariants}
+  f {file; output; dump; nc; target; ifmt; invariants; cpp; no_cpp; no_warnings}
 
 let t f =
   let open Term in
@@ -212,6 +245,9 @@ let t f =
   target $
   input_fmt $
   check_invariants $
+  cpp $
+  no_cpp $
+  no_warnings $
   Logs_cli.level ~env:log_env ()
 
 let man = List.concat [

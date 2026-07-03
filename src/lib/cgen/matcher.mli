@@ -149,7 +149,7 @@ module Make(M : L) : sig
 
     (** The ID of the term that was passed to [init].
 
-        @raise Failure if the VM was uninitialized
+        Raises [Failure] if the VM was uninitialized
     *)
     val root : _ state -> id
 

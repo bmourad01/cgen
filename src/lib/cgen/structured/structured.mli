@@ -47,7 +47,11 @@ module Stmt : sig
       - [`seq (a, b)]: executes the statement [a], then [b]
       - [`ite (c, y, n)]: if the condition [c] is true, then [y] is executed,
         otherwise [n] is executed
-      - [`loop b]: execute [b] in a loop
+      - [`loop (b, s)]: execute the body [b] in a loop. On fall-through or
+        [`continue], the step region [s] runs, then control returns to the
+        top of [b]. A [`break] exits the loop. The step region is where
+        [`continue] lands, e.g. the increment of a C [for] loop or the
+        trailing condition test of a [do]-[while].
       - [`sw (i, ty, cs)]: based on the index [i] of type [ty], branch to the
         matching case in [cs]
       - [`label (l, b)]: marks a label [l] as a target for a [goto], with
@@ -61,7 +65,7 @@ module Stmt : sig
     | `nop
     | `seq of t * t
     | `ite of cond * t * t
-    | `loop of t
+    | `loop of t * t
     | `break
     | `continue
     | `sw of Virtual.Ctrl.swindex * Type.imm * swcase list
@@ -99,13 +103,13 @@ module Stmt : sig
 
   (** Helper for constructing a simple "while" loop.
 
-      Equivalent to [`loop (`seq (unless cond `break, body))]
+      Equivalent to [`loop (`seq (unless cond `break, body), `nop)]
   *)
   val while_ : cond -> t -> t
 
   (** Helper for constructing a simple "do while" loop.
 
-      Equivalent to [`loop (`seq (body, unless cond `break))]
+      Equivalent to [`loop (body, unless cond `break)]
   *)
   val dowhile : t -> cond -> t
 

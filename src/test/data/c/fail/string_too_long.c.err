@@ -1,0 +1,3 @@
+data/c/fail/string_too_long.c:4:1-21: error: string literal too long for 'char [2]'
+ 4 | char buf[2] = "abc";
+   | ^~~~~~~~~~~~~~~~~~~~

@@ -1,0 +1,231 @@
+module bitfield
+
+type :flags = {
+  w
+}
+
+export function w $get_ready(l %1) {
+  %0 = slot 8, align 8
+start:
+  st.l %1, %0;
+  %2 = ld.l %0;
+  %3 = ld.w %2;
+  %4 = lsl.w %3, 0x1f_w;
+  %5 = lsr.w %4, 0x1f_w;
+  ret %5
+}
+
+export function w $get_mode(l %7) {
+  %6 = slot 8, align 8
+start:
+  st.l %7, %6;
+  %8 = ld.l %6;
+  %9 = ld.w %8;
+  %10 = lsl.w %9, 0x1c_w;
+  %11 = lsr.w %10, 0x1d_w;
+  ret %11
+}
+
+export function sw $get_sign(l %13) {
+  %12 = slot 8, align 8
+start:
+  st.l %13, %12;
+  %14 = ld.l %12;
+  %15 = ld.w %14;
+  %16 = lsl.w %15, 0x18_w;
+  %17 = asr.w %16, 0x1c_w;
+  ret %17
+}
+
+export function w $get_wide(l %19) {
+  %18 = slot 8, align 8
+start:
+  st.l %19, %18;
+  %20 = ld.l %18;
+  %21 = ld.w %20;
+  %22 = lsl.w %21, 0x4_w;
+  %23 = lsr.w %22, 0xc_w;
+  ret %23
+}
+
+export function $set_mode(l %26, w %27) {
+  %24 = slot 8, align 8
+  %25 = slot 4, align 4
+start:
+  st.l %26, %24;
+  st.w %27, %25;
+  %28 = ld.l %24;
+  %29 = ld.w %25;
+  %30 = ld.w %28;
+  %31 = and.w %30, 0xfffffff1_w;
+  %32 = lsl.w %29, 0x1_w;
+  %33 = and.w %32, 0xe_w;
+  %34 = or.w %31, %33;
+  st.w %34, %28
+}
+
+export function $set_sign(l %37, w %38) {
+  %35 = slot 8, align 8
+  %36 = slot 4, align 4
+start:
+  st.l %37, %35;
+  st.w %38, %36;
+  %39 = ld.l %35;
+  %40 = ld.w %36;
+  %41 = ld.w %39;
+  %42 = and.w %41, 0xffffff0f_w;
+  %43 = lsl.w %40, 0x4_w;
+  %44 = and.w %43, 0xf0_w;
+  %45 = or.w %42, %44;
+  st.w %45, %39
+}
+
+export function $set_wide(l %48, w %49) {
+  %46 = slot 8, align 8
+  %47 = slot 4, align 4
+start:
+  st.l %48, %46;
+  st.w %49, %47;
+  %50 = ld.l %46;
+  %51 = ld.w %47;
+  %52 = ld.w %50;
+  %53 = and.w %52, 0xf00000ff_w;
+  %54 = lsl.w %51, 0x8_w;
+  %55 = and.w %54, 0xfffff00_w;
+  %56 = or.w %53, %55;
+  st.w %56, %50
+}
+
+export function sw $packed_sum() {
+  %57 = slot 4, align 4
+start:
+  %58 = ld.w %57;
+  %59 = and.w %58, 0xfffffffe_w;
+  %60 = lsl.w 0x1_w, 0x0_w;
+  %61 = and.w %60, 0x1_w;
+  %62 = or.w %59, %61;
+  st.w %62, %57;
+  %63 = ld.w %57;
+  %64 = and.w %63, 0xfffffff1_w;
+  %65 = lsl.w 0x5_w, 0x1_w;
+  %66 = and.w %65, 0xe_w;
+  %67 = or.w %64, %66;
+  st.w %67, %57;
+  %68 = neg.w 0x3_w;
+  %69 = ld.w %57;
+  %70 = and.w %69, 0xffffff0f_w;
+  %71 = lsl.w %68, 0x4_w;
+  %72 = and.w %71, 0xf0_w;
+  %73 = or.w %70, %72;
+  st.w %73, %57;
+  %74 = ld.w %57;
+  %75 = and.w %74, 0xf00000ff_w;
+  %76 = lsl.w 0x3e8_w, 0x8_w;
+  %77 = and.w %76, 0xfffff00_w;
+  %78 = or.w %75, %77;
+  st.w %78, %57;
+  %79 = ld.w %57;
+  %80 = lsl.w %79, 0x1f_w;
+  %81 = lsr.w %80, 0x1f_w;
+  %82 = ld.w %57;
+  %83 = lsl.w %82, 0x1c_w;
+  %84 = lsr.w %83, 0x1d_w;
+  %85 = add.w %81, %84;
+  %86 = ld.w %57;
+  %87 = lsl.w %86, 0x18_w;
+  %88 = asr.w %87, 0x1c_w;
+  %89 = add.w %85, %88;
+  %90 = ld.w %57;
+  %91 = lsl.w %90, 0x4_w;
+  %92 = lsr.w %91, 0xc_w;
+  %93 = add.w %89, %92;
+  ret %93
+}
+
+export function w $assign_value_unsigned(l %95) {
+  %94 = slot 8, align 8
+start:
+  st.l %95, %94;
+  %96 = ld.l %94;
+  %97 = ld.w %96;
+  %98 = and.w %97, 0xfffffff1_w;
+  %99 = lsl.w 0xd_w, 0x1_w;
+  %100 = and.w %99, 0xe_w;
+  %101 = or.w %98, %100;
+  st.w %101, %96;
+  %102 = ld.l %94;
+  %103 = ld.w %102;
+  %104 = lsl.w %103, 0x1c_w;
+  %105 = lsr.w %104, 0x1d_w;
+  ret %105
+}
+
+export function sw $assign_value_signed(l %107) {
+  %106 = slot 8, align 8
+start:
+  st.l %107, %106;
+  %108 = ld.l %106;
+  %109 = ld.w %108;
+  %110 = and.w %109, 0xffffff0f_w;
+  %111 = lsl.w 0xd_w, 0x4_w;
+  %112 = and.w %111, 0xf0_w;
+  %113 = or.w %110, %112;
+  st.w %113, %108;
+  %114 = ld.l %106;
+  %115 = ld.w %114;
+  %116 = lsl.w %115, 0x18_w;
+  %117 = asr.w %116, 0x1c_w;
+  ret %117
+}
+
+export function w $compound_value(l %119) {
+  %118 = slot 8, align 8
+  %120 = slot 4, align 4
+start:
+  st.l %119, %118;
+  %121 = ld.l %118;
+  %122 = ld.w %121;
+  %123 = and.w %122, 0xfffffff1_w;
+  %124 = lsl.w 0x6_w, 0x1_w;
+  %125 = and.w %124, 0xe_w;
+  %126 = or.w %123, %125;
+  st.w %126, %121;
+  %127 = ld.l %118;
+  %128 = ld.w %127;
+  %129 = lsl.w %128, 0x1c_w;
+  %130 = lsr.w %129, 0x1d_w;
+  st.w %130, %120;
+  %131 = ld.l %118;
+  %132 = ld.w %120;
+  %133 = add.w %132, 0x5_w;
+  %134 = ld.w %131;
+  %135 = and.w %134, 0xfffffff1_w;
+  %136 = lsl.w %133, 0x1_w;
+  %137 = and.w %136, 0xe_w;
+  %138 = or.w %135, %137;
+  st.w %138, %131;
+  %139 = ld.l %118;
+  %140 = ld.w %139;
+  %141 = lsl.w %140, 0x1c_w;
+  %142 = lsr.w %141, 0x1d_w;
+  ret %142
+}
+
+export function sw $signed_compare(l %144) {
+  %143 = slot 8, align 8
+  %145 = slot 2, align 2
+start:
+  st.l %144, %143;
+  %146 = neg.w 0x1_w;
+  %147 = itrunc.h %146;
+  st.h %147, %145;
+  %148 = ld.h %145;
+  %149 = sext.w %148;
+  %150 = ld.l %143;
+  %151 = ld.w %150;
+  %152 = lsl.w %151, 0x1c_w;
+  %153 = lsr.w %152, 0x1d_w;
+  %154 = slt.w %149, %153;
+  %155 = flag.w %154;
+  ret %155
+}

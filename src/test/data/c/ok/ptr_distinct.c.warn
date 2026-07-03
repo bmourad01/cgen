@@ -1,0 +1,12 @@
+data/c/ok/ptr_distinct.c:4:17-18: warning: assignment from incompatible pointer type: 'int *' to 'unsigned int *'
+ 4 |   unsigned *p = q;
+   |                 ^
+data/c/ok/ptr_distinct.c:5:16-17: warning: comparison of distinct pointer types: 'unsigned int *' and 'int *'
+ 5 |   return (p == q) && (*p == (unsigned)x);
+   |                ^
+data/c/ok/ptr_distinct.c:10:29-30: warning: assignment from incompatible pointer type: 'signed char ***' to 'const signed char ***'
+ 10 |   const signed char ***ca = a;
+    |                             ^
+data/c/ok/ptr_distinct.c:11:16-17: warning: comparison of distinct pointer types: 'const signed char ***' and 'signed char ***'
+ 11 |   return ca != b;
+    |                ^

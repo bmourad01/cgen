@@ -1,0 +1,19 @@
+int cross_assign(int x) {
+  int %0;
+  int *q = &x;
+  unsigned int *p = (unsigned int *)q;
+  {
+    if (p == q) {
+      ;
+      %0 = *p == (unsigned int)x != (int)0;
+    } else
+      %0 = 0;
+    ;
+    return %0;
+  }
+}
+
+int deep_ne(signed char ***a, signed char ***b) {
+  const signed char ***ca = (const signed char ***)a;
+  return ca != b;
+}

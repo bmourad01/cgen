@@ -1,0 +1,45 @@
+struct S {
+  int a;
+  int b;
+};
+
+static int counter;
+
+int add7(void) {
+  int %0;
+  (%0 = counter, counter = %0 + 7);
+  return counter;
+}
+
+unsigned int mul(unsigned int a, unsigned int b) {
+  int %0;
+  (%0 = counter, counter = %0 + (int)(a * b));
+  return a * b;
+}
+
+int *setp(int *p, int v) {
+  *p = v;
+  return p;
+}
+
+struct S mk(int v) {
+  int %0;
+  (%0 = counter, counter = %0 + v);
+  {
+    ;
+    ;
+  }
+  struct S s = {.a = v, .b = v + 1};
+  return s;
+}
+
+int run(void) {
+  counter = 0;
+  ((int (*)(void))add7)();
+  ((int (*)(void))add7)();
+  ((unsigned int (*)(unsigned int a, unsigned int b))mul)((unsigned int)3, (unsigned int)4);
+  int x = 0;
+  ((int *(*)(int *p, int v))setp)(&x, 99);
+  ((struct S (*)(int v))mk)(5);
+  return counter + x;
+}

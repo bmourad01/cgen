@@ -1,6 +1,7 @@
 open Core
 open Virtual.Abi
 
+module Float32 = Cgen_utils.Float32
 module Id = Int
 
 type id = Id.t [@@deriving compare, equal, hash, sexp]

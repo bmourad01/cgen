@@ -108,14 +108,14 @@ module Make(K : Hashtbl.Key.S) = struct
   let equal_key k1 k2 = K.compare k1 k2 = 0
 
   let find_index a k =
-    (Binary_search.binary_search [@specialised]) a
+    Binary_search.binary_search a
       ~get:(fun a i -> fst a.(i))
       ~length:Array.length
       ~compare:K.compare
       `First_equal_to k
 
   let find_insert_index a k =
-    (Binary_search.binary_search [@specialised]) a
+    Binary_search.binary_search a
       ~get:(fun a i -> fst a.(i))
       ~length:Array.length
       ~compare:K.compare

@@ -1,10 +1,24 @@
 (test
  (name test_opt)
- (libraries cgen golden ocamldiff ounit2 process)
+ (libraries cgen golden ocamldiff ounit2 native)
  (modules test_opt)
  (ocamlopt_flags -O3)
  (deps
   (glob_files_rec data/*)))
+
+(test
+ (name test_c)
+ (libraries cgen-c cgen.utils cgen golden ounit2 native)
+ (modules test_c)
+ (ocamlopt_flags -O3)
+ (deps
+  (glob_files_rec data/c/*)))
+
+(library
+ (name native)
+ (libraries cgen cgen.utils golden ounit2 shexp.process)
+ (modules native)
+ (ocamlopt_flags -O3))
 
 (library
  (name test_type)
@@ -17,7 +31,7 @@
 
 (library
  (name test_allen)
- (libraries cgen)
+ (libraries cgen cgen.utils)
  (modules test_allen)
  (ocamlopt_flags -O3)
  (inline_tests)
@@ -91,10 +105,4 @@
  (name golden)
  (libraries core core_unix core_unix.filename_unix ocamldiff)
  (modules golden)
- (ocamlopt_flags -O3))
-
-(library
- (name process)
- (libraries core shexp.process)
- (modules process)
  (ocamlopt_flags -O3))

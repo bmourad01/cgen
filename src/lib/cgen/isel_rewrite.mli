@@ -24,7 +24,7 @@ module Pattern : sig
 
   (** Helpers for constructing patterns. *)
   module Op : sig
-    (** {1} Toplevel instructions. *)
+    (** {1 Toplevel instructions} *)
 
     (** [store t x y]: store value [x] of type [t] to address [y]. *)
     val store : [Type.basic | `v128] -> sub -> sub -> toplevel
@@ -58,7 +58,7 @@ module Pattern : sig
         itself (see [Subst.table]). *)
     val sw : Type.imm -> sub -> sub -> toplevel
 
-    (** {1} Constants. *)
+    (** {1 Constants} *)
 
     (** [bool b]: a constant boolean value [b]. *)
     val bool : bool -> sub
@@ -82,23 +82,23 @@ module Pattern : sig
     val i64 : int64 -> sub
 
     (** [single s]: a constant single-precision floating point value [s]. *)
-    val single : Float32.t -> sub
+    val single : Cgen_utils.Float32.t -> sub
 
     (** [sym s o]: a constant symbol [s] at offset [o]. *)
     val sym : string -> int -> sub
 
-    (** {1} Loads. *)
+    (** {1 Loads} *)
 
     (** [load t x]: load a value of type [t] from address [x]. *)
     val load : Type.basic -> sub -> sub
 
-    (** {1} Conditional selection. *)
+    (** {1 Conditional selection} *)
 
     (** [sel t c y n]: select either [y] or [n] of type [t], depending on
         the value of condition [c]. *)
     val sel : Type.basic -> sub -> sub -> sub -> sub
 
-    (** {1} Binary operators. *)
+    (** {1 Binary operators} *)
 
     (** [add t x y]: adds [x] and [y] of type [t]. *)
     val add : Type.basic -> sub -> sub -> sub
@@ -157,7 +157,7 @@ module Pattern : sig
     (** [xor t x y]: exclusive OR of [x] and [y] of type [t]. *)
     val xor : Type.imm -> sub -> sub -> sub
 
-    (** {6} Comparison operators. *)
+    (** {2 Comparison operators} *)
 
     (** [eq t x y]: equality condition for [x] and [y] of type [t]. *)
     val eq : Type.basic -> sub -> sub -> sub
@@ -219,7 +219,7 @@ module Pattern : sig
         [x] and [y] of type [t] is unordered. *)
     val uo : Type.fp -> sub -> sub -> sub
 
-    (** {1} Unary operators. *)
+    (** {1 Unary operators} *)
 
     (** [neg t x]: negate the term [x] of type [t]. *)
     val neg : Type.basic -> sub -> sub
@@ -239,7 +239,7 @@ module Pattern : sig
         value of of type [t]. *)
     val popcnt : Type.imm -> sub -> sub
 
-    (** {1} Cast operators. *)
+    (** {1 Cast operators} *)
 
     (** [fext t x]: extend the floating point value [x] to type [t]. *)
     val fext : Type.fp -> sub -> sub
@@ -299,7 +299,7 @@ module Subst : sig
   val imm : 'r t -> string -> (Bv.t * Type.imm) option
 
   (** Lookup a 32-bit float constant. *)
-  val single : 'r t -> string -> Float32.t option
+  val single : 'r t -> string -> Cgen_utils.Float32.t option
 
   (** Lookup a 64-bit float constant. *)
   val double : 'r t -> string -> float option

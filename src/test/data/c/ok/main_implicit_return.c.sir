@@ -1,0 +1,14 @@
+module main_implicit_return
+
+export function sw $main() {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+start:
+  st.w 0x0_w, %1;
+  %2 = ld.w %1;
+  st.w %2, %0;
+  %3 = ld.w %0;
+  %4 = add.w %3, 0x1_w;
+  st.w %4, %1;
+  ret 0x0_w
+}

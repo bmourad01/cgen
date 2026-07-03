@@ -1,0 +1,76 @@
+module incomplete_types
+
+type :a_node = {
+  w,
+  l
+}
+
+type :b_node = {
+  w,
+  l
+}
+
+type :list_node = {
+  w,
+  l
+}
+
+export function sw $is_null(l %1) {
+  %0 = slot 8, align 8
+start:
+  st.l %1, %0;
+  %2 = ld.l %0;
+  %3 = sext.l 0x0_w;
+  %4 = eq.l %2, %3;
+  %5 = flag.w %4;
+  ret %5
+}
+
+export function sw $cross(l %7) {
+  %6 = slot 8, align 8
+start:
+  st.l %7, %6;
+  %8 = ld.l %6;
+  %9 = ld.w %8;
+  %10 = ld.l %6;
+  %11 = add.l %10, 0x8_l;
+  %12 = ld.l %11;
+  %13 = ld.w %12;
+  %14 = add.w %9, %13;
+  %15 = ld.l %6;
+  %16 = add.l %15, 0x8_l;
+  %17 = ld.l %16;
+  %18 = add.l %17, 0x8_l;
+  %19 = ld.l %18;
+  %20 = ld.w %19;
+  %21 = add.w %14, %20;
+  ret %21
+}
+
+export function sw $sum(l %23) {
+  %22 = slot 8, align 8
+  %24 = slot 4, align 4
+  %25 = slot 4, align 4
+start:
+  st.l %23, %22;
+  st.w 0x0_w, %25;
+  loop {
+    %34 = ld.l %22;
+    unless ne.l %34, 0x0_l {
+      break
+    };
+    %26 = ld.w %25;
+    st.w %26, %24;
+    %27 = ld.w %24;
+    %28 = ld.l %22;
+    %29 = ld.w %28;
+    %30 = add.w %27, %29;
+    st.w %30, %25;
+    %31 = ld.l %22;
+    %32 = add.l %31, 0x8_l;
+    %33 = ld.l %32;
+    st.l %33, %22
+  };
+  %35 = ld.w %25;
+  ret %35
+}

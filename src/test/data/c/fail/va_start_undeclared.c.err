@@ -1,0 +1,3 @@
+data/c/fail/va_start_undeclared.c:6:26-36: error: undefined identifier 'undeclared'
+ 6 |   __builtin_va_start(ap, undeclared);
+   |                          ^~~~~~~~~~

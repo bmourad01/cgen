@@ -1,9 +1,9 @@
 open Core
 open Monads.Std
 open Regular.Std
-open Graphlib.Std
 
 module E = Monad.Result.Error
+module L = Layout
 
 type imm_base = [
   | `i32
@@ -140,232 +140,88 @@ let pp_datum ppf : datum -> unit = function
   | `opaque n     -> Format.fprintf ppf "?%d" n
   | `union (u, _) -> Format.fprintf ppf ":%s" u
 
-type data = datum array [@@deriving bin_io, compare, equal, sexp]
+module Field = struct
+  type t = field [@@deriving bin_io, compare, equal, hash, sexp]
+  type nonrec datum = datum [@@deriving bin_io, compare, equal, hash, sexp]
 
-module Data = Regular.Make(struct
-    type t = data [@@deriving bin_io, compare, equal, sexp]
+  let pad n = `pad n
+  let opaque n = `opaque n
 
-    let pp ppf ds =
-      let last = Array.length ds - 1 in
-      Array.iteri ds ~f:(fun i d ->
-          Format.fprintf ppf "%a" pp_datum d;
-          if i < last then Format.fprintf ppf ", ")
+  let datum_bytes : datum -> int = function
+    | #basic as b -> sizeof_basic b / 8
+    | `pad n | `opaque n | `union (_, n) -> n
 
-    let module_name = Some "Cgen.Type.Data"
-    let version = "0.1"
-    let hash x = String.hash @@ Format.asprintf "%a" pp x
-  end)
+  let try_merge a b = match a, b with
+    | `pad a, `pad b -> Some (`pad (a + b))
+    | `opaque a, `opaque b -> Some (`opaque (a + b))
+    | _ -> None
 
-let hash_fold_data = Data.hash_fold_t
+  let refs : t -> string list = function
+    | `elt _ -> []
+    | `name (n, _) -> [n]
 
-type layout = {
-  align   : int;
-  size    : int;
-  members : (data, data list) Either.t;
-} [@@deriving bin_io, compare, equal, hash, sexp]
-
-let pp_layout ppf l = match l.members with
-  | First d ->
-    Format.fprintf ppf "%d/%d(%a)" l.align l.size Data.pp d
-  | Second ds ->
-    let pp_sep ppf () = Format.fprintf ppf "; " in
-    Format.fprintf ppf "%d/%d(%a)" l.align l.size
-      (Format.pp_print_list ~pp_sep Data.pp) ds
-
-let sizeof_layout l = l.size
-
-module Layout = struct
-  type t = layout
-
-  let sizeof = sizeof_layout
-  let align l = l.align
-  let is_empty l = l.size = 0
-
-  let members l = Either.map l.members
-      ~first:Array.to_sequence_mutable
-      ~second:(fun ds ->
-          Seq.of_list ds |>
-          Seq.map ~f:Array.to_sequence_mutable)
-
-  (* pre: `align` is a positive power of 2 *)
-  let padding size align =
-    ((size + align - 1) land -align) - size
-
-  (* pre: the list is accumulated in reverse *)
-  let padded data = function
-    | 0 -> data | p -> `pad p :: data
-
-  (* pre: the list is accumulated in reverse *)
-  let coalesce =
-    let rec aux acc = function
-      | [] -> acc
-      | `pad a :: `pad b :: ds ->
-        aux acc @@ `pad (a + b) :: ds
-      | `opaque a :: `opaque b :: ds ->
-        aux acc @@ `opaque (a + b) :: ds
-      | d :: ds -> aux (d :: acc) ds in
-    aux []
-
-  let finalize data align size =
-    padding size align |> padded data |> coalesce |> Array.of_list
-
-  let sizeof_data d = Array.fold d ~init:0 ~f:(fun sz -> function
-      | #basic as b -> sz + (sizeof_basic b / 8)
-      | `pad n | `opaque n | `union (_, n) -> sz + n)
-
-  (* Compute the datum list, alignment, and total byte size for
-     a single field in a compound type declaration. *)
-  let field_data gamma name (f : field) =
+  let field_data ~gamma ~enclosing (f : t) =
     match f with
     | `elt (_, c) | `name (_, c) when c <= 0 ->
       invalid_argf "Invalid field %s for type :%s"
-        (Format.asprintf "%a" pp_field f) name ()
+        (Format.asprintf "%a" pp_field f) enclosing ()
     | `elt (t, c) ->
       let s = sizeof_basic t / 8 in
       let d = List.init c ~f:(fun _ -> (t :> datum)) in
       d, s, s * c
-    | `name (s, _) when String.(s = name) ->
+    | `name (s, _) when String.(s = enclosing) ->
       invalid_argf "Type :%s is incomplete, it cannot \
-                    contain itself as a field" name ()
+                    contain itself as a field" enclosing ()
     | `name (s, c) -> match gamma s with
       | exception exn ->
         invalid_argf "Invalid argument :%s for gamma: %s"
           s (Exn.to_string exn) ()
-      | {align = a; _} when a <= 0 ->
-        invalid_argf "Invalid alignment %d for type :%s" a s ()
-      | {size = 0; align; _} ->
+      | l when L.align l <= 0 ->
+        invalid_argf "Invalid alignment %d for type :%s" (L.align l) s ()
+      | l when L.sizeof l = 0 ->
         (* Empty: preserve alignment. *)
-        [], align, 0
+        [], L.align l, 0
       | l ->
-        let sz = sizeof l in
-        let d = match l.members with
+        let sz = L.sizeof l in
+        let d = match L.members l with
           | First m ->
-            let data = Array.to_list m in
-            List.init c ~f:(fun _ -> data) |> List.concat
+            List.init c ~f:(fun _ -> m) |> List.concat
           | Second _ ->
             List.init c ~f:(fun _ -> (`union (s, sz) : datum)) in
-        d, l.align, sz * c
+        d, L.align l, sz * c
+end
 
-  let create_compound gamma name align fields =
-    let data, align, size =
-      let init = [], Option.value align ~default:1, 0 in
-      List.fold fields ~init ~f:(fun (data, align, size) f ->
-          let fdata, falign, fsize = field_data gamma name f in
-          let pad = padding size falign in
-          let align = max align falign in
-          let data = List.rev_append fdata @@ padded data pad in
-          data, align, size + pad + fsize) in
-    let member = finalize data align size in
-    {align; size = sizeof_data member; members = First member}
+let pp_data ppf ds =
+  let pp_sep ppf () = Format.fprintf ppf ", " in
+  Format.pp_print_list ~pp_sep pp_datum ppf ds
 
-  let create_union gamma name align fields =
-    let fields' = List.map fields ~f:(field_data gamma name) in
-    let align = List.fold fields'
-        ~init:(Option.value align ~default:1)
-        ~f:(fun acc (_, falign, _) -> max acc falign) in
-    let raw_size = List.fold fields' ~init:0
-        ~f:(fun acc (_, _, fsize) -> max acc fsize) in
-    let size =
-      if raw_size = 0 then 0
-      else raw_size + padding raw_size align in
-    let members = if size = 0 then [] else
-        (* Each field becomes a separate member datum array,
-           padded to the union's total size. *)
-        List.map fields' ~f:(fun (fdata, _, fsize) ->
-            let tail_pad = size - fsize in
-            let data = List.rev fdata in
-            let data = if tail_pad > 0 then `pad tail_pad :: data else data in
-            Array.of_list @@ coalesce data) in
-    {align; size; members = Second members}
+let pp_layout ppf l = match L.members l with
+  | First d ->
+    Format.fprintf ppf "%d/%d(%a)" (L.align l) (L.sizeof l) pp_data d
+  | Second ds ->
+    let pp_sep ppf () = Format.fprintf ppf "; " in
+    Format.fprintf ppf "%d/%d(%a)" (L.align l) (L.sizeof l)
+      (Format.pp_print_list ~pp_sep pp_data) ds
 
-  let create gamma : named -> layout = function
-    | `opaque (s, n, _) | `struct_ (s, Some n, _)
-    | `union (s, Some n, _)
-      when n < 1 || (n land (n - 1)) <> 0 ->
-      invalid_argf "Invalid alignment %d for type :%s, \
-                    must be positive power of 2" n s ()
-    | `opaque (s, _, n) when n < 1 ->
-      invalid_argf "Invalid number of bytes %d for opaque \
-                    type :%s, must be greater than 0" n s ()
-    | `opaque (_, align, n) ->
-      let d = Array.of_list @@ padded [`opaque n] @@ padding n align in
-      {align; size = sizeof_data d; members = First d}
-    | `struct_ (_, Some n, []) ->
-      {align = n; size = 0; members = First [||]}
-    | `struct_ (_, None, []) ->
-      {align = 1; size = 0; members = First [||]}
-    | `union (_, Some n, []) ->
-      {align = n; size = 0; members = Second []}
-    | `union (_, None, []) ->
-      {align = 1; size = 0; members = Second []}
-    | `struct_ (name, align, fields) ->
-      create_compound gamma name align fields
-    | `union (name, align, fields) ->
-      create_union gamma name align fields
+let sizeof_layout = L.sizeof
 
-  module Typegraph = Graphlib.Make(String)(Unit)
+module Layout = struct
+  include L.Make(Field)
 
-  let build_tenv (ts : named list) =
-    List.fold ts ~init:String.Map.empty ~f:(fun tenv t ->
-        let name = named_name t in
-        match Map.add tenv ~key:name ~data:t with
-        | `Duplicate -> invalid_argf "Duplicate type :%s" name ()
-        | `Ok tenv -> tenv)
-
-  let build_typ_graph tenv ts =
-    let add_fields name fields g =
-      let init = Typegraph.Node.insert name g in
-      List.fold fields ~init ~f:(fun g -> function
-          | `elt _ -> g
-          | `name (n, _) when Map.mem tenv n ->
-            Typegraph.Edge.(insert (create n name ()) g)
-          | `name (n, _) ->
-            invalid_argf "Undeclared type field :%s in type :%s"
-              n name ()) in
-    List.fold ts ~init:Typegraph.empty ~f:(fun g -> function
-        | `opaque (name, _, _) -> Typegraph.Node.insert name g
-        | `struct_ (name, _, fields)
-        | `union (name, _, fields) -> add_fields name fields g)
-
-  let check_typ_cycles g =
-    Graphlib.strong_components (module Typegraph) g |>
-    Partition.groups |> Seq.iter ~f:(fun grp ->
-        match Seq.to_list @@ Group.enum grp with
-        | [] -> ()
-        | [name] ->
-          let succs = Typegraph.Node.succs name g in
-          if Seq.mem succs name ~equal:String.equal
-          then invalid_argf "Cycle detected in type :%s" name ()
-        | xs ->
-          invalid_argf "Cycle detected in types %s"
-            (List.to_string ~f:(fun s -> ":" ^ s) xs)
-            ())
-
-  let layouts tenv g =
-    let genv = String.Table.create () in
-    Graphlib.reverse_postorder_traverse (module Typegraph) g |>
-    Seq.map ~f:(fun name ->
-        let t = Map.find_exn tenv name in
-        let gamma name = match Hashtbl.find genv name with
-          | None -> invalid_argf "Type :%s not found in gamma" name ()
-          | Some l -> l in
-        let l = create gamma t in
-        Hashtbl.set genv ~key:name ~data:l;
-        name, l) |> Seq.to_list
-
-  let of_types ts =
-    let tenv = build_tenv ts in
-    let g = build_typ_graph tenv ts in
-    check_typ_cycles g;
-    layouts tenv g
+  let sizeof = L.sizeof
+  let align = L.align
+  let is_empty = L.is_empty
+  let members = L.members
 
   include Regular.Make(struct
-      type t = layout [@@deriving bin_io, compare, equal, hash, sexp]
+      type nonrec t = t [@@deriving bin_io, compare, equal, hash, sexp]
       let pp = pp_layout
       let version = "0.1"
       let module_name = Some "Cgen.Type.Layout"
     end)
 end
+
+type layout = Layout.t [@@deriving bin_io, compare, equal, hash, sexp]
 
 let layout_exn = Layout.create
 

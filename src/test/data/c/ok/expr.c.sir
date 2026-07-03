@@ -1,0 +1,72 @@
+module expr
+
+export function sw $compute(w %2, w %3) {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+  %4 = slot 4, align 4
+  %5 = slot 4, align 4
+  %6 = slot 4, align 4
+  %15 = slot 4, align 4
+  %24 = slot 4, align 4
+  %32 = slot 4, align 4
+start:
+  st.w %2, %0;
+  st.w %3, %1;
+  %7 = ld.w %0;
+  %8 = ld.w %1;
+  %9 = mul.w %7, %8;
+  %10 = ld.w %0;
+  %11 = ld.w %1;
+  %12 = sub.w %10, %11;
+  %13 = div.w %12, 0x2_w;
+  %14 = add.w %9, %13;
+  st.w %14, %6;
+  %16 = ld.w %0;
+  %17 = ld.w %1;
+  %18 = sgt.w %16, %17;
+  %19 = flag.w %18;
+  %20 = ld.w %0;
+  %21 = ld.w %1;
+  %22 = ne.w %19, 0x0_w;
+  %23 = sel.w %22, %20, %21;
+  st.w %23, %15;
+  %25 = ld.w %0;
+  %26 = ld.w %1;
+  %27 = and.w %25, %26;
+  %28 = ld.w %0;
+  %29 = ld.w %1;
+  %30 = xor.w %28, %29;
+  %31 = or.w %27, %30;
+  st.w %31, %24;
+  %33 = ld.w %0;
+  %34 = ld.w %1;
+  %35 = ne.w %34, 0x0_w;
+  %36 = flag.w %35;
+  %37 = ne.w %33, 0x0_w;
+  %38 = sel.w %37, %36, 0x0_w;
+  %39 = ld.w %6;
+  %40 = eq.w %39, 0x0_w;
+  %41 = flag.w %40;
+  %42 = ne.w %41, 0x0_w;
+  %43 = flag.w %42;
+  %44 = ne.w %38, 0x0_w;
+  %45 = sel.w %44, 0x1_w, %43;
+  st.w %45, %32;
+  %46 = ld.w %6;
+  st.w %46, %4;
+  %47 = ld.w %4;
+  %48 = ld.w %15;
+  %49 = add.w %47, %48;
+  st.w %49, %6;
+  %50 = ld.w %6;
+  st.w %50, %5;
+  %51 = ld.w %5;
+  %52 = lsl.w %51, 0x1_w;
+  st.w %52, %6;
+  %53 = ld.w %6;
+  %54 = ld.w %24;
+  %55 = add.w %53, %54;
+  %56 = ld.w %32;
+  %57 = add.w %55, %56;
+  ret %57
+}

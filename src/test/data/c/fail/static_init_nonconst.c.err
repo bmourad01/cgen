@@ -1,0 +1,3 @@
+data/c/fail/static_init_nonconst.c:6:9-10: error: initializer element is not a constant expression
+ 6 | int g = x;
+   |         ^

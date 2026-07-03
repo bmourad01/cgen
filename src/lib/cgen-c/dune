@@ -1,0 +1,16 @@
+(include_subdirs qualified)
+
+(ocamllex c_lexer)
+
+(menhir
+ (modules c_parser)
+ (explain true))
+
+(library
+ (name cgen_c)
+ (public_name cgen-c)
+ (preprocess
+  (pps ppx_bin_prot ppx_compare ppx_fields_conv ppx_hash ppx_sexp_conv))
+ (libraries cgen cgen.utils cgen.containers shexp.process)
+ (private_modules c_lexer c_parser lexer_hack parse_state)
+ (ocamlopt_flags -O3))

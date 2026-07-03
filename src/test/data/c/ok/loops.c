@@ -1,0 +1,57 @@
+int
+sum_odds(int n) {
+  int s = 0;
+  for (int i = 0; i < n; i = i + 1) {
+    if (i % 2 == 0)
+      continue;
+    s = s + i;
+  }
+  return s;
+}
+
+int
+count_down(int n) {
+  int c = 0;
+  while (n > 0) {
+    n = n - 1;
+    if (n % 3 == 0)
+      continue;
+    c = c + 1;
+  }
+  return c;
+}
+
+int
+do_at_least_once(int n) {
+  int c = 0;
+  do {
+    c = c + 1;
+  } while (c < n);
+  return c;
+}
+
+int
+do_count(int n) {
+  int i = 0;
+  int c = 0;
+  do {
+    i = i + 1;
+    if (i % 4 == 0)
+      continue;
+    c = c + 1;
+  } while (i < n);
+  return c;
+}
+
+int
+grid(int rows, int cols) {
+  int total = 0;
+  for (int r = 0; r < rows; r = r + 1) {
+    for (int c = 0; c < cols; c = c + 1) {
+      if (c == 1)
+        continue;
+      total = total + 1;
+    }
+  }
+  return total;
+}

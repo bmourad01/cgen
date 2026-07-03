@@ -387,14 +387,17 @@ module Make(C : Context_intf.S) = struct
         | None -> ctx'
         | Some j -> Region.push_join j ctx' in
       let* body = plain t n ~ctx:ctx' in
+      (* XXX: we cannot currently recover a distinct step region from an
+         arbitrary CFG, so the step is always empty: a `continue` here
+         means "jump back to the header", which a `nop`-step loop does. *)
       match j with
-      | None -> !!(`loop body)
+      | None -> !!(`loop (body, `nop))
       | Some j ->
         Logs.debug (fun m ->
             m "%s: loop %a at %a exiting to %a%!"
               __FUNCTION__ Loops.pp_loop lp Label.pp n Label.pp j);
         let+ j = node t j ~ctx in
-        `seq (`loop body, j)
+        `seq (`loop (body, `nop), j)
 
     (* Plain body and terminator. *)
     and plain t n ~ctx =

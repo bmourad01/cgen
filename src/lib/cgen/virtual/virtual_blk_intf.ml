@@ -44,7 +44,7 @@ module type S = sig
 
   (** Returns a mapping from instruction labels to instructions.
 
-      @raise Invalid_argument if there are duplicate labels
+      Raises [Invalid_argument] if there are duplicate labels
   *)
   val map_of_insns : t -> insn Label.Tree.t
 

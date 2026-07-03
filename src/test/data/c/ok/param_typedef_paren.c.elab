@@ -1,0 +1,5 @@
+int takes_fp(int (*)(Num));
+
+int takes_ptr(int *Num);
+
+int takes_int(int x);

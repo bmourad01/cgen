@@ -1,0 +1,3 @@
+data/c/fail/static_local_nonconst.c:5:18-19: error: initializer element is not a constant expression
+ 5 |   static int x = n;
+   |                  ^
