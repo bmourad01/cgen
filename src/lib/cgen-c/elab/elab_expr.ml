@@ -1104,14 +1104,37 @@ module Make(A : Annotation) = struct
   *)
   and lval_compound ty init cont =
     let* target = ET.elab ~elab_size ty in
-    let* prefix, completed_ty, flat =
-      EI.elab ~elab_rval ~ty:target init in
-    let* tmp = Ctx.fresh_tlval ~init:flat completed_ty in
-    let+ tail = cont tmp in
-    mkblock [
-      Bstmt prefix;
-      Bstmt tail;
-    ]
+    let* fname = M.gets Ctx.func_name in
+    match fname with
+    | None ->
+      (* §6.5.2.5 ¶6: a compound literal that occurs outside the body of a
+         function has static storage duration. Hoist it to a private global
+         and designate that object, so its address is a constant usable in a
+         static initializer (e.g. `static int *p = (int[]){1,2,3}`). Its
+         initializer must itself be constant. *)
+      let* _prefix, completed_ty, flat =
+        EI.elab ~require_const:true ~elab_rval ~ty:target init in
+      let* sym = Ctx.fresh_static_sym ~source:"compound" in
+      let* () = Ctx.add_global ~name:sym ~ty:completed_ty in
+      let* () =
+        Ctx.hoist_global @@
+        Tdecl.global ()
+          ~init:flat
+          ~name:sym
+          ~ty:completed_ty
+          ~linkage:Tdecl.Lstatic
+          ~tls:false in
+      cont (Texpr.lvar sym ~ty:completed_ty)
+    | Some _ ->
+      (* Inside a function: automatic storage, a block-local temporary. *)
+      let* prefix, completed_ty, flat =
+        EI.elab ~elab_rval ~ty:target init in
+      let* tmp = Ctx.fresh_tlval ~init:flat completed_ty in
+      let+ tail = cont tmp in
+      mkblock [
+        Bstmt prefix;
+        Bstmt tail;
+      ]
 
   (* `+` / `-` (§6.5.6): pointer +/- integer, integer +/- pointer,
      pointer - pointer (yields ptrdiff_t, represented here as signed

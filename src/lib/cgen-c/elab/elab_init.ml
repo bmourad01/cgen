@@ -379,11 +379,18 @@ module Make(A : Annotation) = struct
   *)
   and value_sub env sty (i : A.ann Expr.init) = match i with
     | Icompound items -> braced_sub env sty items
-    (* A compound-literal initializer `(T){...}` is its brace, so we
-       decompose it such that it merges field-wise with later designators
+    (* A compound-literal initializer `(T){...}` for an aggregate target is
+       decomposed to its brace, so it merges field-wise with later designators
        (and emits as constant data when static) rather than being an opaque
-       value. *)
-    | Isingle {node = Ecompound {init; _}; _} -> value_sub env sty init
+       value. For a scalar target it is an ordinary expression. *)
+    | Isingle ({node = Ecompound {init; _}; _} as e) ->
+      let* layout = M.gets Ctx.layout in
+      let tenv = Layout.tenv layout in
+      if EC.is_scalar tenv sty then
+        let@ () = Ctx.with_location_of e.ann in
+        let+ rv = scalar_leaf env sty e in
+        Sleaf (Isingle rv)
+      else value_sub env sty init
     | Isingle e ->
       let@ () = Ctx.with_location_of e.ann in
       let* layout = M.gets Ctx.layout in

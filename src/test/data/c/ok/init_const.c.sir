@@ -1,0 +1,81 @@
+module init_const
+
+export data $masks = {
+  0x0_l,
+  0x0_l,
+  0x0_l,
+  0x0_l,
+  0x8_l,
+  0x20_l,
+  0x28_l
+}
+
+data $matcher = {
+  0x0_l,
+  $compound.0,
+  $compound.1
+}
+
+data $compound.0 = {
+  0x1_b,
+  0x3_b,
+  0x1_b,
+  0x3_b,
+  0x2_b,
+  0x0_b
+}
+
+data $compound.1 = {
+  0x9_b,
+  0x9_b,
+  0x9_b
+}
+
+export function l $mask_of(w %1) {
+  %0 = slot 4, align 4
+start:
+  st.w %1, %0;
+  %2 = ld.w %0;
+  %3 = sext.l %2;
+  %4 = mul.l %3, 0x8_l;
+  %5 = add.l $masks, %4;
+  %6 = ld.l %5;
+  ret %6
+}
+
+export function sw $third() {
+  %7 = slot 12, align 4
+  %10 = slot 8, align 8
+start:
+  st.w 0xa_w, %7;
+  %8 = add.l %7, 0x4_l;
+  st.w 0x14_w, %8;
+  %9 = add.l %7, 0x8_l;
+  st.w 0x1e_w, %9;
+  st.l %7, %10;
+  %11 = ld.l %10;
+  %12 = sext.l 0x2_w;
+  %13 = mul.l %12, 0x4_l;
+  %14 = add.l %11, %13;
+  %15 = ld.w %14;
+  ret %15
+}
+
+export function sw $matcher_elt(w %18, w %19) {
+  %16 = slot 4, align 4
+  %17 = slot 4, align 4
+start:
+  st.w %18, %16;
+  st.w %19, %17;
+  %20 = ld.w %16;
+  %21 = sext.l %20;
+  %22 = mul.l %21, 0x8_l;
+  %23 = add.l $matcher, %22;
+  %24 = ld.l %23;
+  %25 = ld.w %17;
+  %26 = sext.l %25;
+  %27 = add.l %24, %26;
+  %28 = ld.b %27;
+  %29 = zext.w %28;
+  ret %29
+}

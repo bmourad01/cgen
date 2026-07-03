@@ -136,15 +136,20 @@ let int_info_base dm : Type.base -> (int * Type.sign) option = function
 
    Larger enums would need a wider underlying type, which we do not yet
    support.
+
+   Typedefs are resolved first, so a cast to a typedef of an integer type
+   is a valid arithmetic constant expression (§6.6). Thus, the classifier
+   must see through the typedef.
 *)
-let int_info t (ty : Texpr.ty) = match ty with
+let int_info t (ty : Texpr.ty) = match TE.normalize t.tenv ty with
   | Tbase {base; _} ->
     int_info_base t.dm base
   | Tnamed {kind = `enum; _} ->
     Some (D.int_bits t.dm, Type.Ssigned)
   | _ -> None
 
-let float_kind (ty : Texpr.ty) = match ty with
+(* Similarly to above, we must normalize the type first. *)
+let float_kind t (ty : Texpr.ty) = match TE.normalize t.tenv ty with
   | Tbase {base = Bfloat Ffloat; _}  -> Some `f32
   | Tbase {base = Bfloat Fdouble; _} -> Some `f64
   | _ -> None
@@ -630,7 +635,7 @@ and fold_unary t e (op : Texpr.uop) (arg' : Texpr.t) =
   let (let$) x f = match x with
     | None -> unchanged ()
     | Some y -> f y in
-  match float_kind arg'.ty with
+  match float_kind t arg'.ty with
   | Some `f32 ->
     let$ f = extract_f32 arg' in
     begin match op with
@@ -662,7 +667,7 @@ and fold_binary t e (op : Texpr.bop) (lhs' : Texpr.t) (rhs' : Texpr.t) =
   let (let$) x f = match x with
     | None -> unchanged ()
     | Some y -> f y in
-  match float_kind lhs'.ty with
+  match float_kind t lhs'.ty with
   | Some `f32 ->
     let$ a = extract_f32 lhs' in
     let$ b = extract_f32 rhs' in
@@ -714,8 +719,8 @@ and fold_cast t e (dst : Texpr.ty) (arg' : Texpr.t) =
     | Some y -> f y in
   let src_int = int_info t arg'.ty in
   let dst_int = int_info t dst in
-  let src_flt = float_kind arg'.ty in
-  let dst_flt = float_kind dst in
+  let src_flt = float_kind t arg'.ty in
+  let dst_flt = float_kind t dst in
   match extract_int t arg', src_int, dst_int with
   (* int to int (§6.3.1.3). *)
   | Some v, Some (src_bits, src_sign), Some (dst_bits, _) ->
@@ -879,6 +884,24 @@ and expr_addr_z t (e : Texpr.t) : (string * Z.t) option =
        and the null case is handled by `try_null_const`.
     *)
     expr_addr_z t arg
+  | Ecast {arg; _} when Type.is_pointer e.ty && Type.is_array arg.ty ->
+    (* Array-to-pointer decay (§6.3.2.1 ¶3): a cast of an array to a pointer
+       is the address of the array's first element, which is an address
+       constant when the array has static storage. *)
+    rval_addr t arg
+  | _ -> None
+
+(* Get the symbol and byte offset of an array-typed rvalue expression. *)
+and rval_addr t (e : Texpr.t) : (string * Z.t) option =
+  let open O.Let in
+  match e.node with
+  | Evar name when TE.has_global t.tenv name || TE.has_func t.tenv name ->
+    Some (name, Z.zero)
+  | Emember {obj; field} ->
+    let* sym, off = rval_addr t obj in
+    let* tag = compound_tag obj.ty in
+    let+ delta = Result.ok (Layout.offsetof t.layout ~tag ~field) in
+    sym, Z.(off + of_int delta)
   | _ -> None
 
 let try_addr_const t e =

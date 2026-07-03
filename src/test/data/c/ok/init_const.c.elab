@@ -1,0 +1,27 @@
+unsigned long masks[7] = {(unsigned long)0, (unsigned long)0, (unsigned long)0, (unsigned long)0, (bits)1 << Pob, (bits)1 << Pbi1, (unsigned long)((bits)1 << Pob) | (unsigned long)((bits)1 << Pbi1)};
+
+bits mask_of(int n) {
+  return ((unsigned long *)masks)[n];
+}
+
+int third(void) {
+  int %0[3] = {10, 20, 30};
+  {
+    ;
+    ;
+    ;
+    ;
+  }
+  int *p = (int *)%0;
+  return p[2];
+}
+
+static unsigned char *matcher[3] = {(unsigned char *)0, (unsigned char *)compound.0, (unsigned char *)compound.1};
+
+int matcher_elt(int i, int j) {
+  return (int)((unsigned char **)matcher)[i][j];
+}
+
+static unsigned char compound.0[6] = {(unsigned char)1, (unsigned char)3, (unsigned char)1, (unsigned char)3, (unsigned char)2, (unsigned char)0};
+
+static unsigned char compound.1[3] = {(unsigned char)9, (unsigned char)9, (unsigned char)9};

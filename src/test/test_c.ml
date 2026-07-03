@@ -204,6 +204,7 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Bit-counting builtins" "builtins";
     ok_case ~sir:true "Computed goto" "computed_goto";
     ok_case ~sir:true "Real-world C idioms" "c_idioms";
+    ok_case ~sir:true "Constant-expr casts and compound-literal init" "init_const";
     ok_case ~sir:true "sizeof of a typedef-name" "sizeof_typedef";
     ok_case "Typedef-name parameter ambiguity" "param_typedef_paren";
   ]
@@ -214,6 +215,7 @@ let native_suite = "C frontend: native execution" >::: [
     "Bit-counting builtins (SysV AMD64)" >:: test_sysv_amd64_native "builtins";
     "Computed goto (SysV AMD64)" >:: test_sysv_amd64_native "computed_goto";
     "Real-world C idioms (SysV AMD64)" >:: test_sysv_amd64_native "c_idioms";
+    "Constant-expr casts and compound-literal init (SysV AMD64)" >:: test_sysv_amd64_native "init_const";
     "Aggregates and arrays (SysV AMD64)" >:: test_sysv_amd64_native "aggregate";
     "Switch statements (SysV AMD64)" >:: test_sysv_amd64_native "switch";
     "Global initializers (SysV AMD64)" >:: test_sysv_amd64_native "globals";
