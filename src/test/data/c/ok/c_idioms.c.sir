@@ -1,0 +1,46 @@
+module c_idioms
+
+type :Ins = {
+  w,
+  w
+}
+
+data $.str0 = {
+  "whoami",
+  z 1
+}
+
+export function sw $ins_size() {
+start:
+  %0 = itrunc.w 0x8_l;
+  ret %0
+}
+
+export function sw $ins_field() {
+  %1 = slot 8, align 4
+start:
+  st.w 0x7_w, %1;
+  %2 = add.l %1, 0x4_l;
+  st.w 0x23_w, %2;
+  %3 = ld.w %1;
+  %4 = add.l %1, 0x4_l;
+  %5 = ld.w %4;
+  %6 = add.w %3, %5;
+  ret %6
+}
+
+export function sw $pool_of(w %8) {
+  %7 = slot 4, align 4
+  %9 = slot 4, align 4
+start:
+  st.w %8, %7;
+  %10 = ld.w %7;
+  st.w %10, %9;
+  %11 = ld.w %9;
+  ret %11
+}
+
+export function l $whoami() {
+start:
+  ret $.str0
+}

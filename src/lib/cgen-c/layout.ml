@@ -331,8 +331,8 @@ let rec size_align dm sizes = function
     end
   | Tfun _ -> Or_error.error_string "sizeof function type"
 
-let sizeof t ty = size_align t.dmodel t.sizes ty >>| fst
-let alignof t ty = size_align t.dmodel t.sizes ty >>| snd
+let sizeof t ty = size_align t.dmodel t.sizes (TE.normalize t.tenv ty) >>| fst
+let alignof t ty = size_align t.dmodel t.sizes (TE.normalize t.tenv ty) >>| snd
 
 let offsetof t ~tag ~field = match Map.find t.offsets tag with
   | None -> Or_error.errorf "unknown tag %S" tag

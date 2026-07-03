@@ -1,0 +1,37 @@
+typedef unsigned int uint;
+
+typedef unsigned int uint;
+
+typedef struct Ins Ins;
+
+struct Ins {
+  int op;
+  int arg;
+};
+
+int ins_size(void) {
+  return (int)sizeof(Ins);
+}
+
+int ins_field(void) {
+  Ins i;
+  i.op = 7;
+  i.arg = 35;
+  return i.op + i.arg;
+}
+
+enum pool {
+  PHeap,
+  PBody,
+  PFn,
+};
+
+int pool_of(int n) {
+  enum pool p;
+  p = n;
+  return p;
+}
+
+const char *whoami(void) {
+  return __func__;
+}

@@ -330,9 +330,9 @@ let convert_for_assign tenv eval ~lhs ~(rhs : Texpr.t)
   let pp = Type.pp_with Texpr.pp in
   match nl, nr with
   | _ when Type.equal Texpr.equal nl nr -> Ok (rhs, None)
-  | Tbase _, Tbase _
-    when Type.is_arithmetic nl
-      && Type.is_arithmetic nr ->
+  (* Both arithmetic (§6.5.16.1): includes enum types, which are integer
+     types (§6.7.2.2) freely convertible to and from other arithmetic types. *)
+  | _ when Type.is_arithmetic nl && Type.is_arithmetic nr ->
     Ok (Texpr.cast ~dst ~arg:rhs, None)
   | Tptr _, _ when is_null_pointer_constant eval rhs ->
     Ok (Texpr.cast ~dst ~arg:rhs, None)

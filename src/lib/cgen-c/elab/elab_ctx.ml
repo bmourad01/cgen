@@ -8,13 +8,17 @@ module Ftree = Cgen_containers.Ftree
 
 type fnctx = {
   retty   : Texpr.ty;
+  (* Name of the enclosing function, for the C99 predefined identifier
+     `__func__` (§6.4.2.2). Empty for the file-scope scratch context. *)
+  fname   : string;
   fresh   : int;
   tmps    : Tstmt.localdecl list;
   labaddr : (string * Location.t option) Ftree.t;
 }
 
-let create_fnctx ~retty = {
+let create_fnctx ?(fname = "") ~retty () = {
   retty;
+  fname;
   fresh = 0;
   tmps = [];
   labaddr = Ftree.empty;
@@ -62,6 +66,12 @@ module Make(A : Annotation) = struct
 
   (* The return type of the enclosing function, if any. *)
   let return_ty t = Option.map t.fnctx ~f:(fun fc -> fc.retty)
+
+  (* The name of the enclosing function, if any (for `__func__`). Empty in
+     the file-scope scratch context, which reads as "no enclosing function". *)
+  let func_name t = match t.fnctx with
+    | Some fc when not (String.is_empty fc.fname) -> Some fc.fname
+    | _ -> None
 
   module M = Cgen_utils.Sm.Make(struct
       type state = t

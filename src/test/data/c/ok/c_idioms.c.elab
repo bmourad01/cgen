@@ -1,0 +1,25 @@
+struct Ins {
+  int op;
+  int arg;
+};
+
+int ins_size(void) {
+  return (int)8;
+}
+
+int ins_field(void) {
+  Ins i;
+  i.op = 7;
+  i.arg = 35;
+  return i.op + i.arg;
+}
+
+int pool_of(int n) {
+  enum pool p;
+  p = (enum pool)n;
+  return (int)p;
+}
+
+const char *whoami(void) {
+  return (const char *)(char *)"whoami";
+}

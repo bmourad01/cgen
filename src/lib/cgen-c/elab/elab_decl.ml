@@ -84,7 +84,7 @@ module Make(A : Annotation) = struct
     let* saved = M.gets fnctx in
     let* () =
       M.update @@ fun c ->
-      {c with fnctx = Some (Elab_ctx.create_fnctx ~retty:(Type.void ()))} in
+      {c with fnctx = Some (Elab_ctx.create_fnctx ~retty:(Type.void ()) ())} in
     let* x = f () in
     let+ () = M.update @@ fun c -> {c with fnctx = saved} in
     x
@@ -133,6 +133,20 @@ module Make(A : Annotation) = struct
       M.unless (EC.compatible tenv eval prev ty) @@ fun () ->
       Ctx.fatal "conflicting types for '%s'" name ()
     | None -> Ctx.add_global ~name ~ty
+
+  (* §6.7 ¶3: a typedef name may be redefined, but (C11) only to denote the
+     same type. GCC and Clang accept a compatible redefinition even in C99
+     mode, and system headers rely on it, so accept it and reject only a
+     conflicting redefinition. *)
+  let declare_typedef ~name ~ty =
+    let* tenv = M.gets Ctx.tenv in
+    match TE.find_typedef tenv name with
+    | None -> Ctx.add_typedef ~name ~ty
+    | Some prev ->
+      let* layout = M.gets Ctx.layout in
+      let eval = Eval.create_init layout in
+      M.unless (EC.compatible tenv eval prev ty) @@ fun () ->
+      Ctx.fatal "conflicting types for typedef '%s'" name ()
 
   (* §6.8.1: labels are unique within a function.
 
@@ -224,7 +238,7 @@ module Make(A : Annotation) = struct
     let* saved_statics = M.gets statics in
     let* () =
       M.update @@ fun c ->
-      {c with fnctx = Some (Elab_ctx.create_fnctx ~retty:ret_ty)} in
+      {c with fnctx = Some (Elab_ctx.create_fnctx ~fname:name ~retty:ret_ty ())} in
     let* () = M.List.iter eparams ~f:(function
         | Some n, pty -> Ctx.add_local ~name:n ~ty:pty
         | None, _ -> !!()) in
@@ -325,7 +339,7 @@ module Make(A : Annotation) = struct
     match d.node with
     | Dtypedef {name; ty} ->
       let* ty = ET.elab ~elab_size ty in
-      let+ () = Ctx.add_typedef ~name ~ty in
+      let+ () = declare_typedef ~name ~ty in
       None
     | Dcompound {kind; tag; fields} ->
       let* fields = M.List.map fields ~f:elab_field in

@@ -189,6 +189,16 @@ module Make(A : Annotation) = struct
           | None ->
             Ctx.fatal "undefined identifier '%s'" name ()
 
+  (* C99 §6.4.2.2: `__func__` is implicitly declared in every function body as
+     `static const char __func__[] = "<name>"`. GCC additionally provides the
+     aliases `__FUNCTION__` and `__PRETTY_FUNCTION__`. We model all three as a
+     string literal of the enclosing function's name (like most small
+     compilers). *)
+  let predefined_func_name = function
+    | "__func__" | "__FUNCTION__" | "__PRETTY_FUNCTION__" ->
+      M.gets Ctx.func_name
+    | _ -> !!None
+
   (* Helper for building a Texpr.t for an enum constant, given its
      `Bv.t` value and the data model's `int` width. *)
   let enum_const_texpr dm ee =
@@ -484,17 +494,20 @@ module Make(A : Annotation) = struct
      designator (which decays to a function pointer), or an enum
      constant. *)
   and rval_name name cont =
-    let* r = resolve_name name in
-    let* tenv = M.gets Ctx.tenv in
-    let* dm = M.gets Ctx.dmodel in
-    match r with
-    | Rlocal (n, ty) | Rglobal (n, ty) ->
-      let lv = Texpr.lvar n ~ty in
-      cont (EC.lvalue_to_rvalue tenv lv)
-    | Rfunc (n, ty) ->
-      let fn_expr = Texpr.fun_ n ~ty in
-      cont (EC.decay_function tenv fn_expr)
-    | Renum e -> cont (enum_const_texpr dm e)
+    predefined_func_name name >>= function
+    | Some fname -> rval_const (Cstr fname) cont
+    | None ->
+      let* r = resolve_name name in
+      let* tenv = M.gets Ctx.tenv in
+      let* dm = M.gets Ctx.dmodel in
+      match r with
+      | Rlocal (n, ty) | Rglobal (n, ty) ->
+        let lv = Texpr.lvar n ~ty in
+        cont (EC.lvalue_to_rvalue tenv lv)
+      | Rfunc (n, ty) ->
+        let fn_expr = Texpr.fun_ n ~ty in
+        cont (EC.decay_function tenv fn_expr)
+      | Renum e -> cont (enum_const_texpr dm e)
 
   (* Address-of `&e` (§6.5.3.2): a pointer to the operand lvalue. *)
   and rval_addrof arg cont =
@@ -1023,16 +1036,19 @@ module Make(A : Annotation) = struct
 
      Note: a function designator is an lvalue of function type (its
      address is the function symbol). It is not modifiable, but `&func`
-     and `sizeof func` need its undecayed type; `require_modifiable`
+     and `sizeof func` need its undecayed type, and `require_modifiable`
      rejects it in assignment/increment contexts.
   *)
-  and lval_name name cont = resolve_name name >>= function
-    | Rlocal (n, ty)
-    | Rglobal (n, ty)
-    | Rfunc (n, ty)
-      -> cont (Texpr.lvar n ~ty)
-    | Renum e ->
-      Ctx.fatal "enum constant '%s' is not assignable" (EE.name e) ()
+  and lval_name name cont =
+    predefined_func_name name >>= function
+    | Some _ -> Ctx.fatal "'%s' cannot be used as an lvalue" name ()
+    | None -> resolve_name name >>= function
+      | Rlocal (n, ty)
+      | Rglobal (n, ty)
+      | Rfunc (n, ty)
+        -> cont (Texpr.lvar n ~ty)
+      | Renum e ->
+        Ctx.fatal "enum constant '%s' is not assignable" (EE.name e) ()
 
   (* Indirection `*p` (§6.5.3.2): the object the pointer designates. *)
   and lval_deref arg cont =
