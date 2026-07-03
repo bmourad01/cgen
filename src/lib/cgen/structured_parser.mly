@@ -145,6 +145,7 @@
 %token IF ELSE
 %token WHEN UNLESS
 %token LOOP
+%token STEP
 %token WHILE
 %token DO
 %token BREAK CONTINUE
@@ -161,7 +162,7 @@
 %token <Bv.t * Type.imm> INT
 %token <Bv.t> NUM
 %token <float> DOUBLE
-%token <Float32.t> SINGLE
+%token <Cgen_utils.Float32.t> SINGLE
 %token <bool> BOOL
 %token <string> IDENT
 %token <string> TEMP
@@ -375,7 +376,12 @@ non_label_stmt:
     { let+ x = x and+ b = b in Structured.Stmt.when_ x b }
   | UNLESS x = stmt_cond LBRACE b = stmt RBRACE
     { let+ x = x and+ b = b in Structured.Stmt.unless x b }
-  | LOOP LBRACE b = stmt RBRACE { let+ b = b in `loop b }
+  | LOOP LBRACE b = stmt RBRACE { let+ b = b in `loop (b, `nop) }
+  | LOOP LBRACE b = stmt RBRACE STEP LBRACE s = stmt RBRACE
+    {
+      let+ b = b and+ s = s in
+      `loop (b, s)
+    }
   | WHILE x = stmt_cond LBRACE b = stmt RBRACE
     {
       let+ x = x and+ b = b in

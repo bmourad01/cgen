@@ -16,9 +16,10 @@ type ctx = {
   ins : Label.t option;
 }
 
-module M = Sm.Make(struct
+module M = Cgen_utils.Sm.Make(struct
     type state = ctx
-    let error_prefix = "Type error"
+    type error = Error.t
+    let of_or_error e = Error.tag e ~tag:"Type error"
   end)
 
 include M.Syntax

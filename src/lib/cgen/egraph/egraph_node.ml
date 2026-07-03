@@ -1,6 +1,7 @@
 open Core
 open Virtual
 
+module Float32 = Cgen_utils.Float32
 module Id = Egraph_id
 
 type op =

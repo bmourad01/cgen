@@ -13,7 +13,7 @@
     an additional [add] instruction is needed, and the number of bits
     to shift right.
 
-    @raise Invalid_argument if [d] is [0] or [1].
+    Raises [Invalid_argument] if [d] is [0] or [1].
 *)
 val unsigned : Bv.t -> Type.imm -> Bv.t * bool * int
 
@@ -23,7 +23,7 @@ val unsigned : Bv.t -> Type.imm -> Bv.t * bool * int
     Returns a pair of the constant and the number of bits to shift
     right.
 
-    @raise Invalid_argument if [d] is [-1], [0], or [1].
+    Raises [Invalid_argument] if [d] is [-1], [0], or [1].
 *)
 val signed : Bv.t -> Type.imm -> Bv.t * int
 

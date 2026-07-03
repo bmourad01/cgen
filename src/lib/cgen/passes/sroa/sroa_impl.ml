@@ -15,7 +15,7 @@ open Scalars
 module Slot = Virtual.Slot
 module Vtree = Var.Tree
 module LT = Label.Dense_table
-module Allen = Allen_interval_algebra
+module Allen = Cgen_utils.Allen_interval_algebra
 
 type range = {
   lo : int64;

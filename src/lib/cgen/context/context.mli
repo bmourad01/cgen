@@ -22,7 +22,7 @@ val target : Target.t t
     The machine is registered by its provided target (see the [Target]
     module).
 
-    @raise Invalid_argument if [m] is already registered.
+    Raises [Invalid_argument] if [m] is already registered.
 *)
 val register_machine : (module Machine_intf.S) -> unit
 

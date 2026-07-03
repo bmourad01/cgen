@@ -113,7 +113,7 @@ type compound = [
     structure is unspecified. Note that [n <= 0] is illegal.
 
     These are the types referenced by name (via [`name s] in fields
-    and arguments) and for which a {!layout} is computed.
+    and arguments) and for which a {!type-layout} is computed.
 *)
 type named = [
   | compound
@@ -180,7 +180,7 @@ module Layout : sig
       preserving per-member type information so that ABI
       implementations can apply target-specific classification.
   *)
-  val members : t -> (datum seq, datum seq seq) Either.t
+  val members : t -> (datum list, datum list list) Either.t
 
   (** Returns [true] if the layout contains no data. *)
   val is_empty : t -> bool
@@ -194,7 +194,7 @@ end
     A function [gamma] is provided to resolve the layout of
     fields [`name n], where [n] refers to another named type.
 
-    @raise Invalid_argument if [c] is not well-formed.
+    Raises [Invalid_argument] if [c] is not well-formed.
 *)
 val layout_exn : (string -> layout) -> named -> layout
 
@@ -210,7 +210,7 @@ val layout : (string -> layout) -> named -> layout Or_error.t
     The result is a list in topological order of these dependencies,
     containing the name of each type and its layout.
 
-    @raise Invalid_argument if [ts] is not well-formed.
+    Raises [Invalid_argument] if [ts] is not well-formed.
 *)
 val layouts_of_types_exn : named list -> (string * layout) list
 

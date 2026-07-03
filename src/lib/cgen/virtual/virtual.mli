@@ -24,7 +24,7 @@ open Regular.Std
 type const = [
   | `bool   of bool
   | `int    of Bv.t * Type.imm
-  | `float  of Float32.t
+  | `float  of Cgen_utils.Float32.t
   | `double of float
   | `sym    of string * int
 ] [@@deriving bin_io, compare, equal, hash, sexp]
@@ -307,7 +307,7 @@ module Slot : sig
       given slot, and they may be increased according to the needs of
       the target ABI.
 
-      @raise Invalid_argument if [size < 0], [align < 1], or [align] is
+      Raises [Invalid_argument] if [size < 0], [align < 1], or [align] is
       not a power of two.
   *)
   val create_exn : Var.t -> size:int -> align:int -> t
@@ -459,7 +459,7 @@ module Data : sig
 
   (** Creates a struct.
 
-      @raise Invalid_argument if [elts] is empty, or if [elts] contains an
+      Raises [Invalid_argument] if [elts] is empty, or if [elts] contains an
       element of the form [`basic (_, [])], or if align is [Some n] where
       [n] is not a positive power of 2.
   *)

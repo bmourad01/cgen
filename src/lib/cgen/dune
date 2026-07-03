@@ -17,6 +17,7 @@
   bitvec-order
   bitvec-sexp
   cgen.containers
+  cgen.utils
   core
   core_kernel.pairing_heap
   core_kernel.uopt
@@ -39,7 +40,6 @@
   scalars
   scalars_common
   slot_initialization
-  sm
   structured_lexer
   structured_parser
   subst_mapper
@@ -49,7 +49,4 @@
   virtual_lexer
   virtual_parser
   windmill)
- (foreign_stubs
-  (language c)
-  (names float_stubs))
  (ocamlopt_flags -O3))

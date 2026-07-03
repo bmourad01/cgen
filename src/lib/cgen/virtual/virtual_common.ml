@@ -1,5 +1,6 @@
 open Core
 
+module Float32 = Cgen_utils.Float32
 module Vset = Var.Tree_set
 
 let var_set_of_option = function

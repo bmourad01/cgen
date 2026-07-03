@@ -32,7 +32,7 @@ module type S = sig
 
   (** [get t x] returns the data for loop [x].
 
-      @raise Invalid_argument is [x] does not exist in the function.
+      Raises [Invalid_argument] is [x] does not exist in the function.
   *)
   val get : t -> loop -> data
 

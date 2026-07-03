@@ -5,6 +5,8 @@ open Regular.Std
 open Virtual
 open Sccp_intervals_common
 
+module Float32 = Cgen_utils.Float32
+
 external float_to_bits : float -> int64 = "cgen_bits_of_float"
 
 let interp_const ctx : const -> I.t = function

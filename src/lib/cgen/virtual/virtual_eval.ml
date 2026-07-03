@@ -1,5 +1,6 @@
 open Core
 
+module Float32 = Cgen_utils.Float32
 module Insn = Virtual_insn
 
 let int8  i = Bv.(int   i mod Bv.m8)

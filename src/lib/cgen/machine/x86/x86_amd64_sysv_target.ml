@@ -2,7 +2,11 @@ open Core
 open X86_common
 open X86_amd64_common
 
-let target = Target.declare () ~name:"amd64-sysv" ~word ~little
+let target =
+  Target.declare () ~name:"amd64-sysv" ~little
+    ~data_model:Cgen_utils.C_data_model.(
+        (* SysV x86-64 `__va_list_tag[1]`: 24 bytes, 8-aligned. *)
+        create ~model:LP64 ~char_signed:true ~va_list_size:24 ~va_list_align:8)
 
 let clobbered_map = X86_amd64_regalloc.Typed_writes.rmap' [
     `rax,   `i64;

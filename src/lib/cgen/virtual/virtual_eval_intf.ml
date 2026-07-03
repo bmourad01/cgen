@@ -1,3 +1,4 @@
+module Float32 = Cgen_utils.Float32
 module Insn = Virtual_insn
 
 module type S = sig

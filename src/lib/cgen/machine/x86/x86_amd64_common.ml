@@ -1,5 +1,7 @@
 open Core
 
+module Float32 = Cgen_utils.Float32
+
 let word : Type.imm_base = `i64
 
 module Reg = struct

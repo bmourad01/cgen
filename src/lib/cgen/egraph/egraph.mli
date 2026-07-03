@@ -153,7 +153,7 @@ module Rule : sig
     val i64 : int64 -> pattern
     val jmp : pattern -> pattern
     val sel : Type.basic -> pattern -> pattern -> pattern -> pattern
-    val single : Float32.t -> pattern
+    val single : Cgen_utils.Float32.t -> pattern
     val sym : string -> int -> pattern
     val uop : Insn.unop -> pattern -> pattern
     val add : Type.basic -> pattern -> pattern -> pattern

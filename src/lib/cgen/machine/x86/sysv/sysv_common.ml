@@ -87,7 +87,7 @@ type acls = {
 }
 
 let rec classify_member ~gamma ds =
-  Seq.fold_until ds
+  List.fold_until ds
     ~init:(Rnone, Rnone, 0)
     ~finish:(fun (r1, r2, _) -> Some (r1, r2))
     ~f:(fun (r1, r2, s) -> function
@@ -122,7 +122,7 @@ let rec classify_member ~gamma ds =
             Continue (r1, r2, s + n))
 
 and classify_union ~gamma dss =
-  Seq.fold_until dss
+  List.fold_until dss
     ~init:(Rnone, Rnone)
     ~finish:Option.some
     ~f:(fun (r1, r2) ds ->
@@ -276,10 +276,10 @@ module Make0(Context : Context_intf.S) = struct
 
   let resolve_union env name =
     match Type_env.layout name env.tenv with
-    | Error _ -> Seq.empty
+    | Error _ -> []
     | Ok lt -> match Type.Layout.members lt with
       | Second dss -> dss
-      | First _ -> Seq.empty
+      | First _ -> []
 
   let type_cls env s = match Hashtbl.find env.layout s with
     | Some k -> !!k

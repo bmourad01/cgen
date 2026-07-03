@@ -12,7 +12,7 @@ module Vtree = Var.Tree
 module Vset = Var.Tree_set
 module VS = Var.Dense_set
 module Slot = Virtual.Slot
-module Allen = Allen_interval_algebra
+module Allen = Cgen_utils.Allen_interval_algebra
 
 type tag = Def | Use | Both [@@deriving compare, equal, sexp]
 

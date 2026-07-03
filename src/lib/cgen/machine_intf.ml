@@ -40,7 +40,7 @@ module type S_reg = sig
 
     (** Decode the register from a string.
 
-        @raise Invalid_argument if the string is not a valid register name.
+        Raises [Invalid_argument] if the string is not a valid register name.
     *)
     val of_string_exn : string -> t
 
