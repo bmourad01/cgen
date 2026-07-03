@@ -48,3 +48,9 @@
   regular
   shexp
   zarith))
+
+(package
+ (name cgen-c)
+ (synopsis "C frontend for cgen")
+ (description "A C frontend for cgen")
+ (depends cgen))

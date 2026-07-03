@@ -1,6 +1,6 @@
 SRC := ./src/
 
-.PHONY: build	clean	install uninstall test doc deps
+.PHONY: build	clean	install uninstall test doc check-docs deps
 .PHONY: ocaml-indent clang-indent indent status-clean check-style
 
 all: install
@@ -24,6 +24,9 @@ test:
 
 doc:
 	$(MAKE) doc -C $(SRC)
+
+check-docs:
+	$(MAKE) check-docs -C $(SRC)
 
 deps:
 	$(MAKE) deps -C $(SRC)
