@@ -91,14 +91,21 @@ let agg_count = function
   | Astruct fs -> Some (Array.length fs)
   | Aunion _ -> Some 1
 
-let fold_maxi xs = Ftree.fold xs ~init:(-1) ~f:(fun m (i, _) -> Int.max m i)
+(* A frame on the automaton stack *)
+type frame = {
+  fobj : agg; (* the current object *)
+  fcur : int; (* the cursor, pointing to the next positional value to fill in `fobj` *)
+}
+
+(* The automaton stack *)
+type stack = frame Ftree.t
 
 (* The output "tape" of the initializer automaton: a deferred,
    partially-built initializer.
 
    Either a leaf (a scalar value, a string, or an opaque whole-aggregate
    value) or an aggregate whose explicitly-initialized children are
-   recorded as (index, sub) in source order. for an overlay, we refine
+   recorded as (index, sub) in source order. For an overlay, we refine
    via later member designators.
 
    Materialization is deferred so contributions to the same index merge:
@@ -107,8 +114,18 @@ let fold_maxi xs = Ftree.fold xs ~init:(-1) ~f:(fun m (i, _) -> Int.max m i)
 *)
 type sub =
   | Sleaf of Texpr.init
-  | Sagg of agg * (int * sub) Ftree.t
-  | Soverlay of Texpr.init * agg * (int * sub) Ftree.t
+  | Sagg of agg * subinits
+  | Soverlay of Texpr.init * agg * subinits
+
+and subinit = {
+  sidx : int; (* member index, in source order, of the subobject *)
+  sobj : sub; (* the subobject itself *)
+}
+
+and subinits = subinit Ftree.t
+
+let max_sidx (xs : subinits) =
+  Ftree.fold xs ~init:(-1) ~f:(fun m s -> Int.max m s.sidx)
 
 (* Combine two contributions to the same sub-object, from oldest to
    newest.
@@ -124,18 +141,21 @@ let merge_sub a b = match a, b with
     Soverlay (base, agg, c)
   | Soverlay (base, agg, c1), Sagg (_, c2) ->
     Soverlay (base, agg, Ftree.append c1 c2)
-  | _, _ -> b
+  | (Sleaf _ | Sagg _ | Soverlay _),
+    (Sleaf _ | Soverlay _) -> b
 
 let sub_at xs i =
-  Ftree.enum xs |> Seq.filter_map ~f:(fun (j, s) ->
-      Option.some_if (j = i) s) |> Seq.next |> function
+  Ftree.enum xs |> Seq.filter_map ~f:(fun s ->
+      Option.some_if (s.sidx = i) s.sobj) |> Seq.next |> function
   | Some (x, xs) -> Some (Seq.fold xs ~init:x ~f:merge_sub)
   | None -> None
 
-(* Materialize the deferred tree into a positional `Texpr.init`, merging
-   same-index contributions and filling interior gaps with compact zero
-   inits (trailing gaps rely on the short-list convention). *)
-let rec mat_sub tenv = function
+(* Materialize the deferred tree into a positional `Texpr.init`.
+
+   We merge same-index contributions and fill interior gaps with
+   compact zero-initializers.
+*)
+let[@tail_mod_cons] rec mat_sub tenv : sub -> Texpr.init = function
   | Sleaf init -> init
   | Sagg (agg, assigns) -> mat_agg tenv agg assigns
   | Soverlay (base, agg, overrides) ->
@@ -144,60 +164,53 @@ let rec mat_sub tenv = function
       | _ -> failwith "elab_init: overlay base is not a value" in
     Ioverlay {base; over = mat_overrides tenv agg overrides}
 
-and mat_overrides tenv agg overrides : Texpr.init =
-  let sub_at = sub_at overrides in
-  match agg with
+and[@tail_mod_cons] mat_overrides tenv agg overrides = match agg with
   | Astruct fs ->
     let inits =
-      Ftree.enum overrides |>
-      Seq.map ~f:fst |>
-      Seq.to_list |>
+      Ftree.fold_right overrides
+        ~init:[] ~f:(fun s acc -> s.sidx :: acc) |>
       List.dedup_and_sort ~compare:Int.compare |>
       List.map ~f:(fun i ->
           let f = fst fs.(i) in
-          let init = mat_sub tenv (Option.value_exn @@ sub_at i) in
+          let s = match sub_at overrides i with
+            | None -> assert false
+            | Some s -> s in
+          let init = mat_sub tenv s in
           f, init) in
     Istruct inits
-  | Aunion fs ->
-    begin match Ftree.last overrides with
-      | None -> Istruct []
-      | Some (i, _) ->
-        Iunion {
-          name = fst fs.(i);
-          init = mat_sub tenv (Option.value_exn (sub_at i));
-        }
-    end
+  | Aunion fs -> mat_union tenv overrides fs
   | Aarray _ -> assert false (* C has no whole-array rvalues to overlay *)
 
-and mat_agg tenv agg assigns : Texpr.init =
-  let maxi = fold_maxi assigns in
-  let sub_at = sub_at assigns in
-  match agg with
-  | Aunion _ ->
-    begin match Ftree.last assigns with
-      | None -> Istruct []
-      | Some (idx, _) ->
-        let name = match agg with
-          | Aunion fs -> fst fs.(idx)
-          | _ -> assert false in
-        Iunion {name; init = mat_sub tenv (Option.value_exn (sub_at idx))}
-    end
+and[@tail_mod_cons] mat_agg tenv agg assigns = match agg with
+  | Aunion fs -> mat_union tenv assigns fs
   | Astruct fs ->
     let inits =
-      List.init (maxi + 1) ~f:(fun i ->
+      List.init (max_sidx assigns + 1) ~f:(fun i ->
           let name, fty = fs.(i) in
-          let init = match sub_at i with
+          let init = match sub_at assigns i with
             | Some s -> mat_sub tenv s
             | None -> zero_init tenv fty in
           name, init) in
     Istruct inits
   | Aarray {elem; _} ->
     let inits =
-      List.init (maxi + 1) ~f:(fun i ->
-          match sub_at i with
+      List.init (max_sidx assigns + 1) ~f:(fun i ->
+          match sub_at assigns i with
           | Some s -> mat_sub tenv s
           | None -> zero_init tenv elem) in
     Iarray inits
+
+and[@tail_mod_cons] mat_union tenv subs fs : Texpr.init =
+  match Ftree.last subs with
+  | None -> Istruct []
+  | Some {sidx = i; _} ->
+    let s = match sub_at subs i with
+      | None -> assert false
+      | Some s -> s in
+    Iunion {
+      name = fst fs.(i);
+      init = mat_sub tenv s;
+    }
 
 module Make(A : Annotation) = struct
   module Ctx = Elab_ctx.Make(A)
@@ -208,20 +221,17 @@ module Make(A : Annotation) = struct
     let* layout = M.gets Ctx.layout in
     let tenv = Layout.tenv layout in
     match ET.normalize tenv ty with
-    | Tarray {elem; size = None; _} -> !!(Some (Aarray {elem; size = None}))
+    | Tarray {elem; size = None; _} ->
+      !!(Some (Aarray {elem; size = None}))
     | Tarray {elem; size = Some e; _} ->
       let+? n = Eval.int_const (Eval.create_init layout) e in
       Some (Aarray {elem; size = Some (Bv.to_int n)})
-    | Tnamed {kind = `struct_; name; _} ->
-      begin match tag_fields tenv name with
-        | Some fs -> !!(Some (Astruct fs))
-        | None -> !!None
-      end
-    | Tnamed {kind = `union; name; _} ->
-      begin match tag_fields tenv name with
-        | Some fs -> !!(Some (Aunion fs))
-        | None -> !!None
-      end
+    | Tnamed {kind = (#Type.compound as c); name; _} ->
+      tag_fields tenv name |>
+      Option.map ~f:(fun fs -> match c with
+          | `struct_ -> Astruct fs
+          | `union -> Aunion fs) |>
+      Ctx.M.return
     | _ -> !!None
 
   (* A character array initialized by a string literal.
@@ -267,7 +277,9 @@ module Make(A : Annotation) = struct
       slot := Some rv;
       !!(Tstmt.Sinstr []) in
     env.prefix <- stmt :: env.prefix;
-    Option.value_exn !slot
+    match !slot with
+    | None -> failwith "Elab_init.capture: `e` was not elaborated"
+    | Some s -> s
 
   (* The type `e` would have, with no side effects committed.
 
@@ -280,7 +292,9 @@ module Make(A : Annotation) = struct
     let+ _ = env.elab_rval e @@ fun rv ->
       slot := Some rv;
       !!(Tstmt.Sinstr []) in
-    (Option.value_exn !slot).Texpr.ty
+    match !slot with
+    | None -> failwith "Elab_init.type_of_dry: `e` was not elaborated"
+    | Some s -> s.Texpr.ty
 
   (* C99 §6.7.8 ¶4: every expression in an initializer for an object
      with static storage duration must be a constant expression.
@@ -313,15 +327,15 @@ module Make(A : Annotation) = struct
     let* () = Ctx.warn_opt w in
     enforce_const env rv
 
+  let member_index name fs =
+    Array.findi fs ~f:(fun _ (n, _) -> String.(n = name)) |> function
+    | None -> Ctx.fatal "no member '%s' in aggregate" name ()
+    | Some (i, _) -> !!i
+
   (* Resolve a single designator against the current aggregate to a
      sub-object index. *)
-  let resolve_designator env agg (d : A.ann Expr.designator) =
-    match d, agg with
-    | Dfield name, (Astruct fs | Aunion fs) ->
-      begin match Array.findi fs ~f:(fun _ (n, _) -> String.(n = name)) with
-        | Some (i, _) -> !!i
-        | None -> Ctx.fatal "no member '%s' in aggregate" name ()
-      end
+  let resolve_designator env agg (d : A.ann Expr.designator) = match d, agg with
+    | Dfield name, (Astruct fs | Aunion fs) -> member_index name fs
     | Dfield name, Aarray _ ->
       Ctx.fatal "field designator '.%s' for an array type" name ()
     | Dindex e, Aarray _ ->
@@ -348,7 +362,7 @@ module Make(A : Annotation) = struct
        `.s.a, .s.b` merge into `s`
      - a `{...}` value recurses as a new barrier
 
-     Children are recorded deferred and merged/zero-filled by `mat_agg`.
+     Children are recorded as deferred and merged/zero-filled by `mat_agg`.
   *)
 
   (* Place a brace-enclosed init `{items}` into `sty`, deferred. *)
@@ -357,32 +371,33 @@ module Make(A : Annotation) = struct
     let tenv = Layout.tenv layout in
     match string_init_of (Icompound items) with
     | Some s when is_char_array_ty tenv sty ->
-      let+ i = string_array_init sty s >>| snd in Sleaf i
-    | _ ->
-      if EC.is_scalar tenv sty then
-        (* A braced scalar: `{e}`, `{{e}}`, or `{}`. *)
-        match items with
+      let+ _, i = string_array_init sty s in
+      Sleaf i
+    | _ when EC.is_scalar tenv sty ->
+      (* A braced scalar: `{e}`, `{{e}}`, or `{}`. *)
+      begin match items with
         | [] -> !!(Sleaf (zero_init tenv sty))
         | [[], inner] -> value_sub env sty inner
         | _ -> Ctx.fatal "too many initializers for scalar type '%a'" pp_ty sty ()
-      else
-        classify_aggregate sty >>= function
-        | None -> Ctx.fatal "cannot brace-initialize type '%a'" pp_ty sty ()
-        | Some agg ->
-          let+ assigns = consume env agg items in
-          Sagg (agg, assigns)
+      end
+    | _ -> classify_aggregate sty >>= function
+      | None -> Ctx.fatal "cannot brace-initialize type '%a'" pp_ty sty ()
+      | Some agg ->
+        let+ assigns = consume env agg items in
+        Sagg (agg, assigns)
 
   (* Place a whole init (a value or a brace) into `sty`, deferred.
 
      Brace elision is the automaton's job. By the time this runs on a
      scalar target the cursor has already descended.
+
+     A compound-literal initializer `(T){...}` for an aggregate target is
+     decomposed to its brace, so it merges field-wise with later designators
+     (and emits as constant data when static) rather than being an opaque
+     value. For a scalar target it is an ordinary expression.
   *)
   and value_sub env sty (i : A.ann Expr.init) = match i with
     | Icompound items -> braced_sub env sty items
-    (* A compound-literal initializer `(T){...}` for an aggregate target is
-       decomposed to its brace, so it merges field-wise with later designators
-       (and emits as constant data when static) rather than being an opaque
-       value. For a scalar target it is an ordinary expression. *)
     | Isingle ({node = Ecompound {init; _}; _} as e) ->
       let* layout = M.gets Ctx.layout in
       let tenv = Layout.tenv layout in
@@ -399,7 +414,7 @@ module Make(A : Annotation) = struct
         let+ rv = scalar_leaf env sty e in
         Sleaf (Isingle rv)
       else if is_string_expr e && is_char_array_ty tenv sty then
-        let+ i = string_array_init sty (string_of_expr e) >>| snd in
+        let+ _, i = string_array_init sty (string_of_expr e) in
         Sleaf i
       else
         let* ety = type_of_dry env e in
@@ -415,7 +430,8 @@ module Make(A : Annotation) = struct
      bare scalar into the aggregate `sty` (which the caller descends). *)
   and place_or_elide env sty (i : A.ann Expr.init) = match i with
     | Icompound _ | Isingle {node = Ecompound _; _} ->
-      let+ s = value_sub env sty i in `Place s
+      let+ s = value_sub env sty i in
+      `Place s
     | Isingle e ->
       let* layout = M.gets Ctx.layout in
       let tenv = Layout.tenv layout in
@@ -450,50 +466,57 @@ module Make(A : Annotation) = struct
       | [] -> assert false (* Designator chains are non-empty *)
       | [d] ->
         let+ i = resolve_designator env agg d in
-        Ftree.singleton (agg, i)
+        Ftree.singleton {fobj = agg; fcur = i}
       | d :: ds ->
         let* i = resolve_designator env agg d in
         classify_aggregate (agg_elem_ty agg i) >>= function
         | None -> Ctx.fatal "designator descends into a non-aggregate type" ()
         | Some sub_agg ->
           let+ deeper = go sub_agg ds in
-          Ftree.snoc deeper (agg, i) in
+          Ftree.snoc deeper {fobj = agg; fcur = i} in
     go barrier chain
 
   (* Fill the aggregate `barrier`; returns its deferred children. *)
-  and consume env barrier items : (int * sub) Ftree.t M.m =
+  and consume env barrier items : subinits M.m =
     (* Advance the cursor: bump the index of the top (head) frame. *)
-    let bump stack = Ftree.update stack 0 ~f:(fun (a, i) -> a, i + 1) in
-    let full (a, i) = match agg_count a with
-      | Some n -> i >= n
-      | None -> false in
+    let bump (stack : stack) =
+      Ftree.update stack 0 ~f:(fun f ->
+          {f with fcur = f.fcur + 1}) in
     (* Pop descents that the cursor has run off the end of . *)
     let rec settle stack =
-      if full (Ftree.head_exn stack) then
-        let below = Ftree.tail_exn stack in
+      let below, top = Ftree.front_exn stack in
+      match agg_count top.fobj with
+      | Some n when top.fcur >= n ->
         if Ftree.is_empty below
         then None (* Barrier itself is full *)
         else settle (bump below)
-      else Some stack in
+      | _ -> Some stack in
     let place stack sub acc =
-      let descents, (_, base) = Ftree.rear_exn stack in
+      let descents, r = Ftree.rear_exn stack in
       let nested =
-        Ftree.fold_left descents ~init:sub
-          ~f:(fun s (a, i) -> Sagg (a, Ftree.singleton (i, s))) in
-      Ftree.snoc acc (base, nested) in
+        Ftree.fold_left descents
+          ~init:sub ~f:(fun s f ->
+              let si = Ftree.singleton {
+                  sidx = f.fcur;
+                  sobj = s;
+                } in
+              Sagg (f.fobj, si)) in
+      Ftree.snoc acc {
+        sidx = r.fcur;
+        sobj = nested;
+      } in
     let rec step stack acc init rest =
-      let fagg, fidx = Ftree.head_exn stack in
-      place_or_elide env (agg_elem_ty fagg fidx) init >>= function
+      let {fobj; fcur} = Ftree.head_exn stack in
+      place_or_elide env (agg_elem_ty fobj fcur) init >>= function
       | `Place sub -> go (bump stack) (place stack sub acc) rest
-      | `Elide ->
-        (* Push and re-place the now-positional value *)
-        classify_aggregate (agg_elem_ty fagg fidx) >>= function
+      | `Elide -> classify_aggregate (agg_elem_ty fobj fcur) >>= function
         | None -> assert false
         | Some sub_agg ->
-          let stack = Ftree.cons stack (sub_agg, 0) in
+          (* Push and re-place the now-positional value *)
+          let stack = Ftree.cons stack {fobj = sub_agg; fcur = 0} in
           let work = ([], init) :: rest in
           go stack acc work
-    and go stack acc = function
+    and go stack (acc : subinits) = function
       | [] -> !!acc
       | ([], init) :: rest ->
         (* Positional, so we advance past exhausted descents first *)
@@ -505,7 +528,11 @@ module Make(A : Annotation) = struct
         (* Designated, so we reset to barrier and navigate *)
         let* stack = navigate env barrier desigs in
         step stack acc init rest in
-    let stack = Ftree.singleton (barrier, 0) in
+    let stack =
+      Ftree.singleton {
+        fobj = barrier;
+        fcur = 0;
+      } in
     go stack Ftree.empty items
 
   (* Top-level orchestration:
@@ -533,7 +560,7 @@ module Make(A : Annotation) = struct
           | Isingle _ -> [[], i] in
         let agg = Aarray {elem; size = None} in
         let+ assigns = consume env agg items in
-        let maxi = fold_maxi assigns in
+        let maxi = max_sidx assigns in
         let szexpr = Texpr.int_ (B.int (maxi + 1)) ~ty:size_t in
         let ty = Type.array ~size:szexpr elem in
         let init = mat_sub tenv @@ Sagg (agg, assigns) in
