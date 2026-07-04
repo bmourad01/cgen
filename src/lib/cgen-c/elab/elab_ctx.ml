@@ -5,6 +5,7 @@ open Cgen_utils
 open Elab_common
 
 module Ftree = Cgen_containers.Ftree
+module Smap = Cgen_containers.Champ.Make(String)
 
 type fnctx = {
   retty   : Texpr.ty;
@@ -35,7 +36,7 @@ module Make(A : Annotation) = struct
     location     : Location.t option;
     loc_of_ann   : ann -> Location.t option;
     fnctx        : fnctx option;
-    statics      : string String.Map.t;
+    statics      : string Smap.t;
     hoisted      : Tdecl.t list;
     static_count : int;
     warnings     : Diagnostic.t list;
@@ -46,7 +47,7 @@ module Make(A : Annotation) = struct
     location = None;
     loc_of_ann;
     fnctx = None;
-    statics = String.Map.empty;
+    statics = Smap.empty;
     hoisted = [];
     static_count = 0;
     warnings = [];
@@ -58,7 +59,7 @@ module Make(A : Annotation) = struct
   let location t = t.location
   let fnctx t = t.fnctx
   let statics t = t.statics
-  let static_link name t = Map.find t.statics name
+  let static_link name t = Smap.find t.statics name
   let hoisted t = t.hoisted
 
   (* Warnings raised during elaboration, in source order. *)
@@ -233,12 +234,12 @@ module Make(A : Annotation) = struct
     let*? layout = Layout.strict_add_local ctx.layout ~name ty in
     (* A plain local shadows any static/extern alias of the same name in
        an enclosing scope; the alias is restored when this scope exits. *)
-    M.put {ctx with layout; statics = Map.remove ctx.statics name}
+    M.put {ctx with layout; statics = Smap.remove ctx.statics name}
 
   (* Alias a block-scope source name to the link symbol that references
      should resolve to (see the `statics` field). *)
   let add_static_alias ~name ~link = M.update @@ fun ctx ->
-    {ctx with statics = Map.set ctx.statics ~key:name ~data:link}
+    {ctx with statics = Smap.set ctx.statics ~key:name ~data:link}
 
   (* A fresh, unit-unique symbol for a block-scope static. The `.` keeps
      it from colliding with any C-identifier-derived symbol. *)

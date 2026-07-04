@@ -5,6 +5,7 @@ module Ctx = Cgen.Context
 module S = Cgen.Structured
 module V = Cgen.Virtual
 module E = Lower_expr
+module Smap = E.Smap
 
 open Ctx.Syntax
 
@@ -20,7 +21,7 @@ type brk = [`structured | `goto of Cgen.Label.t]
 (* Statement-lowering context. *)
 type t = {
   e             : E.env;
-  labels        : Cgen.Label.t String.Map.t;
+  labels        : Cgen.Label.t E.map;
   slots         : V.slot list ref; (* lazily allocated slots *)
   brk           : brk;
   case_labels   : (Cgen.Bv.t * Cgen.Label.t) list;
@@ -193,7 +194,7 @@ let rec needs_zero c (init : Texpr.init) ty = match init with
 let bind_localdecl c (ld : Tstmt.localdecl) =
   let* (name, slot), slotval = E.alloc_slot c.e.layout ld.name ld.ty in
   c.slots := slotval :: !(c.slots);
-  let e = {c.e with slots = Map.set c.e.slots ~key:name ~data:slot} in
+  let e = {c.e with slots = Smap.set c.e.slots ~key:name ~data:slot} in
   let c = {c with e} in
   let+ stmt = match ld.init with
     | None -> !!`nop
@@ -439,7 +440,7 @@ let rec lower_stmt c (s : Tstmt.t) = match s with
     end
   | Scontinue -> !!`continue
   | Sgoto name ->
-    !!(`goto (`label (Map.find_exn c.labels name)))
+    !!(`goto (`label (Smap.find_exn c.labels name)))
   (* GNU computed `goto *e`: `e` is an integer index into the function's
      address-taken labels (produced by `&&label`).
 
@@ -457,13 +458,13 @@ let rec lower_stmt c (s : Tstmt.t) = match s with
     let mki i = Cgen.Bv.(int i mod m) in
     let cases =
       List.mapi c.labaddrs ~f:(fun i name ->
-          let l = Map.find_exn c.labels name in
+          let l = Smap.find_exn c.labels name in
           `case (mki i, `goto (`label l)))
       @ [`default `hlt] in
     !!(`sw (idx, ty, cases))
   | Slabel {name; body} ->
     let+ bs = lower_stmt c body in
-    let l = Map.find_exn c.labels name in
+    let l = Smap.find_exn c.labels name in
     `label (l, bs)
   | Sswitch {expr; body} -> lower_switch c ~expr ~body
   (* A `case`/`default` reached here (rather than being collected by the

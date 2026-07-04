@@ -21,9 +21,11 @@ type tag =
     }
 [@@deriving bin_io, compare, equal, hash, sexp]
 
-type 'a map = 'a Map.M(String).t [@@deriving bin_io, compare, equal, hash, sexp]
+module Smap = Cgen_containers.Champ.Make(String)
 
-let empty_map = String.Map.empty
+type 'a map = 'a Smap.t [@@deriving bin_io, compare, equal, hash, sexp]
+
+let empty_map = Smap.empty
 
 (* NB: `lenv` is a stack of scopes, because variables
    defined in a deeper block scope are allowed to shadow
@@ -48,13 +50,13 @@ let empty = {
 
 (* All four maps below share the ordinary-identifier namespace per C99. *)
 let in_ordinary env name =
-  Map.mem env.eenv name ||
-  Map.mem env.denv name ||
-  Map.mem env.fenv name ||
-  Map.mem env.venv name
+  Smap.mem env.eenv name ||
+  Smap.mem env.denv name ||
+  Smap.mem env.fenv name ||
+  Smap.mem env.venv name
 
 let add_tag env ~name info =
-  match Map.add env.tenv ~key:name ~data:info with
+  match Smap.add env.tenv ~key:name ~data:info with
   | `Duplicate -> Or_error.errorf "tag %S already defined" name
   | `Ok tenv -> Ok {env with tenv}
 
@@ -63,64 +65,64 @@ let add_enum_element env ~name ~tag ~value =
   then Or_error.errorf "identifier %S already declared" name
   else
     let data = {ecname = name; ectag = tag; ecvalue = value} in
-    Ok {env with eenv = Map.set env.eenv ~key:name ~data}
+    Ok {env with eenv = Smap.set env.eenv ~key:name ~data}
 
 let add_typedef env ~name ty =
   if in_ordinary env name
   then Or_error.errorf "identifier %S already declared" name
-  else Ok {env with denv = Map.set env.denv ~key:name ~data:ty}
+  else Ok {env with denv = Smap.set env.denv ~key:name ~data:ty}
 
 let add_func env ~name ty =
   if in_ordinary env name
   then Or_error.errorf "identifier %S already declared" name
-  else Ok {env with fenv = Map.set env.fenv ~key:name ~data:ty}
+  else Ok {env with fenv = Smap.set env.fenv ~key:name ~data:ty}
 
 let add_global env ~name ty =
   if in_ordinary env name
   then Or_error.errorf "identifier %S already declared" name
-  else Ok {env with venv = Map.set env.venv ~key:name ~data:ty}
+  else Ok {env with venv = Smap.set env.venv ~key:name ~data:ty}
 
 let add_local env ~name ty = match env.lenv with
   | [] -> failwith "Type_env.add_local: no scope on the stack"
-  | m :: rest -> {env with lenv = Map.set m ~key:name ~data:ty :: rest}
+  | m :: rest -> {env with lenv = Smap.set m ~key:name ~data:ty :: rest}
 
 let strict_add_local env ~name ty = match env.lenv with
   | [] -> failwith "Type_env.strict_add_local: no scope on the stack"
-  | m :: rest -> match Map.add m ~key:name ~data:ty with
+  | m :: rest -> match Smap.add m ~key:name ~data:ty with
     | `Duplicate -> Or_error.errorf "redeclaration of %S" name
     | `Ok m -> Ok {env with lenv = m :: rest}
 
 let push_scope env = {env with lenv = empty_map :: env.lenv}
 
-let find_tag env name = Map.find env.tenv name
-let find_enum_element env name = Map.find env.eenv name
-let find_typedef env name = Map.find env.denv name
-let find_func env name = Map.find env.fenv name
-let find_global env name = Map.find env.venv name
-let find_local env name = List.find_map env.lenv ~f:(Fn.flip Map.find name)
+let find_tag env name = Smap.find env.tenv name
+let find_enum_element env name = Smap.find env.eenv name
+let find_typedef env name = Smap.find env.denv name
+let find_func env name = Smap.find env.fenv name
+let find_global env name = Smap.find env.venv name
+let find_local env name = List.find_map env.lenv ~f:(Fn.flip Smap.find name)
 
-let has_tag env name = Map.mem env.tenv name
-let has_enum_element env name = Map.mem env.eenv name
-let has_typedef env name = Map.mem env.denv name
-let has_func env name = Map.mem env.fenv name
-let has_global env name = Map.mem env.venv name
-let has_local env name = List.exists env.lenv ~f:(Fn.flip Map.mem name)
+let has_tag env name = Smap.mem env.tenv name
+let has_enum_element env name = Smap.mem env.eenv name
+let has_typedef env name = Smap.mem env.denv name
+let has_func env name = Smap.mem env.fenv name
+let has_global env name = Smap.mem env.venv name
+let has_local env name = List.exists env.lenv ~f:(Fn.flip Smap.mem name)
 
-let tags env = Map.to_sequence env.tenv
-let enum_elements env = Map.to_sequence env.eenv
-let typedefs env = Map.to_sequence env.denv
-let funcs env = Map.to_sequence env.fenv
-let globals env = Map.to_sequence env.venv
+let tags env = Smap.to_sequence env.tenv
+let enum_elements env = Smap.to_sequence env.eenv
+let typedefs env = Smap.to_sequence env.denv
+let funcs env = Smap.to_sequence env.fenv
+let globals env = Smap.to_sequence env.venv
 
 let locals env =
   let init = empty_map in
-  Map.to_sequence @@ List.fold env.lenv ~init ~f:(fun init m ->
-      Map.fold m ~init ~f:(fun ~key ~data m ->
-          match Map.add m ~key ~data with
+  Smap.to_sequence @@ List.fold env.lenv ~init ~f:(fun init m ->
+      Smap.foldi m ~init ~f:(fun ~key ~data m ->
+          match Smap.add m ~key ~data with
           | `Duplicate -> m
           | `Ok m -> m))
 
-let is_tag_complete env name = match Map.find env.tenv name with
+let is_tag_complete env name = match Smap.find env.tenv name with
   | None | Some (Tenum [] | Tcompound {fields = []; _}) -> false
   | Some _ -> true
 

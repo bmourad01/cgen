@@ -7,6 +7,9 @@ module V = Cgen.Virtual
 module Bv = Cgen.Bv
 module F32 = Cgen_utils.Float32
 module LB = Layout.Bitfield
+module Smap = Cgen_containers.Champ.Make(String)
+
+type 'a map = 'a Smap.t
 
 open Ctx.Syntax
 
@@ -14,7 +17,7 @@ let (let@) f x = f x
 
 type env = {
   layout  : Layout.t;
-  slots   : Cgen.Var.t String.Map.t;
+  slots   : Cgen.Var.t map;
   strings : string String.Table.t;
   nstr    : int ref;
 }
@@ -471,7 +474,7 @@ and lower_conv (v : V.operand) ~sb ~ssig ~dst:db k =
 
 and lower_lval env (lv : Texpr.tlval) k = match lv.node with
   | Lvar name ->
-    begin match Map.find env.slots name with
+    begin match Smap.find env.slots name with
       | Some slot -> k (`var slot)
       | None -> k (`sym (name, 0))
     end

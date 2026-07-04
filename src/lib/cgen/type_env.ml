@@ -5,6 +5,9 @@ open Virtual
 module Vtree = Var.Tree
 module Ltree = Label.Tree
 module Vset = Var.Tree_set
+module Smap = Cgen_containers.Champ.Make(String)
+
+type 'a map = 'a Smap.t
 
 exception Fail of Error.t
 
@@ -25,20 +28,20 @@ let ok = function
 
 type t = {
   target : Target.t;
-  denv   : Type.named String.Map.t;
-  fenv   : Type.proto String.Map.t;
-  tenv   : Type.named String.Map.t;
-  venv   : Type.t Vtree.t String.Map.t;
-  genv   : Type.layout String.Map.t;
+  denv   : Type.named map;
+  fenv   : Type.proto map;
+  tenv   : Type.named map;
+  venv   : Type.t Vtree.t map;
+  genv   : Type.layout map;
 }
 
 let create target = {
   target;
-  denv = String.Map.empty;
-  fenv = String.Map.empty;
-  tenv = String.Map.empty;
-  venv = String.Map.empty;
-  genv = String.Map.empty;
+  denv = Smap.empty;
+  fenv = Smap.empty;
+  tenv = Smap.empty;
+  venv = Smap.empty;
+  genv = Smap.empty;
 }
 
 let target t = t.target [@@inline]
@@ -46,36 +49,36 @@ let target t = t.target [@@inline]
 let add_data_exn d env =
   let name = Data.name d in
   let word = Target.word env.target in
-  if Map.mem env.fenv name then
+  if Smap.mem env.fenv name then
     failf "Tried to redefine function $%s as data" name
-  else match Map.add env.denv ~key:name ~data:(Data.typeof d ~word) with
+  else match Smap.add env.denv ~key:name ~data:(Data.typeof d ~word) with
     | `Duplicate -> failf "Redefinition of data $%s" name
     | `Ok denv -> {env with denv}
 
 (* If we don't have the data defined in the module, then assume it is
    external (i.e. it is linked with our program a posteriori), and that
    the user accepts the risk. *)
-let typeof_data name env = Map.find env.denv name [@@inline]
+let typeof_data name env = Smap.find env.denv name [@@inline]
 
 let datanames env =
-  Map.to_sequence env.denv |> Seq.map ~f:fst
+  Smap.to_sequence env.denv |> Seq.map ~f:fst
 [@@inline]
 
 let add_fn_exn fn env =
   let name = Func.name fn in
-  if Map.mem env.denv name then
+  if Smap.mem env.denv name then
     failf "Tried to redefine data $%s as a function" name
-  else match Map.add env.fenv ~key:name ~data:(Func.typeof fn) with
+  else match Smap.add env.fenv ~key:name ~data:(Func.typeof fn) with
     | `Duplicate -> failf "Redefinition of function $%s" name
     | `Ok fenv -> {env with fenv}
 
 (* If we don't have the function defined in the module, then assume
    it is external (i.e. it is linked with our program a posteriori),
    and that the user accepts the risk. *)
-let typeof_fn name env = Map.find env.fenv name [@@inline]
+let typeof_fn name env = Smap.find env.fenv name [@@inline]
 
 let funcnames env =
-  Map.to_sequence env.fenv |> Seq.map ~f:fst
+  Smap.to_sequence env.fenv |> Seq.map ~f:fst
 [@@inline]
 
 let check_typ_align t name = match Type.named_align t with
@@ -87,22 +90,22 @@ let check_typ_align t name = match Type.named_align t with
 let add_typ_exn t env =
   let name = Type.named_name t in
   check_typ_align t name;
-  match Map.add env.tenv ~key:name ~data:t with
+  match Smap.add env.tenv ~key:name ~data:t with
   | `Duplicate -> failf "Redefinition of type :%s" name
   | `Ok tenv -> {env with tenv}
 
-let typeof_typ_exn name env = match Map.find env.tenv name with
+let typeof_typ_exn name env = match Smap.find env.tenv name with
   | None -> failf "Undefined type %s" name
   | Some t -> t
 [@@inline]
 
 let typenames env =
-  Map.to_sequence env.tenv |> Seq.map ~f:fst
+  Smap.to_sequence env.tenv |> Seq.map ~f:fst
 [@@inline]
 
 let typeof_var_exn fn v env =
   let fname = Func.name fn in
-  match Map.find env.venv fname with
+  match Smap.find env.venv fname with
   | None ->
     failf "No function $%s in environment for variable %a" fname Var.pps v
   | Some m -> match Vtree.find m v with
@@ -111,7 +114,7 @@ let typeof_var_exn fn v env =
 
 let add_var_exn fn v t env =
   let key = Func.name fn in
-  let venv = Map.update env.venv key ~f:(function
+  let venv = Smap.update env.venv key ~f:(function
       | None -> Vtree.singleton v t
       | Some m ->
         Vtree.update_with m v
@@ -124,11 +127,11 @@ let add_var_exn fn v t env =
   {env with venv}
 
 let add_layout_exn name l env =
-  match Map.add env.genv ~key:name ~data:l with
+  match Smap.add env.genv ~key:name ~data:l with
   | `Ok genv -> {env with genv}
   | `Duplicate -> failf "Redefinition of layout for :%s" name
 
-let layout_exn name env = match Map.find env.genv name with
+let layout_exn name env = match Smap.find env.genv name with
   | None -> failf "Type :%s not found in gamma" name
   | Some l -> l
 
@@ -218,7 +221,7 @@ let collect_fn env fn =
 let set_fn env fn =
   let key = Func.name fn in
   let data = collect_fn env fn in
-  let venv = Map.set env.venv ~key ~data in
+  let venv = Smap.set env.venv ~key ~data in
   {env with venv}
 
 let collect_fns env fns = or_error @@ fun () ->
@@ -227,7 +230,7 @@ let collect_fns env fns = or_error @@ fun () ->
 let collect_module_level m target =
   let env = create target in
   let env = Module.fold_typs m ~init:env ~f:(fun env t -> add_typ_exn t env) in
-  let layouts = ok (Type.layouts_of_types (Map.data env.tenv)) in
+  let layouts = ok (Type.layouts_of_types (Smap.data env.tenv)) in
   let env = List.fold layouts ~init:env
       ~f:(fun env (name, l) -> add_layout_exn name l env) in
   let env = Module.fold_data m ~init:env ~f:(fun env d -> add_data_exn d env) in

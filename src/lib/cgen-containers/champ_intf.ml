@@ -1,8 +1,12 @@
+module type Key = sig
+  type t [@@deriving bin_io, compare, equal, hash, sexp]
+end
+
 module type S = sig
   type key
 
   (** A tree keyed by [key], with associated values of type ['a]. *)
-  type 'a t
+  type 'a t [@@deriving bin_io, compare, equal, hash, sexp]
 
   exception Not_found
   exception Duplicate
@@ -72,6 +76,9 @@ module type S = sig
 
   (** Returns the tree as an association list. *)
   val to_alist : 'a t -> (key * 'a) list
+
+  (** Returns the tree as a sequence. *)
+  val to_sequence : 'a t -> (key * 'a) Base.Sequence.t
 
   (** Returns a list of all keys in the tree. *)
   val keys : 'a t -> key list

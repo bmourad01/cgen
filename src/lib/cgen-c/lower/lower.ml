@@ -16,6 +16,7 @@ module S = Cgen.Structured
 module V = Cgen.Virtual
 module Dict = Cgen.Dict
 module E = Lower_expr
+module Smap = E.Smap
 
 open Ctx.Syntax
 
@@ -75,7 +76,7 @@ let lower_fundef
     Ctx.Seq.map param_specs ~f:(Tuple2.uncurry @@ E.alloc_slot layout) in
   let param_slots =
     Seq.map param_entries ~f:fst |>
-    String.Map.of_sequence_reduce ~f:(fun _ b -> b) in
+    Seq.to_list |> Smap.of_alist_overwrite in
   let param_slot_list = Seq.to_list @@ Seq.map param_entries ~f:snd in
   (* Accumulates every local slot allocated while lowering the body. *)
   let local_slots = ref [] in
@@ -88,9 +89,9 @@ let lower_fundef
   let* labels =
     collect_labels [] body |>
     List.dedup_and_sort ~compare:String.compare |>
-    Ctx.List.fold ~init:String.Map.empty ~f:(fun acc n ->
+    Ctx.List.fold ~init:Smap.empty ~f:(fun acc n ->
         let+ l = Ctx.Label.fresh in
-        Map.set acc ~key:n ~data:l) in
+        Smap.set acc ~key:n ~data:l) in
   (* Initial environments. *)
   let e : E.env = {layout; slots = param_slots; strings; nstr} in
   let c : Lower_stmt.t = {
@@ -108,7 +109,7 @@ let lower_fundef
   let body_with_prologue =
     List.fold_right args ~init:body_s ~f:(fun ((p : Tdecl.param), av) acc ->
         let arg = Lower_type.arg_of layout p.pty in
-        let dst = Map.find_exn param_slots p.pname in
+        let dst = Smap.find_exn param_slots p.pname in
         `seq (`store (arg, `var av, `var dst), acc)) in
   let body = S.Stmt.normalize body_with_prologue in
   let func_args =
@@ -128,7 +129,7 @@ let scalar_imm layout ty = E.imm_of_basic (fst (Lower_type.scalar layout ty))
 let intern_string layout strings nstr s =
   E.intern_string {
     layout;
-    slots = String.Map.empty;
+    slots = Smap.empty;
     strings;
     nstr;
   } s

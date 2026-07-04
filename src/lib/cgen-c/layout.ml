@@ -8,6 +8,9 @@ module E = Monad.Result.Error
 module T = Cgen.Type
 module TE = Type_env
 module D = Data_model
+module Smap = Cgen_containers.Champ.Make(String)
+
+type 'a map = 'a Smap.t [@@deriving bin_io, compare, equal, hash, sexp]
 
 module Bitfield = struct
   type t = {
@@ -117,7 +120,7 @@ let layout_struct gamma dm fields =
       | None ->
         let* fs, fa = field_size_align gamma dm f.fty in
         let p = round_up p (fa * 8) in
-        let offs = Map.set offs ~key:f.fname ~data:(p / 8) in
+        let offs = Smap.set offs ~key:f.fname ~data:(p / 8) in
         go (p + fs * 8) (max align fa) offs ((p / 8, fs) :: members) bits rest
       | Some 0 when String.is_empty f.fname ->
         let* u = bits_of_type dm f.fty in
@@ -142,19 +145,19 @@ let layout_struct gamma dm fields =
           else (f.fname, storage, offset, w, u / 8) :: bits in
         go (p + w) (max align (u / 8)) offs members bits rest in
   let* size, align, offs, members, bits =
-    go 0 1 String.Map.empty [] [] fields in
+    go 0 1 Smap.empty [] [] fields in
   let is_member_byte byte =
     List.exists members ~f:(fun (mo, ms) ->
         mo <= byte && byte < mo + ms) in
   let bfs =
-    List.fold bits ~init:String.Map.empty
+    List.fold bits ~init:Smap.empty
       ~f:(fun bfs (name, storage, offset, width, ub) ->
           let access_storage, ab =
             access_unit ~storage ~offset ~width ~ub ~is_member_byte in
           let data =
             Bitfield.create ~storage ~offset ~width
               ~access_storage ~access_bits:(ab * 8) in
-          Map.set bfs ~key:name ~data) in
+          Smap.set bfs ~key:name ~data) in
   Ok (size, align, offs, bfs)
 
 let layout_union gamma dm fields =
@@ -166,7 +169,7 @@ let layout_union gamma dm fields =
       | None ->
         let* fs, fa = field_size_align gamma dm f.fty in
         go (max size fs) (max align fa)
-          (Map.set offs ~key:f.fname ~data:0) bfs rest
+          (Smap.set offs ~key:f.fname ~data:0) bfs rest
       | Some 0 when String.is_empty f.fname ->
         go size align offs bfs rest
       | Some 0 ->
@@ -184,16 +187,13 @@ let layout_union gamma dm fields =
             let data =
               Bitfield.create ~storage:0 ~offset:0 ~width:w
                 ~access_storage:0 ~access_bits:u in
-            Map.set bfs ~key:f.fname ~data in
+            Smap.set bfs ~key:f.fname ~data in
         go (max size (u / 8)) (max align (u / 8)) offs bfs rest in
-  go 0 1 String.Map.empty String.Map.empty fields
+  go 0 1 Smap.empty Smap.empty fields
 
 let layout_compound dm ~gamma ~kind fields = match kind with
   | `struct_ -> layout_struct gamma dm fields
   | `union   -> layout_union gamma dm fields
-
-type 'a map = 'a Map.M(String).t
-[@@deriving bin_io, compare, equal, hash, sexp]
 
 type t = {
   dmodel  : D.t;              (* data model *)
@@ -206,9 +206,9 @@ type t = {
 let empty ~dmodel = {
   dmodel;
   tenv = TE.empty;
-  sizes = String.Map.empty;
-  offsets = String.Map.empty;
-  bfields = String.Map.empty;
+  sizes = Smap.empty;
+  offsets = Smap.empty;
+  bfields = Smap.empty;
 }
 
 let tenv t = t.tenv
@@ -217,11 +217,11 @@ let dmodel t = t.dmodel
 (* Compute and record the layout of a complete compound. Nested compounds
    must already be present in [t.sizes]. *)
 let put_compound t ~name ~kind fields =
-  let gamma s = Map.find t.sizes s in
+  let gamma s = Smap.find t.sizes s in
   let+ size, align, offs, bfs = layout_compound t.dmodel ~gamma ~kind fields in
-  let sizes = Map.set t.sizes ~key:name ~data:(size, align) in
-  let offsets = Map.set t.offsets ~key:name ~data:offs in
-  let bfields = Map.set t.bfields ~key:name ~data:bfs in
+  let sizes = Smap.set t.sizes ~key:name ~data:(size, align) in
+  let offsets = Smap.set t.offsets ~key:name ~data:offs in
+  let bfields = Smap.set t.bfields ~key:name ~data:bfs in
   {t with sizes; offsets; bfields}
 
 let create dmodel tenv =
@@ -230,13 +230,16 @@ let create dmodel tenv =
         | name, TE.Tcompound {kind; fields = (_ :: _ as fields)} ->
           Some (name, kind, fields)
         | _ -> None) |> Seq.to_list in
-  let* defs =
-    Seq.of_list compounds |>
-    Seq.map ~f:(fun (n, k, f) -> n, (k, f)) |>
-    String.Map.of_sequence |> function
-    | `Duplicate_key n ->
-      Or_error.errorf "duplicate compound type '%s'" n
-    | `Ok defs -> !!defs in
+  let* () =
+    List.find_a_dup compounds
+      ~compare:(fun (a, _, _) (b, _, _) ->
+          String.compare a b) |> function
+    | None -> Ok ()
+    | Some (a, _, _) ->
+      Or_error.errorf "duplicate compound type '%s'" a in
+  let defs =
+    Smap.of_alist_exn @@
+    List.map compounds ~f:(fun (n, k, f) -> n, (k, f)) in
   let rec refs_of_ty : Texpr.ty -> string list = function
     | Tarray {elem; _} -> refs_of_ty elem
     | Tnamed {kind = #compound; name; _} -> [name]
@@ -247,7 +250,7 @@ let create dmodel tenv =
   let rec visit name =
     Hash_set.strict_add visited name |>
     Or_error.iter ~f:(fun () ->
-        Map.find defs name |>
+        Smap.find defs name |>
         Option.iter ~f:(fun (_, fields) ->
             List.iter fields ~f:(fun (f : Tdecl.field) ->
                 List.iter (refs_of_ty f.fty) ~f:visit));
@@ -256,7 +259,7 @@ let create dmodel tenv =
   let+ t =
     Vec.to_sequence_mutable order |>
     Seq.filter_map ~f:(fun n ->
-        Map.find defs n |>
+        Smap.find defs n |>
         Option.map ~f:(fun (k, f) -> n, k, f)) |>
     E.Seq.fold
       ~init:(empty ~dmodel)
@@ -325,7 +328,7 @@ let rec size_align dm sizes = function
   | Tnamed {kind = `typedef; name; _} ->
     Or_error.errorf "unresolved typedef %S" name
   | Tnamed {kind = #compound; name; _} ->
-    begin match Map.find sizes name with
+    begin match Smap.find sizes name with
       | None -> Or_error.errorf "compound %S not laid out" name
       | Some sa -> Ok sa
     end
@@ -334,20 +337,20 @@ let rec size_align dm sizes = function
 let sizeof t ty = size_align t.dmodel t.sizes (TE.normalize t.tenv ty) >>| fst
 let alignof t ty = size_align t.dmodel t.sizes (TE.normalize t.tenv ty) >>| snd
 
-let offsetof t ~tag ~field = match Map.find t.offsets tag with
+let offsetof t ~tag ~field = match Smap.find t.offsets tag with
   | None -> Or_error.errorf "unknown tag %S" tag
-  | Some m -> match Map.find m field with
+  | Some m -> match Smap.find m field with
     | Some off -> Ok off
     | None ->
       let bfs =
-        Map.find t.bfields tag |>
-        Option.value ~default:String.Map.empty in
-      if Map.mem bfs field
+        Smap.find t.bfields tag |>
+        Option.value ~default:Smap.empty in
+      if Smap.mem bfs field
       then Or_error.errorf "'%s.%s' is a bit field" tag field
       else Or_error.errorf "unknown field '%s.%s'" tag field
 
-let bitfield_info t ~tag ~field = match Map.find t.bfields tag with
+let bitfield_info t ~tag ~field = match Smap.find t.bfields tag with
   | None -> Or_error.errorf "unknown tag %S" tag
-  | Some m -> match Map.find m field with
+  | Some m -> match Smap.find m field with
     | None -> Or_error.errorf "'%s.%s' is not a bit field" tag field
     | Some bf -> Ok bf

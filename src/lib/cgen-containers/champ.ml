@@ -1,4 +1,5 @@
-open Base
+open Core
+open Regular.Std
 
 let bits_per_level = 5
 let branch_mask = (1 lsl bits_per_level) - 1
@@ -60,9 +61,12 @@ let array_fold a ~init ~f =
 let array_foldi a ~init ~f =
   Array.fold a ~init ~f:(fun acc (k, v) -> f ~key:k ~data:v acc)
 
-module Make(K : Hashtbl.Key.S) = struct
-  type key = K.t [@@deriving sexp_of]
-  type 'a entries = (key * 'a) array [@@deriving sexp_of]
+let hash_fold_array f state t =
+  Array.fold t ~init:(hash_fold_int state (Array.length t)) ~f
+
+module Make(K : Champ_intf.Key) = struct
+  type key = K.t [@@deriving bin_io, compare, equal, hash, sexp]
+  type 'a entries = (key * 'a) array [@@deriving bin_io, compare, equal, hash, sexp]
 
   (* [Empty]: empty node
 
@@ -98,14 +102,12 @@ module Make(K : Hashtbl.Key.S) = struct
         data     : 'a entries;
         children : 'a t array;
       }
-  [@@deriving sexp_of]
+  [@@deriving bin_io, compare, equal, hash, sexp]
 
   exception Not_found
   exception Duplicate
 
   let empty = Empty
-
-  let equal_key k1 k2 = K.compare k1 k2 = 0
 
   let find_index a k =
     Binary_search.binary_search a
@@ -378,6 +380,22 @@ module Make(K : Hashtbl.Key.S) = struct
   let to_alist t = foldi t ~init:[] ~f:(fun ~key ~data acc -> (key, data) :: acc)
   let keys t = foldi t ~init:[] ~f:(fun ~key ~data:_ acc -> key :: acc)
   let data t = fold t ~init:[] ~f:(fun acc v -> v :: acc)
+
+  let to_sequence t =
+    let open Seq.Generator in
+    let rec go = function
+      | Empty -> return ()
+      | Collision {entries = a; _}
+      | Bucket {entries = a; _} ->
+        of_sequence (Array.to_sequence_mutable a)
+      | Node n ->
+        of_sequence (Array.to_sequence_mutable n.data) >>= fun () ->
+        child n.children 0
+    and child cs i =
+      if i >= Array.length cs then return () else
+        go cs.(i) >>= fun () ->
+        child cs (i + 1) in
+    run @@ go t
 
   let singleton k v = singleton k v (K.hash k) 0 [@@inline]
 

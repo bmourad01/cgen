@@ -8,8 +8,8 @@ module T = Base_quickcheck.Test
 module Seq = Sequence
 
 module type Key = sig
-  include Base.Hashtbl.Key.S
-  include Comparator.S with type t := t
+  type t
+  include Cgen_containers.Champ_intf.Key with type t := t
   include Sexpable.S with type t := t
   include Q.S with type t := t
 end
@@ -97,7 +97,14 @@ module Make(K : Key) = struct
           | _ -> (k, v) :: acc)
 
   let to_alist_ref t = Map.to_alist t
+  let to_sequence_ref t = Map.to_sequence t
   let to_alist_champ t = sort (Champ.to_alist t)
+
+  let to_sequence_champ t =
+    Champ.to_sequence t |>
+    Sequence.to_list |>
+    sort |>
+    Sequence.of_list
 
   let eq2 (k1, v1) (k2, v2) = K.compare k1 k2 = 0 && v1 = v2
 
@@ -157,6 +164,11 @@ module Make(K : Key) = struct
     let c = of_alist_champ kvs in
     let r = of_alist_ref kvs in
     [%test_eq : (K.t * int) list] (to_alist_champ c) (to_alist_ref r)
+
+  let%test_unit "initialized champ iteration equivalence (seq)" = qckvl @@ fun kvs ->
+    let c = of_alist_champ kvs in
+    let r = of_alist_ref kvs in
+    [%test_eq : (K.t * int) Sequence.t] (to_sequence_champ c) (to_sequence_ref r)
 
   let%test_unit "champ behaves like Map under operations" = qckvlo @@ fun (kvs, ops) ->
     let rec loop r c = function
@@ -220,7 +232,7 @@ end
 
 module Key = struct
   module T = struct
-    type t = int * string [@@deriving compare, hash, quickcheck, sexp]
+    type t = int * string [@@deriving bin_io, compare, equal, hash, quickcheck, sexp]
   end
   include T
   include Comparator.Make(T)
@@ -228,8 +240,9 @@ end
 
 module Flood_key_const = struct
   module T = struct
-    type t = int [@@deriving compare, quickcheck, sexp]
+    type t = int [@@deriving bin_io, equal, compare, quickcheck, sexp]
     let hash _ = 0
+    let hash_fold_t state t = hash_fold_int state (hash t)
   end
   include T
   include Comparator.Make(T)
@@ -237,8 +250,9 @@ end
 
 module Flood_key_alternating = struct
   module T = struct
-    type t = int [@@deriving compare, quickcheck, sexp]
+    type t = int [@@deriving bin_io, equal, compare, quickcheck, sexp]
     let hash k = k land 1
+    let hash_fold_t state t = hash_fold_int state (hash t)
   end
   include T
   include Comparator.Make(T)

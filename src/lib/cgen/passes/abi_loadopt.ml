@@ -25,7 +25,7 @@ module Op = struct
     | Bop of Abi.Insn.binop * operand * operand
     | Uop of Abi.Insn.unop * operand
     | Sel of Type.basic * Var.t * operand * operand
-  [@@deriving compare, equal, hash, sexp]
+  [@@deriving bin_io, compare, equal, hash, sexp]
 
   let commute = function
     | Bop (b, l, r) ->

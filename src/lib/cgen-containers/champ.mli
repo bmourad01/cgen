@@ -1,3 +1,3 @@
 (** CHAMP (Compressed Hash Array-Mapped Prefix Tree) *)
 
-module Make(K : Base.Hashtbl.Key.S) : Champ_intf.S with type key = K.t
+module Make(K : Champ_intf.Key) : Champ_intf.S with type key = K.t
