@@ -71,6 +71,11 @@ let it a b =
   B.inter r b;
   r
 
+let%test_unit "cardinality" =
+  T.run_exn (module Single) ~f:(fun s ->
+      let l = B.enum s |> Seq.to_list in
+      [%test_eq : int] (B.cardinality s) (List.length l))
+
 let%test_unit "union is commutative" =
   T.run_exn (module Pair) ~f:(fun (a, b) ->
       [%test_eq : B.t] (un a b) (un b a))

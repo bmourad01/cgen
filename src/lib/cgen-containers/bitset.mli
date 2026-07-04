@@ -14,6 +14,9 @@ val create : ?capacity:int -> unit -> t
 (** Returns a copy of the set. *)
 val copy : t -> t
 
+(** Returns the number of elements in the set. *)
+val cardinality : t -> int
+
 (** The singleton set containing [key]. *)
 val singleton : key -> t
 

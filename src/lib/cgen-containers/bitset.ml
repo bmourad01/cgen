@@ -43,6 +43,13 @@ let copy t =
   for i = 0 to t.len - 1 do Vec.push words (Vec.unsafe_get t.words i) done;
   {len = t.len; words}
 
+let cardinality t =
+  let n = ref 0 in
+  for i = 0 to t.len - 1 do
+    n := !n + W.popcount (uget t i)
+  done;
+  !n
+
 let is_empty t = t.len = 0 [@@inline]
 
 let clear t =
