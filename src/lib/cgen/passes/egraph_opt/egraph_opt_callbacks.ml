@@ -5,6 +5,7 @@ open Monads.Std
 
 module O = Monad.Option
 module Subst = Egraph.Subst
+module Bitset = Cgen_containers.Bitset
 
 open Egraph.Rule
 open O.Let
@@ -385,7 +386,7 @@ let byte_mask_index nbytes ty m =
    - [`ms]: mask-then-shift
 *)
 let is_bswap nbytes terms env =
-  let seen = Array.create ~len:nbytes false in
+  let seen = Bitset.create () in
   let ok_term (order, dir, sname, mname) =
     match
       Subst.find env sname >>= Subst.const,
@@ -412,11 +413,12 @@ let is_bswap nbytes terms env =
             src >= 0 &&
             src < nbytes &&
             out = nbytes - 1 - src &&
-            not seen.(out) && begin
-              seen.(out) <- true;
+            not (Bitset.mem seen out) && begin
+              Bitset.add seen out;
               true
             end
           end
       end
     | _ -> false in
-  List.for_all terms ~f:ok_term && Array.for_all seen ~f:Fn.id
+  List.for_all terms ~f:ok_term &&
+  Bitset.cardinality seen = nbytes
