@@ -2,16 +2,16 @@ module varargfp
 
 export function $addv { ; returns: xmm0
 @19:
-  push rbp ; @131
-  mov rbp, rsp ; @132
-  sub rsp, 0xc0_l ; @133
+  push rbp ; @125
+  mov rbp, rsp ; @126
+  sub rsp, 0xc0_l ; @127
   mov qword ptr [rbp - 0xb8], rsi ; @21
   mov qword ptr [rbp - 0xb0], rdx ; @23
   mov qword ptr [rbp - 0xa8], rcx ; @25
   mov qword ptr [rbp - 0xa0], r8 ; @27
   mov qword ptr [rbp - 0x98], r9 ; @29
-  test al, al ; @110
-  je @2 ; @111
+  test al, al ; @106
+  je @2 ; @107
 @18:
   movdqa xmmword ptr [rbp - 0x90], xmm0 ; @32
   movdqa xmmword ptr [rbp - 0x80], xmm1 ; @34
@@ -23,16 +23,16 @@ export function $addv { ; returns: xmm0
   movdqa xmmword ptr [rbp - 0x20], xmm7 ; @46
 @2:
   lea rax, qword ptr [rbp + 0x10] ; @50
-  mov ecx, 0x30_w ; @104
-  xor r8d, r8d ; @105
-  movsd xmm0, qword ptr [rip + @102] ; @106
-  .fp64 @102, 0. ; @107
+  mov ecx, 0x30_w ; @100
+  xor r8d, r8d ; @101
+  movsd xmm0, qword ptr [rip + @98] ; @102
+  .fp64 @98, 0. ; @103
 @3:
-  cmp r8d, edi ; @97
-  jb @56 ; @98
+  cmp r8d, edi ; @95
+  jb @56 ; @96
 @8:
-  leave ; @134
-  ret ; @96
+  leave ; @128
+  ret ; @94
 @56:
   cmp ecx, 0xa0_w ; @89
   jbe @57 ; @90
@@ -54,17 +54,17 @@ export function $addv { ; returns: xmm0
 
 export function $six { ; returns: xmm0
 @13:
-  push rbp ; @135
-  mov rbp, rsp ; @136
+  push rbp ; @129
+  mov rbp, rsp ; @130
   mov edi, 0x3_w ; @14
-  movsd xmm0, qword ptr [rip + @121] ; @122
-  .fp64 @121, 1. ; @123
-  movsd xmm1, qword ptr [rip + @120] ; @124
-  .fp64 @120, 2. ; @125
-  movsd xmm2, qword ptr [rip + @119] ; @126
-  .fp64 @119, 3. ; @127
-  mov eax, 0x3_w ; @128
-  call $addv ; xmm0 xmm1 xmm2 rax rdi ; @129
-  leave ; @137
-  ret ; @118
+  movsd xmm0, qword ptr [rip + @115] ; @116
+  .fp64 @115, 1. ; @117
+  movsd xmm1, qword ptr [rip + @114] ; @118
+  .fp64 @114, 2. ; @119
+  movsd xmm2, qword ptr [rip + @113] ; @120
+  .fp64 @113, 3. ; @121
+  mov eax, 0x3_w ; @122
+  call $addv ; xmm0 xmm1 xmm2 rax rdi ; @123
+  leave ; @131
+  ret ; @112
 }

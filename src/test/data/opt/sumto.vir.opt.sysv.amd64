@@ -2,10 +2,10 @@ module sumto
 
 export function $sumto { ; returns: rax
 @2:
-  mov %5:w, edi ; @44
-  xor %35:w, %35:w ; @45
-  mov %36:w, 0x1_w ; @46
-  jmp @3 ; @47
+  mov %5:w, edi ; @42
+  xor %35:w, %35:w ; @43
+  mov %36:w, 0x1_w ; @44
+  jmp @3 ; @45
 @3:
   cmp %36:w, %5:w ; @39
   jle @8 ; @40

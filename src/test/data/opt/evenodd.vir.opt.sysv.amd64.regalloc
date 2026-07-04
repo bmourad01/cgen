@@ -12,34 +12,34 @@ function $abs { ; returns: rax
 
 export function $even { ; returns: rax
 @7:
-  push rbp ; @64
-  mov rbp, rsp ; @65
-  call $abs ; rdi ; @50
+  push rbp ; @60
+  mov rbp, rsp ; @61
+  call $abs ; rdi ; @48
   test eax, eax ; @44
   jne @9 ; @45
 @23:
   mov eax, 0x1_w ; @42
-  leave ; @66
+  leave ; @62
   ret ; @43
 @9:
   lea edi, qword ptr [rax - 0x1] ; @29
-  leave ; @67
+  leave ; @63
   tailcall $odd ; rdi ; @41
 }
 
 export function $odd { ; returns: rax
 @14:
-  push rbp ; @68
-  mov rbp, rsp ; @69
-  call $abs ; rdi ; @62
-  test eax, eax ; @56
-  jne @16 ; @57
+  push rbp ; @64
+  mov rbp, rsp ; @65
+  call $abs ; rdi ; @58
+  test eax, eax ; @54
+  jne @16 ; @55
 @24:
-  xor eax, eax ; @54
-  leave ; @70
-  ret ; @55
+  xor eax, eax ; @52
+  leave ; @66
+  ret ; @53
 @16:
   lea edi, qword ptr [rax - 0x1] ; @31
-  leave ; @71
-  tailcall $even ; rdi ; @53
+  leave ; @67
+  tailcall $even ; rdi ; @51
 }

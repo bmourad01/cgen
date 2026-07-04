@@ -2,8 +2,8 @@ module nosink
 
 export function $foo { ; returns: rax
 @2:
-  test edi, edi ; @39
-  je @3 ; @40
+  test edi, edi ; @37
+  je @3 ; @38
 @4:
   cmp edi, 0x1_w ; @34
   je @9 ; @35

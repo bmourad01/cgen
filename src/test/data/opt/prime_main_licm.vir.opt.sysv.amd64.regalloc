@@ -7,25 +7,25 @@ const data $fmt = {
 
 export function $main { ; returns: rax
 @2:
-  push rbp ; @64
-  mov rbp, rsp ; @65
-  push r12 ; @66
-  push r13 ; @67
-  push r14 ; @68
-  push rbx ; @69
+  push rbp ; @60
+  mov rbp, rsp ; @61
+  push r12 ; @62
+  push r13 ; @63
+  push r14 ; @64
+  push rbx ; @65
   mov rdi, qword ptr [rsi + 0x8] ; @5
-  call $atoi ; rdi ; @60
-  mov r14d, eax ; @61
-  mov ebx, 0x1_w ; @56
-  mov r13d, 0x1_w ; @57
+  call $atoi ; rdi ; @56
+  mov r14d, eax ; @57
+  mov ebx, 0x1_w ; @52
+  mov r13d, 0x1_w ; @53
 @3:
-  cmp r14d, 0x0_w ; @51
-  jle @9 ; @52
+  cmp r14d, 0x0_w ; @49
+  jle @9 ; @50
 @27:
-  mov r12d, ebx ; @49
+  mov r12d, ebx ; @47
 @10:
   mov edi, r12d ; @14
-  call $is_prime ; rdi ; @47
+  call $is_prime ; rdi ; @45
   lea ebx, qword ptr [r12 + 0x1] ; @24
   test eax, eax ; @42
   jne @13 ; @43
@@ -43,10 +43,10 @@ export function $main { ; returns: rax
   jmp @3 ; @34
 @9:
   xor eax, eax ; @29
-  pop rbx ; @70
-  pop r14 ; @71
-  pop r13 ; @72
-  pop r12 ; @73
-  leave ; @74
+  pop rbx ; @66
+  pop r14 ; @67
+  pop r13 ; @68
+  pop r12 ; @69
+  leave ; @70
   ret ; @30
 }

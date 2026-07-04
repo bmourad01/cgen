@@ -2,38 +2,38 @@ module spill2
 
 export function $foo { ; returns: rax
 @2:
-  push r12 ; @102
-  push r13 ; @103
-  push r14 ; @104
-  push r15 ; @105
-  push rbx ; @106
-  sub rsp, 0x10_l ; @107
-  mov qword ptr [rsp + 0x8], rdi ; @98
-  mov qword ptr [rsp], rsi ; @99
-  mov r15, rdx ; @92
-  mov r14, rcx ; @93
-  xor r13d, r13d ; @95
-  xor edi, edi ; @96
+  push r12 ; @97
+  push r13 ; @98
+  push r14 ; @99
+  push r15 ; @100
+  push rbx ; @101
+  sub rsp, 0x10_l ; @102
+  mov qword ptr [rsp + 0x8], rdi ; @93
+  mov qword ptr [rsp], rsi ; @94
+  mov r15, rdx ; @87
+  mov r14, rcx ; @88
+  xor r13d, r13d ; @90
+  xor edi, edi ; @91
 @3:
-  cmp r13d, r8d ; @85
-  jl @6 ; @86
+  cmp r13d, r8d ; @82
+  jl @6 ; @83
 @7:
-  mov eax, edi ; @83
-  add rsp, 0x10_l ; @108
-  pop rbx ; @109
-  pop r15 ; @110
-  pop r14 ; @111
-  pop r13 ; @112
-  pop r12 ; @113
-  ret ; @84
+  mov eax, edi ; @80
+  add rsp, 0x10_l ; @103
+  pop rbx ; @104
+  pop r15 ; @105
+  pop r14 ; @106
+  pop r13 ; @107
+  pop r12 ; @108
+  ret ; @81
 @6:
-  mov rax, qword ptr [rsp + 0x8] ; @100
+  mov rax, qword ptr [rsp + 0x8] ; @95
   mov r12d, dword ptr [rax + r13*4] ; @16
-  mov rax, qword ptr [rsp] ; @101
+  mov rax, qword ptr [rsp] ; @96
   mov ebx, dword ptr [rax + r13*4] ; @17
   mov r11d, dword ptr [r15 + r13*4] ; @18
   mov r10d, dword ptr [r14 + r13*4] ; @19
-  xor r9d, r9d ; @79
+  xor r9d, r9d ; @77
 @9:
   cmp r9d, r8d ; @74
   jl @21 ; @75

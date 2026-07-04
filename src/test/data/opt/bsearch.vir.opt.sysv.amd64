@@ -14,37 +14,37 @@ export function $intcmp { ; returns: rax
 
 export function $bsearch { ; returns: rax
 @6:
-  mov %14:l, rdi ; @77
-  mov %11:l, rsi ; @78
-  mov %6:l, rdx ; @79
-  mov %9:l, rcx ; @80
-  mov %13:l, r8 ; @81
-  mov %19:l, %11:l ; @82
-  mov %20:l, %6:l ; @83
-  jmp @7 ; @84
+  mov %14:l, rdi ; @71
+  mov %11:l, rsi ; @72
+  mov %6:l, rdx ; @73
+  mov %9:l, rcx ; @74
+  mov %13:l, r8 ; @75
+  mov %19:l, %11:l ; @76
+  mov %20:l, %6:l ; @77
+  jmp @7 ; @78
 @7:
-  test %20:l, %20:l ; @72
-  jne @8 ; @73
-  jmp @42 ; @74
+  test %20:l, %20:l ; @68
+  jne @8 ; @69
+  jmp @42 ; @70
 @42:
-  xor %33:w, %33:w ; @70
-  jmp @26 ; @71
+  xor %33:w, %33:w ; @66
+  jmp @26 ; @67
 @8:
   mov %36:l, %20:l ; @29
-  shr %36:l, 0x1_b ; @69
+  shr %36:l, 0x1_b ; @65
   mov %37:l, %9:l ; @30
-  imul %37:l, %36:l ; @68
+  imul %37:l, %36:l ; @64
   lea %38:l, qword ptr [%19 + %37*1] ; @31
   mov rdi, %14:l ; @16
-  mov rsi, %38:l ; @65
-  call %13:l ; rdi rsi ; @66
-  mov %25:w, eax ; @67
-  test %25:w, %25:w ; @60
-  js @43 ; @61
-  jmp @12 ; @62
+  mov rsi, %38:l ; @61
+  call %13:l ; rdi rsi ; @62
+  mov %25:w, eax ; @63
+  test %25:w, %25:w ; @58
+  js @43 ; @59
+  jmp @12 ; @60
 @43:
-  mov %20:l, %36:l ; @58
-  jmp @7 ; @59
+  mov %20:l, %36:l ; @56
+  jmp @7 ; @57
 @12:
   cmp %25:w, 0x0_w ; @53
   jg @19 ; @54

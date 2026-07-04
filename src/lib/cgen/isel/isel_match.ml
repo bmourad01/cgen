@@ -3,7 +3,15 @@ open Regular.Std
 open Virtual.Abi
 open Isel_common
 
+module Vset = Var.Tree_set
+
 let (let@) f x = f x [@@inline]
+
+(* Variables that are live across a block boundary. *)
+let escaping_vars fn =
+  Func.blks fn |>
+  Seq.map ~f:Blk.free_vars |>
+  Seq.fold ~init:Vset.empty ~f:Vset.union
 
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
@@ -230,39 +238,74 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       let+ label = C.Label.fresh in
       Pseudo.Insn.create ~label ~insn:i)
 
-  let step t b =
+  (* Since we traverse backwards, we know which block-local variables are
+     going to be used. We can avoid running the matcher for a value-producer
+     (`Omove` into a var register) whose register turns out to be dead. *)
+  let skippable t escaping used label =
+    match LT.find t.insn label with
+    | Some [id] ->
+      begin match node t id with
+        | N (Omove, [rid; _]) ->
+          begin match node t rid with
+            | Rv r ->
+              begin match Rv.which r with
+                | Second x ->
+                  not (Vset.mem escaping x) &&
+                  not (Set.mem used r)
+                | First _ -> false
+              end
+            | _ -> false
+          end
+        | _ -> false
+      end
+    | _ -> false
+
+  let step t escaping b =
     let label = Blk.label b in
+    let used = ref Rv.Set.empty in
+    let note (raw : M.Insn.t list) =
+      List.iter raw ~f:(fun i ->
+          used := Set.union !used (M.Insn.reads i)) in
     let* extra = match LT.find t.extra label with
       | None -> !![]
       | Some ls ->
         (* NB: we're reversing the order on purpose. *)
         C.List.fold ls ~init:[] ~f:(fun acc l ->
-            let+ insns = insns t l >>= freshen in
+            let* raw = insns t l in
+            note raw;
+            let+ insns = freshen raw in
             Pseudo.Blk.create ~label:l ~insns :: acc) in
-    let* init = insns t label >>= freshen in
+    let* init_raw = insns t label in
+    note init_raw;
+    let* init = freshen init_raw in
     let+ insns =
       Blk.insns b ~rev:true |>
       C.Seq.fold ~init ~f:(fun acc i ->
           let label = Insn.label i in
-          let+ insns = insns t label >>= function
-            | [] -> !![]
+          if skippable t escaping !used label
+          then !!acc
+          else
+            let* raw = insns t label in
+            note raw;
+            match raw with
+            | [] -> !!acc
             | x :: xs ->
               let x = Pseudo.Insn.create ~label ~insn:x in
               let+ xs = freshen xs in
-              x :: xs in
-          insns @ acc) in
+              (x :: xs) @ acc) in
     Pseudo.Blk.create ~label ~insns :: extra
 
   (* Traverse the blocks in pseudo-postorder, which ends up accumulating
      in reverse postoder. *)
   let transl_blks t =
+    let escaping = escaping_vars t.fn in
     Func.blks t.fn |> Seq.map ~f:(fun b ->
         let l = Blk.label b in
         let o = Semi_nca.Tree.rpo_exn t.dom l in
-        b, o) |>
-    Seq.to_list |> List.sort ~compare:(fun (_, a) (_, b) -> compare b a) |>
+        b, o) |> Seq.to_list |>
+    List.sort ~compare:(fun (_, a) (_, b) -> compare b a) |>
     C.List.fold ~init:[] ~f:(fun acc (b, _) ->
-        let+ bs = step t b in
+        let+ bs = step t escaping b in
         bs @ acc)
 
   let transl_rets t =

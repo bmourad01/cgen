@@ -2,19 +2,19 @@ module foo
 
 export function $foo { ; returns: rax
 @2:
-  mov %5:l, rdi ; @33
-  mov %3:w, esi ; @34
-  xor %9:w, %9:w ; @35
-  xor %10:w, %10:w ; @36
-  jmp @3 ; @37
+  mov %5:l, rdi ; @30
+  mov %3:w, esi ; @31
+  xor %9:w, %9:w ; @32
+  xor %10:w, %10:w ; @33
+  jmp @3 ; @34
 @3:
-  cmp %9:w, %3:w ; @28
-  jb @6 ; @29
-  jmp @7 ; @30
+  cmp %9:w, %3:w ; @27
+  jb @6 ; @28
+  jmp @7 ; @29
 @7:
   movsxd %24:l, %10:w ; @21
-  mov rax, %24:l ; @26
-  ret ; @27
+  mov rax, %24:l ; @25
+  ret ; @26
 @6:
   mov %19:w, %9:w ; @16
   mov %15:w, dword ptr [%5 + %19*4] ; @12

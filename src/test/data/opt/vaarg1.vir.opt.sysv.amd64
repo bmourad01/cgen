@@ -5,15 +5,15 @@ export function $foo { ; returns: rax
   %70 = slot 8, align 8
 @19:
   mov %29:w, eax ; @20
-  mov %9:l, rdi ; @120
+  mov %9:l, rdi ; @116
   mov qword ptr [%23 + 0x8], rsi ; @21
   mov qword ptr [%23 + 0x10], rdx ; @23
   mov qword ptr [%23 + 0x18], rcx ; @25
   mov qword ptr [%23 + 0x20], r8 ; @27
   mov qword ptr [%23 + 0x28], r9 ; @29
-  test %29:b, %29:b ; @115
-  je @2 ; @116
-  jmp @18 ; @117
+  test %29:b, %29:b ; @113
+  je @2 ; @114
+  jmp @18 ; @115
 @18:
   movdqa xmmword ptr [%23 + 0x30], xmm0 ; @32
   movdqa xmmword ptr [%23 + 0x40], xmm1 ; @34
@@ -23,14 +23,14 @@ export function $foo { ; returns: rax
   movdqa xmmword ptr [%23 + 0x80], xmm5 ; @42
   movdqa xmmword ptr [%23 + 0x90], xmm6 ; @44
   movdqa xmmword ptr [%23 + 0xa0], xmm7 ; @46
-  jmp @2 ; @114
+  jmp @2 ; @112
 @2:
   mov dword ptr [%70], 0x8_w ; @53
   mov dword ptr [%70 + 0x4], 0x30_w ; @55
   lea %86:l, qword ptr [rbp + 0x10] ; @56
-  jmp @62 ; @113
+  jmp @62 ; @111
 @62:
-  jmp @63 ; @112
+  jmp @63 ; @110
 @63:
   mov %119:w, dword ptr [%70] ; @70
   cmp %119:w, 0x28_w ; @107

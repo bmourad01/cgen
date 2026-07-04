@@ -2,17 +2,17 @@ module foo
 
 export function $foo {
 @2:
-  mov %6:l, rdi ; @32
-  mov %4:l, rsi ; @33
-  mov %2:w, edx ; @34
-  xor %8:w, %8:w ; @35
-  jmp @3 ; @36
+  mov %6:l, rdi ; @29
+  mov %4:l, rsi ; @30
+  mov %2:w, edx ; @31
+  xor %8:w, %8:w ; @32
+  jmp @3 ; @33
 @3:
-  cmp %8:w, %2:w ; @27
-  jb @5 ; @28
-  jmp @6 ; @29
+  cmp %8:w, %2:w ; @26
+  jb @5 ; @27
+  jmp @6 ; @28
 @6:
-  ret ; @26
+  ret ; @25
 @5:
   mov %19:w, %8:w ; @18
   mov %13:w, dword ptr [%4 + %19*4] ; @11

@@ -2,31 +2,31 @@ module freeze_priority
 
 export function $freeze_test { ; returns: rax
 @2:
-  push r12 ; @179
-  push r13 ; @180
-  push r14 ; @181
-  push r15 ; @182
-  push rbx ; @183
-  sub rsp, 0x10_l ; @184
-  mov dword ptr [rsp + 0xc], ecx ; @165
-  xor eax, eax ; @151
-  xor r15d, r15d ; @152
-  xor r13d, r13d ; @153
-  xor r12d, r12d ; @154
-  xor ebx, ebx ; @155
-  xor r11d, r11d ; @156
-  xor r10d, r10d ; @157
-  xor r9d, r9d ; @158
-  xor r8d, r8d ; @159
-  xor r14d, r14d ; @160
-  mov dword ptr [rsp + 0x8], 0x0_w ; @166
-  mov dword ptr [rsp + 0x4], 0x0_w ; @167
-  mov dword ptr [rsp], 0x0_w ; @168
+  push r12 ; @175
+  push r13 ; @176
+  push r14 ; @177
+  push r15 ; @178
+  push rbx ; @179
+  sub rsp, 0x10_l ; @180
+  mov dword ptr [rsp + 0xc], ecx ; @161
+  xor eax, eax ; @147
+  xor r15d, r15d ; @148
+  xor r13d, r13d ; @149
+  xor r12d, r12d ; @150
+  xor ebx, ebx ; @151
+  xor r11d, r11d ; @152
+  xor r10d, r10d ; @153
+  xor r9d, r9d ; @154
+  xor r8d, r8d ; @155
+  xor r14d, r14d ; @156
+  mov dword ptr [rsp + 0x8], 0x0_w ; @162
+  mov dword ptr [rsp + 0x4], 0x0_w ; @163
+  mov dword ptr [rsp], 0x0_w ; @164
 @3:
-  test edx, edx ; @141
-  je @19 ; @142
+  test edx, edx ; @139
+  je @19 ; @140
 @112:
-  mov ecx, dword ptr [rsp + 0xc] ; @169
+  mov ecx, dword ptr [rsp + 0xc] ; @165
 @21:
   test ecx, ecx ; @133
   jne @23 ; @134
@@ -41,24 +41,24 @@ export function $freeze_test { ; returns: rax
   add r9d, edi ; @64
   add r8d, edi ; @65
   add r14d, edi ; @66
-  mov ecx, dword ptr [rsp + 0x8] ; @170
+  mov ecx, dword ptr [rsp + 0x8] ; @166
   add ecx, edi ; @67
-  mov dword ptr [rsp + 0x8], ecx ; @171
-  mov ecx, dword ptr [rsp + 0x4] ; @172
+  mov dword ptr [rsp + 0x8], ecx ; @167
+  mov ecx, dword ptr [rsp + 0x4] ; @168
   add ecx, edi ; @68
-  mov dword ptr [rsp + 0x4], ecx ; @173
-  mov ecx, dword ptr [rsp] ; @174
+  mov dword ptr [rsp + 0x4], ecx ; @169
+  mov ecx, dword ptr [rsp] ; @170
   add ecx, edi ; @69
-  mov dword ptr [rsp], ecx ; @175
+  mov dword ptr [rsp], ecx ; @171
   jmp @3 ; @132
 @23:
   dec ecx ; @55
   add eax, esi ; @56
   jmp @21 ; @117
 @19:
-  mov edx, dword ptr [rsp + 0x4] ; @176
+  mov edx, dword ptr [rsp + 0x4] ; @172
   add edx, dword ptr [rsp] ; @70
-  mov ecx, dword ptr [rsp + 0x8] ; @178
+  mov ecx, dword ptr [rsp + 0x8] ; @174
   add ecx, r14d ; @72
   add edx, ecx ; @73
   lea esi, qword ptr [r8 + r9*1] ; @76
@@ -70,11 +70,11 @@ export function $freeze_test { ; returns: rax
   add eax, ecx ; @106
   add eax, esi ; @107
   add eax, edx ; @108
-  add rsp, 0x10_l ; @185
-  pop rbx ; @186
-  pop r15 ; @187
-  pop r14 ; @188
-  pop r13 ; @189
-  pop r12 ; @190
+  add rsp, 0x10_l ; @181
+  pop rbx ; @182
+  pop r15 ; @183
+  pop r14 ; @184
+  pop r13 ; @185
+  pop r12 ; @186
   ret ; @114
 }

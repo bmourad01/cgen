@@ -9,51 +9,51 @@ export function $intcmp { ; returns: rax
 
 export function $bsearch { ; returns: rax
 @6:
-  push rbp ; @89
-  mov rbp, rsp ; @90
-  sub rsp, 0x18_l ; @91
-  push r12 ; @92
-  push r13 ; @93
-  push r14 ; @94
-  push r15 ; @95
-  push rbx ; @96
-  mov qword ptr [rbp - 0x10], rdi ; @85
-  mov r13, rsi ; @78
-  mov r12, rdx ; @79
-  mov r15, rcx ; @80
-  mov qword ptr [rbp - 0x18], r8 ; @86
+  push rbp ; @83
+  mov rbp, rsp ; @84
+  sub rsp, 0x18_l ; @85
+  push r12 ; @86
+  push r13 ; @87
+  push r14 ; @88
+  push r15 ; @89
+  push rbx ; @90
+  mov qword ptr [rbp - 0x10], rdi ; @79
+  mov r13, rsi ; @72
+  mov r12, rdx ; @73
+  mov r15, rcx ; @74
+  mov qword ptr [rbp - 0x18], r8 ; @80
 @7:
-  test r12, r12 ; @72
-  jne @8 ; @73
+  test r12, r12 ; @68
+  jne @8 ; @69
 @42:
-  xor eax, eax ; @70
-  jmp @26 ; @71
+  xor eax, eax ; @66
+  jmp @26 ; @67
 @8:
   mov rbx, r12 ; @29
-  shr rbx, 0x1_b ; @69
+  shr rbx, 0x1_b ; @65
   mov rax, r15 ; @30
-  imul rax, rbx ; @68
+  imul rax, rbx ; @64
   lea r14, qword ptr [r13 + rax*1] ; @31
-  mov rdi, qword ptr [rbp - 0x10] ; @87
-  mov rsi, r14 ; @65
-  call qword ptr [rbp - 0x18] ; rdi rsi ; @66
-  test eax, eax ; @60
-  jns @12 ; @61
+  mov rdi, qword ptr [rbp - 0x10] ; @81
+  mov rsi, r14 ; @61
+  call qword ptr [rbp - 0x18] ; rdi rsi ; @62
+  test eax, eax ; @58
+  jns @12 ; @59
 @43:
-  mov r12, rbx ; @58
-  jmp @7 ; @59
+  mov r12, rbx ; @56
+  jmp @7 ; @57
 @12:
   cmp eax, 0x0_w ; @53
   jg @19 ; @54
 @44:
   mov rax, r14 ; @51
 @26:
-  pop rbx ; @97
-  pop r15 ; @98
-  pop r14 ; @99
-  pop r13 ; @100
-  pop r12 ; @101
-  leave ; @102
+  pop rbx ; @91
+  pop r15 ; @92
+  pop r14 ; @93
+  pop r13 ; @94
+  pop r12 ; @95
+  leave ; @96
   ret ; @50
 @19:
   lea rax, qword ptr [rbx + 0x1] ; @34

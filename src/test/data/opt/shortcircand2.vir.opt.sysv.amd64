@@ -3,20 +3,20 @@ module foo
 export function $foo { ; returns: rax
 @2:
   mov %5:l, rdi ; @17
-  mov %1:l, rsi ; @41
-  cmp %1:l, 0x3_l ; @38
-  jl @3 ; @39
-  jmp @22 ; @40
+  mov %1:l, rsi ; @38
+  cmp %1:l, 0x3_l ; @35
+  jl @3 ; @36
+  jmp @22 ; @37
 @22:
-  mov %17:w, 0xffffffff_w ; @36
-  jmp @16 ; @37
+  mov %17:w, 0xffffffff_w ; @33
+  jmp @16 ; @34
 @3:
-  test %1:l, %1:l ; @31
-  jns @10 ; @32
-  jmp @23 ; @33
+  test %1:l, %1:l ; @30
+  jns @10 ; @31
+  jmp @23 ; @32
 @23:
-  mov %17:w, 0xffffffff_w ; @29
-  jmp @16 ; @30
+  mov %17:w, 0xffffffff_w ; @28
+  jmp @16 ; @29
 @10:
   mov %14:w, dword ptr [%5 + %1*4] ; @15
   mov %17:w, %14:w ; @26

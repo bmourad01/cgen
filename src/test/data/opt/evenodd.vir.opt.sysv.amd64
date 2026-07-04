@@ -15,9 +15,9 @@ function $abs { ; returns: rax
 export function $even { ; returns: rax
 @7:
   mov %2:w, edi ; @10
-  mov edi, %2:w ; @49
-  call $abs ; rdi ; @50
-  mov %10:w, eax ; @51
+  mov edi, %2:w ; @47
+  call $abs ; rdi ; @48
+  mov %10:w, eax ; @49
   test %10:w, %10:w ; @44
   je @23 ; @45
   jmp @9 ; @46
@@ -33,17 +33,17 @@ export function $even { ; returns: rax
 export function $odd { ; returns: rax
 @14:
   mov %5:w, edi ; @17
-  mov edi, %5:w ; @61
-  call $abs ; rdi ; @62
-  mov %14:w, eax ; @63
-  test %14:w, %14:w ; @56
-  je @24 ; @57
-  jmp @16 ; @58
+  mov edi, %5:w ; @57
+  call $abs ; rdi ; @58
+  mov %14:w, eax ; @59
+  test %14:w, %14:w ; @54
+  je @24 ; @55
+  jmp @16 ; @56
 @24:
-  xor eax, eax ; @54
-  ret ; @55
+  xor eax, eax ; @52
+  ret ; @53
 @16:
   lea %28:w, qword ptr [%14 - 0x1] ; @31
-  mov edi, %28:w ; @52
-  tailcall $even ; rdi ; @53
+  mov edi, %28:w ; @50
+  tailcall $even ; rdi ; @51
 }

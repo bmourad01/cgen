@@ -2,12 +2,12 @@ module foo
 
 export function $foo {
 @2:
-  xor eax, eax ; @35
+  xor eax, eax ; @32
 @3:
-  cmp eax, edx ; @27
-  jb @5 ; @28
+  cmp eax, edx ; @26
+  jb @5 ; @27
 @6:
-  ret ; @26
+  ret ; @25
 @5:
   mov ecx, dword ptr [rsi + rax*4] ; @11
   mov dword ptr [rdi + rax*4], ecx ; @15

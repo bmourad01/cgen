@@ -2,8 +2,8 @@ module sumto
 
 export function $sumto { ; returns: rax
 @2:
-  xor ecx, ecx ; @45
-  mov eax, 0x1_w ; @46
+  xor ecx, ecx ; @43
+  mov eax, 0x1_w ; @44
 @3:
   cmp eax, edi ; @39
   jle @8 ; @40

@@ -105,11 +105,11 @@ export function $mixed_tail { ; returns: rax
 
 export function $gcd_tc { ; returns: rax
 @67:
-  mov %27:w, edi ; @175
-  mov %26:w, esi ; @176
-  mov %95:w, %27:w ; @177
-  mov %96:w, %26:w ; @178
-  jmp @39 ; @179
+  mov %27:w, edi ; @173
+  mov %26:w, esi ; @174
+  mov %95:w, %27:w ; @175
+  mov %96:w, %26:w ; @176
+  jmp @39 ; @177
 @39:
   test %96:w, %96:w ; @170
   je @66 ; @171
@@ -130,68 +130,68 @@ export function $gcd_tc { ; returns: rax
 export function $sum7 { ; returns: rax
 @45:
   mov %42:w, dword ptr [rbp + 0x10] ; @81
-  mov %31:w, edi ; @182
-  mov %32:w, esi ; @183
-  mov %34:w, edx ; @184
-  mov %35:w, ecx ; @185
-  mov %37:w, r8d ; @186
-  mov %38:w, r9d ; @187
-  lea %110:w, qword ptr [%31 + %32*1] ; @188
+  mov %31:w, edi ; @180
+  mov %32:w, esi ; @181
+  mov %34:w, edx ; @182
+  mov %35:w, ecx ; @183
+  mov %37:w, r8d ; @184
+  mov %38:w, r9d ; @185
+  lea %110:w, qword ptr [%31 + %32*1] ; @186
   lea %111:w, qword ptr [%34 + %35*1] ; @82
   lea %112:w, qword ptr [%37 + %38*1] ; @83
   lea %113:w, qword ptr [%110 + %111*1] ; @84
   lea %116:w, qword ptr [%112 + %42*1] ; @87
   lea %117:w, qword ptr [%113 + %116*1] ; @88
-  mov eax, %117:w ; @180
-  ret ; @181
+  mov eax, %117:w ; @178
+  ret ; @179
 }
 
 export function $tail_sum7_stk { ; returns: rax
 @52:
   mov %50:w, dword ptr [rbp + 0x10] ; @53
-  mov %44:w, edi ; @191
-  mov %45:w, esi ; @192
-  mov %46:w, edx ; @193
-  mov %47:w, ecx ; @194
-  mov %48:w, r8d ; @195
-  mov %49:w, r9d ; @196
-  mov edi, %44:w ; @197
-  mov esi, %45:w ; @198
-  mov edx, %46:w ; @199
-  mov ecx, %47:w ; @200
-  mov r8d, %48:w ; @201
-  mov r9d, %49:w ; @202
-  sub rsp, 0x10_l ; @203
-  mov dword ptr [rsp], %50:w ; @204
-  call $sum7 ; r8 r9 rcx rdi rdx rsi ; @205
-  add rsp, 0x10_l ; @206
-  mov %84:w, eax ; @207
-  mov eax, %84:w ; @189
-  ret ; @190
+  mov %44:w, edi ; @189
+  mov %45:w, esi ; @190
+  mov %46:w, edx ; @191
+  mov %47:w, ecx ; @192
+  mov %48:w, r8d ; @193
+  mov %49:w, r9d ; @194
+  mov edi, %44:w ; @195
+  mov esi, %45:w ; @196
+  mov edx, %46:w ; @197
+  mov ecx, %47:w ; @198
+  mov r8d, %48:w ; @199
+  mov r9d, %49:w ; @200
+  sub rsp, 0x10_l ; @201
+  mov dword ptr [rsp], %50:w ; @202
+  call $sum7 ; r8 r9 rcx rdi rdx rsi ; @203
+  add rsp, 0x10_l ; @204
+  mov %84:w, eax ; @205
+  mov eax, %84:w ; @187
+  ret ; @188
 }
 
 export function $gcd_nt { ; returns: rax
 @54:
   mov %53:w, edi ; @90
-  mov %52:w, esi ; @224
-  test %52:w, %52:w ; @221
-  je @208 ; @222
-  jmp @56 ; @223
-@208:
-  mov %97:w, %53:w ; @219
-  jmp @68 ; @220
+  mov %52:w, esi ; @222
+  test %52:w, %52:w ; @219
+  je @206 ; @220
+  jmp @56 ; @221
+@206:
+  mov %97:w, %53:w ; @217
+  jmp @68 ; @218
 @56:
   mov eax, %53:w ; @58
-  cdq ; @216
-  idiv %52:w ; @217
-  mov %86:w, edx ; @218
+  cdq ; @214
+  idiv %52:w ; @215
+  mov %86:w, edx ; @216
   mov edi, %52:w ; @59
-  mov esi, %86:w ; @213
-  call $gcd_nt ; rdi rsi ; @214
-  mov %87:w, eax ; @215
-  mov %97:w, %87:w ; @211
-  jmp @68 ; @212
+  mov esi, %86:w ; @211
+  call $gcd_nt ; rdi rsi ; @212
+  mov %87:w, eax ; @213
+  mov %97:w, %87:w ; @209
+  jmp @68 ; @210
 @68:
-  mov eax, %97:w ; @209
-  ret ; @210
+  mov eax, %97:w ; @207
+  ret ; @208
 }

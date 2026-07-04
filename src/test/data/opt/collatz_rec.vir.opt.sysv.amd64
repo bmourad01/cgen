@@ -2,18 +2,18 @@ module collatz_rec
 
 export function $foo { ; returns: rax
 @18:
-  mov %1:w, edi ; @47
-  mov %2:w, esi ; @48
-  mov %16:w, %1:w ; @49
-  mov %17:w, %2:w ; @50
-  jmp @2 ; @51
+  mov %1:w, edi ; @42
+  mov %2:w, esi ; @43
+  mov %16:w, %1:w ; @44
+  mov %17:w, %2:w ; @45
+  jmp @2 ; @46
 @2:
-  cmp %16:w, 0x1_w ; @42
-  je @17 ; @43
-  jmp @4 ; @44
+  cmp %16:w, 0x1_w ; @39
+  je @17 ; @40
+  jmp @4 ; @41
 @17:
-  mov eax, %17:w ; @40
-  ret ; @41
+  mov eax, %17:w ; @37
+  ret ; @38
 @4:
   lea %20:w, qword ptr [%17 + 0x1] ; @21
   test %16:w, 0x1_w ; @34

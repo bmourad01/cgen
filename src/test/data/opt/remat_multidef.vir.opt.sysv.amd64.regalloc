@@ -20,24 +20,24 @@ export function $safe_div_func_uint8_t_u_u {
 
 export function $main { ; returns: rax
 @4:
-  push rbp ; @135
-  mov rbp, rsp ; @136
-  sub rsp, 0x18_l ; @137
-  push r12 ; @138
-  push r13 ; @139
-  push r14 ; @140
-  push r15 ; @141
-  push rbx ; @142
-  xor r14d, r14d ; @128
-  mov eax, 0x2_w ; @129
-  mov dword ptr [rbp - 0x18], eax ; @131
+  push rbp ; @131
+  mov rbp, rsp ; @132
+  sub rsp, 0x18_l ; @133
+  push r12 ; @134
+  push r13 ; @135
+  push r14 ; @136
+  push r15 ; @137
+  push rbx ; @138
+  xor r14d, r14d ; @124
+  mov eax, 0x2_w ; @125
+  mov dword ptr [rbp - 0x18], eax ; @127
 @5:
-  mov eax, dword ptr [rbp - 0x18] ; @132
-  test eax, eax ; @123
-  je @10 ; @124
+  mov eax, dword ptr [rbp - 0x18] ; @128
+  test eax, eax ; @121
+  je @10 ; @122
 @89:
-  xor r13d, r13d ; @119
-  mov r15d, 0x9_w ; @120
+  xor r13d, r13d ; @117
+  mov r15d, 0x9_w ; @118
 @13:
   test r13d, r13d ; @114
   jne @18 ; @115
@@ -66,10 +66,10 @@ export function $main { ; returns: rax
   and ebx, eax ; @100
   jmp @23 ; @99
 @18:
-  mov eax, dword ptr [rbp - 0x18] ; @133
+  mov eax, dword ptr [rbp - 0x18] ; @129
   mov dword ptr [rbp - 0x10], eax ; @66
   dec eax ; @74
-  mov dword ptr [rbp - 0x18], eax ; @134
+  mov dword ptr [rbp - 0x18], eax ; @130
   jmp @5 ; @97
 @10:
   mov rsi, qword ptr [rip + $platform_main_end_x] ; @70
@@ -77,11 +77,11 @@ export function $main { ; returns: rax
   xor eax, eax ; @93
   call $printf ; rax rdi rsi ; @94
   xor eax, eax ; @90
-  pop rbx ; @143
-  pop r15 ; @144
-  pop r14 ; @145
-  pop r13 ; @146
-  pop r12 ; @147
-  leave ; @148
+  pop rbx ; @139
+  pop r15 ; @140
+  pop r14 ; @141
+  pop r13 ; @142
+  pop r12 ; @143
+  leave ; @144
   ret ; @91
 }

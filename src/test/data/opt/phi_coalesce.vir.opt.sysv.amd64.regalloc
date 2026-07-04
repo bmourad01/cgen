@@ -2,34 +2,34 @@ module phi_coalesce
 
 export function $foo { ; returns: rax
 @2:
-  push r12 ; @207
-  push r13 ; @208
-  push r14 ; @209
-  push r15 ; @210
-  push rbx ; @211
-  sub rsp, 0x10_l ; @212
-  mov r14d, esi ; @174
-  mov dword ptr [rsp + 0x8], 0x0_w ; @192
-  xor r13d, r13d ; @176
-  xor r12d, r12d ; @177
-  xor ebx, ebx ; @178
-  xor r11d, r11d ; @179
-  xor r10d, r10d ; @180
-  xor r9d, r9d ; @181
-  xor r8d, r8d ; @182
-  xor esi, esi ; @183
-  xor edx, edx ; @184
-  xor ecx, ecx ; @185
-  xor eax, eax ; @186
-  mov dword ptr [rsp + 0x4], 0x0_w ; @193
-  xor r15d, r15d ; @188
-  mov dword ptr [rsp], 0x0_w ; @194
+  push r12 ; @205
+  push r13 ; @206
+  push r14 ; @207
+  push r15 ; @208
+  push rbx ; @209
+  sub rsp, 0x10_l ; @210
+  mov r14d, esi ; @172
+  mov dword ptr [rsp + 0x8], 0x0_w ; @190
+  xor r13d, r13d ; @174
+  xor r12d, r12d ; @175
+  xor ebx, ebx ; @176
+  xor r11d, r11d ; @177
+  xor r10d, r10d ; @178
+  xor r9d, r9d ; @179
+  xor r8d, r8d ; @180
+  xor esi, esi ; @181
+  xor edx, edx ; @182
+  xor ecx, ecx ; @183
+  xor eax, eax ; @184
+  mov dword ptr [rsp + 0x4], 0x0_w ; @191
+  xor r15d, r15d ; @186
+  mov dword ptr [rsp], 0x0_w ; @192
 @3:
   dec r14d ; @36
-  mov dword ptr [rsp + 0xc], r14d ; @204
-  mov r14d, dword ptr [rsp + 0x8] ; @195
+  mov dword ptr [rsp + 0xc], r14d ; @202
+  mov r14d, dword ptr [rsp + 0x8] ; @193
   add r14d, edi ; @38
-  mov dword ptr [rsp + 0x8], r14d ; @196
+  mov dword ptr [rsp + 0x8], r14d ; @194
   lea r14d, qword ptr [r13 + rdi*1] ; @39
   add r12d, edi ; @40
   add ebx, edi ; @41
@@ -41,22 +41,22 @@ export function $foo { ; returns: rax
   add edx, edi ; @47
   add ecx, edi ; @48
   add eax, edi ; @49
-  mov r13d, dword ptr [rsp + 0x4] ; @197
+  mov r13d, dword ptr [rsp + 0x4] ; @195
   add r13d, edi ; @50
-  mov dword ptr [rsp + 0x4], r13d ; @198
+  mov dword ptr [rsp + 0x4], r13d ; @196
   add r15d, edi ; @51
-  mov r13d, dword ptr [rsp] ; @199
+  mov r13d, dword ptr [rsp] ; @197
   add r13d, edi ; @52
-  mov dword ptr [rsp], r13d ; @200
-  mov r13d, dword ptr [rsp + 0xc] ; @205
+  mov dword ptr [rsp], r13d ; @198
+  mov r13d, dword ptr [rsp + 0xc] ; @203
   test r13d, r13d ; @168
   je @4 ; @169
 @148:
   mov r13d, r14d ; @152
-  mov r14d, dword ptr [rsp + 0xc] ; @206
+  mov r14d, dword ptr [rsp + 0xc] ; @204
   jmp @3 ; @167
 @4:
-  mov edi, dword ptr [rsp + 0x8] ; @201
+  mov edi, dword ptr [rsp + 0x8] ; @199
   add edi, r14d ; @53
   add ebx, r12d ; @56
   add r10d, r11d ; @63
@@ -64,20 +64,20 @@ export function $foo { ; returns: rax
   add esi, r8d ; @81
   add esi, r9d ; @82
   add ecx, eax ; @107
-  mov eax, dword ptr [rsp + 0x4] ; @202
+  mov eax, dword ptr [rsp + 0x4] ; @200
   add eax, ecx ; @118
   add eax, edx ; @119
   add eax, esi ; @120
   add eax, r15d ; @128
   lea ecx, qword ptr [r10 + rax*1] ; @129
-  mov eax, dword ptr [rsp] ; @203
+  mov eax, dword ptr [rsp] ; @201
   add eax, ecx ; @139
   add eax, edi ; @140
-  add rsp, 0x10_l ; @213
-  pop rbx ; @214
-  pop r15 ; @215
-  pop r14 ; @216
-  pop r13 ; @217
-  pop r12 ; @218
+  add rsp, 0x10_l ; @211
+  pop rbx ; @212
+  pop r15 ; @213
+  pop r14 ; @214
+  pop r13 ; @215
+  pop r12 ; @216
   ret ; @150
 }

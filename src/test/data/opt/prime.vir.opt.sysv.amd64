@@ -3,63 +3,63 @@ module foo
 export function $foo { ; returns: rax
 @2:
   mov %1:w, edi ; @29
-  cmp %1:w, 0x1_w ; @110
-  jbe @44 ; @111
-  jmp @4 ; @112
+  cmp %1:w, 0x1_w ; @97
+  jbe @44 ; @98
+  jmp @4 ; @99
 @44:
-  xor %22:w, %22:w ; @108
-  jmp @28 ; @109
+  xor %22:w, %22:w ; @95
+  jmp @28 ; @96
 @4:
-  cmp %1:w, 0x3_w ; @103
-  jbe @45 ; @104
-  jmp @7 ; @105
+  cmp %1:w, 0x3_w ; @92
+  jbe @45 ; @93
+  jmp @7 ; @94
 @45:
-  mov %22:w, 0x1_w ; @101
-  jmp @28 ; @102
+  mov %22:w, 0x1_w ; @90
+  jmp @28 ; @91
 @7:
-  test %1:w, 0x1_w ; @95
-  je @46 ; @96
-  jmp @9 ; @97
+  test %1:w, 0x1_w ; @87
+  je @46 ; @88
+  jmp @9 ; @89
 @46:
-  xor %22:w, %22:w ; @93
-  jmp @28 ; @94
+  xor %22:w, %22:w ; @85
+  jmp @28 ; @86
 @9:
   imul %30:w, %1:w, 0xaaaaaaab ; @36
-  cmp %30:w, 0x55555555_w ; @88
-  jbe @47 ; @89
-  jmp @48 ; @90
+  cmp %30:w, 0x55555555_w ; @82
+  jbe @47 ; @83
+  jmp @48 ; @84
 @47:
-  xor %22:w, %22:w ; @86
-  jmp @28 ; @87
+  xor %22:w, %22:w ; @80
+  jmp @28 ; @81
 @48:
-  mov %13:w, 0x5_w ; @84
-  jmp @15 ; @85
+  mov %13:w, 0x5_w ; @78
+  jmp @15 ; @79
 @15:
   mov %32:w, %13:w ; @38
-  imul %32:w, %13:w ; @83
-  cmp %32:w, %1:w ; @78
-  jbe @17 ; @79
-  jmp @49 ; @80
+  imul %32:w, %13:w ; @77
+  cmp %32:w, %1:w ; @74
+  jbe @17 ; @75
+  jmp @49 ; @76
 @49:
-  mov %22:w, 0x1_w ; @76
-  jmp @28 ; @77
+  mov %22:w, 0x1_w ; @72
+  jmp @28 ; @73
 @17:
   mov eax, %1:w ; @21
-  xor edx, edx ; @73
-  div %13:w ; @74
-  mov %16:w, edx ; @75
-  test %16:w, %16:w ; @68
-  je @50 ; @69
-  jmp @20 ; @70
+  xor edx, edx ; @69
+  div %13:w ; @70
+  mov %16:w, edx ; @71
+  test %16:w, %16:w ; @66
+  je @50 ; @67
+  jmp @20 ; @68
 @50:
-  xor %22:w, %22:w ; @66
-  jmp @28 ; @67
+  xor %22:w, %22:w ; @64
+  jmp @28 ; @65
 @20:
   lea %35:w, qword ptr [%13 + 0x2] ; @41
   mov eax, %1:w ; @25
-  xor edx, edx ; @63
-  div %35:w ; @64
-  mov %19:w, edx ; @65
+  xor edx, edx ; @61
+  div %35:w ; @62
+  mov %19:w, edx ; @63
   test %19:w, %19:w ; @58
   je @51 ; @59
   jmp @23 ; @60

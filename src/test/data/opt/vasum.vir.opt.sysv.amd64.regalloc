@@ -2,16 +2,16 @@ module vasum
 
 export function $sum { ; returns: rax
 @19:
-  push rbp ; @127
-  mov rbp, rsp ; @128
-  sub rsp, 0xc0_l ; @129
+  push rbp ; @121
+  mov rbp, rsp ; @122
+  sub rsp, 0xc0_l ; @123
   mov qword ptr [rbp - 0xb8], rsi ; @21
   mov qword ptr [rbp - 0xb0], rdx ; @23
   mov qword ptr [rbp - 0xa8], rcx ; @25
   mov qword ptr [rbp - 0xa0], r8 ; @27
   mov qword ptr [rbp - 0x98], r9 ; @29
-  test al, al ; @106
-  je @2 ; @107
+  test al, al ; @102
+  je @2 ; @103
 @18:
   movdqa xmmword ptr [rbp - 0x90], xmm0 ; @32
   movdqa xmmword ptr [rbp - 0x80], xmm1 ; @34
@@ -23,15 +23,15 @@ export function $sum { ; returns: rax
   movdqa xmmword ptr [rbp - 0x20], xmm7 ; @46
 @2:
   lea rcx, qword ptr [rbp + 0x10] ; @50
-  mov edx, 0x8_w ; @101
-  xor eax, eax ; @102
-  xor r9d, r9d ; @103
+  mov edx, 0x8_w ; @97
+  xor eax, eax ; @98
+  xor r9d, r9d ; @99
 @3:
-  cmp r9d, edi ; @95
-  jb @56 ; @96
+  cmp r9d, edi ; @93
+  jb @56 ; @94
 @8:
-  leave ; @130
-  ret ; @94
+  leave ; @124
+  ret ; @92
 @56:
   cmp edx, 0x28_w ; @87
   jbe @57 ; @88
@@ -52,19 +52,19 @@ export function $sum { ; returns: rax
 
 export function $twenty_eight { ; returns: rax
 @13:
-  push rbp ; @131
-  mov rbp, rsp ; @132
+  push rbp ; @125
+  mov rbp, rsp ; @126
   mov edi, 0x7_w ; @14
-  mov esi, 0x1_w ; @115
-  mov edx, 0x2_w ; @116
-  mov ecx, 0x3_w ; @117
-  mov r8d, 0x4_w ; @118
-  mov r9d, 0x5_w ; @119
-  sub rsp, 0x10_l ; @120
-  mov dword ptr [rsp], 0x6_w ; @121
-  mov dword ptr [rsp + 0x8], 0x7_w ; @122
-  xor eax, eax ; @123
-  call $sum ; r8 r9 rax rcx rdi rdx rsi ; @124
-  leave ; @133
-  ret ; @114
+  mov esi, 0x1_w ; @109
+  mov edx, 0x2_w ; @110
+  mov ecx, 0x3_w ; @111
+  mov r8d, 0x4_w ; @112
+  mov r9d, 0x5_w ; @113
+  sub rsp, 0x10_l ; @114
+  mov dword ptr [rsp], 0x6_w ; @115
+  mov dword ptr [rsp + 0x8], 0x7_w ; @116
+  xor eax, eax ; @117
+  call $sum ; r8 r9 rax rcx rdi rdx rsi ; @118
+  leave ; @127
+  ret ; @108
 }

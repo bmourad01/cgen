@@ -26,8 +26,8 @@ export function $pong { ; returns: rax
 
 export function $ping_nontail { ; returns: rax
 @14:
-  push rbp ; @228
-  mov rbp, rsp ; @229
+  push rbp ; @226
+  mov rbp, rsp ; @227
   cmp edi, 0x0_w ; @120
   jg @16 ; @121
 @111:
@@ -37,16 +37,16 @@ export function $ping_nontail { ; returns: rax
   dec edi ; @74
   call $pong ; rdi ; @116
 @62:
-  leave ; @230
+  leave ; @228
   ret ; @113
 }
 
 export function $call_and_ignore { ; returns: rax
 @20:
-  push rbp ; @231
-  mov rbp, rsp ; @232
-  sub rsp, 0x8_l ; @233
-  push rbx ; @234
+  push rbp ; @229
+  mov rbp, rsp ; @230
+  sub rsp, 0x8_l ; @231
+  push rbx ; @232
   mov ebx, edi ; @75
   cmp ebx, 0x0_w ; @131
   jle @63 ; @132
@@ -55,8 +55,8 @@ export function $call_and_ignore { ; returns: rax
   call $pong ; rdi ; @129
 @63:
   mov eax, ebx ; @126
-  pop rbx ; @235
-  leave ; @236
+  pop rbx ; @233
+  leave ; @234
   ret ; @127
 }
 
@@ -75,25 +75,25 @@ export function $dispatch {
 
 export function $mixed_tail { ; returns: rax
 @32:
-  push rbp ; @237
-  mov rbp, rsp ; @238
+  push rbp ; @235
+  mov rbp, rsp ; @236
   mov ecx, edi ; @78
   mov edi, esi ; @158
   test ecx, ecx ; @155
   je @33 ; @156
 @34:
   lea edi, qword ptr [rcx - 0x1] ; @79
-  leave ; @239
+  leave ; @237
   tailcall $ping ; rdi ; @154
 @33:
   call $pong ; rdi ; @151
-  leave ; @240
+  leave ; @238
   ret ; @149
 }
 
 export function $gcd_tc { ; returns: rax
 @67:
-  mov eax, edi ; @175
+  mov eax, edi ; @173
 @39:
   test esi, esi ; @170
   jne @41 ; @171
@@ -109,45 +109,45 @@ export function $gcd_tc { ; returns: rax
 
 export function $sum7 { ; returns: rax
 @45:
-  push rbp ; @241
-  mov rbp, rsp ; @242
+  push rbp ; @239
+  mov rbp, rsp ; @240
   mov eax, dword ptr [rbp + 0x10] ; @81
-  add esi, edi ; @188
+  add esi, edi ; @186
   add ecx, edx ; @82
   lea edx, qword ptr [r8 + r9*1] ; @83
   add ecx, esi ; @84
   add eax, edx ; @87
   add eax, ecx ; @88
-  leave ; @243
-  ret ; @181
+  leave ; @241
+  ret ; @179
 }
 
 export function $tail_sum7_stk { ; returns: rax
 @52:
-  push rbp ; @244
-  mov rbp, rsp ; @245
+  push rbp ; @242
+  mov rbp, rsp ; @243
   mov eax, dword ptr [rbp + 0x10] ; @53
-  sub rsp, 0x10_l ; @203
-  mov dword ptr [rsp], eax ; @204
-  call $sum7 ; r8 r9 rcx rdi rdx rsi ; @205
-  leave ; @246
-  ret ; @190
+  sub rsp, 0x10_l ; @201
+  mov dword ptr [rsp], eax ; @202
+  call $sum7 ; r8 r9 rcx rdi rdx rsi ; @203
+  leave ; @244
+  ret ; @188
 }
 
 export function $gcd_nt { ; returns: rax
 @54:
-  push rbp ; @247
-  mov rbp, rsp ; @248
+  push rbp ; @245
+  mov rbp, rsp ; @246
   mov eax, edi ; @90
-  mov edi, esi ; @224
-  test edi, edi ; @221
-  je @68 ; @222
+  mov edi, esi ; @222
+  test edi, edi ; @219
+  je @68 ; @220
 @56:
-  cdq ; @216
-  idiv edi ; @217
-  mov esi, edx ; @218
-  call $gcd_nt ; rdi rsi ; @214
+  cdq ; @214
+  idiv edi ; @215
+  mov esi, edx ; @216
+  call $gcd_nt ; rdi rsi ; @212
 @68:
-  leave ; @249
-  ret ; @210
+  leave ; @247
+  ret ; @208
 }

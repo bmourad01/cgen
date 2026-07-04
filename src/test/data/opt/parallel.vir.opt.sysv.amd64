@@ -2,15 +2,15 @@ module parallel
 
 export function $foo { ; returns: rax
 @2:
-  mov %1:w, edi ; @33
-  mov %4:w, esi ; @34
-  mov %2:w, edx ; @35
-  mov %5:w, ecx ; @36
-  mov %8:w, %5:w ; @37
-  mov %9:w, %4:w ; @38
-  mov %10:w, %2:w ; @39
-  mov %11:w, %1:w ; @40
-  jmp @3 ; @41
+  mov %1:w, edi ; @31
+  mov %4:w, esi ; @32
+  mov %2:w, edx ; @33
+  mov %5:w, ecx ; @34
+  mov %8:w, %5:w ; @35
+  mov %9:w, %4:w ; @36
+  mov %10:w, %2:w ; @37
+  mov %11:w, %1:w ; @38
+  jmp @3 ; @39
 @3:
   lea %21:w, qword ptr [%11 + %10*1] ; @15
   lea %22:w, qword ptr [%9 + %8*1] ; @16

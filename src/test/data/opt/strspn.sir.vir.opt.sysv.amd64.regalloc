@@ -2,69 +2,69 @@ module strspn
 
 export function $cgen_strspn { ; returns: rax
 @2:
-  sub rsp, 0x28_l ; @173
-  mov qword ptr [rsp], 0x0_l ; @172
+  sub rsp, 0x28_l ; @156
+  mov qword ptr [rsp], 0x0_l ; @155
   mov qword ptr [rsp + 0x8], 0x0_l ; @8
   mov qword ptr [rsp + 0x10], 0x0_l ; @10
   mov qword ptr [rsp + 0x18], 0x0_l ; @12
   movzx edx, byte ptr [rsi] ; @13
-  test dl, dl ; @166
-  jne @4 ; @167
+  test dl, dl ; @151
+  jne @4 ; @152
 @95:
-  xor eax, eax ; @164
-  jmp @64 ; @165
+  xor eax, eax ; @149
+  jmp @64 ; @150
 @4:
   movzx eax, byte ptr [rsi + 0x1] ; @18
-  test al, al ; @159
-  jne @16 ; @160
+  test al, al ; @146
+  jne @16 ; @147
 @96:
-  mov rax, rdi ; @157
-  jmp @15 ; @158
+  mov rax, rdi ; @144
+  jmp @15 ; @145
 @16:
   movzx eax, byte ptr [rsi] ; @31
-  test al, al ; @150
-  jne @30 ; @151
+  test al, al ; @139
+  jne @30 ; @140
 @98:
-  mov rax, rdi ; @148
-  jmp @29 ; @149
+  mov rax, rdi ; @137
+  jmp @29 ; @138
 @30:
   movzx ecx, byte ptr [rsi] ; @86
   mov rax, rcx ; @87
-  shr rax, 0x6_b ; @147
+  shr rax, 0x6_b ; @136
   mov r8, qword ptr [rsp + rax*8] ; @39
-  and ecx, 0x3f_w ; @145
+  and ecx, 0x3f_w ; @135
   mov edx, 0x1_w ; @91
-  shl rdx, cl ; @144
-  or rdx, r8 ; @142
+  shl rdx, cl ; @134
+  or rdx, r8 ; @132
   mov qword ptr [rsp + rax*8], rdx ; @43
-  test rdx, rdx ; @137
-  jne @33 ; @138
+  test rdx, rdx ; @129
+  jne @33 ; @130
 @99:
-  mov rax, rdi ; @135
-  jmp @29 ; @136
+  mov rax, rdi ; @127
+  jmp @29 ; @128
 @33:
   inc rsi ; @94
-  jmp @16 ; @134
+  jmp @16 ; @126
 @29:
   movzx ecx, byte ptr [rax] ; @49
-  test cl, cl ; @128
-  je @47 ; @129
+  test cl, cl ; @122
+  je @47 ; @123
 @48:
   movzx ecx, cl ; @77
   mov rdx, rcx ; @78
-  shr rdx, 0x6_b ; @127
+  shr rdx, 0x6_b ; @121
   mov rsi, qword ptr [rsp + rdx*8] ; @57
-  and ecx, 0x3f_w ; @125
+  and ecx, 0x3f_w ; @120
   mov edx, 0x1_w ; @82
-  shl rdx, cl ; @124
-  test rdx, rsi ; @117
-  je @47 ; @118
+  shl rdx, cl ; @119
+  test rdx, rsi ; @115
+  je @47 ; @116
 @51:
   inc rax ; @85
-  jmp @29 ; @116
+  jmp @29 ; @114
 @47:
-  sub rax, rdi ; @114
-  jmp @64 ; @113
+  sub rax, rdi ; @112
+  jmp @64 ; @111
 @15:
   movzx ecx, byte ptr [rax] ; @23
   cmp cl, dl ; @107
@@ -72,7 +72,7 @@ export function $cgen_strspn { ; returns: rax
 @22:
   sub rax, rdi ; @106
 @64:
-  add rsp, 0x28_l ; @174
+  add rsp, 0x28_l ; @157
   ret ; @103
 @21:
   inc rax ; @72

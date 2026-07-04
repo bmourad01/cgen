@@ -2,16 +2,16 @@ module vaarg1
 
 export function $foo { ; returns: rax
 @19:
-  push rbp ; @122
-  mov rbp, rsp ; @123
-  sub rsp, 0xc0_l ; @124
+  push rbp ; @118
+  mov rbp, rsp ; @119
+  sub rsp, 0xc0_l ; @120
   mov qword ptr [rbp - 0xb8], rsi ; @21
   mov qword ptr [rbp - 0xb0], rdx ; @23
   mov qword ptr [rbp - 0xa8], rcx ; @25
   mov qword ptr [rbp - 0xa0], r8 ; @27
   mov qword ptr [rbp - 0x98], r9 ; @29
-  test al, al ; @115
-  je @2 ; @116
+  test al, al ; @113
+  je @2 ; @114
 @18:
   movdqa xmmword ptr [rbp - 0x90], xmm0 ; @32
   movdqa xmmword ptr [rbp - 0x80], xmm1 ; @34
@@ -47,6 +47,6 @@ export function $foo { ; returns: rax
   cvttsd2si rax, xmm0 ; @15
   add rax, rcx ; @16
   add rax, rdi ; @17
-  leave ; @125
+  leave ; @121
   ret ; @96
 }

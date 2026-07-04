@@ -2,27 +2,27 @@ module foo
 
 export function $foo { ; returns: rax
 @22:
-  push rbp ; @62
-  mov rbp, rsp ; @63
-  sub rsp, 0x8_l ; @64
-  push rbx ; @65
+  push rbp ; @56
+  mov rbp, rsp ; @57
+  sub rsp, 0x8_l ; @58
+  push rbx ; @59
 @2:
-  test edi, edi ; @52
-  je @3 ; @53
+  test edi, edi ; @48
+  je @3 ; @49
 @4:
   lea ebx, qword ptr [rdi - 0x1] ; @26
-  test esi, esi ; @47
-  jne @8 ; @48
+  test esi, esi ; @45
+  jne @8 ; @46
 @29:
-  mov edi, ebx ; @44
-  mov esi, 0x1_w ; @45
-  jmp @2 ; @46
+  mov edi, ebx ; @42
+  mov esi, 0x1_w ; @43
+  jmp @2 ; @44
 @8:
   test esi, esi ; @39
   jne @14 ; @40
 @15:
-  pop rbx ; @66
-  leave ; @67
+  pop rbx ; @60
+  leave ; @61
   ud2 ; @38
 @14:
   dec esi ; @28
@@ -32,7 +32,7 @@ export function $foo { ; returns: rax
   jmp @2 ; @34
 @3:
   lea eax, qword ptr [rsi + 0x1] ; @24
-  pop rbx ; @68
-  leave ; @69
+  pop rbx ; @62
+  leave ; @63
   ret ; @31
 }
