@@ -21,7 +21,7 @@ depends: [
   "fmt"
   "graphlib"
   "logs"
-  "menhir"
+  "menhir" {>= "20180523"}
   "monads"
   "ocamldiff"
   "ounit2"
