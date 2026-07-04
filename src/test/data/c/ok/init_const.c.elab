@@ -6,12 +6,6 @@ bits mask_of(int n) {
 
 int third(void) {
   int %0[3] = {10, 20, 30};
-  {
-    ;
-    ;
-    ;
-    ;
-  }
   int *p = (int *)%0;
   return p[2];
 }

@@ -60,7 +60,6 @@ void copy(int *dst, const int *src, int count) {
                 *%14 = *%15;
               }
               (%16 = n, n = %16 - 1);
-              ;
             } while (%16 - 1 > 0);
   }
 }
@@ -73,10 +72,7 @@ int scoped(int sel, int limit) {
   int i = 0;
   switch (sel) {
     case 0: while (i < limit) {
-              {
-                (%0 = i, i = %0 + 1);
-                ;
-              }
+              (%0 = i, i = %0 + 1);
               case 1: (%1 = r, r = %1 + i);
               if (i == 3)
                 break;

@@ -6,7 +6,6 @@ int twice(int x) {
   int %0;
   {
     %0 = ((int (*)(int a, int b))add)(x, x);
-    ;
     return %0;
   }
 }
@@ -15,7 +14,6 @@ int apply(int (*f)(int), int v) {
   int %0;
   {
     %0 = f(v);
-    ;
     return %0;
   }
 }

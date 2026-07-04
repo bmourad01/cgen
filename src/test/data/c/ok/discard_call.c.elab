@@ -25,10 +25,6 @@ int *setp(int *p, int v) {
 struct S mk(int v) {
   int %0;
   (%0 = counter, counter = %0 + v);
-  {
-    ;
-    ;
-  }
   struct S s = {.a = v, .b = v + 1};
   return s;
 }

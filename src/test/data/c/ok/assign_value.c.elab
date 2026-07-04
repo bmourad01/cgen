@@ -4,10 +4,7 @@ int *p = &g;
 
 int self_ref(void) {
   int %0;
-  {
-    (%0 = 1 < *p, *p = %0);
-    ;
-  }
+  (%0 = 1 < *p, *p = %0);
   int r = %0;
   if (r)
     *p = 0;
@@ -23,7 +20,6 @@ int compound_self(void) {
   int %1;
   {
     (%0 = *q, %1 = %0 + *q, *q = %1);
-    ;
     return %1;
   }
 }
@@ -32,15 +28,9 @@ int incdec(void) {
   int %0;
   int %1;
   int x = 6;
-  {
-    (%0 = x, x = %0 + 1);
-    ;
-  }
+  (%0 = x, x = %0 + 1);
   int a = %0;
-  {
-    (%1 = x, x = %1 + 1);
-    ;
-  }
+  (%1 = x, x = %1 + 1);
   int b = %1 + 1;
   return a * 100 + b * 10 + x;
 }
@@ -64,7 +54,6 @@ int cond_assign(void) {
   int x = 0;
   {
     (%0 = 5, x = %0);
-    ;
     if (%0)
       return x;
   }

@@ -26,13 +26,17 @@ let string_of_expr (e : _ Expr.t) = match e.node with
 
 let string_of_expr_opt e = Option.try_with @@ fun () -> string_of_expr e
 
+(* Smart constructor for assembling block items into a statement. *)
 let mkblock items =
+  (* Combine nested blocks, and drop no-op statements. *)
   let rec splice acc = function
     | [] -> List.rev acc
+    | Tstmt.Bstmt s :: rest when stmt_is_empty s -> splice acc rest
     | Tstmt.Bstmt Sblock inner :: rest ->
       splice (List.rev_append inner acc) rest
     | item :: rest -> splice (item :: acc) rest in
   match splice [] items with
+  | [] -> Tstmt.Sinstr []
   | [Tstmt.Bstmt s] -> s
   | items -> Tstmt.Sblock items
 

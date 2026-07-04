@@ -43,12 +43,10 @@ int count_pos(const int *a, int n) {
 int first_is_pos(const int *a, int n) {
   int %0;
   {
-    if (n > 0) {
-      ;
+    if (n > 0)
       %0 = a[0] > 0 != (int)0;
-    } else
+    else
       %0 = 0;
-    ;
     return %0;
   }
 }
@@ -59,11 +57,9 @@ int guarded(int c, int (*f)(void)) {
   {
     if (c) {
       %0 = f();
-      ;
       %1 = %0 != (int)0;
     } else
       %1 = 0;
-    ;
     return %1;
   }
 }

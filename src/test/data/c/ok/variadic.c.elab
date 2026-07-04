@@ -43,10 +43,7 @@ int psum(int n, ...) {
   {
     int i = 0;
     for (; i < n; i = i + 1) {
-      {
-        %0 = __builtin_va_arg((long *)ap);
-        ;
-      }
+      %0 = __builtin_va_arg((long *)ap);
       struct P p = %0;
       total = total + p.a + p.b;
     }
@@ -59,7 +56,6 @@ int sum3(int a, int b, int c) {
   int %0;
   {
     %0 = ((int (*)(int n, ...))sum)(3, a, b, c);
-    ;
     return %0;
   }
 }

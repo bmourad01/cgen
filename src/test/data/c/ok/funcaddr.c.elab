@@ -6,7 +6,6 @@ static int apply(int (*f)(int), int x) {
   int %0;
   {
     %0 = f(x);
-    ;
     return %0;
   }
 }
@@ -15,7 +14,6 @@ int via_addr(int x) {
   int %0;
   {
     %0 = ((int (*)(int (*f)(int), int x))apply)((int (*)(int))&add1, x);
-    ;
     return %0;
   }
 }
@@ -24,7 +22,6 @@ int via_bare(int x) {
   int %0;
   {
     %0 = ((int (*)(int (*f)(int), int x))apply)((int (*)(int))(int (*)(int x))add1, x);
-    ;
     return %0;
   }
 }
@@ -34,7 +31,6 @@ int via_var(int x) {
   int (*p)(int) = (int (*)(int))&add1;
   {
     %0 = p(x);
-    ;
     return %0;
   }
 }

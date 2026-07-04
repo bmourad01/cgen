@@ -10,10 +10,6 @@ struct lead {
 };
 
 int sep_init(void) {
-  {
-    ;
-    ;
-  }
   struct sep s = {.a = 1, .b = 2};
   return (int)s.a * 10 + (int)s.b;
 }

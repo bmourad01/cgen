@@ -17,7 +17,6 @@ int run(struct calculator *c, int x, int y) {
   {
     %0 = (*c).op(x, y);
     %1 = (*c).fallback(x, y);
-    ;
     return %0 + %1;
   }
 }
@@ -29,7 +28,6 @@ int compute(int x, int y) {
   c.fallback = (int (*)(int, int))(int (*)(int a, int b))mul;
   {
     %0 = ((int (*)(struct calculator *c, int x, int y))run)(&c, x, y);
-    ;
     return %0;
   }
 }

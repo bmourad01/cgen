@@ -3,12 +3,10 @@ int cross_assign(int x) {
   int *q = &x;
   unsigned int *p = (unsigned int *)q;
   {
-    if (p == q) {
-      ;
+    if (p == q)
       %0 = *p == (unsigned int)x != (int)0;
-    } else
+    else
       %0 = 0;
-    ;
     return %0;
   }
 }

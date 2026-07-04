@@ -124,14 +124,10 @@ int pcarr_get(int i) {
   int %0;
   const int *p = ((const int **)g_pcarr)[i];
   {
-    if (p) {
-      ;
+    if (p)
       %0 = *p;
-    } else {
-      ;
+    else
       %0 = -1;
-    }
-    ;
     return %0;
   }
 }

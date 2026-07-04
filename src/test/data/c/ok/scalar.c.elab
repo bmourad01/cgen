@@ -27,7 +27,6 @@ long fib(int n) {
   {
     %0 = ((long (*)(int n))fib)(n - 1);
     %1 = ((long (*)(int n))fib)(n - 2);
-    ;
     return %0 + %1;
   }
 }
