@@ -322,8 +322,7 @@ let pointee_compatible tenv eval a b =
    - LHS `_Bool`, RHS pointer: truth-value conversion. Not yet
      implemented.
 *)
-let convert_for_assign tenv eval ~lhs ~(rhs : Texpr.t)
-  : (Texpr.t * string option) Or_error.t =
+let convert_for_assign tenv eval ~lhs ~(rhs : Texpr.t) =
   let dst = Type.unqualified lhs in
   let nl = ET.normalize tenv dst in
   let nr = ET.normalize tenv rhs.ty in
@@ -361,10 +360,11 @@ let convert_for_assign tenv eval ~lhs ~(rhs : Texpr.t)
            with a warning rather than an error; we match that leniency and
            attach a diagnostic. The qualifier-discard check above still rejects
            dropping a top-level `const`/`volatile`. *)
-        Ok (Texpr.cast ~dst ~arg:rhs,
-            Some (Format.asprintf
-                    "assignment from incompatible pointer type: '%a' to '%a'"
-                    pp nr pp nl))
+        let w =
+          Format.asprintf
+            "assignment from incompatible pointer type: '%a' to '%a'"
+            pp nr pp nl in
+        Ok (Texpr.cast ~dst ~arg:rhs, Some w)
   | _ ->
     E.failf
       "assignment from incompatible types: '%a' to '%a'"

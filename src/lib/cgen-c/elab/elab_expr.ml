@@ -968,7 +968,8 @@ module Make(A : Annotation) = struct
     let eval = Eval.create_init layout in
     let convert rv =
       let*? e, w = EC.convert_for_assign tenv eval ~lhs:result_ty ~rhs:rv in
-      let+ () = Ctx.warn_opt w in e in
+      let+ () = Ctx.warn_opt w in
+      e in
     (* When neither arm has side effects and neither can fault, the
        conditional is a pure expression: emit `Texpr.cond` directly with no
        temp (it lowers to an eager `sel`). An arm that loads memory or
@@ -1481,7 +1482,8 @@ module Make(A : Annotation) = struct
       let* layout = M.gets Ctx.layout in
       let tenv = Layout.tenv layout in
       let eval = Eval.create_init layout in
-      let*? converted, w = EC.convert_for_assign tenv eval ~lhs:lhs_lv.ty ~rhs:rhs_rv in
+      let*? converted, w =
+        EC.convert_for_assign tenv eval ~lhs:lhs_lv.ty ~rhs:rhs_rv in
       let+ () = Ctx.warn_opt w in
       Tstmt.Sinstr [Tstmt.assign ~lval:lhs_lv ~expr:converted]
     | Ebinary {op = `assign_arith op_a; lhs; rhs} ->
