@@ -1,3 +1,7 @@
+(env
+ (release
+  (inline_tests enabled)))
+
 (test
  (name test_opt)
  (libraries cgen golden ocamldiff ounit2 native)
