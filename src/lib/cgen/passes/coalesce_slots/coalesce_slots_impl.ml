@@ -277,6 +277,30 @@ module Make(M : Scalars.L) = struct
             if phys_equal r' r then acc
             else Vtree.set acc ~key ~data:r')
 
+  let compute_postord cfg blks =
+    let open struct
+      type frame =
+        | Exit of Label.t
+        | Enter of Label.t
+    end in
+    let n = Cfg.number_of_nodes cfg in
+    let postord = Vec.create ~capacity:n () in
+    let vis = LS.create ~capacity:n () in
+    let q = Stack.singleton @@ Enter Label.pseudoentry in
+    Stack.until_empty q (function
+        | Exit u ->
+          Ltree.find blks u |> Option.iter ~f:(Vec.push postord)
+        | Enter u ->
+          if LS.strict_add vis u then begin
+            Stack.push q @@ Exit u;
+            Cfg.Node.succs u cfg |>
+            Seq.filter ~f:(Fn.non @@ LS.mem vis) |>
+            Seq.to_list_rev |>
+            List.iter ~f:(fun v ->
+                Stack.push q @@ Enter v)
+          end);
+    postord
+
   let liveness cfg blks slots t si =
     let loop = Loop.analyze ~name:"" cfg in
     let ip = ref 0 in
@@ -286,35 +310,32 @@ module Make(M : Scalars.L) = struct
     let init =
       VS.fold t.esc ~init:Vtree.empty
         ~f:(fun acc x -> Vtree.set acc ~key:x ~data:Range.bad) in
-    let acc =
-      Graphlib.reverse_postorder_traverse
-        (module Cfg) ~start:Label.pseudoentry cfg |>
-      Seq.filter_map ~f:(Ltree.find blks) |>
-      Seq.fold ~init ~f:(fun acc b ->
-          let l = Blk.label b in
-          let lo_ip = !ip in
-          let s = ref @@ get t l in
-          let acc = Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
-              let op = Insn.op i in
-              let acc = liveness_insn si acc !s !ip i in
-              let () = match Insn.load_or_store_to op with
-                | Some (ptr, _, Store) ->
-                  begin match Vtree.find !s ptr with
-                    | Some Offset (base, _) ->
-                      LT.set store_base ~key:(Insn.label i) ~data:base
-                    | _ -> ()
-                  end
-                | _ -> () in
-              Vec.push nums (Insn.label i);
-              s := Sinit.S.transfer_op slots !s op;
-              incr ip;
-              acc) in
-          let ctrl_ip = !ip in
-          let acc = liveness_ctrl si acc !s ctrl_ip l @@ Blk.ctrl b in
-          Vec.push nums l;
-          incr ip;
-          spans := Ltree.set !spans ~key:l ~data:(lo_ip, ctrl_ip);
-          acc) in
+    let po = compute_postord cfg blks in
+    let acc = Vec.fold_right po ~init ~f:(fun b acc ->
+        let l = Blk.label b in
+        let lo_ip = !ip in
+        let s = ref @@ get t l in
+        let acc = Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
+            let op = Insn.op i in
+            let acc = liveness_insn si acc !s !ip i in
+            let () = match Insn.load_or_store_to op with
+              | Some (ptr, _, Store) ->
+                begin match Vtree.find !s ptr with
+                  | Some Offset (base, _) ->
+                    LT.set store_base ~key:(Insn.label i) ~data:base
+                  | _ -> ()
+                end
+              | _ -> () in
+            Vec.push nums (Insn.label i);
+            s := Sinit.S.transfer_op slots !s op;
+            incr ip;
+            acc) in
+        let ctrl_ip = !ip in
+        let acc = liveness_ctrl si acc !s ctrl_ip l @@ Blk.ctrl b in
+        Vec.push nums l;
+        incr ip;
+        spans := Ltree.set !spans ~key:l ~data:(lo_ip, ctrl_ip);
+        acc) in
     extend_for_loops loop !spans acc, nums, store_base
 
   let collect_deads rs store_base =
