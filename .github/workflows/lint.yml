@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      OPAMJOBS: 2
+      OPAMJOBS: 4
       OPAMRETRIES: 8
 
     steps:
@@ -25,3 +25,13 @@ jobs:
 
       - name: Check the Style
         run: opam install -y ocp-indent && opam exec -- make check-style
+
+      - name: Install dependencies
+        run: |
+          make deps
+          opam install -y odoc
+
+      - name: Check the docs
+        run: |
+          eval $(opam env)
+          make check-docs
