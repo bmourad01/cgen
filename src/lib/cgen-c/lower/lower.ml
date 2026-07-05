@@ -17,6 +17,7 @@ module V = Cgen.Virtual
 module Dict = Cgen.Dict
 module E = Lower_expr
 module Smap = E.Smap
+module Bf = Layout.Bitfield
 
 open Ctx.Syntax
 
@@ -212,25 +213,32 @@ let imm_bytes (i : IT.imm) = IT.sizeof_basic (i :> IT.basic) / 8
 let coalesce_bytes bf_byte bytes =
   let rec group = function
     | [] -> []
-    | x :: _ as l ->
+    | x :: xs ->
       let rec span hi = function
         | y :: ys when y = hi -> span (hi + 1) ys
         | r -> hi, r in
-      let hi, rest = span (x + 1) (List.tl_exn l) in
+      let hi, rest = span (x + 1) xs in
       (x, hi) :: group rest in
   List.concat_map (group (Set.to_list bytes)) ~f:(fun (lo, hi) ->
-      let rec go acc p =
-        if p >= hi then List.rev acc
-        else
-          let w = List.find_exn [8; 4; 2; 1]
-              ~f:(fun w -> p mod w = 0 && p + w <= hi) in
+      let rec go p k =
+        if p >= hi then k [] else
+          (* Find the largest alignment `w` that fits `p` *)
+          let a = ref 8 and w = ref 0 in
+          while !a > 0 && !w = 0 do
+            if p mod !a = 0 && p + !a <= hi
+            then w := !a else a := !a lsr 1
+          done;
+          let w = !w in
+          assert (w > 0);
           let module Bw = (val Cgen.Bv.modular (w * 8)) in
-          let v = List.fold (List.range 0 w) ~init:Bw.zero ~f:(fun a j ->
-              let byte = Option.value (Hashtbl.find bf_byte (p + j)) ~default:0 in
+          let v = Seq.fold (Seq.range 0 w) ~init:Bw.zero ~f:(fun a j ->
+              let byte =
+                Hashtbl.find bf_byte (p + j) |>
+                Option.value ~default:0 in
               let sh = 8 * j in
               Bw.(a lor (int byte lsl int sh))) in
-          go ((p, imm_of_bytes w, v) :: acc) (p + w) in
-      go [] lo)
+          go (p + w) (fun acc -> k ((p, imm_of_bytes w, v) :: acc))  in
+      go lo Fn.id)
 
 (* Emit the data elements for a constant initializer. *)
 let rec emit_init
@@ -298,8 +306,8 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
       match Layout.bitfield_info layout ~tag ~field with
       | Ok bf ->
         let b = bitfield_type_bytes layout ~tag ~field in
-        Hashtbl.update unit_bytes (Layout.Bitfield.storage bf)
-          ~f:(function None -> b | Some m -> max m b)
+        Hashtbl.update unit_bytes (Bf.storage bf)
+          ~f:(Option.value_map ~default:b ~f:(max b))
       | Error _ -> ());
   let unit_val = Int.Table.create () in
   let bf_byte = Int.Table.create () in
@@ -309,8 +317,8 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
       match Layout.bitfield_info layout ~tag ~field with
       | Ok bf ->
         let*? v = init_int layout ~what:"bit field" finit in
-        let storage = Layout.Bitfield.storage bf in
-        let off = Layout.Bitfield.offset bf and w = Layout.Bitfield.width bf in
+        let storage = Bf.storage bf in
+        let off = Bf.offset bf and w = Bf.width bf in
         let ub = Hashtbl.find_exn unit_bytes storage in
         Hashtbl.update unit_val storage ~f:(fun cur ->
             splice_bits ~unit_bytes:ub ~bitoff:off ~width:w
@@ -336,13 +344,17 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
     Hashtbl.fold unit_bytes ~init:([], Int.Set.empty)
       ~f:(fun ~key:storage ~data:ub (cells, split) ->
           if overlaps storage ub then
-            cells,
-            Seq.range storage (storage + ub) |>
-            Seq.filter ~f:(Hashtbl.mem bf_byte) |>
-            Seq.fold ~init:split ~f:Set.add
+            let split =
+              Seq.range storage (storage + ub) |>
+              Seq.filter ~f:(Hashtbl.mem bf_byte) |>
+              Seq.fold ~init:split ~f:Set.add in
+            cells, split
           else
-            let v = Option.value (Hashtbl.find unit_val storage) ~default:Cgen.Bv.zero in
-            (storage, `Int (imm_of_bytes ub, v, ub)) :: cells, split) in
+            let v =
+              Hashtbl.find unit_val storage |>
+              Option.value ~default:Cgen.Bv.zero in
+            let cell = storage, `Int (imm_of_bytes ub, v, ub) in
+            (cell :: cells), split) in
   let byte_cells =
     coalesce_bytes bf_byte split_bytes |>
     List.map ~f:(fun (off, imm, v) ->
