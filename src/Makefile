@@ -33,11 +33,7 @@ uninstall:
 test:
 	UPDATE_EXPECT=$(UPDATE_EXPECT) dune test --profile=$(PROFILE)
 
-# XXX: workaround for incremental doc builds becoming stale
 doc:
-	-find _build -name '*.odoc' -delete
-	-find _build -name '*.odocl' -delete
-	rm -rf _build/default/_doc
 	dune build @doc --profile=$(PROFILE)
 
 check-docs: doc
