@@ -1,8 +1,7 @@
 open Core
-open Regular.Std
-open Virtual_common
 open Cgen_containers
 
+module Regular = Cgen_utils.Regular
 module Blk = Virtual_blk
 module Slot = Virtual_slot
 
@@ -135,7 +134,7 @@ let has_name fn name = String.(name = fn.name)
 let hash fn = String.hash fn.name
 
 let typeof fn =
-  let args = Rrb.to_sequence fn.args |> Seq.map ~f:snd |> Seq.to_list in
+  let args = Rrb.to_sequence fn.args |> Sequence.map ~f:snd |> Sequence.to_list in
   `proto (return fn, args, variadic fn)
 
 let map_of_blks fn =
@@ -313,8 +312,6 @@ let pp ppf fn =
 
 include Regular.Make(struct
     include T
-    let module_name = Some "Cgen.Virtual.Func"
-    let version = "0.1"
     let pp = pp
     let hash = hash
   end)

@@ -1,5 +1,5 @@
 open Core
-open Regular.Std
+module Regular = Cgen_utils.Regular
 
 module type S = sig
   type t [@@deriving bin_io, compare, equal, sexp]
@@ -21,10 +21,10 @@ module type S = sig
   val label : t -> Label.t
 
   (** Returns the arguments of the basic block. *)
-  val args : ?rev:bool -> t -> Var.t seq
+  val args : ?rev:bool -> t -> Var.t Sequence.t
 
   (** Returns the sequence of data instructions. *)
-  val insns : ?rev:bool -> t -> insn seq
+  val insns : ?rev:bool -> t -> insn Sequence.t
 
   (** Returns the control-flow instruction (also called the terminator)
       of the block. *)
@@ -188,7 +188,7 @@ module type S = sig
   (** [fold_insns ?rev b ~init ~f] folds [f] over the data instructions
       of [b], accumulating from [init]. If [rev] is [true], folds in
       reverse order. Bypasses the [Seq] layer; prefer over
-      [Blk.insns b |> Seq.fold]. *)
+      [Blk.insns b |> Sequence.fold]. *)
   val fold_insns : ?rev:bool -> t -> init:'a -> f:('a -> insn -> 'a) -> 'a
 
   (** [iter_insns ?rev b ~f] applies [f] to each data instruction of [b].
@@ -202,7 +202,7 @@ module type S = sig
   val iter_args : ?rev:bool -> t -> f:(Var.t -> unit) -> unit
 
   (** Returns the arguments of the block as a list. Prefer over
-      [Blk.args b |> Seq.to_list]. *)
+      [Blk.args b |> Sequence.to_list]. *)
   val args_to_list : t -> Var.t list
 
   include Regular.S with type t := t

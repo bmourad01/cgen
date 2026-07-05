@@ -1,12 +1,11 @@
 (** The compilation context. *)
 
 open Core
-open Regular.Std
 
 (** The state for the compilation context. *)
 module State : sig
   type t
-  include Regular.S with type t := t
+  include Cgen_utils.Regular.S with type t := t
 end
 
 type state = State.t

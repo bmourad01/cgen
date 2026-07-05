@@ -1,8 +1,8 @@
 open Core
-open Regular.Std
 open Virtual
 
-module I = Bv_interval
+module I = Cgen_utils.Bv_interval
+module Bv = Cgen_utils.Bv
 module Intervals = Sccp_intervals
 module SC = Sccp_intervals_common
 
@@ -114,7 +114,7 @@ let mark_div_rem_nonzero env i = match Insn.op i with
       | `rem #Type.imm
       | `urem _ ->
         begin match Intervals.find_var env.state x with
-          | Some iv when Bv_interval.contains_value iv Bv.zero -> i
+          | Some iv when I.contains_value iv Bv.zero -> i
           | Some _ -> Insn.with_tag i Tags.div_rem_nonzero ()
           | None -> i
         end
@@ -148,10 +148,10 @@ let map_sw env t i d tbl =
     | Some iv ->
       (* Filter out cases of the switch that will never be true. *)
       Ctrl.Table.enum tbl |>
-      Seq.filter_map ~f:(fun (i, l) ->
+      Sequence.filter_map ~f:(fun (i, l) ->
           if I.contains_value iv i
           then Some (i, map_local env l)
-          else None) |> Seq.to_list |> function
+          else None) |> Sequence.to_list |> function
       | [] -> `jmp (d :> dst)
       | lst -> match I.single_of iv with
         | None -> `sw (t, i, d, Ctrl.Table.create_exn lst t)
@@ -176,7 +176,7 @@ let map_blk env b =
   env.cur <- Blk;
   env.pos <- Blk.label b;
   env.state <- Intervals.input env.intv (Blk.label b);
-  let is = Blk.insns b |> Seq.to_list |> List.map ~f:(fun i ->
+  let is = Blk.insns b |> Sequence.to_list |> List.map ~f:(fun i ->
       env.cur <- Insn;
       env.pos <- Insn.label i;
       env.state <- Intervals.step_insn env.intv env.state i;

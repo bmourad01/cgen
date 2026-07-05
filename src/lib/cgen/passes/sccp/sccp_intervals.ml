@@ -12,7 +12,6 @@
 *)
 
 open Core
-open Regular.Std
 open Virtual
 open Sccp_intervals_common
 
@@ -75,10 +74,10 @@ let edge ctx keep src dst s =
 let init_state ctx fn =
   let init =
     Func.args fn |>
-    Seq.filter_map ~f:(fun (x, t) -> match t with
+    Sequence.filter_map ~f:(fun (x, t) -> match t with
         | #Type.basic -> Some x
         | `name _ -> None) |>
-    Seq.fold ~init:empty_state ~f:(fun s x ->
+    Sequence.fold ~init:empty_state ~f:(fun s x ->
         match sizeof x ctx with
         | Some size -> update s x @@ I.create_full ~size
         | None -> s) in
@@ -113,10 +112,10 @@ let analyze fn ~word ~typeof =
     let live = Live.compute' cfg blks in
     let keep =
       Ltree.fold blks ~init:Ltree.empty ~f:(fun ~key:l ~data:b acc ->
-          let params = Blk.args b |> Seq.to_list |> Var.Tree_set.of_list in
+          let params = Blk.args b |> Sequence.to_list |> Var.Tree_set.of_list in
           let ks = Var.Tree_set.union (Live.ins live l) params in
           Ltree.set acc ~key:l ~data:ks) in
-    let input = Fixpoint.run (module Cfg) cfg
+    let input = Fixpoint.run cfg
         ~step:(step ctx)
         ~edge:(edge ctx keep)
         ~start:Label.pseudoentry

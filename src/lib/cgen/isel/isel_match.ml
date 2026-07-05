@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Virtual.Abi
 open Isel_common
 
@@ -10,8 +9,8 @@ let (let@) f x = f x [@@inline]
 (* Variables that are live across a block boundary. *)
 let escaping_vars fn =
   Func.blks fn |>
-  Seq.map ~f:Blk.free_vars |>
-  Seq.fold ~init:Vset.empty ~f:Vset.union
+  Sequence.map ~f:Blk.free_vars |>
+  Sequence.fold ~init:Vset.empty ~f:Vset.union
 
 module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   open C.Syntax
@@ -299,10 +298,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      in reverse postoder. *)
   let transl_blks t =
     let escaping = escaping_vars t.fn in
-    Func.blks t.fn |> Seq.map ~f:(fun b ->
+    Func.blks t.fn |> Sequence.map ~f:(fun b ->
         let l = Blk.label b in
         let o = Semi_nca.Tree.rpo_exn t.dom l in
-        b, o) |> Seq.to_list |>
+        b, o) |> Sequence.to_list |>
     List.sort ~compare:(fun (_, a) (_, b) -> compare b a) |>
     C.List.fold ~init:[] ~f:(fun acc (b, _) ->
         let+ bs = step t escaping b in
@@ -331,6 +330,6 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       else Dict.set dict Pseudo.Func.Tag.needs_stack_frame () in
     C.lift_err @@ Pseudo.Func.create ()
       ~name:(Func.name t.fn)
-      ~slots:(Func.slots t.fn |> Seq.to_list)
+      ~slots:(Func.slots t.fn |> Sequence.to_list)
       ~dict ~blks ~rets
 end

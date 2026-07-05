@@ -1,7 +1,7 @@
 open Core
-open Regular.Std
 open Virtual_common
 
+module Bv = Cgen_utils.Bv
 module Vset = Var.Tree_set
 
 module Table = struct
@@ -27,7 +27,7 @@ module Table = struct
 
   let map_exn t ~f =
     Map.to_sequence t.tbl |>
-    Seq.map ~f:(fun (v, l) -> f v l) |>
+    Sequence.map ~f:(fun (v, l) -> f v l) |>
     Map.of_sequence (module Bv) |> function
     | `Ok tbl -> {t with tbl}
     | `Duplicate_key v ->
@@ -102,7 +102,7 @@ let fold_dests t ~init ~f =
   | `br (_, y, n) -> dst (dst init n) y
   | `sw (_, _, d, tbl) ->
     Table.enum tbl |>
-    Seq.fold ~init:(f init (label_of_local d)) ~f:(fun acc (_, l) ->
+    Sequence.fold ~init:(f init (label_of_local d)) ~f:(fun acc (_, l) ->
         f acc (label_of_local l))
 
 let pp ppf : t -> unit = function

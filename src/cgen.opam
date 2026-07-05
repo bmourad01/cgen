@@ -9,27 +9,20 @@ license: "LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception"
 homepage: "https://github.com/bmourad01/cgen"
 bug-reports: "https://github.com/bmourad01/cgen/issues"
 depends: [
-  "bitvec"
-  "bitvec-binprot"
-  "bitvec-order"
-  "bitvec-sexp"
   "cmdliner"
   "core" {>= "v0.15"}
   "core_kernel" {>= "v0.15"}
   "core_unix" {>= "v0.15"}
   "dune" {>= "3.15"}
   "fmt"
-  "graphlib"
   "logs"
   "menhir" {>= "20180523"}
-  "monads"
   "ocamldiff"
   "ounit2"
   "ppx_bin_prot"
   "ppx_compare"
   "ppx_fields_conv"
   "ppx_sexp_conv"
-  "regular"
   "shexp"
   "zarith"
   "odoc" {with-doc}

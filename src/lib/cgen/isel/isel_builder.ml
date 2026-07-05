@@ -2,7 +2,6 @@
    engine on. *)
 
 open Core
-open Regular.Std
 open Virtual.Abi
 open Isel_common
 
@@ -81,7 +80,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         "In Isel_builder.blkargs: missing block for label %a in function $%s"
         Label.pp ld (Func.name t.fn) ()
     | Some b ->
-      let args' = Seq.to_list @@ Blk.args b in
+      let args' = Sequence.to_list @@ Blk.args b in
       match List.zip args' args with
       | Unequal_lengths ->
         C.failf "In Isel_builder.blkargs: unequal lengths for arguments to \
@@ -417,7 +416,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let+ tbl =
       Ctrl.Table.enum tbl |> C.Seq.map ~f:(fun (v, loc) ->
           let+ lbl, _ = local ~br:true t l loc in
-          v, lbl) >>| Seq.to_list in
+          v, lbl) >>| Sequence.to_list in
     let tbl' = new_node t @@ Tbl (d, tbl) in
     ignore @@ new_node ~l t @@ N (Osw ty, [i; tbl'])
 
@@ -471,17 +470,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let initial t =
     let entry = Func.entry t.fn in
     let b = Label.Tree.find_exn t.blks entry in
-    let l = match Seq.hd @@ Blk.insns b with
+    let l = match Sequence.hd @@ Blk.insns b with
       | Some i -> Insn.label i
       | None -> entry in
     let rargs, sargs =
-      Func.args t.fn |> Seq.to_list |>
+      Func.args t.fn |> Sequence.to_list |>
       List.partition_map ~f:(fun (a, ty) -> match a with
           | `reg (x, r) -> First (x, r, ty)
           | `stk (x, o) -> Second (x, o, ty)) in
     let* () = C.List.iter sargs ~f:(stkparam t l) in
     let+ () = C.List.iter rargs ~f:(regparam t l) in
-    Func.slots t.fn |> Seq.iter ~f:(fun s -> slot t l s)
+    Func.slots t.fn |> Sequence.iter ~f:(fun s -> slot t l s)
 
   let run t =
     let* () = initial t in

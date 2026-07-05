@@ -140,7 +140,7 @@ type uop = [
 (** A literal constant. *)
 type const =
   | Cint of {
-      value  : Cgen.Bv.t;
+      value  : Cgen_utils.Bv.t;
       suffix : [`u | `l | `ul | `ll | `ull] option;
       (** The integer-suffix as written, if any. The suffix narrows
           the inferred type per C99 §6.4.4.1. *)
@@ -315,7 +315,9 @@ val builtin : name:string -> args:'a builtin_arg list -> ann:'a -> 'a t
 val int_ :
   ?suffix:[`u | `l | `ul | `ll | `ull] ->
   ?base:[`dec | `oct | `hex | `bin] ->
-  Cgen.Bv.t -> ann:'a -> 'a t
+  Cgen_utils.Bv.t ->
+  ann:'a ->
+  'a t
 
 (** A string literal. *)
 val str : string -> ann:'a -> 'a t

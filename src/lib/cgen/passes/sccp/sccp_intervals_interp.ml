@@ -1,10 +1,10 @@
 (* Implements the semantics of individual instructions. *)
 
 open Core
-open Regular.Std
 open Virtual
 open Sccp_intervals_common
 
+module Bv = Cgen_utils.Bv
 module Float32 = Cgen_utils.Float32
 
 external float_to_bits : float -> int64 = "cgen_bits_of_float"
@@ -252,7 +252,7 @@ let assign_blk_args ctx s l args =
   match Ltree.find ctx.blks l with
   | None -> s
   | Some b ->
-    let args' = Blk.args b |> Seq.to_list in
+    let args' = Blk.args b |> Sequence.to_list in
     match List.zip args args' with
     | Unequal_lengths -> s
     | Ok xs -> List.fold xs ~init:s ~f:(fun s (o, x) ->
@@ -320,7 +320,7 @@ let interp_ctrl ctx s = function
          of the switch may be disjoint, so we settle for
          an overapproximation of `x` in the default case. *)
       Ctrl.Table.enum tbl |>
-      Seq.fold ~init:s ~f:(fun s (v, `label (l, args)) ->
+      Sequence.fold ~init:s ~f:(fun s (v, `label (l, args)) ->
           if Label.(l <> d) then
             (* Don't narrow for the default case. *)
             narrow ctx l x @@ I.create_single ~value:v ~size;
@@ -331,5 +331,5 @@ let interp_ctrl ctx s = function
 (* Our transfer function. *)
 let interp_blk ctx s b =
   Blk.insns b |>
-  Seq.fold ~init:s ~f:(interp_insn ctx) |>
+  Sequence.fold ~init:s ~f:(interp_insn ctx) |>
   Fn.flip (interp_ctrl ctx) (Blk.ctrl b)

@@ -6,7 +6,6 @@
 *)
 
 open Core
-open Regular.Std
 
 (** The base immediate types, which includes words [`i32]
     and longs [`i64]. *)
@@ -185,7 +184,7 @@ module Layout : sig
   (** Returns [true] if the layout contains no data. *)
   val is_empty : t -> bool
 
-  include Regular.S with type t := t
+  include Cgen_utils.Regular.S with type t := t
 end
 
 (** [layout_exn gamma c] derives the layout of the named data
@@ -285,4 +284,4 @@ type t = [
   | `flag
 ] [@@deriving bin_io, compare, equal, hash, sexp]
 
-include Regular.S with type t := t
+include Cgen_utils.Regular.S with type t := t

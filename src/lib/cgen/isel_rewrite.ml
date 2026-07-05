@@ -1,3 +1,5 @@
+module Bv = Cgen_utils.Bv
+
 module Pattern = struct
   include Isel_internal.Pattern
 

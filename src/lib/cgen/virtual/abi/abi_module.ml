@@ -1,8 +1,7 @@
 open Core
-open Regular.Std
-open Virtual_common
 open Cgen_containers
 
+module Regular = Cgen_utils.Regular
 module Func = Abi_func
 module Data = Virtual_data
 
@@ -122,8 +121,6 @@ let pp ppf m =
 
 include Regular.Make(struct
     include T
-    let module_name = Some "Cgen.Virtual.Abi.Module"
-    let version = "0.1"
     let pp = pp
     let hash = hash
   end)

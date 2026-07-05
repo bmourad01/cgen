@@ -1,8 +1,9 @@
 open Core
-open Regular.Std
 open Virtual
 open Sysv_common
 open Cgen_containers
+
+module Bv = Cgen_utils.Bv
 
 module Make(Context : Context_intf.S_virtual) = struct
   open Context.Syntax
@@ -110,8 +111,8 @@ module Make(Context : Context_intf.S_virtual) = struct
 
   let transl_tbl env tbl t =
     Ctrl.Table.enum tbl |>
-    Seq.map ~f:(fun (v, l) -> v, transl_local env l) |>
-    Seq.to_list |> fun tbl ->
+    Sequence.map ~f:(fun (v, l) -> v, transl_local env l) |>
+    Sequence.to_list |> fun tbl ->
     Abi.Ctrl.Table.create_exn tbl t 
 
   let transl_sw env t i d tbl =
@@ -174,7 +175,7 @@ module Make(Context : Context_intf.S_virtual) = struct
     t.ctrl <- c'
 
   (* Translate a single block, which may be split into multiple blocks. *)
-  let rec transl_blk t env label s = match Seq.next s with
+  let rec transl_blk t env label s = match Sequence.next s with
     | None ->
       commit_blk t label;
       let blks = Vec.to_list t.bvec in
@@ -285,7 +286,7 @@ module Make(Context : Context_intf.S_virtual) = struct
         if Label.(l = entry) then
           Vec.iter env.params ~f:(fun p ->
               List.iter p.pins ~f:(Vec.push t.ivec));
-        t.args <- Seq.to_list @@ Blk.args b;
+        t.args <- Sequence.to_list @@ Blk.args b;
         let* () = transl_ctrl t env l @@ Blk.ctrl b in
         let+ blks = transl_blk t env l @@ Blk.insns b in
         List.iter blks ~f:(Vec.push bvec)) in
@@ -313,8 +314,8 @@ module Make(Context : Context_intf.S_virtual) = struct
   let make_args env =
     let args =
       Vec.to_sequence_mutable env.params |>
-      Seq.map ~f:(fun p -> p.pvar, p.pty) |>
-      Seq.to_list in
+      Sequence.map ~f:(fun p -> p.pvar, p.pty) |>
+      Sequence.to_list in
     match env.alpar with
     | None -> args
     | Some r ->
@@ -322,7 +323,7 @@ module Make(Context : Context_intf.S_virtual) = struct
       (arg, `i8) :: args
 
   let go env =
-    let slots = Func.slots env.fn |> Seq.to_list in
+    let slots = Func.slots env.fn |> Sequence.to_list in
     let slots = slots @ Vec.to_list env.slots in
     let args = make_args env in
     let* blks = transl_blks env in

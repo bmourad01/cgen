@@ -1,5 +1,5 @@
 open Core
-open Regular.Std
+module Regular = Cgen_utils.Regular
 open Cgen_containers
 
 module T = struct
@@ -55,7 +55,7 @@ let linkage fn = match Dict.find fn.dict Tag.linkage with
   | Some l -> l
 
 let typeof fn =
-  let args = Rrb.to_sequence fn.args |> Seq.map ~f:snd |> Seq.to_list in
+  let args = Rrb.to_sequence fn.args |> Sequence.map ~f:snd |> Sequence.to_list in
   `proto (return fn, args, variadic fn)
 
 let map_body fn ~f = {fn with body = f fn.body}
@@ -119,8 +119,6 @@ let pp ppf fn =
 
 include Regular.Make(struct
     include T
-    let module_name = Some "Cgen.Structured.Func"
-    let version = "0.1"
     let pp = pp
     let hash = hash
   end)

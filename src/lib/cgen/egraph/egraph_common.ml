@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Cgen_containers
 
 module Id = Egraph_id
@@ -167,4 +166,4 @@ let wordsz t =
 
 let typenames t =
   Type_env.typenames t.input.tenv |>
-  Seq.map ~f:(fun s -> `name s)
+  Sequence.map ~f:(fun s -> `name s)

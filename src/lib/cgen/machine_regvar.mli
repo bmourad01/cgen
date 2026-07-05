@@ -2,7 +2,6 @@
     instruction. *)
 
 open Core
-open Regular.Std
 
 (** A register class.
 
@@ -52,7 +51,7 @@ module type S = sig
   (** Returns the discrimination. *)
   val which : t -> (reg, Var.t) Either.t
 
-  include Regular.S with type t := t
+  include Cgen_utils.Regular.S with type t := t
 end
 
 (** Required interface for the register type. *)
@@ -61,11 +60,6 @@ module type Reg = sig
   val pp : Format.formatter -> t -> unit
 end
 
-(** The name of the module, for the [Regular] instance. *)
-module type Name = sig
-  val module_name : string
-end
-
 (** Helper for making the boilerplate stuff for [Regvar]
     as required by the [Machine_intf.S] signature. *)
-module Make(R : Reg)(_ : Name) : S with type reg := R.t
+module Make(R : Reg) : S with type reg := R.t

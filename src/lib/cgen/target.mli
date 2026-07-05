@@ -1,11 +1,10 @@
 (** A descriptor of a compilation target. *)
 
-open Regular.Std
 
 type t
 
 (** Enumerates all of the declared targets. *)
-val enum_targets : unit -> t seq
+val enum_targets : unit -> t Base.Sequence.t
 
 (** Declares a target descriptor.
 
@@ -46,4 +45,4 @@ val little : t -> bool
 (** The C data model of the target. *)
 val data_model : t -> Cgen_utils.C_data_model.t
 
-include Regular.S with type t := t
+include Cgen_utils.Regular.S with type t := t

@@ -1,6 +1,5 @@
 (** A specialized set for bit-indexed elements. *)
 
-open Regular.Std
 
 (** The key for indexing into the set. *)
 type key = int
@@ -82,7 +81,7 @@ val pop_max_exn : t -> key
     If [rev] is [true], then the order is descending, otherwise the order is
     ascending. The default is [false].
 *)
-val enum : ?rev:bool -> t -> key seq
+val enum : ?rev:bool -> t -> key Base.Sequence.t
 
 (** [fold ?rev t ~init ~f] folds over elements in ascending (or descending if
     [rev]) order. *)

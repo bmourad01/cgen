@@ -1,5 +1,6 @@
 open Core
 
+module Bv = Cgen_utils.Bv
 module Float32 = Cgen_utils.Float32
 module Vset = Var.Tree_set
 

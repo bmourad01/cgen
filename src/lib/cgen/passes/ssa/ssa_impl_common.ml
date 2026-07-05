@@ -1,4 +1,3 @@
-open Regular.Std
 
 module VT = Var.Dense_table
 module LT = Label.Dense_table
@@ -36,8 +35,8 @@ module type L = sig
 
     val label : t -> Label.t
     val dict : t -> Dict.t
-    val args : ?rev:bool -> t -> Var.t seq
-    val insns : ?rev:bool -> t -> Insn.t seq
+    val args : ?rev:bool -> t -> Var.t Base.Sequence.t
+    val insns : ?rev:bool -> t -> Insn.t Base.Sequence.t
     val ctrl : t -> Ctrl.t
     val fold_insns : ?rev:bool -> t -> init:'a -> f:('a -> Insn.t -> 'a) -> 'a
     val iter_insns : ?rev:bool -> t -> f:(Insn.t -> unit) -> unit
@@ -51,7 +50,7 @@ module type L = sig
     val dict : t -> Dict.t
     val with_tag : t -> 'a Dict.tag -> 'a -> t
     val name : t -> string
-    val blks : ?rev:bool -> t -> Blk.t seq
+    val blks : ?rev:bool -> t -> Blk.t Base.Sequence.t
     val iter_reachable : t -> f:(Blk.t -> unit) -> unit
     val num_blks : t -> int
     val num_insns : t -> int
@@ -59,7 +58,7 @@ module type L = sig
   end
 
   module Cfg : sig
-    include Label.Graph_s
+    type t = Label.Graph.t
     val create : Func.t -> t
   end
 

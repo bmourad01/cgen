@@ -1,5 +1,7 @@
 open Core
 
+module Bv = Cgen_utils.Bv
+
 type goto = [
   | Virtual.global
   | `label of Label.t

@@ -1,4 +1,4 @@
-.PHONY: clean install uninstall test doc check-docs deps bap-deps
+.PHONY: clean install uninstall test doc check-docs deps
 
 UPDATE_EXPECT ?= 0
 
@@ -6,17 +6,6 @@ PROFILE = release
 ifeq ($(DEBUG),1)
 	PROFILE = dev
 endif
-
-BAP_DEPS = \
-	bitvec \
-	bitvec-binprot \
-	bitvec-order \
-	bitvec-sexp \
-	graphlib \
-	monads \
-	regular
-
-BAP_REPO := git+https://github.com/BinaryAnalysisPlatform/opam-repository\#testing
 
 all:
 	dune build --profile=$(PROFILE)
@@ -39,13 +28,8 @@ doc:
 check-docs: doc
 	sh ../tools/check-docs.sh _build/default/_doc/_html
 
-deps: bap-deps
+deps:
 	opam install . --deps-only
-
-bap-deps:
-	for dep in $(BAP_DEPS); do \
-		opam repository add $$dep $(BAP_REPO); \
-	done
 
 compile_commands.json:
 	dune rules | dune-compiledb

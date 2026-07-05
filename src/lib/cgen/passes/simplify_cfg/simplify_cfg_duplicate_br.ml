@@ -31,11 +31,10 @@
 *)
 
 open Core
-open Monads.Std
 open Virtual
 open Simplify_cfg_common
 
-module O = Monad.Option
+module O = Cgen_utils.Monads.Option
 module Short_circ = Simplify_cfg_short_circ
 module LT = Label.Dense_table
 

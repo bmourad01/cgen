@@ -1,7 +1,6 @@
 open Core
-open Monads.Std
 
-module E = Monad.Result.Error
+module E = Cgen_utils.Monads.Error
 module IT = Cgen.Type
 
 open E.Let

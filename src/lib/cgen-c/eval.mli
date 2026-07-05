@@ -40,7 +40,7 @@ type init = [arith | `init]
     concrete row eliminates the unreachable branches at compile time.
 *)
 type _ value =
-  | Vint : Cgen.Bv.t -> [> ice] value
+  | Vint : Cgen_utils.Bv.t -> [> ice] value
   (** An integer or character constant, masked to its type's width. *)
   | Vfloat : Cgen_utils.Float32.t -> [> arith] value
   (** A single-precision floating-point constant. *)
@@ -48,7 +48,7 @@ type _ value =
   (** A double-precision floating-point constant. *)
   | Vaddr : {
       sym : string;
-      off : Cgen.Bv.t;
+      off : Cgen_utils.Bv.t;
     } -> [> init] value
   (** A symbol plus a byte offset (§6.6 ¶9). *)
   | Vstring : string -> [> init] value
@@ -100,7 +100,7 @@ val fold : _ t -> Texpr.t -> Texpr.t Or_error.t
 
     Available at any mode.
 *)
-val int_const : _ t -> Texpr.t -> Cgen.Bv.t Or_error.t
+val int_const : _ t -> Texpr.t -> Cgen_utils.Bv.t Or_error.t
 
 (** [const t e] is [fold t e] followed by a projection into the value
     space.

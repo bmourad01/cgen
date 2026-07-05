@@ -1,8 +1,7 @@
 open Core
-open Monads.Std
-open Regular.Std
 
-module E = Monad.Result.Error
+module Regular = Cgen_utils.Regular
+module E = Cgen_utils.Monads.Error
 module L = Layout
 
 type imm_base = [
@@ -216,8 +215,6 @@ module Layout = struct
   include Regular.Make(struct
       type nonrec t = t [@@deriving bin_io, compare, equal, hash, sexp]
       let pp = pp_layout
-      let version = "0.1"
-      let module_name = Some "Cgen.Type.Layout"
     end)
 end
 
@@ -297,8 +294,5 @@ let pp ppf : t -> unit = function
 
 include Regular.Make(struct
     include T
-
     let pp = pp
-    let version = "0.1"
-    let module_name = Some "Cgen.Type"
   end)

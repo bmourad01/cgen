@@ -1,12 +1,11 @@
 open Core
-open Regular.Std
 open Pseudo
 open Cgen_containers
 
 module Slot = Virtual.Slot
 
 let take_seq_singleton s =
-  Seq.take s 2 |> Seq.to_list |> function
+  Sequence.take s 2 |> Sequence.to_list |> function
   | [x] -> Some x
   | _ -> None
 
@@ -40,8 +39,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         o + size, m) |> snd
 
   let callee_saves fn =
-    Func.blks fn |> Seq.fold ~init:Rv.Set.empty ~f:(fun acc b ->
-        Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
+    Func.blks fn |> Sequence.fold ~init:Rv.Set.empty ~f:(fun acc b ->
+        Blk.insns b |> Sequence.fold ~init:acc ~f:(fun acc i ->
             let insn = Insn.insn i in
             let use = M.Insn.reads insn in
             let def = M.Insn.writes insn in
@@ -92,7 +91,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let dict = Func.dict fn in
     if not @@ Dict.mem dict Tags.stack_laid_out then
       let frame = Dict.mem dict Func.Tag.needs_stack_frame in
-      let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
+      let slots = order_slots @@ Sequence.to_list @@ Func.slots fn in
       let find, base, size = make_offsets_and_size slots frame in
       let+ blks =
         Func.blks ~rev:true fn |>
@@ -123,7 +122,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           ~is_pseudo:M.Insn.is_pseudo
           ~dests:M.Insn.dests in
       let frame = Dict.mem dict Func.Tag.needs_stack_frame in
-      let slots = order_slots @@ Seq.to_list @@ Func.slots fn in
+      let slots = order_slots @@ Sequence.to_list @@ Func.slots fn in
       let find, base, size = make_offsets_and_size ~presize slots frame in
       let fn = Func.map_blks fn ~f:(fun b ->
           Blk.map_insns b ~f:(fun i ->
@@ -145,10 +144,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             let last = match take_seq_singleton @@ Cfg.Node.succs (Blk.label b) cfg with
               | Some l when Label.(l = pseudoexit) ->
                 Blk.insns b ~rev:true |>
-                Seq.filter ~f:(fun i -> not @@ M.Insn.is_pseudo @@ Insn.insn i) |>
-                Seq.map ~f:Insn.label |> Seq.hd
+                Sequence.filter ~f:(fun i -> not @@ M.Insn.is_pseudo @@ Insn.insn i) |>
+                Sequence.map ~f:Insn.label |> Sequence.hd
               | _ -> None in
-            let insns = Blk.insns b |> Seq.to_list in
+            let insns = Blk.insns b |> Sequence.to_list in
             (* Insert prologue if this is the entry block. *)
             let* insns =
               if Blk.has_label b entry then
@@ -170,12 +169,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             let b = Blk.with_insns b @@ Vec.to_list ivec in
             Vec.clear ivec;
             b)
-        >>| Seq.to_list in
+        >>| Sequence.to_list in
       (* Update the dict. *)
       let dict = Dict.remove dict Func.Tag.needs_stack_frame in
       let dict = Dict.set dict Tags.stack_laid_out () in
       C.lift_err @@ Func.create () ~dict ~blks
         ~slots:[] ~name:(Func.name fn)
-        ~rets:(Func.rets fn |> Seq.to_list)
+        ~rets:(Func.rets fn |> Sequence.to_list)
     else !!fn
 end

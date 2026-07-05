@@ -1,5 +1,6 @@
 open Core
-open Regular.Std
+
+module Regular = Cgen_utils.Regular
 
 type cls = GPR | FP [@@deriving bin_io, compare, equal, hash, sexp]
 
@@ -32,11 +33,7 @@ module type Reg = sig
   val pp : Format.formatter -> t -> unit
 end
 
-module type Name = sig
-  val module_name : string
-end
-
-module Make(R : Reg)(N : Name) = struct
+module Make(R : Reg) = struct
   module T = struct
     type t =
       | Nil
@@ -85,7 +82,5 @@ module Make(R : Reg)(N : Name) = struct
   include Regular.Make(struct
       include T
       let pp = pp
-      let version = "0.1"
-      let module_name = Some N.module_name
     end)
 end

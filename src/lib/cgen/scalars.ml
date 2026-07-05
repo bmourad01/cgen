@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 
 let (@.) = Fn.compose
 let (@<) = Fn.flip
@@ -140,8 +139,8 @@ module type L = sig
   module Blk : sig
     type t
     val label : t -> Label.t
-    val args : ?rev:bool -> t -> Var.t seq
-    val insns : ?rev:bool -> t -> Insn.t seq
+    val args : ?rev:bool -> t -> Var.t Sequence.t
+    val insns : ?rev:bool -> t -> Insn.t Sequence.t
     val ctrl : t -> Ctrl.t
     val with_insns : t -> Insn.t list -> t
     val num_insns : t -> int
@@ -152,15 +151,15 @@ module type L = sig
 
   module Func : sig
     type t
-    val slots : ?rev:bool -> t -> Slot.t seq
-    val blks : ?rev:bool -> t -> Blk.t seq
+    val slots : ?rev:bool -> t -> Slot.t Sequence.t
+    val blks : ?rev:bool -> t -> Blk.t Sequence.t
     val map_of_blks : t -> Blk.t Label.Tree.t
     val with_blks : t -> Blk.t list -> t Or_error.t
     val insert_slot : t -> Slot.t -> t
   end
 
   module Cfg : sig
-    include Label.Graph_s
+    type t = Label.Graph.t
     val create : Func.t -> t
   end
 end
@@ -260,14 +259,14 @@ module Make(M : L) = struct
   [@@specialise]
 
   (* All slots mapped to their names. *)
-  let collect_slots fn = Func.slots fn |> Seq.fold ~init:Vtree.empty
+  let collect_slots fn = Func.slots fn |> Sequence.fold ~init:Vtree.empty
       ~f:(fun acc s -> Vtree.set acc ~key:(Slot.var s) ~data:s)
 
   (* Run the dataflow analysis. *)
   let analyze ?(blkparam = true) cfg blks slots =
     let esc = VS.create () in
     let s =
-      Fixpoint.run (module Cfg) cfg
+      Fixpoint.run cfg
         ~init:(initialize slots blks)
         ~start:Label.pseudoentry
         ~equal:State.equal

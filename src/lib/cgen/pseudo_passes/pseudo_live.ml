@@ -87,7 +87,7 @@ module Make(M : Machine_intf.S_insn) = struct
   let compute' ?(keep = Rv.Set.empty) g blks =
     let blks = block_transitions blks in {
       blks;
-      outs = Fixpoint.run (module Cfg) g
+      outs = Fixpoint.run g
           ~init:(init keep) ~rev:true
           ~start:Label.pseudoexit
           ~merge:Set.union

@@ -1,5 +1,5 @@
 open Core
-open Regular.Std
+module Regular = Cgen_utils.Regular
 open Cgen_containers
 
 module Func = Structured_func
@@ -156,8 +156,6 @@ let pp ppf m =
 
 include Regular.Make(struct
     include T
-    let module_name = Some "Cgen.Structured.Module"
-    let version = "0.1"
     let pp = pp
     let hash = hash
   end)

@@ -1,7 +1,6 @@
 (** The typing environment, used during typechecking and elaboration. *)
 
 open Core
-open Regular.Std
 
 (** An enum element. *)
 module Enum_element : sig
@@ -115,22 +114,22 @@ val has_global : t -> string -> bool
 val has_local : t -> string -> bool
 
 (** All tag types in the environment. *)
-val tags : t -> (string * tag) seq
+val tags : t -> (string * tag) Sequence.t
 
 (** All enum constants in the environment. *)
-val enum_elements: t -> (string * enum_element) seq
+val enum_elements: t -> (string * enum_element) Sequence.t
 
 (** All typedefs in the environment. *)
-val typedefs : t -> (string * Texpr.ty) seq
+val typedefs : t -> (string * Texpr.ty) Sequence.t
 
 (** All function types in the environment. *)
-val funcs : t -> (string * Texpr.ty) seq
+val funcs : t -> (string * Texpr.ty) Sequence.t
 
 (** All global variable types in the environment. *)
-val globals : t -> (string * Texpr.ty) seq
+val globals : t -> (string * Texpr.ty) Sequence.t
 
 (** All local variable (and parameter) bindings currently in scope. *)
-val locals : t -> (string * Texpr.ty) seq
+val locals : t -> (string * Texpr.ty) Sequence.t
 
 (** Returns [true] if the provided tag type exists in the environment
     and has a complete definition. *)

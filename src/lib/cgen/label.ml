@@ -1,6 +1,5 @@
 open Core
-open Graphlib.Std
-open Regular.Std
+module Regular = Cgen_utils.Regular
 open Cgen_containers
 
 module T = struct
@@ -28,8 +27,6 @@ let pp ppf = function
 module R = Regular.Make(struct
     include T
     let pp = pp
-    let version = "0.1"
-    let module_name = Some "Cgen.Label"
   end)
 
 include R
@@ -53,30 +50,20 @@ module Tree_set = Patricia_tree.Make_set(Patricia_key)
 module Dense_table = Dense.Make_map(Dense_key)
 module Dense_set = Dense.Make_set(Dense_key)
 
-module type Graph_s = Graph
-  with type node = t
-   and type Edge.label = unit
-
-module Graph : Graph_s = struct
+module Graph = struct
   type edge = {
     src : label;
     dst : label;
   } [@@deriving fields]
 
-  let compare_edge x y = match compare_label x.src y.src with
-    | 0 -> compare_label x.dst y.dst
-    | n -> n
-
   type arrows = Tree_set.t
-
-  let compare_arrows = Tree_set.compare
 
   type node_info = {
     inc : arrows;
     out : arrows;
-  } [@@deriving compare, fields]
+  } [@@deriving fields]
 
-  type graph = node_info Tree.t [@@deriving compare]
+  type graph = node_info Tree.t
 
   let empty_node = {
     inc = Tree_set.empty;
@@ -84,26 +71,20 @@ module Graph : Graph_s = struct
   } [@@deriving fields]
 
   module Node = struct
-    type nonrec edge = edge
-    type nonrec label = label
-    type nonrec graph = graph
-
-    let create = Fn.id
-    let label = Fn.id
     let mem n g = Tree.mem g n
 
     let adj dir n g = Tree.find g n |> function
-      | None -> Seq.empty
+      | None -> Sequence.empty
       | Some ns -> Tree_set.to_sequence (dir ns)
 
     let succs n = adj out n
     let preds n = adj inc n
 
     let edges dir reorder n g = Tree.find g n |> function
-      | None -> Seq.empty
+      | None -> Sequence.empty
       | Some ns ->
         Tree_set.to_sequence (dir ns) |>
-        Seq.map ~f:(fun m ->
+        Sequence.map ~f:(fun m ->
             let src, dst = reorder n m in
             {src; dst})
 
@@ -113,12 +94,6 @@ module Graph : Graph_s = struct
     let insert n g = Tree.change g n ~f:(function
         | None -> Some empty_node
         | other -> other)
-
-    let insert_arrow field info arrs n =
-      if not @@ Tree_set.mem arrs n then
-        let arrs = Tree_set.add arrs n in
-        Some (Field.fset field info arrs)
-      else None
 
     let remove_arrow field info arrs n =
       let arrs = Tree_set.remove arrs n in
@@ -131,15 +106,7 @@ module Graph : Graph_s = struct
               | Some info ->
                 update field info (Field.get field info) n))
 
-    let insert_arrows = update_arrows insert_arrow
     let remove_arrows = update_arrows remove_arrow
-
-    let update n l g : graph = Tree.find g n |> function
-      | Some {inc; out} when equal_label n l ->
-        Tree.set g ~key:l ~data:{inc; out} |>
-        insert_arrows Fields_of_node_info.out inc l |>
-        insert_arrows Fields_of_node_info.inc out l
-      | _ -> g
 
     let remove n g = match Tree.find g n with
       | None -> g
@@ -168,13 +135,7 @@ module Graph : Graph_s = struct
   end
 
   module Edge = struct
-    type t = edge
-    type node = Node.t
-    type label = unit
-    type nonrec graph = graph
-
-    let create src dst () = {src; dst}
-    let label _ = ()
+    let create src dst = {src; dst}
     let src e = e.src
     let dst e = e.dst
 
@@ -201,68 +162,37 @@ module Graph : Graph_s = struct
       upsert_arrow dst src Fields_of_node_info.inc e
 
     let insert e g = if mem e g then g else upsert e g
-    let update _ _ g = g
 
     let remove e g : graph =
       remove_arrow Fields_of_node_info.out e.dst e.src g |>
       remove_arrow Fields_of_node_info.inc e.src e.dst
-
-    include Opaque.Make(struct
-        type t = edge [@@deriving compare]
-        let hash e = Node.hash e.src lxor Node.hash e.dst
-      end)
   end
 
-  type t = graph [@@deriving compare]
+  type t = graph
   type node = Node.t
-
-  let is_directed = true
 
   let empty = Tree.empty
 
-  let nodes g = Tree.to_sequence g |> Seq.map ~f:fst
-  let edges g = nodes g |> Seq.concat_map ~f:(fun src -> Node.outputs src g)
+  let nodes g = Tree.to_sequence g |> Sequence.map ~f:fst
+  let edges g = nodes g |> Sequence.concat_map ~f:(fun src -> Node.outputs src g)
   let number_of_nodes g = Tree.length g
 
   let number_of_edges g =
     Tree.fold g ~init:0 ~f:(fun ~key:_ ~data:{out; _} sum ->
         sum + Tree_set.length out)
-
-  include Opaque.Make(struct
-      type t = graph [@@deriving compare]
-      let hash g =
-        nodes g |> Seq.fold ~init:0 ~f:(fun hash n ->
-            Node.hash n lxor hash)
-    end)
-
-  include Printable.Make(struct
-      type nonrec t = t
-      let module_name = None
-
-      let pp ppf graph =
-        let open Graphlib in
-        let string_of_node =
-          by_given_order symbols Node.compare (nodes graph) in
-        Dot.pp_graph
-          ~string_of_node
-          ~nodes_of_edge:(fun e -> Edge.(src e, dst e))
-          ~nodes:(nodes graph)
-          ~edges:(edges graph)
-          ppf
-    end)
 end
 
-module Pseudo(G : Graph_s) = struct
+module Pseudo = struct
   let connect_with_entry n =
     if n = pseudoentry then Fn.id
-    else G.Edge.(insert (create pseudoentry n ()))
+    else Graph.Edge.(insert (create pseudoentry n))
 
   let connect_with_exit n =
     if n = pseudoexit then Fn.id
-    else G.Edge.(insert (create n pseudoexit ()))
+    else Graph.Edge.(insert (create n pseudoexit))
 
   let if_unreachable ~from connect g n =
-    match G.Node.degree ~dir:from n g with
+    match Graph.Node.degree ~dir:from n g with
     | 0 -> connect n
     | _ -> Fn.id
 
@@ -275,16 +205,16 @@ module Pseudo(G : Graph_s) = struct
     let[@inline] propagate g v q =
       Stack.until_empty q @@ fun n ->
       if Dense_set.strict_add v n then
-        G.Node.preds n g |> Seq.iter ~f:(Stack.push q) in
-    let g0 = G.nodes g |> Seq.fold ~init:g ~f:connect_unreachable in
+        Graph.Node.preds n g |> Sequence.iter ~f:(Stack.push q) in
+    let g0 = Graph.nodes g |> Sequence.fold ~init:g ~f:connect_unreachable in
     let q = Stack.create () in
     let v = Dense_set.create () in
     Dense_set.add v pseudoexit;
-    G.Node.preds pseudoexit g0 |> Seq.iter ~f:(Stack.push q);
+    Graph.Node.preds pseudoexit g0 |> Sequence.iter ~f:(Stack.push q);
     propagate g0 v q;
-    G.nodes g |> Seq.fold ~init:g0 ~f:(fun g n ->
+    Graph.nodes g |> Sequence.fold ~init:g0 ~f:(fun g n ->
         if Dense_set.strict_add v n then
-          let () = G.Node.preds n g |> Seq.iter ~f:(Stack.push q) in
+          let () = Graph.Node.preds n g |> Sequence.iter ~f:(Stack.push q) in
           propagate g0 v q;
           connect_with_exit n g
         else g)

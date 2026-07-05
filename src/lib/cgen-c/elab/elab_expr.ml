@@ -2,7 +2,7 @@
 
 open Core
 
-module Bv = Cgen.Bv
+module Bv = Cgen_utils.Bv
 module DM = Data_model
 module EC = Elab_conv
 module ET0 = Elab_type

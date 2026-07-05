@@ -2,6 +2,8 @@ open Core
 open Egraph_common
 open Matcher
 
+module Bv = Cgen_utils.Bv
+
 type t = rule
 
 let var x = V x

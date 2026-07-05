@@ -1,9 +1,9 @@
 (* Callbacks for our rewrite rules. *)
 
 open Core
-open Monads.Std
 
-module O = Monad.Option
+module Bv = Cgen_utils.Bv
+module O = Cgen_utils.Monads.Option
 module Subst = Egraph.Subst
 module Bitset = Cgen_containers.Bitset
 

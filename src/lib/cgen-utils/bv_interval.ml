@@ -602,7 +602,7 @@ let srem t1 t2 =
     | _, Some s2 when Bv.(s2 = zero) ->
       create_empty ~size
     | Some s1, Some s2 ->
-      create_single ~size ~value:(Bv.srem' s1 s2 size)
+      create_single ~size ~value:(Bv.signed_rem s1 s2 size)
     | _ ->
       let abs_rhs = abs t2 in
       let min_abs_rhs = unsigned_min abs_rhs in

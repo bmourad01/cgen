@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 
 module Oa = Option_array
 
@@ -332,7 +331,7 @@ let rev t =
   t'
 
 let to_sequence_mutable t =
-  let open Seq.Generator in
+  let open Sequence.Generator in
   let rec aux t = function
     | i when i < t.length ->
       yield (unsafe_get t i) >>= fun () ->
@@ -341,7 +340,7 @@ let to_sequence_mutable t =
   run @@ aux t 0
 
 let to_sequence_rev_mutable t =
-  let open Seq.Generator in
+  let open Sequence.Generator in
   let rec aux t = function
     | i when i >= 0 ->
       yield (unsafe_get t i) >>= fun () ->

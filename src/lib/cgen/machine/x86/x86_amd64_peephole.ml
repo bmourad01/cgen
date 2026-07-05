@@ -1,12 +1,11 @@
 open Core
-open Regular.Std
-open Graphlib.Std
 open Pseudo
 open X86_amd64_common.Insn
 
 module Rv = X86_amd64_common.Regvar
 module Ltree = Label.Tree
 module Lset = Label.Tree_set
+module LS = Label.Dense_set
 
 let decomp i = Insn.label i, Insn.insn i
 
@@ -27,7 +26,7 @@ let filter_not_in changed fn t =
             not @@ Lset.mem t @@ Insn.label i))
 
 let take_seq_singleton s =
-  Seq.take s 2 |> Seq.to_list |> function
+  Sequence.take s 2 |> Sequence.to_list |> function
   | [x] -> Some x
   | _ -> None
 
@@ -41,7 +40,7 @@ let collect_singles fn =
   Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       let key = Blk.label b in
       if Label.(key = start) then acc else
-        Blk.insns b |> Seq.map ~f:Insn.insn |>
+        Blk.insns b |> Sequence.map ~f:Insn.insn |>
         take_seq_singleton |> function
         | Some JMP Jlbl dst -> Ltree.set acc ~key ~data:dst
         | _ -> acc)
@@ -102,11 +101,11 @@ let not_pseudo i = not @@ is_pseudo @@ Insn.insn i
 let has_dests i = not @@ Set.is_empty @@ dests @@ Insn.insn i
 
 let is_merge_candidate cfg b1 b2 =
-  match Blk.insns b1 ~rev:true |> Seq.find ~f:not_pseudo with
+  match Blk.insns b1 ~rev:true |> Sequence.find ~f:not_pseudo with
   (* `b1` must fall through into `b2`, unconditionally. *)
   | Some i when is_barrier (Insn.insn i) || has_dests i -> false
   | Some _ | None ->
-    let l1 = Blk.label b1 and l2 = Blk.label b2 in Seq.(
+    let l1 = Blk.label b1 and l2 = Blk.label b2 in Sequence.(
       equal Label.equal (Cfg.Node.succs l1 cfg) (singleton l2) &&
       equal Label.equal (Cfg.Node.preds l2 cfg) (singleton l1))
 
@@ -119,13 +118,13 @@ let collect_merge_blks fn =
     | [] | [_] -> m
     | b1 :: b2 :: rest  when is_merge_candidate cfg b1 b2 ->
       let label = Blk.label b1 in
-      let insns = Seq.(to_list @@ append (Blk.insns b1) (Blk.insns b2)) in
+      let insns = Sequence.(to_list @@ append (Blk.insns b1) (Blk.insns b2)) in
       let b1' = Blk.create ~label ~insns in
       let m = Ltree.add_exn m ~key:label ~data:(Some b1') in
       let m = Ltree.add_exn m ~key:(Blk.label b2) ~data:None in
       go m rest
     | _ :: rest -> go m rest in
-  Func.blks fn |> Seq.to_list |> go Ltree.empty
+  Func.blks fn |> Sequence.to_list |> go Ltree.empty
 
 let merge_blks changed fn =
   let m = collect_merge_blks fn in
@@ -137,18 +136,19 @@ let merge_blks changed fn =
 
 (* Remove blocks that are not reachable from the entry block. *)
 let remove_disjoint changed fn =
-  let reachable = with_return @@ fun {return} ->
+  let reachable =
     let cfg = Cfg.create ~is_barrier ~is_pseudo ~dests fn in
     let start = Func.entry fn in
-    Graphlib.depth_first_search (module Cfg) cfg ~start
-      ~init:Lset.empty
-      ~start_tree:(fun n s ->
-          if Label.(n = start) then s else return s)
-      ~enter_node:(fun _ n s -> Lset.add s n) in
+    let vis = LS.create ~capacity:(Cfg.number_of_nodes cfg) () in
+    let q = Stack.singleton start in
+    Stack.until_empty q (fun n ->
+        if LS.strict_add vis n then
+          Cfg.Node.succs n cfg |> Sequence.iter ~f:(Stack.push q));
+    vis in
   let dead =
-    Func.blks fn |> Seq.map ~f:Blk.label |>
-    Seq.filter ~f:(Fn.non @@ Lset.mem reachable) |>
-    Seq.to_list in
+    Func.blks fn |> Sequence.map ~f:Blk.label |>
+    Sequence.filter ~f:(Fn.non @@ LS.mem reachable) |>
+    Sequence.to_list in
   if not @@ List.is_empty dead then changed := true;
   Func.remove_blks_exn fn dead
 
@@ -180,8 +180,8 @@ let collect_invert_branches afters fn =
   Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
       Blk.label b |> Ltree.find afters |>
       Option.value_map ~default:acc ~f:(fun after ->
-          Blk.insns b ~rev:true |> Seq.map ~f:decomp |>
-          Fn.flip Seq.take 2 |> Seq.to_list |> function
+          Blk.insns b ~rev:true |> Sequence.map ~f:decomp |>
+          Fn.flip Sequence.take 2 |> Sequence.to_list |> function
           | [lb, JMP (Jlbl b); la, Jcc (cc, a)] when Label.(a = after) ->
             Ltree.set
               (Ltree.set acc ~key:la ~data:(Jcc (negate_cc cc, b)))
@@ -213,7 +213,7 @@ let collect_implicit_fallthroughs afters fn =
       Blk.label b |> Ltree.find afters |>
       Option.value_map ~default:acc ~f:(fun after ->
           Blk.insns b ~rev:true |>
-          Seq.map ~f:decomp |> Seq.hd |> function
+          Sequence.map ~f:decomp |> Sequence.hd |> function
           | Some (la, JMP (Jlbl a)) when Label.(a = after) ->
             Lset.add acc la
           | _ -> acc))
@@ -252,7 +252,7 @@ let collect_dealloc_stack_before_leave fn =
           let acc = Lset.add acc l in
           go acc xs
         | _ :: xs -> go acc xs in
-      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
 
 let dealloc_stack_before_leave changed fn =
   filter_not_in changed fn @@ collect_dealloc_stack_before_leave fn
@@ -269,7 +269,7 @@ let collect_redundant_spill_after_reload fn =
           let acc = Lset.add acc l in
           go acc xs
         | _ :: xs -> go acc xs in
-      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
 
 let redundant_spill_after_reload changed fn =
   filter_not_in changed fn @@ collect_redundant_spill_after_reload fn
@@ -300,7 +300,7 @@ let collect_redundant_reload_after_spill fn =
               let data = Two (MOV, Oreg (r2, r2t), Oreg (r1, r1t)) in
               go (Ltree.set rw ~key:l ~data, rm) xs
           | _ :: xs -> go acc xs in
-        go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+        go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
 
 let redundant_reload_after_spill changed fn =
   let rw, rm = collect_redundant_reload_after_spill fn in
@@ -324,7 +324,7 @@ let collect_reuse_lea fn =
           let acc = Ltree.set acc ~key:l ~data in
           go acc xs
         | _ :: xs -> go acc xs in
-      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
 
 let reuse_lea changed fn =
   map_insns changed fn @@ collect_reuse_lea fn
@@ -358,7 +358,7 @@ let collect_and_test fn =
                   && and_test_act act ->
           go (Lset.add acc l) xs
         | _ :: xs -> go acc xs in
-      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
 
 let and_test changed fn =
   filter_not_in changed fn @@ collect_and_test fn
@@ -393,7 +393,7 @@ let collect_lea_mov fn =
               Two (ADD, Oreg (r1', r1t), Oimm (d, immty r1t)) in
           go (Ltree.set acc ~key:l ~data:i) xs
         | _ :: xs -> go acc xs in
-      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
 
 let lea_mov changed fn =
   map_insns changed fn @@ collect_lea_mov fn
@@ -458,7 +458,7 @@ let collect_mov_op fn =
           let i = One (op, o) in
           go (Ltree.set acc ~key:l ~data:i) xs
         | _ :: xs -> go acc xs in
-      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
 
 let mov_op changed fn =
   map_insns changed fn @@ collect_mov_op fn
@@ -474,7 +474,7 @@ let collect_mov_to_store fn =
           let i = Two (MOV, o, r) in
           go (Ltree.set acc ~key:l ~data:i) xs
         | _ :: xs -> go acc xs in
-      go acc @@ Seq.to_list @@ Seq.map ~f:decomp @@ Blk.insns b)
+      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
 
 let mov_to_store changed fn =
   map_insns changed fn @@ collect_mov_to_store fn
@@ -492,8 +492,8 @@ let albl_of_insn = function
 let collect_dead_fp_pseudos fn =
   let refs =
     Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
-        Blk.insns b |> Seq.map ~f:Insn.insn |>
-        Seq.fold ~init:acc ~f:(fun acc -> function
+        Blk.insns b |> Sequence.map ~f:Insn.insn |>
+        Sequence.fold ~init:acc ~f:(fun acc -> function
             | FP32 _ | FP64 _ | FP32V _ | FP64V _ -> acc
             | i -> albl_of_insn i |> List.fold ~init:acc ~f:Lset.add)) in
   Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->

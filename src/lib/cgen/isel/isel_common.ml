@@ -2,6 +2,7 @@ open Core
 open Virtual.Abi
 open Cgen_containers
 
+module Bv = Cgen_utils.Bv
 module Id = Isel_internal.Id
 module P = Isel_internal.Pattern
 module S = Isel_internal.Subst

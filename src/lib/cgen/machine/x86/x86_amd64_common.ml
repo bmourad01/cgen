@@ -150,9 +150,7 @@ module Reg = struct
     | Some r -> r
 end
 
-module Regvar = Machine_regvar.Make(Reg)(struct
-    let module_name = "Cgen.Machine.X86_amd64_common.Regvar"
-  end)
+module Regvar = Machine_regvar.Make(Reg)
 
 type rv = Regvar.t [@@deriving bin_io, compare, equal, hash, sexp]
 

@@ -1,7 +1,6 @@
 module Sys_unix = Unix
 
 open Core
-open Regular.Std
 open Cgen
 
 (* A C source lowers through Structured IR into the full virtual pipeline,

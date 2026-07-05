@@ -2,7 +2,6 @@
    to compound types. *)
 
 open Core
-open Regular.Std
 open Sysv_common
 open Virtual
 
@@ -10,7 +9,7 @@ let collect_mem_rets env = match env.rmem with
   | None -> Var.Tree_set.empty
   | Some _ ->
     Func.blks env.fn |>
-    Seq.fold ~init:Var.Tree_set.empty
+    Sequence.fold ~init:Var.Tree_set.empty
       ~f:(fun acc b -> match Blk.ctrl b with
           | `ret Some `var x -> Var.Tree_set.add acc x
           | _ -> acc)

@@ -13,12 +13,11 @@
 *)
 
 open Core
-open Monads.Std
-open Regular.Std
 open Virtual
 open Cgen_containers
 
-module O = Monad.Option
+module Bv = Cgen_utils.Bv
+module O = Cgen_utils.Monads.Option
 module DT = Semi_nca.Tree
 module Ltree = Label.Tree
 module LS = Label.Dense_set
@@ -45,14 +44,14 @@ type t = {
 let init ~tenv fn =
   let cfg = Cfg.create fn in
   let blks = Func.map_of_blks fn in
-  let dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
+  let dom = Semi_nca.compute cfg Label.pseudoentry in
   let loop = Loops.analyze ~dom ~name:(Func.name fn) cfg in
-  let pdom = Semi_nca.compute (module Cfg) ~rev:true cfg Label.pseudoexit in
+  let pdom = Semi_nca.compute ~rev:true cfg Label.pseudoexit in
   let live = Live.compute' cfg blks in
   let work = LS.create () in
   let labl = LS.create () in
   let slot = Vec.create () in
-  Func.slots fn |> Seq.iter ~f:(Vec.push slot);
+  Func.slots fn |> Sequence.iter ~f:(Vec.push slot);
   {fn; tenv; blks; cfg; pdom; loop; live; work; labl; slot}
 
 (* Find the lowest post-dominator that is outside of the loop. *)
@@ -132,7 +131,7 @@ let possible_join t n ~ctx =
      successors. *)
   let* j = try
       Cfg.Node.succs n t.cfg |>
-      Seq.reduce ~f:(DT.lca_exn t.pdom)
+      Sequence.reduce ~f:(DT.lca_exn t.pdom)
     with DT.Not_found -> None in
   (* The join point is a valid block. *)
   let* () = O.guard @@ Ltree.mem t.blks j in
@@ -140,7 +139,7 @@ let possible_join t n ~ctx =
      then `n` (our source node) is within all of
      them. *)
   let loops = Loops.loops_of t.loop j in
-  let* () = O.guard @@ Seq.for_all loops
+  let* () = O.guard @@ Sequence.for_all loops
       ~f:(Loops.is_in_loop t.loop n) in
   (* Skip if this join is an active region. *)
   let+ () = O.guard @@ not @@ Region.is_active j ctx in
@@ -214,7 +213,7 @@ end
 let find_single_use_cond t n =
   let open O.Let in
   let* b = Ltree.find t.blks n in
-  let* i = Seq.hd @@ Blk.insns ~rev:true b in
+  let* i = Sequence.hd @@ Blk.insns ~rev:true b in
   match Blk.ctrl b with
   | `br (c, _, _) ->
     begin match Insn.op i with
@@ -278,10 +277,10 @@ module Make(C : Context_intf.S) = struct
       | Some b ->
         let s = match k with
           | None -> Blk.insns b
-          | Some k -> Blk.insns b |> Seq.filter ~f:(fun i ->
+          | Some k -> Blk.insns b |> Sequence.filter ~f:(fun i ->
               not @@ Label.equal k @@ Insn.label i) in
-        Seq.map s ~f:(fun i -> (Insn.op i :> Stmt.t)) |>
-        Seq.to_list |> Stmt.seq |> C.return
+        Sequence.map s ~f:(fun i -> (Insn.op i :> Stmt.t)) |>
+        Sequence.to_list |> Stmt.seq |> C.return
       | None ->
         C.failf
           "Restructure: cannot emit body for non-existent \
@@ -315,7 +314,7 @@ module Make(C : Context_intf.S) = struct
           "Restructure: invalid destination %a in block %a of function $%s"
           Label.pp l Label.pp n (Func.name t.fn) ()
       | Some b ->
-        let params = Seq.to_list @@ Blk.args b in
+        let params = Sequence.to_list @@ Blk.args b in
         match List.zip params args with
         | Unequal_lengths ->
           C.failf
@@ -356,7 +355,7 @@ module Make(C : Context_intf.S) = struct
         Ctrl.Table.enum tbl |>
         C.Seq.map ~f:(fun (i, `label (l, args)) ->
             let+ c = local t n l args ~ctx:ctx' in
-            `case (i, c)) >>| Seq.to_list in
+            `case (i, c)) >>| Sequence.to_list in
       let+ d = local t n d dargs ~ctx:ctx' in
       terminate ?join:j ctx @@ `sw (i, ty, cs @ [`default d])
 
@@ -443,6 +442,6 @@ module Make(C : Context_intf.S) = struct
     let body = Stmt.normalize body in
     Structured_func.create () ~body
       ~dict:(Func.dict fn) ~name:(Func.name fn)
-      ~args:(Seq.to_list @@ Func.args fn)
+      ~args:(Sequence.to_list @@ Func.args fn)
       ~slots:(Vec.to_list t.slot)
 end

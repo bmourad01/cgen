@@ -4,6 +4,8 @@
 
 open Core
 
+module Bv = Cgen_utils.Bv
+
 let unsigned d t =
   if Bv.(d = zero || d = one) then
     invalid_argf "Cannot compute magic unsigned division of %s"

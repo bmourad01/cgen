@@ -9,7 +9,6 @@
 *)
 
 open Core
-open Regular.Std
 open Scalars
 
 module Slot = Virtual.Slot
@@ -121,9 +120,9 @@ end = struct
   let collect_accesses slots fn t : accesses =
     (* Group all memory accesses by their corresponding slot. *)
     let t =
-      Func.blks fn |> Seq.fold ~init:Vtree.empty ~f:(fun init b ->
+      Func.blks fn |> Sequence.fold ~init:Vtree.empty ~f:(fun init b ->
           let s = ref @@ get t @@ Blk.label b in
-          Blk.insns b |> Seq.fold ~init ~f:(fun acc insn ->
+          Blk.insns b |> Sequence.fold ~init ~f:(fun acc insn ->
               let op = Insn.op insn in
               let acc = match Insn.load_or_store_to op with
                 | None -> acc
@@ -187,10 +186,10 @@ end = struct
 
   (* Turn each partition into a concrete slot. *)
   let materialize_partitions slots parts : scalars Context.t =
-    Vtree.to_sequence parts |> Seq.filter_map ~f:(fun (base, ps) ->
+    Vtree.to_sequence parts |> Sequence.filter_map ~f:(fun (base, ps) ->
         Vtree.find slots base |> Option.map ~f:(fun s -> base, ps, s)) |>
     Context.Seq.fold ~init:Scalar.Map.empty ~f:(fun init (base, ps, s) ->
-        Seq.of_list ps |> Seq.filter ~f:(not @. Partition.is_entire_slot s) |>
+        Sequence.of_list ps |> Sequence.filter ~f:(not @. Partition.is_entire_slot s) |>
         Context.Seq.fold ~init ~f:(fun acc p ->
             let open Context.Syntax in
             let size = Int64.to_int_exn p.size in
@@ -302,8 +301,8 @@ end = struct
         let+ insns =
           Blk.insns b |>
           Context.Seq.map ~f:(rewrite_insn parts m resolved) >>|
-          List.concat @. Seq.to_list in
-        Blk.with_insns b insns) >>| Seq.to_list in
+          List.concat @. Sequence.to_list in
+        Blk.with_insns b insns) >>| Sequence.to_list in
     Context.lift_err @@ Func.with_blks fn blks
 
   let insert_new_slots fn m = Map.fold m ~init:fn

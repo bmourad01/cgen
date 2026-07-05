@@ -6,6 +6,8 @@ open Core
 open Egraph_common
 open Virtual
 
+module Bv = Cgen_utils.Bv
+
 (* Resolve both labels to their corresponding blocks before we
    walk up the tree. *)
 let lca t a b =

@@ -14,7 +14,6 @@
 *)
 
 open Core
-open Regular.Std
 
 (** A statement. *)
 module Stmt : sig
@@ -82,7 +81,7 @@ module Stmt : sig
         any other case
   *)
   and swcase = [
-    | `case of Bv.t * t
+    | `case of Cgen_utils.Bv.t * t
     | `default of t
   ] [@@deriving bin_io, compare, equal, sexp]
 
@@ -141,13 +140,13 @@ module Func : sig
   val name : t -> string
 
   (** Returns the slots of the function. *)
-  val slots : ?rev:bool -> t -> slot seq
+  val slots : ?rev:bool -> t -> slot Sequence.t
 
   (** Returns the body of the function. *)
   val body : t -> stmt
 
   (** Returns the arguments of the function, along with their types. *)
-  val args : ?rev:bool -> t -> (Var.t * Type.arg) seq
+  val args : ?rev:bool -> t -> (Var.t * Type.arg) Sequence.t
 
   (** Returns the dictionary of the function. *)
   val dict : t -> Dict.t
@@ -196,7 +195,7 @@ module Func : sig
   (** [remove_arg fn x] removes the argument [x] from [fn], if it exists. *)
   val remove_arg : t -> Var.t -> t
 
-  include Regular.S with type t := t
+  include Cgen_utils.Regular.S with type t := t
 end
 
 type func = Func.t [@@deriving bin_io, compare, equal, sexp]
@@ -219,13 +218,13 @@ module Module : sig
   val name : t -> string
 
   (** Declared (compound) types that are visible in the module. *)
-  val typs : ?rev:bool -> t -> Type.named seq
+  val typs : ?rev:bool -> t -> Type.named Sequence.t
 
   (** Structs defined in the module. *)
-  val data : ?rev:bool -> t -> Virtual.data seq
+  val data : ?rev:bool -> t -> Virtual.data Sequence.t
 
   (** Functions defined in the module. *)
-  val funs : ?rev:bool -> t -> func seq
+  val funs : ?rev:bool -> t -> func Sequence.t
 
   (** Returns the dictionary of the module. *)
   val dict : t -> Dict.t
@@ -282,7 +281,7 @@ module Module : sig
       where [f] may fail. *)
   val map_funs_err : t -> f:(func -> func Or_error.t) -> t Or_error.t
 
-  include Regular.S with type t := t
+  include Cgen_utils.Regular.S with type t := t
 end
 
 type module_ = Module.t [@@deriving bin_io, compare, equal, sexp]

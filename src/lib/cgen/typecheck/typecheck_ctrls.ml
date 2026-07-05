@@ -1,9 +1,10 @@
 (* Checking control-flow instructions of a block. *)
 
 open Core
-open Regular.Std
 open Virtual
 open Typecheck_common
+
+module Bv = Cgen_utils.Bv
 
 let unequal_lengths_ctrl l args targs =
   let* fn = getfn and* blk = getblk in
@@ -27,7 +28,7 @@ let check_label_dst blks l args =
       M.failf "Jump destination %a at block %a in function $%s \
                does not exist."
         Label.pp l Label.pp (Blk.label blk) (Func.name fn) () in
-  let targs = Seq.to_list @@ Blk.args b in
+  let targs = Sequence.to_list @@ Blk.args b in
   match List.zip args targs with
   | Unequal_lengths -> unequal_lengths_ctrl l args targs
   | Ok z -> M.List.iter z ~f:(fun (a, x) ->

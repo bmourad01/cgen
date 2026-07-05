@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Virtual.Abi
 open Isel_common
 open Cgen_containers
@@ -8,13 +7,13 @@ let needs_stack_frame fn =
   (* Takes variadic args. *)
   Func.variadic fn ||
   (* Takes explicit stack parameters. *)
-  Func.args fn |> Seq.exists ~f:(function
+  Func.args fn |> Sequence.exists ~f:(function
       | `stk _, _ -> true
       | _ -> false) ||
   (* Explicitly calls a function or requests a pointer
      to the stack parameters. *)
-  Func.blks fn |> Seq.exists ~f:(fun b ->
-      Blk.insns b |> Seq.exists ~f:(fun i ->
+  Func.blks fn |> Sequence.exists ~f:(fun b ->
+      Blk.insns b |> Sequence.exists ~f:(fun i ->
           match Insn.op i with
           | `call _ | `stkargs _ -> true
           | _ -> false))
@@ -27,7 +26,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       typs = Vec.create ();
       id2r = Vec.create ();
       cfg;
-      dom = Semi_nca.compute (module Cfg) cfg Label.pseudoentry;
+      dom = Semi_nca.compute cfg Label.pseudoentry;
       blks = Func.map_of_blks fn;
       v2id = VT.create ();
       insn = LT.create ();

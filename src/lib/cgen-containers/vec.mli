@@ -1,7 +1,6 @@
 (** A mutable, dynamically-sized array. Not thread-safe. *)
 
 open Core
-open Regular.Std
 
 (** The array. *)
 type 'a t
@@ -224,19 +223,19 @@ val rev_inplace : 'a t -> unit
 
     Any modifications to the array are shared with the resulting sequence.
 *)
-val to_sequence_mutable : 'a t -> 'a seq
+val to_sequence_mutable : 'a t -> 'a Sequence.t
 
 (** Returns a lazy sequence of every element in the array, in reverse order.
 
     Any modifications to the array are shared with the resulting sequence.
 *)
-val to_sequence_rev_mutable : 'a t -> 'a seq
+val to_sequence_rev_mutable : 'a t -> 'a Sequence.t
 
 (** Returns a lazy sequence of every element in the array. *)
-val to_sequence : 'a t -> 'a seq
+val to_sequence : 'a t -> 'a Sequence.t
 
 (** Returns a lazy sequence of every element in the array, in reverse order. *)
-val to_sequence_rev : 'a t -> 'a seq
+val to_sequence_rev : 'a t -> 'a Sequence.t
 
 (** Converts a fixed-size array into the dynamic array. *)
 val of_array : 'a array -> 'a t

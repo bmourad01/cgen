@@ -1,11 +1,10 @@
 open Core
-open Regular.Std
 open Pseudo
 
 module Make(M : Machine_intf.S) = struct
   let emit ppf m =
-    let funs = Module.funs m |> Seq.to_list in
-    let data = Module.data m |> Seq.to_list in
+    let funs = Module.funs m |> Sequence.to_list in
+    let data = Module.data m |> Sequence.to_list in
     let last_fun = List.length funs - 1 in
     let last_data = List.length data - 1 in
     M.Emit.emit_prelude ppf @@ Module.name m;

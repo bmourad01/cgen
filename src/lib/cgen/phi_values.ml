@@ -1,14 +1,13 @@
 (* Dataflow analysis for the sets of values for block arguments. *)
 
 open Core
-open Regular.Std
 
 module Solution = Fixpoint.Solution
 
 let table enum d ds tbl =
-  enum tbl |> Seq.map ~f:snd |>
-  Seq.map ~f:(fun (`label (l, args)) -> l, args) |>
-  Seq.to_list |> List.cons (d, ds)
+  enum tbl |> Sequence.map ~f:snd |>
+  Sequence.map ~f:(fun (`label (l, args)) -> l, args) |>
+  Sequence.to_list |> List.cons (d, ds)
 
 let locals enum =
   let open Virtual in function
@@ -36,15 +35,11 @@ module type L = sig
   end
   module Blk : sig
     type t
-    val args : ?rev:bool -> t -> Var.t seq
+    val args : ?rev:bool -> t -> Var.t Sequence.t
     val ctrl : t -> Ctrl.t
   end
   module Func : sig
     type t
-  end
-  module Cfg : sig
-    include Label.Graph_s
-    val create : Func.t -> t
   end
 end
 
@@ -55,7 +50,7 @@ module Make(M : L)(D : Domain) = struct
 
   let local ~blk s (l, vs) : state =
     blk l |> Option.value_map ~default:s ~f:(fun b ->
-        let args = Seq.to_list @@ Blk.args b in
+        let args = Sequence.to_list @@ Blk.args b in
         match List.zip args vs with
         | Unequal_lengths -> assert false
         | Ok xs -> List.fold xs ~init:s ~f:(fun s (x, v) ->
@@ -73,7 +68,7 @@ module Make(M : L)(D : Domain) = struct
   let analyze ~blk cfg =
     let init = Solution.create Label.Tree.empty Var.Tree.empty in
     let start = Label.pseudoentry and finish = Label.pseudoexit in
-    let soln = Fixpoint.run (module Cfg) cfg ~init ~merge ~start
+    let soln = Fixpoint.run cfg ~init ~merge ~start
         ~equal:equal_state ~f:(transfer ~blk) in
     (* The exit label should have all of the accumulated
        results, since this is a forward-flow analysis. *)

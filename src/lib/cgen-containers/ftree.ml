@@ -4,7 +4,6 @@
 *)
 
 open Core
-open Regular.Std
 
 module Generic = struct
   type 'a digit =
@@ -386,12 +385,12 @@ module Generic = struct
   [@@specialise]
 
   let to_sequence t ~measure:_ =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     run @@ fold_right t ~init:(return ()) ~f:(fun x acc ->
         yield x >>= fun () -> acc)
 
   let to_sequence_rev t ~measure:_ =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     run @@ fold_left t ~init:(return ()) ~f:(fun acc x ->
         yield x >>= fun () -> acc)
 
@@ -916,8 +915,8 @@ let enum ?(rev = false) t =
 
 let to_list t = fold_right t ~init:[] ~f:List.cons
 
-let rec next_aux s ~f = match Seq.next s with
-  | Some (x, xs) when f x -> Seq.hd xs
+let rec next_aux s ~f = match Sequence.next s with
+  | Some (x, xs) when f x -> Sequence.hd xs
   | Some (_, xs) -> next_aux xs ~f
   | None -> None
 [@@specialise]

@@ -1,10 +1,11 @@
 open Core
-open Regular.Std
-open Graphlib.Std
 
+module Bv = Cgen_utils.Bv
 module Func = Structured_func
 module Stmt = Structured_stmt
 module Ltree = Label.Tree
+module LS = Label.Dense_set
+module Cfg = Virtual.Cfg
 
 type ctx = {
   name     : string;
@@ -225,19 +226,25 @@ module Make(C : Context_intf.S_virtual) = struct
           name () in
     let*? fn = Virtual.Func.create () ~dict ~name
         ~blks:(sb :: Ltree.(data @@ remove blks start))
-        ~slots:(Func.slots fn |> Seq.to_list)
-        ~args:(Func.args fn |> Seq.to_list) in
+        ~slots:(Func.slots fn |> Sequence.to_list)
+        ~args:(Func.args fn |> Sequence.to_list) in
     (* Clean up the ordering of the blocks; RPO is fairly intuitive
        to the user. A small note here: we need to also filter out
        any blocks that were unreachable from the entry, as they
        could end up taking the place of the entry in the ordering. *)
-    let cfg = Virtual.Cfg.create fn in
-    let rpo = with_return @@ fun {return} ->
-      Graphlib.depth_first_search
-        (module Virtual.Cfg) cfg ~start ~init:[]
-        ~start_tree:(fun n s ->
-            if Label.(n = start) then s else return s)
-        ~leave_node:(fun _ n ns -> n :: ns) in
-    List.filter_map rpo ~f:(Ltree.find blks) |>
-    Virtual.Func.with_blks fn |> C.lift_err
+    let cfg = Cfg.create fn in
+    let rpo =
+      let n = Cfg.number_of_nodes cfg in
+      let vis = LS.create ~capacity:n () in
+      let out = ref [] in
+      let rec visit n =
+        if LS.strict_add vis n then begin
+          Sequence.iter (Cfg.Node.succs n cfg) ~f:visit;
+          match Ltree.find blks n with
+          | Some b -> out := b :: !out
+          | None -> ()
+        end in
+      visit start;
+      !out in
+    C.lift_err @@ Virtual.Func.with_blks fn rpo
 end

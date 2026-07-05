@@ -13,7 +13,6 @@
 *)
 
 open Core
-open Regular.Std
 open Virtual
 open Simplify_cfg_common
 
@@ -45,8 +44,8 @@ let collect tenv env fn =
           let b' = LT.find_exn env.blks l in
           let typs =
             Blk.args b' |>
-            Seq.map ~f:(basicty tenv env fn) |>
-            Seq.to_list in
+            Sequence.map ~f:(basicty tenv env fn) |>
+            Sequence.to_list in
           let args = match List.map3 typs xs xs' ~f:Tuple3.create with
             | Ok args -> args
             | Unequal_lengths ->

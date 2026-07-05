@@ -8,8 +8,8 @@
 *)
 
 open Core
-open Regular.Std
 
+module Bv = Cgen_utils.Bv
 module IT = Cgen.Type
 module Ctx = Cgen.Context
 module S = Cgen.Structured
@@ -71,14 +71,14 @@ let lower_fundef
      so that two declarations sharing a name (such as a local shadowing a
      global) get distinct slots and resolve per their C scope. *)
   let param_specs =
-    Seq.of_list params |>
-    Seq.map ~f:(fun (p : Tdecl.param) -> p.pname, p.pty) in
+    Sequence.of_list params |>
+    Sequence.map ~f:(fun (p : Tdecl.param) -> p.pname, p.pty) in
   let* param_entries =
     Ctx.Seq.map param_specs ~f:(Tuple2.uncurry @@ E.alloc_slot layout) in
   let param_slots =
-    Seq.map param_entries ~f:fst |>
-    Seq.to_list |> Smap.of_alist_overwrite in
-  let param_slot_list = Seq.to_list @@ Seq.map param_entries ~f:snd in
+    Sequence.map param_entries ~f:fst |>
+    Sequence.to_list |> Smap.of_alist_overwrite in
+  let param_slot_list = Sequence.to_list @@ Sequence.map param_entries ~f:snd in
   (* Accumulates every local slot allocated while lowering the body. *)
   let local_slots = ref [] in
   (* One incoming-argument variable per parameter, stored into its slot. *)
@@ -137,9 +137,9 @@ let intern_string layout strings nstr s =
 
 (* The byte offset of an address constant as a signed integer. The evaluator
    masks it to pointer width, so reinterpret the top bit as the sign. *)
-let addr_offset layout (off : Cgen.Bv.t) =
+let addr_offset layout (off : Bv.t) =
   let bits = Data_model.pointer_bits (Layout.dmodel layout) in
-  let z = Cgen.Bv.to_bigint off in
+  let z = Bv.to_bigint off in
   let half = Z.shift_left Z.one (bits - 1) in
   Z.to_int (if Z.lt z half then z else Z.sub z (Z.shift_left Z.one bits))
 
@@ -151,7 +151,7 @@ let const_elt layout ~strings ~nstr (e : Texpr.t) =
   let+? v = Eval.const (Eval.create_init layout) e in
   match v with
   | Eval.Vint bv          -> `int (bv, scalar_imm layout e.ty)
-  | Eval.Vnull            -> `int (Cgen.Bv.zero, scalar_imm layout e.ty)
+  | Eval.Vnull            -> `int (Bv.zero, scalar_imm layout e.ty)
   | Eval.Vfloat f         -> `float f
   | Eval.Vdouble d        -> `double d
   | Eval.Vstring s        -> `sym (intern_string layout strings nstr s, 0)
@@ -177,7 +177,9 @@ let field_type layout ~tag ~field : Texpr.ty =
 
 (* Pad the (reversed) element list with zeroes from `cur` up to `target`. *)
 let pad_to acc cur target =
-  if target > cur then (`zero (target - cur) :: acc, target) else (acc, cur)
+  if target > cur
+  then (`zero (target - cur) :: acc), target
+  else acc, cur
 
 let bitfield_type_bytes layout ~tag ~field =
   let ft = field_type layout ~tag ~field in
@@ -195,7 +197,7 @@ let init_int layout ~what = function
 
 (* OR a value of `width` bits at `bitoff` into a storage-unit accumulator. *)
 let splice_bits ~unit_bytes ~bitoff ~width ~acc v =
-  let module B = (val Cgen.Bv.modular (unit_bytes * 8)) in
+  let module B = (val Bv.modular (unit_bytes * 8)) in
   let mask = B.(pred (one lsl int width)) in
   B.(acc lor ((v land mask) lsl int bitoff))
 
@@ -230,8 +232,8 @@ let coalesce_bytes bf_byte bytes =
           done;
           let w = !w in
           assert (w > 0);
-          let module Bw = (val Cgen.Bv.modular (w * 8)) in
-          let v = Seq.fold (Seq.range 0 w) ~init:Bw.zero ~f:(fun a j ->
+          let module Bw = (val Bv.modular (w * 8)) in
+          let v = Sequence.fold (Sequence.range 0 w) ~init:Bw.zero ~f:(fun a j ->
               let byte =
                 Hashtbl.find bf_byte (p + j) |>
                 Option.value ~default:0 in
@@ -322,8 +324,8 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
         let ub = Hashtbl.find_exn unit_bytes storage in
         Hashtbl.update unit_val storage ~f:(fun cur ->
             splice_bits ~unit_bytes:ub ~bitoff:off ~width:w
-              ~acc:(Option.value cur ~default:Cgen.Bv.zero) v);
-        let z = Cgen.Bv.to_bigint v and base_bit = storage * 8 + off in
+              ~acc:(Option.value cur ~default:Bv.zero) v);
+        let z = Bv.to_bigint v and base_bit = storage * 8 + off in
         for i = 0 to w - 1 do
           if Z.testbit z i then
             Hashtbl.update bf_byte ((base_bit + i) / 8) ~f:(fun c ->
@@ -345,14 +347,14 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
       ~f:(fun ~key:storage ~data:ub (cells, split) ->
           if overlaps storage ub then
             let split =
-              Seq.range storage (storage + ub) |>
-              Seq.filter ~f:(Hashtbl.mem bf_byte) |>
-              Seq.fold ~init:split ~f:Set.add in
+              Sequence.range storage (storage + ub) |>
+              Sequence.filter ~f:(Hashtbl.mem bf_byte) |>
+              Sequence.fold ~init:split ~f:Set.add in
             cells, split
           else
             let v =
               Hashtbl.find unit_val storage |>
-              Option.value ~default:Cgen.Bv.zero in
+              Option.value ~default:Bv.zero in
             let cell = storage, `Int (imm_of_bytes ub, v, ub) in
             (cell :: cells), split) in
   let byte_cells =
@@ -368,7 +370,7 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
   let rec emit acc cur = function
     | [] -> !!(acc, cur)
     | (off, cell) :: rest ->
-      let acc, cur = pad_to acc cur (base + off) in
+      let acc, _cur = pad_to acc cur (base + off) in
       match cell with
       | `Int (imm, v, w) ->
         emit (`int (v, imm) :: acc) (base + off + w) rest

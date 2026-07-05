@@ -1,7 +1,6 @@
 (* Turn tail-recursive calls into jumps. *)
 
 open Core
-open Regular.Std
 open Virtual
 open Simplify_cfg_common
 
@@ -17,8 +16,8 @@ let collect_calls env fn =
       ~blk:(LT.find env.blks)
       ~ctrl:(Blk.ctrl b)
       ~ret:(Option.map r ~f:fst) in
-  Func.blks fn |> Seq.fold ~init:Label.Tree.empty ~f:(fun acc b ->
-      match Seq.hd @@ Blk.insns ~rev:true b with
+  Func.blks fn |> Sequence.fold ~init:Label.Tree.empty ~f:(fun acc b ->
+      match Sequence.hd @@ Blk.insns ~rev:true b with
       | None -> acc
       | Some i -> match Insn.op i with
         | `call (r, `sym (f, 0), args, [], false) when is_tail f b r ->
@@ -48,8 +47,8 @@ let redir_entry subst e calls b = match Label.Tree.find calls @@ Blk.label b wit
 let new_entry fn e =
   let args =
     Func.args fn |>
-    Seq.map ~f:(fun (x, _) -> `var x) |>
-    Seq.to_list in
+    Sequence.map ~f:(fun (x, _) -> `var x) |>
+    Sequence.to_list in
   Context.Virtual.blk ~ctrl:(`jmp (`label (e, args))) ()
 
 let unless fn b k = if b then !!fn else k ()
@@ -61,9 +60,9 @@ let go env fn =
   let* args, subst = fresh_args fn in
   let e = Func.entry fn in
   let blks =
-    Func.blks fn |> Seq.map ~f:(subst_args subst) |>
-    Seq.map ~f:(redir_entry subst e calls) |>
-    Seq.to_list |> function
+    Func.blks fn |> Sequence.map ~f:(subst_args subst) |>
+    Sequence.map ~f:(redir_entry subst e calls) |>
+    Sequence.to_list |> function
     | [] -> assert false
     | e :: rest ->
       assert (not @@ Blk.has_any_args e);

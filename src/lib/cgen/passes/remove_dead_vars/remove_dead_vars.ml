@@ -1,9 +1,9 @@
 open Core
-open Monads.Std
 open Virtual
 open Remove_dead_vars_impl
 
-module E = Monad.Result.Error
+module Bv = Cgen_utils.Bv
+module E = Cgen_utils.Monads.Error
 module Vset = Var.Tree_set
 
 (* Even if the result of a div/rem may be unused, if the instruction has

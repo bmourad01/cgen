@@ -1,12 +1,11 @@
 open Core
-open Monads.Std
 open Egraph_common
 open Cgen_containers
 
 module Subst = Egraph_subst
 module Sched = Egraph_sched
 module Uf = Egraph_uf
-module O = Monad.Option
+module O = Cgen_utils.Monads.Option
 
 open O.Syntax
 

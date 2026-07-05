@@ -15,7 +15,7 @@ module Solution : sig
   val default : 'd t -> 'd
 end
 
-(** [run (module G) ?rev ?step ?edge ~start ~init ~equal ~merge ~f g]
+(** [run ?rev ?step ?edge ~start ~init ~equal ~merge ~f g]
     computes a dataflow fixpoint over [g], starting from the [start] node,
     with the initial approximation of the solution [init].
 
@@ -44,7 +44,6 @@ end
     Raises [Invalid_argument] if [start] is not a node in [g].
 *)
 val run :
-  (module Label.Graph_s with type t = 'g) ->
   ?rev:bool ->
   ?step:(int -> Label.t -> 'd -> 'd -> 'd) ->
   ?edge:(Label.t -> Label.t -> 'd -> 'd) ->
@@ -53,5 +52,5 @@ val run :
   equal:('d -> 'd -> bool) ->
   merge:('d -> 'd -> 'd) ->
   f:(Label.t -> 'd -> 'd) ->
-  'g ->
+  Label.Graph.t ->
   'd Solution.t

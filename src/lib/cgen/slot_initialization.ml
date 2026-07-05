@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Cgen_containers
 
 module Slot = Virtual.Slot
@@ -43,7 +42,7 @@ type state = unit Tree.t Vtree.t
 let equal_state s1 s2 =
   Vtree.equal (fun t1 t2 ->
       phys_equal t1 t2 ||
-      Seq.equal (fun (i1, _) (i2, _) ->
+      Sequence.equal (fun (i1, _) (i2, _) ->
           Interval.compare i1 i2 = 0)
         (Tree.to_sequence t1)
         (Tree.to_sequence t2))
@@ -120,7 +119,7 @@ let debug_dump blks bad s =
       Label.Tree.iter blks ~f:(fun ~key ~data:_ ->
           let s = Solution.get s key in
           let pp_tree ppf (x, t) =
-            Tree.to_sequence t |> Seq.to_list |>
+            Tree.to_sequence t |> Sequence.to_list |>
             List.to_string ~f:(fun (i, ()) ->
                 Format.asprintf "%a" Interval.pp i) |>
             Format.fprintf ppf "%a:%s" Var.pp x in
@@ -188,7 +187,7 @@ module Make(M : Scalars.L) = struct
   let analyze' t cfg blks slots =
     let bad = LS.create () in
     let accesses = collect_accesses t blks slots in
-    let s = Fixpoint.run (module Cfg) cfg
+    let s = Fixpoint.run cfg
         ~init:(Solution.create init_constraints @@ top_state slots)
         ~start:Label.pseudoentry
         ~equal:equal_state

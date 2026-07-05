@@ -1,6 +1,7 @@
 (* Try to infer the boolean result of a comparison op. *)
 
-module I = Bv_interval
+module Bv = Cgen_utils.Bv
+module I = Cgen_utils.Bv_interval
 
 let bool_eq a b = match I.(single_of a, single_of b) with
   | Some a, Some b -> I.boolean Bv.(a = b)

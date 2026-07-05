@@ -1,6 +1,7 @@
 open Core
 open Cgen_containers
 
+module Bv = Cgen_utils.Bv
 module R = X86_amd64_common.Reg
 module Rv = X86_amd64_common.Regvar
 module Insn = X86_amd64_common.Insn

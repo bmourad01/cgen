@@ -1,7 +1,6 @@
 (* This is fairly common enough to be shared by many passes. *)
 
 open Core
-open Regular.Std
 open Virtual
 
 module Vtree = Var.Tree
@@ -100,8 +99,8 @@ let map_ctrl subst : ctrl -> ctrl = function
   | `sw (t, i, d, tbl) -> map_sw subst t i d tbl
 
 let map_blk subst b =
-  let insns = Blk.insns b |> Seq.map ~f:(map_insn subst) in
-  Seq.to_list insns, map_ctrl subst (Blk.ctrl b)
+  let insns = Blk.insns b |> Sequence.map ~f:(map_insn subst) in
+  Sequence.to_list insns, map_ctrl subst (Blk.ctrl b)
 
 (* TODO: should we enable more than just the `jmp` case? With
    `br` and `switch` we can have different applications of the
@@ -113,7 +112,7 @@ let map_blk_args subst b l = match Blk.ctrl b with
 
 let blk_extend subst b b' =
   Blk.label b' |> map_blk_args subst b |> Option.bind ~f:(fun args ->
-      Blk.args b' |> Seq.to_list |> List.zip args |> function
+      Blk.args b' |> Sequence.to_list |> List.zip args |> function
       | Ok l -> Option.some @@ List.fold l ~init:subst
           ~f:(fun subst (o, x) -> Vtree.set subst ~key:x ~data:o)
       | Unequal_lengths -> None)

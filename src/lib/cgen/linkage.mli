@@ -1,6 +1,5 @@
 (** Support for C-style linkage of symbols. *)
 
-open Regular.Std
 
 (** Linkage metadata. *)
 type t
@@ -21,4 +20,4 @@ val default_export : t
 (** The default linkage for a static symbol. *)
 val default_static : t
 
-include Regular.S with type t := t
+include Cgen_utils.Regular.S with type t := t

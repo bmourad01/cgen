@@ -1,12 +1,11 @@
 open Core
-open Regular.Std
-open Monads.Std
+module Regular = Cgen_utils.Regular
 open Virtual
 open Egraph_common
 
 module Solution = Fixpoint.Solution
 module Rewrite = Egraph_rewrite
-module E = Monad.Result.Error
+module E = Cgen_utils.Monads.Error
 module VT = Var.Dense_table
 
 exception Notype of Var.t
@@ -42,8 +41,6 @@ type store =
 module Mem = Regular.Make(struct
     type t = mem [@@deriving bin_io, compare, equal, hash, sexp]
     let pp ppf t = Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_t t
-    let module_name = Some "Cgen.Egraph_builder.Mem"
-    let version = "0.1"
   end)
 
 type env = {
@@ -103,8 +100,8 @@ let dst env eg : dst -> id = function
   | #local as l -> local env eg l
 
 let table env eg tbl =
-  Ctrl.Table.enum tbl |> Seq.map ~f:(fun (i, l) ->
-      node eg (Otbl i) [local env eg l]) |> Seq.to_list
+  Ctrl.Table.enum tbl |> Sequence.map ~f:(fun (i, l) ->
+      node eg (Otbl i) [local env eg l]) |> Sequence.to_list
 
 (* The name `sched` indicates that the enode will manage its scheduling
    in the resulting CFG, after we perform rewrites. *)
@@ -177,7 +174,7 @@ let basics = [|`i8; `i16; `i32; `i64; `f32; `f64|]
 let undef env eg l addr =
   let go ty = Hashtbl.set env.mems ~key:{label = l; addr; ty} ~data:Undef in
   Array.iter basics ~f:go;
-  Seq.iter ~f:go @@ typenames eg;
+  Sequence.iter ~f:go @@ typenames eg;
   env.mem <- Some l
 
 let vaarg env eg l x ty a =
@@ -313,4 +310,4 @@ let run eg = try_ @@ fun () ->
   (* `children` will be sorted by RPO numbers, but we reverse
      this since we're using a stack to do the traversal, so
      this ensures that we will visit each block by RPO. *)
-  Seq.to_list_rev |> List.iter ~f:(fun l -> Stack.push q (l, env.mem))
+  Sequence.to_list_rev |> List.iter ~f:(fun l -> Stack.push q (l, env.mem))

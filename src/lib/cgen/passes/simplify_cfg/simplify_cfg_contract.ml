@@ -2,7 +2,6 @@
    and a single unconditional jump. *)
 
 open Core
-open Regular.Std
 open Virtual
 open Simplify_cfg_common
 
@@ -21,7 +20,7 @@ type chain =
 
 let block_params env =
   LT.fold env.blks ~init:Vset.empty ~f:(fun ~key:_ ~data:b acc ->
-      Blk.args b |> Seq.fold ~init:acc ~f:Vset.add)
+      Blk.args b |> Sequence.fold ~init:acc ~f:Vset.add)
 
 let downstream_used_params env params =
   if Vset.is_empty params then params else
@@ -34,7 +33,7 @@ let can_be_single env used l b =
   (* NB: if any of the params are used, we can't use this to
      contract edges, as it could leave uses of the param as
      orphans (thus having a use without a definition). *)
-  not (Blk.args b |> Seq.exists ~f:(Vset.mem used))
+  not (Blk.args b |> Sequence.exists ~f:(Vset.mem used))
 
 let singles env : singles =
   let used = downstream_used_params env @@ block_params env in
@@ -76,7 +75,7 @@ let rec eval subst env = function
 
 let init_subst env l args =
   let* b = LT.find env.blks l in
-  let args' = Seq.to_list @@ Blk.args b in
+  let args' = Sequence.to_list @@ Blk.args b in
   match List.zip args' args with
   | Unequal_lengths -> None
   | Ok xs ->

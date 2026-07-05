@@ -1,5 +1,5 @@
 open Core
-open Regular.Std
+module Regular = Cgen_utils.Regular
 
 module type S = sig
   type t [@@deriving bin_io, compare, equal, sexp]
@@ -38,7 +38,7 @@ module type S = sig
   val name : t -> string
 
   (** Returns the slots of the function. *)
-  val slots : ?rev:bool -> t -> slot seq
+  val slots : ?rev:bool -> t -> slot Sequence.t
 
   (** Returns [true] if the function has at least one slot. *)
   val has_any_slots : t -> bool
@@ -47,20 +47,20 @@ module type S = sig
   val num_slots : t -> int
 
   (** [fold_slots ?rev fn ~init ~f] folds [f] over the slots of [fn].
-      Bypasses the [Seq] layer; prefer over [Func.slots fn |> Seq.fold]. *)
+      Bypasses the [Seq] layer; prefer over [Func.slots fn |> Sequence.fold]. *)
   val fold_slots : ?rev:bool -> t -> init:'a -> f:('a -> slot -> 'a) -> 'a
 
   (** [iter_slots ?rev fn ~f] applies [f] to each slot of [fn]. *)
   val iter_slots : ?rev:bool -> t -> f:(slot -> unit) -> unit
 
   (** Returns the basic blocks of the function. *)
-  val blks : ?rev:bool -> t -> blk seq
+  val blks : ?rev:bool -> t -> blk Sequence.t
 
   (** Returns the number of basic blocks of the function. *)
   val num_blks : t -> int
 
   (** [fold_blks ?rev fn ~init ~f] folds [f] over the blocks of [fn].
-      Bypasses the [Seq] layer; prefer over [Func.blks fn |> Seq.fold]. *)
+      Bypasses the [Seq] layer; prefer over [Func.blks fn |> Sequence.fold]. *)
   val fold_blks : ?rev:bool -> t -> init:'a -> f:('a -> blk -> 'a) -> 'a
 
   (** [iter_blks ?rev fn ~f] applies [f] to each block of [fn]. *)
@@ -73,7 +73,7 @@ module type S = sig
   val entry : t -> Label.t
 
   (** Returns the arguments of the function, along with their types. *)
-  val args : ?rev:bool -> t -> (arg * argt) seq
+  val args : ?rev:bool -> t -> (arg * argt) Sequence.t
 
   (** [fold_args ?rev fn ~init ~f] folds [f] over the arguments of [fn]. *)
   val fold_args : ?rev:bool -> t -> init:'a -> f:('a -> arg * argt -> 'a) -> 'a
