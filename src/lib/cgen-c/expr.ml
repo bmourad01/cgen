@@ -1,5 +1,7 @@
 open Core
 
+module Bv = Cgen_utils.Bv
+
 type barith = [
   | `add
   | `sub
@@ -103,7 +105,7 @@ type uop = [
 
 type const =
   | Cint of {
-      value : Cgen.Bv.t;
+      value : Bv.t;
       suffix : [`u | `l | `ul | `ll | `ull] option;
       base : [`dec | `oct | `hex | `bin];
     }
@@ -336,7 +338,7 @@ let pp_int_suffix ppf = function
 
 let pp_const ppf = function
   | Cint {value; suffix; _} ->
-    Z.pp_print ppf (Cgen.Bv.to_bigint value);
+    Z.pp_print ppf (Bv.to_bigint value);
     pp_int_suffix ppf suffix
   | Cstr s ->
     Format.pp_print_char ppf '"';

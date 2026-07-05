@@ -6,7 +6,6 @@
 *)
 
 open Core
-open Regular.Std
 
 (** A constant value.
 
@@ -23,7 +22,7 @@ open Regular.Std
 *)
 type const = [
   | `bool   of bool
-  | `int    of Bv.t * Type.imm
+  | `int    of Cgen_utils.Bv.t * Type.imm
   | `float  of Cgen_utils.Float32.t
   | `double of float
   | `sym    of string * int
@@ -53,7 +52,7 @@ val pp_operand : Format.formatter -> operand -> unit
     [`var v] is a dynamic absolute address.
 *)
 type global = [
-  | `addr of Bv.t
+  | `addr of Cgen_utils.Bv.t
   | `sym  of string * int
   | `var  of Var.t
 ] [@@deriving bin_io, compare, equal, sexp]
@@ -328,7 +327,7 @@ module Slot : sig
       variable [x]. *)
   val is_var : t -> Var.t -> bool
 
-  include Regular.S with type t := t
+  include Cgen_utils.Regular.S with type t := t
 end
 
 type slot = Slot.t [@@deriving bin_io, compare, equal, sexp]
@@ -383,7 +382,7 @@ type func = Func.t [@@deriving bin_io, compare, equal, sexp]
 
 (** The control-flow graph of the function. *)
 module Cfg : sig
-  include Label.Graph_s
+  include module type of struct include Label.Graph end
 
   (** Creates the control-flow graph.
 
@@ -482,7 +481,7 @@ module Data : sig
   val name : t -> string
 
   (** Returns the elements of the struct. *)
-  val elts : ?rev:bool -> t -> elt seq
+  val elts : ?rev:bool -> t -> elt Sequence.t
 
   (** Returns the linkage of the struct.
 
@@ -522,7 +521,7 @@ module Data : sig
   (** Returns the structure with each element transformed by [f] *)
   val map_elts : t -> f:(elt -> elt) -> t
 
-  include Regular.S with type t := t
+  include Cgen_utils.Regular.S with type t := t
 end
 
 type data = Data.t [@@deriving bin_io, compare, equal, sexp]
@@ -544,7 +543,7 @@ module Module : sig
     t
 
   (** Declared (compound) types that are visible in the module. *)
-  val typs : ?rev:bool -> t -> Type.named seq
+  val typs : ?rev:bool -> t -> Type.named Sequence.t
 
   (** [fold_typs ?rev m ~init ~f] folds [f] over the types of [m]. *)
   val fold_typs : ?rev:bool -> t -> init:'a -> f:('a -> Type.named -> 'a) -> 'a
@@ -836,7 +835,7 @@ module Abi : sig
   type module_ = Module.t [@@deriving bin_io, compare, equal, sexp]
 
   module Cfg : sig
-    include Label.Graph_s
+    include module type of struct include Label.Graph end
     val create : func -> t
   end
 

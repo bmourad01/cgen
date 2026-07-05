@@ -1,7 +1,7 @@
 open Core
 open Virtual
 
-module I = Bv_interval
+module I = Cgen_utils.Bv_interval
 module Vtree = Var.Tree
 module Ltree = Label.Tree
 module VT = Var.Dense_table

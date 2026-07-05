@@ -1,5 +1,5 @@
 open Core
-open Regular.Std
+module Regular = Cgen_utils.Regular
 
 module type S = sig
   type data
@@ -10,10 +10,10 @@ module type S = sig
   val name : t -> string
 
   (** Structs defined in the module. *)
-  val data : ?rev:bool -> t -> data seq
+  val data : ?rev:bool -> t -> data Sequence.t
 
   (** Functions defined in the module. *)
-  val funs : ?rev:bool -> t -> func seq
+  val funs : ?rev:bool -> t -> func Sequence.t
 
   (** [fold_data ?rev m ~init ~f] folds [f] over the structs of [m]. *)
   val fold_data : ?rev:bool -> t -> init:'a -> f:('a -> data -> 'a) -> 'a

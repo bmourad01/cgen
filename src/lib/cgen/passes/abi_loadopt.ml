@@ -7,13 +7,12 @@
 *)
 
 open Core
-open Monads.Std
-open Regular.Std
+module Regular = Cgen_utils.Regular
 open Virtual
 open Cgen_containers
 
 module Solution = Fixpoint.Solution
-module E = Monad.Result.Error
+module E = Cgen_utils.Monads.Error
 module Lset = Label.Tree_set
 module LT = Label.Dense_table
 module VT = Var.Dense_table
@@ -65,8 +64,6 @@ type store =
 module Mem = Regular.Make(struct
     type t = mem [@@deriving bin_io, compare, equal, hash, sexp]
     let pp ppf t = Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_t t
-    let module_name = Some "Cgen.Passes.Abi_loadopt.Mem"
-    let version = "0.1"
   end)
 
 type t = {
@@ -113,7 +110,7 @@ let init fn =
   let+ reso = Abi.Resolver.create fn in
   let start = Abi.Func.entry fn in
   let cfg = Abi.Cfg.create fn in
-  let dom = Semi_nca.compute (module Abi.Cfg) cfg Label.pseudoentry in
+  let dom = Semi_nca.compute cfg Label.pseudoentry in
   let rdom = init_dom_relation reso dom in
   let lst = init_last_stores start cfg reso in
   let blks = LT.create ~capacity:(Abi.Func.num_blks fn) () in
@@ -348,7 +345,7 @@ let run0 fn =
   let q = Stack.singleton (Label.pseudoentry, t.mem, t.memo) in
   Stack.until_empty q (fun (l, lst, memo) ->
       Optimize.step t l lst memo;
-      Semi_nca.Tree.children t.dom l |> Seq.iter ~f:(fun l ->
+      Semi_nca.Tree.children t.dom l |> Sequence.iter ~f:(fun l ->
           Stack.push q (l, t.mem, t.memo)));
   Abi.Func.map_blks fn ~f:(fun b ->
       let l = Abi.Blk.label b in

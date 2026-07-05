@@ -2,6 +2,8 @@
   open Lexing
   open Structured_parser
 
+  module Bv = Cgen_utils.Bv
+
   let char_for_backslash = function
     | 'n' -> '\010'
     | 'r' -> '\013'

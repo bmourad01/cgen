@@ -1,6 +1,7 @@
 open Core
 open Virtual.Abi
 
+module Bv = Cgen_utils.Bv
 module Float32 = Cgen_utils.Float32
 module Id = Int
 

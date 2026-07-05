@@ -24,7 +24,7 @@
 
 open Core
 
-module Bv = Cgen.Bv
+module Bv = Cgen_utils.Bv
 module DM = Data_model
 module EC = Elab_conv
 module ET0 = Elab_type
@@ -103,7 +103,7 @@ module Make(A : Annotation) = struct
   *)
   type switch_state = {
     ctrl_bits            : int;
-    mutable seen_cases   : Cgen.Bv.t list;
+    mutable seen_cases   : Bv.t list;
     mutable seen_default : bool;
   }
 

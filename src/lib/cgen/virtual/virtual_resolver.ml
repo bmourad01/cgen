@@ -1,6 +1,3 @@
-open Regular.Std
-open Cgen_containers
-
 include Virtual_resolver_impl.Make(struct
     type lhs = Var.t option
     let iter_vars_of_lhs = Base.Option.iter

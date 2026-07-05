@@ -1,8 +1,7 @@
 open Core
-open Monads.Std
 open Resolver_intf
 
-module E = Monad.Result.Error
+module E = Cgen_utils.Monads.Error
 module LT = Label.Dense_table
 module VT = Var.Dense_table
 module Vset = Var.Tree_set

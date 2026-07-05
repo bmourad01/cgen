@@ -1,6 +1,4 @@
 open Core
-open Regular.Std
-open Graphlib.Std
 open Scalars
 open Cgen_containers
 
@@ -129,9 +127,9 @@ let candidates slots rs =
   Vtree.to_sequence rs |>
   (* Do not consider escapees. This would mess up
      our heuristics for building the groups. *)
-  Seq.filter ~f:(not @. Range.is_bad @. snd) |>
-  Seq.map ~f:(create_candidate slots rs @. fst) |>
-  Seq.iter ~f:(Vec.push vs);
+  Sequence.filter ~f:(not @. Range.is_bad @. snd) |>
+  Sequence.map ~f:(create_candidate slots rs @. fst) |>
+  Sequence.iter ~f:(Vec.push vs);
   vs
 
 (* Greedy partitioning algorithm. *)
@@ -212,7 +210,7 @@ module Make(M : Scalars.L) = struct
   open M
 
   module Sinit = Slot_initialization.Make(M)
-  module Loop = Loops.Make(M.Cfg)
+  module Loop = Loops
 
   let mkdef s x n = Vtree.update_with s x
       ~nil:(fun () -> Range.singleton n)
@@ -259,7 +257,7 @@ module Make(M : Scalars.L) = struct
       Ltree.fold spans ~init:Ltree.empty
         ~f:(fun ~key:l ~data:(lo, hi) acc ->
             Loop.loops_of loop l |>
-            Seq.fold ~init:acc ~f:(fun acc lp ->
+            Sequence.fold ~init:acc ~f:(fun acc lp ->
                 let h = Loop.header @@ Loop.get loop lp in
                 Ltree.update_with acc h
                   ~has:(fun (a, b) -> Int.min a lo, Int.max b hi)
@@ -283,7 +281,7 @@ module Make(M : Scalars.L) = struct
         | Exit of Label.t
         | Enter of Label.t
     end in
-    let n = Cfg.number_of_nodes cfg in
+    let n = Label.Graph.number_of_nodes cfg in
     let postord = Vec.create ~capacity:n () in
     let vis = LS.create ~capacity:n () in
     let q = Stack.singleton @@ Enter Label.pseudoentry in
@@ -293,9 +291,9 @@ module Make(M : Scalars.L) = struct
         | Enter u ->
           if LS.strict_add vis u then begin
             Stack.push q @@ Exit u;
-            Cfg.Node.succs u cfg |>
-            Seq.filter ~f:(Fn.non @@ LS.mem vis) |>
-            Seq.to_list_rev |>
+            Label.Graph.Node.succs u cfg |>
+            Sequence.filter ~f:(Fn.non @@ LS.mem vis) |>
+            Sequence.to_list_rev |>
             List.iter ~f:(fun v ->
                 Stack.push q @@ Enter v)
           end);
@@ -315,7 +313,7 @@ module Make(M : Scalars.L) = struct
         let l = Blk.label b in
         let lo_ip = !ip in
         let s = ref @@ get t l in
-        let acc = Blk.insns b |> Seq.fold ~init:acc ~f:(fun acc i ->
+        let acc = Blk.insns b |> Sequence.fold ~init:acc ~f:(fun acc i ->
             let op = Insn.op i in
             let acc = liveness_insn si acc !s !ip i in
             let () = match Insn.load_or_store_to op with

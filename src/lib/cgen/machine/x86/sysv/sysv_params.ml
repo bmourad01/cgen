@@ -1,8 +1,9 @@
 open Core
-open Regular.Std
 open Virtual
 open Sysv_common
 open Cgen_containers
+
+module Bv = Cgen_utils.Bv
 
 (* pre: `al` is a power of 2
 
@@ -120,7 +121,7 @@ module Make(Context : Context_intf.S_virtual) = struct
   let memory_param ~ofs env y size align =
     let so = onext ofs size align in
     let size' = if size = 0 then align else size in
-    Seq.init (size' / 8) ~f:(fun i -> i * 8) |>
+    Sequence.init (size' / 8) ~f:(fun i -> i * 8) |>
     Context.Seq.iter ~f:(fun o ->
         let* x = Context.Var.fresh in
         let+ pins =
@@ -146,10 +147,10 @@ module Make(Context : Context_intf.S_virtual) = struct
   let needs_register_save env =
     Func.variadic env.fn &&
     Func.blks env.fn |>
-    Seq.exists ~f:(fun b ->
+    Sequence.exists ~f:(fun b ->
         Blk.insns b |>
-        Seq.map ~f:Insn.op |>
-        Seq.exists ~f:(function
+        Sequence.map ~f:Insn.op |>
+        Sequence.exists ~f:(function
             | `vastart _ -> true
             | _ -> false))
 
@@ -157,8 +158,8 @@ module Make(Context : Context_intf.S_virtual) = struct
     let* label = Context.Label.fresh in
     let* save =
       Array.to_sequence_mutable int_args |>
-      Seq.mapi ~f:(fun i r -> i * 8, r) |>
-      Seq.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
+      Sequence.mapi ~f:(fun i r -> i * 8, r) |>
+      Sequence.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
       Context.Seq.fold ~init:Ftree.empty ~f:(fun acc -> function
           | 0, r ->
             let+ st = Cv.Abi.regstore r (`var s) in
@@ -183,8 +184,8 @@ module Make(Context : Context_intf.S_virtual) = struct
   let register_save_sse env params label s =
     let+ save =
       Array.to_sequence_mutable sse_args |>
-      Seq.mapi ~f:(fun i r -> i64 (i * 16 + rsave_sse_ofs), r) |>
-      Seq.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
+      Sequence.mapi ~f:(fun i r -> i64 (i * 16 + rsave_sse_ofs), r) |>
+      Sequence.filter ~f:(fun (_, r) -> not @@ Set.mem params r) |>
       Context.Seq.fold ~init:Ftree.empty ~f:(fun acc (o, r) ->
           let* o, oi = Cv.Abi.binop (`add `i64) (`var s) o in
           let+ st = Cv.Abi.regstore r (`var o) in

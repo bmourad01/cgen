@@ -1,7 +1,6 @@
 (** A pseudo-assembly program. *)
 
 open Core
-open Regular.Std
 
 (** A container for a pseudo-assembly instruction. *)
 module Insn : sig
@@ -38,7 +37,7 @@ module Blk : sig
   val label : 'a t -> Label.t
 
   (** The instructions of the block. *)
-  val insns : ?rev:bool -> 'a t -> 'a insn seq
+  val insns : ?rev:bool -> 'a t -> 'a insn Sequence.t
 
   (** Returns [true] if the block has the given label. *)
   val has_label : 'a t -> Label.t -> bool
@@ -126,7 +125,7 @@ module Func : sig
   val name : ('a, 'b) t -> string
 
   (** The blocks of the function. *)
-  val blks : ?rev:bool -> ('a, 'b) t -> 'a blk seq
+  val blks : ?rev:bool -> ('a, 'b) t -> 'a blk Sequence.t
 
   (** Returns the number of basic blocks of the function. *)
   val num_blks : ('a, 'b) t -> int
@@ -141,7 +140,7 @@ module Func : sig
   val num_insns : ('a, 'b) t -> int
 
   (** The return registers of the function. *)
-  val rets : ?rev:bool -> ('a, 'b) t -> 'b seq
+  val rets : ?rev:bool -> ('a, 'b) t -> 'b Sequence.t
 
   (** Fold over return registers without allocating a sequence. *)
   val fold_rets : ?rev:bool -> ('a, 'b) t -> init:'c -> f:('c -> 'b -> 'c) -> 'c
@@ -150,7 +149,7 @@ module Func : sig
   val dict : ('a, 'b) t -> Dict.t
 
   (** The stack slots of the function. *)
-  val slots : ?rev:bool -> ('a, 'b) t -> Virtual.slot seq
+  val slots : ?rev:bool -> ('a, 'b) t -> Virtual.slot Sequence.t
 
   (** Returns [true] if the function has at least one slot. *)
   val has_any_slots : ('a, 'b) t -> bool
@@ -265,10 +264,10 @@ module Module : sig
   val name : ('a, 'b) t -> string
 
   (** Structs defined in the module. *)
-  val data : ?rev:bool -> ('a, 'b) t -> Virtual.data seq
+  val data : ?rev:bool -> ('a, 'b) t -> Virtual.data Sequence.t
 
   (** Functions defined in the module. *)
-  val funs : ?rev:bool -> ('a, 'b) t -> ('a, 'b) func seq
+  val funs : ?rev:bool -> ('a, 'b) t -> ('a, 'b) func Sequence.t
 
   (** Returns the dictionary of the module. *)
   val dict : ('a, 'b) t -> Dict.t
@@ -329,7 +328,7 @@ type ('a, 'b) module_ = ('a, 'b) Module.t [@@deriving bin_io, compare, equal, se
 
 (** The control-flow graph of the function. *)
 module Cfg : sig
-  include Label.Graph_s
+  include module type of struct include Label.Graph end
 
   (** Creates the control-flow graph.
 

@@ -1,4 +1,3 @@
-open Regular.Std
 
 (** Loop analysis of a function. *)
 module type S = sig
@@ -58,7 +57,7 @@ module type S = sig
 
   (** [loops_of t l] returns the sequence of loops that the block at
       label [l] is within, starting from the innermost loop. *)
-  val loops_of : t -> Label.t -> loop seq
+  val loops_of : t -> Label.t -> loop Base.Sequence.t
 
   val pp_loop : Format.formatter -> loop -> unit
   val pp_level : Format.formatter -> level -> unit

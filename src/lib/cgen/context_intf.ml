@@ -1,8 +1,6 @@
 (** Abstract interface for a compilation context. *)
 
 open Core
-open Monads.Std
-open Regular.Std
 
 type var = Var.t
 type label = Label.t
@@ -80,8 +78,8 @@ module type S = sig
   val catch : 'a t -> (Error.t -> 'a t) -> 'a t
 
   module Syntax : sig
-    include Monad.Syntax.S with type 'a t := 'a t
-    include Monad.Syntax.Let.S with type 'a t := 'a t
+    include Cgen_utils.Monads.Syntax.S with type 'a t := 'a t
+    include Cgen_utils.Monads.Syntax.Let.S with type 'a t := 'a t
 
     (** Attempts to unwrap an [Or_error] computation into the context, and
         fails if it is an error.
@@ -103,7 +101,7 @@ module type S = sig
     val (let+?) : 'a Or_error.t -> ('a -> 'b) -> 'b t
   end
 
-  include Monad.S
+  include Cgen_utils.Monads.S
     with type 'a t := 'a t
      and module Syntax := Syntax
 
@@ -115,13 +113,13 @@ module type S = sig
       the error is lifted into the context. *)
   val iter_list_err : ?prefix:string -> 'a list -> f:('a -> unit Or_error.t) -> unit t
 
-  (** Same as [Seq.map], but [f] is allowed to fail early. In this case,
+  (** Same as [Sequence.map], but [f] is allowed to fail early. In this case,
       the error is lifted into the context. *)
-  val map_seq_err : ?prefix:string -> 'a seq -> f:('a -> 'b Or_error.t) -> 'b seq t
+  val map_seq_err : ?prefix:string -> 'a Sequence.t -> f:('a -> 'b Or_error.t) -> 'b Sequence.t t
 
-  (** Same as [Seq.iter], but [f] is allowed to fail early. In this case,
+  (** Same as [Sequence.iter], but [f] is allowed to fail early. In this case,
       the error is lifted into the context. *)
-  val iter_seq_err : ?prefix:string -> 'a seq -> f:('a -> unit Or_error.t) -> unit t
+  val iter_seq_err : ?prefix:string -> 'a Sequence.t -> f:('a -> unit Or_error.t) -> unit t
 end
 
 (** Extension of the Context interface, with helpers for generating

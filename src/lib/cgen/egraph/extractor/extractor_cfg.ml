@@ -2,17 +2,17 @@
 
 open Core
 open Extractor_core
-open Graphlib.Std
-open Regular.Std
 open Virtual
 open Cgen_containers
 
+module Bv = Cgen_utils.Bv
 module Common = Egraph_common
 module Lset = Label.Tree_set
 module Iset = Egraph_id.Tree_set
 module Id = Egraph_id
 module LT = Label.Dense_table
 module LS = Label.Dense_set
+module Scc = Egraph_input.Scc
 
 open Context.Syntax
 
@@ -383,12 +383,12 @@ module Hoisting = struct
   (* See if there exists a cycle starting from `l` that does not intersect
      with `bs`. *)
   let exists_bypass t l id cid bs =
-    let res = match Partition.group t.eg.input.scc l with
+    let res = match Scc.group t.eg.input.scc l with
       | None -> false
       | Some g ->
         Logs.debug (fun m ->
             m "%s: SCC of %a: %a%!"
-              __FUNCTION__ Label.pp l (Group.pp Label.pp) g);
+              __FUNCTION__ Label.pp l (Scc.Group.pp Label.pp) g);
         (* This is just a DFS search, but we will restrict it to the SCC
            that `l` belongs to, so we can avoid state explosion. *)
         with_return @@ fun {return} ->
@@ -397,9 +397,9 @@ module Hoisting = struct
         Stack.until_empty q (fun n ->
             if LS.strict_add r n then
               Cfg.Node.succs n t.eg.input.cfg |>
-              Seq.filter ~f:(Group.mem g) |>
-              Seq.filter ~f:(Fn.non @@ Lset.mem bs) |>
-              Seq.iter ~f:(Stack.push q)
+              Sequence.filter ~f:(Scc.Group.mem g) |>
+              Sequence.filter ~f:(Fn.non @@ Lset.mem bs) |>
+              Sequence.iter ~f:(Stack.push q)
             else if Label.(n = l) then return true);
         false in
     Logs.debug (fun m ->
@@ -417,8 +417,8 @@ module Hoisting = struct
   let compute_kills t uses =
     Lset.fold uses ~init:Lset.empty ~f:(fun init u ->
         Cfg.Node.succs u t.eg.input.cfg |>
-        Seq.filter ~f:(Fn.non @@ Lset.mem uses) |>
-        Seq.fold ~init ~f:Lset.add)
+        Sequence.filter ~f:(Fn.non @@ Lset.mem uses) |>
+        Sequence.fold ~init ~f:Lset.add)
 
   (* See if there exists a path, starting from `l`, that avoids
      touching any block in `uses` and reaches one of the blocks
@@ -439,8 +439,8 @@ module Hoisting = struct
           Stack.push q k);
       Stack.until_empty q (fun n ->
           Cfg.Node.preds n t.eg.input.cfg |>
-          Seq.filter ~f:(Fn.non @@ Lset.mem uses) |>
-          Seq.iter ~f:(fun p ->
+          Sequence.filter ~f:(Fn.non @@ Lset.mem uses) |>
+          Sequence.iter ~f:(fun p ->
               if Label.(p = l) then return true
               else if LS.strict_add r p then Stack.push q p
               else ()));
@@ -511,8 +511,8 @@ module Hoisting = struct
       (* Explore the newest nodes first, ignoring those that have
          already been placed. *)
       Iset.to_sequence s ~order:`Decreasing |>
-      Seq.map ~f:(fun id -> id, Common.find t.eg id) |>
-      Seq.filter ~f:(fun (_, cid) ->
+      Sequence.map ~f:(fun id -> id, Common.find t.eg id) |>
+      Sequence.filter ~f:(fun (_, cid) ->
           not @@ Uopt.is_some (Rrb.get_exn env.scp cid)) |>
       Context.Seq.iter ~f:(fun (id, cid) -> match extract t id with
           | None -> extract_fail l id
@@ -584,7 +584,7 @@ let collect t l =
       env.scp <- scp;
       let* () = step t env l in
       Semi_nca.Tree.children t.eg.input.dom l |>
-      Seq.iter ~f:(fun l -> Stack.push q (l, env.scp));
+      Sequence.iter ~f:(fun l -> Stack.push q (l, env.scp));
       loop () in
   loop ()
 
@@ -602,8 +602,8 @@ let find_news ?(rev = false) env l =
   LT.find env.news l |>
   Option.value_map ~default:[] ~f:(fun p ->
       seq p.seq |>
-      Seq.filter_map ~f:(find_insn env) |>
-      Seq.to_list)
+      Sequence.filter_map ~f:(find_insn env) |>
+      Sequence.to_list)
 [@@specialise]
 
 let move_dict i i' = Insn.(with_dict i' @@ dict i) [@@inline]
@@ -617,7 +617,7 @@ let cfg t =
         | Some c -> c in
       let is =
         Blk.insns b ~rev:true |>
-        Seq.fold ~init:(find_news env label) ~f:(fun acc i ->
+        Sequence.fold ~init:(find_news env label) ~f:(fun acc i ->
             let label = Insn.label i in
             let i =
               find_insn env label |>

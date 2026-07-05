@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Ssa_impl_common
 
 module Vset = Var.Tree_set
@@ -51,7 +50,7 @@ end = struct
     {defs; args; ctrl; outs}
 
   let update_incoming env l x outs =
-    Cfg.Node.preds l env.cfg |> Seq.iter ~f:(fun l' ->
+    Label.Graph.Node.preds l env.cfg |> Sequence.iter ~f:(fun l' ->
         LT.update outs l' ~f:(function
             | Some inc -> Ltree.add_multi inc ~key:l ~data:x
             | None -> Ltree.singleton l [x]))

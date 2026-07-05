@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Virtual
 open Cgen_containers
 
@@ -58,9 +57,9 @@ let debug_dump t =
         __FUNCTION__ (Func.name t.input.fn)
         (Format.pp_print_list ~pp_sep pp_lmoved)
         (Vec.to_sequence_mutable t.imoved |>
-         Seq.mapi ~f:Tuple2.create |>
-         Seq.filter ~f:(fun (_, s) -> not (Lset.is_empty s)) |>
-         Seq.to_list));
+         Sequence.mapi ~f:Tuple2.create |>
+         Sequence.filter ~f:(fun (_, s) -> not (Lset.is_empty s)) |>
+         Sequence.to_list));
   Logs.debug (fun m ->
       let pp_ilbl ppf (id, l) =
         Format.fprintf ppf "  %d: %a%!" id Label.pp l in
@@ -69,10 +68,10 @@ let debug_dump t =
         __FUNCTION__ (Func.name t.input.fn)
         (Format.pp_print_list ~pp_sep pp_ilbl)
         (Vec.to_sequence_mutable t.ilbl |>
-         Seq.mapi ~f:Tuple2.create |>
-         Seq.filter_map ~f:(fun (id, l) ->
+         Sequence.mapi ~f:Tuple2.create |>
+         Sequence.filter_map ~f:(fun (id, l) ->
              Uopt.to_option l |> Option.map ~f:(fun l -> id, l)) |>
-         Seq.to_list))
+         Sequence.to_list))
 [@@ocaml.warning "-32"]
 
 let run ?(depth_limit = 6) ?(match_limit = 20) fn tenv rules =

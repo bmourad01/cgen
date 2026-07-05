@@ -6,7 +6,6 @@
     is done in logarithmic time.
 *)
 
-open Regular.Std
 
 type 'a t [@@deriving bin_io, compare, equal, sexp]
 
@@ -172,7 +171,7 @@ val filter : 'a t -> f:('a -> bool) -> 'a t
 
     If [rev] is true, then the sequence is reversed.
 *)
-val enum : ?rev:bool -> 'a t -> 'a seq
+val enum : ?rev:bool -> 'a t -> 'a Base.Sequence.t
 
 (** Returns the first element satisfying [f], from start-to-end. *)
 val find : 'a t -> f:('a -> bool) -> 'a option

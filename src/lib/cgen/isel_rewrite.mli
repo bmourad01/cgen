@@ -67,7 +67,7 @@ module Pattern : sig
     val double : float -> sub
 
     (** [int i t]: a constant bitvector [i] of type [t]. *)
-    val int : Bv.t -> Type.imm -> sub
+    val int : Cgen_utils.Bv.t -> Type.imm -> sub
 
     (** [int8 i]: a constant 8-bit integer [i] modulo [256]. *)
     val i8 : int -> sub
@@ -299,7 +299,7 @@ module Subst : sig
   val regvar_v : 'r t -> string -> 'r option
 
   (** Lookup an integer constant. *)
-  val imm : 'r t -> string -> (Bv.t * Type.imm) option
+  val imm : 'r t -> string -> (Cgen_utils.Bv.t * Type.imm) option
 
   (** Lookup a 32-bit float constant. *)
   val single : 'r t -> string -> Cgen_utils.Float32.t option
@@ -320,7 +320,7 @@ module Subst : sig
 
       The table is sorted from lowest to highest.
   *)
-  val table : 'r t -> string -> (Label.t * (Bv.t * Label.t) list) option
+  val table : 'r t -> string -> (Label.t * (Cgen_utils.Bv.t * Label.t) list) option
 
   (** Look up the arguments for a call. *)
   val callargs : 'r t -> string -> 'r list option

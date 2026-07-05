@@ -19,7 +19,6 @@
 *)
 
 open Core
-open Regular.Std
 open Pseudo
 open Cgen_containers
 
@@ -46,7 +45,7 @@ module Make(M : Machine_intf.S) = struct
 
   module Regs = Regalloc_regs.Make(M)
   module Live = Pseudo_passes.Live(M)
-  module Loop = Loops.Make(Cfg)
+  module Loop = Loops
 
   (* Used for `is_trivial_du` *)
   type triviality = Untested | Trivial | Nontrivial
@@ -371,7 +370,7 @@ module Make(M : Machine_intf.S) = struct
         let out = Live.outs (Option.value_exn data.live) bm in
         not (Set.mem out (Vec.get_exn id2rv v)) &&
         data.defs.(v) |> Lset.to_sequence |>
-        Seq.for_all ~f:(fun d ->
+        Sequence.for_all ~f:(fun d ->
             match LT.find insn_blks d with
             | None -> false
             | Some (bd, od) when Label.(bm = bd) -> od < om
@@ -557,7 +556,7 @@ module Make(M : Machine_intf.S) = struct
         ~is_barrier:M.Insn.is_barrier
         ~is_pseudo:M.Insn.is_pseudo
         ~dests:M.Insn.dests in
-    let dom = Semi_nca.compute (module Pseudo.Cfg) cfg Label.pseudoentry in
+    let dom = Semi_nca.compute cfg Label.pseudoentry in
     let loop = Loop.analyze ~dom ~name:(Pseudo.Func.name fn) cfg in
     let ninsn = Func.num_insns fn in
     let copies = LT.create ~capacity:ninsn () in
@@ -612,9 +611,9 @@ module Make(M : Machine_intf.S) = struct
        and add them to `initial`. *)
     let blks = Func.map_of_blks t.fn in
     Semi_nca.Tree.preorder t.dom |>
-    Seq.filter_map ~f:(Label.Tree.find blks) |>
-    Seq.iter ~f:(fun b ->
-        Blk.insns b |> Seq.iter ~f:(fun i ->
+    Sequence.filter_map ~f:(Label.Tree.find blks) |>
+    Sequence.iter ~f:(fun b ->
+        Blk.insns b |> Sequence.iter ~f:(fun i ->
             let insn = Insn.insn i in
             M.Insn.reads insn |> Set.iter ~f:(add_initial t);
             M.Insn.writes insn |> Set.iter ~f:(add_initial t);
@@ -624,7 +623,7 @@ module Make(M : Machine_intf.S) = struct
     let sp = Rv.reg M.Reg.sp in
     t.keep <- Set.add t.keep sp;
     Bitset.add t.data.reg_bits (intern t sp);
-    Func.rets t.fn |> Seq.iter ~f:(fun r ->
+    Func.rets t.fn |> Sequence.iter ~f:(fun r ->
         let rv = Rv.reg r in
         let id = intern t rv in
         t.keep <- Set.add t.keep rv;

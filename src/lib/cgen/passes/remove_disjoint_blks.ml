@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 
 module type L = sig
   module Blk : sig
@@ -10,7 +9,7 @@ module type L = sig
   module Func : sig
     type t
     val name : t -> string
-    val blks : ?rev:bool -> t -> Blk.t seq
+    val blks : ?rev:bool -> t -> Blk.t Sequence.t
     val fold_reachable : t -> init:'a -> f:('a -> Blk.t -> 'a) -> 'a
     val remove_blks_exn : t -> Label.t list -> t
   end
@@ -24,9 +23,9 @@ module Make(M : L) = struct
       Func.fold_reachable fn ~init:Label.Tree_set.empty
         ~f:(fun s b -> Label.Tree_set.add s (Blk.label b)) in
     let blks =
-      Func.blks fn |> Seq.map ~f:Blk.label |>
-      Seq.filter ~f:(Fn.non @@ Label.Tree_set.mem reachable) |>
-      Seq.to_list in
+      Func.blks fn |> Sequence.map ~f:Blk.label |>
+      Sequence.filter ~f:(Fn.non @@ Label.Tree_set.mem reachable) |>
+      Sequence.to_list in
     List.iter blks ~f:(fun l ->
         Logs.debug (fun m ->
             m "%s: removing unreachable block %a in function %s"

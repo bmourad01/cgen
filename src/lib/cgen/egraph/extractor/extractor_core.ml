@@ -1,9 +1,9 @@
 open Core
 open Egraph_common
-open Monads.Std
 open Virtual
 open Cgen_containers
 
+module Bv = Cgen_utils.Bv
 module OA = Option_array
 
 (* Keep track of the provenance of extracted nodes.
@@ -320,7 +320,7 @@ let prov t cid id op args =
       | Some l -> Label l
   else Id {canon = cid; real = id}
 
-module O = Monad.Option
+module O = Cgen_utils.Monads.Option
 
 let extract t =
   let rec go tbl visiting id =

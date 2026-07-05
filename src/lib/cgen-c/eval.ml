@@ -25,11 +25,10 @@
 *)
 
 open Core
-open Monads.Std
 
-module E = Monad.Result.Error
-module O = Monad.Option
-module Bv = Cgen.Bv
+module Bv = Cgen_utils.Bv
+module E = Cgen_utils.Monads.Error
+module O = Cgen_utils.Monads.Option
 module D = Data_model
 module TE = Type_env
 module F32 = Cgen_utils.Float32

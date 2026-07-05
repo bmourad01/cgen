@@ -8,8 +8,9 @@
 *)
 
 open Core
-open Regular.Std
 open X86_amd64_common
+
+module Bv = Cgen_utils.Bv
 
 external float_to_bits : float -> int64 = "cgen_bits_of_float"
 
@@ -61,7 +62,7 @@ let emit_data ppf d =
   Data.align d |> Option.iter ~f:(Format.fprintf ppf ".align %d\n");
   if Linkage.export lnk then global ppf name;
   Format.fprintf ppf "%s:\n" name;
-  Data.elts d |> Seq.iter ~f:(emit_data_elt ppf)
+  Data.elts d |> Sequence.iter ~f:(emit_data_elt ppf)
 
 let emit_func ppf (name, lnk) =
   let section = Linkage.section lnk |> Option.value ~default:".text" in

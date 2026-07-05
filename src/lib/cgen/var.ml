@@ -1,6 +1,7 @@
 open Core
-open Regular.Std
 open Cgen_containers
+
+module Regular = Cgen_utils.Regular
 
 type t = int [@@deriving bin_io, compare, equal, hash, sexp]
 
@@ -11,8 +12,6 @@ let pp ppf v = Format.fprintf ppf "%%%d" v
 include Regular.Make(struct
     type nonrec t = t [@@deriving bin_io, compare, equal, hash, sexp]
     let pp = pp
-    let version = "0.1"
-    let module_name = Some "Cgen.Var"
   end)
 
 module Patricia_key = struct

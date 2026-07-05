@@ -1,4 +1,5 @@
 module Float32 = Cgen_utils.Float32
+module Bv = Cgen_utils.Bv
 module Insn = Virtual_insn
 
 module type S = sig

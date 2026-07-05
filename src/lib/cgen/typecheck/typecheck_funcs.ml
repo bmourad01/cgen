@@ -1,7 +1,6 @@
 (* Checking function definitions. *)
 
 open Core
-open Regular.Std
 open Virtual
 open Typecheck_common
 
@@ -37,7 +36,7 @@ let rec check_blk doms blks seen l =
   let* () = blk_args in
   let* () = Insns.go seen in
   let* () = Ctrls.go blks @@ Blk.ctrl blk in
-  Semi_nca.Tree.children doms l |> Seq.filter ~f:not_pseudo |>
+  Semi_nca.Tree.children doms l |> Sequence.filter ~f:not_pseudo |>
   M.Seq.iter ~f:(check_blk doms blks seen)
 
 let typ_of_typ_arg env = function
@@ -65,7 +64,7 @@ let slots =
   let t = (Target.word (Env.target env) :> Type.t) in
   let* env, _ =
     let init = env, Vset.empty in
-    Func.slots fn |> Seq.map ~f:Slot.var |>
+    Func.slots fn |> Sequence.map ~f:Slot.var |>
     M.Seq.fold ~init ~f:(fun (env, seen) x ->
         if Vset.mem seen x then
           M.failf "Duplicate slot %a in function $%s"
@@ -78,8 +77,8 @@ let slots =
 let check_entry_inc fn cfg =
   let l = Func.entry fn in
   Cfg.Node.preds l cfg |>
-  Seq.filter ~f:(Fn.non Label.is_pseudo) |>
-  Seq.length |> function
+  Sequence.filter ~f:(Fn.non Label.is_pseudo) |>
+  Sequence.length |> function
   | n when n > 0 ->
     M.failf "Entry block %a of function $%s contains %d \
              incoming edges, expected 0"
@@ -118,5 +117,5 @@ let check fn =
   (* We will traverse the blocks according to the dominator tree
      so that we get the right ordering for definitions. The API
      here guarantees that children are sorted by RPO number. *)
-  let doms = Semi_nca.compute (module Cfg) cfg start in
+  let doms = Semi_nca.compute cfg start in
   check_blk doms blks seen @@ Func.entry fn

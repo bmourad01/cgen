@@ -1,17 +1,17 @@
 open Core
-open Regular.Std
-open Graphlib.Std
-open Monads.Std
 open Cgen_containers
 
-module O = Monad.Option
+module O = Cgen_utils.Monads.Option
 module LT = Label.Dense_table
+module LS = Label.Dense_set
 
 let rec while_top q ~f = match Stack.top q with
   | Some x -> f x; while_top q ~f
   | None -> ()
 
-module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
+module Cfg = Label.Graph
+
+include (struct
   open O.Let
 
   type loop = int [@@deriving compare, equal]
@@ -92,9 +92,9 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
     | None -> false
 
   let loops_of t l = match blk t l with
-    | None -> Seq.empty
+    | None -> Sequence.empty
     | Some n ->
-      let open Seq.Generator in
+      let open Sequence.Generator in
       let rec parent n =
         yield n >>= fun () ->
         match (get t n).parent with
@@ -108,18 +108,29 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
     n
 
   let dom_backedge l cfg dom =
-    Cfg.Node.preds l cfg |> Seq.filter
+    Cfg.Node.preds l cfg |> Sequence.filter
       ~f:(Semi_nca.Tree.dominates dom l)
+
+  let reverse_postorder cfg =
+    let n = Cfg.number_of_nodes cfg in
+    let vis = LS.create ~capacity:n () in
+    let out = ref [] in
+    let rec visit n =
+      if LS.strict_add vis n then begin
+        Sequence.iter (Cfg.Node.succs n cfg) ~f:visit;
+        out := n :: !out
+      end in
+    Sequence.iter (Cfg.nodes cfg) ~f:visit;
+    !out
 
   (* Discover loop headers and initialize all candidate blocks in reverse postorder.
 
      A loop header is a block that dominates one of its back-edges.
   *)
   let find_headers t cfg dom =
-    Graphlib.reverse_postorder_traverse (module Cfg)
-      ~start:Label.pseudoentry cfg |> Seq.iter ~f:(fun l ->
-          if dom_backedge l cfg dom |> Seq.is_empty |> not then
-            LT.set t.blks ~key:l ~data:(new_loop t l))
+    reverse_postorder cfg |> List.iter ~f:(fun l ->
+        if dom_backedge l cfg dom |> Sequence.is_empty |> not then
+          LT.set t.blks ~key:l ~data:(new_loop t l))
 
   (* Check if loop `m` can be reparented under loop `n`. If so, return the root of `m`. *)
   let find_candidate_for_reparenting t n m =
@@ -146,7 +157,7 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
      all of its back-edges. *)
   let analyze_loop t cfg q n =
     Stack.until_empty q @@ fun l -> match visit_loop_block t n l with
-    | Some c -> Cfg.Node.preds c cfg |> Seq.iter ~f:(Stack.push q)
+    | Some c -> Cfg.Node.preds c cfg |> Sequence.iter ~f:(Stack.push q)
     | None -> ()
 
   let find_loop_blks t cfg dom =
@@ -155,7 +166,7 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
     Vec.iteri_rev t.loops ~f:(fun n lp ->
         (* Enqueue the predecessors that the loop header dominates. *)
         dom_backedge lp.header cfg dom |>
-        Seq.iter ~f:(Stack.push q);
+        Sequence.iter ~f:(Stack.push q);
         analyze_loop t cfg q n)
 
   let set_level q d k =
@@ -180,9 +191,9 @@ module Make(Cfg : Label.Graph_s) : Loops_intf.S with type cfg := Cfg.t = struct
     let t = init name in
     let dom = match dom with
       | Some dom -> dom
-      | None -> Semi_nca.compute (module Cfg) cfg Label.pseudoentry in
+      | None -> Semi_nca.compute cfg Label.pseudoentry in
     find_headers t cfg dom;
     find_loop_blks t cfg dom;
     assign_levels t;
     t
-end
+end : Loops_intf.S with type cfg := Cfg.t)

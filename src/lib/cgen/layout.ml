@@ -1,6 +1,4 @@
 open Core
-open Regular.Std
-open Graphlib.Std
 
 (* pre: `align` is a positive power of 2 *)
 let padding size align = ((size + align - 1) land -align) - size
@@ -134,7 +132,76 @@ module Make(F : Field) = struct
     | `union (name, align, fields) ->
       create_union gamma name align fields
 
-  module Typegraph = Graphlib.Make (String) (Unit)
+  module Typegraph = struct
+    type t = String.Set.t String.Map.t
+
+    let empty = String.Map.empty
+
+    let insert n (g : t) : t =
+      if Map.mem g n then g
+      else Map.set g ~key:n ~data:String.Set.empty
+
+    let add_edge ~src ~dst g : t =
+      let g = insert dst g in
+      Map.update g src ~f:(function
+          | None -> String.Set.singleton dst
+          | Some s -> Set.add s dst)
+
+    let succs n g = match Map.find g n with
+      | None -> String.Set.empty
+      | Some s -> s
+
+    let nodes g = Map.keys g
+
+    let reverse_postorder g =
+      let vis = String.Hash_set.create () in
+      let out = ref [] in
+      let rec visit n =
+        Hash_set.strict_add vis n |>
+        Or_error.iter ~f:(fun () ->
+            Set.iter (succs n g) ~f:visit;
+            out := n :: !out) in
+      List.iter (nodes g) ~f:visit;
+      !out
+
+    let strong_components g =
+      let index = ref 0 in
+      let idx = String.Table.create () in
+      let low = String.Table.create () in
+      let on_stack = String.Hash_set.create () in
+      let (.$[]) t k = Hashtbl.find_exn t k in
+      let (.$[]<-) t k v = Hashtbl.set t ~key:k ~data:v in
+      let (!!) x = Option.value_exn x in
+      let stack = Stack.create () in
+      let comps = ref [] in
+      let rec connect v =
+        idx.$[v] <- !index;
+        low.$[v] <- !index;
+        incr index;
+        Stack.push stack v;
+        Hash_set.add on_stack v;
+        Set.iter (succs v g) ~f:(fun w ->
+            match Hashtbl.find idx w with
+            | None ->
+              connect w;
+              Hashtbl.update low v ~f:(fun lv -> Int.min !!lv low.$[w])
+            | Some iw when Hash_set.mem on_stack w ->
+              Hashtbl.update low v ~f:(fun lv -> Int.min !!lv iw)
+            | Some _ -> ());
+        if low.$[v] = idx.$[v] then
+          let members = ref [] in
+          let continue = ref true in
+          while !continue do
+            let w = Stack.pop_exn stack in
+            Hash_set.remove on_stack w;
+            members := w :: !members;
+            if String.(w = v) then continue := false
+          done;
+          comps := !members :: !comps in
+      List.iter (nodes g) ~f:(fun v ->
+          if not (Hashtbl.mem idx v) then connect v);
+      !comps
+  end
 
   let build_tenv ts =
     List.fold ts ~init:String.Map.empty ~f:(fun tenv t ->
@@ -145,26 +212,24 @@ module Make(F : Field) = struct
 
   let build_typ_graph tenv ts =
     let add_fields name fields g =
-      let init = Typegraph.Node.insert name g in
+      let init = Typegraph.insert name g in
       List.fold fields ~init ~f:(fun g f ->
           List.fold (F.refs f) ~init:g ~f:(fun g n ->
-              if Map.mem tenv n
-              then Typegraph.Edge.(insert (create n name ()) g)
-              else invalid_argf "Undeclared type field :%s in type :%s"
+              if Map.mem tenv n then
+                Typegraph.add_edge ~src:n ~dst:name g
+              else
+                invalid_argf "Undeclared type field :%s in type :%s"
                   n name ())) in
     List.fold ts ~init:Typegraph.empty ~f:(fun g -> function
-        | `opaque (name, _, _) -> Typegraph.Node.insert name g
+        | `opaque (name, _, _) -> Typegraph.insert name g
         | `struct_ (name, _, fields)
         | `union (name, _, fields) -> add_fields name fields g)
 
   let check_typ_cycles g =
-    Graphlib.strong_components (module Typegraph) g |>
-    Partition.groups |> Seq.iter ~f:(fun grp ->
-        match Seq.to_list @@ Group.enum grp with
+    Typegraph.strong_components g |> List.iter ~f:(function
         | [] -> ()
         | [name] ->
-          let succs = Typegraph.Node.succs name g in
-          if Seq.mem succs name ~equal:String.equal
+          if Set.mem (Typegraph.succs name g) name
           then invalid_argf "Cycle detected in type :%s" name ()
         | xs ->
           invalid_argf "Cycle detected in types %s"
@@ -173,15 +238,15 @@ module Make(F : Field) = struct
 
   let layouts tenv g =
     let genv = String.Table.create () in
-    Graphlib.reverse_postorder_traverse (module Typegraph) g |>
-    Seq.map ~f:(fun name ->
+    Typegraph.reverse_postorder g |>
+    List.map ~f:(fun name ->
         let t = Map.find_exn tenv name in
         let gamma name = match Hashtbl.find genv name with
           | None -> invalid_argf "Type :%s not found in gamma" name ()
           | Some l -> l in
         let l = create gamma t in
         Hashtbl.set genv ~key:name ~data:l;
-        name, l) |> Seq.to_list
+        name, l)
 
   let of_types ts =
     let tenv = build_tenv ts in

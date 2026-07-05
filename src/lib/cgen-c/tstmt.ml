@@ -1,5 +1,7 @@
 open Core
 
+module Bv = Cgen_utils.Bv
+
 type localdecl = {
   name : string;
   ty   : Texpr.ty;
@@ -59,7 +61,7 @@ and t =
       body : t;
     }
   | Scase of {
-      value : Cgen.Bv.t;
+      value : Bv.t;
       body  : t;
     }
   | Sdefault of t
@@ -230,7 +232,7 @@ and pp_labeled ppf s =
     | Scase {value; body} ->
       let lbl =
         Format.asprintf "case %a:"
-          Z.pp_print (Cgen.Bv.to_bigint value) in
+          Z.pp_print (Bv.to_bigint value) in
       peel (lbl :: acc) body
     | Sdefault body -> peel ("default:" :: acc) body
     | Slabel {name; body} -> peel ((name ^ ":") :: acc) body

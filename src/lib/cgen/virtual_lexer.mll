@@ -193,11 +193,11 @@ rule token = parse
   | (posints as i) '_' (imm as t) {
     let i = Z.of_string i in
     let t = imm_of_char t in
-    INT (Bv.bigint_unsafe i, t)
+    INT (Cgen_utils.Bv.bigint_unsafe i, t)
   }
   | posints as i {
     let i = Z.of_string i in
-    NUM (Bv.bigint_unsafe i)
+    NUM (Cgen_utils.Bv.bigint_unsafe i)
   }
   | (flt as f) "_d" { DOUBLE (Float.of_string f) }
   | (flt as f) "_s" { SINGLE (Cgen_utils.Float32.of_string f) }

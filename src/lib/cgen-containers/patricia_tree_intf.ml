@@ -5,7 +5,6 @@
     a binary tree for integral types.
 *)
 
-open Regular.Std
 
 (** The interface required for keys of the tree, which are expected
     to be an integral/bitvector type. *)
@@ -186,7 +185,7 @@ module type S = sig
   val to_sequence :
     ?order:[`Increasing_key | `Decreasing_key] ->
     'a t ->
-    (key * 'a) seq
+    (key * 'a) Base.Sequence.t
 
   (** Given an equality predicate for elements of the tree, returns
       [true] if both trees are equal. *)
@@ -287,10 +286,10 @@ module type Set = sig
 
   (** Returns a sequence of each key in the set according to [order]. By
       default, it is [`Increasing_key]. *)
-  val to_sequence : ?order:[`Increasing | `Decreasing] -> t -> key seq
+  val to_sequence : ?order:[`Increasing | `Decreasing] -> t -> key Base.Sequence.t
 
   (** Returns a set from a sequence. *)
-  val of_sequence : key seq -> t
+  val of_sequence : key Base.Sequence.t -> t
 
   (** Computes the union of a list of sets. *)
   val union_list : t list -> t

@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 
 module Make_helpers(K : Patricia_tree_intf.Key) = struct
   open K
@@ -339,7 +338,7 @@ module Make(K : Patricia_tree_intf.Key) = struct
     | Duplicate -> None
 
   let to_sequence ?(order = `Increasing_key) =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     match order with
     | `Increasing_key ->
       let rec aux = function
@@ -590,7 +589,7 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
   let of_list = List.fold ~init:empty ~f:add
 
   let to_sequence ?(order = `Increasing) =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     match order with
     | `Increasing ->
       let rec aux = function
@@ -628,6 +627,6 @@ module Make_set(K : Patricia_tree_intf.Key) = struct
       | Tip _, Bin _ -> 1
       | Bin _, _ -> -1
 
-  let of_sequence = Seq.fold ~init:empty ~f:add
+  let of_sequence = Sequence.fold ~init:empty ~f:add
   let union_list = List.fold ~init:empty ~f:union
 end

@@ -1,5 +1,6 @@
 open Core
-open Regular.Std
+
+module Bv = Cgen_utils.Bv
 
 module type Pre = sig
   type local
@@ -18,7 +19,7 @@ module type Pre = sig
     val create : (Bv.t * local) list -> Type.imm -> t Or_error.t
 
     (** Returns the elements of the table. *)
-    val enum : t -> (Bv.t * local) seq
+    val enum : t -> (Bv.t * local) Sequence.t
 
     (** Returns the number of cases in the table. *)
     val length : t -> int

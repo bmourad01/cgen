@@ -1,1 +1,1 @@
-include Loops.Make(Virtual_cfg)
+include Loops

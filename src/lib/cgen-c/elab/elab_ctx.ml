@@ -74,7 +74,7 @@ module Make(A : Annotation) = struct
     | Some fc when not (String.is_empty fc.fname) -> Some fc.fname
     | _ -> None
 
-  module M = Cgen_utils.Sm.Make(struct
+  module M = Cgen_utils.Monads.Sm.Make(struct
       type state = t
       type error = Diagnostic.t
       let of_or_error = Diagnostic.of_error

@@ -7,7 +7,6 @@
 *)
 
 open Core
-open Regular.Std
 
 module VT = Var.Dense_table
 
@@ -40,7 +39,7 @@ module Make(C : Context_intf.S) = struct
         status.(i) <- `being_moved;
         let* () = dfs i dst in
         emit ~i dst src
-    and dfs i dst = Seq.range 0 n |> C.Seq.iter ~f:(fun j ->
+    and dfs i dst = Sequence.range 0 n |> C.Seq.iter ~f:(fun j ->
         (* Find a child whose `src` depends on `dst`. *)
         C.unless (i = j) @@ fun () ->
         match rewrite @@ snd moves.(j) with
@@ -57,7 +56,7 @@ module Make(C : Context_intf.S) = struct
             (* Any future mention of `v` will refer to `tmp`. *)
             VT.set subst ~key:v ~data:(`var tmp)) in
     (* Entry point: consider all pending moves. *)
-    Seq.range 0 n |> C.Seq.iter ~f:(fun i ->
+    Sequence.range 0 n |> C.Seq.iter ~f:(fun i ->
         match status.(i) with
         | `to_move -> move_one i
         | _ -> !!())

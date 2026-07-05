@@ -1,5 +1,6 @@
 open Core
 
+module Bv = Cgen_utils.Bv
 module IT = Cgen.Type
 module Ctx = Cgen.Context
 module S = Cgen.Structured
@@ -24,7 +25,7 @@ type t = {
   labels        : Cgen.Label.t E.map;
   slots         : V.slot list ref; (* lazily allocated slots *)
   brk           : brk;
-  case_labels   : (Cgen.Bv.t * Cgen.Label.t) list;
+  case_labels   : (Bv.t * Cgen.Label.t) list;
   default_label : Cgen.Label.t option;
   labaddrs      : string list;
 }
@@ -342,7 +343,7 @@ and lower_call c ~lval ~(fn : Texpr.t) ~args k =
 
 (* {1 Switch flattening} *)
 
-type sw_label = [`case of Cgen.Bv.t | `default]
+type sw_label = [`case of Bv.t | `default]
 type sw_body = [`stmt of Tstmt.t | `decl of Tstmt.localdecl]
 type sw_event = [sw_label | sw_body]
 
@@ -454,8 +455,8 @@ let rec lower_stmt c (s : Tstmt.t) = match s with
     let ty = E.scalar_imm c.e e.ty in
     let@ v = E.lower_rval c.e e in
     let@ idx = as_index b v in
-    let m = Cgen.Bv.modulus (Cgen.Type.sizeof_imm ty) in
-    let mki i = Cgen.Bv.(int i mod m) in
+    let m = Bv.modulus (Cgen.Type.sizeof_imm ty) in
+    let mki i = Bv.(int i mod m) in
     let cases =
       List.mapi c.labaddrs ~f:(fun i name ->
           let l = Smap.find_exn c.labels name in
@@ -476,7 +477,7 @@ let rec lower_stmt c (s : Tstmt.t) = match s with
      to these labels.
   *)
   | Scase {value; body} ->
-    begin match List.Assoc.find c.case_labels value ~equal:Cgen.Bv.equal with
+    begin match List.Assoc.find c.case_labels value ~equal:Bv.equal with
       | None -> Ctx.failf "lower: `case` label outside of a switch" ()
       | Some l ->
         let+ bs = lower_stmt c body in

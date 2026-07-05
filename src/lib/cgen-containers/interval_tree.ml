@@ -1,7 +1,6 @@
 (* Implementation borrowed from BAP *)
 
 open Core
-open Regular.Std
 open Interval_tree_intf
 
 module Make(I : Interval) = struct
@@ -93,7 +92,7 @@ module Make(I : Interval) = struct
     P.between ~low ~high p
 
   let lookup start a =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     let rec go = function
       | None -> return ()
       | Some t when P.(a < t.least || a > t.greatest) -> return ()
@@ -129,7 +128,7 @@ module Make(I : Interval) = struct
     P.(lower r < t.least || upper r > t.greatest)
 
   let query ~skip_if ~take_if start r =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     let rec go = function
       | None -> return ()
       | Some t when skip_if t r -> return ()
@@ -151,7 +150,7 @@ module Make(I : Interval) = struct
       ~take_if:has_intersections
 
   (* Direct short-circuiting existence test; avoids materializing a
-     `Seq.Generator` sequence just to check emptiness. *)
+     `Sequence.Generator` sequence just to check emptiness. *)
   let exists_query ~skip_if ~take_if start r =
     let rec go = function
       | None -> false
@@ -271,7 +270,7 @@ module Make(I : Interval) = struct
   let filter map ~f : _ t = filter_map map ~f:(fun x -> Option.some_if (f x) x)
 
   let to_sequence start =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     let rec go = function
       | None -> return ()
       | Some t ->

@@ -10,10 +10,10 @@
 *)
 
 open Core
-open Regular.Std
 open Virtual
 open Simplify_cfg_common
 
+module Bv = Cgen_utils.Bv
 module BR = Simplify_cfg_brsel
 module LT = Label.Dense_table
 
@@ -67,14 +67,14 @@ let insn_cost : Insn.op -> int = function
     -> 2
 
 let blk_cost b =
-  Blk.insns b |> Seq.map ~f:Insn.op |>
-  Seq.sum (module Int) ~f:insn_cost
+  Blk.insns b |> Sequence.map ~f:Insn.op |>
+  Sequence.sum (module Int) ~f:insn_cost
 
 let max_join_args = 2
 let max_pred_cost = 4
 
 let check_args tenv env fn b =
-  let args = Seq.to_list @@ Blk.args b in
+  let args = Sequence.to_list @@ Blk.args b in
   List.length args <= max_join_args && try
     List.iter args ~f:(fun x ->
         ignore @@ BR.basicty tenv env fn x);
@@ -109,7 +109,7 @@ let check_hdr env l s1 s2 = match env.?[l] with
       Label.((l1 = s1 && l2 = s2) || (l1 = s2 && l2 = s1))
     | _ -> false
 
-let plist env l = Seq.to_list @@ Cfg.Node.preds l env.cfg
+let plist env l = Sequence.to_list @@ Cfg.Node.preds l env.cfg
 
 let find_join tenv env fn =
   with_return @@ fun {return} ->
@@ -148,8 +148,8 @@ let canonicalize_diamond env p1 p2 hdr =
         `br (c, d2, d1)
       else assert false
     | _ -> assert false in
-  let i1 = Seq.append (Blk.insns b1) (Blk.insns b2) in
-  let h' = Blk.append_insns h @@ Seq.to_list i1 in
+  let i1 = Sequence.append (Blk.insns b1) (Blk.insns b2) in
+  let h' = Blk.append_insns h @@ Sequence.to_list i1 in
   let h' = Blk.with_ctrl h' ctrl in
   LT.set env.blks ~key:hdr ~data:h'
 
@@ -164,7 +164,7 @@ let canonicalize_triangle env key pred hdr =
         `br (c, d, `label (l2, a2))
       else assert false
     | _ -> assert false in
-  let h' = Blk.append_insns h @@ Seq.to_list @@ Blk.insns b in
+  let h' = Blk.append_insns h @@ Sequence.to_list @@ Blk.insns b in
   let h' = Blk.with_ctrl h' ctrl in
   LT.set env.blks ~key:hdr ~data:h'
 

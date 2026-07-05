@@ -15,7 +15,7 @@
 
     Raises [Invalid_argument] if [d] is [0] or [1].
 *)
-val unsigned : Bv.t -> Type.imm -> Bv.t * bool * int
+val unsigned : Cgen_utils.Bv.t -> Type.imm -> Cgen_utils.Bv.t * bool * int
 
 (** [signed d t] computes the magic constant for signed
     division/remainder for the divisor [d] of type [t].
@@ -25,7 +25,7 @@ val unsigned : Bv.t -> Type.imm -> Bv.t * bool * int
 
     Raises [Invalid_argument] if [d] is [-1], [0], or [1].
 *)
-val signed : Bv.t -> Type.imm -> Bv.t * int
+val signed : Cgen_utils.Bv.t -> Type.imm -> Cgen_utils.Bv.t * int
 
 (** [mulinv a t] is the multiplicative inverse of the odd value [a] modulo
     [2^W], where [W] is the bit-width of [t] (i.e. [a * mulinv a t = 1]
@@ -33,7 +33,7 @@ val signed : Bv.t -> Type.imm -> Bv.t * int
 
     The result is unspecified if [a] is even.
 *)
-val mulinv : Bv.t -> Type.imm -> Bv.t
+val mulinv : Cgen_utils.Bv.t -> Type.imm -> Cgen_utils.Bv.t
 
 (** The shape of a divisibility test [(x mod d) = 0] for a constant divisor
     [d], used to strength-reduce [(x % d) == 0] or [(x % d) != 0] away from
@@ -47,12 +47,12 @@ val mulinv : Bv.t -> Type.imm -> Bv.t
       folds in a bias so that a single unsigned comparison suffices.
 *)
 type divisible =
-  | Pow2_mask of Bv.t
+  | Pow2_mask of Cgen_utils.Bv.t
   | Test of {
-      factor : Bv.t;
-      bias   : Bv.t;
+      factor : Cgen_utils.Bv.t;
+      bias   : Cgen_utils.Bv.t;
       rot    : int;
-      limit  : Bv.t;
+      limit  : Cgen_utils.Bv.t;
     }
 
 (** [divisible ~signed d t] computes the parameters of the divisibility
@@ -61,4 +61,4 @@ type divisible =
 
     pre: [d] is not [0] or [1]; when [signed], [d] is also not [-1].
 *)
-val divisible : signed:bool -> Bv.t -> Type.imm -> divisible
+val divisible : signed:bool -> Cgen_utils.Bv.t -> Type.imm -> divisible

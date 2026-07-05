@@ -55,7 +55,7 @@ and node =
   | Eenum_const of {
       tag   : string;
       name  : string;
-      value : Cgen.Bv.t;
+      value : Cgen_utils.Bv.t;
     }
   (** An enum constant with its [int] value already resolved. *)
   | Eunary of {
@@ -137,7 +137,7 @@ val var : string -> ty:ty -> t
 val fun_ : string -> ty:ty -> t
 
 (** An enum constant with its resolved value. *)
-val enum_const : tag:string -> name:string -> value:Cgen.Bv.t -> ty:ty -> t
+val enum_const : tag:string -> name:string -> value:Cgen_utils.Bv.t -> ty:ty -> t
 
 (** A unary-operator application. *)
 val unary : op:uop -> arg:t -> ty:ty -> t
@@ -171,7 +171,9 @@ val compound : ty:ty -> init:init -> t
 (** An integer literal. *)
 val int_ :
   ?suffix:[`u | `l | `ul | `ll | `ull] ->
-  Cgen.Bv.t -> ty:ty -> t
+  Cgen_utils.Bv.t ->
+  ty:ty ->
+  t
 
 (** A string literal. *)
 val str : string -> ty:ty -> t

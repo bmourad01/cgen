@@ -1,5 +1,6 @@
 open Core
 
+module Bv = Cgen_utils.Bv
 module Float32 = Cgen_utils.Float32
 module Insn = Virtual_insn
 
@@ -114,7 +115,7 @@ let binop_int o a b = match (o : Insn.binop) with
   | `mulh (#Type.imm as t) -> Some (`int (mulh t a b, t))
   | `umulh (#Type.imm as t) -> Some (`int (umulh t a b, t))
   | `rem t when Bv.(b <> zero) ->
-    Some (`int (Bv.(srem' a b (immsz t)), t))
+    Some (`int (Bv.(signed_rem a b (immsz t)), t))
   | `sub (#Type.imm as t) -> Some (`int (Bv.((a - b) mod imod t), t))
   | `udiv t when Bv.(b <> zero) ->
     Some (`int (Bv.((a / b) mod imod t), t))

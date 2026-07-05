@@ -2,7 +2,6 @@
    branch. *)
 
 open Core
-open Regular.Std
 open Virtual
 
 open Context.Syntax
@@ -11,7 +10,7 @@ let go fn =
   let+ bs = Func.blks fn |> Context.Seq.filter_map ~f:(fun b ->
       match Blk.ctrl b with
       | `sw (t, i, d, tbl) when Ctrl.Table.length tbl = 1 ->
-        let v, k = Seq.hd_exn @@ Ctrl.Table.enum tbl in
+        let v, k = Sequence.hd_exn @@ Ctrl.Table.enum tbl in
         let+ c, cmp = Context.Virtual.binop
             (`eq (t :> Type.basic))
             (i :> operand)
@@ -23,5 +22,5 @@ let go fn =
               pp_operand (i :> operand)
               Var.pp c pp_dst (k :> dst) pp_dst (d :> dst));
         Some (Blk.with_ctrl b @@ `br (c, (k :> dst), (d :> dst)))
-      | _ -> !!None) >>| Seq.to_list in
+      | _ -> !!None) >>| Sequence.to_list in
   Func.update_blks_exn fn bs

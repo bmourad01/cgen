@@ -1,6 +1,7 @@
 open Core
 open Cgen
 
+module Bv = Cgen_utils.Bv
 module Q = Quickcheck
 module G = Q.Generator
 

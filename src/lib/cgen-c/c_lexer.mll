@@ -2,6 +2,8 @@
   open Lexing
   open C_parser
 
+  module Bv = Cgen_utils.Bv
+
   (* Raised on a lexing error; the parse driver turns it into a
      diagnostic carrying the current position. *)
   exception Lex_error of string
@@ -68,12 +70,12 @@
     let len = String.length num in
     let base, value =
       if len >= 2 && num.[0] = '0' && (num.[1] = 'x' || num.[1] = 'X')
-      then `hex, Cgen.Bv.of_string_base 16 (String.sub num 2 (len - 2))
+      then `hex, Bv.of_string_base 16 (String.sub num 2 (len - 2))
       else if len >= 2 && num.[0] = '0' && (num.[1] = 'b' || num.[1] = 'B')
-      then `bin, Cgen.Bv.of_string_base 2 (String.sub num 2 (len - 2))
+      then `bin, Bv.of_string_base 2 (String.sub num 2 (len - 2))
       else if len >= 2 && num.[0] = '0'
-      then `oct, Cgen.Bv.of_string_base 8 num
-      else `dec, Cgen.Bv.of_string_base 10 num in
+      then `oct, Bv.of_string_base 8 num
+      else `dec, Bv.of_string_base 10 num in
     Expr.Cint {value; suffix = int_suffix suf; base}
 }
 

@@ -1,5 +1,5 @@
 open Core
-open Regular.Std
+module Regular = Cgen_utils.Regular
 
 module T = struct
   type t = {
@@ -37,7 +37,5 @@ let pp ppf t =
 
 include Regular.Make(struct
     include T
-    let module_name = Some "Cgen.Virtual.Slot"
-    let version = "0.1"
     let pp = pp
   end)

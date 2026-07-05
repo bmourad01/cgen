@@ -2,6 +2,7 @@ open Core
 open Virtual
 open Scalars
 
+module Bv = Cgen_utils.Bv
 module Vset = Var.Tree_set
 
 let var_set_of_option = function

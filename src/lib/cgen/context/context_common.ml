@@ -1,5 +1,5 @@
 open Core
-open Regular.Std
+module Regular = Cgen_utils.Regular
 
 type state = {
   target    : Target.t;
@@ -12,8 +12,6 @@ module State = struct
   include Regular.Make(struct
       type t = state [@@deriving bin_io, compare, equal, hash, sexp]
       let pp ppf s = Format.fprintf ppf "%a" Sexp.pp_hum @@ sexp_of_state s
-      let version = "0.1"
-      let module_name = Some "Cgen.Context.State"
     end)
 end
 
@@ -24,7 +22,7 @@ type ctx = {
 
 let error_prefix = "Context error"
 
-module M = Cgen_utils.Sm.Make(struct
+module M = Cgen_utils.Monads.Sm.Make(struct
     type state = ctx
     type error = Error.t
     let of_or_error e = Error.tag e ~tag:error_prefix

@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 
 let bits_per_level = 5
 let branch_mask = (1 lsl bits_per_level) - 1
@@ -382,7 +381,7 @@ module Make(K : Champ_intf.Key) = struct
   let data t = fold t ~init:[] ~f:(fun acc v -> v :: acc)
 
   let to_sequence t =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     let rec go = function
       | Empty -> return ()
       | Collision {entries = a; _}

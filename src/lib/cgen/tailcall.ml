@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Virtual
 
 let is_tail_ctrl ~blk ~ctrl ~ret =
@@ -16,7 +15,7 @@ let is_tail_ctrl ~blk ~ctrl ~ret =
     | Some b' ->
       let vis' = Label.Tree_set.add vis dst in
       let ret' = Option.bind ret ~f:(fun xr ->
-          Blk.args b' |> Seq.findi ~f:(fun i _ ->
+          Blk.args b' |> Sequence.findi ~f:(fun i _ ->
               match List.nth jargs i with
               | Some `var v -> Var.equal v xr
               | _ -> false) |> Option.map ~f:snd) in

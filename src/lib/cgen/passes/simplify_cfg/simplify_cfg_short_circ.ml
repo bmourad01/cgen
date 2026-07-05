@@ -7,12 +7,11 @@
 *)
 
 open Core
-open Monads.Std
-open Regular.Std
 open Virtual
 open Simplify_cfg_common
 
-module O = Monad.Option
+module Bv = Cgen_utils.Bv
+module O = Cgen_utils.Monads.Option
 module LT = Label.Dense_table
 module VT = Var.Dense_table
 module Vset = Var.Tree_set
@@ -59,17 +58,17 @@ let try_cmp b =
 
 let argidx b c =
   Blk.args b |>
-  Seq.findi ~f:(fun _ -> Var.equal c) |>
+  Sequence.findi ~f:(fun _ -> Var.equal c) |>
   Option.map ~f:fst
 
-let params b = Blk.args b |> Seq.fold ~init:Vset.empty ~f:Vset.add
+let params b = Blk.args b |> Sequence.fold ~init:Vset.empty ~f:Vset.add
 
 let collect_cond_phi env =
   let used_across =
     LT.fold env.blks ~init:Vset.empty ~f:(fun ~key:_ ~data:b acc ->
         Vset.union acc (Vset.diff (Blk.free_vars b) (params b))) in
   let usable b =
-    not (Seq.exists (Blk.args b) ~f:(Vset.mem used_across)) in
+    not (Sequence.exists (Blk.args b) ~f:(Vset.mem used_across)) in
   LT.fold env.blks ~init:Label.Tree.empty
     ~f:(fun ~key ~data:b acc ->
         if not (usable b) then acc
@@ -102,7 +101,7 @@ let subst_target env l args (d : dst) : dst = match d with
   | `label (tl, targs) ->
     begin match LT.find env.blks l with
       | None -> d
-      | Some lb -> match List.zip (Seq.to_list (Blk.args lb)) args with
+      | Some lb -> match List.zip (Sequence.to_list (Blk.args lb)) args with
         | Unequal_lengths -> d
         | Ok pairs ->
           let m = Var.Map.of_alist_reduce pairs ~f:(fun _ b -> b) in

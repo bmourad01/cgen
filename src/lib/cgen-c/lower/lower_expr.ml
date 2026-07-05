@@ -1,10 +1,10 @@
 open Core
 
+module Bv = Cgen_utils.Bv
 module IT = Cgen.Type
 module Ctx = Cgen.Context
 module S = Cgen.Structured
 module V = Cgen.Virtual
-module Bv = Cgen.Bv
 module F32 = Cgen_utils.Float32
 module LB = Layout.Bitfield
 module Smap = Cgen_containers.Champ.Make(String)

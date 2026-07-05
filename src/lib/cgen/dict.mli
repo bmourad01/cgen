@@ -4,7 +4,6 @@
     in Binary Analysis Platform (BAP).
 *)
 
-open Regular.Std
 
 (** The interface required to lift a type to [value]. *)
 module type S = sig
@@ -93,10 +92,10 @@ val add : t -> 'a tag -> 'a -> [`Duplicate | `Ok of t]
 val change : t -> 'a tag -> f:('a option -> 'a option) -> t
 
 (** Returns the sequence of all [value] entries. *)
-val data : t -> value seq
+val data : t -> value Base.Sequence.t
 
 (** Returns the sequence of all [typeid]-[value] entries. *)
-val to_sequence : t -> (typeid * value) seq
+val to_sequence : t -> (typeid * value) Base.Sequence.t
 
 (** [filter t ~f] retains values [v] in [t] where [f v] returns [true]. *)
 val filter : t -> f:(value -> bool) -> t

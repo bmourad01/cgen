@@ -1,7 +1,3 @@
-open Core
-open Regular.Std
-open Cgen_containers
-
 include Virtual_resolver_impl.Make(struct
     type lhs = Var.Tree_set.t
     let iter_vars_of_lhs = Var.Tree_set.iter

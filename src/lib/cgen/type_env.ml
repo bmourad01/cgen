@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Virtual
 
 module Vtree = Var.Tree
@@ -61,7 +60,7 @@ let add_data_exn d env =
 let typeof_data name env = Smap.find env.denv name [@@inline]
 
 let datanames env =
-  Smap.to_sequence env.denv |> Seq.map ~f:fst
+  Smap.to_sequence env.denv |> Sequence.map ~f:fst
 [@@inline]
 
 let add_fn_exn fn env =
@@ -78,7 +77,7 @@ let add_fn_exn fn env =
 let typeof_fn name env = Smap.find env.fenv name [@@inline]
 
 let funcnames env =
-  Smap.to_sequence env.fenv |> Seq.map ~f:fst
+  Smap.to_sequence env.fenv |> Sequence.map ~f:fst
 [@@inline]
 
 let check_typ_align t name = match Type.named_align t with
@@ -100,7 +99,7 @@ let typeof_typ_exn name env = match Smap.find env.tenv name with
 [@@inline]
 
 let typenames env =
-  Smap.to_sequence env.tenv |> Seq.map ~f:fst
+  Smap.to_sequence env.tenv |> Sequence.map ~f:fst
 [@@inline]
 
 let typeof_var_exn fn v env =
@@ -167,7 +166,7 @@ let fold_label_dsts (c : ctrl) ~init ~f =
   | `br (_, t, e) -> do_dst (do_dst init t) e
   | `sw (_, _, d, tbl) ->
     let acc = do_dst init (d :> dst) in
-    Ctrl.Table.enum tbl |> Seq.fold ~init:acc
+    Ctrl.Table.enum tbl |> Sequence.fold ~init:acc
       ~f:(fun acc (_, l) -> do_dst acc (l :> dst))
 
 let collect_fn env fn =

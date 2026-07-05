@@ -19,9 +19,8 @@
 *)
 
 open Core
-open Regular.Std
 
-module Bv = Cgen.Bv
+module Bv = Cgen_utils.Bv
 module EC = Elab_conv
 module ET = Elab_type
 module TE = Type_env
@@ -145,9 +144,9 @@ let merge_sub a b = match a, b with
     (Sleaf _ | Soverlay _) -> b
 
 let sub_at xs i =
-  Ftree.enum xs |> Seq.filter_map ~f:(fun s ->
-      Option.some_if (s.sidx = i) s.sobj) |> Seq.next |> function
-  | Some (x, xs) -> Some (Seq.fold xs ~init:x ~f:merge_sub)
+  Ftree.enum xs |> Sequence.filter_map ~f:(fun s ->
+      Option.some_if (s.sidx = i) s.sobj) |> Sequence.next |> function
+  | Some (x, xs) -> Some (Sequence.fold xs ~init:x ~f:merge_sub)
   | None -> None
 
 (* Materialize the deferred tree into a positional `Texpr.init`.

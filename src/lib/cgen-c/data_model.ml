@@ -1,5 +1,7 @@
 open Core
 
+module Bv = Cgen_utils.Bv
+
 include Cgen_utils.C_data_model
 
 let size_t t = match model t with
@@ -30,5 +32,5 @@ let va_list t : Texpr.ty =
     else if align = long_long_bytes then Type.longlong_ ()
     else failwithf "va_list: no %d-byte integer type in this data model" align () in
   let count = size / align in
-  let sz = Texpr.int_ (Cgen.Bv.M64.int count) ~ty:(size_t t) in
+  let sz = Texpr.int_ (Bv.M64.int count) ~ty:(size_t t) in
   Type.array ~size:sz elem

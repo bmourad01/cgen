@@ -1,12 +1,10 @@
 open Core
-open Monads.Std
-open Regular.Std
 open Virtual
 open Scalars
 open Coalesce_slots_impl
 open Scalars_common
 
-module E = Monad.Result.Error
+module E = Cgen_utils.Monads.Error
 module V = Make(VL)
 module A = Make(AL)
 

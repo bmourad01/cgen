@@ -2,7 +2,6 @@
    by L. George and A. Appel *)
 
 open Core
-open Regular.Std
 open Pseudo
 open Cgen_containers
 
@@ -321,11 +320,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      test in that case. *)
   let extends_precolored t u v =
     let u_pre =
-      adjlist t u |> Bitset.enum |> Seq.map ~f:(alias t) |>
-      Seq.fold ~init:Int.Set.empty ~f:(fun s w ->
+      adjlist t u |> Bitset.enum |> Sequence.map ~f:(alias t) |>
+      Sequence.fold ~init:Int.Set.empty ~f:(fun s w ->
           if is_register t w then Set.add s w else s) in
-    adjlist t v |> Bitset.enum |> Seq.map ~f:(alias t) |>
-    Seq.exists ~f:(fun w -> is_register t w && not (Set.mem u_pre w))
+    adjlist t v |> Bitset.enum |> Sequence.map ~f:(alias t) |>
+    Sequence.exists ~f:(fun w -> is_register t w && not (Set.mem u_pre w))
 
   (* pre: wmoves is not empty *)
   let coalesce t =
@@ -451,12 +450,12 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let free_colors t id k =
     let cs = Bitset.init k in
     (* ∀ w ∈ adjList[n] *)
-    adjlist t id |> Bitset.enum |> Seq.map ~f:(alias t) |>
+    adjlist t id |> Bitset.enum |> Sequence.map ~f:(alias t) |>
     (* if GetAlias(w) ∈ (coloredNodes ∪ precolored) then *)
-    Seq.filter ~f:(fun w -> is_register t w || is_colored t w) |>
+    Sequence.filter ~f:(fun w -> is_register t w || is_colored t w) |>
     (* okColors := okColors ∖ {color[GetAlias(w)]} *)
-    Seq.filter_map ~f:(color t) |>
-    Seq.iter ~f:(Bitset.remove cs);
+    Sequence.filter_map ~f:(color t) |>
+    Sequence.iter ~f:(Bitset.remove cs);
     cs
 
   (* If a copy-related neighbor is already colored with a color in `cs`,
@@ -464,11 +463,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      neighbor's color we eliminate the copy instruction. *)
   let preferred_color t id cs =
     Wmoves.moves t id |> Lset.to_sequence |>
-    Seq.filter_map ~f:(LT.find t.copies) |>
-    Seq.filter_map ~f:(fun c ->
+    Sequence.filter_map ~f:(LT.find t.copies) |>
+    Sequence.filter_map ~f:(fun c ->
         let other = if c.dst = id then c.src else c.dst in
         color t (alias t other)) |>
-    Seq.find ~f:(Bitset.mem cs)
+    Sequence.find ~f:(Bitset.mem cs)
 
   let assign_colors t =
     (* while SelectStack is not empty
@@ -534,15 +533,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         RT.find t.slots partner |> Option.bind ~f:(fun slot ->
             Option.some_if (not (has_edge t id t.$[slot])) slot) in
     phi_pair_partners t rv |> Set.to_sequence |>
-    Seq.filter_map ~f:try_slot |> Seq.hd |> function
+    Sequence.filter_map ~f:try_slot |> Sequence.hd |> function
     | Some _ as phi -> phi
     | None ->
       (* Same-round fallback: check current-round copies. *)
       Wmoves.moves t id |> Lset.to_sequence |>
-      Seq.filter_map ~f:(LT.find t.copies) |>
-      Seq.filter_map ~f:(fun c ->
+      Sequence.filter_map ~f:(LT.find t.copies) |>
+      Sequence.filter_map ~f:(fun c ->
           let other = if c.dst = id then c.src else c.dst in
-          try_slot t.![other]) |> Seq.hd
+          try_slot t.![other]) |> Sequence.hd
 
   (* The rematerializable def recorded for node `id`, but only if `id` has a
      single definition. A value with multiple defs must NOT be recomputed from
@@ -629,7 +628,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Set.union use def |> Set.to_sequence |>
       (* Resolve through `alias`, since a variable coalesced into a spilled
          representative shares the representative's slot (see `spilled_slot`). *)
-      Seq.filter ~f:(fun rv -> Bitset.mem t.spilled (alias t t.$[rv])) |>
+      Sequence.filter ~f:(fun rv -> Bitset.mem t.spilled (alias t t.$[rv])) |>
       C.Seq.fold ~init ~f:(fun (f, s, m, rl) v ->
           let aid = alias t t.$[v] in
           let rep = t.![aid] in
@@ -726,7 +725,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let rewrite_function t =
     let ivec = Vec.create () in
     let blks = LT.create ~capacity:(Func.num_blks t.fn) () in
-    Func.blks t.fn |> Seq.iter ~f:(fun b ->
+    Func.blks t.fn |> Sequence.iter ~f:(fun b ->
         LT.set blks ~key:(Blk.label b) ~data:b);
     let+ () =
       Semi_nca.Tree.preorder t.dom |>

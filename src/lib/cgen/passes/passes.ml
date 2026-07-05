@@ -1,4 +1,3 @@
-open Regular.Std
 open Virtual
 open Context.Syntax
 
@@ -22,25 +21,25 @@ let destructure m =
     Structured.Module.funs m |>
     Context.Seq.map ~f:Destructure.run in
   Module.create ()
-    ~funs:(Seq.to_list funs)
+    ~funs:(Base.Sequence.to_list funs)
     ~dict:(Structured.Module.dict m)
-    ~typs:(Structured.Module.typs m |> Seq.to_list)
-    ~data:(Structured.Module.data m |> Seq.to_list)
+    ~typs:(Structured.Module.typs m |> Base.Sequence.to_list)
+    ~data:(Structured.Module.data m |> Base.Sequence.to_list)
     ~name:(Structured.Module.name m)
 
 let restructure ~tenv m =
   let+ funs =
     Module.funs m |>
     Context.Seq.map ~f:(Restructure.run ~tenv) >>|
-    Seq.to_list in
+    Base.Sequence.to_list in
   Structured.Module.create () ~funs
     ~dict:(Module.dict m)
-    ~typs:(Module.typs m |> Seq.to_list)
-    ~data:(Module.data m |> Seq.to_list)
+    ~typs:(Module.typs m |> Base.Sequence.to_list)
+    ~data:(Module.data m |> Base.Sequence.to_list)
     ~name:(Module.name m)
 
 let retype tenv m =
-  Module.funs m |> Seq.to_list |> Type_env.collect_fns tenv
+  Module.funs m |> Base.Sequence.to_list |> Type_env.collect_fns tenv
 
 let typecheck ?(invariants = false) m =
   Context.when_ invariants @@ fun () ->
@@ -84,12 +83,12 @@ let optimize ?(invariants = false) tenv m =
 
 let to_abi ?(invariants = false) tenv m =
   let+ funs =
-    Module.funs m |> Seq.to_list |>
+    Module.funs m |> Base.Sequence.to_list |>
     Context.List.map ~f:(Lower_abi.run ~invariants tenv) in
   Abi.Module.create () ~funs
     ~name:(Module.name m)
     ~dict:(Module.dict m)
-    ~data:(Module.data m |> Seq.to_list)
+    ~data:(Module.data m |> Base.Sequence.to_list)
 
 let optimize_abi ?(invariants = false) m =
   let*? m = Abi.Module.map_funs_err m ~f:Coalesce_slots.run_abi in
@@ -124,10 +123,10 @@ let isel
   let+ funs =
     Abi.Module.funs m |>
     Context.Seq.map ~f:Isel.run >>|
-    Seq.to_list in
+    Base.Sequence.to_list in
   Pseudo.Module.create ()
     ~dict:(Abi.Module.dict m)
-    ~data:(Abi.Module.data m |> Seq.to_list)
+    ~data:(Abi.Module.data m |> Base.Sequence.to_list)
     ~name:(Abi.Module.name m) ~funs
 
 let regalloc
@@ -140,7 +139,7 @@ let regalloc
   let+ funs =
     Pseudo.Module.funs m |>
     Context.Seq.map ~f:(RA.run ~invariants) >>|
-    Seq.to_list in
+    Base.Sequence.to_list in
   Pseudo.Module.with_funs m funs
 
 let to_asm ppf m =

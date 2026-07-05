@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Virtual
 
 module Vtree = Var.Tree
@@ -29,7 +28,7 @@ module type L = sig
     val name : t -> string
     val dict : t -> Dict.t
     val with_dict : t -> Dict.t -> t
-    val slots : ?rev:bool -> t -> slot seq
+    val slots : ?rev:bool -> t -> slot Sequence.t
     val remove_slot : t -> Var.t -> t
     val map_blks : t -> f:(Blk.t -> Blk.t) -> t
   end
@@ -52,8 +51,8 @@ module Make(M : L) = struct
 
   let init fn =
     let slots =
-      Func.slots fn |> Seq.map ~f:Slot.var |>
-      Seq.to_list |> Var.Tree_set.of_list in
+      Func.slots fn |> Sequence.map ~f:Slot.var |>
+      Sequence.to_list |> Var.Tree_set.of_list in
     let uses = Resolver.uses_of fn slots in
     let ops = LT.create () in
     {fn; uses; ops}
@@ -117,7 +116,7 @@ module Make(M : L) = struct
 
   let collect env ~undef =
     Func.slots env.fn |>
-    Seq.fold ~init:Vtree.empty ~f:(fun acc s ->
+    Sequence.fold ~init:Vtree.empty ~f:(fun acc s ->
         match Qualify.go env s ~undef with
         | Bad ->
           Logs.debug (fun m ->

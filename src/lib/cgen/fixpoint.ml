@@ -1,7 +1,7 @@
 open Core
-open Regular.Std
 open Cgen_containers
 
+module G = Label.Graph
 module Ltree = Label.Tree
 module Tbl = Label.Dense_table
 
@@ -44,7 +44,7 @@ let components ~adj ~start ~n g =
     Vec.push stk d;
     Vec.push work {
       pre = d;
-      adj = Seq.to_list (adj l g);
+      adj = Sequence.to_list (adj l g);
     } in
   (* Construct the component *)
   let construct d =
@@ -84,9 +84,9 @@ let components ~adj ~start ~n g =
   Vec.rev_inplace sccs;
   nodes, rnodes, sccs
 
-let run (type g) (module G : Label.Graph_s with type t = g)
+let run
     ?(rev = false) ?step ?edge
-    ~start ~(init : _ Solution.t) ~equal ~merge ~f g =
+    ~start ~(init : _ Solution.t) ~equal ~merge ~f (g : G.t) =
   if not (G.Node.mem start g) then
     invalid_argf "Fixpoint.run: start node %a is not in the graph"
       Label.pps start ();
@@ -96,8 +96,8 @@ let run (type g) (module G : Label.Graph_s with type t = g)
   let len = Vec.length nodes in
   let succs = Array.init len ~f:(fun i ->
       adj nodes.![i] g |>
-      Seq.filter_map ~f:(Tbl.find rnodes) |>
-      Seq.to_list) in
+      Sequence.filter_map ~f:(Tbl.find rnodes) |>
+      Sequence.to_list) in
   (* Working approximation and per-node visit counts. *)
   let approx = Array.create ~len init.def in
   Ltree.iter init.map ~f:(fun ~key ~data ->

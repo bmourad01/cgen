@@ -1,7 +1,7 @@
 open Core
-open Regular.Std
 open Cgen_containers
 
+module G = Label.Graph
 module Lset = Label.Tree_set
 module LT = Label.Dense_table
 
@@ -26,8 +26,8 @@ module Tree = struct
   let rpo t n = LT.find (Lazy.force t.rpo) n
 
   let children t n = match LT.find (Lazy.force t.children) n with
-    | Some cs -> Seq.of_list cs
-    | None -> Seq.empty
+    | Some cs -> Sequence.of_list cs
+    | None -> Sequence.empty
 
   let mem t n = Label.(n = t.root) || LT.mem t.parent n
 
@@ -50,9 +50,9 @@ module Tree = struct
   let dominates t a b = Label.(a = b) || is_descendant_of t ~parent:a b
 
   let descendants t n =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     let rec walk u =
-      children t u |> Seq.fold
+      children t u |> Sequence.fold
         ~init:(return ())
         ~f:(fun acc c ->
             acc >>= fun () ->
@@ -61,18 +61,18 @@ module Tree = struct
     run @@ walk n
 
   let postorder t =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     let rec gen u =
-      let rec walk s = match Seq.next s with
+      let rec walk s = match Sequence.next s with
         | Some (c, s) -> gen c >>= fun () -> walk s
         | None -> yield u in
       walk @@ children t u in
     run @@ gen t.root
 
-  let preorder t = Seq.shift_right (descendants t t.root) t.root
+  let preorder t = Sequence.shift_right (descendants t t.root) t.root
 
   let ancestors t n =
-    let open Seq.Generator in
+    let open Sequence.Generator in
     let rec walk n = match LT.find t.parent n with
       | None -> return ()
       | Some p -> yield p >>= fun () -> walk p in
@@ -132,7 +132,7 @@ end
 
    The Cooper-Harvey-Kennedy algorithm is even simpler, but has a
    worst-case time time complexity of O(VE). This is the implementation
-   used in [Graphlib].
+   used in dominator-tree construction.
 
    Another benefit of this algorithm is that it becomes easier to
    engineer an "incremental" version for when the graph is updated,
@@ -184,9 +184,9 @@ module Impl = struct
       Vec.push preord @@ create_node p n u;
       (* Explore the children according to the ordering
          prescribed by `g`. *)
-      dir u g |> Seq.filter ~f:(fun v ->
+      dir u g |> Sequence.filter ~f:(fun v ->
           not @@ LT.mem nums v) |>
-      Seq.to_list_rev |> List.iter ~f:(fun v ->
+      Sequence.to_list_rev |> List.iter ~f:(fun v ->
           Stack.push q @@ Enter (v, n))
 
   (* Compute the path containing v's ancestors. *)
@@ -221,9 +221,9 @@ module Impl = struct
       let vn = preord.!(v) in
       let s =
         dir vn.self g |>
-        Seq.filter_map ~f:(LT.find nums) |>
-        Seq.map ~f:(eval ~stop:(v + 1) path preord) |>
-        Seq.fold ~init:vn.ans ~f:min in
+        Sequence.filter_map ~f:(LT.find nums) |>
+        Sequence.map ~f:(eval ~stop:(v + 1) path preord) |>
+        Sequence.fold ~init:vn.ans ~f:min in
       vn.best <- s;
       vn.sdom <- s;
     done
@@ -239,9 +239,7 @@ module Impl = struct
     done
 end
 
-let compute
-    (type g)
-    (module G : Label.Graph_s with type t = g) ?(rev = false) g entry =
+let compute ?(rev = false) (g : G.t) entry =
   let dfs_dir = if rev then G.Node.preds else G.Node.succs in
   let sdom_dir = if rev then G.Node.succs else G.Node.preds in
   let capacity = G.number_of_nodes g in
@@ -267,7 +265,7 @@ let compute
   (* Children of each node, sorted by RPO. *)
   let children = lazy begin
     let t = LT.create ~capacity () in
-    G.nodes g |> Seq.iter ~f:(fun u ->
+    G.nodes g |> Sequence.iter ~f:(fun u ->
         LT.find parent u |> Option.iter ~f:(fun v ->
             LT.add_multi t ~key:v ~data:u));
     let rpo = Lazy.force rpo in
@@ -290,9 +288,7 @@ let compute
 
 (* Based on the paper "Efficiently Computing Static Single Assignment
    Form and the Control Dependence Graph" by Cytron et al. *)
-let frontier
-    (type g)
-    (module G : Label.Graph_s with type t = g) g tree =
+let frontier (g : G.t) tree =
   let t = LT.create ~capacity:(G.number_of_nodes g) () in
   let add u v = match LT.find tree.parent v with
     | Some p when Label.(p <> u) ->
@@ -304,10 +300,10 @@ let frontier
   let dir = if tree.rev
     then fun e -> G.Edge.(dst e, src e)
     else fun e -> G.Edge.(src e, dst e) in
-  G.edges g |> Seq.map ~f:dir |> Seq.iter ~f:(Tuple2.uncurry add);
+  G.edges g |> Sequence.map ~f:dir |> Sequence.iter ~f:(Tuple2.uncurry add);
   (* Compute DF, in a bottom-up traversal of the tree. *)
-  Tree.postorder tree |> Seq.iter ~f:(fun u ->
+  Tree.postorder tree |> Sequence.iter ~f:(fun u ->
       Tree.children tree u |>
-      Seq.filter_map ~f:(LT.find t) |>
-      Seq.iter ~f:(fun s -> Lset.iter s ~f:(add u)));
+      Sequence.filter_map ~f:(LT.find t) |>
+      Sequence.iter ~f:(fun s -> Lset.iter s ~f:(add u)));
   t

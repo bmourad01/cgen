@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 
 module W = Int
 
@@ -167,7 +166,7 @@ let pop_max_exn t =
   i * bpw + b
 
 let enum ?(rev = false) t =
-  let open Seq.Generator in
+  let open Sequence.Generator in
   let len = t.len in
   let rec fwd i w =
     if not (is_wzero w) then
@@ -268,7 +267,7 @@ let compare a b =
     go 0
   | c -> c
 
-let sexp_of_t t = Seq.to_list (enum t) |> [%sexp_of: int list]
+let sexp_of_t t = Sequence.to_list (enum t) |> [%sexp_of: int list]
 
 let t_of_sexp sexp =
   let t = create () in

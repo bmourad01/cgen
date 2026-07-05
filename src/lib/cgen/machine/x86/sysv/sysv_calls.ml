@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Virtual
 open Sysv_common
 open Cgen_containers
@@ -239,8 +238,8 @@ module Make(Context : Context_intf.S_virtual) = struct
 
   let is_tail env b key ret =
     (* The call must be the last instruction in the block. *)
-    Blk.insns b ~rev:true |> Seq.map ~f:Insn.label |>
-    Seq.hd |> Option.exists ~f:(Label.equal key) &&
+    Blk.insns b ~rev:true |> Sequence.map ~f:Insn.label |>
+    Sequence.hd |> Option.exists ~f:(Label.equal key) &&
     Tailcall.is_tail_ctrl
       ~blk:(Label.Tree.find env.blks)
       ~ctrl:(Blk.ctrl b)

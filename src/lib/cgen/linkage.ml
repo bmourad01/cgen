@@ -1,5 +1,5 @@
 open Core
-open Regular.Std
+module Regular = Cgen_utils.Regular
 
 module T = struct
   type t = {
@@ -34,8 +34,5 @@ let default_static = {
 
 include Regular.Make(struct
     include T
-
     let pp = pp
-    let version = "0.1"
-    let module_name = Some "Cgen.Linkage"
   end)

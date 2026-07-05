@@ -4,7 +4,6 @@
     the dominator tree of a graph.
 *)
 
-open Regular.Std
 
 (** The dominator tree *)
 type tree
@@ -61,14 +60,14 @@ module Tree : sig
   val rpo_exn : t -> Label.t -> int
 
   (** Immediate children of a node, in reverse postorder. *)
-  val children : t -> Label.t -> Label.t seq
+  val children : t -> Label.t -> Label.t Base.Sequence.t
 
   (** All strict descendants of a node in preorder (excludes the node
       itself). *)
-  val descendants : t -> Label.t -> Label.t seq
+  val descendants : t -> Label.t -> Label.t Base.Sequence.t
 
   (** All ancestors of a node, in ascending order. *)
-  val ancestors : t -> Label.t -> Label.t seq
+  val ancestors : t -> Label.t -> Label.t Base.Sequence.t
 
   (** [is_descendant_of t ~parent n] returns [true] if [n]
       is a descendant of [parent] in [t].
@@ -83,11 +82,11 @@ module Tree : sig
 
   (** Returns a postorder traversal of the tree, starting from
       the root. *)
-  val postorder : t -> Label.t seq
+  val postorder : t -> Label.t Base.Sequence.t
 
   (** Returns a preorder traversal of the tree, starting from
       the root. *)
-  val preorder : t -> Label.t seq
+  val preorder : t -> Label.t Base.Sequence.t
 
   (** Returns the lowest common ancestor (LCA) of two nodes
       in the tree. *)
@@ -114,23 +113,21 @@ module Frontier : sig
   val mem : t -> Label.t -> Label.t -> bool
 end
 
-(** [compute (module G) ?rev g entry] computes the dominator tree
+(** [compute ?rev g entry] computes the dominator tree
     for [g], starting at the node [entry].
 
     If [rev] is true, then the resulting tree corresponds to the
     post-dominance relation.
 *)
 val compute :
-  (module Label.Graph_s with type t = 'g) ->
   ?rev:bool ->
-  'g ->
+  Label.Graph.t ->
   Label.t ->
   tree
 
 (** Computes the dominance frontier from an existing dominator
     tree. *)
 val frontier :
-  (module Label.Graph_s with type t = 'g) ->
-  'g ->
+  Label.Graph.t ->
   tree ->
   frontier

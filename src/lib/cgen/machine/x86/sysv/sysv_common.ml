@@ -1,8 +1,8 @@
 open Core
-open Regular.Std
 open Virtual
 open Cgen_containers
 
+module Bv = Cgen_utils.Bv
 module LT = Label.Dense_table
 module VT = Var.Dense_table
 module LS = Label.Dense_set
@@ -228,7 +228,7 @@ type env = {
    by at least an eight-byte boundary, and that their sizes are divisible
    by eight as well. *)
 let align_slots fn =
-  let ss = Func.slots fn |> Seq.to_list in
+  let ss = Func.slots fn |> Sequence.to_list in
   let fn = List.fold ss ~init:fn ~f:(fun fn s ->
       Func.remove_slot fn @@ Slot.var s) in
   List.map ss ~f:(fun s ->

@@ -14,6 +14,7 @@
 open Core
 open Elab_common
 
+module Bv = Cgen_utils.Bv
 module Ftree = Cgen_containers.Ftree
 module EC = Elab_conv
 module TE = Type_env
@@ -90,7 +91,7 @@ module Make(A : Annotation) = struct
     x
 
   (* Elaborate `e` as a file-scope integer constant expression. *)
-  let eval_const_int (e : A.ann Expr.t) : Cgen.Bv.t M.m =
+  let eval_const_int (e : A.ann Expr.t) : Bv.t M.m =
     let@ () = with_scratch_fnctx in
     let slot = ref None in
     let* _ = E.elab_rval e @@ fun rv ->
@@ -188,7 +189,7 @@ module Make(A : Annotation) = struct
       | None -> !!None
       | Some e ->
         let+ v = eval_const_int e in
-        Some (Cgen.Bv.to_int v) in
+        Some (Bv.to_int v) in
     Tdecl.field ?bits:fbits ~name:f.fname ~ty:fty ()
 
   (* Elaborate the enumerators of an `enum` (§6.7.2.2), threading the
@@ -201,7 +202,7 @@ module Make(A : Annotation) = struct
           | None -> !!next
           | Some e ->
             let+ v = eval_const_int e in
-            Cgen.Bv.to_int64 v in
+            Bv.to_int64 v in
         let* () = Ctx.add_enum_element ~name:it.einame ~tag ~value in
         go (Int64.succ value) ((it.einame, value) :: acc) rest in
     go 0L [] items

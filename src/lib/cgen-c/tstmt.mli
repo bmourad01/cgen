@@ -78,7 +78,7 @@ and t =
       body : t;
     } (** A [switch] statement. *)
   | Scase of {
-      value : Cgen.Bv.t;
+      value : Cgen_utils.Bv.t;
       body  : t;
     } (** A [case] label and the statement it labels. The case
           value is the resolved integer constant. *)
@@ -181,7 +181,7 @@ val for_ :
 val switch : expr:Texpr.t -> body:t -> t
 
 (** A [case] label and the statement it labels. *)
-val case : value:Cgen.Bv.t -> body:t -> t
+val case : value:Cgen_utils.Bv.t -> body:t -> t
 
 (** A [default] label and the statement it labels. *)
 val default : t -> t

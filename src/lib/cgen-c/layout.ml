@@ -1,10 +1,9 @@
 open Core
-open Monads.Std
-open Regular.Std
 open Type
 
+module Bv = Cgen_utils.Bv
 module Vec = Cgen_containers.Vec
-module E = Monad.Result.Error
+module E = Cgen_utils.Monads.Error
 module T = Cgen.Type
 module TE = Type_env
 module D = Data_model
@@ -55,7 +54,7 @@ let basic_of_base dm = function
 let pointer_basic dm = basic_of_bits (D.pointer_bits dm) [@@ocaml.warning "-32"]
 
 let array_count e = match e.Texpr.node with
-  | Texpr.Econst (Expr.Cint {value; _}) -> Cgen.Bv.to_int value
+  | Texpr.Econst (Expr.Cint {value; _}) -> Bv.to_int value
   | _ -> failwith "non-constant array size"
 
 open E.Let
@@ -98,7 +97,7 @@ let round_up n a = ((n + a - 1) / a) * a
 let access_unit ~storage ~offset ~width ~ub ~is_member_byte =
   let x_lo = (storage * 8 + offset) / 8 in
   let x_hi = (storage * 8 + offset + width - 1) / 8 in
-  let touches lo hi = Seq.exists (Seq.range lo hi) ~f:is_member_byte in
+  let touches lo hi = Sequence.exists (Sequence.range lo hi) ~f:is_member_byte in
   if not (touches storage (storage + ub)) then storage, ub else
     let try_w w =
       let a = x_lo / w * w in
@@ -226,10 +225,10 @@ let put_compound t ~name ~kind fields =
 
 let create dmodel tenv =
   let compounds =
-    TE.tags tenv |> Seq.filter_map ~f:(function
+    TE.tags tenv |> Sequence.filter_map ~f:(function
         | name, TE.Tcompound {kind; fields = (_ :: _ as fields)} ->
           Some (name, kind, fields)
-        | _ -> None) |> Seq.to_list in
+        | _ -> None) |> Sequence.to_list in
   let* () =
     List.find_a_dup compounds
       ~compare:(fun (a, _, _) (b, _, _) ->
@@ -258,7 +257,7 @@ let create dmodel tenv =
   List.iter compounds ~f:(fun (n, _, _) -> visit n);
   let+ t =
     Vec.to_sequence_mutable order |>
-    Seq.filter_map ~f:(fun n ->
+    Sequence.filter_map ~f:(fun n ->
         Smap.find defs n |>
         Option.map ~f:(fun (k, f) -> n, k, f)) |>
     E.Seq.fold

@@ -1,7 +1,7 @@
 open Core
-open Cgen
 
-module I = Bv_interval
+module I = Cgen_utils.Bv_interval
+module Bv = Cgen_utils.Bv
 module Q = Quickcheck
 module G = Q.Generator
 
@@ -208,7 +208,7 @@ let srem_opt size a b =
     let m = Bv.modulus size in
     let a = Bv.(int a mod m) in
     let b = Bv.(int b mod m) in
-    let r = Bv.srem' a b size in
+    let r = Bv.signed_rem a b size in
     Some (Bv.to_int r)
 
 let logand_mod size a b = (a land b) land mask_of_size size

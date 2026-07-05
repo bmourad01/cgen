@@ -1,7 +1,6 @@
 (* Adapted from BAP. *)
 
 open Core
-open Regular.Std
 
 module type S = sig
   type t [@@deriving bin_io, compare, sexp]
@@ -131,11 +130,11 @@ let find d {key} = Univ_map.find d key
 let find_exn d {key} = Univ_map.find_exn d key
 let add d {key} x = Univ_map.add d ~key ~data:x
 let change d {key} ~f = Univ_map.change d key ~f
-let data d = Univ_map.to_alist d |> Seq.of_list
-let to_sequence d = data d |> Seq.map ~f:(fun v -> typeid v, v)
+let data d = Univ_map.to_alist d |> Sequence.of_list
+let to_sequence d = data d |> Sequence.map ~f:(fun v -> typeid v, v)
 
 let filter t ~f =
-  data t |> Seq.fold ~init:empty ~f:(fun d (Value.T (k, x) as v) ->
+  data t |> Sequence.fold ~init:empty ~f:(fun d (Value.T (k, x) as v) ->
       if f v then Univ_map.set d ~key:k ~data:x else d)
 
 let compare x y =

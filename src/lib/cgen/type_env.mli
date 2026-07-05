@@ -7,7 +7,6 @@
 *)
 
 open Core
-open Regular.Std
 open Virtual
 
 (** The typing environment. *)
@@ -29,7 +28,7 @@ val target : t -> Target.t
 val typeof_data : string -> t -> Type.named option
 
 (** The defined data symbols in the module. *)
-val datanames : t -> string seq
+val datanames : t -> string Sequence.t
 
 (** The prototype associated with a function symbol.
 
@@ -39,13 +38,13 @@ val datanames : t -> string seq
 val typeof_fn : string -> t -> Type.proto option
 
 (** The defined function symbols in the module. *)
-val funcnames : t -> string seq
+val funcnames : t -> string Sequence.t
 
 (** The compound type associated with a type name. *)
 val typeof_typ : string -> t -> Type.named Or_error.t
 
 (** The defined type names in the module. *)
-val typenames : t -> string seq
+val typenames : t -> string Sequence.t
 
 (** The type of a variable in a given function. *)
 val typeof_var : func -> Var.t -> t -> Type.t Or_error.t

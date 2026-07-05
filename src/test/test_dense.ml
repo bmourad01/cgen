@@ -78,7 +78,7 @@ let incr = Option.value_map ~default:0 ~f:succ
 let apply_ref r = function
   | Set (k, v) -> Map.set r ~key:k ~data:v
   | Update k -> Map.update r k ~f:incr
-  | Find_or_add (k, v) when Map.mem r k -> r
+  | Find_or_add (k, _) when Map.mem r k -> r
   | Find_or_add (k, v) -> Map.set r ~key:k ~data:v
   | Change_remove k | Remove k -> Map.remove r k
 

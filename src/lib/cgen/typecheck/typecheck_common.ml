@@ -1,6 +1,7 @@
 open Core
 open Virtual
 
+module Bv = Cgen_utils.Bv
 module Env = Type_env
 
 let unify_fail t t' v fn =
@@ -16,7 +17,7 @@ type ctx = {
   ins : Label.t option;
 }
 
-module M = Cgen_utils.Sm.Make(struct
+module M = Cgen_utils.Monads.Sm.Make(struct
     type state = ctx
     type error = Error.t
     let of_or_error e = Error.tag e ~tag:"Type error"

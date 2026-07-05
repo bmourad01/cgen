@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Cgen_containers
 
 module Slot = Virtual.Slot
@@ -152,9 +151,9 @@ let update_blks t blks =
   | Invalid_argument msg -> Or_error.error_string msg
 
 let collect_afters fn =
-  let rec aux acc s = match Seq.next s with
+  let rec aux acc s = match Sequence.next s with
     | None -> acc
-    | Some (x, xs) -> match Seq.next xs with
+    | Some (x, xs) -> match Sequence.next xs with
       | None -> acc
       | Some (y, _) ->
         let key = x.Pseudo_blk.label and data = y.label in

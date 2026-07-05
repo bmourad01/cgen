@@ -1,6 +1,6 @@
 open Core
 
-module Bv = Cgen.Bv
+module Bv = Cgen_utils.Bv
 
 let (let@) f x = f x
 

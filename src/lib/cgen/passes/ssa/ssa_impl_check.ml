@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Ssa_impl_common
 
 (* Verify that the function does not violate the SSA invariants. *)
@@ -31,11 +30,11 @@ end = struct
   let go dom fn = match Resolver.create fn with
     | Error err -> failwith @@ Error.to_string_hum err
     | Ok r -> Func.iter_reachable fn ~f:(fun b ->
-        Blk.args b |> Seq.iter ~f:(fun x ->
+        Blk.args b |> Sequence.iter ~f:(fun x ->
             Resolver.uses r x |> List.iter ~f:(function
                 | `insn (_, b', _, _) | `blk b' ->
                   check_dom dom fn b b'));
-        Blk.insns b |> Seq.iteri ~f:(fun ord i ->
+        Blk.insns b |> Sequence.iteri ~f:(fun ord i ->
             Insn.lhs i |> List.iter ~f:(fun x ->
                 Resolver.uses r x |> List.iter ~f:(function
                     | `blk b' -> check_dom dom fn b b'

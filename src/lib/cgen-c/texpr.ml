@@ -1,5 +1,7 @@
 open Core
 
+module Bv = Cgen_utils.Bv
+
 type bop = [
   | Expr.barith
   | Expr.bbitwise
@@ -33,7 +35,7 @@ and node =
   | Eenum_const of {
       tag   : string;
       name  : string;
-      value : Cgen.Bv.t;
+      value : Bv.t;
     }
   (** An enum constant with its [int] value already resolved. *)
   | Eunary of {

@@ -1,10 +1,9 @@
 (* C99 conversion rules. *)
 
 open Core
-open Monads.Std
 
-module Bv = Cgen.Bv
-module E = Monad.Result.Error
+module Bv = Cgen_utils.Bv
+module E = Cgen_utils.Monads.Error
 module ET = Elab_type
 module DM = Data_model
 

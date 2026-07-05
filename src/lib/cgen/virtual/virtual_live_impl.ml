@@ -1,5 +1,4 @@
 open Core
-open Regular.Std
 open Live_intf
 
 module Vset = Var.Tree_set
@@ -46,7 +45,7 @@ module type L = sig
   end
 
   module Cfg : sig
-    include Label.Graph_s
+    type t = Label.Graph.t
     val create : Func.t -> t
   end
 end
@@ -108,9 +107,9 @@ module Make(M : L) : S
     Label.Tree.fold blks ~init ~f:(fun ~key ~data:b init ->
         if not (Blk.has_any_args b) then init else
           let args = Blk.fold_args b ~init:Vset.empty ~f:Vset.add in
-          Cfg.Node.preds key g |>
-          Seq.filter ~f:(Label.Tree.mem blks) |>
-          Seq.fold ~init ~f:(fun fs p -> update p fs ~f:(fun x ->
+          Label.Graph.Node.preds key g |>
+          Sequence.filter ~f:(Label.Tree.mem blks) |>
+          Sequence.fold ~init ~f:(fun fs p -> update p fs ~f:(fun x ->
               {x with defs = Vset.union x.defs args})))
 
   let init keep =
@@ -119,7 +118,7 @@ module Make(M : L) : S
   let compute' ?(keep = Vset.empty) g blks =
     let blks = block_transitions g blks in {
       blks;
-      outs = Fixpoint.run (module Cfg) g
+      outs = Fixpoint.run g
           ~init:(init keep) ~rev:true
           ~start:Label.pseudoexit
           ~merge:Vset.union

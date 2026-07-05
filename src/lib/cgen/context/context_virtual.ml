@@ -1,5 +1,6 @@
 open Core
 
+module Bv = Cgen_utils.Bv
 module Var = Context_var
 module Label = Context_label
 module M = Context_common.M

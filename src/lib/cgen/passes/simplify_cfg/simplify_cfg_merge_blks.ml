@@ -1,7 +1,6 @@
 (* Merge blocks that are connected by only a single unconditional jump. *)
 
 open Core
-open Regular.Std
 open Virtual
 open Simplify_cfg_common
 
@@ -24,10 +23,10 @@ let candidate subst env b l =
   | _ -> None
 
 let map_edges env l l' =
-  Cfg.edges env.cfg |> Seq.filter_map ~f:(fun e ->
+  Cfg.edges env.cfg |> Sequence.filter_map ~f:(fun e ->
       let+ () = O.guard Label.(l' = Cfg.Edge.src e) in
-      Cfg.Edge.(create l (dst e) (label e))) |>
-  Seq.to_list
+      Cfg.Edge.(create l (dst e))) |>
+  Sequence.to_list
 
 let rec try_merge ?child subst env l =
   let next () = subst, Option.value child ~default:l in
@@ -39,11 +38,11 @@ let rec try_merge ?child subst env l =
 
 and merge subst env l l' b b' =
   let insns', c = if Var.Tree.is_empty subst
-    then Seq.to_list (Blk.insns b'), Blk.ctrl b'
+    then Sequence.to_list (Blk.insns b'), Blk.ctrl b'
     else Subst_mapper.map_blk subst b' in
   let new_insns =
     Blk.insns ~rev:true b |>
-    Seq.fold ~init:insns' ~f:(Fn.flip List.cons) in
+    Sequence.fold ~init:insns' ~f:(Fn.flip List.cons) in
   let b = Blk.(with_insns (with_ctrl b c) new_insns) in
   LT.set env.blks ~key:l ~data:b;
   LT.remove env.blks l';
@@ -70,7 +69,7 @@ let run env =
          we merged with. *)
       let subst, l = try_merge subst env l in
       Semi_nca.Tree.children env.dom l |>
-      Seq.iter ~f:(fun l -> Stack.push q (l, subst)));
+      Sequence.iter ~f:(fun l -> Stack.push q (l, subst)));
   (* We're only ever removing blocks, so this is the only
      condition where something would've changed. *)
   LT.length env.blks < orig_len

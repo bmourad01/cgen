@@ -1,6 +1,6 @@
 open Core
-open Regular.Std
 
+module Regular = Cgen_utils.Regular
 module C_data_model = Cgen_utils.C_data_model
 
 module T = struct
@@ -16,7 +16,7 @@ include T
 let targets = ref String.Map.empty
 
 let enum_targets () =
-  Map.to_sequence !targets |> Seq.map ~f:snd
+  Map.to_sequence !targets |> Sequence.map ~f:snd
 
 let declare ~name ~little ~data_model () =
   let t = {name; little; data_model} in
@@ -43,7 +43,5 @@ let data_model t = t.data_model
 include Regular.Make(struct
     include T
     let pp ppf t = Format.fprintf ppf "%s" t.name
-    let version = "0.1"
     let hash = hash
-    let module_name = Some "Cgen.Target"
   end)

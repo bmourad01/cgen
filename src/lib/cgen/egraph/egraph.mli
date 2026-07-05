@@ -149,7 +149,7 @@ module Rule : sig
     val bool : bool -> pattern
     val br : pattern -> pattern -> pattern -> pattern
     val double : float -> pattern
-    val int : Bv.t -> Type.imm -> pattern
+    val int : Cgen_utils.Bv.t -> Type.imm -> pattern
     val i8 : int -> pattern
     val i16 : int -> pattern
     val i32 : int32 -> pattern
