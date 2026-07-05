@@ -88,6 +88,15 @@
   (pps ppx_jane)))
 
 (library
+ (name test_ftree)
+ (modules test_ftree)
+ (libraries cgen)
+ (ocamlopt_flags -O3)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
  (name test_champ)
  (modules test_champ)
  (libraries cgen)
