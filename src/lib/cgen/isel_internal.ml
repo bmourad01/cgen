@@ -95,10 +95,12 @@ module Subst = struct
     tm : 'r term;
   } [@@deriving sexp]
 
-  type 'r t = 'r info String.Map.t [@@deriving sexp]
+  module M = Matcher.Subst
 
-  let find t x = Map.find t x |> Option.map ~f:(fun i -> i.tm)
-  let empty = String.Map.empty
+  type 'r t = 'r info Matcher.Subst.t [@@deriving sexp]
+
+  let find t x = M.find t x |> Option.map ~f:(fun i -> i.tm)
+  let empty = M.empty
 
   let regvar t x = match find t x with
     | Some (Regvar (r, t)) -> Some (r, t)

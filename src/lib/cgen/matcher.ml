@@ -30,6 +30,8 @@ end
 
 let (let@) f x = f x
 
+module Subst = Small_map.Make(String)
+
 module Make(M : L) = struct
   open M
 
@@ -104,35 +106,15 @@ module Make(M : L) = struct
 
   (* Environment mapping pattern variables to VM registers. *)
   module Varenv = struct
-    (* These environments are typically very small, so we can
-       get away with using an association list. *)
-    type t =
-      | Nil
-      | Var of string * reg * t
-    [@@deriving compare, hash, sexp]
+    type t = reg Subst.t [@@deriving compare, sexp]
 
-    let empty = Nil
-
-    let rec find env x = match env with
-      | Nil -> None
-      | Var (y, r, _) when String.(x = y) -> Some r
-      | Var (_, _, env) -> find env x
-
-    let add env x r = Var (x, r, env)
-
-    let to_subst env ~lookup =
-      let rec go m = function
-        | Nil -> m
-        | Var (x, r, env) ->
-          go (Map.add_exn m ~key:x ~data:(lookup r)) env in
-      go String.Map.empty env
-
-    let[@tail_mod_cons] rec to_list = function
-      | Nil -> []
-      | Var (x, r, env) -> (x, r) :: to_list env
+    let empty = Subst.empty
+    let find = Subst.find
+    let add env x r = Subst.set env ~key:x ~data:r
+    let to_list = Subst.to_list
   end
 
-  type varenv = Varenv.t [@@deriving compare, hash, sexp]
+  type varenv = Varenv.t [@@deriving compare, sexp]
 
   (* A VM instruction. *)
   type insn =
@@ -176,7 +158,7 @@ module Make(M : L) = struct
        the resulting substitution. *)
     | Yield of {
         rule : int;
-        regs : varenv;
+        regs : (varenv [@hash.ignore]);
       }
   [@@deriving compare, hash, sexp]
 
@@ -570,7 +552,7 @@ module Make(M : L) = struct
   let compile = Compiler.compile
   let is_empty p = Vec.is_empty p.code
 
-  type subst = id String.Map.t
+  type subst = id Subst.t
 
   type 'a yield = {
     subst : subst;
@@ -582,11 +564,11 @@ module Make(M : L) = struct
   let pp_yield_dbg ppn ppf y =
     Format.fprintf ppf "rule %d:\n" y.rule;
     Format.fprintf ppf "pattern: %a\n" pp_pat y.pat;
-    if Map.is_empty y.subst then
+    if Subst.is_empty y.subst then
       Format.fprintf ppf "subst = {}\n"
     else begin
       Format.fprintf ppf "subst = {\n";
-      Map.iteri y.subst ~f:(fun ~key:x ~data:id ->
+      Subst.foldi y.subst ~init:() ~f:(fun ~key:x ~data:id () ->
           Format.fprintf ppf "  %s = %a, id %a\n" x ppn id pp_id id);
       Format.fprintf ppf "}\n"
     end
@@ -845,7 +827,7 @@ module Make(M : L) = struct
         else backtrack st;
         Continue
       | Yield y ->
-        let subst = Varenv.to_subst y.regs ~lookup:(fun r -> st.$[r]) in
+        let subst = Subst.map y.regs ~f:(fun r -> st.$[r]) in
         let pat, payload = st.prog.rule.(y.rule) in
         Yield {subst; payload; rule = y.rule; pat}
 

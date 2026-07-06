@@ -1,5 +1,4 @@
-open Core
-
+module M = Matcher.Subst
 module Id = Egraph_id
 
 type info = {
@@ -8,8 +7,8 @@ type info = {
   id    : Id.t;
 }
 
-type t = info String.Map.t
+type t = info M.t
 
-let find = Map.find
+let find = M.find
 let const i = i.const
 let typeof i = i.typ

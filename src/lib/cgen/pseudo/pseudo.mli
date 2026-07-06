@@ -72,12 +72,6 @@ type 'a blk = 'a Blk.t [@@deriving bin_io, compare, equal, sexp]
 
 (** A function. *)
 module Func : sig
-  (** Pre-defined attributes. *)
-  module Tag : sig
-    (** The function needs a stack frame set up. *)
-    val needs_stack_frame : unit Dict.tag
-  end
-
   (** The type of a pseudo-assembly function, where ['a] is the type of
       instructions, and ['b] is the type of registers. *)
   type ('a, 'b) t [@@deriving bin_io, compare, equal, sexp]

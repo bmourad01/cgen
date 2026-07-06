@@ -3,6 +3,7 @@ open Virtual.Abi
 open Isel_common
 
 module Vset = Var.Tree_set
+module Subst = Matcher.Subst
 
 let (let@) f x = f x [@@inline]
 
@@ -92,7 +93,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             m "%s: no regvar for term %d: %a%!"
               __FUNCTION__ id (pp_node t) id);
         raise_notrace Mismatch in
-    Map.map s ~f:(fun id ->
+    Subst.map s ~f:(fun id ->
         let tm = match node t id with
           | N (Oaddr a, []) -> Imm (a, wordi)
           | N (Obool b, []) -> Bool b
@@ -136,7 +137,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     match node t id, p with
     | N (Omove, [_; _]),
       P (Omove, [V x; V y]) ->
-      begin match Map.(find s x, find s y) with
+      begin match Subst.(find s x, find s y) with
         | Some x, Some y
           when x.id = y.id
             || S.equal_term Rv.equal x.tm y.tm ->
@@ -157,7 +158,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       | None -> !!None
       | Some y -> try
           Logs.debug (fun m ->
-              let s = Map.to_alist @@ Y.subst y in
+              let s = Subst.to_list @@ Y.subst y in
               m "%s: insn %a, term %d, yielded:\n  rule: %d\n  subst: %s\n  pat: %a%!"
                 __FUNCTION__ Label.pp l id (Y.rule y)
                 (List.to_string s ~f:(fun (x, id) ->
@@ -327,7 +328,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let dict = Func.dict t.fn in
     let dict = Dict.set dict Tags.phi_var t.phi in
     let dict = if not t.frame then dict
-      else Dict.set dict Pseudo.Func.Tag.needs_stack_frame () in
+      else Dict.set dict Tags.needs_stack_frame () in
     C.lift_err @@ Pseudo.Func.create ()
       ~name:(Func.name t.fn)
       ~slots:(Func.slots t.fn |> Sequence.to_list)

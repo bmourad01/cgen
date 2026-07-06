@@ -106,6 +106,24 @@
   (pps ppx_jane)))
 
 (library
+ (name test_small_map)
+ (modules test_small_map)
+ (libraries cgen)
+ (ocamlopt_flags -O3)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
+ (name test_hdict)
+ (modules test_hdict)
+ (libraries cgen)
+ (ocamlopt_flags -O3)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))
+
+(library
  (name test_magic_div)
  (modules test_magic_div)
  (libraries cgen zarith)

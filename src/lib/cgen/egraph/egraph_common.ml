@@ -13,7 +13,7 @@ type id = Id.t [@@deriving bin_io, compare, equal, hash, sexp]
 type enode = Enode.t
 type subst = Egraph_subst.t
 
-let empty_subst : subst = String.Map.empty
+let empty_subst : subst = Egraph_subst.M.empty
 
 module Matcher = Matcher.Make(struct
     type op = Enode.op [@@deriving compare, equal, hash, sexp]

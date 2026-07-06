@@ -90,7 +90,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let pre_assign fn =
     let dict = Func.dict fn in
     if not @@ Dict.mem dict Tags.stack_laid_out then
-      let frame = Dict.mem dict Func.Tag.needs_stack_frame in
+      let frame = Dict.mem dict Tags.needs_stack_frame in
       let slots = order_slots @@ Sequence.to_list @@ Func.slots fn in
       let find, base, size = make_offsets_and_size slots frame in
       let+ blks =
@@ -121,7 +121,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           ~is_barrier:M.Insn.is_barrier
           ~is_pseudo:M.Insn.is_pseudo
           ~dests:M.Insn.dests in
-      let frame = Dict.mem dict Func.Tag.needs_stack_frame in
+      let frame = Dict.mem dict Tags.needs_stack_frame in
       let slots = order_slots @@ Sequence.to_list @@ Func.slots fn in
       let find, base, size = make_offsets_and_size ~presize slots frame in
       let fn = Func.map_blks fn ~f:(fun b ->
@@ -171,7 +171,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             b)
         >>| Sequence.to_list in
       (* Update the dict. *)
-      let dict = Dict.remove dict Func.Tag.needs_stack_frame in
+      let dict = Dict.remove dict Tags.needs_stack_frame in
       let dict = Dict.set dict Tags.stack_laid_out () in
       C.lift_err @@ Func.create () ~dict ~blks
         ~slots:[] ~name:(Func.name fn)

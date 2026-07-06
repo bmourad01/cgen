@@ -28,3 +28,7 @@ let phi_var = Dict.register
              Var.pp)
           (Set.to_list s)
     end)
+
+let needs_stack_frame = Dict.register
+    ~uuid:"bd4f4a42-723a-4d31-b0ab-e63ba432a9e5"
+    "pseudo-fn-needs-stack-frame" (module Unit)

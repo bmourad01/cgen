@@ -138,12 +138,12 @@ and rewrite ?ty ?l ~d t rws y =
      so that we don't insert useless terms into the e-graph only
      to run into an uninstantiated variable. *)
   let rec check env : pattern -> unit = function
-    | V x when Map.mem env x -> ()
+    | V x when Subst.M.mem env x -> ()
     | V _ -> raise_notrace Mismatch
     | P (_, ps) -> List.iter ps ~f:(check env) in
   (* Assemble the RHS of the rule. *)
   let rec assemble env : pattern -> id = function
-    | V x -> (Map.find_exn env x).Subst.id
+    | V x -> (Subst.M.find_exn env x).Subst.id
     | P (o, ps) ->
       let cs = List.map ps ~f:(assemble env) in
       insert ?l ~d t @@ N (o, cs) in
@@ -163,13 +163,13 @@ and rewrite ?ty ?l ~d t rws y =
   try
     let prev = rws.id in
     Logs.debug (fun m ->
-        let s = Map.to_alist @@ Y.subst y in
+        let s = Subst.M.to_list @@ Y.subst y in
         m "%s: matched on rule %d for term %d\n  pat: %a\n  subst: %s%!"
           __FUNCTION__ (Y.rule y) prev
           Matcher.pp_pat (Y.pat y)
           (List.to_string s ~f:(fun (x, id) ->
                Format.asprintf "%s=%d" x id)));
-    let env = Map.map (Y.subst y) ~f:(subst_info t) in
+    let env = Subst.M.map (Y.subst y) ~f:(subst_info t) in
     let action, subsume = Y.payload y in
     let go env p = check env p; assemble env p in
     let oid = match action with

@@ -1,5 +1,3 @@
-open Core
-
 (** The input language. *)
 module type L = sig
   (** The type for operations in the input language. *)
@@ -49,6 +47,8 @@ module type L = sig
   (** Pretty-print an operation. *)
   val pp_op : Format.formatter -> op -> unit
 end
+
+module Subst : Cgen_containers.Small_map_intf.S with type key := string
 
 (** Create a matcher. *)
 module Make(M : L) : sig
@@ -112,7 +112,7 @@ module Make(M : L) : sig
 
       Keys are substitution variables, and values are the [term]-[id] pairs.
   *)
-  type subst = id String.Map.t
+  type subst = id Subst.t
 
   (** A successful match. *)
   type 'a yield

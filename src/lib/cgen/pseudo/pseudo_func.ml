@@ -3,12 +3,6 @@ open Cgen_containers
 
 module Slot = Virtual.Slot
 
-module Tag = struct
-  let needs_stack_frame = Dict.register
-      ~uuid:"bd4f4a42-723a-4d31-b0ab-e63ba432a9e5"
-      "pseudo-fn-needs-stack-frame" (module Unit)
-end
-
 type ('a, 'b) t = {
   name  : string;
   slots : Slot.t Rrb.t;
