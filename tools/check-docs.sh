@@ -24,11 +24,7 @@ find "$root" -name '*.html' | while IFS= read -r page; do
         [ -n "$rel" ] || continue
         [ -e "$dir/$rel" ] && continue
         case "$rel" in
-            # just hardcode these due to a limitation in odoc
-            */module-type-Graph_s/index.html|module-type-Graph_s/index.html) \
-                echo "$rel" >>"$allow" ;;
-            */module-type-D/index.html|module-type-D/index.html) \
-                echo "$rel" >>"$allow" ;;
+            # insert "allow" cases here as-needed
             *) echo "$rel" >>"$dead" ;;
         esac
     done
