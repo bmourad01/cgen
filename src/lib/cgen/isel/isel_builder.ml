@@ -195,13 +195,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let sel t l x ty c y n =
     let* c = var t c in
-    let* y = operand t y in
-    let+ n = operand t n in
-    let n = N (Osel ty, [c; y; n]) in
-    let ty = (ty :> ty) in
-    let id = new_node ~ty t n in
+    let+ id = match node t c with
+      | N (Obool b, []) -> operand t (if b then y else n)
+      | N (Oint (i, _), []) ->
+        operand t (if Bv.(i <> zero) then y else n)
+      | _ ->
+        let* y = operand t y in
+        let+ n = operand t n in
+        let n = N (Osel ty, [c; y; n]) in
+        new_node ~ty:(ty :> ty) t n in
     let r = Rv.var x in
-    let rid = new_node ~ty t @@ Rv r in
+    let rid = new_node ~ty:(ty :> ty) t @@ Rv r in
     ignore @@ new_node ~l t @@ N (Omove, [rid; id]);
     setvar t x id;
     setrv t id r
@@ -394,10 +398,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     ignore @@ new_node ~l t @@ N (Ojmp, [d])
 
   let br t l c y n =
-    let* c = var t c in
-    let* y = dst ~br:true t l y in
-    let+ n = dst ~br:true t l n in
-    ignore @@ new_node ~l t @@ N (Obr, [c; y; n])
+    let* cid = var t c in
+    match node t cid with
+    | N (Obool b, []) -> jmp t l (if b then y else n)
+    | N (Oint (i, _), []) -> jmp t l (if Bv.(i <> zero) then y else n)
+    | _ ->
+      let* y = dst ~br:true t l y in
+      let+ n = dst ~br:true t l n in
+      ignore @@ new_node ~l t @@ N (Obr, [cid; y; n])
 
   let ret t l rets =
     let+ () = C.List.iter rets ~f:(fun (r, a) ->
@@ -409,6 +417,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
 
   let sw t l ty i d tbl =
     let ty' = (ty :> ty) in
+    let const_idx = match i with
+      | `var x ->
+        Option.bind (getvar t x) ~f:(fun id -> match node t id with
+            | N (Oint (v, _), []) -> Some v
+            | _ -> None)
+      | `sym _ -> None in
+    match const_idx with
+    | Some v ->
+      jmp t l (Option.value (Ctrl.Table.find tbl v) ~default:d :> Virtual.dst)
+    | None ->
     let i = match i with
       | `var x -> newvar t x ty'
       | `sym (s, o) -> new_node ~ty:ty' t @@ N (Osym (s, o), []) in
