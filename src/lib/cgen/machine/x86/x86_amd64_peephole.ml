@@ -306,6 +306,90 @@ let redundant_reload_after_spill changed fn =
   let rw, rm = collect_redundant_reload_after_spill fn in
   filter_not_in changed (map_insns changed fn rw) rm
 
+(* Combine two displacements, being careful to check that the result will
+   fit in a sign-extended 32-bit immediate. *)
+let combine_disp disp o =
+  let s = Int64.(of_int32 disp + of_int32 o) in
+  Option.some_if
+    Int64.(
+      s >= of_int32 Int32.min_value &&
+      s <= of_int32 Int32.max_value)
+    (Int64.to_int32_trunc s)
+
+let fold_base r disp = function
+  | Omem (a, t) ->
+    let fp = Rv.reg `rbp in
+    let a = match a with
+      | Ab b when Rv.(b = r) -> Some (Abd (fp, disp))
+      | Abd (b, o) when Rv.(b = r) ->
+        Option.map (combine_disp disp o) ~f:(fun d -> Abd (fp, d))
+      | Abis (b, i, s) when Rv.(b = r) -> Some (Abisd (fp, i, s, disp))
+      | Abisd (b, i, s, o) when Rv.(b = r) ->
+        Option.map (combine_disp disp o) ~f:(fun d -> Abisd (fp, i, s, d))
+      | a -> Some a in
+    Option.map a ~f:(fun a -> Omem (a, t))
+  | o -> Some o
+
+let reg_is_index r = function
+  | Omem (Abis (_, i, _), _)
+  | Omem (Aisd (i, _, _), _)
+  | Omem (Abisd (_, i, _, _), _) -> Rv.(i = r)
+  | _ -> false
+
+let operand_is_reg r = function
+  | Oreg (a, _)
+  | Oregv a -> Rv.(a = r)
+  | _ -> false
+
+(* Fold a frame-relative address materialized by a LEA into the MOV memory
+   operands that consume it as a base, dropping the LEA.
+
+     lea r, [rbp + k]
+     mov d, [r + o]    --> mov d, [rbp + k + o]
+     mov r, [r + o']   --> mov r, [rbp + k + o']   ; the LEA is dropped
+*)
+let collect_fold_frame_lea fn =
+  let fp = Rv.reg `rbp in
+  Func.fold_blks fn ~init:(Ltree.empty, Lset.empty) ~f:(fun acc b ->
+      let insns =
+        Sequence.to_array @@
+        Sequence.map ~f:decomp @@
+        Blk.insns b in
+      let n = Array.length insns in
+      Array.foldi insns ~init:acc ~f:(fun i acc -> function
+          | lea_l, Two (LEA, Oreg (r, _), Omem ((Ab bb | Abd (bb, _)) as am, _))
+            when Rv.(bb = fp) && not Rv.(r = fp) ->
+            let disp = match am with Abd (_, d) -> d | _ -> 0l in
+            let rec scan j folds =
+              if j >= n then None else match insns.(j) with
+                | l, Two (MOV, dst, src) ->
+                  let ops = [dst; src] in
+                  if not (Set.mem (rset ops) r) then scan (j + 1) folds
+                  else if List.exists ops ~f:(reg_is_index r) then None
+                  else if operand_is_reg r src then None
+                  else begin match fold_base r disp dst, fold_base r disp src with
+                    | Some dst, Some src ->
+                      let folds = (l, Two (MOV, dst, src)) :: folds in
+                      if operand_is_reg r dst
+                      then Some folds
+                      else scan (j + 1) folds
+                    | _ -> None
+                  end
+                | _ -> None in
+            begin match scan (i + 1) [] with
+              | None | Some [] -> acc
+              | Some folds ->
+                let rw, rm = acc in
+                let rw = List.fold folds ~init:rw
+                    ~f:(fun m (l, ins) -> Ltree.set m ~key:l ~data:ins) in
+                rw, Lset.add rm lea_l
+            end
+          | _ -> acc))
+
+let fold_frame_lea changed fn =
+  let rw, rm = collect_fold_frame_lea fn in
+  filter_not_in changed (map_insns changed fn rw) rm
+
 (* If we have a LEA of the same address as a subsequent load,
    then use the result of the LEA as the address for the load.
 
@@ -524,6 +608,7 @@ let run fn =
       let fn = redundant_spill_after_reload changed fn in
       let fn = redundant_reload_after_spill changed fn in
       let fn = reuse_lea changed fn in
+      let fn = fold_frame_lea changed fn in
       let fn = and_test changed fn in
       let fn = lea_mov changed fn in
       let fn = mov_op changed fn in
