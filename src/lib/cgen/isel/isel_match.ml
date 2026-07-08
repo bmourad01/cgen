@@ -260,9 +260,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       end
     | _ -> false
 
-  let step t escaping b =
+  let step t escaping used b =
     let label = Blk.label b in
-    let used = ref Rv.Set.empty in
     let note (raw : M.Insn.t list) =
       List.iter raw ~f:(fun i ->
           used := Set.union !used (M.Insn.reads i)) in
@@ -299,13 +298,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      in reverse postoder. *)
   let transl_blks t =
     let escaping = escaping_vars t.fn in
+    let used = ref Rv.Set.empty in
     Func.blks t.fn |> Sequence.map ~f:(fun b ->
         let l = Blk.label b in
         let o = Semi_nca.Tree.rpo_exn t.dom l in
         b, o) |> Sequence.to_list |>
     List.sort ~compare:(fun (_, a) (_, b) -> compare b a) |>
     C.List.fold ~init:[] ~f:(fun acc (b, _) ->
-        let+ bs = step t escaping b in
+        let+ bs = step t escaping used b in
         bs @ acc)
 
   let transl_rets t =

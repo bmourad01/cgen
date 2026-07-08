@@ -473,6 +473,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Sumto (SysV AMD64)" >:: test_sysv_amd64_regalloc "sumto";
     "Mindiv2 (SysV AMD64)" >:: test_sysv_amd64_regalloc "mindiv2";
     "Rematerialization of multi-def loop counter (SysV AMD64)" >:: test_sysv_amd64_regalloc "remat_multidef";
+    "Redcrash (SysV AMD64)" >:: test_sysv_amd64_regalloc "redcrash";
   ]
 
 let native_suite = "Test native code" >::: [

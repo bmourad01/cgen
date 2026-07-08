@@ -1,0 +1,24 @@
+module redcrash
+
+function $func_13 {
+@2:
+  push rbp ; @64
+  mov rbp, rsp ; @65
+  sub rsp, 0x10_l ; @66
+  push r12 ; @67
+  push rbx ; @68
+  movsx r12d, dil ; @63
+  mov ebx, r12d ; @42
+  and ebx, esi ; @61
+@8:
+  movzx edi, word ptr [rbp - 0xc] ; @9
+  mov ecx, dword ptr [rbp - 0x10] ; @31
+  xor eax, eax ; @46
+  test ecx, r12d ; @56
+  setne al ; @57
+  mov esi, 0x0_w ; @48
+  test ebx, ebx ; @54
+  cmovne esi, eax ; @55
+  call $safe_sub_func_uint16_t_u_u ; rdi rsi ; @52
+  jmp @8 ; @50
+}
