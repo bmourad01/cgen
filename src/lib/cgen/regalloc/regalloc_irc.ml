@@ -707,7 +707,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     List.iter store ~f:(Vec.push ivec);
     reload
 
-  let rewrite_blk t b blks ivec =
+  let rewrite_blk ~cache t b blks ivec =
     let+ _rl =
       Blk.insns b |> C.Seq.fold
         ~init:Rv.Map.empty ~f:(fun rl i ->
@@ -715,14 +715,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
             let rl = if RA.is_call insn
               then Rv.Map.empty else rl in
             if same_slot_copy t insn then !!rl
-            else rewrite_insn t rl ivec i) in
+            else if cache then rewrite_insn t rl ivec i
+            else
+              let+ _rl = rewrite_insn t Rv.Map.empty ivec i in
+              Rv.Map.empty) in
     let data = Blk.with_insns b @@ Vec.to_list ivec in
     LT.set blks ~key:(Blk.label b) ~data;
     Vec.clear ivec
 
   module Remove_deads = Pseudo_passes.Remove_dead_insns(M)
 
-  let rewrite_function t =
+  let rewrite_function ~cache t =
     let ivec = Vec.create () in
     let blks = LT.create ~capacity:(Func.num_blks t.fn) () in
     Func.blks t.fn |> Sequence.iter ~f:(fun b ->
@@ -731,7 +734,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Semi_nca.Tree.preorder t.dom |>
       C.Seq.iter ~f:(fun l ->
           match LT.find blks l with
-          | Some b -> rewrite_blk t b blks ivec
+          | Some b -> rewrite_blk ~cache t b blks ivec
           | None -> !!()) in
     let fn = Func.map_blks t.fn ~f:(fun b ->
         Blk.label b |> LT.find blks |>
@@ -739,9 +742,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     t.fn <- Remove_deads.run fn
 
   (* Insert spilling code and set up the state for the next round. *)
-  let spill_and_reload t =
+  let spill_and_reload ~cache t =
     let* () = make_slots t in
-    let+ () = rewrite_function t in
+    let+ () = rewrite_function ~cache t in
     (* spilledNodes := {} *)
     Bitset.clear t.spilled;
     (* initial := initial ∪ coloredNodes ∪ coalescedNodes *)
@@ -802,7 +805,17 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     assign_colors t;
     (* Rewrite according to the spilled nodes. *)
     C.unless (Bitset.is_empty t.spilled) @@ fun () ->
-    let* () = spill_and_reload t in
+    (* Reload caching improves code, but a cached reload itself becomes live
+       across a region R. When many reloads are live at a loop point, R can
+       hold >K pinned reload temps that deadlock the spill worklist and cascade
+       forever.
+
+       If we have not converged within the first several rounds, drop the cache.
+       Each use then becomes a fresh reload (like in the paper), which cannot
+       exceed K and guarantees termination. Normal functions converge in a few
+       rounds and keep the cache.
+    *)
+    let* () = spill_and_reload ~cache:(round <= 8) t in
     new_round t;
     main t ~round:(round + 1) ~max_rounds ~invariants
 
