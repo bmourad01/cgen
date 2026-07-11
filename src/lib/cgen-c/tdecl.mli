@@ -23,12 +23,14 @@ type param = {
 
 (** A field in a [struct] or [union]. *)
 type field = {
-  fname : string;
+  fname  : string;
   (** The name of the field. *)
-  fty   : Texpr.ty;
+  fty    : Texpr.ty;
   (** The type of the field. *)
-  fbits : int option;
+  fbits  : int option;
   (** The optional bitfield width. *)
+  fattrs : Attr.set;
+  (** Member attributes (e.g. [aligned]). *)
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** A typed top-level declaration. *)
@@ -42,6 +44,8 @@ type t =
       linkage  : linkage;
       inline   : bool;
       noreturn : bool;
+      attrs    : Attr.set;
+      (** Attributes affecting emission (e.g. [section], [weak], [visibility]). *)
       labaddrs : string list;
       (** Address-taken labels (targets of a computed [goto *]), in the
           index order used by [&&label]. *)
@@ -52,6 +56,7 @@ type t =
       variadic : bool;
       ret      : Texpr.ty;
       linkage  : linkage;
+      attrs    : Attr.set;
     } (** A function declaration (prototype, no body). *)
   | Dglobal of {
       name    : string;
@@ -59,6 +64,7 @@ type t =
       init    : Texpr.init option;
       linkage : linkage;
       tls     : bool;
+      attrs   : Attr.set;
     } (** A global object definition. *)
   | Dextern of {
       name    : string;
@@ -81,6 +87,7 @@ val param : name:string -> ty:Texpr.ty -> param
 (** A field. [bits] is the bit-field width when declared as one. *)
 val field :
   ?bits:int ->
+  ?attrs:Attr.set ->
   name:string ->
   ty:Texpr.ty ->
   unit ->
@@ -99,6 +106,7 @@ val fundef :
   ?linkage:linkage ->
   ?inline:bool ->
   ?noreturn:bool ->
+  ?attrs:Attr.set ->
   ?labaddrs:string list ->
   name:string ->
   params:param list ->
@@ -116,6 +124,7 @@ val fundef :
 val fundecl :
   ?variadic:bool ->
   ?linkage:linkage ->
+  ?attrs:Attr.set ->
   name:string ->
   params:param list ->
   ret:Texpr.ty ->
@@ -132,6 +141,7 @@ val global :
   ?init:Texpr.init ->
   ?linkage:linkage ->
   ?tls:bool ->
+  ?attrs:Attr.set ->
   name:string ->
   ty:Texpr.ty ->
   unit ->

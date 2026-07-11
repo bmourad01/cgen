@@ -13,6 +13,7 @@ type 'a localdecl = {
   ldty      : 'a Expr.ty;
   ldinit    : 'a Expr.init option;
   ldstorage : storagecls;
+  ldattrs   : 'a Attr.raws;
   ldann     : 'a;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
@@ -91,11 +92,12 @@ let return ?value ~ann () = {node = Sreturn value; ann}
 let expr e ~ann = {node = Sexpr e; ann}
 let null ~ann = {node = Snull; ann}
 
-let localdecl ?init ?(storage = SCdefault) ~name ~ty ~ann () = {
+let localdecl ?init ?(storage = SCdefault) ?(attrs = []) ~name ~ty ~ann () = {
   ldname = name;
   ldty = ty;
   ldinit = init;
   ldstorage = storage;
+  ldattrs = attrs;
   ldann = ann;
 }
 
@@ -117,9 +119,11 @@ let pp_storagecls ppf = function
 
    No trailing semicolon.
 *)
-let pp_localdecl ppf {ldname; ldty; ldinit; ldstorage; ldann = _} =
+let pp_localdecl ppf {ldname; ldty; ldinit; ldstorage; ldattrs; ldann = _} =
   pp_storagecls ppf ldstorage;
   Type.pp_named_with Expr.pp ppf ldty ~name:ldname;
+  if not (List.is_empty ldattrs) then
+    Format.fprintf ppf " %a" Attr.pp_raws ldattrs;
   Option.iter ldinit ~f:(fun i ->
       Format.pp_print_string ppf " = ";
       Expr.pp_init ppf i)

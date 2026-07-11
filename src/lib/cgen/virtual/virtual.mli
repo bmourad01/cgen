@@ -452,6 +452,9 @@ module Data : sig
 
     (** Indicates that the struct is read-only. *)
     val const : unit Dict.tag
+
+    (** The symbol this one aliases ([__attribute__((alias(...)))]). *)
+    val alias : string Dict.tag
   end
 
   type t [@@deriving bin_io, compare, equal, sexp]
@@ -477,6 +480,15 @@ module Data : sig
     unit ->
     t Or_error.t
 
+  (** Creates an alias [name = target]: a symbol with no storage, emitted as
+      a symbol assignment. *)
+  val create_alias :
+    ?dict:Dict.t ->
+    name:string ->
+    target:string ->
+    unit ->
+    t
+
   (** Returns the name associated with the struct. *)
   val name : t -> string
 
@@ -495,6 +507,9 @@ module Data : sig
 
   (** Returns [true] if the struct is read-only. *)
   val const : t -> bool
+
+  (** The symbol this one aliases, if it is an alias. *)
+  val alias : t -> string option
 
   (** Returns the dictionary of the struct. *)
   val dict : t -> Dict.t

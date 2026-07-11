@@ -7,6 +7,7 @@ module S = Cgen.Structured
 module V = Cgen.Virtual
 module F32 = Cgen_utils.Float32
 module LB = Layout.Bitfield
+module Target = Cgen.Target
 module Smap = Cgen_containers.Champ.Make(String)
 
 type 'a map = 'a Smap.t
@@ -28,13 +29,15 @@ let norm env ty = Type_env.normalize (Layout.tenv env.layout) ty
 let fresh_var = Ctx.Var.fresh
 let emit op rest : S.stmt = `seq (op, rest)
 
-(* Allocate a stack slot for an object named `name` of type `ty`. *)
-let alloc_slot layout name ty =
+(* Allocate a stack slot for an object named `name` of type `ty`,
+   optionally over-aligning the slot via `align`. *)
+let alloc_slot ?align layout name ty =
   (* `Layout.sizeof`/`alignof` require a typedef-free type. *)
   let ty = Type_env.normalize (Layout.tenv layout) ty in
   let* v = Ctx.Var.fresh in
   let*? size = Layout.sizeof layout ty in
-  let*? align = Layout.alignof layout ty in
+  let*? natural = Layout.alignof layout ty in
+  let align = Option.value_map align ~default:natural ~f:(max natural) in
   let+? slot = V.Slot.create v ~size ~align in
   (name, v), slot
 
@@ -161,63 +164,185 @@ let as_bitfield_lval env (lv : Texpr.tlval) = match lv.node with
       ~f:(fun bf -> lval, bf)
   | _ -> None
 
-(* The field's bit offset within its run-time access integer. *)
+(* The field's allocation offset within its run-time access integer. *)
 let access_offset bf =
   LB.storage bf * 8 + LB.offset bf - LB.access_storage bf * 8
 
-(* Read a bit field of type `ty`. *)
-let bitfield_load env ~base ~(bf : Layout.bitfield) ~ty k =
-  let@ addr = add_offset env base (LB.access_storage bf) in
+(* Whether the target orders bytes little-endian. *)
+let little_endian = Ctx.target >>| Target.little
+
+let access_lsb_offset ~little bf =
+  let au = access_offset bf in
+  if little then au else LB.access_bits bf - au - LB.width bf
+
+(* The absolute bit position and covered byte span of a bit field, for the
+   byte-wise access path. *)
+let field_span bf =
+  let p = LB.storage bf * 8 + LB.offset bf in
+  let width = LB.width bf in
+  p, width, p / 8, (p + width - 1) / 8
+
+let bitfield_load_bytewise env ~base ~(bf : Layout.bitfield) ~ty k =
+  let* little = little_endian in
   let b, signed = scalar env ty in
   let bi = imm_of_basic b in
-  let bits = IT.sizeof_imm bi in
-  let width = LB.width bf in
-  let aoff = access_offset bf in
-  let ab = (Lower_type.imm_of_bits (LB.access_bits bf) :> IT.basic) in
-  let rsh : V.Insn.binop = if signed then `asr_ bi else `lsr_ bi in
-  let* raw = fresh_var in
-  let* wide, pre =
-    if IT.equal_basic ab b then !!(`var raw, [])
-    else let+ w = fresh_var in `var w, [`uop (w, `zext bi, `var raw)] in
+  let pi = ptr_imm env in
+  let p, width, byte_lo, byte_hi = field_span bf in
+  let i64 : IT.imm = `i64 in
+  let rec bytes byte acc pre =
+    if byte > byte_hi then !!(acc, pre) else
+      let* addr = fresh_var in
+      let* raw = fresh_var in
+      let* wide = fresh_var in
+      let sh =
+        if little then (byte - byte_lo) * 8 else (byte_hi - byte) * 8 in
+      let this = [
+        `bop (addr, `add (pi :> IT.basic), base, int_operand pi byte);
+        `load (raw, (`i8 :> IT.arg), `var addr);
+        `uop (wide, `zext i64, `var raw);
+      ] in
+      let* placed, this =
+        if sh = 0 then !!(`var wide, this) else
+          let+ s = fresh_var in
+          let op = `bop (s, `lsl_ i64, `var wide, int_operand i64 sh) in
+          `var s, this @ [op] in
+      match acc with
+      | None -> bytes (byte + 1) (Some placed) (pre @ this)
+      | Some a ->
+        let* n = fresh_var in
+        bytes (byte + 1) (Some (`var n))
+          (pre @ this @ [`bop (n, `or_ i64, a, placed)]) in
+  let* acc, pre = bytes byte_lo None [] in
+  let acc = Option.value_exn acc in
+  let span = byte_hi - byte_lo + 1 in
+  let foff = p - byte_lo * 8 in
+  let lsb = if little then foff else span * 8 - foff - width in
   let* hi = fresh_var in
-  let* x = fresh_var in
-  let+ rest = k (`var x) in
-  S.Stmt.seq @@
-  `load (raw, (ab :> IT.arg), addr) :: pre @ [
-    `bop (hi, `lsl_ bi, wide, int_operand bi (bits - aoff - width));
-    `bop (x, rsh, `var hi, int_operand bi (bits - width));
-    rest;
-  ]
+  let rsh : V.Insn.binop = if signed then `asr_ i64 else `lsr_ i64 in
+  let* val64 = fresh_var in
+  let* x, conv =
+    if IT.equal_basic (`i64 :> IT.basic) b
+    then !!(`var val64, [])
+    else
+      let+ x = fresh_var in
+      `var x, [`uop (x, `itrunc bi, `var val64)] in
+  let+ rest = k x in
+  S.Stmt.seq @@ pre @ [
+      `bop (hi, `lsl_ i64, acc, int_operand i64 (64 - lsb - width));
+      `bop (val64, rsh, `var hi, int_operand i64 (64 - width));
+    ] @ conv @ [rest]
+
+let bitfield_store_bytewise env ~base ~(bf : Layout.bitfield)
+    ~ty ~(value : V.operand) k =
+  let* little = little_endian in
+  let b, _ = scalar env ty in
+  let bi = imm_of_basic b in
+  let pi = ptr_imm env in
+  let i8 : IT.imm = `i8 in
+  let module A8 = (val bv i8) in
+  let p, width, byte_lo, byte_hi = field_span bf in
+  let rec bytes byte pre =
+    if byte > byte_hi then !!pre else
+      let lo = max p (byte * 8) and hi = min (p + width) (byte * 8 + 8) in
+      let nbits = hi - lo in
+      let src_shift =
+        if little then lo - p else width - (hi - p) in
+      let dst_shift =
+        if little then lo - byte * 8 else 8 - (hi - byte * 8) in
+      let* addr = fresh_var in
+      let addr_i =
+        `bop (addr, `add (pi :> IT.basic), base, int_operand pi byte) in
+      let* sv, sv_is =
+        if src_shift = 0 then !!(value, [])
+        else let+ s = fresh_var in
+          `var s, [`bop (s, `lsr_ bi, value, int_operand bi src_shift)] in
+      let* v8, tr_is =
+        if IT.equal_basic b (`i8 :> IT.basic) then !!(sv, [])
+        else let+ v = fresh_var in `var v, [`uop (v, `itrunc i8, sv)] in
+      if nbits >= 8 then
+        bytes (byte + 1)
+          (pre @ (addr_i :: sv_is) @ tr_is
+           @ [`store ((`i8 :> IT.arg), v8, `var addr)])
+      else
+        let mask = A8.((pred (one lsl int nbits)) lsl int dst_shift) in
+        let clear = A8.lnot mask in
+        let* shifted, sh_is =
+          if dst_shift = 0 then !!(v8, [])
+          else let+ s = fresh_var in
+            `var s, [`bop (s, `lsl_ i8, v8, int_operand i8 dst_shift)] in
+        let* piece = fresh_var in
+        let* raw = fresh_var in
+        let* cleared = fresh_var in
+        let* merged = fresh_var in
+        bytes (byte + 1)
+          (pre @ (addr_i :: sv_is) @ tr_is @ sh_is @ [
+              `bop (piece, `and_ i8, shifted, `int (mask, i8));
+              `load (raw, (`i8 :> IT.arg), `var addr);
+              `bop (cleared, `and_ i8, `var raw, `int (clear, i8));
+              `bop (merged, `or_ i8, `var cleared, `var piece);
+              `store ((`i8 :> IT.arg), `var merged, `var addr);
+            ]) in
+  let* pre = bytes byte_lo [] in
+  let+ rest = k () in
+  S.Stmt.seq (pre @ [rest])
+
+(* Read a bit field of type `ty`. *)
+let bitfield_load env ~base ~(bf : Layout.bitfield) ~ty k =
+  if LB.bytewise bf then bitfield_load_bytewise env ~base ~bf ~ty k else
+    let@ addr = add_offset env base (LB.access_storage bf) in
+    let* little = little_endian in
+    let b, signed = scalar env ty in
+    let bi = imm_of_basic b in
+    let bits = IT.sizeof_imm bi in
+    let width = LB.width bf in
+    let aoff = access_lsb_offset ~little bf in
+    let ab = (Lower_type.imm_of_bits (LB.access_bits bf) :> IT.basic) in
+    let rsh : V.Insn.binop = if signed then `asr_ bi else `lsr_ bi in
+    let* raw = fresh_var in
+    let* wide, pre =
+      if IT.equal_basic ab b then !!(`var raw, [])
+      else let+ w = fresh_var in `var w, [`uop (w, `zext bi, `var raw)] in
+    let* hi = fresh_var in
+    let* x = fresh_var in
+    let+ rest = k (`var x) in
+    S.Stmt.seq @@
+    `load (raw, (ab :> IT.arg), addr) :: pre @ [
+      `bop (hi, `lsl_ bi, wide, int_operand bi (bits - aoff - width));
+      `bop (x, rsh, `var hi, int_operand bi (bits - width));
+      rest;
+    ]
 
 (* Write `value` into a bit field of type `ty`. *)
 let bitfield_store env ~base ~bf ~ty ~(value : V.operand) k =
-  let@ addr = add_offset env base (LB.access_storage bf) in
-  let b, _ = scalar env ty in
-  let width = LB.width bf in
-  let aoff = access_offset bf in
-  let abi = Lower_type.imm_of_bits (LB.access_bits bf) in
-  let ab = (abi :> IT.basic) in
-  let module A = (val bv abi) in
-  let field_mask = A.(pred (one lsl int width) lsl int aoff) in
-  let clear_mask = A.lnot field_mask in
-  let* vop, pre =
-    if IT.equal_basic ab b then !!(value, [])
-    else let+ v = fresh_var in `var v, [`uop (v, `itrunc abi, value)] in
-  let* raw = fresh_var in
-  let* cleared = fresh_var in
-  let* shifted = fresh_var in
-  let* bits = fresh_var in
-  let* merged = fresh_var in
-  let+ rest = k () in
-  S.Stmt.seq @@ pre @ [
-      `load (raw, (ab :> IT.arg), addr);
-      `bop (cleared, `and_ abi, `var raw, `int (clear_mask, abi));
-      `bop (shifted, `lsl_ abi, vop, int_operand abi aoff);
-      `bop (bits, `and_ abi, `var shifted, `int (field_mask, abi));
-      `bop (merged, `or_ abi, `var cleared, `var bits);
-      `store ((ab :> IT.arg), `var merged, addr);
-      rest;
-    ]
+  if LB.bytewise bf then bitfield_store_bytewise env ~base ~bf ~ty ~value k else
+    let@ addr = add_offset env base (LB.access_storage bf) in
+    let* little = little_endian in
+    let b, _ = scalar env ty in
+    let width = LB.width bf in
+    let aoff = access_lsb_offset ~little bf in
+    let abi = Lower_type.imm_of_bits (LB.access_bits bf) in
+    let ab = (abi :> IT.basic) in
+    let module A = (val bv abi) in
+    let field_mask = A.(pred (one lsl int width) lsl int aoff) in
+    let clear_mask = A.lnot field_mask in
+    let* vop, pre =
+      if IT.equal_basic ab b then !!(value, [])
+      else let+ v = fresh_var in `var v, [`uop (v, `itrunc abi, value)] in
+    let* raw = fresh_var in
+    let* cleared = fresh_var in
+    let* shifted = fresh_var in
+    let* bits = fresh_var in
+    let* merged = fresh_var in
+    let+ rest = k () in
+    S.Stmt.seq @@ pre @ [
+        `load (raw, (ab :> IT.arg), addr);
+        `bop (cleared, `and_ abi, `var raw, `int (clear_mask, abi));
+        `bop (shifted, `lsl_ abi, vop, int_operand abi aoff);
+        `bop (bits, `and_ abi, `var shifted, `int (field_mask, abi));
+        `bop (merged, `or_ abi, `var cleared, `var bits);
+        `store ((ab :> IT.arg), `var merged, addr);
+        rest;
+      ]
 
 (* {1 Expressions} *)
 

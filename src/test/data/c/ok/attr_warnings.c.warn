@@ -1,0 +1,9 @@
+data/c/ok/attr_warnings.c:9:10-16: warning: 'old_fn' is deprecated
+ 9 |   return old_fn();
+   |          ^~~~~~
+data/c/ok/attr_warnings.c:14:10-19: warning: 'old_count' is deprecated: use new_count instead
+ 14 |   return old_count;
+    |          ^~~~~~~~~
+data/c/ok/attr_warnings.c:19:3-13: warning: ignoring return value of 'checked', declared with attribute warn_unused_result
+ 19 |   checked();
+    |   ^~~~~~~~~~

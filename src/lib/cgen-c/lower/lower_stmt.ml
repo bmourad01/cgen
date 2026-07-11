@@ -193,7 +193,8 @@ let rec needs_zero c (init : Texpr.init) ty = match init with
 (* Bring a block-scoped local into scope. The local is in scope within
    its own initializer (§6.2.1). *)
 let bind_localdecl c (ld : Tstmt.localdecl) =
-  let* (name, slot), slotval = E.alloc_slot c.e.layout ld.name ld.ty in
+  let* (name, slot), slotval =
+    E.alloc_slot ?align:ld.align c.e.layout ld.name ld.ty in
   c.slots := slotval :: !(c.slots);
   let e = {c.e with slots = Smap.set c.e.slots ~key:name ~data:slot} in
   let c = {c with e} in

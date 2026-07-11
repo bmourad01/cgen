@@ -60,8 +60,6 @@ let test_error name _ =
     assert_failure @@ Format.sprintf
       "%s: expected the frontend to reject this input, but it succeeded" name
 
-(* Elaborate an accepted program and golden the non-fatal warnings it
-   accumulates, rendered with source excerpts. *)
 let test_warn name _ =
   let file = ok name in
   match parse ~preprocess:false file with
@@ -105,10 +103,25 @@ let test_sir name _ =
   | Ok s -> compare_outputs (file ^ ".sir") s
   | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
 
-(* Run the platform-agnostic middle-end (through `Passes.optimize`) and
-   dump the optimized Virtual IR. Used to show that the naive code the
-   elaborator emits (slot-heavy, sometimes branchy) is cleaned up by the
-   optimizer. *)
+let test_emit name expected _ =
+  let file = ok name in
+  Context.init Machine.X86.Amd64_sysv.target |>
+  Context.eval begin
+    let open Context.Syntax in
+    let* m = from_c_abi file in
+    let buf = Buffer.create 4096 in
+    let fmt = Format.formatter_of_buffer buf in
+    let+ () = Passes.to_asm fmt m in
+    Format.pp_print_flush fmt ();
+    Buffer.contents buf
+  end |> function
+  | Error err -> assert_failure @@ Format.asprintf "%a" Error.pp err
+  | Ok asm ->
+    List.iter expected ~f:(fun sub ->
+        assert_bool
+          (Format.sprintf "%s: emitted assembly does not contain %S" name sub)
+          (String.is_substring asm ~substring:sub))
+
 let test_opt name _ =
   let file = ok name in
   Context.init Machine.X86.Amd64_sysv.target |>
@@ -138,12 +151,6 @@ let test_native target abi ext name _ =
 
 let test_sysv_amd64_native = test_native Machine.X86.Amd64_sysv.target "sysv" "amd64"
 
-(* Like {!test_native}, but preprocesses the input (like the `cgen` CLI does:
-   `cpp -undef` plus the target's predefines), so `#include`-bearing whole
-   programs — a hello world — compile and run. The `ok/<name>.c` file provides
-   its own `main`; the driver is an empty placeholder the harness links. Only
-   the program's stdout is golden'd (via the `.output` file), never the
-   system-header-dependent IR. *)
 let test_native_pp target abi ext name _ =
   let file = ok name in
   let cpp = C.Parse.Cpp.add_args C.Parse.Cpp.default (C.Predef.defines target) in
@@ -194,6 +201,10 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Null pointer comparisons" "nullcmp";
     ok_case ~sir:true "Wide shifts with narrow counts" "shift";
     ok_case ~sir:true ~warn:true "Distinct pointer-type compare and assign" "ptr_distinct";
+    ok_case ~warn:true "Attribute diagnostics" "attr_warnings";
+    ok_case ~sir:true "Attribute layout" "attr_layout";
+    ok_case "Symbol aliases" "attr_alias";
+    ok_case "Attribute emission" "attr_emit";
     ok_case ~sir:true "Discarded call results" "discard_call";
     ok_case ~sir:true "Block-scope shadowing" "scope_shadow";
     ok_case ~sir:true "Assignment expression value" "assign_value";
@@ -239,6 +250,17 @@ let native_suite = "C frontend: native execution" >::: [
     "Assignment expression value (SysV AMD64)" >:: test_sysv_amd64_native "assign_value";
     "Duff's device (SysV AMD64)" >:: test_sysv_amd64_native "duff";
     "Bit-field packing (SysV AMD64)" >:: test_sysv_amd64_native "bitfield_pack";
+    "Attribute layout (SysV AMD64)" >:: test_sysv_amd64_native "attr_layout";
+    "Symbol aliases (SysV AMD64)" >:: test_sysv_amd64_native "attr_alias";
+    "Attribute emission (SysV AMD64)" >:: test_emit "attr_emit" [
+      ".weak weak_var";
+      ".section .mydata";
+      ".global in_section";
+      ".hidden hidden_var";
+      ".weak weak_fn";
+      ".hidden hidden_fn";
+      ".protected protected_fn";
+    ];
     "Function-type typedefs (SysV AMD64)" >:: test_sysv_amd64_native "func_typedef";
     "Incomplete/forward struct types (SysV AMD64)" >:: test_sysv_amd64_native "incomplete_types";
     "Hello world (SysV AMD64)" >:: test_sysv_amd64_native_pp "hello";

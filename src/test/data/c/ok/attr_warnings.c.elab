@@ -1,0 +1,35 @@
+int old_fn(void);
+
+int old_count;
+
+int checked(void);
+
+int new_count;
+
+int call_old(void) {
+  int %0;
+  {
+    %0 = ((int (*)(void))old_fn)();
+    return %0;
+  }
+}
+
+int read_old(void) {
+  return old_count;
+}
+
+void drop_result(void) {
+  ((int (*)(void))checked)();
+}
+
+int keep_result(void) {
+  int %0;
+  %0 = ((int (*)(void))checked)();
+  int x = %0;
+  return x;
+}
+
+void void_cast(void) {
+  int %0;
+  %0 = ((int (*)(void))checked)();
+}

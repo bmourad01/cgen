@@ -109,6 +109,11 @@ module Make(A : Annotation) = struct
     let+ v = eval_const_int e in
     Texpr.int_ v ~ty:(Type.int_ ())
 
+  (* File-scope attribute resolution: reuse the shared resolver (from
+     [Elab_stmt]) with the file-scope constant-integer evaluator. *)
+  let resolve_attrs (raws : A.ann Attr.raws) : Attr.set M.m =
+    S.resolve_attrs ~eval_int:eval_const_int raws
+
   (* Redeclaration-aware registration of a function (§6.7 ¶4, §6.2.7):
      a re-declared name must have a type compatible with the first
      declaration.
@@ -185,12 +190,13 @@ module Make(A : Annotation) = struct
     let* fty = ET.elab ~elab_size f.fty in
     let* tenv = M.gets Ctx.tenv in
     let fty = Elab_type.normalize tenv fty in
-    let+ fbits = match f.fbits with
+    let* fbits = match f.fbits with
       | None -> !!None
       | Some e ->
         let+ v = eval_const_int e in
         Some (Bv.to_int v) in
-    Tdecl.field ?bits:fbits ~name:f.fname ~ty:fty ()
+    let+ attrs = resolve_attrs f.fattrs in
+    Tdecl.field ?bits:fbits ~attrs ~name:f.fname ~ty:fty ()
 
   (* Elaborate the enumerators of an `enum` (§6.7.2.2), threading the
      next implicit value and registering each constant. *)
@@ -228,6 +234,7 @@ module Make(A : Annotation) = struct
       ~linkage
       ~inline
       ~noreturn
+      ~attrs
       ~eparams
       body =
     (* §6.9.1 ¶5: parameter names may not be omitted in a definition. *)
@@ -275,14 +282,14 @@ module Make(A : Annotation) = struct
         statics = saved_statics;
       } in
     Tdecl.fundef
-      ~name ~variadic ~body ~linkage ~inline ~noreturn
+      ~name ~variadic ~body ~linkage ~inline ~noreturn ~attrs
       ~labaddrs:(List.map labaddrs ~f:fst)
       ~params:(tdecl_params eparams)
       ~ret:ret_ty
       ()
 
   let elab_dfun
-      ~name ~params ~variadic ~ret ~body ~storage ~inline ~noreturn =
+      ~name ~params ~variadic ~ret ~body ~storage ~inline ~noreturn ~attrs =
     let* ret_ty = ET.elab ~elab_size ret in
     let* eparams = elab_params params in
     let fn_params =
@@ -299,26 +306,32 @@ module Make(A : Annotation) = struct
         ~linkage
         ~inline
         ~noreturn
+        ~attrs
         ~eparams
         body
     | None ->
       M.return @@ Tdecl.fundecl
-        ~name ~variadic ~linkage
+        ~name ~variadic ~linkage ~attrs
         ~params:(tdecl_params eparams)
         ~ret:ret_ty
         ()
 
-  let elab_dvar ~name ~ty ~init ~storage ~tls =
+  let elab_dvar ~name ~ty ~init ~storage ~tls ~attrs =
     let* base_ty = ET.elab ~elab_size ty in
     let linkage = linkage_of storage in
     match init, storage with
     | None, SCextern ->
-      let+ () = declare_global ~name ~ty:base_ty in
-      Tdecl.extern ~name ~ty:base_ty ~linkage ~tls ()
+      let* () = declare_global ~name ~ty:base_ty in
+      (* An `alias` attribute makes even an `extern` declaration a definition
+         of the alias symbol (§ GCC), so keep it as a global to be emitted. *)
+      begin match Attr.alias attrs with
+        | Some _ -> M.return @@ Tdecl.global ~name ~ty:base_ty ~linkage ~tls ~attrs ()
+        | None -> M.return @@ Tdecl.extern ~name ~ty:base_ty ~linkage ~tls ()
+      end
     | None, _ ->
       (* A tentative definition (§6.9.2). *)
       let+ () = declare_global ~name ~ty:base_ty in
-      Tdecl.global ~name ~ty:base_ty ~linkage ~tls ()
+      Tdecl.global ~name ~ty:base_ty ~linkage ~tls ~attrs ()
     | Some i, _ ->
       (* The initializer of a static-storage object must be a constant
          expression (§6.7.8 ¶4); `require_const` makes `EI.elab` verify
@@ -333,7 +346,7 @@ module Make(A : Annotation) = struct
           EI.elab ~require_const:true ~elab_rval:E.elab_rval ~ty:base_ty i in
         cty, flat in
       let+ () = declare_global ~name ~ty:cty in
-      Tdecl.global ~name ~ty:cty ~init:flat ~linkage ~tls ()
+      Tdecl.global ~name ~ty:cty ~init:flat ~linkage ~tls ~attrs ()
 
   let elab_decl (d : A.ann Decl.t) : Tdecl.t option M.m =
     let@ () = Ctx.with_location_of d.ann in
@@ -342,16 +355,19 @@ module Make(A : Annotation) = struct
       let* ty = ET.elab ~elab_size ty in
       let+ () = declare_typedef ~name ~ty in
       None
-    | Dcompound {kind; tag; fields} ->
+    | Dcompound {kind; tag; fields; attrs} ->
       let* fields = M.List.map fields ~f:elab_field in
-      let+ () = Ctx.add_tag ~name:tag (TE.Tcompound {kind; fields}) in
+      let* attrs = resolve_attrs attrs in
+      let+ () = Ctx.add_tag ~name:tag (TE.Tcompound {kind; fields; attrs}) in
       Some (Tdecl.compound ~kind ~tag ~fields)
     | Denum {tag; items} ->
       let* pairs = elab_enum_items ~tag items in
       let+ () = Ctx.add_tag ~name:tag (TE.Tenum pairs) in
       None
-    | Dvar {name; ty; init; storage; tls} ->
-      elab_dvar ~name ~ty ~init ~storage ~tls >>| Option.some
+    | Dvar {name; ty; init; storage; tls; attrs} ->
+      let* attrs = resolve_attrs attrs in
+      let* () = Ctx.record_attrs ~name ~attrs in
+      elab_dvar ~name ~ty ~init ~storage ~tls ~attrs >>| Option.some
     | Dfun {
         name;
         params;
@@ -360,8 +376,10 @@ module Make(A : Annotation) = struct
         body;
         storage;
         inline;
-        noreturn;
+        attrs;
       } ->
+      let* attrs = resolve_attrs attrs in
+      let* () = Ctx.record_attrs ~name ~attrs in
       elab_dfun
         ~name
         ~params
@@ -370,6 +388,7 @@ module Make(A : Annotation) = struct
         ~body
         ~storage
         ~inline
-        ~noreturn
+        ~noreturn:(Attr.noreturn attrs)
+        ~attrs
       >>| Option.some
 end

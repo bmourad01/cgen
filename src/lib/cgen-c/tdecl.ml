@@ -11,9 +11,10 @@ type param = {
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 type field = {
-  fname : string;
-  fty   : Texpr.ty;
-  fbits : int option;
+  fname  : string;
+  fty    : Texpr.ty;
+  fbits  : int option;
+  fattrs : Attr.set;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 type t =
@@ -26,6 +27,7 @@ type t =
       linkage  : linkage;
       inline   : bool;
       noreturn : bool;
+      attrs    : Attr.set;
       labaddrs : string list;
     }
   | Dfundecl of {
@@ -34,6 +36,7 @@ type t =
       variadic : bool;
       ret      : Texpr.ty;
       linkage  : linkage;
+      attrs    : Attr.set;
     }
   | Dglobal of {
       name    : string;
@@ -41,6 +44,7 @@ type t =
       init    : Texpr.init option;
       linkage : linkage;
       tls     : bool;
+      attrs   : Attr.set;
     }
   | Dextern of {
       name    : string;
@@ -58,30 +62,34 @@ type t =
 (* Smart constructors. *)
 
 let param ~name ~ty = {pname = name; pty = ty}
-let field ?bits ~name ~ty () = {fname = name; fty = ty; fbits = bits}
+let field ?bits ?(attrs = Attr.empty) ~name ~ty () =
+  {fname = name; fty = ty; fbits = bits; fattrs = attrs}
 
 let fundef
     ?(variadic = false)
     ?(linkage = Lextern)
     ?(inline = false)
     ?(noreturn = false)
+    ?(attrs = Attr.empty)
     ?(labaddrs = [])
     ~name ~params ~ret ~body () =
   Dfundef
-    {name; params; variadic; ret; body; linkage; inline; noreturn; labaddrs}
+    {name; params; variadic; ret; body; linkage; inline; noreturn; attrs; labaddrs}
 
 let fundecl
     ?(variadic = false)
     ?(linkage = Lextern)
+    ?(attrs = Attr.empty)
     ~name ~params ~ret () =
-  Dfundecl {name; params; variadic; ret; linkage}
+  Dfundecl {name; params; variadic; ret; linkage; attrs}
 
 let global
     ?init
     ?(linkage = Lextern)
     ?(tls = false)
+    ?(attrs = Attr.empty)
     ~name ~ty () =
-  Dglobal {name; ty; init; linkage; tls}
+  Dglobal {name; ty; init; linkage; tls; attrs}
 
 let extern
     ?(linkage = Lextern)

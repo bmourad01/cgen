@@ -22,6 +22,15 @@ let label ppf (l : Label.t) =
 let global ppf name =
   Format.fprintf ppf ".global %s\n" name
 
+let emit_linkage ppf name lnk =
+  if Linkage.weak lnk then Format.fprintf ppf ".weak %s\n" name
+  else if Linkage.export lnk then global ppf name;
+  match Linkage.visibility lnk with
+  | Linkage.Default -> ()
+  | Linkage.Hidden -> Format.fprintf ppf ".hidden %s\n" name
+  | Linkage.Internal -> Format.fprintf ppf ".internal %s\n" name
+  | Linkage.Protected -> Format.fprintf ppf ".protected %s\n" name
+
 let emit_prelude ppf name =
   Format.fprintf ppf "/* module %s */\n" name;
   Format.fprintf ppf ".intel_syntax noprefix\n"
@@ -54,20 +63,27 @@ let emit_data_elt ppf : Data.elt -> unit = function
 let emit_data ppf d =
   let name = Data.name d in
   let lnk = Data.linkage d in
-  let section =
-    (* If the user specified a section, then override the "const" qualifier. *)
-    let default = if Data.const d then ".rodata" else ".data" in
-    Linkage.section lnk |> Option.value ~default in
-  Format.fprintf ppf ".section %s\n" section;
-  Data.align d |> Option.iter ~f:(Format.fprintf ppf ".align %d\n");
-  if Linkage.export lnk then global ppf name;
-  Format.fprintf ppf "%s:\n" name;
-  Data.elts d |> Sequence.iter ~f:(emit_data_elt ppf)
+  match Data.alias d with
+  | Some target ->
+    (* A symbol alias carries no storage: emit its binding and a symbol
+       assignment. *)
+    emit_linkage ppf name lnk;
+    Format.fprintf ppf ".set %s, %s\n" name target
+  | None ->
+    let section =
+      (* If the user specified a section, then override the "const" qualifier. *)
+      let default = if Data.const d then ".rodata" else ".data" in
+      Linkage.section lnk |> Option.value ~default in
+    Format.fprintf ppf ".section %s\n" section;
+    Data.align d |> Option.iter ~f:(Format.fprintf ppf ".align %d\n");
+    emit_linkage ppf name lnk;
+    Format.fprintf ppf "%s:\n" name;
+    Data.elts d |> Sequence.iter ~f:(emit_data_elt ppf)
 
 let emit_func ppf (name, lnk) =
   let section = Linkage.section lnk |> Option.value ~default:".text" in
   Format.fprintf ppf ".section %s\n" section;
-  if Linkage.export lnk then global ppf name;
+  emit_linkage ppf name lnk;
   Format.fprintf ppf ".p2align 4\n";
   Format.fprintf ppf "%s:\n" name
 

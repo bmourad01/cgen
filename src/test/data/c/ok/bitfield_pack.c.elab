@@ -88,9 +88,54 @@ unsigned long size_e(void) {
   return 8;
 }
 
+struct P {
+  unsigned int lo : 3;
+  int mid : 30;
+  unsigned int hi : 13;
+  char tail;
+};
+
+unsigned long size_p(void) {
+  return 7;
+}
+
+unsigned int p_lo(struct P *p) {
+  return (unsigned int)(int)(*p).lo;
+}
+
+int p_mid(struct P *p) {
+  return (int)(*p).mid;
+}
+
+unsigned int p_hi(struct P *p) {
+  return (unsigned int)(int)(*p).hi;
+}
+
+int p_tail(struct P *p) {
+  return (int)(*p).tail;
+}
+
+void set_mid(struct P *p, int v) {
+  (*p).mid = v;
+}
+
+void set_hi(struct P *p, unsigned int v) {
+  (*p).hi = v;
+}
+
 struct A init_a = {.a = (char)127, .b = -3, .c = (unsigned int)100000, .d = (short)12345};
 
 struct E init_e = {.x = (long long)6, .arr = {(char)10, (char)20, (char)30, (char)40}, .y = 100};
+
+struct P init_p = {.lo = (unsigned int)5, .mid = -1000000, .hi = (unsigned int)5000, .tail = (char)51};
+
+int ip_mid(void) {
+  return (int)init_p.mid;
+}
+
+unsigned int ip_hi(void) {
+  return (unsigned int)(int)init_p.hi;
+}
 
 int ia_a(void) {
   return (int)init_a.a;

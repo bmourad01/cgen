@@ -3,9 +3,10 @@ open Core
 module Bv = Cgen_utils.Bv
 
 type localdecl = {
-  name : string;
-  ty   : Texpr.ty;
-  init : Texpr.init option;
+  name  : string;
+  ty    : Texpr.ty;
+  init  : Texpr.init option;
+  align : int option;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 type instr =
@@ -79,7 +80,7 @@ and t =
 
 (* Smart constructors. *)
 
-let localdecl ?init ~name ~ty () = {name; ty; init}
+let localdecl ?init ?align ~name ~ty () = {name; ty; init; align}
 
 let assign ~lval ~expr = Iassign {lval; expr}
 let call ?lval ~fn ~args () = Icall {lval; fn; args}
@@ -109,8 +110,9 @@ let instr instrs = Sinstr instrs
 
 (* Pretty printing *)
 
-let pp_localdecl ppf {name; ty; init} =
+let pp_localdecl ppf {name; ty; init; align} =
   Type.pp_named_with Texpr.pp ppf ty ~name;
+  Option.iter align ~f:(Format.fprintf ppf " __attribute__((aligned(%d)))");
   Option.iter init ~f:(fun i ->
       Format.fprintf ppf " = %a" Texpr.pp_init i)
 

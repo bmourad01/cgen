@@ -1,0 +1,9 @@
+int target_fn(int x) {
+  return x + 100;
+}
+
+int aliased_fn(int x);
+
+int the_answer = 42;
+
+int aliased_var;

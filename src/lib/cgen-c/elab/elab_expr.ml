@@ -168,26 +168,37 @@ module Make(A : Annotation) = struct
   open Ctx
   open Syntax
 
+  (* Flag a use of a name declared `__attribute__((deprecated))` (a GCC diagnostic). *)
+  let warn_deprecated_use name =
+    let* attrs = M.gets (fun ctx -> Ctx.attrs_of ctx name) in
+    match Attr.find_map attrs ~f:(function Attr.Deprecated m -> Some m | _ -> None) with
+    | None -> !!()
+    | Some None -> Ctx.warnf "'%s' is deprecated" name ()
+    | Some (Some msg) -> Ctx.warnf "'%s' is deprecated: %s" name msg ()
+
   let resolve_name name =
-    let* env = M.gets Ctx.tenv in
-    match TE.find_local env name with
-    | Some ty ->
-      (* A block-scope static/extern is bound as a local for typing and
-         scoping, but resolves to a link symbol (a global), so references
-         lower to that symbol rather than a stack slot. *)
-      let* link = M.gets (Ctx.static_link name) in
-      begin match link with
-        | Some sym -> !!(Rglobal (sym, ty))
-        | None -> !!(Rlocal (name, ty))
-      end
-    | None -> match TE.find_global env name with
-      | Some ty -> !!(Rglobal (name, ty))
-      | None -> match TE.find_func env name with
-        | Some ty -> !!(Rfunc (name, ty))
-        | None -> match TE.find_enum_element env name with
-          | Some e -> !!(Renum e)
-          | None ->
-            Ctx.fatal "undefined identifier '%s'" name ()
+    let* r =
+      let* env = M.gets Ctx.tenv in
+      match TE.find_local env name with
+      | Some ty ->
+        (* A block-scope static/extern is bound as a local for typing and
+           scoping, but resolves to a link symbol (a global), so references
+           lower to that symbol rather than a stack slot. *)
+        let* link = M.gets (Ctx.static_link name) in
+        begin match link with
+          | Some sym -> !!(Rglobal (sym, ty))
+          | None -> !!(Rlocal (name, ty))
+        end
+      | None -> match TE.find_global env name with
+        | Some ty -> !!(Rglobal (name, ty))
+        | None -> match TE.find_func env name with
+          | Some ty -> !!(Rfunc (name, ty))
+          | None -> match TE.find_enum_element env name with
+            | Some e -> !!(Renum e)
+            | None ->
+              Ctx.fatal "undefined identifier '%s'" name () in
+    let+ () = warn_deprecated_use name in
+    r
 
   (* C99 §6.4.2.2: `__func__` is implicitly declared in every function body as
      `static const char __func__[] = "<name>"`. GCC additionally provides the
@@ -406,6 +417,22 @@ module Make(A : Annotation) = struct
            VLA-containing type is necessarily a (complete) array. *)
         Ctx.fatal "sizeof of an incomplete array type '%a'" pp_ty ty ()
 
+  (* _Alignof(T) / __alignof__ (§6.5.3.4, and a GNU extension for the
+     expression form): the alignment of the type, always a constant [size_t]
+     (an array's alignment is its element's, independent of any VLA size). *)
+  let alignof_of ty : Texpr.t M.m =
+    let* layout = M.gets Ctx.layout in
+    let tenv = Layout.tenv layout in
+    let dm = Layout.dmodel layout in
+    let nty = ET0.normalize tenv ty in
+    let* () =
+      M.when_ (EC.is_function tenv nty) @@ fun () ->
+      Ctx.fatal "_Alignof applied to a function type '%a'" pp_ty ty () in
+    let size_t = DM.size_t dm in
+    let+? a = Layout.alignof layout nty in
+    let bits = DM.pointer_bits dm in
+    Texpr.int_ Bv.(int a mod modulus bits) ~ty:size_t
+
   (* Elaborate a list of expressions as rvalues, left-to-right,
      handing the resulting list to `cont`.
 
@@ -463,6 +490,8 @@ module Make(A : Annotation) = struct
     | Ecast {dst; arg} -> rval_cast dst arg cont
     | Esizeof_t ty -> rval_sizeof_t ty cont
     | Esizeof_e operand -> rval_sizeof_e operand cont
+    | Ealignof_t ty -> rval_alignof_t ty cont
+    | Ealignof_e operand -> rval_alignof_e operand cont
     | Eunary {op = #Expr.inc | #Expr.dec as op; arg} ->
       rval_incdec op arg cont
     | Ebinary {op = `assign; lhs; rhs} -> rval_assign lhs rhs cont
@@ -650,6 +679,21 @@ module Make(A : Annotation) = struct
            let+ _, rv = capture_rval operand in
            rv.Texpr.ty) in
     sizeof_of operand_ty >>= cont
+
+  and rval_alignof_t ty cont =
+    let* ty' = ET.elab ~elab_size ty in
+    alignof_of ty' >>= cont
+
+  and rval_alignof_e operand cont =
+    let* operand_ty =
+      let@ () = Ctx.discarding_temps in
+      M.catch
+        (let+ _, lv = capture_lval operand in
+         lv.Texpr.ty)
+        (fun _ ->
+           let+ _, rv = capture_rval operand in
+           rv.Texpr.ty) in
+    alignof_of operand_ty >>= cont
 
   (* Increment / decrement (§6.5.2.4 / §6.5.3.1): scalar modifiable
      lvalue operand.

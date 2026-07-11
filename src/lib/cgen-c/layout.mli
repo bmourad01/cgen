@@ -34,6 +34,15 @@ module Bitfield : sig
 
   (** Width in bits of the run-time access integer. *)
   val access_bits : t -> int
+
+  (** Whether the field must be accessed one byte at a time.
+
+      [true] only for a [packed] field that straddles its storage unit, where
+      no single in-bounds integer access covers it.
+
+      {!access_storage} and {!access_bits} do not apply when this is [true].
+  *)
+  val bytewise : t -> bool
 end
 
 type bitfield = Bitfield.t [@@deriving bin_io, compare, equal, hash, sexp]

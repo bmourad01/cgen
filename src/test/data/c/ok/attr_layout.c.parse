@@ -1,0 +1,45 @@
+struct Packed {
+  char c;
+  int i;
+} __attribute__((packed));
+
+struct Over {
+  int x;
+} __attribute__((aligned(16)));
+
+struct MemberAlign {
+  char c;
+  int x __attribute__((aligned(8)));
+};
+
+unsigned long packed_size(void) {
+  return sizeof(struct Packed);
+}
+
+unsigned long over_size(void) {
+  return sizeof(struct Over);
+}
+
+unsigned long over_align(void) {
+  return _Alignof(struct Over);
+}
+
+unsigned long member_offset(void) {
+  struct MemberAlign m;
+  return (unsigned long)((char *)&m.x - (char *)&m);
+}
+
+unsigned long alignof_double(void) {
+  return _Alignof(double);
+}
+
+int alignof_expr(void) {
+  long z = 0;
+  return _Alignof z;
+}
+
+int local_aligned(void) {
+  int y __attribute__((aligned(16)));
+  y = 3;
+  return ((unsigned long)&y & 15u) == 0;
+}

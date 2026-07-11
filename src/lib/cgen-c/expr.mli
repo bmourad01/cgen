@@ -211,6 +211,10 @@ and 'a node =
   (** [sizeof] applied to an expression. *)
   | Esizeof_t of 'a ty
   (** [sizeof] applied to a type name. *)
+  | Ealignof_e of 'a t
+  (** [_Alignof] / [__alignof__] applied to an expression (a GNU extension). *)
+  | Ealignof_t of 'a ty
+  (** [_Alignof] / [__alignof__] applied to a type name. *)
   | Econd of {
       cond  : 'a t;
       then_ : 'a t;
@@ -268,6 +272,12 @@ val labaddr : string -> ann:'a -> 'a t
 
 (** [sizeof] of an expression. *)
 val sizeof_e : 'a t -> ann:'a -> 'a t
+
+(** [_Alignof] of an expression. *)
+val alignof_e : 'a t -> ann:'a -> 'a t
+
+(** [_Alignof] of a type name. *)
+val alignof_t : 'a ty -> ann:'a -> 'a t
 
 (** [sizeof] of a type name. *)
 val sizeof_t : 'a ty -> ann:'a -> 'a t

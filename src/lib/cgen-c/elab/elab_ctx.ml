@@ -40,6 +40,9 @@ module Make(A : Annotation) = struct
     hoisted      : Tdecl.t list;
     static_count : int;
     warnings     : Diagnostic.t list;
+    (* Resolved attributes of each declared function/object, by name, so a
+       later use can be checked (e.g. `deprecated`, `warn_unused_result`). *)
+    decl_attrs   : Attr.set Smap.t;
   }
 
   let create ~dmodel ~loc_of_ann = {
@@ -51,6 +54,7 @@ module Make(A : Annotation) = struct
     hoisted = [];
     static_count = 0;
     warnings = [];
+    decl_attrs = Smap.empty;
   }
 
   let layout t = t.layout
@@ -64,6 +68,11 @@ module Make(A : Annotation) = struct
 
   (* Warnings raised during elaboration, in source order. *)
   let warnings t = List.rev t.warnings
+
+  (* The resolved attributes declared for the name. *)
+  let attrs_of t name =
+    Smap.find t.decl_attrs name |>
+    Option.value ~default:Attr.empty
 
   (* The return type of the enclosing function, if any. *)
   let return_ty t = Option.map t.fnctx ~f:(fun fc -> fc.retty)
@@ -110,7 +119,7 @@ module Make(A : Annotation) = struct
     | None -> failwith "Elab_ctx.fresh_tlval: no enclosing function context"
     | Some fc ->
       let name = tmp_name fc.fresh in
-      let tmp  = Tstmt.{name; ty; init} in
+      let tmp  = Tstmt.{name; ty; init; align = None} in
       let fc' = {fc with fresh = fc.fresh + 1; tmps = tmp :: fc.tmps} in
       let+ () = M.put {ctx with fnctx = Some fc'} in
       Texpr.lvar name ~ty
@@ -203,6 +212,13 @@ module Make(A : Annotation) = struct
 
   (* Accumulate a non-fatal diagnostic; elaboration continues. *)
   let warn d = M.update @@ fun ctx -> {ctx with warnings = d :: ctx.warnings}
+
+  let record_attrs ~name ~attrs =
+    M.update @@ fun ctx ->
+    let attrs = match Smap.find ctx.decl_attrs name with
+      | Some prev -> Attr.union prev attrs
+      | None -> attrs in
+    {ctx with decl_attrs = Smap.set ctx.decl_attrs ~key:name ~data:attrs}
 
   (* Emit a warning at the current location. *)
   let warnf fmt =

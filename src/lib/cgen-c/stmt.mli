@@ -24,6 +24,7 @@ type 'a localdecl = {
   ldty      : 'a Expr.ty;
   ldinit    : 'a Expr.init option;
   ldstorage : storagecls;
+  ldattrs   : 'a Attr.raws;
   ldann     : 'a;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
@@ -172,6 +173,7 @@ val null : ann:'a -> 'a t
 val localdecl :
   ?init:'a Expr.init ->
   ?storage:storagecls ->
+  ?attrs:'a Attr.raws ->
   name:string ->
   ty:'a Expr.ty ->
   ann:'a ->

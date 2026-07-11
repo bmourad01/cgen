@@ -157,6 +157,8 @@ and 'a node =
     }
   | Esizeof_e of 'a t
   | Esizeof_t of 'a ty
+  | Ealignof_e of 'a t
+  | Ealignof_t of 'a ty
   | Econd of {
       cond  : 'a t;
       then_ : 'a t;
@@ -206,6 +208,8 @@ let call ~callee ~args ~ann = {node = Ecall {callee; args}; ann}
 let cast ~dst ~arg ~ann = {node = Ecast {dst; arg}; ann}
 let sizeof_e e ~ann = {node = Esizeof_e e; ann}
 let sizeof_t ty ~ann = {node = Esizeof_t ty; ann}
+let alignof_e e ~ann = {node = Ealignof_e e; ann}
+let alignof_t ty ~ann = {node = Ealignof_t ty; ann}
 let cond ~cond ~then_ ~else_ ~ann = {node = Econd {cond; then_; else_}; ann}
 let comma ~lhs ~rhs ~ann = {node = Ecomma {lhs; rhs}; ann}
 let compound ~ty ~init ~ann = {node = Ecompound {ty; init}; ann}
@@ -263,6 +267,8 @@ let prec_node : type a. a node -> int = function
   | Ecast _
   | Esizeof_e _
   | Esizeof_t _
+  | Ealignof_e _
+  | Ealignof_t _
   | Ecompound _ -> 2
   | Ebuiltin _ -> 1
   | Econd _ -> 13
@@ -411,6 +417,13 @@ and pp_node ppf = function
     pp_at ~ctx:2 ppf arg
   | Esizeof_t ty ->
     Format.pp_print_string ppf "sizeof(";
+    Type.pp_with pp ppf ty;
+    Format.pp_print_char ppf ')'
+  | Ealignof_e arg ->
+    Format.pp_print_string ppf "_Alignof ";
+    pp_at ~ctx:2 ppf arg
+  | Ealignof_t ty ->
+    Format.pp_print_string ppf "_Alignof(";
     Type.pp_with pp ppf ty;
     Format.pp_print_char ppf ')'
   | Econd {cond; then_; else_} ->

@@ -37,6 +37,12 @@ module Tag = struct
   let const = Dict.register
       ~uuid:"41f13eba-baa9-44c4-96cc-4729aaf1eb55"
       "data-const" (module Unit)
+
+  (* The symbol this one aliases (`__attribute__((alias(...)))`). An alias
+     carries no elements; it is emitted as a symbol assignment. *)
+  let alias = Dict.register
+      ~uuid:"b7e4d2a1-6f83-4c05-9a1e-2d7c8f0e5a6b"
+      "data-alias" (module String)
 end
 
 let create_exn
@@ -56,6 +62,11 @@ let create
   try Ok (create_exn () ~name ~elts ~dict) with
   | Invalid_argument msg -> Or_error.error_string msg
 
+(* An alias [name = target]: a symbol assignment with no storage, hence no
+   elements. *)
+let create_alias ?(dict = Dict.empty) ~name ~target () =
+  {name; elts = Rrb.empty; dict = Dict.set dict Tag.alias target}
+
 let name d = d.name
 
 let elts ?(rev = false) d =
@@ -67,6 +78,7 @@ let linkage d = match Dict.find d.dict Tag.linkage with
 
 let align d = Dict.find d.dict Tag.align
 let const d = Dict.mem d.dict Tag.const
+let alias d = Dict.find d.dict Tag.alias
 let dict d = d.dict
 let with_dict d dict = {d with dict}
 let with_tag d tag x = {d with dict = Dict.set d.dict tag x}

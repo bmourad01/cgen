@@ -14,7 +14,9 @@ module IT = Cgen.Type
 module Ctx = Cgen.Context
 module S = Cgen.Structured
 module V = Cgen.Virtual
+module L = Cgen.Linkage
 module Dict = Cgen.Dict
+module Target = Cgen.Target
 module E = Lower_expr
 module Smap = E.Smap
 module Bf = Layout.Bitfield
@@ -23,9 +25,28 @@ open Ctx.Syntax
 
 let (let@) f x = f x [@@ocaml.warning "-32"]
 
-let linkage_of : Tdecl.linkage -> Cgen.Linkage.t = function
-  | Lextern -> Cgen.Linkage.default_export
-  | Lstatic -> Cgen.Linkage.default_static
+let visibility_of = function
+  | Attr.Default -> L.Default
+  | Attr.Hidden -> L.Hidden
+  | Attr.Internal -> L.Internal
+  | Attr.Protected -> L.Protected
+
+let linkage_of ~attrs (l : Tdecl.linkage) =
+  let export = match l with
+    | Lextern -> true
+    | Lstatic -> false in
+  let visibility =
+    Option.value_map (Attr.visibility attrs)
+      ~default:L.Default ~f:visibility_of in
+  L.create
+    ~section:(Attr.section attrs)
+    ~weak:(Attr.weak attrs)
+    ~visibility
+    ~export ()
+
+let alias_data ~name ~linkage ~attrs ~target =
+  let dict = Dict.set Dict.empty V.Data.Tag.linkage (linkage_of ~attrs linkage) in
+  V.Data.create_alias ~name ~target ~dict ()
 
 (* {1 Body traversal} *)
 
@@ -65,6 +86,7 @@ let lower_fundef
     ~body
     ~variadic
     ~linkage
+    ~attrs
     ~labaddrs =
   (* Parameters are allocated up front, function-wide. Block-scoped locals
      are allocated lazily as they come into scope during statement lowering,
@@ -117,7 +139,7 @@ let lower_fundef
     List.map args ~f:(fun ((p : Tdecl.param), av) ->
         av, Lower_type.arg_of layout p.pty) in
   let fn = S.Func.create ~name ~args:func_args ~slots:slot_list ~body () in
-  let fn = S.Func.with_tag fn V.Func.Tag.linkage (linkage_of linkage) in
+  let fn = S.Func.with_tag fn V.Func.Tag.linkage (linkage_of ~attrs linkage) in
   let fn = if variadic then S.Func.with_tag fn V.Func.Tag.variadic () else fn in
   match Lower_type.ret_of layout ret with
   | Some r -> S.Func.with_tag fn V.Func.Tag.return r
@@ -196,8 +218,9 @@ let init_int layout ~what = function
   | _ -> Or_error.errorf "lower: aggregate %s initializer" what
 
 (* OR a value of `width` bits at `bitoff` into a storage-unit accumulator. *)
-let splice_bits ~unit_bytes ~bitoff ~width ~acc v =
+let splice_bits ~little ~unit_bytes ~bitoff ~width ~acc v =
   let module B = (val Bv.modular (unit_bytes * 8)) in
+  let bitoff = if little then bitoff else unit_bytes * 8 - bitoff - width in
   let mask = B.(pred (one lsl int width)) in
   B.(acc lor ((v land mask) lsl int bitoff))
 
@@ -212,7 +235,7 @@ let imm_bytes (i : IT.imm) = IT.sizeof_basic (i :> IT.basic) / 8
 
 (* Coalesce a set of bit-field byte offsets into aligned power-of-two integer
    cells (largest alignment first), reading each byte's value from `bf_byte`. *)
-let coalesce_bytes bf_byte bytes =
+let coalesce_bytes ~little bf_byte bytes =
   let rec group = function
     | [] -> []
     | x :: xs ->
@@ -237,7 +260,10 @@ let coalesce_bytes bf_byte bytes =
               let byte =
                 Hashtbl.find bf_byte (p + j) |>
                 Option.value ~default:0 in
-              let sh = 8 * j in
+              (* Byte `p + j` lands at the lowest address on little-endian
+                 (least-significant), at the highest on big-endian, since the
+                 assembler orders the emitted integer's bytes. *)
+              let sh = if little then 8 * j else 8 * (w - 1 - j) in
               Bw.(a lor (int byte lsl int sh))) in
           go (p + w) (fun acc -> k ((p, imm_of_bytes w, v) :: acc))  in
       go lo Fn.id)
@@ -303,6 +329,7 @@ and emit_array layout ~strings ~nstr ~base ~elem ~esz inits i acc =
 
 (* Emit a struct initializer's data image. *)
 and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
+  let* little = Ctx.target >>| Target.little in
   let unit_bytes = Int.Table.create () in
   List.iter fields ~f:(fun (field, _) ->
       match Layout.bitfield_info layout ~tag ~field with
@@ -323,14 +350,15 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
         let off = Bf.offset bf and w = Bf.width bf in
         let ub = Hashtbl.find_exn unit_bytes storage in
         Hashtbl.update unit_val storage ~f:(fun cur ->
-            splice_bits ~unit_bytes:ub ~bitoff:off ~width:w
+            splice_bits ~little ~unit_bytes:ub ~bitoff:off ~width:w
               ~acc:(Option.value cur ~default:Bv.zero) v);
         let z = Bv.to_bigint v and base_bit = storage * 8 + off in
         for i = 0 to w - 1 do
           if Z.testbit z i then
-            Hashtbl.update bf_byte ((base_bit + i) / 8) ~f:(fun c ->
-                let c = Option.value c ~default:0 in
-                c lor (1 lsl ((base_bit + i) mod 8)))
+            let q = if little then base_bit + i else base_bit + (w - 1 - i) in
+            let sub = if little then q mod 8 else 7 - (q mod 8) in
+            Hashtbl.update bf_byte (q / 8) ~f:(fun c ->
+                Option.value c ~default:0 lor (1 lsl sub))
         done;
         classify members rest
       | Error _ ->
@@ -358,7 +386,7 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
             let cell = storage, `Int (imm_of_bytes ub, v, ub) in
             (cell :: cells), split) in
   let byte_cells =
-    coalesce_bytes bf_byte split_bytes |>
+    coalesce_bytes ~little bf_byte split_bytes |>
     List.map ~f:(fun (off, imm, v) ->
         off, `Int (imm, v, imm_bytes imm)) in
   let member_cells =
@@ -387,7 +415,8 @@ let lower_global
     ~name
     ~(ty : Texpr.ty)
     ~(init : Texpr.init option)
-    ~linkage =
+    ~linkage
+    ~attrs =
   let* elts = match init with
     | None ->
       let+? size = Layout.sizeof layout ty in
@@ -395,7 +424,7 @@ let lower_global
     | Some init ->
       let+ acc, _ = emit_init layout ~strings ~nstr ~base:0 ~ty init [] in
       List.rev acc in
-  let dict = Dict.set Dict.empty V.Data.Tag.linkage (linkage_of linkage) in
+  let dict = Dict.set Dict.empty V.Data.Tag.linkage (linkage_of ~attrs linkage) in
   let dict =
     if Type.Cv.is_const (Type.cv_of ty)
     then Dict.set dict V.Data.Tag.const ()
@@ -409,18 +438,30 @@ let module_ ~name (tc : Tcunit.t) =
   let strings = String.Table.create () in
   let nstr = ref 0 in
   let classify (d : Tdecl.t) = match d with
-    | Dfundef {name; params; ret; body; linkage; variadic; labaddrs; _} ->
+    | Dfundef {name; params; ret; body; linkage; variadic; labaddrs; attrs; _} ->
       let+ fn =
         lower_fundef layout ~strings ~nstr ~name ~params ~ret ~body
-          ~variadic ~linkage ~labaddrs in
+          ~variadic ~linkage ~attrs ~labaddrs in
       `Fun fn
-    | Dglobal {name; ty; init; linkage; _} ->
-      let+ data = lower_global layout ~strings ~nstr ~name ~ty ~init ~linkage in
-      `Data data
+    | Dglobal {name; ty; init; linkage; attrs; _} ->
+      begin match Attr.alias attrs with
+        | Some target -> !!(`Data (alias_data ~name ~linkage ~attrs ~target))
+        | None ->
+          let+ data =
+            lower_global layout ~strings ~nstr ~name ~ty ~init ~linkage ~attrs in
+          `Data data
+      end
     | Dcompound {kind; tag; fields} ->
       let*? named = Lower_type.named_of_compound layout ~kind ~tag ~fields in
       !!(`Type named)
-    | Dfundecl _ | Dextern _ -> !!`None in
+    (* A prototype carrying `alias` becomes a function alias; other prototypes
+       and externs emit nothing. *)
+    | Dfundecl {name; linkage; attrs; _} ->
+      begin match Attr.alias attrs with
+        | Some target -> !!(`Data (alias_data ~name ~linkage ~attrs ~target))
+        | None -> !!`None
+      end
+    | Dextern _ -> !!`None in
   let* items = Ctx.List.map (Tcunit.decls tc) ~f:classify in
   let funs = List.filter_map items ~f:(function `Fun f -> Some f | _ -> None) in
   let data = List.filter_map items ~f:(function `Data d -> Some d | _ -> None) in

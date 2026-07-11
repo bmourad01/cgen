@@ -26,6 +26,8 @@ type tag =
   | Tcompound of {
       kind   : Type.compound;
       fields : Tdecl.field list;
+      attrs  : Attr.set;
+      (** Attributes on the aggregate (e.g. [packed], [aligned]). *)
     } (** A compound type of [kind] consisting of [fields]. *)
 [@@deriving bin_io, compare, equal, hash, sexp]
 

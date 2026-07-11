@@ -11,12 +11,16 @@ type 'a param = {
   pty   : 'a Expr.ty;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** A field in a [struct] or [union]. [fbits] is the bit-field width,
-    or [None] for an ordinary field. *)
+(** A field in a [struct] or [union].
+
+    [fbits] is the bit-field width, or [None] for an ordinary field.
+    [fattrs] holds member attributes (e.g. [aligned], [packed]).
+*)
 type 'a field = {
-  fname : string;
-  fty   : 'a Expr.ty;
-  fbits : 'a Expr.t option;
+  fname  : string;
+  fty    : 'a Expr.ty;
+  fbits  : 'a Expr.t option;
+  fattrs : 'a Attr.raws;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** An [enum] enumerator. [eivalue] is the explicit value expression,
@@ -42,7 +46,8 @@ and 'a node =
       (** Function body. [None] denotes a prototype-only declaration. *)
       storage  : Stmt.storagecls;
       inline   : bool;
-      noreturn : bool;
+      attrs    : 'a Attr.raws;
+      (** Attributes, including [_Noreturn] folded in as {!Attr.Noreturn}. *)
     } (** A function declaration or definition. *)
   | Dvar of {
       name    : string;
@@ -51,11 +56,14 @@ and 'a node =
       storage : Stmt.storagecls;
       tls     : bool;
       (** Set when [_Thread_local] was used. *)
+      attrs   : 'a Attr.raws;
     } (** A global object declaration or definition. *)
   | Dcompound of {
       kind   : Type.compound;
       tag    : string;
       fields : 'a field list;
+      attrs  : 'a Attr.raws;
+      (** Attributes on the aggregate itself (e.g. [packed], [aligned]). *)
     } (** A [struct] or [union] definition. *)
   | Denum of {
       tag   : string;
@@ -71,7 +79,7 @@ and 'a node =
 
 (** A function declaration or definition.
 
-    [variadic], [inline], and [noreturn] default to [false].
+    [variadic] and [inline] default to [false]; [attrs] defaults to empty.
 
     [storage] defaults to [SCdefault].
 *)
@@ -80,7 +88,7 @@ val fun_ :
   ?body:'a Stmt.t ->
   ?storage:Stmt.storagecls ->
   ?inline:bool ->
-  ?noreturn:bool ->
+  ?attrs:'a Attr.raws ->
   name:string ->
   params:'a param list ->
   ret:'a Expr.ty ->
@@ -91,25 +99,28 @@ val fun_ :
 (** A global object declaration or definition.
 
     [storage] defaults to [SCdefault].
-
     [tls] defaults to [false].
+    [attrs] defaults to empty.
 *)
 val var :
   ?init:'a Expr.init ->
   ?storage:Stmt.storagecls ->
   ?tls:bool ->
+  ?attrs:'a Attr.raws ->
   name:string ->
   ty:'a Expr.ty ->
   ann:'a ->
   unit ->
   'a t
 
-(** A [struct] or [union] definition. *)
+(** A [struct] or [union] definition. [attrs] defaults to empty. *)
 val compound :
+  ?attrs:'a Attr.raws ->
   kind:Type.compound ->
   tag:string ->
   fields:'a field list ->
   ann:'a ->
+  unit ->
   'a t
 
 (** An [enum] definition. *)
@@ -122,9 +133,10 @@ val typedef : name:string -> ty:'a Expr.ty -> ann:'a -> 'a t
 val param : ?name:string -> ty:'a Expr.ty -> unit -> 'a param
 
 (** A struct/union field. [bits] is the bit-field width when
-    declared as one. *)
+    declared as one. [attrs] defaults to empty. *)
 val field :
   ?bits:'a Expr.t ->
+  ?attrs:'a Attr.raws ->
   name:string ->
   ty:'a Expr.ty ->
   unit ->

@@ -18,6 +18,7 @@ type tag =
   | Tcompound of {
       kind   : Type.compound;
       fields : Tdecl.field list;
+      attrs  : Attr.set;
     }
 [@@deriving bin_io, compare, equal, hash, sexp]
 

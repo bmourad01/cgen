@@ -22,8 +22,15 @@ struct E {
   char arr[4];
   int y : 8;
 };
+struct P {
+  unsigned lo : 3;
+  int mid : 30;
+  unsigned hi : 13;
+  char tail;
+} __attribute__((packed));
 
 extern unsigned long size_a(void), size_b(void), size_c(void), size_e(void);
+extern unsigned long size_p(void);
 extern int a_a(struct A *), a_b(struct A *), a_d(struct A *);
 extern unsigned a_c(struct A *);
 extern void set_b(struct A *, int), set_c(struct A *, unsigned);
@@ -32,6 +39,11 @@ extern int c_a(struct C *), c_b(struct C *);
 extern int ia_a(void), ia_b(void), ia_d(void), ie_arr(int), ie_y(void);
 extern unsigned ia_c(void);
 extern long long ie_x(void);
+extern unsigned p_lo(struct P *), p_hi(struct P *);
+extern int p_mid(struct P *), p_tail(struct P *);
+extern void set_mid(struct P *, int), set_hi(struct P *, unsigned);
+extern int ip_mid(void);
+extern unsigned ip_hi(void);
 
 int
 main(void) {
@@ -70,5 +82,25 @@ main(void) {
   assert(ie_x() == 6 && ie_y() == 100);
   assert(ie_arr(0) == 10 && ie_arr(1) == 20 && ie_arr(2) == 30 &&
          ie_arr(3) == 40);
+
+  assert(size_p() == sizeof(struct P));
+
+  struct P p = {0};
+  p.tail = 0x5a;
+  p.lo = 5;
+  p.mid = -1000000; /* straddles the 4-byte unit; byte-wise access */
+  p.hi = 5000;
+  assert(p_lo(&p) == 5 && p_mid(&p) == -1000000 && p_hi(&p) == 5000 &&
+         p_tail(&p) == 0x5a);
+  set_mid(&p, 123456789);
+  assert(p_mid(&p) == 123456789 && p_lo(&p) == 5 && p_hi(&p) == 5000 &&
+         p_tail(&p) == 0x5a);
+  set_mid(&p, -1); /* sign extension across the byte-wise read */
+  assert(p_mid(&p) == -1 && p_lo(&p) == 5 && p_hi(&p) == 5000);
+  set_hi(&p, 0x1fff);
+  assert(p_hi(&p) == 0x1fff && p_mid(&p) == -1 && p_lo(&p) == 5 &&
+         p_tail(&p) == 0x5a);
+
+  assert(ip_mid() == -1000000 && ip_hi() == 5000);
   return 0;
 }

@@ -1,0 +1,9 @@
+int target_fn(int x) {
+  return x + 100;
+}
+
+__attribute__((alias("target_fn"))) int aliased_fn(int x);
+
+int the_answer = 42;
+
+extern __attribute__((alias("the_answer"))) int aliased_var;

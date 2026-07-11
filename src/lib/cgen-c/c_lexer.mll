@@ -136,6 +136,7 @@ rule token = parse
   | "for" { FOR }
   | "goto" { GOTO }
   | "if" { IF }
+  | "__attribute__" | "__attribute" { ATTRIBUTE }
   | "inline" | "__inline" | "__inline__" { INLINE }
   | "int" { INT }
   | "long" { LONG }
@@ -145,6 +146,7 @@ rule token = parse
   | "short" { SHORT }
   | "signed" { SIGNED }
   | "sizeof" { SIZEOF }
+  | "_Alignof" | "__alignof__" | "__alignof" { ALIGNOF }
   | "static" { STATIC }
   | "struct" { STRUCT }
   | "switch" { SWITCH }

@@ -9,9 +9,11 @@ open Core
 
 (** A local (block-scope) declaration. *)
 type localdecl = {
-  name : string;
-  ty   : Texpr.ty;
-  init : Texpr.init option;
+  name  : string;
+  ty    : Texpr.ty;
+  init  : Texpr.init option;
+  align : int option;
+  (** An over-alignment requested by [__attribute__((aligned(n)))], if any. *)
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** A side-effecting instruction. *)
@@ -107,6 +109,7 @@ and t =
 (** A local declaration. *)
 val localdecl :
   ?init:Texpr.init ->
+  ?align:int ->
   name:string ->
   ty:Texpr.ty ->
   unit ->

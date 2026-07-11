@@ -63,40 +63,43 @@
 
   (* Declaration modifiers: everything in a declaration-specifier list
      that isn't the type specifier itself. *)
+
+  type raw_attrs = Cgen_utils.Location.t Attr.raws
+
   type modat =
     | Mstore of Stmt.storagecls
     | Mtypedef
     | Minline
-    | Mnoreturn
     | Mtls
     | Mqual of qual
+    | Mattrs of raw_attrs
 
   type mods = {
     storage    : Stmt.storagecls;
     is_typedef : bool;
     is_inline  : bool;
-    is_noreturn : bool;
     is_tls     : bool;
     cv         : T.cv;
+    attrs      : raw_attrs;
   }
 
   let default_mods = {
     storage = Stmt.SCdefault;
     is_typedef = false;
     is_inline = false;
-    is_noreturn = false;
     is_tls = false;
     cv = T.Cv.empty;
+    attrs = [];
   }
-  
+
   let resolve_mods ms =
     List.fold_left
       (fun m -> function
         | Mstore s -> {m with storage = s}
         | Mtypedef -> {m with is_typedef = true}
         | Minline -> {m with is_inline = true}
-        | Mnoreturn -> {m with is_noreturn = true}
         | Mtls -> {m with is_tls = true}
+        | Mattrs a -> {m with attrs = m.attrs @ a}
         | Mqual `const -> {m with cv = T.Cv.combine m.cv T.Cv.const}
         | Mqual `volatile -> {m with cv = T.Cv.combine m.cv T.Cv.volatile}
         | Mqual `restrict -> m)
@@ -118,7 +121,8 @@
      a function (and isn't a typedef) becomes a function prototype. *)
   let make_decls ~ann mods base extra idecls =
     let base = apply_base_cv mods.cv base in
-    let one ((nameopt, dty), init) =
+    let one ((nameopt, dty), init, dattrs) =
+      let attrs = mods.attrs @ dattrs in
       let ty = dty base in
       let name = match nameopt with
         | Some n -> n
@@ -131,11 +135,26 @@
             | None -> [] in
           Decl.fun_ ~name ~params ~variadic ~ret:result
             ~storage:mods.storage ~inline:mods.is_inline
-            ~noreturn:mods.is_noreturn ~ann ()
+            ~attrs ~ann ()
         | _ ->
           Decl.var ~name ~ty ?init ~storage:mods.storage
-            ~tls:mods.is_tls ~ann () in
+            ~tls:mods.is_tls ~attrs ~ann () in
     extra @ List.map one idecls
+
+  (* Build a struct/union definition from its body and attributes (shared by
+     the leading- and trailing-attribute forms of the specifier). *)
+  let make_compound ~su ~name ~body ~attrs ~ann =
+    let fields, nested = body in
+    let tag = match name with
+      | Some n -> n
+      | None -> Parse_state.fresh_anon_tag @@ match su with
+        | `struct_ -> "struct"
+        | `union -> "union" in
+    let ty = match su with
+      | `struct_ -> T.struct_ tag
+      | `union -> T.union_ tag in
+    let def = Decl.compound ~kind:su ~tag ~fields ~attrs ~ann () in
+    ty, nested @ [def]
 
   (* Register a declared name with the lexer hack at the moment its
      declarator is reduced (before the terminating `;`), so a following
@@ -189,6 +208,7 @@
 %token EXTERN FLOAT FOR GOTO IF INLINE INT LONG REGISTER RESTRICT RETURN
 %token SHORT SIGNED SIZEOF STATIC STRUCT SWITCH TYPEDEF UNION UNSIGNED
 %token VOID VOLATILE WHILE BOOL NORETURN THREAD_LOCAL
+%token ATTRIBUTE ALIGNOF
 
 %token LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET
 %token SEMI COMMA DOT ARROW ELLIPSIS COLON QUESTION
@@ -226,8 +246,8 @@
 (* Nonterminal types. *)
 
 %type <decl list> external_declaration
-%type <(declr * init option) list> init_declarator_list
-%type <declr * init option> init_declarator
+%type <(declr * init option * raw_attrs) list> init_declarator_list
+%type <declr * init option * raw_attrs> init_declarator
 
 %type <Lexing.position * modat list * ty * decl list> declaration_specifiers
 %type <modat> declaration_modifier storage_class
@@ -238,7 +258,7 @@
 %type <Type.compound> struct_or_union
 %type <string> tag_name declared_name field_name
 %type <field list * decl list> struct_declaration_list struct_declaration
-%type <declr * expr option> struct_declarator
+%type <declr * expr option * raw_attrs> struct_declarator
 %type <eitem list> enumerator_list
 %type <eitem> enumerator
 
@@ -302,10 +322,11 @@ external_declaration:
       let _ = base in
       extra
     }
-  | ds = declaration_specifiers d = declarator body = compound_statement
+  | ds = declaration_specifiers d = declarator dattrs = attribute_specifier_list body = compound_statement
     {
       let sp, mods, base, extra = ds in
       let m = resolve_mods mods in
+      let attrs = m.attrs @ dattrs in
       let base = apply_base_cv m.cv base in
       let nameopt, dty = d in
       let name = match nameopt with
@@ -320,7 +341,7 @@ external_declaration:
            Decl.fun_
              ~name ~params ~variadic ~ret:result ~body
              ~storage:m.storage ~inline:m.is_inline
-             ~noreturn:m.is_noreturn ~ann ()
+             ~attrs ~ann ()
         | _ ->
            (* A non-function declarator with a brace body is ill-formed.
               Surface it as a zero-arg function so elaboration reports a
@@ -341,10 +362,10 @@ init_declarator_list:
   | l = separated_nonempty_list(COMMA, init_declarator) { l }
 
 init_declarator:
-  | d = declarator
-    { register_name (fst d); (d, None) }
-  | d = declarator ASSIGN i = c_initializer
-    { register_name (fst d); (d, Some i) }
+  | d = declarator attrs = attribute_specifier_list
+    { register_name (fst d); (d, None, attrs) }
+  | d = declarator attrs = attribute_specifier_list ASSIGN i = c_initializer
+    { register_name (fst d); (d, Some i, attrs) }
 
 (* {1 Declaration specifiers} *)
 
@@ -372,12 +393,47 @@ declaration_modifiers:
   | m = declaration_modifier ms = declaration_modifiers { m :: ms }
 
 declaration_modifier:
-  | s = storage_class  { s }
-  | TYPEDEF            { Mtypedef }
-  | INLINE             { Minline }
-  | NORETURN           { Mnoreturn }
-  | THREAD_LOCAL       { Mtls }
-  | q = type_qualifier { Mqual q }
+  | s = storage_class       { s }
+  | TYPEDEF                 { Mtypedef }
+  | INLINE                  { Minline }
+  | NORETURN                { Mattrs [Attr.raw "noreturn" []] }
+  | THREAD_LOCAL            { Mtls }
+  | q = type_qualifier      { Mqual q }
+  | a = attribute_specifier { Mattrs a }
+
+(* {1 GNU attributes}
+
+   The basic form is: `__attribute__ (( a1, a2(args), … ))`.
+
+   The doubled parens are part of the syntax. Attribute names may be
+   identifiers or keywords (e.g. `const`), and an empty list `(())` is legal.
+
+   Arguments are kept as their C expressions; elaboration folds each to a
+   constant.
+*)
+
+attribute_specifier_list:
+  | l = list(attribute_specifier) { List.concat l }
+
+attribute_specifier:
+  | ATTRIBUTE LPAREN LPAREN l = attribute_list RPAREN RPAREN { l }
+
+attribute_list:
+  | (* empty *) { [] }
+  | l = separated_nonempty_list(COMMA, attribute) { l }
+
+attribute:
+  | name = attribute_name { Attr.raw name [] }
+  | name = attribute_name LPAREN args = separated_list(COMMA, attribute_arg) RPAREN
+    { Attr.raw name args }
+
+attribute_name:
+  | id = IDENT        { id }
+  | id = TYPEDEF_NAME { id }
+  | CONST             { "const" }
+
+attribute_arg:
+  | e = assignment_expression { e }
 
 storage_class:
   | AUTO     { Mstore Stmt.SCauto }
@@ -421,25 +477,17 @@ struct_or_union:
   | UNION  { `union }
 
 struct_or_union_specifier:
-  | su = struct_or_union name = ioption(tag_name) LBRACE body = struct_declaration_list RBRACE
-    {
-      let fields, nested = body in
-      let tag = match name with
-        | Some n -> n
-        | None ->
-           let kind = match su with
-             | `struct_ -> "struct"
-             | `union -> "union" in
-           Parse_state.fresh_anon_tag kind in
-      let ty = match su with
-        | `struct_ -> T.struct_ tag
-        | `union -> T.union_ tag in
-      let def =
-        Decl.compound
-          ~kind:su ~tag ~fields
-          ~ann:(loc $symbolstartpos $endpos) in
-      ty, nested @ [def]
-    }
+  (* GCC accepts a type attribute both immediately after the keyword (its
+     preferred form) and after the closing brace. The leading list must be
+     non-empty and thus a separate production, since a nullable list before
+     the tag would collide with the tag-only reference form. *)
+  | su = struct_or_union name = ioption(tag_name)
+    LBRACE body = struct_declaration_list RBRACE attrs = attribute_specifier_list
+    { make_compound ~su ~name ~body ~attrs ~ann:(loc $symbolstartpos $endpos) }
+  | su = struct_or_union pre = nonempty_list(attribute_specifier) name = ioption(tag_name)
+    LBRACE body = struct_declaration_list RBRACE post = attribute_specifier_list
+    { make_compound ~su ~name ~body ~attrs:(List.concat pre @ post)
+        ~ann:(loc $symbolstartpos $endpos) }
   | su = struct_or_union name = tag_name
     {
       let ty = match su with
@@ -466,23 +514,23 @@ struct_declaration:
       let base, nested = sq in
       let fields =
         List.map
-          (fun ((nameopt, dty), bits) ->
+          (fun ((nameopt, dty), bits, attrs) ->
             let ty = dty base in
             let name = match nameopt with
               | Some n -> n
               | None -> "" in
-            Decl.field ?bits ~name ~ty ())
+            Decl.field ?bits ~attrs ~name ~ty ())
           ds in
       fields, nested
     }
 
 struct_declarator:
-  | d = declarator
-    { d, None }
-  | d = declarator COLON e = constant_expression
-    { d, Some e }
+  | d = declarator attrs = attribute_specifier_list
+    { d, None, attrs }
+  | d = declarator attrs = attribute_specifier_list COLON e = constant_expression
+    { d, Some e, attrs }
   | COLON e = constant_expression
-    { (None, Fun.id), Some e }
+    { (None, Fun.id), Some e, [] }
 
 enum_specifier:
   | ENUM name = ioption(tag_name) LBRACE items = enumerator_list RBRACE
@@ -725,7 +773,7 @@ block_declaration:
       let base = apply_base_cv m.cv base in
       if m.is_typedef then [] else
         List.filter_map
-          (fun ((nameopt, dty), init) ->
+          (fun ((nameopt, dty), init, dattrs) ->
             match nameopt with
             | None -> None
             | Some name ->
@@ -734,6 +782,7 @@ block_declaration:
                  Stmt.localdecl
                    ~name ~ty ?init
                    ~storage:m.storage
+                   ~attrs:(m.attrs @ dattrs)
                    ~ann:(loc $symbolstartpos $endpos) () in
                Some (Stmt.Bdecl [ld]))
           idecls
@@ -771,7 +820,7 @@ for_init:
       let base = apply_base_cv m.cv base in
       let ld =
         List.filter_map
-          (fun ((nameopt, dty), init) ->
+          (fun ((nameopt, dty), init, dattrs) ->
             match nameopt with
             | None -> None
             | Some name ->
@@ -779,6 +828,7 @@ for_init:
                  Stmt.localdecl
                    ~name ~ty:(dty base) ?init
                    ~storage:m.storage
+                   ~attrs:(m.attrs @ dattrs)
                    ~ann:(loc $symbolstartpos $endpos) () in
                Some ld)
           idecls in
@@ -854,6 +904,10 @@ unary_expression:
     { Expr.sizeof_e e ~ann:(loc $symbolstartpos $endpos) }
   | SIZEOF LPAREN t = type_name RPAREN
     { Expr.sizeof_t t ~ann:(loc $symbolstartpos $endpos) }
+  | ALIGNOF e = unary_expression
+    { Expr.alignof_e e ~ann:(loc $symbolstartpos $endpos) }
+  | ALIGNOF LPAREN t = type_name RPAREN
+    { Expr.alignof_t t ~ann:(loc $symbolstartpos $endpos) }
 
 unary_operator:
   | AMP   { `addr }

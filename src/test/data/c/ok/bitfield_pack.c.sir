@@ -21,6 +21,12 @@ type :E = {
   w
 }
 
+type :P = {
+  w,
+  w,
+  w
+}
+
 export data $init_a = {
   0x7f_b,
   0xd_b,
@@ -37,6 +43,12 @@ export data $init_e = {
   0x28_b,
   0x64_b,
   z 2
+}
+
+export data $init_p = {
+  0xff85ee05_w,
+  0x2711_h,
+  0x33_b
 }
 
 export function l $size_a() {
@@ -206,69 +218,240 @@ start:
   ret 0x8_l
 }
 
+export function l $size_p() {
+start:
+  ret 0x7_l
+}
+
+export function w $p_lo(l %88) {
+  %87 = slot 8, align 8
+start:
+  st.l %88, %87;
+  %89 = ld.l %87;
+  %90 = ld.w %89;
+  %91 = lsl.w %90, 0x1d_w;
+  %92 = lsr.w %91, 0x1d_w;
+  ret %92
+}
+
+export function sw $p_mid(l %94) {
+  %93 = slot 8, align 8
+start:
+  st.l %94, %93;
+  %95 = ld.l %93;
+  %96 = add.l %95, 0x0_l;
+  %97 = ld.b %96;
+  %98 = zext.l %97;
+  %99 = add.l %95, 0x1_l;
+  %100 = ld.b %99;
+  %101 = zext.l %100;
+  %102 = lsl.l %101, 0x8_l;
+  %103 = or.l %98, %102;
+  %104 = add.l %95, 0x2_l;
+  %105 = ld.b %104;
+  %106 = zext.l %105;
+  %107 = lsl.l %106, 0x10_l;
+  %108 = or.l %103, %107;
+  %109 = add.l %95, 0x3_l;
+  %110 = ld.b %109;
+  %111 = zext.l %110;
+  %112 = lsl.l %111, 0x18_l;
+  %113 = or.l %108, %112;
+  %114 = add.l %95, 0x4_l;
+  %115 = ld.b %114;
+  %116 = zext.l %115;
+  %117 = lsl.l %116, 0x20_l;
+  %118 = or.l %113, %117;
+  %119 = lsl.l %118, 0x1f_l;
+  %120 = asr.l %119, 0x22_l;
+  %121 = itrunc.w %120;
+  ret %121
+}
+
+export function w $p_hi(l %123) {
+  %122 = slot 8, align 8
+start:
+  st.l %123, %122;
+  %124 = ld.l %122;
+  %125 = add.l %124, 0x4_l;
+  %126 = ld.h %125;
+  %127 = zext.w %126;
+  %128 = lsl.w %127, 0x12_w;
+  %129 = lsr.w %128, 0x13_w;
+  ret %129
+}
+
+export function sw $p_tail(l %131) {
+  %130 = slot 8, align 8
+start:
+  st.l %131, %130;
+  %132 = ld.l %130;
+  %133 = add.l %132, 0x6_l;
+  %134 = ld.b %133;
+  %135 = sext.w %134;
+  ret %135
+}
+
+export function $set_mid(l %138, w %139) {
+  %136 = slot 8, align 8
+  %137 = slot 4, align 4
+start:
+  st.l %138, %136;
+  st.w %139, %137;
+  %140 = ld.l %136;
+  %141 = ld.w %137;
+  %142 = add.l %140, 0x0_l;
+  %143 = itrunc.b %141;
+  %144 = lsl.b %143, 0x3_b;
+  %145 = and.b %144, 0xf8_b;
+  %146 = ld.b %142;
+  %147 = and.b %146, 0x7_b;
+  %148 = or.b %147, %145;
+  st.b %148, %142;
+  %149 = add.l %140, 0x1_l;
+  %150 = lsr.w %141, 0x5_w;
+  %151 = itrunc.b %150;
+  st.b %151, %149;
+  %152 = add.l %140, 0x2_l;
+  %153 = lsr.w %141, 0xd_w;
+  %154 = itrunc.b %153;
+  st.b %154, %152;
+  %155 = add.l %140, 0x3_l;
+  %156 = lsr.w %141, 0x15_w;
+  %157 = itrunc.b %156;
+  st.b %157, %155;
+  %158 = add.l %140, 0x4_l;
+  %159 = lsr.w %141, 0x1d_w;
+  %160 = itrunc.b %159;
+  %161 = and.b %160, 0x1_b;
+  %162 = ld.b %158;
+  %163 = and.b %162, 0xfe_b;
+  %164 = or.b %163, %161;
+  st.b %164, %158
+}
+
+export function $set_hi(l %167, w %168) {
+  %165 = slot 8, align 8
+  %166 = slot 4, align 4
+start:
+  st.l %167, %165;
+  st.w %168, %166;
+  %169 = ld.l %165;
+  %170 = ld.w %166;
+  %171 = add.l %169, 0x4_l;
+  %172 = itrunc.h %170;
+  %173 = ld.h %171;
+  %174 = and.h %173, 0xc001_h;
+  %175 = lsl.h %172, 0x1_h;
+  %176 = and.h %175, 0x3ffe_h;
+  %177 = or.h %174, %176;
+  st.h %177, %171
+}
+
+export function sw $ip_mid() {
+start:
+  %178 = add.l $init_p, 0x0_l;
+  %179 = ld.b %178;
+  %180 = zext.l %179;
+  %181 = add.l $init_p, 0x1_l;
+  %182 = ld.b %181;
+  %183 = zext.l %182;
+  %184 = lsl.l %183, 0x8_l;
+  %185 = or.l %180, %184;
+  %186 = add.l $init_p, 0x2_l;
+  %187 = ld.b %186;
+  %188 = zext.l %187;
+  %189 = lsl.l %188, 0x10_l;
+  %190 = or.l %185, %189;
+  %191 = add.l $init_p, 0x3_l;
+  %192 = ld.b %191;
+  %193 = zext.l %192;
+  %194 = lsl.l %193, 0x18_l;
+  %195 = or.l %190, %194;
+  %196 = add.l $init_p, 0x4_l;
+  %197 = ld.b %196;
+  %198 = zext.l %197;
+  %199 = lsl.l %198, 0x20_l;
+  %200 = or.l %195, %199;
+  %201 = lsl.l %200, 0x1f_l;
+  %202 = asr.l %201, 0x22_l;
+  %203 = itrunc.w %202;
+  ret %203
+}
+
+export function w $ip_hi() {
+start:
+  %204 = add.l $init_p, 0x4_l;
+  %205 = ld.h %204;
+  %206 = zext.w %205;
+  %207 = lsl.w %206, 0x12_w;
+  %208 = lsr.w %207, 0x13_w;
+  ret %208
+}
+
 export function sw $ia_a() {
 start:
-  %87 = ld.b $init_a;
-  %88 = sext.w %87;
-  ret %88
+  %209 = ld.b $init_a;
+  %210 = sext.w %209;
+  ret %210
 }
 
 export function sw $ia_b() {
 start:
-  %89 = add.l $init_a, 0x1_l;
-  %90 = ld.b %89;
-  %91 = zext.w %90;
-  %92 = lsl.w %91, 0x1c_w;
-  %93 = asr.w %92, 0x1c_w;
-  ret %93
+  %211 = add.l $init_a, 0x1_l;
+  %212 = ld.b %211;
+  %213 = zext.w %212;
+  %214 = lsl.w %213, 0x1c_w;
+  %215 = asr.w %214, 0x1c_w;
+  ret %215
 }
 
 export function w $ia_c() {
 start:
-  %94 = ld.w $init_a;
-  %95 = lsl.w %94, 0x0_w;
-  %96 = lsr.w %95, 0xc_w;
-  ret %96
+  %216 = ld.w $init_a;
+  %217 = lsl.w %216, 0x0_w;
+  %218 = lsr.w %217, 0xc_w;
+  ret %218
 }
 
 export function sw $ia_d() {
 start:
-  %97 = add.l $init_a, 0x4_l;
-  %98 = ld.h %97;
-  %99 = sext.w %98;
-  ret %99
+  %219 = add.l $init_a, 0x4_l;
+  %220 = ld.h %219;
+  %221 = sext.w %220;
+  ret %221
 }
 
 export function l $ie_x() {
 start:
-  %100 = ld.b $init_e;
-  %101 = zext.l %100;
-  %102 = lsl.l %101, 0x3c_l;
-  %103 = asr.l %102, 0x3c_l;
-  %104 = itrunc.w %103;
-  %105 = sext.l %104;
-  ret %105
+  %222 = ld.b $init_e;
+  %223 = zext.l %222;
+  %224 = lsl.l %223, 0x3c_l;
+  %225 = asr.l %224, 0x3c_l;
+  %226 = itrunc.w %225;
+  %227 = sext.l %226;
+  ret %227
 }
 
-export function sw $ie_arr(w %107) {
-  %106 = slot 4, align 4
+export function sw $ie_arr(w %229) {
+  %228 = slot 4, align 4
 start:
-  st.w %107, %106;
-  %108 = add.l $init_e, 0x1_l;
-  %109 = ld.w %106;
-  %110 = sext.l %109;
-  %111 = add.l %108, %110;
-  %112 = ld.b %111;
-  %113 = sext.w %112;
-  ret %113
+  st.w %229, %228;
+  %230 = add.l $init_e, 0x1_l;
+  %231 = ld.w %228;
+  %232 = sext.l %231;
+  %233 = add.l %230, %232;
+  %234 = ld.b %233;
+  %235 = sext.w %234;
+  ret %235
 }
 
 export function sw $ie_y() {
 start:
-  %114 = add.l $init_e, 0x5_l;
-  %115 = ld.b %114;
-  %116 = zext.w %115;
-  %117 = lsl.w %116, 0x18_w;
-  %118 = asr.w %117, 0x18_w;
-  ret %118
+  %236 = add.l $init_e, 0x5_l;
+  %237 = ld.b %236;
+  %238 = zext.w %237;
+  %239 = lsl.w %238, 0x18_w;
+  %240 = asr.w %239, 0x18_w;
+  ret %240
 }

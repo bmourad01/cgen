@@ -1,0 +1,64 @@
+module attr_layout
+
+type :Packed = {
+  b,
+  w
+}
+
+type :Over = {
+  w
+}
+
+type :MemberAlign = {
+  b,
+  w
+}
+
+export function l $packed_size() {
+start:
+  ret 0x5_l
+}
+
+export function l $over_size() {
+start:
+  ret 0x10_l
+}
+
+export function l $over_align() {
+start:
+  ret 0x10_l
+}
+
+export function l $member_offset() {
+  %0 = slot 16, align 8
+start:
+  %1 = add.l %0, 0x8_l;
+  %2 = sub.l %1, %0;
+  ret %2
+}
+
+export function l $alignof_double() {
+start:
+  ret 0x8_l
+}
+
+export function sw $alignof_expr() {
+  %3 = slot 8, align 8
+start:
+  %4 = sext.l 0x0_w;
+  st.l %4, %3;
+  %5 = itrunc.w 0x8_l;
+  ret %5
+}
+
+export function sw $local_aligned() {
+  %6 = slot 4, align 16
+start:
+  st.w 0x3_w, %6;
+  %7 = zext.l 0xf_w;
+  %8 = and.l %6, %7;
+  %9 = sext.l 0x0_w;
+  %10 = eq.l %8, %9;
+  %11 = flag.w %10;
+  ret %11
+}

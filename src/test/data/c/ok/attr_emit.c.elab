@@ -1,0 +1,17 @@
+int weak_var = 7;
+
+int in_section = 3;
+
+int hidden_var = 1;
+
+int weak_fn(void) {
+  return 42;
+}
+
+int hidden_fn(void) {
+  return hidden_var;
+}
+
+int protected_fn(void) {
+  return 1;
+}

@@ -91,8 +91,54 @@ size_e(void) {
   return sizeof(struct E);
 }
 
+struct P {
+  unsigned lo : 3;
+  int mid : 30;
+  unsigned hi : 13;
+  char tail;
+} __attribute__((packed));
+
+unsigned long
+size_p(void) {
+  return sizeof(struct P);
+}
+unsigned
+p_lo(struct P *p) {
+  return p->lo;
+}
+int
+p_mid(struct P *p) {
+  return p->mid;
+}
+unsigned
+p_hi(struct P *p) {
+  return p->hi;
+}
+int
+p_tail(struct P *p) {
+  return p->tail;
+}
+void
+set_mid(struct P *p, int v) {
+  p->mid = v;
+}
+void
+set_hi(struct P *p, unsigned v) {
+  p->hi = v;
+}
+
 struct A init_a = {0x7f, -3, 100000, 12345};
 struct E init_e = {6, {10, 20, 30, 40}, 100};
+struct P init_p = {5, -1000000, 5000, 0x33};
+
+int
+ip_mid(void) {
+  return init_p.mid;
+}
+unsigned
+ip_hi(void) {
+  return init_p.hi;
+}
 
 int
 ia_a(void) {

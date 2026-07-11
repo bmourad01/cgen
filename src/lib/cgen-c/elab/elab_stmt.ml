@@ -153,6 +153,34 @@ module Make(A : Annotation) = struct
         pp_ty rv.ty () in
     stmt, rv
 
+  let attr_arg ~eval_int (e : A.ann Expr.t) : Attr.arg option M.m =
+    match e.Expr.node with
+    | Expr.Econst (Expr.Cstr s) -> !!(Some (Attr.Astr s))
+    | _ ->
+      M.catch
+        (let+ v = eval_int e >>| Bv.to_int64 in Some (Attr.Aint v))
+        (fun _ -> match e.Expr.node with
+           | Expr.Ename s -> !!(Some (Attr.Aname s))
+           | _ -> !!None)
+
+  let resolve_attr ~eval_int (r : A.ann Attr.raw) : Attr.t M.m =
+    let+ args = M.List.filter_map r.Attr.rargs ~f:(attr_arg ~eval_int) in
+    Attr.of_gnu r.Attr.rname args
+
+  let resolve_attrs ~eval_int (raws : A.ann Attr.raws) : Attr.set M.m =
+    M.List.map raws ~f:(resolve_attr ~eval_int)
+
+  let local_eval_int env (e : A.ann Expr.t) : Bv.t M.m =
+    let* _stmt, rv = capture env e in
+    let* layout = M.gets Ctx.layout in
+    Ctx.lift_err @@ Eval.int_const (Eval.create_init layout) rv
+
+  let local_align env (ld : A.ann Stmt.localdecl) =
+    let+ attrs = resolve_attrs ~eval_int:(local_eval_int env) ld.ldattrs in
+    match Attr.alignment attrs with
+    | Some n when n > 0 -> Some n
+    | _ -> None
+
   (* Elaborate one local declaration, binding it in the current scope
      and returning the block items that realize it.
 
@@ -208,21 +236,33 @@ module Make(A : Annotation) = struct
       []
     | SCdefault | SCauto | SCregister ->
       let* base_ty = ET.elab ~elab_size:(elab_size env) ld.ldty in
+      let* align = local_align env ld in
       match ld.ldinit with
       | None ->
         let+ () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
-        [Tstmt.bdecl (Tstmt.localdecl ~name:ld.ldname ~ty:base_ty ())]
+        [Tstmt.bdecl (Tstmt.localdecl ~name:ld.ldname ~ty:base_ty ?align ())]
       | Some init ->
         let* pre, cty, flat =
           EI.elab ~elab_rval:env.elab_rval ~ty:base_ty init in
         let+ () = Ctx.add_local ~name:ld.ldname ~ty:cty in
         let decl =
           Tstmt.bdecl @@
-          Tstmt.localdecl ~name:ld.ldname ~ty:cty ~init:flat () in
+          Tstmt.localdecl ~name:ld.ldname ~ty:cty ~init:flat ?align () in
         if stmt_is_empty pre then [decl] else [Tstmt.bstmt pre; decl]
 
   let elab_locals env locals =
     M.List.map locals ~f:(elab_local env) >>| List.concat
+
+  let warn_unused_result (e : A.ann Expr.t) = match e.Expr.node with
+    | Expr.Ecall {callee = {Expr.node = Expr.Ename fname; _}; _} ->
+      let* attrs = M.gets (fun ctx -> Ctx.attrs_of ctx fname) in
+      M.when_
+        (Attr.exists attrs ~f:(function Attr.Warn_unused_result -> true | _ -> false))
+      @@ fun () ->
+      Ctx.warnf
+        "ignoring return value of '%s', declared with attribute \
+         warn_unused_result" fname ()
+    | _ -> !!()
 
   let rec go env (s : A.ann Stmt.t) : Tstmt.t M.m =
     let@ () = Ctx.with_location_of s.ann in
@@ -231,7 +271,9 @@ module Make(A : Annotation) = struct
     | Snull -> !!(Tstmt.instr [])
     (* §6.8.3: an expression statement evaluates the expression as a
        void expression (its value discarded). *)
-    | Sexpr e -> env.elab_void e
+    | Sexpr e ->
+      let* () = warn_unused_result e in
+      env.elab_void e
     | Sblock items -> go_block env items
     (* §6.8.6.1: `goto`. The target label's existence is validated by
        the whole-function pass in declaration elaboration. *)
