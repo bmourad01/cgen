@@ -30,11 +30,14 @@ module Buffer = struct
   let length t = t.off
 end
 
+let hash_fold_array f state t =
+  Array.fold t ~init:(hash_fold_int state (Array.length t)) ~f
+
 type 'a tree =
   | Balanced of 'a tree array
   | Unbalanced of 'a tree array * int array
   | Leaf of 'a array
-[@@deriving bin_io, sexp]
+[@@deriving bin_io, hash, sexp]
 
 type 'a t =
   | Empty
@@ -43,7 +46,7 @@ type 'a t =
       shift : int;
       tree  : 'a tree;
     }
-[@@deriving bin_io, sexp]
+[@@deriving bin_io, hash, sexp]
 
 exception Out_of_bounds
 

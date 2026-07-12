@@ -1,7 +1,7 @@
 (** RRB (Relaxed-Radix-Balanced) vectors. *)
 
 (** A vector. *)
-type 'a t [@@deriving bin_io, equal, compare, sexp]
+type 'a t [@@deriving bin_io, equal, compare, hash, sexp]
 
 exception Out_of_bounds
 
