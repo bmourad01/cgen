@@ -1,0 +1,13 @@
+__attribute__((aligned(32))) long g32[4] = {1, 2, 3, 4};
+
+__attribute__((aligned(16))) char cbuf[8];
+
+__attribute__((aligned(_Alignof(double)))) char adbl;
+
+int local_aligned(void) {
+  int a[4] __attribute__((aligned(16)));
+  static char s[8] __attribute__((aligned(16)));
+  a[0] = 5;
+  s[0] = 6;
+  return (unsigned long)a % 16 == 0 && (unsigned long)s % 16 == 0 ? a[0] + s[0] : 0;
+}

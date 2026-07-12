@@ -147,10 +147,12 @@ let pp ppf = function
         ~variadic () in
     Type.pp_named_with Texpr.pp ppf ty ~name;
     Format.pp_print_char ppf ';'
-  | Dglobal {name; ty; init; linkage; tls} ->
+  | Dglobal {name; ty; init; linkage; tls; attrs} ->
     pp_linkage_prefix ppf linkage;
     pp_tls ppf tls;
     Type.pp_named_with Texpr.pp ppf ty ~name;
+    Option.iter (Attr.alignment attrs)
+      ~f:(Format.fprintf ppf " __attribute__((aligned(%d)))");
     Option.iter init ~f:(fun i ->
         Format.fprintf ppf " = %a" Texpr.pp_init i);
     Format.pp_print_char ppf ';'

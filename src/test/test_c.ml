@@ -200,6 +200,7 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Hexadecimal floating constants" "hexfloat";
     ok_case ~sir:true "Null pointer comparisons" "nullcmp";
     ok_case ~sir:true "Shifts with narrower or wider counts" "shift";
+    ok_case ~sir:true "C11 alignment specifier" "alignas";
     ok_case ~sir:true ~warn:true "Distinct pointer-type compare and assign" "ptr_distinct";
     ok_case ~warn:true "Attribute diagnostics" "attr_warnings";
     ok_case ~sir:true "Attribute layout" "attr_layout";
@@ -238,6 +239,7 @@ let native_suite = "C frontend: native execution" >::: [
     "Aggregates and arrays (SysV AMD64)" >:: test_sysv_amd64_native "aggregate";
     "Switch statements (SysV AMD64)" >:: test_sysv_amd64_native "switch";
     "Global initializers (SysV AMD64)" >:: test_sysv_amd64_native "globals";
+    "C11 alignment specifier (SysV AMD64)" >:: test_sysv_amd64_native "alignas";
     "Bit fields (SysV AMD64)" >:: test_sysv_amd64_native "bitfield";
     "Zero-width bit fields (SysV AMD64)" >:: test_sysv_amd64_native "bitfield_zero";
     "Static bit-field initializers (SysV AMD64)" >:: test_sysv_amd64_native "static_bitfield";

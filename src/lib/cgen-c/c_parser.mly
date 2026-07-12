@@ -214,7 +214,7 @@
 %token EXTERN FLOAT FOR GOTO IF INLINE INT LONG REGISTER RESTRICT RETURN
 %token SHORT SIGNED SIZEOF STATIC STRUCT SWITCH TYPEDEF UNION UNSIGNED
 %token VOID VOLATILE WHILE BOOL NORETURN THREAD_LOCAL
-%token ATTRIBUTE ALIGNOF
+%token ATTRIBUTE ALIGNOF ALIGNAS
 
 %token LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET
 %token SEMI COMMA DOT ARROW ELLIPSIS COLON QUESTION
@@ -409,6 +409,13 @@ declaration_modifier:
   | THREAD_LOCAL            { Mtls }
   | q = type_qualifier      { Mqual q }
   | a = attribute_specifier { Mattrs a }
+  (* The C11 alignment specifier `_Alignas(...)` sets the declared object's
+     alignment; model it as an `aligned` attribute. `_Alignas(type-name)`
+     means the alignment of that type (§6.7.5). *)
+  | ALIGNAS LPAREN t = type_name RPAREN
+    { Mattrs [Attr.raw "aligned" [Expr.alignof_t t ~ann:(loc $symbolstartpos $endpos)]] }
+  | ALIGNAS LPAREN e = constant_expression RPAREN
+    { Mattrs [Attr.raw "aligned" [e]] }
 
 (* {1 GNU attributes}
 

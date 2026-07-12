@@ -1,0 +1,21 @@
+long g32[4] __attribute__((aligned(32))) = {(long)1, (long)2, (long)3, (long)4};
+
+char cbuf[8] __attribute__((aligned(16)));
+
+char adbl __attribute__((aligned(8)));
+
+int local_aligned(void) {
+  int %0;
+  int a[4] __attribute__((aligned(16)));
+  a[0] = 5;
+  s.0[0] = (char)6;
+  {
+    if ((unsigned long)(int *)a % (unsigned long)16 == (unsigned long)0 ? (unsigned long)(char *)s.0 % (unsigned long)16 == (unsigned long)0 != (int)0 : 0)
+      %0 = ((int *)a)[0] + (int)((char *)s.0)[0];
+    else
+      %0 = 0;
+    return %0;
+  }
+}
+
+static char s.0[8] __attribute__((aligned(16)));

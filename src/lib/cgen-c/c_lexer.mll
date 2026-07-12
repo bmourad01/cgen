@@ -147,6 +147,7 @@ rule token = parse
   | "signed" { SIGNED }
   | "sizeof" { SIZEOF }
   | "_Alignof" | "__alignof__" | "__alignof" { ALIGNOF }
+  | "_Alignas" | "alignas" { ALIGNAS }
   | "static" { STATIC }
   | "struct" { STRUCT }
   | "switch" { SWITCH }

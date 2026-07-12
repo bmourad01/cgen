@@ -429,6 +429,11 @@ let lower_global
     if Type.Cv.is_const (Type.cv_of ty)
     then Dict.set dict V.Data.Tag.const ()
     else dict in
+  (* An `aligned`/`_Alignas` over-alignment on the object. Globals, unlike
+     stack slots, have no realignment constraint, so it is applied as-is. *)
+  let dict = match Attr.alignment attrs with
+    | Some n when n > 0 -> Dict.set dict V.Data.Tag.align n
+    | _ -> dict in
   Ctx.lift_err @@ V.Data.create ~dict ~name ~elts ()
 
 (* {1 Translation unit} *)

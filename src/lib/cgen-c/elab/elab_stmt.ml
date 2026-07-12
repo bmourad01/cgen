@@ -222,6 +222,9 @@ module Make(A : Annotation) = struct
          for it.
       *)
       let* base_ty = elab_local_ty env ld.ldty in
+      (* Carry the declaration's attributes (notably [aligned]/[_Alignas])
+         onto the hoisted global, so its alignment survives to lowering. *)
+      let* attrs = resolve_attrs ~eval_int:(local_eval_int env) ld.ldattrs in
       let* sym = Ctx.fresh_static_sym ~source:ld.ldname in
       let* cty, init = match ld.ldinit with
         | None -> !!(base_ty, None)
@@ -234,7 +237,7 @@ module Make(A : Annotation) = struct
       let* () = Ctx.add_static_alias ~name:ld.ldname ~link:sym in
       let+ () =
         Ctx.hoist_global @@
-        Tdecl.global ?init
+        Tdecl.global ?init ~attrs
           ~name:sym ~ty:cty
           ~linkage:Tdecl.Lstatic
           ~tls:false () in
