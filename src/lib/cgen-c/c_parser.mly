@@ -199,10 +199,8 @@
 
 %token <string> IDENT TYPEDEF_NAME STRING
 %token <Expr.const> CONSTANT
-(* `BUILTIN` carries the full `__builtin_*` spelling of a generic builtin
-   call; `__builtin_va_arg` gets its own token for its type argument. *)
+(* `BUILTIN` carries the full `__builtin_*` spelling of a builtin call. *)
 %token <string> BUILTIN
-%token BUILTIN_VA_ARG
 
 %token AUTO BREAK CASE CHAR CONST CONTINUE DEFAULT DO DOUBLE ELSE ENUM
 %token EXTERN FLOAT FOR GOTO IF INLINE INT LONG REGISTER RESTRICT RETURN
@@ -858,22 +856,20 @@ primary_expression:
   | s = nonempty_list(STRING)
     { Expr.str (String.concat "" s) ~ann:(loc $symbolstartpos $endpos) }
   | LPAREN e = expression RPAREN { e }
-  (* A generic compiler builtin call (expression arguments only). *)
-  | name = BUILTIN LPAREN args = separated_list(COMMA, assignment_expression) RPAREN
+  | name = BUILTIN LPAREN args = separated_list(COMMA, builtin_argument) RPAREN
     {
       Expr.builtin
         ~name
-        ~args:(List.map (fun e -> Expr.BAexpr e) args)
+        ~args
         ~ann:(loc $symbolstartpos $endpos)
     }
-  (* `__builtin_va_arg(ap, T)`: a value of type [T] fetched from [ap]. *)
-  | BUILTIN_VA_ARG LPAREN e = assignment_expression COMMA t = type_name RPAREN
-    {
-      Expr.builtin
-        ~name:"__builtin_va_arg"
-        ~args:[Expr.BAexpr e; Expr.BAtype t]
-        ~ann:(loc $symbolstartpos $endpos)
-    }
+
+(* A builtin-call argument: a type name or an ordinary expression. Their
+   leading tokens are disjoint (type specifiers/qualifiers and typedef names
+   never begin an expression), so no ambiguity arises. *)
+builtin_argument:
+  | t = type_name { Expr.BAtype t }
+  | e = assignment_expression { Expr.BAexpr e }
 
 postfix_expression:
   | e = primary_expression { e }

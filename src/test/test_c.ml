@@ -215,6 +215,7 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Function-type typedefs" "func_typedef";
     ok_case ~sir:true "Incomplete/forward struct types" "incomplete_types";
     ok_case ~sir:true "Bit-counting builtins" "builtins";
+    ok_case ~sir:true "Offsetof builtin" "offsetof";
     ok_case ~sir:true "Computed goto" "computed_goto";
     ok_case ~sir:true "Real-world C idioms" "c_idioms";
     ok_case ~sir:true "Constant-expr casts and compound-literal init" "init_const";
@@ -226,6 +227,7 @@ let native_suite = "C frontend: native execution" >::: [
     (* AMD64 SysV *)
     "Scalar arithmetic (SysV AMD64)" >:: test_sysv_amd64_native "scalar";
     "Bit-counting builtins (SysV AMD64)" >:: test_sysv_amd64_native "builtins";
+    "Offsetof builtin (SysV AMD64)" >:: test_sysv_amd64_native "offsetof";
     "Computed goto (SysV AMD64)" >:: test_sysv_amd64_native "computed_goto";
     "Real-world C idioms (SysV AMD64)" >:: test_sysv_amd64_native "c_idioms";
     "Constant-expr casts and compound-literal init (SysV AMD64)" >:: test_sysv_amd64_native "init_const";

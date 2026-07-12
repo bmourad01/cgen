@@ -1,0 +1,67 @@
+module offsetof
+
+type :S = {
+  b,
+  w,
+  b,
+  l,
+  w 4
+}
+
+type :Nest = {
+  w,
+  :S
+}
+
+export data $table = {
+  0x0_l,
+  0x4_l,
+  0x10_l
+}
+
+export data $sized = {
+  z 16
+}
+
+export function l $off_b() {
+start:
+  ret 0x4_l
+}
+
+export function l $off_d() {
+start:
+  ret 0x10_l
+}
+
+export function l $off_e2() {
+start:
+  ret 0x20_l
+}
+
+export function l $off_nested() {
+start:
+  ret 0x18_l
+}
+
+export function l $tab(w %1) {
+  %0 = slot 4, align 4
+start:
+  st.w %1, %0;
+  %2 = ld.w %0;
+  %3 = sext.l %2;
+  %4 = mul.l %3, 0x8_l;
+  %5 = add.l $table, %4;
+  %6 = ld.l %5;
+  ret %6
+}
+
+export function l $sized_len() {
+start:
+  ret 0x10_l
+}
+
+export function l $local_len() {
+  %7 = slot 16, align 1
+start:
+  ret 0x10_l
+}

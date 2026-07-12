@@ -1,0 +1,45 @@
+struct S {
+  char a;
+  int b;
+  char c;
+  long d;
+  int e[4];
+};
+
+struct Nest {
+  int pad;
+  struct S inner;
+};
+
+unsigned long off_b(void) {
+  return 4;
+}
+
+unsigned long off_d(void) {
+  return 16;
+}
+
+unsigned long off_e2(void) {
+  return 32;
+}
+
+unsigned long off_nested(void) {
+  return 24;
+}
+
+unsigned long table[3] = {0, 4, 16};
+
+char sized[16];
+
+unsigned long tab(int i) {
+  return ((unsigned long *)table)[i];
+}
+
+unsigned long sized_len(void) {
+  return 16;
+}
+
+unsigned long local_len(void) {
+  char local[16];
+  return 16;
+}

@@ -1,0 +1,45 @@
+struct S {
+  char a;
+  int b;
+  char c;
+  long d;
+  int e[4];
+};
+
+struct Nest {
+  int pad;
+  struct S inner;
+};
+
+unsigned long off_b(void) {
+  return __builtin_offsetof(struct S, b);
+}
+
+unsigned long off_d(void) {
+  return __builtin_offsetof(struct S, d);
+}
+
+unsigned long off_e2(void) {
+  return __builtin_offsetof(struct S, e[2]);
+}
+
+unsigned long off_nested(void) {
+  return __builtin_offsetof(struct Nest, inner.d);
+}
+
+unsigned long table[] = {__builtin_offsetof(struct S, a), __builtin_offsetof(struct S, b), __builtin_offsetof(struct S, d)};
+
+char sized[__builtin_offsetof(struct S, d)];
+
+unsigned long tab(int i) {
+  return table[i];
+}
+
+unsigned long sized_len(void) {
+  return sizeof sized;
+}
+
+unsigned long local_len(void) {
+  char local[__builtin_offsetof(struct S, d)];
+  return sizeof local;
+}

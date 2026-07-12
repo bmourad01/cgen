@@ -886,6 +886,10 @@ module Make(A : Annotation) = struct
         mkblock [Bstmt (Sinstr [bi]); Bstmt tail]
       | "__builtin_va_arg", _ ->
         Ctx.fatal "__builtin_va_arg expects a va_list and a type" ()
+      | "__builtin_offsetof", [Expr.BAtype ty; Expr.BAexpr desig] ->
+        rval_offsetof ty desig cont
+      | "__builtin_offsetof", _ ->
+        Ctx.fatal "__builtin_offsetof expects a type and a member designator" ()
       | ( "__builtin_va_start"
         | "__builtin_va_end"
         ), _ ->
@@ -954,6 +958,56 @@ module Make(A : Annotation) = struct
     let result = Texpr.cond ~cond:guard ~then_:ctz1 ~else_:zero ~ty:int_ in
     let+ tail = cont result in
     mkblock [Bstmt (Sinstr [snapshot; bi]); Bstmt tail]
+
+  (* `__builtin_offsetof(T, member-designator)` (§7.19): the byte offset of
+     the designated member, a `size_t` constant.
+
+     The designator is parsed as an expression (`m`, `a.b[i]`). We flatten
+     it into a member/subscript path and sum the offsets, so the result is
+     a constant usable in initializers, array bounds, `case` labels, &c.
+  *)
+  and rval_offsetof ty desig cont =
+    let* ty' = ET.elab ~elab_size ty in
+    let* layout = M.gets Ctx.layout in
+    let tenv = Layout.tenv layout in
+    let dm = Layout.dmodel layout in
+    let eval = Eval.create_init layout in
+    (* Flatten the designator, innermost first: `a.b[i]` parses as
+       `Eindex {Emember {Ename a; b}; i}`. *)
+    let rec flatten (e : A.ann Expr.t) acc = match e.Expr.node with
+      | Expr.Ename m -> !!(`Field m :: acc)
+      | Expr.Emember {obj; field} -> flatten obj (`Field field :: acc)
+      | Expr.Eindex {arr; idx} ->
+        let* _stmt, iv = capture_rval idx in
+        let*? i = Eval.int_const eval iv in
+        flatten arr (`Index (Bv.to_int i) :: acc)
+      | _ ->
+        Ctx.fatal "invalid __builtin_offsetof member designator" () in
+    let* path = flatten desig [] in
+    let step (off, cur) = function
+      | `Field f ->
+        let* tag = match ET0.normalize tenv cur with
+          | Tnamed {kind = #Type.compound; name; _} -> !!name
+          | _ ->
+            Ctx.fatal "__builtin_offsetof of non-structure type '%a'"
+              pp_ty cur () in
+        let*? o = Layout.offsetof layout ~tag ~field:f in
+        let* fty = lookup_field ~parent_ty:cur ~field:f in
+        !!(off + o, fty)
+      | `Index i ->
+        let* elem = match ET0.normalize tenv cur with
+          | Tarray {elem; _} -> !!elem
+          | _ ->
+            Ctx.fatal "__builtin_offsetof subscript of non-array member" () in
+        let*? sz = Layout.sizeof layout elem in
+        !!(off + i * sz, elem) in
+    let rec fold st = function
+      | [] -> !!st
+      | d :: rest -> let* st = step st d in fold st rest in
+    let* off, _ = fold (0, ty') path in
+    let size_t = DM.size_t dm in
+    let bits = DM.pointer_bits dm in
+    cont (Texpr.int_ Bv.(int off mod modulus bits) ~ty:size_t)
 
   (* `va_start`/`va_end` in statement (void) context.
 

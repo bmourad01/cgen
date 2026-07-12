@@ -248,19 +248,13 @@ rule token = parse
 
   | ident as name
     {
-      (* Compiler builtins live in the reserved `__builtin_` namespace.
-
-         `__builtin_va_arg` needs bespoke grammar (a type argument), so it
-         gets its own token.
+      (* Compiler builtins live in the reserved `__builtin_` namespace and
+         are handled generically via the `BUILTIN` token.
 
          `__builtin_va_list` is a predefined typedef (seeded at parse start),
          so the typedef check below catches it.
-
-         Every other `__builtin_*` is an ordinary-looking call handled
-         generically via the `BUILTIN` token.
       *)
       match name with
-      | "__builtin_va_arg" -> BUILTIN_VA_ARG
       | _ when Lexer_hack.is_typedef name -> TYPEDEF_NAME name
       | _ when String.starts_with ~prefix:"__builtin_" name -> BUILTIN name
       | _ -> IDENT name
