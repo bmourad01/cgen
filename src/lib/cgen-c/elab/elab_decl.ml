@@ -25,7 +25,11 @@ module TE = Type_env
    through a typedef (notably a `va_list` parameter) is adjusted too. *)
 let param_decay tenv (ty : Texpr.ty) : Texpr.ty =
   match Elab_type.normalize tenv ty with
-  | Tarray {elem; _} -> Type.ptr elem
+  | Tarray {elem; cv; restrict; _} ->
+    (* §6.7.6.3 ¶7: the bracket type qualifiers of an array parameter qualify
+       the pointer it decays to. The `static` size assertion has no home on the
+       pointer type, so it is dropped here. *)
+    Type.ptr ~cv ~restrict elem
   | Tfun _ -> Type.ptr ty
   | _ -> ty
 

@@ -9,3 +9,11 @@ int (*fps[5])(int);
 const int * const cp;
 
 char * const *p;
+
+void arr_restrict(int a[restrict]);
+
+int arr_static(int a[static 4]);
+
+void arr_const(char c[const]);
+
+int arr_static_quals(const int a[const static 8]);

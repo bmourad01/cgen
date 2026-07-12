@@ -455,6 +455,14 @@ type_qualifier:
   | VOLATILE { `volatile }
   | RESTRICT { `restrict }
 
+(* A type qualifier or `static` inside an array parameter's brackets (C99
+   §6.7.6.2): `int a[restrict]`, `char *v[static 3]`, `int m[const 4]`. Both
+   are recorded on the array type; the type qualifiers additionally move onto
+   the pointer it decays to. *)
+array_qualifier:
+  | q = type_qualifier { `Qual q }
+  | STATIC             { `Static }
+
 (* A type specifier is either a run of arithmetic keywords, a tagged
    type, or a single typedef name.
 
@@ -599,13 +607,16 @@ pointer:
 direct_declarator:
   | id = declared_name { did id }
   | LPAREN d = declarator RPAREN { d }
-  | d = direct_declarator LBRACKET e = ioption(assignment_expression) RBRACKET
+  | d = direct_declarator LBRACKET qs = list(array_qualifier) e = ioption(assignment_expression) RBRACKET
     {
+      let quals = List.filter_map (function `Qual q -> Some q | `Static -> None) qs in
+      let static_ = List.exists (function `Static -> true | `Qual _ -> false) qs in
+      let cv = cv_of_quals quals and restrict = restrict_of_quals quals in
       let n, f = d in
       let f' t =
         let t' = match e with
-          | Some sz -> T.array ~size:sz t
-          | None -> T.array t in
+          | Some sz -> T.array ~cv ~restrict ~static_ ~size:sz t
+          | None -> T.array ~cv ~restrict ~static_ t in
         f t' in
       n, f'
     }
@@ -679,15 +690,18 @@ abstract_declarator:
 
 direct_abstract_declarator:
   | LPAREN d = abstract_declarator RPAREN { d }
-  | d = ioption(direct_abstract_declarator) LBRACKET e = ioption(assignment_expression) RBRACKET
+  | d = ioption(direct_abstract_declarator) LBRACKET qs = list(array_qualifier) e = ioption(assignment_expression) RBRACKET
     {
+      let quals = List.filter_map (function `Qual q -> Some q | `Static -> None) qs in
+      let static_ = List.exists (function `Static -> true | `Qual _ -> false) qs in
+      let cv = cv_of_quals quals and restrict = restrict_of_quals quals in
       let inner = match d with
         | Some f -> f
         | None -> (fun t -> t) in
       let f' t =
         let t' = match e with
-          | Some sz -> T.array ~size:sz t
-          | None -> T.array t in
+          | Some sz -> T.array ~cv ~restrict ~static_ ~size:sz t
+          | None -> T.array ~cv ~restrict ~static_ t in
         inner t' in
       f'
     }

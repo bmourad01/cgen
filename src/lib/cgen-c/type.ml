@@ -94,9 +94,18 @@ type 'e t =
       cv       : cv;
     }
   | Tarray of {
-      elem : 'e t;
-      size : 'e option;
-      cv   : cv;
+      elem     : 'e t;
+      size     : 'e option;
+      cv       : cv;
+      restrict : bool;
+      (** Only meaningful on a parameter: the type qualifiers ([cv]) and
+          [restrict] inside its brackets (C99 §6.7.6.3), which qualify the
+          pointer it decays to. *)
+      static_  : bool;
+      (** Only meaningful on a parameter: the [static] in [a\[static n\]]
+          (C99 §6.7.6.3), asserting the argument points to at least [size]
+          elements. It has no home on the decayed pointer type, so it is
+          dropped there; cgen does not otherwise use it. *)
     }
   | Tnamed of {
       kind : named;
@@ -139,8 +148,8 @@ let double_ ?(cv= Cv.empty) () = Tbase {base = Bfloat Fdouble; cv}
 let ptr ?(cv= Cv.empty) ?(restrict = false) pointee =
   Tptr {pointee; restrict; cv}
 
-let array ?(cv= Cv.empty) ?size elem =
-  Tarray {elem; size; cv}
+let array ?(cv= Cv.empty) ?(restrict = false) ?(static_ = false) ?size elem =
+  Tarray {elem; size; cv; restrict; static_}
 
 let struct_  ?(cv= Cv.empty) name = Tnamed {kind = `struct_; name; cv}
 let union_   ?(cv= Cv.empty) name = Tnamed {kind = `union;   name; cv}
@@ -300,13 +309,24 @@ let make_pp
         pp_ptr_quals ppf cv ~restrict;
         pp_inner ppf in
       go ppf ~atom:true pp_outer pointee
-    | Tarray {elem; size; _} ->
+    | Tarray {elem; size; cv; restrict; static_} ->
       let pp_outer ppf =
         if atom then Format.pp_print_char ppf '(';
         pp_inner ppf;
         if atom then Format.pp_print_char ppf ')';
         Format.pp_print_char ppf '[';
-        Option.iter size ~f:(pp_e ppf);
+        let sp = ref false in
+        let kw s =
+          if !sp then Format.pp_print_char ppf ' ';
+          Format.pp_print_string ppf s;
+          sp := true in
+        if Cv.is_const cv then kw "const";
+        if Cv.is_volatile cv then kw "volatile";
+        if restrict then kw "restrict";
+        if static_ then kw "static";
+        Option.iter size ~f:(fun e ->
+            if !sp then Format.pp_print_char ppf ' ';
+            pp_e ppf e);
         Format.pp_print_char ppf ']' in
       go ppf ~atom:false pp_outer elem
     | Tfun {result; params; variadic} ->

@@ -226,10 +226,10 @@ let normalize env ty =
     | Tnamed _ as t -> t
     | Tptr {pointee; restrict; cv} ->
       Type.ptr ~cv ~restrict (go pointee)
-    | Tarray {elem; size = None; cv} ->
-      Type.array ~cv (go elem)
-    | Tarray {elem; size = Some _ as size; cv} ->
-      Type.array ~cv ?size @@ go elem
+    | Tarray {elem; size = None; cv; restrict; static_} ->
+      Type.array ~cv ~restrict ~static_ (go elem)
+    | Tarray {elem; size = Some _ as size; cv; restrict; static_} ->
+      Type.array ~cv ~restrict ~static_ ?size @@ go elem
     | Tfun {result; params = None; _} ->
       Type.fun_kr (go result)
     | Tfun {result; params = Some ps; variadic} ->

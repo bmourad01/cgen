@@ -101,10 +101,19 @@ type 'e t =
       cv       : cv;
     } (** A pointer type. *)
   | Tarray of {
-      elem : 'e t;
-      size : 'e option;
+      elem     : 'e t;
+      size     : 'e option;
       (** Array length. [None] denotes an incomplete array. *)
-      cv   : cv;
+      cv       : cv;
+      restrict : bool;
+      (** Only meaningful on a parameter: the type qualifiers ([cv]) and
+          [restrict] inside its brackets (C99 §6.7.6.3), which qualify the
+          pointer it decays to. *)
+      static_  : bool;
+      (** Only meaningful on a parameter: the [static] in [a\[static n\]]
+          (C99 §6.7.6.3), asserting the argument points to at least [size]
+          elements. It has no home on the decayed pointer, so it is dropped
+          there; cgen does not otherwise use it. *)
     } (** An array type. *)
   | Tnamed of {
       kind : named;
@@ -170,9 +179,14 @@ val double_ : ?cv:cv -> unit -> _ t
 (** [ptr ?cv ?restrict pointee] is a pointer to [pointee]. *)
 val ptr : ?cv:cv -> ?restrict:bool -> 'e t -> 'e t
 
-(** [array ?cv ?size elem] is an array of [elem]. A missing [size]
-    denotes an incomplete array type. *)
-val array : ?cv:cv -> ?size:'e -> 'e t -> 'e t
+(** [array ?cv ?restrict ?static_ ?size elem] is an array of [elem].
+
+    A missing [size] denotes an incomplete array type.
+
+    [cv], [restrict], and [static_] carry the bracket qualifiers of an
+    array parameter (see {!Tarray}).
+*)
+val array : ?cv:cv -> ?restrict:bool -> ?static_:bool -> ?size:'e -> 'e t -> 'e t
 
 val struct_ : ?cv:cv -> string -> _ t
 val union_ : ?cv:cv -> string -> _ t

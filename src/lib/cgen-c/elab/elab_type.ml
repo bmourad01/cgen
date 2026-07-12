@@ -84,13 +84,13 @@ module Make(A : Annotation) = struct
       | Tptr {pointee; restrict; cv} ->
         let+ pointee = go pointee in
         Type.ptr ~cv ~restrict pointee
-      | Tarray {elem; size = None; cv} ->
+      | Tarray {elem; size = None; cv; restrict; static_} ->
         let+ elem = go elem in
-        Type.array ~cv elem
-      | Tarray {elem; size = Some e; cv} ->
+        Type.array ~cv ~restrict ~static_ elem
+      | Tarray {elem; size = Some e; cv; restrict; static_} ->
         let* elem = go elem in
         let+ size = elab_size e in
-        Type.array ~cv ~size elem
+        Type.array ~cv ~restrict ~static_ ~size elem
       | Tfun {result; params = None; _} ->
         let+ result = go result in
         Type.fun_kr result
