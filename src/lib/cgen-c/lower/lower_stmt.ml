@@ -252,10 +252,10 @@ and lower_alist c (ap : Texpr.t) k =
 
 and lower_builtin c ~lval ~name ~(args : Texpr.t list) k =
   match Builtins.find name, args, lval with
-  | Some desc, [arg], Some lv ->
-    let t = E.scalar_imm c.e desc.Builtins.operand in
+  | Some Prim p, [arg], Some lv ->
+    let t = E.scalar_imm c.e p.Builtins.operand in
     let rt = E.scalar_imm c.e lv.ty in
-    let uop = match desc.Builtins.op with
+    let uop = match p.Builtins.op with
       | Clz -> `clz t
       | Ctz -> `ctz t
       | Popcount -> `popcnt t
@@ -276,8 +276,7 @@ and lower_builtin c ~lval ~name ~(args : Texpr.t list) k =
         (E.emit
            (`uop (r2, resize, `var r))
            rest)
-  | _ ->
-    match name, args, lval with
+  | _ -> match name, args, lval with
     | "__builtin_va_start", [ap], None ->
       let@ g = lower_alist c ap in
       let+ rest = k () in

@@ -1,0 +1,52 @@
+module builtin_expect
+
+export function sw $plain(w %1) {
+  %0 = slot 4, align 4
+start:
+  st.w %1, %0;
+  %2 = ld.w %0;
+  ret %2
+}
+
+export function sw $in_branch(w %4) {
+  %3 = slot 4, align 4
+start:
+  st.w %4, %3;
+  %5 = ld.w %3;
+  %6 = sgt.w %5, 0x0_w;
+  %7 = flag.w %6;
+  when ne.w %7, 0x0_w {
+    ret 0x1_w
+  };
+  ret 0x0_w
+}
+
+export function l $keeps_type(l %9) {
+  %8 = slot 8, align 8
+start:
+  st.l %9, %8;
+  %10 = ld.l %8;
+  %11 = sext.l 0x1_w;
+  %12 = add.l %10, %11;
+  ret %12
+}
+
+export function sw $nested(w %15, w %16) {
+  %13 = slot 4, align 4
+  %14 = slot 4, align 4
+start:
+  st.w %15, %13;
+  st.w %16, %14;
+  %17 = ld.w %13;
+  %18 = ld.w %14;
+  %19 = add.w %17, %18;
+  ret %19
+}
+
+export function sw $const_hint(w %21) {
+  %20 = slot 4, align 4
+start:
+  st.w %21, %20;
+  %22 = ld.w %20;
+  ret %22
+}

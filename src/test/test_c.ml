@@ -217,6 +217,7 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Function-type typedefs" "func_typedef";
     ok_case ~sir:true "Incomplete/forward struct types" "incomplete_types";
     ok_case ~sir:true "Bit-counting builtins" "builtins";
+    ok_case ~sir:true "Expect builtin" "builtin_expect";
     ok_case ~sir:true "Offsetof builtin" "offsetof";
     ok_case ~sir:true "Self-referential initializers" "self_init";
     ok_case ~sir:true "Block-scope type declarations" "block_types";
@@ -231,6 +232,7 @@ let native_suite = "C frontend: native execution" >::: [
     (* AMD64 SysV *)
     "Scalar arithmetic (SysV AMD64)" >:: test_sysv_amd64_native "scalar";
     "Bit-counting builtins (SysV AMD64)" >:: test_sysv_amd64_native "builtins";
+    "Expect builtin (SysV AMD64)" >:: test_sysv_amd64_native "builtin_expect";
     "Offsetof builtin (SysV AMD64)" >:: test_sysv_amd64_native "offsetof";
     "Self-referential initializers (SysV AMD64)" >:: test_sysv_amd64_native "self_init";
     "Block-scope type declarations (SysV AMD64)" >:: test_sysv_amd64_native "block_types";

@@ -886,21 +886,16 @@ module Make(A : Annotation) = struct
 
   (* A compiler builtin used as an rvalue.
 
-     Simple builtins (bit-counting and the like) are described uniformly by
-     the `Builtins` registry; only the variadic `__builtin_va_*` family, which
-     needs the ABI, is special-cased below.
+     Value builtins (bit-counting, byte-swap, and the branch-prediction
+     hint) are described uniformly by the `Builtins` registry and dispatched
+     by `rval_value_builtin`.
+
+     Only the type-argument/ABI family (`__builtin_va_*`, `__builtin_offsetof`),
+     which does not fit that shape, is special-cased below.
   *)
   and rval_builtin name args cont = match Builtins.find name with
-    | Some desc -> rval_simple_builtin name desc args cont
+    | Some spec -> rval_value_builtin name spec args cont
     | None -> match name, args with
-      | ( "__builtin_parity"
-        | "__builtin_parityl"
-        | "__builtin_parityll" ), [Expr.BAexpr arg] ->
-        rval_parity_builtin name arg cont
-      | ( "__builtin_ffs"
-        | "__builtin_ffsl"
-        | "__builtin_ffsll" ), [Expr.BAexpr arg] ->
-        rval_ffs_builtin name arg cont
       | "__builtin_va_arg", [Expr.BAexpr ap; Expr.BAtype ty] ->
         let* ty' = ET.elab ~elab_size ty in
         let@ ap_rv = elab_rval ap in
@@ -922,31 +917,40 @@ module Make(A : Annotation) = struct
         Ctx.fatal "'%s' does not produce a value" name ()
       | _ -> Ctx.fatal "unsupported builtin '%s'" name ()
 
-  and rval_simple_builtin name (desc : Builtins.t) args cont =
-    match args with
-    | [Expr.BAexpr arg] ->
-      let@ arg_rv = elab_rval arg in
-      let* () =
-        require_unary ~op:name ~kind:"integer type"
-          ~p:EC.is_integer arg_rv in
-      let arg_rv = Texpr.cast ~dst:desc.Builtins.operand ~arg:arg_rv in
-      let* tmp = Ctx.fresh_tlval desc.Builtins.result in
-      let bi = Tstmt.builtin ~lval:tmp ~name ~args:[arg_rv] () in
-      let* tenv = M.gets Ctx.tenv in
-      let result_rv = EC.lvalue_to_rvalue tenv tmp in
-      let+ tail = cont result_rv in
-      mkblock [Bstmt (Sinstr [bi]); Bstmt tail]
-    | _ ->
+  and rval_value_builtin name (spec : Builtins.t) args cont =
+    match spec, args with
+    | Prim p, [Expr.BAexpr arg] -> rval_prim_builtin name p arg cont
+    | Parity pop, [Expr.BAexpr arg] -> rval_parity_builtin pop arg cont
+    | Ffs ctz, [Expr.BAexpr arg] -> rval_ffs_builtin name ctz arg cont
+    | Expect, [Expr.BAexpr exp; Expr.BAexpr c] ->
+      (* A branch-prediction hint (§ GCC): the call has the value of `exp`.
+         We have no way to consume the hint, so it lowers to `exp`
+         transparently, keeping `exp`'s type. The expected value `c` is
+         validated but otherwise discarded (a no-op, as in cproc). *)
+      let* () = check_expr c in
+      elab_rval exp cont
+    | (Prim _ | Parity _ | Ffs _), _ ->
       Ctx.fatal "'%s' expects one integer argument" name ()
+    | Expect, _ ->
+      Ctx.fatal "__builtin_expect expects an expression and an expected value" ()
 
-  (* parity(x) = popcount(x) & 1: reuse the population count, then mask. *)
-  and rval_parity_builtin name arg cont =
-    let pop = match name with
-      | "__builtin_parityll" -> "__builtin_popcountll"
-      | "__builtin_parityl" -> "__builtin_popcountl"
-      | _ -> "__builtin_popcount" in
-    let desc = Option.value_exn (Builtins.find pop) in
-    let@ pc = rval_simple_builtin pop desc [Expr.BAexpr arg] in
+  and rval_prim_builtin name (p : Builtins.prim) arg cont =
+    let@ arg_rv = elab_rval arg in
+    let* () =
+      require_unary ~op:name ~kind:"integer type"
+        ~p:EC.is_integer arg_rv in
+    let arg_rv = Texpr.cast ~dst:p.Builtins.operand ~arg:arg_rv in
+    let* tmp = Ctx.fresh_tlval p.Builtins.result in
+    let bi = Tstmt.builtin ~lval:tmp ~name ~args:[arg_rv] () in
+    let* tenv = M.gets Ctx.tenv in
+    let result_rv = EC.lvalue_to_rvalue tenv tmp in
+    let+ tail = cont result_rv in
+    mkblock [Bstmt (Sinstr [bi]); Bstmt tail]
+
+  (* parity(x) = popcount(x) & 1: run the delegate population count, then mask. *)
+  and rval_parity_builtin pop arg cont =
+    let p = Builtins.prim_exn pop in
+    let@ pc = rval_prim_builtin pop p arg in
     let one = Texpr.int_ Bv.one ~ty:(Type.int_ ()) in
     cont (Texpr.binary ~op:`and_ ~lhs:pc ~rhs:one ~ty:(Type.int_ ()))
 
@@ -956,12 +960,8 @@ module Make(A : Annotation) = struct
      unspecified but never traps, so its result is simply discarded on
      the zero path.
   *)
-  and rval_ffs_builtin name arg cont =
-    let ctz = match name with
-      | "__builtin_ffsll" -> "__builtin_ctzll"
-      | "__builtin_ffsl" -> "__builtin_ctzl"
-      | _ -> "__builtin_ctz" in
-    let desc = Option.value_exn (Builtins.find ctz) in
+  and rval_ffs_builtin name ctz arg cont =
+    let p = Builtins.prim_exn ctz in
     let@ arg_rv = elab_rval arg in
     let* () =
       require_unary
@@ -972,8 +972,8 @@ module Make(A : Annotation) = struct
     let snapshot = Tstmt.assign ~lval:xt ~expr:arg_rv in
     let* tenv = M.gets Ctx.tenv in
     let x_rv = EC.lvalue_to_rvalue tenv xt in
-    let cast_x = Texpr.cast ~dst:desc.Builtins.operand ~arg:x_rv in
-    let* ct = Ctx.fresh_tlval desc.Builtins.result in
+    let cast_x = Texpr.cast ~dst:p.Builtins.operand ~arg:x_rv in
+    let* ct = Ctx.fresh_tlval p.Builtins.result in
     let bi = Tstmt.builtin ~lval:ct ~name:ctz ~args:[cast_x] () in
     let ct_rv = EC.lvalue_to_rvalue tenv ct in
     let int_ = Type.int_ () in

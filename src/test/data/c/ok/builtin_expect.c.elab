@@ -1,0 +1,21 @@
+int plain(int x) {
+  return x;
+}
+
+int in_branch(int x) {
+  if (x > 0)
+    return 1;
+  return 0;
+}
+
+long keeps_type(long x) {
+  return x + (long)1;
+}
+
+int nested(int a, int b) {
+  return a + b;
+}
+
+int const_hint(int x) {
+  return x;
+}
