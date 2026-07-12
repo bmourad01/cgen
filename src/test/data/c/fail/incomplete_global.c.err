@@ -1,0 +1,1 @@
+error: 'x' has incomplete type (struct/union 'S' is never defined)

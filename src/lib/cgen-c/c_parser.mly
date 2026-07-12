@@ -127,7 +127,7 @@
       let name = match nameopt with
         | Some n -> n
         | None -> "" in
-      if mods.is_typedef then Decl.typedef ~name ~ty ~ann
+      if mods.is_typedef then Decl.of_tydecl (Tydecl.typedef ~name ~ty ~ann)
       else match ty with
         | T.Tfun {result; params; variadic} ->
           let params = match params with
@@ -139,7 +139,7 @@
         | _ ->
           Decl.var ~name ~ty ?init ~storage:mods.storage
             ~tls:mods.is_tls ~attrs ~ann () in
-    extra @ List.map one idecls
+    List.map Decl.of_tydecl extra @ List.map one idecls
 
   (* Build a struct/union definition from its body and attributes (shared by
      the leading- and trailing-attribute forms of the specifier). *)
@@ -153,8 +153,15 @@
     let ty = match su with
       | `struct_ -> T.struct_ tag
       | `union -> T.union_ tag in
-    let def = Decl.compound ~kind:su ~tag ~fields ~attrs ~ann () in
+    let def = Tydecl.compound ~kind:su ~tag ~fields:(Some fields) ~attrs ~ann () in
     ty, nested @ [def]
+
+  (* A bare `struct S;` or `union U;` (a specifier with a tag but no body and
+     no declarator) forward-declares the tag as an incomplete type. *)
+  let incomplete_tag ~ann t = match (t : _ T.t) with
+    | T.Tnamed {kind = #T.compound as kind; name; _} ->
+      [Tydecl.compound ~kind ~tag:name ~fields:None ~ann ()]
+    | _ -> []
 
   (* Register a declared name with the lexer hack at the moment its
      declarator is reduced (before the terminating `;`), so a following
@@ -181,9 +188,10 @@
   type ty = Cgen_utils.Location.t Expr.ty
 
   type decl = Cgen_utils.Location.t Decl.t
+  type tydecl = Cgen_utils.Location.t Tydecl.t
   type stmt = Cgen_utils.Location.t Stmt.t
-  type field = Cgen_utils.Location.t Decl.field
-  type eitem = Cgen_utils.Location.t Decl.eitem
+  type field = Cgen_utils.Location.t Tydecl.field
+  type eitem = Cgen_utils.Location.t Tydecl.eitem
   type param = Cgen_utils.Location.t Expr.t T.param
   type init = Cgen_utils.Location.t Expr.init
   type designator = Cgen_utils.Location.t Expr.designator
@@ -247,15 +255,15 @@
 %type <(declr * init option * raw_attrs) list> init_declarator_list
 %type <declr * init option * raw_attrs> init_declarator
 
-%type <Lexing.position * modat list * ty * decl list> declaration_specifiers
+%type <Lexing.position * modat list * ty * tydecl list> declaration_specifiers
 %type <modat> declaration_modifier storage_class
 %type <qual> type_qualifier
-%type <ty * decl list> type_part struct_or_union_specifier enum_specifier specifier_qualifier_list
+%type <ty * tydecl list> type_part struct_or_union_specifier enum_specifier specifier_qualifier_list
 %type <akw> arith_keyword
 
 %type <Type.compound> struct_or_union
 %type <string> tag_name declared_name field_name
-%type <field list * decl list> struct_declaration_list struct_declaration
+%type <field list * tydecl list> struct_declaration_list struct_declaration
 %type <declr * expr option * raw_attrs> struct_declarator
 %type <eitem list> enumerator_list
 %type <eitem> enumerator
@@ -317,8 +325,11 @@ external_declaration:
     {
       let _, mods, base, extra = ds in
       let _ = resolve_mods mods in
-      let _ = base in
-      extra
+      let items =
+        if List.is_empty extra
+        then incomplete_tag ~ann:(loc $symbolstartpos $endpos) base
+        else extra in
+      List.map Decl.of_tydecl items
     }
   | ds = declaration_specifiers d = declarator dattrs = attribute_specifier_list body = compound_statement
     {
@@ -348,7 +359,7 @@ external_declaration:
              ~name ~params:[] ~ret:(dty base) ~body
              ~storage:m.storage ~ann
              () in
-      extra @ [decl]
+      List.map Decl.of_tydecl extra @ [decl]
     }
   | ds = declaration_specifiers idecls = init_declarator_list SEMI
     {
@@ -517,7 +528,7 @@ struct_declaration:
             let name = match nameopt with
               | Some n -> n
               | None -> "" in
-            Decl.field ?bits ~attrs ~name ~ty ())
+            Tydecl.field ?bits ~attrs ~name ~ty ())
           ds in
       fields, nested
     }
@@ -538,7 +549,7 @@ enum_specifier:
         | None -> Parse_state.fresh_anon_tag "enum" in
       let e = T.enum_ tag in
       let ed =
-        Decl.enum
+        Tydecl.enum
           ~tag ~items
           ~ann:(loc $symbolstartpos $endpos) in
       e, [ed]
@@ -556,9 +567,9 @@ enumerator_list:
 
 enumerator:
   | n = IDENT
-    { Decl.eitem ~name:n () }
+    { Tydecl.eitem ~name:n () }
   | n = IDENT ASSIGN e = constant_expression
-    { Decl.eitem ~name:n ~value:e () }
+    { Tydecl.eitem ~name:n ~value:e () }
 
 specifier_qualifier_list:
   | pre = list(type_qualifier) tp = type_part post = list(type_qualifier)
@@ -757,19 +768,30 @@ block_item:
   | s = statement { [Stmt.Bstmt s] }
   | d = block_declaration { d }
 
-(* A block-scope declaration becomes block items (variable declarations).
-
-   Local typedefs are tracked for lexing but produce no AST node.
-
-   Local tag definitions are not supported (no surface form).
-*)
+(* A block-scope declaration becomes block items: variable declarations,
+   and any block-scope type declarations (struct/union/enum definitions in
+   the specifier, and typedefs) that must be registered before them. *)
 block_declaration:
   | ds = declaration_specifiers idecls = init_declarator_list SEMI
     {
-      let _, mods, base, _extra = ds in
+      let _, mods, base, extra = ds in
       let m = resolve_mods mods in
       let base = apply_base_cv m.cv base in
-      if m.is_typedef then [] else
+      let ann = loc $symbolstartpos $endpos in
+      let extra_items =
+        if List.is_empty extra then [] else [Stmt.Btype extra] in
+      if m.is_typedef then
+        (* Each declarator introduces a block-scope typedef. *)
+        let tds =
+          List.filter_map
+            (fun ((nameopt, dty), _init, _dattrs) ->
+              match nameopt with
+              | None -> None
+              | Some name -> Some (Tydecl.typedef ~name ~ty:(dty base) ~ann))
+            idecls in
+        extra_items @ (if List.is_empty tds then [] else [Stmt.Btype tds])
+      else
+        extra_items @
         List.filter_map
           (fun ((nameopt, dty), init, dattrs) ->
             match nameopt with
@@ -781,12 +803,19 @@ block_declaration:
                    ~name ~ty ?init
                    ~storage:m.storage
                    ~attrs:(m.attrs @ dattrs)
-                   ~ann:(loc $symbolstartpos $endpos) () in
+                   ~ann () in
                Some (Stmt.Bdecl [ld]))
           idecls
     }
   | ds = declaration_specifiers SEMI
-      { let _ = ds in [] }
+    {
+      let _, _mods, base, extra = ds in
+      let items =
+        if List.is_empty extra
+        then incomplete_tag ~ann:(loc $symbolstartpos $endpos) base
+        else extra in
+      if List.is_empty items then [] else [Stmt.Btype items]
+    }
 
 expression_statement:
   | SEMI { Stmt.null ~ann:(loc $symbolstartpos $endpos) }

@@ -1,0 +1,3 @@
+data/c/fail/redeclare_kind.c:2:1-4:2: error: tag 'S' redeclared as a different kind
+ 2 | union S {
+   | ^~~~~~~~~

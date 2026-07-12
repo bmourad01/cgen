@@ -25,10 +25,12 @@ type tag =
       corresponding values. *)
   | Tcompound of {
       kind   : Type.compound;
-      fields : Tdecl.field list;
+      fields : Tdecl.field list option;
+      (** [None] for an incomplete (forward-declared) tag; [Some fields]
+          once defined. *)
       attrs  : Attr.set;
       (** Attributes on the aggregate (e.g. [packed], [aligned]). *)
-    } (** A compound type of [kind] consisting of [fields]. *)
+    } (** A compound type of [kind]. *)
 [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** A typing enviromnent. *)
@@ -37,11 +39,29 @@ type t [@@deriving bin_io, compare, equal, hash, sexp]
 (** The empty typing environment. *)
 val empty : t
 
-(** Returns [true] if the name is part of the ordinary-identifier namespace. *)
-val in_ordinary : t -> string -> bool
+(** [add_tag env ~name info] registers a tag declaration whose source name
+    is [name] in the innermost scope, returning the updated environment and
+    the {e display name} the tag was given.
 
-(** Add a tag type to the environment. *)
-val add_tag : t -> name:string -> tag -> t Or_error.t
+    The display name is [name] itself unless a tag of that name already
+    exists (a shadow of an enclosing tag, or a sibling block's tag), in
+    which case it is disambiguated so the two distinct types do not collide
+    in the flat lowering namespace.
+
+    A redeclaration in the {e same} scope completes a forward declaration,
+    accepts a redundant re-declaration, or is rejected as an incompatible
+    redefinition, preserving the display name.
+
+    Callers record the returned display name in the elaborated type (via
+    {!resolve_tag} at reference sites) and in any emitted declaration.
+*)
+val add_tag : t -> name:string -> tag -> (t * string) Or_error.t
+
+(** [resolve_tag env name] is the display name that the source tag [name]
+    currently denotes, following the lexical scope stack, or [None] if the
+    tag is undeclared in every visible scope (the caller decides whether
+    that is a forward reference to declare incomplete, or an error). *)
+val resolve_tag : t -> string -> string option
 
 (** Add an enum element to the environment.
 
@@ -71,7 +91,8 @@ val add_local : t -> name:string -> Texpr.ty -> t
     name are legal shadows and do not conflict. *)
 val strict_add_local : t -> name:string -> Texpr.ty -> t Or_error.t
 
-(** Push a fresh, empty innermost scope onto the local-binding stack.
+(** Push a fresh, empty innermost scope onto the local-binding and tag
+    resolution stacks.
 
     Bindings added after this only shadow, never collide with, the
     bindings of enclosing scopes. The matching pop is performed by the
@@ -79,7 +100,18 @@ val strict_add_local : t -> name:string -> Texpr.ty -> t Or_error.t
 *)
 val push_scope : t -> t
 
-(** Looks up the tag type by name. *)
+(** [exit_block ~saved env] leaves a block scope.
+
+    It drops the block's locals, enum constants, typedefs, and tag {e name
+    bindings} (taken from [saved], the pre-block environment) but keeps
+    every tag {e definition}, which the lowering needs globally, keyed by
+    the identity {!add_tag} assigned.
+*)
+val exit_block : saved:t -> t -> t
+
+(** Looks up a tag definition by its display name (the name carried by an
+    already-elaborated type, i.e. what {!add_tag}/{!resolve_tag} return,
+    {e not} a raw source name). *)
 val find_tag : t -> string -> tag option
 
 (** Looks up the enum element by name. *)
@@ -97,7 +129,8 @@ val find_global : t -> string -> Texpr.ty option
 (** Looks up the local variable type by name. *)
 val find_local : t -> string -> Texpr.ty option
 
-(** Performs a membership test for the tag type by name. *)
+(** Performs a membership test for a tag definition by its display name
+    (see {!find_tag}). *)
 val has_tag : t -> string -> bool
 
 (** Performs a membership test for the enum element by name. *)
@@ -133,11 +166,16 @@ val globals : t -> (string * Texpr.ty) Sequence.t
 (** All local variable (and parameter) bindings currently in scope. *)
 val locals : t -> (string * Texpr.ty) Sequence.t
 
-(** Returns [true] if the provided tag type exists in the environment
-    and has a complete definition. *)
+(** Returns [true] if a tag with the given display name exists in the
+    environment and has a complete definition. *)
 val is_tag_complete : t -> string -> bool
 
 (** [normalize env ty] resolves typedef names in [ty] to their underlying
     types (composing cv-qualifiers), leaving struct/union/enum tags
     intact. Idempotent. *)
 val normalize : t -> Texpr.ty -> Texpr.ty
+
+(** [incomplete_object_type env ty] is the tag of an incomplete [struct]
+    or [union] that makes [ty] unusable as an object type (directly, or
+    as an array element), or [None] if [ty] is a complete object type. *)
+val incomplete_object_type : t -> Texpr.ty -> string option

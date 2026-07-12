@@ -37,7 +37,7 @@ let tag_fields tenv name =
   let unnamed_bitfield f =
     Option.is_some f.Tdecl.fbits && String.is_empty f.Tdecl.fname in
   match TE.find_tag tenv name with
-  | Some (Tcompound {fields; _}) ->
+  | Some Tcompound {fields = Some fields; _} ->
     List.filter fields ~f:(Fn.non unnamed_bitfield) |>
     Array.of_list_map ~f:(fun f -> f.Tdecl.fname, f.Tdecl.fty) |>
     Option.some

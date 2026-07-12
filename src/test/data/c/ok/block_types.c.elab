@@ -1,0 +1,117 @@
+struct Shadowed {
+  int outer;
+};
+
+int enum_consts(void) {
+  return A + B + C + D;
+}
+
+int anon_struct(void) {
+  struct __anon_struct_2 x = {.a = 3, .b = 4};
+  return x.a * 10 + x.b;
+}
+
+int named_struct(void) {
+  struct P p = {.x = 5, .y = 6};
+  struct P q = p;
+  return q.x + q.y;
+}
+
+int anon_union(void) {
+  union __anon_union_3 u;
+  u.i = 0;
+  u.b[0] = (unsigned char)239;
+  u.b[1] = (unsigned char)190;
+  return u.i & 65535;
+}
+
+int sibling_scopes(void) {
+  int %0;
+  int %1;
+  int r = 0;
+  {
+    (%0 = r, r = %0 + X);
+  }
+  {
+    (%1 = r, r = %1 + X);
+  }
+  return r;
+}
+
+int block_typedef(void) {
+  int y = 3;
+  struct __anon_struct_6 p = {.a = 4, .b = 5};
+  return y + p.a + p.b;
+}
+
+int sibling_typedef_a(void) {
+  int x = 5;
+  return x;
+}
+
+long sibling_typedef_b(void) {
+  long x = (long)7;
+  return x;
+}
+
+int nested_redecl(void) {
+  int a = 1;
+  {
+    int b = 2;
+    return a + b;
+  }
+}
+
+int shadow_struct(void) {
+  struct Shadowed a = {.outer = 7};
+  struct Shadowed.8 b = {.inner = (long)8};
+  return a.outer + (int)b.inner;
+}
+
+int sibling_tags(void) {
+  int %0;
+  int %1;
+  int r = 0;
+  {
+    struct T x = {.a = 3};
+    (%0 = r, r = %0 + x.a);
+  }
+  {
+    struct T.10 x = {.b = (long)4, .c = (long)5};
+    (%1 = r, r = %1 + (int)(x.b + x.c));
+  }
+  return r;
+}
+
+struct __anon_struct_2 {
+  int a;
+  int b;
+};
+
+struct P {
+  int x;
+  int y;
+};
+
+union __anon_union_3 {
+  int i;
+  unsigned char b[4];
+};
+
+struct __anon_struct_6 {
+  int a;
+  int b;
+};
+
+struct Shadowed.8 {
+  long inner;
+};
+
+struct T {
+  int a;
+};
+
+struct T.10 {
+  long b;
+  long c;
+};

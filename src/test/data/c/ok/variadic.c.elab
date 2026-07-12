@@ -1,6 +1,6 @@
 int sum(int n, ...) {
   int %0;
-  va_list ap;
+  long ap[3];
   __builtin_va_start((long *)ap);
   int total = 0;
   {
@@ -16,7 +16,7 @@ int sum(int n, ...) {
 
 double dsum(int n, ...) {
   double %0;
-  __builtin_va_list ap;
+  long ap[3];
   __builtin_va_start((long *)ap);
   double total = (double)0;
   {
@@ -37,7 +37,7 @@ struct P {
 
 int psum(int n, ...) {
   struct P %0;
-  va_list ap;
+  long ap[3];
   __builtin_va_start((long *)ap);
   int total = 0;
   {
@@ -75,7 +75,7 @@ int vsum(int n, long *ap) {
 
 int fwd(int n, ...) {
   int %0;
-  va_list ap;
+  long ap[3];
   __builtin_va_start((long *)ap);
   %0 = ((int (*)(int n, long *ap))vsum)(n, (long *)ap);
   int total = %0;

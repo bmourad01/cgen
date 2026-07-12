@@ -14,6 +14,8 @@
 open Core
 open Elab_common
 
+module TE = Type_env
+
 let tag_keyword : Type.tag -> string = function
   | `struct_ -> "struct"
   | `union   -> "union"
@@ -24,7 +26,7 @@ let named ~cv (kind : Type.tag) name = match kind with
   | `union   -> Type.union_  ~cv name
   | `enum    -> Type.enum_   ~cv name
 
-let normalize = Type_env.normalize
+let normalize = TE.normalize
 
 module Make(A : Annotation) = struct
   module Ctx = Elab_ctx.Make(A)
@@ -32,36 +34,37 @@ module Make(A : Annotation) = struct
   open Ctx
   open Syntax
 
-  (* Validate a tag reference.
+  (* Resolve a tag reference to the display name it denotes, declaring it
+     when necessary.
 
-     A `struct`/`union` tag that is not (yet) in the environment denotes an
-     incomplete type (a forward reference), which is legal in C. Examples
-     include:
+     A `struct`/`union` tag that is not (yet) visible denotes an incomplete
+     type (a forward reference), which is legal in C. Examples include:
 
      - opaque types,
      - mutually recursive structs through pointers
-     - `typedef struct S T;` before struct S` is defined
+     - `typedef struct S T;` before `struct S` is defined
 
-     Completeness is only required where the type is actually used:
-
-     - an object definition
-     - `sizeof`
-     - member access
-
-     In such an event, it is checked at those sites. An `enum` tag, which
-     cannot be left incomplete, must already be defined.
+     We declare such a tag incomplete on first reference so its identity is
+     stable. A later completion (or another reference) resolves to the same
+     tag. Completeness is only required where the type is actually used (an
+     object definition, `sizeof`, member access) and is checked at those
+     sites. An `enum` tag, which cannot be left incomplete, must already be
+     defined.
   *)
-  let check_tag ~kind ~name = match kind with
-    | `struct_ | `union -> !!()
-    | `enum ->
-      let* env = M.gets Ctx.tenv in
-      M.unless (Type_env.has_tag env name) @@ fun () ->
-      Ctx.fatal "undefined %s tag '%s'" (tag_keyword kind) name ()
+  let resolve_tag ~kind ~name =
+    let* env = M.gets Ctx.tenv in
+    match TE.resolve_tag env name with
+    | Some disp -> !!disp
+    | None -> match kind with
+      | `enum -> Ctx.fatal "undefined %s tag '%s'" (tag_keyword kind) name ()
+      | #Type.compound as kind ->
+        Ctx.add_tag ~name @@
+        TE.Tcompound {kind; fields = None; attrs = Attr.empty}
 
   (* Look up a typedef and emit a diagnostic if it isn't bound. *)
   let check_typedef ~name =
     let* env = M.gets Ctx.tenv in
-    M.unless (Type_env.has_typedef env name) @@ fun () ->
+    M.unless (TE.has_typedef env name) @@ fun () ->
     Ctx.fatal "undefined typedef '%s'" name ()
 
   (* Walk a type, threading the `elab_size` callback through arrays. *)
@@ -73,8 +76,11 @@ module Make(A : Annotation) = struct
         let+ () = check_typedef ~name in
         Type.typedef_ ~cv name
       | Tnamed {kind = #Type.tag as kind; name; cv} ->
-        let+ () = check_tag ~kind ~name in
-        named ~cv kind name
+        (* Resolve the source tag name to the display name it denotes in the
+           current lexical scope; the elaborated type carries that name so
+           the lowering resolves it directly. *)
+        let+ disp = resolve_tag ~kind ~name in
+        named ~cv kind disp
       | Tptr {pointee; restrict; cv} ->
         let+ pointee = go pointee in
         Type.ptr ~cv ~restrict pointee

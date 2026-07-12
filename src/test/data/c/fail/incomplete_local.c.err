@@ -1,0 +1,3 @@
+data/c/fail/incomplete_local.c:6:9-9:2: error: 'x' has incomplete type 'struct S'
+ 6 | f(void) {
+   |         ^

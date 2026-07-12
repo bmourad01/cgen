@@ -8,7 +8,7 @@ int ins_size(void) {
 }
 
 int ins_field(void) {
-  Ins i;
+  struct Ins i;
   i.op = 7;
   i.arg = 35;
   return i.op + i.arg;

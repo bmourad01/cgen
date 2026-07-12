@@ -103,7 +103,7 @@ let is_field name (f : Tdecl.field) = String.(f.fname = name)
 
 let field_type c ~tag ~field : Texpr.ty =
   match Type_env.find_tag (Layout.tenv c.e.layout) tag with
-  | Some (Tcompound {fields; _}) ->
+  | Some Tcompound {fields = Some fields; _} ->
     begin match List.find fields ~f:(is_field field) with
       | None -> failwithf "lower: no field %S in %S" field tag ()
       | Some f -> f.fty
@@ -184,7 +184,7 @@ let rec needs_zero c (init : Texpr.init) ty = match init with
   | Istruct fields ->
     let tag = Lower_type.compound_tag_exn c.e.layout ty in
     let count = match Type_env.find_tag (Layout.tenv c.e.layout) tag with
-      | Some (Tcompound {fields; _}) -> List.length fields
+      | Some (Tcompound {fields = Some fields; _}) -> List.length fields
       | _ -> Int.max_value in
     List.length fields < count ||
     List.exists fields ~f:(fun (f, i) ->

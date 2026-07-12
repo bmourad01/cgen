@@ -11,25 +11,6 @@ type 'a param = {
   pty   : 'a Expr.ty;
 } [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** A field in a [struct] or [union].
-
-    [fbits] is the bit-field width, or [None] for an ordinary field.
-    [fattrs] holds member attributes (e.g. [aligned], [packed]).
-*)
-type 'a field = {
-  fname  : string;
-  fty    : 'a Expr.ty;
-  fbits  : 'a Expr.t option;
-  fattrs : 'a Attr.raws;
-} [@@deriving bin_io, compare, equal, hash, sexp]
-
-(** An [enum] enumerator. [eivalue] is the explicit value expression,
-    or [None] to let the previous value determine it. *)
-type 'a eitem = {
-  einame  : string;
-  eivalue : 'a Expr.t option;
-} [@@deriving bin_io, compare, equal, hash, sexp]
-
 (** A top-level declaration node paired with its annotation. *)
 type 'a t = {
   node : 'a node;
@@ -58,21 +39,8 @@ and 'a node =
       (** Set when [_Thread_local] was used. *)
       attrs   : 'a Attr.raws;
     } (** A global object declaration or definition. *)
-  | Dcompound of {
-      kind   : Type.compound;
-      tag    : string;
-      fields : 'a field list;
-      attrs  : 'a Attr.raws;
-      (** Attributes on the aggregate itself (e.g. [packed], [aligned]). *)
-    } (** A [struct] or [union] definition. *)
-  | Denum of {
-      tag   : string;
-      items : 'a eitem list;
-    } (** An [enum] definition. *)
-  | Dtypedef of {
-      name : string;
-      ty   : 'a Expr.ty;
-    } (** A [typedef] introducing [name] as an alias for [ty]. *)
+  | Dtype of 'a Tydecl.t
+  (** A struct/union/enum/typedef definition (see {!Tydecl}). *)
 [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** {1 Smart constructors} *)
@@ -113,49 +81,16 @@ val var :
   unit ->
   'a t
 
-(** A [struct] or [union] definition. [attrs] defaults to empty. *)
-val compound :
-  ?attrs:'a Attr.raws ->
-  kind:Type.compound ->
-  tag:string ->
-  fields:'a field list ->
-  ann:'a ->
-  unit ->
-  'a t
-
-(** An [enum] definition. *)
-val enum : tag:string -> items:'a eitem list -> ann:'a -> 'a t
-
-(** A [typedef] introducing [name] as an alias for [ty]. *)
-val typedef : name:string -> ty:'a Expr.ty -> ann:'a -> 'a t
+(** Wrap a type declaration (see {!Tydecl}) as a top-level declaration. *)
+val of_tydecl : 'a Tydecl.t -> 'a t
 
 (** A function parameter. *)
 val param : ?name:string -> ty:'a Expr.ty -> unit -> 'a param
-
-(** A struct/union field. [bits] is the bit-field width when
-    declared as one. [attrs] defaults to empty. *)
-val field :
-  ?bits:'a Expr.t ->
-  ?attrs:'a Attr.raws ->
-  name:string ->
-  ty:'a Expr.ty ->
-  unit ->
-  'a field
-
-(** An [enum] enumerator. *)
-val eitem : ?value:'a Expr.t -> name:string -> unit -> 'a eitem
 
 (** {1 Pretty printers} *)
 
 (** Renders a function parameter (type and optional name). *)
 val pp_param : Format.formatter -> 'a param -> unit
-
-(** Renders a struct/union field declaration with trailing
-    semicolon (and bit-field width when present). *)
-val pp_field : Format.formatter -> 'a field -> unit
-
-(** Renders a single enumerator (name with optional value). *)
-val pp_eitem : Format.formatter -> 'a eitem -> unit
 
 (** Renders a top-level declaration in C syntax.
 

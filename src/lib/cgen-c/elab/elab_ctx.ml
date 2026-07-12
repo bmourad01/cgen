@@ -177,9 +177,11 @@ module Make(A : Annotation) = struct
   (* Run `f` in a nested block scope.
 
      A fresh innermost scope is pushed for `f`, so the locals it binds
-     shadow (rather than collide with) those of enclosing scopes. The
-     scope is dropped on exit by restoring the pre-push `layout`, which
-     also discards any block-local tags and typedefs `f` introduced.
+     shadow (rather than collide with) those of enclosing scopes. On exit
+     the block's locals, enum constants, and typedefs are dropped, but any
+     struct/union/enum tag definitions are kept (see `Layout.exit_block`):
+     a block-scope struct/union must survive to the lowering, which has no
+     notion of scope.
 
      Temporaries in `fnctx` that are hoisted to the function top during
      `f` are kept.
@@ -195,7 +197,9 @@ module Make(A : Annotation) = struct
     let+ () =
       M.update @@ fun ctx -> {
         ctx with
-        layout = saved_layout;
+        (* Keep block-scope tag definitions and their layouts (the lowering
+           needs them), but drop the block's locals/enum-constants/typedefs. *)
+        layout = Layout.exit_block ~saved:saved_layout ctx.layout;
         statics = saved_statics;
       } in
     result
@@ -282,8 +286,9 @@ module Make(A : Annotation) = struct
 
   let add_tag ~name tag =
     let* ctx = M.get () in
-    let* layout = lift_err @@ Layout.add_tag ctx.layout ~name tag in
-    M.put {ctx with layout}
+    let* layout, disp = lift_err @@ Layout.add_tag ctx.layout ~name tag in
+    let+ () = M.put {ctx with layout} in
+    disp
 
   let add_enum_element ~name ~tag ~value =
     let* ctx = M.get () in

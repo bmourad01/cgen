@@ -4,6 +4,8 @@ int is_null(opaque_t *p) {
   return p == 0;
 }
 
+struct b_node;
+
 struct a_node {
   int va;
   struct b_node *b;
@@ -32,4 +34,14 @@ int sum(node_t *n) {
     n = n->next;
   }
   return s;
+}
+
+struct deferred d;
+
+struct deferred {
+  int val;
+};
+
+int read_deferred(void) {
+  return d.val;
 }

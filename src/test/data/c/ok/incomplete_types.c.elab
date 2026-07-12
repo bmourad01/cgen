@@ -30,3 +30,13 @@ int sum(node_t *n) {
   }
   return s;
 }
+
+struct deferred d;
+
+struct deferred {
+  int val;
+};
+
+int read_deferred(void) {
+  return d.val;
+}

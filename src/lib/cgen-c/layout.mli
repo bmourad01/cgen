@@ -78,13 +78,15 @@ val tenv : t -> Type_env.t
     [add_tag] of a complete struct/union) the layout maps in
     lockstep. *)
 
-(** [add_tag t ~name tag] registers a tag type.
+(** [add_tag t ~name tag] registers a tag declaration whose source name is
+    [name], returning the updated layout and the display name assigned to
+    the tag (see {!Type_env.add_tag}).
 
     For a complete [Tcompound] this also computes and stores its layout,
-    offsets, and bit-field placements. Incomplete compounds and enums
-    update only the tenv.
+    offsets, and bit-field placements, keyed by the returned display name.
+    Incomplete compounds and enums update only the tenv.
 *)
-val add_tag : t -> name:string -> Type_env.tag -> t Or_error.t
+val add_tag : t -> name:string -> Type_env.tag -> (t * string) Or_error.t
 
 (** Register an enum element. *)
 val add_enum_element :
@@ -121,6 +123,9 @@ val strict_add_local : t -> name:string -> Texpr.ty -> t Or_error.t
     scope by restoring an earlier environment.
 *)
 val push_scope : t -> t
+
+(** Same as {!Type_env.exit_block}. *)
+val exit_block : saved:t -> t -> t
 
 (** {1 Layout queries} *)
 

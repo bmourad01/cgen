@@ -234,7 +234,7 @@ module Make(A : Annotation) = struct
     match ET0.normalize tenv parent_ty with
     | Tnamed {kind = #Type.compound; name = tag; _} ->
       begin match TE.find_tag tenv tag with
-        | Some Tcompound {fields; _} ->
+        | Some Tcompound {fields = Some fields; _} ->
           begin match find_field fields field with
             | Some f ->
               let cv =

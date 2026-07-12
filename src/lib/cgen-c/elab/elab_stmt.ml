@@ -123,10 +123,11 @@ module Make(A : Annotation) = struct
      `case` labels may appear in it (such as with Duff's device).
   *)
   type env = {
-    elab_rval : A.ann Expr.t -> (Texpr.t -> Tstmt.t M.m) -> Tstmt.t M.m;
-    elab_void : A.ann Expr.t -> Tstmt.t M.m;
-    in_loop   : bool;
-    switch    : switch_state option;
+    elab_rval   : A.ann Expr.t -> (Texpr.t -> Tstmt.t M.m) -> Tstmt.t M.m;
+    elab_void   : A.ann Expr.t -> Tstmt.t M.m;
+    elab_tydecl : A.ann Tydecl.t -> Tdecl.t option M.m;
+    in_loop     : bool;
+    switch      : switch_state option;
   }
 
   (* Elaborate `e` as an rvalue, capturing its side-effect statement
@@ -184,6 +185,22 @@ module Make(A : Annotation) = struct
     | Some n when n > 0 -> Some n
     | _ -> None
 
+  (* Elaborate a local declaration's type, resolving typedefs. Any block-scope
+     typedef is dropped when the block is left (see `Layout.exit_block`), but
+     the resolved type persists in the emitted declaration for the lowering. *)
+  let elab_local_ty env ldty =
+    let* ty = ET.elab ~elab_size:(elab_size env) ldty in
+    let+ tenv = M.gets Ctx.tenv in
+    Type_env.normalize tenv ty
+
+  (* §6.7 ¶7: a block-scope object must have a complete type at the point
+     of its declaration (unlike a file-scope tentative definition, which may
+     be completed later). *)
+  let require_complete_object ~name ~ty =
+    let* tenv = M.gets Ctx.tenv in
+    M.when_ (Option.is_some (Type_env.incomplete_object_type tenv ty)) @@ fun () ->
+    Ctx.fatal "'%s' has incomplete type '%a'" name pp_ty ty ()
+
   (* Elaborate one local declaration, binding it in the current scope
      and returning the block items that realize it.
 
@@ -204,7 +221,7 @@ module Make(A : Annotation) = struct
          no block item is emitted, so the lowering allocates no slot
          for it.
       *)
-      let* base_ty = ET.elab ~elab_size:(elab_size env) ld.ldty in
+      let* base_ty = elab_local_ty env ld.ldty in
       let* sym = Ctx.fresh_static_sym ~source:ld.ldname in
       let* cty, init = match ld.ldinit with
         | None -> !!(base_ty, None)
@@ -233,15 +250,16 @@ module Make(A : Annotation) = struct
         M.when_ (Option.is_some ld.ldinit) @@ fun () ->
         let@ () = Ctx.with_location_of ld.ldann in
         Ctx.fatal "a block-scope 'extern' declaration shall have no initializer" () in
-      let* base_ty = ET.elab ~elab_size:(elab_size env) ld.ldty in
+      let* base_ty = elab_local_ty env ld.ldty in
       let* () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
       let+ () = Ctx.add_static_alias ~name:ld.ldname ~link:ld.ldname in
       []
     | SCdefault | SCauto | SCregister ->
-      let* base_ty = ET.elab ~elab_size:(elab_size env) ld.ldty in
+      let* base_ty = elab_local_ty env ld.ldty in
       let* align = local_align env ld in
       match ld.ldinit with
       | None ->
+        let* () = require_complete_object ~name:ld.ldname ~ty:base_ty in
         let+ () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
         [Tstmt.bdecl (Tstmt.localdecl ~name:ld.ldname ~ty:base_ty ?align ())]
       | Some init ->
@@ -252,7 +270,8 @@ module Make(A : Annotation) = struct
         let* () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
         let* pre, cty, flat =
           EI.elab ~elab_rval:env.elab_rval ~ty:base_ty init in
-        let+ () = Ctx.update_local ~name:ld.ldname ~ty:cty in
+        let* () = Ctx.update_local ~name:ld.ldname ~ty:cty in
+        let+ () = require_complete_object ~name:ld.ldname ~ty:cty in
         let decl =
           Tstmt.bdecl @@
           Tstmt.localdecl ~name:ld.ldname ~ty:cty ~init:flat ?align () in
@@ -471,14 +490,12 @@ module Make(A : Annotation) = struct
       let tenv = Layout.tenv layout in
       let eval = Eval.create_init layout in
       let*? converted, w = EC.convert_for_return tenv eval ~ret ~rhs:rv in
-      let* () = Ctx.warn_opt w in
+      let+ () = Ctx.warn_opt w in
       let r = Tstmt.return ~value:converted () in
-      !!(if stmt_is_empty estmt
-         then r
-         else mkblock [
-             Tstmt.bstmt estmt;
-             Tstmt.bstmt r;
-           ])
+      if stmt_is_empty estmt then r else mkblock [
+          Tstmt.bstmt estmt;
+          Tstmt.bstmt r;
+        ]
 
   (* Elaborate a block's items in the current scope, without pushing
      a fresh one.
@@ -494,7 +511,14 @@ module Make(A : Annotation) = struct
         loop (Tstmt.bstmt s :: acc) rest
       | Stmt.Bdecl locals :: rest ->
         let* items = elab_locals env locals in
-        loop (List.rev_append items acc) rest in
+        loop (List.rev_append items acc) rest
+      | Stmt.Btype tds :: rest ->
+        (* Register each block-scope type declaration in the current scope. *)
+        let* () = M.List.iter tds ~f:(fun td ->
+            env.elab_tydecl td >>= function
+            | Some tdecl -> Ctx.hoist_global tdecl
+            | None -> !!()) in
+        loop acc rest in
     loop [] items
 
   and go_block env items =
@@ -596,10 +620,11 @@ module Make(A : Annotation) = struct
 
      A function body starts outside any loop or switch.
   *)
-  let elab ~elab_rval ~elab_void s =
+  let elab ~elab_rval ~elab_void ~elab_tydecl s =
     go {
       elab_rval;
       elab_void;
+      elab_tydecl;
       in_loop = false;
       switch = None;
     } s
@@ -615,10 +640,11 @@ module Make(A : Annotation) = struct
      A non-block body (unusual, but the AST permits it) is elaborated
      normally.
   *)
-  let elab_fnbody ~elab_rval ~elab_void (s : A.ann Stmt.t) =
+  let elab_fnbody ~elab_rval ~elab_void ~elab_tydecl (s : A.ann Stmt.t) =
     let env = {
       elab_rval;
       elab_void;
+      elab_tydecl;
       in_loop = false;
       switch = None;
     } in

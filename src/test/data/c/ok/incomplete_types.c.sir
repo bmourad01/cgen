@@ -15,6 +15,14 @@ type :list_node = {
   l
 }
 
+type :deferred = {
+  w
+}
+
+export data $d = {
+  z 4
+}
+
 export function sw $is_null(l %1) {
   %0 = slot 8, align 8
 start:
@@ -73,4 +81,10 @@ start:
   };
   %35 = ld.w %25;
   ret %35
+}
+
+export function sw $read_deferred() {
+start:
+  %36 = ld.w $d;
+  ret %36
 }

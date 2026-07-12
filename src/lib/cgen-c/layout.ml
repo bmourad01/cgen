@@ -281,7 +281,7 @@ let put_compound t ~name ~kind ~attrs fields =
 let create dmodel tenv =
   let compounds =
     TE.tags tenv |> Sequence.filter_map ~f:(function
-        | name, TE.Tcompound {kind; fields = (_ :: _ as fields); attrs} ->
+        | name, TE.Tcompound {kind; fields = Some fields; attrs} ->
           Some (name, kind, fields, attrs)
         | _ -> None) |> Sequence.to_list in
   let* () =
@@ -330,12 +330,13 @@ let create dmodel tenv =
 *)
 
 let add_tag t ~name tag =
-  let* tenv = TE.add_tag t.tenv ~name tag in
+  let* tenv, disp = TE.add_tag t.tenv ~name tag in
   match tag with
-  | TE.Tenum _ | TE.Tcompound {fields = []; _} ->
-    Ok {t with tenv}
-  | TE.Tcompound {kind; fields; attrs} ->
-    put_compound {t with tenv} ~name ~kind ~attrs fields
+  | TE.Tenum _ | TE.Tcompound {fields = None; _} ->
+    Ok ({t with tenv}, disp)
+  | TE.Tcompound {kind; fields = Some fields; attrs} ->
+    let+ t = put_compound {t with tenv} ~name:disp ~kind ~attrs fields in
+    t, disp
 
 let add_enum_element t ~name ~tag ~value =
   let+ tenv = TE.add_enum_element t.tenv ~name ~tag ~value in
@@ -361,6 +362,9 @@ let strict_add_local t ~name ty =
   {t with tenv}
 
 let push_scope t = {t with tenv = TE.push_scope t.tenv}
+
+let exit_block ~saved t =
+  {t with tenv = TE.exit_block ~saved:saved.tenv t.tenv}
 
 let rec size_align dm sizes = function
   | Tbase {base = Bvoid; _} ->

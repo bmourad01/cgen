@@ -101,6 +101,9 @@ and 'a blkitem =
   (** A declaration appearing in a block. A single declaration
       specifier may introduce multiple declarators (e.g.
       [int x, y = 0;]). *)
+  | Btype of 'a Tydecl.t list
+  (** Block-scope struct/union/enum/typedef definitions introduced by a
+      declaration specifier (see {!Tydecl}). *)
 [@@deriving bin_io, compare, equal, hash, sexp]
 
 (** {1 Smart constructors} *)

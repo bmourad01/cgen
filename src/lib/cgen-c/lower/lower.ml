@@ -190,7 +190,7 @@ let is_field name (f : Tdecl.field) = String.(f.fname = name)
 
 let field_type layout ~tag ~field : Texpr.ty =
   match Type_env.find_tag (tenv layout) tag with
-  | Some (Tcompound {fields; _}) ->
+  | Some Tcompound {fields = Some fields; _} ->
     begin match List.find fields ~f:(is_field field) with
       | Some f -> f.fty
       | None -> failwithf "lower: no field %S in %S" field tag ()

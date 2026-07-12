@@ -71,6 +71,8 @@ and 'a forinit =
 and 'a blkitem =
   | Bstmt of 'a t
   | Bdecl of 'a localdecl list
+  | Btype of 'a Tydecl.t list
+  (** Block-scope struct/union/enum/typedef definitions (see {!Tydecl}). *)
 [@@deriving bin_io, compare, equal, hash, sexp]
 
 (* Smart constructors. *)
@@ -199,6 +201,10 @@ and pp_blkitem ppf = function
   | Bdecl ds ->
     pp_localdecl_list ppf ds;
     Format.pp_print_char ppf ';'
+  | Btype tds ->
+    Format.pp_print_list
+      ~pp_sep:(fun ppf () -> Format.pp_print_cut ppf ())
+      Tydecl.pp ppf tds
 
 and pp_if ppf cond then_ else_ =
   Format.fprintf ppf "@[<v 2>if (%a)" Expr.pp cond;

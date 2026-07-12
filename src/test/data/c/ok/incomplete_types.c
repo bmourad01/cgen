@@ -35,3 +35,15 @@ sum(node_t *n) {
   }
   return s;
 }
+
+/* A file-scope tentative definition (§6.9.2) of an as-yet incomplete type is
+   valid as long as the type is completed later in the unit. */
+struct deferred d;
+struct deferred {
+  int val;
+};
+
+int
+read_deferred(void) {
+  return d.val;
+}

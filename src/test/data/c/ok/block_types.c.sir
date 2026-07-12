@@ -1,0 +1,207 @@
+module block_types
+
+type :Shadowed = {
+  w
+}
+
+type :__anon_struct_2 = {
+  w,
+  w
+}
+
+type :P = {
+  w,
+  w
+}
+
+type :__anon_union_3 = union {
+  w,
+  b 4
+}
+
+type :__anon_struct_6 = {
+  w,
+  w
+}
+
+type :Shadowed.8 = {
+  l
+}
+
+type :T = {
+  w
+}
+
+type :T.10 = {
+  l,
+  l
+}
+
+export function sw $enum_consts() {
+start:
+  %0 = add.w 0x1_w, 0x2_w;
+  %1 = add.w %0, 0x4_w;
+  %2 = add.w %1, 0x7_w;
+  ret %2
+}
+
+export function sw $anon_struct() {
+  %3 = slot 8, align 4
+start:
+  st.w 0x3_w, %3;
+  %4 = add.l %3, 0x4_l;
+  st.w 0x4_w, %4;
+  %5 = ld.w %3;
+  %6 = mul.w %5, 0xa_w;
+  %7 = add.l %3, 0x4_l;
+  %8 = ld.w %7;
+  %9 = add.w %6, %8;
+  ret %9
+}
+
+export function sw $named_struct() {
+  %10 = slot 8, align 4
+  %12 = slot 8, align 4
+start:
+  st.w 0x5_w, %10;
+  %11 = add.l %10, 0x4_l;
+  st.w 0x6_w, %11;
+  %13 = ld:P %10;
+  st:P %13, %12;
+  %14 = ld.w %12;
+  %15 = add.l %12, 0x4_l;
+  %16 = ld.w %15;
+  %17 = add.w %14, %16;
+  ret %17
+}
+
+export function sw $anon_union() {
+  %18 = slot 4, align 4
+start:
+  st.w 0x0_w, %18;
+  %19 = sext.l 0x0_w;
+  %20 = add.l %18, %19;
+  %21 = itrunc.b 0xef_w;
+  st.b %21, %20;
+  %22 = sext.l 0x1_w;
+  %23 = add.l %18, %22;
+  %24 = itrunc.b 0xbe_w;
+  st.b %24, %23;
+  %25 = ld.w %18;
+  %26 = and.w %25, 0xffff_w;
+  ret %26
+}
+
+export function sw $sibling_scopes() {
+  %27 = slot 4, align 4
+  %28 = slot 4, align 4
+  %29 = slot 4, align 4
+start:
+  st.w 0x0_w, %29;
+  %30 = ld.w %29;
+  st.w %30, %27;
+  %31 = ld.w %27;
+  %32 = add.w %31, 0xa_w;
+  st.w %32, %29;
+  %33 = ld.w %29;
+  st.w %33, %28;
+  %34 = ld.w %28;
+  %35 = add.w %34, 0x14_w;
+  st.w %35, %29;
+  %36 = ld.w %29;
+  ret %36
+}
+
+export function sw $block_typedef() {
+  %37 = slot 4, align 4
+  %38 = slot 8, align 4
+start:
+  st.w 0x3_w, %37;
+  st.w 0x4_w, %38;
+  %39 = add.l %38, 0x4_l;
+  st.w 0x5_w, %39;
+  %40 = ld.w %37;
+  %41 = ld.w %38;
+  %42 = add.w %40, %41;
+  %43 = add.l %38, 0x4_l;
+  %44 = ld.w %43;
+  %45 = add.w %42, %44;
+  ret %45
+}
+
+export function sw $sibling_typedef_a() {
+  %46 = slot 4, align 4
+start:
+  st.w 0x5_w, %46;
+  %47 = ld.w %46;
+  ret %47
+}
+
+export function l $sibling_typedef_b() {
+  %48 = slot 8, align 8
+start:
+  %49 = sext.l 0x7_w;
+  st.l %49, %48;
+  %50 = ld.l %48;
+  ret %50
+}
+
+export function sw $nested_redecl() {
+  %51 = slot 4, align 4
+  %52 = slot 4, align 4
+start:
+  st.w 0x1_w, %51;
+  st.w 0x2_w, %52;
+  %53 = ld.w %51;
+  %54 = ld.w %52;
+  %55 = add.w %53, %54;
+  ret %55
+}
+
+export function sw $shadow_struct() {
+  %56 = slot 4, align 4
+  %57 = slot 8, align 8
+start:
+  st.w 0x7_w, %56;
+  %58 = sext.l 0x8_w;
+  st.l %58, %57;
+  %59 = ld.w %56;
+  %60 = ld.l %57;
+  %61 = itrunc.w %60;
+  %62 = add.w %59, %61;
+  ret %62
+}
+
+export function sw $sibling_tags() {
+  %63 = slot 4, align 4
+  %64 = slot 4, align 4
+  %65 = slot 4, align 4
+  %66 = slot 4, align 4
+  %71 = slot 16, align 8
+start:
+  st.w 0x0_w, %65;
+  st.w 0x3_w, %66;
+  %67 = ld.w %65;
+  st.w %67, %63;
+  %68 = ld.w %63;
+  %69 = ld.w %66;
+  %70 = add.w %68, %69;
+  st.w %70, %65;
+  %72 = sext.l 0x4_w;
+  st.l %72, %71;
+  %73 = add.l %71, 0x8_l;
+  %74 = sext.l 0x5_w;
+  st.l %74, %73;
+  %75 = ld.w %65;
+  st.w %75, %64;
+  %76 = ld.w %64;
+  %77 = ld.l %71;
+  %78 = add.l %71, 0x8_l;
+  %79 = ld.l %78;
+  %80 = add.l %77, %79;
+  %81 = itrunc.w %80;
+  %82 = add.w %76, %81;
+  st.w %82, %65;
+  %83 = ld.w %65;
+  ret %83
+}

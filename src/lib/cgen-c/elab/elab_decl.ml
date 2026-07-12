@@ -188,7 +188,7 @@ module Make(A : Annotation) = struct
      Other type sinks (globals, locals) defer layout and normalize on
      demand via `Elab_conv`.
   *)
-  let elab_field (f : A.ann Decl.field) =
+  let elab_field (f : A.ann Tydecl.field) =
     let* fty = ET.elab ~elab_size f.fty in
     let* tenv = M.gets Ctx.tenv in
     let fty = Elab_type.normalize tenv fty in
@@ -205,7 +205,7 @@ module Make(A : Annotation) = struct
   let elab_enum_items ~tag items =
     let rec go next acc = function
       | [] -> !!(List.rev acc)
-      | (it : A.ann Decl.eitem) :: rest ->
+      | (it : A.ann Tydecl.eitem) :: rest ->
         let* value = match it.eivalue with
           | None -> !!next
           | Some e ->
@@ -230,6 +230,41 @@ module Make(A : Annotation) = struct
     List.map eparams ~f:(fun (pn, pty) ->
         Tdecl.param ~name:(Option.value pn ~default:"") ~ty:pty)
 
+  (* Elaborate a type declaration, registering it in the current scope. *)
+  let elab_tydecl (td : A.ann Tydecl.t) : Tdecl.t option M.m =
+    let@ () = Ctx.with_location_of td.Tydecl.ann in
+    match td.Tydecl.node with
+    | Tydecl.Typedef {name; ty} ->
+      let* ty = ET.elab ~elab_size ty in
+      let+ () = declare_typedef ~name ~ty in
+      None
+    | Tydecl.Compound {kind; tag; fields = None; attrs} ->
+      (* A forward declaration (`struct S;`) registers an incomplete tag and
+         produces no IR named type; it has no layout to lower. *)
+      let* attrs = resolve_attrs attrs in
+      let+ _disp =
+        Ctx.add_tag ~name:tag @@
+        TE.Tcompound {kind; fields = None; attrs} in
+      None
+    | Tydecl.Compound {kind; tag; fields = Some fields; attrs} ->
+      let* attrs = resolve_attrs attrs in
+      (* Bring the tag into scope as incomplete before its fields, so a
+         self-referential member (`struct S { struct S *next; }`) resolves
+         to this very tag rather than an enclosing one it may shadow. The
+         second registration completes it, keeping the same display name. *)
+      let* disp =
+        Ctx.add_tag ~name:tag @@
+        TE.Tcompound {kind; fields = None; attrs} in
+      let* fields = M.List.map fields ~f:elab_field in
+      let+ _disp =
+        Ctx.add_tag ~name:tag @@
+        TE.Tcompound {kind; fields = Some fields; attrs} in
+      Some (Tdecl.compound ~kind ~tag:disp ~fields)
+    | Tydecl.Enum {tag; items} ->
+      let* pairs = elab_enum_items ~tag items in
+      let+ _disp = Ctx.add_tag ~name:tag (TE.Tenum pairs) in
+      None
+
   let elab_fundef
       ~name
       ~variadic
@@ -250,6 +285,12 @@ module Make(A : Annotation) = struct
     let* () =
       M.update @@ fun c ->
       {c with fnctx = Some (Elab_ctx.create_fnctx ~fname:name ~retty:ret_ty ())} in
+    (* The parameters and the body's top level share one block scope,
+       distinct from file scope, so a body-level tag may shadow a
+       file-scope tag of the same name. `exit_block` (below, against
+       `saved_layout`) pops it. *)
+    let* () =
+      M.update @@ fun c -> {c with layout = Layout.push_scope c.layout} in
     let* () = M.List.iter eparams ~f:(function
         | Some n, pty -> Ctx.add_local ~name:n ~ty:pty
         | None, _ -> !!()) in
@@ -257,6 +298,7 @@ module Make(A : Annotation) = struct
       S.elab_fnbody
         ~elab_rval:E.elab_rval
         ~elab_void:E.elab_void
+        ~elab_tydecl
         body in
     let* fc = M.gets fnctx in
     let tmps, labaddrs = match fc with
@@ -281,7 +323,10 @@ module Make(A : Annotation) = struct
       M.update @@ fun c -> {
         c with
         fnctx = saved_fnctx;
-        layout = saved_layout;
+        (* Keep struct/union/enum tags declared in the body (the lowering
+           needs their layouts) while dropping its params, locals, enum
+           constants, and typedefs. *)
+        layout = Layout.exit_block ~saved:saved_layout c.layout;
         statics = saved_statics;
       } in
     Tdecl.fundef
@@ -354,19 +399,7 @@ module Make(A : Annotation) = struct
   let elab_decl (d : A.ann Decl.t) : Tdecl.t option M.m =
     let@ () = Ctx.with_location_of d.ann in
     match d.node with
-    | Dtypedef {name; ty} ->
-      let* ty = ET.elab ~elab_size ty in
-      let+ () = declare_typedef ~name ~ty in
-      None
-    | Dcompound {kind; tag; fields; attrs} ->
-      let* fields = M.List.map fields ~f:elab_field in
-      let* attrs = resolve_attrs attrs in
-      let+ () = Ctx.add_tag ~name:tag (TE.Tcompound {kind; fields; attrs}) in
-      Some (Tdecl.compound ~kind ~tag ~fields)
-    | Denum {tag; items} ->
-      let* pairs = elab_enum_items ~tag items in
-      let+ () = Ctx.add_tag ~name:tag (TE.Tenum pairs) in
-      None
+    | Dtype td -> elab_tydecl td
     | Dvar {name; ty; init; storage; tls; attrs} ->
       let* attrs = resolve_attrs attrs in
       let* () = Ctx.record_attrs ~name ~attrs in

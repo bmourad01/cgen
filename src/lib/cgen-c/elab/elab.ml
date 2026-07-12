@@ -19,8 +19,23 @@ let elab
     (* Block-scope statics are hoisted to module-level globals during
        function elaboration; append them in source order. *)
     let* hoisted = Ctx.M.gets Ctx.hoisted in
-    let+ layout = Ctx.M.gets Ctx.layout in
+    let* layout = Ctx.M.gets Ctx.layout in
     let decls = List.filter_opt opts @ List.rev hoisted in
+    (* §6.9.2: a file-scope object definition may be a tentative definition
+       with an incomplete type, provided the type is completed by the end of
+       the unit. Check the final environment now that every tag is known. *)
+    let tenv = Layout.tenv layout in
+    let+ () = Ctx.M.List.iter decls ~f:(function
+        | Tdecl.Dglobal {name; ty; attrs; _}
+          when Option.is_none (Attr.alias attrs) ->
+          begin match Type_env.incomplete_object_type tenv ty with
+            | None -> Ctx.M.return ()
+            | Some tag ->
+              Ctx.fatal
+                "'%s' has incomplete type (struct/union '%s' is never defined)"
+                name tag ()
+          end
+        | _ -> Ctx.M.return ()) in
     Tcunit.create ~decls ~layout in
   Ctx.M.run comp
     ~init:(Ctx.create ~dmodel ~loc_of_ann)
