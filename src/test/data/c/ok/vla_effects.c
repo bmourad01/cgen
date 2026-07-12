@@ -1,0 +1,29 @@
+int
+cast_effect(void) {
+  int l = 0;
+  (int (*)[++l])0;
+  (int (*(*)(void))[++l])0;
+  return l;
+}
+
+int
+sizeof_effect(void) {
+  int l = 0;
+  (void)sizeof(int[++l]);
+  return l;
+}
+
+int
+alignof_no_effect(void) {
+  int l = 0;
+  (void)_Alignof(int[++l]);
+  return l;
+}
+
+int
+alignof_value(void) {
+  int n = 3;
+  return _Alignof(int[n]) == _Alignof(int) &&
+         _Alignof(int[]) == _Alignof(int) &&
+         _Alignof(double[n]) == _Alignof(double);
+}

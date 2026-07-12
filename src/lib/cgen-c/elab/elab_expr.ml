@@ -684,19 +684,45 @@ module Make(A : Annotation) = struct
         else lhs_rv, rhs_rv in
     cont (Texpr.binary ~op ~lhs:lhs' ~rhs:rhs' ~ty:(Type.int_ ()))
 
+  (* Elaborate a type name, evaluating the size expressions of any
+     variably-modified array types it contains for their side effects.
+
+     C evaluates those sizes where the type is reached in program order: a
+     cast to such a type (§6.7.6.2 ¶5) and `sizeof` of a VLA type
+     (§6.5.3.4 ¶2) both run them. We return the type and a sequencer that
+     runs the collected side effects before a following statement.
+
+     `_Alignof`, `offsetof`, and compound literals do not evaluate the
+     type, so they keep using the plain `elab_size` (which discards).
+  *)
+  and elab_ty_effects ty =
+    let effects = ref [] in
+    let elab_size e =
+      let* stmt, rv = capture_rval e in
+      effects := stmt :: !effects;
+      !!rv in
+    let+ ty' = ET.elab ~elab_size ty in
+    let seq rest = match !effects with
+      | [] -> rest
+      | es -> Tstmt.block (List.rev_map (rest :: es) ~f:Tstmt.bstmt) in
+    ty', seq
+
   (* Explicit cast (§6.5.4): elaborate the destination type, then
      validate that the conversion is allowed. *)
   and rval_cast dst arg cont =
-    let* dst_ty = ET.elab ~elab_size dst in
+    let* dst_ty, seq = elab_ty_effects dst in
     let@ arg_rv = elab_rval arg in
     let* () = require_cast ~dst:dst_ty ~arg:arg_rv in
-    cont (Texpr.cast ~dst:dst_ty ~arg:arg_rv)
+    let+ rest = cont (Texpr.cast ~dst:dst_ty ~arg:arg_rv) in
+    seq rest
 
-  (* sizeof(T) (§6.5.3.4): elaborate the type name and report its
-     size. *)
+  (* sizeof(T) (§6.5.3.4): elaborate the type name and report its size. For a
+     VLA type the size expressions are evaluated for their side effects. *)
   and rval_sizeof_t ty cont =
-    let* ty' = ET.elab ~elab_size ty in
-    sizeof_of ty' >>= cont
+    let* ty', seq = elab_ty_effects ty in
+    let* sz = sizeof_of ty' in
+    let+ rest = cont sz in
+    seq rest
 
   (* sizeof e (§6.5.3.4 ¶2): we recover the operand's type without
      the lvalue conversion (arrays and functions keep their real

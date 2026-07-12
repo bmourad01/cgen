@@ -1,0 +1,36 @@
+int cast_effect(void) {
+  int %0;
+  int %1;
+  int l = 0;
+  {
+    (%0 = l, l = %0 + 1);
+    ;
+  }
+  {
+    (%1 = l, l = %1 + 1);
+    ;
+  }
+  return l;
+}
+
+int sizeof_effect(void) {
+  int %0;
+  int l = 0;
+  {
+    (%0 = l, l = %0 + 1);
+    ;
+  }
+  return l;
+}
+
+int alignof_no_effect(void) {
+  int %0;
+  int l = 0;
+  ;
+  return l;
+}
+
+int alignof_value(void) {
+  int n = 3;
+  return (4 == 4 ? 4 == 4 != (int)0 : 0) ? 8 == 8 != (int)0 : 0;
+}

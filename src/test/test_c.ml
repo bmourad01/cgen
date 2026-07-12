@@ -209,6 +209,7 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Rvalue lvalue-forms and aggregate conditionals" "rvalue_forms";
     ok_case ~sir:true "Constant-expression array bounds" "const_array_size";
     ok_case ~sir:true "Discarded call results" "discard_call";
+    ok_case ~sir:true "Variably-modified type size effects" "vla_effects";
     ok_case ~sir:true "Block-scope shadowing" "scope_shadow";
     ok_case ~sir:true "Assignment expression value" "assign_value";
     ok_case ~sir:true ~opt:true "Duff's device" "duff";
@@ -256,6 +257,7 @@ let native_suite = "C frontend: native execution" >::: [
     "Wide shifts with narrow counts (SysV AMD64)" >:: test_sysv_amd64_native "shift";
     "Distinct pointer-type compare and assign (SysV AMD64)" >:: test_sysv_amd64_native "ptr_distinct";
     "Discarded call results (SysV AMD64)" >:: test_sysv_amd64_native "discard_call";
+    "Variably-modified type size effects (SysV AMD64)" >:: test_sysv_amd64_native "vla_effects";
     "Block-scope shadowing (SysV AMD64)" >:: test_sysv_amd64_native "scope_shadow";
     "Assignment expression value (SysV AMD64)" >:: test_sysv_amd64_native "assign_value";
     "Duff's device (SysV AMD64)" >:: test_sysv_amd64_native "duff";

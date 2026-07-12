@@ -1,0 +1,65 @@
+module vla_effects
+
+export function sw $cast_effect() {
+  %0 = slot 4, align 4
+  %1 = slot 4, align 4
+  %2 = slot 4, align 4
+start:
+  st.w 0x0_w, %2;
+  %3 = ld.w %2;
+  st.w %3, %0;
+  %4 = ld.w %0;
+  %5 = add.w %4, 0x1_w;
+  st.w %5, %2;
+  %6 = ld.w %2;
+  st.w %6, %1;
+  %7 = ld.w %1;
+  %8 = add.w %7, 0x1_w;
+  st.w %8, %2;
+  %9 = ld.w %2;
+  ret %9
+}
+
+export function sw $sizeof_effect() {
+  %10 = slot 4, align 4
+  %11 = slot 4, align 4
+start:
+  st.w 0x0_w, %11;
+  %12 = ld.w %11;
+  st.w %12, %10;
+  %13 = ld.w %10;
+  %14 = add.w %13, 0x1_w;
+  st.w %14, %11;
+  %15 = ld.w %11;
+  ret %15
+}
+
+export function sw $alignof_no_effect() {
+  %16 = slot 4, align 4
+  %17 = slot 4, align 4
+start:
+  st.w 0x0_w, %17;
+  %18 = ld.w %17;
+  ret %18
+}
+
+export function sw $alignof_value() {
+  %19 = slot 4, align 4
+start:
+  st.w 0x3_w, %19;
+  %20 = eq.l 0x4_l, 0x4_l;
+  %21 = flag.w %20;
+  %22 = eq.l 0x4_l, 0x4_l;
+  %23 = flag.w %22;
+  %24 = ne.w %23, 0x0_w;
+  %25 = flag.w %24;
+  %26 = ne.w %21, 0x0_w;
+  %27 = sel.w %26, %25, 0x0_w;
+  %28 = eq.l 0x8_l, 0x8_l;
+  %29 = flag.w %28;
+  %30 = ne.w %29, 0x0_w;
+  %31 = flag.w %30;
+  %32 = ne.w %27, 0x0_w;
+  %33 = sel.w %32, %31, 0x0_w;
+  ret %33
+}

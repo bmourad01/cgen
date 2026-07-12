@@ -392,8 +392,29 @@ let rec size_align dm sizes = function
     end
   | Tfun _ -> Or_error.error_string "sizeof function type"
 
+(* The alignment of a type, computed without its array sizes, so it succeeds
+   for a variably-modified (VLA) type. An array's alignment is that of its
+   element, independent of the (possibly non-constant) length.
+
+   `_Alignof` does not evaluate the operand (§6.5.3.4), so the size is never
+   needed.
+*)
+let rec align_of dm sizes = function
+  | Tbase {base = Bvoid; _} -> Or_error.error_string "alignof void"
+  | Tbase {base; _} -> Ok (T.sizeof_basic (basic_of_base dm base) / 8)
+  | Tptr _ -> Ok (D.pointer_bytes dm)
+  | Tarray {elem; _} -> align_of dm sizes elem
+  | Tnamed {kind = `enum; _} -> Ok (D.int_bytes dm)
+  | Tnamed {kind = `typedef; name; _} -> Or_error.errorf "unresolved typedef %S" name
+  | Tnamed {kind = #compound; name; _} ->
+    begin match Smap.find sizes name with
+      | None -> Or_error.errorf "compound %S not laid out" name
+      | Some (_, a) -> Ok a
+    end
+  | Tfun _ -> Or_error.error_string "alignof function type"
+
 let sizeof t ty = size_align t.dmodel t.sizes (TE.normalize t.tenv ty) >>| fst
-let alignof t ty = size_align t.dmodel t.sizes (TE.normalize t.tenv ty) >>| snd
+let alignof t ty = align_of t.dmodel t.sizes (TE.normalize t.tenv ty)
 
 let offsetof t ~tag ~field = match Smap.find t.offsets tag with
   | None -> Or_error.errorf "unknown tag %S" tag
