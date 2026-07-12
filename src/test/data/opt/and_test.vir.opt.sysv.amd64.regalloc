@@ -22,28 +22,27 @@ export function $bar { ; returns: rax
 
 export function $baz { ; returns: rax
 @18:
-  mov eax, edi ; @80
-  and eax, 0x3_w ; @81
-  je @19 ; @70
-  dec rax ; @72
-  cmp rax, 0x2_l ; @73
-  ja @19 ; @74
-  lea rcx, qword ptr [rip + @68] ; @75
-  movsxd rax, dword ptr [rcx + rax*4] ; @76
-  add rax, rcx ; @77
-  jmp rax ; @78
-  .tbl @68 [@20, @21, @22] ; @79
+  mov eax, edi ; @82
+  and eax, 0x3_w ; @83
+  cmp rax, 0x1_l ; @79
+  je @20 ; @80
+@61:
+  cmp rax, 0x2_l ; @76
+  je @21 ; @77
+@59:
+  cmp rax, 0x3_l ; @73
+  jne @19 ; @74
 @22:
   lea rax, qword ptr [rdi + 0x4] ; @43
-  jmp @24 ; @67
-@21:
-  lea rax, qword ptr [rdi + 0x3] ; @42
-  jmp @24 ; @65
-@20:
-  lea rax, qword ptr [rdi + 0x2] ; @41
-  jmp @24 ; @63
+  jmp @24 ; @72
 @19:
   lea rax, qword ptr [rdi + 0x1] ; @40
+  jmp @24 ; @70
+@21:
+  lea rax, qword ptr [rdi + 0x3] ; @42
+  jmp @24 ; @68
+@20:
+  lea rax, qword ptr [rdi + 0x2] ; @41
 @24:
-  ret ; @59
+  ret ; @64
 }

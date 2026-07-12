@@ -1,0 +1,177 @@
+module switchlower
+
+export function $scan { ; returns: rax
+@2:
+  mov %0:w, edi ; @76
+  cmp %0:w, 0x30_w ; @77
+  jb @39 ; @78
+  mov %9:w, %0:w ; zx ; @79
+  sub %9:l, 0x30_l ; @80
+  cmp %9:l, 0x7_l ; @81
+  ja @39 ; @82
+  lea %8:l, qword ptr [rip + @75] ; @83
+  movsxd %10:l, dword ptr [%8 + %9*4] ; @84
+  add %10:l, %8:l ; @85
+  jmp %10:l ; @86
+  .tbl @75 [@40, @41, @42, @43, @44, @45, @46, @47] ; @87
+@40:
+  mov %3:w, 0xa_w ; @73
+  jmp @34 ; @74
+@41:
+  mov %3:w, 0xb_w ; @71
+  jmp @34 ; @72
+@42:
+  mov %3:w, 0xc_w ; @69
+  jmp @34 ; @70
+@43:
+  mov %3:w, 0xd_w ; @67
+  jmp @34 ; @68
+@44:
+  mov %3:w, 0xe_w ; @65
+  jmp @34 ; @66
+@45:
+  mov %3:w, 0xf_w ; @63
+  jmp @34 ; @64
+@46:
+  mov %3:w, 0x10_w ; @61
+  jmp @34 ; @62
+@47:
+  mov %3:w, 0x11_w ; @59
+  jmp @34 ; @60
+@39:
+  cmp %0:w, 0xffffffff_w ; @56
+  jae @48 ; @57
+  jmp @49 ; @58
+@48:
+  mov %3:w, 0x63_w ; @54
+  jmp @34 ; @55
+@49:
+  xor %3:w, %3:w ; @52
+  jmp @34 ; @53
+@34:
+  mov eax, %3:w ; @50
+  ret ; @51
+}
+
+export function $sparse { ; returns: rax
+@13:
+  mov %1:w, edi ; @96
+  cmp %1:w, 0x10000_w ; @129
+  jb @91 ; @130
+  jmp @95 ; @131
+@95:
+  cmp %1:w, 0x10000_w ; @126
+  jbe @97 ; @127
+  jmp @93 ; @128
+@97:
+  mov %4:w, 0x3_w ; @124
+  jmp @35 ; @125
+@93:
+  cmp %1:w, 0x1000000_w ; @121
+  je @98 ; @122
+  jmp @99 ; @123
+@98:
+  mov %4:w, 0x4_w ; @119
+  jmp @35 ; @120
+@99:
+  xor %4:w, %4:w ; @117
+  jmp @35 ; @118
+@91:
+  cmp %1:w, 0x1_w ; @114
+  je @100 ; @115
+  jmp @89 ; @116
+@100:
+  mov %4:w, 0x1_w ; @112
+  jmp @35 ; @113
+@89:
+  cmp %1:w, 0x100_w ; @109
+  je @101 ; @110
+  jmp @102 ; @111
+@101:
+  mov %4:w, 0x2_w ; @107
+  jmp @35 ; @108
+@102:
+  xor %4:w, %4:w ; @105
+  jmp @35 ; @106
+@35:
+  mov eax, %4:w ; @103
+  ret ; @104
+}
+
+export function $range { ; returns: rax
+@19:
+  mov %2:w, edi ; @137
+  cmp %2:w, 0x4_w ; @152
+  jbe @138 ; @153
+  jmp @136 ; @154
+@138:
+  mov %5:w, 0x7_w ; @150
+  jmp @36 ; @151
+@136:
+  cmp %2:w, 0x64_w ; @147
+  je @139 ; @148
+  jmp @140 ; @149
+@139:
+  mov %5:w, 0x8_w ; @145
+  jmp @36 ; @146
+@140:
+  xor %5:w, %5:w ; @143
+  jmp @36 ; @144
+@36:
+  mov eax, %5:w ; @141
+  ret ; @142
+}
+
+export function $scansym { ; returns: rax
+@23:
+  lea %21:l, qword ptr [rip + $scan] ; @198
+  cmp %21:l, 0x30_l ; @199
+  jb @160 ; @200
+  mov %23:l, %21:l ; @201
+  sub %23:l, 0x30_l ; @202
+  cmp %23:l, 0x7_l ; @203
+  ja @160 ; @204
+  lea %22:l, qword ptr [rip + @197] ; @205
+  movsxd %24:l, dword ptr [%22 + %23*4] ; @206
+  add %24:l, %22:l ; @207
+  jmp %24:l ; @208
+  .tbl @197 [@161, @162, @163, @164, @165, @166, @167, @168] ; @209
+@161:
+  mov %6:w, 0xa_w ; @195
+  jmp @37 ; @196
+@162:
+  mov %6:w, 0xb_w ; @193
+  jmp @37 ; @194
+@163:
+  mov %6:w, 0xc_w ; @191
+  jmp @37 ; @192
+@164:
+  mov %6:w, 0xd_w ; @189
+  jmp @37 ; @190
+@165:
+  mov %6:w, 0xe_w ; @187
+  jmp @37 ; @188
+@166:
+  mov %6:w, 0xf_w ; @185
+  jmp @37 ; @186
+@167:
+  mov %6:w, 0x10_w ; @183
+  jmp @37 ; @184
+@168:
+  mov %6:w, 0x11_w ; @181
+  jmp @37 ; @182
+@160:
+  lea %20:l, qword ptr [rip + $scan] ; @177
+  cmp %20:l, 0xffffffff_l ; @178
+  je @169 ; @179
+  jmp @170 ; @180
+@169:
+  mov %6:w, 0x63_w ; @175
+  jmp @37 ; @176
+@170:
+  xor %6:w, %6:w ; @173
+  jmp @37 ; @174
+@37:
+  mov eax, %6:w ; @171
+  ret ; @172
+}

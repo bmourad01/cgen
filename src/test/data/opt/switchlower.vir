@@ -1,0 +1,101 @@
+module switchlower
+
+export function w $scan(w %c) {
+@start:
+  switch.w %c, @def [0x30_w -> @c0,
+                     0x31_w -> @c1,
+                     0x32_w -> @c2,
+                     0x33_w -> @c3,
+                     0x34_w -> @c4,
+                     0x35_w -> @c5,
+                     0x36_w -> @c6,
+                     0x37_w -> @c7,
+                     0xffffffff_w -> @eof]
+@def:
+  ret 0_w
+@c0:
+  ret 10_w
+@c1:
+  ret 11_w
+@c2:
+  ret 12_w
+@c3:
+  ret 13_w
+@c4:
+  ret 14_w
+@c5:
+  ret 15_w
+@c6:
+  ret 16_w
+@c7:
+  ret 17_w
+@eof:
+  ret 99_w
+}
+
+export function w $sparse(w %x) {
+@start:
+  switch.w %x, @def [0x1_w -> @a,
+                     0x100_w -> @b,
+                     0x10000_w -> @c,
+                     0x1000000_w -> @d]
+@def:
+  ret 0_w
+@a:
+  ret 1_w
+@b:
+  ret 2_w
+@c:
+  ret 3_w
+@d:
+  ret 4_w
+}
+
+export function w $range(w %x) {
+@start:
+  switch.w %x, @def [0x0_w -> @same,
+                     0x1_w -> @same,
+                     0x2_w -> @same,
+                     0x3_w -> @same,
+                     0x4_w -> @same,
+                     0x64_w -> @other]
+@def:
+  ret 0_w
+@same:
+  ret 7_w
+@other:
+  ret 8_w
+}
+
+export function w $scansym() {
+@start:
+  switch.l $scan, @def [0x30_l -> @c0,
+                        0x31_l -> @c1,
+                        0x32_l -> @c2,
+                        0x33_l -> @c3,
+                        0x34_l -> @c4,
+                        0x35_l -> @c5,
+                        0x36_l -> @c6,
+                        0x37_l -> @c7,
+                        0xffffffff_l -> @eof]
+@def:
+  ret 0_w
+@c0:
+  ret 10_w
+@c1:
+  ret 11_w
+@c2:
+  ret 12_w
+@c3:
+  ret 13_w
+@c4:
+  ret 14_w
+@c5:
+  ret 15_w
+@c6:
+  ret 16_w
+@c7:
+  ret 17_w
+@eof:
+  ret 99_w
+}

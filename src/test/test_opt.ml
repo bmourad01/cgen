@@ -237,6 +237,7 @@ let opt_suite = "Test optimizations" >::: [
     "Switch case propagation" >:: test "switchcaseprop";
     "Switch simplification" >:: test "switchsimpl";
     "Switch simplification 2" >:: test "sw";
+    "Switch lowering" >:: test "switchlower";
     "Muti-block fold" >:: test "multiblockfold";
     "CSE (hoist and merge, with commute)" >:: test "csehoistandmergecommute";
     "Conditional propagation 1" >:: test "condprop1";
@@ -369,6 +370,7 @@ let isel_suite = "Test instruction selection" >::: [
     "LEA arithmetic with negative disp (SysV AMD64)" >:: test_sysv_amd64 "lea1";
     "Test prime numbers (SysV AMD64)" >:: test_sysv_amd64 "prime";
     "Switch case propagation (SysV AMD64)" >:: test_sysv_amd64 "switchcaseprop";
+    "Switch lowering (SysV AMD64)" >:: test_sysv_amd64 "switchlower";
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64 "promote2-partial";
     "Variadic function arguments 1 (SysV AMD64)" >:: test_sysv_amd64 "vaarg1";
     "Variadic sum (SysV AMD64)" >:: test_sysv_amd64 "vasum";

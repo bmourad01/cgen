@@ -143,6 +143,18 @@ module Lower_abi : sig
   val run : ?invariants:bool -> Type_env.t -> func -> Abi.func Context.t
 end
 
+(** Lowers `switch` terminators into a decision tree of comparisons and
+    dense jump tables. This is intended to run right before [Isel].
+
+    This pass aims to bound the size of any jump table that instruction
+    selection must materialize. Outlier and sparse cases become comparisons,
+    contiguous same-target runs become range checks, and only dense sub-ranges
+    become jump tables, navigated by a balanced binary search.
+*)
+module Lower_switch : sig
+  val run : Abi.func -> Abi.func Context.t
+end
+
 (** Attempts to promote uniform stack slots to SSA variables.
 
     Assumes the function is in SSA form.

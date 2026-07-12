@@ -1,0 +1,53 @@
+module switchlower
+
+export function w $scan(w %0) {
+@2:
+  switch.w %0, @34(0x0_w) [0x30_w -> @34(0xa_w),
+                           0x31_w -> @34(0xb_w),
+                           0x32_w -> @34(0xc_w),
+                           0x33_w -> @34(0xd_w),
+                           0x34_w -> @34(0xe_w),
+                           0x35_w -> @34(0xf_w),
+                           0x36_w -> @34(0x10_w),
+                           0x37_w -> @34(0x11_w),
+                           0xffffffff_w -> @34(0x63_w)]
+@34(%3):
+  ret %3
+}
+
+export function w $sparse(w %1) {
+@13:
+  switch.w %1, @35(0x0_w) [0x1_w -> @35(0x1_w),
+                           0x100_w -> @35(0x2_w),
+                           0x10000_w -> @35(0x3_w),
+                           0x1000000_w -> @35(0x4_w)]
+@35(%4):
+  ret %4
+}
+
+export function w $range(w %2) {
+@19:
+  switch.w %2, @36(0x0_w) [0x0_w -> @36(0x7_w),
+                           0x1_w -> @36(0x7_w),
+                           0x2_w -> @36(0x7_w),
+                           0x3_w -> @36(0x7_w),
+                           0x4_w -> @36(0x7_w),
+                           0x64_w -> @36(0x8_w)]
+@36(%5):
+  ret %5
+}
+
+export function w $scansym() {
+@23:
+  switch.l $scan, @37(0x0_w) [0x30_l -> @37(0xa_w),
+                              0x31_l -> @37(0xb_w),
+                              0x32_l -> @37(0xc_w),
+                              0x33_l -> @37(0xd_w),
+                              0x34_l -> @37(0xe_w),
+                              0x35_l -> @37(0xf_w),
+                              0x36_l -> @37(0x10_w),
+                              0x37_l -> @37(0x11_w),
+                              0xffffffff_l -> @37(0x63_w)]
+@37(%6):
+  ret %6
+}

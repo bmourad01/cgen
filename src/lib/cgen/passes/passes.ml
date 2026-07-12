@@ -6,6 +6,7 @@ module Coalesce_slots = Coalesce_slots
 module Destructure = Structured.Destructure(Context)
 module Egraph_opt = Egraph_opt
 module Lower_abi = Lower_abi
+module Lower_switch = Lower_switch
 module Promote_slots = Promote_slots
 module Remove_dead_vars = Remove_dead_vars
 module Remove_disjoint_blks = Remove_disjoint_blks
@@ -120,9 +121,11 @@ let isel
     (m : Abi.module_) : (i, r) Pseudo.module_ Context.t =
   let* () = assert_same_target "isel" M.target in
   let module Isel = Isel.Make(M)(Context) in
+  (* Switch lowering must run first. `Isel` can only build a dense jump
+     table over the full case range, so a sparse switch would blow up. *)
   let+ funs =
     Abi.Module.funs m |>
-    Context.Seq.map ~f:Isel.run >>|
+    Context.Seq.map ~f:(fun fn -> Lower_switch.run fn >>= Isel.run) >>|
     Base.Sequence.to_list in
   Pseudo.Module.create ()
     ~dict:(Abi.Module.dict m)

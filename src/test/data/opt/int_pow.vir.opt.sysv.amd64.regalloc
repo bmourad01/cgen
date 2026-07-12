@@ -2,70 +2,69 @@ module int_pow
 
 export function $int_pow { ; returns: rax
 @2:
-  mov ecx, 0x1_w ; @123
-  mov eax, 0x1_w ; @125
+  mov ecx, 0x1_w ; @125
+  mov eax, 0x1_w ; @127
 @3:
-  test rsi, rsi ; @117
-  jne @9 ; @118
+  test rsi, rsi ; @119
+  jne @9 ; @120
 @10:
-  ret ; @116
+  ret ; @118
 @9:
-  imul rdi, rcx ; @114
+  imul rdi, rcx ; @116
   mov rcx, rdi ; @57
-  imul rcx, rdi ; @113
+  imul rcx, rdi ; @115
   mov edx, esi ; @58
-  and edx, 0x3_w ; @112
-  je @21 ; @102
-  dec rdx ; @104
-  cmp rdx, 0x2_l ; @105
-  ja @21 ; @106
-  lea r8, qword ptr [rip + @100] ; @107
-  movsxd rdx, dword ptr [r8 + rdx*4] ; @108
-  add rdx, r8 ; @109
-  jmp rdx ; @110
-  .tbl @100 [@14, @15, @16] ; @111
+  and edx, 0x3_w ; @114
+  cmp rdx, 0x1_l ; @111
+  je @14 ; @112
+@82:
+  cmp rdx, 0x2_l ; @108
+  je @15 ; @109
+@80:
+  cmp rdx, 0x3_l ; @105
+  jne @21 ; @106
 @16:
-  imul rax, rdi ; @97
-  imul rax, rcx ; @96
-  jmp @21 ; @95
+  imul rax, rdi ; @102
+  imul rax, rcx ; @101
+  jmp @21 ; @100
 @15:
-  imul rax, rdi ; @93
-  imul rax, rdi ; @92
-  jmp @21 ; @91
+  imul rax, rdi ; @98
+  imul rax, rdi ; @97
+  jmp @21 ; @96
 @14:
-  imul rax, rdi ; @89
+  imul rax, rdi ; @94
 @21:
-  sar rsi, 0x2_b ; @86
-  imul rcx, rdi ; @85
-  jmp @3 ; @84
+  sar rsi, 0x2_b ; @91
+  imul rcx, rdi ; @90
+  jmp @3 ; @89
 }
 
 export function $int_pow_alt { ; returns: rax
 @27:
-  sub rsp, 0x28_l ; @146
-  mov qword ptr [rsp], 0x1_l ; @145
+  sub rsp, 0x28_l ; @148
+  mov qword ptr [rsp], 0x1_l ; @147
   mov qword ptr [rsp + 0x8], rdi ; @32
   mov qword ptr [rsp + 0x18], 0x1_l ; @34
-  mov eax, 0x1_w ; @142
+  mov eax, 0x1_w ; @144
 @28:
-  test rsi, rsi ; @138
-  jne @35 ; @139
+  test rsi, rsi ; @140
+  jne @35 ; @141
 @36:
-  add rsp, 0x28_l ; @147
-  ret ; @137
+  add rsp, 0x28_l ; @149
+  ret ; @139
 @35:
   mov rdx, qword ptr [rsp + 0x8] ; @41
-  imul rdx, qword ptr [rsp + 0x18] ; @135
+  imul rdx, qword ptr [rsp + 0x18] ; @137
   mov qword ptr [rsp + 0x8], rdx ; @44
   mov rcx, rdx ; @72
-  imul rcx, rdx ; @134
+  imul rcx, rdx ; @136
   mov qword ptr [rsp + 0x10], rcx ; @46
-  imul rcx, rdx ; @133
+  imul rcx, rdx ; @135
   mov qword ptr [rsp + 0x18], rcx ; @48
   mov ecx, esi ; @74
-  and ecx, 0x3_w ; @132
+  and ecx, 0x3_w ; @134
   mov rcx, qword ptr [rsp + rcx*8] ; @52
-  sar rsi, 0x2_b ; @131
-  imul rax, rcx ; @130
-  jmp @28 ; @129
+  sar rsi, 0x2_b ; @133
+  imul rax, rcx ; @132
+  jmp @28 ; @131
 }

@@ -97,26 +97,29 @@ let array_of_list_map l ~f = match l with
 
 (* pre: `tbl` is non-empty
 
-   TODO:
-
-   - What do we do about huge tables?
-   - What is a good threshold for the lower-bound on the table?
+   NB: this function is deliberately naiive, and we expect that
+   the `Lower_switch` pass has been run beforehand
 *)
 let adjust_table d tbl =
   let tbl = array_of_list_map tbl ~f:(fun (v, l) -> Bv.to_int64 v, l) in
+  let n = Array.length tbl in
+  let last = n - 1 in
   (* Assume that it's sorted. *)
   let lowest = fst tbl.(0) in
-  let highest = fst @@ Array.last tbl in
+  let highest = fst tbl.(last) in
   (* Pad the table with missing elements. *)
   let acc = Vec.create () in
-  let _ = Array.fold tbl ~init:lowest ~f:(fun p (v, l) ->
-      let diff = Int64.(v - p) and i = ref 0L in
-      while lt_u !i diff do
-        Vec.push acc d;
-        Int64.incr i;
-      done;
-      Vec.push acc l;
-      Int64.succ v) in
+  let p = ref lowest in
+  for i = 0 to last do
+    let v, l = tbl.(i) in
+    let diff = Int64.(v - !p) and i = ref 0L in
+    while lt_u !i diff do
+      Vec.push acc d;
+      Int64.incr i;
+    done;
+    Vec.push acc l;
+    p := Int64.succ v
+  done;
   Vec.to_list acc, lowest, highest
 
 let (let@) f x = f x
