@@ -47,6 +47,7 @@ let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 let ident = (alpha | '_') (alpha | '_' | digit)*
 let symname = (alpha | '_' | '.') (alpha | '_' | '.' | digit)*
+let tyname = ident ('.' digit+)?
 let integer = digit+
 let ninteger = '-' integer
 let hinteger = "0x" ['0'-'9' 'a'-'f' 'A'-'F']+
@@ -74,7 +75,7 @@ rule token = parse
   | '}' { RBRACE }
   | '+' { PLUS }
   | '-' { MINUS }
-  | ':' (ident as id) { TYPENAME id }
+  | ':' (tyname as id) { TYPENAME id }
   | ':' { COLON }
   | ';' { SEMI }
   | '$' (symname as id) { SYM id }
@@ -130,9 +131,9 @@ rule token = parse
   | "not" '.' (imm as t) { NOT (imm_of_char t) }
   | "slot" { SLOT }
   | "ld" '.' (basic as t) { LOAD (basic_of_char t :> Type.arg) }
-  | "ld" ':' (ident as id) { LOAD (`name id) }
+  | "ld" ':' (tyname as id) { LOAD (`name id) }
   | "st" '.' (basic as t) { STORE (basic_of_char t :> Type.arg) }
-  | "st" ':' (ident as id) { STORE (`name id) }
+  | "st" ':' (tyname as id) { STORE (`name id) }
   | "eq" '.' (basic as t) { EQ (basic_of_char t) }
   | "ge" '.' (basic as t) { GE (basic_of_char t) }
   | "gt" '.' (basic as t) { GT (basic_of_char t) }
@@ -171,12 +172,12 @@ rule token = parse
   | "call" '.' "sb" { ACALL `si8 }
   | "call" '.' "sh" { ACALL `si16 }
   | "call" '.' "sw" { ACALL `si32 }
-  | "call" ':' (ident as id) { ACALL (`name id) }
+  | "call" ':' (tyname as id) { ACALL (`name id) }
   | "call" { CALL }
   | "nontail" { NONTAIL }
   | "start" { START}
   | "vaarg" '.' (basic as t) { VAARG (basic_of_char t :> Type.arg) }
-  | "vaarg" ':' (ident as id) { VAARG (`name id) }
+  | "vaarg" ':' (tyname as id) { VAARG (`name id) }
   | "vastart" { VASTART }
   | "hlt" { HLT }
   | "goto" { GOTO }
