@@ -26,6 +26,16 @@ struct S mk(int v) {
   return s;
 }
 
+void bump(void) {
+  counter += 3;
+}
+
+int comma_void(void) {
+  counter = 0;
+  int v = (bump(), 42);
+  return v + counter;
+}
+
 int run(void) {
   counter = 0;
   add7();

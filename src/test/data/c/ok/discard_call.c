@@ -29,6 +29,19 @@ mk(int v) {
   return s;
 }
 
+void
+bump(void) {
+  counter += 3;
+}
+
+/* A void-returning call in the discarded left operand of a comma (§6.5.17) */
+int
+comma_void(void) {
+  counter = 0;
+  int v = (bump(), 42);
+  return v + counter;
+}
+
 int
 run(void) {
   counter = 0;

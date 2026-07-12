@@ -1161,11 +1161,13 @@ module Make(A : Annotation) = struct
         Bstmt tail;
       ]
 
-  (* Comma operator (§6.5.17): evaluate the lhs for its side
-     effects, discard its value, then yield the rhs. *)
+  (* Comma operator (§6.5.17): the lhs is evaluated as a void expression
+     (its value discarded), then the rhs yields the result. Elaborating
+     the lhs in a void context lets it be a void-returning call. *)
   and rval_comma lhs rhs cont =
-    let@ _ = elab_rval lhs in
-    elab_rval rhs cont
+    let* lhs_s = elab_void lhs in
+    let+ rhs_s = elab_rval rhs cont in
+    mkblock [Bstmt lhs_s; Bstmt rhs_s]
 
   and elab_lval (e : A.ann Expr.t) cont =
     let@ () = Ctx.with_location_of e.ann in
@@ -1619,8 +1621,9 @@ module Make(A : Annotation) = struct
     let@ () = Ctx.with_location_of e.ann in
     match e.node with
     | Ecomma {lhs; rhs} ->
-      let@ _ = elab_rval lhs in
-      elab_void rhs
+      let* lhs_s = elab_void lhs in
+      let+ rhs_s = elab_void rhs in
+      mkblock [Bstmt lhs_s; Bstmt rhs_s]
     | Econd {cond; then_; else_} ->
       let@ cond_rv = elab_rval cond in
       let* () =

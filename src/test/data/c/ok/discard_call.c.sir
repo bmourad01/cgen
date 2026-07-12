@@ -77,18 +77,40 @@ start:
   ret %38
 }
 
-export function sw $run() {
-  %42 = slot 4, align 4
+export function $bump() {
+  %39 = slot 4, align 4
+start:
+  %40 = ld.w $counter;
+  st.w %40, %39;
+  %41 = ld.w %39;
+  %42 = add.w %41, 0x3_w;
+  st.w %42, $counter
+}
+
+export function sw $comma_void() {
+  %43 = slot 4, align 4
 start:
   st.w 0x0_w, $counter;
-  %39 = call.sw $add7();
-  %40 = call.sw $add7();
-  %41 = call.w $mul(0x3_w, 0x4_w);
-  st.w 0x0_w, %42;
-  %43 = call.l $setp(%42, 0x63_w);
-  %44 = call:S $mk(0x5_w);
+  call $bump();
+  st.w 0x2a_w, %43;
+  %44 = ld.w %43;
   %45 = ld.w $counter;
-  %46 = ld.w %42;
-  %47 = add.w %45, %46;
-  ret %47
+  %46 = add.w %44, %45;
+  ret %46
+}
+
+export function sw $run() {
+  %50 = slot 4, align 4
+start:
+  st.w 0x0_w, $counter;
+  %47 = call.sw $add7();
+  %48 = call.sw $add7();
+  %49 = call.w $mul(0x3_w, 0x4_w);
+  st.w 0x0_w, %50;
+  %51 = call.l $setp(%50, 0x63_w);
+  %52 = call:S $mk(0x5_w);
+  %53 = ld.w $counter;
+  %54 = ld.w %50;
+  %55 = add.w %53, %54;
+  ret %55
 }
