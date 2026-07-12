@@ -299,6 +299,8 @@ let fail_suite = "C frontend: rejected programs" >::: [
     "tag redeclared as a different kind" >:: test_error "redeclare_kind";
     "block object of incomplete type" >:: test_error "incomplete_local";
     "file object of never-completed type" >:: test_error "incomplete_global";
+    "local variable-length array bound" >:: test_error "vla";
+    "file-scope non-constant array bound" >:: test_error "vla_global";
   ]
 
 let () = run_test_tt_main @@ test_list [

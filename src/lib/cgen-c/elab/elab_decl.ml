@@ -98,6 +98,7 @@ module Make(A : Annotation) = struct
 
   (* Elaborate `e` as a file-scope integer constant expression. *)
   let eval_const_int (e : A.ann Expr.t) : Bv.t M.m =
+    let@ () = Ctx.with_location_of e.ann in
     let@ () = with_scratch_fnctx in
     let slot = ref None in
     let* _ = E.elab_rval e @@ fun rv ->

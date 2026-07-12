@@ -141,6 +141,7 @@ module Make(A : Annotation) = struct
 
   (* Evaluate `e` as an integer constant expression in the local context. *)
   let local_eval_int env (e : A.ann Expr.t) : Bv.t M.m =
+    let@ () = Ctx.with_location_of e.ann in
     let* _stmt, rv = capture env e in
     let* layout = M.gets Ctx.layout in
     Ctx.lift_err @@ Eval.int_const (Eval.create_init layout) rv

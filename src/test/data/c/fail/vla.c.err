@@ -1,0 +1,3 @@
+data/c/fail/vla.c:9:12-20: error: expression does not reduce to an integer constant
+ 9 |   double a[10 + g()];
+   |            ^~~~~~~~

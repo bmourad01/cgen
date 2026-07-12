@@ -1,0 +1,3 @@
+data/c/fail/vla_global.c:2:7-10: error: expression does not reduce to an integer constant
+ 2 | int a[g()];
+   |       ^~~
