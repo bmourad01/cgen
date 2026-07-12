@@ -79,15 +79,27 @@ let pp_excerpt ?(color = false) sm ppf loc =
   match Source_map.line_text sm ~file:(Location.file loc) line with
   | None -> ()
   | Some text ->
+    let len = String.length text in
     let start_col = Location.column (Location.start loc) in
     (* Clamp a multi-line range to the end of the first line. *)
     let end_col =
       if Location.line (Location.end_ loc) = line
       then Location.column (Location.end_ loc)
-      else String.length text + 1 in
+      else len + 1 in
+    (* A start column past the end of the source line means the token came
+       from a macro expansion. In such cases, the preprocessor collapsed the
+       expansion onto the use line, so its column is that of the (unavailable)
+       expanded text.
+
+       Without implementing our own preprocessor, the best we can do for now
+       is underline the whole use line rather than a caret in empty space.
+    *)
+    let in_macro = start_col > len + 1 in
+    let start_col, end_col = if in_macro then 1, len + 1 else start_col, end_col in
     let w = String.length (Int.to_string line) in
     Format.fprintf ppf "@\n %*d | %s@\n %*s | " w line text w "";
-    pp_underline ~color ppf ~line:text ~start_col ~end_col
+    pp_underline ~color ppf ~line:text ~start_col ~end_col;
+    if in_macro then Format.pp_print_string ppf " (in macro expansion)"
 
 let pp_with_source ?(color = false) sm ppf t =
   pp_header ~color ppf t;
