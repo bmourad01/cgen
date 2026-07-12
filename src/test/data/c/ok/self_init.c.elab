@@ -1,0 +1,32 @@
+struct list {
+  struct list *next;
+  struct list *prev;
+};
+
+int selfref(void) {
+  int %0;
+  struct list r = {.next = &r, .prev = &r};
+  {
+    if (r.next == &r)
+      %0 = r.prev == &r != (int)0;
+    else
+      %0 = 0;
+    return %0;
+  }
+}
+
+unsigned long array_size(void) {
+  int a[5] = {1, 2, 3, 4, 5};
+  return 20;
+}
+
+int array_sum(void) {
+  int a[3] = {10, 20, 30};
+  return ((int *)a)[0] + ((int *)a)[1] + ((int *)a)[2];
+}
+
+int self_pointer(void) {
+  int x = 7;
+  int *p[3] = {&x, &x, &x};
+  return *((int **)p)[0] + *((int **)p)[1] + *((int **)p)[2];
+}

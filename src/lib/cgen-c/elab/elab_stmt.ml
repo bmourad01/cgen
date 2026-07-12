@@ -245,9 +245,14 @@ module Make(A : Annotation) = struct
         let+ () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
         [Tstmt.bdecl (Tstmt.localdecl ~name:ld.ldname ~ty:base_ty ?align ())]
       | Some init ->
+        (* §6.2.1 ¶7: the declared identifier is in scope inside its own
+           initializer (a struct/array may reference its own address), so
+           bind it before elaborating. The initializer may complete an array
+           bound, so update the binding to the completed type afterward. *)
+        let* () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
         let* pre, cty, flat =
           EI.elab ~elab_rval:env.elab_rval ~ty:base_ty init in
-        let+ () = Ctx.add_local ~name:ld.ldname ~ty:cty in
+        let+ () = Ctx.update_local ~name:ld.ldname ~ty:cty in
         let decl =
           Tstmt.bdecl @@
           Tstmt.localdecl ~name:ld.ldname ~ty:cty ~init:flat ?align () in

@@ -1,0 +1,101 @@
+module self_init
+
+type :list = {
+  l,
+  l
+}
+
+export function sw $selfref() {
+  %0 = slot 4, align 4
+  %1 = slot 16, align 8
+start:
+  st.l %1, %1;
+  %2 = add.l %1, 0x8_l;
+  st.l %1, %2;
+  %3 = ld.l %1;
+  %4 = eq.l %3, %1;
+  %5 = flag.w %4;
+  if ne.w %5, 0x0_w {
+    %6 = add.l %1, 0x8_l;
+    %7 = ld.l %6;
+    %8 = eq.l %7, %1;
+    %9 = flag.w %8;
+    %10 = ne.w %9, 0x0_w;
+    %11 = flag.w %10;
+    st.w %11, %0
+  } else {
+    st.w 0x0_w, %0
+  };
+  %12 = ld.w %0;
+  ret %12
+}
+
+export function l $array_size() {
+  %13 = slot 20, align 4
+start:
+  st.w 0x1_w, %13;
+  %14 = add.l %13, 0x4_l;
+  st.w 0x2_w, %14;
+  %15 = add.l %13, 0x8_l;
+  st.w 0x3_w, %15;
+  %16 = add.l %13, 0xc_l;
+  st.w 0x4_w, %16;
+  %17 = add.l %13, 0x10_l;
+  st.w 0x5_w, %17;
+  ret 0x14_l
+}
+
+export function sw $array_sum() {
+  %18 = slot 12, align 4
+start:
+  st.w 0xa_w, %18;
+  %19 = add.l %18, 0x4_l;
+  st.w 0x14_w, %19;
+  %20 = add.l %18, 0x8_l;
+  st.w 0x1e_w, %20;
+  %21 = sext.l 0x0_w;
+  %22 = mul.l %21, 0x4_l;
+  %23 = add.l %18, %22;
+  %24 = ld.w %23;
+  %25 = sext.l 0x1_w;
+  %26 = mul.l %25, 0x4_l;
+  %27 = add.l %18, %26;
+  %28 = ld.w %27;
+  %29 = add.w %24, %28;
+  %30 = sext.l 0x2_w;
+  %31 = mul.l %30, 0x4_l;
+  %32 = add.l %18, %31;
+  %33 = ld.w %32;
+  %34 = add.w %29, %33;
+  ret %34
+}
+
+export function sw $self_pointer() {
+  %35 = slot 4, align 4
+  %36 = slot 24, align 8
+start:
+  st.w 0x7_w, %35;
+  st.l %35, %36;
+  %37 = add.l %36, 0x8_l;
+  st.l %35, %37;
+  %38 = add.l %36, 0x10_l;
+  st.l %35, %38;
+  %39 = sext.l 0x0_w;
+  %40 = mul.l %39, 0x8_l;
+  %41 = add.l %36, %40;
+  %42 = ld.l %41;
+  %43 = ld.w %42;
+  %44 = sext.l 0x1_w;
+  %45 = mul.l %44, 0x8_l;
+  %46 = add.l %36, %45;
+  %47 = ld.l %46;
+  %48 = ld.w %47;
+  %49 = add.w %43, %48;
+  %50 = sext.l 0x2_w;
+  %51 = mul.l %50, 0x8_l;
+  %52 = add.l %36, %51;
+  %53 = ld.l %52;
+  %54 = ld.w %53;
+  %55 = add.w %49, %54;
+  ret %55
+}

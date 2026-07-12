@@ -252,6 +252,11 @@ module Make(A : Annotation) = struct
        an enclosing scope; the alias is restored when this scope exits. *)
     M.put {ctx with layout; statics = Smap.remove ctx.statics name}
 
+  (* Update the type of a local already bound in the innermost scope, without
+     the redeclaration check. *)
+  let update_local ~name ~ty = M.update @@ fun ctx ->
+    {ctx with layout = Layout.add_local ctx.layout ~name ty}
+
   (* Alias a block-scope source name to the link symbol that references
      should resolve to (see the `statics` field). *)
   let add_static_alias ~name ~link = M.update @@ fun ctx ->
