@@ -1,13 +1,9 @@
-
 (** Loop analysis of a function. *)
 module type S = sig
   type cfg
 
   (** The identifier of a loop. *)
   type loop [@@deriving compare, equal]
-
-  (** The loop nesting level. *)
-  type level = private int [@@deriving compare, equal]
 
   (** The loop data. *)
   type data
@@ -23,8 +19,11 @@ module type S = sig
   (** [parent d] gets the parent loop, if it exists. *)
   val parent : data -> loop option
 
-  (** [level d] gets the nesting level of the loop. *)
-  val level : data -> level
+  (** [level d] gets the nesting level of the loop.
+
+      Invariant: the level is at least [1]
+  *)
+  val level : data -> int
 
   (** [analyze ~name cfg] performs the loop analysis of [cfg] for function [name]. *)
   val analyze : ?dom:Semi_nca.tree -> name:string -> cfg -> t
@@ -60,6 +59,5 @@ module type S = sig
   val loops_of : t -> Label.t -> loop Base.Sequence.t
 
   val pp_loop : Format.formatter -> loop -> unit
-  val pp_level : Format.formatter -> level -> unit
   val pp_data : Format.formatter -> data -> unit
 end

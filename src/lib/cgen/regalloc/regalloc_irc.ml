@@ -98,10 +98,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     Func.iter_blks t.fn ~f:(fun b ->
         let l = Blk.label b in
         let loop_depth = match Loop.blk t.loop l with
-          | None -> 0
-          | Some lp ->
-            (* NB: levels start at 0 *)
-            (Loop.(level (get t.loop lp)) :> int) + 1 in
+          | Some lp -> Loop.(level (get t.loop lp))
+          | None -> 0 in
         (* live := liveOut(b) *)
         Bitset.clear out;
         Set.iter (Live.outs live l) ~f:(fun rv -> Bitset.add out t.$[rv]);
