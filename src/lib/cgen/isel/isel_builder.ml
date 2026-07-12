@@ -427,16 +427,16 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | Some v ->
       jmp t l (Option.value (Ctrl.Table.find tbl v) ~default:d :> Virtual.dst)
     | None ->
-    let i = match i with
-      | `var x -> newvar t x ty'
-      | `sym (s, o) -> new_node ~ty:ty' t @@ N (Osym (s, o), []) in
-    let* d, _ = local ~br:true t l d in
-    let+ tbl =
-      Ctrl.Table.enum tbl |> C.Seq.map ~f:(fun (v, loc) ->
-          let+ lbl, _ = local ~br:true t l loc in
-          v, lbl) >>| Sequence.to_list in
-    let tbl' = new_node t @@ Tbl (d, tbl) in
-    ignore @@ new_node ~l t @@ N (Osw ty, [i; tbl'])
+      let i = match i with
+        | `var x -> newvar t x ty'
+        | `sym (s, o) -> new_node ~ty:ty' t @@ N (Osym (s, o), []) in
+      let* d, _ = local ~br:true t l d in
+      let+ tbl =
+        Ctrl.Table.enum tbl |> C.Seq.map ~f:(fun (v, loc) ->
+            let+ lbl, _ = local ~br:true t l loc in
+            v, lbl) >>| Sequence.to_list in
+      let tbl' = new_node t @@ Tbl (d, tbl) in
+      ignore @@ new_node ~l t @@ N (Osw ty, [i; tbl'])
 
   let ctrl t l : ctrl -> unit C.t = function
     | `hlt -> hlt t l
