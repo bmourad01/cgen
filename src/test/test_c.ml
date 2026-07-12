@@ -199,7 +199,7 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Nested designators" "designators";
     ok_case ~sir:true "Hexadecimal floating constants" "hexfloat";
     ok_case ~sir:true "Null pointer comparisons" "nullcmp";
-    ok_case ~sir:true "Wide shifts with narrow counts" "shift";
+    ok_case ~sir:true "Shifts with narrower or wider counts" "shift";
     ok_case ~sir:true ~warn:true "Distinct pointer-type compare and assign" "ptr_distinct";
     ok_case ~warn:true "Attribute diagnostics" "attr_warnings";
     ok_case ~sir:true "Attribute layout" "attr_layout";

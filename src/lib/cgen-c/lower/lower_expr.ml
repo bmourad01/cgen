@@ -499,17 +499,15 @@ and lower_scalar_binary env e (op : Texpr.bop) (lhs : Texpr.t) (rhs : Texpr.t) k
   let b, signed = scalar env lhs.ty in
   match bop_kind op b ~signed with
   | Arith bop ->
-    (* A shift count is integer-promoted independently of the value (§6.5.7).
-
-       In C, it is allowed to be narrower, but the IR shift needs both at the
-       value's width, so widen the count to match.
+    (* A shift count is integer-promoted independently of the value (§6.5.7),
+       so it may be either narrower or wider than the value. The IR shift
+       needs both operands at the value's width, so resize the count to
+       match (`lower_conv` is a no-op when the widths already agree).
     *)
     let@ r = match op with
       | `shl | `shr ->
         let cb, csig = scalar env rhs.ty in
-        if IT.sizeof_basic cb < IT.sizeof_basic b
-        then lower_conv r ~sb:cb ~ssig:csig ~dst:b
-        else (fun k -> k r)
+        lower_conv r ~sb:cb ~ssig:csig ~dst:b
       | _ -> (fun k -> k r) in
     let* x = fresh_var in
     let+ rest = k (`var x) in

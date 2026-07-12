@@ -9,3 +9,15 @@ long sar(long a, int b) {
 unsigned long shr(unsigned long a, int b) {
   return a >> b;
 }
+
+int shl_wide(int a, long b) {
+  return a << b;
+}
+
+int sar_wide(int a, long b) {
+  return a >> b;
+}
+
+unsigned int shr_wide(unsigned int a, long b) {
+  return a >> b;
+}

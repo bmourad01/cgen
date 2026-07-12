@@ -38,3 +38,42 @@ start:
   %23 = lsr.l %20, %22;
   ret %23
 }
+
+export function sw $shl_wide(w %26, l %27) {
+  %24 = slot 4, align 4
+  %25 = slot 8, align 8
+start:
+  st.w %26, %24;
+  st.l %27, %25;
+  %28 = ld.w %24;
+  %29 = ld.l %25;
+  %30 = itrunc.w %29;
+  %31 = lsl.w %28, %30;
+  ret %31
+}
+
+export function sw $sar_wide(w %34, l %35) {
+  %32 = slot 4, align 4
+  %33 = slot 8, align 8
+start:
+  st.w %34, %32;
+  st.l %35, %33;
+  %36 = ld.w %32;
+  %37 = ld.l %33;
+  %38 = itrunc.w %37;
+  %39 = asr.w %36, %38;
+  ret %39
+}
+
+export function w $shr_wide(w %42, l %43) {
+  %40 = slot 4, align 4
+  %41 = slot 8, align 8
+start:
+  st.w %42, %40;
+  st.l %43, %41;
+  %44 = ld.w %40;
+  %45 = ld.l %41;
+  %46 = itrunc.w %45;
+  %47 = lsr.w %44, %46;
+  ret %47
+}
