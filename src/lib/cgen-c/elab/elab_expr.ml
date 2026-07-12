@@ -450,21 +450,42 @@ module Make(A : Annotation) = struct
 
      A field narrower than `int` promotes to `int`, so that, for example, a
      comparison against it is signed rather than unsigned.
+
+     §6.3.1.1: reading a bit-field narrower than `int` yields an `int`.
   *)
-  let read_lval_rvalue layout tenv dm (lv : Texpr.tlval) : Texpr.t =
-    let rv = EC.lvalue_to_rvalue tenv lv in
-    let promote = match lv.node with
-      | Lmember {lval; field} ->
-        begin match ET0.normalize tenv lval.ty with
-          | Tnamed {kind = #Type.compound; name = tag; _} ->
-            begin match Layout.bitfield_info layout ~tag ~field with
-              | Ok bf -> Layout.Bitfield.width bf < DM.int_bits dm
-              | Error _ -> false
-            end
-          | _ -> false
+  let bitfield_promote layout tenv dm ~struct_ty ~field rv =
+    let promote = match ET0.normalize tenv struct_ty with
+      | Tnamed {kind = #Type.compound; name = tag; _} ->
+        begin match Layout.bitfield_info layout ~tag ~field with
+          | Ok bf -> Layout.Bitfield.width bf < DM.int_bits dm
+          | Error _ -> false
         end
       | _ -> false in
     if promote then Texpr.cast ~dst:(Type.int_ ()) ~arg:rv else rv
+
+  let read_lval_rvalue layout tenv dm (lv : Texpr.tlval) : Texpr.t =
+    let rv = EC.lvalue_to_rvalue tenv lv in
+    match lv.node with
+    | Lmember {lval; field} ->
+      bitfield_promote layout tenv dm ~struct_ty:lval.ty ~field rv
+    | _ -> rv
+
+  (* A syntactic test for whether `e` designates an lvalue, mirroring the
+     forms `elab_lval` accepts.
+
+     - `s.f` is an lvalue iff `s` is is also an lvalue
+     - The other postfix forms (`*p`, `a[i]`, `p->f`, a compound literal)
+       are always lvalues
+     - A call, conditional, comma, cast, &c. is an rvalue
+  *)
+  let rec is_lvalue_expr (e : A.ann Expr.t) = match e.Expr.node with
+    | Expr.Ename _
+    | Expr.Eunary {op = `deref; _}
+    | Expr.Eindex _
+    | Expr.Earrow _
+    | Expr.Ecompound _ -> true
+    | Expr.Emember {obj; _} -> is_lvalue_expr obj
+    | _ -> false
 
   (* Entry points *)
 
@@ -478,7 +499,8 @@ module Make(A : Annotation) = struct
       let* i = Ctx.labaddr_index name in
       cont (Texpr.int_ Bv.(M64.int i) ~ty:(Type.ptr (Type.void ())))
     | Eunary {op = `addr; arg} -> rval_addrof arg cont
-    | Eunary {op = `deref; _} | Eindex _ | Emember _ | Earrow _
+    | Emember {obj; field} -> rval_member e obj field cont
+    | Eunary {op = `deref; _} | Eindex _ | Earrow _
     | Ecompound _ -> rval_of_lvalue e cont
     | Eunary {op = #Expr.uarith as op; arg} -> rval_unary_arith op arg cont
     | Eunary {op = `not_; arg} -> rval_complement arg cont
@@ -543,9 +565,33 @@ module Make(A : Annotation) = struct
     let@ arg_lv = elab_lval arg in
     cont (Texpr.addrof arg_lv ~ty:(Type.ptr arg_lv.ty))
 
+  (* Direct member access `obj.field` as an rvalue (§6.5.2.3 ¶3).
+
+     When `obj` is an lvalue, so is `obj.field`, and the lvalue read applies
+     (preserving bit-field promotion and identical codegen).
+
+     When `obj` is an rvalue of structure/union type (a call result, a `?:`
+     or comma expression, ...), `obj.field` is an rvalue, so we build the
+     member directly over the materialized struct value, which the lowering
+     handles the same as a normal read.
+  *)
+  and rval_member e obj field cont =
+    if is_lvalue_expr obj then rval_of_lvalue e cont else
+      let@ obj_rv = elab_rval obj in
+      let* tenv = M.gets Ctx.tenv in
+      let* layout = M.gets Ctx.layout in
+      let* dm = M.gets Ctx.dmodel in
+      let* fty = lookup_field ~parent_ty:obj_rv.ty ~field in
+      let rv =
+        EC.decay_function tenv @@ EC.decay_array tenv @@
+        Texpr.member ~obj:obj_rv ~field ~ty:(Type.unqualified fty) in
+      cont (bitfield_promote layout tenv dm ~struct_ty:obj_rv.ty ~field rv)
+
   (* An lvalue form used as an rvalue (`*p`, `a[i]`, `s.f`, `p->f`,
-     a compound literal): elaborate the lvalue and apply the lvalue
-     conversion (§6.3.2.1). *)
+     a compound literal).
+
+     We elaborate the lvalue and apply the lvalue conversion (§6.3.2.1).
+  *)
   and rval_of_lvalue e cont =
     let* tenv = M.gets Ctx.tenv in
     let* layout = M.gets Ctx.layout in
@@ -1017,8 +1063,15 @@ module Make(A : Annotation) = struct
     (* When neither arm has side effects and neither can fault, the
        conditional is a pure expression: emit `Texpr.cond` directly with no
        temp (it lowers to an eager `sel`). An arm that loads memory or
-       divides must instead run only on its taken branch. *)
-    if stmt_is_empty then_stmt
+       divides must instead run only on its taken branch.
+
+       An aggregate (struct/union) result cannot be produced by `sel`, so it
+       always takes the temp path below, which copies the chosen arm.
+    *)
+    let sel_representable =
+      EC.is_scalar tenv result_ty || EC.is_void tenv result_ty in
+    if sel_representable
+    && stmt_is_empty then_stmt
     && stmt_is_empty else_stmt
     && not (can_trap eval then_rv)
     && not (can_trap eval else_rv)
@@ -1105,22 +1158,41 @@ module Make(A : Annotation) = struct
     | _ ->
       Ctx.fatal "dereference of non-pointer type '%a'" pp_ty arg_rv.ty ()
 
-  (* Subscripting `a[i]` (§6.5.2.1): equivalent to `*(a + i)`; an
-     lvalue of the element type (carrying the array's cv-qualifiers). *)
+  (* Subscripting `a[i]` (§6.5.2.1) is equivalent to `*(a + i)`, which is
+     an lvalue of the element type.
+
+     When `a` is an array or pointer lvalue, the array's cv-qualifiers
+     carry onto the element and the access is an `Lindex`.
+
+     When `a` (or `i`) is a pointer rvalue (a cast, call result, pointer
+     arithmetic, ...), form `*(a + i)` directly.
+  *)
   and lval_index arr idx cont =
-    let@ arr_lv = elab_lval arr in
-    let@ idx_rv = elab_rval idx in
-    let* tenv = M.gets Ctx.tenv in
-    let* ty = match ET0.normalize tenv arr_lv.ty with
-      | Tarray {elem; cv; _} ->
-        let combined = Type.Cv.combine cv (Type.cv_of elem) in
-        !!(Type.with_cv combined elem)
-      | Tptr {pointee; _} -> !!pointee
+    if is_lvalue_expr arr then
+      let@ arr_lv = elab_lval arr in
+      let@ idx_rv = elab_rval idx in
+      let* tenv = M.gets Ctx.tenv in
+      let* ty = match ET0.normalize tenv arr_lv.ty with
+        | Tarray {elem; cv; _} ->
+          let combined = Type.Cv.combine cv (Type.cv_of elem) in
+          !!(Type.with_cv combined elem)
+        | Tptr {pointee; _} -> !!pointee
+        | _ ->
+          Ctx.fatal
+            "subscript on non-array/pointer type '%a'"
+            pp_ty arr_lv.ty () in
+      cont (Texpr.lindex ~lval:arr_lv ~index:idx_rv ~ty)
+    else
+      let@ arr_rv = elab_rval arr in
+      let@ idx_rv = elab_rval idx in
+      let* tenv = M.gets Ctx.tenv in
+      let* ptr = compute_binop `add arr_rv idx_rv in
+      match ET0.normalize tenv ptr.ty with
+      | Tptr {pointee; _} -> cont (Texpr.lderef ptr ~ty:pointee)
       | _ ->
         Ctx.fatal
           "subscript on non-array/pointer type '%a'"
-          pp_ty arr_lv.ty () in
-    cont (Texpr.lindex ~lval:arr_lv ~index:idx_rv ~ty)
+          pp_ty arr_rv.ty ()
 
   (* Direct member access `s.f` (§6.5.2.3): an lvalue. *)
   and lval_member obj field cont =

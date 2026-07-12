@@ -1,0 +1,24 @@
+enum __anon_enum_1 {
+  N = 7,
+};
+
+unsigned long size_sizeof(void) {
+  void *a[sizeof(void *) * 8 * 3 / 2];
+  return sizeof a;
+}
+
+unsigned long size_arith(void) {
+  int b[2 + 3 * 4];
+  return sizeof b;
+}
+
+unsigned long size_enum(void) {
+  char c[N * 2];
+  return sizeof c;
+}
+
+int roundtrip(void) {
+  int a[sizeof(void *) * 8 * 3 / 2];
+  a[95] = 42;
+  return a[95];
+}

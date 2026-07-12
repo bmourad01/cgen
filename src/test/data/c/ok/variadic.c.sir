@@ -131,3 +131,55 @@ start:
   %68 = ld.w %63;
   ret %68
 }
+
+export function sw $vsum(w %71, l %72) {
+  %69 = slot 4, align 4
+  %70 = slot 8, align 8
+  %73 = slot 4, align 4
+  %74 = slot 4, align 4
+  %75 = slot 4, align 4
+start:
+  st.w %71, %69;
+  st.l %72, %70;
+  st.w 0x0_w, %74;
+  st.w 0x0_w, %75;
+  loop {
+    %83 = ld.w %75;
+    %84 = ld.w %69;
+    %85 = slt.w %83, %84;
+    %86 = flag.w %85;
+    unless ne.w %86, 0x0_w {
+      break
+    };
+    %76 = ld.l %70;
+    %77 = vaarg.w %76;
+    st.w %77, %73;
+    %78 = ld.w %74;
+    %79 = ld.w %73;
+    %80 = add.w %78, %79;
+    st.w %80, %74
+  } step {
+    %81 = ld.w %75;
+    %82 = add.w %81, 0x1_w;
+    st.w %82, %75
+  };
+  %87 = ld.w %74;
+  ret %87
+}
+
+export function sw $fwd(w %89, ...) {
+  %88 = slot 4, align 4
+  %90 = slot 4, align 4
+  %91 = slot 24, align 8
+  %94 = slot 4, align 4
+start:
+  st.w %89, %88;
+  vastart %91;
+  %92 = ld.w %88;
+  %93 = call.sw $vsum(%92, %91);
+  st.w %93, %90;
+  %95 = ld.w %90;
+  st.w %95, %94;
+  %96 = ld.w %94;
+  ret %96
+}

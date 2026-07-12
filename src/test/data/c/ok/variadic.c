@@ -44,3 +44,23 @@ int
 sum3(int a, int b, int c) {
   return sum(3, a, b, c);
 }
+
+/* Forwarding a `va_list` to a helper. The parameter has (typedef) array
+   type, which §6.7.5.3 adjusts to a pointer, so the caller's `ap` decays to
+   a matching pointer argument. */
+int
+vsum(int n, va_list ap) {
+  int total = 0;
+  for (int i = 0; i < n; i = i + 1)
+    total = total + __builtin_va_arg(ap, int);
+  return total;
+}
+
+int
+fwd(int n, ...) {
+  va_list ap;
+  __builtin_va_start(ap, n);
+  int total = vsum(n, ap);
+  __builtin_va_end(ap);
+  return total;
+}

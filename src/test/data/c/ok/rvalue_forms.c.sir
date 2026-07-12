@@ -1,0 +1,148 @@
+module rvalue_forms
+
+type :S = {
+  w,
+  w
+}
+
+export data $s_a = {
+  0xa_w,
+  0x14_w
+}
+
+export data $s_b = {
+  0x1e_w,
+  0x28_w
+}
+
+export function :S $make(w %1) {
+  %0 = slot 4, align 4
+  %2 = slot 8, align 4
+start:
+  st.w %1, %0;
+  %3 = ld.w %0;
+  %4 = add.w %3, 0x1_w;
+  st.w %4, %2;
+  %5 = add.l %2, 0x4_l;
+  %6 = ld.w %0;
+  %7 = add.w %6, 0x2_w;
+  st.w %7, %5;
+  %8 = ld:S %2;
+  ret %8
+}
+
+export function sw $m_base(w %10) {
+  %9 = slot 4, align 4
+  %11 = slot 8, align 4
+start:
+  st.w %10, %9;
+  %12 = ld.w %9;
+  %13 = call:S $make(%12);
+  st:S %13, %11;
+  %14 = ld.w %11;
+  ret %14
+}
+
+export function sw $m_x(w %16) {
+  %15 = slot 4, align 4
+  %17 = slot 8, align 4
+start:
+  st.w %16, %15;
+  %18 = ld.w %15;
+  %19 = call:S $make(%18);
+  st:S %19, %17;
+  %20 = add.l %17, 0x4_l;
+  %21 = ld.w %20;
+  ret %21
+}
+
+export function sw $idx_cast(l %24, w %25) {
+  %22 = slot 8, align 8
+  %23 = slot 4, align 4
+start:
+  st.l %24, %22;
+  st.w %25, %23;
+  %26 = ld.l %22;
+  %27 = ld.w %23;
+  %28 = sext.l %27;
+  %29 = add.l %26, %28;
+  %30 = ld.b %29;
+  %31 = zext.w %30;
+  ret %31
+}
+
+export function sw $idx_arith(l %34, w %35) {
+  %32 = slot 8, align 8
+  %33 = slot 4, align 4
+start:
+  st.l %34, %32;
+  st.w %35, %33;
+  %36 = ld.l %32;
+  %37 = sext.l 0x1_w;
+  %38 = mul.l %37, 0x4_l;
+  %39 = add.l %36, %38;
+  %40 = ld.w %33;
+  %41 = sext.l %40;
+  %42 = mul.l %41, 0x4_l;
+  %43 = add.l %39, %42;
+  %44 = ld.w %43;
+  ret %44
+}
+
+export function sw $cond_base(w %46) {
+  %45 = slot 4, align 4
+  %47 = slot 8, align 4
+start:
+  st.w %46, %45;
+  %48 = ld.w %45;
+  if ne.w %48, 0x0_w {
+    %49 = ld:S $s_a;
+    st:S %49, %47
+  } else {
+    %50 = ld:S $s_b;
+    st:S %50, %47
+  };
+  %51 = ld.w %47;
+  ret %51
+}
+
+export function sw $cond_x(w %53) {
+  %52 = slot 4, align 4
+  %54 = slot 8, align 4
+start:
+  st.w %53, %52;
+  %55 = ld.w %52;
+  if ne.w %55, 0x0_w {
+    %56 = ld:S $s_a;
+    st:S %56, %54
+  } else {
+    %57 = ld:S $s_b;
+    st:S %57, %54
+  };
+  %58 = add.l %54, 0x4_l;
+  %59 = ld.w %58;
+  ret %59
+}
+
+export function :S $cond_ptr(w %63, l %64, l %65) {
+  %60 = slot 4, align 4
+  %61 = slot 8, align 8
+  %62 = slot 8, align 8
+  %66 = slot 8, align 4
+start:
+  st.w %63, %60;
+  st.l %64, %61;
+  st.l %65, %62;
+  %67 = ld.w %60;
+  if ne.w %67, 0x0_w {
+    %68 = ld.l %61;
+    %69 = ld:S %68;
+    st:S %69, %66
+  } else {
+    %70 = ld.l %62;
+    %71 = ld:S %70;
+    st:S %71, %66
+  };
+  %72 = ld:S %66;
+  ret %72
+}

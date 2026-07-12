@@ -138,9 +138,17 @@ module Make(A : Annotation) = struct
       !!(Tstmt.Sinstr []) in
     stmt, Option.value_exn !slot
 
-  (* Array-size folding callback for `ET.elab` (array bounds are
-     constant expressions, no side effects expected). *)
-  let elab_size env e = capture env e >>| snd
+  (* Evaluate `e` as an integer constant expression in the local context. *)
+  let local_eval_int env (e : A.ann Expr.t) : Bv.t M.m =
+    let* _stmt, rv = capture env e in
+    let* layout = M.gets Ctx.layout in
+    Ctx.lift_err @@ Eval.int_const (Eval.create_init layout) rv
+
+  (* A non-VLA array bound must be an integer constant expression (§6.7.6.2).
+     block-scope arrays are no exception (cgen has no VLAs). *)
+  let elab_size env e =
+    let+ v = local_eval_int env e in
+    Texpr.int_ v ~ty:(Type.int_ ())
 
   (* Elaborate a controlling expression: capture it and require a
      scalar result. *)
@@ -169,11 +177,6 @@ module Make(A : Annotation) = struct
 
   let resolve_attrs ~eval_int (raws : A.ann Attr.raws) : Attr.set M.m =
     M.List.map raws ~f:(resolve_attr ~eval_int)
-
-  let local_eval_int env (e : A.ann Expr.t) : Bv.t M.m =
-    let* _stmt, rv = capture env e in
-    let* layout = M.gets Ctx.layout in
-    Ctx.lift_err @@ Eval.int_const (Eval.create_init layout) rv
 
   let local_align env (ld : A.ann Stmt.localdecl) =
     let+ attrs = resolve_attrs ~eval_int:(local_eval_int env) ld.ldattrs in

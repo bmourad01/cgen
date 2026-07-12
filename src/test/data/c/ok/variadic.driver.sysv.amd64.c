@@ -9,6 +9,7 @@ extern int sum(int n, ...);
 extern double dsum(int n, ...);
 extern int psum(int n, ...);
 extern int sum3(int a, int b, int c);
+extern int fwd(int n, ...);
 
 int
 main(void) {
@@ -19,5 +20,6 @@ main(void) {
   assert(dsum(3, 1.5, 2.5, 3.0) == 7.0);
   assert(psum(2, (struct P){1, 2}, (struct P){3, 4}) == 10);
   assert(sum3(10, 20, 30) == 60);
+  assert(fwd(4, 5, 15, 25, 35) == 80);
   return 0;
 }

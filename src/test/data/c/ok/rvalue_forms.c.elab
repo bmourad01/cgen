@@ -1,0 +1,72 @@
+struct S {
+  int base;
+  int x;
+};
+
+struct S make(int v) {
+  struct S s;
+  s.base = v + 1;
+  s.x = v + 2;
+  return s;
+}
+
+int m_base(int v) {
+  struct S %0;
+  {
+    %0 = ((struct S (*)(int v))make)(v);
+    return %0.base;
+  }
+}
+
+int m_x(int v) {
+  struct S %0;
+  {
+    %0 = ((struct S (*)(int v))make)(v);
+    return %0.x;
+  }
+}
+
+int idx_cast(unsigned char *p, int i) {
+  return (int)*((unsigned char *)p + i);
+}
+
+int idx_arith(int *p, int i) {
+  return *(p + 1 + i);
+}
+
+struct S s_a = {.base = 10, .x = 20};
+
+struct S s_b = {.base = 30, .x = 40};
+
+int cond_base(int c) {
+  struct S %0;
+  {
+    if (c)
+      %0 = s_a;
+    else
+      %0 = s_b;
+    return %0.base;
+  }
+}
+
+int cond_x(int c) {
+  struct S %0;
+  {
+    if (c)
+      %0 = s_a;
+    else
+      %0 = s_b;
+    return %0.x;
+  }
+}
+
+struct S cond_ptr(int c, struct S *a, struct S *b) {
+  struct S %0;
+  {
+    if (c)
+      %0 = *a;
+    else
+      %0 = *b;
+    return %0;
+  }
+}

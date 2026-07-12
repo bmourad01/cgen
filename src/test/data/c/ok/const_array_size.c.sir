@@ -1,0 +1,33 @@
+module const_array_size
+
+export function l $size_sizeof() {
+  %0 = slot 768, align 8
+start:
+  ret 0x300_l
+}
+
+export function l $size_arith() {
+  %1 = slot 56, align 4
+start:
+  ret 0x38_l
+}
+
+export function l $size_enum() {
+  %2 = slot 14, align 1
+start:
+  ret 0xe_l
+}
+
+export function sw $roundtrip() {
+  %3 = slot 384, align 4
+start:
+  %4 = sext.l 0x5f_w;
+  %5 = mul.l %4, 0x4_l;
+  %6 = add.l %3, %5;
+  st.w 0x2a_w, %6;
+  %7 = sext.l 0x5f_w;
+  %8 = mul.l %7, 0x4_l;
+  %9 = add.l %3, %8;
+  %10 = ld.w %9;
+  ret %10
+}

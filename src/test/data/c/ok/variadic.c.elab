@@ -59,3 +59,26 @@ int sum3(int a, int b, int c) {
     return %0;
   }
 }
+
+int vsum(int n, long *ap) {
+  int %0;
+  int total = 0;
+  {
+    int i = 0;
+    for (; i < n; i = i + 1) {
+      %0 = __builtin_va_arg(ap);
+      total = total + %0;
+    }
+  }
+  return total;
+}
+
+int fwd(int n, ...) {
+  int %0;
+  va_list ap;
+  __builtin_va_start((long *)ap);
+  %0 = ((int (*)(int n, long *ap))vsum)(n, (long *)ap);
+  int total = %0;
+  __builtin_va_end((long *)ap);
+  return total;
+}

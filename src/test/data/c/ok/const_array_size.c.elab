@@ -1,0 +1,20 @@
+unsigned long size_sizeof(void) {
+  void *a[96];
+  return 768;
+}
+
+unsigned long size_arith(void) {
+  int b[14];
+  return 56;
+}
+
+unsigned long size_enum(void) {
+  char c[14];
+  return 14;
+}
+
+int roundtrip(void) {
+  int a[96];
+  a[95] = 42;
+  return ((int *)a)[95];
+}

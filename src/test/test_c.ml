@@ -205,6 +205,8 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Attribute layout" "attr_layout";
     ok_case "Symbol aliases" "attr_alias";
     ok_case "Attribute emission" "attr_emit";
+    ok_case ~sir:true "Rvalue lvalue-forms and aggregate conditionals" "rvalue_forms";
+    ok_case ~sir:true "Constant-expression array bounds" "const_array_size";
     ok_case ~sir:true "Discarded call results" "discard_call";
     ok_case ~sir:true "Block-scope shadowing" "scope_shadow";
     ok_case ~sir:true "Assignment expression value" "assign_value";
@@ -261,6 +263,8 @@ let native_suite = "C frontend: native execution" >::: [
       ".hidden hidden_fn";
       ".protected protected_fn";
     ];
+    "Rvalue lvalue-forms and aggregate conditionals (SysV AMD64)" >:: test_sysv_amd64_native "rvalue_forms";
+    "Constant-expression array bounds (SysV AMD64)" >:: test_sysv_amd64_native "const_array_size";
     "Function-type typedefs (SysV AMD64)" >:: test_sysv_amd64_native "func_typedef";
     "Incomplete/forward struct types (SysV AMD64)" >:: test_sysv_amd64_native "incomplete_types";
     "Hello world (SysV AMD64)" >:: test_sysv_amd64_native_pp "hello";

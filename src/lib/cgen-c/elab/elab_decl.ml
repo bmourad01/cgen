@@ -21,8 +21,10 @@ module TE = Type_env
 
 (* §6.7.5.3 ¶7-8: a parameter of array type is adjusted to a pointer to
    the element type, and a parameter of function type to a pointer to the
-   function. *)
-let param_decay (ty : Texpr.ty) : Texpr.ty = match ty with
+   function. The type is normalized first, so an array/function reached
+   through a typedef (notably a `va_list` parameter) is adjusted too. *)
+let param_decay tenv (ty : Texpr.ty) : Texpr.ty =
+  match Elab_type.normalize tenv ty with
   | Tarray {elem; _} -> Type.ptr elem
   | Tfun _ -> Type.ptr ty
   | _ -> ty
@@ -219,9 +221,10 @@ module Make(A : Annotation) = struct
      Returns, per parameter, its (optional) name and its decayed type.
   *)
   let elab_params params =
+    let* tenv = M.gets Ctx.tenv in
     M.List.map params ~f:(fun (p : A.ann Decl.param) ->
         let+ pty = ET.elab ~elab_size p.pty in
-        p.pname, param_decay pty)
+        p.pname, param_decay tenv pty)
 
   let tdecl_params eparams =
     List.map eparams ~f:(fun (pn, pty) ->
