@@ -1,5 +1,4 @@
 open Core
-open Cgen_containers
 
 module Slot = Virtual.Slot
 module Vtree = Var.Tree
@@ -11,42 +10,70 @@ module Solution = Fixpoint.Solution
 type interval = {
   lo : int;
   hi : int;
-} [@@deriving compare, sexp]
+} [@@deriving compare, sexp, equal]
 
 module Interval = struct
-  type point = int [@@deriving compare, sexp]
-  type t = interval [@@deriving compare, sexp]
-
-  let lower t = t.lo
-  let upper t = t.hi
-
   let pp ppf t = Format.fprintf ppf "[%d,%d]" t.lo t.hi
 
   let from_access off ty =
     let lo = Int64.to_int_exn off in
     let sz = Type.sizeof_basic ty / 8 in
     {lo; hi = lo + sz - 1}
-
-  let extended t = {
-    lo = t.lo - 1;
-    hi = t.hi + 1;
-  }
 end
 
-module Tree = Interval_tree.Make(Interval)
+module Runs = struct
+  type t =
+    | Nil
+    | Run of {
+        lo : int;
+        hi : int;
+        rest : t;
+      }
 
-(* For each slot, we have a set of intervals corresponding to
-   relative byte offsets that were initialized by a store. *)
-type state = unit Tree.t Vtree.t
+  let rec equal a b = phys_equal a b || match a, b with
+    | Nil, Nil -> assert false (* covered by `phys_equal` *)
+    | Run x, Run y ->
+      x.lo = y.lo && x.hi = y.hi && equal x.rest y.rest
+    | _ -> false
 
-let equal_state s1 s2 =
-  Vtree.equal (fun t1 t2 ->
-      phys_equal t1 t2 ||
-      Sequence.equal (fun (i1, _) (i2, _) ->
-          Interval.compare i1 i2 = 0)
-        (Tree.to_sequence t1)
-        (Tree.to_sequence t2))
-    s1 s2
+  let empty = Nil
+  let singleton lo hi = Run {lo; hi; rest = Nil} [@@inline]
+
+  let[@tail_mod_cons] rec to_list = function
+    | Run {lo; hi; rest} -> {lo; hi} :: to_list rest
+    | Nil -> []
+
+  let[@tail_mod_cons] rec add t lo hi = match t with
+    | Nil -> Run {lo; hi; rest = Nil}
+    | Run r ->
+      if r.hi + 1 < lo then
+        Run {r with rest = add r.rest lo hi}
+      else if hi + 1 < r.lo then
+        Run {lo; hi; rest = t}
+      else add r.rest (min lo r.lo) (max hi r.hi)
+
+  let[@tail_mod_cons] rec inter a b = match a, b with
+    | Nil, _ | _, Nil -> Nil
+    | Run x, Run y ->
+      let lo = max x.lo y.lo and hi = min x.hi y.hi in
+      let na, nb =
+        if x.hi < y.hi then x.rest, b
+        else if y.hi < x.hi then a, y.rest
+        else x.rest, y.rest in
+      if lo <= hi
+      then Run {lo; hi; rest = inter na nb}
+      else inter na nb
+
+  let rec dominates t lo hi = match t with
+    | Nil -> false
+    | Run r when lo < r.lo -> false
+    | Run r -> hi <= r.hi || dominates r.rest lo hi
+end
+
+(* For each slot, the set of relative byte offsets initialized by a store. *)
+type state = Runs.t Vtree.t
+
+let equal_state s1 s2 = Vtree.equal Runs.equal s1 s2
 
 let empty_state : state = Vtree.empty
 
@@ -58,29 +85,13 @@ let init_constraints : state Label.Tree.t =
 (* Our top element, which is every slot having been initialized. *)
 let top_state slots : state =
   Vtree.mapi slots ~f:(fun ~key:_ ~data:s ->
-      let i = {lo = 0; hi = Slot.size s - 1} in
-      Tree.singleton i ())
-
-(* Coalesce `i` with any overlapping or adjacent intervals in `t`. *)
-let normalize_add t i =
-  let lo, hi, t =
-    Tree.fold_intersections t (Interval.extended i) ~init:(i.lo, i.hi, t)
-      ~f:(fun (lo, hi, t) j _ -> min lo j.lo, max hi j.hi, Tree.remove t j) in
-  Tree.add t {lo; hi} ()
-
-(* Intersect the intervals (and also normalize them). *)
-let merge_tree t1 t2 =
-  Tree.foldi t1 ~init:Tree.empty ~f:(fun init i1 () ->
-      Tree.fold_intersections t2 i1 ~init ~f:(fun acc i2 () ->
-          let lo = max i1.lo i2.lo in
-          let hi = min i1.hi i2.hi in
-          if lo <= hi then normalize_add acc {lo; hi} else acc))
+      Runs.singleton 0 (Slot.size s - 1))
 
 (* Since this is a "must" forward-flow analysis, incoming
    predecessor states must intersect. *)
 let merge_state s1 s2 =
   Vtree.inter_with s1 s2 ~f:(fun ~key:_ t1 t2 ->
-      if phys_equal t1 t2 then t1 else merge_tree t1 t2)
+      if phys_equal t1 t2 then t1 else Runs.inter t1 t2)
 
 type solution = state Solution.t
 
@@ -95,20 +106,20 @@ let is_uninitialized acc base off ty =
   match Vtree.find acc base with
   | None -> true
   | Some t ->
-    let i = Interval.from_access off ty in
-    not (Tree.dominates t i)
+    let {lo; hi} = Interval.from_access off ty in
+    not (Runs.dominates t lo hi)
 
 type access =
   | Load_at  of Var.t * int64 * Type.basic
   | Store_at of Var.t * int64 * Type.basic
 
 let apply_store acc base off ty =
-  let i = Interval.from_access off ty in
+  let {lo; hi} = Interval.from_access off ty in
   Vtree.update_with acc base
-    ~nil:(fun () -> Tree.singleton i ())
+    ~nil:(fun () -> Runs.singleton lo hi)
     ~has:(fun t ->
-        if Tree.dominates t i then t
-        else normalize_add t i)
+        if Runs.dominates t lo hi then t
+        else Runs.add t lo hi)
 
 let apply_load bad acc l base off ty =
   if is_uninitialized acc base off ty then LS.add bad l;
@@ -119,10 +130,11 @@ let debug_dump blks bad s =
       Label.Tree.iter blks ~f:(fun ~key ~data:_ ->
           let s = Solution.get s key in
           let pp_tree ppf (x, t) =
-            Tree.to_sequence t |> Sequence.to_list |>
-            List.to_string ~f:(fun (i, ()) ->
-                Format.asprintf "%a" Interval.pp i) |>
-            Format.fprintf ppf "%a:%s" Var.pp x in
+            Format.fprintf ppf "%a:@[{%a}@]" Var.pp x
+              (Format.pp_print_list
+                 ~pp_sep:(fun ppf () -> Format.pp_print_string ppf ", ")
+                 Interval.pp)
+              (Runs.to_list t) in
           m "%s: %a: incoming must-initialize: %s%!"
             __FUNCTION__ Label.pp key
             (Vtree.to_list s |>
