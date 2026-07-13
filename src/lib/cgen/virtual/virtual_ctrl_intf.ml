@@ -68,6 +68,11 @@ module type S = sig
   (** Returns the set of free variables in the control-flow instruction. *)
   val free_vars : t -> Var.Tree_set.t
 
+  (** [fold_dests t ~init ~f] folds [f] over the label of each local
+      destination of [t]. Destinations that refer to a global symbol are
+      not included. *)
+  val fold_dests : t -> init:'a -> f:('a -> Label.t -> 'a) -> 'a
+
   (** Pretty-prints a control-flow instruction. *)
   val pp : Format.formatter -> t -> unit
 end
