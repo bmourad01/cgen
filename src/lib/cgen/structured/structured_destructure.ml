@@ -217,6 +217,23 @@ module Make(C : Context_intf.S_virtual) = struct
     let ctx = {name; break = None; continue = None} in
     let body = Stmt.normalize body in
     let* start, blks = Lower.go ~ctx body finish [] Ltree.empty in
+    (* The entry block must have no incoming edges (an SSA invariant). If
+       the function body begins with a labeled statement that is also a
+       `goto` target (e.g. a label at the very top of the function),
+       `start` ends up being branched to. In that case, prepend a fresh
+       entry block that simply jumps to it. *)
+    let* start, blks =
+      let targeted =
+        with_return @@ fun {return} ->
+        Ltree.iter blks ~f:(fun ~key:_ ~data:b ->
+            Virtual.Ctrl.fold_dests (Virtual.Blk.ctrl b) ~init:()
+              ~f:(fun () l -> if Label.(l = start) then return true));
+        false in
+      if targeted then
+        let* l = C.Label.fresh in
+        let+ blks = add_blk l [] (`jmp (Lower.dlocal start)) blks in
+        l, blks
+      else !!(start, blks) in
     (* Ensure that the entry block comes first. *)
     let* sb = match Ltree.find blks start with
       | Some b -> !!b
