@@ -151,6 +151,7 @@ module type L = sig
 
   module Func : sig
     type t
+    val name : t -> string
     val slots : ?rev:bool -> t -> Slot.t Sequence.t
     val blks : ?rev:bool -> t -> Blk.t Sequence.t
     val map_of_blks : t -> Blk.t Label.Tree.t

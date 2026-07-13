@@ -378,6 +378,9 @@ module Make(M : Scalars.L) = struct
               __FUNCTION__ Var.pp key Virtual.pp_operand data))
 
   let run fn =
+    Logs.debug (fun m ->
+        m "%s: processing function $%s"
+          __FUNCTION__ (Func.name fn));
     let slots = Sinit.S.collect_slots fn in
     if Vtree.is_empty slots then empty else
       let cfg = Cfg.create fn in
