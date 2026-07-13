@@ -46,23 +46,23 @@ export function $cgen_strspn { ; returns: rax
   inc rsi ; @94
   jmp @16 ; @126
 @29:
-  movzx ecx, byte ptr [rax] ; @49
+  movzx ecx, byte ptr [rax] ; @48
   test cl, cl ; @122
-  je @47 ; @123
-@48:
+  je @46 ; @123
+@47:
   movzx ecx, cl ; @77
   mov rdx, rcx ; @78
   shr rdx, 0x6_b ; @121
-  mov rsi, qword ptr [rsp + rdx*8] ; @57
+  mov rsi, qword ptr [rsp + rdx*8] ; @56
   and ecx, 0x3f_w ; @120
   mov edx, 0x1_w ; @82
   shl rdx, cl ; @119
   test rdx, rsi ; @115
-  je @47 ; @116
-@51:
+  je @46 ; @116
+@50:
   inc rax ; @85
   jmp @29 ; @114
-@47:
+@46:
   sub rax, rdi ; @112
   jmp @64 ; @111
 @15:

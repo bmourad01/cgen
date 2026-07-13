@@ -8,19 +8,6 @@ export function w $foo(w %1, w %2) {
                    0x2_w -> @21,
                    0x3_w -> @17,
                    0x4_w -> @8]
-@26:
-  %0 = add.w %2, 0x1_w ; @27
-  jmp @2
-@24:
-  %0 = mul.w %2, 0x2_w ; @25
-  jmp @21
-@21:
-  %0 = add.w %0, 0x3_w ; @23
-  %6 = slt.w %2, 0x0_w ; @22
-  br %6, @2, @19
-@19:
-  %0 = add.w %0, 0x4_w ; @20
-  jmp @2
 @17:
   %0 = copy.w 0xa_w ; @18
   jmp @10
@@ -36,6 +23,19 @@ export function w $foo(w %1, w %2) {
   br %4, @8, @10
 @8:
   %0 = xor.w %0, %2 ; @9
+  jmp @2
+@24:
+  %0 = mul.w %2, 0x2_w ; @25
+  jmp @21
+@21:
+  %0 = add.w %0, 0x3_w ; @23
+  %6 = slt.w %2, 0x0_w ; @22
+  br %6, @2, @19
+@19:
+  %0 = add.w %0, 0x4_w ; @20
+  jmp @2
+@26:
+  %0 = add.w %2, 0x1_w ; @27
   jmp @2
 @5:
   %0 = copy.w 0xffffffff_w ; @7

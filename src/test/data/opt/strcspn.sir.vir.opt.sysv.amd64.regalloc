@@ -11,53 +11,53 @@ export function $cgen_strcspn { ; returns: rax
   test al, al ; @181
   je @3 ; @182
 @8:
-  mov qword ptr [rsp], 0x0_l ; @13
-  mov qword ptr [rsp + 0x8], 0x0_l ; @15
-  mov qword ptr [rsp + 0x10], 0x0_l ; @17
-  mov qword ptr [rsp + 0x18], 0x0_l ; @19
-@12:
-  movzx eax, byte ptr [rsi] ; @23
+  mov qword ptr [rsp], 0x0_l ; @32
+  mov qword ptr [rsp + 0x8], 0x0_l ; @34
+  mov qword ptr [rsp + 0x10], 0x0_l ; @36
+  mov qword ptr [rsp + 0x18], 0x0_l ; @38
+@31:
+  movzx eax, byte ptr [rsi] ; @42
   test al, al ; @176
-  jne @22 ; @177
+  jne @41 ; @177
 @109:
   mov rax, rdi ; @174
-  jmp @21 ; @175
-@22:
+  jmp @40 ; @175
+@41:
   movzx ecx, byte ptr [rsi] ; @100
   mov rax, rcx ; @101
   shr rax, 0x6_b ; @173
-  mov r8, qword ptr [rsp + rax*8] ; @31
+  mov r8, qword ptr [rsp + rax*8] ; @50
   and ecx, 0x3f_w ; @172
   mov edx, 0x1_w ; @105
   shl rdx, cl ; @171
   or rdx, r8 ; @169
-  mov qword ptr [rsp + rax*8], rdx ; @35
+  mov qword ptr [rsp + rax*8], rdx ; @54
   test rdx, rdx ; @166
-  jne @25 ; @167
+  jne @44 ; @167
 @110:
   mov rax, rdi ; @164
-  jmp @21 ; @165
-@25:
+  jmp @40 ; @165
+@44:
   inc rsi ; @108
-  jmp @12 ; @163
-@21:
-  movzx ecx, byte ptr [rax] ; @41
-  test cl, cl ; @159
-  je @39 ; @160
+  jmp @31 ; @163
 @40:
+  movzx ecx, byte ptr [rax] ; @59
+  test cl, cl ; @159
+  je @57 ; @160
+@58:
   movzx ecx, cl ; @91
   mov rdx, rcx ; @92
   shr rdx, 0x6_b ; @158
-  mov rsi, qword ptr [rsp + rdx*8] ; @49
+  mov rsi, qword ptr [rsp + rdx*8] ; @67
   and ecx, 0x3f_w ; @157
   mov edx, 0x1_w ; @96
   shl rdx, cl ; @156
   test rdx, rsi ; @152
-  jne @39 ; @153
-@43:
+  jne @57 ; @153
+@61:
   inc rax ; @99
-  jmp @21 ; @151
-@39:
+  jmp @40 ; @151
+@57:
   sub rax, rdi ; @149
   jmp @75 ; @148
 @3:
@@ -65,27 +65,27 @@ export function $cgen_strcspn { ; returns: rax
   jne @112 ; @145
 @111:
   mov rax, rdi ; @142
-  jmp @57 ; @143
+  jmp @13 ; @143
 @112:
   mov rax, rdi ; @140
-@58:
-  movzx ecx, byte ptr [rax] ; @64
+@14:
+  movzx ecx, byte ptr [rax] ; @25
   test cl, cl ; @137
-  je @62 ; @138
-@63:
+  je @18 ; @138
+@24:
   cmp cl, dl ; @132
-  je @62 ; @133
-@66:
+  je @18 ; @133
+@27:
   inc rax ; @82
-  jmp @58 ; @129
-@57:
-  movzx ecx, byte ptr [rax] ; @71
+  jmp @14 ; @129
+@13:
+  movzx ecx, byte ptr [rax] ; @20
   test cl, cl ; @125
-  je @62 ; @126
-@70:
+  je @18 ; @126
+@19:
   inc rax ; @79
-  jmp @57 ; @122
-@62:
+  jmp @13 ; @122
+@18:
   sub rax, rdi ; @120
 @75:
   add rsp, 0x28_l ; @192

@@ -226,7 +226,7 @@ module Make(C : Context_intf.S_virtual) = struct
       let targeted =
         with_return @@ fun {return} ->
         Ltree.iter blks ~f:(fun ~key:_ ~data:b ->
-            Virtual.Ctrl.fold_dests (Virtual.Blk.ctrl b) ~init:()
+            Virtual.Blk.ctrl b |> Virtual.Ctrl.fold_dests ~init:()
               ~f:(fun () l -> if Label.(l = start) then return true));
         false in
       if targeted then
@@ -249,18 +249,18 @@ module Make(C : Context_intf.S_virtual) = struct
        to the user. A small note here: we need to also filter out
        any blocks that were unreachable from the entry, as they
        could end up taking the place of the entry in the ordering. *)
-    let cfg = Cfg.create fn in
     let rpo =
-      let n = Cfg.number_of_nodes cfg in
+      let n = Ltree.length blks in
       let vis = LS.create ~capacity:n () in
       let out = ref [] in
       let rec visit n =
-        if LS.strict_add vis n then begin
-          Sequence.iter (Cfg.Node.succs n cfg) ~f:visit;
-          match Ltree.find blks n with
-          | Some b -> out := b :: !out
-          | None -> ()
-        end in
+        if LS.strict_add vis n then
+          Ltree.find blks n |>
+          Option.iter ~f:(fun b ->
+              Virtual.Blk.ctrl b |>
+              Virtual.Ctrl.fold_dests ~init:()
+                ~f:(fun () s -> visit s);
+              out := b :: !out) in
       visit start;
       !out in
     C.lift_err @@ Virtual.Func.with_blks fn rpo
