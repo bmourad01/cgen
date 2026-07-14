@@ -28,8 +28,10 @@ module Bitfield : sig
   val width : t -> int
 
   (** Byte offset of the integer used to read/write the field at run time.
-      Equals {!storage} unless the declared-type unit overlaps a normal member,
-      in which case the access is narrowed to avoid it. *)
+
+      Equals {!storage} unless the declared-type unit overlaps a normal
+      member, in which case the access is narrowed to avoid it.
+  *)
   val access_storage : t -> int
 
   (** Width in bits of the run-time access integer. *)

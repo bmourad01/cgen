@@ -253,45 +253,52 @@ and lower_alist c (ap : Texpr.t) k =
 and lower_builtin c ~lval ~name ~(args : Texpr.t list) k =
   match Builtins.find name, args, lval with
   | Some Prim p, [arg], Some lv ->
-    let t = E.scalar_imm c.e p.Builtins.operand in
-    let rt = E.scalar_imm c.e lv.ty in
-    let uop = match p.Builtins.op with
-      | Clz -> `clz t
-      | Ctz -> `ctz t
-      | Popcount -> `popcnt t
-      | Bswap -> `bswap t in
-    let@ v = E.lower_rval c.e arg in
-    let* r = E.fresh_var in
-    if IT.equal_imm t rt then
-      let+ rest = store_result c ~lval:lv ~value:(`var r) k in
-      E.emit (`uop (r, uop, v)) rest
-    else
-      let resize =
-        if IT.sizeof_imm rt < IT.sizeof_imm t
-        then `itrunc rt else `zext rt in
-      let* r2 = E.fresh_var in
-      let+ rest = store_result c ~lval:lv ~value:(`var r2) k in
-      E.emit
-        (`uop (r, uop, v))
-        (E.emit
-           (`uop (r2, resize, `var r))
-           rest)
+    lower_builtin_unary_prim c p arg lv k
   | _ -> match name, args, lval with
-    | "__builtin_va_start", [ap], None ->
-      let@ g = lower_alist c ap in
-      let+ rest = k () in
-      E.emit (`vastart g) rest
-    | "__builtin_va_end", [_ap], None ->
-      (* XXX: for now, all of our supported targets treat `va_end` as
-         a no-op. *)
-      k ()
-    | "__builtin_va_arg", [ap], Some lv ->
-      let aty = Lower_type.arg_of c.e.layout lv.ty in
-      let@ g = lower_alist c ap in
-      let* r = E.fresh_var in
-      let+ rest = store_result c ~lval:lv ~value:(`var r) k in
-      E.emit (`vaarg (r, aty, g)) rest
+    | "__builtin_va_start", [ap], None -> lower_va_start c ap k
+    | "__builtin_va_arg", [ap], Some lv -> lower_va_arg c ap lv k
+    | "__builtin_va_end", [ap], None -> lower_va_end c ap k
     | _ -> Ctx.failf "lower: malformed builtin '%s'" name ()
+
+and lower_builtin_unary_prim c p arg lv k =
+  let t = E.scalar_imm c.e p.Builtins.operand in
+  let rt = E.scalar_imm c.e lv.ty in
+  let uop = match p.Builtins.op with
+    | Clz -> `clz t
+    | Ctz -> `ctz t
+    | Popcount -> `popcnt t
+    | Bswap -> `bswap t in
+  let@ v = E.lower_rval c.e arg in
+  let* r = E.fresh_var in
+  if IT.equal_imm t rt then
+    let+ rest = store_result c ~lval:lv ~value:(`var r) k in
+    E.emit (`uop (r, uop, v)) rest
+  else
+    let resize =
+      if IT.sizeof_imm rt < IT.sizeof_imm t
+      then `itrunc rt else `zext rt in
+    let* r2 = E.fresh_var in
+    let+ rest = store_result c ~lval:lv ~value:(`var r2) k in
+    E.emit
+      (`uop (r, uop, v))
+      (E.emit
+         (`uop (r2, resize, `var r))
+         rest)
+
+and lower_va_start c ap k =
+  let@ g = lower_alist c ap in
+  let+ rest = k () in
+  E.emit (`vastart g) rest
+
+and lower_va_arg c ap lv k =
+  let aty = Lower_type.arg_of c.e.layout lv.Texpr.ty in
+  let@ g = lower_alist c ap in
+  let* r = E.fresh_var in
+  let+ rest = store_result c ~lval:lv ~value:(`var r) k in
+  E.emit (`vaarg (r, aty, g)) rest
+
+(* XXX: for now, all of our supported targets treat `va_end` as no-op. *)
+and lower_va_end _c _ap k = k ()
 
 and lower_call c ~lval ~(fn : Texpr.t) ~args k =
   (* Peel away the cast(s) that a function-to-pointer decay would

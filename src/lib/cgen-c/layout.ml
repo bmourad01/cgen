@@ -11,6 +11,16 @@ module Smap = Cgen_containers.Champ.Make(String)
 
 type 'a map = 'a Smap.t [@@deriving bin_io, compare, equal, hash, sexp]
 
+(* Intermediate data of a bitfield, as we're computing the
+   layout of a struct *)
+type bfunit = {
+  bfname    : string; (* field name *)
+  bfstorage : int;    (* byte offset of the storage unit *)
+  bfoffset  : int;    (* bit offset of the field *)
+  bfwidth   : int;    (* width in bits *)
+  bfsize    : int;    (* full size in bytes *)
+}
+
 module Bitfield = struct
   type t = {
     storage        : int;
@@ -21,9 +31,29 @@ module Bitfield = struct
     bytewise       : bool;
   } [@@deriving bin_io, compare, equal, hash, sexp]
 
-  let create ?(bytewise = false) ~storage ~offset ~width
-      ~access_storage ~access_bits () =
+  let create
+      ?(bytewise = false)
+      ~storage
+      ~offset
+      ~width
+      ~access_storage
+      ~access_bits
+      () =
     {storage; offset; width; access_storage; access_bits; bytewise}
+
+
+  let create_from_bfunit
+      ?(bytewise = false)
+      u
+      ~access_storage
+      ~access_bits = {
+    storage = u.bfstorage;
+    offset = u.bfoffset;
+    width = u.bfwidth;
+    access_storage;
+    access_bits;
+    bytewise;
+  }
 
   let storage t = t.storage
   let offset t = t.offset
@@ -63,9 +93,10 @@ let array_count e = match e.Texpr.node with
 open E.Let
 open E.Syntax
 
-(* Size and alignment (in bytes) of a field type. *)
-let rec field_size_align gamma dm : Texpr.ty -> (int * int) E.t = function
-  | Tbase {base = Bvoid; _} -> Or_error.error_string "void field"
+(* Size and alignment (in bytes) of a type. *)
+let rec size_align ~what gamma dm : Texpr.ty -> (int * int) E.t = function
+  | Tbase {base = Bvoid; _} ->
+    Or_error.errorf "void %s" what
   | Tbase {base; _} ->
     let b = basic_of_base dm base in
     let s = T.sizeof_basic b / 8 in
@@ -73,21 +104,22 @@ let rec field_size_align gamma dm : Texpr.ty -> (int * int) E.t = function
   | Tptr _ ->
     let s = D.pointer_bytes dm in
     Ok (s, s)
-  | Tarray {size = None; _} -> Or_error.error_string "incomplete array field"
+  | Tarray {size = None; _} ->
+    Or_error.error_string "incomplete array %s"
   | Tarray {elem; size = Some e; _} ->
-    let+ es, ea = field_size_align gamma dm elem in
+    let+ es, ea = size_align ~what gamma dm elem in
     array_count e * es, ea
   | Tnamed {kind = `enum; _} ->
     let s = D.int_bytes dm in
     Ok (s, s)
   | Tnamed {kind = `typedef; name; _} ->
-    Or_error.errorf "unresolved typedef %S in field" name
+    Or_error.errorf "unresolved typedef '%s' in %s" name what
   | Tnamed {kind = #compound; name; _} ->
     begin match gamma name with
       | Some sa -> Ok sa
-      | None -> Or_error.errorf "compound %S not laid out" name
+      | None -> Or_error.errorf "compound '%s' not laid out" name
     end
-  | Tfun _ -> Or_error.error_string "function type field"
+  | Tfun _ -> Or_error.errorf "function type %s" what
 
 (* The width in bits of a bit-field's storage unit (its declared type). *)
 let bits_of_type dm : Texpr.ty -> int E.t = function
@@ -107,39 +139,47 @@ let aggr_align attrs align = match Attr.alignment attrs with
   | Some n when n > 0 -> max align n
   | _ -> align
 
-(* The integer used to read/write a bit field at run time.
+(* Derive the integer used to read/write a bit field at run time.
 
    `Some (a, w)`: a single `w`-byte integer at byte offset `a` that
    contains all of the field's bytes and stays within the object
-   (`a + w <= size`). An access overlapping another member's bytes is
-   fine, since the store is a read-modify-write that leaves them intact.
+   (`a + w <= u.bfsize`). An access overlapping another member's bytes
+   is fine, since the store is a read-modify-write that leaves them intact.
 
    `None`: no single in-bounds access covers the field (a `packed` field
    that straddles its unit), so it must be accessed byte by byte.
 *)
-let access_unit ~storage ~offset ~width ~ub ~size ~is_member_byte =
-  let x_lo = (storage * 8 + offset) / 8 in
-  let x_hi = (storage * 8 + offset + width - 1) / 8 in
-  let touches lo hi =
-    Sequence.range lo hi |>
-    Sequence.exists ~f:is_member_byte in
+let access_bfunit u ~size ~is_member_byte =
+  let x_lo = (u.bfstorage * 8 + u.bfoffset) / 8 in
+  let x_hi = (u.bfstorage * 8 + u.bfoffset + u.bfwidth - 1) / 8 in
+  let touches lo hi = Sequence.(exists (range lo hi) ~f:is_member_byte) in
   let covers a w = a <= x_lo && x_hi < a + w && a + w <= size in
   (* Prefer the natural declared-type unit when it fits and is member-free. *)
-  if covers storage ub && not (touches storage (storage + ub))
-  then Some (storage, ub)
+  if covers u.bfstorage u.bfsize
+  && not (touches u.bfstorage (u.bfstorage + u.bfsize))
+  then Some (u.bfstorage, u.bfsize)
   else
     (* Otherwise narrow to the smallest covering, member-free unit. *)
     List.find_map [1; 2; 4; 8] ~f:(fun w ->
-        let a = x_lo / w * w in
+        let a = (x_lo / w) * w in
         Option.some_if
-          (w <= ub && covers a w && not (touches a (a + w)))
+          (w <= u.bfsize && covers a w && not (touches a (a + w)))
           (a, w)) |> function
     | Some _ as r -> r
     | None ->
       (* No member-free unit, so use the natural unit if it still covers
          the field in bounds (read-modify-write keeps the overlap intact).
          Otherwise, the field straddles and is accessed byte by byte. *)
-      Option.some_if (covers storage ub) (storage, ub)
+      Option.some_if (covers u.bfstorage u.bfsize) (u.bfstorage, u.bfsize)
+
+(* Check that the bitfield fits in the declared type. *)
+let check_bitfield_width dm name ty w =
+  let* u = bits_of_type dm ty in
+  if w < 0 || w > u then
+    Or_error.errorf
+      "bit field '%s' width %d out of range (expected between %d and %d)"
+      name w 0 u
+  else Ok u
 
 let layout_struct gamma dm ~attrs fields =
   let packed = Attr.packed attrs in
@@ -150,34 +190,35 @@ let layout_struct gamma dm ~attrs fields =
       Ok (size, align, offs, members, List.rev bits)
     | (f : Tdecl.field) :: rest -> match f.fbits with
       | None ->
-        let* fs, fa = field_size_align gamma dm f.fty in
+        (* Non-bitfield. This is the easy case. *)
+        let* fs, fa = size_align ~what:"field" gamma dm f.fty in
         let fa = field_align ~packed fa f in
         let p = round_up p (fa * 8) in
         let offs = Smap.set offs ~key:f.fname ~data:(p / 8) in
         go (p + fs * 8) (max align fa) offs ((p / 8, fs) :: members) bits rest
       | Some 0 when String.is_empty f.fname ->
+        (* Simply advance to next unit. *)
         let* u = bits_of_type dm f.fty in
-        go (if packed then p else round_up p u) align offs members bits rest
+        let p = if packed then p else round_up p u in
+        go p align offs members bits rest
       | Some 0 ->
         Or_error.errorf
           "named bit field '%s' cannot have zero width"
           f.fname
       | Some w ->
-        let* u = bits_of_type dm f.fty in
-        let* () =
-          if w < 0 || w > u then
-            Or_error.errorf
-              "bit field '%s' width %d out of range"
-              f.fname w
-          else Ok () in
+        let* u = check_bitfield_width dm f.fname f.fty w in
         (* Under `packed`, a bit field is placed at the next bit with no
            unit-boundary padding. Otherwise, it must fit within one unit. *)
-        let p = if (not packed) && p mod u + w > u then round_up p u else p in
-        let storage = p / u * (u / 8) in
-        let offset = p - storage * 8 in
-        let bits =
-          if String.is_empty f.fname then bits
-          else (f.fname, storage, offset, w, u / 8) :: bits in
+        let p = if packed || p mod u + w <= u then p else round_up p u in
+        let bfstorage = (p / u) * (u / 8) in
+        let bfoffset = p - bfstorage * 8 in
+        let bits = if String.is_empty f.fname then bits else {
+            bfname = f.fname;
+            bfstorage;
+            bfoffset;
+            bfwidth = w;
+            bfsize = u / 8;
+          } :: bits in
         let fa = if packed then 1 else u / 8 in
         go (p + w) (max align fa) offs members bits rest in
   let* size, align, offs, members, bits =
@@ -185,31 +226,29 @@ let layout_struct gamma dm ~attrs fields =
   let is_member_byte byte =
     List.exists members ~f:(fun (mo, ms) ->
         mo <= byte && byte < mo + ms) in
-  let* bfs =
-    List.fold_result bits ~init:Smap.empty
-      ~f:(fun bfs (name, storage, offset, width, ub) ->
-          match access_unit ~storage ~offset ~width ~ub ~size ~is_member_byte with
-          | Some (access_storage, ab) ->
-            let bf =
-              Bitfield.create ~storage ~offset ~width
-                ~access_storage ~access_bits:(ab * 8) () in
-            Ok (Smap.set bfs ~key:name ~data:bf)
-          | None ->
-            (* No single in-bounds access covers the field; it is read and
-               written one byte at a time (see `bytewise`), which assembles
-               the covered bytes into an i64, so its span cannot exceed 8. *)
-            let p = storage * 8 + offset in
-            let span = (p + width - 1) / 8 - p / 8 + 1 in
-            if span > 8 then
-              Or_error.errorf
-                "packed bit field %S spans %d bytes, at most 8 are supported"
-                name span
-            else
-              let bf =
-                Bitfield.create ~storage ~offset ~width
-                  ~access_storage:0 ~access_bits:0
-                  ~bytewise:true () in
-              Ok (Smap.set bfs ~key:name ~data:bf)) in
+  let* bfs = List.fold_result bits ~init:Smap.empty ~f:(fun bfs u ->
+      match access_bfunit u ~size ~is_member_byte with
+      | Some (access_storage, ab) ->
+        let access_bits = ab * 8 in
+        let data = Bitfield.create_from_bfunit u ~access_storage ~access_bits in
+        Ok (Smap.set bfs ~key:u.bfname ~data)
+      | None ->
+        (* No single in-bounds access covers the field; it is read and
+           written one byte at a time (see `bytewise`), which assembles
+           the covered bytes into an i64, so its span cannot exceed 8. *)
+        let p = u.bfstorage * 8 + u.bfoffset in
+        let span = (p + u.bfwidth - 1) / 8 - p / 8 + 1 in
+        if span > 8 then
+          Or_error.errorf
+            "packed bit field '%s' spans %d bytes, at most 8 are supported"
+            u.bfname span
+        else
+          let data =
+            Bitfield.create_from_bfunit u
+              ~access_storage:0
+              ~access_bits:0
+              ~bytewise:true in
+          Ok (Smap.set bfs ~key:u.bfname ~data)) in
   Ok (size, align, offs, bfs)
 
 let layout_union gamma dm ~attrs fields =
@@ -220,7 +259,7 @@ let layout_union gamma dm ~attrs fields =
       Ok ((if size = 0 then 0 else round_up size align), align, offs, bfs)
     | (f : Tdecl.field) :: rest -> match f.fbits with
       | None ->
-        let* fs, fa = field_size_align gamma dm f.fty in
+        let* fs, fa = size_align ~what:"field" gamma dm f.fty in
         let fa = field_align ~packed fa f in
         go (max size fs) (max align fa)
           (Smap.set offs ~key:f.fname ~data:0) bfs rest
@@ -228,21 +267,24 @@ let layout_union gamma dm ~attrs fields =
         go size align offs bfs rest
       | Some 0 ->
         Or_error.errorf
-          "named bit field %S cannot have zero width"
+          "named bit field '%s' cannot have zero width"
           f.fname
       | Some w ->
-        let* u = bits_of_type dm f.fty in
-        let* () =
-          if w < 0 || w > u
-          then Or_error.errorf "bit field %S width %d out of range" f.fname w
-          else Ok () in
+        let* u = check_bitfield_width dm f.fname f.fty w in
         let bfs =
           if String.is_empty f.fname then bfs else
             let data =
-              Bitfield.create ~storage:0 ~offset:0 ~width:w
-                ~access_storage:0 ~access_bits:u () in
+              Bitfield.create
+                ~storage:0
+                ~offset:0
+                ~width:w
+                ~access_storage:0
+                ~access_bits:u
+                () in
             Smap.set bfs ~key:f.fname ~data in
-        go (max size (u / 8)) (max align (u / 8)) offs bfs rest in
+        let size = max size (u / 8)
+        and align = max align (u / 8) in
+        go size align offs bfs rest in
   go 0 1 Smap.empty Smap.empty fields
 
 let layout_compound dm ~gamma ~kind ~attrs fields = match kind with
@@ -366,32 +408,6 @@ let push_scope t = {t with tenv = TE.push_scope t.tenv}
 let exit_block ~saved t =
   {t with tenv = TE.exit_block ~saved:saved.tenv t.tenv}
 
-let rec size_align dm sizes = function
-  | Tbase {base = Bvoid; _} ->
-    Or_error.error_string "sizeof void"
-  | Tbase {base; _} ->
-    let s = T.sizeof_basic (basic_of_base dm base) / 8 in
-    Ok (s, s)
-  | Tptr _ ->
-    let s = D.pointer_bytes dm in
-    Ok (s, s)
-  | Tarray {size = None; _} ->
-    Or_error.error_string "sizeof incomplete array"
-  | Tarray {elem; size = Some e; _} ->
-    let+ esz, eal = size_align dm sizes elem in
-    array_count e * esz, eal
-  | Tnamed {kind = `enum; _} ->
-    let s = D.int_bytes dm in
-    Ok (s, s)
-  | Tnamed {kind = `typedef; name; _} ->
-    Or_error.errorf "unresolved typedef %S" name
-  | Tnamed {kind = #compound; name; _} ->
-    begin match Smap.find sizes name with
-      | None -> Or_error.errorf "compound %S not laid out" name
-      | Some sa -> Ok sa
-    end
-  | Tfun _ -> Or_error.error_string "sizeof function type"
-
 (* The alignment of a type, computed without its array sizes, so it succeeds
    for a variably-modified (VLA) type. An array's alignment is that of its
    element, independent of the (possibly non-constant) length.
@@ -413,7 +429,14 @@ let rec align_of dm sizes = function
     end
   | Tfun _ -> Or_error.error_string "alignof function type"
 
-let sizeof t ty = size_align t.dmodel t.sizes (TE.normalize t.tenv ty) >>| fst
+let sizeof t ty =
+  size_align
+    ~what:"sizeof"
+    (Smap.find t.sizes)
+    t.dmodel
+    (TE.normalize t.tenv ty)
+  >>| fst
+
 let alignof t ty = align_of t.dmodel t.sizes (TE.normalize t.tenv ty)
 
 let offsetof t ~tag ~field = match Smap.find t.offsets tag with
