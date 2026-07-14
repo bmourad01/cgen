@@ -576,8 +576,8 @@ let rec fold t (e : Texpr.t) : Texpr.t Or_error.t = match e.node with
   | Eenum_const {value; _} ->
     let bits = D.int_bits t.dm in
     Ok (mk_int e.ty (mask bits value))
-  (* Variables and function designators are not foldable. *)
-  | Evar _ | Efun _ -> Ok e
+  (* Variables, global objects, and function designators are not foldable. *)
+  | Evar _ | Esym _ | Efun _ -> Ok e
   | Eunary {op; arg} ->
     let* arg' = fold t arg in
     fold_unary t e op arg'
@@ -617,7 +617,7 @@ let rec fold t (e : Texpr.t) : Texpr.t Or_error.t = match e.node with
 
 and fold_lval t (tlv : Texpr.tlval) =
   match tlv.node with
-  | Lvar _ -> Ok tlv
+  | Lvar _ | Lsym _ -> Ok tlv
   | Lderef e ->
     let+ e' = fold t e in
     Texpr.lderef e' ~ty:tlv.ty
@@ -785,6 +785,12 @@ let array_elem (ty : Texpr.ty) = match ty with
   | Tarray {elem; _} -> Some elem
   | _ -> None
 
+(* Whether `ty` designates a function type. An lvalue of function type is
+   a function designator (§6.3.2.1). *)
+let is_function_type t (ty : Texpr.ty) = match TE.normalize t.tenv ty with
+  | Tfun _ -> true
+  | _ -> false
+
 (* Encode a Z.t (which may be negative) as the bit pattern at `bits`
    width.
 
@@ -826,8 +832,15 @@ let rec ptr_offset_z t ptr_ty rhs_e =
 and lval_addr t (tlv : Texpr.tlval) : (string * Z.t) option =
   let open O.Let in
   match tlv.node with
+  (* A global object designates its link symbol; its address is an address
+     constant (§6.6 ¶9). *)
+  | Lsym name -> Some (name, Z.zero)
   | Lvar name when TE.has_global t.tenv name -> Some (name, Z.zero)
   | Lvar name when TE.has_func t.tenv name -> Some (name, Z.zero)
+  (* A block-scope function declaration binds the name as a local of function
+     type (for scoping), but it still designates the external function symbol,
+     whose address is an address constant (§6.6 ¶9). *)
+  | Lvar name when is_function_type t tlv.ty -> Some (name, Z.zero)
   | Lvar _ -> None
   | Lmember {lval; field} ->
     let* sym, off = lval_addr t lval in
@@ -888,14 +901,30 @@ and expr_addr_z t (e : Texpr.t) : (string * Z.t) option =
        is the address of the array's first element, which is an address
        constant when the array has static storage. *)
     rval_addr t arg
+  | Ecast {arg; _} when Type.is_pointer e.ty && Type.is_function arg.ty ->
+    (* Function-to-pointer decay (§6.3.2.1 ¶4): the value of a function
+       designator is the function's address, an address constant (§6.6 ¶9).
+       `rval_addr` resolves the underlying function designator, rejecting
+       non-constant forms like a dereferenced pointer. *)
+    rval_addr t arg
   | _ -> None
 
 (* Get the symbol and byte offset of an array-typed rvalue expression. *)
 and rval_addr t (e : Texpr.t) : (string * Z.t) option =
   let open O.Let in
   match e.node with
+  (* A global array decays to the address of its first element. *)
+  | Esym name -> Some (name, Z.zero)
   | Evar name when TE.has_global t.tenv name || TE.has_func t.tenv name ->
     Some (name, Z.zero)
+  (* A function designator names a function, which has static storage
+     duration, so its address is always an address constant (§6.6 ¶9).
+
+     The `Efun` form comes from a resolved function, while a function-typed
+     `Evar` comes from a block-scope function declaration bound as a local.
+  *)
+  | Efun name -> Some (name, Z.zero)
+  | Evar name when is_function_type t e.ty -> Some (name, Z.zero)
   | Emember {obj; field} ->
     let* sym, off = rval_addr t obj in
     let* tag = compound_tag obj.ty in
@@ -964,6 +993,20 @@ let rec strip_ptr_casts (e : Texpr.t) = match e.node with
   | Ecast {arg; _} when Type.is_pointer e.ty -> strip_ptr_casts arg
   | _ -> e
 
+(* An integer constant cast to a pointer type, accepted as an absolute
+   address.
+
+   §6.6 ¶10 lets an implementation accept other forms of constant
+   expressions. For example, GCC-compatible code relies on casting a
+   small integer to a pointer in static initializers. The value is the
+   integer at pointer width.
+*)
+let try_int_ptr_const t (e : Texpr.t) =
+  if not (Type.is_pointer e.ty) then None else
+    let open O.Let in
+    let+ v = extract_int t (strip_ptr_casts e) in
+    Vint (mask (D.pointer_bits t.dm) v)
+
 let const_init (t : init t) (e' : Texpr.t) : init value Or_error.t =
   match vint_value t e' with
   | Some v -> Ok (Vint v)
@@ -986,8 +1029,10 @@ let const_init (t : init t) (e' : Texpr.t) : init value Or_error.t =
       | _ -> match try_null_const t e' with
         | Some v -> Ok v
         | None -> match try_addr_const t e' with
-          | None -> E.failf "this expression is not a valid address constant" ()
           | Some v -> Ok v
+          | None -> match try_int_ptr_const t e' with
+            | Some v -> Ok v
+            | None -> E.failf "this expression is not a valid address constant" ()
 
 let const : type m. m t -> Texpr.t -> m value Or_error.t = fun t e ->
   let* e' = fold t e in

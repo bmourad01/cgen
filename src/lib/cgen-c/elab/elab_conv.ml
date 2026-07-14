@@ -51,6 +51,7 @@ let rec to_rvalue tenv (lv : Texpr.tlval) =
   let ty = Type.unqualified lv.ty in
   match lv.node with
   | Lvar name -> Texpr.var name ~ty
+  | Lsym name -> Texpr.sym_ name ~ty
   | Lderef arg -> Texpr.unary ~op:`deref ~arg ~ty
   | Lmember {lval; field} ->
     let obj = to_rvalue tenv lval in
@@ -76,7 +77,19 @@ and decay_array tenv (e : Texpr.t) =
 *)
 let decay_function tenv (e : Texpr.t) =
   match ET.normalize tenv e.ty with
-  | Tfun _ -> Texpr.cast ~dst:(Type.ptr e.ty) ~arg:e
+  | Tfun _ ->
+    begin match e.node with
+      (* Dereferencing a function pointer yields a function designator whose
+         value (its address) is the pointer itself (§6.5.3.2 ¶4).
+
+         In (somewhat) simpler terms, taking the address of a dereferenced
+         function pointer gives back that pointer, so we cancel the deref
+         rather than emitting a load of the function's code. This will ensure
+         that a call through a dereferenced function pointer works.
+      *)
+      | Eunary {op = `deref; arg} -> arg
+      | _ -> Texpr.cast ~dst:(Type.ptr e.ty) ~arg:e
+    end
   | _ -> e
 
 (* All-in-one: l-to-r then array/function decay.
@@ -354,7 +367,7 @@ let convert_for_assign tenv eval ~lhs ~(rhs : Texpr.t) =
         Ok (Texpr.cast ~dst ~arg:rhs, None)
       else
         (* The compatible-pointee case above is conformant with §6.5.16.1.
-           gcc, however, accepts assignment between distinct, non-compatible
+           GCC, however, accepts assignment between distinct, non-compatible
            object-pointer types (differing nested qualifiers or signedness)
            with a warning rather than an error; we match that leniency and
            attach a diagnostic. The qualifier-discard check above still rejects
@@ -364,6 +377,23 @@ let convert_for_assign tenv eval ~lhs ~(rhs : Texpr.t) =
             "assignment from incompatible pointer type: '%a' to '%a'"
             pp nr pp nl in
         Ok (Texpr.cast ~dst ~arg:rhs, Some w)
+  | _ when Type.is_integer nl && Type.is_pointer nr ->
+    (* GCC accepts converting a pointer to an integer without a cast (with a
+       warning); the pointer is reinterpreted at the integer width
+       (§6.3.2.3 ¶6). *)
+    let w =
+      Format.asprintf
+        "conversion to '%a' from pointer type '%a' without a cast"
+        pp nl pp nr in
+    Ok (Texpr.cast ~dst ~arg:rhs, Some w)
+  | Tptr _, _ when Type.is_integer nr ->
+    (* GCC accepts converting an integer to a pointer without a cast (with a
+       warning). The null-pointer-constant case is handled above. *)
+    let w =
+      Format.asprintf
+        "conversion to '%a' from integer type '%a' without a cast"
+        pp nl pp nr in
+    Ok (Texpr.cast ~dst ~arg:rhs, Some w)
   | _ ->
     E.failf
       "assignment from incompatible types: '%a' to '%a'"

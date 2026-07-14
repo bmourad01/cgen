@@ -105,6 +105,8 @@
         | Mqual `restrict -> m)
       default_mods ms
 
+  let has_typedef_mod = List.exists (function Mtypedef -> true | _ -> false)
+
   let apply_base_cv cv base = T.with_cv (T.Cv.combine cv (T.cv_of base)) base
 
   (* `(void)` denotes a zero-parameter prototype, distinct from a single
@@ -229,21 +231,25 @@
 %nonassoc below_ELSE
 %nonassoc ELSE
 
-(* Resolve the C parameter-declaration ambiguity in `T ( U ... )`.
+(* Two shift/reduce conflicts on TYPEDEF_NAME are resolved by precedence, both
+   selecting the "type specifier" reading of an ambiguous typedef name. Aside
+   from a handful of pre-existing benign attribute-placement conflicts, these
+   are the grammar's only conflicts, so the precedences are inert elsewhere.
 
-   When `U` is a typedef name, `(U ...)` is an abstract declarator in which `U`
-   is a type (C11 §6.7.6.3 ¶11 says an identifier that could be a typedef name
-   or a parameter name is taken as the typedef name), not a parenthesized
-   declarator naming a parameter `U`.
+   1. `T ( U ... )` parameter declarations (C11 §6.7.6.3 ¶11): when `U` is a
+      typedef name, `(U ...)` is an abstract declarator in which `U` is a type,
+      not a parenthesized declarator naming a parameter `U`. This surfaces as
+      shifting `U` as a `declared_name` versus reducing the empty `pre_type_marker`
+      that begins the nested type. `prec_abstract_param` (above TYPEDEF_NAME)
+      makes the reduction win, selecting the type.
 
-   The choice surfaces as a shift/reduce conflict on TYPEDEF_NAME between
-   shifting it as a `declared_name` and reducing the (empty) modifier list that
-   begins the nested type.
-
-   Giving that reduction higher precedence than the shift selects the type
-   interpretation. This is the grammar's only conflict, so the precedence is
-   inert everywhere else.
+   2. Implicit `int` (`static Foo x`): after a leading modifier run, a following
+      typedef name may be the type specifier, or (under the implicit-`int` rule)
+      a declarator name over an implicit `int`. The empty `declaration_specifiers_rest`
+      production carries `prec_implicit_int` (below TYPEDEF_NAME) so that
+      shifting the name as the type specifier wins.
 *)
+%nonassoc prec_implicit_int
 %nonassoc TYPEDEF_NAME
 %nonassoc prec_abstract_param
 
@@ -256,6 +262,7 @@
 %type <declr * init option * raw_attrs> init_declarator
 
 %type <Lexing.position * modat list * ty * tydecl list> declaration_specifiers
+%type <modat list * ty * tydecl list> declaration_specifiers_rest
 %type <modat> declaration_modifier storage_class
 %type <qual> type_qualifier
 %type <ty * tydecl list> type_part struct_or_union_specifier enum_specifier specifier_qualifier_list
@@ -378,25 +385,33 @@ init_declarator:
 
 (* {1 Declaration specifiers} *)
 
-(* `cur_typedef` must be visible before the init-declarators are reduced,
-   so set it as soon as the specifiers are complete. *)
+(* `cur_typedef` must be visible before the init-declarators are reduced, so
+   both productions set it as soon as the specifiers are complete. *)
 declaration_specifiers:
-  | pre = declaration_modifiers tp = type_part post = declaration_modifiers
+  | pre_type_marker tp = type_part post = declaration_modifiers
     {
-      let mods = pre @ post in
-      Parse_state.cur_typedef :=
-        List.exists (function Mtypedef -> true | _ -> false) mods;
-      (* `$symbolstartpos` here skips a possibly-empty leading modifier
-         list and anchors at the first specifier token, so callers get
-         a faithful start position for the declaration (rather than the
-        inter-token point that `$startpos` yields after an empty list). *)
-      ($symbolstartpos, mods, fst tp, snd tp)
+      Parse_state.cur_typedef := has_typedef_mod post;
+      ($symbolstartpos, post, fst tp, snd tp)
+    }
+  | m = declaration_modifier rest = declaration_specifiers_rest
+    {
+      let mods, base, extra = rest in
+      let mods = m :: mods in
+      Parse_state.cur_typedef := has_typedef_mod mods;
+      ($symbolstartpos, mods, base, extra)
     }
 
-(* An explicit modifier list (rather than `list(declaration_modifier)`) so its
-   empty production can carry `%prec prec_abstract_param`, which resolves the
-   `T ( U ... )` typedef-name ambiguity in favour of the type interpretation
-   (see the precedence declarations above). *)
+pre_type_marker:
+  | (* empty *) %prec prec_abstract_param { () }
+
+declaration_specifiers_rest:
+  | tp = type_part post = declaration_modifiers
+    { post, fst tp, snd tp }
+  | m = declaration_modifier rest = declaration_specifiers_rest
+    { let mods, base, extra = rest in m :: mods, base, extra }
+  | (* implicit `int` (§6.7.2 ¶2) *) %prec prec_implicit_int
+    { [], T.int_ ~sign:T.Ssigned (), [] }
+
 declaration_modifiers:
   | (* empty *) %prec prec_abstract_param { [] }
   | m = declaration_modifier ms = declaration_modifiers { m :: ms }

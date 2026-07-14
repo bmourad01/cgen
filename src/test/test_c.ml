@@ -226,6 +226,7 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Constant-expr casts and compound-literal init" "init_const";
     ok_case ~sir:true "sizeof of a typedef-name" "sizeof_typedef";
     ok_case "Typedef-name parameter ambiguity" "param_typedef_paren";
+    ok_case ~sir:true ~warn:true "Implicit int and CIL torture cases" "cil016";
   ]
 
 let native_suite = "C frontend: native execution" >::: [

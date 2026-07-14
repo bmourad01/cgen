@@ -357,7 +357,7 @@ let rec lower_rval env (e : Texpr.t) k = match e.node with
   | Econst c -> lower_const env e.ty c k
   | Eenum_const {value; _} -> k (`int (value, scalar_imm env e.ty))
   | Efun name -> k (`sym (name, 0))
-  | Evar _ ->
+  | Evar _ | Esym _ ->
     let@ addr = lower_lval env (lval_of_rval e) in
     load_or_address env e.ty addr k
   | Emember {obj; field} ->
@@ -397,6 +397,8 @@ and lower_member env lv ty (obj : Texpr.t) field k =
 and lval_of_rval (e : Texpr.t) : Texpr.tlval = match e.node with
   | Evar name ->
     {node = Lvar name; ty = e.ty}
+  | Esym name ->
+    {node = Lsym name; ty = e.ty}
   | Eindex {arr; idx} ->
     let d : Texpr.tlval = {node = Lderef arr; ty = arr.ty} in
     {node = Lindex {lval = d; index = idx}; ty = e.ty}
@@ -607,6 +609,9 @@ and lower_lval env (lv : Texpr.tlval) k = match lv.node with
       | Some slot -> k (`var slot)
       | None -> k (`sym (name, 0))
     end
+  (* A global object always designates its link symbol, never a local slot,
+     even when a same-named local is in scope (block-scope `extern`). *)
+  | Lsym name -> k (`sym (name, 0))
   | Lderef e -> lower_rval env e k
   | Lmember {lval; field} ->
     let@ base = lower_lval env lval in

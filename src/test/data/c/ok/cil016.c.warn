@@ -1,0 +1,6 @@
+data/c/ok/cil016.c:58:3-21: warning: conversion to 'int' from pointer type 'char *' without a cast
+ 58 |   return pt3->value;
+    |   ^~~~~~~~~~~~~~~~~~
+data/c/ok/cil016.c:68:3-16: warning: explicit storage-class specifier of block-scope function declaration is not 'extern'
+ 68 |   static bar();
+    |   ^~~~~~~~~~~~~

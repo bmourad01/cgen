@@ -47,8 +47,13 @@ and node =
   | Econst of Expr.const
   (** A literal constant. *)
   | Evar of string
-  (** The value of a variable (a local, parameter, or global) after
-      lvalue-to-rvalue conversion. *)
+  (** The value of a local variable or parameter after lvalue-to-rvalue
+      conversion. *)
+  | Esym of string
+  (** The value of a global object, named by its link symbol, after
+      lvalue-to-rvalue conversion. Distinct from [Evar] so the lowering
+      routes it to the symbol even when a same-named local slot is in scope
+      (e.g. a block-scope [extern] re-exposing a shadowed global). *)
   | Efun of string
   (** A function designator; decays to a function pointer when used
       as an rvalue. *)
@@ -93,7 +98,11 @@ and node =
 
 and lval =
   | Lvar of string
-  (** A named object lvalue (local, parameter, or global). *)
+  (** A local variable or parameter lvalue, designating its stack slot. *)
+  | Lsym of string
+  (** A global object lvalue, designating its link symbol. Distinct from
+      [Lvar] so the lowering routes it to the symbol even when a same-named
+      local slot is in scope (see [Esym]). *)
   | Lderef of t
   (** Dereference of a pointer expression ([*p]). *)
   | Lmember of {
@@ -130,8 +139,11 @@ and init =
 (** A literal constant. *)
 val const : Expr.const -> ty:ty -> t
 
-(** A variable's value. *)
+(** A local variable's value. *)
 val var : string -> ty:ty -> t
+
+(** A global object's value, named by its link symbol. *)
+val sym_ : string -> ty:ty -> t
 
 (** A function designator. *)
 val fun_ : string -> ty:ty -> t
@@ -189,8 +201,11 @@ val double : float -> ty:ty -> t
 
 (** {1 Smart constructors for lvalues} *)
 
-(** A named object lvalue. *)
+(** A local variable or parameter lvalue. *)
 val lvar : string -> ty:ty -> tlval
+
+(** A global object lvalue, designating its link symbol. *)
+val lsym : string -> ty:ty -> tlval
 
 (** Dereference of a pointer expression. *)
 val lderef : t -> ty:ty -> tlval

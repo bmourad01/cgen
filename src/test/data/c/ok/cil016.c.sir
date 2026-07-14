@@ -1,0 +1,153 @@
+module cil016
+
+type :__anon_struct_1 = {
+  w,
+  w
+}
+
+type :__anon_struct_2 = {
+  w,
+  :__anon_struct_1
+}
+
+type :__anon_struct_3 = {
+  l,
+  l
+}
+
+type :__anon_struct_4 = {
+  l,
+  l
+}
+
+export data $x3 = {
+  0x5_w
+}
+
+export data $pf = {
+  z 8
+}
+
+export data $i = {
+  0x1_w,
+  0x2_w,
+  0x6_w
+}
+
+export data $a = {
+  $.str0,
+  $compound.0
+}
+
+data $pbar = {
+  0x0_l
+}
+
+data $compound.0 = {
+  0x1_l,
+  0x1_l
+}
+
+data $pbar.1 = {
+  $bar
+}
+
+data $.str0 = {
+  "",
+  z 1
+}
+
+export function sw $f1() {
+  %0 = slot 4, align 4
+start:
+  %1 = ld.w %0;
+  %2 = ld.w %0;
+  %3 = ne.w %2, 0x0_w;
+  %4 = flag.w %3;
+  %5 = ne.w 0x1_w, 0x0_w;
+  %6 = sel.w %5, %4, 0x0_w;
+  %7 = eq.w %1, %6;
+  %8 = flag.w %7;
+  ret %8
+}
+
+export function sw $f2() {
+start:
+  %9 = sext.l 0x1_w;
+  %10 = sub.l %9, 0x4_l;
+  %11 = sext.l 0x20_w;
+  %12 = lsr.l %10, %11;
+  %13 = itrunc.w %12;
+  ret %13
+}
+
+export function sw $f3() {
+  %14 = slot 4, align 4
+start:
+  st.w 0x3_w, %14;
+  %15 = ld.w $x3;
+  ret %15
+}
+
+export function sw $f4() {
+start:
+  st.l $f4, $pf;
+  st.l $f4, $pf;
+  %16 = ld.l $pf;
+  %17 = call.sw %16();
+  %18 = ld.l $pf;
+  %19 = call.sw %18();
+  %20 = call.sw $f4()
+}
+
+export function sw $f6() {
+  %21 = slot 8, align 8
+start:
+  %22 = sext.l 0x0_w;
+  %23 = mul.l %22, 0x10_l;
+  %24 = add.l $a, %23;
+  %25 = add.l %24, 0x8_l;
+  %26 = ld.l %25;
+  st.l %26, %21;
+  %27 = ld.l %21;
+  %28 = add.l %27, 0x8_l;
+  %29 = ld.l %28;
+  %30 = itrunc.w %29;
+  ret %30
+}
+
+export function sw $f7() {
+  %31 = slot 16, align 4
+start:
+  st.w 0x1_w, %31;
+  %32 = add.l %31, 0x4_l;
+  st.w 0x2_w, %32;
+  %33 = add.l %31, 0x8_l;
+  st.w 0x3_w, %33;
+  %34 = add.l %31, 0xc_l;
+  st.w 0x4_w, %34;
+  %35 = sext.l 0x1_w;
+  %36 = mul.l %35, 0x4_l;
+  %37 = add.l %31, %36;
+  %38 = ld.w %37;
+  ret %38
+}
+
+export function sw $foo8() {
+start:
+  nop
+}
+
+function sw $bar() {
+start:
+  ret 0x1_w
+}
+
+export function l $foo9() {
+start:
+  %39 = neg.w 0x1_w;
+  %40 = sext.l %39;
+  %41 = sext.l 0x8_w;
+  %42 = udiv.l %40, %41;
+  ret %42
+}

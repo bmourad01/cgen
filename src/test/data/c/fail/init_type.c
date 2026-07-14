@@ -1,5 +1,9 @@
+struct S {
+  int x;
+} s;
+
 int
 f(void) {
-  int acc = "hello";
+  int acc = s;
   return acc;
 }

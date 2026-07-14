@@ -1,3 +1,3 @@
-data/c/fail/init_type.c:3:13-20: error: assignment from incompatible types: 'char *' to 'int'
- 3 |   int acc = "hello";
-   |             ^~~~~~~
+data/c/fail/init_type.c:7:13-14: error: assignment from incompatible types: 'struct S' to 'int'
+ 7 |   int acc = s;
+   |             ^

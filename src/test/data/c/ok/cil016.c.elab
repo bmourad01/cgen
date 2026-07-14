@@ -1,0 +1,77 @@
+int f1(void) {
+  int x;
+  return x == (1 ? x != (int)0 : 0);
+}
+
+int f2(void) {
+  return (int)((unsigned long)1 - 4 >> 32);
+}
+
+int x3 = 5;
+
+int f3(void) {
+  int x3 = 3;
+  {
+    return x3;
+  }
+}
+
+int (*pf)(void);
+
+int f4(void) {
+  pf = &f4;
+  pf = (int (*)(void))f4;
+  pf();
+  pf();
+  ((int (*)(void))f4)();
+}
+
+struct __anon_struct_1 {
+  int y;
+  int z;
+};
+
+struct __anon_struct_2 {
+  int x;
+  struct __anon_struct_1 nested;
+};
+
+struct __anon_struct_2 i = {.x = 1, .nested = {.y = 2, .z = 6}};
+
+struct __anon_struct_3 {
+  char *key;
+  char *value;
+};
+
+struct __anon_struct_4 {
+  long type;
+  char *value;
+};
+
+struct __anon_struct_3 a[1] = {{.key = (char *)"", .value = (char *)&compound.0}};
+
+int f6(void) {
+  struct __anon_struct_4 *pt3 = (T3 *)((struct __anon_struct_3 *)a)[0].value;
+  return (int)(*pt3).value;
+}
+
+int f7(void) {
+  int %0[4] = {1, 2, 3, 4};
+  return ((int *)%0)[1];
+}
+
+int foo8(void) {}
+
+static int bar(void) {
+  return 1;
+}
+
+static int (*pbar)(void) = (int (*)(void))0;
+
+unsigned long foo9(void) {
+  return (unsigned long)-1 / (unsigned long)8;
+}
+
+static T3 compound.0 = {.type = (long)1, .value = (char *)1};
+
+static int (*pbar.1)(void) = (int (*)(void))bar;

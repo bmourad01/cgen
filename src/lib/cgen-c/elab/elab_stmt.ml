@@ -209,77 +209,96 @@ module Make(A : Annotation) = struct
      typed declaration.
   *)
   let elab_local env (ld : A.ann Stmt.localdecl) =
-    match ld.ldstorage with
-    | SCstatic ->
-      (* §6.2.4 ¶3: a block-scope `static` has static storage but no
-         linkage.
-
-         We hoist it to a private module-level global under a unique
-         mangled symbol and alias the source name to it, so references
-         resolve to that symbol instead of a stack slot.
-
-         Its initializer must be constant (via `require_const`), and
-         no block item is emitted, so the lowering allocates no slot
-         for it.
-      *)
-      let* base_ty = elab_local_ty env ld.ldty in
-      (* Carry the declaration's attributes (notably [aligned]/[_Alignas])
-         onto the hoisted global, so its alignment survives to lowering. *)
-      let* attrs = resolve_attrs ~eval_int:(local_eval_int env) ld.ldattrs in
-      let* sym = Ctx.fresh_static_sym ~source:ld.ldname in
-      let* cty, init = match ld.ldinit with
-        | None -> !!(base_ty, None)
-        | Some i ->
-          let+ _pre, cty, flat =
-            EI.elab ~require_const:true ~elab_rval:env.elab_rval
-              ~ty:base_ty i in
-          cty, Some flat in
-      let* () = Ctx.add_local ~name:ld.ldname ~ty:cty in
-      let* () = Ctx.add_static_alias ~name:ld.ldname ~link:sym in
-      let+ () =
-        Ctx.hoist_global @@
-        Tdecl.global ?init ~attrs
-          ~name:sym ~ty:cty
-          ~linkage:Tdecl.Lstatic
-          ~tls:false () in
-      []
-    | SCextern ->
-      (* §6.2.2: a block-scope `extern` names an object with external
-         linkage defined elsewhere; §6.7.8 ¶5 forbids an initializer.
-
-         We alias the source name to itself so references become an
-         (unmangled) external global symbol. No definition is emitted.
-      *)
+    let* base_ty = elab_local_ty env ld.ldty in
+    if Type.is_function base_ty then
+      (* §6.7.8 ¶5: a block-scope declaration of function type declares a name
+         for a function (which has linkage), not an object. Additionally, its
+         only allowed storage-class specifier is `extern` (§6.7.1 ¶5). However,
+         examples such as `static bar();` appear in real code, so we accept any
+         and treat them alike (the symbol is the function's name). *)
+      let* () =
+        let chk cls = Stmt.equal_storagecls ld.ldstorage cls in
+        let@ () = M.when_ (not (chk SCdefault || chk SCextern)) in
+        let@ () = Ctx.with_location_of ld.ldann in
+        Ctx.warnf
+          "explicit storage-class specifier of block-scope function \
+           declaration is not 'extern'" () in
       let* () =
         M.when_ (Option.is_some ld.ldinit) @@ fun () ->
         let@ () = Ctx.with_location_of ld.ldann in
-        Ctx.fatal "a block-scope 'extern' declaration shall have no initializer" () in
-      let* base_ty = elab_local_ty env ld.ldty in
+        Ctx.fatal "a function declaration shall have no initializer" () in
       let* () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
       let+ () = Ctx.add_static_alias ~name:ld.ldname ~link:ld.ldname in
       []
-    | SCdefault | SCauto | SCregister ->
-      let* base_ty = elab_local_ty env ld.ldty in
-      let* align = local_align env ld in
-      match ld.ldinit with
-      | None ->
-        let* () = require_complete_object ~name:ld.ldname ~ty:base_ty in
-        let+ () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
-        [Tstmt.bdecl (Tstmt.localdecl ~name:ld.ldname ~ty:base_ty ?align ())]
-      | Some init ->
-        (* §6.2.1 ¶7: the declared identifier is in scope inside its own
-           initializer (a struct/array may reference its own address), so
-           bind it before elaborating. The initializer may complete an array
-           bound, so update the binding to the completed type afterward. *)
+    else match ld.ldstorage with
+      | SCstatic ->
+        (* §6.2.4 ¶3: a block-scope `static` has static storage but no
+           linkage.
+
+           We hoist it to a private module-level global under a unique
+           mangled symbol and alias the source name to it, so references
+           resolve to that symbol instead of a stack slot.
+
+           Its initializer must be constant (via `require_const`), and
+           no block item is emitted, so the lowering allocates no slot
+           for it.
+
+           We carry the declaration's attributes (notably `aligned`/`_Alignas`)
+           onto the hoisted global, so its alignment survives to lowering.
+        *)
+        let* attrs = resolve_attrs ~eval_int:(local_eval_int env) ld.ldattrs in
+        let* sym = Ctx.fresh_static_sym ~source:ld.ldname in
+        let* cty, init = match ld.ldinit with
+          | None -> !!(base_ty, None)
+          | Some i ->
+            let+ _pre, cty, flat =
+              EI.elab ~require_const:true ~elab_rval:env.elab_rval
+                ~ty:base_ty i in
+            cty, Some flat in
+        let* () = Ctx.add_local ~name:ld.ldname ~ty:cty in
+        let* () = Ctx.add_static_alias ~name:ld.ldname ~link:sym in
+        let+ () =
+          Ctx.hoist_global @@
+          Tdecl.global ?init ~attrs
+            ~name:sym ~ty:cty
+            ~linkage:Tdecl.Lstatic
+            ~tls:false () in
+        []
+      | SCextern ->
+        (* §6.2.2: a block-scope `extern` names an object with external
+           linkage defined elsewhere; §6.7.8 ¶5 forbids an initializer.
+
+           We alias the source name to itself so references become an
+           (unmangled) external global symbol. No definition is emitted.
+        *)
+        let* () =
+          M.when_ (Option.is_some ld.ldinit) @@ fun () ->
+          let@ () = Ctx.with_location_of ld.ldann in
+          Ctx.fatal "a block-scope 'extern' declaration shall have no initializer" () in
         let* () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
-        let* pre, cty, flat =
-          EI.elab ~elab_rval:env.elab_rval ~ty:base_ty init in
-        let* () = Ctx.update_local ~name:ld.ldname ~ty:cty in
-        let+ () = require_complete_object ~name:ld.ldname ~ty:cty in
-        let decl =
-          Tstmt.bdecl @@
-          Tstmt.localdecl ~name:ld.ldname ~ty:cty ~init:flat ?align () in
-        if stmt_is_empty pre then [decl] else [Tstmt.bstmt pre; decl]
+        let+ () = Ctx.add_static_alias ~name:ld.ldname ~link:ld.ldname in
+        []
+      | SCdefault | SCauto | SCregister ->
+        let* align = local_align env ld in
+        match ld.ldinit with
+        | None ->
+          let* () = require_complete_object ~name:ld.ldname ~ty:base_ty in
+          let+ () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
+          [Tstmt.bdecl (Tstmt.localdecl ~name:ld.ldname ~ty:base_ty ?align ())]
+        | Some init ->
+          (* §6.2.1 ¶7: the declared identifier is in scope inside its own
+             initializer (a struct/array may reference its own address), so
+             bind it before elaborating. The initializer may complete an array
+             bound, so update the binding to the completed type afterward. *)
+          let* () = Ctx.add_local ~name:ld.ldname ~ty:base_ty in
+          let* pre, cty, flat =
+            EI.elab ~elab_rval:env.elab_rval ~ty:base_ty init in
+          let* () = Ctx.update_local ~name:ld.ldname ~ty:cty in
+          let+ () = require_complete_object ~name:ld.ldname ~ty:cty in
+          let decl =
+            Tstmt.bdecl @@
+            Tstmt.localdecl ~name:ld.ldname ~ty:cty ~init:flat ?align () in
+          if stmt_is_empty pre then [decl] else [Tstmt.bstmt pre; decl]
 
   let elab_locals env locals =
     M.List.map locals ~f:(elab_local env) >>| List.concat

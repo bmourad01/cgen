@@ -27,8 +27,13 @@ and tlval = lval typed
 and node =
   | Econst of Expr.const
   | Evar of string
-  (** The value of a variable (a local, parameter, or global)
-      after lvalue-to-rvalue conversion. *)
+  (** The value of a local variable or parameter after lvalue-to-rvalue
+      conversion. *)
+  | Esym of string
+  (** The value of a global object, named by its link symbol, after
+      lvalue-to-rvalue conversion. Distinct from [Evar] so the lowering
+      routes it to the symbol even when a same-named local slot is in scope
+      (e.g. a block-scope [extern] re-exposing a shadowed global). *)
   | Efun of string
   (** A function designator; decays to a function pointer when
       used as an rvalue. *)
@@ -72,6 +77,11 @@ and node =
 
 and lval =
   | Lvar of string
+  (** A local variable or parameter, designating its stack slot. *)
+  | Lsym of string
+  (** A global object, designating its link symbol. Distinct from [Lvar]
+      so the lowering routes it to the symbol even when a same-named local
+      slot is in scope (see [Esym]). *)
   | Lderef  of t
   | Lmember of {
       lval  : tlval;
@@ -100,6 +110,7 @@ and init =
 
 let const c ~ty = {node = Econst c; ty}
 let var name ~ty = {node = Evar name; ty}
+let sym_ name ~ty = {node = Esym name; ty}
 let fun_ name ~ty = {node = Efun name; ty}
 let enum_const ~tag ~name ~value ~ty = {node = Eenum_const {tag; name; value}; ty}
 let unary ~op ~arg ~ty = {node = Eunary {op; arg}; ty}
@@ -122,6 +133,7 @@ let double d ~ty = const (Cdouble d) ~ty
 (* Smart constructors for lvalues. *)
 
 let lvar name ~ty = {node = Lvar name; ty}
+let lsym name ~ty = {node = Lsym name; ty}
 let lderef e ~ty = {node = Lderef e; ty}
 let lmember ~lval ~field ~ty = {node = Lmember {lval; field}; ty}
 let lindex ~lval ~index ~ty = {node = Lindex {lval; index}; ty}
@@ -143,6 +155,7 @@ let prec_uop op = Expr.prec_uop (op :> Expr.uop)
 let prec_node = function
   | Econst _
   | Evar _
+  | Esym _
   | Efun _
   | Eenum_const _ -> 0
   | Eunary {op; _} -> prec_uop op
@@ -170,7 +183,7 @@ let rec pp_at ~ctx ppf e =
 
 and pp_node ppf = function
   | Econst c -> Expr.pp_const ppf c
-  | Evar n | Efun n -> Format.pp_print_string ppf n
+  | Evar n | Esym n | Efun n -> Format.pp_print_string ppf n
   | Eenum_const {name; _} -> Format.pp_print_string ppf name
   | Eunary {op; arg} ->
     Format.pp_print_string ppf (uop_symbol op);
@@ -213,7 +226,7 @@ and pp_node ppf = function
     pp_init ppf init
 
 and pp_lval ppf lv = match lv.node with
-  | Lvar name -> Format.pp_print_string ppf name
+  | Lvar name | Lsym name -> Format.pp_print_string ppf name
   | Lderef e ->
     Format.pp_print_char ppf '*';
     pp_at ~ctx:2 ppf e
@@ -229,7 +242,7 @@ and pp_lval ppf lv = match lv.node with
 
 and pp_lval_at ~ctx ppf lv =
   let p = match lv.node with
-    | Lvar _ -> 0
+    | Lvar _ | Lsym _ -> 0
     | Lderef _ -> 2
     | Lmember _ | Lindex _ -> 1 in
   if p > ctx then begin

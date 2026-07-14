@@ -126,7 +126,7 @@ let known_nonzero eval (e : Texpr.t) : bool =
    it loads from memory, or divides/takes the remainder by something not
    known to be nonzero. *)
 let rec can_trap eval (e : Texpr.t) : bool = match e.node with
-  | Econst _ | Evar _ | Efun _ | Eenum_const _ -> false
+  | Econst _ | Evar _ | Esym _ | Efun _ | Eenum_const _ -> false
   | Eunary {op = `deref; _} | Eindex _ | Emember _ -> true
   | Ebinary {op = `div | `mod_; lhs; rhs} ->
     not (known_nonzero eval rhs) || can_trap eval lhs || can_trap eval rhs
@@ -141,7 +141,7 @@ let rec can_trap eval (e : Texpr.t) : bool = match e.node with
 (* The address of an lvalue evaluates the index/pointer subexpressions
    that locate it, but performs no load of the object itself. *)
 and addr_can_trap eval (lv : Texpr.tlval) : bool = match lv.node with
-  | Lvar _ -> false
+  | Lvar _ | Lsym _ -> false
   | Lderef e -> can_trap eval e
   | Lmember {lval; _} -> addr_can_trap eval lval
   | Lindex {lval; index} -> addr_can_trap eval lval || can_trap eval index
@@ -552,9 +552,10 @@ module Make(A : Annotation) = struct
       let* tenv = M.gets Ctx.tenv in
       let* dm = M.gets Ctx.dmodel in
       match r with
-      | Rlocal (n, ty) | Rglobal (n, ty) ->
-        let lv = Texpr.lvar n ~ty in
-        cont (EC.lvalue_to_rvalue tenv lv)
+      | Rlocal (n, ty) ->
+        cont (EC.lvalue_to_rvalue tenv (Texpr.lvar n ~ty))
+      | Rglobal (n, ty) ->
+        cont (EC.lvalue_to_rvalue tenv (Texpr.lsym n ~ty))
       | Rfunc (n, ty) ->
         let fn_expr = Texpr.fun_ n ~ty in
         cont (EC.decay_function tenv fn_expr)
@@ -1224,9 +1225,10 @@ module Make(A : Annotation) = struct
     | Some _ -> Ctx.fatal "'%s' cannot be used as an lvalue" name ()
     | None -> resolve_name name >>= function
       | Rlocal (n, ty)
-      | Rglobal (n, ty)
       | Rfunc (n, ty)
         -> cont (Texpr.lvar n ~ty)
+      | Rglobal (n, ty)
+        -> cont (Texpr.lsym n ~ty)
       | Renum e ->
         Ctx.fatal "enum constant '%s' is not assignable" (EE.name e) ()
 
