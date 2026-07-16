@@ -51,7 +51,7 @@ struct __anon_struct_4 {
 struct __anon_struct_3 a[1] = {{.key = (char *)"", .value = (char *)&compound.0}};
 
 int f6(void) {
-  struct __anon_struct_4 *pt3 = (T3 *)((struct __anon_struct_3 *)a)[0].value;
+  struct __anon_struct_4 *pt3 = (struct __anon_struct_4 *)((struct __anon_struct_3 *)a)[0].value;
   return (int)(*pt3).value;
 }
 
@@ -72,6 +72,6 @@ unsigned long foo9(void) {
   return (unsigned long)-1 / (unsigned long)8;
 }
 
-static T3 compound.0 = {.type = (long)1, .value = (char *)1};
+static struct __anon_struct_4 compound.0 = {.type = (long)1, .value = (char *)1};
 
 static int (*pbar.1)(void) = (int (*)(void))bar;

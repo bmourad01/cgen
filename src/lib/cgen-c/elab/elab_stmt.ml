@@ -189,10 +189,7 @@ module Make(A : Annotation) = struct
   (* Elaborate a local declaration's type, resolving typedefs. Any block-scope
      typedef is dropped when the block is left (see `Layout.exit_block`), but
      the resolved type persists in the emitted declaration for the lowering. *)
-  let elab_local_ty env ldty =
-    let* ty = ET.elab ~elab_size:(elab_size env) ldty in
-    let+ tenv = M.gets Ctx.tenv in
-    Type_env.normalize tenv ty
+  let elab_local_ty env ldty = ET.elab ~elab_size:(elab_size env) ldty
 
   (* §6.7 ¶7: a block-scope object must have a complete type at the point
      of its declaration (unlike a file-scope tentative definition, which may

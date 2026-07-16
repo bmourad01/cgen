@@ -1,7 +1,6 @@
 (* Elaboration of types: `'a Expr.ty` to `Texpr.ty`.
 
-   The structure of the type is preserved (including typedef
-   references, which can be expanded on demand via `normalize`).
+   All references to typedefs are resolved and desugared.
 
    Array sizes are elaborated via the `elab_size` callback supplied
    by the caller, which produces a `Texpr.t`.
@@ -68,7 +67,7 @@ module Make(A : Annotation) = struct
     Ctx.fatal "undefined typedef '%s'" name ()
 
   (* Walk a type, threading the `elab_size` callback through arrays. *)
-  let elab ~elab_size =
+  let elab ~elab_size ty =
     let rec go : A.ann Expr.ty -> _ = function
       | Tbase {base; cv} ->
         !!(Type.Tbase {base; cv})
@@ -101,5 +100,7 @@ module Make(A : Annotation) = struct
               let+ ptype = go p.ptype in
               Type.{pname = p.pname; ptype}) in
         Type.fun_ ~result ~params ~variadic () in
-    go
+    let* t = go ty in
+    let+ tenv = M.gets Ctx.tenv in
+    normalize tenv t
 end

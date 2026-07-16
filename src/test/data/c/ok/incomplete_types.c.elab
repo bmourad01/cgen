@@ -1,5 +1,5 @@
-int is_null(opaque_t *p) {
-  return p == (opaque_t *)0;
+int is_null(struct opaque *p) {
+  return p == (struct opaque *)0;
 }
 
 struct a_node {
@@ -21,7 +21,7 @@ struct list_node {
   struct list_node *next;
 };
 
-int sum(node_t *n) {
+int sum(struct list_node *n) {
   int %0;
   int s = 0;
   while (n) {

@@ -1,4 +1,4 @@
-int takes_fp(int (*)(Num));
+int takes_fp(int (*)(int));
 
 int takes_ptr(int *Num);
 

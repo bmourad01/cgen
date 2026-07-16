@@ -9,8 +9,8 @@ struct rect {
   unsigned char flags : 3;
 };
 
-size_t count;
+unsigned long count;
 
-point origin;
+struct point origin;
 
 struct rect bounds;

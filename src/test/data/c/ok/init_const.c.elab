@@ -1,6 +1,6 @@
-unsigned long masks[7] = {(unsigned long)0, (unsigned long)0, (unsigned long)0, (unsigned long)0, (bits)1 << Pob, (bits)1 << Pbi1, (unsigned long)((bits)1 << Pob) | (unsigned long)((bits)1 << Pbi1)};
+unsigned long masks[7] = {(unsigned long)0, (unsigned long)0, (unsigned long)0, (unsigned long)0, (unsigned long)1 << Pob, (unsigned long)1 << Pbi1, (unsigned long)1 << Pob | (unsigned long)1 << Pbi1};
 
-bits mask_of(int n) {
+unsigned long mask_of(int n) {
   return ((unsigned long *)masks)[n];
 }
 
