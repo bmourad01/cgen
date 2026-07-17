@@ -10,9 +10,9 @@ homepage: "https://github.com/bmourad01/cgen"
 bug-reports: "https://github.com/bmourad01/cgen/issues"
 depends: [
   "cmdliner"
-  "core" {>= "v0.15"}
-  "core_kernel" {>= "v0.15"}
-  "core_unix" {>= "v0.15"}
+  "core" {>= "v0.16"}
+  "core_kernel" {>= "v0.16"}
+  "core_unix" {>= "v0.16"}
   "dune" {>= "3.15"}
   "fmt"
   "logs"

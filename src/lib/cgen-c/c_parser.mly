@@ -332,10 +332,9 @@ external_declaration:
     {
       let _, mods, base, extra = ds in
       let _ = resolve_mods mods in
-      let items =
-        if List.is_empty extra
-        then incomplete_tag ~ann:(loc $symbolstartpos $endpos) base
-        else extra in
+      let items = match extra with
+        | [] -> incomplete_tag ~ann:(loc $symbolstartpos $endpos) base
+        | _ -> extra in
       List.map Decl.of_tydecl items
     }
   | ds = declaration_specifiers d = declarator dattrs = attribute_specifier_list body = compound_statement
@@ -814,8 +813,9 @@ block_declaration:
       let m = resolve_mods mods in
       let base = apply_base_cv m.cv base in
       let ann = loc $symbolstartpos $endpos in
-      let extra_items =
-        if List.is_empty extra then [] else [Stmt.Btype extra] in
+      let extra_items = match extra with
+        | [] -> []
+        | _ -> [Stmt.Btype extra] in
       if m.is_typedef then
         (* Each declarator introduces a block-scope typedef. *)
         let tds =
@@ -825,7 +825,10 @@ block_declaration:
               | None -> None
               | Some name -> Some (Tydecl.typedef ~name ~ty:(dty base) ~ann))
             idecls in
-        extra_items @ (if List.is_empty tds then [] else [Stmt.Btype tds])
+        let tds = match tds with
+          | [] -> []
+          | _ -> [Stmt.Btype tds] in
+        extra_items @ tds
       else
         extra_items @
         List.filter_map
@@ -846,11 +849,12 @@ block_declaration:
   | ds = declaration_specifiers SEMI
     {
       let _, _mods, base, extra = ds in
-      let items =
-        if List.is_empty extra
-        then incomplete_tag ~ann:(loc $symbolstartpos $endpos) base
-        else extra in
-      if List.is_empty items then [] else [Stmt.Btype items]
+      let items = match extra with
+        | [] -> incomplete_tag ~ann:(loc $symbolstartpos $endpos) base
+        | _ -> extra in
+      match items with
+      | [] -> []
+      | _ -> [Stmt.Btype items]
     }
 
 expression_statement:
