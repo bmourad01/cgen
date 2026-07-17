@@ -23,6 +23,20 @@ jobs:
           opam-pin: false
           dune-cache: true
 
+      # enforce a clang version of some kind
+      - name: Install clang-format
+        run: |
+          codename=$(lsb_release -cs)
+          sudo mkdir -p /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc > /dev/null
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/$codename/ llvm-toolchain-$codename-21 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-format-21
+          sudo ln -sf /usr/bin/clang-format-21 /usr/local/bin/clang-format
+          clang-format --version
+
       - name: Check the Style
         run: opam install -y ocp-indent && opam exec -- make check-style
 
