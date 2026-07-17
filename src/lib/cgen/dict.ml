@@ -31,15 +31,20 @@ type slot_io = {
 
 let io : slot_io String.Table.t = String.Table.create ()
 
-let register (type a) ~uuid name (module S : S with type t = a) : a tag =
-  let typeid = sprintf "%s:%s" uuid name in
-  let key = H.Key.create ~name:typeid S.sexp_of_t in
-  Hashtbl.set io ~key:typeid ~data:{
+let register (type a) name (module S : S with type t = a) : a tag =
+  let key = H.Key.create ~name S.sexp_of_t in
+  let slot = {
     reader = (fun s d -> H.set key (Binable.of_string (module S) s) d);
     writer = (fun d -> Option.map (H.find key d) ~f:(Binable.to_string (module S)));
     of_sexp = (fun s d -> H.set key (S.t_of_sexp s) d);
-  };
-  key
+  } in
+  (* The name is the tag's stable serialization identity, so it must be
+     unique across all registered tags. A collision would misroute
+     serialization, so fail loudly at registration time. *)
+  match Hashtbl.add io ~key:name ~data:slot with
+  | `Ok -> key
+  | `Duplicate ->
+    invalid_argf "Dict.register: a tag named %S is already registered" name ()
 
 let sexp_of_t = H.sexp_of_t
 

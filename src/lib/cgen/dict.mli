@@ -16,10 +16,16 @@ type 'a tag
 
 val pp_tag : Format.formatter -> 'a tag -> unit
 
-(** [register ~uuid name (module T)] creates a new tag that accepts values of
-    type [T.t]. The [uuid] must be stable across runs, as it identifies the
-    tag's type for serialization. *)
-val register : uuid:string -> string -> (module S with type t = 'a) -> 'a tag
+(** [register name (module T)] creates a new tag that accepts values of type
+    [T.t].
+
+    Each call mints a fresh tag identity, so [name] serves only as the tag's
+    stable serialization key. As a consequence, it must be unique across all
+    registered tags, and stable across runs for serialized values to round-trip.
+
+    Raises [Invalid_argument] when a duplicate [name] is passed.
+*)
+val register : string -> (module S with type t = 'a) -> 'a tag
 
 (** The dictionary. *)
 type t [@@deriving bin_io, compare, equal, sexp]

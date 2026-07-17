@@ -18,24 +18,16 @@ end
 include T
 
 module Tag = struct
-  let return = Dict.register
-      ~uuid:"20f25c5c-72e8-4115-9cb5-81ebdc895f19"
-      "fn-return" (module struct
+  let return = Dict.register "fn-return" (module struct
       type t = Type.ret [@@deriving bin_io, compare, equal, sexp]
       let pp = Type.pp_ret
     end)
 
-  let variadic = Dict.register
-      ~uuid:"f1e57c81-ed0a-4711-9ab7-036cdfea6f1e"
-      "fn-variadic" (module Unit)
+  let variadic = Dict.register "fn-variadic" (module Unit)
 
-  let noreturn = Dict.register
-      ~uuid:"2f09ee8d-f30b-4a88-91f2-d9cc8975b0ff"
-      "fn-noreturn" (module Unit)
+  let noreturn = Dict.register "fn-noreturn" (module Unit)
 
-  let linkage = Dict.register
-      ~uuid:"bf5eb1d0-9a14-4274-a9fd-de9c34430c44"
-      "fn-linkage" (module Linkage)
+  let linkage = Dict.register "fn-linkage" (module Linkage)
 end
 
 let create_exn

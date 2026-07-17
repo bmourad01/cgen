@@ -26,23 +26,15 @@ end
 include T
 
 module Tag = struct
-  let align = Dict.register
-      ~uuid:"e1099f19-c478-4e89-a462-15af393068ad"
-      "data-align" (module Int)
+  let align = Dict.register "data-align" (module Int)
 
-  let linkage = Dict.register
-      ~uuid:"c3c1ad03-b3d7-42b5-8529-b21b7d04173b"
-      "data-linkage" (module Linkage)
+  let linkage = Dict.register "data-linkage" (module Linkage)
 
-  let const = Dict.register
-      ~uuid:"41f13eba-baa9-44c4-96cc-4729aaf1eb55"
-      "data-const" (module Unit)
+  let const = Dict.register "data-const" (module Unit)
 
   (* The symbol this one aliases (`__attribute__((alias(...)))`). An alias
      carries no elements; it is emitted as a symbol assignment. *)
-  let alias = Dict.register
-      ~uuid:"b7e4d2a1-6f83-4c05-9a1e-2d7c8f0e5a6b"
-      "data-alias" (module String)
+  let alias = Dict.register "data-alias" (module String)
 end
 
 let create_exn

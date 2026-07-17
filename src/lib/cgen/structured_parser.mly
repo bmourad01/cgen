@@ -33,9 +33,7 @@
       let pp _ppf _t = ()
     end
 
-    let tag = Dict.register
-        ~uuid:"c487156f-eec6-47bc-83ec-daf3b838dba2"
-        "structured-parser-env" (module Env)
+    let tag = Dict.register "structured-parser-env" (module Env)
 
     open Context.Syntax
 

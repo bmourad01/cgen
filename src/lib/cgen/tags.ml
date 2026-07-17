@@ -3,22 +3,15 @@
 open Core
 
 (* SSA invariant. *)
-let ssa = Dict.register
-    ~uuid:"fe85f122-1f49-4248-bdd1-970f4856c419"
-    "fn-ssa" (module Unit)
+let ssa = Dict.register "fn-ssa" (module Unit)
 
 (* A division or remainder whose RHS is known to be nonzero. *)
-let div_rem_nonzero = Dict.register
-    ~uuid:"63453523-dbfd-4bda-b93c-ac47e1a98ee9"
-    "div-rem-nonzero" (module Unit)
+let div_rem_nonzero = Dict.register "div-rem-nonzero" (module Unit)
 
 (* Stack has been laid out. *)
-let stack_laid_out = Dict.register
-    ~uuid:"dcb47c73-b6be-421a-875b-5cbbd857aab3"
-    "stack-laid-out" (module Unit)
+let stack_laid_out = Dict.register "stack-laid-out" (module Unit)
 
-let phi_var = Dict.register
-    ~uuid:"d4f9b426-c84a-47a6-827d-5de610f00cbe" "phi-var"
+let phi_var = Dict.register "phi-var"
     (module struct
       include Var.Set
       let pp ppf s =
@@ -29,6 +22,4 @@ let phi_var = Dict.register
           (Set.to_list s)
     end)
 
-let needs_stack_frame = Dict.register
-    ~uuid:"bd4f4a42-723a-4d31-b0ab-e63ba432a9e5"
-    "pseudo-fn-needs-stack-frame" (module Unit)
+let needs_stack_frame = Dict.register "pseudo-fn-needs-stack-frame" (module Unit)
