@@ -12,7 +12,7 @@
 
 (test
  (name test_c)
- (libraries cgen-c cgen.utils cgen golden ounit2 native)
+ (libraries cgen-c cgen golden ounit2 native)
  (modules test_c)
  (ocamlopt_flags -O3)
  (deps
@@ -20,7 +20,7 @@
 
 (library
  (name native)
- (libraries cgen cgen.utils golden ounit2 shexp.process)
+ (libraries cgen golden ounit2 shexp.process)
  (modules native)
  (ocamlopt_flags -O3))
 
@@ -35,7 +35,7 @@
 
 (library
  (name test_allen)
- (libraries cgen cgen.utils)
+ (libraries cgen.utils)
  (modules test_allen)
  (ocamlopt_flags -O3)
  (inline_tests)
@@ -45,7 +45,7 @@
 (library
  (name test_float32)
  (modules test_float32)
- (libraries cgen)
+ (libraries cgen.utils)
  (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
@@ -54,7 +54,7 @@
 (library
  (name test_bv_interval)
  (modules test_bv_interval)
- (libraries cgen)
+ (libraries cgen.utils)
  (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
@@ -63,7 +63,7 @@
 (library
  (name test_bitset)
  (modules test_bitset)
- (libraries cgen)
+ (libraries cgen.containers)
  (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
@@ -72,7 +72,7 @@
 (library
  (name test_dense)
  (modules test_dense)
- (libraries cgen)
+ (libraries cgen.containers)
  (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
@@ -81,7 +81,7 @@
 (library
  (name test_rrb)
  (modules test_rrb)
- (libraries cgen)
+ (libraries cgen.containers)
  (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
@@ -90,7 +90,7 @@
 (library
  (name test_ftree)
  (modules test_ftree)
- (libraries cgen)
+ (libraries cgen.containers)
  (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
@@ -99,7 +99,7 @@
 (library
  (name test_champ)
  (modules test_champ)
- (libraries cgen)
+ (libraries cgen.containers)
  (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
@@ -108,7 +108,7 @@
 (library
  (name test_small_map)
  (modules test_small_map)
- (libraries cgen)
+ (libraries cgen.containers)
  (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
@@ -117,7 +117,7 @@
 (library
  (name test_hdict)
  (modules test_hdict)
- (libraries cgen)
+ (libraries cgen.containers)
  (ocamlopt_flags -O3)
  (inline_tests)
  (preprocess
