@@ -3,22 +3,22 @@ module sumphi
 function $sum(l %1/rdi) {
   %0 = slot 8, align 8
 @2:
-  st.l %1, %0 ; @22
-  %14 = ld.w %0 ; @4
-  %23 = add.l %0, 0x4_l ; @19
-  %16 = ld.w %23 ; @6
-  %24 = add.w %14, %16 ; @20
-  ret rax/%24
+  st.l %1, %0 ; @24
+  %39 = ld.w %0 ; @4
+  %40 = add.l %0, 0x4_l ; @19
+  %41 = ld.w %40 ; @6
+  %42 = add.w %39, %41 ; @20
+  ret rax/%42
 }
 
 export function $sumphi(l %8/rdi, l %9/rsi, w %11/rdx) {
 @8:
-  %42 = slt.w %11, 0x0_w ; @21
-  br %42, @9, @10
+  %48 = slt.w %11, 0x0_w ; @21
+  br %48, @9, @10
 @9:
   jmp @14(%8)
 @10:
   jmp @14(%9)
-@14(%43):
-  tailcall $sum(%43/rdi)
+@14(%49):
+  tailcall $sum(%49/rdi)
 }

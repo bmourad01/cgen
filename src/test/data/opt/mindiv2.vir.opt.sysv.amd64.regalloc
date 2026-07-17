@@ -2,33 +2,33 @@ module mindiv2
 
 export function $f {
 @2:
-  push rbp ; @84
-  mov rbp, rsp ; @85
-  sub rsp, 0x10_l ; @86
-  movss dword ptr [rbp - 0xc], xmm0 ; @78
-  movss dword ptr [rbp - 0x10], xmm1 ; @79
-  movss xmm0, dword ptr [rbp - 0x10] ; @80
-  call $fabsf ; xmm0 ; @76
-  ucomiss xmm0, dword ptr [rip + @69] ; @70
-  jb @3 ; @71
-  jmp @14 ; @72
-  .fp32 @69, 1 ; @73
+  push rbp ; @81
+  mov rbp, rsp ; @82
+  sub rsp, 0x10_l ; @83
+  movss dword ptr [rbp - 0xc], xmm0 ; @75
+  movss dword ptr [rbp - 0x10], xmm1 ; @76
+  movss xmm0, dword ptr [rbp - 0x10] ; @77
+  call $fabsf ; xmm0 ; @73
+  ucomiss xmm0, dword ptr [rip + @66] ; @67
+  jb @3 ; @68
+  jmp @14 ; @69
+  .fp32 @66, 1 ; @70
 @3:
-  movss xmm0, dword ptr [rbp - 0x10] ; @81
-  ucomiss xmm0, dword ptr [rip + @64] ; @65
-  je @14 ; @66
-  jmp @17 ; @67
-  .fp32 @64, 0 ; @68
+  movss xmm0, dword ptr [rbp - 0x10] ; @78
+  ucomiss xmm0, dword ptr [rip + @61] ; @62
+  je @14 ; @63
+  jmp @17 ; @64
+  .fp32 @61, 0 ; @65
 @17:
-  movss xmm0, dword ptr [rbp - 0xc] ; @82
-  mulss xmm0, dword ptr [rip + @61] ; @62
-  .fp32 @61, 1.77636e-15 ; @63
-  movss xmm1, dword ptr [rbp - 0x10] ; @83
-  mulss xmm1, dword ptr [rip + @58] ; @59
-  .fp32 @58, 1.26765e+30 ; @60
-  divss xmm0, xmm1 ; @57
-  call $fabsf ; xmm0 ; @55
+  movss xmm0, dword ptr [rbp - 0xc] ; @79
+  mulss xmm0, dword ptr [rip + @58] ; @59
+  .fp32 @58, 1.77636e-15 ; @60
+  movss xmm1, dword ptr [rbp - 0x10] ; @80
+  mulss xmm1, dword ptr [rip + @55] ; @56
+  .fp32 @55, 1.26765e+30 ; @57
+  divss xmm0, xmm1 ; @54
+  call $fabsf ; xmm0 ; @52
 @14:
-  leave ; @87
-  ud2 ; @52
+  leave ; @84
+  ud2 ; @50
 }

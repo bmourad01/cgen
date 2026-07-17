@@ -9,6 +9,7 @@ module LT = Label.Dense_table
 module Vtree = Var.Tree
 module Vset = Var.Tree_set
 module VS = Var.Dense_set
+module VT = Var.Dense_table
 module Slot = Virtual.Slot
 module Allen = Cgen_utils.Allen_interval_algebra
 
@@ -20,6 +21,26 @@ let pp_tag ppf = function
   | Both -> Format.fprintf ppf "both"
 
 let join_tag a b = if equal_tag a b then a else Both
+
+(* Summary of how a slot is accessed, so that the coalescing can make
+   better decisions.
+
+   [Uniform t]: every access is at offset 0 with type `t`
+   [Mixes]: multiple accesses at varying types/offsets
+*)
+type access =
+  | Uniform of Type.basic
+  | Mixed
+
+let join_access a b = match a, b with
+  | Mixed, _ | _, Mixed -> Mixed
+  | Uniform x, Uniform y -> if Type.equal_basic x y then a else Mixed
+
+(* Two slots may share storage only when their accesses agree. *)
+let compat_access x y = match x, y with
+  | Mixed, Mixed -> true
+  | Uniform a, Uniform b -> Type.equal_basic a b
+  | Uniform _, Mixed | Mixed, Uniform _ -> false
 
 type range = {
   lo : int;
@@ -76,15 +97,17 @@ type candidate = {
   size : int;
   align : int;
   range : range;
+  access : access;
   mutable assigned : bool;
 }
 
-let create_candidate slots rs v =
+let create_candidate slots rs am v =
   let slot = Vtree.find_exn slots v in {
     var = v;
     size = Slot.size slot;
     align = Slot.align slot;
     range = Vtree.find_exn rs v;
+    access = Option.value (VT.find am v) ~default:Mixed;
     assigned = false;
   }
 
@@ -97,6 +120,7 @@ let compat_size_align x y =
    not interfere. *)
 let compat_range x y =
   compat_size_align x y &&
+  compat_access x.access y.access &&
   let a : Allen.t = Range.Algebra.relate x.range y.range in
   Logs.debug (fun m ->
       m "%s: %a, %a: %a%!" __FUNCTION__
@@ -122,19 +146,19 @@ let size_priority x y =
   | 0 -> Int.compare x.align y.align
   | c -> c
 
-let candidates slots rs =
+let candidates slots rs am =
   let vs = Vec.create ~capacity:(Vtree.length rs) () in
   Vtree.to_sequence rs |>
   (* Do not consider escapees. This would mess up
      our heuristics for building the groups. *)
   Sequence.filter ~f:(not @. Range.is_bad @. snd) |>
-  Sequence.map ~f:(create_candidate slots rs @. fst) |>
+  Sequence.map ~f:(create_candidate slots rs am @. fst) |>
   Sequence.iter ~f:(Vec.push vs);
   vs
 
 (* Greedy partitioning algorithm. *)
-let partition slots rs =
-  let vs = candidates slots rs in
+let partition slots rs am =
+  let vs = candidates slots rs am in
   match Vec.length vs with
   | 0 -> []
   | 1 -> [[Vec.front_exn vs]]
@@ -252,9 +276,9 @@ module Make(M : Scalars.L) = struct
       ~f:(fun acc x -> update si acc s x ip l None)
 
   (* Stretch slot ranges around loop back-edges *)
-  let extend_for_loops loop spans rs =
+  let strech_range_around_loops loop spans rs =
     let loop_spans =
-      Ltree.fold spans ~init:Ltree.empty
+      LT.fold spans ~init:Ltree.empty
         ~f:(fun ~key:l ~data:(lo, hi) acc ->
             Loop.loops_of loop l |>
             Sequence.fold ~init:acc ~f:(fun acc lp ->
@@ -301,14 +325,14 @@ module Make(M : Scalars.L) = struct
 
   let liveness cfg blks slots t si =
     let loop = Loop.analyze ~name:"" cfg in
+    let po = compute_postord cfg blks in
     let ip = ref 0 in
-    let nums = Vec.create () in
-    let spans = ref Ltree.empty in
     let store_base = LT.create () in
+    let spans = LT.create ~capacity:(Vec.length po) () in
+    let access = VT.create ~capacity:(Vtree.length slots) () in
     let init =
       VS.fold t.esc ~init:Vtree.empty
         ~f:(fun acc x -> Vtree.set acc ~key:x ~data:Range.bad) in
-    let po = compute_postord cfg blks in
     let acc = Vec.fold_right po ~init ~f:(fun b acc ->
         let l = Blk.label b in
         let lo_ip = !ip in
@@ -317,24 +341,28 @@ module Make(M : Scalars.L) = struct
             let op = Insn.op i in
             let acc = liveness_insn si acc !s !ip i in
             let () = match Insn.load_or_store_to op with
-              | Some (ptr, _, Store) ->
+              | Some (ptr, ty, ldst) ->
                 begin match Vtree.find !s ptr with
-                  | Some Offset (base, _) ->
-                    LT.set store_base ~key:(Insn.label i) ~data:base
+                  | Some Offset (base, off) ->
+                    if is_store ldst then
+                      LT.set store_base ~key:(Insn.label i) ~data:base;
+                    let a = if Int64.(off <> 0L) then Mixed else Uniform ty in
+                    VT.update access base ~f:(function
+                        | Some a' -> join_access a a'
+                        | None -> a)
                   | _ -> ()
                 end
-              | _ -> () in
-            Vec.push nums (Insn.label i);
+              | None -> () in
             s := Sinit.S.transfer_op slots !s op;
             incr ip;
             acc) in
         let ctrl_ip = !ip in
         let acc = liveness_ctrl si acc !s ctrl_ip l @@ Blk.ctrl b in
-        Vec.push nums l;
         incr ip;
-        spans := Ltree.set !spans ~key:l ~data:(lo_ip, ctrl_ip);
+        LT.set spans ~key:l ~data:(lo_ip, ctrl_ip);
         acc) in
-    extend_for_loops loop !spans acc, nums, store_base
+    let acc = strech_range_around_loops loop spans acc in
+    acc, store_base, access
 
   let collect_deads rs store_base =
     LT.fold store_base ~init:Lset.empty
@@ -346,7 +374,7 @@ module Make(M : Scalars.L) = struct
             Lset.add acc label
           | _ -> acc)
 
-  let debug_show slots rs nums deads p subst =
+  let debug_show slots rs deads p subst =
     Logs.debug (fun m ->
         Vtree.iter slots ~f:(fun ~key:x ~data:_ ->
             let ppr ppf x = match Vtree.find rs x with
@@ -354,10 +382,7 @@ module Make(M : Scalars.L) = struct
               | Some r when Range.is_bad r ->
                 Format.fprintf ppf "bad"
               | Some r ->
-                Format.fprintf ppf "%a (%a to %a)"
-                  Range.pp r
-                  Label.pp (Vec.get_exn nums r.lo)
-                  Label.pp (Vec.get_exn nums (r.hi - 1)) in
+                Format.fprintf ppf "%a" Range.pp r in
             m "%s: %a: %a%!" __FUNCTION__ Var.pp x ppr x));
     Logs.debug (fun m ->
         List.iter p ~f:(fun g ->
@@ -387,10 +412,10 @@ module Make(M : Scalars.L) = struct
       let blks = Func.map_of_blks fn in
       let t = Sinit.S.analyze cfg blks slots in
       let si = Sinit.analyze' t cfg blks slots in
-      let rs, nums, store_base = liveness cfg blks slots t si in
-      let p = partition slots rs in
+      let rs, store_base, access = liveness cfg blks slots t si in
+      let p = partition slots rs access in
       let deads = collect_deads rs store_base in
       let subst = make_subst slots p in
-      debug_show slots rs nums deads p subst;
+      debug_show slots rs deads p subst;
       {subst; deads}
 end

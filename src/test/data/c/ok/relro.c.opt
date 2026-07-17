@@ -1,0 +1,24 @@
+module relro
+
+export const data $name = {
+  $.str0
+}
+
+const data $.str0 = {
+  "world",
+  z 1
+}
+
+export function $copy_str(l %2, l %3) {
+@29:
+  jmp @2(%3, %2)
+@2(%43, %44):
+  %67 = add.l %44, 0x1_l ; @32
+  %68 = add.l %43, 0x1_l ; @33
+  %59 = ld.b %43 ; @13
+  st.b %59, %44 ; @9
+  %69 = eq.b %59, 0x0_b ; @34
+  br %69, @3, @2(%68, %67)
+@3:
+  ret
+}

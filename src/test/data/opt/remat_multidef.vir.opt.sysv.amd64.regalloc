@@ -15,73 +15,55 @@ data $.str0 = {
 
 export function $safe_div_func_uint8_t_u_u {
 @2:
-  ud2 ; @88
+  ud2 ; @84
 }
 
 export function $main { ; returns: rax
 @4:
-  push rbp ; @131
-  mov rbp, rsp ; @132
-  sub rsp, 0x18_l ; @133
-  push r12 ; @134
-  push r13 ; @135
-  push r14 ; @136
-  push r15 ; @137
-  push rbx ; @138
-  xor r14d, r14d ; @124
-  mov eax, 0x2_w ; @125
-  mov dword ptr [rbp - 0x18], eax ; @127
+  push rbp ; @116
+  mov rbp, rsp ; @117
+  push r12 ; @118
+  push r13 ; @119
+  push r14 ; @120
+  push rbx ; @121
+  mov r14d, 0x2_w ; @114
 @5:
-  mov eax, dword ptr [rbp - 0x18] ; @128
-  test eax, eax ; @121
-  je @10 ; @122
-@89:
-  xor r13d, r13d ; @117
-  mov r15d, 0x9_w ; @118
+  test r14d, r14d ; @111
+  je @10 ; @112
+@85:
+  xor r12d, r12d ; @108
+  mov r13d, 0x9_w ; @109
 @13:
-  test r13d, r13d ; @114
-  jne @18 ; @115
+  test r12d, r12d ; @105
+  jne @18 ; @106
 @19:
-  mov byte ptr [rbp - 0x10], r15b ; @25
-  movsx eax, r15b ; @75
-  lea r15d, qword ptr [rax + 0x1] ; @76
-  movsx r12d, r15b ; @78
-  xor ebx, ebx ; @110
+  movsx eax, r13b ; @75
+  lea r13d, qword ptr [rax + 0x1] ; @76
+  movsx ebx, r13b ; @78
 @23:
-  cmp r12d, 0x2_w ; @107
-  jle @32 ; @108
+  cmp ebx, 0x2_w ; @99
+  jle @32 ; @100
 @33:
-  mov dword ptr [rbp - 0x10], r13d ; @56
-  dec r13d ; @84
-  mov dword ptr [rbp - 0x10], r14d ; @61
-  dec r14d ; @85
-  jmp @13 ; @106
+  dec r12d ; @81
+  jmp @13 ; @98
 @32:
-  mov word ptr [rbp - 0x10], 0x0_h ; @40
   mov word ptr [rip + $g_428], 0x0_h ; @42
-  movzx edi, word ptr [rbp - 0x10] ; @43
-  call $safe_div_func_uint8_t_u_u ; rdi ; @101
-  mov dword ptr [rbp - 0x10], ebx ; @48
-  movsx eax, al ; @82
-  and ebx, eax ; @100
-  jmp @23 ; @99
+  xor edi, edi ; @45
+  call $safe_div_func_uint8_t_u_u ; rdi ; @94
+  jmp @23 ; @93
 @18:
-  mov eax, dword ptr [rbp - 0x18] ; @129
-  mov dword ptr [rbp - 0x10], eax ; @66
-  dec eax ; @74
-  mov dword ptr [rbp - 0x18], eax ; @130
-  jmp @5 ; @97
+  dec r14d ; @74
+  jmp @5 ; @92
 @10:
   mov rsi, qword ptr [rip + $platform_main_end_x] ; @70
   lea rdi, qword ptr [rip + $.str0] ; @71
-  xor eax, eax ; @93
-  call $printf ; rax rdi rsi ; @94
-  xor eax, eax ; @90
-  pop rbx ; @139
-  pop r15 ; @140
-  pop r14 ; @141
-  pop r13 ; @142
-  pop r12 ; @143
-  leave ; @144
-  ret ; @91
+  xor eax, eax ; @89
+  call $printf ; rax rdi rsi ; @90
+  xor eax, eax ; @86
+  pop rbx ; @122
+  pop r14 ; @123
+  pop r13 ; @124
+  pop r12 ; @125
+  leave ; @126
+  ret ; @87
 }

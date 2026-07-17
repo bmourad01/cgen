@@ -3,32 +3,32 @@ module unref
 function $sum(l %1/rdi) {
   %0 = slot 8, align 8
 @2:
-  st.l %1, %0 ; @22
-  %18 = ld.w %0 ; @4
-  %28 = add.l %0, 0x4_l ; @19
-  %20 = ld.w %28 ; @6
-  %29 = add.w %18, %20 ; @20
-  ret rax/%29
+  st.l %1, %0 ; @24
+  %44 = ld.w %0 ; @4
+  %45 = add.l %0, 0x4_l ; @19
+  %46 = ld.w %45 ; @6
+  %47 = add.w %44, %46 ; @20
+  ret rax/%47
 }
 
 export function $sump(l %7/rdi) {
 @8:
-  %42 = ld.l %7 ; @25
-  tailcall $sum(%42/rdi)
+  %48 = ld.l %7 ; @25
+  tailcall $sum(%48/rdi)
 }
 
 export function $mkt(w %10/rdi, w %12/rsi) {
   %9 = slot 8, align 8
 @11:
   st.w %10, %9 ; @12
-  %30 = add.l %9, 0x4_l ; @21
-  st.w %12, %30 ; @14
-  %37 = ld.l %9 ; @28
-  ret rax/%37
+  %51 = add.l %9, 0x4_l ; @21
+  st.w %12, %51 ; @14
+  %52 = ld.l %9 ; @28
+  ret rax/%52
 }
 
 export function $sumt(w %15/rdi, w %16/rsi) {
 @16:
-  %45/l/rax = call $mkt(%15/rdi, %16/rsi) ; @17
-  tailcall $sum(%45/rdi)
+  %55/l/rax = call $mkt(%15/rdi, %16/rsi) ; @17
+  tailcall $sum(%55/rdi)
 }
