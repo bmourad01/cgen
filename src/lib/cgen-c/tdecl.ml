@@ -108,7 +108,7 @@ let to_type_params (ps : param list) : Texpr.t Type.param list =
 let pp_param ppf {pname; pty} =
   Type.pp_named_with Texpr.pp ppf pty ~name:pname
 
-let pp_field ppf {fname; fty; fbits} =
+let pp_field ppf {fname; fty; fbits; _} =
   Type.pp_named_with Texpr.pp ppf fty ~name:fname;
   Option.iter fbits ~f:(fun b -> Format.fprintf ppf " : %d" b);
   Format.pp_print_char ppf ';'
@@ -125,8 +125,17 @@ let pp_function_modifiers ppf ~inline ~noreturn =
   if noreturn then Format.pp_print_string ppf "_Noreturn "
 
 let pp ppf = function
-  | Dfundef {name; params; variadic; ret; body; linkage; inline; noreturn;
-             labaddrs = _} ->
+  | Dfundef {
+      name;
+      params;
+      variadic;
+      ret;
+      body;
+      linkage;
+      inline;
+      noreturn;
+      _
+    } ->
     Format.fprintf ppf "@[<v 2>";
     pp_linkage_prefix ppf linkage;
     pp_function_modifiers ppf ~inline ~noreturn;
@@ -138,7 +147,7 @@ let pp ppf = function
     Type.pp_named_with Texpr.pp ppf ty ~name;
     Tstmt.pp_inline_body ppf body;
     Format.fprintf ppf "@]"
-  | Dfundecl {name; params; variadic; ret; linkage} ->
+  | Dfundecl {name; params; variadic; ret; linkage; _} ->
     pp_linkage_prefix ppf linkage;
     let ty =
       Type.fun_

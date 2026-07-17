@@ -135,7 +135,7 @@ let pp_localdecl ppf {ldname; ldty; ldinit; ldstorage; ldattrs; ldann = _} =
    Used after a preceding pp_localdecl when emitting
    a comma-separated list that shares a single specifier.
 *)
-let pp_localdecl_cont ppf {ldname; ldty; ldinit; ldstorage = _; ldann = _} =
+let pp_localdecl_cont ppf {ldname; ldty; ldinit; _} =
   Type.pp_declarator_with Expr.pp ppf ldty ~name:ldname;
   Option.iter ldinit ~f:(fun i ->
       Format.pp_print_string ppf " = ";
