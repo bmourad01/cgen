@@ -30,9 +30,9 @@ jobs:
       - name: Build cgen
         run: |
           eval $(opam env)
-          make
+          make DEBUG=1
 
       - name: Run the tests
         run: |
           eval $(opam env)
-          make test
+          make test DEBUG=1

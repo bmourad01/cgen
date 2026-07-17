@@ -48,4 +48,4 @@ jobs:
       - name: Check the docs
         run: |
           eval $(opam env)
-          make check-docs
+          make check-docs DEBUG=1
