@@ -158,19 +158,20 @@ let access_bfunit u ~size ~is_member_byte =
   if covers u.bfstorage u.bfsize
   && not (touches u.bfstorage (u.bfstorage + u.bfsize))
   then Some (u.bfstorage, u.bfsize)
-  else
+  else with_return @@ fun {return} ->
     (* Otherwise narrow to the smallest covering, member-free unit. *)
-    List.find_map [1; 2; 4; 8] ~f:(fun w ->
-        let a = (x_lo / w) * w in
-        Option.some_if
-          (w <= u.bfsize && covers a w && not (touches a (a + w)))
-          (a, w)) |> function
-    | Some _ as r -> r
-    | None ->
-      (* No member-free unit, so use the natural unit if it still covers
-         the field in bounds (read-modify-write keeps the overlap intact).
-         Otherwise, the field straddles and is accessed byte by byte. *)
-      Option.some_if (covers u.bfstorage u.bfsize) (u.bfstorage, u.bfsize)
+    for i = 0 to 3 do
+      let w = 1 lsl i in
+      let a = (x_lo / w) * w in
+      if w <= u.bfsize
+      && covers a w
+      && not (touches a (a + w))
+      then return @@ Some (a, w)
+    done;
+    (* No member-free unit, so use the natural unit if it still covers
+       the field in bounds (read-modify-write keeps the overlap intact).
+       Otherwise, the field straddles and is accessed byte by byte. *)
+    Option.some_if (covers u.bfstorage u.bfsize) (u.bfstorage, u.bfsize)
 
 (* Check that the bitfield fits in the declared type. *)
 let check_bitfield_width dm name ty w =
