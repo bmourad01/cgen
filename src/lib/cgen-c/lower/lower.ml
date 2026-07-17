@@ -20,6 +20,7 @@ module Target = Cgen.Target
 module E = Lower_expr
 module Smap = E.Smap
 module Bf = Layout.Bitfield
+module Err = Cgen_utils.Monads.Error
 
 open Ctx.Syntax
 
@@ -438,6 +439,17 @@ let lower_global
 
 (* {1 Translation unit} *)
 
+
+(* Private data for interned string literals (NUL-terminated).
+
+   String literals are read-only objects (§6.4.5 ¶6: modifying one is
+   undefined), so they are emitted `const` and land in `.rodata`.
+*)
+let create_str_data strings =
+  let dict = Dict.set Dict.empty V.Data.Tag.const () in
+  Hashtbl.to_alist strings |> Err.List.map ~f:(fun (s, name) ->
+      V.Data.create ~dict ~name ~elts:[`string s; `zero 1] ())
+
 let module_ ~name (tc : Tcunit.t) =
   let layout = Tcunit.layout tc in
   let strings = String.Table.create () in
@@ -471,7 +483,5 @@ let module_ ~name (tc : Tcunit.t) =
   let funs = List.filter_map items ~f:(function `Fun f -> Some f | _ -> None) in
   let data = List.filter_map items ~f:(function `Data d -> Some d | _ -> None) in
   let typs = List.filter_map items ~f:(function `Type t -> Some t | _ -> None) in
-  (* Private data for interned string literals (NUL-terminated). *)
-  let+ str_data = Hashtbl.to_alist strings |> Ctx.List.map ~f:(fun (s, sym) ->
-      Ctx.lift_err @@ V.Data.create ~name:sym ~elts:[`string s; `zero 1] ()) in
+  let+? str_data = create_str_data strings in
   S.Module.create ~name ~typs ~data:(data @ str_data) ~funs ()

@@ -5,7 +5,7 @@ type :Ins = {
   w
 }
 
-data $.str0 = {
+const data $.str0 = {
   "whoami",
   z 1
 }

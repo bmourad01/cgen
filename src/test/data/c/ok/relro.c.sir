@@ -1,0 +1,47 @@
+module relro
+
+export const data $name = {
+  $.str0
+}
+
+const data $.str0 = {
+  "world",
+  z 1
+}
+
+export function $copy_str(l %2, l %3) {
+  %0 = slot 8, align 8
+  %1 = slot 8, align 8
+  %4 = slot 8, align 8
+  %5 = slot 8, align 8
+  %6 = slot 1, align 1
+start:
+  st.l %2, %0;
+  st.l %3, %1;
+  while ne.w 0x1_w, 0x0_w {
+    %7 = ld.l %0;
+    st.l %7, %4;
+    %8 = ld.l %4;
+    %9 = sext.l 0x1_w;
+    %10 = add.l %8, %9;
+    st.l %10, %0;
+    %11 = ld.l %1;
+    st.l %11, %5;
+    %12 = ld.l %5;
+    %13 = sext.l 0x1_w;
+    %14 = add.l %12, %13;
+    st.l %14, %1;
+    %15 = ld.l %5;
+    %16 = ld.b %15;
+    st.b %16, %6;
+    %17 = ld.l %4;
+    %18 = ld.b %6;
+    st.b %18, %17;
+    %19 = ld.b %6;
+    %20 = eq.b %19, 0x0_b;
+    %21 = flag.w %20;
+    when ne.w %21, 0x0_w {
+      break
+    }
+  }
+}

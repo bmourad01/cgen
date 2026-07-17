@@ -227,6 +227,7 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "sizeof of a typedef-name" "sizeof_typedef";
     ok_case "Typedef-name parameter ambiguity" "param_typedef_paren";
     ok_case ~sir:true ~warn:true "Implicit int and CIL torture cases" "cil016";
+    ok_case ~sir:true "Relro (hello world)" "relro";
   ]
 
 let native_suite = "C frontend: native execution" >::: [
@@ -281,6 +282,8 @@ let native_suite = "C frontend: native execution" >::: [
     "Function-type typedefs (SysV AMD64)" >:: test_sysv_amd64_native "func_typedef";
     "Incomplete/forward struct types (SysV AMD64)" >:: test_sysv_amd64_native "incomplete_types";
     "Hello world (SysV AMD64)" >:: test_sysv_amd64_native_pp "hello";
+    "Hello world 2 (SysV AMD64)" >:: test_sysv_amd64_native_pp "hello2";
+    "Relro/hello world 3 (SysV AMD64)" >:: test_sysv_amd64_native_pp "relro";
   ]
 
 let fail_suite = "C frontend: rejected programs" >::: [

@@ -97,7 +97,7 @@ export data $g_pcarr = {
   $g_arr+0xc
 }
 
-data $.str0 = {
+const data $.str0 = {
   "hello",
   z 1
 }

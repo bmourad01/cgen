@@ -52,7 +52,7 @@ data $pbar.1 = {
   $bar
 }
 
-data $.str0 = {
+const data $.str0 = {
   "",
   z 1
 }

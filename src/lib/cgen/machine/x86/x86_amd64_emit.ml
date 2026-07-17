@@ -22,6 +22,12 @@ let label ppf (l : Label.t) =
 let global ppf name =
   Format.fprintf ppf ".global %s\n" name
 
+let is_sym = function
+  | `sym _ -> true
+  | _ -> false
+
+let has_sym d = Data.elts d |> Sequence.exists ~f:is_sym
+
 let emit_linkage ppf name lnk =
   if Linkage.weak lnk then Format.fprintf ppf ".weak %s\n" name
   else if Linkage.export lnk then global ppf name;
@@ -70,10 +76,14 @@ let emit_data ppf d =
     emit_linkage ppf name lnk;
     Format.fprintf ppf ".set %s, %s\n" name target
   | None ->
-    let section =
-      (* If the user specified a section, then override the "const" qualifier. *)
-      let default = if Data.const d then ".rodata" else ".data" in
-      Linkage.section lnk |> Option.value ~default in
+    (* If the user specified a section, then override the "const" qualifier.
+       Otherwise, if a `const` datum carries a reference to another symbol,
+       then, assuming we're assembling to a PIE, it cannot live in `.rodata`. *)
+    let section = match Linkage.section lnk with
+      | None when not (Data.const d)  -> ".data"
+      | None when has_sym d -> ".data.rel.ro"
+      | None -> ".rodata"
+      | Some s -> s in
     Format.fprintf ppf ".section %s\n" section;
     Data.align d |> Option.iter ~f:(Format.fprintf ppf ".align %d\n");
     emit_linkage ppf name lnk;
