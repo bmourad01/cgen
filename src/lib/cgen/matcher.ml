@@ -521,7 +521,7 @@ module Make(M : L) = struct
         failwithf "compile_tree: invalid root at rule %d" i ()
 
     let compile ?(commute = false) ~name rules =
-      let[@alert "-deprecated"] t0 = Time.now () in
+      let t0 = Time_float.now () in
       let rule = Array.of_list rules in
       let code = Vec.create () in
       let w = Queue.create ~capacity:7 () in
@@ -539,8 +539,8 @@ module Make(M : L) = struct
           let prio = compute_priority code in
           let depth, regs = compute_caps code in
           prio, root, depth, regs in
-      let[@alert "-deprecated"] t = Time.now () in
-      let[@alert "-deprecated"] elapsed = Time.(Span.to_sec (diff t t0)) in
+      let t = Time_float.now () in
+      let elapsed = Time_float.(Span.to_sec (diff t t0)) in
       Logs.debug (fun m ->
           m "%s: ruleset %S: compiled %d rules to %d instructions in %g seconds, \
              commute=%b, maxd=%d, maxr=%d%!"

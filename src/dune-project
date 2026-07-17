@@ -24,11 +24,11 @@
  (depends
   cmdliner
   (core
-   (>= v0.15))
+   (>= v0.16))
   (core_kernel
-   (>= v0.15))
+   (>= v0.16))
   (core_unix
-   (>= v0.15))
+   (>= v0.16))
   dune
   fmt
   logs
