@@ -1,0 +1,65 @@
+module symdisp
+
+export data $A = {
+  z 64
+}
+
+export data $B = {
+  z 64
+}
+
+export function $load_disp { ; returns: rax
+@2:
+  mov %20:l, qword ptr [rip + $A+80] ; @4
+  mov rax, %20:l ; @33
+  ret ; @34
+}
+
+export function $store_disp {
+@5:
+  mov %3:l, rdi ; @7
+  mov qword ptr [rip + $A+80], %3:l ; @36
+  ret ; @35
+}
+
+export function $store_imm_disp {
+@8:
+  mov dword ptr [rip + $A+24], 0x1234_w ; @10
+  ret ; @37
+}
+
+export function $load_sext_disp { ; returns: rax
+@11:
+  movsx %37:l, byte ptr [rip + $A+8] ; @32
+  mov rax, %37:l ; @38
+  ret ; @39
+}
+
+export function $load_neg_disp { ; returns: rax
+@15:
+  mov %27:l, qword ptr [rip + $A-8] ; @17
+  mov rax, %27:l ; @40
+  ret ; @41
+}
+
+export function $copy {
+@18:
+  mov %28:l, qword ptr [rip + $A] ; @19
+  mov qword ptr [rip + $B], %28:l ; @20
+  mov %30:l, qword ptr [rip + $A+8] ; @22
+  mov qword ptr [rip + $B+8], %30:l ; @24
+  mov %33:l, qword ptr [rip + $A+16] ; @26
+  mov qword ptr [rip + $B+16], %33:l ; @28
+  ret ; @42
+}
+
+export function $load_big_disp { ; returns: rax
+@29:
+  mov %39:l, 0x100000000_l ; @31
+  lea %38:l, qword ptr [rip + $A] ; @45
+  add %38:l, %39:l ; @46
+  mov %40:l, qword ptr [%38] ; @47
+  mov %36:l, %40:l ; @48
+  mov rax, %36:l ; @43
+  ret ; @44
+}

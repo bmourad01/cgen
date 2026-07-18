@@ -222,6 +222,10 @@ end = struct
      linker rejects when building a PIE). *)
   let lea_sym dst s o = I.lea (Oreg (dst, `i64)) (Omem (Asym (s, o), `i64))
 
+  (* Check that the "built-in" symbol offset would fit in the signed imm32
+     of a displacement. *)
+  let sym_disp_fits o = fits_sext32 (Int64.of_int o)
+
   (* Rule callbacks. *)
 
   let move_rr_x_y ?(zx = false) env =
@@ -283,7 +287,13 @@ end = struct
   let move_rsym_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! s, o = S.sym env "y" in
-    !!![I.lea (Oreg (x, xt)) (Omem (Asym (s, o), `i64))]
+    if sym_disp_fits o then
+      !!![I.lea (Oreg (x, xt)) (Omem (Asym (s, o), `i64))]
+    else
+      let@ oo = with_imm `i64 (Int64.of_int o) `i64 in !!![
+        I.lea (Oreg (x, `i64)) (Omem (Asym (s, 0), `i64));
+        I.add (Oreg (x, `i64)) oo;
+      ]
 
   let move_float_x_y i f s t env =
     let*! x, xt = S.regvar env "x" in
@@ -1193,18 +1203,21 @@ end = struct
   let load_sym_x_y env =
     let*! x, xt = S.regvar env "x" in
     let*! s, o = S.sym env "y" in
+    let*! () = guard @@ sym_disp_fits o in
     let addr = Omem (Asym (s, o), mty xt) in
     !!![load_typed xt x addr]
 
   let load_sext_sym_x_y zt env =
     let*! x, xt = S.regvar env "x" in
     let*! s, o = S.sym env "y" in
+    let*! () = guard @@ sym_disp_fits o in
     let addr = Omem (Asym (s, o), mty zt) in
     !!![sext_load_typed xt zt x addr]
 
   let load_zext_sym_x_y zt env =
     let*! x, _ = S.regvar env "x" in
     let*! s, o = S.sym env "y" in
+    let*! () = guard @@ sym_disp_fits o in
     let addr = Omem (Asym (s, o), mty zt) in
     !!![zext_load_typed zt x addr]
 
@@ -1422,13 +1435,15 @@ end = struct
 
   let store_symr_x_y env =
     let*! x, xt = S.regvar env "x" in
-    let*! s, o = S.sym env "y" in !!![
+    let*! s, o = S.sym env "y" in
+    let*! () = guard @@ sym_disp_fits o in !!![
       I.mov (Omem (Asym (s, o), mty xt)) (Oreg (x, xt));
     ]
 
   let store_symi_x_y env =
     let*! x, xt = S.imm env "x" in
     let*! s, o = S.sym env "y" in
+    let*! () = guard @@ sym_disp_fits o in
     let@ i = with_imm xt (Bv.to_int64 x) xt in
     !!![I.mov (Omem (Asym (s, o), mty xt)) i]
 

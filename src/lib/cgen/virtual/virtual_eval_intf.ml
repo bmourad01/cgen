@@ -27,6 +27,20 @@ module type S = sig
     float ->
     [`bool of bool | `double of float] option
 
+  (** [binop_sym ?swap o s k] evaluates a binary operator [o] combining the
+      symbol [s] (a name and a byte offset) with the integer constant [k],
+      folding the result back into a symbolic constant when it is defined.
+
+      [swap] indicates that the symbol was the right-hand operand, which is
+      only meaningful for the commutative [add].
+  *)
+  val binop_sym :
+    ?swap:bool ->
+    Insn.binop ->
+    (string * int) ->
+    Bv.t ->
+    [`sym of string * int] option
+
   (** [unop_int o x ty] evaluates a unary operator [o] over the integer
       [x] with type [ty], and returns the result if it is defined. *)
   val unop_int :

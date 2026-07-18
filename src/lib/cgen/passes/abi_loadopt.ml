@@ -235,6 +235,10 @@ module Optimize = struct
       (Abi.Eval.binop_single o a b :> const option)
     | `double a, `double b ->
       (Abi.Eval.binop_double o a b :> const option)
+    | `sym s, `int (k, _) ->
+      (Abi.Eval.binop_sym o s k :> const option)
+    | `int (k, _), `sym s ->
+      (Abi.Eval.binop_sym o s k ~swap:true :> const option)
     | _ -> None
 
   let eval_uop o = function

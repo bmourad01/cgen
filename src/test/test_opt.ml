@@ -216,6 +216,7 @@ let opt_suite = "Test optimizations" >::: [
     "Select arms are booleans (negated)" >:: test "selflagneg";
     "Folding addition" >:: test "foldadd";
     "Folding addition (big)" >:: test "foldaddbig";
+    "Folding symbol displacement" >:: test "symdisp";
     "CSE (simple addition)" >:: test "cseaddsimple";
     "Negation from add and NOT" >:: test "negfromaddnot";
     "Negation from add and NOT (reversed)" >:: test "negfromaddnotrev";
@@ -405,6 +406,7 @@ let isel_suite = "Test instruction selection" >::: [
     "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64 "sext_zext_load";
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64 "load_store";
     "Store immediate to symbol (SysV AMD64)" >:: test_sysv_amd64 "store_symi";
+    "Folding symbol displacement (SysV AMD64)" >:: test_sysv_amd64 "symdisp";
     "Select on float comparison (SysV AMD64)" >:: test_sysv_amd64 "sel_fcmp";
     "Comparison with immediate on the left (SysV AMD64)" >:: test_sysv_amd64 "setcc_imm_left";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64 "narrow_promote";
@@ -469,6 +471,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "sext/zext load fusion (SysV AMD64)" >:: test_sysv_amd64_regalloc "sext_zext_load";
     "Load/store addressing modes (SysV AMD64)" >:: test_sysv_amd64_regalloc "load_store";
     "Store immediate to symbol (SysV AMD64)" >:: test_sysv_amd64_regalloc "store_symi";
+    "Folding symbol displacement (SysV AMD64)" >:: test_sysv_amd64_regalloc "symdisp";
     "Select on float comparison (SysV AMD64)" >:: test_sysv_amd64_regalloc "sel_fcmp";
     "Comparison with immediate on the left (SysV AMD64)" >:: test_sysv_amd64_regalloc "setcc_imm_left";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_regalloc "narrow_promote";

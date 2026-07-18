@@ -145,6 +145,10 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       (Eval.binop_single o a b :> Virtual.const option)
     | `double a, `double b ->
       (Eval.binop_double o a b :> Virtual.const option)
+    | `sym s, `int (k, _) ->
+      (Eval.binop_sym o s k :> Virtual.const option)
+    | `int (k, _), `sym s ->
+      (Eval.binop_sym o s k ~swap:true :> Virtual.const option)
     | _ -> None
 
   let eval_unop o = function

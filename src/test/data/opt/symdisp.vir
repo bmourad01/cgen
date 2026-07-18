@@ -1,0 +1,67 @@
+module symdisp
+
+export data $A = {
+  z 64
+}
+
+export data $B = {
+  z 64
+}
+
+export function l $load_disp() {
+@start:
+  %p = add.l $A, 0x50_l
+  %r = ld.l %p
+  ret %r
+}
+
+export function $store_disp(l %v) {
+@start:
+  %p = add.l $A, 0x50_l
+  st.l %v, %p
+  ret
+}
+
+export function $store_imm_disp() {
+@start:
+  %p = add.l $A, 0x18_l
+  st.w 0x1234_w, %p
+  ret
+}
+
+export function l $load_sext_disp() {
+@start:
+  %p = add.l $A, 0x8_l
+  %b = ld.b %p
+  %r = sext.l %b
+  ret %r
+}
+
+export function l $load_neg_disp() {
+@start:
+  %p = sub.l $A, 0x8_l
+  %r = ld.l %p
+  ret %r
+}
+
+export function $copy() {
+@start:
+  %a0 = ld.l $A
+  st.l %a0, $B
+  %pa1 = add.l $A, 0x8_l
+  %a1 = ld.l %pa1
+  %pb1 = add.l $B, 0x8_l
+  st.l %a1, %pb1
+  %pa2 = add.l $A, 0x10_l
+  %a2 = ld.l %pa2
+  %pb2 = add.l $B, 0x10_l
+  st.l %a2, %pb2
+  ret
+}
+
+export function l $load_big_disp() {
+@start:
+  %p = add.l $A, 0x100000000_l
+  %r = ld.l %p
+  ret %r
+}

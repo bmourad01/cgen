@@ -162,6 +162,13 @@ let binop_single o a b =
   | `uo  `f32 -> Some (`bool (is_unordered a b))
   | _ -> None
 
+let binop_sym ?(swap = false) o (s, off) k = match (o : Insn.binop) with
+  | `add #Type.imm ->
+    Some (`sym (s, off + Int64.to_int_trunc (Bv.to_int64 k)))
+  | `sub #Type.imm when not swap ->
+    Some (`sym (s, off - Int64.to_int_trunc (Bv.to_int64 k)))
+  | _ -> None
+
 let binop_double o a b =
   let open Float in
   match (o : Insn.binop) with

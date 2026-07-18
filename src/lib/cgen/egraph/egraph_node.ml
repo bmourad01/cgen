@@ -135,6 +135,10 @@ module Eval = struct
       (binop_single o a b :> const option)
     | Obinop o, [Some `double a; Some `double b] ->
       (binop_double o a b :> const option)
+    | Obinop o, [Some `sym s; Some `int (k, _)] ->
+      (binop_sym o s k :> const option)
+    | Obinop o, [Some `int (k, _); Some `sym s] ->
+      (binop_sym o s k ~swap:true :> const option)
     | Obinop _, _ -> None
     | Obool b, [] -> Some (`bool b)
     | Obool _, _ -> None
