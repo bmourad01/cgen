@@ -38,7 +38,7 @@ let emit op rest : S.stmt = `seq (op, rest)
 let alloc_slot ?align layout name ty =
   (* `Layout.sizeof`/`alignof` require a typedef-free type. *)
   let ty = Type_env.normalize (Layout.tenv layout) ty in
-  let* v = Ctx.Var.fresh in
+  let* v = fresh_var in
   let*? size = Layout.sizeof layout ty in
   let*? natural = Layout.alignof layout ty in
   let align = Option.value_map align ~default:natural ~f:(max natural) in
@@ -76,29 +76,33 @@ let intern_string env s : string =
 
 (* {1 Operator mapping} *)
 
-type bop_kind =
-  | Arith of V.Insn.binop
-  | Cmp of V.Insn.cmp
-
-let bop_kind (op : Texpr.bop) (b : IT.basic) ~signed =
+let transl_bop (op : Texpr.bop) (b : IT.basic) ~signed : V.Insn.binop =
   let i () = imm_of_basic b in
   match op with
-  | `add -> Arith (`add b)
-  | `sub -> Arith (`sub b)
-  | `mul -> Arith (`mul b)
-  | `div -> if signed || not (is_imm b) then Arith (`div b) else Arith (`udiv (i ()))
-  | `mod_ -> if signed then Arith (`rem (i ())) else Arith (`urem (i ()))
-  | `and_ -> Arith (`and_ (i ()))
-  | `or_ -> Arith (`or_ (i ()))
-  | `xor -> Arith (`xor (i ()))
-  | `shl -> Arith (`lsl_ (i ()))
-  | `shr -> if signed then Arith (`asr_ (i ())) else Arith (`lsr_ (i ()))
-  | `eq -> Cmp (`eq b)
-  | `ne -> Cmp (`ne b)
-  | `lt -> if signed && is_imm b then Cmp (`slt (i ())) else Cmp (`lt b)
-  | `gt -> if signed && is_imm b then Cmp (`sgt (i ())) else Cmp (`gt b)
-  | `le -> if signed && is_imm b then Cmp (`sle (i ())) else Cmp (`le b)
-  | `ge -> if signed && is_imm b then Cmp (`sge (i ())) else Cmp (`ge b)
+  | `add -> `add b
+  | `sub -> `sub b
+  | `mul -> `mul b
+  | `div when signed -> `div b
+  | `div when not (is_imm b) -> `div b
+  | `div -> `udiv (i ())
+  | `mod_ when signed -> `rem (i ())
+  | `mod_ -> `urem (i ())
+  | `and_ -> `and_ (i ())
+  | `or_ -> `or_ (i ())
+  | `xor -> `xor (i ())
+  | `shl -> `lsl_ (i ())
+  | `shr when signed -> `asr_ (i ())
+  | `shr -> `lsr_ (i ())
+  | `eq -> `eq b
+  | `ne -> `ne b
+  | `lt when signed && is_imm b -> `slt (i ())
+  | `gt when signed && is_imm b -> `sgt (i ())
+  | `le when signed && is_imm b -> `sle (i ())
+  | `ge when signed && is_imm b -> `sge (i ())
+  | `lt -> `lt b
+  | `gt -> `gt b
+  | `le -> `le b
+  | `ge -> `ge b
 
 (* {1 Address arithmetic (pointer width)} *)
 
@@ -107,7 +111,7 @@ let add_offset env (base : V.operand) off k =
     let pi = ptr_imm env in
     let* x = fresh_var in
     let+ rest = k (`var x) in
-    emit (`bop (x, `add (pi :> IT.basic), base, int_operand pi off)) rest
+    emit (`bop (x, `add (bty pi), base, int_operand pi off)) rest
 
 (* base + index * scale, in pointer width. *)
 let add_scaled env (base : V.operand) (idx : V.operand) ~scale k =
@@ -115,14 +119,14 @@ let add_scaled env (base : V.operand) (idx : V.operand) ~scale k =
   if scale = 1 then
     let* x = fresh_var in
     let+ rest = k (`var x) in
-    emit (`bop (x, `add (pi :> IT.basic), base, idx)) rest
+    emit (`bop (x, `add (bty pi), base, idx)) rest
   else
     let* m = fresh_var in
     let* x = fresh_var in
     let+ rest = k (`var x) in
     S.Stmt.seq [
-      `bop (m, `mul (pi :> IT.basic), idx, int_operand pi scale);
-      `bop (x, `add (pi :> IT.basic), base, `var m);
+      `bop (m, `mul (bty pi), idx, int_operand pi scale);
+      `bop (x, `add (bty pi), base, `var m);
       rest;
     ]
 
@@ -132,14 +136,14 @@ let sub_scaled env (base : V.operand) (idx : V.operand) ~scale k =
   if scale = 1 then
     let* x = fresh_var in
     let+ rest = k (`var x) in
-    emit (`bop (x, `sub (pi :> IT.basic), base, idx)) rest
+    emit (`bop (x, `sub (bty pi), base, idx)) rest
   else
     let* m = fresh_var in
     let* x = fresh_var in
     let+ rest = k (`var x) in
     S.Stmt.seq [
-      `bop (m, `mul (pi :> IT.basic), idx, int_operand pi scale);
-      `bop (x, `sub (pi :> IT.basic), base, `var m);
+      `bop (m, `mul (bty pi), idx, int_operand pi scale);
+      `bop (x, `sub (bty pi), base, `var m);
       rest;
     ]
 
@@ -192,7 +196,6 @@ let bitfield_load_bytewise env ~base ~bf ~ty k =
   let bi = imm_of_basic b in
   let pi = ptr_imm env in
   let p, width, byte_lo, byte_hi = field_span bf in
-  let i64 : IT.imm = `i64 in
   let rec bytes byte acc pre =
     if byte > byte_hi then !!(acc, pre) else
       let* addr = fresh_var in
@@ -202,21 +205,21 @@ let bitfield_load_bytewise env ~base ~bf ~ty k =
         if little then (byte - byte_lo) * 8
         else (byte_hi - byte) * 8 in
       let pre = pre @>* [
-          `bop (addr, `add (pi :> IT.basic), base, int_operand pi byte);
+          `bop (addr, `add (bty pi), base, int_operand pi byte);
           `load (raw, (`i8 :> IT.arg), `var addr);
-          `uop (wide, `zext i64, `var raw);
+          `uop (wide, `zext `i64, `var raw);
         ] in
       let* placed, pre =
         if sh = 0 then !!(`var wide, pre) else
           let+ s = fresh_var in
-          let sh = int_operand i64 sh in
-          let op = `bop (s, `lsl_ i64, `var wide, sh) in
+          let sh = int_operand `i64 sh in
+          let op = `bop (s, `lsl_ `i64, `var wide, sh) in
           `var s, pre @> op in
       match acc with
       | None -> bytes (byte + 1) (Some placed) pre
       | Some a ->
         let* n = fresh_var in
-        let pre = pre @> `bop (n, `or_ i64, a, placed) in
+        let pre = pre @> `bop (n, `or_ `i64, a, placed) in
         bytes (byte + 1) (Some (`var n)) pre in
   let* acc, pre = bytes byte_lo None Ftree.empty in
   let acc = Option.value_exn acc in
@@ -224,11 +227,11 @@ let bitfield_load_bytewise env ~base ~bf ~ty k =
   let foff = p - byte_lo * 8 in
   let lsb = if little then foff else span * 8 - foff - width in
   let* hi = fresh_var in
-  let rsh = if signed then `asr_ i64 else `lsr_ i64 in
+  let rsh = if signed then `asr_ `i64 else `lsr_ `i64 in
   let* val64 = fresh_var in
   let pre = pre @>* [
-      `bop (hi, `lsl_ i64, acc, int_operand i64 (64 - lsb - width));
-      `bop (val64, rsh, `var hi, int_operand i64 (64 - width));
+      `bop (hi, `lsl_ `i64, acc, int_operand `i64 (64 - lsb - width));
+      `bop (val64, rsh, `var hi, int_operand `i64 (64 - width));
     ] in
   let* x, pre =
     if IT.equal_basic `i64 b then !!(`var val64, pre) else
@@ -243,8 +246,7 @@ let bitfield_store_bytewise env ~base ~bf ~ty ~value k =
   let b, _ = scalar env ty in
   let bi = imm_of_basic b in
   let pi = ptr_imm env in
-  let i8 : IT.imm = `i8 in
-  let module A8 = (val bv i8) in
+  let module A8 = Bv.M8 in
   let p, width, byte_lo, byte_hi = field_span bf in
   let rec bytes byte pre =
     if byte > byte_hi then !!pre else
@@ -264,7 +266,7 @@ let bitfield_store_bytewise env ~base ~bf ~ty ~value k =
       let* v8, pre =
         if IT.equal_basic b `i8 then !!(sv, pre) else
           let+ v = fresh_var in
-          `var v, pre @> `uop (v, `itrunc i8, sv) in
+          `var v, pre @> `uop (v, `itrunc `i8, sv) in
       if nbits >= 8 then
         bytes (byte + 1) (pre @> `store (`i8, v8, `var addr))
       else
@@ -273,17 +275,17 @@ let bitfield_store_bytewise env ~base ~bf ~ty ~value k =
         let* shifted, pre =
           if dst_shift = 0 then !!(v8, pre) else
             let+ s = fresh_var in
-            let sh = int_operand i8 dst_shift in
-            `var s, pre @> `bop (s, `lsl_ i8, v8, sh) in
+            let sh = int_operand `i8 dst_shift in
+            `var s, pre @> `bop (s, `lsl_ `i8, v8, sh) in
         let* piece = fresh_var in
         let* raw = fresh_var in
         let* cleared = fresh_var in
         let* merged = fresh_var in
         bytes (byte + 1) @@ pre @>* [
-          `bop (piece, `and_ i8, shifted, `int (mask, i8));
+          `bop (piece, `and_ `i8, shifted, `int (mask, `i8));
           `load (raw, `i8, `var addr);
-          `bop (cleared, `and_ i8, `var raw, `int (clear, i8));
-          `bop (merged, `or_ i8, `var cleared, `var piece);
+          `bop (cleared, `and_ `i8, `var raw, `int (clear, `i8));
+          `bop (merged, `or_ `i8, `var cleared, `var piece);
           `store (`i8, `var merged, `var addr);
         ] in
   let* pre = bytes byte_lo Ftree.empty in
@@ -327,7 +329,7 @@ let bitfield_store env ~base ~bf ~ty ~(value : V.operand) k =
     let width = LB.width bf in
     let aoff = access_lsb_offset ~little bf in
     let abi = Lower_type.imm_of_bits (LB.access_bits bf) in
-    let ab = (abi :> IT.basic) in
+    let ab = bty abi in
     let module A = (val bv abi) in
     let field_mask = A.(pred (one lsl int width) lsl int aoff) in
     let clear_mask = A.lnot field_mask in
@@ -491,14 +493,14 @@ and lower_ptr_diff env ~lhs ~rhs ~pointee k =
   if scale = 1 then
     let* d = fresh_var in
     let+ rest = k (`var d) in
-    emit (`bop (d, `sub (pi :> IT.basic), l, r)) rest
+    emit (`bop (d, `sub (bty pi), l, r)) rest
   else
     let* d = fresh_var in
     let* q = fresh_var in
     let+ rest = k (`var q) in
     S.Stmt.seq [
-      `bop (d, `sub (pi :> IT.basic), l, r);
-      `bop (q, `div (pi :> IT.basic), `var d, int_operand pi scale);
+      `bop (d, `sub (bty pi), l, r);
+      `bop (q, `div (bty pi), `var d, int_operand pi scale);
       rest;
     ]
 
@@ -506,8 +508,18 @@ and lower_scalar_binary env e (op : Texpr.bop) (lhs : Texpr.t) (rhs : Texpr.t) k
   let@ l = lower_rval env lhs in
   let@ r = lower_rval env rhs in
   let b, signed = scalar env lhs.ty in
-  match bop_kind op b ~signed with
-  | Arith bop ->
+  match transl_bop op b ~signed with
+  | #V.Insn.cmp as cmp ->
+    let ri = scalar_imm env e.ty in
+    let* f = fresh_var in
+    let* x = fresh_var in
+    let+ rest = k (`var x) in
+    S.Stmt.seq [
+      `bop (f, (cmp :> V.Insn.binop), l, r);
+      `uop (x, `flag ri, `var f);
+      rest;
+    ]
+  | bop ->
     (* A shift count is integer-promoted independently of the value (§6.5.7),
        so it may be either narrower or wider than the value. The IR shift
        needs both operands at the value's width, so resize the count to
@@ -520,16 +532,6 @@ and lower_scalar_binary env e (op : Texpr.bop) (lhs : Texpr.t) (rhs : Texpr.t) k
     let* x = fresh_var in
     let+ rest = k (`var x) in
     emit (`bop (x, bop, l, r)) rest
-  | Cmp cmp ->
-    let ri = scalar_imm env e.ty in
-    let* f = fresh_var in
-    let* x = fresh_var in
-    let+ rest = k (`var x) in
-    S.Stmt.seq [
-      `bop (f, (cmp :> V.Insn.binop), l, r);
-      `uop (x, `flag ri, `var f);
-      rest;
-    ]
 
 and lower_cond env e cond then_ else_ k =
   let@ c = lower_rval env cond in
@@ -647,7 +649,7 @@ and index_addr env ~arr ~(idx : Texpr.t) ~elem k =
 and lower_index env (idx : Texpr.t) k =
   let@ v = lower_rval env idx in
   let sb, ssig = scalar env idx.ty in
-  lower_conv v ~sb ~ssig ~dst:(ptr_imm env :> IT.basic) k
+  lower_conv v ~sb ~ssig ~dst:(bty @@ ptr_imm env) k
 
 let rec lower_rvals env (es : Texpr.t list) k = match es with
   | [] -> k []
