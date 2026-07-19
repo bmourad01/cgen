@@ -1,8 +1,4 @@
-(* Dataflow analysis for the sets of values for block arguments. *)
-
 open Core
-
-module Solution = Fixpoint.Solution
 
 let table enum d ds tbl =
   enum tbl |> Sequence.map ~f:snd |>
@@ -63,14 +59,10 @@ module Make(M : L)(D : Domain) = struct
         Blk.ctrl b |> Ctrl.locals |>
         List.fold ~init:s ~f:(local ~blk))
 
-  let merge s1 s2 = Var.Tree.merge s1 s2 ~f:(fun ~key:_ -> D.join)
-
+  (* NB: this analysis does not transitively resolve [`var x] operands
+     where `x` itself refers to a block parameter. So, we don't need
+     the full iterative dataflow analysis. *)
   let analyze ~blk cfg =
-    let init = Solution.create Label.Tree.empty Var.Tree.empty in
-    let start = Label.pseudoentry and finish = Label.pseudoexit in
-    let soln = Fixpoint.run cfg ~init ~merge ~start
-        ~equal:equal_state ~f:(transfer ~blk) in
-    (* The exit label should have all of the accumulated
-       results, since this is a forward-flow analysis. *)
-    Solution.get soln finish
+    Label.Graph.nodes cfg |>
+    Sequence.fold ~init:Var.Tree.empty ~f:(fun s l -> transfer ~blk l s)
 end
