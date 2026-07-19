@@ -409,6 +409,10 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
         emit acc cur rest in
   emit acc cur cells
 
+let rec object_is_const = function
+  | Type.Tarray {elem; _} -> object_is_const elem
+  | t -> Type.Cv.is_const (Type.cv_of t)
+
 let lower_global
     layout
     ~strings
@@ -426,8 +430,9 @@ let lower_global
       let+ acc, _ = emit_init layout ~strings ~nstr ~base:0 ~ty init [] in
       List.rev acc in
   let dict = Dict.set Dict.empty V.Data.Tag.linkage (linkage_of ~attrs linkage) in
+  let nty = Type_env.normalize (Layout.tenv layout) ty in
   let dict =
-    if Type.Cv.is_const (Type.cv_of ty)
+    if object_is_const nty
     then Dict.set dict V.Data.Tag.const ()
     else dict in
   (* An `aligned`/`_Alignas` over-alignment on the object. Globals, unlike

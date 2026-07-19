@@ -1,21 +1,21 @@
 module const_array
 
-export data $thing = {
+export const data $thing = {
   "thing",
   z 1
 }
 
-export data $msg = {
+export const data $msg = {
   "hi",
   z 1
 }
 
-export data $sized = {
+export const data $sized = {
   "hello",
   z 1
 }
 
-export data $nums = {
+export const data $nums = {
   0x1_w,
   0x2_w,
   0x3_w,

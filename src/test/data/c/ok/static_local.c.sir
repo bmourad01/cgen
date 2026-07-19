@@ -12,7 +12,7 @@ data $counter.1 = {
   0x64_w
 }
 
-data $msg.2 = {
+const data $msg.2 = {
   "hi",
   z 1
 }
