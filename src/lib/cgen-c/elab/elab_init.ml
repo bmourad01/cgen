@@ -248,19 +248,23 @@ module Make(A : Annotation) = struct
     let module B = (val Bv.modular bits) in
     let tenv = Layout.tenv layout in
     let len = String.length s in
-    let+ size = match ET.normalize tenv target with
-      | Tarray {size = None; _} -> !!(len + 1)
-      | Tarray {size = Some e; _} ->
+    let+ elem, size = match ET.normalize tenv target with
+      | Tarray {elem; size = None; _} -> !!(elem, len + 1)
+      | Tarray {elem; size = Some e; _} ->
         let* n = Eval.int_const (Eval.create_init layout) e >|? Bv.to_int in
-        if n >= len then !!n else
+        if n >= len then !!(elem, n) else
           Ctx.fatal "string literal too long for '%a'" pp_ty target ()
       | _ ->
         Ctx.fatal "string initializer for non-array type '%a'" pp_ty target () in
     let szexpr = Texpr.int_ (B.int size) ~ty:size_t in
-    let elem = Type.plain_char_ () in
+    (* The completed object type keeps the declared element type, qualifiers
+       and all (e.g. `const char`). Dropping them would make the completed
+       `char[N]` incompatible with the original incomplete `const char[]`.
+       The string literal itself, however, has the unqualified `char[]` type
+       of §6.4.5 ¶6. *)
     let arr_ty = Type.array ~size:szexpr elem in
-    let size = Texpr.int_ (B.int (len + 1)) ~ty:size_t in
-    let str_ty = Type.array ~size elem in
+    let str_size = Texpr.int_ (B.int (len + 1)) ~ty:size_t in
+    let str_ty = Type.array ~size:str_size (Type.plain_char_ ()) in
     arr_ty, Texpr.Isingle (Texpr.str s ~ty:str_ty)
 
   type env = {

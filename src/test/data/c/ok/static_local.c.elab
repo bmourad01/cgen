@@ -9,7 +9,7 @@ int next_seq(void) {
 }
 
 char greeting_char(int i) {
-  return ((char *)msg.2)[i];
+  return ((const char *)msg.2)[i];
 }
 
 int squares(int n) {
@@ -33,6 +33,6 @@ static int counter.0 = 0;
 
 static int counter.1 = 100;
 
-static char msg.2[3] = "hi";
+static const char msg.2[3] = "hi";
 
 static int base.3 = 2 * 5;

@@ -185,6 +185,7 @@ let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Aggregates and arrays" "aggregate";
     ok_case ~sir:true "Switch statements" "switch";
     ok_case ~sir:true "Global initializers" "globals";
+    ok_case ~sir:true "Const-array completion from string literal" "const_array";
     ok_case ~sir:true "Bit fields" "bitfield";
     ok_case ~sir:true "Zero-width bit fields" "bitfield_zero";
     ok_case ~sir:true "Static bit-field initializers" "static_bitfield";

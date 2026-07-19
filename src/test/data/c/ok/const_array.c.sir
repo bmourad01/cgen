@@ -1,0 +1,40 @@
+module const_array
+
+export data $thing = {
+  "thing",
+  z 1
+}
+
+export data $msg = {
+  "hi",
+  z 1
+}
+
+export data $sized = {
+  "hello",
+  z 1
+}
+
+export data $nums = {
+  0x1_w,
+  0x2_w,
+  0x3_w,
+  0x4_w,
+  0x5_w
+}
+
+export function l $first() {
+start:
+  ret $thing
+}
+
+export function sb $at(w %1) {
+  %0 = slot 4, align 4
+start:
+  st.w %1, %0;
+  %2 = ld.w %0;
+  %3 = sext.l %2;
+  %4 = add.l $msg, %3;
+  %5 = ld.b %4;
+  ret %5
+}

@@ -1,0 +1,19 @@
+const char thing[6] = "thing";
+
+extern const char msg[];
+
+const char msg[3] = "hi";
+
+const char sized[6] = "hello";
+
+const char *first(void) {
+  return (const char *)thing;
+}
+
+char at(int i) {
+  return ((const char *)msg)[i];
+}
+
+extern const int nums[];
+
+const int nums[5] = {1, 2, 3, 4, 5};
