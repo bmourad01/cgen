@@ -121,6 +121,17 @@ module Make(A : Annotation) = struct
   let resolve_attrs (raws : A.ann Attr.raws) : Attr.set M.m =
     S.resolve_attrs ~eval_int:eval_const_int raws
 
+  let err_conflicting_types ?what name ty prev =
+    let what = match what with
+      | Some w -> " " ^ w
+      | None -> "" in
+    Ctx.fatal
+      "conflicting types for%s '%s': got '%a', previously declared as '%a'"
+      what name
+      (Type.pp_with Texpr.pp) ty
+      (Type.pp_with Texpr.pp) prev
+      ()
+
   (* Redeclaration-aware registration of a function (§6.7 ¶4, §6.2.7):
      a re-declared name must have a type compatible with the first
      declaration.
@@ -134,7 +145,7 @@ module Make(A : Annotation) = struct
       let* layout = M.gets Ctx.layout in
       let eval = Eval.create_init layout in
       M.unless (EC.compatible tenv eval prev ty) @@ fun () ->
-      Ctx.fatal "conflicting types for '%s'" name ()
+      err_conflicting_types name ty prev
     | None -> Ctx.add_func ~name ~ty
 
   let declare_global ~name ~ty =
@@ -144,7 +155,7 @@ module Make(A : Annotation) = struct
       let* layout = M.gets Ctx.layout in
       let eval = Eval.create_init layout in
       M.unless (EC.compatible tenv eval prev ty) @@ fun () ->
-      Ctx.fatal "conflicting types for '%s'" name ()
+      err_conflicting_types name ty prev
     | None -> Ctx.add_global ~name ~ty
 
   (* §6.7 ¶3: a typedef name may be redefined, but (C11) only to denote the
@@ -159,7 +170,7 @@ module Make(A : Annotation) = struct
       let* layout = M.gets Ctx.layout in
       let eval = Eval.create_init layout in
       M.unless (EC.compatible tenv eval prev ty) @@ fun () ->
-      Ctx.fatal "conflicting types for typedef '%s'" name ()
+      err_conflicting_types ~what:"typedef" name ty prev
 
   (* §6.8.1: labels are unique within a function.
 
