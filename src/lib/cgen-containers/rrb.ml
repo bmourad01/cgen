@@ -529,9 +529,11 @@ let to_sequence_rev =
   let open Seq.Generator in
   let rec go = function
     | Balanced arr | Unbalanced (arr, _) ->
-      array_seq_rev arr |>
-      Seq.fold ~init:(return ())
-        ~f:(fun acc x -> acc >>= fun () -> go x)
+      let rec go2 arr i =
+        if i < 0 then return () else
+          go arr.(i) >>= fun () ->
+          go2 arr (i - 1) in
+      go2 arr (Array.length arr - 1)
     | Leaf arr -> of_sequence (array_seq_rev arr) in
   function
   | Empty -> Seq.empty
