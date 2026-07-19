@@ -174,6 +174,7 @@ let ok_case ?preprocess ?(sir = false) ?(opt = false) ?(warn = false) descr name
 
 let ok_suite = "C frontend: accepted programs" >::: List.concat [
     ok_case ~sir:true "Declarator spiral rule" "declarators";
+    ok_case ~sir:true "Interleaved declaration-specifier order" "declspec_order";
     ok_case "Typedefs and structs" "typedef_struct";
     ok_case ~sir:true "Enums" "enums";
     ok_case ~sir:true "Expression precedence" "expr";

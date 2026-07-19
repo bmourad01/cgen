@@ -1,0 +1,15 @@
+const unsigned char a = 1;
+
+const unsigned char b = 2;
+
+const unsigned char c = 3;
+
+const unsigned long d = 4;
+
+static const unsigned long e = 5;
+
+volatile unsigned int f;
+
+int sum(void) {
+  return a + b + c + (int)d + (int)e;
+}

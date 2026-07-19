@@ -491,10 +491,24 @@ array_qualifier:
    the typedef/identifier ambiguity.
 *)
 type_part:
-  | l = nonempty_list(arith_keyword) { (make_arith l, []) }
-  | s = struct_or_union_specifier    { s }
-  | e = enum_specifier               { e }
-  | t = TYPEDEF_NAME                 { (T.typedef_ t, []) }
+  | k = arith_keyword rest = list(arith_or_qual)
+    {
+      let items = `A k :: rest in
+      let atoms = List.filter_map (function `A a -> Some a | `Q _ -> None) items in
+      let quals = List.filter_map (function `Q q -> Some q | `A _ -> None) items in
+      apply_base_cv (cv_of_quals quals) (make_arith atoms), []
+    }
+  | s = struct_or_union_specifier { s }
+  | e = enum_specifier            { e }
+  | t = TYPEDEF_NAME              { (T.typedef_ t, []) }
+
+(* Declaration-specifiers may list their components in any order (§6.7.2 ¶2),
+   so a type qualifier can appear among the arithmetic keywords, as in
+   `unsigned const char`. Such qualifiers are gathered onto the resulting
+   base type, exactly as a leading or trailing qualifier would be. *)
+arith_or_qual:
+  | k = arith_keyword  { `A k }
+  | q = type_qualifier { `Q q }
 
 arith_keyword:
   | VOID     { AKvoid }
