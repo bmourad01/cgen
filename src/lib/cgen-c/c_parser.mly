@@ -7,9 +7,10 @@
      plus a function that wraps the declaration's base type into the full
      type, threading the pointer/array/function layers outward-to-inward
      (the C "spiral rule"). *)
-  type 'a dcl = string option * ('a T.t -> 'a T.t)
+  type 'a dcl = Dcl of string option * ('a T.t -> 'a T.t)
 
-  let did name : 'a dcl = Some name, Fun.id
+  let dcl_name (Dcl (n, _)) = n
+  let did name : 'a dcl = Dcl (Some name, Fun.id)
 
   type qual = [
     | `const
@@ -123,7 +124,7 @@
      a function (and isn't a typedef) becomes a function prototype. *)
   let make_decls ~ann mods base extra idecls =
     let base = apply_base_cv mods.cv base in
-    let one ((nameopt, dty), init, dattrs) =
+    let one (Dcl (nameopt, dty), init, dattrs) =
       let attrs = mods.attrs @ dattrs in
       let ty = dty base in
       let name = match nameopt with
@@ -204,7 +205,9 @@
   type declr = Cgen_utils.Location.t Expr.t dcl
 
   (* An abstract declarator *)
-  type adeclr = ty -> ty
+  type adeclr = Adeclr of (ty -> ty)
+
+  let app_adeclr (Adeclr f) ty = f ty
 %}
 
 %token <string> IDENT TYPEDEF_NAME STRING
@@ -232,9 +235,20 @@
 %nonassoc ELSE
 
 (* Two shift/reduce conflicts on TYPEDEF_NAME are resolved by precedence, both
-   selecting the "type specifier" reading of an ambiguous typedef name. Aside
-   from a handful of pre-existing benign attribute-placement conflicts, these
-   are the grammar's only conflicts, so the precedences are inert elsewhere.
+   selecting the "type specifier" reading of an ambiguous typedef name. The
+   grammar's remaining conflicts are two benign families, both resolved by the
+   default shift and both semantics-preserving:
+
+     - Attribute placement: an `__attribute__` after a struct/union body may
+       bind to the compound (trailing specifier attribute) or begin the
+       following declaration-modifier list. Shift binds it to the compound,
+       matching GCC.
+     - A type qualifier among the arithmetic keywords (`unsigned const char`,
+       §6.7.2 ¶2): after a keyword, a qualifier may extend `type_part`'s run
+       or begin `declaration_modifiers`. Shift absorbs it into the run. Either
+       way, the qualifier folds into the same cv (see `arith_or_qual`).
+
+   These precedences are therefore inert outside the TYPEDEF_NAME cases.
 
    1. `T ( U ... )` parameter declarations (C11 §6.7.6.3 ¶11): when `U` is a
       typedef name, `(U ...)` is an abstract declarator in which `U` is a type,
@@ -343,7 +357,7 @@ external_declaration:
       let m = resolve_mods mods in
       let attrs = m.attrs @ dattrs in
       let base = apply_base_cv m.cv base in
-      let nameopt, dty = d in
+      let Dcl (nameopt, dty) = d in
       let name = match nameopt with
         | Some n -> n
         | None -> "" in
@@ -378,9 +392,15 @@ init_declarator_list:
 
 init_declarator:
   | d = declarator attrs = attribute_specifier_list
-    { register_name (fst d); (d, None, attrs) }
+    {
+      register_name (dcl_name d);
+      d, None, attrs
+    }
   | d = declarator attrs = attribute_specifier_list ASSIGN i = c_initializer
-    { register_name (fst d); (d, Some i, attrs) }
+    {
+      register_name (dcl_name d);
+      d, Some i, attrs
+    }
 
 (* {1 Declaration specifiers} *)
 
@@ -412,7 +432,7 @@ declaration_specifiers_rest:
     { [], T.int_ ~sign:T.Ssigned (), [] }
 
 declaration_modifiers:
-  | (* empty *) %prec prec_abstract_param { [] }
+  | (* empty *) { [] }
   | m = declaration_modifier ms = declaration_modifiers { m :: ms }
 
 declaration_modifier:
@@ -566,7 +586,7 @@ struct_declaration:
       let base, nested = sq in
       let fields =
         List.map
-          (fun ((nameopt, dty), bits, attrs) ->
+          (fun (Dcl (nameopt, dty), bits, attrs) ->
             let ty = dty base in
             let name = match nameopt with
               | Some n -> n
@@ -582,7 +602,7 @@ struct_declarator:
   | d = declarator attrs = attribute_specifier_list COLON e = constant_expression
     { d, Some e, attrs }
   | COLON e = constant_expression
-    { (None, Fun.id), Some e, [] }
+    { Dcl (None, Fun.id), Some e, [] }
 
 enum_specifier:
   | ENUM name = ioption(tag_name) LBRACE items = enumerator_list RBRACE
@@ -628,16 +648,17 @@ declarator:
     {
       match p with
       | None -> d
-      | Some (pf : adeclr) ->
-         let n, f = d in
-         n, (fun t -> f (pf t))
+      | Some Adeclr pf ->
+         let Dcl (n, f) = d in
+         let f' t = f (pf t) in
+         Dcl (n, f')
     }
 
 pointer:
   | STAR q = list(type_qualifier)
-    { fun t -> ptr_of_quals q t }
+    { Adeclr (fun t -> ptr_of_quals q t) }
   | STAR q = list(type_qualifier) p = pointer
-    { fun t -> p (ptr_of_quals q t) }
+    { Adeclr (fun t -> app_adeclr p (ptr_of_quals q t)) }
 
 direct_declarator:
   | id = declared_name { did id }
@@ -647,20 +668,21 @@ direct_declarator:
       let quals = List.filter_map (function `Qual q -> Some q | `Static -> None) qs in
       let static_ = List.exists (function `Static -> true | `Qual _ -> false) qs in
       let cv = cv_of_quals quals and restrict = restrict_of_quals quals in
-      let n, f = d in
+      let Dcl (n, f) = d in
       let f' t =
         let t' = match e with
           | Some sz -> T.array ~cv ~restrict ~static_ ~size:sz t
           | None -> T.array ~cv ~restrict ~static_ t in
         f t' in
-      n, f'
+      Dcl (n, f')
     }
   | d = direct_declarator LPAREN saved = save_cur_typedef ps = parameter_type_list_opt RPAREN
     {
       Parse_state.cur_typedef := saved;
-      let n, f = d in
+      let Dcl (n, f) = d in
       let params, variadic = ps in
-      n, (fun t -> f (T.fun_ ~result:t ~params ~variadic ()))
+      let f' t = f (T.fun_ ~result:t ~params ~variadic ()) in
+      Dcl (n, f')
     }
 
 declared_name:
@@ -702,14 +724,14 @@ parameter_declaration:
     {
       let _, mods, base, _ = ds in
       let base = apply_base_cv (resolve_mods mods).cv base in
-      let n, f = d in
+      let Dcl (n, f) = d in
       {T.pname = n; ptype = f base}
     }
   | ds = declaration_specifiers ad = ioption(abstract_declarator)
     { let _, mods, base, _ = ds in
       let base = apply_base_cv (resolve_mods mods).cv base in
       let ptype = match ad with
-        | Some (f : adeclr) -> f base
+        | Some Adeclr f -> f base
         | None -> base in
       {T.pname = None; ptype}
     }
@@ -720,7 +742,7 @@ abstract_declarator:
     {
       match p with
       | None -> d
-      | Some (pf : adeclr) -> fun t -> d (pf t)
+      | Some Adeclr pf -> Adeclr (fun t -> app_adeclr d (pf t))
     }
 
 direct_abstract_declarator:
@@ -732,23 +754,24 @@ direct_abstract_declarator:
       let cv = cv_of_quals quals and restrict = restrict_of_quals quals in
       let inner = match d with
         | Some f -> f
-        | None -> (fun t -> t) in
-      let f' t =
+        | None -> Adeclr Fun.id in
+      Adeclr (fun t ->
         let t' = match e with
           | Some sz -> T.array ~cv ~restrict ~static_ ~size:sz t
           | None -> T.array ~cv ~restrict ~static_ t in
-        inner t' in
-      f'
+        app_adeclr inner t')
     }
   | d = ioption(direct_abstract_declarator) LPAREN ps = ioption(parameter_type_list) RPAREN
     {
       let inner = match d with
         | Some f -> f
-        | None -> Fun.id in
+        | None -> Adeclr Fun.id in
       let params, variadic = match ps with
         | Some pv -> pv
         | None -> [], false in
-      fun t -> inner (T.fun_ ~result:t ~params ~variadic ())
+      Adeclr (fun t ->
+        let t' = T.fun_ ~result:t ~params ~variadic () in
+        app_adeclr inner t')
     }
 
 type_name:
@@ -756,7 +779,7 @@ type_name:
     {
       let base, _ = sq in
       match ad with
-      | Some (f : adeclr) -> f base
+      | Some Adeclr f -> f base
       | None -> base
     }
 
@@ -834,7 +857,7 @@ block_declaration:
         (* Each declarator introduces a block-scope typedef. *)
         let tds =
           List.filter_map
-            (fun ((nameopt, dty), _init, _dattrs) ->
+            (fun (Dcl (nameopt, dty), _init, _dattrs) ->
               match nameopt with
               | None -> None
               | Some name -> Some (Tydecl.typedef ~name ~ty:(dty base) ~ann))
@@ -846,7 +869,7 @@ block_declaration:
       else
         extra_items @
         List.filter_map
-          (fun ((nameopt, dty), init, dattrs) ->
+          (fun (Dcl (nameopt, dty), init, dattrs) ->
             match nameopt with
             | None -> None
             | Some name ->
@@ -901,7 +924,7 @@ for_init:
       let base = apply_base_cv m.cv base in
       let ld =
         List.filter_map
-          (fun ((nameopt, dty), init, dattrs) ->
+          (fun (Dcl (nameopt, dty), init, dattrs) ->
             match nameopt with
             | None -> None
             | Some name ->
