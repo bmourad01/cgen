@@ -921,10 +921,13 @@ module Insn = struct
     | CWD
       -> rset' [`rdx]
 
-  let dests = function
-    | Jcc (_, l) | JMP (Jlbl l) -> Label.Set.singleton l
-    | JMPtbl (_, ls) -> Label.Set.of_list ls
-    | _ -> Label.Set.empty
+  let fold_dests i ~init ~f = match i with
+    | Jcc (_, l) | JMP (Jlbl l) -> f init l
+    | JMPtbl (_, ls) -> List.fold ls ~init ~f
+    | _ -> init
+  [@@inline] [@@specialise]
+
+  let dests i = fold_dests i ~init:Label.Tree_set.empty ~f:Label.Tree_set.add
 
   let is_mem = function
     | Omem _ -> true

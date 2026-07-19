@@ -13,6 +13,9 @@ module Remove_dead_insns(M : Machine_intf.S_insn) : sig
   val run : (M.Insn.t, M.Reg.t) func -> (M.Insn.t, M.Reg.t) func
 end
 
+(** A generic, target-independent window peephole engine over Pseudo IR. *)
+module Peephole : module type of Pseudo_peephole
+
 (** Emits the target-specific assembly code. *)
 module Emit(M : Machine_intf.S) : sig
   val emit : Format.formatter -> (M.Insn.t, M.Reg.t) module_ -> unit

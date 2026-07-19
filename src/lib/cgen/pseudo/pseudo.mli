@@ -344,6 +344,6 @@ module Cfg : sig
   val create :
     is_barrier:('a -> bool) ->
     is_pseudo:('a -> bool) ->
-    dests:('a -> Label.Set.t) ->
+    dests:('a -> Label.Tree_set.t) ->
     ('a, 'b) func -> t
 end

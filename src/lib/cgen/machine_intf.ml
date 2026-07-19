@@ -71,7 +71,7 @@ module type S_insn = sig
         This is intended for instructions that affect control flow,
         which makes this function useful for computing the CFG.
     *)
-    val dests : t -> Label.Set.t
+    val dests : t -> Label.Tree_set.t
 
     (** Returns [true] if the instruction writes data to memory. *)
     val writes_to_memory : t -> bool

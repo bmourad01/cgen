@@ -14,7 +14,8 @@ let create ~is_barrier ~is_pseudo ~dests fn =
       let s = Blk.label b in
       let g = G.Node.insert s g in
       let g = Blk.insns b |> Sequence.fold ~init:g ~f:(fun g i ->
-          dests (Insn.insn i) |> Set.fold ~init:g ~f:(fun g d ->
+          Insn.insn i |> dests |>
+          Label.Tree_set.fold ~init:g ~f:(fun g d ->
               let g = G.Node.insert d g in
               G.Edge.(insert (create s d) g))) in
       Blk.insns b ~rev:true |> Sequence.find ~f:is_real |> function

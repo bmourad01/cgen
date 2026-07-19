@@ -6,8 +6,81 @@ module Rv = X86_amd64_common.Regvar
 module Ltree = Label.Tree
 module Lset = Label.Tree_set
 module LS = Label.Dense_set
+module P = Pseudo_passes.Peephole
 
 let decomp i = Insn.label i, Insn.insn i
+
+let rbp_ = Rv.reg `rbp
+
+let albl_of_op = function
+  | Omem (Albl (l, _), _) -> Some l
+  | _ -> None
+
+let albl_of_insn = function
+  | Two (_, a, b) -> List.filter_map [a; b] ~f:albl_of_op
+  | One (_, a) -> Option.to_list (albl_of_op a)
+  | JMP (Jind a) -> Option.to_list (albl_of_op a)
+  | _ -> []
+
+let reg_is_index r = function
+  | Omem (Abis (_, i, _), _)
+  | Omem (Aisd (i, _, _), _)
+  | Omem (Abisd (_, i, _, _), _) -> Rv.(i = r)
+  | _ -> false
+
+let operand_is_reg r = function
+  | Oreg (a, _)
+  | Oregv a -> Rv.(a = r)
+  | _ -> false
+
+(* Combine two displacements, being careful to check that the result will
+   fit in a sign-extended 32-bit immediate. *)
+let combine_disp disp o =
+  let s = Int64.(of_int32 disp + of_int32 o) in
+  Option.some_if
+    Int64.(
+      s >= of_int32 Int32.min_value &&
+      s <= of_int32 Int32.max_value)
+    (Int64.to_int32_trunc s)
+
+let fold_base r disp = function
+  | Omem (a, t) ->
+    let fp = Rv.reg `rbp in
+    let a = match a with
+      | Ab b when Rv.(b = r) -> Some (Abd (fp, disp))
+      | Abd (b, o) when Rv.(b = r) ->
+        Option.map (combine_disp disp o) ~f:(fun d -> Abd (fp, d))
+      | Abis (b, i, s) when Rv.(b = r) -> Some (Abisd (fp, i, s, disp))
+      | Abisd (b, i, s, o) when Rv.(b = r) ->
+        Option.map (combine_disp disp o) ~f:(fun d -> Abisd (fp, i, s, d))
+      | a -> Some a in
+    Option.map a ~f:(fun a -> Omem (a, t))
+  | o -> Some o
+
+(* TODO: fill me in *)
+let combinable_binop = function
+  | ADD
+  | SUB
+  | IMUL2
+  | AND
+  | OR
+  | XOR
+  | TEST_
+  | CMP -> true
+  | _ -> false
+
+(* Combine with unary ops that don't write to their operand. *)
+let combinable_unop = function
+  | CALL _
+  | DIV
+  | IDIV
+  | IMUL1
+  | MUL -> true
+  | _ -> false
+
+let rset_mem' o l =
+  let s = rset o in
+  List.exists l ~f:(Set.mem s)
 
 let map_insns changed fn t =
   if Ltree.is_empty t then fn else
@@ -98,7 +171,7 @@ let jump_threading changed fn =
   else fn
 
 let not_pseudo i = not @@ is_pseudo @@ Insn.insn i
-let has_dests i = not @@ Set.is_empty @@ dests @@ Insn.insn i
+let has_dests i = not @@ Lset.is_empty @@ dests @@ Insn.insn i
 
 let is_merge_candidate cfg b1 b2 =
   match Blk.insns b1 ~rev:true |> Sequence.find ~f:not_pseudo with
@@ -116,9 +189,12 @@ let collect_merge_blks fn =
   let cfg = Cfg.create ~is_barrier ~is_pseudo ~dests fn in
   let rec go m = function
     | [] | [_] -> m
-    | b1 :: b2 :: rest  when is_merge_candidate cfg b1 b2 ->
+    | b1 :: b2 :: rest when is_merge_candidate cfg b1 b2 ->
       let label = Blk.label b1 in
-      let insns = Sequence.(to_list @@ append (Blk.insns b1) (Blk.insns b2)) in
+      let insns =
+        Blk.insns ~rev:true b1 |> Sequence.fold
+          ~init:(Sequence.to_list @@ Blk.insns b2)
+          ~f:(fun acc i -> i :: acc) in
       let b1' = Blk.create ~label ~insns in
       let m = Ltree.add_exn m ~key:label ~data:(Some b1') in
       let m = Ltree.add_exn m ~key:(Blk.label b2) ~data:None in
@@ -221,357 +297,255 @@ let collect_implicit_fallthroughs afters fn =
 let implicit_fallthroughs changed afters fn =
   filter_not_in changed fn @@ collect_implicit_fallthroughs afters fn
 
-(* Deallocating the stack pointer followed by a LEAVE instruction
-   is redundant.
+module Window_rules = struct
+  module V = P.View
+  open P.Edit
+  open P.Take
 
-   Example:
+  (* Deallocating the stack pointer followed by a LEAVE instruction
+     is redundant.
 
-   @1:
-     ...
-     call $foo         <--- $foo takes arguments on the stack
-     add rsp, 0x10_l   <--- space for stack args is cleaned up
-     leave             <--- restore stack pointer and return
-     ret
+     Example:
 
-   becomes
+     @1:
+       ...
+       call $foo         <--- $foo takes arguments on the stack
+       add rsp, 0x10_l   <--- space for stack args is cleaned up
+       leave             <--- restore stack pointer and return
+       ret
 
-   @1:
-     call $foo
-     leave
-     ret
+     becomes
 
-   because LEAVE will overwrite RSP anyway
-*)
-let collect_dealloc_stack_before_leave fn =
-  Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
-      let rec go acc = function
-        | [] | [_] -> acc
-        | (l, Two (ADD, Oreg (r, `i64), Oimm _))
-          :: (_, LEAVE)
-          :: xs when Rv.has_reg r `rsp ->
-          let acc = Lset.add acc l in
-          go acc xs
-        | _ :: xs -> go acc xs in
-      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
+     @1:
+       call $foo
+       leave
+       ret
 
-let dealloc_stack_before_leave changed fn =
-  filter_not_in changed fn @@ collect_dealloc_stack_before_leave fn
+     because LEAVE will overwrite RSP anyway
+  *)
+  let r_dealloc_stack_before_leave p i = match V.take p i K2 with
+    | T2 (Two (ADD, Oreg (r, `i64), Oimm _), LEAVE) when Rv.has_reg r `rsp ->
+      Some ([Delete i], i + 2)
+    | _ -> None
 
-let collect_redundant_spill_after_reload fn =
-  Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
-      let rec go acc = function
-        | [] | [_] -> acc
-        | (_, Two (MOV, Oreg (r2, _), Omem (a2, t2)))
-          :: (l, Two (MOV, Omem (a1, t1), Oreg (r1, _)))
-          :: xs when equal_amode a1 a2
-                  && equal_memty t1 t2
-                  && Rv.(r1 = r2) ->
-          let acc = Lset.add acc l in
-          go acc xs
-        | _ :: xs -> go acc xs in
-      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
+  let r_redundant_spill_after_reload p i = match V.take p i K2 with
+    | T2 (Two (MOV, Oreg (r2, _), Omem (a2, t2)),
+          Two (MOV, Omem (a1, t1), Oreg (r1, _)))
+      when equal_amode a1 a2
+        && equal_memty t1 t2
+        && Rv.(r1 = r2) ->
+      Some ([Delete (i + 1)], i + 2)
+    | _ -> None
 
-let redundant_spill_after_reload changed fn =
-  filter_not_in changed fn @@ collect_redundant_spill_after_reload fn
+  (* Dual of the above: eliminate a reload immediately after a store
+     to the same slot.
 
-(* Dual of the above: eliminate a reload immediately after a store
-   to the same slot.
+       mov [mem], r     ; store
+       mov r', [mem]    ; reload (redundant)
 
-     mov [mem], r     ; store
-     mov r', [mem]    ; reload (redundant)
+     If r = r', the reload is dead and removed.
+     If r <> r', rewrite to: mov r', r
+  *)
+  let r_redundant_reload_after_spill p i = match V.take p i K2 with
+    | T2 (Two (MOV, Omem (a1, t1), Oreg (r1, r1t)),
+          Two (MOV, Oreg (r2, r2t), Omem (a2, t2)))
+      when equal_amode a1 a2
+        && equal_memty t1 t2
+        && Type.equal_basic r1t r2t ->
+      if Rv.(r1 = r2) then Some ([Delete (i + 1)], i + 2) else
+        let data = Two (MOV, Oreg (r2, r2t), Oreg (r1, r1t)) in
+        Some ([Rewrite (i + 1, data)], i + 2)
+    | _ -> None
 
-   If r = r', the reload is dead and removed.
-   If r <> r', rewrite to: mov r', r
-*)
-let collect_redundant_reload_after_spill fn =
-  Func.fold_blks fn
-    ~init:(Ltree.empty, Lset.empty)
-    ~f:(fun acc b ->
-        let rec go ((rw, rm) as acc) = function
-          | [] | [_] -> acc
-          | (_, Two (MOV, Omem (a1, t1), Oreg (r1, r1t)))
-            :: (l, Two (MOV, Oreg (r2, r2t), Omem (a2, t2)))
-            :: xs when equal_amode a1 a2
-                    && equal_memty t1 t2
-                    && Type.equal_basic r1t r2t ->
-            if Rv.(r1 = r2) then
-              go (rw, Lset.add rm l) xs
-            else
-              let data = Two (MOV, Oreg (r2, r2t), Oreg (r1, r1t)) in
-              go (Ltree.set rw ~key:l ~data, rm) xs
-          | _ :: xs -> go acc xs in
-        go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
+  (* Fold a frame-relative address materialized by a LEA into the MOV memory
+     operands that consume it as a base, dropping the LEA.
 
-let redundant_reload_after_spill changed fn =
-  let rw, rm = collect_redundant_reload_after_spill fn in
-  filter_not_in changed (map_insns changed fn rw) rm
+       lea r, [rbp + k]
+       mov d, [r + o]    --> mov d, [rbp + k + o]
+       mov r, [r + o']   --> mov r, [rbp + k + o']   ; the LEA is dropped
+  *)
+  let r_fold_frame_lea p i = match V.take p i K1 with
+    | T1 Two (LEA, Oreg (r, _), Omem ((Ab bb | Abd (bb, _)) as am, _))
+      when Rv.(bb = rbp_) && not Rv.(r = rbp_) ->
+      let disp = match am with Abd (_, d) -> d | _ -> 0l in
+      let rec scan j folds = match V.take p j K1 with
+        | T1 Two (MOV, dst, src) ->
+          let ops = [dst; src] in
+          if not (Set.mem (rset ops) r) then scan (j + 1) folds
+          else if List.exists ops ~f:(reg_is_index r) then None
+          else if operand_is_reg r src then None
+          else begin match fold_base r disp dst, fold_base r disp src with
+            | Some dst, Some src ->
+              let folds = (j, Two (MOV, dst, src)) :: folds in
+              if operand_is_reg r dst
+              then Some folds
+              else scan (j + 1) folds
+            | _ -> None
+          end
+        | _ -> None in
+      begin match scan (i + 1) [] with
+        | None | Some [] -> None
+        | Some folds ->
+          let edits =
+            Delete i :: List.map folds ~f:(fun (j, ins) -> Rewrite (j, ins)) in
+          Some (edits, i + 1)
+      end
+    | _ -> None
 
-(* Combine two displacements, being careful to check that the result will
-   fit in a sign-extended 32-bit immediate. *)
-let combine_disp disp o =
-  let s = Int64.(of_int32 disp + of_int32 o) in
-  Option.some_if
-    Int64.(
-      s >= of_int32 Int32.min_value &&
-      s <= of_int32 Int32.max_value)
-    (Int64.to_int32_trunc s)
+  (* If we have a LEA of the same address as a subsequent load,
+     then use the result of the LEA as the address for the load.
 
-let fold_base r disp = function
-  | Omem (a, t) ->
-    let fp = Rv.reg `rbp in
-    let a = match a with
-      | Ab b when Rv.(b = r) -> Some (Abd (fp, disp))
-      | Abd (b, o) when Rv.(b = r) ->
-        Option.map (combine_disp disp o) ~f:(fun d -> Abd (fp, d))
-      | Abis (b, i, s) when Rv.(b = r) -> Some (Abisd (fp, i, s, disp))
-      | Abisd (b, i, s, o) when Rv.(b = r) ->
-        Option.map (combine_disp disp o) ~f:(fun d -> Abisd (fp, i, s, d))
-      | a -> Some a in
-    Option.map a ~f:(fun a -> Omem (a, t))
-  | o -> Some o
+     This is made under the assumption that the result of the LEA
+     is going to be re-used later (otherwise it would have been
+     recognized as dead code).
+  *)
+  let r_reuse_lea p i = match V.take p i K2 with
+    | T2 (Two (LEA, Oreg (r1, _), Omem (a1, _)),
+          Two (MOV, Oreg (r2, r2t), Omem (a2, t2)))
+      when equal_amode a1 a2 ->
+      Some ([Rewrite (i + 1, Two (MOV, Oreg (r2, r2t), Omem (Ab r1, t2)))], i + 2)
+    | _ -> None
 
-let reg_is_index r = function
-  | Omem (Abis (_, i, _), _)
-  | Omem (Aisd (i, _, _), _)
-  | Omem (Abisd (_, i, _, _), _) -> Rv.(i = r)
-  | _ -> false
+  let and_test_cc = function
+    | Ce | Cne | Cs | Cns -> true
+    | _ -> false
 
-let operand_is_reg r = function
-  | Oreg (a, _)
-  | Oregv a -> Rv.(a = r)
-  | _ -> false
+  let and_test_act = function
+    | Jcc (cc, _)
+    | One (SETcc cc, _)
+    | Two (CMOVcc cc, _, _)
+      -> and_test_cc cc
+    | _ -> false
 
-(* Fold a frame-relative address materialized by a LEA into the MOV memory
-   operands that consume it as a base, dropping the LEA.
+  (* If we have an AND followed by a TEST/CMP, then we can possibly
+     delete the latter, since AND sets RFLAGS and could carry the
+     desired test. *)
+  let r_and_test p i = match V.take p i K3 with
+    | T3 (Two (AND, Oreg (r1, _), _),
+          Two (TEST_, Oreg (r1', _), Oreg (r2', _)),
+          act)
+      when Rv.(r1 = r1')
+        && Rv.(r1 = r2')
+        && and_test_act act ->
+      Some ([Delete (i + 1)], i + 3)
+    | T3 (Two (AND, Oreg (r1, _), _),
+          Two (CMP, Oreg (r1', _), Oimm (0L, _)),
+          act)
+      when Rv.equal r1 r1'
+        && and_test_act act ->
+      Some ([Delete (i + 1)], i + 3)
+    | _ -> None
 
-     lea r, [rbp + k]
-     mov d, [r + o]    --> mov d, [rbp + k + o]
-     mov r, [r + o']   --> mov r, [rbp + k + o']   ; the LEA is dropped
-*)
-let collect_fold_frame_lea fn =
-  let fp = Rv.reg `rbp in
-  Func.fold_blks fn ~init:(Ltree.empty, Lset.empty) ~f:(fun acc b ->
-      let insns =
-        Sequence.to_array @@
-        Sequence.map ~f:decomp @@
-        Blk.insns b in
-      let n = Array.length insns in
-      Array.foldi insns ~init:acc ~f:(fun i acc -> function
-          | lea_l, Two (LEA, Oreg (r, _), Omem ((Ab bb | Abd (bb, _)) as am, _))
-            when Rv.(bb = fp) && not Rv.(r = fp) ->
-            let disp = match am with Abd (_, d) -> d | _ -> 0l in
-            let rec scan j folds =
-              if j >= n then None else match insns.(j) with
-                | l, Two (MOV, dst, src) ->
-                  let ops = [dst; src] in
-                  if not (Set.mem (rset ops) r) then scan (j + 1) folds
-                  else if List.exists ops ~f:(reg_is_index r) then None
-                  else if operand_is_reg r src then None
-                  else begin match fold_base r disp dst, fold_base r disp src with
-                    | Some dst, Some src ->
-                      let folds = (l, Two (MOV, dst, src)) :: folds in
-                      if operand_is_reg r dst
-                      then Some folds
-                      else scan (j + 1) folds
-                    | _ -> None
-                  end
-                | _ -> None in
-            begin match scan (i + 1) [] with
-              | None | Some [] -> acc
-              | Some folds ->
-                let rw, rm = acc in
-                let rw = List.fold folds ~init:rw
-                    ~f:(fun m (l, ins) -> Ltree.set m ~key:l ~data:ins) in
-                rw, Lset.add rm lea_l
-            end
-          | _ -> acc))
+  let immty = function
+    | #Type.imm as imm -> imm
+    | _ -> assert false
 
-let fold_frame_lea changed fn =
-  let rw, rm = collect_fold_frame_lea fn in
-  filter_not_in changed (map_insns changed fn rw) rm
+  (* True if `o` can be directly encoded as an immediate operand for a
+     combinable binop applied to an `r1t`-typed destination.
 
-(* If we have a LEA of the same address as a subsequent load,
-   then use the result of the LEA as the address for the load.
+     In 64-bit mode, binary instructions (ADD, SUB, CMP, TEST, AND, OR,
+     XOR, IMUL2) only support sign-extended imm32 immediates. A 64-bit
+     immediate that doesn't fit in that range must stay in a register.
+  *)
+  let combinable_imm r1t o = match o with
+    | Oimm (i, `i64) when Type.equal_basic r1t `i64 ->
+      Int64.(i >= -0x80000000L && i <= 0x7FFFFFFFL)
+    | _ -> true
 
-   This is made under the assumption that the result of the LEA
-   is going to be re-used later (otherwise it would have been
-   recognized as dead code).
-*)
-let collect_reuse_lea fn =
-  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
-      let rec go acc = function
-        | [] | [_] -> acc
-        | (_, Two (LEA, Oreg (r1, _), Omem (a1, _)))
-          :: (l, Two (MOV, Oreg (r2, r2t), Omem (a2, t2)))
-          :: xs when equal_amode a1 a2 ->
-          let data = Two (MOV, Oreg (r2, r2t), Omem (Ab r1, t2)) in
-          let acc = Ltree.set acc ~key:l ~data in
-          go acc xs
-        | _ :: xs -> go acc xs in
-      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
+  (* Fuses:
 
-let reuse_lea changed fn =
-  map_insns changed fn @@ collect_reuse_lea fn
+       lea r1, [b + d]
+       mov b, r1
 
-let and_test_cc = function
-  | Ce | Cne | Cs | Cns -> true
-  | _ -> false
+     into:
 
-let and_test_act = function
-  | Jcc (cc, _)
-  | One (SETcc cc, _)
-  | Two (CMOVcc cc, _, _)
-    -> and_test_cc cc
-  | _ -> false
+       add b, d
+  *)
+  let r_lea_mov p i = match V.take p i K2 with
+    | T2 (Two (LEA, Oreg (r1, _), Omem (Abd (b, d), _)),
+          Two (MOV, Oreg (r1', r1t), Oreg (r2', _)))
+      when Rv.(b = r1') && Rv.(r1 = r2') ->
+      let ins = match d with
+        | 1l -> One (INC, Oreg (r1', r1t))
+        | _ ->
+          let d = Int64.(of_int32 d land 0xFFFFFFFFL) in
+          Two (ADD, Oreg (r1', r1t), Oimm (d, immty r1t)) in
+      Some ([Rewrite (i + 1, ins)], i + 2)
+    | _ -> None
 
-let collect_and_test fn =
-  Func.fold_blks fn ~init:Lset.empty ~f:(fun acc b ->
-      let rec go acc = function
-        | [] | [_] -> acc
-        | (_, Two (AND, Oreg (r1, _), _))
-          :: (l, Two (TEST_, Oreg (r1', _), Oreg (r2', _)))
-          :: (_, act)
-          :: xs when Rv.(r1 = r1')
-                  && Rv.(r1 = r2')
-                  && and_test_act act ->
-          go (Lset.add acc l) xs
-        | (_, Two (AND, Oreg (r1, _), _))
-          :: (l, Two (CMP, Oreg (r1', _), Oimm (0L, _)))
-          :: (_, act)
-          :: xs when Rv.equal r1 r1'
-                  && and_test_act act ->
-          go (Lset.add acc l) xs
-        | _ :: xs -> go acc xs in
-      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
+  (* Fuses a just-loaded operand directly into the op that consumes it, e.g.:
 
-let and_test changed fn =
-  filter_not_in changed fn @@ collect_and_test fn
+       mov r1, o
+       op r2, r1
 
-let immty = function
-  | #Type.imm as imm -> imm
-  | _ -> assert false
+     into:
 
-(* True if `o` can be directly encoded as an immediate operand for a
-   combinable binop applied to an `r1t`-typed destination.
+       op r2, o
+  *)
+  let r_mov_op_3 p i = match V.take p i K3 with
+    | T3 (Two (MOV, Oreg (r1, mt), o1),
+          Two (MOV, Oreg (r2, _), o2),
+          Two (op, Oreg (r3, r3t), Oreg (r3', _)))
+      when combinable_binop op
+        && Rv.(r1 = r3')
+        && Rv.(r2 = r3)
+        && Rv.(r3 <> r3')
+        && Type.equal_basic mt r3t
+        && not (rset_mem' [o1; o2] [r1; r3])
+        && combinable_imm r3t o1 ->
+      Some ([Rewrite (i + 2, Two (op, Oreg (r3, r3t), o1))], i + 3)
+    | _ -> None
 
-   In 64-bit mode, binary instructions (ADD, SUB, CMP, TEST, AND, OR,
-   XOR, IMUL2) only support sign-extended imm32 immediates. A 64-bit
-   immediate that doesn't fit in that range must stay in a register.
-*)
-let combinable_imm r1t o = match o with
-  | Oimm (i, `i64) when Type.equal_basic r1t `i64 ->
-    Int64.(i >= -0x80000000L && i <= 0x7FFFFFFFL)
-  | _ -> true
+  (* Same as above, but for a two-instruction window. *)
+  let r_mov_op_2 p i = match V.take p i K2 with
+    | T2 (Two (MOV, Oreg (r1, mt), o),
+          Two (op, Oreg (r1', r1t), Oreg (r2', _)))
+      when combinable_binop op
+        && Rv.(r1 = r2')
+        && Rv.(r1' <> r2')
+        && Type.equal_basic mt r1t
+        && not (Set.mem (rset [o]) r1)
+        && combinable_imm r1t o ->
+      Some ([Rewrite (i + 1, Two (op, Oreg (r1', r1t), o))], i + 2)
+    | T2 (Two (MOV, Oreg (r1, mt), o),
+          One (op, Oreg (r2', ut)))
+      when combinable_unop op
+        && Rv.(r1 = r2')
+        && Type.equal_basic mt ut
+        && not (Set.mem (rset [o]) r1) ->
+      Some ([Rewrite (i + 1, One (op, o))], i + 2)
+    | _ -> None
 
-let collect_lea_mov fn =
-  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
-      let rec go acc = function
-        | [] | [_] -> acc
-        | (_, Two (LEA, Oreg (r1, _), Omem (Abd (b, d), _)))
-          :: (l, Two (MOV, Oreg (r1', r1t), Oreg (r2', _)))
-          :: xs when Rv.(b = r1') && Rv.(r1 = r2') ->
-          let i = match d with
-            | 1l -> One (INC, Oreg (r1', r1t))
-            | _ ->
-              let d = Int64.(of_int32 d land 0xFFFFFFFFL) in
-              Two (ADD, Oreg (r1', r1t), Oimm (d, immty r1t)) in
-          go (Ltree.set acc ~key:l ~data:i) xs
-        | _ :: xs -> go acc xs in
-      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
+  (* Fuses:
 
-let lea_mov changed fn =
-  map_insns changed fn @@ collect_lea_mov fn
+       mov r1, r2
+       mov [o], r1
 
-(* TODO: fill me in *)
-let combinable_binop = function
-  | ADD
-  | SUB
-  | IMUL2
-  | AND
-  | OR
-  | XOR
-  | TEST_
-  | CMP -> true
-  | _ -> false
+     into:
 
-(* Combine with unary ops that don't write to their operand. *)
-let combinable_unop = function
-  | CALL _
-  | DIV
-  | IDIV
-  | IMUL1
-  | MUL -> true
-  | _ -> false
+       mov [o], r2
+  *)
+  let r_mov_to_store p i = match V.take p i K2 with
+    | T2 (Two (MOV, Oreg (r1, r1t), (Oreg _ as r)),
+          Two (MOV, (Omem _ as o), Oreg (r2, r2t)))
+      when Rv.(r1 = r2)
+        && Type.equal_basic r1t r2t ->
+      Some ([Rewrite (i + 1, Two (MOV, o, r))], i + 2)
+    | _ -> None
 
-let rset_mem' o l =
-  let s = rset o in
-  List.exists l ~f:(Set.mem s)
-
-let collect_mov_op fn =
-  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
-      let rec go acc = function
-        | [] | [_] -> acc
-        | (_, Two (MOV, Oreg (r1, mt), o1))
-          :: (_, Two (MOV, Oreg (r2, _), o2))
-          :: (l, Two (op, Oreg (r3, r3t), Oreg (r3', _)))
-          :: xs when combinable_binop op
-                  && Rv.(r1 = r3')
-                  && Rv.(r2 = r3)
-                  && Rv.(r3 <> r3')
-                  && Type.equal_basic mt r3t
-                  && not (rset_mem' [o1; o2] [r1; r3])
-                  && combinable_imm r3t o1 ->
-          let i = Two (op, Oreg (r3, r3t), o1) in
-          go (Ltree.set acc ~key:l ~data:i) xs
-        | (_, Two (MOV, Oreg (r1, mt), o))
-          :: (l, Two (op, Oreg (r1', r1t), Oreg (r2', _)))
-          :: xs when combinable_binop op
-                  && Rv.(r1 = r2')
-                  && Rv.(r1' <> r2')
-                  && Type.equal_basic mt r1t
-                  && not (Set.mem (rset [o]) r1)
-                  && combinable_imm r1t o ->
-          let i = Two (op, Oreg (r1', r1t), o) in
-          go (Ltree.set acc ~key:l ~data:i) xs
-        | (_, Two (MOV, Oreg (r1, mt), o))
-          :: (l, One (op, Oreg (r2', ut)))
-          :: xs when combinable_unop op
-                  && Rv.(r1 = r2')
-                  && Type.equal_basic mt ut
-                  && not (Set.mem (rset [o]) r1) ->
-          let i = One (op, o) in
-          go (Ltree.set acc ~key:l ~data:i) xs
-        | _ :: xs -> go acc xs in
-      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
-
-let mov_op changed fn =
-  map_insns changed fn @@ collect_mov_op fn
-
-let collect_mov_to_store fn =
-  Func.fold_blks fn ~init:Ltree.empty ~f:(fun acc b ->
-      let rec go acc = function
-        | [] | [_] -> acc
-        | (_, Two (MOV, Oreg (r1, r1t), (Oreg _ as r)))
-          :: (l, Two (MOV, (Omem _ as o), Oreg (r2, r2t)))
-          :: xs when Rv.(r1 = r2)
-                  && Type.equal_basic r1t r2t ->
-          let i = Two (MOV, o, r) in
-          go (Ltree.set acc ~key:l ~data:i) xs
-        | _ :: xs -> go acc xs in
-      go acc @@ Sequence.to_list @@ Sequence.map ~f:decomp @@ Blk.insns b)
-
-let mov_to_store changed fn =
-  map_insns changed fn @@ collect_mov_to_store fn
-
-let albl_of_op = function
-  | Omem (Albl (l, _), _) -> Some l
-  | _ -> None
-
-let albl_of_insn = function
-  | Two (_, a, b) -> List.filter_map [a; b] ~f:albl_of_op
-  | One (_, a) -> Option.to_list (albl_of_op a)
-  | JMP (Jind a) -> Option.to_list (albl_of_op a)
-  | _ -> []
+  let prio = [
+    r_dealloc_stack_before_leave;
+    r_redundant_spill_after_reload;
+    r_redundant_reload_after_spill;
+    r_reuse_lea;
+    r_fold_frame_lea;
+    r_and_test;
+    r_lea_mov;
+    r_mov_op_3;
+    r_mov_op_2;
+    r_mov_to_store;
+  ]
+end
 
 let collect_dead_fp_pseudos fn =
   let refs =
@@ -604,15 +578,7 @@ let run fn =
       let afters = Func.collect_afters fn in
       let fn = invert_branches changed afters fn in
       let fn = implicit_fallthroughs changed afters fn in
-      let fn = dealloc_stack_before_leave changed fn in
-      let fn = redundant_spill_after_reload changed fn in
-      let fn = redundant_reload_after_spill changed fn in
-      let fn = reuse_lea changed fn in
-      let fn = fold_frame_lea changed fn in
-      let fn = and_test changed fn in
-      let fn = lea_mov changed fn in
-      let fn = mov_op changed fn in
-      let fn = mov_to_store changed fn in
+      let fn = Pseudo_passes.Peephole.run ~changed ~rules:Window_rules.prio fn in
       let fn = remove_dead_fp_pseudos changed fn in
       if !changed then loop (i + 1) fn else fn in
   loop 1 fn

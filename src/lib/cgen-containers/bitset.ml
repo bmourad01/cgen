@@ -33,7 +33,11 @@ let highest_bit w = bpw - 1 - W.clz w [@@inline]
 let uget t i = Vec.unsafe_get t.words i [@@inline]
 let uset t i w = Vec.unsafe_set t.words i w [@@inline]
 
-let create ?(capacity = 1) () : t = {len = 0; words = Vec.create ~capacity ()}
+let create ?capacity () : t =
+  let n = match capacity with
+    | Some c -> (c * bpw) / bpw
+    | None -> 1 in
+  {len = 0; words = Vec.create ~capacity:n ()}
 
 (* Copy only the logical words so a shrunk set's stale high-water capacity is
    not dragged along. *)
