@@ -46,6 +46,12 @@ module Edit = struct
     | Delete of int
 end
 
+module Rule_syntax = struct
+  let return x = Some x
+  let bind o f = Option.bind o ~f
+  let mzero = None
+end
+
 type 'a view = 'a View.t
 type 'a edit = 'a Edit.t
 type 'a rule = 'a view -> int -> ('a edit list * int) option

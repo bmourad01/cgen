@@ -26,7 +26,7 @@ module Take : sig
     | T3 : 'a * 'a * 'a -> ('a, [`three]) t
 
   (** A key selecting how many instructions to take; its phantom index fixes the
-      arity of the resulting {!taken}. *)
+      arity of the resulting {!t}. *)
   type _ key =
     | K1 : [`one] key
     | K2 : [`two] key
@@ -67,6 +67,23 @@ module Edit : sig
 end
 
 type 'a edit = 'a Edit.t
+
+(** The monad a rule produces its result in: an option of edits.
+
+    The [%rule] PPX desugars against these operations, so bringing this module
+    into scope (as [Rule_syntax]) is what lets a rule drop its trailing [Some]
+    and let a non-matching decomposition short-circuit to [None].
+*)
+module Rule_syntax : sig
+  (** Lift a pure success value (the [(edits, next)] a rule computes). *)
+  val return : 'a -> 'a option
+
+  (** Sequence a fallible step, where [None] short-circuits the rule. *)
+  val bind : 'a option -> ('a -> 'b option) -> 'b option
+
+  (** No match: the rule declines at this position. *)
+  val mzero : 'a option
+end
 
 (** A rule inspects a block's instructions and a cursor position.
 

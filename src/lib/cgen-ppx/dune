@@ -1,0 +1,5 @@
+(library
+ (name cgen_ppx_rule)
+ (public_name cgen.ppx_rule)
+ (kind ppx_rewriter)
+ (libraries ppxlib))
