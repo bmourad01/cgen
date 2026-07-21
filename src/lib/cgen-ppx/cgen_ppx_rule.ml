@@ -11,6 +11,8 @@
     {v
     let PAT = e in k   ~> (match e with PAT -> <k> | _ -> mzero)    (* refutable *)
     let* PAT = e in k  ~> bind e (function PAT -> <k> | _ -> mzero)
+    let*! PAT = e in k ~> (match e with Some PAT -> <k> | _ -> mzero) (* bare option *)
+    let@ PAT = e in k  ~> let@ PAT = e in <k>                        (* opaque bind *)
     guard c; k         ~> if c then <k> else mzero
     if c then a else b ~> if c then <a> else <b>
     match e with cs    ~> match e with <cs>                         (* arms recursed *)
@@ -126,6 +128,17 @@ let rec desugar e =
           case ~lhs:(ppat_any ~loc) ~guard:None ~rhs:(mzero ~loc);
         ] in
     bind_to ~loc ~exp:let_.pbop_exp ~f
+  (* `let*! PAT = e in k`: bind a bare `option`, declining to mzero on None.
+     For a projection that yields a plain option rather than the result monad
+     (e.g. a first-class projection param), this is the classic `let*!` lift. *)
+  | Pexp_letop { let_; ands = []; body } when let_.pbop_op.txt = "let*!" ->
+    let some =
+      ppat_construct ~loc {txt = Lident "Some"; loc} (Some let_.pbop_pat) in
+    refute ~loc ~scrut:let_.pbop_exp ~pat:some ~ok:(desugar body)
+  (* Any other let-operator (e.g. a CPS `let@`) is an opaque bind whose body is
+     the monadic tail. *)
+  | Pexp_letop { let_; ands; body } ->
+    {e with pexp_desc = Pexp_letop {let_; ands; body = desugar body}}
   (* `guard c; k` fails unless `c`. A plain `e1; k` keeps `e1` for effect. *)
   | Pexp_sequence (s, k) ->
     begin match guard_cond s with

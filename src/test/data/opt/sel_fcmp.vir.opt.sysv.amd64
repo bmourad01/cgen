@@ -16,12 +16,12 @@ export function $le_f32_rr { ; returns: rax
 export function $ge_f32_const { ; returns: rax
 @5:
   movss %7:s, xmm0 ; @19
-  .fp32 @47, 10 ; @51
-  .fp32 @42, 10 ; @20
-  mov %43:w, 0x7b_w ; @43
-  mov %36:w, 0x1c8_w ; @44
-  ucomiss %7:s, dword ptr [rip + @42] ; @45
-  cmovae %36:w, %43:w ; @46
+  .fp32 @44, 10 ; @48
+  .fp32 @39, 10 ; @20
+  mov %43:w, 0x7b_w ; @40
+  mov %36:w, 0x1c8_w ; @41
+  ucomiss %7:s, dword ptr [rip + @39] ; @42
+  cmovae %36:w, %43:w ; @43
   mov eax, %36:w ; @37
   ret ; @38
 }
@@ -29,38 +29,38 @@ export function $ge_f32_const { ; returns: rax
 export function $lt_f64_rr { ; returns: rax
 @8:
   movsd %10:d, xmm0 ; @21
-  movsd %11:d, xmm1 ; @56
-  mov %13:l, rdi ; @57
-  mov %14:l, rsi ; @58
+  movsd %11:d, xmm1 ; @53
+  mov %13:l, rdi ; @54
+  mov %14:l, rsi ; @55
   mov %38:l, %14:l ; @22
-  ucomisd %10:d, %11:d ; @54
-  cmovb %38:l, %13:l ; @55
-  mov rax, %38:l ; @52
-  ret ; @53
+  ucomisd %10:d, %11:d ; @51
+  cmovb %38:l, %13:l ; @52
+  mov rax, %38:l ; @49
+  ret ; @50
 }
 
 export function $eq_f64_const { ; returns: rax
 @11:
   movsd %16:d, xmm0 ; @23
-  mov %18:w, edi ; @70
-  .fp64 @69, 2.5 ; @74
-  .fp64 @65, 2.5 ; @24
-  mov %40:w, 0x2a_w ; @66
-  ucomisd %16:d, qword ptr [rip + @65] ; @67
-  cmove %40:w, %18:w ; @68
-  mov eax, %40:w ; @62
-  ret ; @63
+  mov %18:w, edi ; @66
+  .fp64 @65, 2.5 ; @70
+  .fp64 @61, 2.5 ; @24
+  mov %40:w, 0x2a_w ; @62
+  ucomisd %16:d, qword ptr [rip + @61] ; @63
+  cmove %40:w, %18:w ; @64
+  mov eax, %40:w ; @59
+  ret ; @60
 }
 
 export function $gt_f32_const_ir { ; returns: rax
 @14:
   movss %20:s, xmm0 ; @25
-  mov %22:w, edi ; @84
-  .fp32 @83, 0 ; @88
-  .fp32 @79, 0 ; @26
-  mov %42:w, 0x9_w ; @80
-  ucomiss %20:s, dword ptr [rip + @79] ; @81
-  cmovbe %42:w, %22:w ; @82
-  mov eax, %42:w ; @75
-  ret ; @76
+  mov %22:w, edi ; @78
+  .fp32 @77, 0 ; @82
+  .fp32 @73, 0 ; @26
+  mov %42:w, 0x9_w ; @74
+  ucomiss %20:s, dword ptr [rip + @73] ; @75
+  cmovbe %42:w, %22:w ; @76
+  mov eax, %42:w ; @71
+  ret ; @72
 }
