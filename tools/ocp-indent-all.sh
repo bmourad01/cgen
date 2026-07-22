@@ -12,7 +12,4 @@ else
     echo "Reindenting with ocp-indent $VERSION"
 fi
 
-git ls-files | grep -e $files_to_indent | while read file
-do
-    ocp-indent -i $file
-done
+git ls-files | grep -e "$files_to_indent" | xargs -r -d '\n' ocp-indent -i

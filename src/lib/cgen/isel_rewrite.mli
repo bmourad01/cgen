@@ -292,50 +292,42 @@ module Subst : sig
   (** A substitition. *)
   type 'r t = private 'r Isel_internal.Subst.t
 
-  (** Lookup a register with a basic type. *)
-  val regvar : 'r t -> string -> ('r * Type.basic) option
+  (** The normalized term bound to a matched pattern variable. Rules may
+      pattern match on this directly (see {!find_exn}) rather than going
+      through the typed projections below. *)
+  type 'r term = 'r Isel_internal.Subst.term =
+    | Regvar of 'r * Type.basic
+    | Regvar_v of 'r
+    | Imm of Cgen_utils.Bv.t * Type.imm
+    | Single of Cgen_utils.Float32.t
+    | Double of float
+    | Sym of string * int
+    | Label of Label.t
+    | Bool of bool
+    | Table of Label.t * (Cgen_utils.Bv.t * Label.t) list
+    | Callargs of 'r list
 
-  (** Lookup a register with a vector type. *)
-  val regvar_v : 'r t -> string -> 'r option
+  (** Raised by {!find_exn} only on a rule bug: a callback referencing a
+      pattern variable its own pattern does not bind. *)
+  exception Unbound of string
 
-  (** Lookup an integer constant. *)
-  val imm : 'r t -> string -> (Cgen_utils.Bv.t * Type.imm) option
-
-  (** Lookup a 32-bit float constant. *)
-  val single : 'r t -> string -> Cgen_utils.Float32.t option
-
-  (** Lookup a 64-bit float constant. *)
-  val double : 'r t -> string -> float option
-
-  (** Lookup a symbol. *)
-  val sym : 'r t -> string -> (string * int) option
-
-  (** Lookup a program label. *)
-  val label : 'r t -> string -> Label.t option
-
-  (** Lookup a boolean constant. *)
-  val bool : 'r t -> string -> bool option
-
-  (** Lookup a switch table (including the default label).
-
-      The table is sorted from lowest to highest.
-  *)
-  val table : 'r t -> string -> (Label.t * (Cgen_utils.Bv.t * Label.t) list) option
-
-  (** Look up the arguments for a call. *)
-  val callargs : 'r t -> string -> 'r list option
+  (** Look up the term bound to a matched pattern variable. Raises {!Unbound}
+      if it is absent; the matcher guarantees every variable in a callback's
+      pattern is bound, so this is an assertion, not a decline. *)
+  val find_exn : 'r t -> string -> 'r term
 end
 
 type 'r subst = 'r Subst.t
 
 module Rule(C : Context_intf.S) : sig
-  (** A callback for a rule, which takes a substitution and optionally
-      returns a list of instructions.
+  (** A callback for a rule, taking a substitution and producing a list of
+      instructions in the context monad.
 
-      If the callback returns [None], then the rewrite rule fails to produce
-      a match.
+      A callback declines to match by failing via {!Rule_syntax.mzero}, which
+      the [%rule] ppx emits for a failed pattern or guard). {!try_} catches
+      this to move on to the next callback. Any other error propagates.
   *)
-  type ('r, 'i) callback = 'r subst -> 'i list option C.t
+  type ('r, 'i) callback = 'r subst -> 'i list C.t
 
   (** A rewrite rule. *)
   type ('r, 'i) t = private ('r, 'i) Isel_internal.Rule(C).t
@@ -352,16 +344,25 @@ module Rule(C : Context_intf.S) : sig
   *)
   val (=>*) : Pattern.toplevel -> ('r, 'i) callback list -> ('r, 'i) t
 
-  (** Lifts an [option] computation into the monad and binds it to a result. *)
-  val (let*!) : 'a option -> ('a -> 'b option C.t) -> 'b option C.t
+  (** The [return]/[bind]/[mzero] vocabulary the [%rule] ppx resolves against. *)
+  module Rule_syntax : sig
+    val return : 'a -> 'a C.t
+    val bind : 'a C.t -> ('a -> 'b C.t) -> 'b C.t
+    val mzero : 'a C.t
+  end
 
-  (** [!!!a] is equivalent to [C.return (Some a)] *)
-  val (!!!) : 'a -> 'a option C.t
+  (** Binds a bare [option], declining the rule (via [mzero]) on [None]. *)
+  val (let*!) : 'a option -> ('a -> 'b C.t) -> 'b C.t
 
-  (** [guard b] returns [Some ()] if [b] is [true], and [None] otherwise. *)
-  val guard : bool -> unit option
+  (** [decline] is the explicit failure mode of a rule, signaling that
+      the match failed in the RHS (a synonym for {!Rule_syntax.mzero}). *)
+  val decline : 'a C.t
 
-  (** [try_ x fs] attempts to apply the functions in [fs] to [x] from left
-      to right. *)
-  val try_ : 'a -> ('a -> 'b option C.t) list -> 'b option C.t
+  (** [guard b] is equivalent to [if b then C.return () else decline]. *)
+  val guard : bool -> unit C.t
+
+  (** [try_ x fs] applies the callbacks in [fs] to [x] from left to right,
+      returning the result of the first that does not decline, or [None] if
+      all of them decline. *)
+  val try_ : 'a -> ('a -> 'b C.t) list -> 'b option C.t
 end

@@ -102,61 +102,47 @@ module Subst = struct
   let find t x = M.find t x |> Option.map ~f:(fun i -> i.tm)
   let empty = M.empty
 
-  let regvar t x = match find t x with
-    | Some (Regvar (r, t)) -> Some (r, t)
-    | _ -> None
+  (* This is only ever raised when the RHS of a rule references
+     an unbound variable. This is always a bug, so just fail
+     loudly. *)
+  exception Unbound of string
 
-  let regvar_v t x = match find t x with
-    | Some (Regvar_v r) -> Some r
-    | _ -> None
-
-  let imm t x = match find t x with
-    | Some (Imm (i, t)) -> Some (i, t)
-    | _ -> None
-
-  let single t x = match find t x with
-    | Some (Single s) -> Some s
-    | _ -> None
-
-  let double t x = match find t x with
-    | Some (Double d) -> Some d
-    | _ -> None
-
-  let sym t x = match find t x with
-    | Some (Sym (s, o)) -> Some (s, o)
-    | _ -> None
-
-  let label t x = match find t x with
-    | Some (Label l) -> Some l
-    | _ -> None
-
-  let bool t x = match find t x with
-    | Some (Bool b) -> Some b
-    | _ -> None
-
-  let table t x = match find t x with
-    | Some (Table (d, tbl)) -> Some (d, tbl)
-    | _ -> None
-
-  let callargs t x = match find t x with
-    | Some (Callargs rs) -> Some rs
-    | _ -> None
+  let find_exn t x = match find t x with
+    | Some tm -> tm
+    | None -> raise (Unbound x)
 end
+
+(* Sentinel value for when a rule fails to match. We can use `phys_equal`
+   during the `catch` in order to recognize it cheaply. *)
+let rule_decline = Error.of_string "isel: rule declined"
 
 module Rule(C : Context_intf.S) = struct
   open C.Syntax
 
-  type ('r, 'i) callback = 'r Subst.t -> 'i list option C.t
+  type ('r, 'i) callback = 'r Subst.t -> 'i list C.t
   type ('r, 'i) t = Pattern.toplevel * ('r, 'i) callback list
 
   let (=>) pre post = pre, [post]
   let (=>*) pre post = pre, post
 
-  let (let*!) x f = match x with
-    | None -> !!None
-    | Some x -> f x
+  module Rule_syntax = struct
+    let return = C.return
+    let bind = C.bind
+    let mzero = C.fail rule_decline
+  end
 
-  let (!!!) x = !!(Some x)
-  let guard x = if x then Some () else None
-  let try_ x fs = C.List.find_map fs ~f:((|>) x)
+  let (let*!) x f = match x with
+    | Some x -> f x
+    | None -> C.fail rule_decline
+
+  let decline = Rule_syntax.mzero
+  let guard x = if x then !!() else decline
+
+  let try_ x fs =
+    let rec go = function
+      | [] -> !!None
+      | f :: fs ->
+        C.catch (f x >>| Option.some) @@ fun e ->
+        if phys_equal e rule_decline then go fs else C.fail e in
+    go fs
 end

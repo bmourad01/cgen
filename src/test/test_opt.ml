@@ -545,6 +545,7 @@ let native_suite = "Test native code" >::: [
     "Comparison with immediate on the left (SysV AMD64)" >:: test_sysv_amd64_native "setcc_imm_left";
     "Narrow-type promotion (SysV AMD64)" >:: test_sysv_amd64_native "narrow_promote";
     "Sumto (SysV AMD64)" >:: test_sysv_amd64_native "sumto";
+    "Spill slot aliasing (SysV AMD64)" >:: test_sysv_amd64_native "slot_alias";
   ]
 
 let () = run_test_tt_main @@ test_list [

@@ -1,5 +1,4 @@
 open Core
-open Cgen_containers
 
 module Bv = Cgen_utils.Bv
 module R = X86_amd64_common.Reg
@@ -74,6 +73,16 @@ let fits_int32_pos x =
   let open Int64 in
   x > 0L && x <= 0x7FFFFFFFL
 
+(* True iff `x`'s high 32 bits are zero, i.e. it is representable in the low 32
+   bits with a zero upper half. This is the condition under which narrowing a
+   64-bit operation to its 32-bit form is sound: the 32-bit form zero-extends
+   the result into the full register, which matches the 64-bit result only when
+   the upper half was going to be zero anyway. (Unlike `fits_int32`, this
+   excludes negatives, whose sign-extension sets the upper half.) *)
+let fits_uint32 x =
+  let open Int64 in
+  x >= 0L && x <= 0xFFFFFFFFL
+
 let can_lea_ty = function
   | `i16 | `i32 | `i64 -> true
   | _ -> false
@@ -95,32 +104,32 @@ let array_of_list_map l ~f = match l with
     List.iteri rest ~f:(fun i x -> a.(i + 1) <- f x);
     a
 
-(* pre: `tbl` is non-empty
+(* pre: `tbl` is non-empty and sorted
 
    NB: this function is deliberately naiive, and we expect that
    the `Lower_switch` pass has been run beforehand
 *)
-let adjust_table d tbl =
-  let tbl = array_of_list_map tbl ~f:(fun (v, l) -> Bv.to_int64 v, l) in
-  let n = Array.length tbl in
-  let last = n - 1 in
-  (* Assume that it's sorted. *)
-  let lowest = fst tbl.(0) in
-  let highest = fst tbl.(last) in
-  (* Pad the table with missing elements. *)
-  let acc = Vec.create () in
-  let p = ref lowest in
-  for i = 0 to last do
-    let v, l = tbl.(i) in
-    let diff = Int64.(v - !p) and i = ref 0L in
-    while lt_u !i diff do
-      Vec.push acc d;
-      Int64.incr i;
-    done;
-    Vec.push acc l;
-    p := Int64.succ v
-  done;
-  Vec.to_list acc, lowest, highest
+let adjust_table d = function
+  | [] -> assert false
+  | (lowest, l1) :: rest ->
+    let lowest = Bv.to_int64 lowest in
+    let highest = ref lowest in
+    let[@tail_mod_cons] rec go p = function
+      | [] -> []
+      | (v, l) :: rest ->
+        let v = Bv.to_int64 v in
+        highest := v;
+        (* `diff` is the distance from the previous index `p`
+           to the current one `v`, so we need to pad that gap
+           with the default label.  *)
+        let diff = Int64.(v - p) in
+        let[@tail_mod_cons] rec with_pad i =
+          if lt_u i diff
+          then d :: with_pad (Int64.succ i)
+          else l :: go (Int64.succ v) rest in
+        with_pad 0L in
+    let tbl' = l1 :: go (Int64.succ lowest) rest in
+    tbl', lowest, !highest
 
 let (let@) f x = f x
 
@@ -141,7 +150,9 @@ end = struct
   let yes = P.var "yes"
   let no = P.var "no"
 
-  let (@!!) a b = !!!(a @ b)
+  let (@!!) a b = !!(a @ b) [@@inline]
+
+  let fresh_reg = C.Var.fresh >>| Rv.var
 
   let fresh_label_addr =
     let+ l = C.Label.fresh in
@@ -159,7 +170,7 @@ end = struct
     if fits_imm ty z then f (Oimm (z, zt)) else
       let* tmp = C.Var.fresh >>| Rv.var in
       let+ result = f (Oreg (tmp, `i64)) in
-      Option.map result ~f:(List.cons (I.mov (Oreg (tmp, `i64)) (Oimm (z, zt))))
+      List.cons (I.mov (Oreg (tmp, `i64)) (Oimm (z, zt))) result
 
   let extbh ?(signed = false) x xt' xt f =
     let i = if signed then I.movsx else I.movzx in
@@ -226,234 +237,276 @@ end = struct
      of a displacement. *)
   let sym_disp_fits o = fits_sext32 (Int64.of_int o)
 
+  (* Look up a matched pattern variable, as a bare term (see `Subst.find_exn`);
+     [env.!["x"]] then feeds a refutable `let` in a [%rule] block. *)
+  let (.![]) env x = S.find_exn env x
+
   (* Rule callbacks. *)
 
-  let move_rr_x_y ?(zx = false) env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
+  let move_rr_x_y ?(zx = false) env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
     (* This should be handled by the matching logic, but we'll put it
        here just in case. *)
-    let*! () = guard @@ not @@ Rv.equal x y in
+    guard (not (Rv.equal x y));
     match xt, yt with
     | (`i64 | `i32), `i32 when zx ->
       (* Implicit zero-extension. *)
-      !!![I.mov (Oreg (x, yt)) (Oreg (y, yt))]
+      [I.mov (Oreg (x, yt)) (Oreg (y, yt))]
     | (#Type.imm as xi), (#Type.imm as yi)
       when Type.sizeof_imm xi > Type.sizeof_imm yi ->
       (* Assume zero-extension is desired. *)
       let xt' = match xt, yt with
         | `i64, (`i16 | `i8) -> `i32
         | _ -> xt in
-      !!![I.movzx (Oreg (x, xt')) (Oreg (y, yt))]
+      [I.movzx (Oreg (x, xt')) (Oreg (y, yt))]
     | #Type.imm, #Type.imm ->
       (* Assume the width of the destination register, but promote i8/i16
          to i32 to avoid a partial-register write. *)
       let xt' = promote_narrow_ty xt in
-      !!![I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
+      [I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
     | `f32, `f32 ->
-      !!![I.movss (Oreg (x, xt)) (Oreg (y, yt))]
+      [I.movss (Oreg (x, xt)) (Oreg (y, yt))]
     | `f64, `f64 ->
-      !!![I.movsd (Oreg (x, xt)) (Oreg (y, yt))]
-    | _ -> !!None
+      [I.movsd (Oreg (x, xt)) (Oreg (y, yt))]
+    | _ -> fail
+  ]
 
-  let move_ri_x_y ?(zx = false) env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! () = guard (zx || Type.equal_basic xt (bty yt)) in
+  let move_ri_x_y ?(zx = false) env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    guard (zx || Type.equal_basic xt (bty yt));
     if Bv.(y = zero) then
-      !!![xor_gpr_self x xt]
+      [xor_gpr_self x xt]
     else
       let y = Bv.to_int64 y in
       let ty = match yt with
         | `i64 when fits_int32_pos y -> `i32
         | `i8 | `i16 -> `i32
         | _ -> yt in
-      !!![I.mov (Oreg (x, bty ty)) (Oimm (y, ty))]
+      [I.mov (Oreg (x, bty ty)) (Oimm (y, ty))]
+  ]
 
-  let move_rb_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! xti = match xt with
-      | #Type.imm as t -> Some t
-      | _ -> None in
-    let*! y = S.bool env "y" in
+  let move_rb_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let (#Type.imm as xti) = xt in
+    let S.Bool y = env.!["y"] in
     if y then
       let xt' = promote_narrow_ty xt in
       let xti' = match xti with
         | `i8 | `i16 -> `i32
         | t -> t in
-      !!![I.mov (Oreg (x, xt')) (Oimm (1L, xti'))]
-    else !!![xor_gpr_self x xt]
+      [I.mov (Oreg (x, xt')) (Oimm (1L, xti'))]
+    else [xor_gpr_self x xt]
+  ]
 
-  let move_rsym_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! s, o = S.sym env "y" in
+  let move_rsym_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Sym (s, o)     = env.!["y"] in
     if sym_disp_fits o then
-      !!![I.lea (Oreg (x, xt)) (Omem (Asym (s, o), `i64))]
+      [I.lea (Oreg (x, xt)) (Omem (Asym (s, o), `i64))]
     else
-      let@ oo = with_imm `i64 (Int64.of_int o) `i64 in !!![
+      let@ oo = with_imm `i64 (Int64.of_int o) `i64 in [
         I.lea (Oreg (x, `i64)) (Omem (Asym (s, 0), `i64));
-        I.add (Oreg (x, `i64)) oo;
+        I.add (Oreg (x, `i64)) oo
       ]
+  ]
 
-  let move_float_x_y i f s t env =
-    let*! x, xt = S.regvar env "x" in
-    let*! () = guard @@ Type.equal_basic xt t in
-    let*! s = s env "y" in
-    let* l, addr = fresh_label_addr in !!![
-      i (Oreg (x, xt)) (Omem (addr, mty t));
-      f l s;
+  let move_rf32_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    guard (Type.equal_basic xt `f32);
+    let S.Single c = env.!["y"] in
+    let* l, addr = fresh_label_addr in [
+      I.movss (Oreg (x, xt)) (Omem (addr, mty `f32));
+      I.fp32 l c
     ]
-  [@@specialise]
+  ]
 
-  let move_rf32_x_y = move_float_x_y I.movss I.fp32 S.single `f32
-  let move_rf64_x_y = move_float_x_y I.movsd I.fp64 S.double `f64
+  let move_rf64_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    guard (Type.equal_basic xt `f64);
+    let S.Double c = env.!["y"] in
+    let* l, addr = fresh_label_addr in [
+      I.movsd (Oreg (x, xt)) (Omem (addr, mty `f64));
+      I.fp64 l c
+    ]
+  ]
 
-  let add_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let*! () = guard @@ Type.equal_basic xt yt in
-    let*! () = guard @@ Type.equal_basic xt zt in
+  let add_rr_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    guard (Type.equal_basic xt yt);
+    guard (Type.equal_basic xt zt);
     if not (Rv.equal x y) && can_lea_ty xt then
       let xt' = promote_narrow_ty xt in
-      !!![I.lea (Oreg (x, xt')) (Omem (Abis (y, z, S1), `i64))]
+      [I.lea (Oreg (x, xt')) (Omem (Abis (y, z, S1), `i64))]
     else match xt with
       | #Type.imm ->
-        let xt' = promote_narrow_ty xt in !!![
+        let xt' = promote_narrow_ty xt in [
           I.mov (Oreg (x, xt')) (Oreg (y, xt'));
-          I.add (Oreg (x, xt')) (Oreg (z, xt'));
+          I.add (Oreg (x, xt')) (Oreg (z, xt'))
         ]
-      | `f64 -> !!![
+      | `f64 -> [
           I.movsd (Oreg (x, xt)) (Oreg (y, yt));
-          I.addsd (Oreg (x, xt)) (Oreg (z, zt));
+          I.addsd (Oreg (x, xt)) (Oreg (z, zt))
         ]
-      | `f32 -> !!![
+      | `f32 -> [
           I.movss (Oreg (x, xt)) (Oreg (y, yt));
-          I.addss (Oreg (x, xt)) (Oreg (z, zt));
+          I.addss (Oreg (x, xt)) (Oreg (z, zt))
         ]
+  ]
 
-  let add_mul_rr_scale_x_y_z s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! () = guard @@ can_lea_ty xt in
-    !!![I.lea (Oreg (x, xt)) (Omem (Abis (y, z, s), `i64))]
+  let add_mul_rr_scale_x_y_z s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _)  = env.!["y"] in
+    let S.Regvar (z, _)  = env.!["z"] in
+    guard (can_lea_ty xt);
+    [I.lea (Oreg (x, xt)) (Omem (Abis (y, z, s), `i64))]
+  ]
 
-  let add_rsym_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! s, o = S.sym env "z" in
-    let*! () = guard @@ can_lea_ty xt in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    let xt' = promote_narrow_ty xt in !!![
+  let add_rsym_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _)  = env.!["y"] in
+    let S.Sym (s, o)     = env.!["z"] in
+    guard (can_lea_ty xt);
+    let* tmp = fresh_reg in
+    let xt' = promote_narrow_ty xt in [
       I.lea (Oreg (tmp, `i64)) (Omem (Asym (s, o), `i64));
-      I.lea (Oreg (x, xt')) (Omem (Abis (y, tmp, S1), `i64));
+      I.lea (Oreg (x, xt')) (Omem (Abis (y, tmp, S1), `i64))
     ]
+  ]
 
-  let add_symi_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! s, o = S.sym env "y" in
-    let*! z, _ = S.imm env "z" in
-    let*! () = guard @@ can_lea_ty xt in
+  let add_symi_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Sym (s, o) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
+    guard (can_lea_ty xt);
     let d = Int64.(of_int o + Bv.to_int64 z) in
-    let*! () = guard @@ fits_sext32 d in
+    guard (fits_sext32 d);
     let xt' = promote_narrow_ty xt in
-    !!![I.lea (Oreg (x, xt')) (Omem (Asym (s, Int64.to_int_trunc d), `i64))]
+    [I.lea (Oreg (x, xt')) (Omem (Asym (s, Int64.to_int_trunc d), `i64))]
+  ]
 
-  let lea_bisd_x_y_z_w neg s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! w, _ = S.imm env "w" in
+  let lea_bisd_x_y_z_w neg s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
+    let S.Imm (w, _) = env.!["w"] in
     let w = Bv.to_int64 w in
     let nw = if neg then Int64.neg w else w in
-    let*! () = guard @@ can_lea_ty xt in
-    let*! () = guard @@ (if neg then fits_int32_neg else fits_int32_pos) nw in
+    guard (can_lea_ty xt);
+    guard ((if neg then fits_int32_neg else fits_int32_pos) nw);
     let w = Int64.to_int32_trunc nw in
-    !!![I.lea (Oreg (x, xt)) (Omem (Abisd (y, z, s, w), `i64))]
-  [@@specialise]
+    [I.lea (Oreg (x, xt)) (Omem (Abisd (y, z, s, w), `i64))]
+  ] [@@specialise]
 
   let add_mul_rr_scale_imm_x_y_z_w = lea_bisd_x_y_z_w false
   let add_mul_rr_scale_neg_imm_x_y_z_w = lea_bisd_x_y_z_w true
 
-  let add_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! () = guard @@ Type.equal_basic xt yt in
-    let*! z, zt = S.imm env "z" in
+  let add_ri_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    guard (Type.equal_basic xt yt);
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
     let xt' = promote_narrow_ty xt in
     let zt' = match zt with
       | `i8 | `i16 -> `i32
       | t -> t in
     if Int64.(z = 0L) then
-      !!![I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
+      [I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
     else if not (Rv.equal x y) && fits_int32_pos z && can_lea_ty xt then
       let z = Int64.to_int32_trunc z in
-      !!![I.lea (Oreg (x, xt')) (Omem (Abd (y, z), `i64))]
+      [I.lea (Oreg (x, xt')) (Omem (Abd (y, z), `i64))]
     else
       let@ oz = with_imm xt' z zt' in
-      if Rv.equal x y then !!![
-          I.add (Oreg (x, xt')) oz
-        ]
-      else !!![
-          I.mov (Oreg (x, xt')) (Oreg (y, xt'));
-          I.add (Oreg (x, xt')) oz;
-        ]
+      if Rv.equal x y then
+        [I.add (Oreg (x, xt')) oz]
+      else [
+        I.mov (Oreg (x, xt')) (Oreg (y, xt'));
+        I.add (Oreg (x, xt')) oz
+      ]
+  ]
 
-  let arith_float_x_y_z i1 i2 f s t env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! () = guard @@ Type.equal_basic xt yt in
-    let*! z = s env "z" in
-    let* l, addr = fresh_label_addr in !!![
+  let arith_float_rf32 i1 i2 f env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    guard (Type.equal_basic xt yt);
+    let S.Single c = env.!["z"] in
+    let* l, addr = fresh_label_addr in [
       i1 (Oreg (x, xt)) (Oreg (y, yt));
-      i2 (Oreg (x, xt)) (Omem (addr, t));
-      f l z;
+      i2 (Oreg (x, xt)) (Omem (addr, `f32));
+      f l c
     ]
-  [@@specialise]
+  ] [@@specialise]
 
-  let arith_float_fr_x_y_z i1 i2 f s t env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = s env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let*! () = guard @@ Type.equal_basic xt zt in
-    let* l, addr = fresh_label_addr in !!![
-      i1 (Oreg (x, xt)) (Omem (addr, t));
+  let arith_float_rf64 i1 i2 f env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    guard (Type.equal_basic xt yt);
+    let S.Double c = env.!["z"] in
+    let* l, addr = fresh_label_addr in [
+      i1 (Oreg (x, xt)) (Oreg (y, yt));
+      i2 (Oreg (x, xt)) (Omem (addr, `f64));
+      f l c
+    ]
+  ] [@@specialise]
+
+  let arith_float_fr32 i1 i2 f env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Single c = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    guard (Type.equal_basic xt zt);
+    let* l, addr = fresh_label_addr in [
+      i1 (Oreg (x, xt)) (Omem (addr, `f32));
       i2 (Oreg (x, xt)) (Oreg (z, zt));
-      f l y;
+      f l c
     ]
-  [@@specialise]
+  ] [@@specialise]
 
-  let add_rf32_x_y_z = arith_float_x_y_z I.movss I.addss I.fp32 S.single `f32
-  let add_rf64_x_y_z = arith_float_x_y_z I.movsd I.addsd I.fp64 S.double `f64
+  let arith_float_fr64 i1 i2 f env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Double c = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    guard (Type.equal_basic xt zt);
+    let* l, addr = fresh_label_addr in [
+      i1 (Oreg (x, xt)) (Omem (addr, `f64));
+      i2 (Oreg (x, xt)) (Oreg (z, zt));
+      f l c
+    ]
+  ] [@@specialise]
 
-  let sub_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let*! () = guard @@ Type.equal_basic xt yt in
-    let*! () = guard @@ Type.equal_basic xt zt in
+  let add_rf32_x_y_z = arith_float_rf32 I.movss I.addss I.fp32
+  let add_rf64_x_y_z = arith_float_rf64 I.movsd I.addsd I.fp64
+
+  let sub_rr_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    guard (Type.equal_basic xt yt);
+    guard (Type.equal_basic xt zt);
     match xt with
     | #Type.imm ->
-      let xt' = promote_narrow_ty xt in !!![
+      let xt' = promote_narrow_ty xt in [
         I.mov (Oreg (x, xt')) (Oreg (y, xt'));
-        I.sub (Oreg (x, xt')) (Oreg (z, xt'));
+        I.sub (Oreg (x, xt')) (Oreg (z, xt'))
       ]
-    | `f64 -> !!![
+    | `f64 -> [
         I.movsd (Oreg (x, xt)) (Oreg (y, yt));
-        I.subsd (Oreg (x, xt)) (Oreg (z, zt));
+        I.subsd (Oreg (x, xt)) (Oreg (z, zt))
       ]
-    | `f32 -> !!![
+    | `f32 -> [
         I.movss (Oreg (x, xt)) (Oreg (y, yt));
-        I.subss (Oreg (x, xt)) (Oreg (z, zt));
+        I.subss (Oreg (x, xt)) (Oreg (z, zt))
       ]
+  ]
 
-  let sub_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! () = guard @@ Type.equal_basic xt yt in
-    let*! z, zt = S.imm env "z" in
+  let sub_ri_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    guard (Type.equal_basic xt yt);
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
     let nz = Int64.neg z in
     let xt' = promote_narrow_ty xt in
@@ -461,63 +514,64 @@ end = struct
       | `i8 | `i16 -> `i32
       | t -> t in
     if Int64.(z = 0L) then
-      !!![I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
+      [I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
     else if not (Rv.equal x y) && fits_int32_neg nz && can_lea_ty xt then
       let z = Int64.to_int32_trunc nz in
-      !!![I.lea (Oreg (x, xt')) (Omem (Abd (y, z), `i64))]
+      [I.lea (Oreg (x, xt')) (Omem (Abd (y, z), `i64))]
     else
       let@ oz = with_imm xt' z zt' in
-      if Rv.equal x y then !!![
-          I.sub (Oreg (x, xt')) oz
-        ]
-      else !!![
-          I.mov (Oreg (x, xt')) (Oreg (y, xt'));
-          I.sub (Oreg (x, xt')) oz;
-        ]
+      if Rv.equal x y then
+        [I.sub (Oreg (x, xt')) oz]
+      else [
+        I.mov (Oreg (x, xt')) (Oreg (y, xt'));
+        I.sub (Oreg (x, xt')) oz
+      ]
+  ]
 
-  let sub_ir_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let*! () = guard @@ Type.equal_basic xt zt in
+  let sub_ir_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    guard (Type.equal_basic xt zt);
     let y = Bv.to_int64 y in
     let xt' = promote_narrow_ty xt in
     let yt' = match yt with
       | `i8 | `i16 -> `i32
-      | t -> t in !!![
+      | t -> t in [
       I.mov (Oreg (x, xt')) (Oimm (y, yt'));
-      I.sub (Oreg (x, xt')) (Oreg (z, xt'));
+      I.sub (Oreg (x, xt')) (Oreg (z, xt'))
     ]
+  ]
 
-  let sub_rf32_x_y_z = arith_float_x_y_z I.movss I.subss I.fp32 S.single `f32
-  let sub_rf64_x_y_z = arith_float_x_y_z I.movsd I.subsd I.fp64 S.double `f64
-  let sub_fr32_x_y_z = arith_float_fr_x_y_z I.movss I.subss I.fp32 S.single `f32
-  let sub_fr64_x_y_z = arith_float_fr_x_y_z I.movsd I.subsd I.fp64 S.double `f64
+  let sub_rf32_x_y_z = arith_float_rf32 I.movss I.subss I.fp32
+  let sub_rf64_x_y_z = arith_float_rf64 I.movsd I.subsd I.fp64
+  let sub_fr32_x_y_z = arith_float_fr32 I.movss I.subss I.fp32
+  let sub_fr64_x_y_z = arith_float_fr64 I.movsd I.subsd I.fp64
 
-  let bitwise_rr_x_y_z i env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _  = S.regvar env "y" in
-    let*! z, _  = S.regvar env "z" in
-    let xt' = promote_narrow_ty xt in !!![
+  let bitwise_rr_x_y_z i env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _)  = env.!["y"] in
+    let S.Regvar (z, _)  = env.!["z"] in
+    let xt' = promote_narrow_ty xt in [
       I.mov (Oreg (x, xt')) (Oreg (y, xt'));
-      i (Oreg (x, xt')) (Oreg (z, xt'));
+      i (Oreg (x, xt')) (Oreg (z, xt'))
     ]
-  [@@specialise]
+  ] [@@specialise]
 
-  let bitwise_ri_x_y_z ?(trunc = false) i env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _  = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
+  let bitwise_ri_x_y_z ?(trunc = false) i env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _)  = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
     let xt', zt' = match xt with
-      | `i64 when trunc && fits_int32 z -> `i32, `i32
+      | `i64 when trunc && fits_uint32 z -> `i32, `i32
       | `i8 | `i16 -> `i32, `i32
       | _ -> xt, zt in
-    let@ oz = with_imm xt' z zt' in !!![
+    let@ oz = with_imm xt' z zt' in [
       I.mov (Oreg (x, xt')) (Oreg (y, xt'));
-      i (Oreg (x, xt')) oz;
+      i (Oreg (x, xt')) oz
     ]
-  [@@specialise]
+  ] [@@specialise]
 
   let and_rr_x_y_z = bitwise_rr_x_y_z I.and_
   let and_ri_x_y_z = bitwise_ri_x_y_z ~trunc:true I.and_
@@ -526,386 +580,419 @@ end = struct
   let xor_rr_x_y_z = bitwise_rr_x_y_z I.xor
   let xor_ri_x_y_z = bitwise_ri_x_y_z I.xor
 
-  let jmp_lbl_x env =
-    let*! x = S.label env "x" in
-    !!![I.jmp (Jlbl x)]
+  let jmp_lbl_x env = [%rule
+    let S.Label x = env.!["x"] in
+    [I.jmp (Jlbl x)]
+  ]
 
-  let jmp_sym_x env =
-    let*! s, o = S.sym env "x" in
-    !!![I.jmp (Jind (Osym (s, o)))]
+  let jmp_sym_x env = [%rule
+    let S.Sym (s, o) = env.!["x"] in
+    [I.jmp (Jind (Osym (s, o)))]
+  ]
 
-  let jmp_r_x env =
-    let*! x, xt = S.regvar env "x" in
-    let*! () = guard @@ Type.equal_basic xt `i64 in
-    !!![I.jmp (Jind (Oreg (x, xt)))]
+  let jmp_r_x env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    guard (Type.equal_basic xt `i64);
+    [I.jmp (Jind (Oreg (x, xt)))]
+  ]
 
-  let jmp_i_x env =
-    let*! x, xt = S.imm env "x" in
-    let*! () = guard @@ Type.equal_imm xt `i64 in
-    let* tmp = C.Var.fresh >>| Rv.var in
+  let jmp_i_x env = [%rule
+    let S.Imm (x, xt) = env.!["x"] in
+    guard (Type.equal_imm xt `i64);
+    let* tmp = fresh_reg in
     let x = Bv.to_int64 x in
-    let ty = if fits_int32 x then `i32 else xt in !!![
+    let ty = if fits_uint32 x then `i32 else xt in [
       I.mov (Oreg (tmp, bty ty)) (Oimm (x, ty));
       I.jmp (Jind (Oreg (tmp, `i64)))
     ]
+  ]
 
-  let jcc_r_zero_x ?(neg = false) env =
-    let*! x, xt = S.regvar env "x" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let cc = if neg then Cne else Ce in !!![
+  let jcc_r_zero_x ?(neg = false) env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    let cc = if neg then Cne else Ce in [
       I.test (Oreg (x, xt)) (Oreg (x, xt));
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
 
-  let jcc_r_less_than_zero_x ?(neg = false) env =
-    let*! x, xt = S.regvar env "x" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let cc = if neg then Cns else Cs in !!![
+  let jcc_r_less_than_zero_x ?(neg = false) env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    let cc = if neg then Cns else Cs in [
       I.test (Oreg (x, xt)) (Oreg (x, xt));
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
 
-  let jcc_rr_test_x_y ?(neg = false) env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let cc = if neg then Ce else Cne in !!![
+  let jcc_rr_test_x_y ?(neg = false) env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    let cc = if neg then Ce else Cne in [
       I.test (Oreg (x, xt)) (Oreg (y, yt));
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
 
-  let jcc_ri_test_x_y ?(neg = false) env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
+  let jcc_ri_test_x_y ?(neg = false) env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
     let y = Bv.to_int64 y in
     let cc = if neg then Ce else Cne in
-    let@ oy = with_imm xt y yt in !!![
+    let@ oy = with_imm xt y yt in [
       I.test (Oreg (x, xt)) oy;
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
 
-  let jcc_rsym_test_x_y ?(neg = false) env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yo = S.sym env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    let cc = if neg then Ce else Cne in !!![
+  let jcc_rsym_test_x_y ?(neg = false) env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Sym (y, yo) = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    let* tmp = fresh_reg in
+    let cc = if neg then Ce else Cne in [
       lea_sym tmp y yo;
       I.test (Oreg (x, xt)) (Oreg (tmp, `i64));
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
 
-  let jcc_rr_cmp cmp cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in !!![
+  let jcc_rr_cmp cmp cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in [
       cmp (Oreg (x, xt)) (Oreg (y, yt));
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
   [@@specialise]
 
   let jcc_rr_x_y     = jcc_rr_cmp I.cmp
   let jcc_rr_f32_x_y = jcc_rr_cmp I.ucomiss
   let jcc_rr_f64_x_y = jcc_rr_cmp I.ucomisd
 
-  let jcc_rf32_x_y cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.single env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let*! () = guard @@ Type.equal_basic xt `f32 in
-    let* l, addr = fresh_label_addr in !!![
+  let jcc_rf32_x_y cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Single y = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    guard (Type.equal_basic xt `f32);
+    let* l, addr = fresh_label_addr in [
       I.ucomiss (Oreg (x, xt)) (Omem (addr, `f32));
       I.jcc cc yes;
       I.jmp (Jlbl no);
-      I.fp32 l y;
+      I.fp32 l y
     ]
+  ]
 
-  let jcc_fr32_x_y cc env =
-    let*! x = S.single env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let*! () = guard @@ Type.equal_basic yt `f32 in
-    let* l, addr = fresh_label_addr in !!![
+  let jcc_fr32_x_y cc env = [%rule
+    let S.Single x = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    guard (Type.equal_basic yt `f32);
+    let* l, addr = fresh_label_addr in [
       I.ucomiss (Oreg (y, yt)) (Omem (addr, `f32));
       I.jcc (flip_cc cc) yes;
       I.jmp (Jlbl no);
-      I.fp32 l x;
+      I.fp32 l x
     ]
+  ]
 
-  let jcc_rf64_x_y cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.double env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let*! () = guard @@ Type.equal_basic xt `f64 in
-    let* l, addr = fresh_label_addr in !!![
+  let jcc_rf64_x_y cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Double y = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    guard (Type.equal_basic xt `f64);
+    let* l, addr = fresh_label_addr in [
       I.ucomisd (Oreg (x, xt)) (Omem (addr, `f64));
       I.jcc cc yes;
       I.jmp (Jlbl no);
-      I.fp64 l y;
+      I.fp64 l y
     ]
+  ]
 
-  let jcc_fr64_x_y cc env =
-    let*! x = S.double env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let*! () = guard @@ Type.equal_basic yt `f64 in
-    let* l, addr = fresh_label_addr in !!![
+  let jcc_fr64_x_y cc env = [%rule
+    let S.Double x = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    guard (Type.equal_basic yt `f64);
+    let* l, addr = fresh_label_addr in [
       I.ucomisd (Oreg (y, yt)) (Omem (addr, `f64));
       I.jcc (flip_cc cc) yes;
       I.jmp (Jlbl no);
-      I.fp64 l x;
+      I.fp64 l x
     ]
+  ]
 
-  let jcc_ri_x_y cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
+  let jcc_ri_x_y cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
     let y = Bv.to_int64 y in
-    let@ oy = with_imm xt y yt in !!![
+    let@ oy = with_imm xt y yt in [
       I.cmp (Oreg (x, xt)) oy;
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
 
-  let jcc_rsym_x_y cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yo = S.sym env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let* tmp = C.Var.fresh >>| Rv.var in !!![
+  let jcc_rsym_x_y cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Sym (y, yo) = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    let* tmp = fresh_reg in [
       lea_sym tmp y yo;
       I.cmp (Oreg (x, xt)) (Oreg (tmp, `i64));
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
 
-  let jcc_symi_x_y cc env =
-    let*! x, xo = S.sym env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! () = guard @@ Type.equal_imm yt `i64 in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    let y = Bv.to_int64 y in !!![
+  let jcc_symi_x_y cc env = [%rule
+    let S.Sym (x, xo) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    guard (Type.equal_imm yt `i64);
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    let* tmp = fresh_reg in
+    let y = Bv.to_int64 y in [
       lea_sym tmp x xo;
       I.cmp (Oreg (tmp, `i64)) (Oimm (y, yt));
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
 
-  let jcc_symsym_x_y cc env =
-    let*! x, xo = S.sym env "x" in
-    let*! y, yo = S.sym env "y" in
-    let*! yes = S.label env "yes" in
-    let*! no = S.label env "no" in
-    let* tmp1 = C.Var.fresh >>| Rv.var in
-    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+  let jcc_symsym_x_y cc env = [%rule
+    let S.Sym (x, xo) = env.!["x"] in
+    let S.Sym (y, yo) = env.!["y"] in
+    let S.Label yes = env.!["yes"] in
+    let S.Label no = env.!["no"] in
+    let* tmp1 = fresh_reg in
+    let* tmp2 = fresh_reg in [
       lea_sym tmp1 x xo;
       lea_sym tmp2 y yo;
       I.cmp (Oreg (tmp1, `i64)) (Oreg (tmp2, `i64));
       I.jcc cc yes;
-      I.jmp (Jlbl no);
+      I.jmp (Jlbl no)
     ]
+  ]
 
   (* Default to 8-bit *)
-  let setcc_r_zero_x_y ?(neg = false) env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let cc = if neg then Cne else Ce in !!![
+  let setcc_r_zero_x_y ?(neg = false) env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let cc = if neg then Cne else Ce in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       I.test (Oreg (y, yt)) (Oreg (y, yt));
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
 
   (* Default to 8-bit *)
-  let setcc_r_less_than_zero_x_y ?(neg = false) env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let cc = if neg then Cns else Cs in !!![
+  let setcc_r_less_than_zero_x_y ?(neg = false) env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let cc = if neg then Cns else Cs in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       I.test (Oreg (y, yt)) (Oreg (y, yt));
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
 
   (* Default to 8-bit *)
-  let setcc_rr_test_x_y_z ?(neg = false) env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let cc = if neg then Ce else Cne in !!![
+  let setcc_rr_test_x_y_z ?(neg = false) env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    let cc = if neg then Ce else Cne in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       I.test (Oreg (y, yt)) (Oreg (z, zt));
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
 
   (* Default to 8-bit *)
-  let setcc_ri_test_x_y_z ?(neg = false) env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
+  let setcc_ri_test_x_y_z ?(neg = false) env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
     let cc = if neg then Ce else Cne in
-    let@ oz = with_imm yt z zt in !!![
+    let@ oz = with_imm yt z zt in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       I.test (Oreg (y, yt)) oz;
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
 
-  let setcc_rsym_test_x_y_z ?(neg = false) env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zo = S.sym env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    let cc = if neg then Ce else Cne in !!![
+  let setcc_rsym_test_x_y_z ?(neg = false) env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Sym (z, zo) = env.!["z"] in
+    let* tmp = fresh_reg in
+    let cc = if neg then Ce else Cne in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       lea_sym tmp z zo;
       I.test (Oreg (y, yt)) (Oreg (tmp, `i64));
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
 
   (* Default to 8-bit *)
-  let setcc_rr_cmp cmp cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in !!![
+  let setcc_rr_cmp cmp cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       cmp (Oreg (y, yt)) (Oreg (z, zt));
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
   [@@specialise]
 
   let setcc_rr_x_y_z     = setcc_rr_cmp I.cmp
   let setcc_rr_f32_x_y_z = setcc_rr_cmp I.ucomiss
   let setcc_rr_f64_x_y_z = setcc_rr_cmp I.ucomisd
 
-  let setcc_rf32_x_y_z cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z = S.single env "z" in
-    let*! () = guard @@ Type.equal_basic yt `f32 in
-    let* l, addr = fresh_label_addr in !!![
+  let setcc_rf32_x_y_z cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Single z = env.!["z"] in
+    guard (Type.equal_basic yt `f32);
+    let* l, addr = fresh_label_addr in [
       I.xor    (Oreg (x, `i32)) (Oreg (x, `i32));
       I.ucomiss (Oreg (y, yt)) (Omem (addr, `f32));
       I.setcc cc (Oreg (x, `i8));
-      I.fp32 l z;
+      I.fp32 l z
     ]
+  ]
 
-  let setcc_rf64_x_y_z cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z = S.double env "z" in
-    let*! () = guard @@ Type.equal_basic yt `f64 in
-    let* l, addr = fresh_label_addr in !!![
+  let setcc_rf64_x_y_z cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Double z = env.!["z"] in
+    guard (Type.equal_basic yt `f64);
+    let* l, addr = fresh_label_addr in [
       I.xor    (Oreg (x, `i32)) (Oreg (x, `i32));
       I.ucomisd (Oreg (y, yt)) (Omem (addr, `f64));
       I.setcc cc (Oreg (x, `i8));
-      I.fp64 l z;
+      I.fp64 l z
     ]
+  ]
 
-  let setcc_fr32_x_y_z cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y = S.single env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let*! () = guard @@ Type.equal_basic zt `f32 in
-    let* l, addr = fresh_label_addr in !!![
+  let setcc_fr32_x_y_z cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Single y = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    guard (Type.equal_basic zt `f32);
+    let* l, addr = fresh_label_addr in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       I.ucomiss (Oreg (z, zt)) (Omem (addr, `f32));
       I.setcc (flip_cc cc) (Oreg (x, `i8));
-      I.fp32 l y;
+      I.fp32 l y
     ]
+  ]
 
-  let setcc_fr64_x_y_z cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y = S.double env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let*! () = guard @@ Type.equal_basic zt `f64 in
-    let* l, addr = fresh_label_addr in !!![
+  let setcc_fr64_x_y_z cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Double y = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    guard (Type.equal_basic zt `f64);
+    let* l, addr = fresh_label_addr in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       I.ucomisd (Oreg (z, zt)) (Omem (addr, `f64));
       I.setcc (flip_cc cc) (Oreg (x, `i8));
-      I.fp64 l y;
+      I.fp64 l y
     ]
+  ]
 
-  let setcc_rsym_x_y_z cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zo = S.sym env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in !!![
-      (* Zero the result first: `setcc` writes only the low byte, so without
-         this the upper bytes are garbage when the flag is later widened to a
-         full register (e.g. stored to a 32-bit global). *)
+  let setcc_rsym_x_y_z cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Sym (z, zo) = env.!["z"] in
+    let* tmp = fresh_reg in
+    (* Zero the result first: `setcc` writes only the low byte, so without
+       this the upper bytes are garbage when the flag is later widened to a
+       full register (e.g. stored to a 32-bit global). *) [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       lea_sym tmp z zo;
       I.cmp (Oreg (y, yt)) (Oreg (tmp, `i64));
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
 
-  let setcc_symi_x_y_z cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yo = S.sym env "y" in
-    let*! z, zt = S.imm env "z" in
-    let*! () = guard @@ Type.equal_imm zt `i64 in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    let z = Bv.to_int64 z in !!![
+  let setcc_symi_x_y_z cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Sym (y, yo) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
+    guard (Type.equal_imm zt `i64);
+    let* tmp = fresh_reg in
+    let z = Bv.to_int64 z in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       lea_sym tmp y yo;
       I.cmp (Oreg (tmp, `i64)) (Oimm (z, zt));
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
 
-  let setcc_symsym_x_y_z cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yo = S.sym env "y" in
-    let*! z, zo = S.sym env "z" in
-    let* tmp1 = C.Var.fresh >>| Rv.var in
-    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+  let setcc_symsym_x_y_z cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Sym (y, yo) = env.!["y"] in
+    let S.Sym (z, zo) = env.!["z"] in
+    let* tmp1 = fresh_reg in
+    let* tmp2 = fresh_reg in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       lea_sym tmp1 y yo;
       lea_sym tmp2 z zo;
       I.cmp (Oreg (tmp1, `i64)) (Oreg (tmp2, `i64));
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
 
   (* Default to 8-bit *)
-  let setcc_ri_x_y_z cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
+  let setcc_ri_x_y_z cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let@ oz = with_imm yt z zt in !!![
+    let@ oz = with_imm yt z zt in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       I.cmp (Oreg (y, yt)) oz;
-      I.setcc cc (Oreg (x, `i8));
+      I.setcc cc (Oreg (x, `i8))
     ]
+  ]
 
-  let setcc_ir_x_y_z cc env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! z, zt = S.regvar env "z" in
+  let setcc_ir_x_y_z cc env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
     let y = Bv.to_int64 y in
-    let@ oy = with_imm zt y yt in !!![
+    let@ oy = with_imm zt y yt in [
       I.xor (Oreg (x, `i32)) (Oreg (x, `i32));
       I.cmp (Oreg (z, zt)) oy;
-      I.setcc (swap_cc cc) (Oreg (x, `i8));
+      I.setcc (swap_cc cc) (Oreg (x, `i8))
     ]
+  ]
 
   (* 8-bit cmov is not supported, but we can just use
      the 32-bit variant and pretend that nothing happened.
@@ -917,97 +1004,104 @@ end = struct
     | `i8 -> `i32
     | t -> t
 
-  let sel_yn_rr cc x xt pre cmp env =
+  let sel_yn_rr cc x xt pre cmp env = [%rule
     let xt' = sel_i8_ty xt in
-    let*! yes, yes_t = S.regvar env "yes" in
-    let*! no, no_t = S.regvar env "no" in
-    let*! () = guard @@ Type.equal_basic xt yes_t in
-    let*! () = guard @@ Type.equal_basic xt no_t  in
-    pre @!! [
+    let S.Regvar (yes, yes_t) = env.!["yes"] in
+    let S.Regvar (no, no_t) = env.!["no"] in
+    guard (Type.equal_basic xt yes_t);
+    guard (Type.equal_basic xt no_t);
+    pre @ [
       I.mov (Oreg (x, xt')) (Oreg (no, xt'));
       cmp;
       I.cmov cc (Oreg (x, xt')) (Oreg (yes, xt'));
     ]
+  ]
 
-  let sel_yn_ri cc x xt pre cmp env =
+  let sel_yn_ri cc x xt pre cmp env = [%rule
     let xt' = sel_i8_ty xt in
-    let*! yes, yes_t = S.regvar env "yes" in
-    let*! no, no_t = S.imm env "no" in
-    let*! () = guard @@ Type.equal_basic xt yes_t in
-    let*! () = guard @@ Type.equal_basic xt (bty no_t) in
-    pre @!! [
+    let S.Regvar (yes, yes_t) = env.!["yes"] in
+    let S.Imm (no, no_t) = env.!["no"] in
+    guard (Type.equal_basic xt yes_t);
+    guard (Type.equal_basic xt (bty no_t));
+    pre @ [
       I.mov (Oreg (x, xt')) (Oimm (Bv.to_int64 no, no_t));
       cmp;
       I.cmov cc (Oreg (x, xt')) (Oreg (yes, xt'));
     ]
+  ]
 
-  let sel_yn_ir cc x xt pre cmp env =
+  let sel_yn_ir cc x xt pre cmp env = [%rule
     let xt' = sel_i8_ty xt in
-    let*! yes, yes_t = S.imm env "yes" in
-    let*! no, no_t = S.regvar env "no" in
-    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
-    let*! () = guard @@ Type.equal_basic xt no_t in
-    pre @!! [
+    let S.Imm (yes, yes_t) = env.!["yes"] in
+    let S.Regvar (no, no_t) = env.!["no"] in
+    guard (Type.equal_basic xt (bty yes_t));
+    guard (Type.equal_basic xt no_t);
+    pre @ [
       I.mov (Oreg (x, xt')) (Oimm (Bv.to_int64 yes, yes_t));
       cmp;
       I.cmov (negate_cc cc) (Oreg (x, xt')) (Oreg (no, xt'));
     ]
+  ]
 
-  let sel_yn_ii cc x xt pre cmp env =
+  let sel_yn_ii cc x xt pre cmp env = [%rule
     let xt' = sel_i8_ty xt in
-    let*! yes, yes_t = S.imm env "yes" in
-    let*! no, no_t = S.imm env "no" in
-    let*! () = guard @@ Type.equal_basic xt (bty yes_t) in
-    let*! () = guard @@ Type.equal_basic xt (bty no_t)  in
-    let* tmp_yes = C.Var.fresh >>| Rv.var in
-    pre @!! [
+    let S.Imm (yes, yes_t) = env.!["yes"] in
+    let S.Imm (no, no_t) = env.!["no"] in
+    guard (Type.equal_basic xt (bty yes_t));
+    guard (Type.equal_basic xt (bty no_t));
+    let* tmp_yes = fresh_reg in
+    pre @ [
       I.mov (Oreg (tmp_yes, xt')) (Oimm (Bv.to_int64 yes, yes_t));
       I.mov (Oreg (x, xt')) (Oimm (Bv.to_int64 no, no_t));
       cmp;
       I.cmov cc (Oreg (x, xt')) (Oreg (tmp_yes, xt'));
     ]
+  ]
 
-  let sel_rr_x_y_z yn cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    yn cc x xt [] (I.cmp (Oreg (y, yt)) (Oreg (z, zt))) env
-  [@@specialise]
+  let sel_rr_x_y_z yn cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    continue (yn cc x xt [] (I.cmp (Oreg (y, yt)) (Oreg (z, zt))) env)
+  ] [@@specialise]
 
-  let sel_ri_x_y_z yn cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
+  let sel_ri_x_y_z yn cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
-    if fits_imm yt z then
-      yn cc x xt [] (I.cmp (Oreg (y, yt)) (Oimm (z, zt))) env
-    else
-      let* tmp = C.Var.fresh >>| Rv.var in
-      yn cc x xt
-        [I.mov (Oreg (tmp, bty zt)) (Oimm (z, zt))]
-        (I.cmp (Oreg (y, yt)) (Oreg (tmp, bty zt)))
-        env
-  [@@specialise]
+    continue (
+      if fits_imm yt z then
+        yn cc x xt [] (I.cmp (Oreg (y, yt)) (Oimm (z, zt))) env
+      else
+        let* tmp = C.Var.fresh >>| Rv.var in
+        yn cc x xt
+          [I.mov (Oreg (tmp, bty zt)) (Oimm (z, zt))]
+          (I.cmp (Oreg (y, yt)) (Oreg (tmp, bty zt)))
+          env)
+  ] [@@specialise]
 
   (* Condition compares a register against a symbol's address. *)
-  let sel_rsym_x_y_z yn cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! s, o = S.sym env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    yn cc x xt
-      [lea_sym tmp s o]
-      (I.cmp (Oreg (y, yt)) (Oreg (tmp, `i64)))
-      env
-  [@@specialise]
+  let sel_rsym_x_y_z yn cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Sym (s, o) = env.!["z"] in
+    continue (
+      let* tmp = C.Var.fresh >>| Rv.var in
+      yn cc x xt
+        [lea_sym tmp s o]
+        (I.cmp (Oreg (y, yt)) (Oreg (tmp, `i64)))
+        env)
+  ] [@@specialise]
 
-  let sel_zero_x_y yn ?(neg = false) ?(eq = true) env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
+  let sel_zero_x_y yn ?(neg = false) ?(eq = true) env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
     let cc = if eq
       then (if neg then Cne else Ce)
       else (if neg then Cns else Cs) in
-    yn cc x xt [] (I.test (Oreg (y, yt)) (Oreg (y, yt))) env
+    continue (yn cc x xt [] (I.test (Oreg (y, yt)) (Oreg (y, yt))) env)
+  ]
 
   let sel_rrrr_x_y_z = sel_rr_x_y_z sel_yn_rr
   let sel_rrri_x_y_z = sel_rr_x_y_z sel_yn_ri
@@ -1028,43 +1122,52 @@ end = struct
   let sel_ir_zero_x_y = sel_zero_x_y sel_yn_ir
   let sel_ii_zero_x_y = sel_zero_x_y sel_yn_ii
 
-  let sel_fcmp_rr ucomi yn cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    yn cc x xt [] (ucomi (Oreg (y, yt)) (Oreg (z, zt))) env
+  let sel_fcmp_rr ucomi yn cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    continue (yn cc x xt [] (ucomi (Oreg (y, yt)) (Oreg (z, zt))) env)
+  ]
 
-  let sel_fcmp_rf32 yn cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z = S.single env "z" in
-    let*! () = guard @@ Type.equal_basic yt `f32 in
-    let* l, addr = fresh_label_addr in
-    yn cc x xt [I.fp32 l z] (I.ucomiss (Oreg (y, yt)) (Omem (addr, `f32))) env
+  let sel_fcmp_rf32 yn cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Single z = env.!["z"] in
+    guard (Type.equal_basic yt `f32);
+    continue (
+      let* l, addr = fresh_label_addr in
+      yn cc x xt [I.fp32 l z] (I.ucomiss (Oreg (y, yt)) (Omem (addr, `f32))) env)
+  ]
 
-  let sel_fcmp_rf64 yn cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z = S.double env "z" in
-    let*! () = guard @@ Type.equal_basic yt `f64 in
-    let* l, addr = fresh_label_addr in
-    yn cc x xt [I.fp64 l z] (I.ucomisd (Oreg (y, yt)) (Omem (addr, `f64))) env
+  let sel_fcmp_rf64 yn cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Double z = env.!["z"] in
+    guard (Type.equal_basic yt `f64);
+    continue (
+      let* l, addr = fresh_label_addr in
+      yn cc x xt [I.fp64 l z] (I.ucomisd (Oreg (y, yt)) (Omem (addr, `f64))) env)
+  ]
 
-  let sel_fcmp_fr32 yn cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.single env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let*! () = guard @@ Type.equal_basic zt `f32 in
-    let* l, addr = fresh_label_addr in
-    yn (flip_cc cc) x xt [I.fp32 l y] (I.ucomiss (Oreg (z, zt)) (Omem (addr, `f32))) env
+  let sel_fcmp_fr32 yn cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Single y = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    guard (Type.equal_basic zt `f32);
+    continue (
+      let* l, addr = fresh_label_addr in
+      yn (flip_cc cc) x xt [I.fp32 l y] (I.ucomiss (Oreg (z, zt)) (Omem (addr, `f32))) env)
+  ]
 
-  let sel_fcmp_fr64 yn cc env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.double env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let*! () = guard @@ Type.equal_basic zt `f64 in
-    let* l, addr = fresh_label_addr in
-    yn (flip_cc cc) x xt [I.fp64 l y] (I.ucomisd (Oreg (z, zt)) (Omem (addr, `f64))) env
+  let sel_fcmp_fr64 yn cc env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Double y = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    guard (Type.equal_basic zt `f64);
+    continue (
+      let* l, addr = fresh_label_addr in
+      yn (flip_cc cc) x xt [I.fp64 l y] (I.ucomisd (Oreg (z, zt)) (Omem (addr, `f64))) env)
+  ]
 
   let f32_reg rv f = f (Oreg (rv, `f32), [])
   let f64_reg rv f = f (Oreg (rv, `f64), [])
@@ -1113,584 +1216,633 @@ end = struct
       I.orpd (Oreg (x, `f64)) (Oreg (tmp, `f64));
     ] @!! (y_ps @ z_ps @ yes_ps @ no_ps)
 
-  let regvar_or env v fl sr fr = match S.regvar env v with
-    | None -> sr env v |> Option.map ~f:fr
-    | Some (v, _) -> Some (fl v)
+  let regvar_or_f32 env v fl fr = match env.![v] with
+    | S.Regvar (r, _) -> Some (fl r)
+    | S.Single s -> Some (fr s)
+    | _ -> None
 
-  let sel_f32_x_y_z p env =
-    let*! x, _ = S.regvar env "x" in
-    let*! with_y = regvar_or env "y" f32_reg S.single f32_const in
-    let*! with_z = regvar_or env "z" f32_reg S.single f32_const in
-    let*! with_yes = regvar_or env "yes" f32_reg S.single f32_const in
-    let*! with_no = regvar_or env "no" f32_reg S.single f32v_const in
-    sel_fcore32 p x with_y with_z with_yes with_no
-  [@@specialise]
+  let regvar_or_f64 env v fl fr = match env.![v] with
+    | S.Regvar (r, _) -> Some (fl r)
+    | S.Double d -> Some (fr d)
+    | _ -> None
 
-  let sel_f64_x_y_z p env =
-    let*! x, _ = S.regvar env "x" in
-    let*! with_y = regvar_or env "y" f64_reg S.double f64_const in
-    let*! with_z = regvar_or env "z" f64_reg S.double f64_const in
-    let*! with_yes = regvar_or env "yes" f64_reg S.double f64_const in
-    let*! with_no = regvar_or env "no" f64_reg S.double f64v_const in
-    sel_fcore64 p x with_y with_z with_yes with_no
-  [@@specialise]
+  let sel_f32_x_y_z p env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let Some with_y = regvar_or_f32 env "y" f32_reg f32_const in
+    let Some with_z = regvar_or_f32 env "z" f32_reg f32_const in
+    let Some with_yes = regvar_or_f32 env "yes" f32_reg f32_const in
+    let Some with_no = regvar_or_f32 env "no" f32_reg f32v_const in
+    continue (sel_fcore32 p x with_y with_z with_yes with_no)
+  ] [@@specialise]
 
-  let load_add_mul_rr_scale_imm_x_y_z_w s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! w, _ = S.imm env "w" in
+  let sel_f64_x_y_z p env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let Some with_y = regvar_or_f64 env "y" f64_reg f64_const in
+    let Some with_z = regvar_or_f64 env "z" f64_reg f64_const in
+    let Some with_yes = regvar_or_f64 env "yes" f64_reg f64_const in
+    let Some with_no = regvar_or_f64 env "no" f64_reg f64v_const in
+    continue (sel_fcore64 p x with_y with_z with_yes with_no)
+  ] [@@specialise]
+
+  let load_add_mul_rr_scale_imm_x_y_z_w s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
+    let S.Imm (w, _) = env.!["w"] in
     let w = Bv.to_int64 w in
-    let*! () = guard @@ fits_int32_pos w in
+    guard (fits_int32_pos w);
     let w = Int64.to_int32_trunc w in
     let addr = Omem (Abisd (y, z, s, w), mty xt) in
-    !!![load_typed xt x addr]
+    [load_typed xt x addr]
+  ]
 
-  let load_add_mul_rr_scale_neg_imm_x_y_z_w s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! w, _ = S.imm env "w" in
+  let load_add_mul_rr_scale_neg_imm_x_y_z_w s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
+    let S.Imm (w, _) = env.!["w"] in
     let w = Bv.to_int64 w in
     let nw = Int64.neg w in
-    let*! () = guard @@ fits_int32_neg nw in
+    guard (fits_int32_neg nw);
     let w = Int64.to_int32_trunc nw in
     let addr = Omem (Abisd (y, z, s, w), mty xt) in
-    !!![load_typed xt x addr]
+    [load_typed xt x addr]
+  ]
 
-  let load_add_mul_rr_scale_x_y_z s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let load_add_mul_rr_scale_x_y_z s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let addr = Omem (Abis (y, z, s), mty xt) in
-    !!![load_typed xt x addr]
+    [load_typed xt x addr]
+  ]
 
-  let load_rri_add_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let load_rri_add_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let*! () = guard @@ fits_sext32 z in
+    guard (fits_sext32 z);
     let z = Int64.to_int32_trunc z in
     let addr = Omem (Abd (y, z), mty xt) in
-    !!![load_typed xt x addr]
+    [load_typed xt x addr]
+  ]
 
-  let load_rrr_add_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let load_rrr_add_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let addr = Omem (Abis (y, z, S1), mty xt) in
-    !!![load_typed xt x addr]
+    [load_typed xt x addr]
+  ]
 
-  let load_rr_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
+  let load_rr_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
     let addr = Omem (Ab y, mty xt) in
-    !!![load_typed xt x addr]
+    [load_typed xt x addr]
+  ]
 
-  let load_sext_rr_x_y zt env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
+  let load_sext_rr_x_y zt env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
     let addr = Omem (Ab y, mty zt) in
-    !!![sext_load_typed xt zt x addr]
+    [sext_load_typed xt zt x addr]
+  ]
 
-  let load_zext_rr_x_y zt env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
+  let load_zext_rr_x_y zt env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
     let addr = Omem (Ab y, mty zt) in
-    !!![zext_load_typed zt x addr]
+    [zext_load_typed zt x addr]
+  ]
 
-  let load_sym_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! s, o = S.sym env "y" in
-    let*! () = guard @@ sym_disp_fits o in
+  let load_sym_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Sym (s, o) = env.!["y"] in
+    guard (sym_disp_fits o);
     let addr = Omem (Asym (s, o), mty xt) in
-    !!![load_typed xt x addr]
+    [load_typed xt x addr]
+  ]
 
-  let load_sext_sym_x_y zt env =
-    let*! x, xt = S.regvar env "x" in
-    let*! s, o = S.sym env "y" in
-    let*! () = guard @@ sym_disp_fits o in
+  let load_sext_sym_x_y zt env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Sym (s, o) = env.!["y"] in
+    guard (sym_disp_fits o);
     let addr = Omem (Asym (s, o), mty zt) in
-    !!![sext_load_typed xt zt x addr]
+    [sext_load_typed xt zt x addr]
+  ]
 
-  let load_zext_sym_x_y zt env =
-    let*! x, _ = S.regvar env "x" in
-    let*! s, o = S.sym env "y" in
-    let*! () = guard @@ sym_disp_fits o in
+  let load_zext_sym_x_y zt env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Sym (s, o) = env.!["y"] in
+    guard (sym_disp_fits o);
     let addr = Omem (Asym (s, o), mty zt) in
-    !!![zext_load_typed zt x addr]
+    [zext_load_typed zt x addr]
+  ]
 
-  let load_sext_rri_add_x_y_z zt env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let load_sext_rri_add_x_y_z zt env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let*! () = guard @@ fits_sext32 z in
+    guard (fits_sext32 z);
     let z = Int64.to_int32_trunc z in
     let addr = Omem (Abd (y, z), mty zt) in
-    !!![sext_load_typed xt zt x addr]
+    [sext_load_typed xt zt x addr]
+  ]
 
-  let load_sext_rrr_add_x_y_z zt env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let load_sext_rrr_add_x_y_z zt env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let addr = Omem (Abis (y, z, S1), mty zt) in
-    !!![sext_load_typed xt zt x addr]
+    [sext_load_typed xt zt x addr]
+  ]
 
-  let load_zext_rri_add_x_y_z zt env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let load_zext_rri_add_x_y_z zt env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let*! () = guard @@ fits_sext32 z in
+    guard (fits_sext32 z);
     let z = Int64.to_int32_trunc z in
     let addr = Omem (Abd (y, z), mty zt) in
-    !!![zext_load_typed zt x addr]
+    [zext_load_typed zt x addr]
+  ]
 
-  let load_zext_rrr_add_x_y_z zt env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let load_zext_rrr_add_x_y_z zt env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let addr = Omem (Abis (y, z, S1), mty zt) in
-    !!![zext_load_typed zt x addr]
+    [zext_load_typed zt x addr]
+  ]
 
-  let load_sext_add_mul_rr_scale_x_y_z zt s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let load_sext_add_mul_rr_scale_x_y_z zt s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let addr = Omem (Abis (y, z, s), mty zt) in
-    !!![sext_load_typed xt zt x addr]
+    [sext_load_typed xt zt x addr]
+  ]
 
-  let load_zext_add_mul_rr_scale_x_y_z zt s env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let load_zext_add_mul_rr_scale_x_y_z zt s env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let addr = Omem (Abis (y, z, s), mty zt) in
-    !!![zext_load_typed zt x addr]
+    [zext_load_typed zt x addr]
+  ]
 
-  let load_sext_add_mul_rr_scale_imm_x_y_z_w zt s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! w, _ = S.imm env "w" in
+  let load_sext_add_mul_rr_scale_imm_x_y_z_w zt s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
+    let S.Imm (w, _) = env.!["w"] in
     let w = Bv.to_int64 w in
-    let*! () = guard @@ fits_int32_pos w in
+    guard (fits_int32_pos w);
     let w = Int64.to_int32_trunc w in
     let addr = Omem (Abisd (y, z, s, w), mty zt) in
-    !!![sext_load_typed xt zt x addr]
+    [sext_load_typed xt zt x addr]
+  ]
 
-  let load_zext_add_mul_rr_scale_imm_x_y_z_w zt s env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! w, _ = S.imm env "w" in
+  let load_zext_add_mul_rr_scale_imm_x_y_z_w zt s env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
+    let S.Imm (w, _) = env.!["w"] in
     let w = Bv.to_int64 w in
-    let*! () = guard @@ fits_int32_pos w in
+    guard (fits_int32_pos w);
     let w = Int64.to_int32_trunc w in
     let addr = Omem (Abisd (y, z, s, w), mty zt) in
-    !!![zext_load_typed zt x addr]
+    [zext_load_typed zt x addr]
+  ]
 
-  let load_sext_add_mul_rr_scale_neg_imm_x_y_z_w zt s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! w, _ = S.imm env "w" in
+  let load_sext_add_mul_rr_scale_neg_imm_x_y_z_w zt s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
+    let S.Imm (w, _) = env.!["w"] in
     let w = Bv.to_int64 w in
     let nw = Int64.neg w in
-    let*! () = guard @@ fits_int32_neg nw in
+    guard (fits_int32_neg nw);
     let w = Int64.to_int32_trunc nw in
     let addr = Omem (Abisd (y, z, s, w), mty zt) in
-    !!![sext_load_typed xt zt x addr]
+    [sext_load_typed xt zt x addr]
+  ]
 
-  let load_zext_add_mul_rr_scale_neg_imm_x_y_z_w zt s env =
-    let*! x, _ = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! w, _ = S.imm env "w" in
+  let load_zext_add_mul_rr_scale_neg_imm_x_y_z_w zt s env = [%rule
+    let S.Regvar (x, _) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
+    let S.Imm (w, _) = env.!["w"] in
     let w = Bv.to_int64 w in
     let nw = Int64.neg w in
-    let*! () = guard @@ fits_int32_neg nw in
+    guard (fits_int32_neg nw);
     let w = Int64.to_int32_trunc nw in
     let addr = Omem (Abisd (y, z, s, w), mty zt) in
-    !!![zext_load_typed zt x addr]
+    [zext_load_typed zt x addr]
+  ]
 
-  let store_rr_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
+  let store_rr_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
     let addr = Omem (Ab y, mty xt) in
-    !!![mov_typed xt addr (Oreg (x, xt))]
+    [mov_typed xt addr (Oreg (x, xt))]
+  ]
 
-  let store_ri_x_y env =
-    let*! x, xt = S.imm env "x" in
-    let*! y, _ = S.regvar env "y" in !!![
-      I.mov (Omem (Ab y, mty xt)) (Oimm (Bv.to_int64 x, xt));
-    ]
+  let store_ri_x_y env = [%rule
+    let S.Imm (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let@ o = with_imm xt (Bv.to_int64 x) xt in
+    [I.mov (Omem (Ab y, mty xt)) o]
+  ]
 
-  let store_rf32_x_y env =
-    let*! x = S.single env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let* l, addr = fresh_label_addr in !!![
+  let store_rf32_x_y env = [%rule
+    let S.Single x = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let* l, addr = fresh_label_addr in [
       I.movss (Omem (Ab y, mty `f32)) (Omem (addr, `f32));
-      I.fp32 l x;
+      I.fp32 l x
     ]
+  ]
 
-  let store_rf64_x_y env =
-    let*! x = S.double env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let* l, addr = fresh_label_addr in !!![
+  let store_rf64_x_y env = [%rule
+    let S.Double x = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let* l, addr = fresh_label_addr in [
       I.movsd (Omem (Ab y, mty `f64)) (Omem (addr, `f64));
-      I.fp64 l x;
+      I.fp64 l x
     ]
+  ]
 
-  let store_add_mul_rr_scale_imm_x_y_z_w s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! w, _ = S.imm env "w" in
+  let store_add_mul_rr_scale_imm_x_y_z_w s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
+    let S.Imm (w, _) = env.!["w"] in
     let w = Bv.to_int64 w in
-    let*! () = guard @@ fits_int32_pos w in
+    guard (fits_int32_pos w);
     let w = Int64.to_int32_trunc w in
     let addr = Omem (Abisd (y, z, s, w), mty xt) in
-    !!![mov_typed xt addr (Oreg (x, xt))]
+    [mov_typed xt addr (Oreg (x, xt))]
+  ]
 
-  let store_add_mul_rr_scale_neg_imm_x_y_z_w s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
-    let*! w, _ = S.imm env "w" in
+  let store_add_mul_rr_scale_neg_imm_x_y_z_w s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
+    let S.Imm (w, _) = env.!["w"] in
     let w = Bv.to_int64 w in
     let nw = Int64.neg w in
-    let*! () = guard @@ fits_int32_neg nw in
+    guard (fits_int32_neg nw);
     let w = Int64.to_int32_trunc nw in
     let addr = Omem (Abisd (y, z, s, w), mty xt) in
-    !!![mov_typed xt addr (Oreg (x, xt))]
+    [mov_typed xt addr (Oreg (x, xt))]
+  ]
 
-  let store_add_mul_rr_scale_x_y_z s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let store_add_mul_rr_scale_x_y_z s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let addr = Omem (Abis (y, z, s), mty xt) in
-    !!![mov_typed xt addr (Oreg (x, xt))]
+    [mov_typed xt addr (Oreg (x, xt))]
+  ]
 
-  let store_rri_add_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let store_rri_add_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let*! () = guard @@ fits_sext32 z in
+    guard (fits_sext32 z);
     let z = Int64.to_int32_trunc z in
     let addr = Omem (Abd (y, z), mty xt) in
-    !!![mov_typed xt addr (Oreg (x, xt))]
+    [mov_typed xt addr (Oreg (x, xt))]
+  ]
 
-  let store_rrr_add_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let store_rrr_add_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let addr = Omem (Abis (y, z, S1), mty xt) in
-    !!![mov_typed xt addr (Oreg (x, xt))]
+    [mov_typed xt addr (Oreg (x, xt))]
+  ]
 
-  let store_iri_add_x_y_z env =
-    let*! x, xt = S.imm env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let store_iri_add_x_y_z env = [%rule
+    let S.Imm (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let*! () = guard @@ fits_sext32 z in
+    guard (fits_sext32 z);
     let z = Int64.to_int32_trunc z in
-    let x = Bv.to_int64 x in !!![
-      I.mov (Omem (Abd (y, z), mty xt)) (Oimm (x, xt));
-    ]
+    let@ o = with_imm xt (Bv.to_int64 x) xt in
+    [I.mov (Omem (Abd (y, z), mty xt)) o]
+  ]
 
-  let store_f32ri_add_x_y_z env =
-    let*! x = S.single env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let store_f32ri_add_x_y_z env = [%rule
+    let S.Single x = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let*! () = guard @@ fits_sext32 z in
+    guard (fits_sext32 z);
     let z = Int64.to_int32_trunc z in
-    let* l, addr = fresh_label_addr in !!![
+    let* l, addr = fresh_label_addr in [
       I.movss (Omem (Abd (y, z), mty `f32)) (Omem (addr, `f32));
-      I.fp32 l x;
+      I.fp32 l x
     ]
+  ]
 
-  let store_f64ri_add_x_y_z env =
-    let*! x = S.double env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let store_f64ri_add_x_y_z env = [%rule
+    let S.Double x = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let*! () = guard @@ fits_sext32 z in
+    guard (fits_sext32 z);
     let z = Int64.to_int32_trunc z in
-    let* l, addr = fresh_label_addr in !!![
+    let* l, addr = fresh_label_addr in [
       I.movsd (Omem (Abd (y, z), mty `f64)) (Omem (addr, `f64));
-      I.fp64 l x;
+      I.fp64 l x
     ]
+  ]
 
-  let store_rsym_x_y env =
-    let*! s, o = S.sym env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let* x = C.Var.fresh >>| Rv.var in !!![
+  let store_rsym_x_y env = [%rule
+    let S.Sym (s, o) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let* x = fresh_reg in [
       lea_sym x s o;
-      I.mov (Omem (Ab y, mty yt)) (Oreg (x, yt));
+      I.mov (Omem (Ab y, mty yt)) (Oreg (x, yt))
     ]
+  ]
 
-  let store_symr_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! s, o = S.sym env "y" in
-    let*! () = guard @@ sym_disp_fits o in !!![
-      I.mov (Omem (Asym (s, o), mty xt)) (Oreg (x, xt));
-    ]
+  let store_symr_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Sym (s, o) = env.!["y"] in
+    guard (sym_disp_fits o);
+    [I.mov (Omem (Asym (s, o), mty xt)) (Oreg (x, xt))]
+  ]
 
-  let store_symi_x_y env =
-    let*! x, xt = S.imm env "x" in
-    let*! s, o = S.sym env "y" in
-    let*! () = guard @@ sym_disp_fits o in
+  let store_symi_x_y env = [%rule
+    let S.Imm (x, xt) = env.!["x"] in
+    let S.Sym (s, o) = env.!["y"] in
+    guard (sym_disp_fits o);
     let@ i = with_imm xt (Bv.to_int64 x) xt in
-    !!![I.mov (Omem (Asym (s, o), mty xt)) i]
+    [I.mov (Omem (Asym (s, o), mty xt)) i]
+  ]
 
   (* Store a symbol's address (the value) to another symbol's address. Both
      are i64, since a symbol value is itself an address. *)
-  let store_symsym_x_y env =
-    let*! s1, o1 = S.sym env "x" in
-    let*! s2, o2 = S.sym env "y" in
-    let* tmp = C.Var.fresh >>| Rv.var in !!![
+  let store_symsym_x_y env = [%rule
+    let S.Sym (s1, o1) = env.!["x"] in
+    let S.Sym (s2, o2) = env.!["y"] in
+    let* tmp = fresh_reg in [
       lea_sym tmp s1 o1;
-      I.mov (Omem (Asym (s2, o2), `i64)) (Oreg (tmp, `i64));
+      I.mov (Omem (Asym (s2, o2), `i64)) (Oreg (tmp, `i64))
     ]
+  ]
 
-  let store_v_rr_x_y env =
-    let*! x = S.regvar_v env "x" in
-    let*! y, _ = S.regvar env "y" in !!![
-      I.movdqa (Omem (Ab y, `v128)) (Oregv x);
-    ]
+  let store_v_rr_x_y env = [%rule
+    let S.Regvar_v x = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    [I.movdqa (Omem (Ab y, `v128)) (Oregv x)]
+  ]
 
-  let store_v_rri_add_x_y_z env =
-    let*! x = S.regvar_v env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let store_v_rri_add_x_y_z env = [%rule
+    let S.Regvar_v x = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let*! () = guard @@ fits_sext32 z in
-    let z = Int64.to_int32_trunc z in !!![
-      I.movdqa (Omem (Abd (y, z), `v128)) (Oregv x);
-    ]
-
-  let mul_lea_ri_addi_x_y_z s env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
-    let z = Bv.to_int64 z in
-    let*! () = guard @@ fits_int32_pos z in
-    let*! () = guard @@ can_lea_ty xt in
+    guard (fits_sext32 z);
     let z = Int64.to_int32_trunc z in
-    !!![I.lea (Oreg (x, xt)) (Omem (Aisd (y, s, z), `i64))]
+    [I.movdqa (Omem (Abd (y, z), `v128)) (Oregv x)]
+  ]
 
-  let imul_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in !!![
-      I.mov (Oreg (x, xt)) (Oreg (y, yt));
-      I.imul2 (Oreg (x, xt)) (Oreg (z, zt));
-    ]
-
-  let imul_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
+  let mul_lea_ri_addi_x_y_z s env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    if fits_imm xt z then !!![
-        I.imul3 (Oreg (x, xt)) (Oreg (y, yt)) (Int64.to_int32_trunc z);
-      ]
+    guard (fits_int32_pos z);
+    guard (can_lea_ty xt);
+    let z = Int64.to_int32_trunc z in
+    [I.lea (Oreg (x, xt)) (Omem (Aisd (y, s, z), `i64))]
+  ]
+
+  let imul_rr_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in [
+      I.mov (Oreg (x, xt)) (Oreg (y, yt));
+      I.imul2 (Oreg (x, xt)) (Oreg (z, zt))
+    ]
+  ]
+
+  let imul_ri_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
+    let z = Bv.to_int64 z in
+    if fits_imm xt z then
+      [I.imul3 (Oreg (x, xt)) (Oreg (y, yt)) (Int64.to_int32_trunc z)]
     else
-      let* z' = C.Var.fresh >>| Rv.var in !!![
+      let* z' = fresh_reg in [
         I.mov (Oreg (z', xt)) (Oimm (z, zt));
         I.mov (Oreg (x, xt)) (Oreg (y, yt));
-        I.imul2 (Oreg (x, xt)) (Oreg (z', xt));
+        I.imul2 (Oreg (x, xt)) (Oreg (z', xt))
       ]
+  ]
 
-  let imul8_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let rax = Rv.reg `rax in !!![
+  let imul8_rr_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    let rax = Rv.reg `rax in [
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.imul1 (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) (Oreg (rax, `i8));
+      I.mov (Oreg (x, xt)) (Oreg (rax, `i8))
     ]
+  ]
 
-  let imul_ri_high_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
+  let imul_ri_high_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
     let rax = Rv.reg `rax in
     let rdx = Rv.reg `rdx in
     match xt with
-    | `i32 when fits_int32_pos z ->
-      !!![
+    | `i32 when fits_int32_pos z -> [
         I.movsxd (Oreg (x, `i64)) (Oreg (y, yt));
         I.imul3 (Oreg (x, `i64)) (Oreg (x, `i64)) (Int64.to_int32_trunc z);
-        I.sar (Oreg (x, `i64)) (Oimm (32L, `i8));
+        I.sar (Oreg (x, `i64)) (Oimm (32L, `i8))
       ]
-    | _ ->
-      !!![
+    | _ -> [
         I.mov (Oreg (rax, bty zt)) (Oimm (z, zt));
         I.imul1 (Oreg (y, yt));
-        I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
+        I.mov (Oreg (x, xt)) (Oreg (rdx, xt))
       ]
+  ]
 
-  let imul_rr_high_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
+  let imul_rr_high_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
+    let rdx = Rv.reg `rdx in [
       I.mov (Oreg (rax, yt)) (Oreg (y, yt));
       I.imul1 (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
+      I.mov (Oreg (x, xt)) (Oreg (rdx, xt))
     ]
+  ]
 
-  let imul8_rr_high_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let rax = Rv.reg `rax in !!![
+  let imul8_rr_high_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    let rax = Rv.reg `rax in [
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.imul1 (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
-  let imul8_ri_high_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
+  let imul8_ri_high_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let rax = Rv.reg `rax in !!![
+    let rax = Rv.reg `rax in [
       I.movzx (Oreg (rax, `i16)) (Oimm (z, zt));
       I.imul1 (Oreg (y, yt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
-  let mul8_rr_high_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let rax = Rv.reg `rax in !!![
+  let mul8_rr_high_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    let rax = Rv.reg `rax in [
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.mul (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
-  let mul8_ri_high_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
+  let mul8_ri_high_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let rax = Rv.reg `rax in !!![
+    let rax = Rv.reg `rax in [
       I.movzx (Oreg (rax, `i16)) (Oimm (z, zt));
       I.mul (Oreg (y, yt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
-  let mul_ri_high_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
+  let mul_ri_high_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
     let z = Bv.to_int64 z in
     let rax = Rv.reg `rax in
     let rdx = Rv.reg `rdx in
     match xt with
-    | `i32 when fits_int32 z && Int64.(z land 0x8000_0000L = 0L) ->
-      !!![
-        I.imul3 (Oreg (x, `i64)) (Oreg (y, `i64)) (Int64.to_int32_trunc z);
-        I.shr (Oreg (x, `i64)) (Oimm (32L, `i8));
+    | `i32 when fits_int32 z && Int64.(z land 0x8000_0000L = 0L) -> [
+        (* `umulh` is unsigned, so y must be zero-extended into its full 64-bit
+           register before the 64-bit multiply: its upper half is not guaranteed
+           clear (it may share a register with a wider value). A 32-bit `mov`
+           zero-extends. The magic constant here has bit 31 clear, so a signed
+           `imul3` on the (now non-negative) operands still computes the correct
+           product; bit-31-set magics fall through to the `mul` (edx:eax) form. *)
+        I.mov (Oreg (x, `i32)) (Oreg (y, `i32));
+        I.imul3 (Oreg (x, `i64)) (Oreg (x, `i64)) (Int64.to_int32_trunc z);
+        I.shr (Oreg (x, `i64)) (Oimm (32L, `i8))
       ]
-    | `i32 when fits_int32 z ->
-      !!![
-        I.mov (Oreg (x, `i32)) (Oimm (z, `i32));
-        I.imul2 (Oreg (x, `i64)) (Oreg (y, `i64));
-        I.shr (Oreg (x, `i64)) (Oimm (32L, `i8));
-      ]
-    | _ ->
-      !!![
+    | _ -> [
         I.mov (Oreg (rax, bty zt)) (Oimm (z, zt));
         I.mul (Oreg (y, yt));
-        I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
+        I.mov (Oreg (x, xt)) (Oreg (rdx, xt))
       ]
+  ]
 
-  let mul_rr_high_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
+  let mul_rr_high_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
+    let rdx = Rv.reg `rdx in [
       I.mov (Oreg (rax, yt)) (Oreg (y, yt));
       I.mul (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) (Oreg (rdx, xt));
+      I.mov (Oreg (x, xt)) (Oreg (rdx, xt))
     ]
+  ]
 
-  let float_rr_x_y_z f32 f64 env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
+  let float_rr_x_y_z f32 f64 env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
     match xt with
-    | `f64 -> !!![
+    | `f64 -> [
         I.movsd (Oreg (x, xt)) (Oreg (y, yt));
-        f64 (Oreg (x, xt)) (Oreg (z, zt));
+        f64 (Oreg (x, xt)) (Oreg (z, zt))
       ]
-    | `f32 -> !!![
+    | `f32 -> [
         I.movss (Oreg (x, xt)) (Oreg (y, yt));
-        f32 (Oreg (x, xt)) (Oreg (z, zt));
+        f32 (Oreg (x, xt)) (Oreg (z, zt))
       ]
-    | _ -> !!None
-  [@@specialise]
+    | _ -> fail
+  ] [@@specialise]
 
   let fmul_rr_x_y_z = float_rr_x_y_z I.mulss I.mulsd
 
-  let fmul_rf32_x_y_z = arith_float_x_y_z I.movss I.mulss I.fp32 S.single `f32
-  let fmul_rf64_x_y_z = arith_float_x_y_z I.movsd I.mulsd I.fp64 S.double `f64
+  let fmul_rf32_x_y_z = arith_float_rf32 I.movss I.mulss I.fp32
+  let fmul_rf64_x_y_z = arith_float_rf64 I.movsd I.mulsd I.fp64
 
   let sign_rdx _rdx yt = cwd_cdq_cqo yt
   let zero_rdx rdx _yt = I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32))
 
-  let div_rr setup op result env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
+  let div_rr setup op result env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
+    let rdx = Rv.reg `rdx in [
       I.mov (Oreg (rax, yt)) (Oreg (y, yt));
       setup rdx yt;
       op (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) (Oreg (result, xt));
+      I.mov (Oreg (x, xt)) (Oreg (result, xt))
     ]
-  [@@specialise]
+  ] [@@specialise]
 
-  let div_ri setup op result env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in
+  let div_ri setup op result env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
+    let* tmp = fresh_reg in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
+    let rdx = Rv.reg `rdx in [
       I.mov (Oreg (tmp, bty zt)) (Oimm (Bv.to_int64 z, zt));
       I.mov (Oreg (rax, yt)) (Oreg (y, yt));
       setup rdx yt;
       op (Oreg (tmp, bty zt));
-      I.mov (Oreg (x, xt)) (Oreg (result, xt));
+      I.mov (Oreg (x, xt)) (Oreg (result, xt))
     ]
-  [@@specialise]
+  ] [@@specialise]
 
-  let div_ir setup op result env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! z, zt = S.regvar env "z" in
+  let div_ir setup op result env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
+    let rdx = Rv.reg `rdx in [
       I.mov (Oreg (rax, bty yt)) (Oimm (Bv.to_int64 y, yt));
       setup rdx (bty yt);
       op (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) (Oreg (result, xt));
+      I.mov (Oreg (x, xt)) (Oreg (result, xt))
     ]
-  [@@specialise]
+  ] [@@specialise]
 
   let idiv_rem_ir_x_y_z = div_ir sign_rdx I.idiv (Rv.reg `rdx)
   let idiv_rem_rr_x_y_z = div_rr sign_rdx I.idiv (Rv.reg `rdx)
@@ -1699,119 +1851,128 @@ end = struct
   let idiv_ri_x_y_z     = div_ri sign_rdx I.idiv (Rv.reg `rax)
   let idiv_ir_x_y_z     = div_ir sign_rdx I.idiv (Rv.reg `rax)
 
-  let idiv8_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let rax = Rv.reg `rax in !!![
+  let idiv8_rr_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    let rax = Rv.reg `rax in [
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.cwd;
       I.idiv (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) (Oreg (rax, `i8));
+      I.mov (Oreg (x, xt)) (Oreg (rax, `i8))
     ]
+  ]
 
-  let idiv8_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    let rax = Rv.reg `rax in !!![
+  let idiv8_ri_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
+    let* tmp = fresh_reg in
+    let rax = Rv.reg `rax in [
       I.mov (Oreg (tmp, bty zt)) (Oimm (Bv.to_int64 z, zt));
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.cwd;
       I.idiv (Oreg (tmp, bty zt));
-      I.mov (Oreg (x, xt)) (Oreg (rax, `i8));
+      I.mov (Oreg (x, xt)) (Oreg (rax, `i8))
     ]
+  ]
 
-  let idiv8_ir_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    let rax = Rv.reg `rax in !!![
+  let idiv8_ir_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    let* tmp = fresh_reg in
+    let rax = Rv.reg `rax in [
       I.mov (Oreg (tmp, bty yt)) (Oimm (Bv.to_int64 y, yt));
       I.movzx (Oreg (rax, `i16)) (Oreg (tmp, bty yt));
       I.cwd;
       I.idiv (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) (Oreg (rax, `i8));
+      I.mov (Oreg (x, xt)) (Oreg (rax, `i8))
     ]
+  ]
 
-  let idiv8_rem_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let rax = Rv.reg `rax in !!![
+  let idiv8_rem_rr_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    let rax = Rv.reg `rax in [
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.cwd;
       I.idiv (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
-  let idiv8_rem_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    let rax = Rv.reg `rax in !!![
+  let idiv8_rem_ri_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
+    let* tmp = fresh_reg in
+    let rax = Rv.reg `rax in [
       I.mov (Oreg (tmp, bty zt)) (Oimm (Bv.to_int64 z, zt));
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.cwd;
       I.idiv (Oreg (tmp, bty zt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
-  let idiv8_rem_ir_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in
-    let rax = Rv.reg `rax in !!![
+  let idiv8_rem_ir_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    let* tmp = fresh_reg in
+    let rax = Rv.reg `rax in [
       I.mov (Oreg (tmp, bty yt)) (Oimm (Bv.to_int64 y, yt));
       I.movzx (Oreg (rax, `i16)) (Oreg (tmp, bty yt));
       I.cwd;
       I.idiv (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
-  let div8_rem_rr_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.regvar env "z" in
+  let div8_rem_rr_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
+    let rdx = Rv.reg `rdx in [
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32));
       I.div (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
-  let div8_rem_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, zt = S.imm env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in
+  let div8_rem_ri_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, zt) = env.!["z"] in
+    let* tmp = fresh_reg in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
+    let rdx = Rv.reg `rdx in [
       I.mov (Oreg (tmp, bty zt)) (Oimm (Bv.to_int64 z, zt));
       I.movzx (Oreg (rax, `i16)) (Oreg (y, yt));
       I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32));
       I.div (Oreg (tmp, bty zt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
-  let div8_rem_ir_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! z, zt = S.regvar env "z" in
-    let* tmp = C.Var.fresh >>| Rv.var in
+  let div8_rem_ir_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    let S.Regvar (z, zt) = env.!["z"] in
+    let* tmp = fresh_reg in
     let rax = Rv.reg `rax in
-    let rdx = Rv.reg `rdx in !!![
+    let rdx = Rv.reg `rdx in [
       I.mov (Oreg (tmp, bty yt)) (Oimm (Bv.to_int64 y, yt));
       I.movzx (Oreg (rax, `i16)) (Oreg (tmp, bty yt));
       I.xor (Oreg (rdx, `i32)) (Oreg (rdx, `i32));
       I.div (Oreg (z, zt));
-      I.mov (Oreg (x, xt)) Oah;
+      I.mov (Oreg (x, xt)) Oah
     ]
+  ]
 
   let div_rem_rr_x_y_z = div_rr zero_rdx I.div (Rv.reg `rdx)
   let div_rem_ri_x_y_z = div_ri zero_rdx I.div (Rv.reg `rdx)
@@ -1823,10 +1984,10 @@ end = struct
 
   let fdiv_rr_x_y_z = float_rr_x_y_z I.divss I.divsd
 
-  let fdiv_rf32_x_y_z = arith_float_x_y_z I.movss I.divss I.fp32 S.single `f32
-  let fdiv_rf64_x_y_z = arith_float_x_y_z I.movsd I.divsd I.fp64 S.double `f64
-  let fdiv_fr32_x_y_z = arith_float_fr_x_y_z I.movss I.divss I.fp32 S.single `f32
-  let fdiv_fr64_x_y_z = arith_float_fr_x_y_z I.movsd I.divsd I.fp64 S.double `f64
+  let fdiv_rf32_x_y_z = arith_float_rf32 I.movss I.divss I.fp32
+  let fdiv_rf64_x_y_z = arith_float_rf64 I.movsd I.divsd I.fp64
+  let fdiv_fr32_x_y_z = arith_float_fr32 I.movss I.divss I.fp32
+  let fdiv_fr64_x_y_z = arith_float_fr64 I.movsd I.divsd I.fp64
 
   (* Shift helpers.
 
@@ -1857,21 +2018,22 @@ end = struct
     | (`nop | `zext | `sext), _ -> I.mov (Oreg (x, xt')) (Oreg (y, xt'))
     | `narrow, _ -> I.mov (Oreg (x, xt)) (Oreg (y, yt))
 
-  let shift_rr_x_y_z ~ext i env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let shift_rr_x_y_z ~ext i env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let xt' = shift_dst_ty ~ext xt in
-    let rcx = Rv.reg `rcx in !!![
+    let rcx = Rv.reg `rcx in [
       shift_mov_yx ~ext x xt y yt;
       I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      i (Oreg (x, xt')) (Oreg (rcx, `i8));
+      i (Oreg (x, xt')) (Oreg (rcx, `i8))
     ]
+  ]
 
-  let shift_ir_x_y_z ~ext i env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! z, _ = S.regvar env "z" in
+  let shift_ir_x_y_z ~ext i env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Imm (y, yt) = env.!["y"] in
+    let S.Regvar (z, _) = env.!["z"] in
     let y = Bv.to_int64 y in
     (* For sar on narrow widths, pre-compute the sign-extended value
        so the imm placed in the i32 register has the correct sign
@@ -1890,42 +2052,45 @@ end = struct
        already sign-extended above; for shl/shr the narrow-range
        imm is naturally zero-extended by `mov r32, imm32`. *)
     let xt_mov, yt_mov = match ext, xt with
-      | _, `i64 when fits_int32 y -> `i32, `i32
+      | _, `i64 when fits_uint32 y -> `i32, `i32
       | (`nop | `zext | `sext), (`i8 | `i16) -> xt_shift, `i32
       | _ -> xt_shift, yt in
-    let rcx = Rv.reg `rcx in !!![
+    let rcx = Rv.reg `rcx in [
       I.mov (Oreg (x, xt_mov)) (Oimm (y, yt_mov));
       I.mov (Oreg (rcx, `i8)) (Oreg (z, `i8));
-      i (Oreg (x, xt_shift)) (Oreg (rcx, `i8));
+      i (Oreg (x, xt_shift)) (Oreg (rcx, `i8))
     ]
+  ]
 
-  let shift_ri_x_y_z ~ext i env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let shift_ri_x_y_z ~ext i env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
-    let xt' = shift_dst_ty ~ext xt in !!![
+    let xt' = shift_dst_ty ~ext xt in [
       shift_mov_yx ~ext x xt y yt;
-      i (Oreg (x, xt')) (Oimm (Int64.(z land 0xFFL), `i8));
+      i (Oreg (x, xt')) (Oimm (Int64.(z land 0xFFL), `i8))
     ]
+  ]
 
   let lsl_rr_x_y_z = shift_rr_x_y_z ~ext:`nop I.shl
   let lsl_ir_x_y_z = shift_ir_x_y_z ~ext:`nop I.shl
 
   (* `lsl` is specialized because it can be a `lea` instruction *)
-  let lsl_ri_x_y_z env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! z, _ = S.imm env "z" in
+  let lsl_ri_x_y_z env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let S.Imm (z, _) = env.!["z"] in
     let z = Bv.to_int64 z in
     match z with
     | 1L when can_lea_ty xt ->
-      !!![I.lea (Oreg (x, xt)) (Omem (Abis (y, y, S1), `i64))]
+      [I.lea (Oreg (x, xt)) (Omem (Abis (y, y, S1), `i64))]
     | _ ->
-      let xt' = promote_narrow_ty xt in !!![
+      let xt' = promote_narrow_ty xt in [
         shift_mov_yx ~ext:`nop x xt y yt;
-        I.shl (Oreg (x, xt')) (Oimm (Int64.(z land 0xFFL), `i8));
+        I.shl (Oreg (x, xt')) (Oimm (Int64.(z land 0xFFL), `i8))
       ]
+  ]
 
   let lsr_rr_x_y_z = shift_rr_x_y_z ~ext:`zext I.shr
   let lsr_ir_x_y_z = shift_ir_x_y_z ~ext:`zext I.shr
@@ -1940,286 +2105,220 @@ end = struct
   let ror_ir_x_y_z = shift_ir_x_y_z ~ext:`narrow I.ror
   let ror_ri_x_y_z = shift_ri_x_y_z ~ext:`narrow I.ror
 
-  let neg_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _  = S.regvar env "y" in
-    let xt' = promote_narrow_ty xt in !!![
+  let neg_r_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _)  = env.!["y"] in
+    let xt' = promote_narrow_ty xt in [
       I.mov (Oreg (x, xt')) (Oreg (y, xt'));
-      I.neg (Oreg (x, xt'));
+      I.neg (Oreg (x, xt'))
     ]
+  ]
 
-  let neg_i_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    match Virtual.Eval.unop_int (`neg (bty yt)) y yt with
-    | Some `int (i, _) ->
-      let xt' = promote_narrow_ty xt in
-      let yt' = match yt with
-        | `i8 | `i16 -> `i32
-        | t -> t in
-      !!![I.mov (Oreg (x, xt')) (Oimm (Bv.to_int64 i, yt'))]
-    | _ ->
-      (* shouldn't fail *)
-      !!None
-
-  let fneg_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
+  let fneg_r_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
     match xt with
     | `f32 ->
       let f = Float32.of_bits 0x8000_0000l in
-      let* l, addr = fresh_label_addr in !!![
+      let* l, addr = fresh_label_addr in [
         I.movss (Oreg (x, xt)) (Oreg (y, yt));
         I.xorps (Oreg (x, xt)) (Omem (addr, `v128));
-        I.fp32v l f;
+        I.fp32v l f
       ]
     | `f64 ->
       let f = float_of_bits 0x8000_0000_0000_0000L in
-      let* l, addr = fresh_label_addr in !!![
+      let* l, addr = fresh_label_addr in [
         I.movsd (Oreg (x, xt)) (Oreg (y, yt));
         I.xorpd (Oreg (x, xt)) (Omem (addr, `v128));
-        I.fp64v l f;
+        I.fp64v l f
       ]
-    | _ -> !!None
+    | _ -> fail
+  ]
 
-  let fneg_fp32_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.single env "y" in
-    let*! () = guard (Type.equal_basic xt `f32) in
+  let fneg_fp32_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Single y = env.!["y"] in
+    guard (Type.equal_basic xt `f32);
     let y = Float32.neg y in
-    let* l, addr = fresh_label_addr in !!![
+    let* l, addr = fresh_label_addr in [
       I.movss (Oreg (x, xt)) (Omem (addr, `f32));
-      I.fp32 l y;
+      I.fp32 l y
     ]
+  ]
 
-  let fneg_fp64_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.double env "y" in
-    let*! () = guard (Type.equal_basic xt `f64) in
+  let fneg_fp64_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Double y = env.!["y"] in
+    guard (Type.equal_basic xt `f64);
     let y = Float.neg y in
-    let* l, addr = fresh_label_addr in !!![
+    let* l, addr = fresh_label_addr in [
       I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
-      I.fp64 l y;
+      I.fp64 l y
     ]
+  ]
 
-  let not_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _  = S.regvar env "y" in
-    let xt' = promote_narrow_ty xt in !!![
+  let not_r_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _)  = env.!["y"] in
+    let xt' = promote_narrow_ty xt in [
       I.mov (Oreg (x, xt')) (Oreg (y, xt'));
-      I.not_ (Oreg (x, xt'));
+      I.not_ (Oreg (x, xt'))
     ]
+  ]
 
-  let not_i_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let xt' = promote_narrow_ty xt in
-    let yt' = match yt with
-      | `i8 | `i16 -> `i32
-      | t -> t in
-    match Virtual.Eval.unop_int (`not_ yt) y yt with
-    | Some `int (i, _) ->
-      !!![I.mov (Oreg (x, xt')) (Oimm (Bv.to_int64 i, yt'))]
-    | _ ->
-      !!![
-        I.mov (Oreg (x, xt')) (Oimm (Bv.to_int64 y, yt'));
-        I.not_ (Oreg (x, xt'));
-      ]
-
-  let clz_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
+  let clz_r_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
     let n = Int64.of_int (Type.sizeof_basic xt - 1) in
-    let*! y, yt = S.regvar env "y" in
-    let*! movinst, ty, ity = match xt with
+    let S.Regvar (y, yt) = env.!["y"] in
+    let Some (movinst, ty, ity) = match xt with
       | #Type.imm as imm ->
         begin match imm with
           | `i8 | `i16 -> Some (I.movzx, `i32, `i32)
           | `i32 | `i64 -> Some (I.mov, xt, imm)
         end
       | _ -> None in
-    let* tmp1 = C.Var.fresh >>| Rv.var in
-    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+    let* tmp1 = fresh_reg in
+    let* tmp2 = fresh_reg in [
       movinst (Oreg (tmp1, ty)) (Oreg (y, yt));
       I.bsr (Oreg (tmp2, ty)) (Oreg (tmp1, ty));
       I.xor (Oreg (tmp2, ty)) (Oimm (n, ity));
-      I.mov (Oreg (x, ty)) (Oreg (tmp2, ty));
+      I.mov (Oreg (x, ty)) (Oreg (tmp2, ty))
     ]
+  ]
 
-  let ctz_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! movinst, ty = match xt with
+  let ctz_r_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let Some (movinst, ty) = match xt with
       | `i8 | `i16 -> Some (I.movzx, `i32)
       | `i32 | `i64 -> Some (I.mov, xt)
       | _ -> None in
-    let* tmp1 = C.Var.fresh >>| Rv.var in
-    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+    let* tmp1 = fresh_reg in
+    let* tmp2 = fresh_reg in [
       movinst (Oreg (tmp1, ty)) (Oreg (y, yt));
       I.bsf (Oreg (tmp2, ty)) (Oreg (tmp1, ty));
-      I.mov (Oreg (x, ty)) (Oreg (tmp2, ty));
+      I.mov (Oreg (x, ty)) (Oreg (tmp2, ty))
     ]
+  ]
 
-  let popcnt_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! movinst, ty = match xt with
+  let popcnt_r_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    let Some (movinst, ty) = match xt with
       | `i8 | `i16 -> Some (I.movzx, `i32)
       | `i32 | `i64 -> Some (I.mov, xt)
       | _ -> None in
-    let* tmp1 = C.Var.fresh >>| Rv.var in
-    let* tmp2 = C.Var.fresh >>| Rv.var in !!![
+    let* tmp1 = fresh_reg in
+    let* tmp2 = fresh_reg in [
       movinst (Oreg (tmp1, ty)) (Oreg (y, yt));
       I.popcnt (Oreg (tmp2, ty)) (Oreg (tmp1, ty));
-      I.mov (Oreg (x, ty)) (Oreg (tmp2, ty));
+      I.mov (Oreg (x, ty)) (Oreg (tmp2, ty))
     ]
+  ]
 
-  let bswap_r_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
+  let bswap_r_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
     match xt with
     | `i16 ->
       (* `bswap r16` is officially undefined; swap the byte pair with a
-         rotate instead. *)
-      !!![
+         rotate instead. *) [
         I.mov (Oreg (x, xt)) (Oreg (y, yt));
-        I.rol (Oreg (x, xt)) (Oimm (8L, `i8));
+        I.rol (Oreg (x, xt)) (Oimm (8L, `i8))
       ]
-    | `i32 | `i64 ->
-      !!![
+    | `i32 | `i64 -> [
         I.mov (Oreg (x, xt)) (Oreg (y, yt));
-        I.bswap (Oreg (x, xt));
+        I.bswap (Oreg (x, xt))
       ]
-    | _ -> !!None
+    | _ -> fail
+  ]
 
-  let sext_rr_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
+  let sext_rr_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
     match xt, yt with
     | `i64, `i32 ->
-      !!![I.movsxd (Oreg (x, xt)) (Oreg (y, yt))]
+      [I.movsxd (Oreg (x, xt)) (Oreg (y, yt))]
     | (#Type.imm as xi), (#Type.imm as yi)
       when Type.sizeof_imm xi > Type.sizeof_imm yi ->
-      !!![I.movsx (Oreg (x, xt)) (Oreg (y, yt))]
+      [I.movsx (Oreg (x, xt)) (Oreg (y, yt))]
     | #Type.imm, #Type.imm ->
       let xt' = promote_narrow_ty xt in
-      !!![I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
-    | _ -> !!None
+      [I.mov (Oreg (x, xt')) (Oreg (y, xt'))]
+    | _ -> fail
+  ]
 
-  let sext_ri_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    match xt with
-    | #Type.fp -> !!None
-    | #Type.imm as xti ->
-      let*! y, yt = S.imm env "y" in
-      match Virtual.Eval.unop_int (`sext xti) y yt with
-      | Some `int (y, _) ->
-        let xti' : Type.imm = match xti with
-          | `i8 | `i16 -> `i32
-          | t -> t in
-        !!![I.mov (Oreg (x, bty xti')) (Oimm (Bv.to_int64 y, xti'))]
-      | _ -> !!None
-
-  let fext_rr_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
+  let fext_rr_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
     match ty, xt, yt with
     | `f32, `f32, `f32 ->
-      !!![I.movss (Oreg (x, xt)) (Oreg (y, yt))]
+      [I.movss (Oreg (x, xt)) (Oreg (y, yt))]
     | `f64, `f64, `f64 ->
-      !!![I.movsd (Oreg (x, xt)) (Oreg (y, yt))]
-    | `f64, `f64, `f32 -> !!![
+      [I.movsd (Oreg (x, xt)) (Oreg (y, yt))]
+    | `f64, `f64, `f32 -> [
         I.xorpd (Oreg (x, xt)) (Oreg (x, xt));
         I.cvtss2sd (Oreg (x, xt)) (Oreg (y, yt))
       ]
-    | _ -> !!None
+    | _ -> fail
+  ]
 
-  let fext_rf32_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.single env "y" in
+  let fext_rf32_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Single y = env.!["y"] in
     match ty, xt with
     | `f32, `f32 ->
-      let* l, addr = fresh_label_addr in !!![
+      let* l, addr = fresh_label_addr in [
         I.movss (Oreg (x, xt)) (Omem (addr, `f32));
-        I.fp32 l y;
+        I.fp32 l y
       ]
     | `f64, `f64 ->
       let* l, addr = fresh_label_addr in
-      let y' = Float32.to_float y in !!![
+      let y' = Float32.to_float y in [
         I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
-        I.fp64 l y';
+        I.fp64 l y'
       ]
-    | _ -> !!None
+    | _ -> fail
+  ]
 
-  let fext_rf64_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.double env "y" in
+  let fext_rf64_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Double y = env.!["y"] in
     match ty, xt with
     | `f64, `f64 ->
-      let* l, addr = fresh_label_addr in !!![
+      let* l, addr = fresh_label_addr in [
         I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
-        I.fp64 l y;
+        I.fp64 l y
       ]
-    | _ -> !!None
+    | _ -> fail
+  ]
 
-  let fibits_rr_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
+  let fibits_rr_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
     match ty, xt, yt with
     | `f32, `f32, `i32 ->
-      !!![I.movd (Oreg (x, xt)) (Oreg (y, yt))]
+      [I.movd (Oreg (x, xt)) (Oreg (y, yt))]
     | `f64, `f64, `i64 ->
-      !!![I.movq (Oreg (x, xt)) (Oreg (y, yt))]
-    | _ -> !!None
+      [I.movq (Oreg (x, xt)) (Oreg (y, yt))]
+    | _ -> fail
+  ]
 
-  let fibits_ri_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! () = guard (Type.equal_basic (bty ty) xt) in
-    match Virtual.Eval.unop_int (`fibits ty) y yt with
-    | Some `float f ->
-      let* l, addr = fresh_label_addr in !!![
-        I.movss (Oreg (x, xt)) (Omem (addr, `f32));
-        I.fp32 l f;
-      ]
-    | Some `double d ->
-      let* l, addr = fresh_label_addr in !!![
-        I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
-        I.fp64 l d;
-      ]
-    | _ -> !!None
-
-  let ftosi_rr_x_y tf ti env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (bty ti) xt) in
-    let*! () = guard (Type.equal_basic (bty tf) yt) in
+  let ftosi_rr_x_y tf ti env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    guard (Type.equal_basic (bty ti) xt);
+    guard (Type.equal_basic (bty tf) yt);
     let xt' = ftosi_ty xt in
     match tf with
     | `f32 ->
       let@ sext = extbh ~signed:true x xt' xt in
-      !!!(I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt)) :: sext)
+      I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt)) :: sext
     | `f64 ->
       let@ sext = extbh ~signed:true x xt' xt in
-      !!!(I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt)) :: sext)
-    | _ -> !!None
-
-  let ftosi_rf32_x_y ti env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.single env "y" in
-    let*! () = guard (Type.equal_basic (bty ti) xt) in
-    match Virtual.Eval.unop_single (`ftosi (`f32, ti)) y with
-    | Some `int (y', yt) ->
-      !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt))]
-    | _ -> !!None
-
-  let ftosi_rf64_x_y ti env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.double env "y" in
-    let*! () = guard (Type.equal_basic (bty ti) xt) in
-    match Virtual.Eval.unop_double (`ftosi (`f64, ti)) y with
-    | Some `int (y', yt) ->
-      !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt))]
-    | _ -> !!None
+      I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt)) :: sext
+    | _ -> fail
+  ]
 
   (* Handles the 64-bit integer case where 2^63 would saturate cvttss2si/cvttsd2si. *)
   let ftoui_rr_i64 cvtts movf subf ucomif embed x y yt =
@@ -2227,7 +2326,7 @@ end = struct
     let* tmp_r = C.Var.fresh >>| Rv.var in
     let* tmp_fp = C.Var.fresh >>| Rv.var in
     let* tmp_r2 = C.Var.fresh >>| Rv.var in
-    let@ oz = with_imm `i64 Int64.min_value `i64 in !!![
+    let@ oz = with_imm `i64 Int64.min_value `i64 in !![
       cvtts (Oreg (tmp_r, `i64)) (Oreg (y, yt));
       movf (Oreg (tmp_fp, yt)) (Oreg (y, yt));
       subf (Oreg (tmp_fp, yt)) (Omem (addr, mty yt));
@@ -2239,275 +2338,253 @@ end = struct
       embed l;
     ]
 
-  let ftoui_rr_x_y tf ti env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (bty ti) xt) in
-    let*! () = guard (Type.equal_basic (bty tf) yt) in
+  let ftoui_rr_x_y tf ti env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    guard (Type.equal_basic (bty ti) xt);
+    guard (Type.equal_basic (bty tf) yt);
     let xt' = ftoui_ty xt in
     match tf, xt with
     | `f32, `i64 ->
       let threshold = Float32.of_float (2.0 ** 63.0) in
-      ftoui_rr_i64 I.cvttss2si I.movss I.subss I.ucomiss
-        (fun l -> I.fp32 l threshold) x y yt
+      continue (
+        ftoui_rr_i64
+          I.cvttss2si I.movss I.subss I.ucomiss
+          (fun l -> I.fp32 l threshold) x y yt)
     | `f64, `i64 ->
       let threshold = 2.0 ** 63.0 in
-      ftoui_rr_i64 I.cvttsd2si I.movsd I.subsd I.ucomisd
-        (fun l -> I.fp64 l threshold) x y yt
+      continue (
+        ftoui_rr_i64
+          I.cvttsd2si I.movsd I.subsd I.ucomisd
+          (fun l -> I.fp64 l threshold) x y yt)
     | `f32, _ ->
       let@ zext = extbh x xt' xt in
-      !!!(I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt)) :: zext)
+      I.cvttss2si (Oreg (x, xt')) (Oreg (y, yt)) :: zext
     | `f64, _ ->
       let@ zext = extbh x xt' xt in
-      !!!(I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt)) :: zext)
-    | _ -> !!None
+      I.cvttsd2si (Oreg (x, xt')) (Oreg (y, yt)) :: zext
+    | _ -> fail
+  ]
 
-  let ftoui_rf32_x_y ti env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.single env "y" in
-    let*! () = guard (Type.equal_basic (bty ti) xt) in
-    match Virtual.Eval.unop_single (`ftoui (`f32, ti)) y with
-    | Some `int (y', yt) ->
-      !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt))]
-    | _ -> !!None
-
-  let ftoui_rf64_x_y ti env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.double env "y" in
-    let*! () = guard (Type.equal_basic (bty ti) xt) in
-    match Virtual.Eval.unop_double (`ftoui (`f64, ti)) y with
-    | Some `int (y', yt) ->
-      !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt))]
-    | _ -> !!None
-
-  let ftrunc_rr_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
+  let ftrunc_rr_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
     match ty, xt, yt with
     | `f64, `f64, `f64 ->
-      !!![I.movsd (Oreg (x, xt)) (Oreg (y, yt))]
+      [I.movsd (Oreg (x, xt)) (Oreg (y, yt))]
     | `f32, `f32, `f32 ->
-      !!![I.movss (Oreg (x, xt)) (Oreg (y, yt))]
-    | `f32, `f32, `f64 -> !!![
+      [I.movss (Oreg (x, xt)) (Oreg (y, yt))]
+    | `f32, `f32, `f64 -> [
         I.xorps (Oreg (x, xt)) (Oreg (x, xt));
         I.cvtsd2ss (Oreg (x, xt)) (Oreg (y, yt))
       ]
-    | _ -> !!None
+    | _ -> fail
+  ]
 
-  let ftrunc_rf32_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.single env "y" in
+  let ftrunc_rf32_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Single y = env.!["y"] in
     match ty, xt with
     | `f32, `f32 ->
-      let* l, addr = fresh_label_addr in !!![
+      let* l, addr = fresh_label_addr in [
         I.movss (Oreg (x, xt)) (Omem (addr, `f32));
-        I.fp32 l y;
+        I.fp32 l y
       ]
-    | _ -> !!None
+    | _ -> fail
+  ]
 
-  let ftrunc_rf64_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.double env "y" in
+  let ftrunc_rf64_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Double y = env.!["y"] in
     match ty, xt with
     | `f32, `f32 ->
       let y = Float32.of_float y in
-      let* l, addr = fresh_label_addr in !!![
+      let* l, addr = fresh_label_addr in [
         I.movss (Oreg (x, xt)) (Omem (addr, `f32));
-        I.fp32 l y;
+        I.fp32 l y
       ]
     | `f64, `f64 ->
-      let* l, addr = fresh_label_addr in !!![
+      let* l, addr = fresh_label_addr in [
         I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
-        I.fp64 l y;
+        I.fp64 l y
       ]
-    | _ -> !!None
+    | _ -> fail
+  ]
 
-  let ifbits_rr_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (bty ty) xt) in
+  let ifbits_rr_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    guard (Type.equal_basic (bty ty) xt);
     match ty, yt with
     | `i32, `f32 ->
-      !!![I.movd (Oreg (x, xt)) (Oreg (y, yt))]
+      [I.movd (Oreg (x, xt)) (Oreg (y, yt))]
     | `i64, `f64 ->
-      !!![I.movq (Oreg (x, xt)) (Oreg (y, yt))]
-    | _ -> !!None
+      [I.movq (Oreg (x, xt)) (Oreg (y, yt))]
+    | _ -> fail
+  ]
 
-  let ifbits_rf32_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.single env "y" in
+  let ifbits_rf32_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Single y = env.!["y"] in
     match ty, xt with
     | `i32, `i32 ->
       let y' = Int64.(of_int32 (Float32.bits y) land 0xFFFFFFFFL) in
-      !!![I.mov (Oreg (x, xt)) (Oimm (y', `i32))]
-    | _ -> !!None
+      [I.mov (Oreg (x, xt)) (Oimm (y', `i32))]
+    | _ -> fail
+  ]
 
-  let ifbits_rf64_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y = S.double env "y" in
+  let ifbits_rf64_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Double y = env.!["y"] in
     match ty, xt with
     | `i64, `i64 ->
-      !!![I.mov (Oreg (x, xt)) (Oimm (float_to_bits y, `i64))]
-    | _ -> !!None
+      [I.mov (Oreg (x, xt)) (Oimm (float_to_bits y, `i64))]
+    | _ -> fail
+  ]
 
-  let itrunc_rr_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, _ = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (bty ty) xt) in
+  let itrunc_rr_x_y ty env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, _) = env.!["y"] in
+    guard (Type.equal_basic (bty ty) xt);
     (* Assume the width of the destination. *)
-    !!![I.mov (Oreg (x, xt)) (Oreg (y, xt))]
+    [I.mov (Oreg (x, xt)) (Oreg (y, xt))]
+  ]
 
-  let itrunc_ri_x_y ty env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! () = guard (Type.equal_basic (bty ty) xt) in
-    match Virtual.Eval.unop_int (`itrunc ty) y yt with
-    | Some `int (y', yt') ->
-      !!![I.mov (Oreg (x, xt)) (Oimm (Bv.to_int64 y', yt'))]
-    | _ -> !!None
-
-  let sitof_rr_x_y ti tf env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.regvar env "y" in
-    let*! () = guard (Type.equal_basic (bty tf) xt) in
-    let*! () = guard (Type.equal_basic (bty ti) yt) in
+  let sitof_rr_x_y ti tf env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    guard (Type.equal_basic (bty tf) xt);
+    guard (Type.equal_basic (bty ti) yt);
     match ti, tf with
     | (`i8 | `i16), `f32 ->
-      let* tmp = C.Var.fresh >>| Rv.var in !!![
+      let* tmp = fresh_reg in [
         I.movsx (Oreg (tmp, `i32)) (Oreg (y, yt));
         I.xorps (Oreg (x, xt)) (Oreg (x, xt));
-        I.cvtsi2ss (Oreg (x, xt)) (Oreg (tmp, `i32));
+        I.cvtsi2ss (Oreg (x, xt)) (Oreg (tmp, `i32))
       ]
-    | `i32, `f32 -> !!![
+    | `i32, `f32 -> [
         I.xorps (Oreg (x, xt)) (Oreg (x, xt));
-        I.cvtsi2ss (Oreg (x, xt)) (Oreg (y, yt));
+        I.cvtsi2ss (Oreg (x, xt)) (Oreg (y, yt))
       ]
-    | `i64, `f32 -> !!![
+    | `i64, `f32 -> [
         I.xorps (Oreg (x, xt)) (Oreg (x, xt));
-        I.cvtsi2ss (Oreg (x, xt)) (Oreg (y, yt));
+        I.cvtsi2ss (Oreg (x, xt)) (Oreg (y, yt))
       ]
     | (`i8 | `i16), `f64 ->
-      let* tmp = C.Var.fresh >>| Rv.var in !!![
+      let* tmp = fresh_reg in [
         I.movsx (Oreg (tmp, `i32)) (Oreg (y, yt));
         I.xorpd (Oreg (x, xt)) (Oreg (x, xt));
-        I.cvtsi2sd (Oreg (x, xt)) (Oreg (tmp, `i32));
+        I.cvtsi2sd (Oreg (x, xt)) (Oreg (tmp, `i32))
       ]
-    | `i32, `f64 -> !!![
+    | `i32, `f64 -> [
         I.xorpd (Oreg (x, xt)) (Oreg (x, xt));
-        I.cvtsi2sd (Oreg (x, xt)) (Oreg (y, yt));
+        I.cvtsi2sd (Oreg (x, xt)) (Oreg (y, yt))
       ]
-    | `i64, `f64 -> !!![
+    | `i64, `f64 -> [
         I.xorpd (Oreg (x, xt)) (Oreg (x, xt));
-        I.cvtsi2sd (Oreg (x, xt)) (Oreg (y, yt));
+        I.cvtsi2sd (Oreg (x, xt)) (Oreg (y, yt))
       ]
+  ]
 
-  let sitof_ri_x_y ti tf env =
-    let*! x, xt = S.regvar env "x" in
-    let*! y, yt = S.imm env "y" in
-    let*! () = guard (Type.equal_basic (bty tf) xt) in
-    let*! () = guard (Type.equal_imm (ity ti) yt) in
-    match Virtual.Eval.unop_int (`sitof (ti, tf)) y yt with
-    | Some `float f ->
-      let* l, addr = fresh_label_addr in !!![
-        I.movss (Oreg (x, xt)) (Omem (addr, `f32));
-        I.fp32 l f;
+  let call_sym_x_y env = [%rule
+    let S.Callargs args = env.!["x"] in
+    let S.Sym (s, o) = env.!["y"] in
+    [I.call args (Osym (s, o))]
+  ]
+
+  let call_r_x_y env = [%rule
+    let S.Callargs args = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    [I.call args (Oreg (y, yt))]
+  ]
+
+  let tailcall_sym_x_y env = [%rule
+    let S.Callargs args = env.!["x"] in
+    let S.Sym (s, o) = env.!["y"] in
+    [I.tailcall args (Osym (s, o))]
+  ]
+
+  let tailcall_r_x_y env = [%rule
+    let S.Callargs args = env.!["x"] in
+    let S.Regvar (y, yt) = env.!["y"] in
+    [I.tailcall args (Oreg (y, yt))]
+  ]
+
+  (* The actual dispatch logic for a jump table. *)
+  let jmp_tbl_impl d tbl x (xt : Type.imm) =
+    let xtb = bty xt in
+    let tbl, lowest, highest = adjust_table d tbl in
+    let highest' = Int64.(highest - lowest) in
+    let diff = Int64.(highest - highest') in
+    let diff_fits = fits_int32_pos diff in
+    let* tdiff = if diff_fits then !!None else
+        let+ r = C.Var.fresh >>| Rv.var in
+        Some r in
+    let* tl, tladdr = fresh_label_addr in
+    let* tbase = C.Var.fresh >>| Rv.var in
+    let* tidx = C.Var.fresh >>| Rv.var in
+    let+ tdst = C.Var.fresh >>| Rv.var in
+    List.concat [
+      ( (* Compare against the lowest value, if necessary. *)
+        if Int64.(lowest = 1L) then [
+          I.test (Oreg (x, xtb)) (Oreg (x, xtb));
+          I.jcc Ce d;
+        ]
+        else if Int64.(lowest > 0L) then [
+          I.cmp (Oreg (x, xtb)) (Oimm (lowest, xt));
+          I.jcc Cb d;
+        ]
+        else []
+      );
+      [ (* Zero-extend the index. *)
+        match xt with
+        | `i8 | `i16 ->
+          I.movzx (Oreg (tidx, `i64)) (Oreg (x, xtb))
+        | `i32 ->
+          (* i32 has implicit zero-extension. *)
+          I.mov_ (Oreg (tidx, xtb)) (Oreg (x, xtb))
+        | `i64 ->
+          I.mov (Oreg (tidx, xtb)) (Oreg (x, xtb))
+      ];
+      ( (* Subtract the difference from the index if needed. *)
+        match diff with
+        | 0L -> []
+        | 1L -> [I.dec (Oreg (tidx, `i64))]
+        | _ when diff_fits ->
+          [I.sub (Oreg (tidx, `i64)) (Oimm (diff, `i64))]
+        | _ ->
+          let tdiff = Option.value_exn tdiff in [
+            I.mov (Oreg (tdiff, `i64)) (Oimm (diff, `i64));
+            I.sub (Oreg (tidx, `i64)) (Oreg (tdiff, `i64));
+          ]
+      );
+      [ (* Compare against highest value. *)
+        I.cmp (Oreg (tidx, `i64)) (Oimm (highest', `i64));
+        I.jcc Ca d;
+        (* Get the base of the table. *)
+        I.lea (Oreg (tbase, `i64)) (Omem (tladdr, `i64));
+        (* Jump to the table entry. *)
+        I.movsxd (Oreg (tdst, `i64)) (Omem (Abis (tbase, tidx, S4), `i32));
+        I.add (Oreg (tdst, `i64)) (Oreg (tbase, `i64));
+        I.jmp (Jind (Oreg (tdst, `i64)));
+        (* The table itself. *)
+        I.jmptbl tl tbl;
       ]
-    | Some `double d ->
-      let* l, addr = fresh_label_addr in !!![
-        I.movsd (Oreg (x, xt)) (Omem (addr, `f64));
-        I.fp64 l d;
-      ]
-    | _ -> !!None
+    ]
 
-  let call_sym_x_y env =
-    let*! args = S.callargs env "x" in
-    let*! s, o = S.sym env "y" in
-    !!![I.call args (Osym (s, o))]
-
-  let call_r_x_y env =
-    let*! args = S.callargs env "x" in
-    let*! y, yt = S.regvar env "y" in
-    !!![I.call args (Oreg (y, yt))]
-
-  let tailcall_sym_x_y env =
-    let*! args = S.callargs env "x" in
-    let*! s, o = S.sym env "y" in
-    !!![I.tailcall args (Osym (s, o))]
-
-  let tailcall_r_x_y env =
-    let*! args = S.callargs env "x" in
-    let*! y, yt = S.regvar env "y" in
-    !!![I.tailcall args (Oreg (y, yt))]
-
-  let jmp_tbl_x_y env =
-    let*! x, xt = S.regvar env "x" in
-    let*! d, tbl = S.table env "y" in
+  let jmp_tbl_x_y env = [%rule
+    let S.Regvar (x, xt) = env.!["x"] in
+    let S.Table (d, tbl) = env.!["y"] in
     match xt, tbl with
     | _, [] ->
       (* Just jump to the default label. *)
-      !!![I.jmp (Jlbl d)]
+      [I.jmp (Jlbl d)]
     | #Type.fp, _ ->
       (* Should be impossible. *)
-      !!None
+      fail
     | #Type.imm as xt, _ ->
-      let tbl, lowest, highest = adjust_table d tbl in
-      let highest' = Int64.(highest - lowest) in
-      let diff = Int64.(highest - highest') in
-      let diff_fits = fits_int32_pos diff in
-      let* tdiff = if diff_fits then !!None else
-          let+ r = C.Var.fresh >>| Rv.var in
-          Some r in
-      let* tl, tladdr = fresh_label_addr in
-      let* tbase = C.Var.fresh >>| Rv.var in
-      let* tidx = C.Var.fresh >>| Rv.var in
-      let+ tdst = C.Var.fresh >>| Rv.var in
-      Option.some @@ List.concat [
-        (* Compare against the lowest value, if necessary. *)
-        ( if Int64.(lowest = 1L) then [
-              I.test (Oreg (x, xt)) (Oreg (x, xt));
-              I.jcc Ce d;
-            ]
-          else if Int64.(lowest > 0L) then [
-            I.cmp (Oreg (x, xt)) (Oimm (lowest, xt));
-            I.jcc Cb d;
-          ]
-          else []
-        );
-        (* Zero-extend the index. *)
-        [ match xt with
-          | `i8 | `i16 ->
-            I.movzx (Oreg (tidx, `i64)) (Oreg (x, xt))
-          | `i32 ->
-            (* i32 has implicit zero-extension. *)
-            I.mov_ (Oreg (tidx, xt)) (Oreg (x, xt))
-          | `i64 ->
-            I.mov (Oreg (tidx, xt)) (Oreg (x, xt))
-        ];
-        (* Subtract the difference from the index if needed. *)
-        ( match diff with
-          | 0L -> []
-          | 1L -> [I.dec (Oreg (tidx, `i64))]
-          | _ when diff_fits ->
-            [I.sub (Oreg (tidx, `i64)) (Oimm (diff, `i64))]
-          | _ ->
-            let tdiff = Option.value_exn tdiff in [
-              I.mov (Oreg (tdiff, `i64)) (Oimm (diff, `i64));
-              I.sub (Oreg (tidx, `i64)) (Oreg (tdiff, `i64));
-            ]
-        );
-        [ (* Compare against highest value. *)
-          I.cmp (Oreg (tidx, `i64)) (Oimm (highest', `i64));
-          I.jcc Ca d;
-          (* Get the base of the table. *)
-          I.lea (Oreg (tbase, `i64)) (Omem (tladdr, `i64));
-          (* Jump to the table entry. *)
-          I.movsxd (Oreg (tdst, `i64)) (Omem (Abis (tbase, tidx, S4), `i32));
-          I.add (Oreg (tdst, `i64)) (Oreg (tbase, `i64));
-          I.jmp (Jind (Oreg (tdst, `i64)));
-          (* The table itself. *)
-          I.jmptbl tl tbl;
-        ]
-      ]
+      continue (jmp_tbl_impl d tbl x xt)
+  ]
 
   open P.Op
 
@@ -2818,7 +2895,6 @@ end = struct
 
     let neg = [
       neg_r_x_y;
-      neg_i_x_y;
     ]
 
     let fneg = [
@@ -2829,7 +2905,6 @@ end = struct
 
     let not_ = [
       not_r_x_y;
-      not_i_x_y;
     ]
 
     let clz = [
@@ -2850,7 +2925,6 @@ end = struct
 
     let sext = [
       sext_rr_x_y;
-      sext_ri_x_y;
     ]
 
     let zext = [
@@ -2866,19 +2940,14 @@ end = struct
 
     let fibits ty = [
       fibits_rr_x_y ty;
-      fibits_ri_x_y ty;
     ]
 
     let ftosi tf ti = [
       ftosi_rr_x_y tf ti;
-      ftosi_rf32_x_y ti;
-      ftosi_rf64_x_y ti;
     ]
 
     let ftoui tf ti = [
       ftoui_rr_x_y tf ti;
-      ftoui_rf32_x_y ti;
-      ftoui_rf64_x_y ti;
     ]
 
     let ftrunc ty = [
@@ -2895,12 +2964,10 @@ end = struct
 
     let itrunc ty = [
       itrunc_rr_x_y ty;
-      itrunc_ri_x_y ty;
     ]
 
     let sitof ti tf = [
       sitof_rr_x_y ti tf;
-      sitof_ri_x_y ti tf;
     ]
 
     let store_add = [
@@ -3306,12 +3373,12 @@ end = struct
     (* x = y == 0
        x = y != 0
     *)
-    let setcc_zero =
-      [`i8,  i8  0;
-       `i16, i16 0;
-       `i32, i32 0l;
-       `i64, i64 0L;
-      ] >* fun (ty, zero) ->
+    let setcc_zero = [
+      `i8,  i8  0;
+      `i16, i16 0;
+      `i32, i32 0l;
+      `i64, i64 0L;
+    ] >* fun (ty, zero) ->
         let ty' = bty ty in [
           move x (ne ty' (and_ ty y z) zero) =>* Group.setcc_test (); (* x = (y & z) != 0 *)
           move x (eq ty' (and_ ty y z) zero) =>* Group.setcc_test () ~neg:true; (* x = (y & z) == 0 *)
@@ -3341,10 +3408,10 @@ end = struct
         ]
 
     (* x = fcmp y, z *)
-    let setcc_fbasic =
-      [`f32, Group.setcc_f32;
-       `f64, Group.setcc_f64
-      ] >* fun (ty, f) ->
+    let setcc_fbasic = [
+      `f32, Group.setcc_f32;
+      `f64, Group.setcc_f64
+    ] >* fun (ty, f) ->
         let ty' = bty ty in [
           (* Equality *)
           move x (eq ty' y z) =>* f Ce;
@@ -3359,12 +3426,12 @@ end = struct
           move x (o ty y z) =>* f Cnp;
         ]
 
-    let sel_zero =
-      [`i8,  i8  0;
-       `i16, i16 0;
-       `i32, i32 0l;
-       `i64, i64 0L;
-      ] >* fun (tyc, zero) ->
+    let sel_zero = [
+      `i8,  i8  0;
+      `i16, i16 0;
+      `i32, i32 0l;
+      `i64, i64 0L;
+    ] >* fun (tyc, zero) ->
         [`i8; `i16; `i32; `i64] >* fun tys ->
           let tys' = bty tys in
           let tyc' = bty tyc in [
@@ -3375,10 +3442,10 @@ end = struct
           ]
 
     (* x = sel (fcmp y z) yes no  [f32/f64 comparison, f32/f64 select value] *)
-    let sel_fbasic =
-      [`f32, Group.sel_f32;
-       `f64, Group.sel_f64;
-      ] >* fun (ty, f) ->
+    let sel_fbasic = [
+      `f32, Group.sel_f32;
+      `f64, Group.sel_f64;
+    ] >* fun (ty, f) ->
         let ty' = bty ty in [
           move x (sel ty' (eq ty' y z) yes no) =>* f FEQ;
           move x (sel ty' (ne ty' y z) yes no) =>* f FNEQ;
@@ -3395,9 +3462,9 @@ end = struct
        The condition codes match `setcc_fbasic` (ucomi sets CF/ZF/PF).
     *)
     let sel_ifcmp =
-      [`i8; `i16; `i32; `i64] >* fun tys ->
-        [`f32, Group.sel_fcmp32;
-         `f64, Group.sel_fcmp64;
+      [`i8; `i16; `i32; `i64] >* fun tys -> [
+          `f32, Group.sel_fcmp32;
+          `f64, Group.sel_fcmp64;
         ] >* fun (fty, f) ->
           let tys' = bty tys in
           let fty' = bty fty in [
@@ -3563,18 +3630,20 @@ end = struct
 
     (* x = sext/zext (load (add y z)) => movsx/movsxd/movzx x, [y+z] *)
     let load_ext_add =
-      load_ext_pairs >* fun (xt, zt) ->
-        [sext, Group.load_sext_add;
-         zext, Group.load_zext_add] >* fun (p, f) ->
+      load_ext_pairs >* fun (xt, zt) -> [
+          sext, Group.load_sext_add;
+          zext, Group.load_zext_add
+        ] >* fun (p, f) ->
           let zt' = bty zt in [
             move x (p xt (load zt' (add `i64 y z))) =>* f zt;
           ]
 
     (* x = sext/zext (load (add (add y (mul z i)) w)) => movsx/movsxd/movzx x, [y+z*i+w] *)
     let load_ext_add_mul_disp =
-      load_ext_pairs >* fun (xt, zt) ->
-        [sext, Group.load_sext_add_mul_disp;
-         zext, Group.load_zext_add_mul_disp] >* fun (p, f) ->
+      load_ext_pairs >* fun (xt, zt) -> [
+          sext, Group.load_sext_add_mul_disp;
+          zext, Group.load_zext_add_mul_disp
+        ] >* fun (p, f) ->
           let zt' = bty zt in
           let p1 = sib_disp_i64.(0) in
           let p2 = sib_disp_i64.(1) in
@@ -3606,9 +3675,10 @@ end = struct
 
     (* x = sext/zext (load (sub (add y (mul z i)) w)) => movsx/movsxd/movzx x, [y+z*i-w] *)
     let load_ext_add_mul_disp_neg =
-      load_ext_pairs >* fun (xt, zt) ->
-        [sext, Group.load_sext_add_mul_disp_neg;
-         zext, Group.load_zext_add_mul_disp_neg] >* fun (p, f) ->
+      load_ext_pairs >* fun (xt, zt) -> [
+          sext, Group.load_sext_add_mul_disp_neg;
+          zext, Group.load_zext_add_mul_disp_neg
+        ] >* fun (p, f) ->
           let zt' = bty zt in
           let p1 = sib_disp_neg_i64.(0) in
           let p2 = sib_disp_neg_i64.(1) in
@@ -3639,9 +3709,10 @@ end = struct
 
     (* x = sext/zext (load (add y (mul z i))) => movsx/movsxd/movzx x, [y+z*i] *)
     let load_ext_add_mul =
-      load_ext_pairs >* fun (xt, zt) ->
-        [sext, Group.load_sext_add_mul;
-         zext, Group.load_zext_add_mul] >* fun (p, f) ->
+      load_ext_pairs >* fun (xt, zt) -> [
+          sext, Group.load_sext_add_mul;
+          zext, Group.load_zext_add_mul
+        ] >* fun (p, f) ->
           let zt' = bty zt in
           let p1 = sib_i64.(0) in
           let p2 = sib_i64.(1) in
@@ -3663,9 +3734,10 @@ end = struct
 
     (* x = sext/zext (load y) => movsx/movsxd/movzx x, [y] *)
     let load_ext_basic =
-      load_ext_pairs >* fun (xt, zt) ->
-        [sext, Group.load_sext;
-         zext, Group.load_zext] >* fun (p, f) ->
+      load_ext_pairs >* fun (xt, zt) -> [
+          sext, Group.load_sext;
+          zext, Group.load_zext
+        ] >* fun (p, f) ->
           let zt' = bty zt in [
             move x (p xt (load zt' y)) =>* f zt;
           ]
@@ -3950,12 +4022,12 @@ end = struct
        br (x == 0), yes, no
        br (x != 0), yes, no
     *)
-    let br_zero =
-      [`i8,  i8  0;
-       `i16, i16 0;
-       `i32, i32 0l;
-       `i64, i64 0L;
-      ] >* fun (ty, zero) ->
+    let br_zero = [
+      `i8,  i8  0;
+      `i16, i16 0;
+      `i32, i32 0l;
+      `i64, i64 0L;
+    ] >* fun (ty, zero) ->
         let ty' = bty ty in [
           (* Test two operands. *)
           br (ne ty' (and_ ty x y) zero) yes no =>* Group.br_test ();
@@ -3987,10 +4059,10 @@ end = struct
           br (sge ty x y) yes no =>* Group.br_icmp Cge;
         ]
 
-    let br_fcmp =
-      [ `f32, Group.br_fcmp32;
-        `f64, Group.br_fcmp64;
-      ] >* fun (ty, f) ->
+    let br_fcmp = [
+      `f32, Group.br_fcmp32;
+      `f64, Group.br_fcmp64;
+    ] >* fun (ty, f) ->
         let ty' = bty ty in [
           (* Equality *)
           br (eq ty' x y) yes no =>* f Ce;
@@ -4025,12 +4097,12 @@ end = struct
 
     (* hlt *)
     let hlt = [
-      hlt => (fun _ -> !!![I.ud2]);
+      hlt => (fun _ -> !![I.ud2]);
     ]
 
     (* ret *)
     let ret = [
-      ret => (fun _ -> !!![I.ret]);
+      ret => (fun _ -> !![I.ret]);
     ]
   end
 

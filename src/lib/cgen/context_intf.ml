@@ -7,7 +7,7 @@ type label = Label.t
 
 module type S = sig
   (** The monadic context. *)
-  type 'a t
+  type +'a t
 
   module Var : sig
     (** Generates a fresh program variable. *)
