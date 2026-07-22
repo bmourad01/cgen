@@ -11,7 +11,7 @@ end
 type state = State.t
 
 (** The compilation context. *)
-type 'a t
+type +'a t
 
 (** Returns the current target descriptor. *)
 val target : Target.t t
