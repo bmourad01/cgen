@@ -41,6 +41,8 @@
   ppx_compare
   ppx_fields_conv
   ppx_sexp_conv
+  (ppxlib
+   (>= 0.36.0))
   shexp
   zarith))
 
