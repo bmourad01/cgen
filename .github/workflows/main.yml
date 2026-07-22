@@ -19,7 +19,7 @@ jobs:
       - name: Setup OCaml
         uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: 4.14.x
+          ocaml-compiler: 5.3.x
           opam-pin: false
           dune-cache: true
 
