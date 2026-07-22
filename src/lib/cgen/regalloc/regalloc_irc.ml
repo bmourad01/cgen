@@ -496,19 +496,41 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     | None -> C.failf "no type available for spilled node %a" Rv.pp v ()
     | Some ty -> !!ty
 
+  (* Whether `id` interferes with any node already sharing the slot
+     whose representative is `rep`.
+
+     A slot can hold more than one spilled node (the representative
+     plus others biased onto it), and `id` is only safe to add when
+     it interferes with none of them.
+
+     Checking just the representative misses a co-occupant that reused
+     the slot through move-biasing but does not itself interfere with
+     the representative, such as a copy source that is live across a
+     loop while its destination is not.
+  *)
+  let interferes_with_slot t id rep =
+    with_return @@ fun {return} ->
+    RT.iteri t.slots ~f:(fun ~key ~data ->
+        if Rv.equal data rep
+        && has_edge t id t.$[key]
+        then return true);
+    false
+
   (* Find an existing slot of comparable size that doesn't interfere
      with `id`. *)
   let find_reusable_slot t m id size =
     Map.find m size |> Option.bind ~f:(fun rvs ->
-        List.find rvs ~f:(fun rv -> not (has_edge t id t.$[rv])))
+        List.find rvs ~f:(fun rv -> not (interferes_with_slot t id rv)))
 
   (* Remove `r'` from m so it can't be assigned to a third variable.
      The slot now has two occupants (the original owner and `r`).
+
      `find_reusable_slot` only checks interference with the original
      owner, so a third variable that doesn't interfere with the
      original owner could incorrectly reuse the slot, but the
      second occupant (`r`) may be live at the exit and need the slot.
-     Removing `r'` prevents this triple aliasing. *)
+     Removing `r'` prevents this triple aliasing.
+  *)
   let update_slot_map m size r' =
     Map.change m size ~f:(function
         | None -> None
@@ -529,7 +551,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
          aliases live ranges. *)
       if not (Bitset.mem t.spilled t.$[partner]) then None else
         RT.find t.slots partner |> Option.bind ~f:(fun slot ->
-            Option.some_if (not (has_edge t id t.$[slot])) slot) in
+            Option.some_if (not (interferes_with_slot t id slot)) slot) in
     phi_pair_partners t rv |> Set.to_sequence |>
     Sequence.filter_map ~f:try_slot |> Sequence.hd |> function
     | Some _ as phi -> phi
