@@ -12,7 +12,4 @@ else
     echo "Reindenting with $VERSION"
 fi
 
-git ls-files | grep -e "$files_to_indent" | while read file
-do
-    clang-format -i "$file"
-done
+git ls-files | grep -e "$files_to_indent" | xargs -r -d '\n' clang-format -i
