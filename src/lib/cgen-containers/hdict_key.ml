@@ -1,21 +1,7 @@
-(** Type-safe keys for {!Hdict}, adapted from BAP's Knowledge Base.
-
-    Each key carries a fresh extensible-variant "witness" constructor
-    that lets two keys prove, at run time, that they index the same type.
-
-    Keys are ordered by a monotonically increasing [uid].
-*)
-
 open Core
+open Hdict_key_intf
 
-type uid = int
-
-module type Name = sig
-  type t
-  val to_string : t -> string
-end
-
-module Make(Name : Name) = struct
+module Make(Name : Name) : S with type name := Name.t = struct
   let last_id = ref (0 : uid)
 
   type 'a witness = ..
@@ -52,7 +38,6 @@ module Make(Name : Name) = struct
   let compare x y = Int.compare (uid x) (uid y) [@@inline]
   let equal x y = Int.equal (uid x) (uid y) [@@inline]
 
-  (* Prove that two equal keys index the same type. *)
   let same (type a b) (x : a t) (y : b t) : (a, b) Type_equal.t =
     if equal x y then
       let module X = (val x.key : Witness with type t = a) in
