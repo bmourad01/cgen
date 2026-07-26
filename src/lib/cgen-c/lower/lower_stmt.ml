@@ -102,7 +102,7 @@ let element_type c ty : Texpr.ty = match E.norm c.e ty with
 let is_field name (f : Tdecl.field) = String.(f.fname = name)
 
 let field_type c ~tag ~field : Texpr.ty =
-  match Type_env.find_tag (Layout.tenv c.e.layout) tag with
+  match Type_env.find_tag c.e.layout tag with
   | Some Tcompound {fields = Some fields; _} ->
     begin match List.find fields ~f:(is_field field) with
       | None -> failwithf "lower: no field %S in %S" field tag ()
@@ -116,7 +116,7 @@ let rec lower_init c ~addr ~ty (init : Texpr.init) k = match init with
     store c ty ~addr ~value:v k
   | Iarray inits ->
     let elem = element_type c ty in
-    let*? esz = Layout.sizeof c.e.layout elem in
+    let*? esz = Type_env.sizeof c.e.layout elem in
     lower_indexed c ~addr ~elem ~esz inits 0 k
   | Istruct fields ->
     let tag = Lower_type.compound_tag_exn c.e.layout ty in
@@ -142,13 +142,13 @@ and lower_fields c ~addr ~tag fields k = match fields with
   | (field, init) :: rest ->
     let fty = field_type c ~tag ~field in
     let store_field k =
-      match Result.ok (Layout.bitfield_info c.e.layout ~tag ~field), init with
+      match Result.ok (Type_env.bitfield_info c.e.layout ~tag ~field), init with
       | Some bf, Isingle e ->
         (* A bit-field initializer splices into the storage unit at `addr`. *)
         let@ v = E.lower_rval c.e e in
         E.bitfield_store c.e ~base:addr ~bf ~ty:fty ~value:v k
       | _ ->
-        let*? off = Layout.offsetof c.e.layout ~tag ~field in
+        let*? off = Type_env.offsetof c.e.layout ~tag ~field in
         let@ a = E.add_offset c.e addr off in
         lower_init c ~addr:a ~ty:fty init k in
     let@ () = store_field in
@@ -174,8 +174,8 @@ let rec needs_zero c (init : Texpr.init) ty = match init with
     needs_zero c init (field_type c ~tag ~field:name)
   | Iarray inits ->
     let elem = element_type c ty in
-    let st = Layout.sizeof c.e.layout ty in
-    let se = Layout.sizeof c.e.layout elem in
+    let st = Type_env.sizeof c.e.layout ty in
+    let se = Type_env.sizeof c.e.layout elem in
     let n = match st, se with
       | Ok asz, Ok esz when esz > 0 -> asz / esz
       | _ -> Int.max_value in
@@ -183,7 +183,7 @@ let rec needs_zero c (init : Texpr.init) ty = match init with
     List.exists inits ~f:(fun i -> needs_zero c i elem)
   | Istruct fields ->
     let tag = Lower_type.compound_tag_exn c.e.layout ty in
-    let count = match Type_env.find_tag (Layout.tenv c.e.layout) tag with
+    let count = match Type_env.find_tag c.e.layout tag with
       | Some (Tcompound {fields = Some fields; _}) -> List.length fields
       | _ -> Int.max_value in
     List.length fields < count ||
@@ -207,7 +207,7 @@ let bind_localdecl c (ld : Tstmt.localdecl) =
          not stored. *)
       let@ () =
         if needs_zero c init ld.ty then fun k ->
-          let*? size = Layout.sizeof c.e.layout ld.ty in
+          let*? size = Type_env.sizeof c.e.layout ld.ty in
           zero_region c ~addr ~size ~off:0 k
         else fun k -> k () in
       let@ () = lower_init c ~addr ~ty:ld.ty init in

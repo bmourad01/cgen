@@ -78,7 +78,7 @@ let type_of_const dm (c : Expr.const) = match c with
    has a constant (pointer) size.
 *)
 let contains_vla layout ty =
-  let tenv = Layout.tenv layout in
+  let tenv = layout in
   let eval = Eval.create_init layout in
   let rec go ty = match ET0.normalize tenv ty with
     | Tarray {size = Some e; elem; _} ->
@@ -105,7 +105,7 @@ let is_bitfield_lval layout tenv (lv : Texpr.tlval) = match lv.node with
   | Lmember {lval; field} ->
     begin match ET0.normalize tenv lval.ty with
       | Tnamed {kind = #Type.compound; name = tag; _} ->
-        Result.is_ok (Layout.bitfield_info layout ~tag ~field)
+        Result.is_ok (Type_env.bitfield_info layout ~tag ~field)
       | _ -> false
     end
   | _ -> false
@@ -288,7 +288,7 @@ module Make(A : Annotation) = struct
   *)
   let require_comparison ~op ~is_equality (lhs : Texpr.t) (rhs : Texpr.t) =
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     let eval = Eval.create_init layout in
     let lhs_t = ET0.normalize tenv lhs.ty in
     let rhs_t = ET0.normalize tenv rhs.ty in
@@ -390,8 +390,8 @@ module Make(A : Annotation) = struct
   *)
   let rec sizeof_of ty : Texpr.t M.m =
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
-    let dm = Layout.dmodel layout in
+    let tenv = layout in
+    let dm = Type_env.dmodel layout in
     (* We need to resolve all typedefs upfront, which helps us avoid a
        false "unresolved typedef" error. *)
     let nty = ET0.normalize tenv ty in
@@ -401,7 +401,7 @@ module Make(A : Annotation) = struct
     let size_t = DM.size_t dm in
     if not (contains_vla layout nty) then
       (* Constant size: a folded `size_t` literal. *)
-      let+? n = Layout.sizeof layout nty in
+      let+? n = Type_env.sizeof layout nty in
       let bits = DM.pointer_bits dm in
       Texpr.int_ Bv.(int n mod modulus bits) ~ty:size_t
     else match nty with
@@ -422,14 +422,14 @@ module Make(A : Annotation) = struct
      (an array's alignment is its element's, independent of any VLA size). *)
   let alignof_of ty : Texpr.t M.m =
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
-    let dm = Layout.dmodel layout in
+    let tenv = layout in
+    let dm = Type_env.dmodel layout in
     let nty = ET0.normalize tenv ty in
     let* () =
       M.when_ (EC.is_function tenv nty) @@ fun () ->
       Ctx.fatal "_Alignof applied to a function type '%a'" pp_ty ty () in
     let size_t = DM.size_t dm in
-    let+? a = Layout.alignof layout nty in
+    let+? a = Type_env.alignof layout nty in
     let bits = DM.pointer_bits dm in
     Texpr.int_ Bv.(int a mod modulus bits) ~ty:size_t
 
@@ -456,8 +456,8 @@ module Make(A : Annotation) = struct
   let bitfield_promote layout tenv dm ~struct_ty ~field rv =
     let promote = match ET0.normalize tenv struct_ty with
       | Tnamed {kind = #Type.compound; name = tag; _} ->
-        begin match Layout.bitfield_info layout ~tag ~field with
-          | Ok bf -> Layout.Bitfield.width bf < DM.int_bits dm
+        begin match Type_env.bitfield_info layout ~tag ~field with
+          | Ok bf -> Type_env.Bitfield.width bf < DM.int_bits dm
           | Error _ -> false
         end
       | _ -> false in
@@ -665,8 +665,8 @@ module Make(A : Annotation) = struct
         ~is_equality
         lhs_rv rhs_rv in
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
-    let dm = Layout.dmodel layout in
+    let tenv = layout in
+    let dm = Type_env.dmodel layout in
     let lhs', rhs' =
       if EC.is_arithmetic tenv lhs_rv.ty
       && EC.is_arithmetic tenv rhs_rv.ty then
@@ -825,7 +825,7 @@ module Make(A : Annotation) = struct
     let@ rhs_rv = elab_rval rhs in
     let* () = require_modifiable ~op:"=" lhs_lv in
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     let eval = Eval.create_init layout in
     let*? converted, w =
       EC.convert_for_assign tenv eval ~lhs:lhs_lv.ty ~rhs:rhs_rv in
@@ -996,8 +996,8 @@ module Make(A : Annotation) = struct
   and rval_offsetof ty desig cont =
     let* ty' = ET.elab ~elab_size ty in
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
-    let dm = Layout.dmodel layout in
+    let tenv = layout in
+    let dm = Type_env.dmodel layout in
     let eval = Eval.create_init layout in
     (* Flatten the designator, innermost first: `a.b[i]` parses as
        `Eindex {Emember {Ename a; b}; i}`. *)
@@ -1018,7 +1018,7 @@ module Make(A : Annotation) = struct
           | _ ->
             Ctx.fatal "__builtin_offsetof of non-structure type '%a'"
               pp_ty cur () in
-        let*? o = Layout.offsetof layout ~tag ~field:f in
+        let*? o = Type_env.offsetof layout ~tag ~field:f in
         let* fty = lookup_field ~parent_ty:cur ~field:f in
         !!(off + o, fty)
       | `Index i ->
@@ -1026,7 +1026,7 @@ module Make(A : Annotation) = struct
           | Tarray {elem; _} -> !!elem
           | _ ->
             Ctx.fatal "__builtin_offsetof subscript of non-array member" () in
-        let*? sz = Layout.sizeof layout elem in
+        let*? sz = Type_env.sizeof layout elem in
         !!(off + i * sz, elem) in
     let rec fold st = function
       | [] -> !!st
@@ -1135,7 +1135,7 @@ module Make(A : Annotation) = struct
     let* else_stmt, else_rv = capture_rval else_ in
     let* result_ty = cond_result_type then_rv else_rv in
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     let eval = Eval.create_init layout in
     let convert rv =
       let*? e, w = EC.convert_for_assign tenv eval ~lhs:result_ty ~rhs:rv in
@@ -1369,8 +1369,8 @@ module Make(A : Annotation) = struct
      promotions and/or UAC. *)
   and compute_binop (op : pure_binop) lhs rhs =
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
-    let dm = Layout.dmodel layout in
+    let tenv = layout in
+    let dm = Type_env.dmodel layout in
     match op with
     | `mul | `div as op ->
       let+ () =
@@ -1462,8 +1462,8 @@ module Make(A : Annotation) = struct
   *)
   and cond_result_type (a : Texpr.t) (b : Texpr.t) =
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
-    let dm = Layout.dmodel layout in
+    let tenv = layout in
+    let dm = Type_env.dmodel layout in
     let eval = Eval.create_init layout in
     let na = ET0.normalize tenv a.ty in
     let nb = ET0.normalize tenv b.ty in
@@ -1681,7 +1681,7 @@ module Make(A : Annotation) = struct
       let@ rhs_rv = elab_rval rhs in
       let* () = require_modifiable ~op:"=" lhs_lv in
       let* layout = M.gets Ctx.layout in
-      let tenv = Layout.tenv layout in
+      let tenv = layout in
       let eval = Eval.create_init layout in
       let*? converted, w =
         EC.convert_for_assign tenv eval ~lhs:lhs_lv.ty ~rhs:rhs_rv in
@@ -1700,7 +1700,7 @@ module Make(A : Annotation) = struct
   and elab_into ~(dest : Texpr.tlval) e =
     let@ rv = elab_rval e in
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     let eval = Eval.create_init layout in
     let* converted, w = Ctx.lift_err @@
       EC.convert_for_assign tenv eval ~lhs:dest.ty ~rhs:rv in

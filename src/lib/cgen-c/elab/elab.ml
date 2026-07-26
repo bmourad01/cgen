@@ -24,7 +24,7 @@ let elab
     (* §6.9.2: a file-scope object definition may be a tentative definition
        with an incomplete type, provided the type is completed by the end of
        the unit. Check the final environment now that every tag is known. *)
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     let+ () = Ctx.M.List.iter decls ~f:(function
         | Tdecl.Dglobal {name; ty; attrs; _}
           when Option.is_none (Attr.alias attrs) ->

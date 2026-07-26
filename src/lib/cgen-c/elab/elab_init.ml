@@ -218,7 +218,7 @@ module Make(A : Annotation) = struct
 
   let classify_aggregate ty =
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     match ET.normalize tenv ty with
     | Tarray {elem; size = None; _} ->
       !!(Some (Aarray {elem; size = None}))
@@ -242,11 +242,11 @@ module Make(A : Annotation) = struct
   *)
   let string_array_init target s =
     let* layout = M.gets Ctx.layout in
-    let dm = Layout.dmodel layout in
+    let dm = Type_env.dmodel layout in
     let bits = Data_model.pointer_bits dm in
     let size_t = Data_model.size_t dm in
     let module B = (val Bv.modular bits) in
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     let len = String.length s in
     let+ elem, size = match ET.normalize tenv target with
       | Tarray {elem; size = None; _} -> !!(elem, len + 1)
@@ -324,7 +324,7 @@ module Make(A : Annotation) = struct
   let scalar_leaf env target e =
     let* rv = capture env e in
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     let eval = Eval.create_init layout in
     let*? rv, w = EC.convert_for_assign tenv eval ~lhs:target ~rhs:rv in
     let* () = Ctx.warn_opt w in
@@ -371,7 +371,7 @@ module Make(A : Annotation) = struct
   (* Place a brace-enclosed init `{items}` into `sty`, deferred. *)
   let rec braced_sub env sty items =
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     match string_init_of (Icompound items) with
     | Some s when is_char_array_ty tenv sty ->
       let+ _, i = string_array_init sty s in
@@ -403,7 +403,7 @@ module Make(A : Annotation) = struct
     | Icompound items -> braced_sub env sty items
     | Isingle ({node = Ecompound {init; _}; _} as e) ->
       let* layout = M.gets Ctx.layout in
-      let tenv = Layout.tenv layout in
+      let tenv = layout in
       if EC.is_scalar tenv sty then
         let@ () = Ctx.with_location_of e.ann in
         let+ rv = scalar_leaf env sty e in
@@ -412,7 +412,7 @@ module Make(A : Annotation) = struct
     | Isingle e ->
       let@ () = Ctx.with_location_of e.ann in
       let* layout = M.gets Ctx.layout in
-      let tenv = Layout.tenv layout in
+      let tenv = layout in
       if EC.is_scalar tenv sty then
         let+ rv = scalar_leaf env sty e in
         Sleaf (Isingle rv)
@@ -437,7 +437,7 @@ module Make(A : Annotation) = struct
       `Place s
     | Isingle e ->
       let* layout = M.gets Ctx.layout in
-      let tenv = Layout.tenv layout in
+      let tenv = layout in
       if EC.is_scalar tenv sty
       || (is_string_expr e && is_char_array_ty tenv sty)
       then
@@ -546,14 +546,14 @@ module Make(A : Annotation) = struct
   *)
   let top env ty i =
     let* layout = M.gets Ctx.layout in
-    let tenv = Layout.tenv layout in
+    let tenv = layout in
     match string_init_of i with
     | Some s when is_char_array_ty tenv ty ->
       string_array_init ty s
     | _ ->
       match ET.normalize tenv ty with
       | Tarray {elem; size = None; _} ->
-        let dm = Layout.dmodel layout in
+        let dm = Type_env.dmodel layout in
         let size_t = Data_model.size_t dm in
         let bits = Data_model.pointer_bits dm in
         let module B = (val Bv.modular bits) in

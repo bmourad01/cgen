@@ -33,11 +33,52 @@ type tag =
     } (** A compound type of [kind]. *)
 [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** A typing enviromnent. *)
+(** Placement of a bit field within its containing storage unit. *)
+module Bitfield : sig
+  type t [@@deriving bin_io, compare, equal, hash, sexp]
+
+  (** Byte offset of the storage unit (relative to the enclosing
+      compound). *)
+  val storage : t -> int
+
+  (** Bit offset of this field within its storage unit (zero-based). *)
+  val offset : t -> int
+
+  (** Width of the bit field in bits. *)
+  val width : t -> int
+
+  (** Byte offset of the integer used to read/write the field at run time.
+
+      Equals {!storage} unless the declared-type unit overlaps a normal
+      member, in which case the access is narrowed to avoid it.
+  *)
+  val access_storage : t -> int
+
+  (** Width in bits of the run-time access integer. *)
+  val access_bits : t -> int
+
+  (** Whether the field must be accessed one byte at a time.
+
+      [true] only for a [packed] field that straddles its storage unit, where
+      no single in-bounds integer access covers it.
+
+      {!access_storage} and {!access_bits} do not apply when this is [true].
+  *)
+  val bytewise : t -> bool
+end
+
+type bitfield = Bitfield.t [@@deriving bin_io, compare, equal, hash, sexp]
+
+(** A typing environment.
+
+    Besides the C name/type bindings, it carries the layout maps (sizes, field
+    offsets, bit-field placements) derived from them. Registering a complete
+    compound via {!add_tag} also computes its layout in the same step.
+*)
 type t [@@deriving bin_io, compare, equal, hash, sexp]
 
-(** The empty typing environment. *)
-val empty : t
+(** [empty ~dmodel] is the empty typing environment for data model [dmodel]. *)
+val empty : dmodel:Data_model.t -> t
 
 (** [add_tag env ~name info] registers a tag declaration whose source name
     is [name] in the innermost scope, returning the updated environment and
@@ -54,6 +95,10 @@ val empty : t
 
     Callers record the returned display name in the elaborated type (via
     {!resolve_tag} at reference sites) and in any emitted declaration.
+
+    For a complete [Tcompound] this additionally computes and stores its
+    layout, offsets, and bit-field placements, keyed by the returned display
+    name. Incomplete compounds and enums update only the name bindings.
 *)
 val add_tag : t -> name:string -> tag -> (t * string) Or_error.t
 
@@ -179,3 +224,25 @@ val normalize : t -> Texpr.ty -> Texpr.ty
     or [union] that makes [ty] unusable as an object type (directly, or
     as an array element), or [None] if [ty] is a complete object type. *)
 val incomplete_object_type : t -> Texpr.ty -> string option
+
+(** {1 Layout queries} *)
+
+(** The data model under which the layouts were computed. *)
+val dmodel : t -> Data_model.t
+
+(** [sizeof t ty] is the size of [ty] in bytes. *)
+val sizeof : t -> Texpr.ty -> int Or_error.t
+
+(** [alignof t ty] is the alignment requirement of [ty] in bytes. *)
+val alignof : t -> Texpr.ty -> int Or_error.t
+
+(** [offsetof t ~tag ~field] is the byte offset of [field] within the
+    compound named [tag].
+
+    Rejects bit fields per C99 §7.17.
+*)
+val offsetof : t -> tag:string -> field:string -> int Or_error.t
+
+(** [bitfield_info t ~tag ~field] is the placement of bit field [field]
+    within compound [tag]. *)
+val bitfield_info : t -> tag:string -> field:string -> bitfield Or_error.t

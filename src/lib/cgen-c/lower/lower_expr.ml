@@ -6,7 +6,7 @@ module Ctx = Cgen.Context
 module S = Cgen.Structured
 module V = Cgen.Virtual
 module F32 = Cgen_utils.Float32
-module LB = Layout.Bitfield
+module LB = Type_env.Bitfield
 module Target = Cgen.Target
 module Smap = Cgen_containers.Champ.Make(String)
 module Ftree = Cgen_containers.Ftree
@@ -21,26 +21,26 @@ let (@>*) t l = List.fold l ~init:t ~f:(@>)
 let bty t = (t :> IT.basic)
 
 type env = {
-  layout  : Layout.t;
+  layout  : Type_env.t;
   slots   : Cgen.Var.t map;
   strings : string String.Table.t;
   nstr    : int ref;
 }
 
-let dmodel env = Layout.dmodel env.layout
+let dmodel env = Type_env.dmodel env.layout
 let ptr_imm env = Lower_type.pointer_imm (dmodel env)
-let norm env ty = Type_env.normalize (Layout.tenv env.layout) ty
+let norm env ty = Type_env.normalize (env.layout) ty
 let fresh_var = Ctx.Var.fresh
 let emit op rest : S.stmt = `seq (op, rest)
 
 (* Allocate a stack slot for an object named `name` of type `ty`,
    optionally over-aligning the slot via `align`. *)
 let alloc_slot ?align layout name ty =
-  (* `Layout.sizeof`/`alignof` require a typedef-free type. *)
-  let ty = Type_env.normalize (Layout.tenv layout) ty in
+  (* `Type_env.sizeof`/`alignof` require a typedef-free type. *)
+  let ty = Type_env.normalize (layout) ty in
   let* v = fresh_var in
-  let*? size = Layout.sizeof layout ty in
-  let*? natural = Layout.alignof layout ty in
+  let*? size = Type_env.sizeof layout ty in
+  let*? natural = Type_env.alignof layout ty in
   let align = Option.value_map align ~default:natural ~f:(max natural) in
   let+? slot = V.Slot.create v ~size ~align in
   (name, v), slot
@@ -162,7 +162,7 @@ let bv imm = Bv.modular (IT.sizeof_imm imm)
 let bitfield_info_opt env ~parent_ty ~field =
   match Lower_type.compound_tag env.layout parent_ty with
   | None -> None
-  | Some tag -> Result.ok (Layout.bitfield_info env.layout ~tag ~field)
+  | Some tag -> Result.ok (Type_env.bitfield_info env.layout ~tag ~field)
 
 (* If `lv` is a member access naming a bit field, the parent (struct) lvalue
    and the field's placement; otherwise `None`. *)
@@ -294,7 +294,7 @@ let bitfield_store_bytewise env ~base ~bf ~ty ~value k =
   S.Stmt.seq @@ Ftree.to_list pre
 
 (* Read a bit field of type `ty`. *)
-let bitfield_load env ~base ~(bf : Layout.bitfield) ~ty k =
+let bitfield_load env ~base ~(bf : Type_env.bitfield) ~ty k =
   if LB.bytewise bf then bitfield_load_bytewise env ~base ~bf ~ty k else
     let@ addr = add_offset env base (LB.access_storage bf) in
     let* little = little_endian in
@@ -478,7 +478,7 @@ and lower_binary env e (op : Texpr.bop) (lhs : Texpr.t) (rhs : Texpr.t) k =
 and lower_ptr_int env op ~ptr ~int_ ~pointee k =
   let@ base = lower_rval env ptr in
   let@ idx = lower_index env int_ in
-  let*? scale = Layout.sizeof env.layout pointee in
+  let*? scale = Type_env.sizeof env.layout pointee in
   match op with
   | `add -> add_scaled env base idx ~scale k
   | `sub -> sub_scaled env base idx ~scale k
@@ -489,7 +489,7 @@ and lower_ptr_diff env ~lhs ~rhs ~pointee k =
   let@ l = lower_rval env lhs in
   let@ r = lower_rval env rhs in
   let pi = ptr_imm env in
-  let*? scale = Layout.sizeof env.layout pointee in
+  let*? scale = Type_env.sizeof env.layout pointee in
   if scale = 1 then
     let* d = fresh_var in
     let+ rest = k (`var d) in
@@ -618,12 +618,12 @@ and lower_lval env (lv : Texpr.tlval) k = match lv.node with
   | Lmember {lval; field} ->
     let@ base = lower_lval env lval in
     let tag = Lower_type.compound_tag_exn env.layout lval.ty in
-    let*? off = Layout.offsetof env.layout ~tag ~field in
+    let*? off = Type_env.offsetof env.layout ~tag ~field in
     add_offset env base off k
   | Lindex {lval; index} ->
     let@ base = index_base env lval in
     let@ idx = lower_index env index in
-    let*? scale = Layout.sizeof env.layout lv.ty in
+    let*? scale = Type_env.sizeof env.layout lv.ty in
     add_scaled env base idx ~scale k
 
 and index_base env (lval : Texpr.tlval) k =
@@ -640,7 +640,7 @@ and index_base env (lval : Texpr.tlval) k =
 and index_addr env ~arr ~(idx : Texpr.t) ~elem k =
   let@ base = lower_rval env arr in
   let@ i = lower_index env idx in
-  let*? scale = Layout.sizeof env.layout elem in
+  let*? scale = Type_env.sizeof env.layout elem in
   add_scaled env base i ~scale k
 
 (* A subscript index in pointer width: extend the C index (signed or

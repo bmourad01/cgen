@@ -64,9 +64,9 @@ type _ value =
 *)
 type 'm t
 
-val create_ice   : Layout.t -> ice   t
-val create_arith : Layout.t -> arith t
-val create_init  : Layout.t -> init  t
+val create_ice   : Type_env.t -> ice   t
+val create_arith : Type_env.t -> arith t
+val create_init  : Type_env.t -> init  t
 
 (** {1 Equality on values}
 

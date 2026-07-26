@@ -32,7 +32,7 @@ module Make(A : Annotation) = struct
   type ann = A.ann
 
   type t = {
-    layout       : Layout.t;
+    layout       : Type_env.t;
     location     : Location.t option;
     loc_of_ann   : ann -> Location.t option;
     fnctx        : fnctx option;
@@ -46,7 +46,7 @@ module Make(A : Annotation) = struct
   }
 
   let create ~dmodel ~loc_of_ann = {
-    layout = Layout.empty ~dmodel;
+    layout = Type_env.empty ~dmodel;
     location = None;
     loc_of_ann;
     fnctx = None;
@@ -58,8 +58,8 @@ module Make(A : Annotation) = struct
   }
 
   let layout t = t.layout
-  let tenv t = Layout.tenv t.layout
-  let dmodel t = Layout.dmodel t.layout
+  let tenv t = t.layout
+  let dmodel t = Type_env.dmodel t.layout
   let location t = t.location
   let fnctx t = t.fnctx
   let statics t = t.statics
@@ -179,7 +179,7 @@ module Make(A : Annotation) = struct
      A fresh innermost scope is pushed for `f`, so the locals it binds
      shadow (rather than collide with) those of enclosing scopes. On exit
      the block's locals, enum constants, and typedefs are dropped, but any
-     struct/union/enum tag definitions are kept (see `Layout.exit_block`):
+     struct/union/enum tag definitions are kept (see `Type_env.exit_block`):
      a block-scope struct/union must survive to the lowering, which has no
      notion of scope.
 
@@ -192,14 +192,14 @@ module Make(A : Annotation) = struct
     let* saved_layout = M.gets layout in
     let* saved_statics = M.gets statics in
     let* () = M.update @@ fun ctx ->
-      {ctx with layout = Layout.push_scope ctx.layout} in
+      {ctx with layout = Type_env.push_scope ctx.layout} in
     let* result = f () in
     let+ () =
       M.update @@ fun ctx -> {
         ctx with
         (* Keep block-scope tag definitions and their layouts (the lowering
            needs them), but drop the block's locals/enum-constants/typedefs. *)
-        layout = Layout.exit_block ~saved:saved_layout ctx.layout;
+        layout = Type_env.exit_block ~saved:saved_layout ctx.layout;
         statics = saved_statics;
       } in
     result
@@ -251,7 +251,7 @@ module Make(A : Annotation) = struct
   *)
   let add_local ~name ~ty =
     let* ctx = M.get () in
-    let*? layout = Layout.strict_add_local ctx.layout ~name ty in
+    let*? layout = Type_env.strict_add_local ctx.layout ~name ty in
     (* A plain local shadows any static/extern alias of the same name in
        an enclosing scope; the alias is restored when this scope exits. *)
     M.put {ctx with layout; statics = Smap.remove ctx.statics name}
@@ -259,7 +259,7 @@ module Make(A : Annotation) = struct
   (* Update the type of a local already bound in the innermost scope, without
      the redeclaration check. *)
   let update_local ~name ~ty = M.update @@ fun ctx ->
-    {ctx with layout = Layout.add_local ctx.layout ~name ty}
+    {ctx with layout = Type_env.add_local ctx.layout ~name ty}
 
   (* Alias a block-scope source name to the link symbol that references
      should resolve to (see the `statics` field). *)
@@ -280,33 +280,33 @@ module Make(A : Annotation) = struct
 
   (* File-scope environment writers.
 
-     Each forwards to the matching `Layout` mutator, which keeps the
-     layout maps in lockstep with the tenv.
+     Each forwards to the matching `Type_env` mutator; registering a
+     complete compound also computes its layout in the same step.
   *)
 
   let add_tag ~name tag =
     let* ctx = M.get () in
-    let* layout, disp = lift_err @@ Layout.add_tag ctx.layout ~name tag in
+    let* layout, disp = lift_err @@ Type_env.add_tag ctx.layout ~name tag in
     let+ () = M.put {ctx with layout} in
     disp
 
   let add_enum_element ~name ~tag ~value =
     let* ctx = M.get () in
-    let*? layout = Layout.add_enum_element ctx.layout ~name ~tag ~value in
+    let*? layout = Type_env.add_enum_element ctx.layout ~name ~tag ~value in
     M.put {ctx with layout}
 
   let add_typedef ~name ~ty =
     let* ctx = M.get () in
-    let*? layout = Layout.add_typedef ctx.layout ~name ty in
+    let*? layout = Type_env.add_typedef ctx.layout ~name ty in
     M.put {ctx with layout}
 
   let add_func ~name ~ty =
     let* ctx = M.get () in
-    let*? layout = Layout.add_func ctx.layout ~name ty in
+    let*? layout = Type_env.add_func ctx.layout ~name ty in
     M.put {ctx with layout}
 
   let add_global ~name ~ty =
     let* ctx = M.get () in
-    let*? layout = Layout.add_global ctx.layout ~name ty in
+    let*? layout = Type_env.add_global ctx.layout ~name ty in
     M.put {ctx with layout}
 end

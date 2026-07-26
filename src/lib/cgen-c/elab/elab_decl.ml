@@ -199,7 +199,7 @@ module Make(A : Annotation) = struct
 
      The field type is normalized (typedefs expanded) because a complete
      struct/union is laid out eagerly when its tag is registered, and
-     `Layout` requires typedef-free types.
+     `Type_env` requires typedef-free types to compute the layout.
 
      Other type sinks (globals, locals) defer layout and normalize on
      demand via `Elab_conv`.
@@ -306,7 +306,7 @@ module Make(A : Annotation) = struct
        file-scope tag of the same name. `exit_block` (below, against
        `saved_layout`) pops it. *)
     let* () =
-      M.update @@ fun c -> {c with layout = Layout.push_scope c.layout} in
+      M.update @@ fun c -> {c with layout = Type_env.push_scope c.layout} in
     let* () = M.List.iter eparams ~f:(function
         | Some n, pty -> Ctx.add_local ~name:n ~ty:pty
         | None, _ -> !!()) in
@@ -342,7 +342,7 @@ module Make(A : Annotation) = struct
         (* Keep struct/union/enum tags declared in the body (the lowering
            needs their layouts) while dropping its params, locals, enum
            constants, and typedefs. *)
-        layout = Layout.exit_block ~saved:saved_layout c.layout;
+        layout = Type_env.exit_block ~saved:saved_layout c.layout;
         statics = saved_statics;
       } in
     Tdecl.fundef

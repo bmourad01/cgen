@@ -63,32 +63,13 @@ type _ value =
 [@@deriving sexp_of]
 
 type 'm t = {
-  dm     : D.t;
-  layout : Layout.t;
-  tenv   : TE.t;
+  layout : Type_env.t;
   mode   : 'm mode_tag;
 }
 
-let create_ice layout = {
-  dm = Layout.dmodel layout;
-  layout;
-  tenv = Layout.tenv layout;
-  mode = Ice;
-}
-
-let create_arith layout = {
-  dm = Layout.dmodel layout;
-  layout;
-  tenv = Layout.tenv layout;
-  mode = Arith;
-}
-
-let create_init layout = {
-  dm = Layout.dmodel layout;
-  layout;
-  tenv = Layout.tenv layout;
-  mode = Init;
-}
+let create_ice   layout = {layout; mode = Ice}
+let create_arith layout = {layout; mode = Arith}
+let create_init  layout = {layout; mode = Init}
 
 (* Heterogeneous structural equality.
 
@@ -140,15 +121,15 @@ let int_info_base dm : Type.base -> (int * Type.sign) option = function
    is a valid arithmetic constant expression (§6.6). Thus, the classifier
    must see through the typedef.
 *)
-let int_info t (ty : Texpr.ty) = match TE.normalize t.tenv ty with
+let int_info t (ty : Texpr.ty) = match TE.normalize t.layout ty with
   | Tbase {base; _} ->
-    int_info_base t.dm base
+    int_info_base (TE.dmodel t.layout) base
   | Tnamed {kind = `enum; _} ->
-    Some (D.int_bits t.dm, Type.Ssigned)
+    Some (D.int_bits (TE.dmodel t.layout), Type.Ssigned)
   | _ -> None
 
 (* Similarly to above, we must normalize the type first. *)
-let float_kind t (ty : Texpr.ty) = match TE.normalize t.tenv ty with
+let float_kind t (ty : Texpr.ty) = match TE.normalize t.layout ty with
   | Tbase {base = Bfloat Ffloat; _}  -> Some `f32
   | Tbase {base = Bfloat Fdouble; _} -> Some `f64
   | _ -> None
@@ -574,7 +555,7 @@ let rec fold t (e : Texpr.t) : Texpr.t Or_error.t = match e.node with
   (* §6.4.4.3 ¶2: enumeration constants have type [int]; the value
      is already resolved by elaboration. *)
   | Eenum_const {value; _} ->
-    let bits = D.int_bits t.dm in
+    let bits = D.int_bits (TE.dmodel t.layout) in
     Ok (mk_int e.ty (mask bits value))
   (* Variables, global objects, and function designators are not foldable. *)
   | Evar _ | Esym _ | Efun _ -> Ok e
@@ -787,7 +768,7 @@ let array_elem (ty : Texpr.ty) = match ty with
 
 (* Whether `ty` designates a function type. An lvalue of function type is
    a function designator (§6.3.2.1). *)
-let is_function_type t (ty : Texpr.ty) = match TE.normalize t.tenv ty with
+let is_function_type t (ty : Texpr.ty) = match TE.normalize t.layout ty with
   | Tfun _ -> true
   | _ -> false
 
@@ -820,7 +801,7 @@ let rec ptr_offset_z t ptr_ty rhs_e =
   let open O.Let in
   let* n = idx_to_z t rhs_e in
   let* pointee = pointee_type ptr_ty in
-  let+ sz = Result.ok (Layout.sizeof t.layout pointee) in
+  let+ sz = Result.ok (Type_env.sizeof t.layout pointee) in
   Z.(n * of_int sz)
 
 (* Computes (symbol, byte-offset Z) for the address of `tlv` when
@@ -835,8 +816,8 @@ and lval_addr t (tlv : Texpr.tlval) : (string * Z.t) option =
   (* A global object designates its link symbol; its address is an address
      constant (§6.6 ¶9). *)
   | Lsym name -> Some (name, Z.zero)
-  | Lvar name when TE.has_global t.tenv name -> Some (name, Z.zero)
-  | Lvar name when TE.has_func t.tenv name -> Some (name, Z.zero)
+  | Lvar name when TE.has_global t.layout name -> Some (name, Z.zero)
+  | Lvar name when TE.has_func t.layout name -> Some (name, Z.zero)
   (* A block-scope function declaration binds the name as a local of function
      type (for scoping), but it still designates the external function symbol,
      whose address is an address constant (§6.6 ¶9). *)
@@ -846,12 +827,12 @@ and lval_addr t (tlv : Texpr.tlval) : (string * Z.t) option =
     let* sym, off = lval_addr t lval in
     let* tag = compound_tag lval.ty in
     let+ delta =
-      Result.ok (Layout.offsetof t.layout ~tag ~field) in
+      Result.ok (Type_env.offsetof t.layout ~tag ~field) in
     sym, Z.(off + of_int delta)
   | Lindex {lval; index} ->
     let* sym, off = lval_addr t lval in
     let* elem = array_elem lval.ty in
-    let* sz = Result.ok (Layout.sizeof t.layout elem) in
+    let* sz = Result.ok (Type_env.sizeof t.layout elem) in
     let+ n = idx_to_z t index in
     sym, Z.(off + n * of_int sz)
   | Lderef e -> expr_addr_z t e
@@ -915,7 +896,7 @@ and rval_addr t (e : Texpr.t) : (string * Z.t) option =
   match e.node with
   (* A global array decays to the address of its first element. *)
   | Esym name -> Some (name, Z.zero)
-  | Evar name when TE.has_global t.tenv name || TE.has_func t.tenv name ->
+  | Evar name when TE.has_global t.layout name || TE.has_func t.layout name ->
     Some (name, Z.zero)
   (* A function designator names a function, which has static storage
      duration, so its address is always an address constant (§6.6 ¶9).
@@ -928,14 +909,14 @@ and rval_addr t (e : Texpr.t) : (string * Z.t) option =
   | Emember {obj; field} ->
     let* sym, off = rval_addr t obj in
     let* tag = compound_tag obj.ty in
-    let+ delta = Result.ok (Layout.offsetof t.layout ~tag ~field) in
+    let+ delta = Result.ok (Type_env.offsetof t.layout ~tag ~field) in
     sym, Z.(off + of_int delta)
   | _ -> None
 
 let try_addr_const t e =
   let open O.Let in
   let+ sym, off = expr_addr_z t e in
-  let bits = D.pointer_bits t.dm in
+  let bits = D.pointer_bits (TE.dmodel t.layout) in
   Vaddr {sym; off = z_to_bv ~bits off}
 
 (* §6.3.2.3 ¶3: a null pointer constant is an integer constant
@@ -1005,7 +986,7 @@ let try_int_ptr_const t (e : Texpr.t) =
   if not (Type.is_pointer e.ty) then None else
     let open O.Let in
     let+ v = extract_int t (strip_ptr_casts e) in
-    Vint (mask (D.pointer_bits t.dm) v)
+    Vint (mask (D.pointer_bits (TE.dmodel t.layout)) v)
 
 let const_init (t : init t) (e' : Texpr.t) : init value Or_error.t =
   match vint_value t e' with

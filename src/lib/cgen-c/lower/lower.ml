@@ -19,7 +19,7 @@ module Dict = Cgen.Dict
 module Target = Cgen.Target
 module E = Lower_expr
 module Smap = E.Smap
-module Bf = Layout.Bitfield
+module Bf = Type_env.Bitfield
 module Err = Cgen_utils.Monads.Error
 
 open Ctx.Syntax
@@ -161,7 +161,7 @@ let intern_string layout strings nstr s =
 (* The byte offset of an address constant as a signed integer. The evaluator
    masks it to pointer width, so reinterpret the top bit as the sign. *)
 let addr_offset layout (off : Bv.t) =
-  let bits = Data_model.pointer_bits (Layout.dmodel layout) in
+  let bits = Data_model.pointer_bits (Type_env.dmodel layout) in
   let z = Bv.to_bigint off in
   let half = Z.shift_left Z.one (bits - 1) in
   Z.to_int (if Z.lt z half then z else Z.sub z (Z.shift_left Z.one bits))
@@ -180,7 +180,7 @@ let const_elt layout ~strings ~nstr (e : Texpr.t) =
   | Eval.Vstring s        -> `sym (intern_string layout strings nstr s, 0)
   | Eval.Vaddr {sym; off} -> `sym (sym, addr_offset layout off)
 
-let tenv layout = Layout.tenv layout
+let tenv layout = layout
 
 let array_elem layout ty : Texpr.ty =
   match Type_env.normalize (tenv layout) ty with
@@ -278,7 +278,7 @@ let rec emit_init
     ~(ty : Texpr.ty)
     (init : Texpr.init)
     (acc : V.Data.elt list) =
-  let*? size = Layout.sizeof layout ty in
+  let*? size = Type_env.sizeof layout ty in
   let endpos = base + size in
   let* acc, cur = match init with
     | Isingle e when Lower_type.is_aggregate layout ty ->
@@ -302,7 +302,7 @@ let rec emit_init
       elt :: acc, endpos
     | Iarray inits ->
       let elem = array_elem layout ty in
-      let*? esz = Layout.sizeof layout elem in
+      let*? esz = Type_env.sizeof layout elem in
       emit_array layout ~strings ~nstr ~base ~elem ~esz inits 0 acc
     | Istruct fields ->
       emit_fields layout
@@ -333,7 +333,7 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
   let* little = Ctx.target >>| Target.little in
   let unit_bytes = Int.Table.create () in
   List.iter fields ~f:(fun (field, _) ->
-      match Layout.bitfield_info layout ~tag ~field with
+      match Type_env.bitfield_info layout ~tag ~field with
       | Ok bf ->
         let b = bitfield_type_bytes layout ~tag ~field in
         Hashtbl.update unit_bytes (Bf.storage bf)
@@ -344,7 +344,7 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
   let rec classify members = function
     | [] -> !!members
     | (field, finit) :: rest ->
-      match Layout.bitfield_info layout ~tag ~field with
+      match Type_env.bitfield_info layout ~tag ~field with
       | Ok bf ->
         let*? v = init_int layout ~what:"bit field" finit in
         let storage = Bf.storage bf in
@@ -363,9 +363,9 @@ and emit_fields layout ~strings ~nstr ~base ~tag fields acc cur =
         done;
         classify members rest
       | Error _ ->
-        let*? off = Layout.offsetof layout ~tag ~field in
+        let*? off = Type_env.offsetof layout ~tag ~field in
         let fty = field_type layout ~tag ~field in
-        let*? sz = Layout.sizeof layout fty in
+        let*? sz = Type_env.sizeof layout fty in
         classify ((off, sz, fty, finit) :: members) rest in
   let* members = classify [] fields in
   let overlaps storage ub =
@@ -424,13 +424,13 @@ let lower_global
     ~attrs =
   let* elts = match init with
     | None ->
-      let+? size = Layout.sizeof layout ty in
+      let+? size = Type_env.sizeof layout ty in
       [`zero size]
     | Some init ->
       let+ acc, _ = emit_init layout ~strings ~nstr ~base:0 ~ty init [] in
       List.rev acc in
   let dict = Dict.set Dict.empty V.Data.Tag.linkage (linkage_of ~attrs linkage) in
-  let nty = Type_env.normalize (Layout.tenv layout) ty in
+  let nty = Type_env.normalize layout ty in
   let dict =
     if object_is_const nty
     then Dict.set dict V.Data.Tag.const ()

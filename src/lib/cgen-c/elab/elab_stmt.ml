@@ -187,7 +187,7 @@ module Make(A : Annotation) = struct
     | _ -> None
 
   (* Elaborate a local declaration's type, resolving typedefs. Any block-scope
-     typedef is dropped when the block is left (see `Layout.exit_block`), but
+     typedef is dropped when the block is left (see `Type_env.exit_block`), but
      the resolved type persists in the emitted declaration for the lowering. *)
   let elab_local_ty env ldty = ET.elab ~elab_size:(elab_size env) ldty
 
@@ -507,7 +507,7 @@ module Make(A : Annotation) = struct
         | None -> failwith "Elab_stmt: return outside a function" in
       let* estmt, rv = capture env e in
       let* layout = M.gets Ctx.layout in
-      let tenv = Layout.tenv layout in
+      let tenv = layout in
       let eval = Eval.create_init layout in
       let*? converted, w = EC.convert_for_return tenv eval ~ret ~rhs:rv in
       let+ () = Ctx.warn_opt w in

@@ -33,7 +33,7 @@ let basic_of_base dm base =
   | Bfloat Ffloat -> (`f32 :> IT.basic), false
   | Bfloat Fdouble -> (`f64 :> IT.basic), false
 
-let norm layout ty = Type_env.normalize (Layout.tenv layout) ty
+let norm layout ty = Type_env.normalize layout ty
 
 (* A struct/union/array occupies memory and is never loaded as a scalar.
 
@@ -49,7 +49,7 @@ let is_aggregate layout ty = match (norm layout ty : Texpr.ty) with
    integers. `enum` is `int`.
 *)
 let scalar layout ty =
-  let dm = Layout.dmodel layout in
+  let dm = Type_env.dmodel layout in
   match (norm layout ty : Texpr.ty) with
   | Tbase {base; _} -> basic_of_base dm base
   | Tptr _ | Tfun _ | Tarray _ ->
@@ -106,8 +106,8 @@ let field_elt layout (f : Tdecl.field) =
   let elem = peel f.fty in
   let+ count = match (norm layout f.fty : Texpr.ty) with
     | Tarray _ ->
-      let+ sf = Layout.sizeof layout f.fty
-      and+ se = Layout.sizeof layout elem in
+      let+ sf = Type_env.sizeof layout f.fty
+      and+ se = Type_env.sizeof layout elem in
       if se = 0 then 0 else sf / se
     | _ -> Ok 1 in
   match elem with
@@ -127,14 +127,14 @@ let int_elt_of_bytes n : IT.basic = match n * 8 with
 let bitfield_unit_bits layout ty = IT.sizeof_basic (fst (scalar layout ty))
 
 (* A struct's storage as a list of non-overlapping cells in offset order,
-   mirroring `Layout.layout_struct`. *)
+   mirroring `Type_env.layout_struct`. *)
 let struct_cells layout fields =
   let rec go p units members = function
     | [] -> Ok (List.rev units, List.rev members)
     | (f : Tdecl.field) :: rest -> match f.fbits with
       | None ->
-        let* fs = Layout.sizeof layout f.fty in
-        let* fa = Layout.alignof layout f.fty in
+        let* fs = Type_env.sizeof layout f.fty in
+        let* fa = Type_env.alignof layout f.fty in
         let p = round_up p (fa * 8) in
         let* elt = field_elt layout f in
         go (p + fs * 8) units ((p / 8, fa, fs, elt) :: members) rest
@@ -157,7 +157,7 @@ let struct_cells layout fields =
    The IR has no bitfields, so the type just describes the underlying storage,
    keeping its size, alignment, and ABI classification correct.
 
-   Field offsets come separately from `Layout`.
+   Field offsets come separately from `Type_env`.
 *)
 let named_of_compound layout ~kind ~tag ~fields =
   let+ elts = match kind with
