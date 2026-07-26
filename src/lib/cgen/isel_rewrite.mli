@@ -292,20 +292,29 @@ module Subst : sig
   (** A substitition. *)
   type 'r t = private 'r Isel_internal.Subst.t
 
-  (** The normalized term bound to a matched pattern variable. Rules may
-      pattern match on this directly (see {!find_exn}) rather than going
-      through the typed projections below. *)
+  (** The normalized term bound to a matched pattern variable. *)
   type 'r term = 'r Isel_internal.Subst.term =
-    | Regvar of 'r * Type.basic
-    | Regvar_v of 'r
-    | Imm of Cgen_utils.Bv.t * Type.imm
-    | Single of Cgen_utils.Float32.t
-    | Double of float
-    | Sym of string * int
-    | Label of Label.t
-    | Bool of bool
-    | Table of Label.t * (Cgen_utils.Bv.t * Label.t) list
-    | Callargs of 'r list
+    | Treg of 'r * Type.basic
+    (** A register or variable *)
+    | Tvreg of 'r
+    (** Same as {!Treg}, but specialized for a vector register *)
+    | Timm of Cgen_utils.Bv.t * Type.imm
+    (** An integer constant, with its type/width *)
+    | Tf32 of Cgen_utils.Float32.t
+    (** A single-precision float constant *)
+    | Tf64 of float
+    (** A double-precision float constant *)
+    | Tsym of string * int
+    (** A symbol reference, with a constant offset *)
+    | Tlbl of Label.t
+    (** A label (program point) reference *)
+    | Tbool of bool
+    (** A boolean constant *)
+    | Ttbl of Label.t * (Cgen_utils.Bv.t * Label.t) list
+    (** A jump table, consisting of its the default label paired with its cases *)
+    | Tcall of 'r list
+    (** A list of arguments for a function call *)
+  [@@deriving equal, sexp]
 
   (** Raised by {!find_exn} only on a rule bug: a callback referencing a
       pattern variable its own pattern does not bind. *)
@@ -325,24 +334,22 @@ module Rule(C : Context_intf.S) : sig
 
       A callback declines to match by failing via {!Rule_syntax.mzero}, which
       the [%rule] ppx emits for a failed pattern or guard). {!try_} catches
-      this to move on to the next callback. Any other error propagates.
+      this so the caller can move on to the next matched term. Any other error
+      propagates.
   *)
   type ('r, 'i) callback = 'r subst -> 'i list C.t
 
   (** A rewrite rule. *)
   type ('r, 'i) t = private ('r, 'i) Isel_internal.Rule(C).t
 
+  (** Alias for {!Subst.find_exn}. *)
+  val (.![]) : 'r subst -> string -> 'r Subst.term
+
   (** [pre => post] constructs a rewrite rule where the pattern [pre] is
       matched with an existing program term, and rewritten to the instruction
-      sequence produced by [post]. *)
+      sequence produced by [post]. The callback [post] dispatches internally on
+      the matched operand forms, declining (via {!decline}) when none apply. *)
   val (=>) : Pattern.toplevel -> ('r, 'i) callback -> ('r, 'i) t
-
-  (** Same as [=>], but accepts multiple callbacks for matching the same pattern.
-
-      The callbacks are invoked in the order that they are provided, until one
-      of them produces a successful match.
-  *)
-  val (=>*) : Pattern.toplevel -> ('r, 'i) callback list -> ('r, 'i) t
 
   (** The [return]/[bind]/[mzero] vocabulary the [%rule] ppx resolves against. *)
   module Rule_syntax : sig
@@ -361,8 +368,7 @@ module Rule(C : Context_intf.S) : sig
   (** [guard b] is equivalent to [if b then C.return () else decline]. *)
   val guard : bool -> unit C.t
 
-  (** [try_ x fs] applies the callbacks in [fs] to [x] from left to right,
-      returning the result of the first that does not decline, or [None] if
-      all of them decline. *)
-  val try_ : 'a -> ('a -> 'b C.t) list -> 'b option C.t
+  (** [try_ x f] applies [f] to [x], returning its result, or [None] if it
+      declines. *)
+  val try_ : 'a -> ('a -> 'b C.t) -> 'b option C.t
 end

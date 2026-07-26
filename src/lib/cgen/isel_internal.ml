@@ -78,16 +78,16 @@ end
 
 module Subst = struct
   type 'r term =
-    | Regvar of 'r * Type.basic
-    | Regvar_v of 'r
-    | Imm of Bv.t * Type.imm
-    | Single of Float32.t
-    | Double of float
-    | Sym of string * int
-    | Label of Label.t
-    | Bool of bool
-    | Table of Label.t * (Bv.t * Label.t) list
-    | Callargs of 'r list
+    | Treg of 'r * Type.basic
+    | Tvreg of 'r
+    | Timm of Bv.t * Type.imm
+    | Tf32 of Float32.t
+    | Tf64 of float
+    | Tsym of string * int
+    | Tlbl of Label.t
+    | Tbool of bool
+    | Ttbl of Label.t * (Bv.t * Label.t) list
+    | Tcall of 'r list
   [@@deriving equal, sexp]
 
   type 'r info = {
@@ -100,11 +100,9 @@ module Subst = struct
   type 'r t = 'r info Matcher.Subst.t [@@deriving sexp]
 
   let find t x = M.find t x |> Option.map ~f:(fun i -> i.tm)
-  let empty = M.empty
 
   (* This is only ever raised when the RHS of a rule references
-     an unbound variable. This is always a bug, so just fail
-     loudly. *)
+     an unbound variable. It is always a bug, so just fail loudly. *)
   exception Unbound of string
 
   let find_exn t x = match find t x with
@@ -120,10 +118,10 @@ module Rule(C : Context_intf.S) = struct
   open C.Syntax
 
   type ('r, 'i) callback = 'r Subst.t -> 'i list C.t
-  type ('r, 'i) t = Pattern.toplevel * ('r, 'i) callback list
+  type ('r, 'i) t = Pattern.toplevel * ('r, 'i) callback
 
-  let (=>) pre post = pre, [post]
-  let (=>*) pre post = pre, post
+  let (.![]) = Subst.find_exn
+  let (=>) pre post = pre, post
 
   module Rule_syntax = struct
     let return = C.return
@@ -138,11 +136,10 @@ module Rule(C : Context_intf.S) = struct
   let decline = Rule_syntax.mzero
   let guard x = if x then !!() else decline
 
-  let try_ x fs =
-    let rec go = function
-      | [] -> !!None
-      | f :: fs ->
-        C.catch (f x >>| Option.some) @@ fun e ->
-        if phys_equal e rule_decline then go fs else C.fail e in
-    go fs
+  (* Apply the rule's callback to `x`, catching a decline (via `rule_decline`)
+     into `None` so the caller can move on to the next matched term. Any other
+     error propagates. *)
+  let try_ x f =
+    C.catch (f x >>| Option.some) @@ fun e ->
+    if phys_equal e rule_decline then !!None else C.fail e
 end

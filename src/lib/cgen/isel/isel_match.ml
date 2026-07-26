@@ -20,6 +20,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   module R = Isel_internal.Rule(C)
   module Rv = M.Regvar
 
+  module RS = Cgen_containers.Dense.Make_set(struct
+      include Rv
+      let to_int = hash
+    end)
+
   exception Mismatch
 
   let word = Target.word M.target
@@ -75,7 +80,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let vm =
     (* XXX: don't try this at home! The representations are exactly the
        same, but we need to erase the type constraints on the input. *)
-    let pats : (Matcher.pat * callback list) list = Obj.magic rules in
+    let pats : (Matcher.pat * callback) list = Obj.magic rules in
     let name = Format.asprintf "%a-isel" Target.pp M.target in
     let prog = Matcher.compile ~name pats ~commute:true in
     VM.create prog
@@ -85,9 +90,9 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   let map_subst_terms t (s : Matcher.subst) : subst =
     let open S in
     let regvar id r = match typeof t id with
-      | Some (#Type.basic as ty) -> Regvar (r, ty)
-      | Some `v128 -> Regvar_v r
-      | Some `flag -> Regvar (r, wordb)
+      | Some (#Type.basic as ty) -> Treg (r, ty)
+      | Some `v128 -> Tvreg r
+      | Some `flag -> Treg (r, wordb)
       | None ->
         Logs.debug (fun m ->
             m "%s: no regvar for term %d: %a%!"
@@ -95,15 +100,15 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         raise_notrace Mismatch in
     Subst.map s ~f:(fun id ->
         let tm = match node t id with
-          | N (Oaddr a, []) -> Imm (a, wordi)
-          | N (Obool b, []) -> Bool b
-          | N (Odouble d, []) -> Double d
-          | N (Oint (i, ty), []) -> Imm (i, ty)
-          | N (Osingle s, []) -> Single s
-          | N (Osym (s, o), []) -> Sym (s, o)
-          | N (Olocal l, []) -> Label l
-          | Callargs rs -> Callargs rs
-          | Tbl (d, tbl) -> Table (d, tbl)
+          | N (Oaddr a, []) -> Timm (a, wordi)
+          | N (Obool b, []) -> Tbool b
+          | N (Odouble d, []) -> Tf64 d
+          | N (Oint (i, ty), []) -> Timm (i, ty)
+          | N (Osingle s, []) -> Tf32 s
+          | N (Osym (s, o), []) -> Tsym (s, o)
+          | N (Olocal l, []) -> Tlbl l
+          | Callargs rs -> Tcall rs
+          | Tbl (d, tbl) -> Ttbl (d, tbl)
           | Rv r -> regvar id r
           | N _ -> match getrv t id with
             | Some r -> regvar id r
@@ -170,7 +175,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
           | Some _ as is -> !!is
           | None ->
             Logs.debug (fun m ->
-                m "%s: no callbacks succeeded, looping again%!"
+                m "%s: callback declined, looping again%!"
                   __FUNCTION__);
             loop ()
         with Mismatch -> loop () in
@@ -251,7 +256,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               begin match Rv.which r with
                 | Second x ->
                   not (Vset.mem escaping x) &&
-                  not (Set.mem used r)
+                  not (RS.mem used r)
                 | First _ -> false
               end
             | _ -> false
@@ -264,7 +269,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
     let label = Blk.label b in
     let note (raw : M.Insn.t list) =
       List.iter raw ~f:(fun i ->
-          used := Set.union !used (M.Insn.reads i)) in
+          M.Insn.reads i |>
+          Set.iter ~f:(RS.add used)) in
     let* extra = match LT.find t.extra label with
       | None -> !![]
       | Some ls ->
@@ -281,7 +287,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
       Blk.insns b ~rev:true |>
       C.Seq.fold ~init ~f:(fun acc i ->
           let label = Insn.label i in
-          if skippable t escaping !used label
+          if skippable t escaping used label
           then !!acc
           else
             let* raw = insns t label in
@@ -298,7 +304,8 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
      in reverse postoder. *)
   let transl_blks t =
     let escaping = escaping_vars t.fn in
-    let used = ref Rv.Set.empty in
+    let ucap = Func.(num_args t.fn + num_insns t.fn) in
+    let used = RS.create ~capacity:ucap () in
     Func.blks t.fn |> Sequence.map ~f:(fun b ->
         let l = Blk.label b in
         let o = Semi_nca.Tree.rpo_exn t.dom l in
