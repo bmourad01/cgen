@@ -30,6 +30,9 @@ end
 
 let (let@) f x = f x
 
+(* As an empirical observation, most substitutions have a length
+   of <=4, so it makes sense to use the small map here as an
+   optimization. *)
 module Subst = Small_map.Make(String)
 
 module Make(M : L) = struct
