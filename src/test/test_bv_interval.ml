@@ -71,8 +71,7 @@ let concrete_values size t =
 
 let oracle_sound_binop name ~size ~interval_op ~concrete_op t1 t2 =
   let r_int = interval_op t1 t2 in
-  (* underdefined or overdefined result: just skip it *)
-  I.is_empty r_int || I.is_full r_int ||
+  I.is_full r_int ||
   let vs1 = concrete_values size t1 in
   let vs2 = concrete_values size t2 in
   let results = List.bind vs1 ~f:(fun a ->
@@ -89,8 +88,8 @@ let oracle_sound_binop name ~size ~interval_op ~concrete_op t1 t2 =
 
 let oracle_sound_unop name ~size ~interval_op ~concrete_op t =
   let t_int = interval_op t in
-  (* underdefined or overdefined result: just skip it *)
-  I.is_empty t_int || I.is_full t_int ||
+  (* see [oracle_sound_binop]: full is trivially sound, empty must be checked *)
+  I.is_full t_int ||
   let vs = concrete_values size t in
   let results = List.filter_map vs ~f:(fun v ->
       let i = Bv.to_int v in
@@ -536,3 +535,29 @@ let%test_unit "zext sound" =
 
 let%test_unit "zext size" =
   qc1 sexp_unop_size "bv-zext-size" gen_small_sized_interval_size2 prop_zext_size
+
+let prop_contains_full (size, t) =
+  Bool.equal (I.contains t (I.create_full ~size)) (I.is_full t)
+
+let%test_unit "contains full only in full" =
+  qc1 sexp_unop "contains-full" gen_sized_interval prop_contains_full
+
+let prop_total_binop_nonempty op (size, (t1, t2)) =
+  List.is_empty (concrete_values size t1) ||
+  List.is_empty (concrete_values size t2) ||
+  not (I.is_empty (op t1 t2))
+
+let%test_unit "total binops never return empty" =
+  List.iter [
+    "add", I.add;
+    "sub", I.sub;
+    "mul", I.mul;
+    "logand", I.logand;
+    "logor", I.logor;
+    "logxor", I.logxor;
+    "lsl", I.logical_shift_left;
+    "lsr", I.logical_shift_right;
+    "asr", I.arithmetic_shift_right;
+  ] ~f:(fun (name, op) ->
+      qc1 sexp_binop ("nonempty-" ^ name) gen_small_interval_pair
+        (prop_total_binop_nonempty op))

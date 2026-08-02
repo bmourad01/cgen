@@ -143,12 +143,14 @@ let contains_value t v =
 
 let contains t1 t2 =
   is_full t1 || is_empty t2 || begin
-    if not (is_wrapped_hi t1) then
-      not (is_wrapped_hi t2) &&
-      Bv.(t1.lo <= t2.lo && t2.hi <= t1.hi)
-    else if not (is_wrapped_hi t2) then
-      Bv.(t2.hi <= t1.hi || t1.lo <= t2.lo)
-    else Bv.(t2.hi <= t1.hi && t1.lo <= t2.lo)
+    not (is_full t2) && begin
+      if not (is_wrapped_hi t1) then
+        not (is_wrapped_hi t2) &&
+        Bv.(t1.lo <= t2.lo && t2.hi <= t1.hi)
+      else if not (is_wrapped_hi t2) then
+        Bv.(t2.hi <= t1.hi || t1.lo <= t2.lo)
+      else Bv.(t2.hi <= t1.hi && t1.lo <= t2.lo)
+    end
   end
 
 let subtract t v =
@@ -574,8 +576,8 @@ let abs ?(int_min_is_poison = false) t =
       then Bv.zero
       else Bv.min t.lo B.(succ (neg t.hi)) in
     if int_min_is_poison
-    then create ~lo ~hi:smv ~size
-    else create ~lo ~hi:(B.succ smv) ~size
+    then create_non_empty ~lo ~hi:smv ~size
+    else create_non_empty ~lo ~hi:(B.succ smv) ~size
   else with_return @@ fun {return} ->
     let smin = signed_min t and smax = signed_max t in
     let smin =
@@ -584,12 +586,12 @@ let abs ?(int_min_is_poison = false) t =
         else B.succ smin
       else smin in
     if not (B.msb smin) then
-      create ~lo:smin ~hi:(B.succ smax) ~size
+      create_non_empty ~lo:smin ~hi:(B.succ smax) ~size
     else if B.msb smax then
-      create ~lo:(B.neg smax) ~hi:B.(succ (neg smin)) ~size
+      create_non_empty ~lo:(B.neg smax) ~hi:B.(succ (neg smin)) ~size
     else
       let hi = B.succ @@ Bv.max (B.neg smin) smax in
-      create ~lo:Bv.zero ~hi ~size
+      create_non_empty ~lo:Bv.zero ~hi ~size
 
 let srem t1 t2 =
   let size = t1.size in
@@ -757,7 +759,7 @@ let logical_shift_right t1 t2 =
     let min2 = unsigned_min t2 in
     let hi = Bv.(succ ((max1 lsr min2) mod m) mod m) in
     let lo = Bv.((min1 lsr max2) mod m) in
-    create ~lo ~hi ~size
+    create_non_empty ~lo ~hi ~size
 
 let arithmetic_shift_right t1 t2 =
   if t1.size <> t2.size then
