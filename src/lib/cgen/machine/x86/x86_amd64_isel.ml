@@ -3550,6 +3550,10 @@ end = struct
           br (o ty x y) yes no => f Cnp;
         ]
 
+    let br_bare = [
+      br x yes no => jcc_r_zero_x ~neg:true;
+    ]
+
     (* call x *)
     let call_basic = [
       call x y => Sel.call;
@@ -3649,6 +3653,7 @@ end = struct
       br_zero;
       br_icmp;
       br_fcmp;
+      br_bare;
       call_basic;
       tailcall_basic;
       sw_basic;
