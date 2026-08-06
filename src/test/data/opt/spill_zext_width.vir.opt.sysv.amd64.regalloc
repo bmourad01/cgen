@@ -1,0 +1,124 @@
+module spill_zext_width
+
+export function $widen { ; returns: rax
+@2:
+  push r12 ; @307
+  push r13 ; @308
+  push r14 ; @309
+  push r15 ; @310
+  push rbx ; @311
+  sub rsp, 0xa0_l ; @312
+  movzx eax, si ; @254
+  mov qword ptr [rsp + 0x90], rax ; @255
+  shl rax, 0x14_b ; @252
+  mov qword ptr [rsp + 0x90], rax ; @257
+  mov r13, 0x1234567800000000_l ; @235
+  mov r12, 0xfffffff00000000_l ; @236
+  mov rbx, 0xeeeeeee00000000_l ; @237
+  mov r14, 0xddddddd00000000_l ; @238
+  mov r11, 0xccccccc00000000_l ; @239
+  mov r10, 0xbbbbbbb00000000_l ; @240
+  mov r9, 0xaaaaaaa00000000_l ; @241
+  mov r8, 0x999999900000000_l ; @242
+  mov rsi, 0x888888800000000_l ; @243
+  mov rdx, 0x7777777700000000_l ; @244
+  mov rcx, 0x6666666600000000_l ; @245
+  mov r15, 0x5555555500000000_l ; @246
+  mov rax, 0x4444444400000000_l ; @247
+  mov qword ptr [rsp + 0x98], rax ; @303
+  mov rax, 0x3333333300000000_l ; @248
+  mov qword ptr [rsp + 0x88], rax ; @258
+  mov rax, 0x2222222200000000_l ; @249
+  mov qword ptr [rsp + 0x80], rax ; @259
+  mov rax, 0x1111111100000000_l ; @250
+  mov qword ptr [rsp + 0x78], rax ; @260
+@3:
+  dec edi ; @60
+  lea rax, qword ptr [r13 + 0x10] ; @62
+  mov qword ptr [rsp + 0x70], rax ; @261
+  lea rax, qword ptr [r12 + 0xf] ; @63
+  mov qword ptr [rsp + 0x68], rax ; @262
+  lea rax, qword ptr [rbx + 0xe] ; @64
+  mov qword ptr [rsp + 0x60], rax ; @263
+  add r14, 0xd_l ; @65
+  lea rax, qword ptr [r11 + 0xc] ; @66
+  mov qword ptr [rsp + 0x58], rax ; @264
+  lea rax, qword ptr [r10 + 0xb] ; @67
+  mov qword ptr [rsp + 0x50], rax ; @265
+  lea rax, qword ptr [r9 + 0xa] ; @68
+  mov qword ptr [rsp + 0x48], rax ; @266
+  lea rax, qword ptr [r8 + 0x9] ; @69
+  mov qword ptr [rsp + 0x40], rax ; @267
+  lea rax, qword ptr [rsi + 0x8] ; @70
+  mov qword ptr [rsp + 0x38], rax ; @268
+  lea rax, qword ptr [rdx + 0x7] ; @71
+  mov qword ptr [rsp + 0x30], rax ; @269
+  lea rax, qword ptr [rcx + 0x6] ; @72
+  mov qword ptr [rsp + 0x28], rax ; @270
+  lea rax, qword ptr [r15 + 0x5] ; @73
+  mov qword ptr [rsp + 0x20], rax ; @271
+  mov rax, qword ptr [rsp + 0x98] ; @304
+  add rax, 0x4_l ; @74
+  mov qword ptr [rsp + 0x18], rax ; @272
+  mov rax, qword ptr [rsp + 0x88] ; @273
+  add rax, 0x3_l ; @75
+  mov qword ptr [rsp + 0x10], rax ; @274
+  mov rax, qword ptr [rsp + 0x80] ; @275
+  add rax, 0x2_l ; @76
+  mov qword ptr [rsp + 0x8], rax ; @276
+  mov rax, qword ptr [rsp + 0x78] ; @277
+  inc rax ; @77
+  mov qword ptr [rsp], rax ; @278
+  test edi, edi ; @231
+  je @22 ; @232
+@210:
+  mov r13, qword ptr [rsp + 0x70] ; @279
+  mov r12, qword ptr [rsp + 0x68] ; @280
+  mov rbx, qword ptr [rsp + 0x60] ; @281
+  mov r11, qword ptr [rsp + 0x58] ; @282
+  mov r10, qword ptr [rsp + 0x50] ; @283
+  mov r9, qword ptr [rsp + 0x48] ; @284
+  mov r8, qword ptr [rsp + 0x40] ; @285
+  mov rsi, qword ptr [rsp + 0x38] ; @286
+  mov rdx, qword ptr [rsp + 0x30] ; @287
+  mov rcx, qword ptr [rsp + 0x28] ; @288
+  mov r15, qword ptr [rsp + 0x20] ; @289
+  mov rax, qword ptr [rsp + 0x18] ; @290
+  mov qword ptr [rsp + 0x98], rax ; @305
+  mov rax, qword ptr [rsp + 0x10] ; @292
+  mov qword ptr [rsp + 0x88], rax ; @291
+  mov rax, qword ptr [rsp + 0x8] ; @294
+  mov qword ptr [rsp + 0x80], rax ; @293
+  mov rax, qword ptr [rsp] ; @296
+  mov qword ptr [rsp + 0x78], rax ; @295
+  jmp @3 ; @230
+@22:
+  mov rax, qword ptr [rsp + 0x90] ; @298
+  mov rdi, qword ptr [rsp + 0x78] ; @297
+  lea rax, qword ptr [rax + rdi*1 + 0x1] ; @78
+  mov qword ptr [rsp], rax ; @299
+  mov rdi, qword ptr [rsp + 0x88] ; @300
+  add rdi, qword ptr [rsp + 0x80] ; @80
+  add rdi, qword ptr [rsp] ; @86
+  mov rax, qword ptr [rsp + 0x98] ; @306
+  add rax, r15 ; @90
+  add rcx, rdx ; @97
+  lea rdx, qword ptr [rsi + r8*1] ; @111
+  lea rsi, qword ptr [rdx + r9*1 + 0x1b] ; @133
+  lea rcx, qword ptr [rax + rcx*1 + 0xe] ; @145
+  lea rax, qword ptr [r10 + r11*1] ; @150
+  lea rdx, qword ptr [rbx + r12*1] ; @179
+  lea rax, qword ptr [rax + rsi*1 + 0xd] ; @189
+  add rcx, rax ; @190
+  lea rax, qword ptr [rdx + r13*1 + 0x2d] ; @193
+  lea rax, qword ptr [rax + r14*1 + 0x17] ; @194
+  add rax, rcx ; @195
+  add rax, rdi ; @196
+  add rsp, 0xa0_l ; @313
+  pop rbx ; @314
+  pop r15 ; @315
+  pop r14 ; @316
+  pop r13 ; @317
+  pop r12 ; @318
+  ret ; @212
+}

@@ -1,0 +1,64 @@
+module spill_zext_width
+
+export function l $widen(w %n, h %s) {
+@start:
+  %w = zext.l %s
+  %x = lsl.l %w, 20_l
+  %q0 = copy.l 0x1111111100000000_l
+  %q1 = copy.l 0x2222222200000000_l
+  %q2 = copy.l 0x3333333300000000_l
+  %q3 = copy.l 0x4444444400000000_l
+  %q4 = copy.l 0x5555555500000000_l
+  %q5 = copy.l 0x6666666600000000_l
+  %q6 = copy.l 0x7777777700000000_l
+  %q7 = copy.l 0x0888888800000000_l
+  %q8 = copy.l 0x0999999900000000_l
+  %q9 = copy.l 0x0aaaaaaa00000000_l
+  %qa = copy.l 0x0bbbbbbb00000000_l
+  %qb = copy.l 0x0ccccccc00000000_l
+  %qc = copy.l 0x0ddddddd00000000_l
+  %qd = copy.l 0x0eeeeeee00000000_l
+  %qe = copy.l 0x0fffffff00000000_l
+  %qf = copy.l 0x1234567800000000_l
+  jmp @loop
+@loop:
+  %q0 = add.l %q0, 1_l
+  %q1 = add.l %q1, 2_l
+  %q2 = add.l %q2, 3_l
+  %q3 = add.l %q3, 4_l
+  %q4 = add.l %q4, 5_l
+  %q5 = add.l %q5, 6_l
+  %q6 = add.l %q6, 7_l
+  %q7 = add.l %q7, 8_l
+  %q8 = add.l %q8, 9_l
+  %q9 = add.l %q9, 10_l
+  %qa = add.l %qa, 11_l
+  %qb = add.l %qb, 12_l
+  %qc = add.l %qc, 13_l
+  %qd = add.l %qd, 14_l
+  %qe = add.l %qe, 15_l
+  %qf = add.l %qf, 16_l
+  %n = sub.w %n, 1_w
+  %c = ne.w %n, 0_w
+  br %c, @loop, @end
+@end:
+  ;; `%x` is read here, after the loop, at its full width
+  %acc = add.l %x, 0_l
+  %acc = add.l %acc, %q0
+  %acc = add.l %acc, %q1
+  %acc = add.l %acc, %q2
+  %acc = add.l %acc, %q3
+  %acc = add.l %acc, %q4
+  %acc = add.l %acc, %q5
+  %acc = add.l %acc, %q6
+  %acc = add.l %acc, %q7
+  %acc = add.l %acc, %q8
+  %acc = add.l %acc, %q9
+  %acc = add.l %acc, %qa
+  %acc = add.l %acc, %qb
+  %acc = add.l %acc, %qc
+  %acc = add.l %acc, %qd
+  %acc = add.l %acc, %qe
+  %acc = add.l %acc, %qf
+  ret %acc
+}

@@ -175,9 +175,13 @@ module type S = sig
         that count as definitions/uses in the instruction. *)
     val substitute : Insn.t -> (Regvar.t -> Regvar.t) -> Insn.t
 
-    (** Returns the written registers/variables of the instruction, mapped to
-        their types. *)
-    val writes_with_types : Insn.t -> [Type.basic | `v128] Regvar.Map.t
+    (** Returns every register/variable {i named as a value} by the instruction,
+        mapped to the width at which this instruction names it.
+
+        Registers named only by an addressing mode are to be excluded, as they
+        do not form values directly.
+    *)
+    val mentions_with_types : Insn.t -> [Type.basic | `v128] Regvar.Map.t
 
     (** Reconcile two types observed for the same register or variable across
         the function, or [None] if they cannot share a register. *)

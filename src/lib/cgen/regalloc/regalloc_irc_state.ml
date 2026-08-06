@@ -249,7 +249,7 @@ module Make(M : Machine_intf.S) = struct
         sk (st a) (st b) ()
 
   let update_types t insn =
-    M.Regalloc.writes_with_types insn |>
+    M.Regalloc.mentions_with_types insn |>
     Map.iteri ~f:(fun ~key ~data ->
         RT.update t.types key ~f:(function
             | Some ty -> reduce_type ~key ty data

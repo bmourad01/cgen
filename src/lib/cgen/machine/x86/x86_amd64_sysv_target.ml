@@ -8,7 +8,7 @@ let target =
         (* SysV x86-64 `__va_list_tag[1]`: 24 bytes, 8-aligned. *)
         create ~model:LP64 ~char_signed:true ~va_list_size:24 ~va_list_align:8)
 
-let clobbered_map = X86_amd64_regalloc.Typed_writes.rmap' [
+let clobbered_map = X86_amd64_regalloc.Typed_operands.rmap' [
     `rax,   `i64;
     `rcx,   `i64;
     `rdx,   `i64;
@@ -126,10 +126,7 @@ module Machine = struct
   module Lower_abi = Sysv.Make
   module Isel = X86_amd64_isel.Make
 
-  module Regalloc = struct
-    include X86_amd64_regalloc
-    let writes_with_types = writes_with_types clobbered_map
-  end
+  module Regalloc = X86_amd64_regalloc
 
   module Peephole = X86_amd64_peephole
   module Emit = X86_amd64_emit

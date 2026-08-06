@@ -144,7 +144,7 @@ let substitute' i op = match i with
 
 let substitute i f = substitute' i @@ substitute_operand f
 
-module Typed_writes = struct
+module Typed_operands = struct
   type ty = [Type.basic | `v128]
 
   let wty ty = (ty :> ty)
@@ -164,25 +164,6 @@ module Typed_writes = struct
     | Some t -> t
     | None -> assert false
 
-  (* Helper for registers mentioned in an addressing mode. *)
-  let rv_of_amode = function
-    | Ab a -> [a, `i64]
-    | Abd (a, _) -> [a, `i64]
-    | Abis (a, b, _) -> [a, `i64; b, `i64]
-    | Aisd (a, _, _) -> [a, `i64]
-    | Abisd (a, b, _, _) -> [a, `i64; b, `i64]
-    | Albl _ | Asym _ -> [Regvar.reg `rip, `i64]
-
-  (* All registers mentioned in operands. *)
-  let rmap operands =
-    Regvar.Map.of_alist_reduce ~f:reduce @@
-    List.bind operands ~f:(function
-        | Oreg (a, t) -> [a, wty t]
-        | Oregv a -> [a, `v128]
-        | Omem (a, _) -> rv_of_amode a
-        | Oah -> [Regvar.reg `rax, wty `i8]
-        | _ -> [])
-
   (* Only explicit register operands. *)
   let rmap_reg operands =
     Regvar.Map.of_alist_reduce ~f:reduce @@
@@ -196,125 +177,25 @@ module Typed_writes = struct
     Regvar.Map.of_alist_reduce ~f:reduce @@
     List.map l ~f:(fun (r, t) -> Regvar.reg r, t)
 
-  let binop_writes o a _b = match o with
-    | ADD
-    | ADDSD
-    | ADDSS
-    | AND
-    | ANDNPD
-    | ANDNPS
-    | ANDPD
-    | ANDPS
-    | BSF
-    | BSR
-    | CMOVcc _
-    | CMPSD _
-    | CMPSS _
-    | CVTSD2SI
-    | CVTTSD2SI
-    | CVTSD2SS
-    | CVTSI2SD
-    | CVTSI2SS
-    | CVTSS2SD
-    | CVTSS2SI
-    | CVTTSS2SI
-    | DIVSD
-    | DIVSS
-    | IMUL2
-    | LEA
-    | MOV
-    | MOV_
-    | MOVD
-    | MOVDQA
-    | MOVQ
-    | MOVSD
-    | MOVSS
-    | MOVSX
-    | MOVSXD
-    | MOVZX
-    | MULSD
-    | MULSS
-    | OR
-    | ORPD
-    | ORPS
-    | POPCNT
-    | ROL
-    | ROR
-    | SAR
-    | SHL
-    | SHR
-    | SUB
-    | SUBSD
-    | SUBSS
-    | XOR
-    | XORPD
-    | XORPS
-      -> rmap_reg [a]
-    | CMP
-    | TEST_
-    | UCOMISD
-    | UCOMISS
-      -> Regvar.Map.empty
-
-  let unop_writes call o a = match o with
-    | CALL _
-      -> call
-    | CALLtail _
-      -> Regvar.Map.empty
-    | BSWAP
-    | DEC
-    | INC
-    | NEG
-    | NOT
-    | SETcc _
-    | POP
-      -> rmap_reg [a]
-    | PUSH
-      -> Regvar.Map.empty
-    | DIV
-    | IDIV
-    | IMUL1
-    | MUL ->
-      begin match a with
-        | Oreg (_, `i8)
-          -> rmap' [`rax, `i8]
-        | Oreg (_, t)
-          -> rmap' [`rax, wty t; `rdx, wty t]
-        | Omem (_, t)
-          -> rmap' [`rax, wty t; `rdx, wty t]
-        | _
-          (* invalid forms *)
-          -> Regvar.Map.empty
-      end
-
-  (* Registers written to by an instruction. *)
-  let writes call = function
-    | Two (o, a, b) -> binop_writes o a b
-    | One (o, a) -> unop_writes call o a
-    | IMUL3 (a, _, _)
-      -> rmap_reg [a]
+  (* Registers that are referenced by an instruction. *)
+  let mentions = function
+    | Two (_, a, b) -> rmap_reg [a; b]
+    | One (_, a) -> rmap_reg [a]
+    | IMUL3 (a, b, _) -> rmap_reg [a; b]
+    | JMP (Jind a) -> rmap_reg [a]
+    | CDQ | CQO | CWD
     | Jcc _
-    | JMP _
-    | JMPtbl _
-    | FP32 _
-    | FP64 _
-    | FP32V _
-    | FP64V _
+    | JMP (Jlbl _)
     | RET
     | UD2
-      -> Regvar.Map.empty
-    | CDQ
-      -> rmap' [`rdx, `i32]
-    | CQO
-      -> rmap' [`rdx, `i64]
-    | CWD
-      -> rmap' [`rdx, `i16]
     | LEAVE
-      -> rmap' [`rsp, `i64; `rbp, `i64]
+    | JMPtbl _
+    | FP32 _ | FP64 _ | FP32V _ | FP64V _
+      -> Regvar.Map.empty
 end
 
-let writes_with_types = Typed_writes.writes
-let reduce_type = Typed_writes.reduce_opt
+let mentions_with_types = Typed_operands.mentions
+let reduce_type = Typed_operands.reduce_opt
 
 module Pre_assign_slots(C : Context_intf.S) = struct
   open C.Syntax
