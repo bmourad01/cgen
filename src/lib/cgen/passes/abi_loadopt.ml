@@ -333,8 +333,8 @@ module Optimize = struct
     t.mem <- Option.merge (Solution.get t.lst l) m ~f:Fn.const
 
   let step t l lst memo = match Abi.Resolver.resolve t.reso l with
-    | None when Label.is_pseudo l -> ()
-    | None | Some `insn _ -> assert false
+    | None -> ()
+    | Some `insn _ -> assert false
     | Some `blk b ->
       setmem t l lst;
       t.memo <- memo;
