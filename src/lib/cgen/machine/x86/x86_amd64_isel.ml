@@ -249,9 +249,12 @@ end = struct
     | (`i64 | `i32), `i32 when zx ->
       (* Implicit zero-extension. *)
       [I.mov (Oreg (x, yt)) (Oreg (y, yt))]
+    (* Assume zero-extension is desired. There is no `movzx r64, r32`, since
+       writing a 32-bit register already clears the upper half, so widening
+       from i32 is a plain 32-bit mov. *)
+    | `i64, `i32 -> [I.mov (Oreg (x, `i32)) (Oreg (y, `i32))]
     | (#Type.imm as xi), (#Type.imm as yi)
       when Type.sizeof_imm xi > Type.sizeof_imm yi ->
-      (* Assume zero-extension is desired. *)
       let xt' = match xt, yt with
         | `i64, (`i16 | `i8) -> `i32
         | _ -> xt in
