@@ -1,0 +1,380 @@
+module spill_slot_size
+
+export function $sized { ; returns: rax
+@2:
+  push r12 ; @824
+  push r13 ; @825
+  push r14 ; @826
+  push r15 ; @827
+  push rbx ; @828
+  sub rsp, 0x230_l ; @829
+  mov dword ptr [rsp + 0x1d8], edi ; @545
+  mov rax, 0x1818181800000000_l ; @510
+  mov qword ptr [rsp + 0x198], rax ; @742
+  mov rax, 0x1717171700000000_l ; @511
+  mov qword ptr [rsp + 0x190], rax ; @743
+  mov rax, 0x1616161600000000_l ; @512
+  mov qword ptr [rsp + 0x170], rax ; @546
+  mov rax, 0x1515151500000000_l ; @513
+  mov qword ptr [rsp + 0x168], rax ; @547
+  mov rax, 0x1414141400000000_l ; @514
+  mov qword ptr [rsp + 0x188], rax ; @744
+  mov rax, 0x1313131300000000_l ; @515
+  mov qword ptr [rsp + 0x160], rax ; @548
+  mov rax, 0x1212121200000000_l ; @516
+  mov qword ptr [rsp + 0x180], rax ; @745
+  mov rax, 0x1111111100000000_l ; @517
+  mov qword ptr [rsp + 0x158], rax ; @549
+  mov rax, 0x1010101000000000_l ; @518
+  mov qword ptr [rsp + 0x150], rax ; @550
+  mov rax, 0xf0f0f0f00000000_l ; @519
+  mov qword ptr [rsp + 0x148], rax ; @551
+  mov rax, 0xe0e0e0e00000000_l ; @520
+  mov qword ptr [rsp + 0x140], rax ; @552
+  mov rax, 0xd0d0d0d00000000_l ; @521
+  mov qword ptr [rsp + 0x138], rax ; @553
+  mov rax, 0xc0c0c0c00000000_l ; @522
+  mov qword ptr [rsp + 0x130], rax ; @554
+  mov rax, 0xb0b0b0b00000000_l ; @523
+  mov qword ptr [rsp + 0x128], rax ; @555
+  mov rax, 0xa0a0a0a00000000_l ; @524
+  mov qword ptr [rsp + 0x120], rax ; @556
+  mov rax, 0x909090900000000_l ; @525
+  mov qword ptr [rsp + 0x118], rax ; @557
+  mov rax, 0x808080800000000_l ; @526
+  mov qword ptr [rsp + 0x110], rax ; @558
+  mov rax, 0x707070700000000_l ; @527
+  mov qword ptr [rsp + 0x108], rax ; @559
+  mov rax, 0x606060600000000_l ; @528
+  mov qword ptr [rsp + 0x100], rax ; @560
+  mov rax, 0x505050500000000_l ; @529
+  mov qword ptr [rsp + 0xf8], rax ; @561
+  mov rax, 0x404040400000000_l ; @530
+  mov qword ptr [rsp + 0xf0], rax ; @562
+  mov rax, 0x303030300000000_l ; @531
+  mov qword ptr [rsp + 0xe8], rax ; @563
+  mov rax, 0x202020200000000_l ; @532
+  mov qword ptr [rsp + 0xe0], rax ; @564
+  mov rax, 0x101010100000000_l ; @533
+  mov qword ptr [rsp + 0xd8], rax ; @565
+  mov eax, 0x9_w ; @534
+  mov dword ptr [rsp + 0x1fc], eax ; @785
+  mov eax, 0x8_w ; @535
+  mov dword ptr [rsp + 0x1f8], eax ; @786
+  mov eax, 0x7_w ; @536
+  mov dword ptr [rsp + 0x1f4], eax ; @779
+  mov eax, 0x6_w ; @537
+  mov dword ptr [rsp + 0x1f0], eax ; @780
+  mov eax, 0x5_w ; @538
+  mov dword ptr [rsp + 0x1ec], eax ; @770
+  mov eax, 0x4_w ; @539
+  mov dword ptr [rsp + 0x1e8], eax ; @771
+  mov eax, 0x3_w ; @540
+  mov dword ptr [rsp + 0x1e4], eax ; @764
+  mov eax, 0x2_w ; @541
+  mov dword ptr [rsp + 0x1e0], eax ; @765
+  mov eax, 0x1_w ; @542
+  mov dword ptr [rsp + 0x1dc], eax ; @746
+  xor eax, eax ; @543
+@3:
+  mov qword ptr [rsp + 0x178], rax ; @747
+  mov r10d, dword ptr [rsp + 0x1dc] ; @748
+  mov qword ptr [rsp + 0xd0], r10 ; @566
+  mov r8d, dword ptr [rsp + 0x1e0] ; @766
+  mov qword ptr [rsp + 0xc8], r8 ; @567
+  mov r15d, dword ptr [rsp + 0x1e4] ; @767
+  mov qword ptr [rsp + 0xc0], r15 ; @568
+  mov edi, dword ptr [rsp + 0x1ec] ; @772
+  mov qword ptr [rsp + 0x1a0], rdi ; @773
+  mov edx, dword ptr [rsp + 0x1f0] ; @781
+  mov qword ptr [rsp + 0xb8], rdx ; @569
+  mov ecx, dword ptr [rsp + 0x1f4] ; @782
+  mov dword ptr [rsp + 0x208], ecx ; @795
+  mov dword ptr [rsp + 0x214], ecx ; @803
+  mov dword ptr [rsp + 0x220], ecx ; @811
+  mov dword ptr [rsp + 0x1d4], ecx ; @570
+  mov ecx, dword ptr [rsp + 0x1f8] ; @787
+  mov dword ptr [rsp + 0x204], ecx ; @797
+  mov dword ptr [rsp + 0x210], ecx ; @805
+  mov dword ptr [rsp + 0x21c], ecx ; @813
+  mov qword ptr [rsp + 0x1b0], rcx ; @788
+  mov ecx, dword ptr [rsp + 0x1fc] ; @789
+  mov dword ptr [rsp + 0x200], ecx ; @799
+  mov dword ptr [rsp + 0x20c], ecx ; @807
+  mov dword ptr [rsp + 0x218], ecx ; @815
+  mov qword ptr [rsp + 0x1a8], rcx ; @790
+  mov r9, qword ptr [rsp + 0x178] ; @749
+  mov qword ptr [rsp + 0xb0], r9 ; @571
+  mov rcx, r9 ; @572
+  shl rcx, 0x4_b ; @508
+  mov qword ptr [rsp + 0xb0], rcx ; @573
+  mov r13, qword ptr [rsp + 0xc8] ; @574
+  mov qword ptr [rsp + 0xa8], r13 ; @575
+  mov rcx, r13 ; @576
+  shl rcx, 0x5_b ; @507
+  mov qword ptr [rsp + 0xa8], rcx ; @577
+  mov r12, qword ptr [rsp + 0xc0] ; @578
+  mov qword ptr [rsp + 0xa0], r12 ; @579
+  mov rcx, r12 ; @580
+  shl rcx, 0x5_b ; @506
+  mov qword ptr [rsp + 0xa0], rcx ; @581
+  mov rbx, qword ptr [rsp + 0xb8] ; @582
+  mov qword ptr [rsp + 0x98], rbx ; @583
+  mov rcx, rbx ; @584
+  shl rcx, 0x6_b ; @505
+  mov qword ptr [rsp + 0x98], rcx ; @585
+  mov rcx, qword ptr [rsp + 0x1b0] ; @791
+  mov qword ptr [rsp + 0x90], rcx ; @586
+  mov rsi, rcx ; @587
+  shl rsi, 0x4_b ; @504
+  mov qword ptr [rsp + 0x90], rsi ; @588
+  lea rsi, qword ptr [rsi + rcx*8] ; @143
+  mov qword ptr [rsp + 0x90], rsi ; @590
+  mov qword ptr [rsp + 0x88], rcx ; @591
+  mov rsi, rcx ; @592
+  shl rsi, 0x6_b ; @503
+  mov qword ptr [rsp + 0x88], rsi ; @593
+  mov rsi, qword ptr [rsp + 0x1a8] ; @792
+  mov qword ptr [rsp + 0x1b8], rsi ; @801
+  mov qword ptr [rsp + 0x1c0], rsi ; @809
+  mov qword ptr [rsp + 0x1c8], rsi ; @817
+  mov qword ptr [rsp + 0x80], rsi ; @594
+  shl rsi, 0x6_b ; @502
+  mov qword ptr [rsp + 0x80], rsi ; @596
+  mov rsi, qword ptr [rsp + 0xb0] ; @597
+  lea rsi, qword ptr [rsi + r9*8] ; @147
+  mov qword ptr [rsp + 0xb0], rsi ; @598
+  add rsi, qword ptr [rsp + 0xd8] ; @148
+  mov qword ptr [rsp + 0x78], rsi ; @601
+  mov qword ptr [rsp + 0xd8], r12 ; @602
+  mov rsi, r12 ; @603
+  shl rsi, 0x4_b ; @501
+  mov qword ptr [rsp + 0xd8], rsi ; @604
+  add rsi, qword ptr [rsp + 0xa0] ; @152
+  mov qword ptr [rsp + 0xa0], rsi ; @607
+  add rsi, qword ptr [rsp + 0xf0] ; @153
+  mov qword ptr [rsp + 0x70], rsi ; @610
+  mov rsi, qword ptr [rsp + 0x98] ; @611
+  lea rsi, qword ptr [rsi + rbx*8] ; @157
+  mov qword ptr [rsp + 0x98], rsi ; @612
+  add rsi, qword ptr [rsp + 0x108] ; @158
+  mov qword ptr [rsp + 0xf0], rsi ; @615
+  mov rsi, qword ptr [rsp + 0x1c8] ; @819
+  mov qword ptr [rsp + 0x68], rsi ; @616
+  shl rsi, 0x5_b ; @500
+  mov qword ptr [rsp + 0x68], rsi ; @618
+  add rsi, qword ptr [rsp + 0x80] ; @162
+  mov qword ptr [rsp + 0x68], rsi ; @621
+  add rsi, qword ptr [rsp + 0x120] ; @163
+  mov qword ptr [rsp + 0x80], rsi ; @624
+  mov rsi, qword ptr [rsp + 0x88] ; @626
+  add rsi, qword ptr [rsp + 0x160] ; @164
+  mov qword ptr [rsp + 0x88], rsi ; @627
+  inc eax ; @171
+  mov dword ptr [rsp + 0x1d0], eax ; @628
+  mov rax, qword ptr [rsp + 0x198] ; @750
+  add rax, 0x18_l ; @173
+  mov qword ptr [rsp + 0x120], rax ; @629
+  mov rax, qword ptr [rsp + 0x190] ; @751
+  add rax, 0x17_l ; @174
+  mov qword ptr [rsp + 0x160], rax ; @630
+  mov r11, qword ptr [rsp + 0xd0] ; @631
+  mov qword ptr [rsp + 0x60], r11 ; @632
+  mov rax, r11 ; @633
+  shl rax, 0x5_b ; @499
+  mov qword ptr [rsp + 0x60], rax ; @634
+  add rax, qword ptr [rsp + 0x170] ; @176
+  mov qword ptr [rsp + 0x170], rax ; @637
+  mov rax, qword ptr [rsp + 0x168] ; @638
+  add rax, 0x15_l ; @177
+  mov qword ptr [rsp + 0x168], rax ; @639
+  mov rax, qword ptr [rsp + 0x188] ; @752
+  add rax, 0x14_l ; @178
+  mov qword ptr [rsp + 0x60], rax ; @640
+  mov rax, qword ptr [rsp + 0x88] ; @642
+  add rax, qword ptr [rsp + 0x90] ; @179
+  mov qword ptr [rsp + 0x58], rax ; @643
+  mov rax, qword ptr [rsp + 0x180] ; @753
+  add rax, 0x12_l ; @180
+  mov qword ptr [rsp + 0x50], rax ; @644
+  mov rax, qword ptr [rsp + 0x158] ; @645
+  add rax, 0x11_l ; @181
+  mov qword ptr [rsp + 0x48], rax ; @646
+  mov rsi, qword ptr [rsp + 0x1a0] ; @774
+  mov qword ptr [rsp + 0x40], rsi ; @647
+  mov rax, rsi ; @648
+  shl rax, 0x6_b ; @498
+  mov qword ptr [rsp + 0x40], rax ; @649
+  add rax, qword ptr [rsp + 0x150] ; @183
+  mov qword ptr [rsp + 0x150], rax ; @652
+  mov rax, qword ptr [rsp + 0x148] ; @653
+  add rax, 0xf_l ; @184
+  mov qword ptr [rsp + 0x40], rax ; @654
+  mov rax, qword ptr [rsp + 0x140] ; @655
+  add rax, 0xe_l ; @185
+  mov qword ptr [rsp + 0x38], rax ; @656
+  mov rax, qword ptr [rsp + 0xa8] ; @657
+  lea rax, qword ptr [rax + r13*8] ; @187
+  mov qword ptr [rsp + 0xa8], rax ; @658
+  add rax, qword ptr [rsp + 0x138] ; @188
+  mov qword ptr [rsp + 0x138], rax ; @661
+  mov rax, qword ptr [rsp + 0x130] ; @662
+  add rax, 0xc_l ; @189
+  mov qword ptr [rsp + 0x30], rax ; @663
+  mov rax, qword ptr [rsp + 0x128] ; @664
+  add rax, 0xb_l ; @190
+  mov qword ptr [rsp + 0x28], rax ; @665
+  mov rax, qword ptr [rsp + 0x1c8] ; @820
+  add rax, qword ptr [rsp + 0x80] ; @191
+  mov qword ptr [rsp + 0x20], rax ; @667
+  mov rax, qword ptr [rsp + 0x118] ; @668
+  lea rax, qword ptr [rax + rcx*1 + 0x9] ; @192
+  mov qword ptr [rsp + 0x118], rax ; @669
+  mov eax, dword ptr [rsp + 0x1d4] ; @671
+  mov rcx, qword ptr [rsp + 0x110] ; @670
+  lea rax, qword ptr [rcx + rax*1 + 0x8] ; @193
+  mov qword ptr [rsp + 0x18], rax ; @672
+  mov rax, qword ptr [rsp + 0xf0] ; @673
+  add rax, rbx ; @194
+  mov qword ptr [rsp + 0x10], rax ; @674
+  mov rax, qword ptr [rsp + 0x100] ; @675
+  lea rax, qword ptr [rax + rsi*1 + 0x6] ; @195
+  mov qword ptr [rsp + 0x100], rax ; @676
+  mov rcx, qword ptr [rsp + 0xf8] ; @677
+  mov eax, dword ptr [rsp + 0x1e8] ; @775
+  lea rax, qword ptr [rax + rcx*1 + 0x5] ; @196
+  mov qword ptr [rsp + 0xf8], rax ; @678
+  mov rax, qword ptr [rsp + 0x70] ; @679
+  add rax, r12 ; @197
+  mov qword ptr [rsp + 0xf0], rax ; @680
+  mov rax, qword ptr [rsp + 0xe8] ; @681
+  lea rax, qword ptr [rax + r13*1 + 0x3] ; @198
+  mov qword ptr [rsp + 0x8], rax ; @682
+  mov rax, qword ptr [rsp + 0xe0] ; @683
+  lea rax, qword ptr [rax + r11*1 + 0x2] ; @199
+  mov qword ptr [rsp], rax ; @684
+  mov rax, qword ptr [rsp + 0x78] ; @685
+  add rax, r9 ; @200
+  mov qword ptr [rsp + 0xd8], rax ; @686
+  mov eax, dword ptr [rsp + 0x218] ; @821
+  inc eax ; @201
+  mov dword ptr [rsp + 0x1fc], eax ; @793
+  mov eax, dword ptr [rsp + 0x21c] ; @822
+  inc eax ; @202
+  mov dword ptr [rsp + 0x1f8], eax ; @794
+  mov eax, dword ptr [rsp + 0x220] ; @823
+  inc eax ; @203
+  mov dword ptr [rsp + 0x1f4], eax ; @783
+  lea eax, qword ptr [rdx + 0x1] ; @204
+  mov dword ptr [rsp + 0x1f0], eax ; @784
+  lea eax, qword ptr [rdi + 0x1] ; @205
+  mov dword ptr [rsp + 0x1ec], eax ; @776
+  mov eax, dword ptr [rsp + 0x1e8] ; @777
+  inc eax ; @206
+  mov dword ptr [rsp + 0x1e8], eax ; @778
+  lea eax, qword ptr [r15 + 0x1] ; @207
+  mov dword ptr [rsp + 0x1e4], eax ; @768
+  lea eax, qword ptr [r8 + 0x1] ; @208
+  mov dword ptr [rsp + 0x1e0], eax ; @769
+  lea eax, qword ptr [r10 + 0x1] ; @209
+  mov dword ptr [rsp + 0x1dc], eax ; @754
+  mov eax, dword ptr [rsp + 0x1d0] ; @688
+  cmp eax, dword ptr [rsp + 0x1d8] ; @495
+  jae @38 ; @496
+@457:
+  mov rax, qword ptr [rsp + 0x120] ; @689
+  mov qword ptr [rsp + 0x198], rax ; @755
+  mov rax, qword ptr [rsp + 0x160] ; @690
+  mov qword ptr [rsp + 0x190], rax ; @756
+  mov rax, qword ptr [rsp + 0x60] ; @691
+  mov qword ptr [rsp + 0x188], rax ; @757
+  mov rax, qword ptr [rsp + 0x58] ; @693
+  mov qword ptr [rsp + 0x160], rax ; @692
+  mov rax, qword ptr [rsp + 0x50] ; @694
+  mov qword ptr [rsp + 0x180], rax ; @758
+  mov rax, qword ptr [rsp + 0x48] ; @696
+  mov qword ptr [rsp + 0x158], rax ; @695
+  mov rax, qword ptr [rsp + 0x40] ; @698
+  mov qword ptr [rsp + 0x148], rax ; @697
+  mov rax, qword ptr [rsp + 0x38] ; @700
+  mov qword ptr [rsp + 0x140], rax ; @699
+  mov rax, qword ptr [rsp + 0x30] ; @702
+  mov qword ptr [rsp + 0x130], rax ; @701
+  mov rax, qword ptr [rsp + 0x28] ; @704
+  mov qword ptr [rsp + 0x128], rax ; @703
+  mov rax, qword ptr [rsp + 0x20] ; @706
+  mov qword ptr [rsp + 0x120], rax ; @705
+  mov rax, qword ptr [rsp + 0x18] ; @708
+  mov qword ptr [rsp + 0x110], rax ; @707
+  mov rax, qword ptr [rsp + 0x10] ; @710
+  mov qword ptr [rsp + 0x108], rax ; @709
+  mov rax, qword ptr [rsp + 0x8] ; @712
+  mov qword ptr [rsp + 0xe8], rax ; @711
+  mov rax, qword ptr [rsp] ; @714
+  mov qword ptr [rsp + 0xe0], rax ; @713
+  mov eax, dword ptr [rsp + 0x1d0] ; @715
+  jmp @3 ; @494
+@38:
+  mov rcx, qword ptr [rsp + 0xe0] ; @716
+  mov rax, qword ptr [rsp + 0x178] ; @759
+  lea rdx, qword ptr [rax + rcx*1] ; @210
+  mov rcx, qword ptr [rsp + 0xe8] ; @717
+  add rcx, qword ptr [rsp + 0xc8] ; @216
+  mov rax, qword ptr [rsp + 0xd0] ; @719
+  add rax, rcx ; @225
+  lea rcx, qword ptr [rdx + rax*1] ; @226
+  mov rax, qword ptr [rsp + 0x78] ; @720
+  lea r8, qword ptr [rax + rcx*1] ; @227
+  mov rax, qword ptr [rsp + 0x70] ; @722
+  mov rcx, qword ptr [rsp + 0xc0] ; @721
+  lea rdi, qword ptr [rax + rcx*1 + 0x5] ; @229
+  mov rax, qword ptr [rsp + 0xf8] ; @724
+  mov rcx, qword ptr [rsp + 0x100] ; @723
+  lea rsi, qword ptr [rax + rcx*1] ; @251
+  mov rcx, qword ptr [rsp + 0x110] ; @725
+  add rcx, qword ptr [rsp + 0xb8] ; @260
+  mov eax, dword ptr [rsp + 0x1d4] ; @727
+  lea rcx, qword ptr [rcx + rax*1 + 0x8] ; @261
+  add rcx, qword ptr [rsp + 0x98] ; @262
+  add rcx, qword ptr [rsp + 0x108] ; @263
+  mov rax, qword ptr [rsp + 0x118] ; @730
+  lea rdx, qword ptr [rcx + rax*1] ; @277
+  mov rax, qword ptr [rsp + 0x20] ; @732
+  mov rcx, qword ptr [rsp + 0x128] ; @731
+  lea rax, qword ptr [rax + rcx*1 + 0xb] ; @295
+  lea rcx, qword ptr [rdx + rax*1] ; @296
+  mov rax, qword ptr [rsp + 0x130] ; @733
+  lea rdx, qword ptr [rcx + rax*1 + 0xc] ; @307
+  mov rax, qword ptr [rsp + 0x140] ; @735
+  mov rcx, qword ptr [rsp + 0x148] ; @734
+  lea r10, qword ptr [rax + rcx*1] ; @337
+  mov rcx, qword ptr [rsp + 0x158] ; @736
+  add rcx, qword ptr [rsp + 0x180] ; @369
+  mov rax, qword ptr [rsp + 0x150] ; @737
+  lea rcx, qword ptr [rax + rcx*1 + 0x23] ; @371
+  mov rax, qword ptr [rsp + 0x58] ; @738
+  lea r9, qword ptr [rcx + rax*1] ; @380
+  add r10, qword ptr [rsp + 0x138] ; @404
+  mov rcx, qword ptr [rsp + 0x168] ; @740
+  mov rax, qword ptr [rsp + 0x188] ; @761
+  lea rax, qword ptr [rcx + rax*1 + 0x14] ; @418
+  lea r9, qword ptr [rax + r9*1 + 0x1d] ; @419
+  mov rcx, qword ptr [rsp + 0x170] ; @741
+  mov rax, qword ptr [rsp + 0x190] ; @762
+  lea rax, qword ptr [rcx + rax*1 + 0x17] ; @434
+  add rax, r9 ; @435
+  lea rcx, qword ptr [r10 + rax*1] ; @436
+  mov rax, qword ptr [rsp + 0x198] ; @763
+  lea rax, qword ptr [rcx + rax*1 + 0x18] ; @447
+  add rax, rdx ; @448
+  add rax, rsi ; @449
+  add rax, rdi ; @450
+  add rax, r8 ; @451
+  add rsp, 0x230_l ; @830
+  pop rbx ; @831
+  pop r15 ; @832
+  pop r14 ; @833
+  pop r13 ; @834
+  pop r12 ; @835
+  ret ; @459
+}

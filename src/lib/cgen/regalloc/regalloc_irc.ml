@@ -516,6 +516,11 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
         then return true);
     false
 
+  let typeof_size t rv = match RT.find t.types rv with
+    | Some (#Type.basic as b) -> Some (Type.sizeof_basic b / 8)
+    | Some `v128 -> Some 16
+    | None -> None
+
   (* Find an existing slot of comparable size that doesn't interfere
      with `id`. *)
   let find_reusable_slot t m id size =
@@ -541,7 +546,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
   (* Find the slot already assigned to a copy-related spilled node, if any,
      preferring it to eliminate the slot-to-slot copy in the admin block.
      This is the stack-slot analogue of move biasing in assign_colors. *)
-  let preferred_slot t id =
+  let preferred_slot t id ~size =
     let rv = t.![id] in
     let try_slot partner =
       (* Only use a partner's slot when the partner is being spilled
@@ -551,7 +556,14 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
          aliases live ranges. *)
       if not (Bitset.mem t.spilled t.$[partner]) then None else
         RT.find t.slots partner |> Option.bind ~f:(fun slot ->
-            Option.some_if (not (interferes_with_slot t id slot)) slot) in
+            (* The slot holds its representative's size, so biasing a wider
+               node onto it would store past the slot's end and corrupt
+               whatever the frame layout put next to it. `find_reusable_slot`
+               below is keyed by size for the same reason. *)
+            match typeof_size t slot with
+            | Some cap when cap >= size ->
+              Option.some_if (not (interferes_with_slot t id slot)) slot
+            | _ -> None) in
     phi_pair_partners t rv |> Set.to_sequence |>
     Sequence.filter_map ~f:try_slot |> Sequence.hd |> function
     | Some _ as phi -> phi
@@ -593,7 +605,7 @@ module Make(M : Machine_intf.S)(C : Context_intf.S) = struct
               RT.set t.slots ~key:r ~data:r';
               Bitset.add t.data.slot_bits rid;
               acc, update_slot_map m size r' in
-            match preferred_slot t id with
+            match preferred_slot t id ~size with
             | Some r' -> reuse r'
             | None ->
               match find_reusable_slot t m id size with

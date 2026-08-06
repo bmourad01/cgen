@@ -455,6 +455,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "No sinking (SysV AMD64)" >:: test_sysv_amd64_regalloc "nosink";
     "Spill test 2 (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill2";
     "Spill width of a narrowly-defined value (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill_zext_width";
+    "Spill slot size vs. its occupants (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill_slot_size";
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_regalloc "analyze_array";
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_regalloc "promote2-partial";
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64_regalloc "parallel";
@@ -507,6 +508,7 @@ let native_suite = "Test native code" >::: [
     "No sinking (SysV AMD64)" >:: test_sysv_amd64_native "nosink";
     "Spill test 2 (SysV AMD64)" >:: test_sysv_amd64_native "spill2";
     "Spill width of a narrowly-defined value (SysV AMD64)" >:: test_sysv_amd64_native "spill_zext_width";
+    "Spill slot size vs. its occupants (SysV AMD64)" >:: test_sysv_amd64_native "spill_slot_size";
     "Wfreeze priority: nested loop phi protection (SysV AMD64)" >:: test_sysv_amd64_native "freeze_priority";
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_native "analyze_array";
     "Signed divide by 1 (SysV AMD64)" >:: test_sysv_amd64_native "sdivby1";
