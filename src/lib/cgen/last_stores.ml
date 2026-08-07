@@ -32,8 +32,12 @@ module Make(M : L) = struct
     resolve l |> Blk.insns |> Sequence.fold ~init ~f:(fun s i ->
         if Insn.can_store i then Some (Insn.label i) else s)
 
-  let step _ l = Option.merge ~f:(fun a b ->
-      if Label.(a = b) then a else first_insn l)
+  let step visits l prev next =
+    if visits <= 1 then next (* nothing known yet *)
+    else match prev, next with
+      | Some a, Some b when Label.(a = b) -> prev
+      | None, None -> None
+      | _ -> Some (first_insn l)
 
   let analyze cfg start =
     Fixpoint.run ~step ~start

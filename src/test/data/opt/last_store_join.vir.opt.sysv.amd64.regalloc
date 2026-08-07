@@ -1,0 +1,33 @@
+module last_store_join
+
+export data $g = {
+  0x1_w
+}
+
+export data $h = {
+  z 4
+}
+
+export function $lastjoin { ; returns: rax
+@2:
+@3:
+  mov eax, dword ptr [rip + $g] ; @5
+  dec eax ; @18
+  mov dword ptr [rip + $g], eax ; @7
+  mov eax, 0x9_w ; @32
+@4:
+  cmp eax, 0xfffffffb_w ; @29
+  jg @8 ; @30
+@9:
+  mov eax, dword ptr [rip + $g] ; @17
+  ret ; @28
+@8:
+  mov ecx, dword ptr [rip + $g] ; @12
+  mov dword ptr [rip + $h], ecx ; @13
+  mov ecx, dword ptr [rip + $g] ; @14
+  test ecx, ecx ; @24
+  jne @3 ; @25
+@11:
+  sub eax, 0x3_w ; @21
+  jmp @4 ; @23
+}

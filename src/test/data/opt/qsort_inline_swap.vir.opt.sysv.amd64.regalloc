@@ -16,14 +16,15 @@ function $partition { ; returns: rax
   mov dword ptr [rdi + rdx*4], esi ; @37
   ret ; @80
 @9:
-  mov r10d, dword ptr [rdi + rsi*4] ; @17
-  cmp r10d, r9d ; @76
+  mov ecx, dword ptr [rdi + rsi*4] ; @17
+  cmp ecx, r9d ; @76
   jg @14 ; @77
 @13:
   inc rax ; @59
-  mov ecx, dword ptr [rdi + rax*4] ; @25
-  mov dword ptr [rdi + rax*4], r10d ; @27
-  mov dword ptr [rdi + rsi*4], ecx ; @28
+  mov r10d, dword ptr [rdi + rax*4] ; @25
+  mov ecx, dword ptr [rdi + rsi*4] ; @26
+  mov dword ptr [rdi + rax*4], ecx ; @27
+  mov dword ptr [rdi + rsi*4], r10d ; @28
 @14:
   inc rsi ; @58
   jmp @3 ; @71

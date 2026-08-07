@@ -1,0 +1,34 @@
+module last_store_join
+
+export data $g = {
+  0x1_w
+}
+
+export data $h = {
+  z 4
+}
+
+export function w $lastjoin() {
+@start:
+  jmp @loop
+@loop:
+  %a = ld.w $g
+  %d = sub.w %a, 1_w
+  st.w %d, $g
+  jmp @body(9_w)
+@body(%i):
+  %c = sgt.w %i, 0xfffffffb_w
+  br %c, @work, @done
+@work:
+  %v = ld.w $g
+  st.w %v, $h
+  %t = ld.w $g
+  %nz = ne.w %t, 0_w
+  br %nz, @loop, @next
+@next:
+  %i2 = sub.w %i, 3_w
+  jmp @body(%i2)
+@done:
+  %r = ld.w $g
+  ret %r
+}

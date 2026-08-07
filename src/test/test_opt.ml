@@ -457,6 +457,7 @@ let regalloc_suite = "Test register allocation" >::: [
     "Spill width of a narrowly-defined value (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill_zext_width";
     "Spill slot size vs. its occupants (SysV AMD64)" >:: test_sysv_amd64_regalloc "spill_slot_size";
     "Slot reached by a merged pointer (SysV AMD64)" >:: test_sysv_amd64_regalloc "merged_ptr_slot";
+    "Last store at a join with a store-free edge (SysV AMD64)" >:: test_sysv_amd64_regalloc "last_store_join";
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_regalloc "analyze_array";
     "Slot promotion 2 (GCD, partial) (SysV AMD64)" >:: test_sysv_amd64_regalloc "promote2-partial";
     "Parallel moves (SysV AMD64)" >:: test_sysv_amd64_regalloc "parallel";
@@ -511,6 +512,7 @@ let native_suite = "Test native code" >::: [
     "Spill width of a narrowly-defined value (SysV AMD64)" >:: test_sysv_amd64_native "spill_zext_width";
     "Spill slot size vs. its occupants (SysV AMD64)" >:: test_sysv_amd64_native "spill_slot_size";
     "Slot reached by a merged pointer (SysV AMD64)" >:: test_sysv_amd64_native "merged_ptr_slot";
+    "Last store at a join with a store-free edge (SysV AMD64)" >:: test_sysv_amd64_native "last_store_join";
     "Wfreeze priority: nested loop phi protection (SysV AMD64)" >:: test_sysv_amd64_native "freeze_priority";
     "Analyze array (SysV AMD64)" >:: test_sysv_amd64_native "analyze_array";
     "Signed divide by 1 (SysV AMD64)" >:: test_sysv_amd64_native "sdivby1";
