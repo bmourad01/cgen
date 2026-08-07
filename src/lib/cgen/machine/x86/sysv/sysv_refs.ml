@@ -66,15 +66,32 @@ module Make(Context : Context_intf.S_virtual) = struct
     let+ blit = Cv.Abi.blit ~src ~dst `i64 k.bytes in
     LT.set env.blits ~key:l ~data:(dsti @ blit)
 
+  (* A compound-typed block parameter gets a slot of its own, and each
+     predecessor blits its argument into it (see `Sysv_translate`).
+
+     The obvious alternative (letting the parameter be the address and
+     having each predecessor pass its own slot) builds a phi of slot
+     addresses. This has a drawback, where the slot analyses can only
+     see such a pointer as "one of these slots", which is too weak to
+     coalesce or scalarize against.
+  *)
+  let make_param env b x =
+    let entry = Label.(Blk.label b = Func.entry env.fn) in
+    typeof_var env x >>= function
+    | #Type.named as t when not entry ->
+      let* k = type_cls env @@ Type.named_name t in
+      let+ y = new_slot env k.size k.align in
+      VT.set env.refs ~key:x ~data:y;
+      VT.set env.pslots ~key:x ~data:k.bytes
+    | #Type.named ->
+      (* The entry block has no predecessors to copy from. *)
+      !!(VT.set env.refs ~key:x ~data:x)
+    | _ -> !!()
+
   let lower env =
     let mrs = collect_mem_rets env in
     Func.blks env.fn |> Context.Seq.iter ~f:(fun b ->
-        let* () =
-          Blk.args b |> Context.Seq.iter ~f:(fun x ->
-              typeof_var env x >>| function
-              | #Type.named ->
-                VT.set env.refs ~key:x ~data:x
-              | _ -> ()) in
+        let* () = Blk.args b |> Context.Seq.iter ~f:(make_param env b) in
         Blk.insns b |> Context.Seq.iter ~f:(fun i ->
             match Insn.op i with
             | `load (x, `name s, a) ->

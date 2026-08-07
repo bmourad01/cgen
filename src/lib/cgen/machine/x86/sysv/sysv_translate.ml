@@ -7,6 +7,7 @@ module Bv = Cgen_utils.Bv
 
 module Make(Context : Context_intf.S_virtual) = struct
   open Context.Syntax
+  open Make0(Context)
   module Cv = Context.Virtual
 
   (* A block translation context. *)
@@ -34,17 +35,38 @@ module Make(Context : Context_intf.S_virtual) = struct
     | `var x -> `var (transl_var env x)
     | o -> o
 
-  let transl_local env : local -> local = function
-    | `label (l, args) ->
-      `label (l, List.map args ~f:(transl_operand env))
+  (* A block parameter demoted by `Sysv_refs` has a slot of its own, so
+     the argument is copied into it on the edge and then dropped. What is
+     left behind is a slot with a single, unambiguous address, instead of
+     a parameter that could hold the address of either predecessor's. *)
+  let transl_blkargs env (`label (l, args) : local) =
+    match Label.Tree.find env.blks l with
+    | None -> !!([], `label (l, List.map args ~f:(transl_operand env)))
+    | Some b ->
+      let params = Sequence.to_list @@ Blk.args b in
+      match List.zip args params with
+      | Unequal_lengths ->
+        Context.failf "unequal block arguments for %a in function $%s"
+          Label.pp l (Func.name env.fn) ()
+      | Ok ps ->
+        let+ is, args =
+          Context.List.fold ps ~init:([], []) ~f:(fun (is, args) (a, p) ->
+              match VT.find env.pslots p with
+              | None -> !!(is, transl_operand env a :: args)
+              | Some bytes ->
+                (* The argument to a compound-typed parameter always
+                   type-checked as a variable. *)
+                let src = match a with
+                  | `var x -> find_ref env x
+                  | _ -> assert false in
+                let+ blit =
+                  Cv.Abi.blit ~src ~dst:(find_ref env p) `i64 bytes in
+                is @ blit, args) in
+        is, `label (l, List.rev args)
 
   let transl_global env : global -> global = function
     | `var x -> `var (transl_var env x)
     | (`addr _ | `sym _) as g -> g
-
-  let transl_dst env : dst -> dst = function
-    | #local as l -> (transl_local env l :> dst)
-    | #global as g -> (transl_global env g :> dst)
 
   let transl_basic env (b : Insn.basic) : Abi.Insn.basic =
     let op = transl_operand env in
@@ -109,15 +131,6 @@ module Make(Context : Context_intf.S_virtual) = struct
     | `var x -> `var (transl_var env x)
     | `sym s -> `sym s
 
-  let transl_tbl env tbl t =
-    Ctrl.Table.enum tbl |>
-    Sequence.map ~f:(fun (v, l) -> v, transl_local env l) |>
-    Sequence.to_list |> fun tbl ->
-    Abi.Ctrl.Table.create_exn tbl t 
-
-  let transl_sw env t i d tbl =
-    `sw (t, transl_swindex env i, transl_local env d, transl_tbl env tbl t)
-
   let transl_ret env l =
     let r = LT.find_exn env.rets l in
     r.reti, `ret r.retr
@@ -132,43 +145,63 @@ module Make(Context : Context_intf.S_virtual) = struct
     Vec.push t.bvec @@ Abi.Blk.create ()
       ~label ~insns ~args:t.args ~ctrl:t.ctrl
 
-  let administrative_blk t l c =
+  let administrative_blk ?(insns = []) t l c =
     let t' = create_transl () in
     t'.bvec <- t.bvec;
     t'.ctrl <- c;
+    List.iter insns ~f:(Vec.push t'.ivec);
     commit_blk t' l
 
-  (* Insert administrative blocks for branch targets that are not labels. *)
+  (* Edge copies cannot go in a block that branches, so a target that
+     needs them gets an administrative block of its own. Targets that are
+     not plain labels need one regardless. *)
+  let split_dst env t (d : dst) = match d with
+    | #global as g ->
+      let+ l' = Context.Label.fresh in
+      administrative_blk t l' @@ `jmp (transl_global env g :> dst);
+      `label (l', [])
+    | #local as d ->
+      let* insns, d = transl_blkargs env d in
+      match insns with
+      | [] -> !!d
+      | _ ->
+        let+ l' = Context.Label.fresh in
+        administrative_blk t l' ~insns @@ `jmp (d :> dst);
+        `label (l', [])
+
   let transl_br env t c (y : dst) (n : dst) =
     let c = transl_var env c in
-    match y, n with
-    | #local, #local ->
-      !!(`br (c, transl_dst env y, transl_dst env n))
-    | #local, #global ->
-      let+ l' = Context.Label.fresh in
-      administrative_blk t l' @@ `jmp (transl_dst env n);
-      `br (c, transl_dst env y, `label (l', []))
-    | #global, #local ->
-      let+ l' = Context.Label.fresh in
-      administrative_blk t l' @@ `jmp (transl_dst env y);
-      `br (c, `label (l', []), transl_dst env n)
-    | #global, #global ->
-      let* ly = Context.Label.fresh in
-      let+ ln = Context.Label.fresh in
-      administrative_blk t ly @@ `jmp (transl_dst env y);
-      administrative_blk t ln @@ `jmp (transl_dst env n);
-      `br (c, `label (ly, []), `label (ln, []))
+    let* y = split_dst env t y in
+    let+ n = split_dst env t n in
+    `br (c, y, n)
+
+  let transl_tbl env t tbl ty =
+    let+ tbl =
+      Ctrl.Table.enum tbl |> Sequence.to_list |>
+      Context.List.map ~f:(fun (v, l) ->
+          let+ l = split_dst env t (l :> dst) in
+          v, l) in
+    Abi.Ctrl.Table.create_exn tbl ty
+
+  let transl_sw env t ty i d tbl =
+    let* d = split_dst env t (d :> dst) in
+    let+ tbl = transl_tbl env t tbl ty in
+    `sw (ty, transl_swindex env i, d, tbl)
 
   let transl_ctrl t env l (c : ctrl) =
-    let dst = transl_dst env in
     let+ is, c' = match c with
       | `hlt -> !!([], `hlt)
-      | `jmp d -> !!([], `jmp (dst d))
+      | `jmp (#global as g) -> !!([], `jmp (transl_global env g :> dst))
+      | `jmp (#local as d) ->
+        (* A single successor takes its edge copies inline. *)
+        let+ is, d = transl_blkargs env d in
+        is, `jmp d
       | `br (c, y, n) ->
         let+ c = transl_br env t c y n in
         [], c
-      | `sw (t, i, d, tbl) ->
-        !!([], transl_sw env t i d tbl)
+      | `sw (ty, i, d, tbl) ->
+        let+ c = transl_sw env t ty i d tbl in
+        [], c
       | `ret None -> !!([], `ret [])
       | `ret Some _ -> !!(transl_ret env l) in
     t.cins <- is;
@@ -286,7 +319,10 @@ module Make(Context : Context_intf.S_virtual) = struct
         if Label.(l = entry) then
           Vec.iter env.params ~f:(fun p ->
               List.iter p.pins ~f:(Vec.push t.ivec));
-        t.args <- Sequence.to_list @@ Blk.args b;
+        t.args <-
+          Blk.args b |>
+          Sequence.filter ~f:(Fn.non @@ VT.mem env.pslots) |>
+          Sequence.to_list;
         let* () = transl_ctrl t env l @@ Blk.ctrl b in
         let+ blks = transl_blk t env l @@ Blk.insns b in
         List.iter blks ~f:(Vec.push bvec)) in

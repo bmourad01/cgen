@@ -1,0 +1,22 @@
+module merged_ptr_slot
+
+export function w $merged(w %c) {
+  %a = slot 8, align 4
+  %o = slot 8, align 4
+  %b = slot 8, align 4
+@start:
+  st.w 3_w, %a
+  st.w 7_w, %o
+  %c0 = ne.w %c, 0_w
+  br %c0, @take, @skip
+@take:
+  jmp @join(%a)
+@skip:
+  jmp @join(%o)
+@join(%p):
+  st.w 0_w, %b
+  %v = ld.w %p
+  %w = ld.w %b
+  %r = add.w %v, %w
+  ret %r
+}

@@ -244,20 +244,25 @@ module Make(M : Scalars.L) = struct
       | Some r -> Some (Range.use r n)
       | None -> None)
 
+  let update_base (si : Slot_initialization.t) n l ldst acc base =
+    match ldst with
+    | Some Store -> mkdef acc base n
+    | Some Load when LS.mem si.bad l ->
+      (* Uninitialized load is UB: forbid this slot as
+         a candidate for coalescing. *)
+      Logs.debug (fun m ->
+          m "%s: uninitialized load at %a from %a: marking bad%!"
+            __FUNCTION__ Label.pp l Var.pp base);
+      Vtree.set acc ~key:base ~data:Range.bad
+    | Some Load | None -> mkuse acc base n
+
+  (* An access we cannot pin to a single slot still keeps every slot it
+     could refer to live. Dropping it would let those slots be coalesced
+     with something that is live across the access. *)
   let update (si : Slot_initialization.t) acc s x n l ldst =
-    match Vtree.find s x with
+    match Option.bind (Vtree.find s x) ~f:bases with
+    | Some bs -> Vset.fold bs ~init:acc ~f:(update_base si n l ldst)
     | None -> acc
-    | Some Top -> Vtree.set acc ~key:x ~data:Range.bad
-    | Some Offset (base, _) -> match ldst with
-      | Some Store -> mkdef acc base n
-      | Some Load when LS.mem si.bad l ->
-        (* Uninitialized load is UB: forbid this slot as
-           a candidate for coalescing. *)
-        Logs.debug (fun m ->
-            m "%s: uninitialized load at %a from %a: marking bad%!"
-              __FUNCTION__ Label.pp l Var.pp base);
-        Vtree.set acc ~key:base ~data:Range.bad
-      | Some Load | None -> mkuse acc base n
 
   let liveness_insn si acc s ip i =
     let l = Insn.label i and op = Insn.op i in
@@ -342,15 +347,20 @@ module Make(M : Scalars.L) = struct
             let acc = liveness_insn si acc !s !ip i in
             let () = match Insn.load_or_store_to op with
               | Some (ptr, ty, ldst) ->
+                let mark base a = VT.update access base ~f:(function
+                    | Some a' -> join_access a a'
+                    | None -> a) in
                 begin match Vtree.find !s ptr with
                   | Some Offset (base, off) ->
                     if is_store ldst then
                       LT.set store_base ~key:(Insn.label i) ~data:base;
-                    let a = if Int64.(off <> 0L) then Mixed else Uniform ty in
-                    VT.update access base ~f:(function
-                        | Some a' -> join_access a a'
-                        | None -> a)
-                  | _ -> ()
+                    mark base @@
+                    if Int64.(off <> 0L) then Mixed else Uniform ty
+                  | Some Many bs ->
+                    (* The offset is unknown, so no slot it could refer to
+                       has a uniform access pattern. *)
+                    Vset.iter bs ~f:(fun base -> mark base Mixed)
+                  | Some Top | None -> ()
                 end
               | None -> () in
             s := Sinit.S.transfer_op slots !s op;

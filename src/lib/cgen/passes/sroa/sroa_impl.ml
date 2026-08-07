@@ -13,6 +13,7 @@ open Scalars
 
 module Slot = Virtual.Slot
 module Vtree = Var.Tree
+module Vset = Var.Tree_set
 module LT = Label.Dense_table
 module Allen = Cgen_utils.Allen_interval_algebra
 
@@ -118,6 +119,9 @@ end = struct
   end
 
   let collect_accesses slots fn t : accesses =
+    (* Slots reached by an access whose offset we don't know. They cannot
+       be split, since there is no partition to rewrite the access to. *)
+    let blocked = ref Vset.empty in
     (* Group all memory accesses by their corresponding slot. *)
     let t =
       Func.blks fn |> Sequence.fold ~init:Vtree.empty ~f:(fun init b ->
@@ -136,12 +140,19 @@ end = struct
                     acc
                   | Some Offset (base, off) ->
                     Vtree.add_multi acc ~key:base ~data:{insn; off; ty; ldst}
-                  | _ -> acc in
+                  | Some Many bs ->
+                    Logs.debug (fun m ->
+                        m "%s: ignoring ambiguous pointer %a%!"
+                          __FUNCTION__ Var.pp ptr);
+                    blocked := Vset.union !blocked bs;
+                    acc
+                  | Some Top | None -> acc in
               s := Analysis.transfer_op slots !s op;
               acc)) in
     Vtree.fold t ~init:Vtree.empty ~f:(fun ~key ~data acc ->
-        let data = List.sort data ~compare:Access.cmp in
-        Vtree.set acc ~key ~data)
+        if Vset.mem !blocked key then acc else
+          let data = List.sort data ~compare:Access.cmp in
+          Vtree.set acc ~key ~data)
 
   (* Sort the memory accesses into self-contained, non-overlapping
      partitions, which are the fully-or-partially scalarized sub-objects

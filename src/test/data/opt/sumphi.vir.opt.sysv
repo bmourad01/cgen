@@ -4,21 +4,21 @@ function $sum(l %1/rdi) {
   %0 = slot 8, align 8
 @2:
   st.l %1, %0 ; @24
-  %39 = ld.w %0 ; @4
-  %40 = add.l %0, 0x4_l ; @19
-  %41 = ld.w %40 ; @6
-  %42 = add.w %39, %41 ; @20
-  ret rax/%42
+  %42 = ld.w %0 ; @4
+  %43 = add.l %0, 0x4_l ; @19
+  %44 = ld.w %43 ; @6
+  %45 = add.w %42, %44 ; @20
+  ret rax/%45
 }
 
 export function $sumphi(l %8/rdi, l %9/rsi, w %11/rdx) {
 @8:
-  %48 = slt.w %11, 0x0_w ; @21
-  br %48, @9, @10
+  %51 = slt.w %11, 0x0_w ; @21
+  br %51, @9, @10
 @9:
   jmp @14(%8)
 @10:
   jmp @14(%9)
-@14(%49):
-  tailcall $sum(%49/rdi)
+@14(%52):
+  tailcall $sum(%52/rdi)
 }

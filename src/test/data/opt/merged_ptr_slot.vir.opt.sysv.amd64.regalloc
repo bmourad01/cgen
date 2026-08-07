@@ -1,0 +1,15 @@
+module merged_ptr_slot
+
+export function $merged { ; returns: rax
+@2:
+  sub rsp, 0x18_l ; @23
+  mov dword ptr [rsp], 0x3_w ; @20
+  mov dword ptr [rsp + 0x8], 0x7_w ; @6
+  lea rax, qword ptr [rsp + 0x8] ; @15
+  test edi, edi ; @18
+  lea rcx, qword ptr [rsp] ; @19
+  cmovne rax, rcx ; @21
+  mov eax, dword ptr [rax] ; @10
+  add rsp, 0x18_l ; @24
+  ret ; @17
+}

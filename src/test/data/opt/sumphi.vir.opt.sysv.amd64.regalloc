@@ -2,22 +2,22 @@ module sumphi
 
 function $sum { ; returns: rax
 @2:
-  sub rsp, 0x8_l ; @53
-  mov qword ptr [rsp], rdi ; @38
+  sub rsp, 0x8_l ; @57
+  mov qword ptr [rsp], rdi ; @42
   mov eax, dword ptr [rsp + 0x4] ; @6
   add eax, dword ptr [rsp] ; @20
-  add rsp, 0x8_l ; @54
-  ret ; @37
+  add rsp, 0x8_l ; @58
+  ret ; @41
 }
 
 export function $sumphi {
 @8:
   mov rax, rdi ; @21
-  mov rdi, rsi ; @48
-  test edx, edx ; @45
-  jns @14 ; @46
+  mov rdi, rsi ; @52
+  test edx, edx ; @49
+  jns @14 ; @50
 @9:
-  mov rdi, rax ; @41
+  mov rdi, rax ; @45
 @14:
-  tailcall $sum ; rdi ; @40
+  tailcall $sum ; rdi ; @44
 }

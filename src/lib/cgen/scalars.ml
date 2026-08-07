@@ -26,15 +26,30 @@ type scalars = Slot.t Scalar.Map.t
 
    [Top]: the access is inconsistent or escapes
 
+   [Many s]: the access is to one of the slots in [s], at an offset
+   that is not known
+
    [Offset (s, o)]: access to slot [s] at offset [o]
+
+   [Many] is what control flow joins collapse to. Keeping the candidate
+   slots (rather than going straight to [Top]) matters: every consumer
+   keys off the base slot, so a [Top] pointer is one they cannot attribute
+   to anything, and silently ignoring such an access is unsound.
 *)
 type value =
   | Top
+  | Many of Vset.t
   | Offset of scalar
-[@@deriving equal, sexp]
+[@@deriving equal]
 
 let pp_value ppf = function
   | Top -> Format.fprintf ppf "\u{22a4}"
+  | Many s ->
+    Format.fprintf ppf "{@[<hov 0>%a@]}"
+      (Format.pp_print_list
+         ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ")
+         Var.pp)
+      (Vset.to_list s)
   | Offset (slot, offset) ->
     let neg = Int64.is_negative offset in
     let pre, off = if neg then '-', Int64.neg offset else '+', offset in
@@ -42,11 +57,22 @@ let pp_value ppf = function
 
 let pp_bot ppf () = Format.fprintf ppf "\u{22a5}" [@@ocaml.warning "-32"]
 
+(* The slots an access may refer to, if that is known at all. *)
+let bases = function
+  | Top -> None
+  | Many s -> Some s
+  | Offset (base, _) -> Some (Vset.singleton base)
+
 module Value = struct
-  type t = value [@@deriving equal, sexp]
+  type t = value [@@deriving equal]
+
   let merge a b = match a, b with
+    | Top, _ | _, Top -> Top
     | Offset s1, Offset s2 when equal_scalar s1 s2 -> a
-    | _ -> Top
+    | Offset (b1, _), Offset (b2, _) -> Many (Vset.of_list [b1; b2])
+    | Many s, Offset (base, _) | Offset (base, _), Many s ->
+      Many (Vset.add s base)
+    | Many s1, Many s2 -> Many (Vset.union s1 s2)
 end
 
 type slots = Slot.t Vtree.t
@@ -69,14 +95,22 @@ end = struct
     | Some s -> Int64.(offset >= of_int (Slot.size s))
     | None -> false
 
-  (* Normalize the scalar referred to by `ptr` and `offset`. *)
+  (* Normalize the scalar referred to by `ptr` and `offset`.
+
+     Displacing a `Many` leaves the candidate slots alone: the offset was
+     already unknown, and stepping within a slot cannot change which slot
+     it is.
+  *)
   let derive slots s ptr offset = match Vtree.find s ptr with
-    | (Some Top | None) as v -> v
+    | (Some Top | Some Many _ | None) as v -> v
     | Some Offset (ptr', offset') ->
       let offset'' = Int64.(offset + offset') in
-      (* Out of bounds offset to a slot should be undefined. *)
+      (* An out of bounds offset is not a scalar of the slot, but it is
+         still derived from it, since one-past-the-end is legal and may
+         be walked back into range. Keep the base, drop the offset. *)
       let value =
-        if is_bad slots ptr' offset'' then Top
+        if is_bad slots ptr' offset''
+        then Many (Vset.singleton ptr')
         else Offset (ptr', offset'') in
       Some value
 end
@@ -180,15 +214,16 @@ module Make(M : L) = struct
      set of variables that escape. *)
   let escaping ?esc f x s =
     Vset.fold (f x) ~init:s ~f:(fun s v ->
-        match Vtree.find s v with
-        | Some Offset (ptr, _) ->
-          Option.iter esc ~f:(fun t ->
-              if not @@ VS.strict_add t ptr then
-                Logs.debug (fun m ->
-                    m "%s: %a escapes via %a%!"
-                      __FUNCTION__ Var.pp ptr Var.pp v));
-          Vtree.set s ~key:ptr ~data:Top
-        | Some _ | None -> s)
+        match Option.bind (Vtree.find s v) ~f:bases with
+        | None -> s
+        | Some ptrs ->
+          Vset.fold ptrs ~init:s ~f:(fun s ptr ->
+              Option.iter esc ~f:(fun t ->
+                  if VS.strict_add t ptr then
+                    Logs.debug (fun m ->
+                        m "%s: %a escapes via %a%!"
+                          __FUNCTION__ Var.pp ptr Var.pp v));
+              Vtree.set s ~key:ptr ~data:Top))
 
   (* Transfer function for a single instruction. *)
   let transfer_op ?esc slots s op =

@@ -212,6 +212,7 @@ type env = {
   calls         : call LT.t;           (* Lowered `call` instructions. *)
   tailcalls     : LS.t;                (* Labels of tail-call-eligible calls. *)
   refs          : Var.t VT.t;          (* Struct var to its slot. *)
+  pslots        : int VT.t;            (* Demoted block param to its size. *)
   unrefs        : Abi.insn list VT.t;  (* `unref` to blit. *)
   blits         : Abi.insn list LT.t;  (* Stores of structs. *)
   slots         : slot Vec.t;          (* New stack slots. *)
@@ -247,6 +248,7 @@ let init_env tenv fn =
     calls = LT.create ();
     tailcalls = LS.create ();
     refs = VT.create ();
+    pslots = VT.create ();
     unrefs = VT.create ();
     blits = LT.create ();
     slots = Vec.create ();
